@@ -1,0 +1,14 @@
+<?xml version="1.0" encoding="utf-8" ?>
+<!-- This dictionary extends the CodeAnalysisDictionary.xml from the root of the Skyline repo. -->
+<Dictionary>
+  <Words>
+    <Recognized>
+      <Word>Unschedule</Word>
+      <Word>Schedulable</Word>
+    </Recognized>
+  </Words>
+  <Acronyms>
+    <CasingExceptions>
+    </CasingExceptions>
+  </Acronyms>
+</Dictionary>
