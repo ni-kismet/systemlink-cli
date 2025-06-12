@@ -1,0 +1,28 @@
+<?xml version="1.0" encoding="utf-8"?>
+<Project xmlns="http://schemas.microsoft.com/developer/msbuild/2003" ToolsVersion="4.0">
+  <!-- This file is automatically imported by all projects under this directory. -->
+
+  <ItemGroup>
+    <AdditionalFiles Include="$(MSBuildThisFileDirectory)\CommandLineCodeAnalysisDictionary.xml"/>
+  </ItemGroup>
+
+  <PropertyGroup>
+    <AssemblyOriginatorKeyFile Condition="'$(NISignAssembly)' == 'True'">$(BuildToolsDirectory)\StrongNameKey\ni.pub.snk</AssemblyOriginatorKeyFile>
+    <SignAssembly Condition="'$(NISignAssembly)' == 'True'">True</SignAssembly>
+    <DelaySign Condition="'$(NISignAssembly)' == 'True'">True</DelaySign>
+  </PropertyGroup>
+
+  <Target Name="NISignAssembly" AfterTargets="AfterCompile" Condition="'$(NISignAssembly)' == 'True'">
+    <Message Importance="high" Text="Re-signing -&gt; %(IntermediateAssembly.FullPath)"/>
+    <Exec Command='&quot;$(BuildToolsDirectory)\NiSignTool\nisigntool.exe&quot; --certificate SNK &quot;%(IntermediateAssembly.FullPath)&quot; --ftp-timeout=180 --ftp-retries=3 --http-retries=3 --http-timeout=180' />
+    <Message Importance="high" Text="Digitally signing -&gt; %(IntermediateAssembly.FullPath)"/>
+    <Exec Command='&quot;$(BuildToolsDirectory)\NiSignTool\nisigntool.exe&quot; &quot;%(IntermediateAssembly.FullPath)&quot; --ftp-timeout=180 --ftp-retries=3 --http-retries=3 --http-timeout=180' />
+  </Target>
+
+  <Target Name="NISignAppHost" AfterTargets="_CreateAppHost" Condition="'$(NISignAssembly)' == 'True' AND '$(AppHostIntermediatePath)' != ''">
+    <Message Importance="high" Text="Digitally signing -&gt; $(AppHostIntermediatePath)"/>
+    <Exec Command='&quot;$(BuildToolsDirectory)\NiSignTool\nisigntool.exe&quot; &quot;$(AppHostIntermediatePath)&quot; --ftp-timeout=180 --ftp-retries=3 --http-retries=3 --http-timeout=180' />
+  </Target>
+
+  <Import Project="$(RootWorkspaceDirectory)\Directory.Build.targets" />
+</Project>
