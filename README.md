@@ -1,11 +1,12 @@
-# slcli
+# SystemLink CLI
 
-SystemLink Integrator CLI (slcli) is a robust, cross-platform Python CLI for SystemLink integrators, supporting test plan templates and workflow management via SystemLink REST APIs.
+SystemLink CLI (`slcli`) is a cross-platform Python CLI for SystemLink integrators, supporting test plan templates and workflow management via SystemLink REST APIs.
 
 ## Features
 
-- Secure credential storage using keyring
+- Secure credential storage using [keyring](https://github.com/jaraco/keyring)
 - Manage SystemLink test plan templates (list, export, import, delete)
+- Extensible for additional SystemLink resource types
 - User-friendly CLI with help and validation
 - Easily packaged as a single binary with PyInstaller
 - Full test suite with CI/CD
