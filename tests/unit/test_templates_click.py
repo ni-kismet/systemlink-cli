@@ -7,6 +7,14 @@ from click.testing import CliRunner
 from slcli.templates_click import register_templates_commands
 
 
+def patch_keyring(monkeypatch):
+    import keyring
+
+    monkeypatch.setattr(keyring, "get_password", lambda *a, **kw: "mocked-api-key")
+    monkeypatch.setattr(keyring, "set_password", lambda *a, **kw: None)
+    monkeypatch.setattr(keyring, "delete_password", lambda *a, **kw: None)
+
+
 def make_cli():
     """Create a dummy CLI for testing."""
 
@@ -40,6 +48,7 @@ def mock_requests(monkeypatch, method, response_json, status_code=200):
 
 def test_list_templates_success(monkeypatch, runner):
     """Test listing templates with a successful response."""
+    patch_keyring(monkeypatch)
 
     def mock_get(*a, **kw):
         class R:
@@ -73,6 +82,7 @@ def test_list_templates_success(monkeypatch, runner):
 
 def test_list_templates_empty(monkeypatch, runner):
     """Test listing templates when none exist."""
+    patch_keyring(monkeypatch)
 
     def mock_get(*a, **kw):
         class R:
@@ -104,6 +114,7 @@ def test_list_templates_empty(monkeypatch, runner):
 
 def test_export_template_success(monkeypatch, runner, tmp_path):
     """Test exporting a template successfully."""
+    patch_keyring(monkeypatch)
 
     def mock_post(*a, **kw):
         class R:
@@ -126,6 +137,7 @@ def test_export_template_success(monkeypatch, runner, tmp_path):
 
 def test_export_template_not_found(monkeypatch, runner):
     """Test exporting a template that does not exist."""
+    patch_keyring(monkeypatch)
 
     def mock_post(*a, **kw):
         class R:
@@ -146,6 +158,7 @@ def test_export_template_not_found(monkeypatch, runner):
 
 def test_import_template_success(monkeypatch, runner, tmp_path):
     """Test importing a template successfully."""
+    patch_keyring(monkeypatch)
 
     def mock_post(*a, **kw):
         class R:
@@ -168,6 +181,7 @@ def test_import_template_success(monkeypatch, runner, tmp_path):
 
 def test_delete_template_success(monkeypatch, runner):
     """Test deleting a template successfully."""
+    patch_keyring(monkeypatch)
 
     def mock_post(*a, **kw):
         class R:
@@ -190,6 +204,7 @@ def test_delete_template_success(monkeypatch, runner):
 
 def test_delete_template_failure(monkeypatch, runner):
     """Test deleting a template with a failure response."""
+    patch_keyring(monkeypatch)
 
     def mock_post(*a, **kw):
         class R:
