@@ -1,0 +1,17 @@
+class HomebrewSlcli < Formula
+  desc "SystemLink Integrator CLI: Manage SystemLink test plan templates and workflows"
+  homepage "https://github.com/ni/systemlink-cli"
+  url "file://#{Dir.pwd}/dist/slcli.tar.gz"
+  version "1.0.0"
+  sha256 "{{ sha256 }}"
+  license "MIT"
+
+  def install
+    libexec.install Dir["*"]
+    bin.install_symlink libexec/"slcli"
+  end
+
+  test do
+    system "#{bin}/slcli", "--help"
+  end
+end

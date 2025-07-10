@@ -1,0 +1,81 @@
+{
+  "id": "210021",
+  "productFamilies": [
+    "cRIO",
+    "BTS"
+  ],
+  "partNumbers": [
+    "156502A-11L",
+    "ADC-1688"
+  ],
+  "name": "Fred updated test 2",
+  "summary": "This template is utilized for the creation of test plans for battery cycle tests.",
+  "description": "Battery cycle test at various temperature.",
+  "templateGroup": "Functional",
+  "testProgram": "Battery cycle test",
+  "estimatedDurationInSeconds": 172800,
+  "systemFilter": "properties.data[\"Lab\"] = \"Battery Pack Lab\"",
+  "workspace": "2300760d-38c4-48a1-9acb-800260812337",
+  "createdBy": "6d135c78-dfde-4556-bec6-f03edb7a28bd",
+  "updatedBy": "6d135c78-dfde-4556-bec6-f03edb7a28bd",
+  "executionActions": [
+    {
+      "action": "START",
+      "type": "MANUAL"
+    },
+    {
+      "action": "PAUSE",
+      "type": "NONE"
+    },
+    {
+      "jobs": [
+        {
+          "functions": [
+            "system.set_computer_desc"
+          ],
+          "arguments": [
+            [
+              "A description"
+            ]
+          ],
+          "metadata": {
+            "refresh_minion_cache": {
+              "grains": true
+            }
+          }
+        }
+      ],
+      "systemId": "HVM_domU--SN-ec200972-eeca-062e-5bf5-017a25451b39--MAC-0A-E1-20-D6-96-2B",
+      "action": "ABORT",
+      "type": "JOB"
+    },
+    {
+      "action": "END",
+      "type": "NOTEBOOK",
+      "notebookId": "1e9cd47e-23fc-4d71-b47e-e38b7a930e42",
+      "parameters": {
+        "parameter1": "value1",
+        "parameter2": "value2"
+      }
+    }
+  ],
+  "fileIds": [
+    "19e943bd-a94d-4361-af64-0d1d2664a85b",
+    "3509e5f2-6822-4544-95dd-b5efd51883ac"
+  ],
+  "createdAt": "2025-07-08T21:32:41.867Z",
+  "updatedAt": "2025-07-08T21:32:41.867Z",
+  "properties": {
+    "Location": "Austin",
+    "Cost Center": "12345"
+  },
+  "dashboard": {
+    "id": "cacfeca1-90a9-4603-a939-83332b33e3c5",
+    "variables": {
+      "part-number": "<partNumber>",
+      "location": "<properties.Location>",
+      "version": "1.0"
+    }
+  },
+  "workflowId": null
+}
