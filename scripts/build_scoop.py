@@ -3,12 +3,13 @@
 import subprocess
 import sys
 from pathlib import Path
-
+import shutil
 import toml
 
 ROOT = Path(__file__).parent.parent.resolve()
 DIST = ROOT / "dist"
-SLCLI_EXE = DIST / "slcli.exe"
+SLCLI_DIR = DIST / "slcli"
+SLCLI_ZIP = DIST / "slcli.zip"
 MANIFEST_TEMPLATE = ROOT / "scripts" / "scoop-slcli.json.j2"
 DIST_MANIFEST = DIST / "scoop-slcli.json"
 PYPROJECT = ROOT / "pyproject.toml"
@@ -20,13 +21,24 @@ def run(cmd, **kwargs):
     subprocess.run(cmd, check=True, **kwargs)
 
 
+def zip_slcli():
+    """Zip the slcli folder for Scoop distribution."""
+    if not SLCLI_DIR.is_dir():
+        print(f"Error: {SLCLI_DIR} not found. Run the PyInstaller build first.")
+        sys.exit(1)
+    if SLCLI_ZIP.exists():
+        SLCLI_ZIP.unlink()
+    shutil.make_archive(str(SLCLI_ZIP.with_suffix("")), "zip", root_dir=SLCLI_DIR)
+    print(f"Created {SLCLI_ZIP}")
+
+
 def compute_sha256():
-    """Compute the SHA256 checksum of the slcli.exe binary."""
+    """Compute the SHA256 checksum of the slcli.zip archive."""
     result = subprocess.run(
         [
             "powershell",
             "-Command",
-            f"Get-FileHash -Algorithm SHA256 '{SLCLI_EXE}' | Select-Object -ExpandProperty Hash",
+            f"Get-FileHash -Algorithm SHA256 '{SLCLI_ZIP}' | Select-Object -ExpandProperty Hash",
         ],
         capture_output=True,
         text=True,
@@ -60,7 +72,8 @@ def render_manifest(version, url, sha256):
 def main():
     """Build and render the Scoop manifest for slcli."""
     version = get_version()
-    url = f"https://github.com/ni/systemlink-cli/releases/download/v{version}/slcli.exe"
+    zip_slcli()
+    url = f"https://github.com/ni/systemlink-cli/releases/download/v{version}/slcli.zip"
     sha256 = compute_sha256()
     render_manifest(version, url, sha256)
     print("Scoop manifest build complete.")

@@ -9,14 +9,15 @@
             "hash": "{{ sha256 }}"
         }
     },
-    "bin": "slcli.exe",
+    "extract_dir": "slcli",
+    "bin": "slcli/slcli.exe",
     "checkver": {
         "github": "https://github.com/ni/systemlink-cli"
     },
     "autoupdate": {
         "architecture": {
             "64bit": {
-                "url": "https://github.com/ni/systemlink-cli/releases/download/v$version/slcli.exe"
+                "url": "https://github.com/ni/systemlink-cli/releases/download/v$version/slcli.zip"
             }
         }
     }

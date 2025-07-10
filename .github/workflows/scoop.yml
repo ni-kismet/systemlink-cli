@@ -37,8 +37,8 @@ jobs:
           name: scoop-slcli-manifest
           path: dist/scoop-slcli.json
 
-      - name: Upload slcli.exe artifact
+      - name: Upload slcli.zip artifact
         uses: actions/upload-artifact@v4
         with:
-          name: slcli-exe
-          path: dist/slcli.exe
+          name: slcli-zip
+          path: dist/slcli.zip
