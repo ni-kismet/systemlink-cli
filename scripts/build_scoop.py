@@ -1,9 +1,10 @@
 """Builds a Scoop manifest for the slcli Windows binary and writes it to dist/scoop-slcli.json."""
 
+import shutil
 import subprocess
 import sys
 from pathlib import Path
-import shutil
+
 import toml
 
 ROOT = Path(__file__).parent.parent.resolve()
