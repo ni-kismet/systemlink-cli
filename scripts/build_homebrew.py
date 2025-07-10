@@ -4,6 +4,8 @@ import subprocess
 import sys
 from pathlib import Path
 
+import toml
+
 ROOT = Path(__file__).parent.parent.resolve()
 DIST = ROOT / "dist"
 SLCLI_DIR = DIST / "slcli"
@@ -11,12 +13,19 @@ TARBALL = DIST / "slcli.tar.gz"
 FORMULA = ROOT / "homebrew-slcli.rb"
 FORMULA_TEMPLATE = ROOT / "scripts" / "homebrew-slcli.rb.j2"
 DIST_FORMULA = DIST / "homebrew-slcli.rb"
+PYPROJECT = ROOT / "pyproject.toml"
 
 
 def run(cmd, **kwargs):
     """Run a shell command and print it."""
     print(f"$ {' '.join(cmd) if isinstance(cmd, list) else cmd}")
     subprocess.run(cmd, check=True, **kwargs)
+
+
+def get_version():
+    """Extract the version from pyproject.toml."""
+    data = toml.load(PYPROJECT)
+    return data["tool"]["poetry"]["version"]
 
 
 def build_pyinstaller():
@@ -43,13 +52,13 @@ def compute_sha256():
     return sha256
 
 
-def render_formula(sha256):
+def render_formula(sha256, version):
     """Render the Homebrew formula from the template and write to dist/homebrew-slcli.rb."""
     if not FORMULA_TEMPLATE.exists():
         print(f"Error: {FORMULA_TEMPLATE} not found.")
         sys.exit(1)
     template = FORMULA_TEMPLATE.read_text()
-    rendered = template.replace("{{ sha256 }}", sha256)
+    rendered = template.replace("{{ sha256 }}", sha256).replace("{{ version }}", version)
     DIST_FORMULA.write_text(rendered)
     print(f"Wrote Homebrew formula to {DIST_FORMULA}")
 
@@ -72,10 +81,11 @@ def update_formula(sha256):
 
 def main():
     """Build, package, and update the Homebrew formula for slcli."""
+    version = get_version()
     build_pyinstaller()
     create_tarball()
     sha256 = compute_sha256()
-    render_formula(sha256)
+    render_formula(sha256, version)
     update_formula(sha256)
     print("Homebrew tarball build complete.")
 

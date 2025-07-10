@@ -39,15 +39,46 @@ SystemLink Integrator CLI (slcli) is a robust, cross-platform Python CLI for Sys
   poetry run python -m slcli
   ```
 
-## Build a Standalone Binary
+## Build a Standalone Binary (Cross-Platform)
 
-To build a single-file executable using PyInstaller:
+### macOS/Linux (Homebrew/PyInstaller)
+
+To build a single-file executable and Homebrew formula:
 
 ```bash
-poetry run build-pyinstaller
+poetry run python scripts/build_homebrew.py
 ```
 
-The binary will be in the `dist/` directory.
+- This will:
+  - Build the PyInstaller binary in `dist/slcli/`
+  - Create a tarball `dist/slcli.tar.gz`
+  - Generate a Homebrew formula `dist/homebrew-slcli.rb` with the correct SHA256
+
+You can then install locally with:
+
+```bash
+brew install ./dist/homebrew-slcli.rb
+```
+
+### Windows (Scoop/PyInstaller)
+
+To build a Windows executable and Scoop manifest:
+
+```powershell
+poetry run python scripts/build_pyinstaller.py
+poetry run python scripts/build_scoop.py
+```
+
+- This will:
+  - Build `dist/slcli.exe`
+  - Generate a Scoop manifest `dist/scoop-slcli.json` with the correct SHA256
+
+You can use the manifest in your own Scoop bucket for easy installation.
+
+### CI/CD Automation
+
+- All builds, tests, and packaging are automated via GitHub Actions for both Homebrew and Scoop.
+- Artifacts (`slcli.tar.gz`, `homebrew-slcli.rb`, `slcli.exe`, `scoop-slcli.json`) are uploaded for each build.
 
 ## Testing & Linting
 
