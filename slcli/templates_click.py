@@ -5,57 +5,7 @@ import json
 import click
 import requests
 
-
-def get_base_url():
-    """Retrieve the SystemLink API base URL from environment or keyring."""
-    import os
-
-    import keyring
-
-    url = os.environ.get("SYSTEMLINK_API_URL")
-    if not url:
-        url = keyring.get_password("systemlink-cli", "SYSTEMLINK_API_URL")
-    return url or "http://localhost:8000"
-
-
-def get_api_key():
-    """Retrieve the SystemLink API key from environment or keyring."""
-    import os
-
-    import click
-    import keyring
-
-    api_key = os.environ.get("SYSTEMLINK_API_KEY")
-    if not api_key:
-        api_key = keyring.get_password("systemlink-cli", "SYSTEMLINK_API_KEY")
-    if not api_key:
-        click.echo(
-            "Error: API key not found. Please set the SYSTEMLINK_API_KEY "
-            "environment variable or run 'slcli login'."
-        )
-        raise click.ClickException("API key not found.")
-    return api_key
-
-
-def get_headers():
-    """Return headers for SystemLink API requests."""
-    return {
-        "x-ni-api-key": get_api_key(),
-        "Content-Type": "application/json",
-    }
-
-
-def get_ssl_verify():
-    """Return SSL verification setting from environment variable.
-
-    Defaults to True.
-    """
-    import os
-
-    env = os.environ.get("SLCLI_SSL_VERIFY")
-    if env is not None:
-        return env.lower() not in ("0", "false", "no")
-    return True
+from .utils import get_base_url, get_headers, get_ssl_verify
 
 
 def register_templates_commands(cli):
@@ -102,7 +52,7 @@ def register_templates_commands(cli):
                 ws_guid = item.get("workspace", "")
                 ws_name = workspace_map.get(ws_guid, ws_guid)
                 click.echo(f"{item.get('id', ''):<12} {ws_name:<20} " f"{item.get('name', ''):<30}")
-        except Exception as exc:
+        except requests.RequestException as exc:
             click.echo(f"Error: {exc}")
             raise click.ClickException(str(exc))
 

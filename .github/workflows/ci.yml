@@ -36,6 +36,12 @@ jobs:
       - name: Build Homebrew tarball and update formula
         run: poetry run python scripts/build_homebrew.py
 
+      - name: Upload Homebrew formula artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: homebrew-slcli-formula
+          path: dist/homebrew-slcli.rb
+
       - name: Upload Homebrew tarball artifact
         uses: actions/upload-artifact@v4
         with:

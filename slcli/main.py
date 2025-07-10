@@ -1,52 +1,14 @@
 """slcli entry points."""
 
 import getpass
-import os
 
 import click
 import keyring
 
 from .templates_click import register_templates_commands
 
+
 CONTEXT_SETTINGS = dict(help_option_names=["-h", "--help"])
-
-
-def get_ssl_verify():
-    """Return SSL verification setting from environment variable, default True."""
-    env = os.environ.get("SLCLI_SSL_VERIFY")
-    if env is not None:
-        return env.lower() not in ("0", "false", "no")
-    return True
-
-
-def get_base_url():
-    """Retrieve the SystemLink API base URL from environment or keyring."""
-    url = os.environ.get("SYSTEMLINK_API_URL")
-    if not url:
-        url = keyring.get_password("systemlink-cli", "SYSTEMLINK_API_URL")
-    return url or "http://localhost:8000"
-
-
-def get_api_key():
-    """Retrieve the SystemLink API key from environment or keyring."""
-    api_key = os.environ.get("SYSTEMLINK_API_KEY")
-    if not api_key:
-        api_key = keyring.get_password("systemlink-cli", "SYSTEMLINK_API_KEY")
-    if not api_key:
-        click.echo(
-            "Error: API key not found. Please set the SYSTEMLINK_API_KEY "
-            "environment variable or run 'slcli login'."
-        )
-        raise click.ClickException("API key not found.")
-    return api_key
-
-
-def get_headers():
-    """Return headers for SystemLink API requests."""
-    return {
-        "x-ni-api-key": get_api_key(),
-        "Content-Type": "application/json",
-    }
 
 
 @click.group(context_settings=CONTEXT_SETTINGS, invoke_without_command=True)

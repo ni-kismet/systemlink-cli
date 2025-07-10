@@ -63,22 +63,6 @@ def render_formula(sha256, version):
     print(f"Wrote Homebrew formula to {DIST_FORMULA}")
 
 
-def update_formula(sha256):
-    """Update the Homebrew formula file with the new SHA256 checksum (legacy, root)."""
-    if not FORMULA.exists():
-        print(f"Warning: {FORMULA} not found, skipping update.")
-        return
-    lines = FORMULA.read_text().splitlines()
-    new_lines = []
-    for line in lines:
-        if line.strip().startswith("sha256 "):
-            new_lines.append(f'  sha256 "{sha256}"')
-        else:
-            new_lines.append(line)
-    FORMULA.write_text("\n".join(new_lines) + "\n")
-    print(f"Updated {FORMULA} with new sha256.")
-
-
 def main():
     """Build, package, and update the Homebrew formula for slcli."""
     version = get_version()
@@ -86,7 +70,6 @@ def main():
     create_tarball()
     sha256 = compute_sha256()
     render_formula(sha256, version)
-    update_formula(sha256)
     print("Homebrew tarball build complete.")
 
 
