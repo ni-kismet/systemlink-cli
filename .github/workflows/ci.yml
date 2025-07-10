@@ -21,13 +21,6 @@ jobs:
       - name: Install Poetry
         run: pip install poetry
 
-      # Configure Poetry to use NI Artifacts credentials for the private repository
-      # These secrets must be set in the GitHub repository settings
-      - name: Configure Poetry for NI Artifacts
-        run: |
-          # Poetry will use these credentials for the 'rnd-pypi-ci' source defined in pyproject.toml
-          poetry config http-basic.rnd-pypi-ci ${{ secrets.NIARTIFACTS_USER }} ${{ secrets.NIARTIFACTS_TOKEN }}
-
       - name: Install dependencies
         run: poetry install
 
