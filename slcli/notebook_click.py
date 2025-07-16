@@ -29,7 +29,7 @@ def register_notebook_commands(cli):
         help="Path to .ipynb file containing notebook content",
     )
     def update_notebook(notebook_id, metadata, content):
-        """Update notebook metadata and/or content using PUT /ninotebook/v1/notebook/{id}."""
+        """Update notebook metadata and/or content."""
         import json
 
         if not metadata and not content:
@@ -80,19 +80,28 @@ def register_notebook_commands(cli):
         pass
 
     @notebook.command(name="list")
-    @click.option("--workspace", default="Default", help="Workspace name (default: Default)")
+    @click.option("--workspace", required=False, help="Workspace name to filter by (optional)")
     @click.option(
         "--take", default=25, show_default=True, help="Number of notebooks to show per page"
     )
     def list_notebooks(workspace, take):
-        """List all notebook artifacts in the workspace."""
-        try:
-            ws_id = get_workspace_id_by_name(workspace)
-        except Exception:
-            ws_id = workspace  # fallback to input if not found
+        """List all notebook artifacts. Optionally filter by workspace."""
+        payload = {"take": 1000, "filter": None}
+        if workspace:
+            try:
+                ws_id = get_workspace_id_by_name(workspace)
+                if not isinstance(ws_id, str):
+                    raise ValueError("Workspace ID must be a string.")
+            except Exception:
+                raise click.ClickException(
+                    f"Workspace '{workspace}' not found or invalid. Please provide a valid workspace name."
+                )
+            payload["filter"] = f'workspace = "{ws_id}"'
         url = f"{get_base_url()}/ninotebook/v1/notebook/query"
-        payload = {"take": 1000, "workspace": ws_id}
         try:
+            from .utils import get_workspace_map
+
+            workspace_map = get_workspace_map()
             resp = requests.post(
                 url, headers=get_headers("application/json"), json=payload, verify=get_ssl_verify()
             )
@@ -102,17 +111,47 @@ def register_notebook_commands(cli):
             if not items:
                 click.echo("No notebooks found.")
                 return
-            click.echo(f"{'ID':<36} {'Name':<30}")
-            shown = 0
+            # Format as ASCII table
+            from tabulate import tabulate
+            from click import style as cstyle
+
+            def color_row(row):
+                # Truncate workspace name to max 15 characters
+                ws = str(row[0])
+                ws_short = ws[:15] + ("…" if len(ws) > 15 else "")
+                # Color workspace blue, name green, id blue
+                return [
+                    cstyle(ws_short, fg="blue"),
+                    cstyle(str(row[1]), fg="green"),
+                    cstyle(str(row[2]), fg="blue"),
+                ]
+
+            table = []
             for nb in items[:take]:
-                click.echo(f"{nb.get('id', ''):<36} {nb.get('name', ''):<30}")
-                shown += 1
+                ws_name = workspace_map.get(nb.get("workspace", ""), nb.get("workspace", ""))
+                name = nb.get("name", "")
+                # Truncate name to max 40 characters
+                short_name = name[:40] + ("…" if len(name) > 40 else "")
+                table.append(color_row([ws_name, short_name, nb.get("id", "")]))
+            headers = [
+                cstyle("Workspace", fg="blue", bold=True),
+                cstyle("Name", fg="green", bold=True),
+                cstyle("Notebook ID", fg="blue", bold=True),
+            ]
+            click.echo(tabulate(table, headers=headers, tablefmt="github"))
             if len(items) > take:
                 if click.confirm(
                     f"Show the remaining {len(items) - take} notebooks?", default=False
                 ):
+                    table = []
                     for nb in items[take:]:
-                        click.echo(f"{nb.get('id', ''):<36} {nb.get('name', ''):<30}")
+                        ws_name = workspace_map.get(
+                            nb.get("workspace", ""), nb.get("workspace", "")
+                        )
+                        name = nb.get("name", "")
+                        short_name = name[:40] + ("…" if len(name) > 40 else "")
+                        table.append(color_row([ws_name, short_name, nb.get("id", "")]))
+                    click.echo(tabulate(table, headers=headers, tablefmt="github"))
         except Exception as exc:
             click.echo(f"Error: {exc}")
             raise click.ClickException(str(exc))
@@ -124,12 +163,13 @@ def register_notebook_commands(cli):
     @click.option("--output", required=False, help="Output file path (defaults to notebook name)")
     @click.option(
         "--type",
+        "download_type",
         type=click.Choice(["content", "metadata", "both"], case_sensitive=False),
         default="content",
         show_default=True,
         help="What to download: notebook content, metadata, or both",
     )
-    def download_notebook(notebook_id, notebook_name, workspace, output, what):
+    def download_notebook(notebook_id, notebook_name, workspace, output, download_type):
         """Download a notebook's content, metadata, or both by ID or name."""
         import json
 
@@ -173,7 +213,7 @@ def register_notebook_commands(cli):
                 nb_name = items[0].get("name", notebook_id) if items else notebook_id
 
         # Download notebook content and/or metadata
-        if what in ("content", "both"):
+        if download_type in ("content", "both"):
             url = f"{get_base_url()}/niapp/v1/webapps/{notebook_id}/content"
             resp = requests.get(
                 url, headers=get_headers("application/json"), verify=get_ssl_verify()
@@ -188,7 +228,7 @@ def register_notebook_commands(cli):
             with open(output_path, "wb") as f:
                 f.write(resp.content)
             click.echo(f"Notebook content downloaded to {output_path}")
-        if what in ("metadata", "both"):
+        if download_type in ("metadata", "both"):
             url = f"{get_base_url()}/ninotebook/v1/notebook/{notebook_id}"
             resp = requests.get(
                 url, headers=get_headers("application/json"), verify=get_ssl_verify()
@@ -197,7 +237,7 @@ def register_notebook_commands(cli):
             meta = resp.json()
             meta_path = (
                 (output or f"{nb_name}") + ".json"
-                if what == "both"
+                if download_type == "both"
                 else (output or f"{nb_name}.json")
             )
             with open(meta_path, "w", encoding="utf-8") as f:

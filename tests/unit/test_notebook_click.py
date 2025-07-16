@@ -52,7 +52,8 @@ def test_notebook_download_by_id(monkeypatch):
     with tempfile.NamedTemporaryFile(delete=False) as tmp:
         tmp.close()
         result = runner.invoke(
-            cli, ["notebook", "download", "--id", "abc123", "--output", tmp.name]
+            cli,
+            ["notebook", "download", "--id", "abc123", "--output", tmp.name, "--type", "content"],
         )
         assert result.exit_code == 0
         with open(tmp.name, "rb") as f:
@@ -77,7 +78,9 @@ def test_notebook_upload(monkeypatch):
     with tempfile.NamedTemporaryFile(delete=False) as tmp:
         tmp.write(b"test-nb")
         tmp.close()
-        result = runner.invoke(cli, ["notebook", "create", "--file", tmp.name])
+        result = runner.invoke(
+            cli, ["notebook", "create", "--file", tmp.name, "--name", "TestNotebook"]
+        )
         assert result.exit_code == 0
         assert "uploaded123" in result.output
         os.unlink(tmp.name)
