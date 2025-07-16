@@ -3,13 +3,16 @@
 import os
 import tempfile
 
+# Shared test utilities
 from click.testing import CliRunner
 
 from slcli.main import cli
+from .test_utils import patch_keyring
 
 
 def test_notebook_list(monkeypatch):
     runner = CliRunner()
+    patch_keyring(monkeypatch)
     notebooks = [
         {"id": "abc123", "name": "TestNotebook1"},
         {"id": "def456", "name": "TestNotebook2"},
@@ -26,8 +29,15 @@ def test_notebook_list(monkeypatch):
 
         return Resp()
 
+    # Also mock get_workspace_map to avoid KeyError or API call
+    import slcli.utils
+
     monkeypatch.setattr("requests.post", mock_post)
+    monkeypatch.setattr(slcli.utils, "get_workspace_map", lambda: {})
     result = runner.invoke(cli, ["notebook", "list"])
+    # Print output for debugging if test fails
+    if result.exit_code != 0:
+        print(result.output)
     assert result.exit_code == 0
     assert "TestNotebook1" in result.output
     assert "TestNotebook2" in result.output
@@ -35,6 +45,7 @@ def test_notebook_list(monkeypatch):
 
 def test_notebook_download_by_id(monkeypatch):
     runner = CliRunner()
+    patch_keyring(monkeypatch)
     content = b"notebook-bytes"
 
     def mock_get(*args, **kwargs):
@@ -63,6 +74,7 @@ def test_notebook_download_by_id(monkeypatch):
 
 def test_notebook_upload(monkeypatch):
     runner = CliRunner()
+    patch_keyring(monkeypatch)
 
     def mock_post(*args, **kwargs):
         class Resp:
