@@ -5,6 +5,26 @@ from typing import Dict
 
 import keyring
 import requests
+from nisystemlink.clients.core._http_configuration import HttpConfiguration
+
+
+# --- SystemLink HTTP Configuration ---
+def get_http_configuration() -> HttpConfiguration:
+    """Return a configured SystemLink HttpConfiguration using environment or keyring credentials."""
+    server_uri = (
+        os.environ.get("SYSTEMLINK_API_URL")
+        or keyring.get_password("systemlink-cli", "SYSTEMLINK_API_URL")
+        or "http://localhost:8000"
+    )
+    api_key = os.environ.get("SYSTEMLINK_API_KEY") or keyring.get_password(
+        "systemlink-cli", "SYSTEMLINK_API_KEY"
+    )
+    if not api_key:
+        raise RuntimeError("API key not found. Please set SYSTEMLINK_API_KEY or run 'slcli login'.")
+    return HttpConfiguration(
+        server_uri=server_uri,
+        api_key=api_key,
+    )
 
 
 def get_base_url() -> str:

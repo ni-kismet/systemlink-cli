@@ -18,24 +18,29 @@ def test_notebook_list(monkeypatch):
         {"id": "def456", "name": "TestNotebook2"},
     ]
 
-    def mock_post(*args, **kwargs):
-        class Resp:
-            def raise_for_status(self):
-                pass
+    # Patch NotebookClient.query_notebooks to return mock paged result
+    import slcli.notebook_click
 
-            def json(self):
-                # The CLI expects a dict with a 'notebooks' key
-                return {"notebooks": notebooks}
+    class MockNotebook:
+        def __init__(self, nb):
+            for k, v in nb.items():
+                setattr(self, k, v)
+            self.__dict__ = nb
 
-        return Resp()
+    class MockPagedResult:
+        def __init__(self, notebooks):
+            self.notebooks = [MockNotebook(nb) for nb in notebooks]
+            self.continuation_token = None
 
-    # Also mock get_workspace_map to avoid KeyError or API call
+    monkeypatch.setattr(
+        slcli.notebook_click.NotebookClient,
+        "query_notebooks",
+        lambda self, query: MockPagedResult(notebooks),
+    )
     import slcli.utils
 
-    monkeypatch.setattr("requests.post", mock_post)
     monkeypatch.setattr(slcli.utils, "get_workspace_map", lambda: {})
     result = runner.invoke(cli, ["notebook", "list"])
-    # Print output for debugging if test fails
     if result.exit_code != 0:
         print(result.output)
     assert result.exit_code == 0
@@ -48,18 +53,15 @@ def test_notebook_download_by_id(monkeypatch):
     patch_keyring(monkeypatch)
     content = b"notebook-bytes"
 
-    def mock_get(*args, **kwargs):
-        class Resp:
-            def raise_for_status(self):
-                pass
+    # Patch NotebookClient.get_notebook_content to return a BytesIO
+    import slcli.notebook_click
+    import io
 
-            @property
-            def content(self):
-                return content
-
-        return Resp()
-
-    monkeypatch.setattr("requests.get", mock_get)
+    monkeypatch.setattr(
+        slcli.notebook_click.NotebookClient,
+        "get_notebook_content",
+        lambda self, notebook_id: io.BytesIO(content),
+    )
     with tempfile.NamedTemporaryFile(delete=False) as tmp:
         tmp.close()
         result = runner.invoke(
@@ -76,17 +78,30 @@ def test_notebook_upload(monkeypatch):
     runner = CliRunner()
     patch_keyring(monkeypatch)
 
-    def mock_post(*args, **kwargs):
-        class Resp:
-            def raise_for_status(self):
-                pass
+    # Patch NotebookClient.create_notebook to return a mock result
+    import slcli.notebook_click
 
-            def json(self):
-                return {"id": "uploaded123"}
+    class MockCreateResult:
+        id = "uploaded123"
 
-        return Resp()
+    class MockPagedResult:
+        def __init__(self):
+            self.notebooks = []
+            self.continuation_token = None
 
-    monkeypatch.setattr("requests.post", mock_post)
+        def __iter__(self):
+            return iter(self.notebooks)
+
+    monkeypatch.setattr(
+        slcli.notebook_click.NotebookClient,
+        "create_notebook",
+        lambda self, metadata, content: MockCreateResult(),
+    )
+    monkeypatch.setattr(
+        slcli.notebook_click.NotebookClient,
+        "query_notebooks",
+        lambda self, query: MockPagedResult(),
+    )
     with tempfile.NamedTemporaryFile(delete=False) as tmp:
         tmp.write(b"test-nb")
         tmp.close()
