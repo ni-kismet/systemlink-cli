@@ -93,3 +93,62 @@ You can use the manifest in your own Scoop bucket for easy installation.
 ## Contributing
 
 See [the NI Python development wiki](https://dev.azure.com/ni/DevCentral/_wiki/wikis/AppCentral.wiki/?pagePath=/Tools/Python/Tutorials/Making-a-change-to-an-existing-project) for contribution guidelines.
+
+## Notebook Management
+
+The `notebook` command group allows you to manage Jupyter notebooks in SystemLink.
+
+### List all notebooks in a workspace
+
+```bash
+slcli notebook list
+slcli notebook list --workspace MyWorkspace
+```
+
+### Download notebook content and/or metadata
+
+```bash
+
+# Download notebook content (.ipynb):
+slcli notebook download --id <notebook_id> --output mynotebook.ipynb
+slcli notebook download --name MyNotebook --output mynotebook.ipynb
+
+
+# Download notebook metadata as JSON:
+slcli notebook download --id <notebook_id> --type metadata --output metadata.json
+slcli notebook download --name MyNotebook --type metadata --output metadata.json
+
+
+# Download both content and metadata:
+slcli notebook download --id <notebook_id> --type both --output mynotebook.ipynb
+```
+
+### Create a new notebook
+
+```bash
+
+# Create from file:
+slcli notebook create --file mynotebook.ipynb --name MyNotebook
+slcli notebook create --file mynotebook.ipynb --workspace MyWorkspace --name MyNotebook
+
+
+# Create an empty notebook:
+slcli notebook create --name MyNotebook
+slcli notebook create --workspace MyWorkspace --name MyNotebook
+```
+
+### Update notebook metadata and/or content
+
+```bash
+
+# Update metadata only:
+slcli notebook update --id <notebook_id> --metadata metadata.json
+
+
+# Update content only:
+slcli notebook update --id <notebook_id> --content mynotebook.ipynb
+
+
+# Update both:
+slcli notebook update --id <notebook_id> --metadata metadata.json --content mynotebook.ipynb
+```

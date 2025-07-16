@@ -5,6 +5,7 @@ import getpass
 import click
 import keyring
 
+from .notebook_click import register_notebook_commands
 from .templates_click import register_templates_commands
 
 
@@ -53,3 +54,4 @@ def logout():
 
 
 register_templates_commands(cli)
+register_notebook_commands(cli)

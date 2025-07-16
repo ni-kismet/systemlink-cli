@@ -4,6 +4,7 @@ import os
 from typing import Dict
 
 import keyring
+import requests
 
 
 def get_base_url() -> str:
@@ -30,12 +31,17 @@ def get_api_key() -> str:
     return api_key
 
 
-def get_headers() -> Dict[str, str]:
-    """Return headers for SystemLink API requests."""
-    return {
+def get_headers(content_type: str = "") -> Dict[str, str]:
+    """Return headers for SystemLink API requests.
+
+    Allows caller to override Content-Type. If content_type is None or empty, omit the header.
+    """
+    headers = {
         "x-ni-api-key": get_api_key(),
-        "Content-Type": "application/json",
     }
+    if content_type:
+        headers["Content-Type"] = content_type
+    return headers
 
 
 def get_ssl_verify() -> bool:
@@ -44,3 +50,21 @@ def get_ssl_verify() -> bool:
     if env is not None:
         return env.lower() not in ("0", "false", "no")
     return True
+
+
+def get_workspace_map() -> Dict[str, str]:
+    """Return a mapping of workspace id to workspace name."""
+    url = f"{get_base_url()}/niuser/v1/workspaces"
+    resp = requests.get(url, headers=get_headers(), verify=get_ssl_verify())
+    resp.raise_for_status()
+    ws_data = resp.json()
+    return {ws.get("id"): ws.get("name", ws.get("id")) for ws in ws_data.get("workspaces", [])}
+
+
+def get_workspace_id_by_name(name: str) -> str:
+    """Return the workspace id for a given workspace name (case-sensitive). Raises if not found."""
+    ws_map = get_workspace_map()
+    for ws_id, ws_name in ws_map.items():
+        if ws_name == name:
+            return ws_id
+    raise ValueError(f"Workspace name '{name}' not found.")

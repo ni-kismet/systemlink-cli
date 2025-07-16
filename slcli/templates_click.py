@@ -28,13 +28,9 @@ def register_templates_commands(cli):
         }
         ssl_verify = get_ssl_verify()
         try:
-            ws_url = f"{get_base_url()}/niuser/v1/workspaces"
-            ws_resp = requests.get(ws_url, headers=get_headers(), verify=ssl_verify)
-            ws_resp.raise_for_status()
-            ws_data = ws_resp.json()
-            workspace_map = {
-                ws.get("id"): ws.get("name", ws.get("id")) for ws in ws_data.get("workspaces", [])
-            }
+            from .utils import get_workspace_map
+
+            workspace_map = get_workspace_map()
             resp = requests.post(
                 url,
                 headers=get_headers(),
