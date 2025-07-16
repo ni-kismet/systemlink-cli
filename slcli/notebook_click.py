@@ -1,4 +1,4 @@
-"""CLI commands for managing SystemLink notebooks via the artifact API."""
+"""CLI commands for managing SystemLink notebooks via the notebook API."""
 
 import click
 import requests
@@ -11,11 +11,11 @@ def register_notebook_commands(cli):
 
     @cli.group()
     def notebook():
-        """Manage Jupyter notebooks as artifacts."""
+        """Manage Jupyter notebooks."""
         pass
 
     @notebook.command(name="update")
-    @click.option("--id", "notebook_id", required=True, help="Notebook artifact ID to update")
+    @click.option("--id", "notebook_id", required=True, help="Notebook ID to update")
     @click.option(
         "--metadata",
         type=click.Path(exists=True, dir_okay=False),
@@ -29,7 +29,7 @@ def register_notebook_commands(cli):
         help="Path to .ipynb file containing notebook content",
     )
     def update_notebook(notebook_id, metadata, content):
-        """Update notebook metadata and/or content."""
+        """Update a notebook's metadata, content, or both by ID."""
         import json
 
         if not metadata and not content:
@@ -85,7 +85,7 @@ def register_notebook_commands(cli):
         "--take", default=25, show_default=True, help="Number of notebooks to show per page"
     )
     def list_notebooks(workspace, take):
-        """List all notebook artifacts. Optionally filter by workspace."""
+        """List all notebooks. Optionally filter by workspace."""
         payload = {"take": 1000, "filter": None}
         if workspace:
             try:
@@ -157,7 +157,7 @@ def register_notebook_commands(cli):
             raise click.ClickException(str(exc))
 
     @notebook.command(name="download")
-    @click.option("--id", "notebook_id", help="Notebook artifact ID")
+    @click.option("--id", "notebook_id", help="Notebook ID")
     @click.option("--name", "notebook_name", help="Notebook name")
     @click.option("--workspace", default="Default", help="Workspace name (default: Default)")
     @click.option("--output", required=False, help="Output file path (defaults to notebook name)")
@@ -311,4 +311,4 @@ def register_notebook_commands(cli):
         )
         resp.raise_for_status()
         result = resp.json()
-        click.echo(f"Notebook created. Artifact ID: {result.get('id')}")
+        click.echo(f"Notebook created. Notebook ID: {result.get('id')}")
