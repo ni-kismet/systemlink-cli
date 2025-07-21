@@ -31,17 +31,12 @@ jobs:
       - name: Build Homebrew tarball and formula
         run: poetry run python scripts/build_homebrew.py
 
-      - name: Build Scoop package
-        run: poetry run python scripts/build_scoop.py
-
       - name: Create Release
         uses: softprops/action-gh-release@v2
         with:
           files: |
             dist/slcli.tar.gz
             dist/homebrew-slcli.rb
-            dist/slcli.exe
-            dist/scoop-slcli.json
           generate_release_notes: true
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
