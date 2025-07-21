@@ -1,7 +1,7 @@
-class HomebrewSlcli < Formula
+class Slcli < Formula
   desc "SystemLink Integrator CLI: Manage SystemLink test plan templates and workflows"
-  homepage "https://github.com/ni/systemlink-cli"
-  url "file://#{Dir.pwd}/dist/slcli.tar.gz"
+  homepage "https://github.com/ni-kismet/systemlink-cli"
+  url "https://github.com/ni-kismet/systemlink-cli/releases/download/v{{ version }}/slcli.tar.gz"
   version "{{ version }}"
   sha256 "{{ sha256 }}"
   license "MIT"
