@@ -1,0 +1,24 @@
+{
+    "version": "{{ version }}",
+    "description": "SystemLink Integrator CLI",
+    "homepage": "https://github.com/ni/systemlink-cli",
+    "license": "MIT",
+    "architecture": {
+        "64bit": {
+            "url": "{{ url }}",
+            "hash": "{{ sha256 }}"
+        }
+    },
+    "extract_dir": "slcli",
+    "bin": "slcli/slcli.exe",
+    "checkver": {
+        "github": "https://github.com/ni/systemlink-cli"
+    },
+    "autoupdate": {
+        "architecture": {
+            "64bit": {
+                "url": "https://github.com/ni/systemlink-cli/releases/download/v$version/slcli.zip"
+            }
+        }
+    }
+}
