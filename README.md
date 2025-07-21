@@ -1,15 +1,48 @@
 # SystemLink CLI
 
-SystemLink CLI (`slcli`) is a cross-platform Python CLI for SystemLink integrators, supporting test plan templates and workflow management via SystemLink REST APIs.
+SystemLink CLI (`slcli`) is a cross-platform Python CLI for SystemLink integrators, providing comprehensive management of SystemLink resources via REST APIs.
 
 ## Features
 
-- Secure credential storage using [keyring](https://github.com/jaraco/keyring)
-- Manage SystemLink test plan templates (list, export, import, delete)
-- Extensible for additional SystemLink resource types
-- User-friendly CLI with help and validation
-- Easily packaged as a single binary with PyInstaller
-- Full test suite with CI/CD
+- **Secure Authentication**: Credential storage using [keyring](https://github.com/jaraco/keyring) with `login`/`logout` commands
+- **Test Plan Templates**: Complete management (list, export, import, delete) with JSON and table output formats
+- **Jupyter Notebooks**: Full lifecycle management (list, download, create, update, delete) with workspace filtering
+- **Cross-Platform**: Windows, macOS, and Linux support with standalone binaries
+- **Professional CLI**: Consistent error handling, colored output, and comprehensive help system
+- **Output Formats**: JSON and table output options for programmatic integration and human-readable display
+- **Extensible Architecture**: Designed for easy addition of new SystemLink resource types
+- **Quality Assurance**: Full test suite with CI/CD, linting, and automated packaging
+
+## Quick Start
+
+1. **Install dependencies:**
+
+   ```bash
+   poetry install
+   ```
+
+2. **Login to SystemLink:**
+
+   ```bash
+   poetry run slcli login
+   ```
+
+3. **List available resources:**
+
+   ```bash
+   # View test plan templates
+   poetry run slcli templates list
+
+   # View notebooks
+   poetry run slcli notebook list
+   ```
+
+4. **Get help for any command:**
+   ```bash
+   poetry run slcli --help
+   poetry run slcli templates --help
+   poetry run slcli notebook --help
+   ```
 
 ## Setup
 
@@ -94,6 +127,56 @@ You can use the manifest in your own Scoop bucket for easy installation.
 
 See [the NI Python development wiki](https://dev.azure.com/ni/DevCentral/_wiki/wikis/AppCentral.wiki/?pagePath=/Tools/Python/Tutorials/Making-a-change-to-an-existing-project) for contribution guidelines.
 
+## Authentication
+
+Before using SystemLink CLI commands, you need to authenticate with your SystemLink server:
+
+### Login to SystemLink
+
+```bash
+slcli login
+```
+
+This will securely prompt for your API key and SystemLink URL, then store them using your system's keyring.
+
+### Logout (remove stored credentials)
+
+```bash
+slcli logout
+```
+
+## Test Plan Template Management
+
+The `templates` command group allows you to manage test plan templates in SystemLink.
+
+### List all test plan templates
+
+```bash
+# Table format (default)
+slcli templates list
+
+# JSON format for programmatic use
+slcli templates list --output json
+```
+
+### Export a template to a local JSON file
+
+```bash
+slcli templates export --id <template_id> --output template.json
+```
+
+### Import a template from a local JSON file
+
+```bash
+slcli templates import --file template.json
+```
+
+### Delete a template
+
+```bash
+slcli templates delete --id <template_id>
+```
+
 ## Notebook Management
 
 The `notebook` command group allows you to manage Jupyter notebooks in SystemLink.
@@ -101,23 +184,30 @@ The `notebook` command group allows you to manage Jupyter notebooks in SystemLin
 ### List all notebooks in a workspace
 
 ```bash
+# List all notebooks (table format - default)
 slcli notebook list
+
+# List notebooks in specific workspace
 slcli notebook list --workspace MyWorkspace
+
+# JSON format for programmatic use
+slcli notebook list --output json
+
+# Control pagination (table format only)
+slcli notebook list --take 50
 ```
 
 ### Download notebook content and/or metadata
 
 ```bash
-
-# Download notebook content (.ipynb):
+# Download notebook content (.ipynb) by ID:
 slcli notebook download --id <notebook_id> --output mynotebook.ipynb
-slcli notebook download --name MyNotebook --output mynotebook.ipynb
 
+# Download notebook content by name:
+slcli notebook download --name MyNotebook --output mynotebook.ipynb
 
 # Download notebook metadata as JSON:
 slcli notebook download --id <notebook_id> --type metadata --output metadata.json
-slcli notebook download --name MyNotebook --type metadata --output metadata.json
-
 
 # Download both content and metadata:
 slcli notebook download --id <notebook_id> --type both --output mynotebook.ipynb
@@ -126,11 +216,9 @@ slcli notebook download --id <notebook_id> --type both --output mynotebook.ipynb
 ### Create a new notebook
 
 ```bash
-
-# Create from file:
+# Create from existing .ipynb file:
 slcli notebook create --file mynotebook.ipynb --name MyNotebook
 slcli notebook create --file mynotebook.ipynb --workspace MyWorkspace --name MyNotebook
-
 
 # Create an empty notebook:
 slcli notebook create --name MyNotebook
@@ -140,15 +228,45 @@ slcli notebook create --workspace MyWorkspace --name MyNotebook
 ### Update notebook metadata and/or content
 
 ```bash
-
 # Update metadata only:
 slcli notebook update --id <notebook_id> --metadata metadata.json
-
 
 # Update content only:
 slcli notebook update --id <notebook_id> --content mynotebook.ipynb
 
-
-# Update both:
+# Update both metadata and content:
 slcli notebook update --id <notebook_id> --metadata metadata.json --content mynotebook.ipynb
+```
+
+### Delete a notebook
+
+```bash
+slcli notebook delete --id <notebook_id>
+```
+
+## Output Formats
+
+SystemLink CLI supports both human-readable table output and machine-readable JSON output for list commands:
+
+### Table Output (Default)
+
+- Colored, formatted tables using GitHub-style formatting
+- Pagination support for large result sets
+- Truncated text with ellipsis (…) for better readability
+- Visual success (✓) and error (✗) indicators
+
+### JSON Output
+
+- Complete data export without pagination
+- Perfect for scripting and automation
+- Consistent structure across all list commands
+
+```bash
+# Human-readable table
+slcli templates list
+slcli notebook list
+
+# Machine-readable JSON
+slcli templates list --output json
+slcli notebook list --output json
 ```

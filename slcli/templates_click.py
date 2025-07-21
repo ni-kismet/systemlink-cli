@@ -1,11 +1,16 @@
 """CLI commands for managing SystemLink test plan templates."""
 
-import json
-
 import click
-import requests
 
-from .utils import get_base_url, get_headers, get_ssl_verify
+from .utils import (
+    get_base_url,
+    handle_api_error,
+    output_list_data,
+    make_api_request,
+    get_workspace_map,
+    load_json_file,
+    save_json_file,
+)
 
 
 def register_templates_commands(cli):
@@ -17,8 +22,19 @@ def register_templates_commands(cli):
         pass
 
     @templates.command(name="list")
-    def list_templates():
-        """List available user-defined test plan templates."""
+    @click.option(
+        "--output",
+        "-o",
+        type=click.Choice(["table", "json"], case_sensitive=False),
+        default="table",
+        help="Output format: table or json",
+    )
+    def list_templates(output: str = "table"):
+        """List available user-defined test plan templates.
+
+        Args:
+            output (str, optional): Output format (table or json).
+        """
         url = f"{get_base_url()}/niworkorder/v1/query-testplan-templates"
         payload = {
             "take": 1000,
@@ -26,31 +42,38 @@ def register_templates_commands(cli):
             "descending": False,
             "projection": ["ID", "NAME", "WORKSPACE"],
         }
-        ssl_verify = get_ssl_verify()
         try:
-            from .utils import get_workspace_map
-
             workspace_map = get_workspace_map()
-            resp = requests.post(
-                url,
-                headers=get_headers(),
-                json=payload,
-                verify=ssl_verify,
-            )
-            resp.raise_for_status()
+            resp = make_api_request("POST", url, payload)
             data = resp.json()
             items = data.get("testPlanTemplates", []) if isinstance(data, dict) else []
-            if not items:
-                click.echo("No test plan templates found.")
-                return
-            click.echo(f"{'ID':<12} {'Workspace':<20} {'Name':<30}")
+
+            # Convert items to consistent format for output
+            template_data = []
             for item in items:
                 ws_guid = item.get("workspace", "")
                 ws_name = workspace_map.get(ws_guid, ws_guid)
-                click.echo(f"{item.get('id', ''):<12} {ws_name:<20} " f"{item.get('name', ''):<30}")
-        except requests.RequestException as exc:
-            click.echo(f"Error: {exc}")
-            raise click.ClickException(str(exc))
+                template_info = {
+                    "id": item.get("id", ""),
+                    "name": item.get("name", ""),
+                    "workspace": ws_name,
+                }
+                template_data.append(template_info)
+
+            # Use shared output function
+            def template_table_row(template):
+                short_name = template["name"][:40] + ("…" if len(template["name"]) > 40 else "")
+                return [template["workspace"], short_name, template["id"]]
+
+            output_list_data(
+                template_data,
+                output,
+                ["Workspace", "Name", "Template ID"],
+                template_table_row,
+                "No test plan templates found.",
+            )
+        except Exception as exc:
+            handle_api_error(exc)
 
     @templates.command(name="export")
     @click.option(
@@ -64,21 +87,21 @@ def register_templates_commands(cli):
         """Download/export a test plan template as a local JSON file."""
         url = f"{get_base_url()}/niworkorder/v1/query-testplan-templates"
         payload = {"take": 1, "filter": f'ID == "{template_id}"'}
-        ssl_verify = get_ssl_verify()
         try:
-            resp = requests.post(url, headers=get_headers(), json=payload, verify=ssl_verify)
-            resp.raise_for_status()
+            resp = make_api_request("POST", url, payload)
             data = resp.json()
             items = data.get("testPlanTemplates", []) if isinstance(data, dict) else []
             if not items:
-                click.echo(f"Test plan template with ID {template_id} not found.")
+                click.echo(f"✗ Test plan template with ID {template_id} not found.", err=True)
                 raise click.ClickException(f"Test plan template with ID {template_id} not found.")
-            with open(output, "w") as file_obj:
-                json.dump(items[0], file_obj, indent=2)
-            click.echo(f"Test plan template exported to {output}")
+            save_json_file(items[0], output)
+            click.echo(f"✓ Test plan template exported to {output}")
         except Exception as exc:
-            click.echo(f"Error: {exc}")
-            raise click.ClickException(str(exc))
+            if "not found" not in str(exc).lower():
+                handle_api_error(exc)
+            else:
+                click.echo(f"✗ Error: {exc}", err=True)
+                raise click.ClickException(str(exc))
 
     @templates.command(name="import")
     @click.option(
@@ -107,10 +130,8 @@ def register_templates_commands(cli):
             "dashboard",
             "workflowId",
         }
-        ssl_verify = get_ssl_verify()
         try:
-            with open(input_file, "r") as file_obj:
-                data = json.load(file_obj)
+            data = load_json_file(input_file)
             if isinstance(data, dict) and "testPlanTemplates" in data:
                 data = data["testPlanTemplates"]
             elif isinstance(data, dict):
@@ -119,12 +140,10 @@ def register_templates_commands(cli):
             for entry in data:
                 filtered.append({k: v for k, v in entry.items() if k in allowed_fields})
             payload = {"testPlanTemplates": filtered}
-            resp = requests.post(url, headers=get_headers(), json=payload, verify=ssl_verify)
-            resp.raise_for_status()
-            click.echo("Test plan template imported successfully.")
+            make_api_request("POST", url, payload)
+            click.echo("✓ Test plan template imported successfully.")
         except Exception as exc:
-            click.echo(f"Error: {exc}")
-            raise click.ClickException(str(exc))
+            handle_api_error(exc)
 
     @templates.command(name="delete")
     @click.option(
@@ -137,16 +156,16 @@ def register_templates_commands(cli):
         """Delete a test plan template by ID."""
         url = f"{get_base_url()}/niworkorder/v1/delete-testplan-templates"
         payload = {"ids": [template_id]}
-        ssl_verify = get_ssl_verify()
         try:
-            resp = requests.post(url, headers=get_headers(), json=payload, verify=ssl_verify)
+            resp = make_api_request("POST", url, payload)
             if resp.status_code in (200, 204):
-                click.echo(f"Test plan template {template_id} deleted successfully.")
+                click.echo(f"✓ Test plan template {template_id} deleted successfully.")
             else:
-                click.echo(f"Failed to delete test plan template {template_id}: " f"{resp.text}")
+                click.echo(
+                    f"✗ Failed to delete test plan template {template_id}: {resp.text}", err=True
+                )
                 raise click.ClickException(
-                    f"Failed to delete test plan template {template_id}: " f"{resp.text}"
+                    f"Failed to delete test plan template {template_id}: {resp.text}"
                 )
         except Exception as exc:
-            click.echo(f"Error: {exc}")
-            raise click.ClickException(str(exc))
+            handle_api_error(exc)
