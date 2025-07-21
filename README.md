@@ -13,7 +13,21 @@ SystemLink CLI (`slcli`) is a cross-platform Python CLI for SystemLink integrato
 - **Extensible Architecture**: Designed for easy addition of new SystemLink resource types
 - **Quality Assurance**: Full test suite with CI/CD, linting, and automated packaging
 
-## Quick Start
+## Installation
+
+### Homebrew (macOS/Linux)
+
+Install SystemLink CLI using Homebrew from our official tap:
+
+```bash
+# Add the NI developer tools tap
+brew tap ni-kismet/homebrew-ni
+
+# Install slcli
+brew install slcli
+```
+
+### From Source
 
 1. **Install dependencies:**
 
@@ -21,30 +35,32 @@ SystemLink CLI (`slcli`) is a cross-platform Python CLI for SystemLink integrato
    poetry install
    ```
 
-2. **Login to SystemLink:**
+## Quick Start
+
+1. **Login to SystemLink:**
 
    ```bash
-   poetry run slcli login
+   slcli login
    ```
 
-3. **List available resources:**
+2. **List available resources:**
 
    ```bash
    # View test plan templates
-   poetry run slcli templates list
+   slcli templates list
 
    # View notebooks
-   poetry run slcli notebook list
+   slcli notebook list
    ```
 
-4. **Get help for any command:**
+3. **Get help for any command:**
    ```bash
-   poetry run slcli --help
-   poetry run slcli templates --help
-   poetry run slcli notebook --help
+   slcli --help
+   slcli templates --help
+   slcli notebook --help
    ```
 
-## Setup
+## Development Setup
 
 1. **Install Poetry** (if not already installed):
 
@@ -111,6 +127,56 @@ You can use the manifest in your own Scoop bucket for easy installation.
 
 - All builds, tests, and packaging are automated via GitHub Actions for both Homebrew and Scoop.
 - Artifacts (`slcli.tar.gz`, `homebrew-slcli.rb`, `slcli.exe`, `scoop-slcli.json`) are uploaded for each build.
+
+## Release Process
+
+### Creating a Release
+
+1. **Update the version** in `pyproject.toml`:
+
+   ```toml
+   [tool.poetry]
+   version = "0.2.0"  # Update to new version
+   ```
+
+2. **Create and push a git tag**:
+
+   ```bash
+   git tag v0.2.0
+   git push origin v0.2.0
+   ```
+
+3. **Automated release workflow** will:
+   - Run all tests and linting
+   - Build PyInstaller binaries for all platforms
+   - Generate Homebrew formula and Scoop manifest
+   - Create GitHub release with all artifacts
+   - Automatically update the Homebrew tap (`ni-kismet/homebrew-ni`)
+
+### Release Artifacts
+
+Each release automatically generates:
+
+- `slcli.tar.gz` - Source tarball for Homebrew
+- `homebrew-slcli.rb` - Homebrew formula
+- `slcli.exe` - Windows executable
+- `scoop-slcli.json` - Scoop manifest for Windows
+
+### Homebrew Publishing
+
+The release workflow automatically:
+
+- Updates the formula in `ni-kismet/homebrew-ni` tap
+- Calculates SHA256 checksums
+- Updates version and download URLs
+- Commits changes to the tap repository
+
+Users can then install the latest version with:
+
+```bash
+brew update
+brew upgrade slcli
+```
 
 ## Testing & Linting
 
