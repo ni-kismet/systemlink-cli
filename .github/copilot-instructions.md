@@ -16,7 +16,8 @@
 ## CLI Best Practices (Based on https://clig.dev)
 
 ### Output & Formatting
-- All list commands must support `--output/-o` option with `table` (default) and `json` formats
+- All list commands must support `--format/-f` option with `table` (default) and `json` formats
+- Use `--output` for file path outputs (export, save operations)
 - Use consistent visual indicators: `✓` for success messages, `✗` for error messages  
 - Send all error messages to stderr using `click.echo(..., err=True)`
 - For JSON output, display all data at once (no pagination); for table output, retain pagination

@@ -18,6 +18,7 @@ def main():
         "PyInstaller",
         "--name=slcli",
         "--noconfirm",
+        "--collect-submodules=shellingham",
         entry_point,
     ]
     print(f"Running: {' '.join(cmd)}")
