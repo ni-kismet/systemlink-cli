@@ -7,6 +7,7 @@ SystemLink CLI (`slcli`) is a cross-platform Python CLI for SystemLink integrato
 - **Secure Authentication**: Credential storage using [keyring](https://github.com/jaraco/keyring) with `login`/`logout` commands
 - **Test Plan Templates**: Complete management (list, export, import, delete, init) with JSON and table output formats
 - **Jupyter Notebooks**: Full lifecycle management (list, download, create, update, delete) with workspace filtering
+- **Workflows**: Full workflow management (list, export, import, delete, init, update) with comprehensive state and action definitions
 - **Cross-Platform**: Windows, macOS, and Linux support with standalone binaries
 - **Professional CLI**: Consistent error handling, colored output, and comprehensive help system
 - **Output Formats**: JSON and table output options for programmatic integration and human-readable display
@@ -68,20 +69,28 @@ For development or if Homebrew isn't available:
    # View test plan templates
    slcli templates list
 
+   # View workflows
+   slcli workflows list
+
    # View notebooks
    slcli notebook list
    ```
 
-3. **Initialize a new template:**
+3. **Initialize new resources:**
 
    ```bash
+   # Create a new template
    slcli templates init --name "My Test Template" --template-group "Production"
+
+   # Create a new workflow
+   slcli workflows init --name "My Workflow" --description "Custom workflow"
    ```
 
 4. **Get help for any command:**
    ```bash
    slcli --help
    slcli templates --help
+   slcli workflows --help
    slcli notebook --help
    ```
 
@@ -160,6 +169,69 @@ The import command provides detailed error reporting for partial failures, inclu
 
 ```bash
 slcli templates delete --id <template_id>
+```
+
+## Workflow Management
+
+The `workflows` command group allows you to manage workflows in SystemLink. All workflow commands use the beta feature flag automatically.
+
+### Initialize a new workflow
+
+Create a new workflow JSON file with a complete state machine structure:
+
+```bash
+# Interactive mode (prompts for required fields)
+slcli workflows init
+
+# Specify fields directly
+slcli workflows init --name "Battery Test Workflow" --description "Workflow for battery testing procedures"
+
+# Custom output file
+slcli workflows init --name "My Workflow" --description "Custom workflow" --output custom-workflow.json
+```
+
+The `init` command creates a JSON file with:
+
+- Basic workflow metadata: `name` and `description`
+- Complete workflow `definition` with states, substates, and actions
+- Example state transitions (Created → InProgress → Completed)
+- Sample actions (Start, Pause, Resume, Complete, Fail, Abort)
+
+### List all workflows
+
+```bash
+# Table format (default)
+slcli workflows list
+
+# JSON format for programmatic use
+slcli workflows list --format json
+
+# Filter by workspace
+slcli workflows list --workspace "Production Workspace"
+```
+
+### Export a workflow to a local JSON file
+
+```bash
+slcli workflows export --id <workflow_id> --output workflow.json
+```
+
+### Import a workflow from a local JSON file
+
+```bash
+slcli workflows import --file workflow.json
+```
+
+### Update an existing workflow
+
+```bash
+slcli workflows update --id <workflow_id> --file updated-workflow.json
+```
+
+### Delete a workflow
+
+```bash
+slcli workflows delete --id <workflow_id>
 ```
 
 ## Notebook Management
@@ -249,10 +321,12 @@ SystemLink CLI supports both human-readable table output and machine-readable JS
 ```bash
 # Human-readable table
 slcli templates list
+slcli workflows list
 slcli notebook list
 
 # Machine-readable JSON
 slcli templates list --format json
+slcli workflows list --format json
 slcli notebook list --format json
 ```
 

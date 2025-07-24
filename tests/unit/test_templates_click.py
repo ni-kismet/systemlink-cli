@@ -173,6 +173,42 @@ def test_export_template_success(monkeypatch, runner, tmp_path):
     assert "exported to" in result.output
 
 
+def test_export_template_auto_filename(monkeypatch, runner, tmp_path):
+    """Test exporting a template with auto-generated filename."""
+    patch_keyring(monkeypatch)
+
+    def mock_post(*a, **kw):
+        class R:
+            def raise_for_status(self):
+                pass
+
+            def json(self):
+                return {"testPlanTemplates": [{"id": "t1", "name": "Test Template Name"}]}
+
+        return R()
+
+    monkeypatch.setattr("requests.post", mock_post)
+
+    # Change to the tmp_path directory for the test
+    import os
+
+    original_cwd = os.getcwd()
+    os.chdir(tmp_path)
+
+    try:
+        cli = make_cli()
+        result = runner.invoke(cli, ["templates", "export", "--id", "t1"])
+        assert result.exit_code == 0
+
+        # Check that the auto-generated filename was created
+        expected_file = tmp_path / "test-template-name.json"
+        assert expected_file.exists()
+        assert expected_file.read_text().startswith("{")
+        assert "exported to test-template-name.json" in result.output
+    finally:
+        os.chdir(original_cwd)
+
+
 def test_export_template_not_found(monkeypatch, runner):
     """Test exporting a template that does not exist."""
     patch_keyring(monkeypatch)

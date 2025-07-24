@@ -13,6 +13,8 @@ from .utils import (
     get_workspace_map,
     load_json_file,
     save_json_file,
+    sanitize_filename,
+    extract_error_type,
 )
 
 
@@ -54,8 +56,7 @@ def register_templates_commands(cli):
 
         # Generate output filename if not provided
         if not output:
-            safe_name = "".join(c for c in name if c.isalnum() or c in (" ", "-", "_")).rstrip()
-            safe_name = safe_name.replace(" ", "-").lower()
+            safe_name = sanitize_filename(name, "template")
             output = f"{safe_name}-template.json"
 
         # Create template structure based on the schema
@@ -227,7 +228,7 @@ def register_templates_commands(cli):
         required=True,
         help="Test plan template ID to export",
     )
-    @click.option("--output", "-o", required=True, help="Output JSON file")
+    @click.option("--output", "-o", help="Output JSON file (default: <template-name>.json)")
     def export_template(template_id, output):
         """Download/export a test plan template as a local JSON file."""
         url = f"{get_base_url()}/niworkorder/v1/query-testplan-templates"
@@ -239,7 +240,16 @@ def register_templates_commands(cli):
             if not items:
                 click.echo(f"✗ Test plan template with ID {template_id} not found.", err=True)
                 raise click.ClickException(f"Test plan template with ID {template_id} not found.")
-            save_json_file(items[0], output)
+
+            template_data = items[0]
+
+            # Generate output filename if not provided
+            if not output:
+                template_name = template_data.get("name", f"template-{template_id}")
+                safe_name = sanitize_filename(template_name, f"template-{template_id}")
+                output = f"{safe_name}.json"
+
+            save_json_file(template_data, output)
             click.echo(f"✓ Test plan template exported to {output}")
         except Exception as exc:
             if "not found" not in str(exc).lower():
@@ -326,7 +336,7 @@ def register_templates_commands(cli):
 
                     # Format the error output
                     if error_name:
-                        error_type = error_name.split(".")[-1] if "." in error_name else error_name
+                        error_type = extract_error_type(error_name)
                         click.echo(f"  - {template_name}: {error_type} - {error_message}", err=True)
                     else:
                         click.echo(f"  - {template_name}: {error_message}", err=True)
