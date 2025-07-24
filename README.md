@@ -113,10 +113,17 @@ Before using SystemLink CLI commands, you need to authenticate with your SystemL
 ### Login to SystemLink
 
 ```bash
+# Interactive login (prompts for URL and API key)
 slcli login
+
+# Non-interactive login with flags
+slcli login --url "https://your-server.com/api" --api-key "your-api-key"
+
+# Partial flags (will prompt for missing values)
+slcli login --url "https://your-server.com/api"
 ```
 
-This will securely prompt for your API key and SystemLink URL, then store them using your system's keyring.
+**Note**: The CLI automatically converts HTTP URLs to HTTPS for security. SystemLink servers typically require HTTPS for API access.
 
 ### Logout (remove stored credentials)
 

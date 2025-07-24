@@ -160,6 +160,7 @@ def get_headers(content_type: str = "") -> Dict[str, str]:
     """
     headers = {
         "x-ni-api-key": get_api_key(),
+        "User-Agent": "SystemLink-CLI/1.0 (cross-platform)",
     }
     if content_type:
         headers["Content-Type"] = content_type

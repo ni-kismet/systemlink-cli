@@ -22,21 +22,38 @@ def cli(ctx):
 
 
 @cli.command()
-def login():
+@click.option("--url", help="SystemLink API URL")
+@click.option("--api-key", help="SystemLink API key")
+def login(url, api_key):
     """Store your SystemLink API key and URL securely."""
-    api_key = getpass.getpass("Enter your SystemLink API key: ")
-    if not api_key.strip():
-        click.echo("API key cannot be empty.")
-        raise click.ClickException("API key cannot be empty.")
-    url = click.prompt(
-        "Enter your SystemLink API URL",
-        default="http://demo-api.lifecyclesolutions.ni.com",
-    )
+    # Get URL - either from flag or prompt
+    if not url:
+        url = click.prompt(
+            "Enter your SystemLink API URL",
+            default="https://demo-api.lifecyclesolutions.ni.com",
+        )
     if not url.strip():
         click.echo("SystemLink URL cannot be empty.")
         raise click.ClickException("SystemLink URL cannot be empty.")
+
+    # Ensure URL uses HTTPS
+    url = url.strip()
+    if url.startswith("http://"):
+        click.echo("⚠️  Warning: Converting HTTP to HTTPS for security.")
+        url = url.replace("http://", "https://", 1)
+    elif not url.startswith("https://"):
+        click.echo("⚠️  Warning: Adding HTTPS protocol to URL.")
+        url = f"https://{url}"
+
+    # Get API key - either from flag or prompt
+    if not api_key:
+        api_key = getpass.getpass("Enter your SystemLink API key: ")
+    if not api_key.strip():
+        click.echo("API key cannot be empty.")
+        raise click.ClickException("API key cannot be empty.")
+
     keyring.set_password("systemlink-cli", "SYSTEMLINK_API_KEY", api_key.strip())
-    keyring.set_password("systemlink-cli", "SYSTEMLINK_API_URL", url.strip())
+    keyring.set_password("systemlink-cli", "SYSTEMLINK_API_URL", url)
     click.echo("API key and URL stored securely.")
 
 
