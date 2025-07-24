@@ -9,7 +9,7 @@ jobs:
   build:
     strategy:
       matrix:
-        os: [ubuntu-latest, macos-latest]
+        os: [ubuntu-latest, macos-latest, windows-latest]
         include:
           - os: ubuntu-latest
             platform: linux
@@ -17,6 +17,9 @@ jobs:
           - os: macos-latest
             platform: macos
             artifact_name: slcli-macos
+          - os: windows-latest
+            platform: windows
+            artifact_name: slcli-windows
     runs-on: ${{ matrix.os }}
     steps:
       - name: Checkout code
@@ -51,11 +54,17 @@ jobs:
           cd dist
           tar -czf slcli-macos.tar.gz slcli/
 
+      - name: Create Windows ZIP for Scoop
+        if: matrix.platform == 'windows'
+        run: |
+          cd dist
+          Compress-Archive -Path slcli -DestinationPath slcli.zip
+
       - name: Upload platform artifacts
         uses: actions/upload-artifact@v4
         with:
           name: ${{ matrix.artifact_name }}
-          path: dist/${{ matrix.artifact_name }}.tar.gz
+          path: dist/${{ matrix.artifact_name == 'slcli-windows' && 'slcli.zip' || format('{0}.tar.gz', matrix.artifact_name) }}
 
   homebrew-build:
     runs-on: ubuntu-latest
@@ -97,8 +106,42 @@ jobs:
           path: |
             dist/homebrew-slcli.rb
 
+  scoop-build:
+    runs-on: ubuntu-latest
+    needs: build
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+
+      - name: Install Poetry
+        run: pip install poetry
+
+      - name: Install dependencies
+        run: poetry install
+
+      - name: Download Windows artifact
+        uses: actions/download-artifact@v4
+        with:
+          name: slcli-windows
+          path: dist/
+
+      - name: Build Scoop manifest
+        run: poetry run python scripts/build_scoop.py
+
+      - name: Upload Scoop artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: scoop-artifacts
+          path: |
+            dist/scoop-slcli.json
+
   release:
-    needs: [build, homebrew-build]
+    needs: [build, homebrew-build, scoop-build]
     runs-on: ubuntu-latest
     permissions:
       contents: write
@@ -111,8 +154,10 @@ jobs:
         with:
           files: |
             homebrew-artifacts/homebrew-slcli.rb
+            scoop-artifacts/scoop-slcli.json
             slcli-linux/slcli-linux.tar.gz
             slcli-macos/slcli-macos.tar.gz
+            slcli-windows/slcli.zip
           generate_release_notes: true
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
@@ -142,4 +187,31 @@ jobs:
           git config user.email "github-actions[bot]@users.noreply.github.com"
           git add Formula/slcli.rb
           git commit -m "slcli ${{ github.ref_name }}: update to latest release with multi-platform support"
+          git push
+
+  update-scoop-bucket:
+    needs: release
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout scoop bucket
+        uses: actions/checkout@v4
+        with:
+          repository: ni-kismet/scoop-ni
+          token: ${{ secrets.HOMEBREW_GITHUB_TOKEN }}
+          path: scoop-ni
+
+      - name: Download Scoop manifest
+        uses: actions/download-artifact@v4
+        with:
+          name: scoop-artifacts
+          path: manifest/
+
+      - name: Update manifest in bucket
+        run: |
+          cp manifest/scoop-slcli.json scoop-ni/bucket/slcli.json
+          cd scoop-ni
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git add bucket/slcli.json
+          git commit -m "slcli ${{ github.ref_name }}: update to latest release"
           git push
