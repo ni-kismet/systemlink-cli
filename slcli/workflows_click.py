@@ -2,6 +2,7 @@
 
 import json
 import os
+from typing import Optional
 
 import click
 import requests
@@ -228,7 +229,7 @@ def register_workflows_commands(cli):
         "-w",
         help="Filter by workspace name",
     )
-    def list_workflows(format: str = "table", workspace: str | None = None):
+    def list_workflows(format: str = "table", workspace: Optional[str] = None):
         """List available workflows.
 
         Args:

@@ -2,6 +2,7 @@
 
 import json
 import os
+from typing import Optional
 
 import click
 
@@ -162,7 +163,7 @@ def register_templates_commands(cli):
         "-w",
         help="Filter by workspace name",
     )
-    def list_templates(format: str = "table", workspace: str | None = None):
+    def list_templates(format: str = "table", workspace: Optional[str] = None):
         """List available user-defined test plan templates.
 
         Args:
