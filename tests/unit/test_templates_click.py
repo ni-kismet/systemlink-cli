@@ -73,6 +73,51 @@ def test_list_templates_success(monkeypatch, runner):
     assert "Template1" in result.output
 
 
+def test_list_templates_with_workspace_filter(monkeypatch, runner):
+    """Test listing templates with workspace filter."""
+    patch_keyring(monkeypatch)
+
+    def mock_get(*a, **kw):
+        class R:
+            def raise_for_status(self):
+                pass
+
+            def json(self):
+                return {
+                    "workspaces": [
+                        {"id": "ws1", "name": "Workspace1"},
+                        {"id": "ws2", "name": "Workspace2"},
+                    ]
+                }
+
+        return R()
+
+    def mock_post(*a, **kw):
+        class R:
+            def raise_for_status(self):
+                pass
+
+            def json(self):
+                return {
+                    "testPlanTemplates": [
+                        {"id": "t1", "name": "Template1", "workspace": "ws1"},
+                        {"id": "t2", "name": "Template2", "workspace": "ws2"},
+                    ]
+                }
+
+        return R()
+
+    monkeypatch.setattr("requests.get", mock_get)
+    monkeypatch.setattr("requests.post", mock_post)
+    cli = make_cli()
+
+    # Test filtering by workspace name
+    result = runner.invoke(cli, ["templates", "list", "--workspace", "Workspace1"])
+    assert result.exit_code == 0
+    assert "Template1" in result.output
+    assert "Template2" not in result.output
+
+
 def test_list_templates_empty(monkeypatch, runner):
     """Test listing templates when none exist."""
     patch_keyring(monkeypatch)
@@ -128,6 +173,42 @@ def test_export_template_success(monkeypatch, runner, tmp_path):
     assert "exported to" in result.output
 
 
+def test_export_template_auto_filename(monkeypatch, runner, tmp_path):
+    """Test exporting a template with auto-generated filename."""
+    patch_keyring(monkeypatch)
+
+    def mock_post(*a, **kw):
+        class R:
+            def raise_for_status(self):
+                pass
+
+            def json(self):
+                return {"testPlanTemplates": [{"id": "t1", "name": "Test Template Name"}]}
+
+        return R()
+
+    monkeypatch.setattr("requests.post", mock_post)
+
+    # Change to the tmp_path directory for the test
+    import os
+
+    original_cwd = os.getcwd()
+    os.chdir(tmp_path)
+
+    try:
+        cli = make_cli()
+        result = runner.invoke(cli, ["templates", "export", "--id", "t1"])
+        assert result.exit_code == 0
+
+        # Check that the auto-generated filename was created
+        expected_file = tmp_path / "test-template-name.json"
+        assert expected_file.exists()
+        assert expected_file.read_text().startswith("{")
+        assert "exported to test-template-name.json" in result.output
+    finally:
+        os.chdir(original_cwd)
+
+
 def test_export_template_not_found(monkeypatch, runner):
     """Test exporting a template that does not exist."""
     patch_keyring(monkeypatch)
@@ -155,6 +236,8 @@ def test_import_template_success(monkeypatch, runner, tmp_path):
 
     def mock_post(*a, **kw):
         class R:
+            text = "{}"  # Add text attribute for response parsing
+
             def raise_for_status(self):
                 pass
 
@@ -170,6 +253,61 @@ def test_import_template_success(monkeypatch, runner, tmp_path):
     result = runner.invoke(cli, ["templates", "import", "--file", str(input_file)])
     assert result.exit_code == 0
     assert "imported successfully" in result.output
+
+
+def test_import_template_partial_failure(monkeypatch, runner, tmp_path):
+    """Test importing a template with partial failures."""
+    patch_keyring(monkeypatch)
+
+    def mock_post(*a, **kw):
+        class R:
+            text = """{
+                "failedTestPlanTemplates": [{"name": "Test Template"}],
+                "error": {
+                    "name": "Skyline.OneOrMoreErrorsOccurred",
+                    "message": "One or more errors occurred.",
+                    "innerErrors": [
+                        {
+                            "name": "Skyline.WorkOrder.WorkspaceNotFoundOrNoAccess",
+                            "message": "Workspace does not exist or you do not have permission.",
+                            "resourceId": "Test Template",
+                            "resourceType": "test plan template"
+                        }
+                    ]
+                }
+            }"""
+
+            def raise_for_status(self):
+                pass
+
+            def json(self):
+                return {
+                    "failedTestPlanTemplates": [{"name": "Test Template"}],
+                    "error": {
+                        "name": "Skyline.OneOrMoreErrorsOccurred",
+                        "message": "One or more errors occurred.",
+                        "innerErrors": [
+                            {
+                                "name": "Skyline.WorkOrder.WorkspaceNotFoundOrNoAccess",
+                                "message": "Workspace does not exist or you do not have permission.",
+                                "resourceId": "Test Template",
+                                "resourceType": "test plan template",
+                            }
+                        ],
+                    },
+                }
+
+        return R()
+
+    monkeypatch.setattr("requests.post", mock_post)
+    cli = make_cli()
+    input_file = tmp_path / "in.json"
+    input_file.write_text(json.dumps({"id": "t1", "name": "Test Template"}))
+    result = runner.invoke(cli, ["templates", "import", "--file", str(input_file)])
+    assert result.exit_code == 1
+    assert "Template import failed" in result.output
+    assert "WorkspaceNotFoundOrNoAccess" in result.output
+    assert "Test Template" in result.output
 
 
 def test_delete_template_success(monkeypatch, runner):

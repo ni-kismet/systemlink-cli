@@ -5,11 +5,13 @@ SystemLink CLI (`slcli`) is a cross-platform Python CLI for SystemLink integrato
 ## Features
 
 - **Secure Authentication**: Credential storage using [keyring](https://github.com/jaraco/keyring) with `login`/`logout` commands
-- **Test Plan Templates**: Complete management (list, export, import, delete) with JSON and table output formats
+- **Test Plan Templates**: Complete management (list, export, import, delete, init) with JSON and table output formats
 - **Jupyter Notebooks**: Full lifecycle management (list, download, create, update, delete) with workspace filtering
+- **Workflows**: Full workflow management (list, export, import, delete, init, update) with comprehensive state and action definitions
 - **Cross-Platform**: Windows, macOS, and Linux support with standalone binaries
 - **Professional CLI**: Consistent error handling, colored output, and comprehensive help system
 - **Output Formats**: JSON and table output options for programmatic integration and human-readable display
+- **Template Initialization**: Create new template JSON files
 - **Extensible Architecture**: Designed for easy addition of new SystemLink resource types
 - **Quality Assurance**: Full test suite with CI/CD, linting, and automated packaging
 
@@ -29,10 +31,28 @@ brew install slcli
 
 ### From Source
 
-1. **Install dependencies:**
+For development or if Homebrew isn't available:
+
+1. **Install Poetry** (if not already installed):
+
+   ```bash
+   pip install poetry
+   ```
+
+2. **Install dependencies:**
 
    ```bash
    poetry install
+   ```
+
+3. **Run the CLI:**
+
+   ```bash
+   # Run directly
+   poetry run slcli
+
+   # Or as a Python module
+   poetry run python -m slcli
    ```
 
 ## Quick Start
@@ -49,149 +69,30 @@ brew install slcli
    # View test plan templates
    slcli templates list
 
+   # View workflows
+   slcli workflows list
+
    # View notebooks
    slcli notebook list
    ```
 
-3. **Get help for any command:**
+3. **Initialize new resources:**
+
+   ```bash
+   # Create a new template
+   slcli templates init --name "My Test Template" --template-group "Production"
+
+   # Create a new workflow
+   slcli workflows init --name "My Workflow" --description "Custom workflow"
+   ```
+
+4. **Get help for any command:**
    ```bash
    slcli --help
    slcli templates --help
+   slcli workflows --help
    slcli notebook --help
    ```
-
-## Development Setup
-
-1. **Install Poetry** (if not already installed):
-
-   ```bash
-   pip install poetry
-   ```
-
-2. **Install dependencies:**
-
-   ```bash
-   poetry install
-   ```
-
-## Running
-
-- Run the CLI directly:
-
-  ```bash
-  poetry run slcli
-  ```
-
-- Or as a Python module:
-  ```bash
-  poetry run python -m slcli
-  ```
-
-## Build a Standalone Binary (Cross-Platform)
-
-### macOS/Linux (Homebrew/PyInstaller)
-
-To build a single-file executable and Homebrew formula:
-
-```bash
-poetry run python scripts/build_homebrew.py
-```
-
-- This will:
-  - Build the PyInstaller binary in `dist/slcli/`
-  - Create a tarball `dist/slcli.tar.gz`
-  - Generate a Homebrew formula `dist/homebrew-slcli.rb` with the correct SHA256
-
-You can then install locally with:
-
-```bash
-brew install ./dist/homebrew-slcli.rb
-```
-
-### Windows (Scoop/PyInstaller)
-
-To build a Windows executable and Scoop manifest:
-
-```powershell
-poetry run python scripts/build_pyinstaller.py
-poetry run python scripts/build_scoop.py
-```
-
-- This will:
-  - Build `dist/slcli.exe`
-  - Generate a Scoop manifest `dist/scoop-slcli.json` with the correct SHA256
-
-You can use the manifest in your own Scoop bucket for easy installation.
-
-### CI/CD Automation
-
-- All builds, tests, and packaging are automated via GitHub Actions for both Homebrew and Scoop.
-- Artifacts (`slcli.tar.gz`, `homebrew-slcli.rb`, `slcli.exe`, `scoop-slcli.json`) are uploaded for each build.
-
-## Release Process
-
-### Creating a Release
-
-1. **Update the version** in `pyproject.toml`:
-
-   ```toml
-   [tool.poetry]
-   version = "0.2.0"  # Update to new version
-   ```
-
-2. **Create and push a git tag**:
-
-   ```bash
-   git tag v0.2.0
-   git push origin v0.2.0
-   ```
-
-3. **Automated release workflow** will:
-   - Run all tests and linting
-   - Build PyInstaller binaries for all platforms
-   - Generate Homebrew formula and Scoop manifest
-   - Create GitHub release with all artifacts
-   - Automatically update the Homebrew tap (`ni-kismet/homebrew-ni`)
-
-### Release Artifacts
-
-Each release automatically generates:
-
-- `slcli.tar.gz` - Source tarball for Homebrew
-- `homebrew-slcli.rb` - Homebrew formula
-- `slcli.exe` - Windows executable
-- `scoop-slcli.json` - Scoop manifest for Windows
-
-### Homebrew Publishing
-
-The release workflow automatically:
-
-- Updates the formula in `ni-kismet/homebrew-ni` tap
-- Calculates SHA256 checksums
-- Updates version and download URLs
-- Commits changes to the tap repository
-
-Users can then install the latest version with:
-
-```bash
-brew update
-brew upgrade slcli
-```
-
-## Testing & Linting
-
-- Run tests:
-  ```bash
-  poetry run pytest
-  ```
-- Lint code:
-  ```bash
-  poetry run ni-python-styleguide lint
-  ```
-
-## Contributing
-
-See [the NI Python development wiki](https://dev.azure.com/ni/DevCentral/_wiki/wikis/AppCentral.wiki/?pagePath=/Tools/Python/Tutorials/Making-a-change-to-an-existing-project) for contribution guidelines.
 
 ## Authentication
 
@@ -215,6 +116,28 @@ slcli logout
 
 The `templates` command group allows you to manage test plan templates in SystemLink.
 
+### Initialize a new template
+
+Create a new test plan template JSON file with the complete schema structure:
+
+```bash
+# Interactive mode (prompts for required fields)
+slcli templates init
+
+# Specify required fields directly
+slcli templates init --name "Battery Test Template" --template-group "Production Tests"
+
+# Custom output file
+slcli templates init --name "My Template" --template-group "Development" --output custom-template.json
+```
+
+The `init` command creates a JSON file with:
+
+- Required fields: `name` and `templateGroup`
+- Optional fields: `productFamilies`, `partNumbers`, `summary`, `description`, etc.
+- Complete `executionActions` examples (JOB, NOTEBOOK, MANUAL actions)
+- Property placeholders for customization
+
 ### List all test plan templates
 
 ```bash
@@ -222,7 +145,10 @@ The `templates` command group allows you to manage test plan templates in System
 slcli templates list
 
 # JSON format for programmatic use
-slcli templates list --output json
+slcli templates list --format json
+
+# Filter by workspace
+slcli templates list --workspace "Production Workspace"
 ```
 
 ### Export a template to a local JSON file
@@ -237,10 +163,75 @@ slcli templates export --id <template_id> --output template.json
 slcli templates import --file template.json
 ```
 
+The import command provides detailed error reporting for partial failures, including specific error types like `WorkspaceNotFoundOrNoAccess`.
+
 ### Delete a template
 
 ```bash
 slcli templates delete --id <template_id>
+```
+
+## Workflow Management
+
+The `workflows` command group allows you to manage workflows in SystemLink. All workflow commands use the beta feature flag automatically.
+
+### Initialize a new workflow
+
+Create a new workflow JSON file with a complete state machine structure:
+
+```bash
+# Interactive mode (prompts for required fields)
+slcli workflows init
+
+# Specify fields directly
+slcli workflows init --name "Battery Test Workflow" --description "Workflow for battery testing procedures"
+
+# Custom output file
+slcli workflows init --name "My Workflow" --description "Custom workflow" --output custom-workflow.json
+```
+
+The `init` command creates a JSON file with:
+
+- Basic workflow metadata: `name` and `description`
+- Complete workflow `definition` with states, substates, and actions
+- Example state transitions (Created → InProgress → Completed)
+- Sample actions (Start, Pause, Resume, Complete, Fail, Abort)
+
+### List all workflows
+
+```bash
+# Table format (default)
+slcli workflows list
+
+# JSON format for programmatic use
+slcli workflows list --format json
+
+# Filter by workspace
+slcli workflows list --workspace "Production Workspace"
+```
+
+### Export a workflow to a local JSON file
+
+```bash
+slcli workflows export --id <workflow_id> --output workflow.json
+```
+
+### Import a workflow from a local JSON file
+
+```bash
+slcli workflows import --file workflow.json
+```
+
+### Update an existing workflow
+
+```bash
+slcli workflows update --id <workflow_id> --file updated-workflow.json
+```
+
+### Delete a workflow
+
+```bash
+slcli workflows delete --id <workflow_id>
 ```
 
 ## Notebook Management
@@ -257,7 +248,7 @@ slcli notebook list
 slcli notebook list --workspace MyWorkspace
 
 # JSON format for programmatic use
-slcli notebook list --output json
+slcli notebook list --format json
 
 # Control pagination (table format only)
 slcli notebook list --take 50
@@ -330,9 +321,25 @@ SystemLink CLI supports both human-readable table output and machine-readable JS
 ```bash
 # Human-readable table
 slcli templates list
+slcli workflows list
 slcli notebook list
 
 # Machine-readable JSON
-slcli templates list --output json
-slcli notebook list --output json
+slcli templates list --format json
+slcli workflows list --format json
+slcli notebook list --format json
 ```
+
+## Flag Conventions
+
+SystemLink CLI uses consistent flag patterns across all commands:
+
+- `--format/-f`: Output format selection (`table` or `json`) for list commands
+- `--output/-o`: File path for export/save operations
+- `--workspace/-w`: Workspace filtering
+- `--id/-i`: Resource identifiers
+- `--file/-f`: Input file paths for import operations
+
+## Contributing
+
+See [CONTRIBUTING.md](CONTRIBUTING.md) for development setup, coding standards, and contribution guidelines.

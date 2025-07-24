@@ -7,6 +7,7 @@ import keyring
 
 from .notebook_click import register_notebook_commands
 from .templates_click import register_templates_commands
+from .workflows_click import register_workflows_commands
 
 
 CONTEXT_SETTINGS = dict(help_option_names=["-h", "--help"])
@@ -55,3 +56,4 @@ def logout():
 
 register_templates_commands(cli)
 register_notebook_commands(cli)
+register_workflows_commands(cli)

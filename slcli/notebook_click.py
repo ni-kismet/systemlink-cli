@@ -138,19 +138,19 @@ def register_notebook_commands(cli):
         "--take", default=25, show_default=True, help="Number of notebooks to show per page"
     )
     @click.option(
-        "--output",
-        "-o",
+        "--format",
+        "-f",
         type=click.Choice(["table", "json"], case_sensitive=False),
         default="table",
         help="Output format: table or json",
     )
-    def list_notebooks(workspace: str = "", take: int = 25, output: str = "table") -> None:
+    def list_notebooks(workspace: str = "", take: int = 25, format: str = "table") -> None:
         """List all notebooks. Optionally filter by workspace.
 
         Args:
             workspace (str, optional): Workspace name to filter by.
             take (int, optional): Number of notebooks to show per page.
-            output (str, optional): Output format (table or json).
+            format (str, optional): Output format (table or json).
         """
         try:
             nb_client = NotebookClient(configuration=get_http_configuration())
@@ -203,14 +203,14 @@ def register_notebook_commands(cli):
                         err=True,
                     )
             if not notebooks:
-                if output.lower() == "json":
+                if format.lower() == "json":
                     click.echo("[]")
                 else:
                     click.echo("No notebooks found.")
                 return
 
             # Handle output format
-            if output.lower() == "json":
+            if format.lower() == "json":
                 click.echo(json.dumps(notebooks, indent=2))
             else:
                 # Table output

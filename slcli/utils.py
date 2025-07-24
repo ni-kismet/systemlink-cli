@@ -342,3 +342,123 @@ def validate_workspace_access(workspace_name: str, warn_on_error: bool = True) -
                 err=True,
             )
         return workspace_name
+
+
+def sanitize_filename(name: str, fallback_prefix: str = "file") -> str:
+    """Sanitize a name to create a safe filename.
+
+    Removes invalid characters, converts spaces to hyphens, and makes lowercase.
+
+    Args:
+        name: The original name to sanitize
+        fallback_prefix: Prefix to use if name is empty after sanitization
+
+    Returns:
+        A safe filename string
+    """
+    if not name:
+        return fallback_prefix
+
+    # Keep only alphanumeric characters, spaces, hyphens, and underscores
+    safe_name = "".join(c for c in name if c.isalnum() or c in (" ", "-", "_")).rstrip()
+
+    # Replace spaces with hyphens and convert to lowercase
+    safe_name = safe_name.replace(" ", "-").lower()
+
+    # Remove multiple consecutive hyphens
+    import re
+
+    safe_name = re.sub(r"-+", "-", safe_name)
+
+    # Remove leading/trailing hyphens
+    safe_name = safe_name.strip("-")
+
+    # Return fallback if name becomes empty
+    return safe_name if safe_name else fallback_prefix
+
+
+def extract_error_type(error_name: str) -> str:
+    """Extract a readable error type from a full class name.
+
+    Args:
+        error_name: Full error class name (e.g., "Skyline.WorkOrder.WorkflowNotFoundOrNoAccess")
+
+    Returns:
+        Short error type (e.g., "WorkflowNotFoundOrNoAccess")
+    """
+    if not error_name:
+        return ""
+    return error_name.split(".")[-1] if "." in error_name else error_name
+
+
+def parse_inner_errors(inner_errors: List[Dict[str, Any]]) -> List[Dict[str, str]]:
+    """Parse inner errors from API response into a standardized format.
+
+    Args:
+        inner_errors: List of inner error objects from API response
+
+    Returns:
+        List of parsed error dictionaries with standardized keys
+    """
+    parsed_errors = []
+    for inner_error in inner_errors:
+        error_name = inner_error.get("name", "")
+        error_message = inner_error.get("message", "Unknown error")
+        resource_id = inner_error.get("resourceId", "")
+        resource_type = inner_error.get("resourceType", "")
+
+        parsed_errors.append(
+            {
+                "name": error_name,
+                "type": extract_error_type(error_name),
+                "message": error_message,
+                "resource_id": resource_id,
+                "resource_type": resource_type,
+            }
+        )
+
+    return parsed_errors
+
+
+def display_api_errors(
+    operation_name: str, response_data: Dict[str, Any], detailed: bool = True
+) -> None:
+    """Display API errors in a consistent format.
+
+    Args:
+        operation_name: Name of the operation that failed
+        response_data: API response data containing error information
+        detailed: Whether to show detailed inner errors
+    """
+    import sys
+
+    click.echo(f"✗ {operation_name}:", err=True)
+
+    # Check for error structure
+    error = response_data.get("error", {})
+    if not error:
+        # Fallback to simple message if no detailed error structure
+        message = response_data.get("message", "Unknown error")
+        click.echo(f"  {message}", err=True)
+        sys.exit(ExitCodes.GENERAL_ERROR)
+
+    # Display main error message
+    main_message = error.get("message", "Unknown error")
+    click.echo(f"  {main_message}", err=True)
+
+    # Parse inner errors for detailed validation messages
+    if detailed:
+        inner_errors = error.get("innerErrors", [])
+        if inner_errors:
+            click.echo("  Detailed errors:", err=True)
+            parsed_errors = parse_inner_errors(inner_errors)
+            for parsed_error in parsed_errors:
+                error_type = parsed_error["type"]
+                error_message = parsed_error["message"]
+
+                if error_type:
+                    click.echo(f"    - {error_type}: {error_message}", err=True)
+                else:
+                    click.echo(f"    - {error_message}", err=True)
+
+    sys.exit(ExitCodes.GENERAL_ERROR)
