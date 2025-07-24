@@ -6,10 +6,18 @@ on:
       - 'v*'
 
 jobs:
-  release:
-    runs-on: ubuntu-latest
-    permissions:
-      contents: write
+  build:
+    strategy:
+      matrix:
+        os: [ubuntu-latest, macos-latest]
+        include:
+          - os: ubuntu-latest
+            platform: linux
+            artifact_name: slcli-linux
+          - os: macos-latest
+            platform: macos
+            artifact_name: slcli-macos
+    runs-on: ${{ matrix.os }}
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
@@ -28,15 +36,83 @@ jobs:
       - name: Run tests
         run: poetry run pytest
 
-      - name: Build Homebrew tarball and formula
+      - name: Build PyInstaller binary
+        run: poetry run python scripts/build_pyinstaller.py
+
+      - name: Create platform-specific tarball (Linux)
+        if: matrix.platform == 'linux'
+        run: |
+          cd dist
+          tar -czf slcli-linux.tar.gz slcli/
+
+      - name: Create platform-specific tarball (macOS)
+        if: matrix.platform == 'macos'
+        run: |
+          cd dist
+          tar -czf slcli-macos.tar.gz slcli/
+
+      - name: Upload platform artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: ${{ matrix.artifact_name }}
+          path: dist/${{ matrix.artifact_name }}.tar.gz
+
+  homebrew-build:
+    runs-on: ubuntu-latest
+    needs: build
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+
+      - name: Install Poetry
+        run: pip install poetry
+
+      - name: Install dependencies
+        run: poetry install
+
+      - name: Download Linux artifact
+        uses: actions/download-artifact@v4
+        with:
+          name: slcli-linux
+          path: dist/
+
+      - name: Download macOS artifact
+        uses: actions/download-artifact@v4
+        with:
+          name: slcli-macos
+          path: dist/
+
+      - name: Build Homebrew formula
         run: poetry run python scripts/build_homebrew.py
+
+      - name: Upload Homebrew artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: homebrew-artifacts
+          path: |
+            dist/homebrew-slcli.rb
+
+  release:
+    needs: [build, homebrew-build]
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - name: Download all artifacts
+        uses: actions/download-artifact@v4
 
       - name: Create Release
         uses: softprops/action-gh-release@v2
         with:
           files: |
-            dist/slcli.tar.gz
-            dist/homebrew-slcli.rb
+            homebrew-artifacts/homebrew-slcli.rb
+            slcli-linux/slcli-linux.tar.gz
+            slcli-macos/slcli-macos.tar.gz
           generate_release_notes: true
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
@@ -50,7 +126,7 @@ jobs:
         with:
           formula-name: slcli
           homebrew-tap: ni-kismet/homebrew-ni
-          download-url: https://github.com/ni-kismet/systemlink-cli/releases/download/${{ github.ref_name }}/slcli.tar.gz
+          download-url: https://github.com/ni-kismet/systemlink-cli/releases/download/${{ github.ref_name }}/homebrew-slcli.rb
           commit-message: |
             {{formulaName}} {{version}}
 

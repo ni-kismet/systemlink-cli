@@ -1,10 +1,18 @@
 class Slcli < Formula
   desc "SystemLink Integrator CLI: Manage SystemLink test plan templates and workflows"
   homepage "https://github.com/ni-kismet/systemlink-cli"
-  url "https://github.com/ni-kismet/systemlink-cli/releases/download/v{{ version }}/slcli.tar.gz"
   version "{{ version }}"
-  sha256 "{{ sha256 }}"
   license "MIT"
+
+  on_macos do
+    url "https://github.com/ni-kismet/systemlink-cli/releases/download/v{{ version }}/slcli-macos.tar.gz"
+    sha256 "{{ sha256_macos }}"
+  end
+
+  on_linux do
+    url "https://github.com/ni-kismet/systemlink-cli/releases/download/v{{ version }}/slcli-linux.tar.gz"
+    sha256 "{{ sha256_linux }}"
+  end
 
   def install
     libexec.install Dir["*"]
