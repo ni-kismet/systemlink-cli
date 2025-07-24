@@ -121,15 +121,25 @@ jobs:
     needs: release
     runs-on: ubuntu-latest
     steps:
-      - name: Update Homebrew tap
-        uses: mislav/bump-homebrew-formula-action@v3
+      - name: Checkout homebrew tap
+        uses: actions/checkout@v4
         with:
-          formula-name: slcli
-          homebrew-tap: ni-kismet/homebrew-ni
-          download-url: https://github.com/ni-kismet/systemlink-cli/releases/download/${{ github.ref_name }}/homebrew-slcli.rb
-          commit-message: |
-            {{formulaName}} {{version}}
+          repository: ni-kismet/homebrew-ni
+          token: ${{ secrets.HOMEBREW_GITHUB_TOKEN }}
+          path: homebrew-ni
 
-            Created by https://github.com/mislav/bump-homebrew-formula-action
-        env:
-          COMMITTER_TOKEN: ${{ secrets.HOMEBREW_GITHUB_TOKEN }}
+      - name: Download Homebrew formula
+        uses: actions/download-artifact@v4
+        with:
+          name: homebrew-artifacts
+          path: formula/
+
+      - name: Update formula in tap
+        run: |
+          cp formula/homebrew-slcli.rb homebrew-ni/Formula/slcli.rb
+          cd homebrew-ni
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git add Formula/slcli.rb
+          git commit -m "slcli ${{ github.ref_name }}: update to latest release with multi-platform support"
+          git push
