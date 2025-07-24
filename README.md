@@ -29,6 +29,18 @@ brew tap ni-kismet/homebrew-ni
 brew install slcli
 ```
 
+### Scoop (Windows)
+
+Install SystemLink CLI using Scoop from our official bucket:
+
+```bash
+# Add the NI developer tools bucket
+scoop bucket add ni-kismet https://github.com/ni-kismet/scoop-ni
+
+# Install slcli
+scoop install slcli
+```
+
 ### From Source
 
 For development or if Homebrew isn't available:
