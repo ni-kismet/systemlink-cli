@@ -20,14 +20,14 @@ from .utils import (
 
 
 def register_templates_commands(cli):
-    """Register the 'templates' command group and its subcommands."""
+    """Register the 'template' command group and its subcommands."""
 
     @cli.group()
-    def templates():
+    def template():
         """Manage test plan templates."""
         pass
 
-    @templates.command(name="init")
+    @template.command(name="init")
     @click.option(
         "--name",
         "-n",
@@ -150,7 +150,7 @@ def register_templates_commands(cli):
             click.echo(f"✗ Error creating template file: {exc}", err=True)
             raise click.ClickException(f"Error creating template file: {exc}")
 
-    @templates.command(name="list")
+    @template.command(name="list")
     @click.option(
         "--format",
         "-f",
@@ -221,7 +221,7 @@ def register_templates_commands(cli):
         except Exception as exc:
             handle_api_error(exc)
 
-    @templates.command(name="export")
+    @template.command(name="export")
     @click.option(
         "--id",
         "-i",
@@ -259,7 +259,7 @@ def register_templates_commands(cli):
                 click.echo(f"✗ Error: {exc}", err=True)
                 raise click.ClickException(str(exc))
 
-    @templates.command(name="import")
+    @template.command(name="import")
     @click.option(
         "--file",
         "-f",
@@ -353,7 +353,7 @@ def register_templates_commands(cli):
         except Exception as exc:
             handle_api_error(exc)
 
-    @templates.command(name="delete")
+    @template.command(name="delete")
     @click.option(
         "--id",
         "-i",

@@ -79,10 +79,10 @@ For development or if Homebrew isn't available:
 
    ```bash
    # View test plan templates
-   slcli templates list
+   slcli template list
 
    # View workflows
-   slcli workflows list
+   slcli workflow list
 
    # View notebooks
    slcli notebook list
@@ -92,17 +92,17 @@ For development or if Homebrew isn't available:
 
    ```bash
    # Create a new template
-   slcli templates init --name "My Test Template" --template-group "Production"
+   slcli template init --name "My Test Template" --template-group "Production"
 
    # Create a new workflow
-   slcli workflows init --name "My Workflow" --description "Custom workflow"
+   slcli workflow init --name "My Workflow" --description "Custom workflow"
    ```
 
 4. **Get help for any command:**
    ```bash
    slcli --help
-   slcli templates --help
-   slcli workflows --help
+   slcli template --help
+   slcli workflow --help
    slcli notebook --help
    ```
 
@@ -133,7 +133,7 @@ slcli logout
 
 ## Test Plan Template Management
 
-The `templates` command group allows you to manage test plan templates in SystemLink.
+The `template` command group allows you to manage test plan templates in SystemLink.
 
 ### Initialize a new template
 
@@ -141,13 +141,13 @@ Create a new test plan template JSON file with the complete schema structure:
 
 ```bash
 # Interactive mode (prompts for required fields)
-slcli templates init
+slcli template init
 
 # Specify required fields directly
-slcli templates init --name "Battery Test Template" --template-group "Production Tests"
+slcli template init --name "Battery Test Template" --template-group "Production Tests"
 
 # Custom output file
-slcli templates init --name "My Template" --template-group "Development" --output custom-template.json
+slcli template init --name "My Template" --template-group "Development" --output custom-template.json
 ```
 
 The `init` command creates a JSON file with:
@@ -161,25 +161,25 @@ The `init` command creates a JSON file with:
 
 ```bash
 # Table format (default)
-slcli templates list
+slcli template list
 
 # JSON format for programmatic use
-slcli templates list --format json
+slcli template list --format json
 
 # Filter by workspace
-slcli templates list --workspace "Production Workspace"
+slcli template list --workspace "Production Workspace"
 ```
 
 ### Export a template to a local JSON file
 
 ```bash
-slcli templates export --id <template_id> --output template.json
+slcli template export --id <template_id> --output template.json
 ```
 
 ### Import a template from a local JSON file
 
 ```bash
-slcli templates import --file template.json
+slcli template import --file template.json
 ```
 
 The import command provides detailed error reporting for partial failures, including specific error types like `WorkspaceNotFoundOrNoAccess`.
@@ -187,12 +187,12 @@ The import command provides detailed error reporting for partial failures, inclu
 ### Delete a template
 
 ```bash
-slcli templates delete --id <template_id>
+slcli template delete --id <template_id>
 ```
 
 ## Workflow Management
 
-The `workflows` command group allows you to manage workflows in SystemLink. All workflow commands use the beta feature flag automatically.
+The `workflow` command group allows you to manage workflows in SystemLink. All workflow commands use the beta feature flag automatically.
 
 ### Initialize a new workflow
 
@@ -200,13 +200,13 @@ Create a new workflow JSON file with a complete state machine structure:
 
 ```bash
 # Interactive mode (prompts for required fields)
-slcli workflows init
+slcli workflow init
 
 # Specify fields directly
-slcli workflows init --name "Battery Test Workflow" --description "Workflow for battery testing procedures"
+slcli workflow init --name "Battery Test Workflow" --description "Workflow for battery testing procedures"
 
 # Custom output file
-slcli workflows init --name "My Workflow" --description "Custom workflow" --output custom-workflow.json
+slcli workflow init --name "My Workflow" --description "Custom workflow" --output custom-workflow.json
 ```
 
 The `init` command creates a JSON file with:
@@ -220,37 +220,37 @@ The `init` command creates a JSON file with:
 
 ```bash
 # Table format (default)
-slcli workflows list
+slcli workflow list
 
 # JSON format for programmatic use
-slcli workflows list --format json
+slcli workflow list --format json
 
 # Filter by workspace
-slcli workflows list --workspace "Production Workspace"
+slcli workflow list --workspace "Production Workspace"
 ```
 
 ### Export a workflow to a local JSON file
 
 ```bash
-slcli workflows export --id <workflow_id> --output workflow.json
+slcli workflow export --id <workflow_id> --output workflow.json
 ```
 
 ### Import a workflow from a local JSON file
 
 ```bash
-slcli workflows import --file workflow.json
+slcli workflow import --file workflow.json
 ```
 
 ### Update an existing workflow
 
 ```bash
-slcli workflows update --id <workflow_id> --file updated-workflow.json
+slcli workflow update --id <workflow_id> --file updated-workflow.json
 ```
 
 ### Delete a workflow
 
 ```bash
-slcli workflows delete --id <workflow_id>
+slcli workflow delete --id <workflow_id>
 ```
 
 ## Notebook Management
@@ -339,13 +339,13 @@ SystemLink CLI supports both human-readable table output and machine-readable JS
 
 ```bash
 # Human-readable table
-slcli templates list
-slcli workflows list
+slcli template list
+slcli workflow list
 slcli notebook list
 
 # Machine-readable JSON
-slcli templates list --format json
-slcli workflows list --format json
+slcli template list --format json
+slcli workflow list --format json
 slcli notebook list --format json
 ```
 

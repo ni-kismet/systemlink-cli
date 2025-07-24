@@ -23,14 +23,14 @@ from .utils import (
 
 
 def register_workflows_commands(cli):
-    """Register the 'workflows' command group and its subcommands."""
+    """Register the 'workflow' command group and its subcommands."""
 
     @cli.group()
-    def workflows():
+    def workflow():
         """Manage workflows."""
         pass
 
-    @workflows.command(name="init")
+    @workflow.command(name="init")
     @click.option(
         "--name",
         "-n",
@@ -216,7 +216,7 @@ def register_workflows_commands(cli):
             click.echo(f"✗ Error creating workflow file: {exc}", err=True)
             raise click.ClickException(f"Error creating workflow file: {exc}")
 
-    @workflows.command(name="list")
+    @workflow.command(name="list")
     @click.option(
         "--format",
         "-f",
@@ -286,7 +286,7 @@ def register_workflows_commands(cli):
         except Exception as exc:
             handle_api_error(exc)
 
-    @workflows.command(name="export")
+    @workflow.command(name="export")
     @click.option(
         "--id",
         "-i",
@@ -321,7 +321,7 @@ def register_workflows_commands(cli):
                 click.echo(f"✗ Error: {exc}", err=True)
                 raise click.ClickException(str(exc))
 
-    @workflows.command(name="import")
+    @workflow.command(name="import")
     @click.option(
         "--file",
         "-f",
@@ -417,7 +417,7 @@ def register_workflows_commands(cli):
         except Exception as exc:
             handle_api_error(exc)
 
-    @workflows.command(name="delete")
+    @workflow.command(name="delete")
     @click.option(
         "--id",
         "-i",
@@ -455,7 +455,7 @@ def register_workflows_commands(cli):
         except Exception as exc:
             handle_api_error(exc)
 
-    @workflows.command(name="update")
+    @workflow.command(name="update")
     @click.option(
         "--id",
         "-i",
