@@ -17,7 +17,6 @@ from .utils import (
     get_workspace_id_with_fallback,
     sanitize_filename,
     extract_error_type,
-    parse_inner_errors,
     display_api_errors,
 )
 
