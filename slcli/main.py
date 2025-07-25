@@ -1,9 +1,11 @@
 """slcli entry points."""
 
 import getpass
+from pathlib import Path
 
 import click
 import keyring
+import tomllib
 
 from .notebook_click import register_notebook_commands
 from .templates_click import register_templates_commands
@@ -11,13 +13,32 @@ from .workflows_click import register_workflows_commands
 from .workspace_click import register_workspace_commands
 
 
+def get_version() -> str:
+    """Get version from pyproject.toml."""
+    try:
+        # Get the path to pyproject.toml relative to this file
+        current_dir = Path(__file__).parent
+        pyproject_path = current_dir.parent / "pyproject.toml"
+
+        with open(pyproject_path, "rb") as f:
+            pyproject_data = tomllib.load(f)
+
+        return pyproject_data["tool"]["poetry"]["version"]
+    except Exception:
+        return "unknown"
+
+
 CONTEXT_SETTINGS = dict(help_option_names=["-h", "--help"])
 
 
 @click.group(context_settings=CONTEXT_SETTINGS, invoke_without_command=True)
+@click.option("--version", is_flag=True, help="Show version and exit")
 @click.pass_context
-def cli(ctx):
+def cli(ctx, version):
     """Top level of SystemLink Integrator CLI."""
+    if version:
+        click.echo(f"slcli version {get_version()}")
+        ctx.exit()
     if ctx.invoked_subcommand is None:
         click.echo(ctx.get_help())
 
