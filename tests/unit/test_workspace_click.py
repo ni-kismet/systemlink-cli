@@ -338,3 +338,76 @@ def test_info_workspace_not_found(monkeypatch, runner):
     result = runner.invoke(cli, ["workspace", "info", "--name", "nonexistent"])
     assert result.exit_code == 3  # NOT_FOUND exit code
     assert "Workspace 'nonexistent' not found" in result.output
+
+
+def test_info_workspace_with_permission_errors(monkeypatch, runner):
+    """Test getting workspace info when some resources have permission errors."""
+    patch_keyring(monkeypatch)
+
+    def mock_get(*a, **kw):
+        class R:
+            def raise_for_status(self):
+                pass
+
+            def json(self):
+                return {
+                    "workspaces": [
+                        {
+                            "id": "test-ws-id",
+                            "name": "Test Workspace",
+                            "enabled": True,
+                            "default": False,
+                        },
+                    ]
+                }
+
+        return R()
+
+    def mock_post(*a, **kw):
+        if "testplan-templates" in str(a):
+            # Simulate permission error for templates
+            raise Exception("401 Unauthorized")
+        elif "workflows" in str(a):
+            # Return successful response for workflows
+            class R:
+                def raise_for_status(self):
+                    pass
+
+                def json(self):
+                    return {
+                        "workflows": [
+                            {"id": "workflow-1", "name": "Test Workflow", "workspace": "test-ws-id"}
+                        ]
+                    }
+
+            return R()
+        else:
+            # Simulate permission error for notebooks
+            raise Exception("403 Forbidden")
+
+    monkeypatch.setattr("requests.get", mock_get)
+    monkeypatch.setattr("requests.post", mock_post)
+
+    cli = make_cli()
+
+    # Test table format shows error messages
+    result = runner.invoke(cli, ["workspace", "info", "--id", "test-ws-id"])
+    assert result.exit_code == 0
+    assert "Workspace Information: Test Workspace" in result.output
+    assert "Test Plan Templates (0)" in result.output
+    assert "Access denied (insufficient permissions)" in result.output
+    assert "Workflows (1)" in result.output
+    assert "Test Workflow" in result.output
+    assert "Notebooks (0)" in result.output
+    assert "Access forbidden" in result.output
+
+    # Test JSON format includes access_errors
+    result = runner.invoke(cli, ["workspace", "info", "--id", "test-ws-id", "--format", "json"])
+    assert result.exit_code == 0
+    import json
+
+    output_data = json.loads(result.output)
+    assert "access_errors" in output_data
+    assert output_data["access_errors"]["templates"] == "Access denied (insufficient permissions)"
+    assert output_data["access_errors"]["notebooks"] == "Access forbidden"
+    assert "workflows" not in output_data["access_errors"]  # Should not have workflow errors

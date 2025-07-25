@@ -2,7 +2,7 @@
 
 import json
 import sys
-from typing import Optional
+from typing import Optional, Tuple
 
 import click
 
@@ -190,10 +190,19 @@ def register_workspace_commands(cli):
             workspace_id = target_workspace.get("id")
             workspace_name = target_workspace.get("name")
 
-            # Get workspace contents
-            templates = _get_workspace_templates(workspace_id)
-            workflows = _get_workspace_workflows(workspace_id)
-            notebooks = _get_workspace_notebooks(workspace_id)
+            # Get workspace contents with error handling
+            templates, templates_error = _get_workspace_templates(workspace_id)
+            workflows, workflows_error = _get_workspace_workflows(workspace_id)
+            notebooks, notebooks_error = _get_workspace_notebooks(workspace_id)
+
+            # Prepare error information
+            access_errors = {}
+            if templates_error:
+                access_errors["templates"] = templates_error
+            if workflows_error:
+                access_errors["workflows"] = workflows_error
+            if notebooks_error:
+                access_errors["notebooks"] = notebooks_error
 
             workspace_info = {
                 "workspace": {
@@ -214,6 +223,10 @@ def register_workspace_commands(cli):
                 },
             }
 
+            # Add access errors to JSON output if any exist
+            if access_errors:
+                workspace_info["access_errors"] = access_errors
+
             if format == "json":
                 click.echo(json.dumps(workspace_info, indent=2))
                 return
@@ -229,7 +242,9 @@ def register_workspace_commands(cli):
             # Templates section
             click.echo(f"\nTest Plan Templates ({len(templates)})")
             click.echo("-" * 30)
-            if templates:
+            if templates_error:
+                click.echo(f"✗ {templates_error}")
+            elif templates:
                 click.echo("┌" + "─" * 42 + "┬" + "─" * 38 + "┐")
                 click.echo(f"│ {'Name':<40} │ {'ID':<36} │")
                 click.echo("├" + "─" * 42 + "┼" + "─" * 38 + "┤")
@@ -244,7 +259,9 @@ def register_workspace_commands(cli):
             # Workflows section
             click.echo(f"\nWorkflows ({len(workflows)})")
             click.echo("-" * 30)
-            if workflows:
+            if workflows_error:
+                click.echo(f"✗ {workflows_error}")
+            elif workflows:
                 click.echo("┌" + "─" * 42 + "┬" + "─" * 38 + "┐")
                 click.echo(f"│ {'Name':<40} │ {'ID':<36} │")
                 click.echo("├" + "─" * 42 + "┼" + "─" * 38 + "┤")
@@ -259,7 +276,9 @@ def register_workspace_commands(cli):
             # Notebooks section
             click.echo(f"\nNotebooks ({len(notebooks)})")
             click.echo("-" * 30)
-            if notebooks:
+            if notebooks_error:
+                click.echo(f"✗ {notebooks_error}")
+            elif notebooks:
                 click.echo("┌" + "─" * 42 + "┬" + "─" * 38 + "┐")
                 click.echo(f"│ {'Name':<40} │ {'ID':<36} │")
                 click.echo("├" + "─" * 42 + "┼" + "─" * 38 + "┤")
@@ -287,8 +306,13 @@ def _get_workspace_map():
         return {}
 
 
-def _get_workspace_templates(workspace_id: str) -> list:
-    """Get test plan templates in a workspace."""
+def _get_workspace_templates(workspace_id: str) -> Tuple[list, Optional[str]]:
+    """Get test plan templates in a workspace.
+
+    Returns:
+        Tuple of (templates_list, error_message). If error_message is not None,
+        it indicates an access or permission issue.
+    """
     try:
         url = f"{get_base_url()}/niworkorder/v1/query-testplan-templates"
         payload = {
@@ -296,40 +320,74 @@ def _get_workspace_templates(workspace_id: str) -> list:
             "projection": ["ID", "NAME"],
             "filter": f'workspace == "{workspace_id}"',
         }
-        resp = make_api_request("POST", url, payload)
+        resp = make_api_request("POST", url, payload, handle_errors=False)
         data = resp.json()
-        return data.get("testPlanTemplates", [])
-    except Exception:
-        return []
+        return data.get("testPlanTemplates", []), None
+    except Exception as exc:
+        error_msg = str(exc).lower()
+        if "401" in error_msg or "unauthorized" in error_msg or "permission" in error_msg:
+            return [], "Access denied (insufficient permissions)"
+        elif "403" in error_msg or "forbidden" in error_msg:
+            return [], "Access forbidden"
+        elif "404" in error_msg or "not found" in error_msg:
+            return [], "Service not available"
+        else:
+            return [], f"Unable to retrieve templates: {str(exc)}"
 
 
-def _get_workspace_workflows(workspace_id: str) -> list:
-    """Get workflows in a workspace."""
+def _get_workspace_workflows(workspace_id: str) -> Tuple[list, Optional[str]]:
+    """Get workflows in a workspace.
+
+    Returns:
+        Tuple of (workflows_list, error_message). If error_message is not None,
+        it indicates an access or permission issue.
+    """
     try:
         url = f"{get_base_url()}/niworkorder/v1/query-workflows?ff-userdefinedworkflowsfortestplaninstances=true"
         payload = {
             "take": 1000,
             "projection": ["ID", "NAME", "WORKSPACE"],
         }
-        resp = make_api_request("POST", url, payload)
+        resp = make_api_request("POST", url, payload, handle_errors=False)
         data = resp.json()
         workflows = data.get("workflows", [])
         # Filter workflows by workspace since the API doesn't support filter parameter
         workspace_workflows = [wf for wf in workflows if wf.get("workspace") == workspace_id]
-        return workspace_workflows
-    except Exception:
-        return []
+        return workspace_workflows, None
+    except Exception as exc:
+        error_msg = str(exc).lower()
+        if "401" in error_msg or "unauthorized" in error_msg or "permission" in error_msg:
+            return [], "Access denied (insufficient permissions)"
+        elif "403" in error_msg or "forbidden" in error_msg:
+            return [], "Access forbidden"
+        elif "404" in error_msg or "not found" in error_msg:
+            return [], "Service not available"
+        else:
+            return [], f"Unable to retrieve workflows: {str(exc)}"
 
 
-def _get_workspace_notebooks(workspace_id: str) -> list:
-    """Get notebooks in a workspace."""
+def _get_workspace_notebooks(workspace_id: str) -> Tuple[list, Optional[str]]:
+    """Get notebooks in a workspace.
+
+    Returns:
+        Tuple of (notebooks_list, error_message). If error_message is not None,
+        it indicates an access or permission issue.
+    """
     try:
         url = f"{get_base_url()}/ninotebook/v1/notebook/query"
         payload = {"take": 1000, "filter": f'workspace = "{workspace_id}"'}
-        resp = make_api_request("POST", url, payload)
+        resp = make_api_request("POST", url, payload, handle_errors=False)
         data = resp.json()
         notebooks = data.get("notebooks", [])
         # Convert to consistent format
-        return [{"id": nb.get("id"), "name": nb.get("name")} for nb in notebooks]
-    except Exception:
-        return []
+        return [{"id": nb.get("id"), "name": nb.get("name")} for nb in notebooks], None
+    except Exception as exc:
+        error_msg = str(exc).lower()
+        if "401" in error_msg or "unauthorized" in error_msg or "permission" in error_msg:
+            return [], "Access denied (insufficient permissions)"
+        elif "403" in error_msg or "forbidden" in error_msg:
+            return [], "Access forbidden"
+        elif "404" in error_msg or "not found" in error_msg:
+            return [], "Service not available"
+        else:
+            return [], f"Unable to retrieve notebooks: {str(exc)}"
