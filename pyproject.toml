@@ -60,7 +60,7 @@ branch = "main"
 upload_to_pypi = false
 upload_to_release = true
 hvcs = "github"
-commit_message = "chore(release): {version}\n\n{changelog}"
+commit_message = "chore(release): {version}"
 tag_format = "v{version}"
 
 [tool.semantic_release.commit_parser_options]
@@ -70,8 +70,10 @@ patch_tags = ["fix", "perf"]
 
 [tool.semantic_release.changelog]
 template_dir = "templates"
-changelog_file = "CHANGELOG.md"
 exclude_commit_patterns = []
+
+[tool.semantic_release.changelog.default_templates]
+changelog_file = "CHANGELOG.md"
 
 [tool.semantic_release.branches.main]
 match = "(main|master)"

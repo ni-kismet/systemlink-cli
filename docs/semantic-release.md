@@ -52,11 +52,13 @@ BREAKING CHANGE: API endpoints have been restructured"
 ## Workflows
 
 ### Semantic Release Workflow
+
 - **File**: `.github/workflows/semantic-release.yml`
 - **Trigger**: Push to `main` branch
 - **Actions**: Analyzes commits, bumps version, creates tags, generates changelog
 
 ### Release Build Workflow
+
 - **File**: `.github/workflows/release.yml`
 - **Trigger**: New tags created by semantic release
 - **Actions**: Builds binaries for all platforms, creates GitHub releases
