@@ -68,7 +68,7 @@ def test_list_templates_success(monkeypatch, runner):
     monkeypatch.setattr("requests.get", mock_get)
     monkeypatch.setattr("requests.post", mock_post)
     cli = make_cli()
-    result = runner.invoke(cli, ["templates", "list"])
+    result = runner.invoke(cli, ["template", "list"])
     assert result.exit_code == 0
     assert "Template1" in result.output
 
@@ -112,7 +112,7 @@ def test_list_templates_with_workspace_filter(monkeypatch, runner):
     cli = make_cli()
 
     # Test filtering by workspace name
-    result = runner.invoke(cli, ["templates", "list", "--workspace", "Workspace1"])
+    result = runner.invoke(cli, ["template", "list", "--workspace", "Workspace1"])
     assert result.exit_code == 0
     assert "Template1" in result.output
     assert "Template2" not in result.output
@@ -145,7 +145,7 @@ def test_list_templates_empty(monkeypatch, runner):
     monkeypatch.setattr("requests.get", mock_get)
     monkeypatch.setattr("requests.post", mock_post)
     cli = make_cli()
-    result = runner.invoke(cli, ["templates", "list"])
+    result = runner.invoke(cli, ["template", "list"])
     assert result.exit_code == 0
     assert "No test plan templates found." in result.output
 
@@ -167,7 +167,7 @@ def test_export_template_success(monkeypatch, runner, tmp_path):
     monkeypatch.setattr("requests.post", mock_post)
     cli = make_cli()
     output_file = tmp_path / "out.json"
-    result = runner.invoke(cli, ["templates", "export", "--id", "t1", "--output", str(output_file)])
+    result = runner.invoke(cli, ["template", "export", "--id", "t1", "--output", str(output_file)])
     assert result.exit_code == 0
     assert output_file.read_text().startswith("{")
     assert "exported to" in result.output
@@ -197,7 +197,7 @@ def test_export_template_auto_filename(monkeypatch, runner, tmp_path):
 
     try:
         cli = make_cli()
-        result = runner.invoke(cli, ["templates", "export", "--id", "t1"])
+        result = runner.invoke(cli, ["template", "export", "--id", "t1"])
         assert result.exit_code == 0
 
         # Check that the auto-generated filename was created
@@ -225,7 +225,7 @@ def test_export_template_not_found(monkeypatch, runner):
 
     monkeypatch.setattr("requests.post", mock_post)
     cli = make_cli()
-    result = runner.invoke(cli, ["templates", "export", "--id", "notfound", "--output", "out.json"])
+    result = runner.invoke(cli, ["template", "export", "--id", "notfound", "--output", "out.json"])
     assert result.exit_code != 0
     assert "not found" in result.output
 
@@ -250,7 +250,7 @@ def test_import_template_success(monkeypatch, runner, tmp_path):
     cli = make_cli()
     input_file = tmp_path / "in.json"
     input_file.write_text(json.dumps({"id": "t1", "name": "Template1"}))
-    result = runner.invoke(cli, ["templates", "import", "--file", str(input_file)])
+    result = runner.invoke(cli, ["template", "import", "--file", str(input_file)])
     assert result.exit_code == 0
     assert "imported successfully" in result.output
 
@@ -303,7 +303,7 @@ def test_import_template_partial_failure(monkeypatch, runner, tmp_path):
     cli = make_cli()
     input_file = tmp_path / "in.json"
     input_file.write_text(json.dumps({"id": "t1", "name": "Test Template"}))
-    result = runner.invoke(cli, ["templates", "import", "--file", str(input_file)])
+    result = runner.invoke(cli, ["template", "import", "--file", str(input_file)])
     assert result.exit_code == 1
     assert "Template import failed" in result.output
     assert "WorkspaceNotFoundOrNoAccess" in result.output
@@ -328,7 +328,7 @@ def test_delete_template_success(monkeypatch, runner):
 
     monkeypatch.setattr("requests.post", mock_post)
     cli = make_cli()
-    result = runner.invoke(cli, ["templates", "delete", "--id", "t1"])
+    result = runner.invoke(cli, ["template", "delete", "--id", "t1"])
     assert result.exit_code == 0
     assert "deleted successfully" in result.output
 
@@ -353,6 +353,6 @@ def test_delete_template_failure(monkeypatch, runner):
 
     monkeypatch.setattr("requests.post", mock_post)
     cli = make_cli()
-    result = runner.invoke(cli, ["templates", "delete", "--id", "bad"])
+    result = runner.invoke(cli, ["template", "delete", "--id", "bad"])
     assert result.exit_code != 0
     assert "Failed to delete" in result.output

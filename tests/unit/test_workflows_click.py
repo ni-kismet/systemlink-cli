@@ -76,7 +76,7 @@ def test_list_workflows_success(monkeypatch, runner):
     monkeypatch.setattr("requests.get", mock_get)
 
     cli = make_cli()
-    result = runner.invoke(cli, ["workflows", "list"])
+    result = runner.invoke(cli, ["workflow", "list"])
     assert result.exit_code == 0
     assert "Test Workflow" in result.output
     assert "Test Workspace" in result.output
@@ -119,7 +119,7 @@ def test_list_workflows_with_workspace_filter(monkeypatch, runner):
     monkeypatch.setattr("requests.get", mock_get)
 
     cli = make_cli()
-    result = runner.invoke(cli, ["workflows", "list", "--workspace", "Test"])
+    result = runner.invoke(cli, ["workflow", "list", "--workspace", "Test"])
     assert result.exit_code == 0
     assert "Test Workflow" in result.output
 
@@ -152,7 +152,7 @@ def test_list_workflows_empty(monkeypatch, runner):
     monkeypatch.setattr("requests.get", mock_get)
 
     cli = make_cli()
-    result = runner.invoke(cli, ["workflows", "list"])
+    result = runner.invoke(cli, ["workflow", "list"])
     assert result.exit_code == 0
     assert "No workflows found" in result.output
 
@@ -181,7 +181,7 @@ def test_export_workflow_success(monkeypatch, runner):
     cli = make_cli()
     with runner.isolated_filesystem():
         result = runner.invoke(
-            cli, ["workflows", "export", "--id", "wf123", "--output", "test.json"]
+            cli, ["workflow", "export", "--id", "wf123", "--output", "test.json"]
         )
         assert result.exit_code == 0
         assert "Workflow exported to test.json" in result.output
@@ -212,7 +212,7 @@ def test_export_workflow_not_found(monkeypatch, runner):
     cli = make_cli()
     with runner.isolated_filesystem():
         result = runner.invoke(
-            cli, ["workflows", "export", "--id", "nonexistent", "--output", "test.json"]
+            cli, ["workflow", "export", "--id", "nonexistent", "--output", "test.json"]
         )
         assert result.exit_code == 1
         assert "not found" in result.output
@@ -265,7 +265,7 @@ def test_import_workflow_success(monkeypatch, runner):
         with open("test_workflow.json", "w") as f:
             json.dump(workflow_data, f)
 
-        result = runner.invoke(cli, ["workflows", "import", "--file", "test_workflow.json"])
+        result = runner.invoke(cli, ["workflow", "import", "--file", "test_workflow.json"])
         assert result.exit_code == 0
         assert "Workflow imported successfully" in result.output
 
@@ -361,7 +361,7 @@ def test_import_workflow_failure(monkeypatch, runner):
         with open("test_workflow.json", "w") as f:
             json.dump(workflow_data, f)
 
-        result = runner.invoke(cli, ["workflows", "import", "--file", "test_workflow.json"])
+        result = runner.invoke(cli, ["workflow", "import", "--file", "test_workflow.json"])
         assert result.exit_code == 1
         assert "Workflow import failed" in result.output
         assert "One or more errors occurred" in result.output
@@ -391,7 +391,7 @@ def test_delete_workflow_success(monkeypatch, runner):
     monkeypatch.setattr("requests.post", mock_post)
 
     cli = make_cli()
-    result = runner.invoke(cli, ["workflows", "delete", "--id", "wf123"])
+    result = runner.invoke(cli, ["workflow", "delete", "--id", "wf123"])
     assert result.exit_code == 0
     assert "deleted successfully" in result.output
 
@@ -467,7 +467,7 @@ def test_delete_workflow_failure(monkeypatch, runner):
     monkeypatch.setattr("requests.post", mock_post)
 
     cli = make_cli()
-    result = runner.invoke(cli, ["workflows", "delete", "--id", "nonexistent"])
+    result = runner.invoke(cli, ["workflow", "delete", "--id", "nonexistent"])
     assert result.exit_code != 0
     assert "Failed to delete workflow" in result.output
 
@@ -508,7 +508,7 @@ def test_update_workflow_success(monkeypatch, runner):
             json.dump(workflow_data, f)
 
         result = runner.invoke(
-            cli, ["workflows", "update", "--id", "wf123", "--file", "updated_workflow.json"]
+            cli, ["workflow", "update", "--id", "wf123", "--file", "updated_workflow.json"]
         )
         assert result.exit_code == 0
         assert "updated successfully" in result.output
