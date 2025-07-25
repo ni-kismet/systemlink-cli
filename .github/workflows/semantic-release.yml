@@ -1,0 +1,70 @@
+name: Semantic Release
+
+on:
+  push:
+    branches:
+      - main
+  workflow_dispatch:
+
+permissions:
+  contents: write
+  issues: write
+  pull-requests: write
+  id-token: write
+
+jobs:
+  semantic-release:
+    runs-on: ubuntu-latest
+    concurrency: release
+    if: github.repository == 'ni-kismet/systemlink-cli'
+    
+    outputs:
+      released: ${{ steps.release.outputs.released }}
+      version: ${{ steps.release.outputs.version }}
+      tag: ${{ steps.release.outputs.tag }}
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          token: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+
+      - name: Install Poetry
+        run: pip install poetry
+
+      - name: Install dependencies
+        run: poetry install
+
+      - name: Run tests
+        run: poetry run pytest
+
+      - name: Python Semantic Release
+        id: release
+        uses: python-semantic-release/python-semantic-release@v9.14.0
+        with:
+          github_token: ${{ secrets.GITHUB_TOKEN }}
+          git_committer_name: "github-actions[bot]"
+          git_committer_email: "github-actions[bot]@users.noreply.github.com"
+
+  trigger-build:
+    needs: semantic-release
+    runs-on: ubuntu-latest
+    if: needs.semantic-release.outputs.released == 'true'
+    
+    steps:
+      - name: Trigger Release Build
+        uses: actions/github-script@v7
+        with:
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+          script: |
+            const tag = '${{ needs.semantic-release.outputs.tag }}';
+            console.log(`Triggering release build for tag: ${tag}`);
+            
+            // The release.yml workflow will be triggered by the tag creation
+            // from semantic-release, so no additional action needed here
