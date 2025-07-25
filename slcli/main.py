@@ -14,18 +14,24 @@ from .workspace_click import register_workspace_commands
 
 
 def get_version() -> str:
-    """Get version from pyproject.toml."""
+    """Get version from _version.py (built binary) or pyproject.toml (development)."""
     try:
-        # Get the path to pyproject.toml relative to this file
-        current_dir = Path(__file__).parent
-        pyproject_path = current_dir.parent / "pyproject.toml"
+        # Try to import from _version.py first (works in built binary)
+        from ._version import __version__
 
-        with open(pyproject_path, "rb") as f:
-            pyproject_data = tomllib.load(f)
+        return __version__
+    except ImportError:
+        # Fall back to reading pyproject.toml (works in development)
+        try:
+            current_dir = Path(__file__).parent
+            pyproject_path = current_dir.parent / "pyproject.toml"
 
-        return pyproject_data["tool"]["poetry"]["version"]
-    except Exception:
-        return "unknown"
+            with open(pyproject_path, "rb") as f:
+                pyproject_data = tomllib.load(f)
+
+            return pyproject_data["tool"]["poetry"]["version"]
+        except Exception:
+            return "unknown"
 
 
 CONTEXT_SETTINGS = dict(help_option_names=["-h", "--help"])

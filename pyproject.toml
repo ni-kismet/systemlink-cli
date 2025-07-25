@@ -7,6 +7,7 @@ authors = ["Fred Visser <fred.visser@emerson.com>"]
 
 [tool.poetry.scripts]
 slcli = "slcli.__main__:cli"
+build-pyinstaller = "scripts.build_pyinstaller:main"
 
 [tool.poetry.dependencies]
 python = ">=3.11.1,<3.14"
