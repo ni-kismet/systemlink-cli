@@ -9,7 +9,6 @@ import click
 from .utils import (
     get_base_url,
     handle_api_error,
-    output_list_data,
     make_api_request,
     get_workspace_map,
     load_json_file,
@@ -164,12 +163,7 @@ def register_templates_commands(cli):
         help="Filter by workspace name",
     )
     def list_templates(format: str = "table", workspace: Optional[str] = None):
-        """List available user-defined test plan templates.
-
-        Args:
-            format (str, optional): Output format (table or json).
-            workspace (str, optional): Filter by workspace name.
-        """
+        """List available user-defined test plan templates."""
         url = f"{get_base_url()}/niworkorder/v1/query-testplan-templates"
         payload = {
             "take": 1000,
@@ -206,18 +200,29 @@ def register_templates_commands(cli):
                         filtered_data.append(template)
                 template_data = filtered_data
 
-            # Use shared output function
-            def template_table_row(template):
-                short_name = template["name"][:40] + ("…" if len(template["name"]) > 40 else "")
-                return [template["workspace"], short_name, template["id"]]
+            # Output results
+            if format == "json":
+                click.echo(json.dumps(template_data, indent=2))
+                return
 
-            output_list_data(
-                template_data,
-                format,
-                ["Workspace", "Name", "Template ID"],
-                template_table_row,
-                "No test plan templates found.",
-            )
+            # Table format with consistent formatting
+            if not template_data:
+                click.echo("No test plan templates found.")
+                return
+
+            # Display table with box-drawing characters
+            click.echo("┌" + "─" * 38 + "┬" + "─" * 42 + "┬" + "─" * 38 + "┐")
+            click.echo(f"│ {'Workspace':<36} │ {'Name':<40} │ {'Template ID':<36} │")
+            click.echo("├" + "─" * 38 + "┼" + "─" * 42 + "┼" + "─" * 38 + "┤")
+
+            for template in template_data:
+                workspace = template.get("workspace", "")[:36]
+                name = template.get("name", "")[:40]
+                template_id = template.get("id", "")[:36]
+                click.echo(f"│ {workspace:<36} │ {name:<40} │ {template_id:<36} │")
+
+            click.echo("└" + "─" * 38 + "┴" + "─" * 42 + "┴" + "─" * 38 + "┘")
+            click.echo(f"\nTotal: {len(template_data)} template(s)")
         except Exception as exc:
             handle_api_error(exc)
 

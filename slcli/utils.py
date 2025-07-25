@@ -175,15 +175,6 @@ def get_ssl_verify() -> bool:
     return True
 
 
-def get_workspace_map() -> Dict[str, str]:
-    """Return a mapping of workspace id to workspace name."""
-    url = f"{get_base_url()}/niuser/v1/workspaces"
-    resp = requests.get(url, headers=get_headers(), verify=get_ssl_verify())
-    resp.raise_for_status()
-    ws_data = resp.json()
-    return {ws.get("id"): ws.get("name", ws.get("id")) for ws in ws_data.get("workspaces", [])}
-
-
 def get_workspace_id_by_name(name: str) -> str:
     """Return the workspace id for a given workspace name (case-sensitive). Raises if not found."""
     ws_map = get_workspace_map()
@@ -191,6 +182,22 @@ def get_workspace_id_by_name(name: str) -> str:
         if ws_name == name:
             return ws_id
     raise ValueError(f"Workspace name '{name}' not found.")
+
+
+def get_workspace_map() -> Dict[str, str]:
+    """Get a mapping of workspace IDs to names.
+
+    Returns:
+        Dictionary mapping workspace ID to workspace name
+    """
+    try:
+        url = f"{get_base_url()}/niuser/v1/workspaces?take=1000"
+        resp = make_api_request("GET", url, payload=None, handle_errors=False)
+        data = resp.json()
+        workspaces = data.get("workspaces", [])
+        return {ws.get("id"): ws.get("name") for ws in workspaces if ws.get("id")}
+    except Exception:
+        return {}
 
 
 # --- File I/O Utilities ---

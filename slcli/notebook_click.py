@@ -145,13 +145,7 @@ def register_notebook_commands(cli):
         help="Output format: table or json",
     )
     def list_notebooks(workspace: str = "", take: int = 25, format: str = "table") -> None:
-        """List all notebooks. Optionally filter by workspace.
-
-        Args:
-            workspace (str, optional): Workspace name to filter by.
-            take (int, optional): Number of notebooks to show per page.
-            format (str, optional): Output format (table or json).
-        """
+        """List all notebooks. Optionally filter by workspace."""
         try:
             nb_client = NotebookClient(configuration=get_http_configuration())
             ws_id = None
@@ -213,32 +207,24 @@ def register_notebook_commands(cli):
             if format.lower() == "json":
                 click.echo(json.dumps(notebooks, indent=2))
             else:
-                # Table output
-                from tabulate import tabulate
-                from click import style as cstyle
+                # Table format with consistent formatting
+                if not notebooks:
+                    click.echo("No notebooks found.")
+                    return
 
-                def color_row(row):
-                    ws = str(row[0])
-                    ws_short = ws[:15] + ("…" if len(ws) > 15 else "")
-                    return [
-                        cstyle(ws_short, fg="blue"),
-                        cstyle(str(row[1]), fg="green"),
-                        cstyle(str(row[2]), fg="blue"),
-                    ]
+                # Display table with box-drawing characters
+                click.echo("┌" + "─" * 38 + "┬" + "─" * 42 + "┬" + "─" * 38 + "┐")
+                click.echo(f"│ {'Workspace':<36} │ {'Name':<40} │ {'ID':<36} │")
+                click.echo("├" + "─" * 38 + "┼" + "─" * 42 + "┼" + "─" * 38 + "┤")
 
-                table = []
                 for nb in notebooks[:take]:
-                    ws_name = nb.get("workspace", "")
-                    name = nb.get("name", "")
-                    nb_id = nb.get("id", "")
-                    short_name = name[:40] + ("…" if len(name) > 40 else "")
-                    table.append(color_row([ws_name, short_name, nb_id]))
-                headers = [
-                    cstyle("Workspace", fg="blue", bold=True),
-                    cstyle("Name", fg="green", bold=True),
-                    cstyle("Notebook ID", fg="blue", bold=True),
-                ]
-                click.echo(tabulate(table, headers=headers, tablefmt="github"))
+                    workspace = nb.get("workspace", "")[:36]
+                    name = nb.get("name", "")[:40]
+                    nb_id = nb.get("id", "")[:36]
+                    click.echo(f"│ {workspace:<36} │ {name:<40} │ {nb_id:<36} │")
+
+                click.echo("└" + "─" * 38 + "┴" + "─" * 42 + "┴" + "─" * 38 + "┘")
+                click.echo(f"\nTotal: {len(notebooks[:take])} notebook(s) shown")
 
                 # Use continuation token for paging through notebooks (table output only)
                 continuation_token = getattr(
@@ -279,14 +265,22 @@ def register_notebook_commands(cli):
                     if not next_notebooks:
                         click.echo("No more notebooks found.")
                         break
-                    table = []
+
+                    # Display continuation pages with same formatting
+                    click.echo()
+                    click.echo("┌" + "─" * 38 + "┬" + "─" * 42 + "┬" + "─" * 38 + "┐")
+                    click.echo(f"│ {'Workspace':<36} │ {'Name':<40} │ {'ID':<36} │")
+                    click.echo("├" + "─" * 38 + "┼" + "─" * 42 + "┼" + "─" * 38 + "┤")
+
                     for nb in next_notebooks:
-                        ws_name = nb.get("workspace", "")
-                        name = nb.get("name", "")
-                        nb_id = nb.get("id", "")
-                        short_name = name[:40] + ("…" if len(name) > 40 else "")
-                        table.append(color_row([ws_name, short_name, nb_id]))
-                    click.echo(tabulate(table, headers=headers, tablefmt="github"))
+                        workspace = nb.get("workspace", "")[:36]
+                        name = nb.get("name", "")[:40]
+                        nb_id = nb.get("id", "")[:36]
+                        click.echo(f"│ {workspace:<36} │ {name:<40} │ {nb_id:<36} │")
+
+                    click.echo("└" + "─" * 38 + "┴" + "─" * 42 + "┴" + "─" * 38 + "┘")
+                    click.echo(f"\nTotal: {len(next_notebooks)} notebook(s) shown")
+
                     continuation_token = getattr(
                         nb_client.query_notebooks(next_query), "continuation_token", None
                     )
@@ -313,15 +307,7 @@ def register_notebook_commands(cli):
         output: str = "",
         download_type: str = "content",
     ) -> None:
-        """Download a notebook's content, metadata, or both by ID or name.
-
-        Args:
-            notebook_id (str, optional): Notebook ID.
-            notebook_name (str, optional): Notebook name.
-            workspace (str, optional): Workspace name.
-            output (str, optional): Output file path.
-            download_type (str, optional): What to download: content, metadata, or both.
-        """
+        """Download a notebook's content, metadata, or both by ID or name."""
         if not notebook_id and not notebook_name:
             click.echo("✗ Must provide either --id or --name.", err=True)
             sys.exit(ExitCodes.INVALID_INPUT)
@@ -380,12 +366,6 @@ def register_notebook_commands(cli):
     ) -> None:
         """Create a new notebook in the specified workspace.
 
-        Args:
-            input_file (str, optional): Path to notebook file to create.
-            workspace (str, optional): Workspace name.
-            notebook_name (str): Notebook name.
-            download (bool, optional): Download notebook content and metadata after creation.
-
         Fails if a notebook with the same name exists.
         """
         ws_id = get_workspace_id_with_fallback(workspace)
@@ -443,11 +423,7 @@ def register_notebook_commands(cli):
     @notebook.command(name="delete")
     @click.option("--id", "notebook_id", required=True, help="Notebook ID to delete")
     def delete_notebook(notebook_id: str = "") -> None:
-        """Delete a notebook by ID.
-
-        Args:
-            notebook_id (str): Notebook ID to delete.
-        """
+        """Delete a notebook by ID."""
         try:
             nb_client = NotebookClient(configuration=get_http_configuration())
             nb_client.delete_notebook(notebook_id)

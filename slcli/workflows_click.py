@@ -10,7 +10,6 @@ import requests
 from .utils import (
     get_base_url,
     handle_api_error,
-    output_list_data,
     make_api_request,
     get_workspace_map,
     load_json_file,
@@ -230,12 +229,7 @@ def register_workflows_commands(cli):
         help="Filter by workspace name",
     )
     def list_workflows(format: str = "table", workspace: Optional[str] = None):
-        """List available workflows.
-
-        Args:
-            format (str, optional): Output format (table or json).
-            workspace (str, optional): Filter by workspace name.
-        """
+        """List available workflows."""
         url = f"{get_base_url()}/niworkorder/v1/query-workflows?ff-userdefinedworkflowsfortestplaninstances=true"
         payload = {
             "take": 1000,
@@ -271,18 +265,29 @@ def register_workflows_commands(cli):
                         filtered_data.append(workflow)
                 workflow_data = filtered_data
 
-            # Use shared output function
-            def workflow_table_row(workflow):
-                short_name = workflow["name"][:40] + ("…" if len(workflow["name"]) > 40 else "")
-                return [workflow["workspace"], short_name, workflow["id"]]
+            # Output results
+            if format == "json":
+                click.echo(json.dumps(workflow_data, indent=2))
+                return
 
-            output_list_data(
-                workflow_data,
-                format,
-                ["Workspace", "Name", "ID"],
-                workflow_table_row,
-                "No workflows found.",
-            )
+            # Table format with consistent formatting
+            if not workflow_data:
+                click.echo("No workflows found.")
+                return
+
+            # Display table with box-drawing characters
+            click.echo("┌" + "─" * 38 + "┬" + "─" * 42 + "┬" + "─" * 38 + "┐")
+            click.echo(f"│ {'Workspace':<36} │ {'Name':<40} │ {'ID':<36} │")
+            click.echo("├" + "─" * 38 + "┼" + "─" * 42 + "┼" + "─" * 38 + "┤")
+
+            for workflow in workflow_data:
+                workspace = workflow.get("workspace", "")[:36]
+                name = workflow.get("name", "")[:40]
+                workflow_id = workflow.get("id", "")[:36]
+                click.echo(f"│ {workspace:<36} │ {name:<40} │ {workflow_id:<36} │")
+
+            click.echo("└" + "─" * 38 + "┴" + "─" * 42 + "┴" + "─" * 38 + "┘")
+            click.echo(f"\nTotal: {len(workflow_data)} workflow(s)")
         except Exception as exc:
             handle_api_error(exc)
 

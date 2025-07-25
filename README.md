@@ -8,6 +8,7 @@ SystemLink CLI (`slcli`) is a cross-platform Python CLI for SystemLink integrato
 - **Test Plan Templates**: Complete management (list, export, import, delete, init) with JSON and table output formats
 - **Jupyter Notebooks**: Full lifecycle management (list, download, create, update, delete) with workspace filtering
 - **Workflows**: Full workflow management (list, export, import, delete, init, update) with comprehensive state and action definitions
+- **Workspace Management**: Essential workspace administration (list, info, disable) with comprehensive resource details
 - **Cross-Platform**: Windows, macOS, and Linux support with standalone binaries
 - **Professional CLI**: Consistent error handling, colored output, and comprehensive help system
 - **Output Formats**: JSON and table output options for programmatic integration and human-readable display
@@ -319,6 +320,56 @@ slcli notebook update --id <notebook_id> --metadata metadata.json --content myno
 ```bash
 slcli notebook delete --id <notebook_id>
 ```
+
+## Workspace Management
+
+SystemLink CLI provides essential workspace management capabilities for viewing and administering workspaces in your SystemLink environment.
+
+### List workspaces
+
+```bash
+# List all enabled workspaces
+slcli workspace list
+
+# Include disabled workspaces
+slcli workspace list --include-disabled
+
+# Filter by workspace name
+slcli workspace list --name "Production"
+
+# JSON output for programmatic use
+slcli workspace list --format json
+```
+
+### Get detailed workspace information
+
+```bash
+# Get workspace details by ID
+slcli workspace info --id <workspace_id>
+
+# Get workspace details by name
+slcli workspace info --name "Production Workspace"
+
+# JSON output with full workspace contents
+slcli workspace info --name "Production Workspace" --format json
+```
+
+The info command provides comprehensive workspace details including:
+
+- Workspace properties (ID, name, enabled status, default status)
+- Test plan templates in the workspace
+- Workflows in the workspace
+- Notebooks in the workspace
+- Summary counts of all resources
+
+### Disable a workspace
+
+```bash
+# Disable a workspace (requires confirmation)
+slcli workspace disable --id <workspace_id>
+```
+
+**Note**: Workspace creation and duplication are managed through the SystemLink web interface. This CLI provides read-only access and workspace disabling capabilities for administrative purposes.
 
 ## Output Formats
 
