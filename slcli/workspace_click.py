@@ -328,10 +328,8 @@ def _get_workspace_notebooks(workspace_id: str) -> list:
         payload = {"take": 1000, "filter": f'workspace = "{workspace_id}"'}
         resp = make_api_request("POST", url, payload)
         data = resp.json()
-        notebooks = data.get("notebooks", [])  # Changed from "notebook" to "notebooks"
+        notebooks = data.get("notebooks", [])
         # Convert to consistent format
         return [{"id": nb.get("id"), "name": nb.get("name")} for nb in notebooks]
     except Exception:
-        # Notebook API might not be available or endpoint might be different
-        # Return empty list to allow the command to continue
         return []
