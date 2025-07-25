@@ -1,12 +1,25 @@
 # CHANGELOG
 
 
+## v0.4.2 (2025-07-25)
+
+### Bug Fixes
+
+- Token
+  ([`1df6b3a`](https://github.com/ni-kismet/systemlink-cli/commit/1df6b3a5f03f3715ecb29ed4ed144eed94251f90))
+
+
 ## v0.4.1 (2025-07-25)
 
 ### Bug Fixes
 
 - Tweak semantic release
   ([`f36aba3`](https://github.com/ni-kismet/systemlink-cli/commit/f36aba31b3727b41fd9f67ab44a4993677a7a3f9))
+
+### Chores
+
+- **release**: 0.4.1
+  ([`0722281`](https://github.com/ni-kismet/systemlink-cli/commit/0722281b1721d0519e65e80b7c1d3144a742e216))
 
 
 ## v0.4.0 (2025-07-25)
