@@ -1,6 +1,13 @@
 # Shell Completion for slcli
 
-The SystemLink CLI supports shell completion for bash, zsh, fish, and PowerShell shells.
+The SystemLink CLI supports shell completion for bash, zsh, fish, and PowerShell shells with dynamic command discovery.
+
+## Dynamic Completion
+
+- **PowerShell**: Commands extracted from CLI structure at generation time
+- **Bash/Zsh/Fish**: Uses Click's built-in completion system
+- Always up-to-date with current CLI commands
+- Automatically stays current when new commands are added
 
 ## Quick Installation
 

@@ -3,146 +3,162 @@
 import os
 import subprocess
 from pathlib import Path
-from typing import Optional
+from typing import Dict, List, Optional
 
 import click
 
 
-def generate_powershell_completion() -> str:
-    """Generate PowerShell completion script for slcli."""
-    return """
-# PowerShell completion for slcli
-Register-ArgumentCompleter -Native -CommandName slcli -ScriptBlock {
+def get_cli_commands_dynamically() -> Dict[str, List[str]]:
+    """Extract commands and subcommands from the CLI structure dynamically.
+
+    Returns:
+        Dict mapping command names to lists of their subcommands.
+    """
+    try:
+        # Import the main CLI group to inspect its structure
+        from slcli.main import cli
+
+        commands = {}
+
+        # Get top-level commands
+        commands[""] = list(cli.commands.keys())
+
+        # Get subcommands for each command
+        for cmd_name, cmd_obj in cli.commands.items():
+            if isinstance(cmd_obj, click.Group):
+                commands[cmd_name] = list(cmd_obj.commands.keys())
+            else:
+                commands[cmd_name] = []
+
+        return commands
+    except Exception:
+        # Fallback to hardcoded commands if introspection fails
+        return {
+            "": [
+                "completion",
+                "login",
+                "logout",
+                "notebook",
+                "template",
+                "user",
+                "workflow",
+                "workspace",
+            ],
+            "notebook": ["list", "get", "create", "update", "delete", "run"],
+            "template": ["list", "get", "create", "update", "delete"],
+            "user": ["list", "get", "create", "update", "delete"],
+            "workflow": ["list", "get", "create", "update", "delete", "run"],
+            "workspace": ["list", "get", "create", "update", "delete"],
+            "completion": [],
+        }
+
+
+def generate_powershell_completion_dynamic() -> str:
+    """Generate PowerShell completion script using dynamic command discovery."""
+    commands_dict = get_cli_commands_dynamically()
+
+    # Build the command arrays as PowerShell code
+    top_level_commands = commands_dict.get("", [])
+
+    powershell_script = f"""
+# PowerShell completion for slcli (dynamically generated)
+Register-ArgumentCompleter -Native -CommandName slcli -ScriptBlock {{
     param($wordToComplete, $commandAst, $cursorPosition)
     
     # Get all arguments passed so far
-    $arguments = $commandAst.CommandElements | Select-Object -Skip 1 | ForEach-Object { $_.Value }
+    $arguments = $commandAst.CommandElements | Select-Object -Skip 1 | ForEach-Object {{ $_.Value }}
     
-    # Function to get available commands
-    function Get-SlcliCommands {
-        param($subCommand = $null)
-        
-        $commands = @()
-        
-        if (-not $subCommand) {
-            # Top-level commands
-            $commands += @('completion', 'login', 'logout', 'notebook', 'template', 'user', 'workflow', 'workspace')
-        } else {
-            switch ($subCommand) {
-                'notebook' { $commands += @('list', 'get', 'create', 'update', 'delete', 'run') }
-                'template' { $commands += @('list', 'get', 'create', 'update', 'delete') }
-                'user' { $commands += @('list', 'get', 'create', 'update', 'delete') }
-                'workflow' { $commands += @('list', 'get', 'create', 'update', 'delete', 'run') }
-                'workspace' { $commands += @('list', 'get', 'create', 'update', 'delete') }
-                'completion' { $commands += @() }
-            }
-        }
-        
-        return $commands
+    # Dynamically defined command structure
+    $topLevelCommands = @({', '.join(f"'{cmd}'" for cmd in top_level_commands)})
+    
+    # Subcommand mappings
+    $subCommands = @{{"""
+
+    # Add subcommand mappings
+    for cmd, subcmds in commands_dict.items():
+        if cmd and subcmds:  # Skip empty command key and empty subcommand lists
+            subcmd_list = ", ".join(f"'{sub}'" for sub in subcmds)
+            powershell_script += f"\n        '{cmd}' = @({subcmd_list})"
+
+    powershell_script += """
     }
     
-    # Function to get available options
+    # Function to get available options dynamically by calling slcli --help
     function Get-SlcliOptions {
         param($command, $subCommand = $null)
         
         $options = @()
         
-        # Global options
-        $options += @('--help', '-h', '--version')
-        
-        # Command-specific options
-        if ($command -eq 'completion') {
-            $options += @('--shell', '--install')
-        } elseif ($command -eq 'login') {
-            $options += @('--url', '--api-key')
-        } elseif ($subCommand) {
-            switch ($subCommand) {
-                'list' { $options += @('--format', '-f', '--filter', '--take', '--sortby', '--order') }
-                'get' { $options += @('--id', '--name', '--email', '--format', '-f') }
-                'create' { 
-                    switch ($command) {
-                        'user' { $options += @('--first-name', '--last-name', '--email', '--niua-id', '--accepted-tos', '--policies', '--keywords', '--properties') }
-                        default { $options += @('--name', '--description') }
-                    }
-                }
-                'update' { $options += @('--id', '--name', '--description') }
-                'delete' { $options += @('--id') }
+        try {
+            # Build command to get help for
+            $helpCmd = @('slcli')
+            if ($command) { $helpCmd += $command }
+            if ($subCommand) { $helpCmd += $subCommand }
+            $helpCmd += '--help'
+            
+            # Get options from help output
+            $helpOutput = & $helpCmd[0] $helpCmd[1..($helpCmd.Length-1)] 2>$null
+            if ($LASTEXITCODE -eq 0) {
+                $options = $helpOutput | 
+                    Select-String -Pattern "^\\s+(--?\\w+(?:-\\w+)*)" | 
+                    ForEach-Object { $_.Matches[0].Groups[1].Value }
+                return $options
             }
+        } catch {
+            # Fallback to basic options
+        }
+        
+        # Fallback hardcoded options
+        $options += @('--help', '-h')
+        
+        if (-not $command) {
+            $options += @('--version')
         }
         
         return $options
     }
     
-    # Function to get option values
-    function Get-SlcliOptionValues {
-        param($option)
+    # Determine what to complete based on current position
+    $completions = @()
+    
+    if ($arguments.Count -eq 0) {
+        # Complete top-level commands
+        $completions = $topLevelCommands | Where-Object { $_ -like "$wordToComplete*" }
+    } elseif ($arguments.Count -eq 1) {
+        $firstArg = $arguments[0]
         
-        switch ($option) {
-            '--format' { return @('table', 'json') }
-            '-f' { return @('table', 'json') }
-            '--shell' { return @('bash', 'zsh', 'fish', 'powershell') }
-            '--order' { return @('ascending', 'descending') }
-            '--sortby' { 
-                # This would depend on the command context
-                return @('name', 'created', 'updated', 'firstName', 'lastName', 'email', 'status')
-            }
-            default { return @() }
+        if ($firstArg.StartsWith('-')) {
+            # Complete global options
+            $completions = Get-SlcliOptions | Where-Object { $_ -like "$wordToComplete*" }
+        } elseif ($subCommands.ContainsKey($firstArg)) {
+            # Complete subcommands
+            $completions = $subCommands[$firstArg] | Where-Object { $_ -like "$wordToComplete*" }
         }
-    }
-    
-    # Parse current command context
-    $currentCommand = $null
-    $currentSubCommand = $null
-    $lastOption = $null
-    
-    for ($i = 0; $i -lt $arguments.Count; $i++) {
-        $arg = $arguments[$i]
+    } elseif ($arguments.Count -eq 2) {
+        $command = $arguments[0]
+        $subCommand = $arguments[1]
         
-        if ($arg.StartsWith('--') -or $arg.StartsWith('-')) {
-            $lastOption = $arg
-        } elseif (-not $currentCommand) {
-            $currentCommand = $arg
-        } elseif (-not $currentSubCommand) {
-            $currentSubCommand = $arg
+        if ($subCommand.StartsWith('-')) {
+            # Complete command options
+            $completions = Get-SlcliOptions $command | Where-Object { $_ -like "$wordToComplete*" }
         } else {
-            $lastOption = $null
+            # Complete subcommand options
+            $completions = Get-SlcliOptions $command $subCommand | Where-Object { $_ -like "$wordToComplete*" }
         }
+    } else {
+        # Complete options for the current command/subcommand context
+        $command = $arguments[0]
+        $subCommand = if ($arguments.Count -gt 1 -and -not $arguments[1].StartsWith('-')) { $arguments[1] } else { $null }
+        $completions = Get-SlcliOptions $command $subCommand | Where-Object { $_ -like "$wordToComplete*" }
     }
     
-    # If we're completing an option value
-    if ($lastOption) {
-        $values = Get-SlcliOptionValues -option $lastOption
-        $values | Where-Object { $_ -like "$wordToComplete*" } | ForEach-Object {
-            [System.Management.Automation.CompletionResult]::new($_, $_, 'ParameterValue', $_)
-        }
-        return
-    }
-    
-    # If we're completing an option
-    if ($wordToComplete.StartsWith('-')) {
-        $options = Get-SlcliOptions -command $currentCommand -subCommand $currentSubCommand
-        $options | Where-Object { $_ -like "$wordToComplete*" } | ForEach-Object {
-            [System.Management.Automation.CompletionResult]::new($_, $_, 'ParameterName', $_)
-        }
-        return
-    }
-    
-    # If we're completing a command or subcommand
-    if (-not $currentCommand) {
-        # Top-level commands
-        $commands = Get-SlcliCommands
-        $commands | Where-Object { $_ -like "$wordToComplete*" } | ForEach-Object {
-            [System.Management.Automation.CompletionResult]::new($_, $_, 'Command', $_)
-        }
-    } elseif (-not $currentSubCommand) {
-        # Subcommands
-        $commands = Get-SlcliCommands -subCommand $currentCommand
-        $commands | Where-Object { $_ -like "$wordToComplete*" } | ForEach-Object {
-            [System.Management.Automation.CompletionResult]::new($_, $_, 'Command', $_)
-        }
-    }
-}
+    $completions | ForEach-Object {{
+        [System.Management.Automation.CompletionResult]::new($_, $_, 'ParameterValue', $_)
+    }}
+}}
 """
+
+    return powershell_script
 
 
 def detect_shell() -> Optional[str]:
@@ -162,7 +178,8 @@ def detect_shell() -> Optional[str]:
 def generate_completion_script(shell: str) -> Optional[str]:
     """Generate completion script for the specified shell."""
     if shell.lower() == "powershell":
-        return generate_powershell_completion()
+        # Use dynamic completion for PowerShell
+        return generate_powershell_completion_dynamic()
 
     # For bash, zsh, fish - use Click's built-in completion
     env_vars = {
@@ -287,6 +304,7 @@ def install_powershell_completion(completion_script: str) -> bool:
 def install_completion_for_shell(shell: str) -> bool:
     """Install completion script for the specified shell."""
     completion_script = generate_completion_script(shell)
+
     if not completion_script:
         click.echo("✗ Failed to generate completion script", err=True)
         return False
@@ -346,6 +364,7 @@ def register_completion_command(cli):
         else:
             # Just output the completion script
             completion_script = generate_completion_script(shell)
+
             if completion_script:
                 click.echo(completion_script)
             else:
