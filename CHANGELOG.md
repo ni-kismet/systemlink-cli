@@ -1,12 +1,25 @@
 # CHANGELOG
 
 
+## v0.5.0 (2025-07-28)
+
+### Features
+
+- Add user management
+  ([`1b383cd`](https://github.com/ni-kismet/systemlink-cli/commit/1b383cdf9ef8f9492650c981c72a51650afaaccd))
+
+
 ## v0.4.2 (2025-07-25)
 
 ### Bug Fixes
 
 - Token
   ([`1df6b3a`](https://github.com/ni-kismet/systemlink-cli/commit/1df6b3a5f03f3715ecb29ed4ed144eed94251f90))
+
+### Chores
+
+- **release**: 0.4.2
+  ([`e168798`](https://github.com/ni-kismet/systemlink-cli/commit/e168798594f6b069aab39132055572e1ceb95bd8))
 
 
 ## v0.4.1 (2025-07-25)
