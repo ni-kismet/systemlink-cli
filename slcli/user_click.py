@@ -111,7 +111,7 @@ def _format_policy_table(policies: list) -> None:
                     else:
                         # Merge template details into policy details
                         details["template"] = template_details
-                        # If policy doesn't have statements but template does, use template statements
+                        # If policy doesn't have statements but template does
                         if not details.get("statements") and template_details.get("statements"):
                             details["statements"] = template_details.get("statements", [])
             policy_details.append(details)
@@ -439,7 +439,7 @@ def register_user_commands(cli):
                                     else:
                                         # Include template details in the expanded policy
                                         policy_details["template"] = template_details
-                                        # If policy doesn't have statements but template does, use them
+                                        # If policy doesn't have statements but template does
                                         if not policy_details.get(
                                             "statements"
                                         ) and template_details.get("statements"):
