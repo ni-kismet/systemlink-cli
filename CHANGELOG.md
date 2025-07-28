@@ -1,7 +1,20 @@
 # CHANGELOG
 
 
+## v0.6.0 (2025-07-28)
+
+### Features
+
+- Add terminal completion support
+  ([`63e450b`](https://github.com/ni-kismet/systemlink-cli/commit/63e450bef1bc53833648f4c0a87540afca12e04b))
+
+
 ## v0.5.0 (2025-07-28)
+
+### Chores
+
+- **release**: 0.5.0
+  ([`0a32ec4`](https://github.com/ni-kismet/systemlink-cli/commit/0a32ec405a012db7144a7e7380006df1241f0145))
 
 ### Features
 
