@@ -7,6 +7,7 @@ SystemLink CLI (`slcli`) is a cross-platform Python CLI for SystemLink integrato
 - **Secure Authentication**: Credential storage using [keyring](https://github.com/jaraco/keyring) with `login`/`logout` commands
 - **Test Plan Templates**: Complete management (list, export, import, delete, init) with JSON and table output formats
 - **Jupyter Notebooks**: Full lifecycle management (list, download, create, update, delete) with workspace filtering
+- **User Management**: Comprehensive user administration (list, get, create, update, delete) with Dynamic LINQ filtering and pagination
 - **Workflows**: Full workflow management (list, export, import, delete, init, update) with comprehensive state and action definitions
 - **Workspace Management**: Essential workspace administration (list, info, disable) with comprehensive resource details
 - **Cross-Platform**: Windows, macOS, and Linux support with standalone binaries
@@ -87,6 +88,12 @@ For development or if Homebrew isn't available:
 
    # View notebooks
    slcli notebook list
+
+   # View users
+   slcli user list
+
+   # View workspaces
+   slcli workspace list
    ```
 
 3. **Initialize new resources:**
@@ -319,6 +326,84 @@ slcli notebook update --id <notebook_id> --metadata metadata.json --content myno
 
 ```bash
 slcli notebook delete --id <notebook_id>
+```
+
+## User Management
+
+SystemLink CLI provides comprehensive user management capabilities for administering users in your SystemLink environment through the User Service API.
+
+### List users
+
+```bash
+# List all users (table format, default)
+slcli user list
+
+# JSON format for programmatic use
+slcli user list --format json
+
+# Filter users with Dynamic LINQ queries
+slcli user list --filter 'firstName.StartsWith("John") && status == "active"'
+
+# Sort by different fields
+slcli user list --sortby firstName --order descending
+
+# Limit number of results
+slcli user list --take 25
+```
+
+### Get user details
+
+```bash
+# Get user details by ID (table format)
+slcli user get --id <user_id>
+
+# Get user details by email (table format)
+slcli user get --email "john.doe@example.com"
+
+# JSON output
+slcli user get --id <user_id> --format json
+slcli user get --email "jane.smith@example.com" --format json
+```
+
+### Create a new user
+
+```bash
+# Create a basic user
+slcli user create --first-name "John" --last-name "Doe" --email "john.doe@example.com"
+
+# Create user with additional details
+slcli user create \
+  --first-name "Jane" \
+  --last-name "Smith" \
+  --email "jane.smith@example.com" \
+  --niua-id "jane.smith" \
+  --accepted-tos \
+  --policies "policy1,policy2" \
+  --keywords "developer,qa" \
+  --properties '{"department": "Engineering", "location": "Austin"}'
+```
+
+### Update an existing user
+
+```bash
+# Update user's name
+slcli user update --id <user_id> --first-name "Jane"
+
+# Update multiple fields
+slcli user update --id <user_id> \
+  --email "new.email@example.com" \
+  --accepted-tos true \
+  --policies "policy3,policy4"
+
+# Update custom properties
+slcli user update --id <user_id> --properties '{"role": "Senior Developer"}'
+```
+
+### Delete a user
+
+```bash
+# Delete user (with confirmation prompt)
+slcli user delete --id <user_id>
 ```
 
 ## Workspace Management
