@@ -69,6 +69,23 @@ For development or if Homebrew isn't available:
    poetry run python -m slcli
    ```
 
+## Shell Completion
+
+Enable tab completion for your shell to improve productivity:
+
+```bash
+# Install completion for your current shell (auto-detected)
+slcli completion --install
+
+# Or specify shell explicitly
+slcli completion --shell bash --install
+slcli completion --shell zsh --install
+slcli completion --shell fish --install
+slcli completion --shell powershell --install
+```
+
+After installation, restart your shell or source the completion file. See [docs/shell-completion.md](docs/shell-completion.md) for detailed instructions and troubleshooting.
+
 ## Quick Start
 
 1. **Login to SystemLink:**
