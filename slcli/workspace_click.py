@@ -20,7 +20,7 @@ def register_workspace_commands(cli):
 
     @cli.group()
     def workspace():
-        """Manage workspaces (list, disable, info)."""
+        """Manage workspaces (list, disable, get)."""
         pass
 
     @workspace.command(name="list")
@@ -143,16 +143,16 @@ def register_workspace_commands(cli):
         except Exception as exc:
             handle_api_error(exc)
 
-    @workspace.command(name="info")
+    @workspace.command(name="get")
     @click.option(
         "--id",
         "-i",
-        help="ID of the workspace to get info for",
+        help="ID of the workspace to get details for",
     )
     @click.option(
         "--name",
         "-n",
-        help="Name of the workspace to get info for",
+        help="Name of the workspace to get details for",
     )
     @click.option(
         "--format",
@@ -162,7 +162,7 @@ def register_workspace_commands(cli):
         show_default=True,
         help="Output format",
     )
-    def info_workspace(id: Optional[str] = None, name: Optional[str] = None, format: str = "table"):
+    def get_workspace(id: Optional[str] = None, name: Optional[str] = None, format: str = "table"):
         """Get detailed information about a workspace and its contents."""
         if not id and not name:
             click.echo("✗ Must provide either --id or --name", err=True)
