@@ -9,6 +9,7 @@ import datetime
 import json
 import sys
 import tempfile
+from typing import Any, Dict, Optional
 
 import click
 from nisystemlink.clients.notebook._notebook_client import NotebookClient
@@ -30,7 +31,7 @@ from .utils import (
 from .workspace_utils import get_workspace_display_name
 
 
-def _get_notebooks_from_query(nb_client, query_obj):
+def _get_notebooks_from_query(nb_client: Any, query_obj: Any) -> list:
     """Helper to parse paged notebook query response and return a list of notebook objects."""
     paged_result = nb_client.query_notebooks(query_obj)
     notebooks = getattr(paged_result, "notebooks", None)
@@ -40,8 +41,12 @@ def _get_notebooks_from_query(nb_client, query_obj):
 
 
 def _download_notebook_content_and_metadata(
-    nb_client, notebook_id, notebook_name, output=None, download_type="both"
-):
+    nb_client: Any,
+    notebook_id: str,
+    notebook_name: str,
+    output: Optional[str] = None,
+    download_type: str = "both",
+) -> None:
     """Download notebook content and/or metadata to disk."""
     """Download notebook content and/or metadata to disk."""
     # Download content
@@ -62,7 +67,7 @@ def _download_notebook_content_and_metadata(
             meta = nb_client.get_notebook(str(notebook_id))
             meta_path = (output or notebook_name.replace(".ipynb", "")) + ".json"
 
-            def _json_default(obj):
+            def _json_default(obj: Any) -> str:
                 if isinstance(obj, (datetime.datetime, datetime.date)):
                     return obj.isoformat()
                 return str(obj)
@@ -77,11 +82,11 @@ def _download_notebook_content_and_metadata(
             click.echo(f"Failed to download notebook metadata: {exc}")
 
 
-def register_notebook_commands(cli):
+def register_notebook_commands(cli: Any) -> None:
     """Register CLI commands for managing SystemLink notebooks."""
 
     @cli.group()
-    def notebook():
+    def notebook() -> None:
         """Manage Jupyter notebooks."""
         pass
 
@@ -99,7 +104,7 @@ def register_notebook_commands(cli):
         required=False,
         help="Path to .ipynb file containing notebook content",
     )
-    def update_notebook(notebook_id, metadata, content):
+    def update_notebook(notebook_id: str, metadata: Optional[str], content: Optional[str]) -> None:
         """Update a notebook's metadata, content, or both by ID."""
         import json
 
@@ -227,14 +232,14 @@ def register_notebook_commands(cli):
 
             # Use universal response handler (create a mock response for consistency)
             class MockResponse:
-                def json(self):
+                def json(self) -> Dict[str, Any]:
                     return {"notebooks": notebooks}
 
                 @property
-                def status_code(self):
+                def status_code(self) -> int:
                     return 200
 
-            mock_resp = MockResponse()
+            mock_resp: Any = MockResponse()  # Type annotation to avoid type checker issues
 
             def notebook_formatter(notebook: dict) -> list:
                 return [
@@ -253,6 +258,8 @@ def register_notebook_commands(cli):
                 headers=["Name", "Workspace", "ID", "Type"],
                 column_widths=[40, 30, 36, 12],
                 empty_message="No notebooks found.",
+                enable_pagination=True,
+                page_size=take,
             )
 
         except Exception as exc:

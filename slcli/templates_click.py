@@ -3,7 +3,7 @@
 import json
 import os
 import sys
-from typing import Optional
+from typing import Any, Dict, Optional
 
 import click
 
@@ -22,11 +22,11 @@ from .utils import (
 from .workspace_utils import get_workspace_display_name, resolve_workspace_filter
 
 
-def register_templates_commands(cli):
+def register_templates_commands(cli: Any) -> None:
     """Register the 'template' command group and its subcommands."""
 
     @cli.group()
-    def template():
+    def template() -> None:
         """Manage test plan templates."""
         pass
 
@@ -46,7 +46,9 @@ def register_templates_commands(cli):
         "-o",
         help="Output file path (default: <name>-template.json)",
     )
-    def init_template(name, template_group, output):
+    def init_template(
+        name: Optional[str], template_group: Optional[str], output: Optional[str]
+    ) -> None:
         """Initialize a new test plan template JSON file.
 
         Creates a template JSON file with the required schema structure.
@@ -57,6 +59,10 @@ def register_templates_commands(cli):
             name = click.prompt("Template name", type=str)
         if not template_group:
             template_group = click.prompt("Template group", type=str)
+
+        # At this point, name and template_group are guaranteed to be strings
+        assert name is not None
+        assert template_group is not None
 
         # Generate output filename if not provided
         if not output:
@@ -163,7 +169,7 @@ def register_templates_commands(cli):
         "--take",
         "-t",
         type=int,
-        default=1000,
+        default=25,
         show_default=True,
         help="Maximum number of templates to return",
     )
@@ -175,14 +181,16 @@ def register_templates_commands(cli):
         show_default=True,
         help="Output format",
     )
-    def list_templates(workspace: Optional[str] = None, take: int = 1000, format: str = "table"):
+    def list_templates(
+        workspace: Optional[str] = None, take: int = 25, format: str = "table"
+    ) -> None:
         """List available user-defined test plan templates."""
         """List test plan templates."""
         format_output = validate_output_format(format)
 
         url = f"{get_base_url()}/niworkorder/v1/query-testplan-templates"
         payload = {
-            "take": 1000,
+            "take": max(1000, take * 4),  # Fetch more than requested to allow proper pagination
             "orderBy": "TEMPLATE_GROUP",
             "descending": False,
             "projection": ["ID", "NAME", "WORKSPACE", "TEMPLATE_GROUP"],
@@ -213,14 +221,14 @@ def register_templates_commands(cli):
 
                     # Create a new response object with filtered data
                     class FilteredResponse:
-                        def json(self):
+                        def json(self) -> Dict[str, Any]:
                             return {"testPlanTemplates": filtered_templates}
 
                         @property
-                        def status_code(self):
+                        def status_code(self) -> int:
                             return 200
 
-                    resp = FilteredResponse()
+                    resp: Any = FilteredResponse()
 
             # Use universal response handler with template formatter
             def template_formatter(template: dict) -> list:
@@ -242,6 +250,8 @@ def register_templates_commands(cli):
                 headers=["Name", "Workspace", "Template ID", "Group"],
                 column_widths=[40, 30, 36, 25],
                 empty_message="No test plan templates found.",
+                enable_pagination=True,
+                page_size=take,
             )
 
         except Exception as exc:
@@ -256,7 +266,7 @@ def register_templates_commands(cli):
         help="Test plan template ID to export",
     )
     @click.option("--output", "-o", help="Output JSON file (default: <template-name>.json)")
-    def export_template(template_id: str, output: Optional[str] = None):
+    def export_template(template_id: str, output: Optional[str] = None) -> None:
         """Download/export a test plan template as a local JSON file."""
         url = f"{get_base_url()}/niworkorder/v1/query-testplan-templates"
         payload = {"take": 1, "filter": f'ID == "{template_id}"'}
@@ -297,7 +307,7 @@ def register_templates_commands(cli):
         required=True,
         help="Input JSON file",
     )
-    def import_template(input_file):
+    def import_template(input_file: str) -> None:
         """Upload/import a test plan template from a local JSON file."""
         url = f"{get_base_url()}/niworkorder/v1/testplan-templates"
         allowed_fields = {
@@ -391,7 +401,7 @@ def register_templates_commands(cli):
         required=True,
         help="Test plan template ID to delete",
     )
-    def delete_template(template_id):
+    def delete_template(template_id: str) -> None:
         """Delete a test plan template by ID."""
         url = f"{get_base_url()}/niworkorder/v1/delete-testplan-templates"
         payload = {"ids": [template_id]}

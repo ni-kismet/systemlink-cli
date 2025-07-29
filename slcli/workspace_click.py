@@ -2,7 +2,7 @@
 
 import json
 import sys
-from typing import Optional, Tuple
+from typing import Any, Dict, Optional, Tuple
 
 import click
 
@@ -17,11 +17,11 @@ from .utils import (
 )
 
 
-def register_workspace_commands(cli):
+def register_workspace_commands(cli: Any) -> None:
     """Register the 'workspace' command group and its subcommands."""
 
     @cli.group()
-    def workspace():
+    def workspace() -> None:
         """Manage workspaces (list, disable, get)."""
         pass
 
@@ -44,9 +44,20 @@ def register_workspace_commands(cli):
         "-n",
         help="Filter workspaces by name",
     )
+    @click.option(
+        "--take",
+        "-t",
+        type=int,
+        default=25,
+        show_default=True,
+        help="Maximum number of workspaces to return",
+    )
     def list_workspaces(
-        format: str = "table", include_disabled: bool = False, name: Optional[str] = None
-    ):
+        format: str = "table",
+        include_disabled: bool = False,
+        name: Optional[str] = None,
+        take: int = 25,
+    ) -> None:
         """List workspaces."""
         format_output = validate_output_format(format)
 
@@ -72,14 +83,14 @@ def register_workspace_commands(cli):
 
                 # Create a new response with filtered data
                 class FilteredResponse:
-                    def json(self):
+                    def json(self) -> Dict[str, Any]:
                         return {"workspaces": filtered_workspaces}
 
                     @property
-                    def status_code(self):
+                    def status_code(self) -> int:
                         return 200
 
-                resp = FilteredResponse()
+                resp: Any = FilteredResponse()  # Type annotation to avoid type checker issues
 
             def workspace_formatter(workspace: dict) -> list:
                 enabled = "✓" if workspace.get("enabled", True) else "✗"
@@ -95,6 +106,8 @@ def register_workspace_commands(cli):
                 headers=["Name", "ID", "Enabled", "Default"],
                 column_widths=[30, 36, 8, 8],
                 empty_message="No workspaces found.",
+                enable_pagination=True,
+                page_size=take,
             )
 
         except Exception as exc:
@@ -108,7 +121,7 @@ def register_workspace_commands(cli):
         help="ID of the workspace to disable",
     )
     @click.confirmation_option(prompt="Are you sure you want to disable this workspace?")
-    def disable_workspace(id: str):
+    def disable_workspace(id: str) -> None:
         """Disable a workspace."""
         try:
             # Get workspace info before disabling for confirmation
@@ -168,7 +181,7 @@ def register_workspace_commands(cli):
         show_default=True,
         help="Output format",
     )
-    def get_workspace(id: Optional[str] = None, name: Optional[str] = None, format: str = "table"):
+    def get_workspace(id: Optional[str], name: Optional[str], format: str) -> None:
         """Get detailed information about a workspace and its contents."""
         if not id and not name:
             click.echo("✗ Must provide either --id or --name", err=True)
@@ -300,7 +313,7 @@ def register_workspace_commands(cli):
             handle_api_error(exc)
 
 
-def _get_workspace_map():
+def _get_workspace_map() -> Dict[str, str]:
     """Get a mapping of workspace IDs to names."""
     try:
         url = f"{get_base_url()}/niuser/v1/workspaces"

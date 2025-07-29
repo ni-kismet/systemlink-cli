@@ -3,24 +3,41 @@
 ## General Best Practices
 
 - All code must be PEP8-compliant and pass linting (black, ni-python-styleguide).
-- All new and modified code must include appropriate docstrings and type hints where possible.
-- All public functions and classes must have docstrings.
+- All new and modified code must include comprehensive type hints using `typing` module (Any, Dict, List, Optional, Tuple).
+- All public functions and classes must have docstrings following Google docstring format.
 - Use environment variables and keyring for all credentials and sensitive data.
 - All CLI commands must provide clear help text and validation.
-- Use Click for all CLI interfaces (not Typer).
+- Use Click for all CLI interfaces (not Typer) with inline @click.option decorators.
 - All API interactions must handle errors gracefully and provide user-friendly messages.
 - All new features and bugfixes must include or update unit tests.
 - All code must be cross-platform (Windows, macOS, Linux) unless otherwise specified.
 - All generated, build, and cache files must be excluded via `.gitignore`.
 
+## CLI Architecture & Patterns
+
+### Command Structure
+- Use inline @click.option decorators directly on command functions (avoid decorator abstractions)
+- All command modules follow the pattern: `register_{module}_commands(cli: Any) -> None`
+- All command functions must have complete type annotations: parameters and return types
+- Command groups use `@cli.group()` pattern with typed function signatures
+
+### Universal Response Handling
+- Use `UniversalResponseHandler` class for consistent response processing across all commands
+- Use `handle_api_error(exc)` function for standardized API error handling with appropriate exit codes
+- Use `format_success(message, data)` function for consistent success message formatting
+- For mock responses in tests, use type annotation pattern: `resp: Any = MockResponse()` for Pylance compatibility
+
 ## CLI Best Practices (Based on https://clig.dev)
 
 ### Output & Formatting
 - All list commands must support `--format/-f` option with `table` (default) and `json` formats
-- Use `--output` for file path outputs (export, save operations)
+- All list commands must support `--take/-t` option with default of 25 items
+- Use `--output/-o` for file path outputs (export, save operations)
+- Use `table_utils.output_formatted_list()` for consistent table formatting with box-drawing characters
+- Use `cli_utils.paginate_list_output()` for interactive pagination of table results (25 items per page with Y/n prompts)
 - Use consistent visual indicators: `✓` for success messages, `✗` for error messages  
 - Send all error messages to stderr using `click.echo(..., err=True)`
-- For JSON output, display all data at once (no pagination); for table output, retain pagination
+- For JSON output, display all data at once (no pagination); for table output, use interactive pagination
 - Handle empty results gracefully: `[]` for JSON, descriptive message for table format
 
 ### Error Handling & Exit Codes
@@ -31,9 +48,26 @@
   - `NOT_FOUND = 3`: Resource not found
   - `PERMISSION_DENIED = 4`: Permission/authorization error
   - `NETWORK_ERROR = 5`: Network connectivity error
-- Use `handle_api_error(exc)` function for consistent API error handling
+- Use `handle_api_error(exc)` function for consistent API error handling with automatic exit code selection
 - Use `format_success(message, data)` function for consistent success messages
 - Always exit with appropriate codes using `sys.exit(ExitCodes.*)` rather than raising ClickException
+- Use `cli_utils.validate_output_format()` to standardize format validation
+
+### Code Organization & Utilities
+- Use `cli_utils.py` for common CLI utilities like validation and resource resolution
+- Use `table_utils.py` for professional table formatting with box-drawing characters
+- Use `universal_handlers.py` for standardized response processing across all commands
+- Use `workspace_utils.py` for workspace-specific operations and filtering
+- All utility modules must follow the established type annotation patterns
+
+### Mock Response Pattern for Testing
+- For test compatibility with type checkers, use: `resp: Any = FilteredResponse()` or `resp: Any = MockResponse()`
+- FilteredResponse and MockResponse classes must implement:
+  ```python
+  def json(self) -> Dict[str, Any]: ...
+  @property
+  def status_code(self) -> int: ...
+  ```
 
 ### Command Structure
 - All commands must validate required parameters and provide helpful error messages
@@ -62,7 +96,7 @@
 - All code must pass CI (lint, test, build) before merging.
 - All new features must be documented in `README.md`.
 - All code must be reviewed by at least one other developer.
-- All new CLI commands must include JSON output support via `--output/-o` option.
+- All new CLI commands must include JSON output support via `--format/-f` option.
 - All error handling must use standardized exit codes and consistent formatting.
 
 ## Copilot-Specific Instructions
@@ -73,14 +107,19 @@
   3. Report any failures or issues to the user.
 - If you add a new CLI command, ensure it:
   - Is covered by a unit test in `tests/unit/`
-  - Supports `--output/-o` option with `table` and `json` formats
+  - Supports `--format/-f` option with `table` and `json` formats
+  - Supports `--take/-t` option with default of 25 items for list commands
   - Uses consistent error handling with appropriate exit codes
   - Follows the success/error message formatting standards
+  - Uses `UniversalResponseHandler` for response processing with `enable_pagination=True`
+  - Uses `table_utils.output_formatted_list()` for table output
+  - Implements interactive pagination for table results (Y/n prompts for next 25 results)
 - If you update the CLI interface, update the `README.md` accordingly.
 - Never commit or suggest committing files listed in `.gitignore`.
 - When implementing list commands, ensure JSON output shows all results (no pagination).
 - Use `handle_api_error()` for all API error handling instead of generic Click exceptions.
 - Use `format_success()` for all success messages to maintain consistency.
+- For type compatibility with Pylance, use `: Any = MockResponse()` pattern for mock responses.
 
 ---
 

@@ -228,7 +228,7 @@ def register_workflows_commands(cli):
         "--take",
         "-t",
         type=int,
-        default=1000,
+        default=25,
         show_default=True,
         help="Maximum number of workflows to return",
     )
@@ -248,7 +248,7 @@ def register_workflows_commands(cli):
     def list_workflows(
         format: str = "table",
         workspace: Optional[str] = None,
-        take: int = 1000,
+        take: int = 25,
         status: Optional[str] = None,
     ):
         """List available workflows."""
@@ -291,6 +291,8 @@ def register_workflows_commands(cli):
                 headers=["Name", "Workspace", "ID", "Description"],
                 column_widths=[40, 30, 36, 32],
                 empty_message="No workflows found.",
+                enable_pagination=True,
+                page_size=take,
             )
 
         except Exception as exc:

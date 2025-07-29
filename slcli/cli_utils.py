@@ -331,3 +331,154 @@ def truncate_string(text: str, max_length: int = 50, suffix: str = "...") -> str
         return text or ""
 
     return text[: max_length - len(suffix)] + suffix
+
+
+def paginate_list_output(
+    items: List[Dict[str, Any]],
+    page_size: int = 25,
+    format_output: str = "table",
+    formatter_func=None,
+    headers: Optional[List[str]] = None,
+    column_widths: Optional[List[int]] = None,
+    empty_message: str = "No items found.",
+    total_label: str = "item(s)",
+) -> None:
+    """Paginate list output with user prompts to continue.
+
+    For table format, shows pages of results with user prompts.
+    For JSON format, shows all results at once (no pagination).
+
+    Args:
+        items: List of items to paginate
+        page_size: Number of items per page (default: 25)
+        format_output: 'json' or 'table'
+        formatter_func: Function to format table rows
+        headers: Table headers
+        column_widths: Table column widths
+        empty_message: Message when no items found
+        total_label: Label for count display
+    """
+    if not items:
+        if format_output.lower() == "json":
+            click.echo("[]")
+        else:
+            click.echo(empty_message)
+        return
+
+    # For JSON format, show all results at once (no pagination)
+    if format_output.lower() == "json":
+        import json
+
+        click.echo(json.dumps(items, indent=2))
+        return
+
+    # Table format with pagination
+    total_items = len(items)
+    current_page = 0
+    items_shown = 0
+
+    while items_shown < total_items:
+        # Calculate slice for current page
+        start_idx = current_page * page_size
+        end_idx = min(start_idx + page_size, total_items)
+        page_items = items[start_idx:end_idx]
+
+        # Show the page using table_utils
+        if formatter_func and headers and column_widths:
+            # For individual pages, don't show the total count footer
+            # We'll handle that in our pagination logic
+            _output_formatted_page(
+                page_items,
+                headers,
+                column_widths,
+                formatter_func,
+            )
+        else:
+            # Fallback to simple display
+            for item in page_items:
+                click.echo(str(item))
+
+        items_shown = end_idx
+
+        # Show pagination info and prompt if there are more items
+        if items_shown < total_items:
+            remaining = total_items - items_shown
+            click.echo(
+                f"\nShowing {items_shown} of {total_items} {total_label}. "
+                f"{remaining} more available."
+            )
+
+            if not click.confirm("Show next 25 results?", default=True):
+                break
+
+            click.echo()  # Add blank line between pages
+            current_page += 1
+        else:
+            # Show final count
+            click.echo(f"\nTotal: {total_items} {total_label}")
+            break
+
+
+def _output_formatted_page(
+    items: List[Dict[str, Any]],
+    headers: List[str],
+    column_widths: List[int],
+    row_formatter_func,
+) -> None:
+    """Output a single page of formatted table data without footer.
+
+    Args:
+        items: List of items to output
+        headers: List of header names for table output
+        column_widths: List of column widths for table formatting
+        row_formatter_func: Function that converts item to list of column values
+    """
+    if not items:
+        return
+
+    # Table format with box-drawing characters (without footer)
+    if len(headers) != len(column_widths):
+        raise ValueError("Headers and column_widths must have the same length")
+
+    # Top border
+    border_chars = ["┌"] + [("─" * (w + 2)) for w in column_widths]
+    border_line = border_chars[0] + border_chars[1]
+    for part in border_chars[2:]:
+        border_line += "┬" + part
+    border_line += "┐"
+    click.echo(border_line)
+
+    # Header row
+    header_parts = ["│"]
+    for header, width in zip(headers, column_widths):
+        header_parts.append(f" {header:<{width}} │")
+    click.echo("".join(header_parts))
+
+    # Middle border
+    border_chars = ["├"] + [("─" * (w + 2)) for w in column_widths]
+    border_line = border_chars[0] + border_chars[1]
+    for part in border_chars[2:]:
+        border_line += "┼" + part
+    border_line += "┤"
+    click.echo(border_line)
+
+    # Data rows
+    for item in items:
+        row_data = row_formatter_func(item)
+        if len(row_data) != len(column_widths):
+            raise ValueError("Row data must match column count")
+
+        row_parts = ["│"]
+        for value, width in zip(row_data, column_widths):
+            # Truncate if necessary
+            str_value = str(value or "")[:width]
+            row_parts.append(f" {str_value:<{width}} │")
+        click.echo("".join(row_parts))
+
+    # Bottom border
+    border_chars = ["└"] + [("─" * (w + 2)) for w in column_widths]
+    border_line = border_chars[0] + border_chars[1]
+    for part in border_chars[2:]:
+        border_line += "┴" + part
+    border_line += "┘"
+    click.echo(border_line)

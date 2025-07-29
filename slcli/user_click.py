@@ -226,7 +226,7 @@ def register_user_commands(cli):
         "--take",
         "-t",
         type=int,
-        default=1000,
+        default=25,
         show_default=True,
         help="Maximum number of users to return",
     )
@@ -263,7 +263,7 @@ def register_user_commands(cli):
     )
     def list_users(
         workspace: Optional[str] = None,
-        take: int = 1000,
+        take: int = 25,
         format: str = "table",
         include_disabled: bool = False,
         sortby: str = "firstName",
@@ -307,6 +307,8 @@ def register_user_commands(cli):
                 headers=["First Name", "Last Name", "Email", "Status"],
                 column_widths=[30, 30, 38, 12],
                 empty_message="No users found.",
+                enable_pagination=True,
+                page_size=take,
             )
 
         except Exception as exc:

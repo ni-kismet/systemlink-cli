@@ -7,8 +7,7 @@ from typing import Optional
 import click
 import requests
 
-from .dff_decorators import list_command_options
-from .table_utils import output_formatted_list
+from .universal_handlers import UniversalResponseHandler
 from .utils import (
     ExitCodes,
     get_base_url,
@@ -174,10 +173,22 @@ def register_dff_commands(cli):
         pass
 
     @config.command(name="list")
-    @list_command_options()
-    def list_configurations(
-        workspace: Optional[str] = None, take: int = 1000, format: str = "table"
-    ):
+    @click.option("--workspace", "-w", help="Filter by workspace name or ID")
+    @click.option(
+        "--take",
+        default=25,
+        show_default=True,
+        help="Maximum number of configurations to return",
+    )
+    @click.option(
+        "--format",
+        "-f",
+        type=click.Choice(["table", "json"], case_sensitive=False),
+        default="table",
+        show_default=True,
+        help="Output format: table or json",
+    )
+    def list_configurations(workspace: Optional[str] = None, take: int = 25, format: str = "table"):
         """List dynamic form field configurations."""
         url = f"{get_base_url()}/nidynamicformfields/v1/configurations"
 
@@ -200,14 +211,34 @@ def register_dff_commands(cli):
             # Use the workspace formatter for consistent formatting
             format_config_row = WorkspaceFormatter.create_config_row_formatter(workspace_map)
 
-            output_formatted_list(
-                configurations,
+            # Use UniversalResponseHandler for consistent pagination
+            from typing import Any
+
+            # Create a mock response with filtered data
+            class FilteredResponse:
+                def __init__(self, filtered_data):
+                    self._data = {"configurations": filtered_data}
+
+                def json(self):
+                    return self._data
+
+                @property
+                def status_code(self):
+                    return 200
+
+            filtered_resp: Any = FilteredResponse(configurations)
+
+            handler = UniversalResponseHandler()
+            handler.handle_list_response(
+                filtered_resp,
+                "configurations",
+                "configuration",
                 format,
+                format_config_row,
                 ["Workspace", "Name", "Configuration ID"],
                 [36, 40, 36],
-                format_config_row,
                 "No dynamic form field configurations found.",
-                "configuration(s)",
+                enable_pagination=True,
             )
 
         except Exception as exc:
@@ -712,7 +743,7 @@ def register_dff_commands(cli):
     @click.option("--workspace", "-w", help="Filter by workspace name or ID")
     @click.option(
         "--take",
-        default=1000,
+        default=25,
         show_default=True,
         help="Maximum number of groups to return",
     )
@@ -724,7 +755,7 @@ def register_dff_commands(cli):
         show_default=True,
         help="Output format: table or json",
     )
-    def list_groups(workspace: Optional[str] = None, take: int = 1000, format: str = "table"):
+    def list_groups(workspace: Optional[str] = None, take: int = 25, format: str = "table"):
         """List dynamic form field groups."""
         url = f"{get_base_url()}/nidynamicformfields/v1/groups"
 
@@ -747,14 +778,34 @@ def register_dff_commands(cli):
             # Use the workspace formatter for consistent formatting
             format_group_row = WorkspaceFormatter.create_group_field_row_formatter(workspace_map)
 
-            output_formatted_list(
-                groups,
+            # Use UniversalResponseHandler for consistent pagination
+            from typing import Any
+
+            # Create a mock response with filtered data
+            class FilteredResponse:
+                def __init__(self, filtered_data):
+                    self._data = {"groups": filtered_data}
+
+                def json(self):
+                    return self._data
+
+                @property
+                def status_code(self):
+                    return 200
+
+            filtered_resp: Any = FilteredResponse(groups)
+
+            handler = UniversalResponseHandler()
+            handler.handle_list_response(
+                filtered_resp,
+                "groups",
+                "group",
                 format,
+                format_group_row,
                 ["Workspace", "Name", "Key"],
                 [23, 32, 39],
-                format_group_row,
                 "No dynamic form field groups found.",
-                "group(s)",
+                enable_pagination=True,
             )
 
         except Exception as exc:
@@ -770,7 +821,7 @@ def register_dff_commands(cli):
     @click.option("--workspace", "-w", help="Filter by workspace name or ID")
     @click.option(
         "--take",
-        default=1000,
+        default=25,
         show_default=True,
         help="Maximum number of fields to return",
     )
@@ -782,7 +833,7 @@ def register_dff_commands(cli):
         show_default=True,
         help="Output format: table or json",
     )
-    def list_fields(workspace: Optional[str] = None, take: int = 1000, format: str = "table"):
+    def list_fields(workspace: Optional[str] = None, take: int = 25, format: str = "table"):
         """List dynamic form fields."""
         url = f"{get_base_url()}/nidynamicformfields/v1/fields"
 
@@ -805,14 +856,34 @@ def register_dff_commands(cli):
             # Use the workspace formatter for consistent formatting
             format_field_row = WorkspaceFormatter.create_group_field_row_formatter(workspace_map)
 
-            output_formatted_list(
-                fields,
+            # Use UniversalResponseHandler for consistent pagination
+            from typing import Any
+
+            # Create a mock response with filtered data
+            class FilteredResponse:
+                def __init__(self, filtered_data):
+                    self._data = {"fields": filtered_data}
+
+                def json(self):
+                    return self._data
+
+                @property
+                def status_code(self):
+                    return 200
+
+            filtered_resp: Any = FilteredResponse(fields)
+
+            handler = UniversalResponseHandler()
+            handler.handle_list_response(
+                filtered_resp,
+                "fields",
+                "field",
                 format,
+                format_field_row,
                 ["Workspace", "Name", "Key"],
                 [23, 32, 39],
-                format_field_row,
                 "No dynamic form fields found.",
-                "field(s)",
+                enable_pagination=True,
             )
 
         except Exception as exc:
@@ -852,7 +923,7 @@ def register_dff_commands(cli):
     )
     @click.option(
         "--take",
-        default=1000,
+        default=25,
         show_default=True,
         help="Maximum number of table properties to return",
     )
@@ -879,7 +950,7 @@ def register_dff_commands(cli):
         resource_id: str,
         resource_type: str,
         keys: tuple = (),
-        take: int = 1000,
+        take: int = 25,
         continuation_token: Optional[str] = None,
         return_count: bool = False,
         format: str = "table",
@@ -918,14 +989,34 @@ def register_dff_commands(cli):
             # Use the workspace formatter for consistent formatting
             format_table_row = WorkspaceFormatter.create_table_row_formatter(workspace_map)
 
-            output_formatted_list(
-                tables,
+            # Use UniversalResponseHandler for consistent pagination
+            from typing import Any
+
+            # Create a mock response with filtered data
+            class FilteredResponse:
+                def __init__(self, filtered_data):
+                    self._data = {"tables": filtered_data}
+
+                def json(self):
+                    return self._data
+
+                @property
+                def status_code(self):
+                    return 200
+
+            filtered_resp: Any = FilteredResponse(tables)
+
+            handler = UniversalResponseHandler()
+            handler.handle_list_response(
+                filtered_resp,
+                "tables",
+                "table",
                 format,
+                format_table_row,
                 ["Workspace", "Resource Type", "Resource ID", "Table ID"],
                 [36, 30, 18, 36],
-                format_table_row,
                 "No table properties found.",
-                "table(s)",
+                enable_pagination=True,
             )
 
         except requests.RequestException as exc:

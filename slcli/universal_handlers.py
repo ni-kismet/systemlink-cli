@@ -23,8 +23,24 @@ class UniversalResponseHandler:
         headers: Optional[List[str]] = None,
         column_widths: Optional[List[int]] = None,
         empty_message: Optional[str] = None,
+        enable_pagination: bool = True,
+        page_size: int = 25,
     ):
-        """Handle list response with standardized formatting."""
+        """Handle list response with standardized formatting and optional pagination.
+
+        Args:
+            resp: API response
+            data_key: Key to extract items from response
+            item_name: Name of item type (for messages)
+            format_output: 'table' or 'json'
+            formatter_func: Function to format table rows
+            headers: Table headers
+            column_widths: Table column widths
+            empty_message: Message when no items found
+            enable_pagination: Whether to enable pagination for table output
+            page_size: Number of items per page
+        """
+        from .cli_utils import paginate_list_output
         from .table_utils import output_formatted_list
 
         try:
@@ -34,7 +50,20 @@ class UniversalResponseHandler:
             if not empty_message:
                 empty_message = f"No {item_name}s found."
 
-            if formatter_func and headers and column_widths:
+            if enable_pagination and format_output.lower() == "table":
+                # Use pagination for table output
+                paginate_list_output(
+                    items,
+                    page_size=page_size,
+                    format_output=format_output,
+                    formatter_func=formatter_func,
+                    headers=headers,
+                    column_widths=column_widths,
+                    empty_message=empty_message,
+                    total_label=f"{item_name}(s)",
+                )
+            elif formatter_func and headers and column_widths:
+                # Use traditional output (no pagination)
                 output_formatted_list(
                     items,
                     format_output,
