@@ -1,7 +1,20 @@
 # CHANGELOG
 
 
+## v0.7.0 (2025-07-29)
+
+### Features
+
+- Add dff commands
+  ([`657f22c`](https://github.com/ni-kismet/systemlink-cli/commit/657f22cdb957828459e5e0602b8f32af665d37d9))
+
+
 ## v0.6.0 (2025-07-28)
+
+### Chores
+
+- **release**: 0.6.0
+  ([`0ec4be0`](https://github.com/ni-kismet/systemlink-cli/commit/0ec4be00093e337537ae5cde36535aeec645c887))
 
 ### Features
 
