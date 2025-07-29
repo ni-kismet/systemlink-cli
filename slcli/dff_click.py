@@ -49,11 +49,11 @@ RESOURCE_TYPE_HELP = f"Resource type. Valid values: {', '.join(VALID_RESOURCE_TY
 FIELD_TYPE_HELP = f"Field type. Valid values: {', '.join(VALID_FIELD_TYPES)}"
 
 
-def _handle_dff_error_response(error_data):
+def _handle_dff_error_response(error_data, operation="operation"):
     """Parse and display DFF-specific error responses."""
     # Check for DFF-specific error structure with failedConfigurations, failedGroups, etc.
     if any(key in error_data for key in ["failedConfigurations", "failedGroups", "failedFields"]):
-        _handle_dff_creation_errors(error_data)
+        _handle_dff_creation_errors(error_data, operation)
     elif "error" in error_data and "innerErrors" in error_data["error"]:
         # Handle nested error structure
         _handle_dff_nested_errors(error_data["error"])
@@ -69,14 +69,14 @@ def _handle_dff_error_response(error_data):
             click.echo(f"  {error_data}", err=True)
 
 
-def _handle_dff_creation_errors(error_data):
-    """Handle DFF creation response with failed configurations/groups/fields."""
-    click.echo("✗ Configuration creation failed with the following issues:", err=True)
+def _handle_dff_creation_errors(error_data, operation="operation"):
+    """Handle DFF creation/update response with failed configurations/groups/fields."""
+    click.echo(f"✗ Configuration {operation} failed with the following issues:", err=True)
 
-    # Show successful creations if any
+    # Show successful operations if any
     successful_configs = error_data.get("configurations", [])
     if successful_configs:
-        click.echo("\n✓ Successfully created configurations:")
+        click.echo(f"\n✓ Successfully {operation}d configurations:")
         for config in successful_configs:
             click.echo(f"  - {config.get('name', config.get('key', 'Unknown'))}")
 
@@ -93,27 +93,6 @@ def _handle_dff_creation_errors(error_data):
         click.echo("\n✗ Failed groups:")
         for group in failed_groups:
             click.echo(f"  - {group.get('displayText', group.get('key', 'Unknown'))}")
-
-    # Show failed fields
-    failed_fields = error_data.get("failedFields", [])
-    if failed_fields:
-        click.echo("\n✗ Failed fields:")
-        for field in failed_fields:
-            click.echo(f"  - {field.get('displayText', field.get('key', 'Unknown'))}")
-
-    # Show detailed error messages if available
-    if "error" in error_data:
-        error = error_data["error"]
-        if "message" in error:
-            click.echo(f"\n⚠ Error details: {error['message']}")
-
-        # Show inner errors with specific details
-        inner_errors = error.get("innerErrors", [])
-        if inner_errors:
-            click.echo("\nSpecific issues:")
-            for inner_error in inner_errors:
-                message = inner_error.get("message", "Unknown error")
-                click.echo(f"  • {message}")
 
 
 def _handle_dff_nested_errors(error):
@@ -355,7 +334,7 @@ def register_dff_commands(cli):
                     for key in ["failedConfigurations", "failedGroups", "failedFields"]
                 ):
                     # Use DFF-specific error handling for partial failures
-                    _handle_dff_error_response(response_data)
+                    _handle_dff_error_response(response_data, "creation")
                     sys.exit(ExitCodes.INVALID_INPUT)
                 else:
                     # Handle legacy partial success format
@@ -391,7 +370,7 @@ def register_dff_commands(cli):
 
                     if status_code == 400:
                         # Parse DFF-specific error structure
-                        _handle_dff_error_response(error_data)
+                        _handle_dff_error_response(error_data, "creation")
                         sys.exit(ExitCodes.INVALID_INPUT)
                     else:
                         # Fallback to general error handling for other HTTP errors
@@ -430,32 +409,43 @@ def register_dff_commands(cli):
             response_data = resp.json() if resp.text.strip() else {}
 
             if resp.status_code == 200:
-                # Check if it's a partial success response
-                updated_configs = response_data.get("configurations", [])
-                failed_updates = response_data.get("failed", [])
+                # Check if it's a DFF-specific partial success response
+                if any(
+                    key in response_data
+                    for key in ["failedConfigurations", "failedGroups", "failedFields"]
+                ):
+                    # Use DFF-specific error handling for partial failures
+                    _handle_dff_error_response(response_data, "update")
+                    sys.exit(ExitCodes.INVALID_INPUT)
+                else:
+                    # Handle legacy partial success format
+                    updated_configs = response_data.get("configurations", [])
+                    failed_updates = response_data.get("failed", [])
 
-                if failed_updates:
-                    click.echo("⚠ Some configurations were updated, but some failed:", err=True)
+                    if failed_updates:
+                        click.echo("⚠ Some configurations were updated, but some failed:", err=True)
 
-                    if updated_configs:
-                        click.echo("Updated:")
+                        if updated_configs:
+                            click.echo("Updated:")
+                            for config in updated_configs:
+                                click.echo(
+                                    f"  ✓ {config.get('name', 'Unknown')}: {config.get('id', '')}"
+                                )
+
+                        click.echo("Failed:")
+                        for failure in failed_updates:
+                            name = failure.get("name", "Unknown")
+                            error = failure.get("error", {})
+                            error_msg = error.get("message", "Unknown error")
+                            click.echo(f"  ✗ {name}: {error_msg}", err=True)
+
+                        sys.exit(ExitCodes.GENERAL_ERROR)
+                    else:
+                        click.echo("✓ Dynamic form field configurations updated successfully.")
                         for config in updated_configs:
                             click.echo(
-                                f"  ✓ {config.get('name', 'Unknown')}: {config.get('id', '')}"
+                                f"  - {config.get('name', 'Unknown')}: {config.get('id', '')}"
                             )
-
-                    click.echo("Failed:")
-                    for failure in failed_updates:
-                        name = failure.get("name", "Unknown")
-                        error = failure.get("error", {})
-                        error_msg = error.get("message", "Unknown error")
-                        click.echo(f"  ✗ {name}: {error_msg}", err=True)
-
-                    sys.exit(ExitCodes.GENERAL_ERROR)
-                else:
-                    click.echo("✓ Dynamic form field configurations updated successfully.")
-                    for config in updated_configs:
-                        click.echo(f"  - {config.get('name', 'Unknown')}: {config.get('id', '')}")
 
         except requests.RequestException as exc:
             # Handle HTTP errors with detailed validation error parsing
@@ -466,7 +456,7 @@ def register_dff_commands(cli):
 
                     if status_code == 400:
                         # Parse DFF-specific error structure
-                        _handle_dff_error_response(error_data)
+                        _handle_dff_error_response(error_data, "update")
                         sys.exit(ExitCodes.INVALID_INPUT)
                     else:
                         # Fallback to general error handling for other HTTP errors
@@ -545,7 +535,7 @@ def register_dff_commands(cli):
 
                     if status_code == 400:
                         # Parse DFF-specific error structure
-                        _handle_dff_error_response(error_data)
+                        _handle_dff_error_response(error_data, "deletion")
                         sys.exit(ExitCodes.INVALID_INPUT)
                     else:
                         # Fallback to general error handling for other HTTP errors
@@ -947,7 +937,7 @@ def register_dff_commands(cli):
 
                     if status_code == 400:
                         # Parse DFF-specific error structure
-                        _handle_dff_error_response(error_data)
+                        _handle_dff_error_response(error_data, "query")
                         sys.exit(ExitCodes.INVALID_INPUT)
                     else:
                         # Fallback to general error handling for other HTTP errors
