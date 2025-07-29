@@ -1,7 +1,20 @@
 # CHANGELOG
 
 
+## v0.7.1 (2025-07-29)
+
+### Bug Fixes
+
+- Refactor changes
+  ([`cd54fd5`](https://github.com/ni-kismet/systemlink-cli/commit/cd54fd5f2a7bb13f4bf38a82257b74f617c74e29))
+
+
 ## v0.7.0 (2025-07-29)
+
+### Chores
+
+- **release**: 0.7.0
+  ([`fd79504`](https://github.com/ni-kismet/systemlink-cli/commit/fd79504248fe4fb099bd530d41a0585af920d2b9))
 
 ### Features
 
