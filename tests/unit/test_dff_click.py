@@ -65,7 +65,7 @@ def test_dff_config_list_success(monkeypatch, runner):
                             "id": "config1",
                             "name": "Test Configuration",
                             "workspace": "ws1",
-                            "resourceType": "TestResult",
+                            "resourceType": "workorder:workorder",
                         }
                     ]
                 }
@@ -107,7 +107,7 @@ def test_dff_config_list_json_format(monkeypatch, runner):
             "id": "config1",
             "name": "Test Configuration",
             "workspace": "ws1",
-            "resourceType": "TestResult",
+            "resourceType": "workorder:workorder",
         }
     ]
 
@@ -143,7 +143,7 @@ def test_dff_config_get_success(monkeypatch, runner):
             "id": "config1",
             "name": "Test Configuration",
             "workspace": "ws1",
-            "resourceType": "TestResult",
+            "resourceType": "workorder:workorder",
         },
         "groups": [],
         "fields": [],
@@ -189,7 +189,7 @@ def test_dff_config_init_success(runner):
                 "--workspace",
                 "test-workspace",
                 "--resource-type",
-                "TestResult",
+                "workorder:workorder",
                 "--output",
                 str(output_file),
             ],
@@ -203,10 +203,31 @@ def test_dff_config_init_success(runner):
             config_data = json.load(f)
 
         assert len(config_data["configurations"]) == 1
-        assert config_data["configurations"][0]["name"] == "Test Config"
-        assert config_data["configurations"][0]["resourceType"] == "TestResult"
+        config = config_data["configurations"][0]
+        assert config["name"] == "Test Config"
+        assert config["key"].startswith("test-config-config-")  # Now includes unique suffix
+        assert config["resourceType"] == "workorder:workorder"
+        assert config["workspace"] == "test-workspace"
+        assert "views" in config
+        assert len(config["views"]) == 1
+        assert config["views"][0]["key"].startswith("default-view-")  # Now includes unique suffix
+        assert config["views"][0]["displayText"] == "Default View"
+        assert len(config["views"][0]["groups"]) == 1
+        assert config["views"][0]["groups"][0].startswith("group1-")  # Now includes unique suffix
+
         assert len(config_data["groups"]) == 1
-        assert len(config_data["fields"]) == 1
+        group = config_data["groups"][0]
+        assert group["key"].startswith("group1-")  # Now includes unique suffix
+        assert group["displayText"] == "Example Group"
+        assert len(group["fields"]) == 2
+        assert group["fields"][0].startswith("field1-")  # Now includes unique suffix
+        assert group["fields"][1].startswith("field2-")  # Now includes unique suffix
+
+        assert len(config_data["fields"]) == 2
+        field1 = config_data["fields"][0]
+        assert field1["key"].startswith("field1-")  # Now includes unique suffix
+        assert field1["type"] == "Text"
+        assert field1["mandatory"] is False
 
 
 def test_dff_config_create_success(monkeypatch, runner):
@@ -243,7 +264,7 @@ def test_dff_config_create_success(monkeypatch, runner):
                 {
                     "name": "Test Configuration",
                     "workspace": "ws1",
-                    "resourceType": "TestResult",
+                    "resourceType": "workorder:workorder",
                     "groupKeys": [],
                 }
             ]
@@ -255,6 +276,78 @@ def test_dff_config_create_success(monkeypatch, runner):
         result = runner.invoke(cli, ["dff", "config", "create", "--file", input_file])
         assert result.exit_code == 0
         assert "configurations created successfully" in result.output
+    finally:
+        Path(input_file).unlink()
+
+
+def test_dff_config_create_validation_error(monkeypatch, runner):
+    """Test creating DFF configurations with validation errors."""
+    patch_keyring(monkeypatch)
+
+    def mock_post(*a, **kw):
+        class R:
+            def __init__(self):
+                self.status_code = 400
+
+            def raise_for_status(self):
+                import requests
+
+                response = requests.Response()
+                response.status_code = 400
+                response._content = json.dumps(
+                    {
+                        "type": "https://tools.ietf.org/html/rfc9110#section-15.5.1",
+                        "title": "One or more validation errors occurred.",
+                        "status": 400,
+                        "errors": {
+                            "request": ["The request field is required."],
+                            "$.fields[0].type": ["Unknown value INVALID_TYPE."],
+                        },
+                        "traceId": "00-test-trace-id",
+                    }
+                ).encode()
+                raise requests.RequestException(response=response)
+
+            def json(self):
+                return {
+                    "type": "https://tools.ietf.org/html/rfc9110#section-15.5.1",
+                    "title": "One or more validation errors occurred.",
+                    "status": 400,
+                    "errors": {
+                        "request": ["The request field is required."],
+                        "$.fields[0].type": ["Unknown value INVALID_TYPE."],
+                    },
+                    "traceId": "00-test-trace-id",
+                }
+
+        return R()
+
+    monkeypatch.setattr("slcli.utils.requests.post", mock_post)
+
+    cli = make_cli()
+
+    # Create a config file with validation errors
+    invalid_config = {
+        "configurations": [
+            {
+                "name": "test",
+                "key": "test-key",
+                "workspace": "test-workspace",
+                "resourceType": "workorder:workorder",
+            }
+        ]
+    }
+
+    input_file = "test_invalid_config.json"
+    with open(input_file, "w") as f:
+        json.dump(invalid_config, f)
+
+    try:
+        result = runner.invoke(cli, ["dff", "config", "create", "--file", input_file])
+        assert result.exit_code == 2  # ExitCodes.INVALID_INPUT
+        assert "Validation errors occurred" in result.output
+        assert "request: The request field is required" in result.output
+        assert "$.fields[0].type: Unknown value INVALID_TYPE" in result.output
     finally:
         Path(input_file).unlink()
 
@@ -335,7 +428,7 @@ def test_dff_tables_query_success(monkeypatch, runner):
                         {
                             "id": "table1",
                             "workspace": "ws1",
-                            "resourceType": "TestResult",
+                            "resourceType": "workorder:workorder",
                             "resourceId": "resource1",
                         }
                     ]
@@ -357,7 +450,7 @@ def test_dff_tables_query_success(monkeypatch, runner):
             "--workspace",
             "ws1",
             "--resource-type",
-            "TestResult",
+            "workorder:workorder",
             "--resource-id",
             "resource1",
         ],
@@ -365,7 +458,7 @@ def test_dff_tables_query_success(monkeypatch, runner):
 
     assert result.exit_code == 0
     assert "table1" in result.output
-    assert "TestResult" in result.output
+    assert "workorder:workorder" in result.output
 
 
 def test_dff_tables_query_with_optional_params(monkeypatch, runner):
@@ -383,7 +476,7 @@ def test_dff_tables_query_with_optional_params(monkeypatch, runner):
                         {
                             "id": "table1",
                             "workspace": "ws1",
-                            "resourceType": "TestResult",
+                            "resourceType": "workorder:workorder",
                             "resourceId": "resource1",
                         }
                     ],
@@ -406,7 +499,7 @@ def test_dff_tables_query_with_optional_params(monkeypatch, runner):
             "--workspace",
             "ws1",
             "--resource-type",
-            "TestResult",
+            "workorder:workorder",
             "--resource-id",
             "resource1",
             "--keys",
@@ -423,7 +516,7 @@ def test_dff_tables_query_with_optional_params(monkeypatch, runner):
 
     assert result.exit_code == 0
     assert "table1" in result.output
-    assert "TestResult" in result.output
+    assert "workorder:workorder" in result.output
 
 
 def test_dff_config_export_success(monkeypatch, runner):

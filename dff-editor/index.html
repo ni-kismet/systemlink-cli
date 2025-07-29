@@ -72,11 +72,6 @@
             border: 1px solid #f5c6cb;
             color: #721c24;
         }
-        .status.info {
-            background: #d1ecf1;
-            border: 1px solid #bee5eb;
-            color: #0c5460;
-        }
     </style>
 </head>
 <body>
@@ -97,7 +92,19 @@
             </ul>
         </div>
         
-        <div class="file-info"><strong>Mode:</strong> New Configuration</div>
+        <div class="file-info"><strong>Mode: New Configuration</strong></div>
+        
+        <div class="notice">
+            <strong>📋 Resource Types</strong><br>
+            The <code>resourceType</code> field must be one of these valid values:
+            <ul>
+                <li><code>workorder:workorder</code></li>
+                <li><code>workorder:testplan</code></li>
+                <li><code>asset:asset</code></li>
+                <li><code>system:system</code></li>
+                <li><code>testmonitor:product</code></li>
+            </ul>
+        </div>
         
         <h3>JSON Configuration</h3>
         <textarea id="jsonEditor" placeholder="Enter your Dynamic Form Fields configuration JSON here...">{
@@ -105,7 +112,7 @@
     {
       "name": "Example Configuration",
       "workspace": "your-workspace-id",
-      "resourceType": "your-resource-type",
+      "resourceType": "workorder:workorder",
       "groupKeys": ["group1"],
       "properties": {}
     }
@@ -145,6 +152,7 @@
     </div>
     
     <script>
+        
         function validateJson() {
             const textarea = document.getElementById('jsonEditor');
             const status = document.getElementById('status');
@@ -206,14 +214,6 @@
                         "displayText": "Basic Information",
                         "fieldKeys": ["deviceId", "operator"],
                         "properties": {}
-                    },
-                    {
-                        "key": "measurements",
-                        "workspace": "your-workspace-id",
-                        "name": "Measurements",
-                        "displayText": "Test Measurements",
-                        "fieldKeys": ["voltage", "current", "temperature"],
-                        "properties": {}
                     }
                 ],
                 "fields": [
@@ -226,55 +226,6 @@
                         "required": true,
                         "validation": {
                             "maxLength": 50
-                        },
-                        "properties": {}
-                    },
-                    {
-                        "key": "operator",
-                        "workspace": "your-workspace-id",
-                        "name": "Operator",
-                        "displayText": "Test Operator",
-                        "fieldType": "STRING",
-                        "required": false,
-                        "validation": {},
-                        "properties": {}
-                    },
-                    {
-                        "key": "voltage",
-                        "workspace": "your-workspace-id",
-                        "name": "Voltage",
-                        "displayText": "Voltage Measurement (V)",
-                        "fieldType": "FLOAT64",
-                        "required": true,
-                        "validation": {
-                            "min": 0,
-                            "max": 100
-                        },
-                        "properties": {}
-                    },
-                    {
-                        "key": "current",
-                        "workspace": "your-workspace-id",
-                        "name": "Current",
-                        "displayText": "Current Measurement (A)",
-                        "fieldType": "FLOAT64",
-                        "required": true,
-                        "validation": {
-                            "min": 0,
-                            "max": 10
-                        },
-                        "properties": {}
-                    },
-                    {
-                        "key": "temperature",
-                        "workspace": "your-workspace-id",
-                        "name": "Temperature",
-                        "displayText": "Temperature (°C)",
-                        "fieldType": "FLOAT64",
-                        "required": false,
-                        "validation": {
-                            "min": -40,
-                            "max": 85
                         },
                         "properties": {}
                     }
@@ -294,6 +245,7 @@
                 status.textContent = '';
             }, 5000);
         }
+        
     </script>
 </body>
 </html>

@@ -1,29 +1,183 @@
 """CLI commands for managing SystemLink Dynamic Form Fields."""
 
-import http.server
 import json
-import socketserver
 import sys
-import threading
-import webbrowser
-from pathlib import Path
 from typing import Optional
 
 import click
+import requests
 
+from .dff_decorators import list_command_options
+from .table_utils import output_formatted_list
 from .utils import (
     ExitCodes,
-    filter_by_workspace,
     get_base_url,
     get_workspace_map,
     handle_api_error,
     load_json_file,
     make_api_request,
-    output_formatted_list,
-    resolve_workspace_filter,
     sanitize_filename,
     save_json_file,
 )
+from .web_editor import launch_dff_editor
+from .workspace_utils import filter_by_workspace, resolve_workspace_filter, WorkspaceFormatter
+
+# Valid resource types for Dynamic Form Fields
+VALID_RESOURCE_TYPES = [
+    "workorder:workorder",
+    "workorder:testplan",
+    "asset:asset",
+    "system:system",
+    "testmonitor:product",
+]
+
+# Valid field types for Dynamic Form Fields
+VALID_FIELD_TYPES = [
+    "Text",
+    "Number",
+    "Boolean",
+    "Enum",
+    "DateTime",
+    "Table",
+    "LinkedResource",
+]
+
+# Help text for resource type parameter
+RESOURCE_TYPE_HELP = f"Resource type. Valid values: {', '.join(VALID_RESOURCE_TYPES)}"
+
+# Help text for field type parameter
+FIELD_TYPE_HELP = f"Field type. Valid values: {', '.join(VALID_FIELD_TYPES)}"
+
+
+def _handle_dff_error_response(error_data):
+    """Parse and display DFF-specific error responses."""
+    # Check for DFF-specific error structure with failedConfigurations, failedGroups, etc.
+    if any(key in error_data for key in ["failedConfigurations", "failedGroups", "failedFields"]):
+        _handle_dff_creation_errors(error_data)
+    elif "error" in error_data and "innerErrors" in error_data["error"]:
+        # Handle nested error structure
+        _handle_dff_nested_errors(error_data["error"])
+    elif "errors" in error_data:
+        # Handle simple validation errors structure
+        _handle_simple_validation_errors(error_data)
+    else:
+        # Fallback for unknown error structure
+        click.echo("✗ Request failed with validation errors:", err=True)
+        if "message" in error_data:
+            click.echo(f"  {error_data['message']}", err=True)
+        else:
+            click.echo(f"  {error_data}", err=True)
+
+
+def _handle_dff_creation_errors(error_data):
+    """Handle DFF creation response with failed configurations/groups/fields."""
+    click.echo("✗ Configuration creation failed with the following issues:", err=True)
+
+    # Show successful creations if any
+    successful_configs = error_data.get("configurations", [])
+    if successful_configs:
+        click.echo("\n✓ Successfully created configurations:")
+        for config in successful_configs:
+            click.echo(f"  - {config.get('name', config.get('key', 'Unknown'))}")
+
+    # Show failed configurations
+    failed_configs = error_data.get("failedConfigurations", [])
+    if failed_configs:
+        click.echo("\n✗ Failed configurations:")
+        for config in failed_configs:
+            click.echo(f"  - {config.get('name', config.get('key', 'Unknown'))}")
+
+    # Show failed groups
+    failed_groups = error_data.get("failedGroups", [])
+    if failed_groups:
+        click.echo("\n✗ Failed groups:")
+        for group in failed_groups:
+            click.echo(f"  - {group.get('displayText', group.get('key', 'Unknown'))}")
+
+    # Show failed fields
+    failed_fields = error_data.get("failedFields", [])
+    if failed_fields:
+        click.echo("\n✗ Failed fields:")
+        for field in failed_fields:
+            click.echo(f"  - {field.get('displayText', field.get('key', 'Unknown'))}")
+
+    # Show detailed error messages if available
+    if "error" in error_data:
+        error = error_data["error"]
+        if "message" in error:
+            click.echo(f"\n⚠ Error details: {error['message']}")
+
+        # Show inner errors with specific details
+        inner_errors = error.get("innerErrors", [])
+        if inner_errors:
+            click.echo("\nSpecific issues:")
+            for inner_error in inner_errors:
+                message = inner_error.get("message", "Unknown error")
+                click.echo(f"  • {message}")
+
+
+def _handle_dff_nested_errors(error):
+    """Handle nested error structure with innerErrors."""
+    click.echo("✗ Request failed with validation errors:", err=True)
+
+    if "message" in error:
+        click.echo(f"  {error['message']}")
+
+    inner_errors = error.get("innerErrors", [])
+    if inner_errors:
+        click.echo("\nDetailed errors:")
+        for inner_error in inner_errors:
+            message = inner_error.get("message", "Unknown error")
+            click.echo(f"  • {message}")
+
+
+def _handle_simple_validation_errors(error_data):
+    """Handle simple validation errors structure."""
+    click.echo("✗ Validation errors occurred:", err=True)
+    errors = error_data.get("errors", {})
+
+    for field, field_errors in errors.items():
+        if isinstance(field_errors, list):
+            for error in field_errors:
+                click.echo(f"  - {field}: {error}", err=True)
+        else:
+            click.echo(f"  - {field}: {field_errors}", err=True)
+
+    # Show title if available
+    if "title" in error_data:
+        click.echo(f"  Summary: {error_data['title']}", err=True)
+
+
+def validate_resource_type(resource_type: str) -> None:
+    """Validate that the resource type is one of the supported values.
+
+    Args:
+        resource_type: The resource type to validate
+
+    Raises:
+        click.ClickException: If the resource type is not valid
+    """
+    if resource_type not in VALID_RESOURCE_TYPES:
+        valid_types_str = ", ".join(VALID_RESOURCE_TYPES)
+        raise click.ClickException(
+            f"Invalid resource type: '{resource_type}'. " f"Valid types are: {valid_types_str}"
+        )
+
+
+def validate_field_type(field_type: str) -> None:
+    """Validate that the field type is one of the supported values.
+
+    Args:
+        field_type: The field type to validate
+
+    Raises:
+        click.ClickException: If the field type is not valid
+    """
+    if field_type not in VALID_FIELD_TYPES:
+        valid_types_str = ", ".join(VALID_FIELD_TYPES)
+        raise click.ClickException(
+            f"Invalid field type: '{field_type}'. " f"Valid types are: {valid_types_str}"
+        )
 
 
 def register_dff_commands(cli):
@@ -41,21 +195,7 @@ def register_dff_commands(cli):
         pass
 
     @config.command(name="list")
-    @click.option("--workspace", "-w", help="Filter by workspace name or ID")
-    @click.option(
-        "--take",
-        default=1000,
-        show_default=True,
-        help="Maximum number of configurations to return",
-    )
-    @click.option(
-        "--format",
-        "-f",
-        type=click.Choice(["table", "json"], case_sensitive=False),
-        default="table",
-        show_default=True,
-        help="Output format: table or json",
-    )
+    @list_command_options()
     def list_configurations(
         workspace: Optional[str] = None, take: int = 1000, format: str = "table"
     ):
@@ -64,8 +204,6 @@ def register_dff_commands(cli):
 
         try:
             params = {"Take": take}
-
-            # Build URL with query parameters
             query_string = "&".join([f"{k}={v}" for k, v in params.items()])
             full_url = f"{url}?{query_string}"
 
@@ -73,18 +211,15 @@ def register_dff_commands(cli):
             data = resp.json()
             configurations = data.get("configurations", [])
 
+            # Get workspace map once and reuse it
+            workspace_map = get_workspace_map()
+
             # Filter by workspace if specified
             if workspace:
-                workspace_map = get_workspace_map()
                 configurations = filter_by_workspace(configurations, workspace, workspace_map)
 
-            def format_config_row(config):
-                workspace_map = get_workspace_map()
-                workspace_id = config.get("workspace", "")
-                workspace_name = workspace_map.get(workspace_id, workspace_id) or ""
-                name = config.get("name", "")
-                config_id = config.get("id", "")
-                return [workspace_name, name, config_id]
+            # Use the workspace formatter for consistent formatting
+            format_config_row = WorkspaceFormatter.create_config_row_formatter(workspace_map)
 
             output_formatted_list(
                 configurations,
@@ -175,7 +310,34 @@ def register_dff_commands(cli):
                 # Wrap list of configurations
                 data = {"configurations": data}
 
-            resp = make_api_request("POST", url, data)
+            # Validate resource types in configurations
+            configurations = data.get("configurations", [])
+            for i, config in enumerate(configurations):
+                if isinstance(config, dict):
+                    resource_type = config.get("resourceType")
+                    if resource_type:
+                        try:
+                            validate_resource_type(resource_type)
+                        except click.ClickException as e:
+                            raise click.ClickException(
+                                f"Invalid resource type in configuration {i + 1}: {e.message}"
+                            )
+
+            # Validate field types in fields
+            fields = data.get("fields", [])
+            for i, field in enumerate(fields):
+                if isinstance(field, dict):
+                    field_type = field.get("type")
+                    if field_type:
+                        try:
+                            validate_field_type(field_type)
+                        except click.ClickException as e:
+                            raise click.ClickException(
+                                f"Invalid field type in field {i + 1}: {e.message}"
+                            )
+
+            # Make API request without automatic error handling to parse validation errors
+            resp = make_api_request("POST", url, data, handle_errors=False)
 
             # Check for partial success response
             response_data = resp.json() if resp.text.strip() else {}
@@ -187,28 +349,59 @@ def register_dff_commands(cli):
                 for config in created_configs:
                     click.echo(f"  - {config.get('name', 'Unknown')}: {config.get('id', '')}")
             elif resp.status_code == 200:
-                # Partial success
-                click.echo("⚠ Some configurations were created, but some failed:", err=True)
+                # Partial success - may contain DFF-specific error structure
+                if any(
+                    key in response_data
+                    for key in ["failedConfigurations", "failedGroups", "failedFields"]
+                ):
+                    # Use DFF-specific error handling for partial failures
+                    _handle_dff_error_response(response_data)
+                    sys.exit(ExitCodes.INVALID_INPUT)
+                else:
+                    # Handle legacy partial success format
+                    click.echo("⚠ Some configurations were created, but some failed:", err=True)
 
-                # Show successful creations
-                successful = response_data.get("created", [])
-                if successful:
-                    click.echo("Created:")
-                    for config in successful:
-                        click.echo(f"  ✓ {config.get('name', 'Unknown')}: {config.get('id', '')}")
+                    # Show successful creations
+                    successful = response_data.get("created", [])
+                    if successful:
+                        click.echo("Created:")
+                        for config in successful:
+                            click.echo(
+                                f"  ✓ {config.get('name', 'Unknown')}: {config.get('id', '')}"
+                            )
 
-                # Show failures
-                failed = response_data.get("failed", [])
-                if failed:
-                    click.echo("Failed:")
-                    for failure in failed:
-                        name = failure.get("name", "Unknown")
-                        error = failure.get("error", {})
-                        error_msg = error.get("message", "Unknown error")
-                        click.echo(f"  ✗ {name}: {error_msg}", err=True)
+                    # Show failures
+                    failed = response_data.get("failed", [])
+                    if failed:
+                        click.echo("Failed:")
+                        for failure in failed:
+                            name = failure.get("name", "Unknown")
+                            error = failure.get("error", {})
+                            error_msg = error.get("message", "Unknown error")
+                            click.echo(f"  ✗ {name}: {error_msg}", err=True)
 
-                sys.exit(ExitCodes.GENERAL_ERROR)
+                    sys.exit(ExitCodes.GENERAL_ERROR)
 
+        except requests.RequestException as exc:
+            # Handle HTTP errors with detailed validation error parsing
+            if hasattr(exc, "response") and exc.response is not None:
+                try:
+                    error_data = exc.response.json()
+                    status_code = exc.response.status_code
+
+                    if status_code == 400:
+                        # Parse DFF-specific error structure
+                        _handle_dff_error_response(error_data)
+                        sys.exit(ExitCodes.INVALID_INPUT)
+                    else:
+                        # Fallback to general error handling for other HTTP errors
+                        handle_api_error(exc)
+                except (ValueError, KeyError):
+                    # If JSON parsing fails, fall back to general error handling
+                    handle_api_error(exc)
+            else:
+                # For non-HTTP errors, use general error handling
+                handle_api_error(exc)
         except Exception as exc:
             handle_api_error(exc)
 
@@ -233,7 +426,7 @@ def register_dff_commands(cli):
             elif isinstance(data, list):
                 data = {"configurations": data}
 
-            resp = make_api_request("POST", url, data)
+            resp = make_api_request("POST", url, data, handle_errors=False)
             response_data = resp.json() if resp.text.strip() else {}
 
             if resp.status_code == 200:
@@ -264,6 +457,26 @@ def register_dff_commands(cli):
                     for config in updated_configs:
                         click.echo(f"  - {config.get('name', 'Unknown')}: {config.get('id', '')}")
 
+        except requests.RequestException as exc:
+            # Handle HTTP errors with detailed validation error parsing
+            if hasattr(exc, "response") and exc.response is not None:
+                try:
+                    error_data = exc.response.json()
+                    status_code = exc.response.status_code
+
+                    if status_code == 400:
+                        # Parse DFF-specific error structure
+                        _handle_dff_error_response(error_data)
+                        sys.exit(ExitCodes.INVALID_INPUT)
+                    else:
+                        # Fallback to general error handling for other HTTP errors
+                        handle_api_error(exc)
+                except (ValueError, KeyError):
+                    # If JSON parsing fails, fall back to general error handling
+                    handle_api_error(exc)
+            else:
+                # For non-HTTP errors, use general error handling
+                handle_api_error(exc)
         except Exception as exc:
             handle_api_error(exc)
 
@@ -305,7 +518,7 @@ def register_dff_commands(cli):
                 sys.exit(ExitCodes.INVALID_INPUT)
 
             payload = {"configurationIds": ids_to_delete}
-            resp = make_api_request("POST", url, payload)
+            resp = make_api_request("POST", url, payload, handle_errors=False)
 
             if resp.status_code in (200, 204):
                 click.echo(f"✓ {len(ids_to_delete)} configuration(s) deleted successfully.")
@@ -323,6 +536,26 @@ def register_dff_commands(cli):
                         click.echo(f"  ✗ {config_id}: {error_msg}", err=True)
                     sys.exit(ExitCodes.GENERAL_ERROR)
 
+        except requests.RequestException as exc:
+            # Handle HTTP errors with detailed validation error parsing
+            if hasattr(exc, "response") and exc.response is not None:
+                try:
+                    error_data = exc.response.json()
+                    status_code = exc.response.status_code
+
+                    if status_code == 400:
+                        # Parse DFF-specific error structure
+                        _handle_dff_error_response(error_data)
+                        sys.exit(ExitCodes.INVALID_INPUT)
+                    else:
+                        # Fallback to general error handling for other HTTP errors
+                        handle_api_error(exc)
+                except (ValueError, KeyError):
+                    # If JSON parsing fails, fall back to general error handling
+                    handle_api_error(exc)
+            else:
+                # For non-HTTP errors, use general error handling
+                handle_api_error(exc)
         except Exception as exc:
             handle_api_error(exc)
 
@@ -373,7 +606,8 @@ def register_dff_commands(cli):
     @click.option(
         "--resource-type",
         "-r",
-        help="Resource type (will prompt if not provided)",
+        type=click.Choice(VALID_RESOURCE_TYPES, case_sensitive=False),
+        help=RESOURCE_TYPE_HELP,
     )
     @click.option(
         "--output",
@@ -396,7 +630,13 @@ def register_dff_commands(cli):
                 workspace = click.prompt("Workspace name or ID")
 
             if not resource_type:
-                resource_type = click.prompt("Resource type")
+                resource_type = click.prompt(
+                    "Resource type", type=click.Choice(VALID_RESOURCE_TYPES, case_sensitive=False)
+                )
+
+            # Validate resource type (resource_type is guaranteed to be str at this point)
+            if resource_type:
+                validate_resource_type(resource_type)
 
             # Generate output filename if not provided
             if not output:
@@ -411,37 +651,50 @@ def register_dff_commands(cli):
                 workspace_id = workspace or ""
 
             # Create template configuration
+            safe_name = sanitize_filename(name or "config", "config")
+            import uuid
+
+            unique_suffix = str(uuid.uuid4())[:8]  # Use first 8 chars of UUID for uniqueness
+
             template_config = {
                 "configurations": [
                     {
                         "name": name,
+                        "key": f"{safe_name}-config-{unique_suffix}",
                         "workspace": workspace_id,
                         "resourceType": resource_type,
-                        "groupKeys": ["// Array of group keys, e.g., ['group1', 'group2']"],
-                        "properties": {"// Add custom properties here": "value"},
+                        "views": [
+                            {
+                                "key": f"default-view-{unique_suffix}",
+                                "displayText": "Default View",
+                                "groups": [f"group1-{unique_suffix}"],
+                            }
+                        ],
                     }
                 ],
                 "groups": [
                     {
-                        "key": "group1",
+                        "key": f"group1-{unique_suffix}",
                         "workspace": workspace_id,
-                        "name": "Example Group",
-                        "displayText": "Example Group Display Name",
-                        "fieldKeys": ["field1", "field2"],
-                        "properties": {},
+                        "displayText": "Example Group",
+                        "fields": [f"field1-{unique_suffix}", f"field2-{unique_suffix}"],
                     }
                 ],
                 "fields": [
                     {
-                        "key": "field1",
+                        "key": f"field1-{unique_suffix}",
                         "workspace": workspace_id,
-                        "name": "Example Field",
-                        "displayText": "Example Field Display Name",
-                        "fieldType": "STRING",
-                        "required": False,
-                        "validation": {"// Add validation rules": "as needed"},
-                        "properties": {},
-                    }
+                        "displayText": "Example Field",
+                        "type": "Text",
+                        "mandatory": False,
+                    },
+                    {
+                        "key": f"field2-{unique_suffix}",
+                        "workspace": workspace_id,
+                        "displayText": "Example Field 2",
+                        "type": "Text",
+                        "mandatory": False,
+                    },
                 ],
             }
 
@@ -449,8 +702,11 @@ def register_dff_commands(cli):
             click.echo(f"✓ Configuration template created: {output}")
             click.echo("Edit the file to customize:")
             click.echo("  - Add/modify groups and fields")
-            click.echo("  - Set validation rules")
-            click.echo("  - Configure field types and properties")
+            click.echo(
+                "  - Set field types (Text, Number, Boolean, Enum, DateTime, Table, LinkedResource)"
+            )
+            click.echo("  - Configure mandatory/optional fields")
+            click.echo("  - Add validation rules and properties as needed")
 
         except Exception as exc:
             click.echo(f"✗ Error creating configuration template: {exc}", err=True)
@@ -491,18 +747,15 @@ def register_dff_commands(cli):
             data = resp.json()
             groups = data.get("groups", [])
 
+            # Get workspace map once and reuse it
+            workspace_map = get_workspace_map()
+
             # Filter by workspace if specified
             if workspace:
-                workspace_map = get_workspace_map()
                 groups = filter_by_workspace(groups, workspace, workspace_map)
 
-            def format_group_row(group):
-                workspace_map = get_workspace_map()
-                workspace_id = group.get("workspace", "")
-                workspace_name = workspace_map.get(workspace_id, workspace_id) or ""
-                name = group.get("displayText", group.get("name", ""))
-                key = group.get("key", "")
-                return [workspace_name, name, key]
+            # Use the workspace formatter for consistent formatting
+            format_group_row = WorkspaceFormatter.create_group_field_row_formatter(workspace_map)
 
             output_formatted_list(
                 groups,
@@ -552,18 +805,15 @@ def register_dff_commands(cli):
             data = resp.json()
             fields = data.get("fields", [])
 
+            # Get workspace map once and reuse it
+            workspace_map = get_workspace_map()
+
             # Filter by workspace if specified
             if workspace:
-                workspace_map = get_workspace_map()
                 fields = filter_by_workspace(fields, workspace, workspace_map)
 
-            def format_field_row(field):
-                workspace_map = get_workspace_map()
-                workspace_id = field.get("workspace", "")
-                workspace_name = workspace_map.get(workspace_id, workspace_id) or ""
-                name = field.get("displayText", field.get("name", ""))
-                key = field.get("key", "")
-                return [workspace_name, name, key]
+            # Use the workspace formatter for consistent formatting
+            format_field_row = WorkspaceFormatter.create_group_field_row_formatter(workspace_map)
 
             output_formatted_list(
                 fields,
@@ -601,7 +851,8 @@ def register_dff_commands(cli):
         "--resource-type",
         "-r",
         required=True,
-        help="Resource type to filter by",
+        type=click.Choice(VALID_RESOURCE_TYPES, case_sensitive=False),
+        help=RESOURCE_TYPE_HELP,
     )
     @click.option(
         "--keys",
@@ -670,18 +921,12 @@ def register_dff_commands(cli):
             if continuation_token:
                 payload["continuationToken"] = continuation_token
 
-            resp = make_api_request("POST", url, payload)
+            resp = make_api_request("POST", url, payload, handle_errors=False)
             data = resp.json()
             tables = data.get("tables", [])
 
-            def format_table_row(table):
-                workspace_map = get_workspace_map()
-                workspace_id = table.get("workspace", "")
-                workspace_name = workspace_map.get(workspace_id, workspace_id) or ""
-                resource_type = table.get("resourceType", "")
-                resource_id = table.get("resourceId", "")
-                table_id = table.get("id", "")
-                return [workspace_name, resource_type, resource_id, table_id]
+            # Use the workspace formatter for consistent formatting
+            format_table_row = WorkspaceFormatter.create_table_row_formatter(workspace_map)
 
             output_formatted_list(
                 tables,
@@ -693,6 +938,26 @@ def register_dff_commands(cli):
                 "table(s)",
             )
 
+        except requests.RequestException as exc:
+            # Handle HTTP errors with detailed validation error parsing
+            if hasattr(exc, "response") and exc.response is not None:
+                try:
+                    error_data = exc.response.json()
+                    status_code = exc.response.status_code
+
+                    if status_code == 400:
+                        # Parse DFF-specific error structure
+                        _handle_dff_error_response(error_data)
+                        sys.exit(ExitCodes.INVALID_INPUT)
+                    else:
+                        # Fallback to general error handling for other HTTP errors
+                        handle_api_error(exc)
+                except (ValueError, KeyError):
+                    # If JSON parsing fails, fall back to general error handling
+                    handle_api_error(exc)
+            else:
+                # For non-HTTP errors, use general error handling
+                handle_api_error(exc)
         except Exception as exc:
             handle_api_error(exc)
 
@@ -773,230 +1038,20 @@ def register_dff_commands(cli):
         show_default=True,
         help="Directory to create editor files in",
     )
+    @click.option(
+        "--no-browser",
+        is_flag=True,
+        help="Don't automatically open browser",
+    )
     def edit_configuration(
-        file: Optional[str] = None, port: int = 8080, output_dir: str = "dff-editor"
+        file: Optional[str] = None,
+        port: int = 8080,
+        output_dir: str = "dff-editor",
+        no_browser: bool = False,
     ):
         """Launch a local web editor for dynamic form field configurations.
 
         This command will create a standalone HTML editor in the specified directory
         and start a local HTTP server for editing dynamic form field configurations.
         """
-        try:
-            # Create the editor directory
-            editor_path = Path(output_dir)
-            editor_path.mkdir(exist_ok=True)
-
-            # Load existing file content if specified
-            initial_content = ""
-            if file and Path(file).exists():
-                try:
-                    existing_data = load_json_file(file)
-                    initial_content = json.dumps(existing_data, indent=2)
-                except Exception:
-                    initial_content = (
-                        '{\n  "configurations": [],\n  "groups": [],\n  "fields": []\n}'
-                    )
-            else:
-                initial_content = """{
-  "configurations": [
-    {
-      "name": "Example Configuration",
-      "workspace": "your-workspace-id",
-      "resourceType": "your-resource-type",
-      "groupKeys": ["group1"],
-      "properties": {}
-    }
-  ],
-  "groups": [
-    {
-      "key": "group1",
-      "workspace": "your-workspace-id",
-      "name": "Example Group",
-      "displayText": "Example Group",
-      "fieldKeys": ["field1"],
-      "properties": {}
-    }
-  ],
-  "fields": [
-    {
-      "key": "field1",
-      "workspace": "your-workspace-id",
-      "name": "Example Field",
-      "displayText": "Example Field",
-      "fieldType": "STRING",
-      "required": false,
-      "validation": {},
-      "properties": {}
-    }
-  ]
-}"""
-
-            # Get the HTML template from the standalone file or use bundled template
-            template_path = Path(__file__).parent.parent / "dff-editor" / "index.html"
-
-            if template_path.exists():
-                # Use the standalone HTML file as template
-                html_template = template_path.read_text()
-
-                # Replace the placeholder content with initial content
-                # Look for the textarea content between the tags
-                import re
-
-                textarea_pattern = r"(<textarea[^>]*>)(.*?)(</textarea>)"
-                match = re.search(textarea_pattern, html_template, re.DOTALL)
-
-                if match:
-                    html_content = html_template.replace(match.group(2), initial_content)
-                else:
-                    # Fallback if textarea pattern not found
-                    html_content = html_template
-
-                # Update the file info section based on whether we're editing a file
-                if file:
-                    html_content = html_content.replace(
-                        '<div class="file-info"><strong>Mode:</strong> New Configuration</div>',
-                        f'<div class="file-info"><strong>Editing:</strong> {file}</div>',
-                    )
-
-            else:
-                # Fallback: Create the editor using a basic template
-                click.echo("⚠ Standalone template not found, using basic fallback", err=True)
-                html_content = f"""<!DOCTYPE html>
-<html lang="en">
-<head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Dynamic Form Fields Editor</title>
-    <style>
-        body {{ font-family: sans-serif; max-width: 1200px; margin: 0 auto; padding: 20px; }}
-        textarea {{ width: 100%; height: 400px; font-family: monospace; }}
-        button {{ padding: 10px 20px; margin: 5px; background: #007acc; color: white; border: none; border-radius: 4px; }}
-    </style>
-</head>
-<body>
-    <h1>Dynamic Form Fields Editor</h1>
-    <p>Basic fallback editor. For the full experience, ensure the standalone HTML template exists.</p>
-    {"<p><strong>Editing:</strong> " + file + "</p>" if file else "<p><strong>Mode:</strong> New Configuration</p>"}
-    <textarea id="jsonEditor">{initial_content}</textarea>
-    <div>
-        <button onclick="downloadJson()">Download JSON</button>
-    </div>
-    <script>
-        function downloadJson() {{
-            const content = document.getElementById('jsonEditor').value;
-            const blob = new Blob([content], {{ type: 'application/json' }});
-            const url = URL.createObjectURL(blob);
-            const a = document.createElement('a');
-            a.href = url;
-            a.download = 'dff-configuration.json';
-            a.click();
-            URL.revokeObjectURL(url);
-        }}
-    </script>
-</body>
-</html>"""
-
-            # Write the HTML file
-            html_file = editor_path / "index.html"
-            html_file.write_text(html_content)
-
-            # Create a README file
-            readme_content = f"""# Dynamic Form Fields Editor
-
-This directory contains a standalone web editor for SystemLink Dynamic Form Fields configurations.
-
-## Files
-
-- `index.html` - The main editor interface
-- `README.md` - This file
-
-## Usage
-
-1. Start the editor server:
-   ```
-   slcli dff edit --output-dir {output_dir} --port {port}
-   ```
-
-2. Open your browser to: http://localhost:{port}
-
-3. Edit your configuration in the JSON editor
-
-4. Use the tools to validate, format, and download your configuration
-
-## Future Enhancements
-
-This editor is currently a basic JSON editor. Future versions will include:
-
-- Visual form builder
-- Field type validation
-- Real-time preview
-- Schema validation
-- Direct save to file
-- Integration with SystemLink API
-
-## Configuration Structure
-
-Dynamic Form Fields configurations consist of:
-
-- **Configurations**: Top-level configuration objects that define how forms are structured
-- **Groups**: Logical groupings of fields within a configuration
-- **Fields**: Individual form fields with types, validation rules, and properties
-
-See the example configuration in the editor for a sample structure.
-"""
-
-            readme_file = editor_path / "README.md"
-            readme_file.write_text(readme_content)
-
-            # Start HTTP server
-            class Handler(http.server.SimpleHTTPRequestHandler):
-                def __init__(self, *args, **kwargs):
-                    super().__init__(*args, directory=str(editor_path), **kwargs)
-
-                def log_message(self, format, *args):
-                    # Suppress server logs
-                    pass
-
-            try:
-                with socketserver.TCPServer(("", port), Handler) as httpd:
-                    server_url = f"http://localhost:{port}"
-
-                    # Start server in background thread
-                    server_thread = threading.Thread(target=httpd.serve_forever)
-                    server_thread.daemon = True
-                    server_thread.start()
-
-                    click.echo(f"✓ Created editor files in: {editor_path.absolute()}")
-                    click.echo(f"✓ Starting Dynamic Form Fields editor at {server_url}")
-                    click.echo("✓ Opening in your default browser...")
-
-                    # Open browser
-                    webbrowser.open(server_url)
-
-                    click.echo(f"\nEditor files created in: {editor_path.absolute()}")
-                    click.echo("- index.html (main editor)")
-                    click.echo("- README.md (documentation)")
-                    click.echo("\nPress Ctrl+C to stop the editor server")
-
-                    try:
-                        # Keep the server running
-                        while True:
-                            threading.Event().wait(1)
-                    except KeyboardInterrupt:
-                        click.echo("\n✓ Editor server stopped")
-                        click.echo(f"✓ Editor files remain in: {editor_path.absolute()}")
-                        httpd.shutdown()
-
-            except OSError as e:
-                if "Address already in use" in str(e):
-                    click.echo(
-                        f"✗ Port {port} is already in use. Try a different port with --port",
-                        err=True,
-                    )
-                    sys.exit(ExitCodes.GENERAL_ERROR)
-                else:
-                    raise
-
-        except Exception as exc:
-            click.echo(f"✗ Error starting editor: {exc}", err=True)
-            sys.exit(ExitCodes.GENERAL_ERROR)
+        launch_dff_editor(file=file, port=port, output_dir=output_dir, open_browser=not no_browser)

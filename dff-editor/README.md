@@ -20,17 +20,6 @@ This directory contains a standalone web editor for SystemLink Dynamic Form Fiel
 
 4. Use the tools to validate, format, and download your configuration
 
-## Future Enhancements
-
-This editor is currently a basic JSON editor. Future versions will include:
-
-- Visual form builder
-- Field type validation
-- Real-time preview
-- Schema validation
-- Direct save to file
-- Integration with SystemLink API
-
 ## Configuration Structure
 
 Dynamic Form Fields configurations consist of:
@@ -38,5 +27,15 @@ Dynamic Form Fields configurations consist of:
 - **Configurations**: Top-level configuration objects that define how forms are structured
 - **Groups**: Logical groupings of fields within a configuration
 - **Fields**: Individual form fields with types, validation rules, and properties
+
+### Resource Types
+
+The `resourceType` field in configurations must be one of these valid values:
+
+- `workorder:workorder`
+- `workorder:testplan`
+- `asset:asset`
+- `system:system`
+- `testmonitor:product`
 
 See the example configuration in the editor for a sample structure.
