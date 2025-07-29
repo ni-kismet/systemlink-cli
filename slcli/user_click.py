@@ -11,6 +11,8 @@ from typing import Optional
 
 import click
 
+from .cli_utils import validate_output_format
+from .universal_handlers import UniversalResponseHandler
 from .utils import (
     ExitCodes,
     format_success,
@@ -216,48 +218,61 @@ def register_user_commands(cli):
 
     @user.command(name="list")
     @click.option(
-        "--format",
-        "-f",
-        type=click.Choice(["table", "json"], case_sensitive=False),
-        default="table",
-        show_default=True,
-        help="Output format: table or json",
-    )
-    @click.option(
-        "--filter",
-        help=(
-            "Dynamic LINQ filter for users "
-            '(e.g., \'firstName.StartsWith("John") && status == "active"\')'
-        ),
+        "--workspace",
+        "-w",
+        help="Filter by workspace name or ID",
     )
     @click.option(
         "--take",
-        default=50,
+        "-t",
+        type=int,
+        default=1000,
         show_default=True,
         help="Maximum number of users to return",
     )
     @click.option(
-        "--sortby",
-        type=click.Choice(["firstName", "lastName", "email", "niuaId", "login", "status"]),
-        default="lastName",
+        "--format",
+        "-f",
+        type=click.Choice(["table", "json"]),
+        default="table",
         show_default=True,
-        help="Field to sort by",
+        help="Output format",
+    )
+    @click.option(
+        "--include-disabled",
+        is_flag=True,
+        help="Include disabled users in the results",
+    )
+    @click.option(
+        "--sortby",
+        type=click.Choice(["firstName", "lastName", "email"]),
+        default="firstName",
+        show_default=True,
+        help="Sort users by field",
     )
     @click.option(
         "--order",
-        type=click.Choice(["ascending", "descending"]),
-        default="ascending",
+        type=click.Choice(["asc", "desc"]),
+        default="asc",
         show_default=True,
         help="Sort order",
     )
+    @click.option(
+        "--filter",
+        help="Filter users by search string",
+    )
     def list_users(
+        workspace: Optional[str] = None,
+        take: int = 1000,
         format: str = "table",
+        include_disabled: bool = False,
+        sortby: str = "firstName",
+        order: str = "asc",
         filter: Optional[str] = None,
-        take: int = 50,
-        sortby: str = "lastName",
-        order: str = "ascending",
     ):
         """List users with optional filtering and sorting."""
+        format_output = validate_output_format(format)
+
         url = f"{get_base_url()}/niuser/v1/users/query"
 
         # Build query payload
@@ -272,88 +287,27 @@ def register_user_commands(cli):
 
         try:
             resp = make_api_request("POST", url, payload=payload)
-            data = resp.json()
-            users = data.get("users", [])
 
-            if format.lower() == "json":
-                # For JSON output, show all results without pagination
-                all_users = users.copy()
-                continuation_token = data.get("continuationToken")
+            def user_formatter(user: dict) -> list:
+                status = "Active" if user.get("active", True) else "Inactive"
+                return [
+                    user.get("firstName", ""),
+                    user.get("lastName", ""),
+                    user.get("email", ""),
+                    status,
+                ]
 
-                while continuation_token:
-                    next_payload = payload.copy()
-                    next_payload["continuationToken"] = continuation_token
-
-                    next_resp = make_api_request("POST", url, payload=next_payload)
-                    next_data = next_resp.json()
-                    all_users.extend(next_data.get("users", []))
-                    continuation_token = next_data.get("continuationToken")
-
-                click.echo(json.dumps(all_users, indent=2))
-                return
-
-            # Table format with pagination
-            if not users:
-                click.echo("No users found.")
-                return
-
-            # Display table header
-            click.echo("┌" + "─" * 32 + "┬" + "─" * 32 + "┬" + "─" * 40 + "┬" + "─" * 12 + "┐")
-            click.echo(
-                f"│ {'First Name':<30} │ {'Last Name':<30} │ {'Email':<38} │ {'Status':<10} │"
+            # Use universal response handler
+            UniversalResponseHandler.handle_list_response(
+                resp=resp,
+                data_key="users",
+                item_name="user",
+                format_output=format_output,
+                formatter_func=user_formatter,
+                headers=["First Name", "Last Name", "Email", "Status"],
+                column_widths=[30, 30, 38, 12],
+                empty_message="No users found.",
             )
-            click.echo("├" + "─" * 32 + "┼" + "─" * 32 + "┼" + "─" * 40 + "┼" + "─" * 12 + "┤")
-
-            for user in users:
-                first_name = user.get("firstName", "")[:30]
-                last_name = user.get("lastName", "")[:30]
-                email = user.get("email", "")[:38]
-                status = user.get("status", "")[:10]
-
-                click.echo(f"│ {first_name:<30} │ {last_name:<30} │ {email:<38} │ {status:<10} │")
-
-            click.echo("└" + "─" * 32 + "┴" + "─" * 32 + "┴" + "─" * 40 + "┴" + "─" * 12 + "┘")
-            click.echo(f"\nTotal: {len(users)} user(s) shown")
-
-            # Handle pagination for table output
-            continuation_token = data.get("continuationToken")
-            while continuation_token:
-                if not click.confirm(f"Show next {take} users?", default=True):
-                    break
-
-                next_payload = payload.copy()
-                next_payload["continuationToken"] = continuation_token
-
-                next_resp = make_api_request("POST", url, payload=next_payload)
-                next_data = next_resp.json()
-                next_users = next_data.get("users", [])
-
-                if not next_users:
-                    click.echo("No more users found.")
-                    break
-
-                # Display next page
-                click.echo()
-                click.echo("┌" + "─" * 32 + "┬" + "─" * 32 + "┬" + "─" * 40 + "┬" + "─" * 12 + "┐")
-                click.echo(
-                    f"│ {'First Name':<30} │ {'Last Name':<30} │ {'Email':<38} │ {'Status':<10} │"
-                )
-                click.echo("├" + "─" * 32 + "┼" + "─" * 32 + "┼" + "─" * 40 + "┼" + "─" * 12 + "┤")
-
-                for user in next_users:
-                    first_name = user.get("firstName", "")[:30]
-                    last_name = user.get("lastName", "")[:30]
-                    email = user.get("email", "")[:38]
-                    status = user.get("status", "")[:10]
-
-                    click.echo(
-                        f"│ {first_name:<30} │ {last_name:<30} │ {email:<38} │ {status:<10} │"
-                    )
-
-                click.echo("└" + "─" * 32 + "┴" + "─" * 32 + "┴" + "─" * 40 + "┴" + "─" * 12 + "┘")
-                click.echo(f"\nTotal: {len(next_users)} user(s) shown")
-
-                continuation_token = next_data.get("continuationToken")
 
         except Exception as exc:
             handle_api_error(exc)

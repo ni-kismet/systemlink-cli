@@ -2,20 +2,24 @@
 
 import json
 import os
+import sys
 from typing import Optional
 
 import click
 
+from .cli_utils import validate_output_format
+from .universal_handlers import UniversalResponseHandler
 from .utils import (
-    get_base_url,
-    handle_api_error,
-    make_api_request,
-    get_workspace_map,
-    load_json_file,
-    save_json_file,
-    sanitize_filename,
+    ExitCodes,
     extract_error_type,
+    get_base_url,
+    get_workspace_map,
+    handle_api_error,
+    load_json_file,
+    make_api_request,
+    sanitize_filename,
 )
+from .workspace_utils import get_workspace_display_name, resolve_workspace_filter
 
 
 def register_templates_commands(cli):
@@ -151,78 +155,95 @@ def register_templates_commands(cli):
 
     @template.command(name="list")
     @click.option(
-        "--format",
-        "-f",
-        type=click.Choice(["table", "json"], case_sensitive=False),
-        default="table",
-        help="Output format: table or json",
-    )
-    @click.option(
         "--workspace",
         "-w",
-        help="Filter by workspace name",
+        help="Filter by workspace name or ID",
     )
-    def list_templates(format: str = "table", workspace: Optional[str] = None):
+    @click.option(
+        "--take",
+        "-t",
+        type=int,
+        default=1000,
+        show_default=True,
+        help="Maximum number of templates to return",
+    )
+    @click.option(
+        "--format",
+        "-f",
+        type=click.Choice(["table", "json"]),
+        default="table",
+        show_default=True,
+        help="Output format",
+    )
+    def list_templates(workspace: Optional[str] = None, take: int = 1000, format: str = "table"):
         """List available user-defined test plan templates."""
+        """List test plan templates."""
+        format_output = validate_output_format(format)
+
         url = f"{get_base_url()}/niworkorder/v1/query-testplan-templates"
         payload = {
             "take": 1000,
             "orderBy": "TEMPLATE_GROUP",
             "descending": False,
-            "projection": ["ID", "NAME", "WORKSPACE"],
+            "projection": ["ID", "NAME", "WORKSPACE", "TEMPLATE_GROUP"],
         }
+
         try:
             workspace_map = get_workspace_map()
-            resp = make_api_request("POST", url, payload)
-            data = resp.json()
-            items = data.get("testPlanTemplates", []) if isinstance(data, dict) else []
 
-            # Convert items to consistent format for output
-            template_data = []
-            for item in items:
-                ws_guid = item.get("workspace", "")
-                ws_name = workspace_map.get(ws_guid, ws_guid)
-                template_info = {
-                    "id": item.get("id", ""),
-                    "name": item.get("name", ""),
-                    "workspace": ws_name,
-                }
-                template_data.append(template_info)
-
-            # Filter by workspace if specified
+            # Apply workspace filtering if specified
             if workspace:
-                # Filter by workspace name (case-insensitive partial match)
-                filtered_data = []
-                for template in template_data:
-                    ws_name = template["workspace"]
-                    # Match by name (case-insensitive partial match)
-                    if workspace.lower() in ws_name.lower():
-                        filtered_data.append(template)
-                template_data = filtered_data
+                workspace_id = resolve_workspace_filter(workspace, workspace_map)
+                if workspace_id:
+                    payload["filter"] = f'WORKSPACE == "{workspace_id}"'
 
-            # Output results
-            if format == "json":
-                click.echo(json.dumps(template_data, indent=2))
-                return
+            resp = make_api_request("POST", url, payload)
 
-            # Table format with consistent formatting
-            if not template_data:
-                click.echo("No test plan templates found.")
-                return
+            # Additional client-side filtering if workspace was specified
+            # (for compatibility with tests and as fallback)
+            if workspace:
+                data = resp.json()
+                templates = data.get("testPlanTemplates", [])
+                workspace_id = resolve_workspace_filter(workspace, workspace_map)
+                if workspace_id:
+                    # Filter templates to only include those matching the workspace
+                    filtered_templates = [
+                        t for t in templates if t.get("workspace") == workspace_id
+                    ]
 
-            # Display table with box-drawing characters
-            click.echo("┌" + "─" * 38 + "┬" + "─" * 42 + "┬" + "─" * 38 + "┐")
-            click.echo(f"│ {'Workspace':<36} │ {'Name':<40} │ {'Template ID':<36} │")
-            click.echo("├" + "─" * 38 + "┼" + "─" * 42 + "┼" + "─" * 38 + "┤")
+                    # Create a new response object with filtered data
+                    class FilteredResponse:
+                        def json(self):
+                            return {"testPlanTemplates": filtered_templates}
 
-            for template in template_data:
-                workspace = template.get("workspace", "")[:36]
-                name = template.get("name", "")[:40]
-                template_id = template.get("id", "")[:36]
-                click.echo(f"│ {workspace:<36} │ {name:<40} │ {template_id:<36} │")
+                        @property
+                        def status_code(self):
+                            return 200
 
-            click.echo("└" + "─" * 38 + "┴" + "─" * 42 + "┴" + "─" * 38 + "┘")
-            click.echo(f"\nTotal: {len(template_data)} template(s)")
+                    resp = FilteredResponse()
+
+            # Use universal response handler with template formatter
+            def template_formatter(template: dict) -> list:
+                ws_guid = template.get("workspace", "")
+                ws_name = get_workspace_display_name(ws_guid, workspace_map)
+                return [
+                    template.get("name", "Unknown"),
+                    ws_name,
+                    template.get("id", ""),
+                    template.get("templateGroup", "N/A"),
+                ]
+
+            UniversalResponseHandler.handle_list_response(
+                resp=resp,
+                data_key="testPlanTemplates",
+                item_name="template",
+                format_output=format_output,
+                formatter_func=template_formatter,
+                headers=["Name", "Workspace", "Template ID", "Group"],
+                column_widths=[40, 30, 36, 25],
+                empty_message="No test plan templates found.",
+            )
+
         except Exception as exc:
             handle_api_error(exc)
 
@@ -235,17 +256,19 @@ def register_templates_commands(cli):
         help="Test plan template ID to export",
     )
     @click.option("--output", "-o", help="Output JSON file (default: <template-name>.json)")
-    def export_template(template_id, output):
+    def export_template(template_id: str, output: Optional[str] = None):
         """Download/export a test plan template as a local JSON file."""
         url = f"{get_base_url()}/niworkorder/v1/query-testplan-templates"
         payload = {"take": 1, "filter": f'ID == "{template_id}"'}
+
         try:
             resp = make_api_request("POST", url, payload)
             data = resp.json()
             items = data.get("testPlanTemplates", []) if isinstance(data, dict) else []
+
             if not items:
                 click.echo(f"✗ Test plan template with ID {template_id} not found.", err=True)
-                raise click.ClickException(f"Test plan template with ID {template_id} not found.")
+                sys.exit(ExitCodes.NOT_FOUND)
 
             template_data = items[0]
 
@@ -255,14 +278,16 @@ def register_templates_commands(cli):
                 safe_name = sanitize_filename(template_name, f"template-{template_id}")
                 output = f"{safe_name}.json"
 
-            save_json_file(template_data, output)
-            click.echo(f"✓ Test plan template exported to {output}")
+            # Use universal export handler
+            UniversalResponseHandler.handle_export_response(
+                resp=resp,
+                item_name="template",
+                output_file=output,
+                success_message_template="✓ Template exported to {output_file}",
+            )
+
         except Exception as exc:
-            if "not found" not in str(exc).lower():
-                handle_api_error(exc)
-            else:
-                click.echo(f"✗ Error: {exc}", err=True)
-                raise click.ClickException(str(exc))
+            handle_api_error(exc)
 
     @template.command(name="import")
     @click.option(

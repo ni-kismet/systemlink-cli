@@ -15,16 +15,19 @@ from nisystemlink.clients.notebook._notebook_client import NotebookClient
 from nisystemlink.clients.notebook.models._notebook_metadata import NotebookMetadata
 from nisystemlink.clients.notebook.models._query_notebook_request import QueryNotebookRequest
 
+from .cli_utils import validate_output_format
+from .universal_handlers import UniversalResponseHandler
 from .utils import (
-    get_http_configuration,
-    get_workspace_map,
     ExitCodes,
-    handle_api_error,
     format_success,
-    validate_workspace_access,
+    get_http_configuration,
     get_workspace_id_with_fallback,
+    get_workspace_map,
+    handle_api_error,
     save_json_file,
+    validate_workspace_access,
 )
+from .workspace_utils import get_workspace_display_name
 
 
 def _get_notebooks_from_query(nb_client, query_obj):
@@ -133,31 +136,48 @@ def register_notebook_commands(cli):
             handle_api_error(exc)
 
     @notebook.command(name="list")
-    @click.option("--workspace", required=False, help="Workspace name to filter by (optional)")
     @click.option(
-        "--take", default=25, show_default=True, help="Number of notebooks to show per page"
+        "--workspace",
+        "-w",
+        default="",
+        help="Filter by workspace name or ID",
+    )
+    @click.option(
+        "--take",
+        "-t",
+        type=int,
+        default=25,
+        show_default=True,
+        help="Maximum number of notebooks to return",
     )
     @click.option(
         "--format",
         "-f",
-        type=click.Choice(["table", "json"], case_sensitive=False),
+        "format_output",
+        type=click.Choice(["table", "json"]),
         default="table",
-        help="Output format: table or json",
+        show_default=True,
+        help="Output format",
     )
-    def list_notebooks(workspace: str = "", take: int = 25, format: str = "table") -> None:
+    def list_notebooks(workspace: str = "", take: int = 25, format_output: str = "table") -> None:
         """List all notebooks. Optionally filter by workspace."""
+        format_output = validate_output_format(format_output)
+
         try:
             nb_client = NotebookClient(configuration=get_http_configuration())
             ws_id = None
             if workspace:
                 ws_id = validate_workspace_access(workspace, warn_on_error=True)
+
             query_args = {}
             if ws_id:
                 query_args["workspace"] = ws_id
             filter_str = None
             if "workspace" in query_args:
                 filter_str = f'workspace = "{query_args["workspace"]}"'
+
             query_obj = QueryNotebookRequest(filter=filter_str, take=take)
+
             try:
                 notebooks_raw = _get_notebooks_from_query(nb_client, query_obj)
             except Exception as exc:
@@ -166,18 +186,19 @@ def register_notebook_commands(cli):
                     err=True,
                 )
                 notebooks_raw = []
-            # ...existing code...
-            notebooks = []
+
             # Map workspace IDs to names for display
             try:
                 workspace_map = get_workspace_map()
             except Exception:
                 workspace_map = {}
+
+            notebooks = []
             for idx, nb in enumerate(notebooks_raw):
                 try:
                     nb_data = getattr(nb, "__dict__", {})
                     ws_id = nb_data.get("workspace", "")
-                    ws_name = workspace_map.get(ws_id, ws_id)
+                    ws_name = get_workspace_display_name(ws_id, workspace_map)
                     name = nb_data.get("name", "")
                     nb_id = nb_data.get("id", "")
                     parameters = nb_data.get("parameters", {})
@@ -196,94 +217,44 @@ def register_notebook_commands(cli):
                         f"✗ Warning: Skipping invalid notebook result at index {idx}: {nb_exc}",
                         err=True,
                     )
+
             if not notebooks:
-                if format.lower() == "json":
+                if format_output.lower() == "json":
                     click.echo("[]")
                 else:
                     click.echo("No notebooks found.")
                 return
 
-            # Handle output format
-            if format.lower() == "json":
-                click.echo(json.dumps(notebooks, indent=2))
-            else:
-                # Table format with consistent formatting
-                if not notebooks:
-                    click.echo("No notebooks found.")
-                    return
+            # Use universal response handler (create a mock response for consistency)
+            class MockResponse:
+                def json(self):
+                    return {"notebooks": notebooks}
 
-                # Display table with box-drawing characters
-                click.echo("┌" + "─" * 38 + "┬" + "─" * 42 + "┬" + "─" * 38 + "┐")
-                click.echo(f"│ {'Workspace':<36} │ {'Name':<40} │ {'ID':<36} │")
-                click.echo("├" + "─" * 38 + "┼" + "─" * 42 + "┼" + "─" * 38 + "┤")
+                @property
+                def status_code(self):
+                    return 200
 
-                for nb in notebooks[:take]:
-                    workspace = nb.get("workspace", "")[:36]
-                    name = nb.get("name", "")[:40]
-                    nb_id = nb.get("id", "")[:36]
-                    click.echo(f"│ {workspace:<36} │ {name:<40} │ {nb_id:<36} │")
+            mock_resp = MockResponse()
 
-                click.echo("└" + "─" * 38 + "┴" + "─" * 42 + "┴" + "─" * 38 + "┘")
-                click.echo(f"\nTotal: {len(notebooks[:take])} notebook(s) shown")
+            def notebook_formatter(notebook: dict) -> list:
+                return [
+                    notebook.get("name", "Unknown"),
+                    notebook.get("workspace", "N/A"),
+                    notebook.get("id", ""),
+                    "Jupyter",  # Type
+                ]
 
-                # Use continuation token for paging through notebooks (table output only)
-                continuation_token = getattr(
-                    nb_client.query_notebooks(query_obj), "continuation_token", None
-                )
-                while continuation_token:
-                    if not click.confirm(f"Show next {take} notebooks?", default=True):
-                        break
-                    next_query = QueryNotebookRequest(
-                        filter=filter_str, take=take, continuation_token=continuation_token
-                    )
-                    try:
-                        next_notebooks_raw = _get_notebooks_from_query(nb_client, next_query)
-                    except Exception as exc:
-                        click.echo(
-                            f"✗ Warning: Validation error in PagedNotebooks response: {exc}. Some results may be skipped.",
-                            err=True,
-                        )
-                        next_notebooks_raw = []
-                    next_notebooks = []
-                    for idx, nb in enumerate(next_notebooks_raw):
-                        nb_data = getattr(nb, "__dict__", {})
-                        ws_id = nb_data.get("workspace", "")
-                        ws_name = workspace_map.get(ws_id, ws_id)
-                        name = nb_data.get("name", "")
-                        nb_id = nb_data.get("id", "")
-                        parameters = nb_data.get("parameters", {})
-                        if not isinstance(parameters, dict):
-                            parameters = {}
-                        next_notebooks.append(
-                            {
-                                "workspace": ws_name,
-                                "name": name,
-                                "id": nb_id,
-                                "parameters": parameters,
-                            }
-                        )
-                    if not next_notebooks:
-                        click.echo("No more notebooks found.")
-                        break
+            UniversalResponseHandler.handle_list_response(
+                resp=mock_resp,
+                data_key="notebooks",
+                item_name="notebook",
+                format_output=format_output,
+                formatter_func=notebook_formatter,
+                headers=["Name", "Workspace", "ID", "Type"],
+                column_widths=[40, 30, 36, 12],
+                empty_message="No notebooks found.",
+            )
 
-                    # Display continuation pages with same formatting
-                    click.echo()
-                    click.echo("┌" + "─" * 38 + "┬" + "─" * 42 + "┬" + "─" * 38 + "┐")
-                    click.echo(f"│ {'Workspace':<36} │ {'Name':<40} │ {'ID':<36} │")
-                    click.echo("├" + "─" * 38 + "┼" + "─" * 42 + "┼" + "─" * 38 + "┤")
-
-                    for nb in next_notebooks:
-                        workspace = nb.get("workspace", "")[:36]
-                        name = nb.get("name", "")[:40]
-                        nb_id = nb.get("id", "")[:36]
-                        click.echo(f"│ {workspace:<36} │ {name:<40} │ {nb_id:<36} │")
-
-                    click.echo("└" + "─" * 38 + "┴" + "─" * 42 + "┴" + "─" * 38 + "┘")
-                    click.echo(f"\nTotal: {len(next_notebooks)} notebook(s) shown")
-
-                    continuation_token = getattr(
-                        nb_client.query_notebooks(next_query), "continuation_token", None
-                    )
         except Exception as exc:
             handle_api_error(exc)
 

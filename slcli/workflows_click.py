@@ -7,18 +7,21 @@ from typing import Optional
 import click
 import requests
 
+from .cli_utils import validate_output_format
+from .universal_handlers import UniversalResponseHandler
 from .utils import (
-    get_base_url,
-    handle_api_error,
-    make_api_request,
-    get_workspace_map,
-    load_json_file,
-    save_json_file,
-    get_workspace_id_with_fallback,
-    sanitize_filename,
-    extract_error_type,
     display_api_errors,
+    extract_error_type,
+    get_base_url,
+    get_workspace_id_with_fallback,
+    get_workspace_map,
+    handle_api_error,
+    load_json_file,
+    make_api_request,
+    sanitize_filename,
+    save_json_file,
 )
+from .workspace_utils import get_workspace_display_name, resolve_workspace_filter
 
 
 def register_workflows_commands(cli):
@@ -217,77 +220,79 @@ def register_workflows_commands(cli):
 
     @workflow.command(name="list")
     @click.option(
-        "--format",
-        "-f",
-        type=click.Choice(["table", "json"], case_sensitive=False),
-        default="table",
-        help="Output format: table or json",
-    )
-    @click.option(
         "--workspace",
         "-w",
-        help="Filter by workspace name",
+        help="Filter by workspace name or ID",
     )
-    def list_workflows(format: str = "table", workspace: Optional[str] = None):
+    @click.option(
+        "--take",
+        "-t",
+        type=int,
+        default=1000,
+        show_default=True,
+        help="Maximum number of workflows to return",
+    )
+    @click.option(
+        "--format",
+        "-f",
+        type=click.Choice(["table", "json"]),
+        default="table",
+        show_default=True,
+        help="Output format",
+    )
+    @click.option(
+        "--status",
+        "-s",
+        help="Filter by workflow status",
+    )
+    def list_workflows(
+        format: str = "table",
+        workspace: Optional[str] = None,
+        take: int = 1000,
+        status: Optional[str] = None,
+    ):
         """List available workflows."""
+        format_output = validate_output_format(format)
+
         url = f"{get_base_url()}/niworkorder/v1/query-workflows?ff-userdefinedworkflowsfortestplaninstances=true"
         payload = {
             "take": 1000,
             "projection": ["ID", "NAME", "DESCRIPTION", "WORKSPACE"],
         }
+
         try:
             workspace_map = get_workspace_map()
-            resp = make_api_request("POST", url, payload)
-            data = resp.json()
-            items = data.get("workflows", []) if isinstance(data, dict) else []
 
-            # Convert items to consistent format for output
-            workflow_data = []
-            for item in items:
-                ws_guid = item.get("workspace", "")
-                ws_name = workspace_map.get(ws_guid, ws_guid)
-                workflow_info = {
-                    "id": item.get("id", ""),
-                    "name": item.get("name", ""),
-                    "description": item.get("description", ""),
-                    "workspace": ws_name,
-                }
-                workflow_data.append(workflow_info)
-
-            # Filter by workspace if specified
+            # Apply workspace filtering if specified
             if workspace:
-                # Filter by workspace name (case-insensitive partial match)
-                filtered_data = []
-                for workflow in workflow_data:
-                    ws_name = workflow["workspace"]
-                    # Match by name (case-insensitive partial match)
-                    if workspace.lower() in ws_name.lower():
-                        filtered_data.append(workflow)
-                workflow_data = filtered_data
+                workspace_id = resolve_workspace_filter(workspace, workspace_map)
+                if workspace_id:
+                    payload["filter"] = f'WORKSPACE == "{workspace_id}"'
 
-            # Output results
-            if format == "json":
-                click.echo(json.dumps(workflow_data, indent=2))
-                return
+            resp = make_api_request("POST", url, payload)
 
-            # Table format with consistent formatting
-            if not workflow_data:
-                click.echo("No workflows found.")
-                return
+            # Use universal response handler with workflow formatter
+            def workflow_formatter(workflow: dict) -> list:
+                ws_guid = workflow.get("workspace", "")
+                ws_name = get_workspace_display_name(ws_guid, workspace_map)
+                return [
+                    workflow.get("name", "Unknown"),
+                    ws_name,
+                    workflow.get("id", ""),
+                    workflow.get("description", "N/A")[:30],  # Truncate description
+                ]
 
-            # Display table with box-drawing characters
-            click.echo("┌" + "─" * 38 + "┬" + "─" * 42 + "┬" + "─" * 38 + "┐")
-            click.echo(f"│ {'Workspace':<36} │ {'Name':<40} │ {'ID':<36} │")
-            click.echo("├" + "─" * 38 + "┼" + "─" * 42 + "┼" + "─" * 38 + "┤")
+            UniversalResponseHandler.handle_list_response(
+                resp=resp,
+                data_key="workflows",
+                item_name="workflow",
+                format_output=format_output,
+                formatter_func=workflow_formatter,
+                headers=["Name", "Workspace", "ID", "Description"],
+                column_widths=[40, 30, 36, 32],
+                empty_message="No workflows found.",
+            )
 
-            for workflow in workflow_data:
-                workspace = workflow.get("workspace", "")[:36]
-                name = workflow.get("name", "")[:40]
-                workflow_id = workflow.get("id", "")[:36]
-                click.echo(f"│ {workspace:<36} │ {name:<40} │ {workflow_id:<36} │")
-
-            click.echo("└" + "─" * 38 + "┴" + "─" * 42 + "┴" + "─" * 38 + "┘")
-            click.echo(f"\nTotal: {len(workflow_data)} workflow(s)")
         except Exception as exc:
             handle_api_error(exc)
 

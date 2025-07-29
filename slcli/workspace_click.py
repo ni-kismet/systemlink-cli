@@ -6,6 +6,8 @@ from typing import Optional, Tuple
 
 import click
 
+from .cli_utils import validate_output_format
+from .universal_handlers import UniversalResponseHandler
 from .utils import (
     ExitCodes,
     format_success,
@@ -46,6 +48,8 @@ def register_workspace_commands(cli):
         format: str = "table", include_disabled: bool = False, name: Optional[str] = None
     ):
         """List workspaces."""
+        format_output = validate_output_format(format)
+
         url = f"{get_base_url()}/niuser/v1/workspaces"
 
         try:
@@ -59,37 +63,39 @@ def register_workspace_commands(cli):
                 url += "?" + "&".join(query_params)
 
             resp = make_api_request("GET", url, payload=None)
-            data = resp.json()
-            workspaces = data.get("workspaces", []) if isinstance(data, dict) else []
 
             # Filter workspaces by enabled status if needed
             if not include_disabled:
-                workspaces = [ws for ws in workspaces if ws.get("enabled", True)]
+                data = resp.json()
+                workspaces = data.get("workspaces", []) if isinstance(data, dict) else []
+                filtered_workspaces = [ws for ws in workspaces if ws.get("enabled", True)]
 
-            if format == "json":
-                click.echo(json.dumps(workspaces, indent=2))
-                sys.exit(ExitCodes.SUCCESS)
+                # Create a new response with filtered data
+                class FilteredResponse:
+                    def json(self):
+                        return {"workspaces": filtered_workspaces}
 
-            # Table format
-            if not workspaces:
-                click.echo("No workspaces found.")
-                sys.exit(ExitCodes.SUCCESS)
+                    @property
+                    def status_code(self):
+                        return 200
 
-            # Display table
-            click.echo("┌" + "─" * 38 + "┬" + "─" * 32 + "┬" + "─" * 10 + "┬" + "─" * 10 + "┐")
-            click.echo(f"│ {'ID':<36} │ {'Name':<30} │ {'Enabled':<8} │ {'Default':<8} │")
-            click.echo("├" + "─" * 38 + "┼" + "─" * 32 + "┼" + "─" * 10 + "┼" + "─" * 10 + "┤")
+                resp = FilteredResponse()
 
-            for workspace in workspaces:
-                ws_id = workspace.get("id", "")[:36]
-                ws_name = workspace.get("name", "")[:30]
+            def workspace_formatter(workspace: dict) -> list:
                 enabled = "✓" if workspace.get("enabled", True) else "✗"
                 default = "✓" if workspace.get("default", False) else ""
+                return [workspace.get("name", "Unknown"), workspace.get("id", ""), enabled, default]
 
-                click.echo(f"│ {ws_id:<36} │ {ws_name:<30} │ {enabled:<8} │ {default:<8} │")
-
-            click.echo("└" + "─" * 38 + "┴" + "─" * 32 + "┴" + "─" * 10 + "┴" + "─" * 10 + "┘")
-            click.echo(f"\nTotal: {len(workspaces)} workspace(s)")
+            UniversalResponseHandler.handle_list_response(
+                resp=resp,
+                data_key="workspaces",
+                item_name="workspace",
+                format_output=format_output,
+                formatter_func=workspace_formatter,
+                headers=["Name", "ID", "Enabled", "Default"],
+                column_widths=[30, 36, 8, 8],
+                empty_message="No workspaces found.",
+            )
 
         except Exception as exc:
             handle_api_error(exc)
