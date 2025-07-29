@@ -111,6 +111,12 @@ After installation, restart your shell or source the completion file. See [docs/
 
    # View workspaces
    slcli workspace list
+
+   # View dynamic form field configurations
+   slcli dff config list
+
+   # View dynamic form field groups
+   slcli dff groups list
    ```
 
 3. **Initialize new resources:**
@@ -121,6 +127,9 @@ After installation, restart your shell or source the completion file. See [docs/
 
    # Create a new workflow
    slcli workflow init --name "My Workflow" --description "Custom workflow"
+
+   # Launch DFF web editor
+   slcli dff edit
    ```
 
 4. **Get help for any command:**
@@ -129,6 +138,7 @@ After installation, restart your shell or source the completion file. See [docs/
    slcli template --help
    slcli workflow --help
    slcli notebook --help
+   slcli dff --help
    ```
 
 ## Authentication
@@ -422,6 +432,134 @@ slcli user update --id <user_id> --properties '{"role": "Senior Developer"}'
 # Delete user (with confirmation prompt)
 slcli user delete --id <user_id>
 ```
+
+## Dynamic Form Fields (DFF) Management
+
+The `dff` command group allows you to manage dynamic form fields in SystemLink, including configurations, groups, fields, and tables. DFF provides a web-based editor for visual editing of JSON configurations.
+
+### Configuration Management
+
+Manage dynamic form field configurations:
+
+```bash
+# List all configurations
+slcli dff config list
+
+# JSON format for programmatic use
+slcli dff config list --format json
+
+# Filter by workspace
+slcli dff config list --workspace "Production Workspace"
+
+# Export a configuration to JSON file
+slcli dff config export --id <config_id> --output config.json
+
+# Import a configuration from JSON file
+slcli dff config import --file config.json
+
+# Delete a configuration
+slcli dff config delete --id <config_id>
+```
+
+### Group Management
+
+Manage dynamic form field groups:
+
+```bash
+# List all groups
+slcli dff groups list
+
+# JSON format for programmatic use
+slcli dff groups list --format json
+
+# Filter by workspace
+slcli dff groups list --workspace "Production Workspace"
+
+# Export a group to JSON file
+slcli dff groups export --id <group_id> --output group.json
+
+# Import a group from JSON file
+slcli dff groups import --file group.json
+
+# Delete a group
+slcli dff groups delete --id <group_id>
+```
+
+### Field Management
+
+Manage individual dynamic form fields:
+
+```bash
+# List all fields
+slcli dff fields list
+
+# JSON format for programmatic use
+slcli dff fields list --format json
+
+# Filter by workspace
+slcli dff fields list --workspace "Production Workspace"
+
+# Export a field to JSON file
+slcli dff fields export --id <field_id> --output field.json
+
+# Import a field from JSON file
+slcli dff fields import --file field.json
+
+# Delete a field
+slcli dff fields delete --id <field_id>
+```
+
+### Table Management
+
+Manage dynamic form field tables:
+
+```bash
+# List all tables
+slcli dff tables list
+
+# JSON format for programmatic use
+slcli dff tables list --format json
+
+# Filter by workspace
+slcli dff tables list --workspace "Production Workspace"
+
+# Export a table to JSON file
+slcli dff tables export --id <table_id> --output table.json
+
+# Import a table from JSON file
+slcli dff tables import --file table.json
+
+# Delete a table
+slcli dff tables delete --id <table_id>
+```
+
+### Web Editor
+
+Launch a local web-based editor for visual editing of DFF JSON files:
+
+```bash
+# Launch web editor with default settings (port 8080, ./dff_editor directory)
+slcli dff edit
+
+# Custom port and directory
+slcli dff edit --port 9000 --directory ./my_editor
+
+# Auto-open browser (default: true)
+slcli dff edit --open-browser
+
+# Don't auto-open browser
+slcli dff edit --no-open-browser
+```
+
+The web editor:
+
+- Hosts a local HTTP server for editing DFF configurations
+- Provides a simple HTML interface for JSON file management
+- Creates standalone editor files in the specified directory
+- Automatically opens your default browser to the editor interface
+- Allows you to create, edit, and save DFF JSON configurations locally
+
+**Note**: The web editor creates a self-contained directory with all necessary HTML, CSS, and JavaScript files. This directory can be moved or shared independently.
 
 ## Workspace Management
 

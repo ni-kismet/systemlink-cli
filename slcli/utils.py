@@ -110,6 +110,148 @@ def output_list_data(
         click.echo(tabulate(table, headers=styled_headers, tablefmt="github"))
 
 
+def output_formatted_list(
+    items: List[Dict[str, Any]],
+    output_format: str,
+    headers: List[str],
+    column_widths: List[int],
+    row_formatter_func,
+    empty_message: str = "No items found.",
+    total_label: str = "item(s)",
+) -> None:
+    """Handle JSON and table output with box-drawing characters for list commands.
+
+    Args:
+        items: List of items to output
+        output_format: 'json' or 'table'
+        headers: List of header names for table output
+        column_widths: List of column widths for table formatting
+        row_formatter_func: Function that converts item to list of column values
+        empty_message: Message to display when no items are found
+        total_label: Label for total count (e.g., "configuration(s)", "template(s)")
+    """
+    if not items:
+        if output_format.lower() == "json":
+            click.echo("[]")
+        else:
+            click.echo(empty_message)
+        return
+
+    if output_format.lower() == "json":
+        click.echo(json.dumps(items, indent=2))
+        return
+
+    # Table format with box-drawing characters
+    if len(headers) != len(column_widths):
+        raise ValueError("Headers and column_widths must have the same length")
+
+    # Top border
+    border_chars = ["┌"] + [("─" * (w + 2)) for w in column_widths]
+    border_line = border_chars[0] + border_chars[1]
+    for part in border_chars[2:]:
+        border_line += "┬" + part
+    border_line += "┐"
+    click.echo(border_line)
+
+    # Header row
+    header_parts = ["│"]
+    for header, width in zip(headers, column_widths):
+        header_parts.append(f" {header:<{width}} │")
+    click.echo("".join(header_parts))
+
+    # Middle border
+    border_chars = ["├"] + [("─" * (w + 2)) for w in column_widths]
+    border_line = border_chars[0] + border_chars[1]
+    for part in border_chars[2:]:
+        border_line += "┼" + part
+    border_line += "┤"
+    click.echo(border_line)
+
+    # Data rows
+    for item in items:
+        row_data = row_formatter_func(item)
+        if len(row_data) != len(column_widths):
+            raise ValueError("Row data must match column count")
+
+        row_parts = ["│"]
+        for value, width in zip(row_data, column_widths):
+            # Truncate if necessary
+            str_value = str(value or "")[:width]
+            row_parts.append(f" {str_value:<{width}} │")
+        click.echo("".join(row_parts))
+
+    # Bottom border
+    border_chars = ["└"] + [("─" * (w + 2)) for w in column_widths]
+    border_line = border_chars[0] + border_chars[1]
+    for part in border_chars[2:]:
+        border_line += "┴" + part
+    border_line += "┘"
+    click.echo(border_line)
+
+    # Total count
+    click.echo(f"\nTotal: {len(items)} {total_label}")
+
+
+def resolve_workspace_filter(workspace: str, workspace_map: Dict[str, str]) -> str:
+    """Resolve workspace name to ID for filtering.
+
+    Args:
+        workspace: Workspace name or ID to resolve
+        workspace_map: Dictionary mapping workspace IDs to names
+
+    Returns:
+        Workspace ID (either the original if it was an ID, or resolved from name)
+    """
+    if not workspace:
+        return workspace
+
+    # Check if it's already an ID (exists as key in workspace_map)
+    if workspace in workspace_map:
+        return workspace
+
+    # Try to find by name (case-insensitive)
+    for ws_id, ws_name in workspace_map.items():
+        if ws_name and workspace.lower() == ws_name.lower():
+            return ws_id
+
+    # Return original if no match found
+    return workspace
+
+
+def filter_by_workspace(
+    items: List[Dict[str, Any]],
+    workspace: str,
+    workspace_map: Dict[str, str],
+    workspace_field: str = "workspace",
+) -> List[Dict[str, Any]]:
+    """Filter items by workspace name or ID.
+
+    Args:
+        items: List of items to filter
+        workspace: Workspace name or ID to filter by
+        workspace_map: Dictionary mapping workspace IDs to names
+        workspace_field: Field name in items that contains workspace ID
+
+    Returns:
+        Filtered list of items
+    """
+    if not workspace:
+        return items
+
+    filtered_items = []
+    for item in items:
+        item_workspace = item.get(workspace_field, "")
+        item_workspace_name = workspace_map.get(item_workspace, item_workspace)
+
+        # Match by ID or name (case-insensitive)
+        if workspace.lower() == item_workspace.lower() or (
+            item_workspace_name and workspace.lower() == item_workspace_name.lower()
+        ):
+            filtered_items.append(item)
+
+    return filtered_items
+
+
 # --- SystemLink HTTP Configuration ---
 def get_http_configuration() -> HttpConfiguration:
     """Return a configured SystemLink HttpConfiguration using environment or keyring credentials."""

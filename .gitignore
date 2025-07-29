@@ -49,15 +49,16 @@ build/
 dist/
 *.spec
 *.manifest
-*.spec
 *.pkg
 *.toc
 *.pyz
 *.zip
-*.html
 warn-*.txt
 xref-*.html
 localpycs/
+
+# Allow DFF editor HTML files
+!dff-editor/*.html
 
 # VS Code
 .vscode/

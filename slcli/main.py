@@ -8,6 +8,7 @@ import keyring
 import tomllib
 
 from .completion_click import register_completion_command
+from .dff_click import register_dff_commands
 from .notebook_click import register_notebook_commands
 from .templates_click import register_templates_commands
 from .user_click import register_user_commands
@@ -102,6 +103,7 @@ def logout():
 
 
 register_completion_command(cli)
+register_dff_commands(cli)
 register_templates_commands(cli)
 register_notebook_commands(cli)
 register_user_commands(cli)
