@@ -277,7 +277,8 @@ def register_user_commands(cli):
 
         # Build query payload
         # For JSON format, respect the take parameter exactly
-        # For table format, use take if specified, otherwise fetch larger dataset for local pagination
+        # For table format, use take if specified, otherwise fetch larger dataset
+        # for local pagination
         if format_output.lower() == "json":
             api_take = take
         else:

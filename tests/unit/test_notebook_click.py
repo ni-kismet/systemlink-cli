@@ -61,7 +61,6 @@ def test_notebook_download_by_id(monkeypatch):
 
     # Patch _get_notebook_content_http to return mock content
     import slcli.notebook_click
-    from typing import Any
 
     def mock_get_notebook_content_http(notebook_id: str) -> bytes:
         return content
