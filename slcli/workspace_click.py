@@ -66,7 +66,20 @@ def register_workspace_commands(cli: Any) -> None:
         try:
             # Build URL with query parameters
             query_params = []
-            query_params.append("take=1000")
+
+            # For JSON format, respect the take parameter exactly
+            # For table format, use take if specified, otherwise fetch larger dataset
+            # for local pagination
+            if format_output.lower() == "json":
+                api_take = take
+            else:
+                # For table format, use take if specified, otherwise fetch larger amount
+                # for pagination
+                api_take = (
+                    take if take != 25 else 1000
+                )  # 25 is the default, so fetch more for pagination
+
+            query_params.append(f"take={api_take}")
             if name:
                 query_params.append(f"name={name}")
 

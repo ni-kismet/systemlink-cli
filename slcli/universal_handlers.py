@@ -62,6 +62,9 @@ class UniversalResponseHandler:
                     empty_message=empty_message,
                     total_label=f"{item_name}(s)",
                 )
+            elif format_output.lower() == "json":
+                # For JSON format, always output all items (no display pagination)
+                click.echo(json.dumps(items, indent=2))
             elif formatter_func and headers and column_widths:
                 # Use traditional output (no pagination)
                 output_formatted_list(

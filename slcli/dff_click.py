@@ -193,7 +193,7 @@ def register_dff_commands(cli):
         url = f"{get_base_url()}/nidynamicformfields/v1/configurations"
 
         try:
-            params = {"Take": take}
+            params = {"Take": 1000}  # Fetch more data for pagination
             query_string = "&".join([f"{k}={v}" for k, v in params.items()])
             full_url = f"{url}?{query_string}"
 
@@ -760,7 +760,7 @@ def register_dff_commands(cli):
         url = f"{get_base_url()}/nidynamicformfields/v1/groups"
 
         try:
-            params = {"Take": take}
+            params = {"Take": 1000}  # Fetch more data for pagination
             query_string = "&".join([f"{k}={v}" for k, v in params.items()])
             full_url = f"{url}?{query_string}"
 
@@ -838,7 +838,7 @@ def register_dff_commands(cli):
         url = f"{get_base_url()}/nidynamicformfields/v1/fields"
 
         try:
-            params = {"Take": take}
+            params = {"Take": 1000}  # Fetch more data for pagination
             query_string = "&".join([f"{k}={v}" for k, v in params.items()])
             full_url = f"{url}?{query_string}"
 
@@ -971,7 +971,7 @@ def register_dff_commands(cli):
                 "workspace": workspace_id,
                 "resourceType": resource_type,
                 "resourceId": resource_id,
-                "take": take,
+                "take": 1000,  # Fetch more data for pagination
                 "returnCount": return_count,
             }
 

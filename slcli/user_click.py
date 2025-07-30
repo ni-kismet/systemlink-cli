@@ -276,10 +276,21 @@ def register_user_commands(cli):
         url = f"{get_base_url()}/niuser/v1/users/query"
 
         # Build query payload
+        # For JSON format, respect the take parameter exactly
+        # For table format, use take if specified, otherwise fetch larger dataset
+        # for local pagination
+        if format_output.lower() == "json":
+            api_take = take
+        else:
+            # For table format, use take if specified, otherwise fetch larger amount for pagination
+            api_take = (
+                take if take != 25 else 1000
+            )  # 25 is the default, so fetch more for pagination
+
         payload = {
-            "take": min(take, 100),  # API maximum is 100
+            "take": api_take,
             "sortby": sortby,
-            "order": order,
+            "order": "ascending" if order == "asc" else "descending",
         }
 
         if filter:

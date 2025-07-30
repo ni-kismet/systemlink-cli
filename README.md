@@ -15,7 +15,7 @@ SystemLink CLI (`slcli`) is a cross-platform Python CLI for SystemLink integrato
 - **Output Formats**: JSON and table output options for programmatic integration and human-readable display
 - **Template Initialization**: Create new template JSON files
 - **Extensible Architecture**: Designed for easy addition of new SystemLink resource types
-- **Quality Assurance**: Full test suite with CI/CD, linting, and automated packaging
+- **Quality Assurance**: Full test suite with CI/CD, linting, and manual E2E testing
 
 ## Installation
 
@@ -653,3 +653,54 @@ SystemLink CLI uses consistent flag patterns across all commands:
 ## Contributing
 
 See [CONTRIBUTING.md](CONTRIBUTING.md) for development setup, coding standards, and contribution guidelines.
+
+## Testing
+
+### Unit Tests
+
+Run the comprehensive unit test suite:
+
+```bash
+poetry run pytest tests/unit/ -v
+```
+
+### End-to-End Tests
+
+SystemLink CLI includes an E2E testing framework for local development that validates commands against real SystemLink environments. This provides confidence that the CLI integrates correctly with actual SystemLink APIs during development and before releases.
+
+**Note**: E2E tests are designed for manual execution during development. They are not part of the automated CI/CD pipeline.
+
+#### Quick Setup
+
+Run the interactive setup script:
+
+```bash
+python scripts/setup_e2e.py
+```
+
+#### Manual Setup
+
+Set environment variables for your dev SystemLink environment:
+
+```bash
+export SLCLI_E2E_BASE_URL="https://your-dev-systemlink.domain.com"
+export SLCLI_E2E_API_KEY="your-api-key"
+export SLCLI_E2E_WORKSPACE="Default"
+```
+
+#### Running E2E Tests
+
+```bash
+# Run all E2E tests
+python tests/e2e/run_e2e.py
+
+# Run specific test categories
+poetry run pytest tests/e2e/test_notebook_e2e.py -m e2e -v
+poetry run pytest tests/e2e/test_user_e2e.py -m e2e -v
+poetry run pytest tests/e2e/test_workspace_e2e.py -m e2e -v
+
+# Run fast tests only (excludes slow/long-running tests)
+poetry run pytest tests/e2e/ -m "e2e and not slow" -v
+```
+
+For detailed E2E testing documentation, see [tests/e2e/README.md](tests/e2e/README.md).

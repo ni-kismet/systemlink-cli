@@ -1,0 +1,7 @@
+{
+  "base_url": "https://your-dev-systemlink.domain.com",
+  "api_key": "your-api-key-here",
+  "workspace": "Default",
+  "timeout": 30,
+  "cleanup": true
+}

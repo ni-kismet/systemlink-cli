@@ -80,3 +80,6 @@ docs/__pycache__/
 tests/unit/__pycache__/
 
 # End of .gitignore
+
+# E2E test configuration
+tests/e2e/e2e_config.json
