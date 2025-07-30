@@ -7,7 +7,7 @@ from typing import Optional
 import click
 import requests
 
-from .universal_handlers import UniversalResponseHandler
+from .universal_handlers import UniversalResponseHandler, FilteredResponse
 from .utils import (
     ExitCodes,
     get_base_url,
@@ -158,6 +158,139 @@ def validate_field_type(field_type: str) -> None:
         )
 
 
+def _query_all_groups(workspace_filter: Optional[str] = None, workspace_map: Optional[dict] = None):
+    """Query all DFF groups using continuation token pagination.
+
+    Args:
+        workspace_filter: Optional workspace ID or name to filter by
+        workspace_map: Optional workspace mapping to avoid repeated lookups
+
+    Returns:
+        List of all groups, optionally filtered by workspace
+    """
+    url = f"{get_base_url()}/nidynamicformfields/v1/groups"
+    all_groups = []
+    continuation_token = None
+
+    while True:
+        # Build parameters for the request
+        params = {"Take": 100}  # Use smaller page size for efficient pagination
+        if continuation_token:
+            params["ContinuationToken"] = continuation_token
+
+        # Build query string
+        query_string = "&".join([f"{k}={v}" for k, v in params.items()])
+        full_url = f"{url}?{query_string}"
+
+        resp = make_api_request("GET", full_url)
+        data = resp.json()
+
+        # Extract groups from this page
+        groups = data.get("groups", [])
+        all_groups.extend(groups)
+
+        # Check if there are more pages
+        continuation_token = data.get("continuationToken")
+        if not continuation_token:
+            break
+
+    # Filter by workspace if specified
+    if workspace_filter and workspace_map:
+        all_groups = filter_by_workspace(all_groups, workspace_filter, workspace_map)
+
+    return all_groups
+
+
+def _query_all_fields(workspace_filter: Optional[str] = None, workspace_map: Optional[dict] = None):
+    """Query all DFF fields using continuation token pagination.
+
+    Args:
+        workspace_filter: Optional workspace ID or name to filter by
+        workspace_map: Optional workspace mapping to avoid repeated lookups
+
+    Returns:
+        List of all fields, optionally filtered by workspace
+    """
+    url = f"{get_base_url()}/nidynamicformfields/v1/fields"
+    all_fields = []
+    continuation_token = None
+
+    while True:
+        # Build parameters for the request
+        params = {"Take": 500}  # Use smaller page size for efficient pagination
+        if continuation_token:
+            params["ContinuationToken"] = continuation_token
+
+        # Build query string
+        query_string = "&".join([f"{k}={v}" for k, v in params.items()])
+        full_url = f"{url}?{query_string}"
+
+        resp = make_api_request("GET", full_url)
+        data = resp.json()
+
+        # Extract fields from this page
+        fields = data.get("fields", [])
+        all_fields.extend(fields)
+
+        # Check if there are more pages
+        continuation_token = data.get("continuationToken")
+        if not continuation_token:
+            break
+
+    # Filter by workspace if specified
+    if workspace_filter and workspace_map:
+        all_fields = filter_by_workspace(all_fields, workspace_filter, workspace_map)
+
+    return all_fields
+
+
+def _query_all_configurations(
+    workspace_filter: Optional[str] = None, workspace_map: Optional[dict] = None
+):
+    """Query all configurations using continuation token pagination.
+
+    Args:
+        workspace_filter: Optional workspace ID or name to filter by
+        workspace_map: Optional workspace mapping to avoid repeated lookups
+
+    Returns:
+        List of all configurations, optionally filtered by workspace
+    """
+    url = f"{get_base_url()}/nidynamicformfields/v1/configurations"
+    all_configurations = []
+    continuation_token = None
+
+    while True:
+        # Build parameters for the request
+        params = {"Take": 100}  # Use smaller page size for efficient pagination
+        if continuation_token:
+            params["ContinuationToken"] = continuation_token
+
+        # Build query string
+        query_string = "&".join([f"{k}={v}" for k, v in params.items()])
+        full_url = f"{url}?{query_string}"
+
+        resp = make_api_request("GET", full_url)
+        data = resp.json()
+
+        # Extract configurations from this page
+        configurations = data.get("configurations", [])
+        all_configurations.extend(configurations)
+
+        # Check if there are more pages
+        continuation_token = data.get("continuationToken")
+        if not continuation_token:
+            break
+
+    # Filter by workspace if specified
+    if workspace_filter and workspace_map:
+        all_configurations = filter_by_workspace(
+            all_configurations, workspace_filter, workspace_map
+        )
+
+    return all_configurations
+
+
 def register_dff_commands(cli):
     """Register the 'dff' command group and its subcommands."""
 
@@ -190,43 +323,21 @@ def register_dff_commands(cli):
     )
     def list_configurations(workspace: Optional[str] = None, take: int = 25, format: str = "table"):
         """List dynamic form field configurations."""
-        url = f"{get_base_url()}/nidynamicformfields/v1/configurations"
-
         try:
-            params = {"Take": 1000}  # Fetch more data for pagination
-            query_string = "&".join([f"{k}={v}" for k, v in params.items()])
-            full_url = f"{url}?{query_string}"
-
-            resp = make_api_request("GET", full_url)
-            data = resp.json()
-            configurations = data.get("configurations", [])
-
             # Get workspace map once and reuse it
             workspace_map = get_workspace_map()
-
-            # Filter by workspace if specified
-            if workspace:
-                configurations = filter_by_workspace(configurations, workspace, workspace_map)
 
             # Use the workspace formatter for consistent formatting
             format_config_row = WorkspaceFormatter.create_config_row_formatter(workspace_map)
 
+            # Use continuation token pagination following user_click.py pattern
+            all_configurations = _query_all_configurations(workspace, workspace_map)
+
             # Use UniversalResponseHandler for consistent pagination
             from typing import Any
 
-            # Create a mock response with filtered data
-            class FilteredResponse:
-                def __init__(self, filtered_data):
-                    self._data = {"configurations": filtered_data}
-
-                def json(self):
-                    return self._data
-
-                @property
-                def status_code(self):
-                    return 200
-
-            filtered_resp: Any = FilteredResponse(configurations)
+            # Create a mock response with all data
+            filtered_resp: Any = FilteredResponse({"configurations": all_configurations})
 
             handler = UniversalResponseHandler()
             handler.handle_list_response(
@@ -757,23 +868,12 @@ def register_dff_commands(cli):
     )
     def list_groups(workspace: Optional[str] = None, take: int = 25, format: str = "table"):
         """List dynamic form field groups."""
-        url = f"{get_base_url()}/nidynamicformfields/v1/groups"
-
         try:
-            params = {"Take": 1000}  # Fetch more data for pagination
-            query_string = "&".join([f"{k}={v}" for k, v in params.items()])
-            full_url = f"{url}?{query_string}"
-
-            resp = make_api_request("GET", full_url)
-            data = resp.json()
-            groups = data.get("groups", [])
-
             # Get workspace map once and reuse it
             workspace_map = get_workspace_map()
 
-            # Filter by workspace if specified
-            if workspace:
-                groups = filter_by_workspace(groups, workspace, workspace_map)
+            # Use continuation token pagination following the pattern
+            all_groups = _query_all_groups(workspace, workspace_map)
 
             # Use the workspace formatter for consistent formatting
             format_group_row = WorkspaceFormatter.create_group_field_row_formatter(workspace_map)
@@ -781,19 +881,8 @@ def register_dff_commands(cli):
             # Use UniversalResponseHandler for consistent pagination
             from typing import Any
 
-            # Create a mock response with filtered data
-            class FilteredResponse:
-                def __init__(self, filtered_data):
-                    self._data = {"groups": filtered_data}
-
-                def json(self):
-                    return self._data
-
-                @property
-                def status_code(self):
-                    return 200
-
-            filtered_resp: Any = FilteredResponse(groups)
+            # Create a mock response with all data
+            filtered_resp: Any = FilteredResponse({"groups": all_groups})
 
             handler = UniversalResponseHandler()
             handler.handle_list_response(
@@ -835,23 +924,12 @@ def register_dff_commands(cli):
     )
     def list_fields(workspace: Optional[str] = None, take: int = 25, format: str = "table"):
         """List dynamic form fields."""
-        url = f"{get_base_url()}/nidynamicformfields/v1/fields"
-
         try:
-            params = {"Take": 1000}  # Fetch more data for pagination
-            query_string = "&".join([f"{k}={v}" for k, v in params.items()])
-            full_url = f"{url}?{query_string}"
-
-            resp = make_api_request("GET", full_url)
-            data = resp.json()
-            fields = data.get("fields", [])
-
             # Get workspace map once and reuse it
             workspace_map = get_workspace_map()
 
-            # Filter by workspace if specified
-            if workspace:
-                fields = filter_by_workspace(fields, workspace, workspace_map)
+            # Use continuation token pagination following the pattern
+            all_fields = _query_all_fields(workspace, workspace_map)
 
             # Use the workspace formatter for consistent formatting
             format_field_row = WorkspaceFormatter.create_group_field_row_formatter(workspace_map)
@@ -859,19 +937,8 @@ def register_dff_commands(cli):
             # Use UniversalResponseHandler for consistent pagination
             from typing import Any
 
-            # Create a mock response with filtered data
-            class FilteredResponse:
-                def __init__(self, filtered_data):
-                    self._data = {"fields": filtered_data}
-
-                def json(self):
-                    return self._data
-
-                @property
-                def status_code(self):
-                    return 200
-
-            filtered_resp: Any = FilteredResponse(fields)
+            # Create a mock response with all data
+            filtered_resp: Any = FilteredResponse({"fields": all_fields})
 
             handler = UniversalResponseHandler()
             handler.handle_list_response(
@@ -971,7 +1038,7 @@ def register_dff_commands(cli):
                 "workspace": workspace_id,
                 "resourceType": resource_type,
                 "resourceId": resource_id,
-                "take": 1000,  # Fetch more data for pagination
+                "take": take,
                 "returnCount": return_count,
             }
 
@@ -993,18 +1060,7 @@ def register_dff_commands(cli):
             from typing import Any
 
             # Create a mock response with filtered data
-            class FilteredResponse:
-                def __init__(self, filtered_data):
-                    self._data = {"tables": filtered_data}
-
-                def json(self):
-                    return self._data
-
-                @property
-                def status_code(self):
-                    return 200
-
-            filtered_resp: Any = FilteredResponse(tables)
+            filtered_resp: Any = FilteredResponse({"tables": tables})
 
             handler = UniversalResponseHandler()
             handler.handle_list_response(

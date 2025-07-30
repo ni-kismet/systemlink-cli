@@ -11,8 +11,7 @@ from typing import Optional
 
 import click
 
-from .cli_utils import validate_output_format
-from .universal_handlers import UniversalResponseHandler
+from .cli_utils import paginate_list_output, validate_output_format
 from .utils import (
     ExitCodes,
     format_success,
@@ -208,6 +207,79 @@ def _format_policy_table(policies: list) -> None:
             click.echo(f"  Workspace: {workspace}")
 
 
+def _query_all_users(
+    filter_str: Optional[str] = None,
+    sortby: str = "firstName",
+    order: str = "asc",
+    include_disabled: bool = False,
+) -> list:
+    """Query all users from the API with server-side pagination using continuation tokens.
+
+    Uses proper Dynamic LINQ filter syntax as specified in the User Service OpenAPI spec.
+    Pagination uses continuationToken (not skip/take) as per API specification.
+    Filter syntax follows SystemLink User Service API specification:
+    - Uses 'and'/'or' operators (not '&&'/'||')
+    - String values in double quotes
+    - Uses 'status = "active"' for filtering disabled users
+
+    TODO: Follow this pattern for other API clients that support continuation tokens
+    Reference: https://dev-api.lifecyclesolutions.ni.com/niuser/swagger/v1/niuser.yaml
+
+    Args:
+        filter_str: Filter expression for users
+        sortby: Field to sort by
+        order: Sort order ('asc' or 'desc')
+        include_disabled: Whether to include disabled users
+
+    Returns:
+        List of all users
+    """
+    url = f"{get_base_url()}/niuser/v1/users/query"
+    all_users = []
+    continuation_token = None
+    page_size = 100  # API maximum take limit is 100
+
+    # Build the base filter - combine user filter with active status filter if needed
+    combined_filter = filter_str
+    if not include_disabled:
+        # Add active status filter to the query using correct Dynamic LINQ syntax
+        # Note: User API uses 'status' field with values 'pending' or 'active'
+        active_filter = 'status = "active"'
+        if filter_str:
+            combined_filter = f"({filter_str}) and {active_filter}"
+        else:
+            combined_filter = active_filter
+
+    while True:
+        payload = {
+            "take": page_size,
+            "sortby": sortby,
+            "order": "ascending" if order == "asc" else "descending",
+        }
+
+        if combined_filter:
+            payload["filter"] = combined_filter
+
+        if continuation_token:
+            payload["continuationToken"] = continuation_token
+
+        resp = make_api_request("POST", url, payload=payload)
+        data = resp.json()
+        users = data.get("users", [])
+
+        if not users:
+            break
+
+        all_users.extend(users)
+
+        # Check for continuation token to get next page
+        continuation_token = data.get("continuationToken")
+        if not continuation_token:
+            break  # No more pages available
+
+    return all_users
+
+
 def register_user_commands(cli):
     """Register CLI commands for managing SystemLink users."""
 
@@ -273,54 +345,68 @@ def register_user_commands(cli):
         """List users with optional filtering and sorting."""
         format_output = validate_output_format(format)
 
-        url = f"{get_base_url()}/niuser/v1/users/query"
-
-        # Build query payload
-        # For JSON format, respect the take parameter exactly
-        # For table format, use take if specified, otherwise fetch larger dataset
-        # for local pagination
-        if format_output.lower() == "json":
-            api_take = take
-        else:
-            # For table format, use take if specified, otherwise fetch larger amount for pagination
-            api_take = (
-                take if take != 25 else 1000
-            )  # 25 is the default, so fetch more for pagination
-
-        payload = {
-            "take": api_take,
-            "sortby": sortby,
-            "order": "ascending" if order == "asc" else "descending",
-        }
-
-        if filter:
-            payload["filter"] = filter
-
         try:
-            resp = make_api_request("POST", url, payload=payload)
+            # For JSON format, we can respect the take parameter and use server-side pagination
+            # For table format, we fetch all users and do client-side pagination for better UX
+            if format_output.lower() == "json":
+                # Use server-side pagination for JSON output
+                url = f"{get_base_url()}/niuser/v1/users/query"
 
-            def user_formatter(user: dict) -> list:
-                status = "Active" if user.get("active", True) else "Inactive"
-                return [
-                    user.get("firstName", ""),
-                    user.get("lastName", ""),
-                    user.get("email", ""),
-                    status,
-                ]
+                # Build the filter - combine user filter with active status filter if needed
+                combined_filter = filter
+                if not include_disabled:
+                    # Add active status filter to the query using correct Dynamic LINQ syntax
+                    # Note: User API uses 'status' field with values 'pending' or 'active'
+                    active_filter = 'status = "active"'
+                    if filter:
+                        combined_filter = f"({filter}) and {active_filter}"
+                    else:
+                        combined_filter = active_filter
 
-            # Use universal response handler
-            UniversalResponseHandler.handle_list_response(
-                resp=resp,
-                data_key="users",
-                item_name="user",
-                format_output=format_output,
-                formatter_func=user_formatter,
-                headers=["First Name", "Last Name", "Email", "Status"],
-                column_widths=[30, 30, 38, 12],
-                empty_message="No users found.",
-                enable_pagination=True,
-                page_size=take,
-            )
+                payload = {
+                    "take": take,
+                    "sortby": sortby,
+                    "order": "ascending" if order == "asc" else "descending",
+                }
+
+                if combined_filter:
+                    payload["filter"] = combined_filter
+
+                resp = make_api_request("POST", url, payload=payload)
+                data = resp.json()
+                users = data.get("users", [])
+
+                click.echo(json.dumps(users, indent=2))
+                return
+            else:
+                # For table format, fetch all users for proper client-side pagination
+                all_users = _query_all_users(
+                    filter_str=filter,
+                    sortby=sortby,
+                    order=order,
+                    include_disabled=include_disabled,
+                )
+
+                def user_formatter(user: dict) -> list:
+                    status = "Active" if user.get("active", True) else "Inactive"
+                    return [
+                        user.get("firstName", ""),
+                        user.get("lastName", ""),
+                        user.get("email", ""),
+                        status,
+                    ]
+
+                # Use client-side pagination with all fetched users
+                paginate_list_output(
+                    items=all_users,
+                    page_size=take,
+                    format_output=format_output,
+                    formatter_func=user_formatter,
+                    headers=["First Name", "Last Name", "Email", "Status"],
+                    column_widths=[30, 30, 38, 12],
+                    empty_message="No users found.",
+                    total_label="user(s)",
+                )
 
         except Exception as exc:
             handle_api_error(exc)

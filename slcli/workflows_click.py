@@ -2,13 +2,14 @@
 
 import json
 import os
-from typing import Optional
+import sys
+from typing import Dict, Optional, Union
 
 import click
 import requests
 
 from .cli_utils import validate_output_format
-from .universal_handlers import UniversalResponseHandler
+from .universal_handlers import UniversalResponseHandler, FilteredResponse
 from .utils import (
     display_api_errors,
     extract_error_type,
@@ -22,6 +23,51 @@ from .utils import (
     save_json_file,
 )
 from .workspace_utils import get_workspace_display_name, resolve_workspace_filter
+
+
+def _query_all_workflows(
+    workspace_filter: Optional[str] = None, workspace_map: Optional[dict] = None
+):
+    """Query all workflows using continuation token pagination.
+
+    Args:
+        workspace_filter: Optional workspace ID to filter by
+        workspace_map: Optional workspace mapping to avoid repeated lookups
+
+    Returns:
+        List of all workflows, optionally filtered by workspace
+    """
+    url = f"{get_base_url()}/niworkorder/v1/query-workflows?ff-userdefinedworkflowsfortestplaninstances=true"
+    all_workflows = []
+    continuation_token = None
+
+    while True:
+        # Build payload for the request
+        payload: Dict[str, Union[int, str]] = {
+            "take": 100,  # Use smaller page size for efficient pagination
+        }
+
+        # Add workspace filter if specified
+        if workspace_filter:
+            payload["filter"] = f'WORKSPACE == "{workspace_filter}"'
+
+        # Add continuation token if we have one
+        if continuation_token:
+            payload["continuationToken"] = continuation_token
+
+        resp = make_api_request("POST", url, payload)
+        data = resp.json()
+
+        # Extract workflows from this page
+        workflows = data.get("workflows", [])
+        all_workflows.extend(workflows)
+
+        # Check if there are more pages
+        continuation_token = data.get("continuationToken")
+        if not continuation_token:
+            break
+
+    return all_workflows
 
 
 def register_workflows_commands(cli):
@@ -254,22 +300,19 @@ def register_workflows_commands(cli):
         """List available workflows."""
         format_output = validate_output_format(format)
 
-        url = f"{get_base_url()}/niworkorder/v1/query-workflows?ff-userdefinedworkflowsfortestplaninstances=true"
-        payload = {
-            "take": 1000,
-            "projection": ["ID", "NAME", "DESCRIPTION", "WORKSPACE"],
-        }
-
         try:
             workspace_map = get_workspace_map()
 
-            # Apply workspace filtering if specified
+            # Resolve workspace filter to ID if specified
+            workspace_id = None
             if workspace:
                 workspace_id = resolve_workspace_filter(workspace, workspace_map)
-                if workspace_id:
-                    payload["filter"] = f'WORKSPACE == "{workspace_id}"'
 
-            resp = make_api_request("POST", url, payload)
+            # Use continuation token pagination to get all workflows
+            all_workflows = _query_all_workflows(workspace_id, workspace_map)
+
+            # Create a mock response with all data
+            resp = FilteredResponse({"workflows": all_workflows})
 
             # Use universal response handler with workflow formatter
             def workflow_formatter(workflow: dict) -> list:
@@ -578,8 +621,6 @@ def _handle_workflow_delete_response(response_data, workflow_id):
         response_data: The JSON response data from delete operation
         workflow_id: The ID of the workflow that was requested to be deleted
     """
-    import sys
-
     # Handle successful deletion response: empty JSON {} with 204 status
     if not response_data or response_data == {}:
         click.echo(f"✓ Workflow {workflow_id} deleted successfully.")

@@ -81,6 +81,27 @@
 - Provide clear, actionable error messages that guide users toward solutions
 - Support shell completion where feasible
 
+## HTTP API Documentation & Validation
+
+### API Client Implementation Guidelines
+- All HTTP client calls must include comprehensive type hints based on OpenAPI specifications
+- Use `requests.Response` type annotations for all API responses
+- Implement response validation using the OpenAPI spec as the source of truth
+- Document any discrepancies between OpenAPI spec and actual service behavior in code comments
+- All API client functions must handle standard HTTP error codes (400, 401, 403, 404, 500)
+
+### OpenAPI Specifications (Reference)
+- SystemLink DataFrame Service: https://dev-api.lifecyclesolutions.ni.com/nidataframe/swagger/v1/nidataframe.json
+- SystemLink Notebook Service: https://dev-api.lifecyclesolutions.ni.com/ninotebook/swagger/v1/ninotebook.yaml
+- SystemLink Test Monitor Service: https://dev-api.lifecyclesolutions.ni.com/nitestmonitor/swagger/v2/nitestmonitor-v2.yml
+- SystemLink User Service: https://dev-api.lifecyclesolutions.ni.com/niuser/swagger/v1/niuser.yaml
+- Work Order Service: https://dev-api.lifecyclesolutions.ni.com/niworkorder/swagger/v1/niworkorder.json
+
+### Implementation Pattern
+- Create typed response models based on OpenAPI schemas when implementing new API clients
+- Use consistent error handling via `handle_api_error()` for all API interactions
+- Add TODO comments when OpenAPI spec doesn't match actual service behavior
+
 ## Required Actions After Any Change
 
 - Run `poetry run ni-python-styleguide lint` to check for linting and style issues.

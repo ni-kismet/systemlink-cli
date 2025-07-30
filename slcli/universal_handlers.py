@@ -2,7 +2,7 @@
 
 import json
 import sys
-from typing import Dict, List, Any, Optional
+from typing import Dict, List, Any, Optional, Union
 
 import click
 import requests
@@ -10,12 +10,39 @@ import requests
 from .utils import ExitCodes, handle_api_error, format_success
 
 
+class FilteredResponse:
+    """Mock response class for use with UniversalResponseHandler.
+
+    This class mimics a requests.Response object to allow filtered data
+    to be passed to UniversalResponseHandler without making additional API calls.
+    """
+
+    def __init__(self, data: Dict[str, Any], status_code: int = 200):
+        """Initialize with data and optional status code.
+
+        Args:
+            data: Dictionary containing the response data
+            status_code: HTTP status code to return (default: 200)
+        """
+        self._data = data
+        self._status_code = status_code
+
+    def json(self) -> Dict[str, Any]:
+        """Return the response data as JSON."""
+        return self._data
+
+    @property
+    def status_code(self) -> int:
+        """Return the HTTP status code."""
+        return self._status_code
+
+
 class UniversalResponseHandler:
     """Universal response handler for all CLI commands."""
 
     @staticmethod
     def handle_list_response(
-        resp: requests.Response,
+        resp: Union[requests.Response, "FilteredResponse"],
         data_key: str,
         item_name: str,
         format_output: str,
