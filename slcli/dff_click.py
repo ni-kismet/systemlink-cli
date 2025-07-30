@@ -7,7 +7,7 @@ from typing import Optional
 import click
 import requests
 
-from .universal_handlers import UniversalResponseHandler
+from .universal_handlers import UniversalResponseHandler, FilteredResponse
 from .utils import (
     ExitCodes,
     get_base_url,
@@ -337,18 +337,7 @@ def register_dff_commands(cli):
             from typing import Any
 
             # Create a mock response with all data
-            class FilteredResponse:
-                def __init__(self, filtered_data):
-                    self._data = {"configurations": filtered_data}
-
-                def json(self):
-                    return self._data
-
-                @property
-                def status_code(self):
-                    return 200
-
-            filtered_resp: Any = FilteredResponse(all_configurations)
+            filtered_resp: Any = FilteredResponse({"configurations": all_configurations})
 
             handler = UniversalResponseHandler()
             handler.handle_list_response(
@@ -893,18 +882,7 @@ def register_dff_commands(cli):
             from typing import Any
 
             # Create a mock response with all data
-            class FilteredResponse:
-                def __init__(self, filtered_data):
-                    self._data = {"groups": filtered_data}
-
-                def json(self):
-                    return self._data
-
-                @property
-                def status_code(self):
-                    return 200
-
-            filtered_resp: Any = FilteredResponse(all_groups)
+            filtered_resp: Any = FilteredResponse({"groups": all_groups})
 
             handler = UniversalResponseHandler()
             handler.handle_list_response(
@@ -960,18 +938,7 @@ def register_dff_commands(cli):
             from typing import Any
 
             # Create a mock response with all data
-            class FilteredResponse:
-                def __init__(self, filtered_data):
-                    self._data = {"fields": filtered_data}
-
-                def json(self):
-                    return self._data
-
-                @property
-                def status_code(self):
-                    return 200
-
-            filtered_resp: Any = FilteredResponse(all_fields)
+            filtered_resp: Any = FilteredResponse({"fields": all_fields})
 
             handler = UniversalResponseHandler()
             handler.handle_list_response(
@@ -1093,18 +1060,7 @@ def register_dff_commands(cli):
             from typing import Any
 
             # Create a mock response with filtered data
-            class FilteredResponse:
-                def __init__(self, filtered_data):
-                    self._data = {"tables": filtered_data}
-
-                def json(self):
-                    return self._data
-
-                @property
-                def status_code(self):
-                    return 200
-
-            filtered_resp: Any = FilteredResponse(tables)
+            filtered_resp: Any = FilteredResponse({"tables": tables})
 
             handler = UniversalResponseHandler()
             handler.handle_list_response(

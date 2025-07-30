@@ -3,12 +3,12 @@
 import json
 import os
 import sys
-from typing import Any, Dict, Optional
+from typing import Any, Optional
 
 import click
 
 from .cli_utils import validate_output_format
-from .universal_handlers import UniversalResponseHandler
+from .universal_handlers import UniversalResponseHandler, FilteredResponse
 from .utils import (
     ExitCodes,
     extract_error_type,
@@ -247,15 +247,7 @@ def register_templates_commands(cli: Any) -> None:
             all_templates = _query_all_templates(workspace_id, workspace_map)
 
             # Create a mock response with all data
-            class FilteredResponse:
-                def json(self) -> Dict[str, Any]:
-                    return {"testPlanTemplates": all_templates}
-
-                @property
-                def status_code(self) -> int:
-                    return 200
-
-            resp: Any = FilteredResponse()
+            resp: Any = FilteredResponse({"testPlanTemplates": all_templates})
 
             # Use universal response handler with template formatter
             def template_formatter(template: dict) -> list:

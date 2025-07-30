@@ -98,12 +98,27 @@ def test_list_templates_with_workspace_filter(monkeypatch, runner):
                 pass
 
             def json(self):
-                return {
-                    "testPlanTemplates": [
-                        {"id": "t1", "name": "Template1", "workspace": "ws1"},
-                        {"id": "t2", "name": "Template2", "workspace": "ws2"},
-                    ]
-                }
+                # Get the payload to check for filtering
+                payload = kw.get("json", {})
+                filter_clause = payload.get("filter", "")
+
+                all_templates = [
+                    {"id": "t1", "name": "Template1", "workspace": "ws1"},
+                    {"id": "t2", "name": "Template2", "workspace": "ws2"},
+                ]
+
+                # Apply workspace filtering if present
+                if 'WORKSPACE == "ws1"' in filter_clause:
+                    # Filter to only ws1 templates
+                    filtered_templates = [t for t in all_templates if t["workspace"] == "ws1"]
+                elif 'WORKSPACE == "ws2"' in filter_clause:
+                    # Filter to only ws2 templates
+                    filtered_templates = [t for t in all_templates if t["workspace"] == "ws2"]
+                else:
+                    # No filter, return all
+                    filtered_templates = all_templates
+
+                return {"testPlanTemplates": filtered_templates}
 
         return R()
 

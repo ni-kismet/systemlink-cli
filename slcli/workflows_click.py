@@ -8,7 +8,7 @@ import click
 import requests
 
 from .cli_utils import validate_output_format
-from .universal_handlers import UniversalResponseHandler
+from .universal_handlers import UniversalResponseHandler, FilteredResponse
 from .utils import (
     display_api_errors,
     extract_error_type,
@@ -311,15 +311,7 @@ def register_workflows_commands(cli):
             all_workflows = _query_all_workflows(workspace_id, workspace_map)
 
             # Create a mock response with all data
-            class FilteredResponse:
-                def json(self):
-                    return {"workflows": all_workflows}
-
-                @property
-                def status_code(self):
-                    return 200
-
-            resp = FilteredResponse()
+            resp = FilteredResponse({"workflows": all_workflows})
 
             # Use universal response handler with workflow formatter
             def workflow_formatter(workflow: dict) -> list:

@@ -7,7 +7,7 @@ from typing import Any, Dict, Optional, Tuple
 import click
 
 from .cli_utils import validate_output_format
-from .universal_handlers import UniversalResponseHandler
+from .universal_handlers import UniversalResponseHandler, FilteredResponse
 from .utils import (
     ExitCodes,
     format_success,
@@ -95,15 +95,9 @@ def register_workspace_commands(cli: Any) -> None:
                 filtered_workspaces = [ws for ws in workspaces if ws.get("enabled", True)]
 
                 # Create a new response with filtered data
-                class FilteredResponse:
-                    def json(self) -> Dict[str, Any]:
-                        return {"workspaces": filtered_workspaces}
-
-                    @property
-                    def status_code(self) -> int:
-                        return 200
-
-                resp: Any = FilteredResponse()  # Type annotation to avoid type checker issues
+                resp: Any = FilteredResponse(
+                    {"workspaces": filtered_workspaces}
+                )  # Type annotation to avoid type checker issues
 
             def workspace_formatter(workspace: dict) -> list:
                 enabled = "✓" if workspace.get("enabled", True) else "✗"
