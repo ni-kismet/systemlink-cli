@@ -46,9 +46,7 @@ def _query_notebooks_http(
 
     while True:
         # Build payload for the request
-        payload: Dict[str, Any] = {
-            "take": min(100, take)
-        }  # Use smaller page size for efficient pagination
+        payload: Dict[str, Any] = {"take": 100}  # Use consistent page size for efficient pagination
         if filter_str:
             payload["filter"] = filter_str
         if continuation_token:

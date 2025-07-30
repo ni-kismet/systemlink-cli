@@ -42,7 +42,9 @@ def _query_all_workflows(
 
     while True:
         # Build payload for the request
-        payload = {
+        from typing import Dict, Union
+
+        payload: Dict[str, Union[int, str]] = {
             "take": 100,  # Use smaller page size for efficient pagination
         }
 

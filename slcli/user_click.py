@@ -376,8 +376,6 @@ def register_user_commands(cli):
                 data = resp.json()
                 users = data.get("users", [])
 
-                import json
-
                 click.echo(json.dumps(users, indent=2))
                 return
             else:
