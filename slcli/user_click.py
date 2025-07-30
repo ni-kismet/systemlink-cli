@@ -11,7 +11,7 @@ from typing import Optional
 
 import click
 
-from .cli_utils import validate_output_format
+from .cli_utils import paginate_list_output, validate_output_format
 from .utils import (
     ExitCodes,
     format_success,
@@ -397,8 +397,6 @@ def register_user_commands(cli):
                     ]
 
                 # Use client-side pagination with all fetched users
-                from .cli_utils import paginate_list_output
-
                 paginate_list_output(
                     items=all_users,
                     page_size=take,

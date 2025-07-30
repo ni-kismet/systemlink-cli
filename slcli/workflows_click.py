@@ -2,7 +2,8 @@
 
 import json
 import os
-from typing import Optional
+import sys
+from typing import Dict, Optional, Union
 
 import click
 import requests
@@ -42,8 +43,6 @@ def _query_all_workflows(
 
     while True:
         # Build payload for the request
-        from typing import Dict, Union
-
         payload: Dict[str, Union[int, str]] = {
             "take": 100,  # Use smaller page size for efficient pagination
         }
@@ -622,8 +621,6 @@ def _handle_workflow_delete_response(response_data, workflow_id):
         response_data: The JSON response data from delete operation
         workflow_id: The ID of the workflow that was requested to be deleted
     """
-    import sys
-
     # Handle successful deletion response: empty JSON {} with 204 status
     if not response_data or response_data == {}:
         click.echo(f"✓ Workflow {workflow_id} deleted successfully.")

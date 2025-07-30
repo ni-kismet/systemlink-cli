@@ -61,7 +61,7 @@ def _query_notebooks_http(
             data = response.json()
             raw_notebooks = data.get("notebooks", [])  # API returns "notebooks" array
 
-            # Process notebooks and handle invalid parameters gracefully
+            # Handle invalid parameters gracefully and add notebooks to results
             for nb in raw_notebooks:
                 try:
                     # Fix parameters field if it's a list instead of dict
