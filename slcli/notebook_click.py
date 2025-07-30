@@ -4,24 +4,22 @@ Provides CLI commands for listing, creating, updating, downloading, and deleting
 All commands use Click for robust CLI interfaces and error handling.
 """
 
-import dataclasses
 import datetime
 import json
 import sys
-import tempfile
-from typing import Any, Dict, Optional
+from typing import Any, Dict, List, Optional
 
 import click
-from nisystemlink.clients.notebook._notebook_client import NotebookClient
-from nisystemlink.clients.notebook.models._notebook_metadata import NotebookMetadata
-from nisystemlink.clients.notebook.models._query_notebook_request import QueryNotebookRequest
+import requests
 
 from .cli_utils import validate_output_format
 from .universal_handlers import UniversalResponseHandler
 from .utils import (
     ExitCodes,
     format_success,
-    get_http_configuration,
+    get_base_url,
+    get_headers,
+    get_ssl_verify,
     get_workspace_id_with_fallback,
     get_workspace_map,
     handle_api_error,
@@ -31,28 +29,159 @@ from .utils import (
 from .workspace_utils import get_workspace_display_name
 
 
-def _get_notebooks_from_query(nb_client: Any, query_obj: Any) -> list:
-    """Helper to parse paged notebook query response and return a list of notebook objects."""
-    paged_result = nb_client.query_notebooks(query_obj)
-    notebooks = getattr(paged_result, "notebooks", None)
-    if notebooks is None:
-        notebooks = []
-    return notebooks
+def _get_notebook_base_url() -> str:
+    """Get the base URL for notebook API."""
+    return f"{get_base_url()}/ninotebook/v1"
+
+
+def _query_notebooks_http(
+    filter_str: Optional[str] = None, take: int = 1000
+) -> List[Dict[str, Any]]:
+    """Query notebooks using direct HTTP calls to handle invalid data gracefully."""
+    base_url = _get_notebook_base_url()
+    headers = get_headers("application/json")
+
+    payload: Dict[str, Any] = {"take": take}
+    if filter_str:
+        payload["filter"] = filter_str
+
+    try:
+        response = requests.post(
+            f"{base_url}/notebook/query", headers=headers, json=payload, verify=get_ssl_verify()
+        )
+        response.raise_for_status()
+
+        data = response.json()
+        raw_notebooks = data.get("notebooks", [])  # API returns "notebooks" array
+
+        # Process notebooks and handle invalid parameters gracefully
+        processed_notebooks = []
+        for nb in raw_notebooks:
+            try:
+                # Fix parameters field if it's a list instead of dict
+                if "parameters" in nb and isinstance(nb["parameters"], list):
+                    nb["parameters"] = {
+                        f"param_{i}": param for i, param in enumerate(nb["parameters"])
+                    }
+                elif "parameters" not in nb or not isinstance(nb["parameters"], dict):
+                    nb["parameters"] = {}
+
+                processed_notebooks.append(nb)
+            except Exception:
+                # Skip notebooks with severe data issues
+                continue
+
+        return processed_notebooks
+
+    except requests.exceptions.RequestException as exc:
+        raise Exception(f"HTTP request failed: {exc}")
+    except Exception as exc:
+        raise Exception(f"Failed to query notebooks: {exc}")
+
+
+def _get_notebook_http(notebook_id: str) -> Dict[str, Any]:
+    """Get a single notebook by ID using HTTP."""
+    base_url = _get_notebook_base_url()
+    headers = get_headers("application/json")
+
+    try:
+        response = requests.get(
+            f"{base_url}/notebook/{notebook_id}", headers=headers, verify=get_ssl_verify()
+        )
+        response.raise_for_status()
+        return response.json()
+    except requests.exceptions.RequestException as exc:
+        raise Exception(f"HTTP request failed: {exc}")
+
+
+def _get_notebook_content_http(notebook_id: str) -> bytes:
+    """Get notebook content by ID using HTTP."""
+    base_url = _get_notebook_base_url()
+    headers = get_headers()  # No content-type for binary content
+
+    try:
+        response = requests.get(
+            f"{base_url}/notebook/{notebook_id}/content", headers=headers, verify=get_ssl_verify()
+        )
+        response.raise_for_status()
+        return response.content
+    except requests.exceptions.RequestException as exc:
+        raise Exception(f"HTTP request failed: {exc}")
+
+
+def _create_notebook_http(name: str, workspace: str, content: bytes) -> Dict[str, Any]:
+    """Create a notebook using HTTP."""
+    base_url = _get_notebook_base_url()
+    headers = get_headers()  # No content-type for multipart
+
+    metadata = {"name": name, "workspace": workspace}
+
+    files = {
+        "metadata": (None, json.dumps(metadata), "application/json"),
+        "content": ("notebook.ipynb", content, "application/octet-stream"),
+    }
+
+    try:
+        response = requests.post(
+            f"{base_url}/notebook", headers=headers, files=files, verify=get_ssl_verify()
+        )
+        response.raise_for_status()
+        return response.json()
+    except requests.exceptions.RequestException as exc:
+        raise Exception(f"HTTP request failed: {exc}")
+
+
+def _update_notebook_http(
+    notebook_id: str, metadata: Optional[Dict[str, Any]] = None, content: Optional[bytes] = None
+) -> Dict[str, Any]:
+    """Update a notebook using HTTP."""
+    base_url = _get_notebook_base_url()
+    headers = get_headers()  # No content-type for multipart
+
+    files = {}
+    if metadata:
+        files["metadata"] = (None, json.dumps(metadata), "application/json")
+    if content:
+        files["content"] = ("notebook.ipynb", content, "application/octet-stream")
+
+    try:
+        response = requests.put(
+            f"{base_url}/notebook/{notebook_id}",
+            headers=headers,
+            files=files,
+            verify=get_ssl_verify(),
+        )
+        response.raise_for_status()
+        return response.json()
+    except requests.exceptions.RequestException as exc:
+        raise Exception(f"HTTP request failed: {exc}")
+
+
+def _delete_notebook_http(notebook_id: str) -> None:
+    """Delete a notebook using HTTP."""
+    base_url = _get_notebook_base_url()
+    headers = get_headers()
+
+    try:
+        response = requests.delete(
+            f"{base_url}/notebook/{notebook_id}", headers=headers, verify=get_ssl_verify()
+        )
+        response.raise_for_status()
+    except requests.exceptions.RequestException as exc:
+        raise Exception(f"HTTP request failed: {exc}")
 
 
 def _download_notebook_content_and_metadata(
-    nb_client: Any,
     notebook_id: str,
     notebook_name: str,
     output: Optional[str] = None,
     download_type: str = "both",
 ) -> None:
     """Download notebook content and/or metadata to disk."""
-    """Download notebook content and/or metadata to disk."""
     # Download content
     if download_type in ("content", "both"):
         try:
-            content = nb_client.get_notebook_content(str(notebook_id)).read()
+            content = _get_notebook_content_http(notebook_id)
             output_path = output or (
                 notebook_name if notebook_name.endswith(".ipynb") else f"{notebook_name}.ipynb"
             )
@@ -64,7 +193,7 @@ def _download_notebook_content_and_metadata(
     # Download metadata
     if download_type in ("metadata", "both"):
         try:
-            meta = nb_client.get_notebook(str(notebook_id))
+            meta = _get_notebook_http(notebook_id)
             meta_path = (output or notebook_name.replace(".ipynb", "")) + ".json"
 
             def _json_default(obj: Any) -> str:
@@ -72,11 +201,7 @@ def _download_notebook_content_and_metadata(
                     return obj.isoformat()
                 return str(obj)
 
-            if dataclasses.is_dataclass(meta) and not isinstance(meta, type):
-                data = dataclasses.asdict(meta)
-            else:
-                data = getattr(meta, "__dict__", meta)
-            save_json_file(data, meta_path, _json_default)
+            save_json_file(meta, meta_path, _json_default)
             click.echo(f"Notebook metadata downloaded to {meta_path}")
         except Exception as exc:
             click.echo(f"Failed to download notebook metadata: {exc}")
@@ -106,37 +231,30 @@ def register_notebook_commands(cli: Any) -> None:
     )
     def update_notebook(notebook_id: str, metadata: Optional[str], content: Optional[str]) -> None:
         """Update a notebook's metadata, content, or both by ID."""
-        import json
-
         if not metadata and not content:
             click.echo("✗ Must provide at least one of --metadata or --content.", err=True)
             sys.exit(ExitCodes.INVALID_INPUT)
 
         try:
-            nb_client = NotebookClient(configuration=get_http_configuration())
-            meta_obj = None
+            meta_dict = None
             if metadata:
                 with open(metadata, "r", encoding="utf-8") as f:
-                    meta_json = json.load(f)
-                meta_obj = NotebookMetadata(**meta_json)
-            content_file = None
+                    meta_dict = json.load(f)
+
+            content_bytes = None
             if content:
-                with open(content, "rb") as content_file:
-                    if not meta_obj and not content_file:
-                        click.echo(
-                            "✗ Nothing to update. Provide --metadata and/or --content.", err=True
-                        )
-                        sys.exit(ExitCodes.INVALID_INPUT)
-                    nb_client.update_notebook(notebook_id, metadata=meta_obj, content=content_file)
-                    format_success("Notebook updated", {"ID": notebook_id})
-            else:
-                if not meta_obj:
-                    click.echo(
-                        "✗ Nothing to update. Provide --metadata and/or --content.", err=True
-                    )
-                    sys.exit(ExitCodes.INVALID_INPUT)
-                nb_client.update_notebook(notebook_id, metadata=meta_obj, content=None)
-                format_success("Notebook updated", {"ID": notebook_id})
+                with open(content, "rb") as f:
+                    content_bytes = f.read()
+
+            if not meta_dict and not content_bytes:
+                click.echo(
+                    "✗ Nothing to update. Provide --metadata and/or --content.",
+                    err=True,
+                )
+                sys.exit(ExitCodes.INVALID_INPUT)
+
+            _update_notebook_http(notebook_id, metadata=meta_dict, content=content_bytes)
+            format_success("Notebook updated", {"ID": notebook_id})
         except Exception as exc:
             handle_api_error(exc)
 
@@ -169,25 +287,19 @@ def register_notebook_commands(cli: Any) -> None:
         format_output = validate_output_format(format_output)
 
         try:
-            nb_client = NotebookClient(configuration=get_http_configuration())
             ws_id = None
             if workspace:
                 ws_id = validate_workspace_access(workspace, warn_on_error=True)
 
-            query_args = {}
-            if ws_id:
-                query_args["workspace"] = ws_id
             filter_str = None
-            if "workspace" in query_args:
-                filter_str = f'workspace = "{query_args["workspace"]}"'
-
-            query_obj = QueryNotebookRequest(filter=filter_str, take=take)
+            if ws_id:
+                filter_str = f'workspace = "{ws_id}"'
 
             try:
-                notebooks_raw = _get_notebooks_from_query(nb_client, query_obj)
+                notebooks_raw = _query_notebooks_http(filter_str, take=1000)
             except Exception as exc:
                 click.echo(
-                    f"✗ Warning: Validation error in PagedNotebooks response: {exc}. Some results may be skipped.",
+                    f"✗ Error querying notebooks: {exc}",
                     err=True,
                 )
                 notebooks_raw = []
@@ -201,14 +313,12 @@ def register_notebook_commands(cli: Any) -> None:
             notebooks = []
             for idx, nb in enumerate(notebooks_raw):
                 try:
-                    nb_data = getattr(nb, "__dict__", {})
-                    ws_id = nb_data.get("workspace", "")
+                    ws_id = nb.get("workspace", "")
                     ws_name = get_workspace_display_name(ws_id, workspace_map)
-                    name = nb_data.get("name", "")
-                    nb_id = nb_data.get("id", "")
-                    parameters = nb_data.get("parameters", {})
-                    if not isinstance(parameters, dict):
-                        parameters = {}
+                    name = nb.get("name", "")
+                    nb_id = nb.get("id", "")
+                    parameters = nb.get("parameters", {})
+
                     notebooks.append(
                         {
                             "workspace": ws_name,
@@ -293,34 +403,35 @@ def register_notebook_commands(cli: Any) -> None:
         ws_id = get_workspace_id_with_fallback(workspace)
 
         try:
-            nb_client = NotebookClient(configuration=get_http_configuration())
             nb_name = notebook_name
             # Find notebook by name or id
             if notebook_name:
                 filter_str = f'name = "{notebook_name}" and workspace = "{ws_id}"'
-                query_obj = QueryNotebookRequest(filter=filter_str)
-                results = _get_notebooks_from_query(nb_client, query_obj)
+                results = _query_notebooks_http(filter_str)
                 found = next(
-                    (nb for nb in results if getattr(nb, "name", None) == notebook_name), None
+                    (nb for nb in results if nb.get("name") == notebook_name),
+                    None,
                 )
                 if not found:
                     click.echo(f"✗ Notebook named '{notebook_name}' not found.", err=True)
                     sys.exit(ExitCodes.NOT_FOUND)
-                notebook_id = getattr(found, "id", "")
-                nb_name = getattr(found, "name", notebook_name)
+                notebook_id = found.get("id", "")
+                nb_name = found.get("name", notebook_name)
             elif notebook_id:
                 if not output:
                     filter_str = f'id = "{notebook_id}" and workspace = "{ws_id}"'
-                    query_obj = QueryNotebookRequest(filter=filter_str)
-                    results = _get_notebooks_from_query(nb_client, query_obj)
-                    nb_name = getattr(results[0], "name", notebook_id) if results else notebook_id
+                    results = _query_notebooks_http(filter_str)
+                    nb_name = results[0].get("name", notebook_id) if results else notebook_id
 
             # Download notebook content and/or metadata using shared helper
             if not isinstance(notebook_id, str) or not notebook_id:
                 click.echo("✗ Notebook ID must be a non-empty string.", err=True)
                 sys.exit(ExitCodes.INVALID_INPUT)
             _download_notebook_content_and_metadata(
-                nb_client, notebook_id, nb_name, output=output, download_type=download_type
+                notebook_id,
+                nb_name,
+                output=output,
+                download_type=download_type,
             )
             click.echo(f"✓ Notebook ID: {notebook_id}")
         except Exception as exc:
@@ -349,14 +460,12 @@ def register_notebook_commands(cli: Any) -> None:
         ws_id = get_workspace_id_with_fallback(workspace)
 
         try:
-            nb_client = NotebookClient(configuration=get_http_configuration())
             # Ensure the uploaded file has a .ipynb extension
             if not notebook_name.lower().endswith(".ipynb"):
                 notebook_name += ".ipynb"
             # Check for existing notebook with same name in workspace
             filter_str = f'name = "{notebook_name}" and workspace = "{ws_id}"'
-            query_obj = QueryNotebookRequest(filter=filter_str)
-            results = _get_notebooks_from_query(nb_client, query_obj)
+            results = _query_notebooks_http(filter_str)
             if results:
                 click.echo(
                     f"✗ A notebook named '{notebook_name}' already exists in this workspace. Creation cancelled.",
@@ -367,33 +476,33 @@ def register_notebook_commands(cli: Any) -> None:
             # No existing notebook, create new
             if input_file:
                 with open(input_file, "rb") as content_file:
-                    metadata = NotebookMetadata(name=notebook_name, workspace=ws_id)
-                    result = nb_client.create_notebook(metadata=metadata, content=content_file)
-                format_success("Notebook created", {"ID": result.id})
+                    content = content_file.read()
+                    result = _create_notebook_http(notebook_name, ws_id, content)
+                format_success("Notebook created", {"ID": result.get("id")})
             else:
                 # Create an empty notebook JSON structure using a temp file
-                empty_nb = {"cells": [], "metadata": {}, "nbformat": 4, "nbformat_minor": 5}
+                empty_nb = {
+                    "cells": [],
+                    "metadata": {},
+                    "nbformat": 4,
+                    "nbformat_minor": 5,
+                }
 
-                tmp = tempfile.NamedTemporaryFile(delete=False, suffix=".ipynb")
-                tmp.write(json.dumps(empty_nb).encode("utf-8"))
-                tmp.close()
-                with open(tmp.name, "rb") as content_file:
-                    metadata = NotebookMetadata(name=notebook_name, workspace=ws_id)
-                    result = nb_client.create_notebook(metadata=metadata, content=content_file)
-                # Clean up temp file
-                import os
-
-                os.unlink(tmp.name)
-                format_success("Notebook created", {"ID": result.id})
+                content = json.dumps(empty_nb).encode("utf-8")
+                result = _create_notebook_http(notebook_name, ws_id, content)
+                format_success("Notebook created", {"ID": result.get("id")})
 
             # Download notebook content and metadata if requested
             if download:
-                notebook_id = getattr(result, "id", None)
+                notebook_id = result.get("id")
                 if not notebook_id:
                     click.echo("✗ Notebook ID not found, cannot download.", err=True)
                     return
                 _download_notebook_content_and_metadata(
-                    nb_client, notebook_id, notebook_name, output=None, download_type="both"
+                    notebook_id,
+                    notebook_name,
+                    output=None,
+                    download_type="both",
                 )
         except Exception as exc:
             handle_api_error(exc)
@@ -403,8 +512,7 @@ def register_notebook_commands(cli: Any) -> None:
     def delete_notebook(notebook_id: str = "") -> None:
         """Delete a notebook by ID."""
         try:
-            nb_client = NotebookClient(configuration=get_http_configuration())
-            nb_client.delete_notebook(notebook_id)
+            _delete_notebook_http(notebook_id)
             format_success("Notebook deleted", {"ID": notebook_id})
         except Exception as exc:
             handle_api_error(exc)

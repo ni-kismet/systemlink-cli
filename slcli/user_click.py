@@ -276,10 +276,12 @@ def register_user_commands(cli):
         url = f"{get_base_url()}/niuser/v1/users/query"
 
         # Build query payload
+        # Fetch a larger dataset for pagination (up to API maximum)
+        # The pagination will be handled locally with page_size
         payload = {
-            "take": min(take, 100),  # API maximum is 100
+            "take": 1000,  # Fetch more data for local pagination
             "sortby": sortby,
-            "order": order,
+            "order": "ascending" if order == "asc" else "descending",
         }
 
         if filter:

@@ -9,7 +9,22 @@ from typing import Dict, List, Any, Optional
 import click
 import keyring
 import requests
-from nisystemlink.clients.core._http_configuration import HttpConfiguration
+
+
+class SystemLinkConfig:
+    """Simple configuration class for SystemLink API connection."""
+
+    def __init__(self, server_uri: str, api_key: str, ssl_verify: bool = True):
+        """Initialize SystemLink configuration.
+
+        Args:
+            server_uri: Base URL for the SystemLink API
+            api_key: API key for authentication
+            ssl_verify: Whether to verify SSL certificates
+        """
+        self.server_uri = server_uri
+        self.api_key = api_key
+        self.ssl_verify = ssl_verify
 
 
 class ExitCodes:
@@ -253,8 +268,8 @@ def filter_by_workspace(
 
 
 # --- SystemLink HTTP Configuration ---
-def get_http_configuration() -> HttpConfiguration:
-    """Return a configured SystemLink HttpConfiguration using environment or keyring credentials."""
+def get_http_configuration() -> SystemLinkConfig:
+    """Return a configured SystemLink configuration using environment or keyring credentials."""
     server_uri = (
         os.environ.get("SYSTEMLINK_API_URL")
         or keyring.get_password("systemlink-cli", "SYSTEMLINK_API_URL")
@@ -265,9 +280,13 @@ def get_http_configuration() -> HttpConfiguration:
     )
     if not api_key:
         raise RuntimeError("API key not found. Please set SYSTEMLINK_API_KEY or run 'slcli login'.")
-    return HttpConfiguration(
+
+    ssl_verify = get_ssl_verify()
+
+    return SystemLinkConfig(
         server_uri=server_uri,
         api_key=api_key,
+        ssl_verify=ssl_verify,
     )
 
 

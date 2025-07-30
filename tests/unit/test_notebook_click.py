@@ -18,24 +18,30 @@ def test_notebook_list(monkeypatch):
         {"id": "def456", "name": "TestNotebook2"},
     ]
 
-    # Patch NotebookClient.query_notebooks to return mock paged result
+    # Patch _query_notebooks_http to return mock notebooks
     import slcli.notebook_click
+    from typing import Any
 
-    class MockNotebook:
-        def __init__(self, nb):
-            for k, v in nb.items():
-                setattr(self, k, v)
-            self.__dict__ = nb
+    class MockResponse:
+        def __init__(self, data: dict[str, Any]):
+            self._data = data
 
-    class MockPagedResult:
-        def __init__(self, notebooks):
-            self.notebooks = [MockNotebook(nb) for nb in notebooks]
-            self.continuation_token = None
+        def json(self) -> dict[str, Any]:
+            return self._data
+
+        @property
+        def status_code(self) -> int:
+            return 200
+
+    def mock_query_notebooks_http(
+        filter_str: str | None = None, take: int = 1000
+    ) -> list[dict[str, Any]]:
+        return notebooks
 
     monkeypatch.setattr(
-        slcli.notebook_click.NotebookClient,
-        "query_notebooks",
-        lambda self, query: MockPagedResult(notebooks),
+        slcli.notebook_click,
+        "_query_notebooks_http",
+        mock_query_notebooks_http,
     )
     import slcli.utils
 
@@ -53,14 +59,17 @@ def test_notebook_download_by_id(monkeypatch):
     patch_keyring(monkeypatch)
     content = b"notebook-bytes"
 
-    # Patch NotebookClient.get_notebook_content to return a BytesIO
+    # Patch _get_notebook_content_http to return mock content
     import slcli.notebook_click
-    import io
+    from typing import Any
+
+    def mock_get_notebook_content_http(notebook_id: str) -> bytes:
+        return content
 
     monkeypatch.setattr(
-        slcli.notebook_click.NotebookClient,
-        "get_notebook_content",
-        lambda self, notebook_id: io.BytesIO(content),
+        slcli.notebook_click,
+        "_get_notebook_content_http",
+        mock_get_notebook_content_http,
     )
     with tempfile.NamedTemporaryFile(delete=False) as tmp:
         tmp.close()
@@ -78,29 +87,38 @@ def test_notebook_upload(monkeypatch):
     runner = CliRunner()
     patch_keyring(monkeypatch)
 
-    # Patch NotebookClient.create_notebook to return a mock result
+    # Patch _create_notebook_http to return a mock result
     import slcli.notebook_click
+    from typing import Any
 
-    class MockCreateResult:
-        id = "uploaded123"
+    class MockResponse:
+        def __init__(self, data: dict[str, Any]):
+            self._data = data
 
-    class MockPagedResult:
-        def __init__(self):
-            self.notebooks = []
-            self.continuation_token = None
+        def json(self) -> dict[str, Any]:
+            return self._data
 
-        def __iter__(self):
-            return iter(self.notebooks)
+        @property
+        def status_code(self) -> int:
+            return 201
+
+    def mock_create_notebook_http(name: str, workspace: str, content: bytes) -> dict[str, Any]:
+        return {"id": "uploaded123"}
+
+    def mock_query_notebooks_http(
+        filter_str: str | None = None, take: int = 1000
+    ) -> list[dict[str, Any]]:
+        return []
 
     monkeypatch.setattr(
-        slcli.notebook_click.NotebookClient,
-        "create_notebook",
-        lambda self, metadata, content: MockCreateResult(),
+        slcli.notebook_click,
+        "_create_notebook_http",
+        mock_create_notebook_http,
     )
     monkeypatch.setattr(
-        slcli.notebook_click.NotebookClient,
-        "query_notebooks",
-        lambda self, query: MockPagedResult(),
+        slcli.notebook_click,
+        "_query_notebooks_http",
+        mock_query_notebooks_http,
     )
     with tempfile.NamedTemporaryFile(delete=False) as tmp:
         tmp.write(b"test-nb")
