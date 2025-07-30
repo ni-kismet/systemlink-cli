@@ -37,46 +37,59 @@ def _get_notebook_base_url() -> str:
 def _query_notebooks_http(
     filter_str: Optional[str] = None, take: int = 1000
 ) -> List[Dict[str, Any]]:
-    """Query notebooks using direct HTTP calls to handle invalid data gracefully."""
+    """Query notebooks using continuation token pagination for better performance."""
     base_url = _get_notebook_base_url()
     headers = get_headers("application/json")
 
-    payload: Dict[str, Any] = {"take": take}
-    if filter_str:
-        payload["filter"] = filter_str
+    all_notebooks = []
+    continuation_token = None
 
-    try:
-        response = requests.post(
-            f"{base_url}/notebook/query", headers=headers, json=payload, verify=get_ssl_verify()
-        )
-        response.raise_for_status()
+    while True:
+        # Build payload for the request
+        payload: Dict[str, Any] = {
+            "take": min(100, take)
+        }  # Use smaller page size for efficient pagination
+        if filter_str:
+            payload["filter"] = filter_str
+        if continuation_token:
+            payload["continuationToken"] = continuation_token
 
-        data = response.json()
-        raw_notebooks = data.get("notebooks", [])  # API returns "notebooks" array
+        try:
+            response = requests.post(
+                f"{base_url}/notebook/query", headers=headers, json=payload, verify=get_ssl_verify()
+            )
+            response.raise_for_status()
 
-        # Process notebooks and handle invalid parameters gracefully
-        processed_notebooks = []
-        for nb in raw_notebooks:
-            try:
-                # Fix parameters field if it's a list instead of dict
-                if "parameters" in nb and isinstance(nb["parameters"], list):
-                    nb["parameters"] = {
-                        f"param_{i}": param for i, param in enumerate(nb["parameters"])
-                    }
-                elif "parameters" not in nb or not isinstance(nb["parameters"], dict):
-                    nb["parameters"] = {}
+            data = response.json()
+            raw_notebooks = data.get("notebooks", [])  # API returns "notebooks" array
 
-                processed_notebooks.append(nb)
-            except Exception:
-                # Skip notebooks with severe data issues
-                continue
+            # Process notebooks and handle invalid parameters gracefully
+            for nb in raw_notebooks:
+                try:
+                    # Fix parameters field if it's a list instead of dict
+                    if "parameters" in nb and isinstance(nb["parameters"], list):
+                        nb["parameters"] = {
+                            f"param_{i}": param for i, param in enumerate(nb["parameters"])
+                        }
+                    elif "parameters" not in nb or not isinstance(nb["parameters"], dict):
+                        nb["parameters"] = {}
 
-        return processed_notebooks
+                    all_notebooks.append(nb)
+                except Exception:
+                    # Skip notebooks with severe data issues
+                    continue
 
-    except requests.exceptions.RequestException as exc:
-        raise Exception(f"HTTP request failed: {exc}")
-    except Exception as exc:
-        raise Exception(f"Failed to query notebooks: {exc}")
+            # Check if there are more pages
+            continuation_token = data.get("continuationToken")
+            if not continuation_token:
+                break
+
+        except requests.exceptions.RequestException as exc:
+            raise Exception(f"HTTP request failed: {exc}")
+        except Exception as exc:
+            raise Exception(f"Failed to query notebooks: {exc}")
+
+    return all_notebooks
 
 
 def _get_notebook_http(notebook_id: str) -> Dict[str, Any]:

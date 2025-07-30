@@ -22,6 +22,54 @@ from .utils import (
 from .workspace_utils import get_workspace_display_name, resolve_workspace_filter
 
 
+def _query_all_templates(
+    workspace_filter: Optional[str] = None, workspace_map: Optional[dict] = None
+):
+    """Query all test plan templates using continuation token pagination.
+
+    Args:
+        workspace_filter: Optional workspace ID to filter by
+        workspace_map: Optional workspace mapping to avoid repeated lookups
+
+    Returns:
+        List of all templates, optionally filtered by workspace
+    """
+    url = f"{get_base_url()}/niworkorder/v1/query-testplan-templates"
+    all_templates = []
+    continuation_token = None
+
+    while True:
+        # Build payload for the request
+        payload = {
+            "take": 100,  # Use smaller page size for efficient pagination
+            "orderBy": "TEMPLATE_GROUP",
+            "descending": False,
+            "projection": ["ID", "NAME", "WORKSPACE", "TEMPLATE_GROUP"],
+        }
+
+        # Add workspace filter if specified
+        if workspace_filter:
+            payload["filter"] = f'WORKSPACE == "{workspace_filter}"'
+
+        # Add continuation token if we have one
+        if continuation_token:
+            payload["continuationToken"] = continuation_token
+
+        resp = make_api_request("POST", url, payload)
+        data = resp.json()
+
+        # Extract templates from this page
+        templates = data.get("testPlanTemplates", [])
+        all_templates.extend(templates)
+
+        # Check if there are more pages
+        continuation_token = data.get("continuationToken")
+        if not continuation_token:
+            break
+
+    return all_templates
+
+
 def register_templates_commands(cli: Any) -> None:
     """Register the 'template' command group and its subcommands."""
 
@@ -185,50 +233,29 @@ def register_templates_commands(cli: Any) -> None:
         workspace: Optional[str] = None, take: int = 25, format: str = "table"
     ) -> None:
         """List available user-defined test plan templates."""
-        """List test plan templates."""
         format_output = validate_output_format(format)
-
-        url = f"{get_base_url()}/niworkorder/v1/query-testplan-templates"
-        payload = {
-            "take": max(1000, take * 4),  # Fetch more than requested to allow proper pagination
-            "orderBy": "TEMPLATE_GROUP",
-            "descending": False,
-            "projection": ["ID", "NAME", "WORKSPACE", "TEMPLATE_GROUP"],
-        }
 
         try:
             workspace_map = get_workspace_map()
 
-            # Apply workspace filtering if specified
+            # Resolve workspace filter to ID if specified
+            workspace_id = None
             if workspace:
                 workspace_id = resolve_workspace_filter(workspace, workspace_map)
-                if workspace_id:
-                    payload["filter"] = f'WORKSPACE == "{workspace_id}"'
 
-            resp = make_api_request("POST", url, payload)
+            # Use continuation token pagination to get all templates
+            all_templates = _query_all_templates(workspace_id, workspace_map)
 
-            # Additional client-side filtering if workspace was specified
-            # (for compatibility with tests and as fallback)
-            if workspace:
-                data = resp.json()
-                templates = data.get("testPlanTemplates", [])
-                workspace_id = resolve_workspace_filter(workspace, workspace_map)
-                if workspace_id:
-                    # Filter templates to only include those matching the workspace
-                    filtered_templates = [
-                        t for t in templates if t.get("workspace") == workspace_id
-                    ]
+            # Create a mock response with all data
+            class FilteredResponse:
+                def json(self) -> Dict[str, Any]:
+                    return {"testPlanTemplates": all_templates}
 
-                    # Create a new response object with filtered data
-                    class FilteredResponse:
-                        def json(self) -> Dict[str, Any]:
-                            return {"testPlanTemplates": filtered_templates}
+                @property
+                def status_code(self) -> int:
+                    return 200
 
-                        @property
-                        def status_code(self) -> int:
-                            return 200
-
-                    resp: Any = FilteredResponse()
+            resp: Any = FilteredResponse()
 
             # Use universal response handler with template formatter
             def template_formatter(template: dict) -> list:

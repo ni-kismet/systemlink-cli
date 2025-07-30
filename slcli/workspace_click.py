@@ -339,7 +339,7 @@ def _get_workspace_map() -> Dict[str, str]:
 
 
 def _get_workspace_templates(workspace_id: str) -> Tuple[list, Optional[str]]:
-    """Get test plan templates in a workspace.
+    """Get test plan templates in a workspace using continuation token pagination.
 
     Returns:
         Tuple of (templates_list, error_message). If error_message is not None,
@@ -347,14 +347,31 @@ def _get_workspace_templates(workspace_id: str) -> Tuple[list, Optional[str]]:
     """
     try:
         url = f"{get_base_url()}/niworkorder/v1/query-testplan-templates"
-        payload = {
-            "take": 1000,
-            "projection": ["ID", "NAME"],
-            "filter": f'workspace == "{workspace_id}"',
-        }
-        resp = make_api_request("POST", url, payload, handle_errors=False)
-        data = resp.json()
-        return data.get("testPlanTemplates", []), None
+        all_templates = []
+        continuation_token = None
+
+        while True:
+            payload = {
+                "take": 100,  # Use smaller page size for efficient pagination
+                "projection": ["ID", "NAME"],
+                "filter": f'workspace == "{workspace_id}"',
+            }
+
+            if continuation_token:
+                payload["continuationToken"] = continuation_token
+
+            resp = make_api_request("POST", url, payload, handle_errors=False)
+            data = resp.json()
+
+            templates = data.get("testPlanTemplates", [])
+            all_templates.extend(templates)
+
+            # Check if there are more pages
+            continuation_token = data.get("continuationToken")
+            if not continuation_token:
+                break
+
+        return all_templates, None
     except Exception as exc:
         error_msg = str(exc).lower()
         if "401" in error_msg or "unauthorized" in error_msg or "permission" in error_msg:
@@ -368,7 +385,7 @@ def _get_workspace_templates(workspace_id: str) -> Tuple[list, Optional[str]]:
 
 
 def _get_workspace_workflows(workspace_id: str) -> Tuple[list, Optional[str]]:
-    """Get workflows in a workspace.
+    """Get workflows in a workspace using continuation token pagination.
 
     Returns:
         Tuple of (workflows_list, error_message). If error_message is not None,
@@ -376,15 +393,31 @@ def _get_workspace_workflows(workspace_id: str) -> Tuple[list, Optional[str]]:
     """
     try:
         url = f"{get_base_url()}/niworkorder/v1/query-workflows?ff-userdefinedworkflowsfortestplaninstances=true"
-        payload = {
-            "take": 1000,
-            "projection": ["ID", "NAME", "WORKSPACE"],
-        }
-        resp = make_api_request("POST", url, payload, handle_errors=False)
-        data = resp.json()
-        workflows = data.get("workflows", [])
-        # Filter workflows by workspace since the API doesn't support filter parameter
-        workspace_workflows = [wf for wf in workflows if wf.get("workspace") == workspace_id]
+        all_workflows = []
+        continuation_token = None
+
+        while True:
+            payload = {
+                "take": 100,  # Use smaller page size for efficient pagination
+                "projection": ["ID", "NAME", "WORKSPACE"],
+            }
+
+            if continuation_token:
+                payload["continuationToken"] = continuation_token
+
+            resp = make_api_request("POST", url, payload, handle_errors=False)
+            data = resp.json()
+
+            workflows = data.get("workflows", [])
+            all_workflows.extend(workflows)
+
+            # Check if there are more pages
+            continuation_token = data.get("continuationToken")
+            if not continuation_token:
+                break
+
+        # Filter workflows by workspace since the API doesn't support workspace filtering
+        workspace_workflows = [wf for wf in all_workflows if wf.get("workspace") == workspace_id]
         return workspace_workflows, None
     except Exception as exc:
         error_msg = str(exc).lower()

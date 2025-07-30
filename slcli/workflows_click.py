@@ -24,6 +24,51 @@ from .utils import (
 from .workspace_utils import get_workspace_display_name, resolve_workspace_filter
 
 
+def _query_all_workflows(
+    workspace_filter: Optional[str] = None, workspace_map: Optional[dict] = None
+):
+    """Query all workflows using continuation token pagination.
+
+    Args:
+        workspace_filter: Optional workspace ID to filter by
+        workspace_map: Optional workspace mapping to avoid repeated lookups
+
+    Returns:
+        List of all workflows, optionally filtered by workspace
+    """
+    url = f"{get_base_url()}/niworkorder/v1/query-workflows?ff-userdefinedworkflowsfortestplaninstances=true"
+    all_workflows = []
+    continuation_token = None
+
+    while True:
+        # Build payload for the request
+        payload = {
+            "take": 100,  # Use smaller page size for efficient pagination
+        }
+
+        # Add workspace filter if specified
+        if workspace_filter:
+            payload["filter"] = f'WORKSPACE == "{workspace_filter}"'
+
+        # Add continuation token if we have one
+        if continuation_token:
+            payload["continuationToken"] = continuation_token
+
+        resp = make_api_request("POST", url, payload)
+        data = resp.json()
+
+        # Extract workflows from this page
+        workflows = data.get("workflows", [])
+        all_workflows.extend(workflows)
+
+        # Check if there are more pages
+        continuation_token = data.get("continuationToken")
+        if not continuation_token:
+            break
+
+    return all_workflows
+
+
 def register_workflows_commands(cli):
     """Register the 'workflow' command group and its subcommands."""
 
@@ -254,22 +299,27 @@ def register_workflows_commands(cli):
         """List available workflows."""
         format_output = validate_output_format(format)
 
-        url = f"{get_base_url()}/niworkorder/v1/query-workflows?ff-userdefinedworkflowsfortestplaninstances=true"
-        payload = {
-            "take": 1000,
-            "projection": ["ID", "NAME", "DESCRIPTION", "WORKSPACE"],
-        }
-
         try:
             workspace_map = get_workspace_map()
 
-            # Apply workspace filtering if specified
+            # Resolve workspace filter to ID if specified
+            workspace_id = None
             if workspace:
                 workspace_id = resolve_workspace_filter(workspace, workspace_map)
-                if workspace_id:
-                    payload["filter"] = f'WORKSPACE == "{workspace_id}"'
 
-            resp = make_api_request("POST", url, payload)
+            # Use continuation token pagination to get all workflows
+            all_workflows = _query_all_workflows(workspace_id, workspace_map)
+
+            # Create a mock response with all data
+            class FilteredResponse:
+                def json(self):
+                    return {"workflows": all_workflows}
+
+                @property
+                def status_code(self):
+                    return 200
+
+            resp = FilteredResponse()
 
             # Use universal response handler with workflow formatter
             def workflow_formatter(workflow: dict) -> list:
