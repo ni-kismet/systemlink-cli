@@ -1,12 +1,25 @@
 # CHANGELOG
 
 
+## v0.7.3 (2025-07-30)
+
+### Bug Fixes
+
+- Pagination issues across different services
+  ([`33bc357`](https://github.com/ni-kismet/systemlink-cli/commit/33bc3575f0471189229186f52dcf375fa4192f4f))
+
+
 ## v0.7.2 (2025-07-30)
 
 ### Bug Fixes
 
 - E2e testing and minor exposed issues
   ([`ad0b9c6`](https://github.com/ni-kismet/systemlink-cli/commit/ad0b9c608763e97dc026c02cdc0c3190bd01c150))
+
+### Chores
+
+- **release**: 0.7.2
+  ([`d725647`](https://github.com/ni-kismet/systemlink-cli/commit/d72564774434e2b35ccc85c27ca22d7dc77781e2))
 
 
 ## v0.7.1 (2025-07-29)
