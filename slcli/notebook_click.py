@@ -114,10 +114,27 @@ def _create_notebook_http(name: str, workspace: str, content: bytes) -> Dict[str
     base_url = _get_notebook_base_url()
     headers = get_headers()  # No content-type for multipart
 
-    metadata = {"name": name, "workspace": workspace}
+    # Create metadata following the SystemLink NotebookMetadata model structure
+    metadata = {
+        "name": name,
+        "workspace": workspace,
+        # Include optional fields that might be expected by the server
+        "properties": {},
+        "parameters": {},
+    }
+
+    # Validate content is valid JSON before sending
+    try:
+        json.loads(content.decode("utf-8"))
+    except (json.JSONDecodeError, UnicodeDecodeError) as e:
+        raise Exception(f"Invalid notebook content: {e}")
+
+    # Follow the official SystemLink client pattern: use BytesIO for metadata
+    metadata_json = json.dumps(metadata, separators=(",", ":"))  # Compact JSON
+    metadata_bytes = metadata_json.encode("utf-8")
 
     files = {
-        "metadata": (None, json.dumps(metadata), "application/json"),
+        "metadata": ("metadata.json", metadata_bytes, "application/json"),
         "content": ("notebook.ipynb", content, "application/octet-stream"),
     }
 
@@ -128,7 +145,21 @@ def _create_notebook_http(name: str, workspace: str, content: bytes) -> Dict[str
         response.raise_for_status()
         return response.json()
     except requests.exceptions.RequestException as exc:
-        raise Exception(f"HTTP request failed: {exc}")
+        # Enhanced error handling to capture server response details
+        error_details = f"HTTP request failed: {exc}"
+        if hasattr(exc, "response") and exc.response is not None:
+            try:
+                error_body = exc.response.text
+                error_details += f"\nResponse status: {exc.response.status_code}"
+                error_details += f"\nResponse body: {error_body}"
+
+                # Add request details for debugging
+                error_details += f"\nRequest URL: {exc.response.url}"
+                error_details += f"\nRequest metadata: {json.dumps(metadata)}"
+                error_details += f"\nContent size: {len(content)} bytes"
+            except Exception:
+                pass
+        raise Exception(error_details)
 
 
 def _update_notebook_http(
@@ -178,6 +209,9 @@ def _download_notebook_content_and_metadata(
     download_type: str = "both",
 ) -> None:
     """Download notebook content and/or metadata to disk."""
+    content_failed = False
+    metadata_failed = False
+
     # Download content
     if download_type in ("content", "both"):
         try:
@@ -190,6 +224,8 @@ def _download_notebook_content_and_metadata(
             click.echo(f"Notebook content downloaded to {output_path}")
         except Exception as exc:
             click.echo(f"Failed to download notebook content: {exc}")
+            content_failed = True
+
     # Download metadata
     if download_type in ("metadata", "both"):
         try:
@@ -205,6 +241,13 @@ def _download_notebook_content_and_metadata(
             click.echo(f"Notebook metadata downloaded to {meta_path}")
         except Exception as exc:
             click.echo(f"Failed to download notebook metadata: {exc}")
+            metadata_failed = True
+
+    # If any download failed, raise an exception to trigger proper error handling
+    if content_failed and download_type in ("content", "both"):
+        raise Exception("Notebook content download failed")
+    if metadata_failed and download_type in ("metadata", "both"):
+        raise Exception("Notebook metadata download failed")
 
 
 def register_notebook_commands(cli: Any) -> None:
@@ -460,6 +503,18 @@ def register_notebook_commands(cli: Any) -> None:
         ws_id = get_workspace_id_with_fallback(workspace)
 
         try:
+            # Validate workspace exists and is accessible
+            try:
+                workspace_map = get_workspace_map()
+                if ws_id not in workspace_map and workspace != ws_id:
+                    # If ws_id is not in workspace_map and we didn't get it directly from user
+                    click.echo(
+                        f"⚠️  Warning: Workspace '{workspace}' may not exist or be accessible.",
+                        err=True,
+                    )
+            except Exception:
+                click.echo("⚠️  Warning: Could not validate workspace access.", err=True)
+
             # Ensure the uploaded file has a .ipynb extension
             if not notebook_name.lower().endswith(".ipynb"):
                 notebook_name += ".ipynb"
@@ -480,15 +535,38 @@ def register_notebook_commands(cli: Any) -> None:
                     result = _create_notebook_http(notebook_name, ws_id, content)
                 format_success("Notebook created", {"ID": result.get("id")})
             else:
-                # Create an empty notebook JSON structure using a temp file
+                # Create a notebook matching the structure of successful SystemLink notebooks
                 empty_nb = {
-                    "cells": [],
-                    "metadata": {},
+                    "cells": [
+                        {
+                            "cell_type": "markdown",
+                            "id": "new-notebook-cell",
+                            "metadata": {},
+                            "source": "# New Notebook\n\nThis is a new notebook created with SystemLink CLI.",
+                        }
+                    ],
+                    "metadata": {
+                        "kernelspec": {
+                            "display_name": "Python 3 (ipykernel)",
+                            "language": "python",
+                            "name": "python3",
+                        },
+                        "language_info": {
+                            "codemirror_mode": {"name": "ipython", "version": 3},
+                            "file_extension": ".py",
+                            "mimetype": "text/x-python",
+                            "name": "python",
+                            "nbconvert_exporter": "python",
+                            "pygments_lexer": "ipython3",
+                            "version": "3.11.6",
+                        },
+                        "toc-showtags": False,
+                    },
                     "nbformat": 4,
                     "nbformat_minor": 5,
                 }
 
-                content = json.dumps(empty_nb).encode("utf-8")
+                content = json.dumps(empty_nb, indent=2).encode("utf-8")
                 result = _create_notebook_http(notebook_name, ws_id, content)
                 format_success("Notebook created", {"ID": result.get("id")})
 

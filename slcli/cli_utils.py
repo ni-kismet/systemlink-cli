@@ -408,7 +408,27 @@ def paginate_list_output(
                 f"{remaining} more available."
             )
 
+            # Check if we're in an interactive environment
+            # If stdin is not a TTY or we're in a test environment, disable interactive pagination
+            import os
+            import sys
+
+            is_non_interactive = (
+                not sys.stdin.isatty()  # Piped input
+                or not sys.stdout.isatty()  # Piped output
+                or os.getenv("CI") == "true"  # CI environment
+                or os.getenv("PYTEST_CURRENT_TEST") is not None  # pytest
+                or os.getenv("SLCLI_NON_INTERACTIVE") == "true"  # Explicit override
+            )
+
+            if is_non_interactive:
+                click.echo("Non-interactive environment detected. Showing all remaining results...")
+                # Continue to show all remaining pages without prompting
+                current_page += 1
+                continue
+
             if not click.confirm("Show next 25 results?", default=True):
+                break
                 break
 
             click.echo()  # Add blank line between pages

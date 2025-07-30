@@ -29,6 +29,7 @@ mypy = ">=1.0"
 # Test
 pytest = ">=7.0"
 pytest-cov = ">=3.0"
+pytest-timeout = ">=2.1.0"
 pyinstaller = "^6.14.2"
 
 # Semantic Release
@@ -36,6 +37,14 @@ python-semantic-release = "^9.0.0"
 
 [tool.pytest.ini_options]
 addopts = "--cov slcli --strict-markers --doctest-modules"
+markers = [
+    "e2e: marks tests as end-to-end tests",
+    "slow: marks tests as slow running",
+    "notebook: marks tests as notebook-related",
+    "dff: marks tests as dynamic form fields related", 
+    "workspace: marks tests as workspace-related",
+    "user: marks tests as user management related"
+]
 
 [tool.black]
 line-length = 100
