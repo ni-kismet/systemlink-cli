@@ -1,12 +1,25 @@
 # CHANGELOG
 
 
+## v0.7.4 (2025-07-31)
+
+### Bug Fixes
+
+- Completion script for older bash environments
+  ([`d101c4c`](https://github.com/ni-kismet/systemlink-cli/commit/d101c4cc8ccf577470a2d0da80bc400bf1c1972d))
+
+
 ## v0.7.3 (2025-07-30)
 
 ### Bug Fixes
 
 - Pagination issues across different services
   ([`33bc357`](https://github.com/ni-kismet/systemlink-cli/commit/33bc3575f0471189229186f52dcf375fa4192f4f))
+
+### Chores
+
+- **release**: 0.7.3
+  ([`9c5a61e`](https://github.com/ni-kismet/systemlink-cli/commit/9c5a61e513f4942609a28c1909ea986fa968e253))
 
 
 ## v0.7.2 (2025-07-30)
