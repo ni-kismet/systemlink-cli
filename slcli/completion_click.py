@@ -175,15 +175,62 @@ def detect_shell() -> Optional[str]:
     return None
 
 
+def generate_bash_completion_compatible() -> str:
+    """Generate version-compatible bash completion script.
+
+    This script works with both old bash (3.2+) and new bash (4.4+) versions
+    by detecting bash capabilities and using appropriate options.
+    """
+    return """_slcli_completion() {
+    local IFS=$'\\n'
+    local response
+
+    response=$(env COMP_WORDS="${COMP_WORDS[*]}" COMP_CWORD=$COMP_CWORD _SLCLI_COMPLETE=bash_complete $1)
+
+    for completion in $response; do
+        IFS=',' read type value <<< "$completion"
+
+        if [[ $type == 'dir' ]]; then
+            COMPREPLY=()
+            if command -v compopt >/dev/null 2>&1; then
+                compopt -o dirnames
+            fi
+        elif [[ $type == 'file' ]]; then
+            COMPREPLY=()
+            if command -v compopt >/dev/null 2>&1; then
+                compopt -o default
+            fi
+        elif [[ $type == 'plain' ]]; then
+            COMPREPLY+=($value)
+        fi
+    done
+
+    return 0
+}
+
+_slcli_completion_setup() {
+    # Check if bash supports nosort option (bash 4.4+)
+    if [[ ${BASH_VERSINFO[0]} -gt 4 || (${BASH_VERSINFO[0]} -eq 4 && ${BASH_VERSINFO[1]} -ge 4) ]]; then
+        complete -o nosort -F _slcli_completion slcli
+    else
+        complete -F _slcli_completion slcli
+    fi
+}
+
+_slcli_completion_setup;"""
+
+
 def generate_completion_script(shell: str) -> Optional[str]:
     """Generate completion script for the specified shell."""
     if shell.lower() == "powershell":
         # Use dynamic completion for PowerShell
         return generate_powershell_completion_dynamic()
+    elif shell.lower() == "bash":
+        # Use version-compatible bash completion script
+        return generate_bash_completion_compatible()
 
-    # For bash, zsh, fish - use Click's built-in completion
+    # For zsh, fish - use Click's built-in completion
     env_vars = {
-        "bash": ("_SLCLI_COMPLETE", "bash_source"),
         "zsh": ("_SLCLI_COMPLETE", "zsh_source"),
         "fish": ("_SLCLI_COMPLETE", "fish_source"),
     }
