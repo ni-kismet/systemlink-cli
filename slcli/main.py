@@ -53,10 +53,12 @@ def get_ascii_art() -> str:
 
 
 @click.group(context_settings=CONTEXT_SETTINGS, invoke_without_command=True)
-@click.option("--version", is_flag=True, help="Show version and exit")
+@click.option("--version", "-v", is_flag=True, help="Show version and exit")
 @click.pass_context
 def cli(ctx, version):
-    """Top level of SystemLink Integrator CLI."""
+    """
+    SystemLink CLI (slcli) - Command-line interface for SystemLink resources.
+    """
     if version:
         click.echo(f"slcli version {get_version()}")
         ctx.exit()
@@ -103,7 +105,7 @@ def login(url, api_key):
 
 @cli.command()
 def logout():
-    """Remove your stored SystemLink API key and URL from keyring."""
+    """Remove your stored SystemLink API key and URL."""
     try:
         keyring.delete_password("systemlink-cli", "SYSTEMLINK_API_KEY")
     except Exception:

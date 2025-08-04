@@ -22,7 +22,7 @@ def register_workspace_commands(cli: Any) -> None:
 
     @cli.group()
     def workspace() -> None:
-        """Manage workspaces (list, disable, get)."""
+        """Manage workspaces."""
         pass
 
     @workspace.command(name="list")
