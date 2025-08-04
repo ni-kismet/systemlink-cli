@@ -1,12 +1,25 @@
 # CHANGELOG
 
 
+## v0.7.6 (2025-08-04)
+
+### Bug Fixes
+
+- Minor help strings
+  ([`aa4b836`](https://github.com/ni-kismet/systemlink-cli/commit/aa4b8368c0f81fd06601098b3d9756e5f8bdf2f1))
+
+
 ## v0.7.5 (2025-08-04)
 
 ### Bug Fixes
 
 - Ascii title card
   ([`f051059`](https://github.com/ni-kismet/systemlink-cli/commit/f0510594f4ca8a015829c8dc1eea743194526bc2))
+
+### Chores
+
+- **release**: 0.7.5
+  ([`6dc5c02`](https://github.com/ni-kismet/systemlink-cli/commit/6dc5c02899c478e321cc7d764efe83051c639804))
 
 
 ## v0.7.4 (2025-07-31)
