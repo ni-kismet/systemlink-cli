@@ -40,6 +40,18 @@ def get_version() -> str:
 CONTEXT_SETTINGS = dict(help_option_names=["-h", "--help"])
 
 
+def get_ascii_art() -> str:
+    """Return ASCII art for SystemLink CLI."""
+    return """
+ ███████╗██╗   ██╗███████╗████████╗███████╗███╗   ███╗██╗     ██╗███╗   ██╗██╗  ██╗     ██████╗██╗     ██╗
+ ██╔════╝╚██╗ ██╔╝██╔════╝╚══██╔══╝██╔════╝████╗ ████║██║     ██║████╗  ██║██║ ██╔╝    ██╔════╝██║     ██║
+ ███████╗ ╚████╔╝ ███████╗   ██║   █████╗  ██╔████╔██║██║     ██║██╔██╗ ██║█████╔╝     ██║     ██║     ██║
+ ╚════██║  ╚██╔╝  ╚════██║   ██║   ██╔══╝  ██║╚██╔╝██║██║     ██║██║╚██╗██║██╔═██╗     ██║     ██║     ██║
+ ███████║   ██║   ███████║   ██║   ███████╗██║ ╚═╝ ██║███████╗██║██║ ╚████║██║  ██╗    ╚██████╗███████╗██║
+ ╚══════╝   ╚═╝   ╚══════╝   ╚═╝   ╚══════╝╚═╝     ╚═╝╚══════╝╚═╝╚═╝  ╚═══╝╚═╝  ╚═╝     ╚═════╝╚══════╝╚═╝
+"""
+
+
 @click.group(context_settings=CONTEXT_SETTINGS, invoke_without_command=True)
 @click.option("--version", is_flag=True, help="Show version and exit")
 @click.pass_context
@@ -49,6 +61,7 @@ def cli(ctx, version):
         click.echo(f"slcli version {get_version()}")
         ctx.exit()
     if ctx.invoked_subcommand is None:
+        click.echo(get_ascii_art())
         click.echo(ctx.get_help())
 
 
