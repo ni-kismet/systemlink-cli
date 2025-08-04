@@ -1,12 +1,25 @@
 # CHANGELOG
 
 
+## v0.7.5 (2025-08-04)
+
+### Bug Fixes
+
+- Ascii title card
+  ([`f051059`](https://github.com/ni-kismet/systemlink-cli/commit/f0510594f4ca8a015829c8dc1eea743194526bc2))
+
+
 ## v0.7.4 (2025-07-31)
 
 ### Bug Fixes
 
 - Completion script for older bash environments
   ([`d101c4c`](https://github.com/ni-kismet/systemlink-cli/commit/d101c4cc8ccf577470a2d0da80bc400bf1c1972d))
+
+### Chores
+
+- **release**: 0.7.4
+  ([`18e99c8`](https://github.com/ni-kismet/systemlink-cli/commit/18e99c804def868fafc387a40f1ef16b8cafaa33))
 
 
 ## v0.7.3 (2025-07-30)
