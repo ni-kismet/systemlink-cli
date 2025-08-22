@@ -274,6 +274,16 @@ def register_function_commands(cli: Any) -> None:
                 click.echo("✗ Unsupported language.", err=True)
                 sys.exit(ExitCodes.INVALID_INPUT)
 
+            # Prompt for directory if not supplied
+            if directory is None:
+                dir_input = click.prompt(
+                    "Target directory (leave blank for current directory)",
+                    default="",
+                    show_default=False,
+                )
+                if dir_input.strip():
+                    directory = Path(dir_input.strip())
+
             target_dir = directory or Path.cwd()
             if not target_dir.exists():
                 target_dir.mkdir(parents=True, exist_ok=True)
