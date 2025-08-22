@@ -13,11 +13,16 @@ from slcli.function_click import register_function_commands
 from .test_utils import patch_keyring
 
 
-def make_cli():  # type: ignore[no-untyped-def]
-    """Create a minimal CLI registering only function commands for isolated tests."""
+def make_cli() -> click.Group:
+    """Create a minimal CLI registering only function commands for isolated tests.
+
+    Returns:
+        click.Group: Root CLI group with function commands registered.
+    """
 
     @click.group()
-    def cli():  # type: ignore[no-untyped-def]
+    def cli() -> None:
+        """Root test CLI group."""
         pass
 
     register_function_commands(cli)
@@ -25,7 +30,7 @@ def make_cli():  # type: ignore[no-untyped-def]
 
 
 @pytest.fixture
-def runner():  # type: ignore[no-untyped-def]
+def runner() -> CliRunner:
     return CliRunner()
 
 
@@ -36,15 +41,18 @@ class _MockResponse:
         self._data = data
         self.status_code = status_code
 
-    def json(self) -> Dict[str, Any]:  # noqa: D401
+    def json(self) -> Dict[str, Any]:
+        """Return the JSON data."""
         return self._data
 
-    def raise_for_status(self) -> None:  # noqa: D401
+    def raise_for_status(self) -> None:
+        """Raise an exception if status code indicates an error."""
         if self.status_code >= 400:
             raise Exception("HTTP error")
 
     @property
-    def text(self) -> str:  # noqa: D401
+    def text(self) -> str:
+        """Return the response text as a string."""
         return json.dumps(self._data) if self._data else ""
 
 
@@ -83,7 +91,12 @@ def test_function_list_functions_json(monkeypatch: Any, runner: CliRunner) -> No
 
     def mock_make_api_request(
         method: str, url: str, payload=None, headers=None, handle_errors=True
-    ):  # noqa: D401
+    ):
+        """Mock API request function for testing.
+
+        Returns paginated function list responses or workspace data based on the URL.
+        Raises AssertionError for unexpected URLs.
+        """
         if "query-functions" in url:
             return _MockResponse(paged_responses.pop(0))
         if url.endswith("/niuser/v1/workspaces?take=1000"):
@@ -110,7 +123,12 @@ def test_function_get_function_json(monkeypatch: Any, runner: CliRunner) -> None
 
     def mock_make_api_request(
         method: str, url: str, payload=None, headers=None, handle_errors=True
-    ):  # noqa: D401
+    ):
+        """Mock the API request function for testing.
+
+        Returns a mock response for specific function and workspace URLs.
+        Raises AssertionError for unexpected URLs.
+        """
         if "/functions/func-1" in url and method == "GET":
             return _MockResponse(
                 {
@@ -145,7 +163,12 @@ def test_function_execute_sync_json(monkeypatch: Any, runner: CliRunner) -> None
 
     def mock_make_api_request(
         method: str, url: str, payload=None, headers=None, handle_errors=True
-    ):  # noqa: D401
+    ):
+        """Mock implementation of make_api_request for testing.
+
+        Returns canned responses for function execution and workspace queries.
+        Asserts payload structure for synchronous execution.
+        """
         if url.endswith("/functions/func-1/execute") and method == "POST":
             # Ensure async flag False for sync command and body wrapping
             assert isinstance(payload, dict) and payload.get("async") is False
@@ -193,7 +216,12 @@ def test_function_execute_sync_defaults(monkeypatch: Any, runner: CliRunner) -> 
 
     def mock_make_api_request(
         method: str, url: str, payload=None, headers=None, handle_errors=True
-    ):  # noqa: D401
+    ):
+        """Mock API request function for testing sync function execution.
+
+        Returns canned responses for specific URLs and methods, simulating
+        the behavior of the real API. Raises AssertionError for unexpected calls.
+        """
         if url.endswith("/functions/func-1/execute") and method == "POST":
             assert isinstance(payload, dict)
             params = payload.get("parameters", {})
@@ -240,7 +268,24 @@ def test_function_get_function_table_interface_summary(monkeypatch: Any, runner:
 
     def mock_make_api_request(
         method: str, url: str, payload=None, headers=None, handle_errors=True
-    ):  # noqa: D401
+    ):
+        """
+        Mock implementation of the API request function for testing.
+
+        Handles GET requests to "/functions/func-1" by returning a mock function
+        definition with endpoints. Handles requests to "/niuser/v1/workspaces?take=1000"
+        by returning a mock workspace list. Raises AssertionError for unexpected URLs.
+
+        Args:
+            method (str): HTTP method (e.g., "GET").
+            url (str): The request URL.
+            payload: Optional request payload.
+            headers: Optional request headers.
+            handle_errors: Whether to handle errors (unused in mock).
+
+        Returns:
+            _MockResponse: A mock response object with the expected data.
+        """
         if "/functions/func-1" in url and method == "GET":
             return _MockResponse(
                 {

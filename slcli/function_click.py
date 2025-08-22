@@ -251,7 +251,7 @@ def register_function_commands(cli: Any) -> None:
         is_flag=True,
         help="Overwrite existing non-empty directory contents.",
     )
-    def init_function_template(  # noqa: D401
+    def init_function_template(
         language: Optional[str], directory: Optional[Path], force: bool
     ) -> None:
         """Initialize a local function template (TypeScript Hono or Python HTTP)."""
