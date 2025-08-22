@@ -5,6 +5,7 @@ SystemLink CLI (`slcli`) is a cross-platform Python CLI for SystemLink integrato
 ## Features
 
 - **Secure Authentication**: Credential storage using [keyring](https://github.com/jaraco/keyring) with `login`/`logout` commands
+- **Function Management**: Complete WebAssembly (WASM) function definition and execution management with metadata-driven organization
 - **Test Plan Templates**: Complete management (list, export, import, delete, init) with JSON and table output formats
 - **Jupyter Notebooks**: Full lifecycle management (list, download, create, update, delete) with workspace filtering
 - **User Management**: Comprehensive user administration (list, get, create, update, delete) with Dynamic LINQ filtering and pagination
@@ -14,6 +15,7 @@ SystemLink CLI (`slcli`) is a cross-platform Python CLI for SystemLink integrato
 - **Professional CLI**: Consistent error handling, colored output, and comprehensive help system
 - **Output Formats**: JSON and table output options for programmatic integration and human-readable display
 - **Template Initialization**: Create new template JSON files
+- **Local Development Support**: .env file support for configuring service URLs during development
 - **Extensible Architecture**: Designed for easy addition of new SystemLink resource types
 - **Quality Assurance**: Full test suite with CI/CD, linting, and manual E2E testing
 
@@ -99,6 +101,12 @@ After installation, restart your shell or source the completion file. See [docs/
    ```bash
    # View test plan templates
    slcli template list
+
+   # View function definitions
+   slcli function manage list
+
+   # View function executions
+   slcli function execute list
 
    # View workflows
    slcli workflow list
@@ -287,6 +295,542 @@ slcli workflow update --id <workflow_id> --file updated-workflow.json
 ```bash
 slcli workflow delete --id <workflow_id>
 ```
+
+## Function Management
+
+The `function` command group provides comprehensive management of WebAssembly (WASM) function definitions and executions in SystemLink. Functions are compiled WebAssembly modules that can be executed remotely with parameters.
+
+**Architecture Overview:**
+
+- **Function Service** (`/nifunction/v1`): Manages function definitions, metadata, and WASM content with interface-based organization
+- **Function Execution Service** (`/nifunctionexecution/v1`): Handles function execution requests, both synchronous and asynchronous
+- **Interface System**: Functions use an indexed `interface` property containing entrypoint, parameters, and returns schemas for efficient querying
+- **Workspace Integration**: Functions are organized within SystemLink workspaces with comprehensive metadata support
+
+The CLI provides two main command groups:
+
+- `slcli function manage` - Function definition management (create, update, delete, query)
+- `slcli function execute` - Function execution management (synchronous execution, list, get, cancel, retry)
+
+### Function Definition Management (`function manage`)
+
+#### List function definitions
+
+```bash
+# List all function definitions (table format - default)
+slcli function manage list
+
+# Filter by workspace
+slcli function manage list --workspace MyWorkspace
+
+# Filter by name pattern (starts with)
+slcli function manage list --name "data_"
+
+# Filter by interface content (searches interface property for text)
+slcli function manage list --interface-contains "entrypoint"
+
+# Advanced Dynamic LINQ filtering
+slcli function manage list --filter 'name.StartsWith("data") && interface.Contains("entrypoint")'
+
+# JSON format for programmatic use
+slcli function manage list --format json
+
+# Control pagination
+slcli function manage list --take 50
+```
+
+#### Get function definition details
+
+```bash
+# Get detailed information about a function
+slcli function manage get --id <function_id>
+
+# JSON format
+slcli function manage get --id <function_id> --format json
+```
+
+#### Create a new function definition
+
+```bash
+# Simple example using the provided sample WASM file
+slcli function manage create \
+    --name "Sample Math Calculator - add" \
+    --runtime wasm \
+    --content ./samples/math.wasm \
+    --entrypoint add \
+    --workspace "Default" \
+    --description "Simple mathematical operations using WebAssembly"
+
+# Create a basic WASM function with interface definition
+slcli function manage create \
+    --name "Data Processing Function" \
+    --runtime wasm \
+    --workspace MyWorkspace \
+    --description "Processes sensor data and calculates statistics" \
+    --version "1.0.0" \
+    --entrypoint "main"
+
+# Create with WASM binary from file and schema definitions
+slcli function manage create \
+    --name "Signal Analyzer" \
+    --runtime wasm \
+    --content ./signal_analyzer.wasm \
+    --workspace "Production Workspace" \
+    --description "Analyzes signal patterns and detects anomalies" \
+    --entrypoint "analyze_signal" \
+    --parameters-schema '{"type": "object", "properties": {"samples": {"type": "array", "items": {"type": "number"}}, "threshold": {"type": "number"}}, "required": ["samples"]}' \
+    --returns-schema '{"type": "object", "properties": {"anomalies": {"type": "array"}, "confidence": {"type": "number"}}}'
+
+# Create with custom properties for organization and filtering
+slcli function manage create \
+    --name "Customer Analytics Engine" \
+    --runtime wasm \
+    --content ./analytics.wasm \
+    --workspace "Analytics Workspace" \
+    --description "Customer behavior analysis and prediction" \
+    --version "2.1.0" \
+    --entrypoint "process_customer_data" \
+    --properties '{"category": "analytics", "team": "data-science", "deployment": "production", "compliance": "gdpr"}' \
+    --parameters-schema '{"type": "object", "properties": {"customer_id": {"type": "string"}, "timeframe": {"type": "string"}, "metrics": {"type": "array", "items": {"type": "string"}}}, "required": ["customer_id"]}' \
+    --returns-schema '{"type": "object", "properties": {"predictions": {"type": "object"}, "confidence_score": {"type": "number"}, "recommendation": {"type": "string"}}}'
+
+# Create with inline interface content (demonstrates interface property structure)
+slcli function manage create \
+    --name "Mathematical Calculator" \
+    --runtime wasm \
+    --workspace "Default" \
+    --description "High-performance mathematical operations library" \
+    --version "1.0.0" \
+    --entrypoint "calculate" \
+    --parameters-schema '{"type": "object", "properties": {"operation": {"type": "string", "enum": ["add", "subtract", "multiply", "divide"]}, "operands": {"type": "array", "items": {"type": "number"}, "minItems": 2}}, "required": ["operation", "operands"]}' \
+    --properties '{"category": "utilities", "team": "platform", "tags": "math,calculator,utility"}'
+```
+
+##### Example: Creating a Function with the Sample WASM File
+
+This repository includes a sample WebAssembly function (`samples/math.wasm`) that demonstrates basic mathematical operations. Here's how to create a function using this sample:
+
+```bash
+# Create a function using the provided sample WASM file
+slcli function manage create \
+    --name "Sample Math Functions - fred 1" \
+    --runtime wasm \
+    --content ./samples/math.wasm \
+    --workspace "Default" \
+    --description "Sample WebAssembly function with add, multiply_and_add, and execute operations" \
+    --version "1.0.0" \
+    --entrypoint "execute" \
+    --properties '{"category": "samples", "team": "development", "tags": "demo,math,sample", "runtime_type": "wasm"}' \
+    --parameters-schema '{"type": "object", "properties": {"a": {"type": "integer", "description": "First operand"}, "b": {"type": "integer", "description": "Second operand"}, "c": {"type": "integer", "description": "Third operand (optional)"}}, "required": ["a", "b"]}' \
+    --returns-schema '{"type": "integer", "description": "Computed result"}'
+
+# The math.wasm file exports these functions:
+# - add(a, b): Returns a + b
+# - multiply_and_add(a, b, c): Returns (a * b) + c
+# - execute(): Returns 42 (main entry point)
+
+# After creation, you can execute the function synchronously (HTTP-style parameters):
+slcli function execute sync \
+    --function-id <function_id_from_above> \
+    --method POST \
+    --path /invoke \
+    -H content-type=application/json \
+    --body '{"a":10,"b":5,"c":3}' \
+    --timeout 300 --format json
+```
+
+#### Enhanced Filtering and Querying
+
+Use interface-based filtering and custom properties for efficient function management based on the function's interface definition:
+
+```bash
+# Filter by interface content (searches within the indexed interface property)
+slcli function manage list --interface-contains "entrypoint"
+
+# Search for functions with specific entrypoints
+slcli function manage list --interface-contains "process_data"
+
+# Advanced Dynamic LINQ filtering using interface properties
+slcli function manage list --filter 'interface.entrypoint != null && interface.entrypoint != "" && runtime = "wasm"'
+
+# Filter by custom properties for organizational management
+slcli function manage list --filter 'properties.category == "analytics" && properties.deployment == "production"'
+
+# Search for functions by team and performance characteristics
+slcli function manage list --filter 'properties.team == "data-science" && properties.accuracy > 0.9'
+
+# Find functions suitable for specific environments
+slcli function manage list --filter 'properties.deployment == "production" && properties.compliance == "gdpr"'
+
+# Search within interface content for specific parameter types
+slcli function func list --filter 'interface.Contains("customer_id") && interface.Contains("timeframe")'
+
+# Complex filtering combining multiple criteria
+slcli function func list \
+    --workspace "Analytics Workspace" \
+    --name "Customer" \
+    --filter 'properties.category == "analytics" && interface.entrypoint != null'
+
+# Find functions with specific runtime and interface characteristics
+slcli function func list --filter 'runtime = "wasm" && interface.Contains("parameters") && !string.IsNullOrEmpty(properties.team)'
+```
+
+#### Update a function definition
+
+```bash
+# Update function metadata
+slcli function func update \
+    --id <function_id> \
+    --name "Updated Function Name" \
+    --description "Updated description" \
+    --version "1.1.0"
+
+# Update function WASM binary
+slcli function func update \
+    --id <function_id> \
+    --content ./updated_function.wasm
+
+# Update WebAssembly binary
+slcli function func update \
+    --id <function_id> \
+    --content ./updated_math_functions.wasm
+
+# Update parameters schema
+slcli function func update \
+    --id <function_id> \
+    --parameters-schema ./new_params_schema.json
+
+# Update metadata and properties
+slcli function func update \
+    --id <function_id> \
+    --properties '{"deployment": "production", "team": "platform-team", "critical": true}'
+
+# Update workspace and runtime
+slcli function func update \
+    --id <function_id> \
+    --workspace "Production Workspace" \
+    --runtime wasm
+
+# Update with custom properties (replaces existing properties)
+slcli function func update \
+    --id <function_id> \
+    --properties '{"deployment": "production", "version": "2.0", "critical": true}'
+```
+
+#### Delete a function definition
+
+```bash
+# Delete with confirmation prompt
+slcli function func delete --id <function_id>
+
+# Delete without confirmation
+slcli function func delete --id <function_id> --force
+```
+
+#### Complete Workflow Example
+
+Here's a complete example showing how to use the interface-based function system for efficient metadata management:
+
+```bash
+# 1. Create a customer analytics function with comprehensive interface definition
+slcli function func create \
+    --name "Customer Analytics Engine" \
+    --runtime wasm \
+    --content ./customer_analytics.wasm \
+    --workspace "Analytics Workspace" \
+    --description "Customer behavior analysis and prediction engine" \
+    --version "2.1.0" \
+    --entrypoint "analyze_customer_behavior" \
+    --properties '{"category": "analytics", "team": "data-science", "deployment": "production", "compliance": "gdpr", "sla": "4h"}' \
+    --parameters-schema '{"type": "object", "properties": {"customer_id": {"type": "string"}, "timeframe": {"type": "string", "enum": ["7d", "30d", "90d"]}, "metrics": {"type": "array", "items": {"type": "string"}}}, "required": ["customer_id", "timeframe"]}' \
+    --returns-schema '{"type": "object", "properties": {"predictions": {"type": "object"}, "confidence_score": {"type": "number", "minimum": 0, "maximum": 1}, "recommendations": {"type": "array"}}}'
+
+# 2. Create a complementary reporting function for the same team
+slcli function func create \
+    --name "Customer Report Generator" \
+    --runtime wasm \
+    --content ./report_generator.wasm \
+    --workspace "Analytics Workspace" \
+    --description "Generates formatted customer analysis reports" \
+    --version "1.0.0" \
+    --entrypoint "generate_report" \
+    --properties '{"category": "reporting", "team": "data-science", "deployment": "production", "output_format": "pdf"}' \
+    --parameters-schema '{"type": "object", "properties": {"analysis_id": {"type": "string"}, "format": {"type": "string", "enum": ["pdf", "html", "json"]}, "include_charts": {"type": "boolean"}}, "required": ["analysis_id"]}' \
+    --returns-schema '{"type": "object", "properties": {"report_url": {"type": "string"}, "size_bytes": {"type": "integer"}, "generated_at": {"type": "string", "format": "date-time"}}}'
+
+# 3. Query functions by team and deployment status using interface-based filtering
+slcli function func list --filter 'properties.team == "data-science" && properties.deployment == "production"'
+
+# 4. Find functions with specific interface characteristics (customer-related functions)
+slcli function func list --filter 'interface.Contains("customer_id") && runtime == "wasm"'
+
+# 5. Search for functions with specific entrypoints
+slcli function func list --interface-contains "analyze_customer"
+
+# 6. Execute the analytics function with real parameters
+slcli function execute \
+    --function-id b7cc0156-931c-472f-a027-d88dc51cb936 \
+    --workspace "Analytics Workspace" \
+    --parameters '{"functionName": "analyze_customer_behavior", "args": ["CUST-2025-001", "30d", ["engagement", "conversion", "retention"]]}' \
+    --timeout 600 \
+    --client-request-id "customer-analysis-$(date +%s)"
+
+# 7. Create an asynchronous batch job for multiple customers
+slcli function create \
+    --function-id b7cc0156-931c-472f-a027-d88dc51cb936 \
+    --workspace "Analytics Workspace" \
+    --parameters '{"functionName": "batch_analyze", "args": ["BATCH-2025-001", "90d", ["lifetime_value", "churn_risk"]]}' \
+    --timeout 3600 \
+    --result-cache-period 86400 \
+    --client-request-id "batch-analytics-20250805"
+
+# 8. Update function properties when promoting through environments
+slcli function func update \
+    --id b7cc0156-931c-472f-a027-d88dc51cb936 \
+    --properties '{"category": "analytics", "team": "data-science", "deployment": "production", "compliance": "gdpr", "sla": "4h", "monitoring": true, "alerts": "enabled"}'
+
+# 9. Query production functions with monitoring and compliance requirements
+slcli function func list --filter 'properties.deployment == "production" && properties.monitoring == true && properties.compliance == "gdpr"'
+
+# 10. Find functions with specific interface capabilities for API documentation
+slcli function func list --filter 'interface.Contains("timeframe") && interface.Contains("customer_id") && properties.category == "analytics"'
+```
+
+This metadata system enables you to:
+
+- **Organize** functions by category, team, and purpose using custom properties
+- **Filter efficiently** using interface-based queries and property filters
+- **Track** deployment status and operational metadata
+- **Search** using flexible custom properties and interface content
+- **Manage** functions across multiple teams and environments
+
+#### Download function source code
+
+```bash
+# Download function content with automatic file extension detection
+slcli function func download-content --id <function_id>
+
+# Download function content to a specific file
+slcli function func download-content --id <function_id> --output my_function.wasm
+
+# Download WebAssembly binary
+slcli function func download-content --id <function_id> --output math_functions.wasm
+```
+
+_Note: Functions are WebAssembly modules and will be downloaded with the .wasm extension._
+
+### Function Execution Management
+
+Execution now uses an HTTP-style invocation parameters object. The `parameters` field sent to
+the execute endpoint has this structure:
+
+```json
+{
+  "method": "POST", // optional (default POST)
+  "path": "/invoke", // optional (default /invoke)
+  "headers": {
+    // optional headers map
+    "content-type": "application/json"
+  },
+  "body": {
+    // JSON object or raw string; if omitted, empty body
+    "a": 1,
+    "b": 2
+  }
+}
+```
+
+CLI convenience flags build this object automatically:
+
+- `--method` (default POST)
+- `--path` (default /invoke)
+- `-H/--header key=value` (repeatable)
+- `--body` (JSON string, JSON file path, or raw text)
+- `--parameters` (raw JSON overrides the above flags). If the provided JSON does **not** contain
+  any of `method`, `path`, `headers`, or `body`, the value is wrapped automatically as `{ "body": <value> }` for backward compatibility.
+
+#### JavaScript Fetch Example (Equivalent to CLI)
+
+```javascript
+// Synchronous execution (default method POST to /invoke)
+await fetch(`/nifunction/v2/functions/${functionId}/execute`, {
+  method: "POST",
+  headers: { "Content-Type": "application/json" },
+  body: JSON.stringify({
+    parameters: {
+      method: "POST", // optional
+      path: "/invoke", // optional
+      headers: { "content-type": "application/json" },
+      body: { a: 1, b: 2 },
+    },
+    timeout: 30,
+    async: false,
+  }),
+});
+```
+
+#### CLI Equivalent
+
+```bash
+slcli function execute sync \
+    --function-id <function_id> \
+    --method POST \
+    --path /invoke \
+    -H content-type=application/json \
+    --body '{"a":1,"b":2}' \
+    --timeout 30 \
+    --format json
+```
+
+Or with a raw parameters JSON object:
+
+```bash
+slcli function execute sync \
+    --function-id <function_id> \
+    --parameters '{"method":"POST","path":"/invoke","headers":{"content-type":"application/json"},"body":{"a":1,"b":2}}' \
+    --timeout 30 --format json
+```
+
+Backward compatibility: passing `--parameters '{"a":1,"b":2}'` will be interpreted as body payload.
+
+#### List function executions
+
+```bash
+# List all function executions (table format - default)
+slcli function list
+
+# Filter by workspace
+slcli function list --workspace MyWorkspace
+
+# Filter by status
+slcli function list --status SUCCEEDED
+
+# Filter by function ID
+slcli function list --function-id <function_id>
+
+# JSON format for programmatic use
+slcli function list --format json
+
+# Control pagination
+slcli function list --take 50
+```
+
+#### Get execution details
+
+```bash
+# Get detailed information about an execution
+slcli function get --id <execution_id>
+
+# JSON format
+slcli function get --id <execution_id> --format json
+```
+
+#### Execute a function synchronously
+
+```bash
+# Execute a function and wait for the result (basic usage)
+# Note: For WASM functions, use functionName + args structure
+slcli function execute sync \
+    --function-id b7cc0156-931c-472f-a027-d88dc51cb936 \
+    --method POST \
+    --path /invoke \
+    -H content-type=application/json \
+    --body '{"samples":[1.0,2.5,3.2,1.8],"threshold":2.0}'
+
+# Execute with parameters from file
+# Note: Parameter files should contain the new WASM structure:
+# {
+#   "functionName": "add",
+#   "args": [10, 5]
+# }
+slcli function execute sync \
+    --function-id b7cc0156-931c-472f-a027-d88dc51cb936 \
+    --parameters ./execution_params.json \
+    --timeout 300
+
+# Execute with comprehensive configuration (matches ExecuteFunctionRequest schema)
+slcli function execute sync \
+    --function-id b7cc0156-931c-472f-a027-d88dc51cb936 \
+    --parameters '{"method":"POST","path":"/invoke","body":{"customerId":"CUST-12345","timeframe":"30d","metrics":["engagement","conversion"]}}' \
+    --timeout 1800 \
+    --client-request-id "analytics-req-20250805-001"
+
+# JSON format for programmatic integration (returns ExecuteFunctionResponse)
+slcli function execute sync \
+    --function-id b7cc0156-931c-472f-a027-d88dc51cb936 \
+    --parameters '{"method":"POST","path":"/invoke","body":{"op":"multiply","a":4,"b":7}}' \
+    --format json
+
+# Execute mathematical function with comprehensive tracking
+slcli function execute sync \
+    --function-id b7cc0156-931c-472f-a027-d88dc51cb936 \
+    --parameters '{"method":"POST","path":"/invoke","body":{"op":"add","a":15,"b":25}}' \
+    --timeout 300 \
+    --client-request-id "math-calc-$(date +%s)" \
+    --format json
+```
+
+#### (Removed) Asynchronous execution
+
+Asynchronous execution support has been removed from the CLI. All executions use the synchronous
+endpoint; for background workloads, orchestrate via external tooling that schedules synchronous
+invocations.
+
+#### Cancel function executions
+
+```bash
+# Cancel a single execution
+slcli function cancel --id 6d958d07-2d85-4655-90ba-8ff84a0482aa
+
+# Cancel multiple executions (bulk operation)
+slcli function cancel \
+    --id 6d958d07-2d85-4655-90ba-8ff84a0482aa \
+    --id a1b28c37-2d85-4655-90ba-8ff84a0482bb \
+    --id f3e45a12-2d85-4655-90ba-8ff84a0482cc
+
+# Cancel executions for cleanup (multiple IDs from execution list)
+slcli function cancel \
+    --id 6d958d07-2d85-4655-90ba-8ff84a0482aa \
+    --id a1b28c37-2d85-4655-90ba-8ff84a0482bb
+```
+
+#### Retry failed executions
+
+```bash
+# Retry a single failed execution (creates new execution with same parameters)
+slcli function retry --id 6d958d07-2d85-4655-90ba-8ff84a0482aa
+
+# Retry multiple failed executions (bulk retry operation)
+slcli function retry \
+    --id 6d958d07-2d85-4655-90ba-8ff84a0482aa \
+    --id a1b28c37-2d85-4655-90ba-8ff84a0482bb
+
+# Retry executions after fixing system issues
+slcli function retry \
+    --id 6d958d07-2d85-4655-90ba-8ff84a0482aa \
+    --id a1b28c37-2d85-4655-90ba-8ff84a0482bb \
+    --id f3e45a12-2d85-4655-90ba-8ff84a0482cc
+```
+
+### Configuration
+
+#### Using .env file for local development
+
+Create a `.env` file in your working directory to configure service URLs for local development:
+
+```bash
+# Function Service URL (for function definition management)
+FUNCTION_SERVICE_URL=http://localhost:3000
+
+# Function Execution Service URL (for function execution management)
+FUNCTION_EXECUTION_SERVICE_URL=http://localhost:3001
+
+# Common API settings
+SYSTEMLINK_API_KEY=your_api_key_here
+SLCLI_SSL_VERIFY=false
+```
+
+The CLI will automatically load these environment variables from the `.env` file when running commands. You can also set these as regular environment variables in your shell if preferred.
 
 ## Notebook Management
 
