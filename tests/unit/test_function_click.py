@@ -269,8 +269,7 @@ def test_function_get_function_table_interface_summary(monkeypatch: Any, runner:
     def mock_make_api_request(
         method: str, url: str, payload=None, headers=None, handle_errors=True
     ):
-        """
-        Mock implementation of the API request function for testing.
+        """Mock implementation of the API request function for testing.
 
         Handles GET requests to "/functions/func-1" by returning a mock function
         definition with endpoints. Handles requests to "/niuser/v1/workspaces?take=1000"

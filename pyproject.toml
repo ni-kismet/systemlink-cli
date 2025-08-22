@@ -9,6 +9,7 @@ authors = ["Fred Visser <fred.visser@emerson.com>"]
 slcli = "slcli.__main__:cli"
 build-pyinstaller = "scripts.build_pyinstaller:main"
 update-version = "scripts.update_version:main"
+lint = "scripts.lint:main"
 
 [tool.poetry.dependencies]
 python = ">=3.11.1,<3.14"
