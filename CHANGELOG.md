@@ -1,12 +1,25 @@
 # CHANGELOG
 
 
+## v0.8.0 (2025-08-22)
+
+### Features
+
+- Review feedback
+  ([`31719bc`](https://github.com/ni-kismet/systemlink-cli/commit/31719bcf1498b5c65b10ab376fec0c411734c33e))
+
+
 ## v0.7.6 (2025-08-04)
 
 ### Bug Fixes
 
 - Minor help strings
   ([`aa4b836`](https://github.com/ni-kismet/systemlink-cli/commit/aa4b8368c0f81fd06601098b3d9756e5f8bdf2f1))
+
+### Chores
+
+- **release**: 0.7.6
+  ([`c65b127`](https://github.com/ni-kismet/systemlink-cli/commit/c65b12713e428b18032bd76f9f28e12ad88375b0))
 
 
 ## v0.7.5 (2025-08-04)
