@@ -83,3 +83,4 @@ tests/unit/__pycache__/
 
 # E2E test configuration
 tests/e2e/e2e_config.json
+.env

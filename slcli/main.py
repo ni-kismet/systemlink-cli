@@ -9,6 +9,7 @@ import tomllib
 
 from .completion_click import register_completion_command
 from .dff_click import register_dff_commands
+from .function_click import register_function_commands
 from .notebook_click import register_notebook_commands
 from .templates_click import register_templates_commands
 from .user_click import register_user_commands
@@ -56,9 +57,7 @@ def get_ascii_art() -> str:
 @click.option("--version", "-v", is_flag=True, help="Show version and exit")
 @click.pass_context
 def cli(ctx, version):
-    """
-    SystemLink CLI (slcli) - Command-line interface for SystemLink resources.
-    """
+    """SystemLink CLI (slcli) - Command-line interface for SystemLink resources."""  # noqa: D403
     if version:
         click.echo(f"slcli version {get_version()}")
         ctx.exit()
@@ -119,6 +118,7 @@ def logout():
 
 register_completion_command(cli)
 register_dff_commands(cli)
+register_function_commands(cli)
 register_templates_commands(cli)
 register_notebook_commands(cli)
 register_user_commands(cli)
