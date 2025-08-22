@@ -300,12 +300,12 @@ slcli workflow delete --id <workflow_id>
 
 The `function` command group provides comprehensive management of WebAssembly (WASM) function definitions and executions in SystemLink. Functions are compiled WebAssembly modules that can be executed remotely with parameters.
 
-**Architecture Overview:**
+**Architecture Overview (Unified v2):**
 
-- **Function Service** (`/nifunction/v1`): Manages function definitions, metadata, and WASM content with interface-based organization
-- **Function Execution Service** (`/nifunctionexecution/v1`): Handles function execution requests, both synchronous and asynchronous
-- **Interface System**: Functions use an indexed `interface` property containing entrypoint, parameters, and returns schemas for efficient querying
-- **Workspace Integration**: Functions are organized within SystemLink workspaces with comprehensive metadata support
+- **Unified Function Management Service** (`/nifunction/v2`): Single API surface for definitions, metadata, WASM content, and synchronous execution
+- **Interface Property**: Indexed JSON (legacy simple entrypoint or HTTP-style `endpoints` with `methods`, `path`, and `description`)
+- **Workspace Integration**: Functions belong to SystemLink workspaces with metadata and execution statistics
+- **Synchronous HTTP-style Execution**: POST `/functions/{id}/execute` with parameters `{ method, path, headers, body }`
 
 The CLI provides two main command groups:
 
@@ -410,7 +410,7 @@ slcli function manage create \
 
 This repository includes a sample WebAssembly function (`samples/math.wasm`) that demonstrates basic mathematical operations. Here's how to create a function using this sample:
 
-```bash
+````bash
 # Create a function using the provided sample WASM file
 slcli function manage create \
     --name "Sample Math Functions - fred 1" \
@@ -437,6 +437,40 @@ slcli function execute sync \
     -H content-type=application/json \
     --body '{"a":10,"b":5,"c":3}' \
     --timeout 300 --format json
+
+### Initialize a Local Function Template (`function init`)
+
+Bootstrap a local template for building a function from official examples.
+
+```bash
+# Prompt for language
+slcli function init
+
+# TypeScript (Hono) template into a new folder
+slcli function init --language typescript --directory my-ts-func
+
+# Python HTTP template
+slcli function init -l python -d my-py-func
+
+# Overwrite non-empty directory
+slcli function init -l ts -d existing --force
+````
+
+Templates are fetched on-demand from branch `function-examples` of `ni/systemlink-enterprise-examples`:
+
+- TypeScript: `function-examples/typescript-hono-function`
+- Python: `function-examples/python-http-function`
+
+Next steps (printed only):
+
+1. Install dependencies / create venv
+2. Build (TypeScript: `npm run build` → `dist/main.wasm`)
+3. Register with `slcli function manage create --content dist/main.wasm --entrypoint main` (adjust name/workspace)
+
+To supply HTTP-style execution parameters later:
+
+```bash
+slcli function execute sync --function-id <id> --method GET --path /
 ```
 
 #### Enhanced Filtering and Querying

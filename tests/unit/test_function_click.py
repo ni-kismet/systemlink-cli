@@ -282,3 +282,90 @@ def test_function_get_function_table_interface_summary(monkeypatch: Any, runner:
     assert "Default Path:  /" in output
     assert "- GET / - Return a random integer" in output
     assert "- POST /stats - Compute basic statistics" in output
+
+
+def test_function_init_typescript(monkeypatch: Any, runner: CliRunner, tmp_path) -> None:
+    """Init command downloads and extracts a typescript template (mocked)."""
+    patch_keyring(monkeypatch)
+
+    # Build an in-memory tar.gz with expected subfolder structure
+    import tarfile
+    import io
+    import time
+
+    tar_bytes = io.BytesIO()
+    with tarfile.open(fileobj=tar_bytes, mode="w:gz") as tf:
+        # Root folder prefix (<repo>-<branch>/) arbitrary for test
+        base = "repo-branch/function-examples/typescript-hono-function"
+        file_content = b"console.log('hello');\n"
+        ti = tarfile.TarInfo(name=f"{base}/src/index.ts")
+        ti.size = len(file_content)
+        ti.mtime = int(time.time())
+        tf.addfile(ti, io.BytesIO(file_content))
+    tar_bytes.seek(0)
+
+    class _TarResp:
+        status_code = 200
+        content = tar_bytes.getvalue()
+
+    monkeypatch.setattr("slcli.function_templates.requests.get", lambda *a, **k: _TarResp())
+
+    cli = make_cli()
+    target = tmp_path / "proj"
+    result = runner.invoke(
+        cli,
+        [
+            "function",
+            "init",
+            "--language",
+            "ts",
+            "--directory",
+            str(target),
+            "--force",
+        ],
+    )
+    assert result.exit_code == 0
+    assert (target / "src" / "index.ts").exists()
+
+
+def test_function_init_non_empty_no_force(monkeypatch: Any, runner: CliRunner, tmp_path) -> None:
+    """Init aborts if target non-empty and no --force."""
+    patch_keyring(monkeypatch)
+    # Prepare tarball
+    import tarfile
+    import io
+    import time
+
+    tar_bytes = io.BytesIO()
+    with tarfile.open(fileobj=tar_bytes, mode="w:gz") as tf:
+        base = "repo-branch/function-examples/python-http-function"
+        py_content = b"print('hello')\n"
+        ti = tarfile.TarInfo(name=f"{base}/main.py")
+        ti.size = len(py_content)
+        ti.mtime = int(time.time())
+        tf.addfile(ti, io.BytesIO(py_content))
+    tar_bytes.seek(0)
+
+    class _TarResp:
+        status_code = 200
+        content = tar_bytes.getvalue()
+
+    monkeypatch.setattr("slcli.function_templates.requests.get", lambda *a, **k: _TarResp())
+
+    cli = make_cli()
+    target = tmp_path / "proj"
+    target.mkdir()
+    (target / "existing.txt").write_text("x", encoding="utf-8")
+    result = runner.invoke(
+        cli,
+        [
+            "function",
+            "init",
+            "--language",
+            "python",
+            "--directory",
+            str(target),
+        ],
+    )
+    assert result.exit_code != 0
+    assert "Target directory is not empty" in result.output

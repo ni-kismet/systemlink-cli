@@ -1,10 +1,8 @@
 """CLI commands for managing SystemLink WebAssembly function definitions and executions."""
 
-import io
 import json
 import os
 import sys
-import tarfile
 from pathlib import Path
 from typing import Any, Dict, List, Optional, Union
 
@@ -12,6 +10,12 @@ import click
 import requests
 
 from .cli_utils import validate_output_format
+from .function_templates import (
+    download_and_extract_template,
+    TEMPLATE_REPO,
+    TEMPLATE_BRANCH,
+    TEMPLATE_SUBFOLDERS,
+)
 from .universal_handlers import UniversalResponseHandler, FilteredResponse
 from .utils import (
     display_api_errors,
@@ -216,60 +220,14 @@ def _query_all_executions(
     return all_executions
 
 
-def _download_and_extract_subfolder(  # noqa: D401
-    repo: str,
-    branch: str,
-    subfolder: str,
-    destination: Path,
-) -> None:
-    """Download a GitHub repo tarball for a branch and extract only a specific subfolder.
-
-    Args:
-        repo: GitHub repository in the form "owner/name"
-        branch: Branch name to download (treated as stable per user request)
-        subfolder: Relative path inside the repo to extract
-        destination: Destination directory to populate (must exist)
-    """
-    tarball_url = f"https://codeload.github.com/{repo}/tar.gz/{branch}"
-    resp = requests.get(tarball_url, timeout=60)
-    if resp.status_code != 200:
-        click.echo(
-            f"✗ Failed to download template (HTTP {resp.status_code}) from {tarball_url}",
-            err=True,
-        )
-        sys.exit(ExitCodes.NETWORK_ERROR)
-    try:
-        with tarfile.open(fileobj=io.BytesIO(resp.content), mode="r:gz") as tf:  # type: ignore[arg-type]
-            for member in tf.getmembers():
-                parts = member.name.split("/", 1)
-                if len(parts) < 2:
-                    continue
-                remainder = parts[1]
-                if not remainder.startswith(subfolder.rstrip("/")):
-                    continue
-                relative_path = Path(remainder).relative_to(subfolder)
-                target_path = destination / relative_path
-                if member.isdir():
-                    target_path.mkdir(parents=True, exist_ok=True)
-                    continue
-                target_path.parent.mkdir(parents=True, exist_ok=True)
-                extracted = tf.extractfile(member)
-                if extracted is None:
-                    continue
-                with open(target_path, "wb") as f_out:
-                    f_out.write(extracted.read())
-    except Exception as exc:  # noqa: BLE001
-        click.echo(f"✗ Error extracting template: {exc}", err=True)
-        sys.exit(ExitCodes.GENERAL_ERROR)
-
-
 def register_function_commands(cli: Any) -> None:
     """Register the 'function' command group and its subcommands."""
 
     @cli.group()
     def function():
         """Manage function definitions and executions."""
-        pass
+
+    pass
 
     # ------------------------------------------------------------------
     # Initialization (template bootstrap) command
@@ -328,15 +286,11 @@ def register_function_commands(cli: Any) -> None:
                     )
                     sys.exit(ExitCodes.INVALID_INPUT)
 
-            repo = "ni/systemlink-enterprise-examples"
-            branch = "function-examples"
-            if language_norm == "typescript":
-                subfolder = "function-examples/typescript-hono-function"
-            else:  # python
-                subfolder = "function-examples/python-http-function"
-
+            repo = TEMPLATE_REPO
+            branch = TEMPLATE_BRANCH
+            subfolder = TEMPLATE_SUBFOLDERS[language_norm]
             click.echo(f"Downloading {language_norm} template from {repo}@{branch}:{subfolder} ...")
-            _download_and_extract_subfolder(repo, branch, subfolder, target_dir)
+            download_and_extract_template(language_norm, target_dir)
             click.echo("✓ Template files created.")
 
             # Print next steps (no automatic install/build)
@@ -1230,7 +1184,10 @@ def register_function_commands(cli: Any) -> None:
         client_request_id: Optional[str] = None,
         format: str = "table",
     ) -> None:
-        """Execute a function synchronously and return the result immediately."""
+        """Execute a function synchronously and return the result.
+
+        This sends a single request and waits for completion (no async polling).
+        """
         format_output = validate_output_format(format)
         url = f"{get_unified_v2_base()}/functions/{function_id}/execute"
         try:
@@ -1249,13 +1206,18 @@ def register_function_commands(cli: Any) -> None:
                 if not any(k in execution_parameters for k in legacy_keys):
                     execution_parameters = {"body": execution_parameters}
             else:
-                # If no explicit parameters and no header/body flags, use embedded defaults
-                used_default = False
-                if not header and body is None and method.upper() == "POST" and path == "/invoke":
+                # Determine if user explicitly set any of the four HTTP-related flags.
+                # We treat them as specified only if they differ from defaults or were
+                # provided via the parameters option.
+                user_provided_any = (
+                    bool(header)
+                    or body is not None
+                    or (method.upper() != "POST" or path != "/invoke")
+                )
+                if not user_provided_any:
+                    # Pure omission: apply fallback default GET /
                     execution_parameters = {"method": "GET", "path": "/"}
-                    used_default = True
-
-                if not used_default:
+                else:
                     headers_dict: Dict[str, str] = {}
                     if header:
                         for h in header:
@@ -1277,11 +1239,10 @@ def register_function_commands(cli: Any) -> None:
                             )
                         except Exception:
                             body_value = body
-                    if not path.startswith("/"):
-                        path = "/" + path
+                    norm_path = path if path.startswith("/") else f"/{path}"
                     execution_parameters = {
                         "method": method.upper(),
-                        "path": path,
+                        "path": norm_path,
                     }
                     if headers_dict:
                         execution_parameters["headers"] = headers_dict
