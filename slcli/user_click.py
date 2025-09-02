@@ -412,7 +412,7 @@ def register_user_commands(cli):
             handle_api_error(exc)
 
     @user.command(name="get")
-    @click.option("--id", "user_id", help="User ID to retrieve")
+    @click.option("--id", "-i", "user_id", help="User ID to retrieve")
     @click.option("--email", "user_email", help="User email to retrieve")
     @click.option(
         "--format",
@@ -665,7 +665,7 @@ def register_user_commands(cli):
             handle_api_error(exc)
 
     @user.command(name="update")
-    @click.option("--id", "user_id", required=True, help="User ID to update")
+    @click.option("--id", "-i", "user_id", required=True, help="User ID to update")
     @click.option("--first-name", help="User's first name")
     @click.option("--last-name", help="User's last name")
     @click.option("--email", help="User's email address")
@@ -740,7 +740,7 @@ def register_user_commands(cli):
             handle_api_error(exc)
 
     @user.command(name="delete")
-    @click.option("--id", "user_id", required=True, help="User ID to delete")
+    @click.option("--id", "-i", "user_id", required=True, help="User ID to delete")
     @click.confirmation_option(
         prompt="Are you sure you want to delete this user? This action cannot be undone."
     )
