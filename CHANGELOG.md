@@ -1,7 +1,25 @@
 # CHANGELOG
 
 
+## v0.9.0 (2025-09-02)
+
+### Features
+
+- Merge pull request #13 from ni-kismet/users/fvisser/workflow-mermaid
+  ([`8e56902`](https://github.com/ni-kismet/systemlink-cli/commit/8e56902f909075cdfff2d69c4453c741058406f4))
+
+Add workflow preview command
+
+- Flag consistency
+  ([`92cd016`](https://github.com/ni-kismet/systemlink-cli/commit/92cd016cee143b8a6946e17b9f8ed7c08a880223))
+
+
 ## v0.8.0 (2025-08-22)
+
+### Chores
+
+- **release**: 0.8.0
+  ([`b764195`](https://github.com/ni-kismet/systemlink-cli/commit/b76419509f3f7b32724dcd29ba6892bbf5d57b1d))
 
 ### Features
 
