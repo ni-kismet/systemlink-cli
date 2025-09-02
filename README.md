@@ -296,6 +296,41 @@ slcli workflow update --id <workflow_id> --file updated-workflow.json
 slcli workflow delete --id <workflow_id>
 ```
 
+### Preview a workflow (Mermaid diagram)
+
+Generate a visual state diagram (Mermaid) for an existing workflow or a local JSON definition:
+
+```bash
+# Preview remote workflow in browser (HTML)
+slcli workflow preview --id <workflow_id>
+
+# Save raw Mermaid source (.mmd) for a remote workflow
+slcli workflow preview --id <workflow_id> --format mmd --output workflow.mmd
+
+# Preview a local JSON file
+slcli workflow preview --file my-workflow.json
+
+# Read workflow JSON from stdin
+cat my-workflow.json | slcli workflow preview --file - --format mmd --output wf.mmd
+
+# Disable emoji and legend (clean export)
+slcli workflow preview --id <workflow_id> --no-emoji --no-legend --format html --output wf.html
+
+# Generate HTML without opening a browser
+slcli workflow preview --id <workflow_id> --no-open --output wf.html
+```
+
+Options:
+
+- `--id / --file` (mutually exclusive): Choose remote workflow or local JSON (use `-` for stdin)
+- `--format`: `html` (default) or `mmd`
+- `--output/-o`: Write to file; otherwise HTML opens in browser
+- `--no-emoji`: Remove emoji from action labels
+- `--no-legend`: Suppress legend block in HTML output
+- `--no-open`: Do not open browser when producing HTML without `--output`
+
+Legend (HTML only) explains: action type emojis, privilege sets, truncated notebook IDs, icon class (⚡️), and hidden actions.
+
 ## Function Management
 
 The `function` command group provides comprehensive management of WebAssembly (WASM) function definitions and executions in SystemLink. Functions are compiled WebAssembly modules that can be executed remotely with parameters.

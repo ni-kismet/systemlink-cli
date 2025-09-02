@@ -512,3 +512,339 @@ def test_update_workflow_success(monkeypatch, runner):
         )
         assert result.exit_code == 0
         assert "updated successfully" in result.output
+
+
+# --- New tests for workflow preview / Mermaid generation --- #
+
+
+def _sample_workflow_for_mermaid():  # helper (not a test)
+    return {
+        "name": "SampleWF",
+        "description": "Sample workflow for mermaid generation",
+        "workspace": "ws123",
+        "actions": [
+            {
+                "name": "PING",
+                "displayText": "Ping",
+                "privilegeSpecificity": ["Submit"],
+                "iconClass": "RESUME",
+                "executionAction": {"type": "MANUAL", "action": "PING"},
+            },
+            {
+                "name": "GO",
+                "displayText": "Go",
+                "privilegeSpecificity": ["ExecuteTest"],
+                "iconClass": "RUN",
+                "executionAction": {
+                    "type": "NOTEBOOK",
+                    "action": "GO",
+                    "notebookId": "abcdef1234567890",
+                },
+            },
+            {
+                "name": "PLAN",
+                "displayText": "Plan-Schedule",
+                "privilegeSpecificity": [],
+                "executionAction": {"type": "SCHEDULE", "action": "PLAN"},
+            },
+            {
+                "name": "UNPLAN",
+                "displayText": "Unplan-Schedule",
+                "privilegeSpecificity": [],
+                "executionAction": {"type": "UNSCHEDULE", "action": "UNPLAN"},
+            },
+        ],
+        "states": [
+            {
+                "name": "NEW",
+                "dashboardAvailable": True,
+                "defaultSubstate": "NEW",
+                "substates": [
+                    {
+                        "name": "NEW",
+                        "displayText": "New",
+                        "availableActions": [
+                            {
+                                "action": "PING",
+                                "nextState": "READY",
+                                "nextSubstate": "READY",
+                                "showInUI": True,
+                            },
+                            {
+                                "action": "GO",
+                                "nextState": "DONE",
+                                "nextSubstate": "DONE",
+                                "showInUI": False,  # hidden action
+                            },
+                        ],
+                    }
+                ],
+            },
+            {
+                "name": "READY",
+                "dashboardAvailable": False,
+                "defaultSubstate": "READY",
+                "substates": [
+                    {
+                        "name": "READY",
+                        "displayText": "Ready",
+                        "availableActions": [
+                            {
+                                "action": "PLAN",
+                                "nextState": "SCHEDULED",
+                                "nextSubstate": "SCHEDULED",
+                                "showInUI": True,
+                            }
+                        ],
+                    }
+                ],
+            },
+            {
+                "name": "SCHEDULED",
+                "dashboardAvailable": False,
+                "defaultSubstate": "SCHEDULED",
+                "substates": [
+                    {
+                        "name": "SCHEDULED",
+                        "displayText": "Sched",
+                        "availableActions": [
+                            {
+                                "action": "UNPLAN",
+                                "nextState": "READY",
+                                "nextSubstate": "READY",
+                                "showInUI": True,
+                            }
+                        ],
+                    }
+                ],
+            },
+            {
+                "name": "DONE",
+                "dashboardAvailable": False,
+                "defaultSubstate": "DONE",
+                "substates": [{"name": "DONE", "displayText": "Done", "availableActions": []}],
+            },
+        ],
+    }
+
+
+def test_generate_mermaid_basic():
+    from slcli.workflow_preview import generate_mermaid_diagram
+
+    wf = _sample_workflow_for_mermaid()
+    code = generate_mermaid_diagram(wf)
+    # Basic structure
+    assert code.startswith("stateDiagram-v2"), code
+    # Multiline state label present (dashboard metadata line)
+    assert "(1 action" in code or "1 action" in code  # depending on hidden count formatting
+    # Emoji for MANUAL action
+    assert "🧑" in code
+    # Notebook action hidden with hidden marker
+    assert "hidden" in code
+    # Icon lightning indicator
+    assert "⚡️" in code
+    # No legend inside Mermaid source
+    assert "LEGEND :" not in code
+
+
+def test_generate_mermaid_hidden_action_marker():
+    from slcli.workflow_preview import generate_mermaid_diagram
+
+    wf = _sample_workflow_for_mermaid()
+    code = generate_mermaid_diagram(wf)
+    # Hidden action should have newline then 'hidden'
+    assert any(line.strip().endswith("hidden") for line in code.splitlines())
+
+
+def test_generate_html_contains_external_legend():
+    from slcli.workflow_preview import generate_mermaid_diagram, generate_html_with_mermaid
+
+    wf = _sample_workflow_for_mermaid()
+    mermaid = generate_mermaid_diagram(wf)
+    html = generate_html_with_mermaid(wf, mermaid)
+    assert '<div class="legend"' in html
+    # Legend table present and contains expected emoji + description cells
+    assert "⚡️" in html  # icon legend entry
+    # Manual action legend is rendered in separate table cells; verify both parts
+    assert "🧑</td><td>Manual action" in html
+    # Ensure legend items are not accidentally inside Mermaid code block
+    mermaid_section = html.split('<div class="mermaid">', 1)[1].split("</div>", 1)[0]
+    assert "Manual action" not in mermaid_section
+
+
+def test_preview_mmd_output(monkeypatch, runner):
+    """End-to-end preview with --format mmd should not embed legend and should include emojis."""
+    patch_keyring(monkeypatch)
+
+    # Mock GET workflow fetch
+    workflow_payload = _sample_workflow_for_mermaid()
+
+    class R:
+        def raise_for_status(self):
+            pass
+
+        def json(self):
+            return workflow_payload
+
+    monkeypatch.setattr("requests.get", lambda *a, **k: R())
+
+    cli = make_cli()
+    with runner.isolated_filesystem():
+        result = runner.invoke(
+            cli, ["workflow", "preview", "--id", "wf123", "--format", "mmd", "--output", "out.mmd"]
+        )
+        assert result.exit_code == 0, result.output
+        with open("out.mmd", "r", encoding="utf-8") as f:
+            mmd = f.read()
+        assert "LEGEND :" not in mmd
+        assert "🧑" in mmd
+        assert "⚡️" in mmd
+
+
+def test_preview_html_output(monkeypatch, runner):
+    """End-to-end preview HTML should include external legend but not legend inside mermaid code."""
+    patch_keyring(monkeypatch)
+
+    workflow_payload = _sample_workflow_for_mermaid()
+
+    class R:
+        def raise_for_status(self):
+            pass
+
+        def json(self):
+            return workflow_payload
+
+    monkeypatch.setattr("requests.get", lambda *a, **k: R())
+
+    cli = make_cli()
+    with runner.isolated_filesystem():
+        result = runner.invoke(
+            cli,
+            ["workflow", "preview", "--id", "wf123", "--format", "html", "--output", "out.html"],
+        )
+        assert result.exit_code == 0, result.output
+        html = open("out.html", "r", encoding="utf-8").read()
+        assert '<div class="legend"' in html
+        assert "🧑</td><td>Manual action" in html
+        # Icon class legend row has two separate cells as well
+        assert "⚡️ NAME</td><td>UI icon class" in html  # legend entry
+        mermaid_section = html.split('<div class="mermaid">', 1)[1].split("</div>", 1)[0]
+        assert "Manual action" not in mermaid_section
+
+
+def test_mermaid_sanitization_and_truncation():
+    """Verify sanitization of problematic characters and notebook ID truncation."""
+    from slcli.workflow_preview import generate_mermaid_diagram
+
+    wf = _sample_workflow_for_mermaid()
+    wf["actions"][0]["displayText"] = "Ping:Check /test [alpha]"  # colon, slash, brackets
+    wf["actions"][0]["privilegeSpecificity"] = ["Execute:Test", "Run/It"]
+    code = generate_mermaid_diagram(wf)
+    # Colon -> space, slash -> -, [ ] -> ( )
+    assert "Ping Check -test (alpha)" in code
+    # Privileges group sanitized
+    assert "(Execute Test, Run-It)" in code
+    # Notebook ID truncated to first 8 chars + ...
+    assert "NB abcdef12..." in code
+
+
+def test_mermaid_privileges_multiple():
+    from slcli.workflow_preview import generate_mermaid_diagram
+
+    wf = _sample_workflow_for_mermaid()
+    wf["actions"][1]["privilegeSpecificity"] = ["PrivA", "PrivB"]
+    code = generate_mermaid_diagram(wf)
+    assert "(PrivA, PrivB)" in code
+
+
+def test_mermaid_action_without_icon():
+    from slcli.workflow_preview import generate_mermaid_diagram
+
+    wf = _sample_workflow_for_mermaid()
+    wf["actions"][1].pop("iconClass", None)
+    code = generate_mermaid_diagram(wf)
+    # Ensure lightning present at least once (PING has icon)
+    assert "⚡️" in code
+
+
+def test_preview_no_emoji_flag(monkeypatch, runner):
+    patch_keyring(monkeypatch)
+    workflow_payload = _sample_workflow_for_mermaid()
+
+    class R:
+        def raise_for_status(self):
+            pass
+
+        def json(self):
+            return workflow_payload
+
+    monkeypatch.setattr("requests.get", lambda *a, **k: R())
+    cli = make_cli()
+    with runner.isolated_filesystem():
+        result = runner.invoke(
+            cli,
+            [
+                "workflow",
+                "preview",
+                "--id",
+                "wf123",
+                "--format",
+                "mmd",
+                "--no-emoji",
+                "--output",
+                "out.mmd",
+            ],
+        )
+        assert result.exit_code == 0, result.output
+        content = open("out.mmd", "r", encoding="utf-8").read()
+        assert "🧑" not in content and "📓" not in content
+
+
+def test_preview_no_legend_flag(monkeypatch, runner):
+    patch_keyring(monkeypatch)
+    workflow_payload = _sample_workflow_for_mermaid()
+
+    class R:
+        def raise_for_status(self):
+            pass
+
+        def json(self):
+            return workflow_payload
+
+    monkeypatch.setattr("requests.get", lambda *a, **k: R())
+    cli = make_cli()
+    with runner.isolated_filesystem():
+        result = runner.invoke(
+            cli,
+            [
+                "workflow",
+                "preview",
+                "--id",
+                "wf123",
+                "--format",
+                "html",
+                "--output",
+                "out.html",
+                "--no-legend",
+            ],
+        )
+        assert result.exit_code == 0, result.output
+        html = open("out.html", "r", encoding="utf-8").read()
+        assert '<div class="legend"' not in html
+
+
+def test_preview_stdin(monkeypatch, runner):
+    patch_keyring(monkeypatch)
+    cli = make_cli()
+    wf = _sample_workflow_for_mermaid()
+    import json as _json
+
+    with runner.isolated_filesystem():
+        result = runner.invoke(
+            cli,
+            ["workflow", "preview", "--file", "-", "--format", "mmd", "--output", "wf.mmd"],
+            input=_json.dumps(wf),
+        )
+        assert result.exit_code == 0, result.output
+        content = open("wf.mmd", "r", encoding="utf-8").read()
+        assert content.startswith("stateDiagram-v2")

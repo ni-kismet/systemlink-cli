@@ -270,7 +270,7 @@ def register_notebook_commands(cli: Any) -> None:
         pass
 
     @notebook.command(name="update")
-    @click.option("--id", "notebook_id", required=True, help="Notebook ID to update")
+    @click.option("--id", "-i", "notebook_id", required=True, help="Notebook ID to update")
     @click.option(
         "--metadata",
         type=click.Path(exists=True, dir_okay=False),
@@ -430,7 +430,7 @@ def register_notebook_commands(cli: Any) -> None:
             handle_api_error(exc)
 
     @notebook.command(name="download")
-    @click.option("--id", "notebook_id", help="Notebook ID")
+    @click.option("--id", "-i", "notebook_id", help="Notebook ID")
     @click.option("--name", "notebook_name", help="Notebook name")
     @click.option("--workspace", default="Default", help="Workspace name (default: Default)")
     @click.option("--output", required=False, help="Output file path (defaults to notebook name)")
@@ -597,7 +597,7 @@ def register_notebook_commands(cli: Any) -> None:
             handle_api_error(exc)
 
     @notebook.command(name="delete")
-    @click.option("--id", "notebook_id", required=True, help="Notebook ID to delete")
+    @click.option("--id", "-i", "notebook_id", required=True, help="Notebook ID to delete")
     def delete_notebook(notebook_id: str = "") -> None:
         """Delete a notebook by ID."""
         try:

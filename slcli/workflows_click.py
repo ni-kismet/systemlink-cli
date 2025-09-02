@@ -3,11 +3,15 @@
 import json
 import os
 import sys
-from typing import Dict, Optional, Union
+import tempfile
+import webbrowser
+from pathlib import Path
+from typing import Dict, Optional, Union, Any
 
 import click
 import requests
 
+from . import workflow_preview
 from .cli_utils import validate_output_format
 from .universal_handlers import UniversalResponseHandler, FilteredResponse
 from .utils import (
@@ -23,6 +27,13 @@ from .utils import (
     save_json_file,
 )
 from .workspace_utils import get_workspace_display_name, resolve_workspace_filter
+
+"""Workflow CLI commands.
+
+Preview (Mermaid diagram) generation helpers live in
+`slcli.workflow_preview`. Deprecated internal wrapper functions have been
+removed; import the public helpers directly from that module.
+"""
 
 
 def _query_all_workflows(
@@ -125,7 +136,6 @@ def register_workflows_commands(cli):
             click.echo(f"✗ Error resolving workspace '{workspace}': {exc}", err=True)
             raise click.ClickException(f"Error resolving workspace '{workspace}': {exc}")
 
-        # Create workflow structure based on the correct API schema
         workflow_data = {
             "name": name,
             "description": description,
@@ -143,28 +153,70 @@ def register_workflows_commands(cli):
                     "privilegeSpecificity": ["Close"],
                     "executionAction": {"type": "MANUAL", "action": "COMPLETE"},
                 },
+                {
+                    "name": "RUN_NOTEBOOK",
+                    "displayText": "Run Notebook",
+                    "iconClass": None,
+                    "i18n": [],
+                    "privilegeSpecificity": ["ExecuteTest"],
+                    "executionAction": {
+                        "action": "RUN_NOTEBOOK",
+                        "type": "NOTEBOOK",
+                        "notebookId": "00000000-0000-0000-0000-000000000000",
+                        "parameters": {
+                            "partNumber": "<partNumber>",
+                            "dut": "<dutId>",
+                            "operator": "<assignedTo>",
+                            "testProgram": "<testProgram>",
+                            "location": "<properties.region>-<properties.facility>-<properties.lab>",
+                        },
+                    },
+                },
+                {
+                    "name": "PLAN_SCHEDULE",
+                    "displayText": "Schedule Test Plan",
+                    "iconClass": "SCHEDULE",
+                    "i18n": [],
+                    "privilegeSpecificity": [],
+                    "executionAction": {"action": "PLAN_SCHEDULE", "type": "SCHEDULE"},
+                },
+                {
+                    "name": "RUN_JOB",
+                    "displayText": "Run Job",
+                    "iconClass": "DEPLOY",
+                    "i18n": [],
+                    "privilegeSpecificity": [],
+                    "executionAction": {
+                        "action": "RUN_JOB",
+                        "type": "JOB",
+                        "jobs": [
+                            {
+                                "functions": ["state.apply"],
+                                "arguments": [["<properties.startTestStateId>"]],
+                                "metadata": {},
+                            }
+                        ],
+                    },
+                },
             ],
             "states": [
                 {
                     "name": "NEW",
                     "dashboardAvailable": False,
                     "defaultSubstate": "NEW",
-                    "substates": [{"name": "NEW", "displayText": "New", "availableActions": []}],
-                },
-                {
-                    "name": "DEFINED",
-                    "dashboardAvailable": False,
-                    "defaultSubstate": "DEFINED",
                     "substates": [
-                        {"name": "DEFINED", "displayText": "Defined", "availableActions": []}
-                    ],
-                },
-                {
-                    "name": "REVIEWED",
-                    "dashboardAvailable": False,
-                    "defaultSubstate": "REVIEWED",
-                    "substates": [
-                        {"name": "REVIEWED", "displayText": "Reviewed", "availableActions": []}
+                        {
+                            "name": "NEW",
+                            "displayText": "New",
+                            "availableActions": [
+                                {
+                                    "action": "PLAN_SCHEDULE",
+                                    "nextState": "SCHEDULED",
+                                    "nextSubstate": "SCHEDULED",
+                                    "showInUI": True,
+                                }
+                            ],
+                        }
                     ],
                 },
                 {
@@ -181,7 +233,13 @@ def register_workflows_commands(cli):
                                     "nextState": "IN_PROGRESS",
                                     "nextSubstate": "IN_PROGRESS",
                                     "showInUI": True,
-                                }
+                                },
+                                {
+                                    "action": "RUN_NOTEBOOK",
+                                    "nextState": "IN_PROGRESS",
+                                    "nextSubstate": "IN_PROGRESS",
+                                    "showInUI": True,
+                                },
                             ],
                         }
                     ],
@@ -196,17 +254,11 @@ def register_workflows_commands(cli):
                             "displayText": "In progress",
                             "availableActions": [
                                 {
-                                    "action": "START",
-                                    "nextState": "IN_PROGRESS",
-                                    "nextSubstate": "IN_PROGRESS",
-                                    "showInUI": True,
-                                },
-                                {
                                     "action": "COMPLETE",
                                     "nextState": "PENDING_APPROVAL",
                                     "nextSubstate": "PENDING_APPROVAL",
                                     "showInUI": True,
-                                },
+                                }
                             ],
                         }
                     ],
@@ -219,7 +271,14 @@ def register_workflows_commands(cli):
                         {
                             "name": "PENDING_APPROVAL",
                             "displayText": "Pending approval",
-                            "availableActions": [],
+                            "availableActions": [
+                                {
+                                    "action": "RUN_JOB",
+                                    "nextState": "CLOSED",
+                                    "nextSubstate": "CLOSED",
+                                    "showInUI": True,
+                                }
+                            ],
                         }
                     ],
                 },
@@ -601,6 +660,101 @@ def register_workflows_commands(cli):
                     handle_api_error(http_exc)
 
         except Exception as exc:
+            handle_api_error(exc)
+
+    @workflow.command(name="preview")
+    @click.option("--id", "-i", "workflow_id", help="Workflow ID to preview")
+    @click.option(
+        "--file",
+        "-f",
+        "input_file",
+        help="Local JSON file to preview (use '-' for stdin)",
+    )
+    @click.option("--output", "-o", help="Output file path (default: open in browser)")
+    @click.option(
+        "--format",
+        type=click.Choice(["html", "mmd"]),
+        default="html",
+        show_default=True,
+        help="Output format",
+    )
+    @click.option("--no-emoji", is_flag=True, default=False, help="Disable emoji in action labels")
+    @click.option(
+        "--no-legend",
+        is_flag=True,
+        default=False,
+        help="Disable legend block in HTML output",
+    )
+    @click.option(
+        "--no-open",
+        is_flag=True,
+        default=False,
+        help="Do not auto-open browser for HTML when no --output is provided",
+    )
+    def preview_workflow(
+        workflow_id: Optional[str],
+        input_file: Optional[str],
+        output: Optional[str],
+        format: str,
+        no_emoji: bool,
+        no_legend: bool,
+        no_open: bool,
+    ) -> None:
+        from .utils import ExitCodes
+
+        if bool(workflow_id) == bool(input_file):
+            click.echo(
+                "✗ Must specify exactly one of --id or --file (use --file - for stdin)",
+                err=True,
+            )
+            sys.exit(ExitCodes.INVALID_INPUT)
+        try:
+            if workflow_id:
+                url = f"{get_base_url()}/niworkorder/v1/workflows/{workflow_id}?ff-userdefinedworkflowsfortestplaninstances=true"
+                resp = make_api_request("GET", url)
+                workflow_data: Dict[str, Any] = resp.json()
+                if not workflow_data:
+                    click.echo(f"✗ Workflow with ID {workflow_id} not found.", err=True)
+                    sys.exit(ExitCodes.NOT_FOUND)
+            else:
+                if input_file == "-":
+                    try:
+                        raw = sys.stdin.read()
+                        workflow_data = json.loads(raw)
+                    except json.JSONDecodeError as exc:
+                        click.echo(f"✗ Invalid JSON from stdin: {exc}", err=True)
+                        sys.exit(ExitCodes.INVALID_INPUT)
+                else:
+                    assert input_file is not None
+                    workflow_data = load_json_file(input_file)
+            mermaid_code = workflow_preview.generate_mermaid_diagram(
+                workflow_data, enable_emoji=not no_emoji
+            )
+            if format == "mmd":
+                if not output:
+                    output = f"workflow-{workflow_data.get('name', 'preview')}.mmd"
+                with open(output, "w", encoding="utf-8") as f:
+                    f.write(mermaid_code)
+                click.echo(f"✓ Mermaid diagram saved to {output}")
+            else:
+                html_content = workflow_preview.generate_html_with_mermaid(
+                    workflow_data, mermaid_code, include_legend=not no_legend
+                )
+                if output:
+                    with open(output, "w", encoding="utf-8") as f:
+                        f.write(html_content)
+                    click.echo(f"✓ HTML preview saved to {output}")
+                elif not no_open:
+                    with tempfile.NamedTemporaryFile(
+                        mode="w", suffix=".html", delete=False, encoding="utf-8"
+                    ) as f:
+                        f.write(html_content)
+                        temp_file = f.name
+                    webbrowser.open(f"file://{Path(temp_file).absolute()}")
+                    click.echo("✓ Opening workflow preview in browser...")
+                else:
+                    click.echo(html_content)
+        except Exception as exc:  # noqa: BLE001
             handle_api_error(exc)
 
 
