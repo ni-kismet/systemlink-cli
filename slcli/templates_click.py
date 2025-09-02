@@ -177,6 +177,7 @@ def register_templates_commands(cli: Any) -> None:
                         "lab": "// Example: Battery Pack Lab",
                         "startTestStateId": "// UUID for initial test state",
                     },
+                    "workflowId": "// Optional: UUID of associated workflow (link to workflow preview)",
                 }
             ]
         }
