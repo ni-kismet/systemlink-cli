@@ -175,6 +175,17 @@ def generate_html_with_mermaid(
     workflow_name = workflow_data.get("name", "Workflow")
     workflow_description = workflow_data.get("description", "")
     legend_block = build_legend_html() if include_legend else ""
+    # Precompute optional HTML fragments to avoid nested f-strings inside expression braces
+    description_html = (
+        f'<p class="workflow-description">{workflow_description}</p>'
+        if workflow_description
+        else ""
+    )
+    workspace_value = workflow_data.get("workspace")
+    if workspace_value:
+        workspace_html = f"<p><strong>Workspace:</strong> {workspace_value}</p>"
+    else:
+        workspace_html = ""
     return f"""<!DOCTYPE html>
 <html lang=\"en\">
 <head>
@@ -199,7 +210,7 @@ def generate_html_with_mermaid(
     <div class=\"container\">
         <div class=\"header\">
             <h1 class=\"workflow-title\">{workflow_name}</h1>
-            {f'<p class=\"workflow-description\">{workflow_description}</p>' if workflow_description else ''}
+                {description_html}
         </div>
         <div class=\"diagram-container\">
             <div class=\"mermaid\">\n{mermaid_code}\n            </div>
@@ -209,7 +220,7 @@ def generate_html_with_mermaid(
             <h3>Workflow Details</h3>
             <p><strong>States:</strong> {len(workflow_data.get('states', []))}</p>
             <p><strong>Actions:</strong> {len(workflow_data.get('actions', []))}</p>
-            {f'<p><strong>Workspace:</strong> {workflow_data.get("workspace", "N/A")}</p>' if workflow_data.get("workspace") else ''}
+            {workspace_html}
         </div>
     </div>
     <script>mermaid.initialize({{ startOnLoad: true, theme: 'default', fontFamily: 'Arial, sans-serif' }});</script>
