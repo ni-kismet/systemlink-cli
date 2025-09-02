@@ -629,10 +629,10 @@ def _sample_workflow_for_mermaid():  # helper (not a test)
 
 
 def test_generate_mermaid_basic():
-    from slcli.workflows_click import _generate_mermaid_diagram
+    from slcli.workflow_preview import generate_mermaid_diagram
 
     wf = _sample_workflow_for_mermaid()
-    code = _generate_mermaid_diagram(wf)
+    code = generate_mermaid_diagram(wf)
     # Basic structure
     assert code.startswith("stateDiagram-v2"), code
     # Multiline state label present (dashboard metadata line)
@@ -648,23 +648,25 @@ def test_generate_mermaid_basic():
 
 
 def test_generate_mermaid_hidden_action_marker():
-    from slcli.workflows_click import _generate_mermaid_diagram
+    from slcli.workflow_preview import generate_mermaid_diagram
 
     wf = _sample_workflow_for_mermaid()
-    code = _generate_mermaid_diagram(wf)
+    code = generate_mermaid_diagram(wf)
     # Hidden action should have newline then 'hidden'
     assert any(line.strip().endswith("hidden") for line in code.splitlines())
 
 
 def test_generate_html_contains_external_legend():
-    from slcli.workflows_click import _generate_mermaid_diagram, _generate_html_with_mermaid
+    from slcli.workflow_preview import generate_mermaid_diagram, generate_html_with_mermaid
 
     wf = _sample_workflow_for_mermaid()
-    mermaid = _generate_mermaid_diagram(wf)
-    html = _generate_html_with_mermaid(wf, mermaid)
+    mermaid = generate_mermaid_diagram(wf)
+    html = generate_html_with_mermaid(wf, mermaid)
     assert '<div class="legend"' in html
+    # Legend table present and contains expected emoji + description cells
     assert "⚡️" in html  # icon legend entry
-    assert "🧑 Manual action" in html
+    # Manual action legend is rendered in separate table cells; verify both parts
+    assert "🧑</td><td>Manual action" in html
     # Ensure legend items are not accidentally inside Mermaid code block
     mermaid_section = html.split('<div class="mermaid">', 1)[1].split("</div>", 1)[0]
     assert "Manual action" not in mermaid_section
@@ -723,20 +725,21 @@ def test_preview_html_output(monkeypatch, runner):
         assert result.exit_code == 0, result.output
         html = open("out.html", "r", encoding="utf-8").read()
         assert '<div class="legend"' in html
-        assert "🧑 Manual action" in html
-        assert "⚡️ NAME UI icon class" in html  # legend entry
-        mermaid_section = html.split('<div class="mermaid">', 1)[1].split("</div>", 1)[0]
-        assert "Manual action" not in mermaid_section
+    assert "🧑</td><td>Manual action" in html
+    # Icon class legend row has two separate cells as well
+    assert "⚡️ NAME</td><td>UI icon class" in html  # legend entry
+    mermaid_section = html.split('<div class="mermaid">', 1)[1].split("</div>", 1)[0]
+    assert "Manual action" not in mermaid_section
 
 
 def test_mermaid_sanitization_and_truncation():
     """Verify sanitization of problematic characters and notebook ID truncation."""
-    from slcli.workflows_click import _generate_mermaid_diagram
+    from slcli.workflow_preview import generate_mermaid_diagram
 
     wf = _sample_workflow_for_mermaid()
     wf["actions"][0]["displayText"] = "Ping:Check /test [alpha]"  # colon, slash, brackets
     wf["actions"][0]["privilegeSpecificity"] = ["Execute:Test", "Run/It"]
-    code = _generate_mermaid_diagram(wf)
+    code = generate_mermaid_diagram(wf)
     # Colon -> space, slash -> -, [ ] -> ( )
     assert "Ping Check -test (alpha)" in code
     # Privileges group sanitized
@@ -746,19 +749,102 @@ def test_mermaid_sanitization_and_truncation():
 
 
 def test_mermaid_privileges_multiple():
-    from slcli.workflows_click import _generate_mermaid_diagram
+    from slcli.workflow_preview import generate_mermaid_diagram
 
     wf = _sample_workflow_for_mermaid()
     wf["actions"][1]["privilegeSpecificity"] = ["PrivA", "PrivB"]
-    code = _generate_mermaid_diagram(wf)
+    code = generate_mermaid_diagram(wf)
     assert "(PrivA, PrivB)" in code
 
 
 def test_mermaid_action_without_icon():
-    from slcli.workflows_click import _generate_mermaid_diagram
+    from slcli.workflow_preview import generate_mermaid_diagram
 
     wf = _sample_workflow_for_mermaid()
     wf["actions"][1].pop("iconClass", None)
-    code = _generate_mermaid_diagram(wf)
+    code = generate_mermaid_diagram(wf)
     # Ensure lightning present at least once (PING has icon)
     assert "⚡️" in code
+
+
+def test_preview_no_emoji_flag(monkeypatch, runner):
+    patch_keyring(monkeypatch)
+    workflow_payload = _sample_workflow_for_mermaid()
+
+    class R:
+        def raise_for_status(self):
+            pass
+
+        def json(self):
+            return workflow_payload
+
+    monkeypatch.setattr("requests.get", lambda *a, **k: R())
+    cli = make_cli()
+    with runner.isolated_filesystem():
+        result = runner.invoke(
+            cli,
+            [
+                "workflow",
+                "preview",
+                "--id",
+                "wf123",
+                "--format",
+                "mmd",
+                "--no-emoji",
+                "--output",
+                "out.mmd",
+            ],
+        )
+        assert result.exit_code == 0, result.output
+        content = open("out.mmd", "r", encoding="utf-8").read()
+        assert "🧑" not in content and "📓" not in content
+
+
+def test_preview_no_legend_flag(monkeypatch, runner):
+    patch_keyring(monkeypatch)
+    workflow_payload = _sample_workflow_for_mermaid()
+
+    class R:
+        def raise_for_status(self):
+            pass
+
+        def json(self):
+            return workflow_payload
+
+    monkeypatch.setattr("requests.get", lambda *a, **k: R())
+    cli = make_cli()
+    with runner.isolated_filesystem():
+        result = runner.invoke(
+            cli,
+            [
+                "workflow",
+                "preview",
+                "--id",
+                "wf123",
+                "--format",
+                "html",
+                "--output",
+                "out.html",
+                "--no-legend",
+            ],
+        )
+        assert result.exit_code == 0, result.output
+        html = open("out.html", "r", encoding="utf-8").read()
+        assert '<div class="legend"' not in html
+
+
+def test_preview_stdin(monkeypatch, runner):
+    patch_keyring(monkeypatch)
+    cli = make_cli()
+    wf = _sample_workflow_for_mermaid()
+    import json as _json
+
+    with runner.isolated_filesystem():
+        result = runner.invoke(
+            cli,
+            ["workflow", "preview", "--file", "-", "--format", "mmd", "--output", "wf.mmd"],
+            input=_json.dumps(wf),
+        )
+        assert result.exit_code == 0, result.output
+        content = open("wf.mmd", "r", encoding="utf-8").read()
+        assert content.startswith("stateDiagram-v2")

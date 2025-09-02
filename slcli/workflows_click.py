@@ -6,11 +6,11 @@ import sys
 import tempfile
 import webbrowser
 from pathlib import Path
-from typing import Dict, Optional, Union
+from typing import Dict, Optional, Union, Any
 
 import click
 import requests
-
+from . import workflow_preview
 from .cli_utils import validate_output_format
 from .universal_handlers import UniversalResponseHandler, FilteredResponse
 from .utils import (
@@ -26,6 +26,13 @@ from .utils import (
     save_json_file,
 )
 from .workspace_utils import get_workspace_display_name, resolve_workspace_filter
+
+"""Workflow CLI commands.
+
+Preview (Mermaid diagram) generation helpers live in
+`slcli.workflow_preview`. Deprecated internal wrapper functions have been
+removed; import the public helpers directly from that module.
+"""
 
 
 def _query_all_workflows(
@@ -128,7 +135,6 @@ def register_workflows_commands(cli):
             click.echo(f"✗ Error resolving workspace '{workspace}': {exc}", err=True)
             raise click.ClickException(f"Error resolving workspace '{workspace}': {exc}")
 
-        # Create workflow structure matching the workflow-template.json reference
         workflow_data = {
             "name": name,
             "description": description,
@@ -155,7 +161,7 @@ def register_workflows_commands(cli):
                     "executionAction": {
                         "action": "RUN_NOTEBOOK",
                         "type": "NOTEBOOK",
-                        "notebookId": "df2140b3-f184-4327-af07-6048d073449d",
+                        "notebookId": "00000000-0000-0000-0000-000000000000",
                         "parameters": {
                             "partNumber": "<partNumber>",
                             "dut": "<dutId>",
@@ -197,24 +203,10 @@ def register_workflows_commands(cli):
                     "name": "NEW",
                     "dashboardAvailable": False,
                     "defaultSubstate": "NEW",
-                    "substates": [{"name": "NEW", "displayText": "New", "availableActions": []}],
-                },
-                {
-                    "name": "DEFINED",
-                    "dashboardAvailable": False,
-                    "defaultSubstate": "DEFINED",
-                    "substates": [
-                        {"name": "DEFINED", "displayText": "Defined", "availableActions": []}
-                    ],
-                },
-                {
-                    "name": "REVIEWED",
-                    "dashboardAvailable": False,
-                    "defaultSubstate": "REVIEWED",
                     "substates": [
                         {
-                            "name": "REVIEWED",
-                            "displayText": "Reviewed",
+                            "name": "NEW",
+                            "displayText": "New",
                             "availableActions": [
                                 {
                                     "action": "PLAN_SCHEDULE",
@@ -670,418 +662,99 @@ def register_workflows_commands(cli):
             handle_api_error(exc)
 
     @workflow.command(name="preview")
-    @click.option(
-        "--id",
-        "-i",
-        "workflow_id",
-        help="Workflow ID to preview",
-    )
+    @click.option("--id", "-i", "workflow_id", help="Workflow ID to preview")
     @click.option(
         "--file",
         "-f",
         "input_file",
-        help="Local JSON file to preview",
+        help="Local JSON file to preview (use '-' for stdin)",
     )
-    @click.option(
-        "--output",
-        "-o",
-        help="Output file path (default: open in browser)",
-    )
+    @click.option("--output", "-o", help="Output file path (default: open in browser)")
     @click.option(
         "--format",
-        type=click.Choice(["html", "mmd", "svg"]),
+        type=click.Choice(["html", "mmd"]),
         default="html",
         show_default=True,
         help="Output format",
     )
-    def preview_workflow(workflow_id, input_file, output, format):
-        """Generate a Mermaid diagram preview of workflow states and transitions."""
-        # Validate that exactly one of --id or --file is provided
-        if not workflow_id and not input_file:
-            click.echo("✗ Error: Must specify either --id or --file", err=True)
-            sys.exit(1)
-        if workflow_id and input_file:
-            click.echo("✗ Error: Cannot specify both --id and --file", err=True)
-            sys.exit(1)
+    @click.option("--no-emoji", is_flag=True, default=False, help="Disable emoji in action labels")
+    @click.option(
+        "--no-legend",
+        is_flag=True,
+        default=False,
+        help="Disable legend block in HTML output",
+    )
+    @click.option(
+        "--no-open",
+        is_flag=True,
+        default=False,
+        help="Do not auto-open browser for HTML when no --output is provided",
+    )
+    def preview_workflow(
+        workflow_id: Optional[str],
+        input_file: Optional[str],
+        output: Optional[str],
+        format: str,
+        no_emoji: bool,
+        no_legend: bool,
+        no_open: bool,
+    ) -> None:
+        from .utils import ExitCodes
 
+        if bool(workflow_id) == bool(input_file):
+            click.echo(
+                "✗ Must specify exactly one of --id or --file (use --file - for stdin)",
+                err=True,
+            )
+            sys.exit(ExitCodes.INVALID_INPUT)
         try:
-            # Load workflow data
             if workflow_id:
-                # Fetch workflow by ID
                 url = f"{get_base_url()}/niworkorder/v1/workflows/{workflow_id}?ff-userdefinedworkflowsfortestplaninstances=true"
                 resp = make_api_request("GET", url)
-                workflow_data = resp.json()
-
+                workflow_data: Dict[str, Any] = resp.json()
                 if not workflow_data:
                     click.echo(f"✗ Workflow with ID {workflow_id} not found.", err=True)
-                    sys.exit(1)
+                    sys.exit(ExitCodes.NOT_FOUND)
             else:
-                # Load from local file
-                workflow_data = load_json_file(input_file)
-
-            # Generate Mermaid diagram
-            mermaid_code = _generate_mermaid_diagram(workflow_data)
-
+                if input_file == "-":
+                    try:
+                        raw = sys.stdin.read()
+                        workflow_data = json.loads(raw)
+                    except json.JSONDecodeError as exc:
+                        click.echo(f"✗ Invalid JSON from stdin: {exc}", err=True)
+                        sys.exit(ExitCodes.INVALID_INPUT)
+                else:
+                    assert input_file is not None
+                    workflow_data = load_json_file(input_file)
+            mermaid_code = workflow_preview.generate_mermaid_diagram(
+                workflow_data, enable_emoji=not no_emoji
+            )
             if format == "mmd":
-                # Save as .mmd file
                 if not output:
                     output = f"workflow-{workflow_data.get('name', 'preview')}.mmd"
                 with open(output, "w", encoding="utf-8") as f:
                     f.write(mermaid_code)
                 click.echo(f"✓ Mermaid diagram saved to {output}")
-            elif format == "svg":
-                # Note: SVG generation would require Mermaid CLI to be installed
-                click.echo(
-                    "✗ SVG format requires Mermaid CLI. Use 'npm install -g @mermaid-js/mermaid-cli' first.",
-                    err=True,
-                )
-                sys.exit(1)
             else:
-                # Generate HTML and open in browser
-                html_content = _generate_html_with_mermaid(workflow_data, mermaid_code)
-
+                html_content = workflow_preview.generate_html_with_mermaid(
+                    workflow_data, mermaid_code, include_legend=not no_legend
+                )
                 if output:
-                    # Save to specified file
                     with open(output, "w", encoding="utf-8") as f:
                         f.write(html_content)
                     click.echo(f"✓ HTML preview saved to {output}")
-                else:
-                    # Create temporary file and open in browser
+                elif not no_open:
                     with tempfile.NamedTemporaryFile(
                         mode="w", suffix=".html", delete=False, encoding="utf-8"
                     ) as f:
                         f.write(html_content)
                         temp_file = f.name
-
-                    # Open in default browser
                     webbrowser.open(f"file://{Path(temp_file).absolute()}")
-                    click.echo(f"✓ Opening workflow preview in browser...")
-
-        except Exception as exc:
+                    click.echo("✓ Opening workflow preview in browser...")
+                else:
+                    click.echo(html_content)
+        except Exception as exc:  # noqa: BLE001
             handle_api_error(exc)
-
-
-def _sanitize_mermaid_label(label: str) -> str:
-    """Sanitize label text for Mermaid diagram compatibility."""
-    if not label:
-        return label
-
-    # Replace problematic characters for Mermaid syntax
-    sanitized = label.replace("[", "(")
-    sanitized = sanitized.replace("]", ")")
-    sanitized = sanitized.replace("🔗", "")
-    # Keep 📓 notebook emoji now that we add a legend; it's safe in labels
-    sanitized = sanitized.replace("/", "-")
-    sanitized = sanitized.replace("\\", "-")
-    sanitized = sanitized.replace('"', "'")
-    sanitized = sanitized.replace("`", "'")
-    sanitized = sanitized.replace(":", " ")
-    sanitized = sanitized.replace(";", ",")
-    sanitized = sanitized.replace("|", " ")
-    sanitized = sanitized.replace("&", "and")
-
-    # Remove any remaining problematic characters and clean up whitespace
-    sanitized = " ".join(sanitized.split())  # Normalize whitespace
-
-    return sanitized
-
-
-def _generate_mermaid_diagram(workflow_data: Dict) -> str:
-    """Generate Mermaid state diagram from workflow data."""
-    states = workflow_data.get("states", [])
-    actions = workflow_data.get("actions", [])
-
-    # Emoji mapping for action types (kept simple & widely supported)
-    type_emojis: Dict[str, str] = {
-        "MANUAL": "🧑",
-        "NOTEBOOK": "📓",
-        "SCHEDULE": "📅",
-        "JOB": "🛠️",
-    }
-
-    # Create action lookup for display text and type, handling potential whitespace issues
-    action_lookup = {}
-    for action in actions:
-        action_name = action["name"]
-        action_display = action.get("displayText", action_name)
-        execution_action = action.get("executionAction", {})
-        action_type = execution_action.get("type", "")
-
-        # Collect additional action metadata
-        privileges = action.get("privilegeSpecificity", [])
-        icon_class = action.get("iconClass")
-        notebook_id = execution_action.get("notebookId")
-
-        # Create action info with all metadata
-        action_info = {
-            "display": action_display,
-            "type": action_type,
-            "privileges": privileges,
-            "icon": icon_class,
-            "notebook_id": notebook_id,
-        }
-
-        # Store both trimmed and untrimmed versions to handle inconsistencies
-        action_lookup[action_name] = action_info
-        action_lookup[action_name.strip()] = action_info
-
-    lines = ["stateDiagram-v2", ""]
-
-    # Add states and their substates
-    for state in states:
-        state_name = state["name"]
-        substates = state.get("substates", [])
-
-        if not substates:
-            # Simple state with no substates
-            lines.append(f"    {state_name}")
-        else:
-            # State with substates
-            for substate in substates:
-                substate_name = substate["name"]
-                substate_display = substate.get("displayText")
-
-                # Build metadata for the state
-                metadata_parts = []
-
-                # Add dashboard availability
-                if state.get("dashboardAvailable"):
-                    metadata_parts.append("Dashboard")
-
-                # Add action count (visible + hidden)
-                available_actions = substate.get("availableActions", [])
-                visible_actions = len([a for a in available_actions if a.get("showInUI", True)])
-                hidden_actions = len([a for a in available_actions if not a.get("showInUI", True)])
-                total_actions = len(available_actions)
-
-                if total_actions > 0:
-                    if hidden_actions > 0:
-                        metadata_parts.append(f"{visible_actions}+{hidden_actions} actions")
-                    else:
-                        metadata_parts.append(
-                            f"{visible_actions} action{'s' if visible_actions != 1 else ''}"
-                        )
-
-                # Create display text
-                if substate_display:
-                    display_text = substate_display
-                else:
-                    # Use state name formatted nicely (convert SNAKE_CASE to Title Case)
-                    display_text = state_name.replace("_", " ").title()
-
-                # Add metadata if any (restore multiline formatting with explicit \n sequences)
-                if metadata_parts:
-                    full_display = f"{display_text}\\n({', '.join(metadata_parts)})"
-                else:
-                    full_display = display_text
-
-                # Add substate definition (restore multiline variant)
-                if substate_name == state_name:
-                    # Default substate uses the state name
-                    lines.append(f"    {state_name} : {full_display}")
-                else:
-                    # Named substate with parent state on first line
-                    lines.append(
-                        f"    {state_name}_{substate_name} : {state_name}\\n{full_display}"
-                    )
-
-                # Add transitions from this substate
-                available_actions = substate.get("availableActions", [])
-                for action in available_actions:
-                    action_name = action.get("action", "")
-                    next_state = action.get("nextState", "")
-                    next_substate = action.get("nextSubstate", "")
-                    show_in_ui = action.get("showInUI", True)
-
-                    if next_state:
-                        # Handle potential whitespace issues in action names
-                        action_info = action_lookup.get(
-                            action_name, action_lookup.get(action_name.strip(), {})
-                        )
-
-                        if isinstance(action_info, dict):
-                            action_display = action_info.get("display", action_name)
-                            action_type = action_info.get("type", "")
-                            privileges = action_info.get("privileges", [])
-                            icon = action_info.get("icon")
-                            notebook_id = action_info.get("notebook_id")
-
-                            # Build enhanced action label with multiline formatting
-                            # Collect label segments; each becomes a separate Mermaid line
-                            emoji = type_emojis.get(action_type, "")
-                            label_segments: list[str] = (
-                                [emoji, action_display] if emoji else [action_display]
-                            )
-
-                            # Add action type as separate line
-                            if action_type:
-                                label_segments.append(f"({action_type})")
-
-                            # Add privileges if any (keep grouped)
-                            if privileges:
-                                priv_str = ", ".join(privileges)
-                                label_segments.append(f"({priv_str})")
-
-                            # Add notebook info for NOTEBOOK actions
-                            if action_type == "NOTEBOOK" and notebook_id:
-                                short_id = notebook_id[:8] + "..."
-                                label_segments.append(f"NB {short_id}")
-
-                            # Add icon indicator
-                            if icon:
-                                # Use lightning emoji to indicate icon class succinctly
-                                label_segments.append(f"⚡️ {icon}")
-
-                            # Sanitize each segment; join using explicit \n escapes so Mermaid
-                            # renders them as multi-line label content.
-                            sanitized_segments = [
-                                _sanitize_mermaid_label(seg) for seg in label_segments if seg
-                            ]
-                            full_action_label = "\\n".join(sanitized_segments)
-                        else:
-                            # Fallback for backwards compatibility
-                            full_action_label = action_info if action_info else action_name
-
-                        # Determine source and target node names
-                        source_node = (
-                            state_name
-                            if substate_name == state_name
-                            else f"{state_name}_{substate_name}"
-                        )
-
-                        if next_substate and next_substate == next_state:
-                            target_node = next_state
-                        elif next_substate:
-                            target_node = f"{next_state}_{next_substate}"
-                        else:
-                            target_node = next_state
-
-                        # Add transition (use only supported arrow syntax for stateDiagram)
-                        if show_in_ui:
-                            lines.append(
-                                f"    {source_node} --> {target_node} : {full_action_label}"
-                            )
-                        else:
-                            # Use same arrow; append hidden marker in lowercase for clarity
-                            # Append hidden marker as additional multiline segment
-                            hidden_label = f"{full_action_label}\\nhidden"
-                            lines.append(f"    {source_node} --> {target_node} : {hidden_label}")
-
-    # Legend now omitted from Mermaid source (added only in HTML export)
-    lines.append("")
-    return "\n".join(lines)
-
-
-def _generate_html_with_mermaid(workflow_data: Dict, mermaid_code: str) -> str:
-    """Generate HTML page with embedded Mermaid diagram."""
-    workflow_name = workflow_data.get("name", "Workflow")
-    workflow_description = workflow_data.get("description", "")
-
-    html_template = f"""<!DOCTYPE html>
-<html lang="en">
-<head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Workflow Preview: {workflow_name}</title>
-    <script src="https://cdn.jsdelivr.net/npm/mermaid@10.6.1/dist/mermaid.min.js"></script>
-    <style>
-        body {{
-            font-family: Arial, sans-serif;
-            margin: 20px;
-            background-color: #f5f5f5;
-        }}
-        .container {{
-            max-width: 1200px;
-            margin: 0 auto;
-            background-color: white;
-            padding: 20px;
-            border-radius: 8px;
-            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
-        }}
-        .header {{
-            margin-bottom: 20px;
-            border-bottom: 1px solid #eee;
-            padding-bottom: 10px;
-        }}
-        .workflow-title {{
-            color: #333;
-            margin: 0;
-        }}
-        .workflow-description {{
-            color: #666;
-            margin: 5px 0 0 0;
-        }}
-        .diagram-container {{
-            text-align: center;
-            margin: 20px 0;
-        }}
-        .metadata {{
-            margin-top: 20px;
-            font-size: 0.9em;
-            color: #666;
-        }}
-        .legend-table {{
-            width: 100%;
-            border-collapse: collapse;
-            margin: 8px 0 0 0;
-        }}
-        .legend-table td {{
-            padding: 4px 8px;
-            border-bottom: 1px solid #eee;
-            vertical-align: top;
-        }}
-        .legend-table td:first-child {{
-            font-family: monospace;
-            font-weight: bold;
-            width: 120px;
-        }}
-    </style>
-</head>
-<body>
-    <div class="container">
-        <div class="header">
-            <h1 class="workflow-title">{workflow_name}</h1>
-            {f'<p class="workflow-description">{workflow_description}</p>' if workflow_description else ''}
-        </div>
-        
-        <div class="diagram-container">
-            <div class="mermaid">
-{mermaid_code}
-            </div>
-        </div>
-    <div class="legend" style="text-align:left; max-width:400px; margin:0 0 20px 0; background:#fafafa; border:1px solid #ddd; padding:12px; border-radius:6px; font-size:0.9em;">
-            <strong>Legend</strong>
-            <table class="legend-table">
-                <tr><td>🧑</td><td>Manual action</td></tr>
-                <tr><td>📓</td><td>Notebook action</td></tr>
-                <tr><td>📅</td><td>Schedule action</td></tr>
-                <tr><td>🛠️</td><td>Job action</td></tr>
-                <tr><td>(priv1, priv2)</td><td>Privileges required</td></tr>
-                <tr><td>NB abcdef..</td><td>Truncated Notebook ID</td></tr>
-                <tr><td>⚡️ NAME</td><td>UI icon class</td></tr>
-                <tr><td>hidden</td><td>Hidden (not shown in UI)</td></tr>
-            </table>
-        </div>
-        
-        <div class="metadata">
-            <h3>Workflow Details</h3>
-            <p><strong>States:</strong> {len(workflow_data.get('states', []))}</p>
-            <p><strong>Actions:</strong> {len(workflow_data.get('actions', []))}</p>
-            {f'<p><strong>Workspace:</strong> {workflow_data.get("workspace", "N/A")}</p>' if workflow_data.get("workspace") else ''}
-        </div>
-    </div>
-    
-    <script>
-        mermaid.initialize({{ 
-            startOnLoad: true,
-            theme: 'default',
-            fontFamily: 'Arial, sans-serif'
-        }});
-    </script>
-</body>
-</html>"""
-
-    return html_template
 
 
 def _handle_workflow_error_response(response_data, operation_name):
@@ -1108,6 +781,15 @@ def _handle_workflow_delete_response(response_data, workflow_id):
 
     # Handle successful deletion response format: {"ids": ["1023"]}
     if "ids" in response_data:
+        deleted_ids = response_data.get("ids", [])
+        if workflow_id in deleted_ids:
+            click.echo(f"✓ Workflow {workflow_id} deleted successfully.")
+            return
+        else:
+            # Workflow ID not in the successful deletion list - unexpected
+            click.echo(f"✗ Unexpected response for workflow {workflow_id}:", err=True)
+            click.echo(f"  Successfully deleted: {', '.join(deleted_ids)}", err=True)
+            sys.exit(1)
         deleted_ids = response_data.get("ids", [])
         if workflow_id in deleted_ids:
             click.echo(f"✓ Workflow {workflow_id} deleted successfully.")
