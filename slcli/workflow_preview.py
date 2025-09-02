@@ -5,7 +5,7 @@ Separated from workflows_click.py to keep command module concise.
 
 from __future__ import annotations
 
-from typing import Dict, Any, List
+from typing import Dict, Any, List, Tuple
 
 # Public-ish constants (imported by tests / commands)
 ACTION_TYPE_EMOJI: Dict[str, str] = {
@@ -14,8 +14,7 @@ ACTION_TYPE_EMOJI: Dict[str, str] = {
     "SCHEDULE": "📅",
     "JOB": "🛠️",
 }
-
-LEGEND_ROWS: List[tuple[str, str]] = [
+LEGEND_ROWS: List[Tuple[str, str]] = [
     ("🧑", "Manual action"),
     ("📓", "Notebook action"),
     ("📅", "Schedule action"),

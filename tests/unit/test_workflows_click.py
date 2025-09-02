@@ -725,11 +725,11 @@ def test_preview_html_output(monkeypatch, runner):
         assert result.exit_code == 0, result.output
         html = open("out.html", "r", encoding="utf-8").read()
         assert '<div class="legend"' in html
-    assert "🧑</td><td>Manual action" in html
-    # Icon class legend row has two separate cells as well
-    assert "⚡️ NAME</td><td>UI icon class" in html  # legend entry
-    mermaid_section = html.split('<div class="mermaid">', 1)[1].split("</div>", 1)[0]
-    assert "Manual action" not in mermaid_section
+        assert "🧑</td><td>Manual action" in html
+        # Icon class legend row has two separate cells as well
+        assert "⚡️ NAME</td><td>UI icon class" in html  # legend entry
+        mermaid_section = html.split('<div class="mermaid">', 1)[1].split("</div>", 1)[0]
+        assert "Manual action" not in mermaid_section
 
 
 def test_mermaid_sanitization_and_truncation():
