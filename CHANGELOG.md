@@ -1,7 +1,20 @@
 # CHANGELOG
 
 
+## v0.10.0 (2025-09-03)
+
+### Features
+
+- Notebook execution commands
+  ([`19562f1`](https://github.com/ni-kismet/systemlink-cli/commit/19562f154168cc2403f708057fb46daa6671f1ef))
+
+
 ## v0.9.0 (2025-09-02)
+
+### Chores
+
+- **release**: 0.9.0
+  ([`446252f`](https://github.com/ni-kismet/systemlink-cli/commit/446252fac98d71dcec5baf67c83fb867b9362e9e))
 
 ### Features
 
