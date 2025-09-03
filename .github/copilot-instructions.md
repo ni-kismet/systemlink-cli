@@ -96,6 +96,9 @@
 - SystemLink Test Monitor Service: https://dev-api.lifecyclesolutions.ni.com/nitestmonitor/swagger/v2/nitestmonitor-v2.yml
 - SystemLink User Service: https://dev-api.lifecyclesolutions.ni.com/niuser/swagger/v1/niuser.yaml
 - Work Order Service: https://dev-api.lifecyclesolutions.ni.com/niworkorder/swagger/v1/niworkorder.json
+- Notebook Execution Service: https://dev-api.lifecyclesolutions.ni.com/ninbexecution/swagger/v1-ninbexecution.json
+- Notebook Execution Artifact Service: https://dev-api.lifecyclesolutions.ni.com/ninbexecution/swagger/v1-ninbartifact.json
+- SystemLink Notebook Service: https://dev-api.lifecyclesolutions.ni.com/ninotebook/swagger/v1/ninotebook.yaml
 
 ### Implementation Pattern
 - Create typed response models based on OpenAPI schemas when implementing new API clients

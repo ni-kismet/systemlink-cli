@@ -46,7 +46,7 @@ def test_notebook_list(monkeypatch):
     import slcli.utils
 
     monkeypatch.setattr(slcli.utils, "get_workspace_map", lambda: {})
-    result = runner.invoke(cli, ["notebook", "list"])
+    result = runner.invoke(cli, ["notebook", "manage", "list"])
     if result.exit_code != 0:
         print(result.output)
     assert result.exit_code == 0
@@ -74,7 +74,17 @@ def test_notebook_download_by_id(monkeypatch):
         tmp.close()
         result = runner.invoke(
             cli,
-            ["notebook", "download", "--id", "abc123", "--output", tmp.name, "--type", "content"],
+            [
+                "notebook",
+                "manage",
+                "download",
+                "--id",
+                "abc123",
+                "--output",
+                tmp.name,
+                "--type",
+                "content",
+            ],
         )
         assert result.exit_code == 0
         with open(tmp.name, "rb") as f:
@@ -123,7 +133,7 @@ def test_notebook_upload(monkeypatch):
         tmp.write(b"test-nb")
         tmp.close()
         result = runner.invoke(
-            cli, ["notebook", "create", "--file", tmp.name, "--name", "TestNotebook"]
+            cli, ["notebook", "manage", "create", "--file", tmp.name, "--name", "TestNotebook"]
         )
         assert result.exit_code == 0
         assert "uploaded123" in result.output

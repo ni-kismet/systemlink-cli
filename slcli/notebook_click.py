@@ -7,7 +7,9 @@ All commands use Click for robust CLI interfaces and error handling.
 import datetime
 import json
 import sys
-from typing import Any, Dict, List, Optional
+import time
+from pathlib import Path
+from typing import Any, Dict, List, Optional, cast
 
 import click
 import requests
@@ -17,6 +19,7 @@ from .universal_handlers import UniversalResponseHandler
 from .utils import (
     ExitCodes,
     format_success,
+    make_api_request,
     get_base_url,
     get_headers,
     get_ssl_verify,
@@ -118,6 +121,69 @@ def _get_notebook_content_http(notebook_id: str) -> bytes:
         return response.content
     except requests.exceptions.RequestException as exc:
         raise Exception(f"HTTP request failed: {exc}")
+
+
+# ------------------------------------------------------------------
+# Notebook Execution Service helpers (module-scope for test patching)
+# ------------------------------------------------------------------
+def _get_notebook_execution_base() -> str:
+    return f"{get_base_url()}/ninbexecution/v1"
+
+
+def _query_notebook_executions(
+    workspace_id: Optional[str] = None,
+    status: Optional[str] = None,
+    notebook_id: Optional[str] = None,
+) -> List[Dict[str, Any]]:
+    """Query all notebook executions via POST /query-executions with pagination.
+
+    Args:
+        workspace_id: Optional workspace GUID filter.
+        status: Optional already-mapped service status token (e.g. TIMEDOUT).
+        notebook_id: Optional notebook ID filter.
+
+    Returns:
+        List of execution dictionaries.
+    """
+    base = _get_notebook_execution_base()
+    url = f"{base}/query-executions"
+    all_execs: List[Dict[str, Any]] = []
+    continuation_token: Optional[str] = None
+    base_parts: List[str] = []
+    if workspace_id:
+        base_parts.append(f'workspaceId == "{workspace_id}"')
+    if notebook_id:
+        base_parts.append(f'notebookId == "{notebook_id}"')
+
+    while True:
+        payload: Dict[str, Any] = {
+            "take": 100,
+            "orderBy": "QUEUED_AT",
+            "descending": True,
+            "projection": (
+                "new(id, notebookId, workspaceId, userId, status, queuedAt, startedAt, "
+                "completedAt, source, resourceProfile, errorCode, lastUpdatedBy, retryCount)"
+            ),
+        }
+        filters_local = list(base_parts)
+        if status:
+            filters_local.append(f'status = "{status}"')
+        if filters_local:
+            payload["filter"] = " && ".join(filters_local)
+        if continuation_token:
+            payload["continuationToken"] = continuation_token
+        resp = make_api_request("POST", url, payload)
+        data = resp.json() if resp.text else {}
+        if isinstance(data, list):  # pragma: no cover
+            executions = data  # type: ignore[assignment]
+            continuation_token = None
+        else:
+            executions = data.get("executions", [])  # type: ignore[assignment]
+            continuation_token = data.get("continuationToken")
+        all_execs.extend(executions)
+        if not continuation_token:
+            break
+    return all_execs
 
 
 def _create_notebook_http(name: str, workspace: str, content: bytes) -> Dict[str, Any]:
@@ -262,14 +328,103 @@ def _download_notebook_content_and_metadata(
 
 
 def register_notebook_commands(cli: Any) -> None:
-    """Register CLI commands for managing SystemLink notebooks."""
+    """Register CLI commands for managing SystemLink notebooks.
+
+    Reorganized to mirror function commands structure:
+      - 'notebook init' for local scaffold
+      - 'notebook manage <subcommand>' for remote CRUD operations
+      - 'notebook execute <subcommand>' reserved for future execution features
+    """
 
     @cli.group()
-    def notebook() -> None:
-        """Manage Jupyter notebooks."""
+    def notebook() -> None:  # pragma: no cover - Click wiring
+        """Manage notebooks (local init, remote manage, execution)."""
         pass
 
-    @notebook.command(name="update")
+    # ------------------------------------------------------------------
+    # Local initialization (no remote API call)
+    # ------------------------------------------------------------------
+    @notebook.command(name="init")
+    @click.option(
+        "--name",
+        "notebook_name",
+        required=False,
+        default="new-notebook.ipynb",
+        show_default=True,
+        help="Notebook file name (will append .ipynb if missing)",
+    )
+    @click.option(
+        "--directory",
+        "directory",
+        type=click.Path(file_okay=False, dir_okay=True, path_type=Path),
+        default=Path.cwd(),
+        show_default="CWD",
+        help="Target directory",
+    )
+    @click.option("--force", is_flag=True, help="Overwrite existing file if it exists")
+    def init_notebook(notebook_name: str, directory: Path, force: bool) -> None:
+        """Create a local Jupyter notebook skeleton."""
+        try:
+            if not notebook_name.lower().endswith(".ipynb"):
+                notebook_name += ".ipynb"
+            directory.mkdir(parents=True, exist_ok=True)
+            target = directory / notebook_name
+            if target.exists() and not force:
+                click.echo("✗ Target notebook already exists. Use --force to overwrite.", err=True)
+                sys.exit(ExitCodes.INVALID_INPUT)
+            empty_nb: Dict[str, Any] = {
+                "cells": [
+                    {
+                        "cell_type": "markdown",
+                        "metadata": {},
+                        "source": [
+                            "# New Notebook\n",
+                            "Created locally with slcli notebook init.\n",
+                        ],
+                    }
+                ],
+                "metadata": {
+                    "kernelspec": {
+                        "display_name": "Python 3 (ipykernel)",
+                        "language": "python",
+                        "name": "python3",
+                    },
+                    "language_info": {
+                        "name": "python",
+                        "version": sys.version.split()[0],
+                    },
+                },
+                "nbformat": 4,
+                "nbformat_minor": 5,
+            }
+            with open(target, "w", encoding="utf-8") as f:
+                json.dump(empty_nb, f, indent=2)
+            format_success("Local notebook initialized", {"Path": str(target)})
+        except SystemExit:
+            raise
+        except Exception as exc:  # noqa: BLE001
+            handle_api_error(exc)
+
+    # ------------------------------------------------------------------
+    # Subgroups
+    # ------------------------------------------------------------------
+    @notebook.group(name="manage")
+    def notebook_manage() -> None:  # pragma: no cover - Click wiring
+        """Remote notebook CRUD operations."""
+        pass
+
+    @notebook.group(name="execute")
+    def notebook_execute() -> None:  # pragma: no cover - Click wiring
+        """Notebook execution operations."""
+        pass
+
+    # ------------------------------------------------------------------
+    # Remote management commands (moved under 'manage')
+    # ------------------------------------------------------------------
+
+    # Backward compatibility: allow 'slcli notebook list' to still work by delegating.
+
+    @notebook_manage.command(name="update")
     @click.option("--id", "-i", "notebook_id", required=True, help="Notebook ID to update")
     @click.option(
         "--metadata",
@@ -312,7 +467,7 @@ def register_notebook_commands(cli: Any) -> None:
         except Exception as exc:
             handle_api_error(exc)
 
-    @notebook.command(name="list")
+    @notebook_manage.command(name="list")
     @click.option(
         "--workspace",
         "-w",
@@ -429,7 +584,7 @@ def register_notebook_commands(cli: Any) -> None:
         except Exception as exc:
             handle_api_error(exc)
 
-    @notebook.command(name="download")
+    @notebook_manage.command(name="download")
     @click.option("--id", "-i", "notebook_id", help="Notebook ID")
     @click.option("--name", "notebook_name", help="Notebook name")
     @click.option("--workspace", default="Default", help="Workspace name (default: Default)")
@@ -491,21 +646,75 @@ def register_notebook_commands(cli: Any) -> None:
         except Exception as exc:
             handle_api_error(exc)
 
-    @notebook.command(name="create")
+    @notebook_manage.command(name="get")
+    @click.option(
+        "--id",
+        "-i",
+        "notebook_id",
+        required=True,
+        help="Notebook ID to retrieve",
+    )
+    @click.option(
+        "--format",
+        "-f",
+        type=click.Choice(["table", "json"]),
+        default="table",
+        show_default=True,
+        help="Output format",
+    )
+    def get_notebook(notebook_id: str, format: str = "table") -> None:  # type: ignore[override]
+        """Get detailed information about a specific notebook.
+
+        Displays notebook metadata and basic properties. For content download use
+        'slcli notebook manage download'.
+        """
+        format_output = validate_output_format(format)
+        # Build query filter to fetch notebook by ID (workspace not required for direct ID lookup)
+        filter_str = f'id = "{notebook_id}"'
+
+        try:
+            results = _query_notebooks_http(filter_str)
+            if not results:
+                click.echo("✗ Notebook not found.", err=True)
+                sys.exit(ExitCodes.NOT_FOUND)
+            notebook = results[0]
+
+            if format_output == "json":
+                click.echo(json.dumps(notebook, indent=2))
+                return
+
+            workspace_map = get_workspace_map()
+            ws_name = get_workspace_display_name(
+                notebook.get("workspace", ""),
+                workspace_map,
+            )
+
+            click.echo("Notebook Details:")
+            click.echo("=" * 50)
+            click.echo(f"ID:          {notebook.get('id', 'N/A')}")
+            click.echo(f"Name:        {notebook.get('name', 'N/A')}")
+            click.echo(f"Workspace:   {ws_name}")
+            click.echo(f"Size (bytes): {notebook.get('size', 'N/A')}")
+            click.echo(f"Created At:  {notebook.get('createdAt', 'N/A')}")
+            click.echo(f"Updated At:  {notebook.get('updatedAt', 'N/A')}")
+            # Additional metadata keys if present
+            kernel_spec = notebook.get("kernel") or notebook.get("kernelspec")
+            if kernel_spec:
+                if isinstance(kernel_spec, dict):
+                    click.echo(f"Kernel:      {kernel_spec.get('name', 'python')}")
+                else:
+                    click.echo(f"Kernel:      {kernel_spec}")
+        except Exception as exc:
+            handle_api_error(exc)
+
+    @notebook_manage.command(name="create")
     @click.option("--file", "input_file", required=False, help="Path to notebook file to create")
     @click.option("--workspace", default="Default", help="Workspace name (default: Default)")
     @click.option("--name", "notebook_name", required=True, help="Notebook name")
-    @click.option(
-        "--download",
-        is_flag=True,
-        default=False,
-        help="Download notebook content and metadata after creation.",
-    )
     def create_notebook(
         input_file: str = "",
         workspace: str = "Default",
         notebook_name: str = "",
-        download: bool = False,
     ) -> None:
         """Create a new notebook in the specified workspace.
 
@@ -581,22 +790,12 @@ def register_notebook_commands(cli: Any) -> None:
                 result = _create_notebook_http(notebook_name, ws_id, content)
                 format_success("Notebook created", {"ID": result.get("id")})
 
-            # Download notebook content and metadata if requested
-            if download:
-                notebook_id = result.get("id")
-                if not notebook_id:
-                    click.echo("✗ Notebook ID not found, cannot download.", err=True)
-                    return
-                _download_notebook_content_and_metadata(
-                    notebook_id,
-                    notebook_name,
-                    output=None,
-                    download_type="both",
-                )
+            # Download option removed: users should run 'notebook manage download' after creation
+            # if they want to retrieve content or metadata.
         except Exception as exc:
             handle_api_error(exc)
 
-    @notebook.command(name="delete")
+    @notebook_manage.command(name="delete")
     @click.option("--id", "-i", "notebook_id", required=True, help="Notebook ID to delete")
     def delete_notebook(notebook_id: str = "") -> None:
         """Delete a notebook by ID."""
@@ -604,4 +803,474 @@ def register_notebook_commands(cli: Any) -> None:
             _delete_notebook_http(notebook_id)
             format_success("Notebook deleted", {"ID": notebook_id})
         except Exception as exc:
+            handle_api_error(exc)
+
+    # ------------------------------------------------------------------
+    # Execution helpers (Notebook Execution Service)
+    # ------------------------------------------------------------------
+
+    # (Execution helpers now defined at module scope for test patching.)
+
+    # ------------------------------------------------------------------
+    # Execution commands (mirror function execute group)
+    # ------------------------------------------------------------------
+
+    @notebook_execute.command(name="list")
+    @click.option("--workspace", "-w", help="Filter by workspace name or ID")
+    @click.option(
+        "--status",
+        "-s",
+        help=(
+            "Filter by execution status (case-insensitive). Allowed: in_progress, queued, failed, "
+            "succeeded, canceled, timed_out."
+        ),
+    )
+    @click.option("--notebook-id", "-n", help="Filter by notebook ID")
+    @click.option("--take", "-t", type=int, default=25, show_default=True, help="Max rows/page")
+    @click.option(
+        "--format",
+        "-f",
+        type=click.Choice(["table", "json"]),
+        default="table",
+        show_default=True,
+        help="Output format",
+    )
+    def list_notebook_executions(
+        workspace: Optional[str] = None,
+        status: Optional[str] = None,
+        notebook_id: Optional[str] = None,
+        take: int = 25,
+        format: str = "table",
+    ) -> None:
+        """List notebook executions."""
+        format_output = validate_output_format(format)
+        try:
+            workspace_map = get_workspace_map()
+            workspace_guid = None
+            if workspace:
+                workspace_guid = get_workspace_id_with_fallback(workspace)
+
+            def _normalize_execution_status(raw: str) -> str:
+                """Normalize user-provided execution status to service token.
+
+                Accept (case-insensitive) one of:
+                  in_progress, queued, failed, succeeded, canceled, timed_out
+
+                Map to service forms (no underscore for IN_PROGRESS/TIMED_OUT):
+                  IN_PROGRESS -> INPROGRESS
+                  TIMED_OUT   -> TIMEDOUT
+                Others pass through unchanged uppercased.
+                """
+                canonical = raw.strip().upper().replace("-", "_")
+                mapping = {
+                    "IN_PROGRESS": "INPROGRESS",
+                    "TIMED_OUT": "TIMEDOUT",
+                    "QUEUED": "QUEUED",
+                    "FAILED": "FAILED",
+                    "SUCCEEDED": "SUCCEEDED",
+                    "CANCELED": "CANCELED",
+                }
+                if canonical in mapping:
+                    return mapping[canonical]
+                click.echo(
+                    "✗ Invalid status. Allowed: in_progress, queued, failed, succeeded, canceled, timed_out",
+                    err=True,
+                )
+                sys.exit(ExitCodes.INVALID_INPUT)
+
+            status_service_value = _normalize_execution_status(status) if status else None
+            executions = _query_notebook_executions(
+                workspace_guid, status_service_value, notebook_id
+            )
+
+            class ExecResp:
+                def json(self) -> Dict[str, Any]:  # noqa: D401
+                    return {"executions": executions}
+
+                @property
+                def status_code(self) -> int:
+                    return 200
+
+            mock_resp: Any = ExecResp()
+
+            def exec_formatter(exe: Dict[str, Any]) -> List[str]:
+                ws_name = get_workspace_display_name(exe.get("workspaceId", ""), workspace_map)
+                queued_at = exe.get("queuedAt", "")
+                if queued_at:
+                    queued_at = queued_at.split("T")[0]
+                return [
+                    exe.get("id", ""),
+                    exe.get("notebookId", ""),
+                    ws_name,
+                    exe.get("status", "UNKNOWN"),
+                    queued_at,
+                ]
+
+            UniversalResponseHandler.handle_list_response(
+                resp=mock_resp,
+                data_key="executions",
+                item_name="execution",
+                format_output=format_output,
+                formatter_func=exec_formatter,
+                headers=["ID", "Notebook ID", "Workspace", "Status", "Queued"],
+                column_widths=[36, 36, 20, 12, 12],
+                empty_message="No notebook executions found.",
+                enable_pagination=True,
+                page_size=take,
+            )
+        except Exception as exc:  # noqa: BLE001
+            handle_api_error(exc)
+
+    @notebook_execute.command(name="get")
+    @click.option("--id", "-i", "execution_id", required=True, help="Execution ID")
+    @click.option(
+        "--format",
+        "-f",
+        type=click.Choice(["table", "json"]),
+        default="table",
+        show_default=True,
+        help="Output format",
+    )
+    def get_notebook_execution(execution_id: str, format: str = "table") -> None:
+        """Get detailed information about a notebook execution."""
+        format_output = validate_output_format(format)
+        base = _get_notebook_execution_base()
+        url = f"{base}/executions/{execution_id}"
+        try:
+            data = make_api_request("GET", url).json()
+            if format_output == "json":
+                click.echo(json.dumps(data, indent=2))
+                return
+            workspace_map = get_workspace_map()
+            ws_name = get_workspace_display_name(data.get("workspaceId", ""), workspace_map)
+            click.echo("Notebook Execution Details:")
+            click.echo("=" * 50)
+            click.echo(f"ID:               {data.get('id', 'N/A')}")
+            click.echo(f"Notebook ID:      {data.get('notebookId', 'N/A')}")
+            click.echo(f"Workspace:        {ws_name}")
+            click.echo(f"Status:           {data.get('status', 'N/A')}")
+            click.echo(f"Timeout:          {data.get('timeout', 'N/A')}")
+            click.echo(f"Queued At:        {data.get('queuedAt', 'N/A')}")
+            click.echo(f"Started At:       {data.get('startedAt', 'N/A')}")
+            click.echo(f"Completed At:     {data.get('completedAt', 'N/A')}")
+            if data.get("parameters"):
+                click.echo("\nParameters:")
+                click.echo(json.dumps(data["parameters"], indent=2))
+            if data.get("result"):
+                click.echo("\nResult:")
+                click.echo(json.dumps(data["result"], indent=2))
+            if data.get("errorMessage"):
+                click.echo("\nError Message:")
+                click.echo(data["errorMessage"])
+        except Exception as exc:  # noqa: BLE001
+            handle_api_error(exc)
+
+    @notebook_execute.command(name="start")
+    @click.option("--notebook-id", "-n", required=True, help="Notebook ID to execute")
+    @click.option(
+        "--workspace",
+        "-w",
+        default="Default",
+        help="Workspace name or ID (default: 'Default')",
+    )
+    @click.option(
+        "--parameters",
+        "-p",
+        help="Raw JSON string or @file for parameters passed to execution service",
+    )
+    @click.option(
+        "--timeout",
+        "-t",
+        type=int,
+        default=1800,
+        show_default=True,
+        help="Execution timeout in seconds",
+    )
+    @click.option(
+        "--no-cache",
+        is_flag=True,
+        help="Disable result caching (sets resultCachePeriod=0)",
+    )
+    @click.option(
+        "--format",
+        "-f",
+        type=click.Choice(["table", "json"]),
+        default="table",
+        show_default=True,
+        help="Output format",
+    )
+    def start_notebook_execution(
+        notebook_id: str,
+        workspace: str = "Default",
+        parameters: Optional[str] = None,
+        timeout: int = 1800,
+        no_cache: bool = False,
+        format: str = "table",
+    ) -> None:
+        """Start a notebook execution and return immediately.
+
+        This creates an execution (async) and returns the created execution record.
+        Use 'notebook execute sync' to wait for completion.
+        """
+        format_output = validate_output_format(format)
+        base = _get_notebook_execution_base()
+        ws_id = get_workspace_id_with_fallback(workspace)
+        # Build CreateExecution object (subset of fields exposed via CLI today)
+        create_execution: Dict[str, Any] = {
+            "workspaceId": ws_id,
+            "timeout": timeout,
+            "notebookId": notebook_id,
+        }
+        if no_cache:
+            create_execution["resultCachePeriod"] = 0
+        if parameters:
+            try:
+                if parameters.strip().startswith("@"):
+                    p_file = parameters[1:]
+                    with open(p_file, "r", encoding="utf-8") as pf:
+                        create_execution["parameters"] = json.load(pf)
+                else:
+                    create_execution["parameters"] = json.loads(parameters)
+            except Exception as exc:  # noqa: BLE001
+                click.echo(f"✗ Invalid parameters JSON: {exc}", err=True)
+                sys.exit(ExitCodes.INVALID_INPUT)
+        # The API expects an array of CreateExecution objects.
+        payload: List[Dict[str, Any]] = [create_execution]
+        url = f"{base}/executions"
+        try:
+            # make_api_request expects a dict payload; executions endpoint needs an array.
+            # Use direct requests.post until helper is generalized for list payloads.
+            # Direct POST because make_api_request currently only supports dict payloads.
+            headers = get_headers("application/json")
+            resp = requests.post(url, headers=headers, json=payload, verify=get_ssl_verify())
+            resp.raise_for_status()
+            resp_json: Dict[str, Any] = resp.json()
+            executions: List[Dict[str, Any]] = cast(
+                List[Dict[str, Any]], resp_json.get("executions") or []
+            )
+            if not executions:
+                # API may return error in BaseResponse.error
+                error_obj = resp_json.get("error")
+                if error_obj:
+                    click.echo(f"✗ Error: {error_obj.get('message', 'Unknown error')} ", err=True)
+                else:
+                    click.echo("✗ No execution returned by service", err=True)
+                sys.exit(ExitCodes.GENERAL_ERROR)
+            execution = executions[0]
+            if format_output == "json":
+                # Emit the first execution for convenience (matches table output scope)
+                click.echo(json.dumps(execution, indent=2))
+                return
+            click.echo("Notebook Execution Result:")
+            click.echo("=" * 50)
+            click.echo(f"Execution ID:  {execution.get('id', 'N/A')}")
+            click.echo(f"Status:        {execution.get('status', 'N/A')}")
+            if "cachedResult" in execution:
+                cached = execution.get("cachedResult")
+                note = " (served from cache)" if cached else ""
+                click.echo(f"Cached Result: {cached}{note}")
+            if execution.get("result"):
+                click.echo("\nResult:")
+                click.echo(json.dumps(execution["result"], indent=2))
+            if execution.get("errorMessage"):
+                click.echo("\nError Message:")
+                click.echo(execution["errorMessage"])
+        except Exception as exc:  # noqa: BLE001
+            handle_api_error(exc)
+
+    @notebook_execute.command(name="sync")
+    @click.option("--notebook-id", "-n", required=True, help="Notebook ID to execute synchronously")
+    @click.option(
+        "--workspace",
+        "-w",
+        default="Default",
+        help="Workspace name or ID (default: 'Default')",
+    )
+    @click.option(
+        "--parameters",
+        "-p",
+        help="Raw JSON string or @file for parameters passed to execution service",
+    )
+    @click.option(
+        "--timeout",
+        "-t",
+        type=int,
+        default=1800,
+        show_default=True,
+        help="Execution timeout in seconds (server-side; 0 for infinite)",
+    )
+    @click.option(
+        "--poll-interval",
+        type=float,
+        default=2.0,
+        show_default=True,
+        help="Polling interval when waiting for completion",
+    )
+    @click.option(
+        "--max-wait",
+        type=int,
+        default=None,
+        help="Maximum seconds to wait client-side (default: timeout + 60 if set)",
+    )
+    @click.option(
+        "--format",
+        "-f",
+        type=click.Choice(["table", "json"]),
+        default="table",
+        show_default=True,
+        help="Output format",
+    )
+    @click.option(
+        "--no-cache",
+        is_flag=True,
+        help="Disable result caching (sets resultCachePeriod=0)",
+    )
+    def execute_notebook_sync(
+        notebook_id: str,
+        workspace: str = "Default",
+        parameters: Optional[str] = None,
+        timeout: int = 1800,
+        poll_interval: float = 2.0,
+        max_wait: Optional[int] = None,
+        no_cache: bool = False,
+        format: str = "table",
+    ) -> None:
+        """Execute a notebook and wait until completion.
+
+        This submits an execution then polls the execution status until it reaches a
+        terminal state (SUCCEEDED, FAILED, CANCELED, TIMED_OUT). Shows a spinner and
+        status updates while waiting.
+        """
+        format_output = validate_output_format(format)
+        base = _get_notebook_execution_base()
+        ws_id = get_workspace_id_with_fallback(workspace)
+        create_execution: Dict[str, Any] = {
+            "workspaceId": ws_id,
+            "timeout": timeout,
+            "notebookId": notebook_id,
+        }
+        if no_cache:
+            create_execution["resultCachePeriod"] = 0
+        if parameters:
+            try:
+                if parameters.strip().startswith("@"):
+                    p_file = parameters[1:]
+                    with open(p_file, "r", encoding="utf-8") as pf:
+                        create_execution["parameters"] = json.load(pf)
+                else:
+                    create_execution["parameters"] = json.loads(parameters)
+            except Exception as exc:  # noqa: BLE001
+                click.echo(f"✗ Invalid parameters JSON: {exc}", err=True)
+                sys.exit(ExitCodes.INVALID_INPUT)
+        payload: List[Dict[str, Any]] = [create_execution]
+        url = f"{base}/executions"
+        try:
+            headers = get_headers("application/json")
+            resp = requests.post(url, headers=headers, json=payload, verify=get_ssl_verify())
+            resp.raise_for_status()
+            resp_json: Dict[str, Any] = resp.json()
+            executions: List[Dict[str, Any]] = cast(
+                List[Dict[str, Any]], resp_json.get("executions") or []
+            )
+            if not executions:
+                error_obj = resp_json.get("error")
+                if error_obj:
+                    click.echo(
+                        f"✗ Error creating execution: {error_obj.get('message', 'Unknown error')}",
+                        err=True,
+                    )
+                else:
+                    click.echo("✗ No execution returned by service", err=True)
+                sys.exit(ExitCodes.GENERAL_ERROR)
+            execution = executions[0]
+            execution_id = execution.get("id")
+            if not execution_id:
+                click.echo("✗ Execution response missing ID", err=True)
+                sys.exit(ExitCodes.GENERAL_ERROR)
+            # Polling loop
+            terminal_statuses = {"SUCCEEDED", "FAILED", "CANCELED", "TIMED_OUT"}
+            spinner_frames = ["|", "/", "-", "\\"]
+            spinner_index = 0
+            start_time = time.time()
+            computed_max_wait = (
+                max_wait if max_wait is not None else (timeout + 60 if timeout else None)
+            )
+            status = execution.get("status", "QUEUED")
+            last_print_status = ""
+            while status not in terminal_statuses:
+                # Respect client-side max wait
+                if computed_max_wait is not None and (time.time() - start_time) > computed_max_wait:
+                    click.echo("\n✗ Reached client-side max wait timeout", err=True)
+                    sys.exit(ExitCodes.GENERAL_ERROR)
+                spinner = spinner_frames[spinner_index % len(spinner_frames)]
+                spinner_index += 1
+                # Fetch latest execution state
+                try:
+                    exec_resp = make_api_request(
+                        "GET", f"{base}/executions/{execution_id}", payload=None
+                    ).json()
+                    status = exec_resp.get("status", status)
+                    execution = exec_resp
+                except Exception:  # noqa: BLE001
+                    # Transient fetch error; continue (error already printed by handler)
+                    pass
+                if format_output == "json":
+                    # Suppress spinner for machine-readable output (could add to stderr)
+                    pass
+                else:
+                    if status != last_print_status:
+                        click.echo("")  # newline when status changes
+                        last_print_status = status
+                    msg = (
+                        f"{spinner} Waiting for execution {execution_id} | Status: {status} | "
+                        f"Elapsed: {int(time.time() - start_time)}s"
+                    )
+                    # carriage return for inline spinner
+                    click.echo(msg, nl=False)
+                    click.echo("\r", nl=False)
+                time.sleep(poll_interval)
+            # Finished
+            if format_output == "json":
+                click.echo(json.dumps(execution, indent=2))
+                return
+            click.echo("")  # ensure newline after spinner line
+            click.echo("Notebook Execution Completed:")
+            click.echo("=" * 50)
+            click.echo(f"Execution ID:  {execution.get('id', 'N/A')}")
+            click.echo(f"Status:        {execution.get('status', 'N/A')}")
+            if "cachedResult" in execution:
+                cached = execution.get("cachedResult")
+                note = " (served from cache)" if cached else ""
+                click.echo(f"Cached Result: {cached}{note}")
+            if execution.get("result"):
+                click.echo("\nResult:")
+                click.echo(json.dumps(execution["result"], indent=2))
+            if execution.get("errorMessage"):
+                click.echo("\nError Message:")
+                click.echo(execution["errorMessage"])
+        except Exception as exc:  # noqa: BLE001
+            handle_api_error(exc)
+
+    @notebook_execute.command(name="cancel")
+    @click.option("--id", "-i", "execution_id", required=True, help="Execution ID to cancel")
+    def cancel_notebook_execution(execution_id: str) -> None:
+        """Cancel a running notebook execution."""
+        base = _get_notebook_execution_base()
+        url = f"{base}/executions/{execution_id}/cancel"
+        try:
+            make_api_request("POST", url, payload={})
+            format_success("Notebook execution cancellation requested", {"ID": execution_id})
+        except Exception as exc:  # noqa: BLE001
+            handle_api_error(exc)
+
+    @notebook_execute.command(name="retry")
+    @click.option("--id", "-i", "execution_id", required=True, help="Execution ID to retry")
+    def retry_notebook_execution(execution_id: str) -> None:
+        """Retry a failed notebook execution."""
+        base = _get_notebook_execution_base()
+        url = f"{base}/executions/{execution_id}/retry"
+        try:
+            data = make_api_request("POST", url, payload={}).json()
+            format_success("Notebook execution retry started", {"ID": data.get("id", execution_id)})
+        except Exception as exc:  # noqa: BLE001
             handle_api_error(exc)
