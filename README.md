@@ -111,8 +111,8 @@ After installation, restart your shell or source the completion file. See [docs/
    # View workflows
    slcli workflow list
 
-   # View notebooks
-   slcli notebook list
+    # View notebooks
+    slcli notebook manage list
 
    # View users
    slcli user list
@@ -903,69 +903,104 @@ The CLI will automatically load these environment variables from the `.env` file
 
 ## Notebook Management
 
-The `notebook` command group allows you to manage Jupyter notebooks in SystemLink.
+The `notebook` command group is organized into logical subgroups to mirror function command structure:
 
-### List all notebooks in a workspace
+- `slcli notebook init` – scaffold a local notebook file.
+- `slcli notebook manage <subcommand>` – list, create, update, download, delete remote notebooks.
+- `slcli notebook execute list` – list notebook execution records (supports --workspace, --notebook-id, --status, --take, --format json|table).
+
+Legacy top-level aliases (e.g. `slcli notebook list`) have been removed; always use the `manage` subgroup for server operations.
+
+### Initialize a local notebook
+
+```bash
+# Create a new local notebook file
+slcli notebook init --name MyLocalNotebook.ipynb
+```
+
+### List notebooks in a workspace
+
+# List notebook executions
+
+```bash
+# List recent executions (table with pagination)
+slcli notebook execute list
+
+# Filter by workspace
+slcli notebook execute list --workspace MyWorkspace
+
+# Filter by notebook ID
+slcli notebook execute list --notebook-id 123e4567-e89b-12d3-a456-426614174000
+
+# Filter by status (case-insensitive input mapped to service tokens)
+slcli notebook execute list --status timed_out
+slcli notebook execute list --status in_progress
+
+# JSON output (no interactive pagination)
+slcli notebook execute list --format json --take 100
+```
+
+Valid statuses for --status: in_progress, queued, failed, succeeded, canceled, timed_out.
 
 ```bash
 # List all notebooks (table format - default)
-slcli notebook list
+slcli notebook manage list
 
-# List notebooks in specific workspace
-slcli notebook list --workspace MyWorkspace
+# List notebooks in a specific workspace
+slcli notebook manage list --workspace MyWorkspace
 
 # JSON format for programmatic use
-slcli notebook list --format json
+slcli notebook manage list --format json
 
-# Control pagination (table format only)
-slcli notebook list --take 50
+# Control pagination (table output only)
+slcli notebook manage list --take 50
 ```
 
 ### Download notebook content and/or metadata
 
 ```bash
-# Download notebook content (.ipynb) by ID:
-slcli notebook download --id <notebook_id> --output mynotebook.ipynb
+# Download notebook content (.ipynb) by ID
+slcli notebook manage download --id <notebook_id> --output mynotebook.ipynb
 
-# Download notebook content by name:
-slcli notebook download --name MyNotebook --output mynotebook.ipynb
+# Download notebook content by name
+slcli notebook manage download --name MyNotebook --output mynotebook.ipynb
 
-# Download notebook metadata as JSON:
-slcli notebook download --id <notebook_id> --type metadata --output metadata.json
+# Download notebook metadata as JSON
+slcli notebook manage download --id <notebook_id> --type metadata --output metadata.json
 
-# Download both content and metadata:
-slcli notebook download --id <notebook_id> --type both --output mynotebook.ipynb
+# Download both content and metadata
+slcli notebook manage download --id <notebook_id> --type both --output mynotebook.ipynb
 ```
 
 ### Create a new notebook
 
 ```bash
-# Create from existing .ipynb file:
-slcli notebook create --file mynotebook.ipynb --name MyNotebook
-slcli notebook create --file mynotebook.ipynb --workspace MyWorkspace --name MyNotebook
+# Create from existing .ipynb file
+slcli notebook manage create --file mynotebook.ipynb --name MyNotebook
+slcli notebook manage create --file mynotebook.ipynb --workspace MyWorkspace --name MyNotebook
 
-# Create an empty notebook:
-slcli notebook create --name MyNotebook
-slcli notebook create --workspace MyWorkspace --name MyNotebook
+# Create an empty notebook
+slcli notebook manage create --name MyNotebook
+slcli notebook manage create --workspace MyWorkspace --name MyNotebook
 ```
 
 ### Update notebook metadata and/or content
 
 ```bash
-# Update metadata only:
-slcli notebook update --id <notebook_id> --metadata metadata.json
+# Update metadata only
+slcli notebook manage update --id <notebook_id> --metadata metadata.json
 
-# Update content only:
-slcli notebook update --id <notebook_id> --content mynotebook.ipynb
+# Update content only
+slcli notebook manage update --id <notebook_id> --content mynotebook.ipynb
 
-# Update both metadata and content:
-slcli notebook update --id <notebook_id> --metadata metadata.json --content mynotebook.ipynb
+# Update both metadata and content
+slcli notebook manage update --id <notebook_id> --metadata metadata.json --content mynotebook.ipynb
 ```
 
 ### Delete a notebook
 
 ```bash
-slcli notebook delete --id <notebook_id>
+slcli notebook manage delete --id <notebook_id>
 ```
 
 ## User Management
@@ -1245,12 +1280,12 @@ SystemLink CLI supports both human-readable table output and machine-readable JS
 # Human-readable table
 slcli template list
 slcli workflow list
-slcli notebook list
+slcli notebook manage list
 
 # Machine-readable JSON
 slcli template list --format json
 slcli workflow list --format json
-slcli notebook list --format json
+slcli notebook manage list --format json
 ```
 
 ## Flag Conventions

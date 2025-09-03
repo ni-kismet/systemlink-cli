@@ -15,16 +15,25 @@ class TestNotebookE2E:
 
     def test_notebook_list_basic(self, cli_runner, cli_helper):
         """Test basic notebook list functionality."""
-        result = cli_runner(["notebook", "list", "--format", "json"])
+        result = cli_runner(["notebook", "manage", "list", "--format", "json"])
         cli_helper.assert_success(result)
-
         notebooks = cli_helper.get_json_output(result)
         assert isinstance(notebooks, list)
 
     def test_notebook_list_with_workspace_filter(self, cli_runner, cli_helper, e2e_config):
         """Test notebook list with workspace filtering."""
         workspace = e2e_config["workspace"]
-        result = cli_runner(["notebook", "list", "--workspace", workspace, "--format", "json"])
+        result = cli_runner(
+            [
+                "notebook",
+                "manage",
+                "list",
+                "--workspace",
+                workspace,
+                "--format",
+                "json",
+            ]
+        )
         cli_helper.assert_success(result)
 
         notebooks = cli_helper.get_json_output(result)
@@ -46,6 +55,7 @@ class TestNotebookE2E:
             result = cli_runner(
                 [
                     "notebook",
+                    "manage",
                     "create",
                     "--file",
                     temp_file,
@@ -69,7 +79,15 @@ class TestNotebookE2E:
 
             # Verify notebook exists by listing
             result = cli_runner(
-                ["notebook", "list", "--workspace", configured_workspace, "--format", "json"]
+                [
+                    "notebook",
+                    "manage",
+                    "list",
+                    "--workspace",
+                    configured_workspace,
+                    "--format",
+                    "json",
+                ]
             )
             cli_helper.assert_success(result)
             notebooks = cli_helper.get_json_output(result)
@@ -79,12 +97,20 @@ class TestNotebookE2E:
             assert created_notebook["id"] == notebook_id
 
             # Delete notebook
-            result = cli_runner(["notebook", "delete", "--id", notebook_id])
+            result = cli_runner(["notebook", "manage", "delete", "--id", notebook_id])
             cli_helper.assert_success(result, "Notebook deleted")
 
             # Verify notebook is deleted
             result = cli_runner(
-                ["notebook", "list", "--workspace", configured_workspace, "--format", "json"]
+                [
+                    "notebook",
+                    "manage",
+                    "list",
+                    "--workspace",
+                    configured_workspace,
+                    "--format",
+                    "json",
+                ]
             )
             cli_helper.assert_success(result)
             notebooks = cli_helper.get_json_output(result)
@@ -114,6 +140,7 @@ class TestNotebookE2E:
             result = cli_runner(
                 [
                     "notebook",
+                    "manage",
                     "create",
                     "--file",
                     temp_file,
@@ -142,6 +169,7 @@ class TestNotebookE2E:
             result = cli_runner(
                 [
                     "notebook",
+                    "manage",
                     "download",
                     "--id",
                     notebook_id,
@@ -169,7 +197,7 @@ class TestNotebookE2E:
 
             # Cleanup
             Path(download_path).unlink(missing_ok=True)
-            cli_runner(["notebook", "delete", "--id", notebook_id], check=False)
+            cli_runner(["notebook", "manage", "delete", "--id", notebook_id], check=False)
 
         finally:
             Path(temp_file).unlink(missing_ok=True)
@@ -190,6 +218,7 @@ class TestNotebookE2E:
             result = cli_runner(
                 [
                     "notebook",
+                    "manage",
                     "create",
                     "--file",
                     temp_file,
@@ -208,6 +237,7 @@ class TestNotebookE2E:
             result = cli_runner(
                 [
                     "notebook",
+                    "manage",
                     "download",
                     "--name",
                     notebook_name,
@@ -229,12 +259,20 @@ class TestNotebookE2E:
 
             # Get notebook ID for cleanup
             result = cli_runner(
-                ["notebook", "list", "--workspace", configured_workspace, "--format", "json"]
+                [
+                    "notebook",
+                    "manage",
+                    "list",
+                    "--workspace",
+                    configured_workspace,
+                    "--format",
+                    "json",
+                ]
             )
             notebooks = cli_helper.get_json_output(result)
             notebook = cli_helper.find_resource_by_name(notebooks, notebook_name)
             if notebook:
-                cli_runner(["notebook", "delete", "--id", notebook["id"]], check=False)
+                cli_runner(["notebook", "manage", "delete", "--id", notebook["id"]], check=False)
 
         finally:
             Path(temp_file).unlink(missing_ok=True)
@@ -243,7 +281,8 @@ class TestNotebookE2E:
     def test_notebook_pagination(self, cli_runner, cli_helper):
         """Test notebook list pagination."""
         # Test with small take value to trigger pagination
-        result = cli_runner(["notebook", "list", "--take", "5", "--format", "table"])
+
+        result = cli_runner(["notebook", "manage", "list", "--take", "5", "--format", "table"])
         cli_helper.assert_success(result)
 
         # Should either show notebooks or "No notebooks found"
@@ -253,14 +292,22 @@ class TestNotebookE2E:
         """Test error handling for invalid operations."""
         # Test download with invalid ID
         result = cli_runner(
-            ["notebook", "download", "--id", "invalid-notebook-id-12345", "--type", "content"],
+            [
+                "notebook",
+                "manage",
+                "download",
+                "--id",
+                "invalid-notebook-id-12345",
+                "--type",
+                "content",
+            ],
             check=False,
         )
         cli_helper.assert_failure(result)
 
         # Test delete with invalid ID
         result = cli_runner(
-            ["notebook", "delete", "--id", "invalid-notebook-id-12345"], check=False
+            ["notebook", "manage", "delete", "--id", "invalid-notebook-id-12345"], check=False
         )
         cli_helper.assert_failure(result)
 
@@ -270,7 +317,15 @@ class TestNotebookE2E:
 
         # Create empty notebook
         result = cli_runner(
-            ["notebook", "create", "--name", notebook_name, "--workspace", configured_workspace]
+            [
+                "notebook",
+                "manage",
+                "create",
+                "--name",
+                notebook_name,
+                "--workspace",
+                configured_workspace,
+            ]
         )
         cli_helper.assert_success(result, "Notebook created")
 
@@ -284,4 +339,4 @@ class TestNotebookE2E:
 
         if notebook_id:
             # Cleanup
-            cli_runner(["notebook", "delete", "--id", notebook_id], check=False)
+            cli_runner(["notebook", "manage", "delete", "--id", notebook_id], check=False)
