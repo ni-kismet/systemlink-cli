@@ -5,7 +5,11 @@ $toolsDir    = Split-Path -Parent $MyInvocation.MyCommand.Definition
 
 # Version is inferred from nuspec; construct download URL
 # Use the Chocolatey provided variable if available
+# '$version$' is a build-time token that should be replaced during packaging.
 if ($env:ChocolateyPackageVersion) { $version = $env:ChocolateyPackageVersion } else { $version = '$version$' }
+if ($version -eq '$version$') {
+    throw "The package version could not be determined. Ensure that the build-time token `\$version\$` is replaced or the ChocolateyPackageVersion environment variable is set."
+}
 
 $zipName = "slcli.zip"
 $downloadUrl = "https://github.com/ni-kismet/systemlink-cli/releases/download/v$version/$zipName"
