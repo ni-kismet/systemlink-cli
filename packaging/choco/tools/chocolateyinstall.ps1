@@ -4,7 +4,6 @@ $packageName = 'slcli'
 $toolsDir    = Split-Path -Parent $MyInvocation.MyCommand.Definition
 
 # Version is inferred from nuspec; construct download URL
-$packageVersion = (Get-Item "$toolsDir\..\slcli.nuspec").Name | Out-Null
 # Use the Chocolatey provided variable if available
 if ($env:ChocolateyPackageVersion) { $version = $env:ChocolateyPackageVersion } else { $version = '$version$' }
 
