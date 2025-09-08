@@ -1,52 +1,24 @@
 """Entry point for the SystemLink CLI application.
 
-Adds optional truststore-based system certificate store injection on all supported
-platforms when the `truststore` extra is installed. Controlled via environment:
-  SLCLI_DISABLE_OS_TRUST=1  -> skip injection
-  SLCLI_FORCE_OS_TRUST=1    -> raise if injection fails
+Performs system trust store injection (via truststore) before loading the main CLI.
+Environment controls:
+    SLCLI_DISABLE_OS_TRUST=1  -> skip injection
+    SLCLI_FORCE_OS_TRUST=1    -> raise if injection fails
+    SLCLI_DEBUG_OS_TRUST=1    -> show traceback on injection failure
 """
 
 from __future__ import annotations
 
-import os
-import sys
-import traceback
+# Minimal stdlib imports; keep early to satisfy import-order lint
+import sys  # noqa: F401  (may be used by future bootstrap logic)
 
-# PyInstaller workaround for package imports
-if getattr(sys, "frozen", False) and hasattr(sys, "_MEIPASS"):
-    sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+from .ssl_trust import inject_os_trust  # noqa: E402,I100,I202
 
+# Perform trust injection before importing the main CLI so that any subsequent
+# imports of requests-based utilities see the patched SSL configuration.
+inject_os_trust()
 
-def _inject_os_trust() -> None:
-    """Inject system certificate store into requests via truststore if available.
-
-    Falls back silently to certifi when:
-    - truststore isn't installed
-    - injection raises an unexpected exception
-    Unless SLCLI_FORCE_OS_TRUST=1 is set, in which case an ImportError or runtime
-    error will abort startup.
-    """
-    if os.environ.get("SLCLI_DISABLE_OS_TRUST") == "1":
-        return
-    try:
-        import truststore  # type: ignore
-
-        truststore.inject_into_requests()
-    except Exception as exc:  # pragma: no cover - defensive
-        if os.environ.get("SLCLI_FORCE_OS_TRUST") == "1":
-            # Re-raise to make failure explicit (e.g. in controlled environments)
-            raise
-        # Best-effort logging to stderr (avoid click dependency here)
-        sys.stderr.write(
-            f"[slcli] Info: truststore injection skipped ({exc.__class__.__name__}: {exc}).\n"
-        )
-        if os.environ.get("SLCLI_DEBUG_OS_TRUST") == "1":
-            traceback.print_exc()
-
-
-_inject_os_trust()
-
-from slcli.main import cli  # noqa: E402  (import after injection)
+from slcli.main import cli  # noqa: E402,I100,I202
 
 if __name__ == "__main__":
     cli()

@@ -40,9 +40,29 @@ def inject_os_trust() -> None:
     try:  # pragma: no cover - success path trivial
         import truststore  # type: ignore
 
-        truststore.inject_into_requests()  # type: ignore[attr-defined]
+        # Attempt known injection entry points in preferred order.
+        candidates = [
+            ("inject_into_requests", "requests"),  # modern direct requests patch
+            ("inject_into_ssl", "ssl"),  # base SSL context patch
+            ("inject_into_urllib3", "urllib3"),  # older fallback (affects requests indirectly)
+        ]
+        injected_variant = None
+        for attr_name, label in candidates:
+            if hasattr(truststore, attr_name):
+                try:
+                    getattr(truststore, attr_name)()  # type: ignore[misc]
+                    injected_variant = label
+                    break
+                except Exception:  # pragma: no cover - try next variant
+                    continue
+        if injected_variant is None:
+            raise AttributeError(
+                "No compatible injection function on truststore module (expected one of: "
+                + ", ".join(name for name, _ in candidates)
+                + ")"
+            )
         OS_TRUST_INJECTED = True
-        OS_TRUST_REASON = "injected"
+        OS_TRUST_REASON = f"injected:{injected_variant}"
     except Exception as exc:  # pragma: no cover - defensive
         if os.environ.get("SLCLI_FORCE_OS_TRUST") == "1":
             raise
