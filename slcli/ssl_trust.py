@@ -33,6 +33,7 @@ def inject_os_trust() -> None:
     Silence on success keeps CLI output clean.
     """
     global OS_TRUST_INJECTED, OS_TRUST_REASON
+    force = os.environ.get("SLCLI_FORCE_OS_TRUST") == "1"
     if os.environ.get("SLCLI_DISABLE_OS_TRUST") == "1":
         OS_TRUST_INJECTED = False
         OS_TRUST_REASON = "disabled-env"
@@ -54,6 +55,9 @@ def inject_os_trust() -> None:
                     injected_variant = label
                     break
                 except Exception:  # pragma: no cover - try next variant
+                    if force:
+                        # Respect force mode: propagate the first injection failure
+                        raise
                     continue
         if injected_variant is None:
             raise AttributeError(
@@ -64,7 +68,7 @@ def inject_os_trust() -> None:
         OS_TRUST_INJECTED = True
         OS_TRUST_REASON = f"injected:{injected_variant}"
     except Exception as exc:  # pragma: no cover - defensive
-        if os.environ.get("SLCLI_FORCE_OS_TRUST") == "1":
+        if force:
             raise
         sys.stderr.write(
             f"[slcli] Info: system trust store injection skipped: {exc.__class__.__name__}: {exc}.\n"
