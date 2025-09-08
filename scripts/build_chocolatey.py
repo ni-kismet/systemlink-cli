@@ -98,7 +98,9 @@ def inject_checksum(install_script: Path, checksum: str) -> None:
 
 def run_choco_pack(work_dir: Path) -> Path:
     """Run `choco pack` and return path to generated nupkg or exit on failure."""
-    result = subprocess.run(["choco", "pack"], cwd=work_dir, text=True, stdout=sys.stdout, stderr=sys.stderr)
+    result = subprocess.run(
+        ["choco", "pack"], cwd=work_dir, text=True, stdout=sys.stdout, stderr=sys.stderr
+    )
     if result.returncode != 0:
         print("choco pack failed", file=sys.stderr)
         sys.exit(result.returncode)
