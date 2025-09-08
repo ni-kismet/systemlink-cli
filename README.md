@@ -901,6 +901,87 @@ SLCLI_SSL_VERIFY=false
 
 The CLI will automatically load these environment variables from the `.env` file when running commands. You can also set these as regular environment variables in your shell if preferred.
 
+### TLS / System Certificate Trust
+
+`slcli` uses the operating system certificate store by default on supported platforms via the
+`truststore` library. Corporate or custom root CAs trusted by Windows (CryptoAPI), macOS
+(Keychain), or Linux (distro CA bundle) are automatically honored—no manual `certifi` edits.
+
+Environment controls:
+
+| Variable                   | Effect                                              |
+| -------------------------- | --------------------------------------------------- |
+| `SLCLI_DISABLE_OS_TRUST=1` | Skip system trust injection (fall back to certifi)  |
+| `SLCLI_FORCE_OS_TRUST=1`   | Fail fast if injection fails (abort startup)        |
+| `SLCLI_DEBUG_OS_TRUST=1`   | Print traceback on injection failure                |
+| `SLCLI_SSL_VERIFY=false`   | Disable TLS verification entirely (NOT recommended) |
+
+Custom CA bundle: set `REQUESTS_CA_BUNDLE` or `SSL_CERT_FILE` to a PEM file. If both a custom
+bundle and system injection are present the explicit bundle path wins.
+
+Disable system trust but keep verification:
+
+```bash
+SLCLI_DISABLE_OS_TRUST=1 slcli template list
+```
+
+Completely disable TLS verification (only for debugging):
+
+```bash
+SLCLI_SSL_VERIFY=false slcli template list
+```
+
+For strict environments where system trust injection is mandatory:
+
+```bash
+SLCLI_FORCE_OS_TRUST=1 slcli template list
+```
+
+#### Runtime Certificate Diagnostics (`_ca-info`)
+
+A hidden diagnostic command is available to inspect which certificate authority (CA) source
+`slcli` is using at runtime and why:
+
+```bash
+slcli _ca-info
+```
+
+Typical output fields:
+
+- `CA Source`: One of `system`, `custom-pem`, or `certifi` describing the active trust source
+- `System Trust Injected`: `true/false` indicating whether OS trust was successfully injected
+- `Reason`: Short explanation for the current state (e.g. custom bundle override, injection disabled)
+- `Custom Bundle Path`: Present only when a custom PEM bundle (`REQUESTS_CA_BUNDLE` / `SSL_CERT_FILE`) overrides system trust
+
+Example (system trust active):
+
+```
+CA Source: system
+System Trust Injected: true
+Reason: injected system trust via truststore
+```
+
+Example (custom bundle overrides system trust):
+
+```
+CA Source: custom-pem
+System Trust Injected: false
+Reason: custom CA bundle overrides system trust injection
+Custom Bundle Path: /etc/ssl/my-corp-root.pem
+```
+
+Example (fallback to certifi because injection disabled):
+
+```
+CA Source: certifi
+System Trust Injected: false
+Reason: SLCLI_DISABLE_OS_TRUST set
+```
+
+Use this command when troubleshooting TLS failures, validating that corporate roots are in use,
+or confirming environment variable effects. It produces no network traffic and is safe to run
+any time.
+
 ## Notebook Management
 
 The `notebook` command group is organized into logical subgroups to mirror function command structure:

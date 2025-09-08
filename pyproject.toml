@@ -18,6 +18,10 @@ click = ">=7.1.2"
 keyring = "^25.6.0"
 requests = "^2.32.4"
 tabulate = "^0.9.0"
+truststore = { version = "^0.9", optional = true }
+
+[tool.poetry.extras]
+os-trust = ["truststore"]
 
 [tool.poetry.group.dev.dependencies]
 # Lint

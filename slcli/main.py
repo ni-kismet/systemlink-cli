@@ -11,6 +11,7 @@ from .completion_click import register_completion_command
 from .dff_click import register_dff_commands
 from .function_click import register_function_commands
 from .notebook_click import register_notebook_commands
+from .ssl_trust import OS_TRUST_INJECTED, OS_TRUST_REASON
 from .templates_click import register_templates_commands
 from .user_click import register_user_commands
 from .workflows_click import register_workflows_commands
@@ -64,6 +65,22 @@ def cli(ctx, version):
     if ctx.invoked_subcommand is None:
         click.echo(get_ascii_art())
         click.echo(ctx.get_help())
+
+
+@cli.command(hidden=True, name="_ca-info")
+def ca_info() -> None:  # type: ignore
+    """Show TLS CA trust source (hidden diagnostic)."""
+    if OS_TRUST_INJECTED:
+        click.echo(f"CA Source: system (reason={OS_TRUST_REASON})")
+    else:
+        # Determine if custom verify path set via env
+        import os
+
+        verify_env = os.environ.get("REQUESTS_CA_BUNDLE") or os.environ.get("SSL_CERT_FILE")
+        if verify_env:
+            click.echo(f"CA Source: custom-pem ({verify_env})")
+        else:
+            click.echo(f"CA Source: certifi (reason={OS_TRUST_REASON})")
 
 
 @cli.command()
