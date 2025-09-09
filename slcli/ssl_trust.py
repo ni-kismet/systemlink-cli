@@ -13,6 +13,7 @@ Environment Variables:
 from __future__ import annotations
 
 import os
+import ssl
 import sys
 import traceback
 
@@ -38,7 +39,9 @@ def inject_os_trust() -> None:
         OS_TRUST_INJECTED = False
         OS_TRUST_REASON = "disabled-env"
         return
-    try:  # pragma: no cover - success path trivial
+    try:
+        # Attempt OS trust injection using available truststore entry points.
+        # Multiple variants are tried in order; exceptions are handled per force/fallback rules.
         import truststore  # type: ignore
 
         # Attempt known injection entry points in preferred order.
@@ -48,13 +51,14 @@ def inject_os_trust() -> None:
             ("inject_into_urllib3", "urllib3"),  # older fallback (affects requests indirectly)
         ]
         injected_variant = None
+        injection_errors = (RuntimeError, OSError, ssl.SSLError, ValueError)
         for attr_name, label in candidates:
             if hasattr(truststore, attr_name):
                 try:
                     getattr(truststore, attr_name)()  # type: ignore[misc]
                     injected_variant = label
                     break
-                except Exception:  # pragma: no cover - try next variant
+                except injection_errors:  # pragma: no cover - try next variant
                     if force:
                         # Respect force mode: propagate the first injection failure
                         raise
@@ -67,7 +71,17 @@ def inject_os_trust() -> None:
             )
         OS_TRUST_INJECTED = True
         OS_TRUST_REASON = f"injected:{injected_variant}"
-    except Exception as exc:  # pragma: no cover - defensive
+    except ImportError as exc:
+        if force:
+            raise
+        sys.stderr.write(
+            f"[slcli] Info: system trust store injection skipped: {exc.__class__.__name__}: {exc}.\n"
+        )
+        if os.environ.get("SLCLI_DEBUG_OS_TRUST") == "1":
+            traceback.print_exc()
+        OS_TRUST_INJECTED = False
+        OS_TRUST_REASON = f"error:{exc.__class__.__name__}"
+    except (AttributeError, RuntimeError, OSError, ssl.SSLError, ValueError) as exc:
         if force:
             raise
         sys.stderr.write(

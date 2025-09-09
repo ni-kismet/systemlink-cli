@@ -2,6 +2,7 @@
 
 import getpass
 from pathlib import Path
+from typing import Optional
 
 import click
 import keyring
@@ -57,7 +58,7 @@ def get_ascii_art() -> str:
 @click.group(context_settings=CONTEXT_SETTINGS, invoke_without_command=True)
 @click.option("--version", "-v", is_flag=True, help="Show version and exit")
 @click.pass_context
-def cli(ctx, version):
+def cli(ctx: click.Context, version: bool) -> None:
     """SystemLink CLI (slcli) - Command-line interface for SystemLink resources."""  # noqa: D403
     if version:
         click.echo(f"slcli version {get_version()}")
@@ -68,7 +69,7 @@ def cli(ctx, version):
 
 
 @cli.command(hidden=True, name="_ca-info")
-def ca_info() -> None:  # type: ignore
+def ca_info() -> None:
     """Show TLS CA trust source (hidden diagnostic)."""
     if OS_TRUST_INJECTED:
         click.echo(f"CA Source: system (reason={OS_TRUST_REASON})")
@@ -86,7 +87,7 @@ def ca_info() -> None:  # type: ignore
 @cli.command()
 @click.option("--url", help="SystemLink API URL")
 @click.option("--api-key", help="SystemLink API key")
-def login(url, api_key):
+def login(url: Optional[str], api_key: Optional[str]) -> None:
     """Store your SystemLink API key and URL securely."""
     # Get URL - either from flag or prompt
     if not url:
@@ -94,6 +95,8 @@ def login(url, api_key):
             "Enter your SystemLink API URL",
             default="https://demo-api.lifecyclesolutions.ni.com",
         )
+    # Ensure url is a string now
+    assert isinstance(url, str)
     if not url.strip():
         click.echo("SystemLink URL cannot be empty.")
         raise click.ClickException("SystemLink URL cannot be empty.")
@@ -110,6 +113,8 @@ def login(url, api_key):
     # Get API key - either from flag or prompt
     if not api_key:
         api_key = getpass.getpass("Enter your SystemLink API key: ")
+    # Ensure api_key is a string now
+    assert isinstance(api_key, str)
     if not api_key.strip():
         click.echo("API key cannot be empty.")
         raise click.ClickException("API key cannot be empty.")
@@ -120,7 +125,7 @@ def login(url, api_key):
 
 
 @cli.command()
-def logout():
+def logout() -> None:
     """Remove your stored SystemLink API key and URL."""
     try:
         keyring.delete_password("systemlink-cli", "SYSTEMLINK_API_KEY")

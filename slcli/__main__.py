@@ -9,9 +9,6 @@ Environment controls:
 
 from __future__ import annotations
 
-# Minimal stdlib imports; keep early to satisfy import-order lint
-import sys  # noqa: F401  (may be used by future bootstrap logic)
-
 from .ssl_trust import inject_os_trust  # noqa: E402,I100,I202
 
 # Perform trust injection before importing the main CLI so that any subsequent
