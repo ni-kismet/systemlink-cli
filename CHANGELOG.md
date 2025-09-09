@@ -1,7 +1,22 @@
 # CHANGELOG
 
 
+## v0.11.0 (2025-09-09)
+
+### Features
+
+- Merge pull request #16 from ni-kismet/users/fvisser/system-cert-store
+  ([`e979420`](https://github.com/ni-kismet/systemlink-cli/commit/e979420407ae9ee4484fcf9019c89e30d5c8f6e3))
+
+System trust store integration, diagnostics, and resilient injection
+
+
 ## v0.10.0 (2025-09-03)
+
+### Chores
+
+- **release**: 0.10.0
+  ([`ad49d5d`](https://github.com/ni-kismet/systemlink-cli/commit/ad49d5d07f8aba574b96927a6ce0358c6e8486f9))
 
 ### Features
 
