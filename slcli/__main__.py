@@ -1,13 +1,21 @@
-"""Entry point for the SystemLink CLI application."""
+"""Entry point for the SystemLink CLI application.
 
-import os
-import sys
+Performs system trust store injection (via truststore) before loading the main CLI.
+Environment controls:
+    SLCLI_DISABLE_OS_TRUST=1  -> skip injection
+    SLCLI_FORCE_OS_TRUST=1    -> raise if injection fails
+    SLCLI_DEBUG_OS_TRUST=1    -> show traceback on injection failure
+"""
 
-# PyInstaller workaround for package imports
-if getattr(sys, "frozen", False) and hasattr(sys, "_MEIPASS"):
-    sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+from __future__ import annotations
 
-from slcli.main import cli
+from .ssl_trust import inject_os_trust  # noqa: E402,I100,I202
+
+# Perform trust injection before importing the main CLI so that any subsequent
+# imports of requests-based utilities see the patched SSL configuration.
+inject_os_trust()
+
+from slcli.main import cli  # noqa: E402,I100,I202
 
 if __name__ == "__main__":
     cli()
