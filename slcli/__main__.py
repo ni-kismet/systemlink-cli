@@ -9,7 +9,9 @@ Environment controls:
 
 from __future__ import annotations
 
-from .ssl_trust import inject_os_trust  # noqa: E402,I100,I202
+# Use absolute import to remain robust when executed as a standalone script
+# (e.g. PyInstaller / Homebrew launcher contexts)
+from slcli.ssl_trust import inject_os_trust  # noqa: E402,I100,I202
 
 # Perform trust injection before importing the main CLI so that any subsequent
 # imports of requests-based utilities see the patched SSL configuration.
