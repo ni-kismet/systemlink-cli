@@ -110,6 +110,11 @@
 - Run `poetry run ni-python-styleguide lint` to check for linting and style issues.
 - Run `poetry run black .` to auto-format code to the configured line length (100).
 - Run `poetry run pytest` to ensure all tests pass.
+- During active development (before running the entire test suite), you can run only the unit tests for a fast feedback loop:
+  - Quick unit test pass (quiet): `poetry run pytest tests/unit -q`
+  - Single test file: `poetry run pytest tests/unit/test_<name>.py -q`
+  - Single test function: `poetry run pytest tests/unit/test_<name>.py::test_case -q`
+  Always finish by running the full suite (`poetry run pytest`) before committing.
 - If adding or modifying CLI commands, update the `README.md` usage examples if needed.
 - If adding dependencies, update `pyproject.toml` and run `poetry lock`.
 - If changing packaging or build scripts, verify `poetry run build-pyinstaller` works and produces a binary in `dist/`.
@@ -127,8 +132,9 @@
 
 - After making any code change, always:
   1. Run linting and auto-formatting.
-  2. Run all unit tests.
-  3. Report any failures or issues to the user.
+  2. Run unit tests only first for quick validation (`poetry run pytest tests/unit`).
+  3. Run the full test suite (`poetry run pytest`).
+  4. Report any failures or issues to the user.
 - If you add a new CLI command, ensure it:
   - Is covered by a unit test in `tests/unit/`
   - Supports `--format/-f` option with `table` and `json` formats

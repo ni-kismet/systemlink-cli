@@ -647,6 +647,60 @@ def test_generate_mermaid_basic():
     assert "LEGEND :" not in code
 
 
+def test_generate_mermaid_hierarchical_composite():
+    """Verify composite state block, default pointer, and _BASE id suffix handling."""
+    from slcli.workflow_preview import generate_mermaid_diagram
+
+    wf = {
+        "actions": [
+            {
+                "name": "Start",
+                "displayText": "Start",
+                "iconClass": "PLAY",
+                "executionAction": {"action": "Start", "type": "MANUAL"},
+                "privilegeSpecificity": [],
+            }
+        ],
+        "states": [
+            {
+                "name": "IN_PROGRESS",
+                "defaultSubstate": "IN_PROGRESS",
+                "dashboardAvailable": False,
+                "substates": [
+                    {"name": "IN_PROGRESS", "displayText": "In Progress", "availableActions": []},
+                    {
+                        "name": "Connected",
+                        "displayText": "Connected",
+                        "availableActions": [
+                            {
+                                "action": "Start",
+                                "nextState": "IN_PROGRESS",
+                                "nextSubstate": "Running",
+                                "showInUI": True,
+                            }
+                        ],
+                    },
+                    {"name": "Running", "displayText": "Running", "availableActions": []},
+                ],
+            }
+        ],
+    }
+    code = generate_mermaid_diagram(wf)
+    # Composite block header
+    assert "state IN_PROGRESS {" in code
+    # Default pointer targets _BASE node
+    assert "[*] --> IN_PROGRESS_BASE" in code
+    # Base node label
+    assert "IN_PROGRESS_BASE:" in code
+    # Other substate nodes present (sanitized IDs)
+    assert "IN_PROGRESS_Connected:" in code
+    assert "IN_PROGRESS_Running:" in code
+    # Transition uses internal IDs (source internal, target internal)
+    assert any(
+        "IN_PROGRESS_Connected --> IN_PROGRESS_Running" in line for line in code.splitlines()
+    )
+
+
 def test_generate_mermaid_hidden_action_marker():
     from slcli.workflow_preview import generate_mermaid_diagram
 
