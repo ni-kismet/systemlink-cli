@@ -1,7 +1,20 @@
 # CHANGELOG
 
 
+## v0.11.1 (2025-09-10)
+
+### Bug Fixes
+
+- Import error
+  ([`7ff4ee2`](https://github.com/ni-kismet/systemlink-cli/commit/7ff4ee2a86aac5c093ea62ab2b465ebbb83d5161))
+
+
 ## v0.11.0 (2025-09-09)
+
+### Chores
+
+- **release**: 0.11.0
+  ([`e009a28`](https://github.com/ni-kismet/systemlink-cli/commit/e009a28ffeff6d55c0fb18f79f79b8e1f2b2023e))
 
 ### Features
 
