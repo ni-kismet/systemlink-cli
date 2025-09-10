@@ -1,12 +1,25 @@
 # CHANGELOG
 
 
+## v0.11.2 (2025-09-10)
+
+### Bug Fixes
+
+- Substate workflow generation
+  ([`8b162d4`](https://github.com/ni-kismet/systemlink-cli/commit/8b162d44c6e37e046990fb019b6956a74c2e1140))
+
+
 ## v0.11.1 (2025-09-10)
 
 ### Bug Fixes
 
 - Import error
   ([`7ff4ee2`](https://github.com/ni-kismet/systemlink-cli/commit/7ff4ee2a86aac5c093ea62ab2b465ebbb83d5161))
+
+### Chores
+
+- **release**: 0.11.1
+  ([`b4cbe50`](https://github.com/ni-kismet/systemlink-cli/commit/b4cbe50b41fd60f396ec70f39d982ed18f2209ea))
 
 
 ## v0.11.0 (2025-09-09)
