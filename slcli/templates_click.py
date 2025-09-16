@@ -3,7 +3,7 @@
 import json
 import os
 import sys
-from typing import Any, Optional
+from typing import Any, Dict, List, Optional
 
 import click
 
@@ -24,7 +24,7 @@ from .workspace_utils import get_workspace_display_name, resolve_workspace_filte
 
 def _query_all_templates(
     workspace_filter: Optional[str] = None, workspace_map: Optional[dict] = None
-):
+) -> List[Dict[str, Any]]:
     """Query all test plan templates using continuation token pagination.
 
     Args:
@@ -348,14 +348,17 @@ def register_templates_commands(cli: Any) -> None:
             "workflowId",
         }
         try:
-            data = load_json_file(input_file)
+            data: Any = load_json_file(input_file)
             if isinstance(data, dict) and "testPlanTemplates" in data:
                 data = data["testPlanTemplates"]
             elif isinstance(data, dict):
                 data = [data]
+            # At this point, data should be a list of dicts
+            templates_data: List[Dict[str, Any]] = data if isinstance(data, list) else []
             filtered = []
-            for entry in data:
-                filtered.append({k: v for k, v in entry.items() if k in allowed_fields})
+            for entry in templates_data:
+                if isinstance(entry, dict):
+                    filtered.append({k: v for k, v in entry.items() if k in allowed_fields})
             payload = {"testPlanTemplates": filtered}
 
             resp = make_api_request("POST", url, payload)

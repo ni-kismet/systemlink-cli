@@ -2,7 +2,7 @@
 
 import json
 import sys
-from typing import Optional
+from typing import Any, Dict, List, Optional
 
 import click
 import requests
@@ -48,7 +48,7 @@ RESOURCE_TYPE_HELP = f"Resource type. Valid values: {', '.join(VALID_RESOURCE_TY
 FIELD_TYPE_HELP = f"Field type. Valid values: {', '.join(VALID_FIELD_TYPES)}"
 
 
-def _handle_dff_error_response(error_data, operation="operation"):
+def _handle_dff_error_response(error_data: Dict[str, Any], operation: str = "operation") -> None:
     """Parse and display DFF-specific error responses."""
     # Check for DFF-specific error structure with failedConfigurations, failedGroups, etc.
     if any(key in error_data for key in ["failedConfigurations", "failedGroups", "failedFields"]):
@@ -68,7 +68,7 @@ def _handle_dff_error_response(error_data, operation="operation"):
             click.echo(f"  {error_data}", err=True)
 
 
-def _handle_dff_creation_errors(error_data, operation="operation"):
+def _handle_dff_creation_errors(error_data: Dict[str, Any], operation: str = "operation") -> None:
     """Handle DFF creation/update response with failed configurations/groups/fields."""
     click.echo(f"✗ Configuration {operation} failed with the following issues:", err=True)
 
@@ -94,7 +94,7 @@ def _handle_dff_creation_errors(error_data, operation="operation"):
             click.echo(f"  - {group.get('displayText', group.get('key', 'Unknown'))}")
 
 
-def _handle_dff_nested_errors(error):
+def _handle_dff_nested_errors(error: Dict[str, Any]) -> None:
     """Handle nested error structure with innerErrors."""
     click.echo("✗ Request failed with validation errors:", err=True)
 
@@ -109,7 +109,7 @@ def _handle_dff_nested_errors(error):
             click.echo(f"  • {message}")
 
 
-def _handle_simple_validation_errors(error_data):
+def _handle_simple_validation_errors(error_data: Dict[str, Any]) -> None:
     """Handle simple validation errors structure."""
     click.echo("✗ Validation errors occurred:", err=True)
     errors = error_data.get("errors", {})
@@ -158,7 +158,9 @@ def validate_field_type(field_type: str) -> None:
         )
 
 
-def _query_all_groups(workspace_filter: Optional[str] = None, workspace_map: Optional[dict] = None):
+def _query_all_groups(
+    workspace_filter: Optional[str] = None, workspace_map: Optional[dict] = None
+) -> List[Dict[str, Any]]:
     """Query all DFF groups using continuation token pagination.
 
     Args:
@@ -201,7 +203,9 @@ def _query_all_groups(workspace_filter: Optional[str] = None, workspace_map: Opt
     return all_groups
 
 
-def _query_all_fields(workspace_filter: Optional[str] = None, workspace_map: Optional[dict] = None):
+def _query_all_fields(
+    workspace_filter: Optional[str] = None, workspace_map: Optional[dict] = None
+) -> List[Dict[str, Any]]:
     """Query all DFF fields using continuation token pagination.
 
     Args:
@@ -246,7 +250,7 @@ def _query_all_fields(workspace_filter: Optional[str] = None, workspace_map: Opt
 
 def _query_all_configurations(
     workspace_filter: Optional[str] = None, workspace_map: Optional[dict] = None
-):
+) -> List[Dict[str, Any]]:
     """Query all configurations using continuation token pagination.
 
     Args:
@@ -291,17 +295,17 @@ def _query_all_configurations(
     return all_configurations
 
 
-def register_dff_commands(cli):
+def register_dff_commands(cli: Any) -> None:
     """Register the 'dff' command group and its subcommands."""
 
     @cli.group()
-    def dff():
+    def dff() -> None:
         """Manage dynamic form fields (configurations, groups, fields, tables)."""
         pass
 
     # Configuration commands
     @dff.group()
-    def config():
+    def config() -> None:
         """Manage dynamic form field configurations."""
         pass
 
@@ -321,7 +325,9 @@ def register_dff_commands(cli):
         show_default=True,
         help="Output format: table or json",
     )
-    def list_configurations(workspace: Optional[str] = None, take: int = 25, format: str = "table"):
+    def list_configurations(
+        workspace: Optional[str] = None, take: int = 25, format: str = "table"
+    ) -> None:
         """List dynamic form field configurations."""
         try:
             # Get workspace map once and reuse it
@@ -371,7 +377,7 @@ def register_dff_commands(cli):
         show_default=True,
         help="Output format: table or json",
     )
-    def get_configuration(config_id: str, format: str = "json"):
+    def get_configuration(config_id: str, format: str = "json") -> None:
         """Get a specific dynamic form field configuration by ID."""
         url = f"{get_base_url()}/nidynamicformfields/v1/resolved-configuration"
 
@@ -416,7 +422,7 @@ def register_dff_commands(cli):
         required=True,
         help="Input JSON file with configuration data",
     )
-    def create_configuration(input_file: str):
+    def create_configuration(input_file: str) -> None:
         """Create dynamic form field configurations from a JSON file."""
         url = f"{get_base_url()}/nidynamicformfields/v1/configurations"
 
@@ -534,7 +540,7 @@ def register_dff_commands(cli):
         required=True,
         help="Input JSON file with updated configuration data",
     )
-    def update_configuration(input_file: str):
+    def update_configuration(input_file: str) -> None:
         """Update dynamic form field configurations from a JSON file."""
         url = f"{get_base_url()}/nidynamicformfields/v1/update-configurations"
 
@@ -627,7 +633,7 @@ def register_dff_commands(cli):
         help="JSON file containing IDs to delete",
     )
     @click.confirmation_option(prompt="Are you sure you want to delete these configurations?")
-    def delete_configuration(config_ids: tuple, input_file: Optional[str] = None):
+    def delete_configuration(config_ids: tuple, input_file: Optional[str] = None) -> None:
         """Delete dynamic form field configurations."""
         if not config_ids and not input_file:
             click.echo("✗ Must provide either --id or --file", err=True)
@@ -700,7 +706,7 @@ def register_dff_commands(cli):
         help="Configuration ID to export",
     )
     @click.option("--output", "-o", help="Output JSON file (default: <config-name>.json)")
-    def export_configuration(config_id: str, output: Optional[str] = None):
+    def export_configuration(config_id: str, output: Optional[str] = None) -> None:
         """Export a dynamic form field configuration to a JSON file."""
         url = f"{get_base_url()}/nidynamicformfields/v1/resolved-configuration"
 
@@ -751,7 +757,7 @@ def register_dff_commands(cli):
         workspace: Optional[str] = None,
         resource_type: Optional[str] = None,
         output: Optional[str] = None,
-    ):
+    ) -> None:
         """Create a template configuration file for dynamic form fields."""
         try:
             # Prompt for required fields if not provided
@@ -846,7 +852,7 @@ def register_dff_commands(cli):
 
     # Groups commands
     @dff.group()
-    def groups():
+    def groups() -> None:
         """Manage dynamic form field groups."""
         pass
 
@@ -866,7 +872,7 @@ def register_dff_commands(cli):
         show_default=True,
         help="Output format: table or json",
     )
-    def list_groups(workspace: Optional[str] = None, take: int = 25, format: str = "table"):
+    def list_groups(workspace: Optional[str] = None, take: int = 25, format: str = "table") -> None:
         """List dynamic form field groups."""
         try:
             # Get workspace map once and reuse it
@@ -902,7 +908,7 @@ def register_dff_commands(cli):
 
     # Fields commands
     @dff.group()
-    def fields():
+    def fields() -> None:
         """Manage dynamic form field definitions."""
         pass
 
@@ -922,7 +928,7 @@ def register_dff_commands(cli):
         show_default=True,
         help="Output format: table or json",
     )
-    def list_fields(workspace: Optional[str] = None, take: int = 25, format: str = "table"):
+    def list_fields(workspace: Optional[str] = None, take: int = 25, format: str = "table") -> None:
         """List dynamic form fields."""
         try:
             # Get workspace map once and reuse it
@@ -958,7 +964,7 @@ def register_dff_commands(cli):
 
     # Table properties commands
     @dff.group()
-    def tables():
+    def tables() -> None:
         """Manage table properties."""
         pass
 
@@ -1021,7 +1027,7 @@ def register_dff_commands(cli):
         continuation_token: Optional[str] = None,
         return_count: bool = False,
         format: str = "table",
-    ):
+    ) -> None:
         """Query table properties."""
         url = f"{get_base_url()}/nidynamicformfields/v1/query-tables"
 
@@ -1114,7 +1120,7 @@ def register_dff_commands(cli):
         show_default=True,
         help="Output format: table or json",
     )
-    def get_table(table_id: str, format: str = "json"):
+    def get_table(table_id: str, format: str = "json") -> None:
         """Get a specific table property by ID."""
         url = f"{get_base_url()}/nidynamicformfields/v1/table"
 
@@ -1185,7 +1191,7 @@ def register_dff_commands(cli):
         port: int = 8080,
         output_dir: str = "dff-editor",
         no_browser: bool = False,
-    ):
+    ) -> None:
         """Launch a local web editor for dynamic form field configurations.
 
         This command will create a standalone HTML editor in the specified directory

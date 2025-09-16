@@ -7,7 +7,7 @@ import sys
 import threading
 import webbrowser
 from pathlib import Path
-from typing import Optional
+from typing import Optional, Any
 
 import click
 
@@ -398,10 +398,10 @@ See the example configuration in the editor for a sample structure.
         output_dir = self.output_dir  # Capture for closure
 
         class Handler(http.server.SimpleHTTPRequestHandler):
-            def __init__(self, *args, **kwargs):
+            def __init__(self, *args, **kwargs) -> None:  # type: ignore
                 super().__init__(*args, directory=str(output_dir), **kwargs)
 
-            def log_message(self, format, *args):
+            def log_message(self, format: str, *args: Any) -> None:
                 # Suppress server logs
                 pass
 

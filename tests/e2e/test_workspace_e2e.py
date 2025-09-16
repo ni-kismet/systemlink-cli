@@ -1,6 +1,7 @@
 """E2E tests for workspace commands against dev tier."""
 
 import pytest
+from typing import Any
 
 
 @pytest.mark.e2e
@@ -8,7 +9,7 @@ import pytest
 class TestWorkspaceE2E:
     """End-to-end tests for workspace commands."""
 
-    def test_workspace_list_basic(self, cli_runner, cli_helper):
+    def test_workspace_list_basic(self, cli_runner: Any, cli_helper: Any) -> None:
         """Test basic workspace list functionality."""
         result = cli_runner(["workspace", "list", "--format", "json"])
         cli_helper.assert_success(result)
@@ -17,7 +18,7 @@ class TestWorkspaceE2E:
         assert isinstance(workspaces, list)
         assert len(workspaces) > 0  # Should have at least Default workspace
 
-    def test_workspace_list_table_format(self, cli_runner, cli_helper):
+    def test_workspace_list_table_format(self, cli_runner: Any, cli_helper: Any) -> None:
         """Test workspace list with table format."""
         result = cli_runner(["workspace", "list", "--format", "table"])
         cli_helper.assert_success(result)
@@ -25,7 +26,7 @@ class TestWorkspaceE2E:
         # Should show table headers
         assert "Workspace" in result.stdout or "Name" in result.stdout
 
-    def test_workspace_get_by_name(self, cli_runner, cli_helper, e2e_config):
+    def test_workspace_get_by_name(self, cli_runner: Any, cli_helper: Any, e2e_config: Any) -> None:
         """Test getting workspace details by name."""
         workspace_name = e2e_config["workspace"]
 
@@ -37,7 +38,7 @@ class TestWorkspaceE2E:
         assert "workspace" in workspace_info
         assert workspace_info["workspace"]["name"] == workspace_name
 
-    def test_workspace_get_by_id(self, cli_runner, cli_helper, e2e_config):
+    def test_workspace_get_by_id(self, cli_runner: Any, cli_helper: Any, e2e_config: Any) -> None:
         """Test getting workspace details by ID."""
         workspace_name = e2e_config["workspace"]
 
@@ -61,7 +62,7 @@ class TestWorkspaceE2E:
         assert workspace_info["workspace"]["id"] == workspace_id
         assert workspace_info["workspace"]["name"] == workspace_name
 
-    def test_workspace_pagination(self, cli_runner, cli_helper):
+    def test_workspace_pagination(self, cli_runner: Any, cli_helper: Any) -> None:
         """Test workspace list pagination."""
         result = cli_runner(["workspace", "list", "--take", "5", "--format", "json"])
         cli_helper.assert_success(result)
@@ -70,7 +71,7 @@ class TestWorkspaceE2E:
         assert isinstance(workspaces, list)
         assert len(workspaces) <= 5
 
-    def test_workspace_error_handling(self, cli_runner, cli_helper):
+    def test_workspace_error_handling(self, cli_runner: Any, cli_helper: Any) -> None:
         """Test error handling for invalid workspace operations."""
         # Test get with invalid workspace name
         result = cli_runner(

@@ -1,6 +1,6 @@
 """Workspace utilities for CLI commands."""
 
-from typing import Dict, List, Any, Optional
+from typing import Dict, List, Any, Optional, Callable
 
 from .utils import get_workspace_map
 
@@ -111,7 +111,7 @@ class WorkspaceFormatter:
     @staticmethod
     def create_workspace_row_formatter(
         workspace_map: Dict[str, str], name_field: str = "name", id_field: str = "id"
-    ):
+    ) -> Callable[[Dict[str, Any]], List[str]]:
         """Create a row formatter function for workspace-based tables."""
 
         def formatter(item: Dict[str, Any]) -> List[str]:
@@ -124,7 +124,9 @@ class WorkspaceFormatter:
         return formatter
 
     @staticmethod
-    def create_config_row_formatter(workspace_map: Dict[str, str]):
+    def create_config_row_formatter(
+        workspace_map: Dict[str, str],
+    ) -> Callable[[Dict[str, Any]], List[str]]:
         """Create a row formatter for DFF configurations."""
 
         def formatter(config: Dict[str, Any]) -> List[str]:
@@ -137,7 +139,9 @@ class WorkspaceFormatter:
         return formatter
 
     @staticmethod
-    def create_group_field_row_formatter(workspace_map: Dict[str, str]):
+    def create_group_field_row_formatter(
+        workspace_map: Dict[str, str],
+    ) -> Callable[[Dict[str, Any]], List[str]]:
         """Create a row formatter for DFF groups and fields."""
 
         def formatter(item: Dict[str, Any]) -> List[str]:
@@ -150,7 +154,9 @@ class WorkspaceFormatter:
         return formatter
 
     @staticmethod
-    def create_table_row_formatter(workspace_map: Dict[str, str]):
+    def create_table_row_formatter(
+        workspace_map: Dict[str, str],
+    ) -> Callable[[Dict[str, Any]], List[str]]:
         """Create a row formatter for DFF table properties."""
 
         def formatter(table: Dict[str, Any]) -> List[str]:

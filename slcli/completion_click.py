@@ -3,7 +3,7 @@
 import os
 import subprocess
 from pathlib import Path
-from typing import Dict, List, Optional
+from typing import Any, Dict, List, Optional
 
 import click
 
@@ -371,7 +371,7 @@ def install_completion_for_shell(shell: str) -> bool:
     return installer(completion_script)
 
 
-def register_completion_command(cli):
+def register_completion_command(cli: Any) -> None:
     """Register the completion command with the CLI."""
 
     @cli.command()
@@ -385,7 +385,7 @@ def register_completion_command(cli):
         is_flag=True,
         help="Install completion script to shell config file",
     )
-    def completion(shell, install):
+    def completion(shell: Optional[str], install: bool) -> None:
         """Generate and optionally install shell completion scripts.
 
         Examples:

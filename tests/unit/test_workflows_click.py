@@ -2,17 +2,18 @@ import json
 
 import click
 import pytest
+from typing import Any
 from click.testing import CliRunner
 
 from slcli.workflows_click import register_workflows_commands
 from .test_utils import patch_keyring
 
 
-def make_cli():
+def make_cli() -> click.Group:
     """Create a dummy CLI for testing."""
 
     @click.group()
-    def cli():
+    def cli() -> None:
         pass
 
     register_workflows_commands(cli)
@@ -20,35 +21,37 @@ def make_cli():
 
 
 @pytest.fixture
-def runner():
+def runner() -> CliRunner:
     return CliRunner()
 
 
-def mock_requests(monkeypatch, method, response_json, status_code=200):
+def mock_requests(
+    monkeypatch: Any, method: str, response_json: Any, status_code: int = 200
+) -> None:
     class MockResponse:
-        def __init__(self):
+        def __init__(self) -> None:
             self.status_code = status_code
 
-        def json(self):
+        def json(self) -> Any:
             return response_json
 
-        def raise_for_status(self):
+        def raise_for_status(self) -> None:
             if self.status_code >= 400:
                 raise Exception("HTTP error")
 
     monkeypatch.setattr("requests." + method, lambda *a, **kw: MockResponse())
 
 
-def test_list_workflows_success(monkeypatch, runner):
+def test_list_workflows_success(monkeypatch: Any, runner: CliRunner) -> None:
     """Test listing workflows with a successful response."""
     patch_keyring(monkeypatch)
 
-    def mock_post(*a, **kw):
+    def mock_post(*a: Any, **kw: Any) -> Any:
         class R:
-            def raise_for_status(self):
+            def raise_for_status(self) -> None:
                 pass
 
-            def json(self):
+            def json(self) -> Any:
                 return {
                     "workflows": [
                         {
@@ -62,12 +65,12 @@ def test_list_workflows_success(monkeypatch, runner):
 
         return R()
 
-    def mock_get(*a, **kw):
+    def mock_get(*a: Any, **kw: Any) -> Any:
         class R:
-            def raise_for_status(self):
+            def raise_for_status(self) -> None:
                 pass
 
-            def json(self):
+            def json(self) -> Any:
                 return {"workspaces": [{"id": "ws456", "name": "Test Workspace"}]}
 
         return R()
@@ -82,16 +85,16 @@ def test_list_workflows_success(monkeypatch, runner):
     assert "Test Workspace" in result.output
 
 
-def test_list_workflows_with_workspace_filter(monkeypatch, runner):
+def test_list_workflows_with_workspace_filter(monkeypatch: Any, runner: CliRunner) -> None:
     """Test listing workflows with workspace filter."""
     patch_keyring(monkeypatch)
 
-    def mock_post(*a, **kw):
+    def mock_post(*a: Any, **kw: Any) -> Any:
         class R:
-            def raise_for_status(self):
+            def raise_for_status(self) -> None:
                 pass
 
-            def json(self):
+            def json(self) -> Any:
                 return {
                     "workflows": [
                         {
@@ -105,12 +108,12 @@ def test_list_workflows_with_workspace_filter(monkeypatch, runner):
 
         return R()
 
-    def mock_get(*a, **kw):
+    def mock_get(*a: Any, **kw: Any) -> Any:
         class R:
-            def raise_for_status(self):
+            def raise_for_status(self) -> None:
                 pass
 
-            def json(self):
+            def json(self) -> Any:
                 return {"workspaces": [{"id": "ws456", "name": "Test Workspace"}]}
 
         return R()
@@ -124,26 +127,26 @@ def test_list_workflows_with_workspace_filter(monkeypatch, runner):
     assert "Test Workflow" in result.output
 
 
-def test_list_workflows_empty(monkeypatch, runner):
+def test_list_workflows_empty(monkeypatch: Any, runner: CliRunner) -> None:
     """Test listing workflows with no results."""
     patch_keyring(monkeypatch)
 
-    def mock_post(*a, **kw):
+    def mock_post(*a: Any, **kw: Any) -> Any:
         class R:
-            def raise_for_status(self):
+            def raise_for_status(self) -> None:
                 pass
 
-            def json(self):
+            def json(self) -> Any:
                 return {"workflows": []}
 
         return R()
 
-    def mock_get(*a, **kw):
+    def mock_get(*a: Any, **kw: Any) -> Any:
         class R:
-            def raise_for_status(self):
+            def raise_for_status(self) -> None:
                 pass
 
-            def json(self):
+            def json(self) -> Any:
                 return {"workspaces": []}
 
         return R()
@@ -157,16 +160,16 @@ def test_list_workflows_empty(monkeypatch, runner):
     assert "No workflows found" in result.output
 
 
-def test_export_workflow_success(monkeypatch, runner):
+def test_export_workflow_success(monkeypatch: Any, runner: CliRunner) -> None:
     """Test exporting a workflow successfully."""
     patch_keyring(monkeypatch)
 
-    def mock_get(*a, **kw):
+    def mock_get(*a: Any, **kw: Any) -> Any:
         class R:
-            def raise_for_status(self):
+            def raise_for_status(self) -> None:
                 pass
 
-            def json(self):
+            def json(self) -> Any:
                 return {
                     "id": "wf123",
                     "name": "Test Workflow",
@@ -193,16 +196,16 @@ def test_export_workflow_success(monkeypatch, runner):
             assert data["name"] == "Test Workflow"
 
 
-def test_export_workflow_not_found(monkeypatch, runner):
+def test_export_workflow_not_found(monkeypatch: Any, runner: CliRunner) -> None:
     """Test exporting a workflow that doesn't exist."""
     patch_keyring(monkeypatch)
 
-    def mock_get(*a, **kw):
+    def mock_get(*a: Any, **kw: Any) -> Any:
         class R:
-            def raise_for_status(self):
+            def raise_for_status(self) -> None:
                 pass
 
-            def json(self):
+            def json(self) -> Any:
                 return None
 
         return R()
@@ -218,34 +221,34 @@ def test_export_workflow_not_found(monkeypatch, runner):
         assert "not found" in result.output
 
 
-def test_import_workflow_success(monkeypatch, runner):
+def test_import_workflow_success(monkeypatch: Any, runner: CliRunner) -> None:
     """Test importing a workflow successfully."""
     patch_keyring(monkeypatch)
 
-    def mock_post(*a, **kw):
+    def mock_post(*a: Any, **kw: Any) -> Any:
         class R:
-            def raise_for_status(self):
+            def raise_for_status(self) -> None:
                 pass
 
             @property
-            def status_code(self):
+            def status_code(self) -> int:
                 return 201
 
             @property
-            def text(self):
+            def text(self) -> str:
                 return '{"id": "wf123"}'
 
-            def json(self):
+            def json(self) -> Any:
                 return {"id": "wf123"}
 
         return R()
 
-    def mock_get(*a, **kw):
+    def mock_get(*a: Any, **kw: Any) -> Any:
         class R:
-            def raise_for_status(self):
+            def raise_for_status(self) -> None:
                 pass
 
-            def json(self):
+            def json(self) -> Any:
                 return {"workspaces": [{"id": "ws456", "name": "Default"}]}
 
         return R()
@@ -270,21 +273,21 @@ def test_import_workflow_success(monkeypatch, runner):
         assert "Workflow imported successfully" in result.output
 
 
-def test_import_workflow_failure(monkeypatch, runner):
+def test_import_workflow_failure(monkeypatch: Any, runner: CliRunner) -> None:
     """Test importing a workflow with failure."""
     patch_keyring(monkeypatch)
 
-    def mock_post(*a, **kw):
+    def mock_post(*a: Any, **kw: Any) -> Any:
         class R:
-            def raise_for_status(self):
+            def raise_for_status(self) -> None:
                 pass
 
             @property
-            def status_code(self):
+            def status_code(self) -> int:
                 return 400
 
             @property
-            def text(self):
+            def text(self) -> str:
                 return """{
                     "error": {
                         "name": "Skyline.OneOrMoreErrorsOccurred",
@@ -308,7 +311,7 @@ def test_import_workflow_failure(monkeypatch, runner):
                     }
                 }"""
 
-            def json(self):
+            def json(self) -> Any:
                 return {
                     "error": {
                         "name": "Skyline.OneOrMoreErrorsOccurred",
@@ -337,12 +340,12 @@ def test_import_workflow_failure(monkeypatch, runner):
 
         return R()
 
-    def mock_get(*a, **kw):
+    def mock_get(*a: Any, **kw: Any) -> Any:
         class R:
-            def raise_for_status(self):
+            def raise_for_status(self) -> None:
                 pass
 
-            def json(self):
+            def json(self) -> Any:
                 return {"workspaces": [{"id": "ws456", "name": "Default"}]}
 
         return R()
@@ -369,21 +372,21 @@ def test_import_workflow_failure(monkeypatch, runner):
         assert "missing required properties" in result.output
 
 
-def test_delete_workflow_success(monkeypatch, runner):
+def test_delete_workflow_success(monkeypatch: Any, runner: CliRunner) -> None:
     """Test deleting a workflow successfully."""
     patch_keyring(monkeypatch)
 
-    def mock_post(*a, **kw):
+    def mock_post(*a: Any, **kw: Any) -> Any:
         class R:
-            def raise_for_status(self):
+            def raise_for_status(self) -> None:
                 pass
 
             @property
-            def status_code(self):
+            def status_code(self) -> int:
                 return 204
 
             @property
-            def text(self):
+            def text(self) -> str:
                 return ""
 
         return R()
@@ -396,21 +399,21 @@ def test_delete_workflow_success(monkeypatch, runner):
     assert "deleted successfully" in result.output
 
 
-def test_delete_workflow_failure(monkeypatch, runner):
+def test_delete_workflow_failure(monkeypatch: Any, runner: CliRunner) -> None:
     """Test deleting a workflow with failure."""
     patch_keyring(monkeypatch)
 
-    def mock_post(*a, **kw):
+    def mock_post(*a: Any, **kw: Any) -> Any:
         class R:
-            def raise_for_status(self):
+            def raise_for_status(self) -> None:
                 pass
 
             @property
-            def status_code(self):
+            def status_code(self) -> int:
                 return 200  # Delete API returns 200 even for failures
 
             @property
-            def text(self):
+            def text(self) -> str:
                 return json.dumps(
                     {
                         "deletedWorkflowIds": [],
@@ -437,7 +440,7 @@ def test_delete_workflow_failure(monkeypatch, runner):
                     }
                 )
 
-            def json(self):
+            def json(self) -> Any:
                 return {
                     "deletedWorkflowIds": [],
                     "failedWorkflowIds": ["nonexistent"],
@@ -472,24 +475,24 @@ def test_delete_workflow_failure(monkeypatch, runner):
     assert "Failed to delete workflow" in result.output
 
 
-def test_update_workflow_success(monkeypatch, runner):
+def test_update_workflow_success(monkeypatch: Any, runner: CliRunner) -> None:
     """Test updating a workflow successfully."""
     patch_keyring(monkeypatch)
 
-    def mock_put(*a, **kw):
+    def mock_put(*a: Any, **kw: Any) -> Any:
         class R:
-            def raise_for_status(self):
+            def raise_for_status(self) -> None:
                 pass
 
             @property
-            def status_code(self):
+            def status_code(self) -> int:
                 return 200
 
             @property
-            def text(self):
+            def text(self) -> str:
                 return ""
 
-            def json(self):
+            def json(self) -> Any:
                 return {}
 
         return R()
@@ -517,7 +520,7 @@ def test_update_workflow_success(monkeypatch, runner):
 # --- New tests for workflow preview / Mermaid generation --- #
 
 
-def _sample_workflow_for_mermaid():  # helper (not a test)
+def _sample_workflow_for_mermaid() -> Any:  # helper (not a test)
     return {
         "name": "SampleWF",
         "description": "Sample workflow for mermaid generation",
@@ -628,7 +631,7 @@ def _sample_workflow_for_mermaid():  # helper (not a test)
     }
 
 
-def test_generate_mermaid_basic():
+def test_generate_mermaid_basic() -> None:
     from slcli.workflow_preview import generate_mermaid_diagram
 
     wf = _sample_workflow_for_mermaid()
@@ -647,7 +650,7 @@ def test_generate_mermaid_basic():
     assert "LEGEND :" not in code
 
 
-def test_generate_mermaid_hierarchical_composite():
+def test_generate_mermaid_hierarchical_composite() -> None:
     """Verify composite state block, default pointer, and _BASE id suffix handling."""
     from slcli.workflow_preview import generate_mermaid_diagram
 
@@ -701,7 +704,7 @@ def test_generate_mermaid_hierarchical_composite():
     )
 
 
-def test_generate_mermaid_hidden_action_marker():
+def test_generate_mermaid_hidden_action_marker() -> None:
     from slcli.workflow_preview import generate_mermaid_diagram
 
     wf = _sample_workflow_for_mermaid()
@@ -710,7 +713,7 @@ def test_generate_mermaid_hidden_action_marker():
     assert any(line.strip().endswith("hidden") for line in code.splitlines())
 
 
-def test_generate_html_contains_external_legend():
+def test_generate_html_contains_external_legend() -> None:
     from slcli.workflow_preview import generate_mermaid_diagram, generate_html_with_mermaid
 
     wf = _sample_workflow_for_mermaid()
@@ -726,7 +729,7 @@ def test_generate_html_contains_external_legend():
     assert "Manual action" not in mermaid_section
 
 
-def test_preview_mmd_output(monkeypatch, runner):
+def test_preview_mmd_output(monkeypatch: Any, runner: CliRunner) -> None:
     """End-to-end preview with --format mmd should not embed legend and should include emojis."""
     patch_keyring(monkeypatch)
 
@@ -734,10 +737,10 @@ def test_preview_mmd_output(monkeypatch, runner):
     workflow_payload = _sample_workflow_for_mermaid()
 
     class R:
-        def raise_for_status(self):
+        def raise_for_status(self) -> None:
             pass
 
-        def json(self):
+        def json(self) -> Any:
             return workflow_payload
 
     monkeypatch.setattr("requests.get", lambda *a, **k: R())
@@ -755,17 +758,17 @@ def test_preview_mmd_output(monkeypatch, runner):
         assert "⚡️" in mmd
 
 
-def test_preview_html_output(monkeypatch, runner):
+def test_preview_html_output(monkeypatch: Any, runner: CliRunner) -> None:
     """End-to-end preview HTML should include external legend but not legend inside mermaid code."""
     patch_keyring(monkeypatch)
 
     workflow_payload = _sample_workflow_for_mermaid()
 
     class R:
-        def raise_for_status(self):
+        def raise_for_status(self) -> None:
             pass
 
-        def json(self):
+        def json(self) -> Any:
             return workflow_payload
 
     monkeypatch.setattr("requests.get", lambda *a, **k: R())
@@ -786,7 +789,7 @@ def test_preview_html_output(monkeypatch, runner):
         assert "Manual action" not in mermaid_section
 
 
-def test_mermaid_sanitization_and_truncation():
+def test_mermaid_sanitization_and_truncation() -> None:
     """Verify sanitization of problematic characters and notebook ID truncation."""
     from slcli.workflow_preview import generate_mermaid_diagram
 
@@ -802,7 +805,7 @@ def test_mermaid_sanitization_and_truncation():
     assert "NB abcdef12..." in code
 
 
-def test_mermaid_privileges_multiple():
+def test_mermaid_privileges_multiple() -> None:
     from slcli.workflow_preview import generate_mermaid_diagram
 
     wf = _sample_workflow_for_mermaid()
@@ -811,7 +814,7 @@ def test_mermaid_privileges_multiple():
     assert "(PrivA, PrivB)" in code
 
 
-def test_mermaid_action_without_icon():
+def test_mermaid_action_without_icon() -> None:
     from slcli.workflow_preview import generate_mermaid_diagram
 
     wf = _sample_workflow_for_mermaid()
@@ -821,15 +824,15 @@ def test_mermaid_action_without_icon():
     assert "⚡️" in code
 
 
-def test_preview_no_emoji_flag(monkeypatch, runner):
+def test_preview_no_emoji_flag(monkeypatch: Any, runner: CliRunner) -> None:
     patch_keyring(monkeypatch)
     workflow_payload = _sample_workflow_for_mermaid()
 
     class R:
-        def raise_for_status(self):
+        def raise_for_status(self) -> None:
             pass
 
-        def json(self):
+        def json(self) -> Any:
             return workflow_payload
 
     monkeypatch.setattr("requests.get", lambda *a, **k: R())
@@ -854,15 +857,15 @@ def test_preview_no_emoji_flag(monkeypatch, runner):
         assert "🧑" not in content and "📓" not in content
 
 
-def test_preview_no_legend_flag(monkeypatch, runner):
+def test_preview_no_legend_flag(monkeypatch: Any, runner: CliRunner) -> None:
     patch_keyring(monkeypatch)
     workflow_payload = _sample_workflow_for_mermaid()
 
     class R:
-        def raise_for_status(self):
+        def raise_for_status(self) -> None:
             pass
 
-        def json(self):
+        def json(self) -> Any:
             return workflow_payload
 
     monkeypatch.setattr("requests.get", lambda *a, **k: R())
@@ -887,7 +890,7 @@ def test_preview_no_legend_flag(monkeypatch, runner):
         assert '<div class="legend"' not in html
 
 
-def test_preview_stdin(monkeypatch, runner):
+def test_preview_stdin(monkeypatch: Any, runner: CliRunner) -> None:
     patch_keyring(monkeypatch)
     cli = make_cli()
     wf = _sample_workflow_for_mermaid()

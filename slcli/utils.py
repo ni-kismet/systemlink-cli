@@ -4,7 +4,7 @@ import datetime
 import json
 import os
 import sys
-from typing import Dict, List, Any, Optional
+from typing import Dict, List, Any, Optional, Callable
 
 import click
 import keyring
@@ -59,7 +59,7 @@ def handle_api_error(exc: Exception) -> None:
         sys.exit(ExitCodes.GENERAL_ERROR)
 
 
-def format_success(message: str, data=None) -> None:
+def format_success(message: str, data: Optional[Any] = None) -> None:
     """Format success messages consistently.
 
     Args:
@@ -78,7 +78,7 @@ def output_list_data(
     items: List[Dict[str, Any]],
     output_format: str,
     headers: List[str],
-    table_data_func,
+    table_data_func: Callable[[Dict[str, Any]], List[str]],
     empty_message: str = "No items found.",
 ) -> None:
     """Handle JSON and table output for list commands consistently.
@@ -103,7 +103,7 @@ def output_list_data(
         from tabulate import tabulate
         from click import style as cstyle
 
-        def color_row(row):
+        def color_row(row: List[str]) -> List[str]:
             """Color table rows with consistent styling."""
             ws = str(row[0])
             ws_short = ws[:15] + ("…" if len(ws) > 15 else "")
@@ -130,7 +130,7 @@ def output_formatted_list(
     output_format: str,
     headers: List[str],
     column_widths: List[int],
-    row_formatter_func,
+    row_formatter_func: Callable[[Dict[str, Any]], List[Any]],
     empty_message: str = "No items found.",
     total_label: str = "item(s)",
 ) -> None:
@@ -362,14 +362,14 @@ def get_workspace_map() -> Dict[str, str]:
 
 
 # --- File I/O Utilities ---
-def load_json_file(filepath: str) -> Dict[str, Any]:
+def load_json_file(filepath: str) -> Any:
     """Load and parse JSON file with consistent error handling.
 
     Args:
         filepath: Path to JSON file to load
 
     Returns:
-        Parsed JSON data as dictionary
+        Parsed JSON data (dict or list or any JSON value)
 
     Raises:
         click.ClickException: If file cannot be loaded or parsed
@@ -388,7 +388,9 @@ def load_json_file(filepath: str) -> Dict[str, Any]:
         sys.exit(ExitCodes.GENERAL_ERROR)
 
 
-def save_json_file(data: Any, filepath: str, custom_serializer=None) -> None:
+def save_json_file(
+    data: Any, filepath: str, custom_serializer: Optional[Callable[[Any], Any]] = None
+) -> None:
     """Save data to JSON file with consistent formatting and error handling.
 
     Args:
@@ -397,7 +399,7 @@ def save_json_file(data: Any, filepath: str, custom_serializer=None) -> None:
         custom_serializer: Optional custom JSON serializer function
     """
 
-    def _default_json_serializer(obj):
+    def _default_json_serializer(obj: Any) -> Any:
         """Default JSON serializer for common types."""
         if isinstance(obj, (datetime.datetime, datetime.date)):
             return obj.isoformat()

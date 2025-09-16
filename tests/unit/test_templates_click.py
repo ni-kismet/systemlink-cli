@@ -2,17 +2,18 @@ import json
 
 import click
 import pytest
+from typing import Any
 from click.testing import CliRunner
 
 from slcli.templates_click import register_templates_commands
 from .test_utils import patch_keyring
 
 
-def make_cli():
+def make_cli() -> click.Group:
     """Create a dummy CLI for testing."""
 
     @click.group()
-    def cli():
+    def cli() -> None:
         pass
 
     register_templates_commands(cli)
@@ -20,45 +21,47 @@ def make_cli():
 
 
 @pytest.fixture
-def runner():
+def runner() -> CliRunner:
     return CliRunner()
 
 
-def mock_requests(monkeypatch, method, response_json, status_code=200):
+def mock_requests(
+    monkeypatch: Any, method: str, response_json: Any, status_code: int = 200
+) -> None:
     class MockResponse:
-        def __init__(self):
+        def __init__(self) -> None:
             self.status_code = status_code
 
-        def json(self):
+        def json(self) -> Any:
             return response_json
 
-        def raise_for_status(self):
+        def raise_for_status(self) -> None:
             if self.status_code >= 400:
                 raise Exception("HTTP error")
 
     monkeypatch.setattr("requests." + method, lambda *a, **kw: MockResponse())
 
 
-def test_list_templates_success(monkeypatch, runner):
+def test_list_templates_success(monkeypatch: Any, runner: CliRunner) -> None:
     """Test listing templates with a successful response."""
     patch_keyring(monkeypatch)
 
-    def mock_get(*a, **kw):
+    def mock_get(*a: Any, **kw: Any) -> Any:
         class R:
-            def raise_for_status(self):
+            def raise_for_status(self) -> None:
                 pass
 
-            def json(self):
+            def json(self) -> Any:
                 return {"workspaces": [{"id": "ws1", "name": "Workspace1"}]}
 
         return R()
 
-    def mock_post(*a, **kw):
+    def mock_post(*a: Any, **kw: Any) -> Any:
         class R:
-            def raise_for_status(self):
+            def raise_for_status(self) -> None:
                 pass
 
-            def json(self):
+            def json(self) -> Any:
                 return {
                     "testPlanTemplates": [{"id": "t1", "name": "Template1", "workspace": "ws1"}]
                 }
@@ -73,16 +76,16 @@ def test_list_templates_success(monkeypatch, runner):
     assert "Template1" in result.output
 
 
-def test_list_templates_with_workspace_filter(monkeypatch, runner):
+def test_list_templates_with_workspace_filter(monkeypatch: Any, runner: CliRunner) -> None:
     """Test listing templates with workspace filter."""
     patch_keyring(monkeypatch)
 
-    def mock_get(*a, **kw):
+    def mock_get(*a: Any, **kw: Any) -> Any:
         class R:
-            def raise_for_status(self):
+            def raise_for_status(self) -> None:
                 pass
 
-            def json(self):
+            def json(self) -> Any:
                 return {
                     "workspaces": [
                         {"id": "ws1", "name": "Workspace1"},
@@ -92,12 +95,12 @@ def test_list_templates_with_workspace_filter(monkeypatch, runner):
 
         return R()
 
-    def mock_post(*a, **kw):
+    def mock_post(*a: Any, **kw: Any) -> Any:
         class R:
-            def raise_for_status(self):
+            def raise_for_status(self) -> None:
                 pass
 
-            def json(self):
+            def json(self) -> Any:
                 # Get the payload to check for filtering
                 payload = kw.get("json", {})
                 filter_clause = payload.get("filter", "")
@@ -133,26 +136,26 @@ def test_list_templates_with_workspace_filter(monkeypatch, runner):
     assert "Template2" not in result.output
 
 
-def test_list_templates_empty(monkeypatch, runner):
+def test_list_templates_empty(monkeypatch: Any, runner: CliRunner) -> None:
     """Test listing templates when none exist."""
     patch_keyring(monkeypatch)
 
-    def mock_get(*a, **kw):
+    def mock_get(*a: Any, **kw: Any) -> Any:
         class R:
-            def raise_for_status(self):
+            def raise_for_status(self) -> None:
                 pass
 
-            def json(self):
+            def json(self) -> Any:
                 return {"workspaces": []}
 
         return R()
 
-    def mock_post(*a, **kw):
+    def mock_post(*a: Any, **kw: Any) -> Any:
         class R:
-            def raise_for_status(self):
+            def raise_for_status(self) -> None:
                 pass
 
-            def json(self):
+            def json(self) -> Any:
                 return {"testPlanTemplates": []}
 
         return R()
@@ -165,16 +168,16 @@ def test_list_templates_empty(monkeypatch, runner):
     assert "No test plan templates found." in result.output
 
 
-def test_export_template_success(monkeypatch, runner, tmp_path):
+def test_export_template_success(monkeypatch: Any, runner: CliRunner, tmp_path: Any) -> None:
     """Test exporting a template successfully."""
     patch_keyring(monkeypatch)
 
-    def mock_post(*a, **kw):
+    def mock_post(*a: Any, **kw: Any) -> Any:
         class R:
-            def raise_for_status(self):
+            def raise_for_status(self) -> None:
                 pass
 
-            def json(self):
+            def json(self) -> Any:
                 return {"testPlanTemplates": [{"id": "t1", "name": "Template1"}]}
 
         return R()
@@ -188,16 +191,16 @@ def test_export_template_success(monkeypatch, runner, tmp_path):
     assert "exported to" in result.output
 
 
-def test_export_template_auto_filename(monkeypatch, runner, tmp_path):
+def test_export_template_auto_filename(monkeypatch: Any, runner: CliRunner, tmp_path: Any) -> None:
     """Test exporting a template with auto-generated filename."""
     patch_keyring(monkeypatch)
 
-    def mock_post(*a, **kw):
+    def mock_post(*a: Any, **kw: Any) -> Any:
         class R:
-            def raise_for_status(self):
+            def raise_for_status(self) -> None:
                 pass
 
-            def json(self):
+            def json(self) -> Any:
                 return {"testPlanTemplates": [{"id": "t1", "name": "Test Template Name"}]}
 
         return R()
@@ -224,16 +227,16 @@ def test_export_template_auto_filename(monkeypatch, runner, tmp_path):
         os.chdir(original_cwd)
 
 
-def test_export_template_not_found(monkeypatch, runner):
+def test_export_template_not_found(monkeypatch: Any, runner: CliRunner) -> None:
     """Test exporting a template that does not exist."""
     patch_keyring(monkeypatch)
 
-    def mock_post(*a, **kw):
+    def mock_post(*a: Any, **kw: Any) -> Any:
         class R:
-            def raise_for_status(self):
+            def raise_for_status(self) -> None:
                 pass
 
-            def json(self):
+            def json(self) -> Any:
                 return {"testPlanTemplates": []}
 
         return R()
@@ -245,18 +248,18 @@ def test_export_template_not_found(monkeypatch, runner):
     assert "not found" in result.output
 
 
-def test_import_template_success(monkeypatch, runner, tmp_path):
+def test_import_template_success(monkeypatch: Any, runner: CliRunner, tmp_path: Any) -> None:
     """Test importing a template successfully."""
     patch_keyring(monkeypatch)
 
-    def mock_post(*a, **kw):
+    def mock_post(*a: Any, **kw: Any) -> Any:
         class R:
             text = "{}"  # Add text attribute for response parsing
 
-            def raise_for_status(self):
+            def raise_for_status(self) -> None:
                 pass
 
-            def json(self):
+            def json(self) -> Any:
                 return {}
 
         return R()
@@ -270,11 +273,13 @@ def test_import_template_success(monkeypatch, runner, tmp_path):
     assert "imported successfully" in result.output
 
 
-def test_import_template_partial_failure(monkeypatch, runner, tmp_path):
+def test_import_template_partial_failure(
+    monkeypatch: Any, runner: CliRunner, tmp_path: Any
+) -> None:
     """Test importing a template with partial failures."""
     patch_keyring(monkeypatch)
 
-    def mock_post(*a, **kw):
+    def mock_post(*a: Any, **kw: Any) -> Any:
         class R:
             text = """{
                 "failedTestPlanTemplates": [{"name": "Test Template"}],
@@ -292,10 +297,10 @@ def test_import_template_partial_failure(monkeypatch, runner, tmp_path):
                 }
             }"""
 
-            def raise_for_status(self):
+            def raise_for_status(self) -> None:
                 pass
 
-            def json(self):
+            def json(self) -> Any:
                 return {
                     "failedTestPlanTemplates": [{"name": "Test Template"}],
                     "error": {
@@ -325,18 +330,18 @@ def test_import_template_partial_failure(monkeypatch, runner, tmp_path):
     assert "Test Template" in result.output
 
 
-def test_delete_template_success(monkeypatch, runner):
+def test_delete_template_success(monkeypatch: Any, runner: CliRunner) -> None:
     """Test deleting a template successfully."""
     patch_keyring(monkeypatch)
 
-    def mock_post(*a, **kw):
+    def mock_post(*a: Any, **kw: Any) -> Any:
         class R:
             status_code = 200
 
-            def raise_for_status(self):
+            def raise_for_status(self) -> None:
                 pass
 
-            def json(self):
+            def json(self) -> Any:
                 return {}
 
         return R()
@@ -348,18 +353,18 @@ def test_delete_template_success(monkeypatch, runner):
     assert "deleted successfully" in result.output
 
 
-def test_delete_template_failure(monkeypatch, runner):
+def test_delete_template_failure(monkeypatch: Any, runner: CliRunner) -> None:
     """Test deleting a template with a failure response."""
     patch_keyring(monkeypatch)
 
-    def mock_post(*a, **kw):
+    def mock_post(*a: Any, **kw: Any) -> Any:
         class R:
             status_code = 400
 
-            def raise_for_status(self):
+            def raise_for_status(self) -> None:
                 pass
 
-            def json(self):
+            def json(self) -> Any:
                 return {}
 
             text = "error"

@@ -6,6 +6,7 @@ import uuid
 from pathlib import Path
 
 import pytest
+from typing import Any
 
 
 @pytest.mark.e2e
@@ -13,14 +14,16 @@ import pytest
 class TestNotebookE2E:
     """End-to-end tests for notebook commands."""
 
-    def test_notebook_list_basic(self, cli_runner, cli_helper):
+    def test_notebook_list_basic(self, cli_runner: Any, cli_helper: Any) -> None:
         """Test basic notebook list functionality."""
         result = cli_runner(["notebook", "manage", "list", "--format", "json"])
         cli_helper.assert_success(result)
         notebooks = cli_helper.get_json_output(result)
         assert isinstance(notebooks, list)
 
-    def test_notebook_list_with_workspace_filter(self, cli_runner, cli_helper, e2e_config):
+    def test_notebook_list_with_workspace_filter(
+        self, cli_runner: Any, cli_helper: Any, e2e_config: Any
+    ) -> None:
         """Test notebook list with workspace filtering."""
         workspace = e2e_config["workspace"]
         result = cli_runner(
@@ -40,8 +43,12 @@ class TestNotebookE2E:
         assert isinstance(notebooks, list)
 
     def test_notebook_create_and_delete_cycle(
-        self, cli_runner, cli_helper, sample_notebook_content, configured_workspace
-    ):
+        self,
+        cli_runner: Any,
+        cli_helper: Any,
+        sample_notebook_content: Any,
+        configured_workspace: Any,
+    ) -> None:
         """Test creating and deleting a notebook."""
         notebook_name = f"e2e-test-notebook-{uuid.uuid4().hex[:8]}.ipynb"
 
@@ -125,8 +132,12 @@ class TestNotebookE2E:
             Path(temp_file).unlink(missing_ok=True)
 
     def test_notebook_download_by_id(
-        self, cli_runner, cli_helper, sample_notebook_content, configured_workspace
-    ):
+        self,
+        cli_runner: Any,
+        cli_helper: Any,
+        sample_notebook_content: Any,
+        configured_workspace: Any,
+    ) -> None:
         """Test downloading notebook by ID."""
         notebook_name = f"e2e-download-test-{uuid.uuid4().hex[:8]}.ipynb"
 
@@ -203,8 +214,12 @@ class TestNotebookE2E:
             Path(temp_file).unlink(missing_ok=True)
 
     def test_notebook_download_by_name(
-        self, cli_runner, cli_helper, sample_notebook_content, configured_workspace
-    ):
+        self,
+        cli_runner: Any,
+        cli_helper: Any,
+        sample_notebook_content: Any,
+        configured_workspace: Any,
+    ) -> None:
         """Test downloading notebook by name."""
         notebook_name = f"e2e-download-name-test-{uuid.uuid4().hex[:8]}.ipynb"
 
@@ -278,7 +293,7 @@ class TestNotebookE2E:
             Path(temp_file).unlink(missing_ok=True)
 
     @pytest.mark.slow
-    def test_notebook_pagination(self, cli_runner, cli_helper):
+    def test_notebook_pagination(self, cli_runner: Any, cli_helper: Any) -> None:
         """Test notebook list pagination."""
         # Test with small take value to trigger pagination
 
@@ -288,7 +303,7 @@ class TestNotebookE2E:
         # Should either show notebooks or "No notebooks found"
         assert "Notebook" in result.stdout or "No notebooks found" in result.stdout
 
-    def test_notebook_error_handling(self, cli_runner, cli_helper):
+    def test_notebook_error_handling(self, cli_runner: Any, cli_helper: Any) -> None:
         """Test error handling for invalid operations."""
         # Test download with invalid ID
         result = cli_runner(
@@ -311,7 +326,9 @@ class TestNotebookE2E:
         )
         cli_helper.assert_failure(result)
 
-    def test_notebook_create_without_file(self, cli_runner, cli_helper, configured_workspace):
+    def test_notebook_create_without_file(
+        self, cli_runner: Any, cli_helper: Any, configured_workspace: Any
+    ) -> None:
         """Test creating empty notebook without file."""
         notebook_name = f"e2e-empty-notebook-{uuid.uuid4().hex[:8]}.ipynb"
 

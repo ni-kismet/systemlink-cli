@@ -117,6 +117,32 @@
   Always finish by running the full suite (`poetry run pytest`) before committing.
 - If adding or modifying CLI commands, update the `README.md` usage examples if needed.
 - If adding dependencies, update `pyproject.toml` and run `poetry lock`.
+
+- Run static type checks with mypy to verify type annotations and catch type errors early. Recommended workflow:
+
+  1. Install as a dev dependency:
+
+    ```sh
+    poetry add --dev mypy
+    ```
+
+  2. Quick run (package + tests):
+
+    ```sh
+    poetry run mypy slcli tests
+    ```
+
+  3. For strict checking during CI or deeper validation, enable stricter flags or configure in `pyproject.toml` (example below).
+
+  Optional `pyproject.toml` snippet to tune mypy (add under `[tool.mypy]`):
+
+  ```toml
+  [tool.mypy]
+  python_version = "3.13"
+  ignore_missing_imports = true
+  disallow_untyped_defs = true
+  warn_unused_ignores = true
+  ```
 - If changing packaging or build scripts, verify `poetry run build-pyinstaller` works and produces a binary in `dist/`.
 - Verify all new CLI commands follow the CLI best practices outlined above.
 
@@ -127,14 +153,16 @@
 - All code must be reviewed by at least one other developer.
 - All new CLI commands must include JSON output support via `--format/-f` option.
 - All error handling must use standardized exit codes and consistent formatting.
+ - Every pull request must include a passing mypy run (for example: `poetry run mypy slcli tests`) and include any necessary type fixes; CI will enforce this check.
 
 ## Copilot-Specific Instructions
 
 - After making any code change, always:
   1. Run linting and auto-formatting.
-  2. Run unit tests only first for quick validation (`poetry run pytest tests/unit`).
-  3. Run the full test suite (`poetry run pytest`).
-  4. Report any failures or issues to the user.
+  2. Run static type checks with mypy (`poetry run mypy slcli tests`) for quick type validation.
+  3. Run unit tests only first for quick validation (`poetry run pytest tests/unit`).
+  4. Run the full test suite (`poetry run pytest`).
+  5. Report any failures or issues to the user.
 - If you add a new CLI command, ensure it:
   - Is covered by a unit test in `tests/unit/`
   - Supports `--format/-f` option with `table` and `json` formats

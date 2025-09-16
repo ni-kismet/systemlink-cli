@@ -7,7 +7,7 @@ All commands use Click for robust CLI interfaces and error handling.
 import json
 import re
 import sys
-from typing import Optional
+from typing import Any, Dict, Optional
 
 import click
 
@@ -280,11 +280,11 @@ def _query_all_users(
     return all_users
 
 
-def register_user_commands(cli):
+def register_user_commands(cli: click.Group) -> None:
     """Register CLI commands for managing SystemLink users."""
 
     @cli.group()
-    def user():
+    def user() -> None:
         """Manage SystemLink users."""
         pass
 
@@ -341,7 +341,7 @@ def register_user_commands(cli):
         sortby: str = "firstName",
         order: str = "asc",
         filter: Optional[str] = None,
-    ):
+    ) -> None:
         """List users with optional filtering and sorting."""
         format_output = validate_output_format(format)
 
@@ -424,7 +424,7 @@ def register_user_commands(cli):
     )
     def get_user(
         user_id: Optional[str] = None, user_email: Optional[str] = None, format: str = "table"
-    ):
+    ) -> None:
         """Get details for a specific user by ID or email."""
         if not user_id and not user_email:
             click.echo("✗ Must provide either --id or --email.", err=True)
@@ -584,7 +584,7 @@ def register_user_commands(cli):
         policies: Optional[str] = None,
         keywords: Optional[str] = None,
         properties: Optional[str] = None,
-    ):
+    ) -> None:
         """Create a new user.
 
         If niuaId is not provided, it will default to the email address.
@@ -695,12 +695,12 @@ def register_user_commands(cli):
         policies: Optional[str] = None,
         keywords: Optional[str] = None,
         properties: Optional[str] = None,
-    ):
+    ) -> None:
         """Update an existing user."""
         url = f"{get_base_url()}/niuser/v1/users/{user_id}"
 
         # Build update payload (only include provided fields)
-        payload = {}
+        payload: Dict[str, Any] = {}
 
         if first_name:
             payload["firstName"] = first_name
@@ -744,7 +744,7 @@ def register_user_commands(cli):
     @click.confirmation_option(
         prompt="Are you sure you want to delete this user? This action cannot be undone."
     )
-    def delete_user(user_id: str):
+    def delete_user(user_id: str) -> None:
         """Delete a user by ID."""
         url = f"{get_base_url()}/niuser/v1/users/{user_id}"
 

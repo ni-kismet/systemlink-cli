@@ -5,16 +5,16 @@ from __future__ import annotations
 import importlib
 import sys
 import types
-from typing import List
+from typing import List, Any
 
 import pytest
 
 
-def _make_dummy_truststore(inject_side_effect=None):
+def _make_dummy_truststore(inject_side_effect: Any = None) -> Any:
     mod = types.ModuleType("truststore")
     called: List[bool] = []
 
-    def inject_into_requests():  # type: ignore
+    def inject_into_requests() -> None:  # type: ignore
         if inject_side_effect:
             raise inject_side_effect
         called.append(True)
@@ -24,7 +24,7 @@ def _make_dummy_truststore(inject_side_effect=None):
     return mod
 
 
-def test_injection_success(monkeypatch):
+def test_injection_success(monkeypatch: Any) -> None:
     dummy = _make_dummy_truststore()
     monkeypatch.setitem(sys.modules, "truststore", dummy)
     from slcli import ssl_trust
@@ -34,7 +34,7 @@ def test_injection_success(monkeypatch):
     assert dummy._called, "truststore.inject_into_requests should have been called"
 
 
-def test_injection_disabled(monkeypatch):
+def test_injection_disabled(monkeypatch: Any) -> None:
     dummy = _make_dummy_truststore()
     monkeypatch.setitem(sys.modules, "truststore", dummy)
     monkeypatch.setenv("SLCLI_DISABLE_OS_TRUST", "1")
@@ -45,7 +45,7 @@ def test_injection_disabled(monkeypatch):
     assert not dummy._called, "Injection should be skipped when disabled"
 
 
-def test_injection_force_failure(monkeypatch):
+def test_injection_force_failure(monkeypatch: Any) -> None:
     dummy = _make_dummy_truststore(inject_side_effect=RuntimeError("boom"))
     monkeypatch.setitem(sys.modules, "truststore", dummy)
     monkeypatch.setenv("SLCLI_FORCE_OS_TRUST", "1")

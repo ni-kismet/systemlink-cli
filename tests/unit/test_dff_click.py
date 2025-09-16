@@ -7,16 +7,17 @@ from pathlib import Path
 import click
 import pytest
 from click.testing import CliRunner
+from typing import Any
 
 from slcli.dff_click import register_dff_commands
 from .test_utils import patch_keyring
 
 
-def make_cli():
+def make_cli() -> click.Group:
     """Create a dummy CLI for testing."""
 
     @click.group()
-    def cli():
+    def cli() -> None:
         pass
 
     register_dff_commands(cli)
@@ -24,41 +25,43 @@ def make_cli():
 
 
 @pytest.fixture
-def runner():
+def runner() -> CliRunner:
     return CliRunner()
 
 
-def mock_requests(monkeypatch, method, response_json, status_code=200):
+def mock_requests(
+    monkeypatch: Any, method: str, response_json: Any, status_code: int = 200
+) -> None:
     """Mock requests for testing."""
 
     class MockResponse:
-        def __init__(self):
+        def __init__(self) -> None:
             self.status_code = status_code
 
-        def json(self):
+        def json(self) -> Any:
             return response_json
 
-        def raise_for_status(self):
+        def raise_for_status(self) -> None:
             if self.status_code >= 400:
                 raise Exception("HTTP error")
 
         @property
-        def text(self):
+        def text(self) -> str:
             return json.dumps(response_json) if response_json else ""
 
     monkeypatch.setattr("requests." + method, lambda *a, **kw: MockResponse())
 
 
-def test_dff_config_list_success(monkeypatch, runner):
+def test_dff_config_list_success(monkeypatch: Any, runner: CliRunner) -> None:
     """Test listing DFF configurations with a successful response."""
     patch_keyring(monkeypatch)
 
-    def mock_get(*a, **kw):
+    def mock_get(*a: Any, **kw: Any) -> Any:
         class R:
-            def raise_for_status(self):
+            def raise_for_status(self) -> None:
                 pass
 
-            def json(self):
+            def json(self) -> Any:
                 return {
                     "configurations": [
                         {
@@ -72,12 +75,12 @@ def test_dff_config_list_success(monkeypatch, runner):
 
         return R()
 
-    def mock_workspace_get(*a, **kw):
+    def mock_workspace_get(*a: Any, **kw: Any) -> Any:
         class R:
-            def raise_for_status(self):
+            def raise_for_status(self) -> None:
                 pass
 
-            def json(self):
+            def json(self) -> Any:
                 return {"workspaces": [{"id": "ws1", "name": "TestWorkspace"}]}
 
         return R()
@@ -98,7 +101,7 @@ def test_dff_config_list_success(monkeypatch, runner):
     assert "config1" in result.output
 
 
-def test_dff_config_list_json_format(monkeypatch, runner):
+def test_dff_config_list_json_format(monkeypatch: Any, runner: CliRunner) -> None:
     """Test listing DFF configurations with JSON output."""
     patch_keyring(monkeypatch)
 
@@ -111,12 +114,12 @@ def test_dff_config_list_json_format(monkeypatch, runner):
         }
     ]
 
-    def mock_get(*a, **kw):
+    def mock_get(*a: Any, **kw: Any) -> Any:
         class R:
-            def raise_for_status(self):
+            def raise_for_status(self) -> None:
                 pass
 
-            def json(self):
+            def json(self) -> Any:
                 return {"configurations": configurations}
 
         return R()
@@ -134,7 +137,7 @@ def test_dff_config_list_json_format(monkeypatch, runner):
     assert output_json[0]["name"] == "Test Configuration"
 
 
-def test_dff_config_get_success(monkeypatch, runner):
+def test_dff_config_get_success(monkeypatch: Any, runner: CliRunner) -> None:
     """Test getting a specific DFF configuration."""
     patch_keyring(monkeypatch)
 
@@ -149,12 +152,12 @@ def test_dff_config_get_success(monkeypatch, runner):
         "fields": [],
     }
 
-    def mock_get(*a, **kw):
+    def mock_get(*a: Any, **kw: Any) -> Any:
         class R:
-            def raise_for_status(self):
+            def raise_for_status(self) -> None:
                 pass
 
-            def json(self):
+            def json(self) -> Any:
                 return config_data
 
         return R()
@@ -171,7 +174,7 @@ def test_dff_config_get_success(monkeypatch, runner):
     assert output_json["configuration"]["name"] == "Test Configuration"
 
 
-def test_dff_config_init_success(runner):
+def test_dff_config_init_success(runner: CliRunner) -> None:
     """Test initializing a new DFF configuration template."""
     cli = make_cli()
 
@@ -230,23 +233,23 @@ def test_dff_config_init_success(runner):
         assert field1["mandatory"] is False
 
 
-def test_dff_config_create_success(monkeypatch, runner):
+def test_dff_config_create_success(monkeypatch: Any, runner: CliRunner) -> None:
     """Test creating DFF configurations from file."""
     patch_keyring(monkeypatch)
 
-    def mock_post(*a, **kw):
+    def mock_post(*a: Any, **kw: Any) -> Any:
         class R:
-            def __init__(self):
+            def __init__(self) -> None:
                 self.status_code = 201
 
-            def raise_for_status(self):
+            def raise_for_status(self) -> None:
                 pass
 
-            def json(self):
+            def json(self) -> Any:
                 return {"configurations": [{"id": "new-config-id", "name": "Test Configuration"}]}
 
             @property
-            def text(self):
+            def text(self) -> str:
                 return json.dumps(self.json())
 
         return R()
@@ -280,16 +283,16 @@ def test_dff_config_create_success(monkeypatch, runner):
         Path(input_file).unlink()
 
 
-def test_dff_config_create_validation_error(monkeypatch, runner):
+def test_dff_config_create_validation_error(monkeypatch: Any, runner: CliRunner) -> None:
     """Test creating DFF configurations with validation errors."""
     patch_keyring(monkeypatch)
 
-    def mock_post(*a, **kw):
+    def mock_post(*a: Any, **kw: Any) -> Any:
         class R:
-            def __init__(self):
+            def __init__(self) -> None:
                 self.status_code = 400
 
-            def raise_for_status(self):
+            def raise_for_status(self) -> None:
                 import requests
 
                 response = requests.Response()
@@ -308,7 +311,7 @@ def test_dff_config_create_validation_error(monkeypatch, runner):
                 ).encode()
                 raise requests.RequestException(response=response)
 
-            def json(self):
+            def json(self) -> Any:
                 return {
                     "type": "https://tools.ietf.org/html/rfc9110#section-15.5.1",
                     "title": "One or more validation errors occurred.",
@@ -352,16 +355,16 @@ def test_dff_config_create_validation_error(monkeypatch, runner):
         Path(input_file).unlink()
 
 
-def test_dff_groups_list_success(monkeypatch, runner):
+def test_dff_groups_list_success(monkeypatch: Any, runner: CliRunner) -> None:
     """Test listing DFF groups."""
     patch_keyring(monkeypatch)
 
-    def mock_get(*a, **kw):
+    def mock_get(*a: Any, **kw: Any) -> Any:
         class R:
-            def raise_for_status(self):
+            def raise_for_status(self) -> None:
                 pass
 
-            def json(self):
+            def json(self) -> Any:
                 return {"groups": [{"key": "group1", "name": "Test Group", "workspace": "ws1"}]}
 
         return R()
@@ -378,16 +381,16 @@ def test_dff_groups_list_success(monkeypatch, runner):
     assert "group1" in result.output
 
 
-def test_dff_fields_list_success(monkeypatch, runner):
+def test_dff_fields_list_success(monkeypatch: Any, runner: CliRunner) -> None:
     """Test listing DFF fields."""
     patch_keyring(monkeypatch)
 
-    def mock_get(*a, **kw):
+    def mock_get(*a: Any, **kw: Any) -> Any:
         class R:
-            def raise_for_status(self):
+            def raise_for_status(self) -> None:
                 pass
 
-            def json(self):
+            def json(self) -> Any:
                 return {
                     "fields": [
                         {
@@ -413,16 +416,16 @@ def test_dff_fields_list_success(monkeypatch, runner):
     assert "field1" in result.output
 
 
-def test_dff_tables_query_success(monkeypatch, runner):
+def test_dff_tables_query_success(monkeypatch: Any, runner: CliRunner) -> None:
     """Test querying table properties."""
     patch_keyring(monkeypatch)
 
-    def mock_post(*a, **kw):
+    def mock_post(*a: Any, **kw: Any) -> Any:
         class R:
-            def raise_for_status(self):
+            def raise_for_status(self) -> None:
                 pass
 
-            def json(self):
+            def json(self) -> Any:
                 return {
                     "tables": [
                         {
@@ -461,16 +464,16 @@ def test_dff_tables_query_success(monkeypatch, runner):
     assert "workorder:workorder" in result.output
 
 
-def test_dff_tables_query_with_optional_params(monkeypatch, runner):
+def test_dff_tables_query_with_optional_params(monkeypatch: Any, runner: CliRunner) -> None:
     """Test querying table properties with optional parameters."""
     patch_keyring(monkeypatch)
 
-    def mock_post(*a, **kw):
+    def mock_post(*a: Any, **kw: Any) -> Any:
         class R:
-            def raise_for_status(self):
+            def raise_for_status(self) -> None:
                 pass
 
-            def json(self):
+            def json(self) -> Any:
                 return {
                     "tables": [
                         {
@@ -519,7 +522,7 @@ def test_dff_tables_query_with_optional_params(monkeypatch, runner):
     assert "workorder:workorder" in result.output
 
 
-def test_dff_config_export_success(monkeypatch, runner):
+def test_dff_config_export_success(monkeypatch: Any, runner: CliRunner) -> None:
     """Test exporting a DFF configuration."""
     patch_keyring(monkeypatch)
 
@@ -529,12 +532,12 @@ def test_dff_config_export_success(monkeypatch, runner):
         "fields": [],
     }
 
-    def mock_get(*a, **kw):
+    def mock_get(*a: Any, **kw: Any) -> Any:
         class R:
-            def raise_for_status(self):
+            def raise_for_status(self) -> None:
                 pass
 
-            def json(self):
+            def json(self) -> Any:
                 return config_data
 
         return R()
@@ -563,7 +566,7 @@ def test_dff_config_export_success(monkeypatch, runner):
         assert exported_data["configuration"]["name"] == "Test Configuration"
 
 
-def test_dff_config_delete_confirmation_abort(monkeypatch, runner):
+def test_dff_config_delete_confirmation_abort(monkeypatch: Any, runner: CliRunner) -> None:
     """Test that config deletion can be aborted via confirmation prompt."""
     patch_keyring(monkeypatch)
 
@@ -576,16 +579,16 @@ def test_dff_config_delete_confirmation_abort(monkeypatch, runner):
     assert "Aborted" in result.output
 
 
-def test_dff_config_workspace_filtering(monkeypatch, runner):
+def test_dff_config_workspace_filtering(monkeypatch: Any, runner: CliRunner) -> None:
     """Test workspace filtering in config list."""
     patch_keyring(monkeypatch)
 
-    def mock_get(*a, **kw):
+    def mock_get(*a: Any, **kw: Any) -> Any:
         class R:
-            def raise_for_status(self):
+            def raise_for_status(self) -> None:
                 pass
 
-            def json(self):
+            def json(self) -> Any:
                 return {
                     "configurations": [
                         {"id": "config1", "name": "Config 1", "workspace": "ws1"},
@@ -595,12 +598,12 @@ def test_dff_config_workspace_filtering(monkeypatch, runner):
 
         return R()
 
-    def mock_workspace_get(*a, **kw):
+    def mock_workspace_get(*a: Any, **kw: Any) -> Any:
         class R:
-            def raise_for_status(self):
+            def raise_for_status(self) -> None:
                 pass
 
-            def json(self):
+            def json(self) -> Any:
                 return {
                     "workspaces": [
                         {"id": "ws1", "name": "Workspace1"},
@@ -626,7 +629,7 @@ def test_dff_config_workspace_filtering(monkeypatch, runner):
     assert "Config 2" not in result.output
 
 
-def test_dff_help_commands(runner):
+def test_dff_help_commands(runner: CliRunner) -> None:
     """Test that help is available for all DFF commands."""
     cli = make_cli()
 
@@ -656,7 +659,7 @@ def test_dff_help_commands(runner):
     assert "Manage table properties" in result.output
 
 
-def test_dff_edit_command_help(runner):
+def test_dff_edit_command_help(runner: CliRunner) -> None:
     """Test that the edit command shows proper help."""
     cli = make_cli()
 
