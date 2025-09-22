@@ -36,6 +36,10 @@ pytest-cov = ">=3.0"
 pytest-timeout = ">=2.1.0"
 pyinstaller = "^6.14.2"
 
+# Typed stubs for third-party libraries used by mypy in CI
+types-requests = "*"
+types-tabulate = "*"
+
 # Semantic Release
 python-semantic-release = "^9.0.0"
 
