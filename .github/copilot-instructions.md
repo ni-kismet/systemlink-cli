@@ -107,32 +107,37 @@
 
 ## Required Actions After Any Change
 
-- Run `poetry run ni-python-styleguide lint` to check for linting and style issues.
-- Run `poetry run black .` to auto-format code to the configured line length (100).
-- Run `poetry run pytest` to ensure all tests pass.
-- During active development (before running the entire test suite), you can run only the unit tests for a fast feedback loop:
-  - Quick unit test pass (quiet): `poetry run pytest tests/unit -q`
-  - Single test file: `poetry run pytest tests/unit/test_<name>.py -q`
-  - Single test function: `poetry run pytest tests/unit/test_<name>.py::test_case -q`
-  Always finish by running the full suite (`poetry run pytest`) before committing.
-- If adding or modifying CLI commands, update the `README.md` usage examples if needed.
-- If adding dependencies, update `pyproject.toml` and run `poetry lock`.
+ - NOTE: Run linting and mypy after every change and before committing or opening a PR. This ensures type and style checks run locally and match CI expectations. At minimum run these two commands on each change:
 
-- Run static type checks with mypy to verify type annotations and catch type errors early. Recommended workflow:
+   - `poetry run ni-python-styleguide lint`
+   - `poetry run mypy slcli tests`
 
-  1. Install as a dev dependency:
+ - Run `poetry run ni-python-styleguide lint` to check for linting and style issues.
+ - Run `poetry run black .` to auto-format code to the configured line length (100).
+ - Run `poetry run pytest` to ensure all tests pass.
+ - During active development (before running the entire test suite), you can run only the unit tests for a fast feedback loop:
+   - Quick unit test pass (quiet): `poetry run pytest tests/unit -q`
+   - Single test file: `poetry run pytest tests/unit/test_<name>.py -q`
+   - Single test function: `poetry run pytest tests/unit/test_<name>.py::test_case -q`
+   Always finish by running the full suite (`poetry run pytest`) before committing.
+ - If adding or modifying CLI commands, update the `README.md` usage examples if needed.
+ - If adding dependencies, update `pyproject.toml` and run `poetry lock`.
 
-    ```sh
-    poetry add --dev mypy
-    ```
+ - Run static type checks with mypy to verify type annotations and catch type errors early. Recommended workflow:
 
-  2. Quick run (package + tests):
+   1. Install as a dev dependency:
 
-    ```sh
-    poetry run mypy slcli tests
-    ```
+      ```sh
+      poetry add --dev mypy
+      ```
 
-  3. For strict checking during CI or deeper validation, enable stricter flags or configure in `pyproject.toml` (example below).
+   2. Quick run (package + tests):
+
+      ```sh
+      poetry run mypy slcli tests
+      ```
+
+   3. For strict checking during CI or deeper validation, enable stricter flags or configure in `pyproject.toml` (example below).
 
   Optional `pyproject.toml` snippet to tune mypy (add under `[tool.mypy]`):
 
@@ -153,7 +158,7 @@
 - All code must be reviewed by at least one other developer.
 - All new CLI commands must include JSON output support via `--format/-f` option.
 - All error handling must use standardized exit codes and consistent formatting.
- - Every pull request must include a passing mypy run (for example: `poetry run mypy slcli tests`) and include any necessary type fixes; CI will enforce this check.
+ - Every pull request must include a passing lint and mypy run (for example: `poetry run ni-python-styleguide lint` and `poetry run mypy slcli tests`) and include any necessary fixes; CI will enforce these checks.
 
 ## Copilot-Specific Instructions
 
