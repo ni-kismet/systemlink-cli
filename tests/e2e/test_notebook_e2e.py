@@ -4,9 +4,9 @@ import json
 import tempfile
 import uuid
 from pathlib import Path
+from typing import Any
 
 import pytest
-from typing import Any
 
 
 @pytest.mark.e2e

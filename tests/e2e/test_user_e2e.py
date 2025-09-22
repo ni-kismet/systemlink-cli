@@ -1,7 +1,8 @@
 """E2E tests for user commands against dev tier."""
 
-import pytest
 from typing import Any
+
+import pytest
 
 
 @pytest.mark.e2e

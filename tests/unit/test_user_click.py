@@ -1,10 +1,10 @@
 """Unit tests for user CLI commands."""
 
 import json
+from typing import Any
 
 import click
 import pytest
-from typing import Any
 from click.testing import CliRunner
 
 from slcli.user_click import register_user_commands
