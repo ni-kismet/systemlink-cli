@@ -3,7 +3,7 @@
 from slcli.utils import sanitize_filename, extract_error_type, parse_inner_errors
 
 
-def test_sanitize_filename():
+def test_sanitize_filename() -> None:
     """Test filename sanitization."""
     # Basic case
     assert sanitize_filename("Test Name") == "test-name"
@@ -27,7 +27,7 @@ def test_sanitize_filename():
     assert sanitize_filename("Darren's Test Template") == "darrens-test-template"
 
 
-def test_extract_error_type():
+def test_extract_error_type() -> None:
     """Test error type extraction."""
     # Full class name
     assert (
@@ -42,7 +42,7 @@ def test_extract_error_type():
     assert extract_error_type("") == ""
 
 
-def test_parse_inner_errors():
+def test_parse_inner_errors() -> None:
     """Test inner error parsing."""
     inner_errors = [
         {
@@ -68,7 +68,7 @@ def test_parse_inner_errors():
     assert result[1]["resource_type"] == ""
 
 
-def test_parse_inner_errors_empty():
+def test_parse_inner_errors_empty() -> None:
     """Test parsing empty inner errors list."""
     result = parse_inner_errors([])
     assert result == []

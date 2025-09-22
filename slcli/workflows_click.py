@@ -6,7 +6,7 @@ import sys
 import tempfile
 import webbrowser
 from pathlib import Path
-from typing import Dict, Optional, Union, Any
+from typing import Any, Dict, List, Optional, Union
 
 import click
 import requests
@@ -38,7 +38,7 @@ removed; import the public helpers directly from that module.
 
 def _query_all_workflows(
     workspace_filter: Optional[str] = None, workspace_map: Optional[dict] = None
-):
+) -> List[Dict[str, Any]]:
     """Query all workflows using continuation token pagination.
 
     Args:
@@ -81,11 +81,11 @@ def _query_all_workflows(
     return all_workflows
 
 
-def register_workflows_commands(cli):
+def register_workflows_commands(cli: Any) -> None:
     """Register the 'workflow' command group and its subcommands."""
 
     @cli.group()
-    def workflow():
+    def workflow() -> None:
         """Manage workflows."""
         pass
 
@@ -111,7 +111,9 @@ def register_workflows_commands(cli):
         "-o",
         help="Output file path (default: <name>-workflow.json)",
     )
-    def init_workflow(name, description, workspace, output):
+    def init_workflow(
+        name: Optional[str], description: Optional[str], workspace: str, output: Optional[str]
+    ) -> None:
         """Initialize a new workflow JSON file.
 
         Creates a workflow JSON file with the required schema structure.
@@ -126,6 +128,7 @@ def register_workflows_commands(cli):
 
         # Generate output filename if not provided
         if not output:
+            assert name is not None  # Should be set by prompt above
             safe_name = sanitize_filename(name, "workflow")
             output = f"{safe_name}-workflow.json"
 
@@ -355,7 +358,7 @@ def register_workflows_commands(cli):
         workspace: Optional[str] = None,
         take: int = 25,
         status: Optional[str] = None,
-    ):
+    ) -> None:
         """List available workflows."""
         format_output = validate_output_format(format)
 
@@ -409,7 +412,7 @@ def register_workflows_commands(cli):
         help="Workflow ID to export",
     )
     @click.option("--output", "-o", help="Output JSON file (default: <workflow-name>.json)")
-    def export_workflow(workflow_id, output):
+    def export_workflow(workflow_id: str, output: Optional[str]) -> None:
         """Download/export a workflow as a local JSON file."""
         url = f"{get_base_url()}/niworkorder/v1/workflows/{workflow_id}?ff-userdefinedworkflowsfortestplaninstances=true"
         try:
@@ -448,7 +451,7 @@ def register_workflows_commands(cli):
         "-w",
         help="Override workspace name or ID (uses value from file if not specified)",
     )
-    def import_workflow(input_file, workspace):
+    def import_workflow(input_file: str, workspace: Optional[str]) -> None:
         """Upload/import a workflow from a local JSON file.
 
         Workspace can be specified via --workspace flag or included in the JSON file.
@@ -539,7 +542,7 @@ def register_workflows_commands(cli):
         required=True,
         help="Workflow ID to delete",
     )
-    def delete_workflow(workflow_id):
+    def delete_workflow(workflow_id: str) -> None:
         """Delete a workflow by ID."""
         url = f"{get_base_url()}/niworkorder/v1/delete-workflows?ff-userdefinedworkflowsfortestplaninstances=true"
         payload = {"ids": [workflow_id]}
@@ -589,7 +592,7 @@ def register_workflows_commands(cli):
         "-w",
         help="Override workspace name or ID (uses value from file if not specified)",
     )
-    def update_workflow(workflow_id, input_file, workspace):
+    def update_workflow(workflow_id: str, input_file: str, workspace: Optional[str]) -> None:
         """Update a workflow from a local JSON file.
 
         Workspace can be specified via --workspace flag or included in the JSON file.
@@ -758,7 +761,7 @@ def register_workflows_commands(cli):
             handle_api_error(exc)
 
 
-def _handle_workflow_error_response(response_data, operation_name):
+def _handle_workflow_error_response(response_data: Dict[str, Any], operation_name: str) -> None:
     """Parse and display detailed workflow error responses.
 
     Args:
@@ -768,7 +771,7 @@ def _handle_workflow_error_response(response_data, operation_name):
     display_api_errors(operation_name, response_data, detailed=True)
 
 
-def _handle_workflow_delete_response(response_data, workflow_id):
+def _handle_workflow_delete_response(response_data: Dict[str, Any], workflow_id: str) -> None:
     """Parse and display workflow delete response, handling both success and failures.
 
     Args:
@@ -782,15 +785,6 @@ def _handle_workflow_delete_response(response_data, workflow_id):
 
     # Handle successful deletion response format: {"ids": ["1023"]}
     if "ids" in response_data:
-        deleted_ids = response_data.get("ids", [])
-        if workflow_id in deleted_ids:
-            click.echo(f"✓ Workflow {workflow_id} deleted successfully.")
-            return
-        else:
-            # Workflow ID not in the successful deletion list - unexpected
-            click.echo(f"✗ Unexpected response for workflow {workflow_id}:", err=True)
-            click.echo(f"  Successfully deleted: {', '.join(deleted_ids)}", err=True)
-            sys.exit(1)
         deleted_ids = response_data.get("ids", [])
         if workflow_id in deleted_ids:
             click.echo(f"✓ Workflow {workflow_id} deleted successfully.")

@@ -90,8 +90,8 @@ def test_function_list_functions_json(monkeypatch: Any, runner: CliRunner) -> No
     ]
 
     def mock_make_api_request(
-        method: str, url: str, payload=None, headers=None, handle_errors=True
-    ):
+        method: str, url: str, payload: Any = None, headers: Any = None, handle_errors: Any = True
+    ) -> Any:
         """Mock API request function for testing.
 
         Returns paginated function list responses or workspace data based on the URL.
@@ -122,8 +122,8 @@ def test_function_get_function_json(monkeypatch: Any, runner: CliRunner) -> None
     patch_keyring(monkeypatch)
 
     def mock_make_api_request(
-        method: str, url: str, payload=None, headers=None, handle_errors=True
-    ):
+        method: str, url: str, payload: Any = None, headers: Any = None, handle_errors: Any = True
+    ) -> Any:
         """Mock the API request function for testing.
 
         Returns a mock response for specific function and workspace URLs.
@@ -162,8 +162,8 @@ def test_function_execute_sync_json(monkeypatch: Any, runner: CliRunner) -> None
     patch_keyring(monkeypatch)
 
     def mock_make_api_request(
-        method: str, url: str, payload=None, headers=None, handle_errors=True
-    ):
+        method: str, url: str, payload: Any = None, headers: Any = None, handle_errors: Any = True
+    ) -> Any:
         """Mock implementation of make_api_request for testing.
 
         Returns canned responses for function execution and workspace queries.
@@ -215,8 +215,8 @@ def test_function_execute_sync_defaults(monkeypatch: Any, runner: CliRunner) -> 
     patch_keyring(monkeypatch)
 
     def mock_make_api_request(
-        method: str, url: str, payload=None, headers=None, handle_errors=True
-    ):
+        method: str, url: str, payload: Any = None, headers: Any = None, handle_errors: Any = True
+    ) -> Any:
         """Mock API request function for testing sync function execution.
 
         Returns canned responses for specific URLs and methods, simulating
@@ -267,8 +267,8 @@ def test_function_get_function_table_interface_summary(monkeypatch: Any, runner:
     patch_keyring(monkeypatch)
 
     def mock_make_api_request(
-        method: str, url: str, payload=None, headers=None, handle_errors=True
-    ):
+        method: str, url: str, payload: Any = None, headers: Any = None, handle_errors: Any = True
+    ) -> Any:
         """Mock implementation of the API request function for testing.
 
         Handles GET requests to "/functions/func-1" by returning a mock function
@@ -328,7 +328,7 @@ def test_function_get_function_table_interface_summary(monkeypatch: Any, runner:
     assert "- POST /stats - Compute basic statistics" in output
 
 
-def test_function_init_typescript(monkeypatch: Any, runner: CliRunner, tmp_path) -> None:
+def test_function_init_typescript(monkeypatch: Any, runner: CliRunner, tmp_path: Any) -> None:
     """Init command downloads and extracts a typescript template (mocked)."""
     patch_keyring(monkeypatch)
 
@@ -372,7 +372,9 @@ def test_function_init_typescript(monkeypatch: Any, runner: CliRunner, tmp_path)
     assert (target / "src" / "index.ts").exists()
 
 
-def test_function_init_non_empty_no_force(monkeypatch: Any, runner: CliRunner, tmp_path) -> None:
+def test_function_init_non_empty_no_force(
+    monkeypatch: Any, runner: CliRunner, tmp_path: Any
+) -> None:
     """Init aborts if target non-empty and no --force."""
     patch_keyring(monkeypatch)
     # Prepare tarball

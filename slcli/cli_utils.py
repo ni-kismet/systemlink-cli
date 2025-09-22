@@ -1,7 +1,7 @@
 """Common utility functions for all CLI commands."""
 
 import sys
-from typing import Any, Dict, List, Optional
+from typing import Any, Dict, List, Optional, Callable
 
 import click
 import requests
@@ -123,7 +123,7 @@ def handle_pagination(
     Returns:
         List of all retrieved items
     """
-    all_items = []
+    all_items: List[Dict[str, Any]] = []
     page = 0
 
     while True:
@@ -337,7 +337,7 @@ def paginate_list_output(
     items: List[Dict[str, Any]],
     page_size: int = 25,
     format_output: str = "table",
-    formatter_func=None,
+    formatter_func: Optional[Callable[[Dict[str, Any]], List[str]]] = None,
     headers: Optional[List[str]] = None,
     column_widths: Optional[List[int]] = None,
     empty_message: str = "No items found.",
@@ -429,7 +429,6 @@ def paginate_list_output(
 
             if not click.confirm("Show next 25 results?", default=True):
                 break
-                break
 
             click.echo()  # Add blank line between pages
             current_page += 1
@@ -443,7 +442,7 @@ def _output_formatted_page(
     items: List[Dict[str, Any]],
     headers: List[str],
     column_widths: List[int],
-    row_formatter_func,
+    row_formatter_func: Callable[[Dict[str, Any]], List[str]],
 ) -> None:
     """Output a single page of formatted table data without footer.
 

@@ -1,6 +1,7 @@
 """Unit tests for user CLI commands."""
 
 import json
+from typing import Any
 
 import click
 import pytest
@@ -9,7 +10,7 @@ from click.testing import CliRunner
 from slcli.user_click import register_user_commands
 
 
-def patch_keyring(monkeypatch):
+def patch_keyring(monkeypatch: Any) -> None:
     """Patch keyring to return test values."""
     monkeypatch.setattr(
         "slcli.utils.keyring.get_password",
@@ -17,11 +18,11 @@ def patch_keyring(monkeypatch):
     )
 
 
-def make_cli():
+def make_cli() -> click.Group:
     """Create CLI instance with user commands for testing."""
 
     @click.group()
-    def test_cli():
+    def test_cli() -> None:
         pass
 
     register_user_commands(test_cli)
@@ -29,21 +30,23 @@ def make_cli():
 
 
 @pytest.fixture
-def runner():
+def runner() -> Any:
     return CliRunner()
 
 
-def mock_requests(monkeypatch, method, response_json, status_code=200):
+def mock_requests(
+    monkeypatch: Any, method: str, response_json: Any, status_code: int = 200
+) -> None:
     """Mock requests module for testing."""
 
     class MockResponse:
-        def __init__(self):
+        def __init__(self) -> None:
             self.status_code = status_code
 
-        def json(self):
+        def json(self) -> Any:
             return response_json
 
-        def raise_for_status(self):
+        def raise_for_status(self) -> None:
             if self.status_code >= 400:
                 raise Exception("HTTP error")
 
@@ -53,10 +56,10 @@ def mock_requests(monkeypatch, method, response_json, status_code=200):
 class TestUserList:
     """Test user list command."""
 
-    def test_list_users_table_format(self, runner, monkeypatch):
+    def test_list_users_table_format(self, runner: CliRunner, monkeypatch: Any) -> None:
         """Test listing users in table format."""
         patch_keyring(monkeypatch)
-        mock_users = {
+        mock_users: dict[str, Any] = {
             "users": [
                 {
                     "id": "user1",
@@ -84,10 +87,10 @@ class TestUserList:
         assert "Doe" in result.output
         assert "jane.smith@example.com" in result.output
 
-    def test_list_users_json_format(self, runner, monkeypatch):
+    def test_list_users_json_format(self, runner: CliRunner, monkeypatch: Any) -> None:
         """Test listing users in JSON format."""
         patch_keyring(monkeypatch)
-        mock_users = {
+        mock_users: dict[str, Any] = {
             "users": [
                 {
                     "id": "user1",
@@ -108,10 +111,10 @@ class TestUserList:
         assert len(users_json) == 1
         assert users_json[0]["firstName"] == "John"
 
-    def test_list_users_with_filter(self, runner, monkeypatch):
+    def test_list_users_with_filter(self, runner: CliRunner, monkeypatch: Any) -> None:
         """Test listing users with filter."""
         patch_keyring(monkeypatch)
-        mock_users = {"users": []}
+        mock_users: dict[str, Any] = {"users": []}
         mock_requests(monkeypatch, "post", mock_users)
 
         cli = make_cli()
@@ -120,10 +123,10 @@ class TestUserList:
         assert result.exit_code == 0
         assert "No users found." in result.output
 
-    def test_list_users_empty_result(self, runner, monkeypatch):
+    def test_list_users_empty_result(self, runner: CliRunner, monkeypatch: Any) -> None:
         """Test listing users with empty result."""
         patch_keyring(monkeypatch)
-        mock_users = {"users": []}
+        mock_users: dict[str, Any] = {"users": []}
         mock_requests(monkeypatch, "post", mock_users)
 
         cli = make_cli()
@@ -136,7 +139,7 @@ class TestUserList:
 class TestUserGet:
     """Test user get command."""
 
-    def test_get_user_table_format(self, runner, monkeypatch):
+    def test_get_user_table_format(self, runner: CliRunner, monkeypatch: Any) -> None:
         """Test getting user details in table format."""
         patch_keyring(monkeypatch)
         mock_user = {
@@ -149,15 +152,15 @@ class TestUserGet:
             "orgId": "org1",
         }
 
-        def mock_requests_func(method, *args, **kwargs):
+        def mock_requests_func(method: str, *args: Any, **kwargs: Any) -> Any:
             class MockResponse:
-                def __init__(self):
+                def __init__(self) -> None:
                     self.status_code = 200
 
-                def json(self):
+                def json(self) -> Any:
                     return mock_user
 
-                def raise_for_status(self):
+                def raise_for_status(self) -> None:
                     pass
 
             return MockResponse()
@@ -172,7 +175,7 @@ class TestUserGet:
         assert "John" in result.output
         assert "john.doe@example.com" in result.output
 
-    def test_get_user_with_policies_table_format(self, runner, monkeypatch):
+    def test_get_user_with_policies_table_format(self, runner: CliRunner, monkeypatch: Any) -> None:
         """Test getting user details with policies in table format."""
         patch_keyring(monkeypatch)
         mock_user = {
@@ -213,12 +216,12 @@ class TestUserGet:
             },
         }
 
-        def mock_requests_func(url, *args, **kwargs):
+        def mock_requests_func(url: str, *args: Any, **kwargs: Any) -> Any:
             class MockResponse:
-                def __init__(self):
+                def __init__(self) -> None:
                     self.status_code = 200
 
-                def json(self):
+                def json(self) -> Any:
                     if "/users/" in url:
                         return mock_user
                     elif "/policies/" in url:
@@ -227,7 +230,7 @@ class TestUserGet:
                         return mock_policies.get(policy_id, {})
                     return {}
 
-                def raise_for_status(self):
+                def raise_for_status(self) -> None:
                     pass
 
             return MockResponse()
@@ -242,7 +245,7 @@ class TestUserGet:
         assert "Policies:" in result.output
         assert "Admin Policy" in result.output
 
-    def test_get_user_with_policies_json_format(self, runner, monkeypatch):
+    def test_get_user_with_policies_json_format(self, runner: CliRunner, monkeypatch: Any) -> None:
         """Test getting user details with policies in JSON format."""
         patch_keyring(monkeypatch)
         mock_user = {
@@ -268,19 +271,19 @@ class TestUserGet:
             ],
         }
 
-        def mock_requests_func(url, *args, **kwargs):
+        def mock_requests_func(url: str, *args: Any, **kwargs: Any) -> Any:
             class MockResponse:
-                def __init__(self):
+                def __init__(self) -> None:
                     self.status_code = 200
 
-                def json(self):
+                def json(self) -> Any:
                     if "/users/" in url:
                         return mock_user
                     elif "/policies/" in url:
                         return mock_policy
                     return {}
 
-                def raise_for_status(self):
+                def raise_for_status(self) -> None:
                     pass
 
             return MockResponse()
@@ -298,7 +301,7 @@ class TestUserGet:
         assert len(output_data["expanded_policies"]) == 1
         assert output_data["expanded_policies"][0]["name"] == "Admin Policy"
 
-    def test_get_user_with_policy_templates(self, runner, monkeypatch):
+    def test_get_user_with_policy_templates(self, runner: CliRunner, monkeypatch: Any) -> None:
         """Test getting user details with policies that use templates."""
         patch_keyring(monkeypatch)
         mock_user = {
@@ -332,12 +335,12 @@ class TestUserGet:
             ],
         }
 
-        def mock_requests_func(url, *args, **kwargs):
+        def mock_requests_func(url: str, *args: Any, **kwargs: Any) -> Any:
             class MockResponse:
-                def __init__(self):
+                def __init__(self) -> None:
                     self.status_code = 200
 
-                def json(self):
+                def json(self) -> Any:
                     if "/users/" in url:
                         return mock_user
                     elif "/policies/" in url:
@@ -346,7 +349,7 @@ class TestUserGet:
                         return mock_template
                     return {}
 
-                def raise_for_status(self):
+                def raise_for_status(self) -> None:
                     pass
 
             return MockResponse()
@@ -361,7 +364,9 @@ class TestUserGet:
         assert "Template: Admin Template" in result.output
         assert "Full admin access via template" in result.output
 
-    def test_get_user_with_policy_templates_json_format(self, runner, monkeypatch):
+    def test_get_user_with_policy_templates_json_format(
+        self, runner: CliRunner, monkeypatch: Any
+    ) -> None:
         """Test getting user details with policy templates in JSON format."""
         patch_keyring(monkeypatch)
         mock_user = {
@@ -395,12 +400,12 @@ class TestUserGet:
             ],
         }
 
-        def mock_requests_func(url, *args, **kwargs):
+        def mock_requests_func(url: str, *args: Any, **kwargs: Any) -> Any:
             class MockResponse:
-                def __init__(self):
+                def __init__(self) -> None:
                     self.status_code = 200
 
-                def json(self):
+                def json(self) -> Any:
                     if "/users/" in url:
                         return mock_user
                     elif "/policies/" in url:
@@ -409,7 +414,7 @@ class TestUserGet:
                         return mock_template
                     return {}
 
-                def raise_for_status(self):
+                def raise_for_status(self) -> None:
                     pass
 
             return MockResponse()
@@ -433,7 +438,7 @@ class TestUserGet:
         assert len(policy["statements"]) == 1  # Should have template statements
         assert policy["statements"][0]["description"] == "Full admin access via template"
 
-    def test_get_user_json_format(self, runner, monkeypatch):
+    def test_get_user_json_format(self, runner: CliRunner, monkeypatch: Any) -> None:
         """Test getting user details in JSON format."""
         patch_keyring(monkeypatch)
         mock_user = {
@@ -452,10 +457,10 @@ class TestUserGet:
         user_json = json.loads(result.output)
         assert user_json["firstName"] == "John"
 
-    def test_get_user_by_email_table_format(self, runner, monkeypatch):
+    def test_get_user_by_email_table_format(self, runner: CliRunner, monkeypatch: Any) -> None:
         """Test getting user details by email in table format."""
         patch_keyring(monkeypatch)
-        mock_query_response = {
+        mock_query_response: dict[str, Any] = {
             "users": [
                 {
                     "id": "user1",
@@ -478,10 +483,10 @@ class TestUserGet:
         assert "John" in result.output
         assert "john.doe@example.com" in result.output
 
-    def test_get_user_by_email_json_format(self, runner, monkeypatch):
+    def test_get_user_by_email_json_format(self, runner: CliRunner, monkeypatch: Any) -> None:
         """Test getting user details by email in JSON format."""
         patch_keyring(monkeypatch)
-        mock_query_response = {
+        mock_query_response: dict[str, Any] = {
             "users": [
                 {
                     "id": "user1",
@@ -503,10 +508,10 @@ class TestUserGet:
         user_json = json.loads(result.output)
         assert user_json["firstName"] == "John"
 
-    def test_get_user_by_email_not_found(self, runner, monkeypatch):
+    def test_get_user_by_email_not_found(self, runner: Any, monkeypatch: Any) -> None:
         """Test getting user by email when user not found."""
         patch_keyring(monkeypatch)
-        mock_query_response = {"users": []}
+        mock_query_response: dict[str, Any] = {"users": []}
         mock_requests(monkeypatch, "post", mock_query_response)
 
         cli = make_cli()
@@ -515,7 +520,7 @@ class TestUserGet:
         assert result.exit_code == 3  # NOT_FOUND
         assert "✗ User with email 'nonexistent@example.com' not found." in result.output
 
-    def test_get_user_no_params(self, runner, monkeypatch):
+    def test_get_user_no_params(self, runner: CliRunner, monkeypatch: Any) -> None:
         """Test getting user with no ID or email provided."""
         patch_keyring(monkeypatch)
 
@@ -525,7 +530,7 @@ class TestUserGet:
         assert result.exit_code == 2  # INVALID_INPUT
         assert "✗ Must provide either --id or --email." in result.output
 
-    def test_get_user_both_params(self, runner, monkeypatch):
+    def test_get_user_both_params(self, runner: CliRunner, monkeypatch: Any) -> None:
         """Test getting user with both ID and email provided."""
         patch_keyring(monkeypatch)
 
@@ -537,19 +542,19 @@ class TestUserGet:
         assert result.exit_code == 2  # INVALID_INPUT
         assert "✗ Cannot specify both --id and --email. Choose one." in result.output
 
-    def test_get_user_permission_denied(self, runner, monkeypatch):
+    def test_get_user_permission_denied(self, runner: CliRunner, monkeypatch: Any) -> None:
         """Test getting user when access is denied."""
         patch_keyring(monkeypatch)
 
         # Mock a 401 Unauthorized response
-        def mock_requests_func(url, *args, **kwargs):
+        def mock_requests_func(url: str, *args: Any, **kwargs: Any) -> Any:
             import requests
 
             class MockResponse:
-                def __init__(self):
+                def __init__(self) -> None:
                     self.status_code = 401
 
-                def json(self):
+                def json(self) -> Any:
                     return {
                         "error": {
                             "args": [],
@@ -560,7 +565,7 @@ class TestUserGet:
                         }
                     }
 
-                def raise_for_status(self):
+                def raise_for_status(self) -> None:
                     error = requests.HTTPError("Unauthorized")
                     error.response = self
                     raise error
@@ -579,15 +584,17 @@ class TestUserGet:
         assert result.exit_code == 4  # PERMISSION_DENIED
         assert "✗ Access denied to user information (insufficient permissions)." in result.output
 
-    def test_get_user_with_policy_permission_errors(self, runner, monkeypatch):
+    def test_get_user_with_policy_permission_errors(
+        self, runner: CliRunner, monkeypatch: Any
+    ) -> None:
         """Test getting user with policies when policy access is denied."""
         patch_keyring(monkeypatch)
 
-        def mock_requests_func(url, *args, **kwargs):
+        def mock_requests_func(url: str, *args: Any, **kwargs: Any) -> Any:
             import requests
 
             class MockResponse:
-                def __init__(self):
+                def __init__(self) -> None:
                     if "/niauth/v1/policies/" in url:
                         # Policy access denied
                         self.status_code = 401
@@ -595,7 +602,7 @@ class TestUserGet:
                         # User access allowed
                         self.status_code = 200
 
-                def json(self):
+                def json(self) -> Any:
                     if "/niauth/v1/policies/" in url:
                         return {
                             "error": {
@@ -616,7 +623,7 @@ class TestUserGet:
                             "policies": ["policy1", "policy2"],
                         }
 
-                def raise_for_status(self):
+                def raise_for_status(self) -> None:
                     if self.status_code >= 400:
                         error = requests.HTTPError("Unauthorized")
                         error.response = self
@@ -647,7 +654,7 @@ class TestUserGet:
 class TestUserCreate:
     """Test user create command."""
 
-    def test_create_user_success(self, runner, monkeypatch):
+    def test_create_user_success(self, runner: CliRunner, monkeypatch: Any) -> None:
         """Test creating a user successfully."""
         patch_keyring(monkeypatch)
         mock_user = {
@@ -677,7 +684,7 @@ class TestUserCreate:
         assert "✓ User created" in result.output
         assert "new-user-id" in result.output
 
-    def test_create_user_with_policies(self, runner, monkeypatch):
+    def test_create_user_with_policies(self, runner: CliRunner, monkeypatch: Any) -> None:
         """Test creating a user with policies."""
         patch_keyring(monkeypatch)
         mock_user = {
@@ -708,7 +715,7 @@ class TestUserCreate:
         assert result.exit_code == 0
         assert "✓ User created" in result.output
 
-    def test_create_user_invalid_properties(self, runner, monkeypatch):
+    def test_create_user_invalid_properties(self, runner: CliRunner, monkeypatch: Any) -> None:
         """Test creating a user with invalid properties JSON."""
         patch_keyring(monkeypatch)
 
@@ -732,7 +739,7 @@ class TestUserCreate:
         assert result.exit_code == 2  # INVALID_INPUT
         assert "✗ Invalid JSON format for properties." in result.output
 
-    def test_create_user_with_prompts(self, runner, monkeypatch):
+    def test_create_user_with_prompts(self, runner: CliRunner, monkeypatch: Any) -> None:
         """Test creating a user with prompts for missing required fields."""
         patch_keyring(monkeypatch)
         mock_user = {
@@ -758,7 +765,7 @@ class TestUserCreate:
         assert "✓ User created" in result.output
         assert "new-user-id" in result.output
 
-    def test_create_user_partial_prompts(self, runner, monkeypatch):
+    def test_create_user_partial_prompts(self, runner: CliRunner, monkeypatch: Any) -> None:
         """Test creating a user with some fields provided and others prompted."""
         patch_keyring(monkeypatch)
         mock_user = {
@@ -783,7 +790,7 @@ class TestUserCreate:
         assert "User's email address:" in result.output
         assert "✓ User created" in result.output
 
-    def test_create_user_invalid_email_format(self, runner, monkeypatch):
+    def test_create_user_invalid_email_format(self, runner: CliRunner, monkeypatch: Any) -> None:
         """Test creating a user with invalid email format."""
         patch_keyring(monkeypatch)
 
@@ -797,7 +804,9 @@ class TestUserCreate:
         assert result.exit_code == 2  # INVALID_INPUT
         assert "✗ Invalid email format." in result.output
 
-    def test_create_user_niua_id_defaults_to_email(self, runner, monkeypatch):
+    def test_create_user_niua_id_defaults_to_email(
+        self, runner: CliRunner, monkeypatch: Any
+    ) -> None:
         """Test that niuaId defaults to email when not provided."""
         patch_keyring(monkeypatch)
         mock_user = {
@@ -809,19 +818,19 @@ class TestUserCreate:
         }
 
         # Capture the request payload
-        captured_payload = {}
+        captured_payload: dict[str, Any] = {}
 
-        def mock_post_with_capture(url, json=None, **kwargs):
+        def mock_post_with_capture(url: str, json: Any = None, **kwargs: Any) -> Any:
             captured_payload.update(json or {})
 
             class MockResponse:
-                def __init__(self):
+                def __init__(self) -> None:
                     self.status_code = 200
 
-                def json(self):
+                def json(self) -> Any:
                     return mock_user
 
-                def raise_for_status(self):
+                def raise_for_status(self) -> None:
                     pass
 
             return MockResponse()
@@ -849,7 +858,7 @@ class TestUserCreate:
         # Verify that niuaId was set to email in the payload
         assert captured_payload.get("niuaId") == "john.doe@example.com"
 
-    def test_create_user_custom_niua_id(self, runner, monkeypatch):
+    def test_create_user_custom_niua_id(self, runner: CliRunner, monkeypatch: Any) -> None:
         """Test creating a user with custom niuaId."""
         patch_keyring(monkeypatch)
         mock_user = {
@@ -861,19 +870,19 @@ class TestUserCreate:
         }
 
         # Capture the request payload
-        captured_payload = {}
+        captured_payload: dict[str, Any] = {}
 
-        def mock_post_with_capture(url, json=None, **kwargs):
+        def mock_post_with_capture(url: str, json: Any = None, **kwargs: Any) -> Any:
             captured_payload.update(json or {})
 
             class MockResponse:
-                def __init__(self):
+                def __init__(self) -> None:
                     self.status_code = 200
 
-                def json(self):
+                def json(self) -> Any:
                     return mock_user
 
-                def raise_for_status(self):
+                def raise_for_status(self) -> None:
                     pass
 
             return MockResponse()
@@ -903,17 +912,17 @@ class TestUserCreate:
         # Verify that custom niuaId was used
         assert captured_payload.get("niuaId") == "custom-niua-id"
 
-    def test_create_user_api_validation_error(self, runner, monkeypatch):
+    def test_create_user_api_validation_error(self, runner: Any, monkeypatch: Any) -> None:
         """Test handling of API validation errors."""
         patch_keyring(monkeypatch)
 
         # Mock an HTTP error with the specific API error format
         class MockHTTPError(Exception):
-            def __init__(self):
+            def __init__(self) -> None:
                 self.response = MockResponse()
 
         class MockResponse:
-            def json(self):
+            def json(self) -> Any:
                 return {
                     "error": {
                         "args": [],
@@ -924,7 +933,7 @@ class TestUserCreate:
                     }
                 }
 
-        def mock_post_with_error(*args, **kwargs):
+        def mock_post_with_error(*args: Any, **kwargs: Any) -> Any:
             raise MockHTTPError()
 
         monkeypatch.setattr("requests.post", mock_post_with_error)
@@ -951,7 +960,7 @@ class TestUserCreate:
 class TestUserUpdate:
     """Test user update command."""
 
-    def test_update_user_success(self, runner, monkeypatch):
+    def test_update_user_success(self, runner: Any, monkeypatch: Any) -> None:
         """Test updating a user successfully."""
         patch_keyring(monkeypatch)
         mock_user = {
@@ -968,7 +977,7 @@ class TestUserUpdate:
         assert result.exit_code == 0
         assert "✓ User updated" in result.output
 
-    def test_update_user_no_fields(self, runner, monkeypatch):
+    def test_update_user_no_fields(self, runner: Any, monkeypatch: Any) -> None:
         """Test updating a user with no fields provided."""
         patch_keyring(monkeypatch)
 
@@ -978,7 +987,7 @@ class TestUserUpdate:
         assert result.exit_code == 2  # INVALID_INPUT
         assert "✗ No fields provided to update." in result.output
 
-    def test_update_user_invalid_properties(self, runner, monkeypatch):
+    def test_update_user_invalid_properties(self, runner: CliRunner, monkeypatch: Any) -> None:
         """Test updating a user with invalid properties JSON."""
         patch_keyring(monkeypatch)
 
@@ -1002,7 +1011,7 @@ class TestUserUpdate:
 class TestUserDelete:
     """Test user delete command."""
 
-    def test_delete_user_success(self, runner, monkeypatch):
+    def test_delete_user_success(self, runner: CliRunner, monkeypatch: Any) -> None:
         """Test deleting a user successfully."""
         patch_keyring(monkeypatch)
         mock_requests(monkeypatch, "delete", {})
@@ -1015,7 +1024,7 @@ class TestUserDelete:
         assert "✓ User deleted" in result.output
         assert "user1" in result.output
 
-    def test_delete_user_cancelled(self, runner, monkeypatch):
+    def test_delete_user_cancelled(self, runner: CliRunner, monkeypatch: Any) -> None:
         """Test deleting a user when cancelled."""
         patch_keyring(monkeypatch)
 

@@ -1,6 +1,7 @@
 """Unit tests for workspace CLI commands."""
 
 import json
+from typing import Any
 
 import click
 import pytest
@@ -9,7 +10,7 @@ from click.testing import CliRunner
 from slcli.workspace_click import register_workspace_commands
 
 
-def patch_keyring(monkeypatch):
+def patch_keyring(monkeypatch: Any) -> None:
     """Patch keyring to return test values."""
     monkeypatch.setattr(
         "slcli.utils.keyring.get_password",
@@ -17,11 +18,11 @@ def patch_keyring(monkeypatch):
     )
 
 
-def make_cli():
+def make_cli() -> click.Group:
     """Create CLI instance with workspace commands for testing."""
 
     @click.group()
-    def test_cli():
+    def test_cli() -> None:
         pass
 
     register_workspace_commands(test_cli)
@@ -29,37 +30,39 @@ def make_cli():
 
 
 @pytest.fixture
-def runner():
+def runner() -> CliRunner:
     return CliRunner()
 
 
-def mock_requests(monkeypatch, method, response_json, status_code=200):
+def mock_requests(
+    monkeypatch: Any, method: str, response_json: Any, status_code: int = 200
+) -> None:
     """Mock requests module for testing."""
 
     class MockResponse:
-        def __init__(self):
+        def __init__(self) -> None:
             self.status_code = status_code
 
-        def json(self):
+        def json(self) -> Any:
             return response_json
 
-        def raise_for_status(self):
+        def raise_for_status(self) -> None:
             if self.status_code >= 400:
                 raise Exception("HTTP error")
 
     monkeypatch.setattr("requests." + method, lambda *a, **kw: MockResponse())
 
 
-def test_list_workspaces_success(monkeypatch, runner):
+def test_list_workspaces_success(monkeypatch: Any, runner: CliRunner) -> None:
     """Test listing workspaces with a successful response."""
     patch_keyring(monkeypatch)
 
-    def mock_get(*a, **kw):
+    def mock_get(*a: Any, **kw: Any) -> Any:
         class R:
-            def raise_for_status(self):
+            def raise_for_status(self) -> None:
                 pass
 
-            def json(self):
+            def json(self) -> Any:
                 return {
                     "workspaces": [
                         {
@@ -87,16 +90,16 @@ def test_list_workspaces_success(monkeypatch, runner):
     assert "Workspace 2" not in result.output  # Disabled workspace filtered out
 
 
-def test_list_workspaces_include_disabled(monkeypatch, runner):
+def test_list_workspaces_include_disabled(monkeypatch: Any, runner: CliRunner) -> None:
     """Test listing workspaces including disabled ones."""
     patch_keyring(monkeypatch)
 
-    def mock_get(*a, **kw):
+    def mock_get(*a: Any, **kw: Any) -> Any:
         class R:
-            def raise_for_status(self):
+            def raise_for_status(self) -> None:
                 pass
 
-            def json(self):
+            def json(self) -> Any:
                 return {
                     "workspaces": [
                         {
@@ -124,16 +127,16 @@ def test_list_workspaces_include_disabled(monkeypatch, runner):
     assert "Workspace 2" in result.output  # Disabled workspace included
 
 
-def test_list_workspaces_json_format(monkeypatch, runner):
+def test_list_workspaces_json_format(monkeypatch: Any, runner: CliRunner) -> None:
     """Test listing workspaces with JSON output."""
     patch_keyring(monkeypatch)
 
-    def mock_get(*a, **kw):
+    def mock_get(*a: Any, **kw: Any) -> Any:
         class R:
-            def raise_for_status(self):
+            def raise_for_status(self) -> None:
                 pass
 
-            def json(self):
+            def json(self) -> Any:
                 return {
                     "workspaces": [
                         {
@@ -158,16 +161,16 @@ def test_list_workspaces_json_format(monkeypatch, runner):
     assert output_data[0]["name"] == "Workspace 1"
 
 
-def test_list_workspaces_empty(monkeypatch, runner):
+def test_list_workspaces_empty(monkeypatch: Any, runner: CliRunner) -> None:
     """Test listing workspaces when none exist."""
     patch_keyring(monkeypatch)
 
-    def mock_get(*a, **kw):
+    def mock_get(*a: Any, **kw: Any) -> Any:
         class R:
-            def raise_for_status(self):
+            def raise_for_status(self) -> None:
                 pass
 
-            def json(self):
+            def json(self) -> Any:
                 return {"workspaces": []}
 
         return R()
@@ -179,16 +182,16 @@ def test_list_workspaces_empty(monkeypatch, runner):
     assert "No workspaces found." in result.output
 
 
-def test_disable_workspace_success(monkeypatch, runner):
+def test_disable_workspace_success(monkeypatch: Any, runner: CliRunner) -> None:
     """Test disabling a workspace successfully."""
     patch_keyring(monkeypatch)
 
-    def mock_get(*a, **kw):
+    def mock_get(*a: Any, **kw: Any) -> Any:
         class R:
-            def raise_for_status(self):
+            def raise_for_status(self) -> None:
                 pass
 
-            def json(self):
+            def json(self) -> Any:
                 return {
                     "workspaces": [
                         {"id": "test-ws-id", "name": "Test Workspace", "enabled": True},
@@ -198,12 +201,12 @@ def test_disable_workspace_success(monkeypatch, runner):
 
         return R()
 
-    def mock_put(*a, **kw):
+    def mock_put(*a: Any, **kw: Any) -> Any:
         class R:
-            def raise_for_status(self):
+            def raise_for_status(self) -> None:
                 pass
 
-            def json(self):
+            def json(self) -> Any:
                 return {"id": "test-ws-id", "name": "Test Workspace", "enabled": False}
 
         return R()
@@ -217,16 +220,16 @@ def test_disable_workspace_success(monkeypatch, runner):
     assert "Workspace 'Test Workspace' disabled successfully" in result.output
 
 
-def test_disable_workspace_not_found(monkeypatch, runner):
+def test_disable_workspace_not_found(monkeypatch: Any, runner: CliRunner) -> None:
     """Test disabling a workspace that doesn't exist."""
     patch_keyring(monkeypatch)
 
-    def mock_get(*a, **kw):
+    def mock_get(*a: Any, **kw: Any) -> Any:
         class R:
-            def raise_for_status(self):
+            def raise_for_status(self) -> None:
                 pass
 
-            def json(self):
+            def json(self) -> Any:
                 return {"workspaces": []}
 
         return R()
@@ -239,16 +242,16 @@ def test_disable_workspace_not_found(monkeypatch, runner):
     assert "Workspace with ID 'nonexistent-id' not found" in result.output
 
 
-def test_disable_workspace_already_disabled(monkeypatch, runner):
+def test_disable_workspace_already_disabled(monkeypatch: Any, runner: CliRunner) -> None:
     """Test disabling a workspace that is already disabled."""
     patch_keyring(monkeypatch)
 
-    def mock_get(*a, **kw):
+    def mock_get(*a: Any, **kw: Any) -> Any:
         class R:
-            def raise_for_status(self):
+            def raise_for_status(self) -> None:
                 pass
 
-            def json(self):
+            def json(self) -> Any:
                 return {
                     "workspaces": [
                         {"id": "test-ws-id", "name": "Test Workspace", "enabled": False},
@@ -265,16 +268,16 @@ def test_disable_workspace_already_disabled(monkeypatch, runner):
     assert "Workspace 'Test Workspace' is already disabled" in result.output
 
 
-def test_get_workspace_success(monkeypatch, runner):
+def test_get_workspace_success(monkeypatch: Any, runner: CliRunner) -> None:
     """Test getting workspace details successfully."""
     patch_keyring(monkeypatch)
 
-    def mock_get(*a, **kw):
+    def mock_get(*a: Any, **kw: Any) -> Any:
         class R:
-            def raise_for_status(self):
+            def raise_for_status(self) -> None:
                 pass
 
-            def json(self):
+            def json(self) -> Any:
                 return {
                     "workspaces": [
                         {
@@ -288,12 +291,12 @@ def test_get_workspace_success(monkeypatch, runner):
 
         return R()
 
-    def mock_post(*a, **kw):
+    def mock_post(*a: Any, **kw: Any) -> Any:
         class R:
-            def raise_for_status(self):
+            def raise_for_status(self) -> None:
                 pass
 
-            def json(self):
+            def json(self) -> Any:
                 if "testplan-templates" in str(a):
                     return {"testPlanTemplates": [{"id": "template-1", "name": "Test Template"}]}
                 elif "workflows" in str(a):
@@ -318,16 +321,16 @@ def test_get_workspace_success(monkeypatch, runner):
     assert "Workflows (1)" in result.output
 
 
-def test_get_workspace_not_found(monkeypatch, runner):
+def test_get_workspace_not_found(monkeypatch: Any, runner: CliRunner) -> None:
     """Test getting details for workspace that doesn't exist."""
     patch_keyring(monkeypatch)
 
-    def mock_get(*a, **kw):
+    def mock_get(*a: Any, **kw: Any) -> Any:
         class R:
-            def raise_for_status(self):
+            def raise_for_status(self) -> None:
                 pass
 
-            def json(self):
+            def json(self) -> Any:
                 return {"workspaces": []}
 
         return R()
@@ -340,16 +343,16 @@ def test_get_workspace_not_found(monkeypatch, runner):
     assert "Workspace 'nonexistent' not found" in result.output
 
 
-def test_get_workspace_with_permission_errors(monkeypatch, runner):
+def test_get_workspace_with_permission_errors(monkeypatch: Any, runner: CliRunner) -> None:
     """Test getting workspace info when some resources have permission errors."""
     patch_keyring(monkeypatch)
 
-    def mock_get(*a, **kw):
+    def mock_get(*a: Any, **kw: Any) -> Any:
         class R:
-            def raise_for_status(self):
+            def raise_for_status(self) -> None:
                 pass
 
-            def json(self):
+            def json(self) -> Any:
                 return {
                     "workspaces": [
                         {
@@ -363,17 +366,17 @@ def test_get_workspace_with_permission_errors(monkeypatch, runner):
 
         return R()
 
-    def mock_post(*a, **kw):
+    def mock_post(*a: Any, **kw: Any) -> Any:
         if "testplan-templates" in str(a):
             # Simulate permission error for templates
             raise Exception("401 Unauthorized")
         elif "workflows" in str(a):
             # Return successful response for workflows
             class R:
-                def raise_for_status(self):
+                def raise_for_status(self) -> None:
                     pass
 
-                def json(self):
+                def json(self) -> Any:
                     return {
                         "workflows": [
                             {"id": "workflow-1", "name": "Test Workflow", "workspace": "test-ws-id"}

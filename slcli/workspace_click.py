@@ -95,9 +95,10 @@ def register_workspace_commands(cli: Any) -> None:
                 filtered_workspaces = [ws for ws in workspaces if ws.get("enabled", True)]
 
                 # Create a new response with filtered data
-                resp: Any = FilteredResponse(
+                filtered_resp: Any = FilteredResponse(
                     {"workspaces": filtered_workspaces}
                 )  # Type annotation to avoid type checker issues
+                resp = filtered_resp
 
             def workspace_formatter(workspace: dict) -> list:
                 enabled = "✓" if workspace.get("enabled", True) else "✗"

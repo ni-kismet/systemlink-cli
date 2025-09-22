@@ -224,7 +224,7 @@ def register_function_commands(cli: Any) -> None:
     """Register the 'function' command group and its subcommands."""
 
     @cli.group()
-    def function():
+    def function() -> None:
         """Manage function definitions and executions."""
 
     pass
@@ -328,13 +328,13 @@ def register_function_commands(cli: Any) -> None:
 
     # Function Execution Commands Group
     @function.group(name="execute")
-    def execute_group():
+    def execute_group() -> None:
         """Execute and manage function executions."""
         pass
 
     # Function Management Commands Group
     @function.group(name="manage")
-    def manage_group():
+    def manage_group() -> None:
         """Manage function definitions."""
         pass
 
@@ -677,7 +677,7 @@ def register_function_commands(cli: Any) -> None:
                 }
                 resp = requests.post(
                     url,
-                    files=files,
+                    files=files,  # type: ignore
                     headers=get_headers(""),
                     verify=get_ssl_verify(),
                 )

@@ -250,7 +250,7 @@ def _update_notebook_http(
     if metadata:
         files["metadata"] = (None, json.dumps(metadata), "application/json")
     if content:
-        files["content"] = ("notebook.ipynb", content, "application/octet-stream")
+        files["content"] = ("notebook.ipynb", content, "application/octet-stream")  # type: ignore
 
     try:
         response = requests.put(

@@ -2,9 +2,10 @@
 
 from __future__ import annotations
 
-from typing import Any, Dict, List
+from typing import Any, Dict, List, Optional
 
 from click.testing import CliRunner
+from pytest import MonkeyPatch
 
 from slcli.main import cli
 from .test_utils import patch_keyring
@@ -15,7 +16,7 @@ def _invoke(args: List[str]) -> Any:
     return runner.invoke(cli, args)
 
 
-def test_notebook_execute_list_basic(monkeypatch):
+def test_notebook_execute_list_basic(monkeypatch: MonkeyPatch) -> None:
     """List executions with no filters."""
     patch_keyring(monkeypatch)
     import slcli.notebook_click
@@ -37,7 +38,11 @@ def test_notebook_execute_list_basic(monkeypatch):
         },
     ]
 
-    def mock_query_execs(workspace_id=None, status=None, notebook_id=None):  # noqa: D401
+    def mock_query_execs(
+        workspace_id: Optional[str] = None,
+        status: Optional[str] = None,
+        notebook_id: Optional[str] = None,
+    ) -> List[Dict[str, Any]]:  # noqa: D401
         assert workspace_id is None
         assert status is None
         assert notebook_id is None
@@ -59,14 +64,18 @@ def test_notebook_execute_list_basic(monkeypatch):
     assert "exe1" in result.output and "exe2" in result.output
 
 
-def test_notebook_execute_list_status_mapping(monkeypatch):
+def test_notebook_execute_list_status_mapping(monkeypatch: MonkeyPatch) -> None:
     """Status mapping: user passes timed_out -> service TIMEDOUT."""
     patch_keyring(monkeypatch)
     import slcli.notebook_click
 
     captured_params: Dict[str, Any] = {}
 
-    def mock_query_execs(workspace_id=None, status=None, notebook_id=None):  # noqa: D401
+    def mock_query_execs(
+        workspace_id: Optional[str] = None,
+        status: Optional[str] = None,
+        notebook_id: Optional[str] = None,
+    ) -> List[Dict[str, Any]]:  # noqa: D401
         captured_params.update(
             {"workspace_id": workspace_id, "status": status, "notebook_id": notebook_id}
         )
@@ -83,12 +92,16 @@ def test_notebook_execute_list_status_mapping(monkeypatch):
     assert captured_params["status"] == "TIMEDOUT"  # mapped form
 
 
-def test_notebook_execute_list_invalid_status(monkeypatch):
+def test_notebook_execute_list_invalid_status(monkeypatch: MonkeyPatch) -> None:
     """Invalid status results in exit code 2 (INVALID_INPUT)."""
     patch_keyring(monkeypatch)
     import slcli.notebook_click
 
-    def mock_query_execs(workspace_id=None, status=None, notebook_id=None):  # pragma: no cover
+    def mock_query_execs(
+        workspace_id: Optional[str] = None,
+        status: Optional[str] = None,
+        notebook_id: Optional[str] = None,
+    ) -> List[Dict[str, Any]]:  # pragma: no cover
         return []
 
     monkeypatch.setattr(slcli.notebook_click, "_query_notebook_executions", mock_query_execs)
@@ -102,7 +115,7 @@ def test_notebook_execute_list_invalid_status(monkeypatch):
     assert "Invalid status" in result.output
 
 
-def test_notebook_execute_list_with_filters(monkeypatch):
+def test_notebook_execute_list_with_filters(monkeypatch: MonkeyPatch) -> None:
     """Workspace + notebook ID + status filters propagate to query helper."""
     patch_keyring(monkeypatch)
     import slcli.notebook_click
@@ -112,7 +125,11 @@ def test_notebook_execute_list_with_filters(monkeypatch):
     def mock_get_workspace_id_with_fallback(val: str) -> str:  # noqa: D401
         return "workspace-guid-123" if val == "MyWS" else val
 
-    def mock_query_execs(workspace_id=None, status=None, notebook_id=None):  # noqa: D401
+    def mock_query_execs(
+        workspace_id: Optional[str] = None,
+        status: Optional[str] = None,
+        notebook_id: Optional[str] = None,
+    ) -> List[Dict[str, Any]]:  # noqa: D401
         received.update(
             {"workspace_id": workspace_id, "status": status, "notebook_id": notebook_id}
         )

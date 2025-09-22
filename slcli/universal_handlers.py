@@ -2,7 +2,7 @@
 
 import json
 import sys
-from typing import Dict, List, Any, Optional, Union
+from typing import Dict, List, Any, Optional, Union, Callable
 
 import click
 import requests
@@ -46,13 +46,13 @@ class UniversalResponseHandler:
         data_key: str,
         item_name: str,
         format_output: str,
-        formatter_func=None,
+        formatter_func: Optional[Callable[[Dict[str, Any]], List[str]]] = None,
         headers: Optional[List[str]] = None,
         column_widths: Optional[List[int]] = None,
         empty_message: Optional[str] = None,
         enable_pagination: bool = True,
         page_size: int = 25,
-    ):
+    ) -> None:
         """Handle list response with standardized formatting and optional pagination.
 
         Args:
@@ -123,8 +123,8 @@ class UniversalResponseHandler:
         resp: requests.Response,
         item_name: str,
         format_output: str,
-        table_formatter_func=None,
-    ):
+        table_formatter_func: Optional[Callable[[Dict[str, Any]], List[str]]] = None,
+    ) -> None:
         """Handle get response with standardized formatting."""
         try:
             data = resp.json()
@@ -150,7 +150,7 @@ class UniversalResponseHandler:
         resp: requests.Response,
         item_name: str,
         success_message_template: str = "✓ {item_name} created successfully.",
-    ):
+    ) -> None:
         """Handle create response with standardized success messaging."""
         try:
             if resp.status_code in (200, 201):
@@ -170,7 +170,7 @@ class UniversalResponseHandler:
         resp: requests.Response,
         item_name: str,
         success_message_template: str = "✓ {item_name} updated successfully.",
-    ):
+    ) -> None:
         """Handle update response with standardized success messaging."""
         try:
             if resp.status_code in (200, 204):
@@ -191,7 +191,7 @@ class UniversalResponseHandler:
         item_name: str,
         item_count: int = 1,
         success_message_template: str = "✓ {count} {item_name}(s) deleted successfully.",
-    ):
+    ) -> None:
         """Handle delete response with standardized success messaging."""
         try:
             if resp.status_code in (200, 204):
@@ -210,7 +210,7 @@ class UniversalResponseHandler:
         item_name: str,
         output_file: str,
         success_message_template: str = "✓ {item_name} exported to {output_file}",
-    ):
+    ) -> None:
         """Handle export response with file saving."""
         from .utils import save_json_file
 
@@ -233,11 +233,11 @@ class BatchResponseHandler:
     @staticmethod
     def handle_batch_operation(
         items: List[Dict[str, Any]],
-        operation_func,
+        operation_func: Callable[[Dict[str, Any]], None],
         operation_name: str,
         item_name: str,
         show_progress: bool = True,
-    ):
+    ) -> None:
         """Handle batch operations with progress tracking."""
         total = len(items)
         success_count = 0
@@ -264,7 +264,7 @@ class BatchResponseHandler:
         if failed_items:
             click.echo(f"✗ {len(failed_items)} {item_name}(s) failed:", err=True)
             for failed in failed_items:
-                item_id = failed["item"].get("id", failed["item"].get("name", "Unknown"))
+                item_id = failed["item"].get("id", failed["item"].get("name", "Unknown"))  # type: ignore
                 click.echo(f"  - {item_id}: {failed['error']}", err=True)
 
         if failed_items and success_count == 0:

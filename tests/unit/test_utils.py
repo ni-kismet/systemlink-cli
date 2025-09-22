@@ -1,10 +1,12 @@
 """Test utilities for slcli unit tests."""
 
+from typing import Any
 
-def patch_keyring(monkeypatch):
+
+def patch_keyring(monkeypatch: Any) -> None:
     import keyring
 
-    def get_password(service, key):
+    def get_password(service: str, key: str) -> str:
         if key == "SYSTEMLINK_API_URL":
             return "http://localhost:8000"
         return "dummy-api-key"

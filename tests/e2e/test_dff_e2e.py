@@ -3,6 +3,7 @@
 import json
 import tempfile
 from pathlib import Path
+from typing import Any
 
 import pytest
 
@@ -12,7 +13,7 @@ import pytest
 class TestDFFE2E:
     """End-to-end tests for Dynamic Form Fields commands."""
 
-    def test_dff_config_list_basic(self, cli_runner, cli_helper):
+    def test_dff_config_list_basic(self, cli_runner: Any, cli_helper: Any) -> None:
         """Test basic DFF configuration list functionality."""
         result = cli_runner(["dff", "config", "list", "--format", "json"])
         cli_helper.assert_success(result)
@@ -20,7 +21,7 @@ class TestDFFE2E:
         configs = cli_helper.get_json_output(result)
         assert isinstance(configs, list)
 
-    def test_dff_config_list_table_format(self, cli_runner, cli_helper):
+    def test_dff_config_list_table_format(self, cli_runner: Any, cli_helper: Any) -> None:
         """Test DFF config list with table format."""
         result = cli_runner(["dff", "config", "list", "--format", "table"])
         cli_helper.assert_success(result)
@@ -31,7 +32,9 @@ class TestDFFE2E:
             or "No dynamic form field configurations found" in result.stdout
         )
 
-    def test_dff_config_list_with_workspace_filter(self, cli_runner, cli_helper, e2e_config):
+    def test_dff_config_list_with_workspace_filter(
+        self, cli_runner: Any, cli_helper: Any, e2e_config: Any
+    ) -> None:
         """Test DFF config list with workspace filtering."""
         workspace = e2e_config["workspace"]
         result = cli_runner(["dff", "config", "list", "--workspace", workspace, "--format", "json"])
@@ -40,7 +43,7 @@ class TestDFFE2E:
         configs = cli_helper.get_json_output(result)
         assert isinstance(configs, list)
 
-    def test_dff_groups_list_basic(self, cli_runner, cli_helper):
+    def test_dff_groups_list_basic(self, cli_runner: Any, cli_helper: Any) -> None:
         """Test basic DFF groups list functionality."""
         result = cli_runner(["dff", "groups", "list", "--format", "json"])
         cli_helper.assert_success(result)
@@ -48,7 +51,7 @@ class TestDFFE2E:
         groups = cli_helper.get_json_output(result)
         assert isinstance(groups, list)
 
-    def test_dff_fields_list_basic(self, cli_runner, cli_helper):
+    def test_dff_fields_list_basic(self, cli_runner: Any, cli_helper: Any) -> None:
         """Test basic DFF fields list functionality."""
         result = cli_runner(["dff", "fields", "list", "--format", "json"])
         cli_helper.assert_success(result)
@@ -57,8 +60,8 @@ class TestDFFE2E:
         assert isinstance(fields, list)
 
     def test_dff_config_create_and_delete_cycle(
-        self, cli_runner, cli_helper, sample_dff_config, configured_workspace
-    ):
+        self, cli_runner: Any, cli_helper: Any, sample_dff_config: Any, configured_workspace: Any
+    ) -> None:
         """Test creating and deleting a DFF configuration."""
         # Get workspace ID from workspace name
         result = cli_runner(["workspace", "list", "--format", "json"])
@@ -126,7 +129,7 @@ class TestDFFE2E:
             # Cleanup temp file
             Path(temp_file).unlink(missing_ok=True)
 
-    def test_dff_config_export_functionality(self, cli_runner, cli_helper):
+    def test_dff_config_export_functionality(self, cli_runner: Any, cli_helper: Any) -> None:
         """Test DFF configuration export functionality."""
         # First, get list of configurations
         result = cli_runner(["dff", "config", "list", "--format", "json"])
@@ -170,7 +173,7 @@ class TestDFFE2E:
                     # Cleanup
                     Path(export_path).unlink(missing_ok=True)
 
-    def test_dff_config_init_template(self, cli_runner, cli_helper):
+    def test_dff_config_init_template(self, cli_runner: Any, cli_helper: Any) -> None:
         """Test DFF configuration template initialization."""
         with tempfile.NamedTemporaryFile(suffix=".json", delete=False) as template_file:
             template_path = template_file.name
@@ -216,7 +219,7 @@ class TestDFFE2E:
             Path(template_path).unlink(missing_ok=True)
 
     @pytest.mark.slow
-    def test_dff_pagination(self, cli_runner, cli_helper):
+    def test_dff_pagination(self, cli_runner: Any, cli_helper: Any) -> None:
         """Test DFF list commands pagination."""
         # Test config pagination
         result = cli_runner(["dff", "config", "list", "--take", "3", "--format", "table"])
@@ -230,7 +233,7 @@ class TestDFFE2E:
         result = cli_runner(["dff", "fields", "list", "--take", "3", "--format", "table"])
         cli_helper.assert_success(result)
 
-    def test_dff_error_handling(self, cli_runner, cli_helper):
+    def test_dff_error_handling(self, cli_runner: Any, cli_helper: Any) -> None:
         """Test error handling for invalid DFF operations."""
         # Test get with invalid configuration ID
         result = cli_runner(
@@ -245,7 +248,7 @@ class TestDFFE2E:
         )
         cli_helper.assert_failure(result)
 
-    def test_dff_invalid_resource_type(self, cli_runner):
+    def test_dff_invalid_resource_type(self, cli_runner: Any) -> None:
         """Test DFF config init with invalid resource type."""
         result = cli_runner(
             [

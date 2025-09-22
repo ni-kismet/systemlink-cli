@@ -1,5 +1,7 @@
 """E2E tests for user commands against dev tier."""
 
+from typing import Any
+
 import pytest
 
 
@@ -8,7 +10,7 @@ import pytest
 class TestUserE2E:
     """End-to-end tests for user commands."""
 
-    def test_user_list_basic(self, cli_runner, cli_helper):
+    def test_user_list_basic(self, cli_runner: Any, cli_helper: Any) -> None:
         """Test basic user list functionality."""
         result = cli_runner(["user", "list", "--format", "json"])
         cli_helper.assert_success(result)
@@ -16,7 +18,7 @@ class TestUserE2E:
         users = cli_helper.get_json_output(result)
         assert isinstance(users, list)
 
-    def test_user_list_table_format(self, cli_runner, cli_helper):
+    def test_user_list_table_format(self, cli_runner: Any, cli_helper: Any) -> None:
         """Test user list with table format."""
         result = cli_runner(["user", "list", "--format", "table"])
         cli_helper.assert_success(result)
@@ -26,7 +28,7 @@ class TestUserE2E:
             "First Name" in result.stdout and "Email" in result.stdout
         ) or "No users found" in result.stdout
 
-    def test_user_list_with_pagination(self, cli_runner, cli_helper):
+    def test_user_list_with_pagination(self, cli_runner: Any, cli_helper: Any) -> None:
         """Test user list with pagination."""
         result = cli_runner(["user", "list", "--take", "5", "--format", "json"])
         cli_helper.assert_success(result)
@@ -36,7 +38,9 @@ class TestUserE2E:
         # Should return at most 5 users
         assert len(users) <= 5
 
-    def test_user_list_with_workspace_filter(self, cli_runner, cli_helper, e2e_config):
+    def test_user_list_with_workspace_filter(
+        self, cli_runner: Any, cli_helper: Any, e2e_config: Any
+    ) -> None:
         """Test user list with workspace filtering."""
         workspace = e2e_config["workspace"]
         result = cli_runner(["user", "list", "--workspace", workspace, "--format", "json"])
@@ -45,7 +49,7 @@ class TestUserE2E:
         users = cli_helper.get_json_output(result)
         assert isinstance(users, list)
 
-    def test_user_list_invalid_role(self, cli_runner, cli_helper):
+    def test_user_list_invalid_role(self, cli_runner: Any, cli_helper: Any) -> None:
         """Test user list with invalid role filter."""
         result = cli_runner(
             ["user", "list", "--role", "InvalidRoleName", "--format", "json"], check=False
@@ -61,7 +65,7 @@ class TestUserE2E:
             pass
 
     @pytest.mark.slow
-    def test_user_list_pagination_large(self, cli_runner, cli_helper):
+    def test_user_list_pagination_large(self, cli_runner: Any, cli_helper: Any) -> None:
         """Test user pagination with larger dataset."""
         # First, get total count
         result = cli_runner(["user", "list", "--format", "json"])
@@ -79,7 +83,7 @@ class TestUserE2E:
             for i, user in enumerate(paginated_users):
                 assert user["email"] == all_users[i]["email"]
 
-    def test_user_error_handling(self, cli_runner):
+    def test_user_error_handling(self, cli_runner: Any) -> None:
         """Test error handling for invalid user operations."""
         # Test with invalid workspace
         result = cli_runner(

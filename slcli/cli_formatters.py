@@ -1,7 +1,7 @@
 """Unified table formatters for all CLI resource types."""
 
 from datetime import datetime
-from typing import Any, Dict, List
+from typing import Any, Callable, Dict, List, Optional
 
 
 def format_templates_table(template: Dict[str, Any]) -> List[str]:
@@ -182,7 +182,7 @@ def _format_file_size(size: Any) -> str:
 
 
 # Formatter mapping for dynamic lookup
-FORMATTER_MAP = {
+FORMATTER_MAP: Dict[str, Callable[[Dict[str, Any]], List[str]]] = {
     "template": format_templates_table,
     "templates": format_templates_table,
     "user": format_users_table,
@@ -205,6 +205,14 @@ FORMATTER_MAP = {
 }
 
 
-def get_formatter(resource_type: str):
-    """Get the appropriate formatter function for a resource type."""
+def get_formatter(resource_type: str) -> Optional[Callable[[Dict[str, Any]], List[str]]]:
+    """Get the appropriate formatter function for a resource type.
+
+    Args:
+        resource_type: The resource type key (e.g., 'workflow', 'user').
+
+    Returns:
+        A formatter function that accepts a mapping and returns a list of strings, or
+        None if no formatter exists for the provided resource type.
+    """
     return FORMATTER_MAP.get(resource_type.lower())

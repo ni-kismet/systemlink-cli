@@ -64,7 +64,7 @@ def setup_e2e_environment(e2e_config: Dict[str, Any]) -> Generator[None, None, N
 
 
 @pytest.fixture
-def cli_runner():
+def cli_runner() -> Any:
     """CLI runner for executing slcli commands."""
 
     def run_command(
@@ -95,13 +95,13 @@ def cli_runner():
 
 
 @pytest.fixture
-def configured_workspace(e2e_config) -> str:
+def configured_workspace(e2e_config: Dict[str, Any]) -> str:
     """Return the configured workspace name for E2E tests."""
     return e2e_config["workspace"]
 
 
 @pytest.fixture
-def temp_workspace(cli_runner) -> Generator[str, None, None]:
+def temp_workspace(cli_runner: Any) -> Generator[str, None, None]:
     """Create a temporary workspace for testing."""
     workspace_name = f"e2e-test-{uuid.uuid4().hex[:8]}"
 
@@ -203,13 +203,13 @@ def sample_dff_config() -> Dict[str, Any]:
 class CLITestHelper:
     """Helper class for common CLI test operations."""
 
-    def __init__(self, cli_runner):
+    def __init__(self, cli_runner: Any) -> None:
         """Initialize CLI test helper with runner."""
         self.cli_runner = cli_runner
 
     def assert_success(
         self, result: subprocess.CompletedProcess, expected_output: Optional[str] = None
-    ):
+    ) -> None:
         """Assert command succeeded and optionally check output."""
         assert (
             result.returncode == 0
@@ -219,7 +219,7 @@ class CLITestHelper:
 
     def assert_failure(
         self, result: subprocess.CompletedProcess, expected_error: Optional[str] = None
-    ):
+    ) -> None:
         """Assert command failed and optionally check error message."""
         assert (
             result.returncode != 0
@@ -241,13 +241,13 @@ class CLITestHelper:
 
 
 @pytest.fixture
-def cli_helper(cli_runner) -> CLITestHelper:
+def cli_helper(cli_runner: Any) -> CLITestHelper:
     """Helper for common CLI test operations."""
     return CLITestHelper(cli_runner)
 
 
 # Test markers
-def pytest_configure(config):
+def pytest_configure(config: Any) -> None:
     """Configure pytest with custom markers."""
     config.addinivalue_line("markers", "e2e: mark test as end-to-end test")
     config.addinivalue_line("markers", "slow: mark test as slow running")

@@ -6,7 +6,7 @@ import sys
 import pytest
 
 
-def run_e2e_tests():
+def run_e2e_tests() -> int:
     """Run E2E tests with proper configuration."""
     # Check for required environment variables
     required_env = ["SLCLI_E2E_BASE_URL", "SLCLI_E2E_API_KEY"]

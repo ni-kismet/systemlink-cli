@@ -5,7 +5,7 @@ from click.testing import CliRunner
 from slcli.main import cli, get_version
 
 
-def test_version_flag():
+def test_version_flag() -> None:
     """Test that --version flag works correctly."""
     runner = CliRunner()
     result = runner.invoke(cli, ["--version"])
@@ -15,7 +15,7 @@ def test_version_flag():
     assert len(result.output.strip().split()) == 3  # "slcli version X.Y.Z"
 
 
-def test_get_version():
+def test_get_version() -> None:
     """Test that get_version returns a valid version string."""
     version = get_version()
 
@@ -31,7 +31,7 @@ def test_get_version():
             assert part.isdigit()  # Each part should be numeric
 
 
-def test_help_includes_version():
+def test_help_includes_version() -> None:
     """Test that help includes the version option."""
     runner = CliRunner()
     result = runner.invoke(cli, ["--help"])
@@ -41,7 +41,7 @@ def test_help_includes_version():
     assert "Show version and exit" in result.output
 
 
-def test_no_command_shows_help():
+def test_no_command_shows_help() -> None:
     """Test that running with no command shows help."""
     runner = CliRunner()
     result = runner.invoke(cli, [])

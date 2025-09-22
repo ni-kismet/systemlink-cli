@@ -5,12 +5,13 @@ import tempfile
 
 # Shared test utilities
 from click.testing import CliRunner
+from pytest import MonkeyPatch
 
 from slcli.main import cli
 from .test_utils import patch_keyring
 
 
-def test_notebook_list(monkeypatch):
+def test_notebook_list(monkeypatch: MonkeyPatch) -> None:
     runner = CliRunner()
     patch_keyring(monkeypatch)
     notebooks = [
@@ -54,7 +55,7 @@ def test_notebook_list(monkeypatch):
     assert "TestNotebook2" in result.output
 
 
-def test_notebook_download_by_id(monkeypatch):
+def test_notebook_download_by_id(monkeypatch: MonkeyPatch) -> None:
     runner = CliRunner()
     patch_keyring(monkeypatch)
     content = b"notebook-bytes"
@@ -92,7 +93,7 @@ def test_notebook_download_by_id(monkeypatch):
         os.unlink(tmp.name)
 
 
-def test_notebook_upload(monkeypatch):
+def test_notebook_upload(monkeypatch: MonkeyPatch) -> None:
     runner = CliRunner()
     patch_keyring(monkeypatch)
 
