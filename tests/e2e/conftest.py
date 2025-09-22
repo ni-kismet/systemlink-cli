@@ -241,7 +241,6 @@ class CLITestHelper:
 
 
 @pytest.fixture
-@pytest.fixture
 def cli_helper(cli_runner: Any) -> CLITestHelper:
     """Helper for common CLI test operations."""
     return CLITestHelper(cli_runner)
