@@ -1,12 +1,33 @@
 # CHANGELOG
 
 
+## v0.11.3 (2025-09-22)
+
+### Bug Fixes
+
+- **e2e**: Remove duplicate pytest.fixture decorator
+  ([`be9ed09`](https://github.com/ni-kismet/systemlink-cli/commit/be9ed094c3321302d3253c3c04c180f5ba607248))
+
+### Chores
+
+- **types**: Add types-requests and types-tabulate to dev deps for mypy in CI
+  ([`191b970`](https://github.com/ni-kismet/systemlink-cli/commit/191b9700a65df02088a999217ba660f2779937b5))
+
+- **lint**: Fix import ordering and docstring/format issues
+  ([`f432ef6`](https://github.com/ni-kismet/systemlink-cli/commit/f432ef6e216f59938cdd93e0408f5fcf779dd1c5))
+
+
 ## v0.11.2 (2025-09-10)
 
 ### Bug Fixes
 
 - Substate workflow generation
   ([`8b162d4`](https://github.com/ni-kismet/systemlink-cli/commit/8b162d44c6e37e046990fb019b6956a74c2e1140))
+
+### Chores
+
+- **release**: 0.11.2
+  ([`f38a9b9`](https://github.com/ni-kismet/systemlink-cli/commit/f38a9b9a91db4d0298269e1c6e78158937796765))
 
 
 ## v0.11.1 (2025-09-10)
