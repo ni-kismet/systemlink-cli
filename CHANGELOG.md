@@ -1,6 +1,16 @@
 # CHANGELOG
 
 
+## v0.12.0 (2025-09-23)
+
+### Features
+
+- Add webapp commands
+  ([`4c74f72`](https://github.com/ni-kismet/systemlink-cli/commit/4c74f72560a42e52c8c47391356fe28dd6674dbe))
+
+Add webapp commands
+
+
 ## v0.11.3 (2025-09-22)
 
 ### Bug Fixes
@@ -9,6 +19,9 @@
   ([`be9ed09`](https://github.com/ni-kismet/systemlink-cli/commit/be9ed094c3321302d3253c3c04c180f5ba607248))
 
 ### Chores
+
+- **release**: 0.11.3
+  ([`1857c3a`](https://github.com/ni-kismet/systemlink-cli/commit/1857c3a32d3d9e6e083369cc1a59748b1d177603))
 
 - **types**: Add types-requests and types-tabulate to dev deps for mypy in CI
   ([`191b970`](https://github.com/ni-kismet/systemlink-cli/commit/191b9700a65df02088a999217ba660f2779937b5))
