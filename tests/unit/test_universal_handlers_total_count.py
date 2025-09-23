@@ -1,7 +1,9 @@
+from typing import Any
+
 from slcli.universal_handlers import UniversalResponseHandler, FilteredResponse
 
 
-def test_handle_list_response_shows_total_count(capsys):
+def test_handle_list_response_shows_total_count(capsys: Any) -> None:
     # Prepare a mock response with one page of 25 items and a totalCount of 556
     items = [
         {"id": str(i), "name": f"app-{i}", "workspace": "Default", "type": "WebVI"}
@@ -15,8 +17,7 @@ def test_handle_list_response_shows_total_count(capsys):
         data_key="webapps",
         item_name="webapp",
         format_output="table",
-        formatter_func=
-        lambda it: [
+        formatter_func=lambda it: [
             it.get("name", ""),
             it.get("workspace", ""),
             it.get("id", ""),
