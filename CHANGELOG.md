@@ -1,7 +1,20 @@
 # CHANGELOG
 
 
+## v0.12.1 (2025-09-23)
+
+### Bug Fixes
+
+- Webapp list totals
+  ([`382f7d8`](https://github.com/ni-kismet/systemlink-cli/commit/382f7d80e26f2ed9e114f3bda15a48d6140efa12))
+
+
 ## v0.12.0 (2025-09-23)
+
+### Chores
+
+- **release**: 0.12.0
+  ([`1587d87`](https://github.com/ni-kismet/systemlink-cli/commit/1587d8707066075c964bf91e23718e7f65c3d679))
 
 ### Features
 
