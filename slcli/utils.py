@@ -292,15 +292,94 @@ def get_http_configuration() -> SystemLinkConfig:
 
 def get_base_url() -> str:
     """Retrieve the SystemLink API base URL from environment or keyring."""
+    # First, try the combined keyring config
+    cfg = _get_keyring_config()
+    if cfg and isinstance(cfg, dict):
+        maybe = cfg.get("api_url") or cfg.get("api_url")
+        if maybe:
+            return maybe
+
     url = os.environ.get("SYSTEMLINK_API_URL")
     if not url:
         url = keyring.get_password("systemlink-cli", "SYSTEMLINK_API_URL")
     return url or "http://localhost:8000"
 
 
+def get_web_url() -> str:
+    """Return the SystemLink primary web UI URL.
+
+    Preference order:
+    1. Environment variable SYSTEMLINK_WEB_URL
+    2. Keyring entry 'SYSTEMLINK_WEB_URL'
+    3. Derived from get_base_url() by extracting the host and returning
+       a canonical https://<host> URL as a best-effort fallback.
+
+    This helper centralizes the logic so callers (like `webapp open`) can
+    prefer an explicit web UI URL and fall back to deriving one from the
+    configured API base URL.
+    """
+    # 1) Explicit override via environment variable
+    url = os.environ.get("SYSTEMLINK_WEB_URL")
+    if url:
+        return url.rstrip("/")
+
+    # 2) Combined keyring config entry (if present)
+    cfg = _get_keyring_config()
+    if cfg and isinstance(cfg, dict):
+        maybe = cfg.get("web_url") or cfg.get("webUrl") or cfg.get("web_ui_url")
+        if maybe:
+            return str(maybe).rstrip("/")
+
+    # 3) Legacy keyring entry fallback
+    url = keyring.get_password("systemlink-cli", "SYSTEMLINK_WEB_URL")
+    if url:
+        return url.rstrip("/")
+
+    # Derive from API base URL
+    base = get_base_url()
+    try:
+        from urllib.parse import urlparse
+
+        parsed = urlparse(base if base.startswith("http") else "https://" + base)
+        host = parsed.netloc or parsed.path
+        if not host:
+            return "https://localhost"
+        return f"https://{host.rstrip('/')}"
+    except Exception:
+        return "https://localhost"
+
+
+def _get_keyring_config() -> Dict[str, Any]:
+    """Attempt to read a single JSON config entry from keyring.
+
+    This allows storing a combined config (api_url, api_key, web_url) under
+    one key (e.g. SERVICE='systemlink-cli', key='SYSTEMLINK_CONFIG'). The
+    function returns a dict on success or an empty dict on failure.
+    """
+    try:
+        cfg_text = keyring.get_password("systemlink-cli", "SYSTEMLINK_CONFIG")
+        if not cfg_text:
+            return {}
+        import json
+
+        parsed = json.loads(cfg_text)
+        if isinstance(parsed, dict):
+            return parsed
+    except Exception:
+        pass
+    return {}
+
+
 def get_api_key() -> str:
     """Retrieve the SystemLink API key from environment or keyring."""
     import click
+
+    # First, consult combined keyring config if present
+    cfg = _get_keyring_config()
+    if cfg and isinstance(cfg, dict):
+        maybe = cfg.get("api_key") or cfg.get("apiKey") or cfg.get("apiToken")
+        if maybe:
+            return str(maybe)
 
     api_key = os.environ.get("SYSTEMLINK_API_KEY")
     if not api_key:
