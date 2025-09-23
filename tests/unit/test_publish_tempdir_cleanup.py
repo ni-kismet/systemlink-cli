@@ -76,6 +76,9 @@ def test_publish_cleans_temporary_directory(tmp_path: Path, monkeypatch: MonkeyP
     monkeypatch.setattr(requests, "post", mock_post)
     monkeypatch.setattr(requests, "put", mock_put)
 
+    # Ensure an API key is available in CI environments that don't have keyring entries
+    monkeypatch.setenv("SYSTEMLINK_API_KEY", "fake-api-key")
+
     runner = CliRunner()
     result = runner.invoke(
         cli, ["webapp", "publish", str(src), "--name", "X", "--workspace", "Default"]
