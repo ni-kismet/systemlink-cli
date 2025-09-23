@@ -1,6 +1,7 @@
 """slcli entry points."""
 
 import getpass
+import json
 from pathlib import Path
 from typing import Optional
 
@@ -15,6 +16,7 @@ from .notebook_click import register_notebook_commands
 from .ssl_trust import OS_TRUST_INJECTED, OS_TRUST_REASON
 from .templates_click import register_templates_commands
 from .user_click import register_user_commands
+from .webapp_click import register_webapp_commands
 from .workflows_click import register_workflows_commands
 from .workspace_click import register_workspace_commands
 
@@ -87,8 +89,14 @@ def ca_info() -> None:
 @cli.command()
 @click.option("--url", help="SystemLink API URL")
 @click.option("--api-key", help="SystemLink API key")
-def login(url: Optional[str], api_key: Optional[str]) -> None:
-    """Store your SystemLink API key and URL securely."""
+@click.option("--web-url", help="SystemLink Web UI base URL")
+def login(url: Optional[str], api_key: Optional[str], web_url: Optional[str]) -> None:
+    """Store your SystemLink API key, URL and Web UI URL securely.
+
+    The command will always attempt to persist a combined JSON config into the
+    system keyring under service 'systemlink-cli' and key 'SYSTEMLINK_CONFIG'.
+    If that fails, separate legacy keyring entries are kept as a fallback.
+    """
     # Get URL - either from flag or prompt
     if not url:
         url = click.prompt(
@@ -121,7 +129,28 @@ def login(url: Optional[str], api_key: Optional[str]) -> None:
 
     keyring.set_password("systemlink-cli", "SYSTEMLINK_API_KEY", api_key.strip())
     keyring.set_password("systemlink-cli", "SYSTEMLINK_API_URL", url)
-    click.echo("API key and URL stored securely.")
+    # Normalize and validate web_url (prompt if not provided)
+    if not web_url:
+        web_url = click.prompt(
+            "Enter your SystemLink Web UI URL", default="https://demo.lifecyclesolutions.ni.com"
+        )
+    assert isinstance(web_url, str)
+    web_url = web_url.strip()
+    if web_url.startswith("http://"):
+        click.echo("⚠️  Warning: Converting HTTP to HTTPS for security.")
+        web_url = web_url.replace("http://", "https://", 1)
+    elif not web_url.startswith("https://"):
+        click.echo("⚠️  Warning: Adding HTTPS protocol to web URL.")
+        web_url = f"https://{web_url}"
+
+    # Attempt to store a combined JSON config in keyring by default
+    combined: dict = {"api_url": url, "api_key": api_key.strip(), "web_url": web_url}
+    try:
+        keyring.set_password("systemlink-cli", "SYSTEMLINK_CONFIG", json.dumps(combined))
+        click.echo("API key, URL and web UI URL stored securely (combined entry).")
+    except Exception:
+        # Fall back to separate entries if combined storage fails
+        click.echo("Could not write combined config to keyring; stored API key and URL separately.")
 
 
 @cli.command()
@@ -135,6 +164,10 @@ def logout() -> None:
         keyring.delete_password("systemlink-cli", "SYSTEMLINK_API_URL")
     except Exception:
         pass
+    try:
+        keyring.delete_password("systemlink-cli", "SYSTEMLINK_CONFIG")
+    except Exception:
+        pass
     click.echo("API key and URL removed from system keyring.")
 
 
@@ -143,6 +176,7 @@ register_dff_commands(cli)
 register_function_commands(cli)
 register_templates_commands(cli)
 register_notebook_commands(cli)
+register_webapp_commands(cli)
 register_user_commands(cli)
 register_workflows_commands(cli)
 register_workspace_commands(cli)
