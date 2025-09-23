@@ -1,7 +1,7 @@
 """Unit tests for slcli webapp commands."""
 
-from typing import Any, Dict
 from pathlib import Path
+from typing import Any, Dict
 
 from click.testing import CliRunner
 from pytest import MonkeyPatch
