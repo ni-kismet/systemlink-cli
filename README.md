@@ -747,8 +747,7 @@ slcli function execute sync \
     --path /invoke \
     -H content-type=application/json \
     --body '{"a":1,"b":2}' \
-    --timeout 30 \
-    --format json
+    --timeout 30 --format json
 ```
 
 Or with a raw parameters JSON object:
@@ -1083,6 +1082,67 @@ slcli notebook manage update --id <notebook_id> --metadata metadata.json --conte
 ```bash
 slcli notebook manage delete --id <notebook_id>
 ```
+
+## WebApp management
+
+Manage static web applications (pack, publish and remote management) using the `webapp` command group.
+
+The `webapp` group provides a small local scaffold and .nipkg packer, and also manages WebApp resources on the SystemLink server.
+
+- `slcli webapp init [--directory PATH] [--force]`
+
+  - Create a simple example `index.html` scaffold in `./app` inside the target directory. Use `--force` to overwrite an existing file.
+
+- `slcli webapp pack <FOLDER> [--output FILE.nipkg]`
+
+  - Pack a folder into a `.nipkg` archive. The `.nipkg` uses a Debian-style `ar` layout (members: `debian-binary`, `control.tar.gz`, `data.tar.gz`).
+
+- `slcli webapp publish <SOURCE> [--id ID] [--name NAME] [--workspace WORKSPACE]`
+
+  - Publish a `.nipkg` file or a folder (the CLI will pack folders automatically) to the WebApp service. Provide either `--id` to upload into an existing webapp, or `--name` to create a new WebVI resource and upload the content. `--workspace` selects the workspace for newly created webapps.
+  - When publishing a folder, the CLI creates a temporary `.nipkg` inside a context-managed temporary directory so the packaged file is available during upload and is cleaned up automatically.
+
+- `slcli webapp list [--workspace WORKSPACE] [--take N] [--format table|json]`
+
+  - List WebVI webapps. Defaults to interactive paging for `table` output (25 rows/page) and returns all results for `--format json`.
+
+- `slcli webapp get --id ID`
+
+  - Show metadata for a single webapp.
+
+- `slcli webapp delete --id ID`
+
+  - Delete a webapp by ID.
+
+- `slcli webapp open --id ID`
+  - Open the webapp in your browser. The command prefers an explicit web UI URL (from `SYSTEMLINK_WEB_URL` environment variable or combined keyring config), falls back to properties on the webapp resource, and finally falls back to the content endpoint.
+
+Examples
+
+```bash
+# Create a scaffold
+slcli webapp init --directory ./my-example
+
+# Pack a folder into an explicit output file
+slcli webapp pack ./my-example/app --output myapp.nipkg
+
+# Publish a local folder (creates the webapp named MyApp in workspace Default)
+slcli webapp publish ./my-example/app --name MyApp --workspace Default
+
+# Publish an already-packed file into an existing webapp id
+slcli webapp publish ./myapp.nipkg --id 123e4567-e89b-12d3-a456-426614174000
+
+# List webapps in JSON (returns all matching items)
+slcli webapp list --format json
+
+# Open a published webapp in the browser
+slcli webapp open --id 123e4567-e89b-12d3-a456-426614174000
+```
+
+Notes
+
+- The packer writes a simple Debian-style `ar` archive and truncates ar member names to 16 bytes; this is adequate for common use-cases but can be extended to support GNU longname tables if needed.
+- The `login` command was extended to support storing a combined keyring entry (`SYSTEMLINK_CONFIG`) that includes `api_url`, `api_key`, and `web_url`. The `webapp open` command prefers the explicit `SYSTEMLINK_WEB_URL` environment variable, then the combined keyring entry, and then legacy keyring entries before deriving a best-effort web UI URL from the API base URL.
 
 ## User Management
 
