@@ -6,7 +6,10 @@ from typing import Any, Dict
 from click.testing import CliRunner
 from pytest import MonkeyPatch
 
-from slcli.main import cli
+# NOTE: Do not import `cli` at module import time; importing slcli.main may
+# trigger credential lookups. Import `cli` inside the test after setting the
+# environment so tests running in CI without keyring entries don't exit.
+from .test_utils import patch_keyring
 
 
 def test_publish_cleans_temporary_directory(tmp_path: Path, monkeypatch: MonkeyPatch) -> None:
@@ -82,8 +85,12 @@ def test_publish_cleans_temporary_directory(tmp_path: Path, monkeypatch: MonkeyP
     monkeypatch.setattr(requests, "post", mock_post)
     monkeypatch.setattr(requests, "put", mock_put)
 
-    # Ensure an API key is available in CI environments that don't have keyring entries
-    monkeypatch.setenv("SYSTEMLINK_API_KEY", "fake-api-key")
+    # Use the shared test helper to mock keyring so get_api_key()/get_headers()
+    # return a dummy API key the same way other unit tests do.
+    patch_keyring(monkeypatch)
+
+    # Import CLI after test environment and keyring patch have been prepared
+    from slcli.main import cli
 
     runner = CliRunner()
     result = runner.invoke(
