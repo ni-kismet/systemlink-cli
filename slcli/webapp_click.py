@@ -68,8 +68,12 @@ def _query_webapps_http(filter_str: str, max_items: int = 1000) -> List[Dict[str
         if continuation_token:
             payload["continuationToken"] = continuation_token
 
+        # Request the server to include a total count when available
         resp = requests.post(
-            f"{base}/webapps/query", headers=headers, json=payload, verify=get_ssl_verify()
+            f"{base}/webapps/query?includeTotalCount=true",
+            headers=headers,
+            json=payload,
+            verify=get_ssl_verify(),
         )
         resp.raise_for_status()
         data = resp.json()
@@ -105,26 +109,18 @@ def _fetch_webapps_page(
     if continuation_token:
         payload["continuationToken"] = continuation_token
 
+    # Request the server to include a total count when available
     resp = requests.post(
-        f"{base}/webapps/query", headers=headers, json=payload, verify=get_ssl_verify()
+        f"{base}/webapps/query?includeTotalCount=true",
+        headers=headers,
+        json=payload,
+        verify=get_ssl_verify(),
     )
     resp.raise_for_status()
     data = resp.json()
     items = data.get("webapps", []) if isinstance(data, dict) else []
     cont = data.get("continuationToken")
-    # Try known total fields
-    total = None
-    for key in ("total", "totalCount", "totalItems", "count"):
-        if isinstance(data, dict) and key in data:
-            maybe = data.get(key)
-            if maybe is not None:
-                try:
-                    total = int(maybe)
-                except Exception:
-                    total = None
-            else:
-                total = None
-            break
+    total = data.get("totalCount")
 
     return items, cont, total
 
@@ -395,14 +391,17 @@ def register_webapp_commands(cli: Any) -> None:
                     # Format and display this page immediately
                     page_display_items = _format_page_items(raw_page)
 
-                    # After first page, if total is available, show it
-                    if first_page and total is not None:
-                        click.echo(f"Total on server: {total}")
-                        # Ensure the line is flushed before we render the table
-                        try:
-                            sys.stdout.flush()
-                        except Exception:
-                            pass
+                    # Track how many items we've displayed so far and, if the
+                    # server provided a total, show a concise summary like:
+                    # "Showing 25 of 556 webapp(s). 531 more available."
+                    if "shown_count" not in locals():
+                        shown_count = 0
+                    shown_count += len(page_display_items)
+
+                    # We now delegate printing the "Showing X of Y..." summary
+                    # to the UniversalResponseHandler so behavior matches other
+                    # list commands (e.g., notebooks). Supply total_count and
+                    # shown_count to enable that summary.
                     first_page = False
 
                     # Use the UniversalResponseHandler to display this page (no internal pagination)
@@ -425,6 +424,8 @@ def register_webapp_commands(cli: Any) -> None:
                         empty_message="No webapps found.",
                         enable_pagination=False,
                         page_size=take,
+                        total_count=total,
+                        shown_count=shown_count,
                     )
                     # Flush stdout so that the rendered table is visible before prompting
                     try:

@@ -52,6 +52,8 @@ class UniversalResponseHandler:
         empty_message: Optional[str] = None,
         enable_pagination: bool = True,
         page_size: int = 25,
+        total_count: Optional[int] = None,
+        shown_count: Optional[int] = None,
     ) -> None:
         """Handle list response with standardized formatting and optional pagination.
 
@@ -66,6 +68,8 @@ class UniversalResponseHandler:
             empty_message: Message when no items found
             enable_pagination: Whether to enable pagination for table output
             page_size: Number of items per page
+            total_count: Optional server-provided total count for all matching items.
+            shown_count: Optional count of items shown so far (useful for paged responses).
         """
         from .cli_utils import paginate_list_output
         from .table_utils import output_formatted_list
@@ -103,6 +107,15 @@ class UniversalResponseHandler:
                     empty_message,
                     f"{item_name}(s)",
                 )
+                # If the caller provided a server-side total, display a
+                # concise summary like the notebook listing after rendering
+                # the formatted table for the current page.
+                if total_count is not None:
+                    shown = int(shown_count) if shown_count is not None else len(items)
+                    remaining = max(int(total_count) - shown, 0)
+                    click.echo(
+                        f"\nShowing {shown} of {total_count} {item_name}(s). {remaining} more available."
+                    )
             else:
                 # Fallback to simple JSON/basic formatting
                 if format_output.lower() == "json":
@@ -113,6 +126,19 @@ class UniversalResponseHandler:
                     else:
                         for item in items:
                             click.echo(f"• {item.get('name', item.get('id', 'Unknown'))}")
+
+                    # If the caller provided a server-side total, display a
+                    # concise summary like the notebook listing:
+                    # "Showing 25 of 556 webapp(s). 531 more available."
+                    if total_count is not None:
+                        # If shown_count wasn't provided, assume current page length
+                        shown = int(shown_count) if shown_count is not None else len(items)
+                        remaining = max(int(total_count) - shown, 0)
+                        click.echo(
+                            f"\nShowing {shown} of {total_count} {item_name}(s). {remaining} more available."
+                        )
+                    else:
+                        # Fallback to the old behaviour
                         click.echo(f"\nTotal: {len(items)} {item_name}(s)")
 
         except Exception as exc:
