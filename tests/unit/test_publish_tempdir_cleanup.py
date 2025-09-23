@@ -38,7 +38,13 @@ def test_publish_cleans_temporary_directory(tmp_path: Path, monkeypatch: MonkeyP
     def fake_tempdir() -> TempDirSpy:
         return spy
 
-    monkeypatch.setattr("tempfile.TemporaryDirectory", fake_tempdir)
+    # Patch the stdlib tempfile globally and also the tempfile used inside the
+    # slcli.webapp_click module to be robust across import variations in CI.
+    import tempfile as _tempfile
+    import slcli.webapp_click as _webapp_mod
+
+    monkeypatch.setattr(_tempfile, "TemporaryDirectory", fake_tempdir)
+    monkeypatch.setattr(_webapp_mod.tempfile, "TemporaryDirectory", fake_tempdir)
 
     # Mock network calls so publishing only exercises local packaging and cleanup
     import requests
