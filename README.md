@@ -1288,6 +1288,9 @@ slcli dff fields list --format json
 # Filter by workspace
 slcli dff fields list --workspace "Production Workspace"
 
+# Filter by displayed name (case-insensitive substring)
+slcli dff fields list --name min
+
 # Export a field to JSON file
 slcli dff fields export --id <field_id> --output field.json
 

@@ -921,6 +921,12 @@ def register_dff_commands(cli: Any) -> None:
         help="Maximum number of fields to return",
     )
     @click.option(
+        "--name",
+        "name_filter",
+        default="",
+        help="Filter fields by the displayed Name column (case-insensitive substring)",
+    )
+    @click.option(
         "--format",
         "-f",
         type=click.Choice(["table", "json"], case_sensitive=False),
@@ -928,7 +934,12 @@ def register_dff_commands(cli: Any) -> None:
         show_default=True,
         help="Output format: table or json",
     )
-    def list_fields(workspace: Optional[str] = None, take: int = 25, format: str = "table") -> None:
+    def list_fields(
+        workspace: Optional[str] = None,
+        take: int = 25,
+        format: str = "table",
+        name_filter: str = "",
+    ) -> None:
         """List dynamic form fields."""
         try:
             # Get workspace map once and reuse it
@@ -944,6 +955,20 @@ def register_dff_commands(cli: Any) -> None:
             from typing import Any
 
             # Create a mock response with all data
+            # Apply name filter (case-insensitive substring) if provided.
+            # The displayed Name column uses displayText if present, otherwise name
+            # (see WorkspaceFormatter.create_group_field_row_formatter). Only
+            # match against that displayed value so CLI filtering aligns with
+            # what the user sees in the Name column.
+            if name_filter:
+                nf = name_filter.lower()
+
+                def _field_matches_display_name(f: dict) -> bool:
+                    display_name = f.get("displayText") or f.get("name") or ""
+                    return nf in str(display_name).lower()
+
+                all_fields = [f for f in all_fields if _field_matches_display_name(f)]
+
             filtered_resp: Any = FilteredResponse({"fields": all_fields})
 
             handler = UniversalResponseHandler()
