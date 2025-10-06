@@ -1,12 +1,25 @@
 # CHANGELOG
 
 
+## v0.12.2 (2025-10-06)
+
+### Bug Fixes
+
+- Add name filter to DFF list command
+  ([`98bf939`](https://github.com/ni-kismet/systemlink-cli/commit/98bf939cd110a05c5acbb8784df4fdb3b413d97c))
+
+
 ## v0.12.1 (2025-09-23)
 
 ### Bug Fixes
 
 - Webapp list totals
   ([`382f7d8`](https://github.com/ni-kismet/systemlink-cli/commit/382f7d80e26f2ed9e114f3bda15a48d6140efa12))
+
+### Chores
+
+- **release**: 0.12.1
+  ([`9d9e30b`](https://github.com/ni-kismet/systemlink-cli/commit/9d9e30bbddf5cbe0465c863c41789162ea6a0a01))
 
 
 ## v0.12.0 (2025-09-23)
