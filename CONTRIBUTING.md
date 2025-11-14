@@ -233,6 +233,16 @@ brew upgrade slcli
 - All new CLI commands must include JSON output support via `--format/-f` option
 - All error handling must use standardized exit codes and consistent formatting
 
+## Security scanning with Snyk
+
+This repository uses [Snyk](https://snyk.io/) for security scanning to identify and fix vulnerabilities in code before they reach production. Snyk provides Static Application Security Testing (SAST) that scans your code for security issues as you develop.
+
+- **IDE integration**: Install the Snyk extension for [Visual Studio Code](https://marketplace.visualstudio.com/items?itemName=snyk-security.snyk-vulnerability-scanner) or [Visual Studio](https://marketplace.visualstudio.com/items?itemName=snyk-security.snyk-vulnerability-scanner-vs-2022) to get real-time security feedback while writing code. To suggest the Snyk extension to contributors, add `.vscode/extensions.json` or `.vsconfig` files to your project root. The VSCode Snyk extension has a richer feature set and is the preferred IDE for working with Snyk.
+- **Pull request scanning**: Snyk automatically scans PRs and posts comments for high/critical vulnerabilities.
+- **Post-merge monitoring**: Automated bugs are created for unresolved issues after code is merged.
+
+For detailed guidance on working with Snyk, including how to address security issues and create ignore records, see the [Snyk reference](https://dev.azure.com/ni/DevCentral/_wiki/wikis/Stratus/146862/Snyk-reference).
+
 ## Getting Help
 
 For questions about SystemLink CLI development:
