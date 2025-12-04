@@ -48,8 +48,79 @@ jobs:
       - name: Run tests
         run: poetry run pytest
 
+      # macOS Code Signing Setup
+      - name: Import macOS Code Signing Certificate
+        if: matrix.platform == 'macos' && env.MACOS_CERTIFICATE != ''
+        env:
+          MACOS_CERTIFICATE: ${{ secrets.MACOS_CERTIFICATE }}
+          MACOS_CERTIFICATE_PASSWORD: ${{ secrets.MACOS_CERTIFICATE_PASSWORD }}
+        run: |
+          # Create a temporary keychain
+          KEYCHAIN_PATH=$RUNNER_TEMP/signing.keychain-db
+          KEYCHAIN_PASSWORD=$(openssl rand -base64 32)
+
+          # Create keychain
+          security create-keychain -p "$KEYCHAIN_PASSWORD" "$KEYCHAIN_PATH"
+          security set-keychain-settings -lut 21600 "$KEYCHAIN_PATH"
+          security unlock-keychain -p "$KEYCHAIN_PASSWORD" "$KEYCHAIN_PATH"
+
+          # Import certificate
+          echo "$MACOS_CERTIFICATE" | base64 --decode > $RUNNER_TEMP/certificate.p12
+          security import $RUNNER_TEMP/certificate.p12 \
+            -P "$MACOS_CERTIFICATE_PASSWORD" \
+            -A \
+            -t cert \
+            -f pkcs12 \
+            -k "$KEYCHAIN_PATH"
+
+          # Set keychain as default and allow codesign access
+          security list-keychain -d user -s "$KEYCHAIN_PATH"
+          security set-key-partition-list -S apple-tool:,apple:,codesign: -s -k "$KEYCHAIN_PASSWORD" "$KEYCHAIN_PATH"
+
+          # Clean up certificate file
+          rm -f $RUNNER_TEMP/certificate.p12
+
+          echo "KEYCHAIN_PATH=$KEYCHAIN_PATH" >> $GITHUB_ENV
+
       - name: Build PyInstaller binary
+        env:
+          # Set signing identity if certificate is available
+          MACOS_SIGNING_IDENTITY: ${{ matrix.platform == 'macos' && secrets.MACOS_SIGNING_IDENTITY || '' }}
         run: poetry run build-pyinstaller
+
+      # macOS Notarization (optional, for full Gatekeeper trust)
+      - name: Notarize macOS binary
+        if: matrix.platform == 'macos' && env.APPLE_ID != '' && env.MACOS_CERTIFICATE != ''
+        env:
+          APPLE_ID: ${{ secrets.APPLE_ID }}
+          APPLE_ID_PASSWORD: ${{ secrets.APPLE_ID_PASSWORD }}
+          APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
+          MACOS_CERTIFICATE: ${{ secrets.MACOS_CERTIFICATE }}
+        run: |
+          # Create a ZIP for notarization
+          cd dist
+          ditto -c -k --keepParent slcli slcli-notarize.zip
+
+          # Submit for notarization
+          xcrun notarytool submit slcli-notarize.zip \
+            --apple-id "$APPLE_ID" \
+            --password "$APPLE_ID_PASSWORD" \
+            --team-id "$APPLE_TEAM_ID" \
+            --wait
+
+          # Staple the notarization ticket
+          xcrun stapler staple slcli/slcli
+
+          # Clean up
+          rm -f slcli-notarize.zip
+
+      # Cleanup macOS keychain
+      - name: Cleanup macOS Keychain
+        if: matrix.platform == 'macos' && always()
+        run: |
+          if [ -n "$KEYCHAIN_PATH" ] && [ -f "$KEYCHAIN_PATH" ]; then
+            security delete-keychain "$KEYCHAIN_PATH" || true
+          fi
 
       - name: Create platform-specific tarball (Linux)
         if: matrix.platform == 'linux'

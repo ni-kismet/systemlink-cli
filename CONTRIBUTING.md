@@ -158,6 +158,42 @@ You can then install locally with:
 brew install ./dist/homebrew-slcli.rb
 ```
 
+#### macOS Code Signing
+
+For the `slcli login` command to work properly with the macOS Keychain, the binary must be code-signed. The build script automatically signs the binary on macOS.
+
+**Local Development (ad-hoc signing):**
+
+```bash
+# Build with ad-hoc signing (limited keychain access)
+poetry run build-pyinstaller
+```
+
+**With a Developer Certificate:**
+
+```bash
+# Set your signing identity (from `security find-identity -v -p codesigning`)
+export MACOS_SIGNING_IDENTITY="Developer ID Application: Your Name (XXXXXXXXXX)"
+poetry run build-pyinstaller
+```
+
+**CI/CD Code Signing:**
+
+For releases, the following GitHub secrets must be configured:
+
+- `MACOS_CERTIFICATE`: Base64-encoded .p12 certificate file
+- `MACOS_CERTIFICATE_PASSWORD`: Password for the .p12 file
+- `MACOS_SIGNING_IDENTITY`: The signing identity string (e.g., "Developer ID Application: ...")
+- `APPLE_ID`: Apple ID for notarization (optional)
+- `APPLE_ID_PASSWORD`: App-specific password for notarization (optional)
+- `APPLE_TEAM_ID`: Apple Developer Team ID for notarization (optional)
+
+To create the base64-encoded certificate:
+
+```bash
+base64 -i certificate.p12 | pbcopy
+```
+
 #### Windows (Scoop/PyInstaller)
 
 ```bash
