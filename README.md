@@ -8,7 +8,7 @@ SystemLink CLI (`slcli`) is a cross-platform Python CLI for SystemLink integrato
 - **Function Management**: Complete WebAssembly (WASM) function definition and execution management with metadata-driven organization
 - **Test Plan Templates**: Complete management (list, export, import, delete, init) with JSON and table output formats
 - **Jupyter Notebooks**: Full lifecycle management (list, download, create, update, delete) with workspace filtering
-- **User Management**: Comprehensive user administration (list, get, create, update, delete) with Dynamic LINQ filtering and pagination
+- **User Management**: Comprehensive user administration (list, get, create, update, delete) with Dynamic LINQ filtering, pagination, and support for service accounts
 - **Workflows**: Full workflow management (list, export, import, delete, init, update) with comprehensive state and action definitions
 - **Workspace Management**: Essential workspace administration (list, info, disable) with comprehensive resource details
 - **Cross-Platform**: Windows, macOS, and Linux support with standalone binaries
@@ -1165,6 +1165,11 @@ slcli user list --sortby firstName --order descending
 
 # Limit number of results
 slcli user list --take 25
+
+# Filter by account type
+slcli user list --type user       # Only regular users
+slcli user list --type service    # Only service accounts
+slcli user list --type all        # All accounts (default)
 ```
 
 ### Get user details
@@ -1197,6 +1202,25 @@ slcli user create \
   --policies "policy1,policy2" \
   --keywords "developer,qa" \
   --properties '{"department": "Engineering", "location": "Austin"}'
+```
+
+### Create a service account
+
+Service accounts are designed for API/automation use and don't require email, phone, login, or NIUA ID fields.
+
+```bash
+# Create a basic service account
+slcli user create --type service --first-name "CI Bot"
+
+# Create service account with custom last name
+slcli user create --type service --first-name "Deploy Bot" --last-name "Automation"
+
+# Create service account with policies and properties
+slcli user create --type service \
+  --first-name "DataSync Service" \
+  --policies "policy1,policy2" \
+  --keywords "automation,sync" \
+  --properties '{"purpose": "data synchronization"}'
 ```
 
 ### Update an existing user
