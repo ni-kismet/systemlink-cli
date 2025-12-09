@@ -16,6 +16,7 @@ from .cli_utils import validate_output_format
 from .universal_handlers import UniversalResponseHandler, FilteredResponse
 from .utils import (
     display_api_errors,
+    ExitCodes,
     extract_error_type,
     get_base_url,
     get_workspace_id_with_fallback,
@@ -137,7 +138,7 @@ def register_workflows_commands(cli: Any) -> None:
             workspace_id = get_workspace_id_with_fallback(workspace)
         except Exception as exc:
             click.echo(f"✗ Error resolving workspace '{workspace}': {exc}", err=True)
-            raise click.ClickException(f"Error resolving workspace '{workspace}': {exc}")
+            sys.exit(ExitCodes.NOT_FOUND)
 
         workflow_data = {
             "name": name,
@@ -324,7 +325,7 @@ def register_workflows_commands(cli: Any) -> None:
 
         except Exception as exc:
             click.echo(f"✗ Error creating workflow file: {exc}", err=True)
-            raise click.ClickException(f"Error creating workflow file: {exc}")
+            sys.exit(ExitCodes.GENERAL_ERROR)
 
     @workflow.command(name="list")
     @click.option(
@@ -421,7 +422,7 @@ def register_workflows_commands(cli: Any) -> None:
 
             if not data:
                 click.echo(f"✗ Workflow with ID {workflow_id} not found.", err=True)
-                raise click.ClickException(f"Workflow with ID {workflow_id} not found.")
+                sys.exit(ExitCodes.NOT_FOUND)
 
             # Generate output filename if not provided
             if not output:
@@ -436,7 +437,7 @@ def register_workflows_commands(cli: Any) -> None:
                 handle_api_error(exc)
             else:
                 click.echo(f"✗ Error: {exc}", err=True)
-                raise click.ClickException(str(exc))
+                sys.exit(ExitCodes.NOT_FOUND)
 
     @workflow.command(name="import")
     @click.option(
@@ -479,16 +480,14 @@ def register_workflows_commands(cli: Any) -> None:
                     filtered_data["workspace"] = workspace_id
                 except Exception as exc:
                     click.echo(f"✗ Error resolving workspace '{workspace}': {exc}", err=True)
-                    raise click.ClickException(f"Error resolving workspace '{workspace}': {exc}")
+                    sys.exit(ExitCodes.NOT_FOUND)
             elif "workspace" not in filtered_data or not filtered_data["workspace"]:
                 # No workspace specified and none in file - require one
                 click.echo(
                     "✗ Workspace is required. Specify --workspace or include 'workspace' in the JSON file.",
                     err=True,
                 )
-                raise click.ClickException(
-                    "Workspace is required. Specify --workspace or include 'workspace' in the JSON file."
-                )
+                sys.exit(ExitCodes.INVALID_INPUT)
             elif filtered_data["workspace"] and not filtered_data["workspace"].startswith("//"):
                 # Workspace in file - validate/resolve it if it looks like a name
                 try:
@@ -499,9 +498,7 @@ def register_workflows_commands(cli: Any) -> None:
                         f"✗ Error resolving workspace from file '{filtered_data['workspace']}': {exc}",
                         err=True,
                     )
-                    raise click.ClickException(
-                        f"Error resolving workspace from file '{filtered_data['workspace']}': {exc}"
-                    )
+                    sys.exit(ExitCodes.NOT_FOUND)
 
             try:
                 resp = make_api_request("POST", url, filtered_data, handle_errors=False)
@@ -542,6 +539,7 @@ def register_workflows_commands(cli: Any) -> None:
         required=True,
         help="Workflow ID to delete",
     )
+    @click.confirmation_option(prompt="Are you sure you want to delete this workflow?")
     def delete_workflow(workflow_id: str) -> None:
         """Delete a workflow by ID."""
         url = f"{get_base_url()}/niworkorder/v1/delete-workflows?ff-userdefinedworkflowsfortestplaninstances=true"
@@ -620,7 +618,7 @@ def register_workflows_commands(cli: Any) -> None:
                     filtered_data["workspace"] = workspace_id
                 except Exception as exc:
                     click.echo(f"✗ Error resolving workspace '{workspace}': {exc}", err=True)
-                    raise click.ClickException(f"Error resolving workspace '{workspace}': {exc}")
+                    sys.exit(ExitCodes.NOT_FOUND)
             elif (
                 "workspace" in filtered_data
                 and filtered_data["workspace"]
@@ -635,9 +633,7 @@ def register_workflows_commands(cli: Any) -> None:
                         f"✗ Error resolving workspace from file '{filtered_data['workspace']}': {exc}",
                         err=True,
                     )
-                    raise click.ClickException(
-                        f"Error resolving workspace from file '{filtered_data['workspace']}': {exc}"
-                    )
+                    sys.exit(ExitCodes.NOT_FOUND)
 
             try:
                 resp = make_api_request("PUT", url, filtered_data, handle_errors=False)

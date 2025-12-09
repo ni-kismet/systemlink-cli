@@ -524,6 +524,7 @@ def register_webapp_commands(cli: Any) -> None:
 
     @webapp.command(name="delete")
     @click.option("--id", "-i", "webapp_id", required=True, help="Webapp ID to delete")
+    @click.confirmation_option(prompt="Are you sure you want to delete this webapp?")
     def delete_webapp(webapp_id: str) -> None:
         """Delete a webapp by ID."""
         try:
