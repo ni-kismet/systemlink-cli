@@ -217,7 +217,7 @@ def test_export_workflow_not_found(monkeypatch: Any, runner: CliRunner) -> None:
         result = runner.invoke(
             cli, ["workflow", "export", "--id", "nonexistent", "--output", "test.json"]
         )
-        assert result.exit_code == 1
+        assert result.exit_code == 3  # ExitCodes.NOT_FOUND
         assert "not found" in result.output
 
 
@@ -394,7 +394,7 @@ def test_delete_workflow_success(monkeypatch: Any, runner: CliRunner) -> None:
     monkeypatch.setattr("requests.post", mock_post)
 
     cli = make_cli()
-    result = runner.invoke(cli, ["workflow", "delete", "--id", "wf123"])
+    result = runner.invoke(cli, ["workflow", "delete", "--id", "wf123"], input="y\n")
     assert result.exit_code == 0
     assert "deleted successfully" in result.output
 
@@ -470,7 +470,7 @@ def test_delete_workflow_failure(monkeypatch: Any, runner: CliRunner) -> None:
     monkeypatch.setattr("requests.post", mock_post)
 
     cli = make_cli()
-    result = runner.invoke(cli, ["workflow", "delete", "--id", "nonexistent"])
+    result = runner.invoke(cli, ["workflow", "delete", "--id", "nonexistent"], input="y\n")
     assert result.exit_code != 0
     assert "Failed to delete workflow" in result.output
 

@@ -206,7 +206,7 @@ def register_templates_commands(cli: Any) -> None:
 
         except Exception as exc:
             click.echo(f"✗ Error creating template file: {exc}", err=True)
-            raise click.ClickException(f"Error creating template file: {exc}")
+            sys.exit(ExitCodes.GENERAL_ERROR)
 
     @template.command(name="list")
     @click.option(
@@ -409,7 +409,7 @@ def register_templates_commands(cli: Any) -> None:
                 if main_error.get("message") and len(failed_templates) > 1:
                     click.echo(f"\nGeneral error: {main_error.get('message')}", err=True)
 
-                raise click.ClickException("Template import failed. See errors above.")
+                sys.exit(ExitCodes.GENERAL_ERROR)
             else:
                 click.echo("✓ Test plan template imported successfully.")
 
@@ -424,6 +424,7 @@ def register_templates_commands(cli: Any) -> None:
         required=True,
         help="Test plan template ID to delete",
     )
+    @click.confirmation_option(prompt="Are you sure you want to delete this template?")
     def delete_template(template_id: str) -> None:
         """Delete a test plan template by ID."""
         url = f"{get_base_url()}/niworkorder/v1/delete-testplan-templates"
@@ -436,8 +437,6 @@ def register_templates_commands(cli: Any) -> None:
                 click.echo(
                     f"✗ Failed to delete test plan template {template_id}: {resp.text}", err=True
                 )
-                raise click.ClickException(
-                    f"Failed to delete test plan template {template_id}: {resp.text}"
-                )
+                sys.exit(ExitCodes.GENERAL_ERROR)
         except Exception as exc:
             handle_api_error(exc)

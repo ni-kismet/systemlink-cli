@@ -348,7 +348,7 @@ def test_delete_template_success(monkeypatch: Any, runner: CliRunner) -> None:
 
     monkeypatch.setattr("requests.post", mock_post)
     cli = make_cli()
-    result = runner.invoke(cli, ["template", "delete", "--id", "t1"])
+    result = runner.invoke(cli, ["template", "delete", "--id", "t1"], input="y\n")
     assert result.exit_code == 0
     assert "deleted successfully" in result.output
 
@@ -373,6 +373,6 @@ def test_delete_template_failure(monkeypatch: Any, runner: CliRunner) -> None:
 
     monkeypatch.setattr("requests.post", mock_post)
     cli = make_cli()
-    result = runner.invoke(cli, ["template", "delete", "--id", "bad"])
+    result = runner.invoke(cli, ["template", "delete", "--id", "bad"], input="y\n")
     assert result.exit_code != 0
     assert "Failed to delete" in result.output

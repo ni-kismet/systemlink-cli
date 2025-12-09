@@ -223,7 +223,7 @@ def _query_all_executions(
 def register_function_commands(cli: Any) -> None:
     """Register the 'function' command group and its subcommands."""
 
-    @cli.group()
+    @cli.group(hidden=True)
     def function() -> None:
         """Manage function definitions and executions."""
 
@@ -1002,7 +1002,6 @@ def register_function_commands(cli: Any) -> None:
     )
     @click.option(
         "--format",
-        "-fmt",
         type=click.Choice(["table", "json"]),
         default="table",
         show_default=True,
@@ -1081,7 +1080,7 @@ def register_function_commands(cli: Any) -> None:
     )
     @click.option(
         "--format",
-        "-fmt",
+        "-f",
         type=click.Choice(["table", "json"]),
         default="table",
         show_default=True,
@@ -1176,7 +1175,6 @@ def register_function_commands(cli: Any) -> None:
     )
     @click.option(
         "--format",
-        "-fmt",
         type=click.Choice(["table", "json"]),
         default="table",
         show_default=True,

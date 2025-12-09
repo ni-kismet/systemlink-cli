@@ -797,6 +797,7 @@ def register_notebook_commands(cli: Any) -> None:
 
     @notebook_manage.command(name="delete")
     @click.option("--id", "-i", "notebook_id", required=True, help="Notebook ID to delete")
+    @click.confirmation_option(prompt="Are you sure you want to delete this notebook?")
     def delete_notebook(notebook_id: str = "") -> None:
         """Delete a notebook by ID."""
         try:
