@@ -618,7 +618,10 @@ def register_user_commands(cli: click.Group) -> None:
         help="Type of account: 'user' for human users, 'service' for API/automation accounts",
     )
     @click.option("--first-name", help="User's first name (or service account name)")
-    @click.option("--last-name", help="User's last name (required for all account types)")
+    @click.option(
+        "--last-name",
+        help="User's last name (defaults to 'ServiceAccount' for service accounts)",
+    )
     @click.option("--email", help="User's email address (not valid for service accounts)")
     @click.option("--niua-id", help="User's NIUA ID (not valid for service accounts)")
     @click.option("--login", help="User's login name (not valid for service accounts)")
@@ -656,8 +659,8 @@ def register_user_commands(cli: click.Group) -> None:
             Required fields (first name, last name, email) will be prompted for.
 
         For service accounts (--type service):
-            First name and last name are required. Email, phone, niuaId, and login
-            are not valid for service accounts.
+            First name is required. Last name defaults to "ServiceAccount" if not provided.
+            Email, phone, niuaId, and login are not valid for service accounts.
         """
         # If user_type wasn't specified via CLI, prompt for it first
         if user_type is None:
@@ -850,6 +853,8 @@ def register_user_commands(cli: click.Group) -> None:
                 invalid_fields.append("--phone")
             if niua_id:
                 invalid_fields.append("--niua-id")
+            if accepted_tos:
+                invalid_fields.append("--accepted-tos")
 
             if invalid_fields:
                 click.echo(

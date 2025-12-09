@@ -115,12 +115,86 @@ filtered_resp: Any = FilteredResponse({"workspaces": filtered_list})
 - Base URL from `get_base_url()` in `utils.py`
 - OpenAPI specs at `https://dev-api.lifecyclesolutions.ni.com/ni*/swagger/`
 
-## New CLI Command Checklist
+## New CLI Command Requirements & Checklist
 
-1. Create `slcli/{feature}_click.py` with `register_{feature}_commands(cli)`
-2. Add registration call in `main.py`
-3. Support `--format/-f` and `--take/-t` for list commands
-4. Use `UniversalResponseHandler` for responses
-5. Use `handle_api_error()` for all exceptions
-6. Create `tests/unit/test_{feature}_click.py`
-7. Update `README.md` with usage examples
+1. **Create Command Module**:  
+   - Create `slcli/{feature}_click.py` with `register_{feature}_commands(cli: Any) -> None` function.  
+   - All command functions must have complete type annotations (parameters and return types).  
+   - Use inline `@click.option` decorators directly on command functions (avoid decorator abstractions).  
+   - Command groups use `@cli.group()` pattern with typed function signatures.
+
+2. **Register Command**:  
+   - Add registration call in `main.py` to include the new command group.
+
+3. **List Command Requirements**:  
+   - Support `--format/-f` option with `table` (default) and `json` formats.  
+   - Support `--take/-t` option with default of 25 items.  
+   - For table output, use `table_utils.output_formatted_list()` and implement interactive pagination (25 items per page, Y/n prompt for more).  
+   - For JSON output, display all results at once (no pagination).  
+   - Handle empty results gracefully: `[]` for JSON, descriptive message for table format.
+
+4. **Response Handling**:  
+   - Use `UniversalResponseHandler` for consistent response processing across all commands.  
+   - Use `handle_api_error(exc)` for standardized API error handling with appropriate exit codes.  
+   - Use `format_success(message, data)` for consistent success message formatting.  
+   - Always exit with appropriate codes using `sys.exit(ExitCodes.*)` rather than raising ClickException.
+
+5. **Type Annotation Patterns**:  
+   - All functions and classes must include comprehensive type hints using the `typing` module (`Any`, `Dict`, `List`, `Optional`, `Tuple`).  
+   - For mock responses in tests, use type annotation pattern: `resp: Any = MockResponse()` for Pylance compatibility.  
+   - FilteredResponse and MockResponse classes must implement:  
+     ```python
+     def json(self) -> Dict[str, Any]: ...
+     @property
+     def status_code(self) -> int: ...
+     ```
+
+6. **Testing Requirements**:  
+   - Create or update unit tests in `tests/unit/test_{feature}_click.py`.  
+   - All new and modified code must include or update unit tests.  
+   - For quick feedback, run:  
+     - `poetry run pytest tests/unit -q` (all unit tests)  
+     - `poetry run pytest tests/unit/test_{feature}_click.py -q` (single test file)  
+     - `poetry run pytest tests/unit/test_{feature}_click.py::test_case -q` (single test function)  
+   - Always finish by running the full suite: `poetry run pytest`.
+
+7. **Linting & Type Checking**:  
+   - Run linting and mypy after every change and before committing or opening a PR:  
+     - `poetry run ni-python-styleguide lint`  
+     - `poetry run mypy slcli tests`  
+   - Run `poetry run black .` to auto-format code to the configured line length (100).
+
+8. **Pull Request Requirements**:  
+   - All code must pass CI (lint, test, build) before merging.  
+   - All new features must be documented in `README.md`.  
+   - All code must be reviewed by at least one other developer.  
+   - All new CLI commands must include JSON output support via `--format/-f` option.  
+   - All error handling must use standardized exit codes and consistent formatting.  
+   - Every pull request must include a passing lint and mypy run (for example: `poetry run ni-python-styleguide lint` and `poetry run mypy slcli tests`) and include any necessary fixes; CI will enforce these checks.
+
+9. **Copilot-Specific Instructions**:  
+   - After making any code change, always:  
+     1. Run linting and auto-formatting.  
+     2. Run static type checks with mypy (`poetry run mypy slcli tests`) for quick type validation.  
+     3. Run unit tests only first for quick validation (`poetry run pytest tests/unit`).  
+     4. Run the full test suite (`poetry run pytest`).  
+     5. Report any failures or issues to the user.  
+   - If you add a new CLI command, ensure it:  
+     - Is covered by a unit test in `tests/unit/`  
+     - Supports `--format/-f` option with `table` and `json` formats  
+     - Supports `--take/-t` option with default of 25 items for list commands  
+     - Uses consistent error handling with appropriate exit codes  
+     - Follows the success/error message formatting standards  
+     - Uses `UniversalResponseHandler` for response processing with `enable_pagination=True`  
+     - Uses `table_utils.output_formatted_list()` for table output  
+     - Implements interactive pagination for table results (Y/n prompts for next 25 results)  
+   - If you update the CLI interface, update the `README.md` accordingly.  
+   - Never commit or suggest committing files listed in `.gitignore`.  
+   - When implementing list commands, ensure JSON output shows all results (no pagination).  
+   - Use `handle_api_error()` for all API error handling instead of generic Click exceptions.  
+   - Use `format_success()` for all success messages to maintain consistency.  
+   - For type compatibility with Pylance, use `: Any = MockResponse()` pattern for mock responses.
+
+10. **Documentation**:  
+    - Update `README.md` with usage examples for all new or modified CLI commands.  
+    - Document any discrepancies between OpenAPI spec and actual service behavior in code comments.

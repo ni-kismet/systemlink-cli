@@ -1357,3 +1357,46 @@ class TestServiceAccounts:
         assert result.exit_code == 0
         assert "✓ Service account updated" in result.output
         assert call_count[0] == 1  # PUT was called
+
+    def test_update_service_account_rejects_accepted_tos(
+        self, runner: CliRunner, monkeypatch: Any
+    ) -> None:
+        """Test that updating a service account rejects accepted-tos field."""
+        patch_keyring(monkeypatch)
+
+        mock_service_account = {
+            "id": "svc1",
+            "type": "service",
+            "firstName": "CI Bot",
+            "status": "active",
+        }
+
+        def mock_get(*a: Any, **kw: Any) -> Any:
+            class R:
+                status_code = 200
+
+                def raise_for_status(self) -> None:
+                    pass
+
+                def json(self) -> Any:
+                    return mock_service_account
+
+            return R()
+
+        monkeypatch.setattr("requests.get", mock_get)
+
+        cli = make_cli()
+        result = runner.invoke(
+            cli,
+            [
+                "user",
+                "update",
+                "--id",
+                "svc1",
+                "--accepted-tos",
+                "true",
+            ],
+        )
+
+        assert result.exit_code == 2  # INVALID_INPUT
+        assert "Service accounts cannot be updated with: --accepted-tos" in result.output
