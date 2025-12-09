@@ -671,6 +671,8 @@ class TestUserCreate:
             [
                 "user",
                 "create",
+                "--type",
+                "user",
                 "--first-name",
                 "John",
                 "--last-name",
@@ -701,6 +703,8 @@ class TestUserCreate:
             [
                 "user",
                 "create",
+                "--type",
+                "user",
                 "--first-name",
                 "John",
                 "--last-name",
@@ -725,6 +729,8 @@ class TestUserCreate:
             [
                 "user",
                 "create",
+                "--type",
+                "user",
                 "--first-name",
                 "John",
                 "--last-name",
@@ -751,14 +757,15 @@ class TestUserCreate:
         mock_requests(monkeypatch, "post", mock_user)
 
         cli = make_cli()
-        # Simulate user input for the prompts
+        # Simulate user input for the prompts (including account type)
         result = runner.invoke(
             cli,
             ["user", "create"],
-            input="John\nDoe\njohn.doe@example.com\n",
+            input="user\nJohn\nDoe\njohn.doe@example.com\n",
         )
 
         assert result.exit_code == 0
+        assert "Account type" in result.output
         assert "User's first name:" in result.output
         assert "User's last name:" in result.output
         assert "User's email address:" in result.output
@@ -777,10 +784,10 @@ class TestUserCreate:
         mock_requests(monkeypatch, "post", mock_user)
 
         cli = make_cli()
-        # Provide first name but prompt for last name and email
+        # Provide type and first name but prompt for last name and email
         result = runner.invoke(
             cli,
-            ["user", "create", "--first-name", "John"],
+            ["user", "create", "--type", "user", "--first-name", "John"],
             input="Doe\njohn.doe@example.com\n",
         )
 
@@ -798,7 +805,7 @@ class TestUserCreate:
         result = runner.invoke(
             cli,
             ["user", "create"],
-            input="John\nDoe\ninvalid-email\n",
+            input="user\nJohn\nDoe\ninvalid-email\n",
         )
 
         assert result.exit_code == 2  # INVALID_INPUT
@@ -844,6 +851,8 @@ class TestUserCreate:
             [
                 "user",
                 "create",
+                "--type",
+                "user",
                 "--first-name",
                 "John",
                 "--last-name",
@@ -896,6 +905,8 @@ class TestUserCreate:
             [
                 "user",
                 "create",
+                "--type",
+                "user",
                 "--first-name",
                 "John",
                 "--last-name",
@@ -944,6 +955,8 @@ class TestUserCreate:
             [
                 "user",
                 "create",
+                "--type",
+                "user",
                 "--first-name",
                 "John",
                 "--last-name",
@@ -1034,3 +1047,356 @@ class TestUserDelete:
 
         assert result.exit_code == 1  # Cancelled by user
         assert "Aborted!" in result.output
+
+
+class TestServiceAccounts:
+    """Test service account support in user commands."""
+
+    def test_create_service_account_success(self, runner: CliRunner, monkeypatch: Any) -> None:
+        """Test creating a service account successfully (lastName defaults to ServiceAccount)."""
+        patch_keyring(monkeypatch)
+
+        mock_service_account = {
+            "id": "svc1",
+            "type": "service",
+            "firstName": "CI Bot",
+            "lastName": "ServiceAccount",
+            "status": "active",
+        }
+
+        captured_payload: dict[str, Any] = {}
+
+        def mock_post(*a: Any, **kw: Any) -> Any:
+            captured_payload.update(kw.get("json", {}))
+
+            class R:
+                status_code = 200
+
+                def raise_for_status(self) -> None:
+                    pass
+
+                def json(self) -> Any:
+                    return mock_service_account
+
+            return R()
+
+        monkeypatch.setattr("requests.post", mock_post)
+
+        cli = make_cli()
+        result = runner.invoke(
+            cli,
+            [
+                "user",
+                "create",
+                "--type",
+                "service",
+                "--first-name",
+                "CI Bot",
+            ],
+        )
+
+        assert result.exit_code == 0
+        assert "✓ Service account created" in result.output
+        assert "CI Bot" in result.output
+        # Verify lastName was defaulted to ServiceAccount
+        assert captured_payload.get("lastName") == "ServiceAccount"
+
+    def test_create_service_account_rejects_email(
+        self, runner: CliRunner, monkeypatch: Any
+    ) -> None:
+        """Test that service accounts reject email field."""
+        patch_keyring(monkeypatch)
+
+        cli = make_cli()
+        result = runner.invoke(
+            cli,
+            [
+                "user",
+                "create",
+                "--type",
+                "service",
+                "--first-name",
+                "CI Bot",
+                "--email",
+                "bot@example.com",
+            ],
+        )
+
+        assert result.exit_code == 2  # INVALID_INPUT
+        assert "Service accounts cannot have: --email" in result.output
+
+    def test_create_service_account_rejects_multiple_invalid_fields(
+        self, runner: CliRunner, monkeypatch: Any
+    ) -> None:
+        """Test that service accounts reject multiple invalid fields."""
+        patch_keyring(monkeypatch)
+
+        cli = make_cli()
+        result = runner.invoke(
+            cli,
+            [
+                "user",
+                "create",
+                "--type",
+                "service",
+                "--first-name",
+                "CI Bot",
+                "--email",
+                "bot@example.com",
+                "--phone",
+                "555-1234",
+            ],
+        )
+
+        assert result.exit_code == 2
+        assert "--email" in result.output
+        assert "--phone" in result.output
+
+    def test_list_users_with_type_filter_service(self, runner: CliRunner, monkeypatch: Any) -> None:
+        """Test listing users filtered by service type."""
+        patch_keyring(monkeypatch)
+
+        mock_users: dict[str, Any] = {
+            "users": [
+                {
+                    "id": "svc1",
+                    "type": "service",
+                    "firstName": "CI Bot",
+                    "lastName": "",
+                    "email": "",
+                    "status": "active",
+                }
+            ]
+        }
+        mock_requests(monkeypatch, "post", mock_users)
+
+        cli = make_cli()
+        result = runner.invoke(cli, ["user", "list", "--type", "service"])
+
+        assert result.exit_code == 0
+        assert "CI Bot" in result.output
+        assert "Service" in result.output
+
+    def test_list_users_shows_type_column(self, runner: CliRunner, monkeypatch: Any) -> None:
+        """Test that list users shows the Type column."""
+        patch_keyring(monkeypatch)
+
+        mock_users: dict[str, Any] = {
+            "users": [
+                {
+                    "id": "user1",
+                    "type": "user",
+                    "firstName": "John",
+                    "lastName": "Doe",
+                    "email": "john@example.com",
+                    "status": "active",
+                },
+                {
+                    "id": "svc1",
+                    "type": "service",
+                    "firstName": "CI Bot",
+                    "lastName": "",
+                    "email": "",
+                    "status": "active",
+                },
+            ]
+        }
+        mock_requests(monkeypatch, "post", mock_users)
+
+        cli = make_cli()
+        result = runner.invoke(cli, ["user", "list"])
+
+        assert result.exit_code == 0
+        assert "Type" in result.output  # Type column header
+        assert "User" in result.output  # User type
+        assert "Service" in result.output  # Service type
+
+    def test_get_service_account_shows_type(self, runner: CliRunner, monkeypatch: Any) -> None:
+        """Test that get command shows type for service accounts."""
+        patch_keyring(monkeypatch)
+
+        mock_service_account = {
+            "id": "svc1",
+            "type": "service",
+            "firstName": "CI Bot",
+            "lastName": "",
+            "status": "active",
+            "orgId": "org1",
+        }
+
+        def mock_get(*a: Any, **kw: Any) -> Any:
+            class R:
+                status_code = 200
+
+                def raise_for_status(self) -> None:
+                    pass
+
+                def json(self) -> Any:
+                    return mock_service_account
+
+            return R()
+
+        monkeypatch.setattr("requests.get", mock_get)
+
+        cli = make_cli()
+        result = runner.invoke(cli, ["user", "get", "--id", "svc1"])
+
+        assert result.exit_code == 0
+        assert "Service Account Details:" in result.output
+        assert "Type: Service Account" in result.output
+        # Should not show email, phone, login for service accounts
+        assert "Email:" not in result.output
+
+    def test_update_service_account_rejects_email(
+        self, runner: CliRunner, monkeypatch: Any
+    ) -> None:
+        """Test that updating a service account rejects email field."""
+        patch_keyring(monkeypatch)
+
+        mock_service_account = {
+            "id": "svc1",
+            "type": "service",
+            "firstName": "CI Bot",
+            "status": "active",
+        }
+
+        def mock_get(*a: Any, **kw: Any) -> Any:
+            class R:
+                status_code = 200
+
+                def raise_for_status(self) -> None:
+                    pass
+
+                def json(self) -> Any:
+                    return mock_service_account
+
+            return R()
+
+        monkeypatch.setattr("requests.get", mock_get)
+
+        cli = make_cli()
+        result = runner.invoke(
+            cli,
+            [
+                "user",
+                "update",
+                "--id",
+                "svc1",
+                "--email",
+                "bot@example.com",
+            ],
+        )
+
+        assert result.exit_code == 2  # INVALID_INPUT
+        assert "Service accounts cannot be updated with: --email" in result.output
+
+    def test_update_service_account_allows_first_name(
+        self, runner: CliRunner, monkeypatch: Any
+    ) -> None:
+        """Test that updating a service account allows first-name."""
+        patch_keyring(monkeypatch)
+
+        mock_service_account = {
+            "id": "svc1",
+            "type": "service",
+            "firstName": "CI Bot",
+            "status": "active",
+        }
+
+        updated_service_account = {
+            "id": "svc1",
+            "type": "service",
+            "firstName": "Deploy Bot",
+            "status": "active",
+        }
+
+        call_count = [0]
+
+        def mock_get(*a: Any, **kw: Any) -> Any:
+            class R:
+                status_code = 200
+
+                def raise_for_status(self) -> None:
+                    pass
+
+                def json(self) -> Any:
+                    return mock_service_account
+
+            return R()
+
+        def mock_put(*a: Any, **kw: Any) -> Any:
+            call_count[0] += 1
+
+            class R:
+                status_code = 200
+
+                def raise_for_status(self) -> None:
+                    pass
+
+                def json(self) -> Any:
+                    return updated_service_account
+
+            return R()
+
+        monkeypatch.setattr("requests.get", mock_get)
+        monkeypatch.setattr("requests.put", mock_put)
+
+        cli = make_cli()
+        result = runner.invoke(
+            cli,
+            [
+                "user",
+                "update",
+                "--id",
+                "svc1",
+                "--first-name",
+                "Deploy Bot",
+            ],
+        )
+
+        assert result.exit_code == 0
+        assert "✓ Service account updated" in result.output
+        assert call_count[0] == 1  # PUT was called
+
+    def test_update_service_account_rejects_accepted_tos(
+        self, runner: CliRunner, monkeypatch: Any
+    ) -> None:
+        """Test that updating a service account rejects accepted-tos field."""
+        patch_keyring(monkeypatch)
+
+        mock_service_account = {
+            "id": "svc1",
+            "type": "service",
+            "firstName": "CI Bot",
+            "status": "active",
+        }
+
+        def mock_get(*a: Any, **kw: Any) -> Any:
+            class R:
+                status_code = 200
+
+                def raise_for_status(self) -> None:
+                    pass
+
+                def json(self) -> Any:
+                    return mock_service_account
+
+            return R()
+
+        monkeypatch.setattr("requests.get", mock_get)
+
+        cli = make_cli()
+        result = runner.invoke(
+            cli,
+            [
+                "user",
+                "update",
+                "--id",
+                "svc1",
+                "--accepted-tos",
+                "true",
+            ],
+        )
+
+        assert result.exit_code == 2  # INVALID_INPUT
+        assert "Service accounts cannot be updated with: --accepted-tos" in result.output

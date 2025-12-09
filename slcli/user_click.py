@@ -331,7 +331,15 @@ def register_user_commands(cli: click.Group) -> None:
     )
     @click.option(
         "--filter",
-        help="Filter users by search string",
+        help="Search text to filter users by first name, last name, or email",
+    )
+    @click.option(
+        "--type",
+        "user_type",
+        type=click.Choice(["all", "user", "service"]),
+        default="all",
+        show_default=True,
+        help="Filter by account type",
     )
     def list_users(
         workspace: Optional[str] = None,
@@ -341,27 +349,53 @@ def register_user_commands(cli: click.Group) -> None:
         sortby: str = "firstName",
         order: str = "asc",
         filter: Optional[str] = None,
+        user_type: str = "all",
     ) -> None:
         """List users with optional filtering and sorting."""
         format_output = validate_output_format(format)
 
         try:
+            # Build search filter from user's filter text
+            # Convert simple search text to Dynamic LINQ query across name/email fields
+            search_filter = None
+            if filter:
+                # Escape quotes in the search text
+                escaped_filter = filter.replace('"', '\\"')
+                # Build a LINQ query that searches firstName, lastName, and email
+                search_filter = (
+                    f'firstName.Contains("{escaped_filter}") or '
+                    f'lastName.Contains("{escaped_filter}") or '
+                    f'email.Contains("{escaped_filter}")'
+                )
+
+            # Build type filter if specified
+            type_filter = None
+            if user_type != "all":
+                type_filter = f'type = "{user_type}"'
+
             # For JSON format, we can respect the take parameter and use server-side pagination
             # For table format, we fetch all users and do client-side pagination for better UX
             if format_output.lower() == "json":
                 # Use server-side pagination for JSON output
                 url = f"{get_base_url()}/niuser/v1/users/query"
 
-                # Build the filter - combine user filter with active status filter if needed
-                combined_filter = filter
+                # Build the filter - combine search filter with active status filter if needed
+                combined_filter = search_filter
                 if not include_disabled:
                     # Add active status filter to the query using correct Dynamic LINQ syntax
                     # Note: User API uses 'status' field with values 'pending' or 'active'
                     active_filter = 'status = "active"'
-                    if filter:
-                        combined_filter = f"({filter}) and {active_filter}"
+                    if combined_filter:
+                        combined_filter = f"({combined_filter}) and {active_filter}"
                     else:
                         combined_filter = active_filter
+
+                # Add type filter
+                if type_filter:
+                    if combined_filter:
+                        combined_filter = f"({combined_filter}) and {type_filter}"
+                    else:
+                        combined_filter = type_filter
 
                 payload = {
                     "take": take,
@@ -380,8 +414,18 @@ def register_user_commands(cli: click.Group) -> None:
                 return
             else:
                 # For table format, fetch all users for proper client-side pagination
+                # Combine filters for table output
+                combined_filter_for_table = search_filter
+                if type_filter:
+                    if combined_filter_for_table:
+                        combined_filter_for_table = (
+                            f"({combined_filter_for_table}) and {type_filter}"
+                        )
+                    else:
+                        combined_filter_for_table = type_filter
+
                 all_users = _query_all_users(
-                    filter_str=filter,
+                    filter_str=combined_filter_for_table,
                     sortby=sortby,
                     order=order,
                     include_disabled=include_disabled,
@@ -389,10 +433,14 @@ def register_user_commands(cli: click.Group) -> None:
 
                 def user_formatter(user: dict) -> list:
                     status = "Active" if user.get("active", True) else "Inactive"
+                    acct_type = user.get("type", "user")
+                    type_display = "Service" if acct_type == "service" else "User"
                     return [
+                        user.get("id", ""),
                         user.get("firstName", ""),
                         user.get("lastName", ""),
-                        user.get("email", ""),
+                        user.get("email", "") or "-",
+                        type_display,
                         status,
                     ]
 
@@ -402,8 +450,8 @@ def register_user_commands(cli: click.Group) -> None:
                     page_size=take,
                     format_output=format_output,
                     formatter_func=user_formatter,
-                    headers=["First Name", "Last Name", "Email", "Status"],
-                    column_widths=[30, 30, 38, 12],
+                    headers=["ID", "First Name", "Last Name", "Email", "Type", "Status"],
+                    column_widths=[36, 15, 15, 25, 10, 10],
                     empty_message="No users found.",
                     total_label="user(s)",
                 )
@@ -511,15 +559,20 @@ def register_user_commands(cli: click.Group) -> None:
                 return
 
             # Table format
-            click.echo("User Details:")
+            user_type = user.get("type", "user")
+            type_display = "Service Account" if user_type == "service" else "User"
+            click.echo(f"{type_display} Details:")
             click.echo("=" * 50)
             click.echo(f"ID: {user.get('id', 'N/A')}")
+            click.echo(f"Type: {type_display}")
             click.echo(f"First Name: {user.get('firstName', 'N/A')}")
             click.echo(f"Last Name: {user.get('lastName', 'N/A')}")
-            click.echo(f"Email: {user.get('email', 'N/A')}")
-            click.echo(f"Phone: {user.get('phone', 'N/A')}")
-            click.echo(f"Login: {user.get('login', 'N/A')}")
-            click.echo(f"NIUA ID: {user.get('niuaId', 'N/A')}")
+            # Only show user-specific fields for non-service accounts
+            if user_type != "service":
+                click.echo(f"Email: {user.get('email', 'N/A')}")
+                click.echo(f"Phone: {user.get('phone', 'N/A')}")
+                click.echo(f"Login: {user.get('login', 'N/A')}")
+                click.echo(f"NIUA ID: {user.get('niuaId', 'N/A')}")
             click.echo(f"Status: {user.get('status', 'N/A')}")
             click.echo(f"Organization ID: {user.get('orgId', 'N/A')}")
             click.echo(f"Created: {user.get('created', 'N/A')}")
@@ -558,10 +611,21 @@ def register_user_commands(cli: click.Group) -> None:
             handle_api_error(exc)
 
     @user.command(name="create")
-    @click.option("--first-name", help="User's first name")
-    @click.option("--last-name", help="User's last name")
-    @click.option("--email", help="User's email address")
-    @click.option("--niua-id", help="User's NIUA ID")
+    @click.option(
+        "--type",
+        "user_type",
+        type=click.Choice(["user", "service"]),
+        help="Type of account: 'user' for human users, 'service' for API/automation accounts",
+    )
+    @click.option("--first-name", help="User's first name (or service account name)")
+    @click.option(
+        "--last-name",
+        help="User's last name (defaults to 'ServiceAccount' for service accounts)",
+    )
+    @click.option("--email", help="User's email address (not valid for service accounts)")
+    @click.option("--niua-id", help="User's NIUA ID (not valid for service accounts)")
+    @click.option("--login", help="User's login name (not valid for service accounts)")
+    @click.option("--phone", help="User's phone number (not valid for service accounts)")
     @click.option("--accepted-tos", is_flag=True, help="Whether user has accepted terms of service")
     @click.option(
         "--policies",
@@ -576,50 +640,106 @@ def register_user_commands(cli: click.Group) -> None:
         help="JSON string of key-value properties to associate with the user",
     )
     def create_user(
+        user_type: Optional[str] = None,
         first_name: Optional[str] = None,
         last_name: Optional[str] = None,
         email: Optional[str] = None,
         niua_id: Optional[str] = None,
+        login: Optional[str] = None,
+        phone: Optional[str] = None,
         accepted_tos: bool = False,
         policies: Optional[str] = None,
         keywords: Optional[str] = None,
         properties: Optional[str] = None,
     ) -> None:
-        """Create a new user.
+        """Create a new user or service account.
 
-        If niuaId is not provided, it will default to the email address.
-        Required fields (first name, last name, email) will be prompted for if not provided.
+        For regular users (--type user):
+            If niuaId is not provided, it will default to the email address.
+            Required fields (first name, last name, email) will be prompted for.
+
+        For service accounts (--type service):
+            First name is required. Last name defaults to "ServiceAccount" if not provided.
+            Email, phone, niuaId, and login are not valid for service accounts.
         """
+        # If user_type wasn't specified via CLI, prompt for it first
+        if user_type is None:
+            user_type = click.prompt(
+                "Account type",
+                type=click.Choice(["user", "service"]),
+                default="user",
+                show_choices=True,
+            )
+
+        is_service_account = user_type == "service"
+
+        # Validate that service accounts don't have invalid fields
+        if is_service_account:
+            invalid_fields = []
+            if email:
+                invalid_fields.append("--email")
+            if niua_id:
+                invalid_fields.append("--niua-id")
+            if login:
+                invalid_fields.append("--login")
+            if phone:
+                invalid_fields.append("--phone")
+
+            if invalid_fields:
+                click.echo(
+                    f"✗ Service accounts cannot have: {', '.join(invalid_fields)}",
+                    err=True,
+                )
+                sys.exit(ExitCodes.INVALID_INPUT)
+
         # Prompt for required fields if not provided
         if not first_name:
-            first_name = click.prompt("User's first name", type=str)
+            prompt_text = "Service account name" if is_service_account else "User's first name"
+            first_name = click.prompt(prompt_text, type=str)
 
+        # lastName is required for all account types
+        # For service accounts, default to "ServiceAccount" if not provided
         if not last_name:
-            last_name = click.prompt("User's last name", type=str)
+            if is_service_account:
+                last_name = "ServiceAccount"
+            else:
+                last_name = click.prompt("User's last name", type=str)
 
-        if not email:
-            email = click.prompt("User's email address", type=str)
+        if not is_service_account:
+            # Regular user also requires email
+            if not email:
+                email = click.prompt("User's email address", type=str)
 
-        # Validate email format (basic validation)
-        email_pattern = r"^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$"
-        if email and not re.match(email_pattern, email):
-            click.echo("✗ Invalid email format.", err=True)
-            sys.exit(ExitCodes.INVALID_INPUT)
+            # Validate email format (basic validation)
+            email_pattern = r"^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$"
+            if email and not re.match(email_pattern, email):
+                click.echo("✗ Invalid email format.", err=True)
+                sys.exit(ExitCodes.INVALID_INPUT)
 
-        # If niua_id is not provided, default it to the email
-        if not niua_id:
-            niua_id = email
+            # If niua_id is not provided, default it to the email
+            if not niua_id:
+                niua_id = email
 
         url = f"{get_base_url()}/niuser/v1/users"
 
         # Build user payload
-        payload = {
+        payload: Dict[str, Any] = {
+            "type": user_type,
             "firstName": first_name,
-            "lastName": last_name,
-            "email": email,
-            "niuaId": niua_id,
-            "acceptedToS": accepted_tos,
         }
+
+        # lastName is required for all account types
+        payload["lastName"] = last_name
+
+        # Add additional fields for regular users
+        if not is_service_account:
+            payload["email"] = email
+            payload["niuaId"] = niua_id
+            payload["acceptedToS"] = accepted_tos
+            if login:
+                payload["login"] = login
+            if phone:
+                payload["phone"] = phone
 
         if policies:
             payload["policies"] = [p.strip() for p in policies.split(",")]
@@ -637,7 +757,15 @@ def register_user_commands(cli: click.Group) -> None:
         try:
             resp = make_api_request("POST", url, payload=payload)
             user = resp.json()
-            format_success("User created", {"ID": user.get("id"), "Email": user.get("email")})
+            user_id = user.get("id")
+
+            if is_service_account:
+                format_success(
+                    "Service account created",
+                    {"ID": user_id, "Name": user.get("firstName")},
+                )
+            else:
+                format_success("User created", {"ID": user_id, "Email": user.get("email")})
 
         except Exception as exc:
             # Try to parse API error response for better error messages
@@ -666,9 +794,12 @@ def register_user_commands(cli: click.Group) -> None:
 
     @user.command(name="update")
     @click.option("--id", "-i", "user_id", required=True, help="User ID to update")
-    @click.option("--first-name", help="User's first name")
+    @click.option("--first-name", help="User's first name (or service account name)")
     @click.option("--last-name", help="User's last name")
-    @click.option("--email", help="User's email address")
+    @click.option("--email", help="User's email address (not valid for service accounts)")
+    @click.option("--login", help="User's login name (not valid for service accounts)")
+    @click.option("--phone", help="User's phone number (not valid for service accounts)")
+    @click.option("--niua-id", help="User's NIUA ID (not valid for service accounts)")
     @click.option(
         "--accepted-tos",
         type=click.Choice(["true", "false"]),
@@ -691,12 +822,47 @@ def register_user_commands(cli: click.Group) -> None:
         first_name: Optional[str] = None,
         last_name: Optional[str] = None,
         email: Optional[str] = None,
+        login: Optional[str] = None,
+        phone: Optional[str] = None,
+        niua_id: Optional[str] = None,
         accepted_tos: Optional[str] = None,
         policies: Optional[str] = None,
         keywords: Optional[str] = None,
         properties: Optional[str] = None,
     ) -> None:
-        """Update an existing user."""
+        """Update an existing user or service account."""
+        # First, fetch the user to check if it's a service account
+        get_url = f"{get_base_url()}/niuser/v1/users/{user_id}"
+        try:
+            get_resp = make_api_request("GET", get_url, payload=None, handle_errors=False)
+            existing_user = get_resp.json()
+            is_service_account = existing_user.get("type") == "service"
+        except Exception:
+            # If we can't fetch the user, proceed without validation
+            # The API will reject invalid fields anyway
+            is_service_account = False
+
+        # Validate that service accounts don't get invalid field updates
+        if is_service_account:
+            invalid_fields = []
+            if email:
+                invalid_fields.append("--email")
+            if login:
+                invalid_fields.append("--login")
+            if phone:
+                invalid_fields.append("--phone")
+            if niua_id:
+                invalid_fields.append("--niua-id")
+            if accepted_tos:
+                invalid_fields.append("--accepted-tos")
+
+            if invalid_fields:
+                click.echo(
+                    f"✗ Service accounts cannot be updated with: {', '.join(invalid_fields)}",
+                    err=True,
+                )
+                sys.exit(ExitCodes.INVALID_INPUT)
+
         url = f"{get_base_url()}/niuser/v1/users/{user_id}"
 
         # Build update payload (only include provided fields)
@@ -710,6 +876,15 @@ def register_user_commands(cli: click.Group) -> None:
 
         if email:
             payload["email"] = email
+
+        if login:
+            payload["login"] = login
+
+        if phone:
+            payload["phone"] = phone
+
+        if niua_id:
+            payload["niuaId"] = niua_id
 
         if accepted_tos:
             payload["acceptedToS"] = accepted_tos.lower() == "true"
@@ -734,7 +909,13 @@ def register_user_commands(cli: click.Group) -> None:
         try:
             resp = make_api_request("PUT", url, payload=payload)
             user = resp.json()
-            format_success("User updated", {"ID": user.get("id"), "Email": user.get("email")})
+            if is_service_account:
+                format_success(
+                    "Service account updated",
+                    {"ID": user.get("id"), "Name": user.get("firstName")},
+                )
+            else:
+                format_success("User updated", {"ID": user.get("id"), "Email": user.get("email")})
 
         except Exception as exc:
             handle_api_error(exc)
