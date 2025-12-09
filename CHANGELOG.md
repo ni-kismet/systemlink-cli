@@ -1,12 +1,46 @@
 # CHANGELOG
 
 
+## v0.13.0 (2025-12-09)
+
+### Features
+
+- **user**: Add service account support
+  ([`3c9602e`](https://github.com/ni-kismet/systemlink-cli/commit/3c9602e1362df176fcda9c6a9bae948ac733d738))
+
+Add support for service accounts (type: service) to user management commands.
+
+## Changes
+
+### user create - Add --type option (user/service) with interactive prompt - Add --login and --phone
+  options for regular users - Service accounts default lastName to 'ServiceAccount' - Validate that
+  service accounts cannot have email/phone/niuaId/login
+
+### user list - Add --type filter (all/user/service) to filter by account type - Add ID column to
+  table output - Add Type column showing 'User' or 'Service' - Update --filter to search across
+  firstName, lastName, and email
+
+### user get - Show 'Service Account Details:' header for service accounts - Display account type in
+  output
+
+### user update - Validate that service accounts cannot be updated with email/phone/niuaId/login -
+  Add --login, --phone, --niua-id options
+
+## Testing - Add TestServiceAccounts class with 8 new tests - Update existing tests to include
+  --type option - All 133 unit tests pass
+
+
 ## v0.12.2 (2025-10-06)
 
 ### Bug Fixes
 
 - Add name filter to DFF list command
   ([`98bf939`](https://github.com/ni-kismet/systemlink-cli/commit/98bf939cd110a05c5acbb8784df4fdb3b413d97c))
+
+### Chores
+
+- **release**: 0.12.2
+  ([`4149479`](https://github.com/ni-kismet/systemlink-cli/commit/4149479fabe1b8580807776483cd11ac3a24b040))
 
 
 ## v0.12.1 (2025-09-23)
