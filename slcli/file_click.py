@@ -641,11 +641,7 @@ def register_file_commands(cli: Any) -> None:
             # Build update payload - API requires replaceExisting and properties
             update_props: Dict[str, str] = {}
 
-            # If renaming, set the Name property
-            if name:
-                update_props["Name"] = name
-
-            # Handle properties
+            # Handle properties first, then name (so --name takes precedence)
             if properties:
                 try:
                     props_input = json.loads(properties)
@@ -653,6 +649,9 @@ def register_file_commands(cli: Any) -> None:
                 except json.JSONDecodeError as e:
                     click.echo(f"✗ Invalid JSON for properties: {e}", err=True)
                     sys.exit(ExitCodes.INVALID_INPUT)
+                # If renaming, set the Name property after properties (takes precedence)
+                if name:
+                    update_props["Name"] = name
             elif add_property:
                 # Start with existing properties and add/update
                 update_props = current_props.copy()
@@ -811,6 +810,14 @@ def register_file_commands(cli: Any) -> None:
                 # Handle post-upload action
                 if move_to:
                     dest_path = Path(move_to) / file_name
+                    # Handle duplicate filenames by adding a unique suffix
+                    if dest_path.exists():
+                        stem = dest_path.stem
+                        suffix = dest_path.suffix
+                        counter = 1
+                        while dest_path.exists():
+                            dest_path = Path(move_to) / f"{stem}_{counter}{suffix}"
+                            counter += 1
                     shutil.move(str(file_path), str(dest_path))
                     click.echo(f"  → Moved to: {dest_path}")
                 elif delete_after_upload:

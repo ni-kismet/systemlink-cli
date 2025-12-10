@@ -26,6 +26,7 @@ def temp_test_file() -> Generator[Path, None, None]:
     try:
         temp_path.unlink()
     except FileNotFoundError:
+        # File may have already been deleted; ignore error during cleanup.
         pass
 
 
@@ -170,6 +171,7 @@ class TestFileE2E:
                 try:
                     cli_runner(["file", "delete", file_id, "--force"], check=False)
                 except Exception:
+                    # Ignore errors during test cleanup; file may already be deleted.
                     pass
 
     def test_file_upload_with_properties(
@@ -221,6 +223,7 @@ class TestFileE2E:
                 try:
                     cli_runner(["file", "delete", file_id, "--force"], check=False)
                 except Exception:
+                    # Ignore errors during test cleanup; file may already be deleted.
                     pass
 
     def test_file_query(self, cli_runner: Any, cli_helper: Any, temp_test_file: Path) -> None:
@@ -274,6 +277,7 @@ class TestFileE2E:
                 try:
                     cli_runner(["file", "delete", file_id, "--force"], check=False)
                 except Exception:
+                    # Ignore errors during test cleanup; file may already be deleted.
                     pass
 
     def test_file_update_metadata(
@@ -333,6 +337,7 @@ class TestFileE2E:
                 try:
                     cli_runner(["file", "delete", file_id, "--force"], check=False)
                 except Exception:
+                    # Ignore errors during test cleanup; file may already be deleted.
                     pass
 
     def test_file_error_handling(self, cli_runner: Any, cli_helper: Any) -> None:
@@ -389,6 +394,7 @@ class TestFileE2E:
                 try:
                     cli_runner(["file", "delete", file_id, "--force"], check=False)
                 except Exception:
+                    # Ignore errors during test cleanup; file may already be deleted.
                     pass
 
     def test_file_download_force_overwrite(
@@ -432,4 +438,5 @@ class TestFileE2E:
                 try:
                     cli_runner(["file", "delete", file_id, "--force"], check=False)
                 except Exception:
+                    # Ignore errors during test cleanup; file may already be deleted.
                     pass

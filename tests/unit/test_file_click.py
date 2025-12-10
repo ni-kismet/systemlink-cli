@@ -384,6 +384,15 @@ def test_upload_file_invalid_properties_json(monkeypatch: Any, runner: CliRunner
         assert "Invalid JSON" in result.output
 
 
+def test_upload_file_nonexistent(runner: CliRunner) -> None:
+    """Test uploading a file that doesn't exist."""
+    cli = make_cli()
+
+    result = runner.invoke(cli, ["file", "upload", "/nonexistent/path/to/file.txt"])
+    assert result.exit_code != 0
+    assert "does not exist" in result.output.lower() or "no such file" in result.output.lower()
+
+
 # --- Test file download command ---
 
 
@@ -751,6 +760,49 @@ def test_update_metadata_add_property(monkeypatch: Any, runner: CliRunner) -> No
     )
     assert result.exit_code == 0
     assert "updated" in result.output.lower()
+
+
+def test_update_metadata_name_and_properties(monkeypatch: Any, runner: CliRunner) -> None:
+    """Test update-metadata with both --name and --properties to verify name takes precedence."""
+    patch_keyring(monkeypatch)
+
+    captured_payloads: list = []
+    post_count = [0]
+
+    def mock_post(*a: Any, **kw: Any) -> Any:
+        post_count[0] += 1
+        if "json" in kw:
+            captured_payloads.append(kw["json"])
+        # First POST is query-files-linq, second is update-metadata
+        if post_count[0] == 1:
+            return MockResponse(
+                {"availableFiles": [{"id": "file123", "properties": {"Name": "old.txt"}}]}
+            )
+        return MockResponse({})
+
+    monkeypatch.setattr("requests.post", mock_post)
+    cli = make_cli()
+
+    # Pass --properties with a Name that should be overwritten by --name
+    result = runner.invoke(
+        cli,
+        [
+            "file",
+            "update-metadata",
+            "file123",
+            "--name",
+            "cli-name.txt",
+            "--properties",
+            '{"Name": "json-name.txt", "author": "test"}',
+        ],
+    )
+    assert result.exit_code == 0
+    assert "updated" in result.output.lower()
+    # Verify the --name flag takes precedence over Name in --properties
+    assert len(captured_payloads) >= 2
+    update_payload = captured_payloads[-1]
+    assert update_payload["properties"]["Name"] == "cli-name.txt"
+    assert update_payload["properties"]["author"] == "test"
 
 
 def test_update_metadata_no_updates(monkeypatch: Any, runner: CliRunner) -> None:

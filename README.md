@@ -1391,6 +1391,9 @@ slcli file list
 # Filter by workspace
 slcli file list --workspace <workspace_id>
 
+# Search for files by name
+slcli file list --filter test
+
 # Limit results
 slcli file list --take 10
 
@@ -1447,17 +1450,20 @@ slcli file delete <file_id>
 slcli file delete <file_id> --force
 ```
 
-### Query files with LINQ
+### Query files with filters
 
 ```bash
-# Query files using LINQ expressions
-slcli file query --filter 'name.Contains("test")'
+# Query files by name (wildcard match)
+slcli file query --filter 'name:("*test*")'
 
 # Query with ordering
-slcli file query --order-by "created descending"
+slcli file query --order-by created --descending
 
 # Query within a workspace
-slcli file query --workspace <workspace_id> --filter 'size > 1000'
+slcli file query --workspace <workspace_id> --filter 'extension:("csv")'
+
+# Combine filters
+slcli file query --filter 'name:("*report*") AND extension:("pdf")'
 ```
 
 ### Update file metadata
