@@ -13,6 +13,13 @@ from .completion_click import register_completion_command
 from .dff_click import register_dff_commands
 from .function_click import register_function_commands
 from .notebook_click import register_notebook_commands
+from .platform import (
+    PLATFORM_SLE,
+    PLATFORM_SLS,
+    PLATFORM_UNKNOWN,
+    detect_platform,
+    get_platform_info,
+)
 from .ssl_trust import OS_TRUST_INJECTED, OS_TRUST_REASON
 from .templates_click import register_templates_commands
 from .user_click import register_user_commands
@@ -145,6 +152,19 @@ def login(url: Optional[str], api_key: Optional[str], web_url: Optional[str]) ->
 
     # Attempt to store a combined JSON config in keyring by default
     combined: dict = {"api_url": url, "api_key": api_key.strip(), "web_url": web_url}
+
+    # Detect platform type
+    click.echo("Detecting platform type...")
+    platform = detect_platform(url, api_key.strip())
+    combined["platform"] = platform
+
+    if platform == PLATFORM_SLE:
+        click.echo("  Platform: SystemLink Enterprise (Cloud)")
+    elif platform == PLATFORM_SLS:
+        click.echo("  Platform: SystemLink Server (On-Premises)")
+    else:
+        click.echo("  Platform: Unknown (will attempt all features)")
+
     try:
         keyring.set_password("systemlink-cli", "SYSTEMLINK_CONFIG", json.dumps(combined))
         click.echo("API key, URL and web UI URL stored securely (combined entry).")
@@ -169,6 +189,63 @@ def logout() -> None:
     except Exception:
         pass
     click.echo("API key and URL removed from system keyring.")
+
+
+@cli.command()
+@click.option("--format", "-f", type=click.Choice(["table", "json"]), default="table")
+def info(format: str) -> None:
+    """Show current configuration and platform information."""
+    platform_info = get_platform_info()
+
+    if format == "json":
+        click.echo(json.dumps(platform_info, indent=2))
+        return
+
+    # Table format
+    click.echo("\n┌─────────────────────────────────────────────────────────────┐")
+    click.echo("│                   SystemLink CLI Info                       │")
+    click.echo("├─────────────────────────────────────────────────────────────┤")
+
+    # Connection status
+    status = "✓ Connected" if platform_info["logged_in"] else "✗ Not logged in"
+    click.echo(f"│  Status:    {status:<48}│")
+
+    # Platform
+    platform_display = platform_info.get("platform_display", "Unknown")
+    click.echo(f"│  Platform:  {platform_display:<48}│")
+
+    # API URL (truncate if too long)
+    api_url = platform_info.get("api_url", "Not configured")
+    if len(api_url) > 45:
+        api_url = api_url[:42] + "..."
+    click.echo(f"│  API URL:   {api_url:<48}│")
+
+    # Web URL (truncate if too long)
+    web_url = platform_info.get("web_url", "Not configured")
+    if len(web_url) > 45:
+        web_url = web_url[:42] + "..."
+    click.echo(f"│  Web URL:   {web_url:<48}│")
+
+    click.echo("├─────────────────────────────────────────────────────────────┤")
+    click.echo("│                      Feature Availability                   │")
+    click.echo("├─────────────────────────────────────────────────────────────┤")
+
+    features = platform_info.get("features", {})
+    if features:
+        for feature_name, available in features.items():
+            status_icon = "✓" if available else "✗"
+            status_text = "Available" if available else "Not available"
+            # Truncate feature name if needed
+            if len(feature_name) > 25:
+                feature_name = feature_name[:22] + "..."
+            click.echo(f"│  {status_icon} {feature_name:<26} {status_text:<20}│")
+    else:
+        if platform_info["platform"] == PLATFORM_UNKNOWN:
+            click.echo("│  Run 'slcli login' to detect platform features.            │")
+        else:
+            click.echo("│  No feature information available.                          │")
+
+    click.echo("└─────────────────────────────────────────────────────────────┘\n")
 
 
 register_completion_command(cli)

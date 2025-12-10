@@ -13,6 +13,7 @@ import requests
 
 from . import workflow_preview
 from .cli_utils import validate_output_format
+from .platform import require_feature
 from .universal_handlers import UniversalResponseHandler, FilteredResponse
 from .utils import (
     display_api_errors,
@@ -86,9 +87,13 @@ def register_workflows_commands(cli: Any) -> None:
     """Register the 'workflow' command group and its subcommands."""
 
     @cli.group()
-    def workflow() -> None:
+    @click.pass_context
+    def workflow(ctx: click.Context) -> None:
         """Manage workflows."""
-        pass
+        # Check for platform feature availability
+        # Only check if a subcommand is being invoked (not just --help)
+        if ctx.invoked_subcommand is not None:
+            require_feature("workflows")
 
     @workflow.command(name="init")
     @click.option(

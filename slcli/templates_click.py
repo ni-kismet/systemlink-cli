@@ -8,6 +8,7 @@ from typing import Any, Dict, List, Optional
 import click
 
 from .cli_utils import validate_output_format
+from .platform import require_feature
 from .universal_handlers import UniversalResponseHandler, FilteredResponse
 from .utils import (
     ExitCodes,
@@ -74,9 +75,13 @@ def register_templates_commands(cli: Any) -> None:
     """Register the 'template' command group and its subcommands."""
 
     @cli.group()
-    def template() -> None:
+    @click.pass_context
+    def template(ctx: click.Context) -> None:
         """Manage test plan templates."""
-        pass
+        # Check for platform feature availability
+        # Only check if a subcommand is being invoked (not just --help)
+        if ctx.invoked_subcommand is not None:
+            require_feature("templates")
 
     @template.command(name="init")
     @click.option(
