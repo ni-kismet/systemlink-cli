@@ -5,6 +5,7 @@ SystemLink CLI (`slcli`) is a cross-platform Python CLI for SystemLink integrato
 ## Features
 
 - **Secure Authentication**: Credential storage using [keyring](https://github.com/jaraco/keyring) with `login`/`logout` commands
+- **File Management**: Full file lifecycle management (list, upload, download, delete, query) with folder watch feature for automated uploads
 - **Function Management**: Complete WebAssembly (WASM) function definition and execution management with metadata-driven organization
 - **Test Plan Templates**: Complete management (list, export, import, delete, init) with JSON and table output formats
 - **Jupyter Notebooks**: Full lifecycle management (list, download, create, update, delete) with workspace filtering
@@ -1376,6 +1377,140 @@ The web editor:
 - Allows you to create, edit, and save DFF JSON configurations locally
 
 **Note**: The web editor creates a self-contained directory with all necessary HTML, CSS, and JavaScript files. This directory can be moved or shared independently.
+
+## File Management
+
+SystemLink CLI provides comprehensive file management capabilities for the SystemLink File Service.
+
+### List files
+
+```bash
+# List all files
+slcli file list
+
+# Filter by workspace
+slcli file list --workspace <workspace_id>
+
+# Search for files by name
+slcli file list --filter test
+
+# Limit results
+slcli file list --take 10
+
+# JSON output
+slcli file list --format json
+```
+
+### Get file metadata
+
+```bash
+# Get details for a specific file
+slcli file get <file_id>
+
+# JSON output
+slcli file get <file_id> --format json
+```
+
+### Upload files
+
+```bash
+# Upload a file
+slcli file upload /path/to/myfile.txt
+
+# Upload to a specific workspace
+slcli file upload /path/to/myfile.txt --workspace <workspace_id>
+
+# Upload with a custom name
+slcli file upload /path/to/myfile.txt --name "custom-name.txt"
+
+# Upload with metadata properties
+slcli file upload /path/to/myfile.txt --properties '{"author": "test", "version": "1.0"}'
+```
+
+### Download files
+
+```bash
+# Download a file (uses original filename)
+slcli file download <file_id>
+
+# Download to a specific location
+slcli file download <file_id> --output /path/to/save/file.txt
+
+# Force overwrite existing file
+slcli file download <file_id> --force
+```
+
+### Delete files
+
+```bash
+# Delete a file (with confirmation)
+slcli file delete <file_id>
+
+# Delete without confirmation
+slcli file delete <file_id> --force
+```
+
+### Query files with filters
+
+```bash
+# Query files by name (wildcard match)
+slcli file query --filter 'name:("*test*")'
+
+# Query with ordering
+slcli file query --order-by created --descending
+
+# Query within a workspace
+slcli file query --workspace <workspace_id> --filter 'extension:("csv")'
+
+# Combine filters
+slcli file query --filter 'name:("*report*") AND extension:("pdf")'
+```
+
+### Update file metadata
+
+```bash
+# Rename a file
+slcli file update-metadata <file_id> --name "new-name.txt"
+
+# Add/update a property
+slcli file update-metadata <file_id> --add-property "author=John Doe"
+
+# Set multiple properties (replaces existing)
+slcli file update-metadata <file_id> --properties '{"key1": "value1", "key2": "value2"}'
+```
+
+### Watch folder for automatic uploads
+
+The `watch` command monitors a directory and automatically uploads new or modified files:
+
+```bash
+# Watch a folder and upload new files
+slcli file watch /path/to/watch
+
+# Watch and upload to a specific workspace
+slcli file watch /path/to/watch --workspace <workspace_id>
+
+# Watch and move files after upload
+slcli file watch /path/to/watch --move-to /path/to/uploaded
+
+# Watch and delete files after upload
+slcli file watch /path/to/watch --delete-after-upload
+
+# Watch only specific file patterns
+slcli file watch /path/to/watch --pattern "*.csv"
+
+# Watch subdirectories recursively
+slcli file watch /path/to/watch --recursive
+
+# Adjust debounce time (wait before uploading)
+slcli file watch /path/to/watch --debounce 2.0
+```
+
+**Note**: The `watch` command requires the `watchdog` package. Install it with:
+
+```bash
+pip install watchdog
+```
 
 ## Workspace Management
 

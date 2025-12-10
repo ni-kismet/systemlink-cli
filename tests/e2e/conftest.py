@@ -255,3 +255,4 @@ def pytest_configure(config: Any) -> None:
     config.addinivalue_line("markers", "dff: mark test as dynamic form fields related")
     config.addinivalue_line("markers", "workspace: mark test as workspace-related")
     config.addinivalue_line("markers", "user: mark test as user management related")
+    config.addinivalue_line("markers", "file: mark test as file service related")
