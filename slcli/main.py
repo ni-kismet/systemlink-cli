@@ -11,6 +11,7 @@ import tomllib
 
 from .completion_click import register_completion_command
 from .dff_click import register_dff_commands
+from .file_click import register_file_commands
 from .function_click import register_function_commands
 from .notebook_click import register_notebook_commands
 from .ssl_trust import OS_TRUST_INJECTED, OS_TRUST_REASON
@@ -173,6 +174,7 @@ def logout() -> None:
 
 register_completion_command(cli)
 register_dff_commands(cli)
+register_file_commands(cli)
 register_function_commands(cli)
 register_templates_commands(cli)
 register_notebook_commands(cli)

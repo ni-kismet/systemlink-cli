@@ -76,7 +76,13 @@ class UniversalResponseHandler:
 
         try:
             data = resp.json()
-            items = data.get(data_key, []) if isinstance(data, dict) else []
+            # Support both dict with data_key and direct array responses
+            if isinstance(data, list):
+                items = data
+            elif isinstance(data, dict):
+                items = data.get(data_key, [])
+            else:
+                items = []
 
             if not empty_message:
                 empty_message = f"No {item_name}s found."
