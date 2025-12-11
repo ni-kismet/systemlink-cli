@@ -67,8 +67,10 @@ def _get_keyring_config() -> Dict[str, Any]:
         parsed = json.loads(cfg_text)
         if isinstance(parsed, dict):
             return parsed
-    except Exception:
-        # Intentionally ignore all exceptions: missing or invalid keyring config is not fatal
+    except Exception:  # noqa: BLE001
+        # Intentionally catch all exceptions: keyring access can fail for many reasons
+        # (missing backend, corrupted data, permission issues, JSON decode errors).
+        # None of these should prevent CLI operation - we just return empty config.
         pass
     return {}
 
@@ -178,26 +180,36 @@ def get_platform() -> str:
     """Get the current platform from stored configuration or environment.
 
     Detection priority:
-    1. If SYSTEMLINK_API_URL environment variable is set, detect from URL pattern
-    2. Use stored platform from keyring config (set during login)
-    3. Return PLATFORM_UNKNOWN if neither is available
+    1. SYSTEMLINK_PLATFORM environment variable (explicit, most reliable)
+    2. Stored platform from keyring config (set during login via endpoint probing)
+    3. URL pattern matching (fallback, less reliable)
+    4. Return PLATFORM_UNKNOWN if all methods fail
 
     Returns:
         Platform identifier (PLATFORM_SLE, PLATFORM_SLS, or PLATFORM_UNKNOWN)
     """
     import os
 
-    # If environment variable is set, detect platform from URL dynamically
+    # Priority 1: Explicit platform environment variable (most reliable)
+    # This allows users/tests to explicitly specify the platform
+    env_platform = os.environ.get("SYSTEMLINK_PLATFORM", "").upper()
+    if env_platform in (PLATFORM_SLE, PLATFORM_SLS):
+        return env_platform
+
+    # Priority 2: Stored platform from keyring config (set during login)
+    # This was detected via endpoint probing, which is reliable
+    cfg = _get_keyring_config()
+    if cfg:
+        platform = cfg.get("platform", "")
+        if platform in (PLATFORM_SLE, PLATFORM_SLS):
+            return platform
+
+    # Priority 3: URL pattern matching (fallback, less reliable)
+    # Only used when env vars are set but no explicit platform is provided
     env_url = os.environ.get("SYSTEMLINK_API_URL")
     if env_url:
         return _detect_platform_from_url(env_url)
 
-    # Fall back to stored config
-    cfg = _get_keyring_config()
-    if cfg:
-        platform = cfg.get("platform", PLATFORM_UNKNOWN)
-        if platform in (PLATFORM_SLE, PLATFORM_SLS):
-            return platform
     return PLATFORM_UNKNOWN
 
 

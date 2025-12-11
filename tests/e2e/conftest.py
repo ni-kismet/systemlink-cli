@@ -152,6 +152,9 @@ def _make_cli_runner(config: Dict[str, Any], timeout: int = 30) -> Any:
             env["SYSTEMLINK_API_URL"] = config["base_url"]
         if config.get("api_key"):
             env["SYSTEMLINK_API_KEY"] = config["api_key"]
+        # Use explicit platform if specified in config (most reliable method)
+        if config.get("platform"):
+            env["SYSTEMLINK_PLATFORM"] = config["platform"]
 
         result = subprocess.run(
             cmd,

@@ -20,10 +20,10 @@ class TestInfoCommand:
             "platform": "SLE",
         }
 
-        def mock_get_password(service: str, key: str) -> str:
+        def mock_get_password(service: str, key: str) -> Optional[str]:
             if key == "SYSTEMLINK_CONFIG":
                 return json.dumps(config)
-            return ""
+            return None
 
         monkeypatch.setattr("slcli.platform.keyring.get_password", mock_get_password)
 
@@ -46,10 +46,10 @@ class TestInfoCommand:
             "platform": "SLS",
         }
 
-        def mock_get_password(service: str, key: str) -> str:
+        def mock_get_password(service: str, key: str) -> Optional[str]:
             if key == "SYSTEMLINK_CONFIG":
                 return json.dumps(config)
-            return ""
+            return None
 
         monkeypatch.setattr("slcli.platform.keyring.get_password", mock_get_password)
 
@@ -72,10 +72,10 @@ class TestInfoCommand:
             "platform": "SLE",
         }
 
-        def mock_get_password(service: str, key: str) -> str:
+        def mock_get_password(service: str, key: str) -> Optional[str]:
             if key == "SYSTEMLINK_CONFIG":
                 return json.dumps(config)
-            return ""
+            return None
 
         monkeypatch.setattr("slcli.platform.keyring.get_password", mock_get_password)
 
@@ -97,10 +97,10 @@ class TestInfoCommand:
             "platform": "SLS",
         }
 
-        def mock_get_password(service: str, key: str) -> str:
+        def mock_get_password(service: str, key: str) -> Optional[str]:
             if key == "SYSTEMLINK_CONFIG":
                 return json.dumps(config)
-            return ""
+            return None
 
         monkeypatch.setattr("slcli.platform.keyring.get_password", mock_get_password)
 
