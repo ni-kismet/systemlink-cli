@@ -68,6 +68,7 @@ def _get_keyring_config() -> Dict[str, Any]:
         if isinstance(parsed, dict):
             return parsed
     except Exception:
+        # Intentionally ignore all exceptions: missing or invalid keyring config is not fatal
         pass
     return {}
 

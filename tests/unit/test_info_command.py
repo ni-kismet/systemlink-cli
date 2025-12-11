@@ -1,7 +1,7 @@
 """Unit tests for slcli info command."""
 
 import json
-from typing import Any
+from typing import Any, Optional
 
 from click.testing import CliRunner
 
@@ -116,7 +116,7 @@ class TestInfoCommand:
     def test_info_command_not_logged_in(self, monkeypatch: Any) -> None:
         """Test info command when not logged in."""
 
-        def mock_get_password(service: str, key: str) -> None:
+        def mock_get_password(service: str, key: str) -> Optional[str]:
             return None
 
         monkeypatch.setattr("slcli.platform.keyring.get_password", mock_get_password)

@@ -501,15 +501,21 @@ def make_api_request(
     payload: Optional[Dict[str, Any]] = None,
     headers: Optional[Dict[str, str]] = None,
     handle_errors: bool = True,
+    files: Optional[Dict[str, Any]] = None,
+    data: Optional[Dict[str, Any]] = None,
+    stream: bool = False,
 ) -> requests.Response:
     """Make API request with consistent error handling and configuration.
 
     Args:
         method: HTTP method (GET, POST, etc.)
         url: API endpoint URL
-        payload: Request payload for POST/PUT requests
+        payload: Request payload for POST/PUT requests (JSON body)
         headers: Additional headers (will be merged with default headers)
         handle_errors: Whether to handle errors with consistent formatting
+        files: Files to upload (for multipart form data)
+        data: Form data (for multipart requests, used with files)
+        stream: Whether to stream the response (for large file downloads)
 
     Returns:
         Response object
@@ -523,12 +529,22 @@ def make_api_request(
         if headers:
             default_headers.update(headers)
 
+        # For multipart file uploads, remove Content-Type to let requests set it
+        if files:
+            default_headers.pop("Content-Type", None)
+
         ssl_verify = get_ssl_verify()
 
         if method.upper() == "GET":
-            resp = requests.get(url, headers=default_headers, verify=ssl_verify)
+            resp = requests.get(url, headers=default_headers, verify=ssl_verify, stream=stream)
         elif method.upper() == "POST":
-            resp = requests.post(url, headers=default_headers, json=payload, verify=ssl_verify)
+            if files:
+                # Multipart file upload
+                resp = requests.post(
+                    url, headers=default_headers, files=files, data=data, verify=ssl_verify
+                )
+            else:
+                resp = requests.post(url, headers=default_headers, json=payload, verify=ssl_verify)
         elif method.upper() == "PUT":
             resp = requests.put(url, headers=default_headers, json=payload, verify=ssl_verify)
         elif method.upper() == "DELETE":

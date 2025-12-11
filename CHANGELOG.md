@@ -1,7 +1,76 @@
 # CHANGELOG
 
 
+## v0.14.0 (2025-12-10)
+
+### Bug Fixes
+
+- Address PR review feedback
+  ([`bbc50ec`](https://github.com/ni-kismet/systemlink-cli/commit/bbc50ec483cb2c1a160b6a6835cd271f63fadaa5))
+
+- Fix --name/--properties priority: --name flag now takes precedence - Add test for --name +
+  --properties combination - Update watchdog version constraint to ^6.0.0 - Fix README query filter
+  syntax to use search-files format - Fix README --order-by example to use separate flags - Add
+  --filter example to file list documentation - Add test for upload nonexistent file error handling
+  - Handle duplicate filenames in move-to directory - Add comments to empty except clauses in E2E
+  tests
+
+### Chores
+
+- **deps**: Bump urllib3 from 2.5.0 to 2.6.0
+  ([`e055ea3`](https://github.com/ni-kismet/systemlink-cli/commit/e055ea329f5f2e8cbb266752bae35cdeb57ace71))
+
+Bumps [urllib3](https://github.com/urllib3/urllib3) from 2.5.0 to 2.6.0. - [Release
+  notes](https://github.com/urllib3/urllib3/releases) -
+  [Changelog](https://github.com/urllib3/urllib3/blob/main/CHANGES.rst) -
+  [Commits](https://github.com/urllib3/urllib3/compare/2.5.0...2.6.0)
+
+--- updated-dependencies: - dependency-name: urllib3 dependency-version: 2.6.0 dependency-type:
+  indirect ...
+
+Signed-off-by: dependabot[bot] <support@github.com>
+
+### Features
+
+- Add file management commands
+  ([`9e9f6b4`](https://github.com/ni-kismet/systemlink-cli/commit/9e9f6b474a22af26c8744d13015b9801eab36efd))
+
+Add comprehensive file management CLI commands for SystemLink File Service:
+
+Commands: - file list: List files with filtering by workspace, name, extension - file get: Get
+  detailed metadata for a single file - file upload: Upload files with optional workspace and
+  properties - file download: Download files with force overwrite option - file delete: Delete files
+  with confirmation prompt - file query: Query files with search expressions - file update-metadata:
+  Update file name and properties - file watch: Watch folder and auto-upload new files (requires
+  watchdog)
+
+Features: - Uses performant /search-files endpoint instead of /query-files-linq - Supports workspace
+  filtering by name or ID (resolves names to IDs) - Full UUID display in table output (36 chars) -
+  Dot file filtering in watch command (ignores .DS_Store etc) - Debounce support in watch command to
+  handle file write completion - Move-to or delete-after-upload options in watch command
+
+Tests: - 31 unit tests covering all file commands - 12 E2E tests against dev tier
+
+Dependencies: - watchdog ~=6.0.0 (optional, for watch command)
+
+### Refactoring
+
+- Align CLI commands with best practices
+  ([`db257af`](https://github.com/ni-kismet/systemlink-cli/commit/db257af570fce54c38280e295a63286d0f80a3b4))
+
+- Add confirmation prompts to delete commands (notebook, templates, workflows, webapp) - Replace
+  raise click.ClickException with sys.exit(ExitCodes.*) for proper exit codes - Hide function
+  command from top-level help (still accessible) - Fix -fmt/-f conflict in function execute commands
+  (remove -f from format to avoid conflict with --function-id) - Add ExitCodes import to
+  workflows_click.py - Update tests to handle confirmation prompts and correct exit codes
+
+
 ## v0.13.0 (2025-12-09)
+
+### Chores
+
+- **release**: 0.13.0
+  ([`e162785`](https://github.com/ni-kismet/systemlink-cli/commit/e162785d6763d7bfbe2e8fb857ac6fce55aba195))
 
 ### Features
 

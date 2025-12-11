@@ -1219,7 +1219,6 @@ def register_notebook_commands(cli: Any) -> None:
         # The API expects an array of CreateExecution objects.
         payload: List[Dict[str, Any]] = [create_execution]
         url = f"{base}/executions"
-        is_sls = get_platform() == PLATFORM_SLS
         try:
             # make_api_request expects a dict payload; executions endpoint needs an array.
             # Use direct requests.post until helper is generalized for list payloads.
