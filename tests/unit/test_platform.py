@@ -56,16 +56,30 @@ class TestDetectPlatform:
             assert result == PLATFORM_SLS
 
     def test_detect_platform_sle_url_pattern_systemlink_io(self) -> None:
-        """Test that SLE is detected from systemlink.io URL pattern."""
+        """Test that SLE is detected from api.systemlink.io URL pattern."""
         import requests as req_module
 
         with patch("slcli.platform.requests.post") as mock_post:
             # Simulate connection error to fall through to URL pattern matching
             mock_post.side_effect = req_module.RequestException("Connection failed")
 
-            result = detect_platform("https://demo.systemlink.io", "test-key")
+            # api.systemlink.io is the SLE production URL
+            result = detect_platform("https://api.systemlink.io", "test-key")
 
             assert result == PLATFORM_SLE
+
+    def test_detect_platform_sls_for_on_prem_systemlink_io_subdomain(self) -> None:
+        """Test that SLS is detected for on-prem servers using systemlink.io subdomains."""
+        import requests as req_module
+
+        with patch("slcli.platform.requests.post") as mock_post:
+            # Simulate connection error to fall through to URL pattern matching
+            mock_post.side_effect = req_module.RequestException("Connection failed")
+
+            # On-prem servers may use custom *.systemlink.io subdomains
+            result = detect_platform("https://base.systemlink.io", "test-key")
+
+            assert result == PLATFORM_SLS
 
     def test_detect_platform_sle_url_pattern_lifecyclesolutions(self) -> None:
         """Test that SLE is detected from lifecyclesolutions URL pattern."""

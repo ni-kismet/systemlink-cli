@@ -119,27 +119,80 @@ def detect_platform(api_url: str, api_key: str) -> str:
         pass
 
     # Strategy 2: URL pattern matching
+    # SLE cloud service has specific URL patterns
     api_url_lower = api_url.lower()
     sle_patterns = [
-        ".systemlink.io",
-        ".lifecyclesolutions.ni.com",
-        "demo-api.lifecyclesolutions",
+        "api.systemlink.io",  # SLE production
+        "-api.lifecyclesolutions.ni.com",  # SLE dev/demo with -api suffix
         "dev-api.lifecyclesolutions",
+        "demo-api.lifecyclesolutions",
     ]
     for pattern in sle_patterns:
         if pattern in api_url_lower:
             return PLATFORM_SLE
 
     # Strategy 3: Default to SLS for on-premises deployments
+    # This includes on-prem servers that may use *.systemlink.io subdomains
+    return PLATFORM_SLS
+
+
+def _detect_platform_from_url(api_url: str) -> str:
+    """Detect platform from URL pattern without making network requests.
+
+    This is a lightweight detection for use when environment variables
+    are set and we need quick platform detection.
+
+    SLE (SystemLink Enterprise Cloud) URLs typically contain:
+    - api.systemlink.io (production)
+    - dev-api.lifecyclesolutions.ni.com (development)
+    - demo-api.lifecyclesolutions.ni.com (demo)
+
+    On-premises SystemLink Server (SLS) instances may use custom domains
+    or even *.systemlink.io subdomains (like base.systemlink.io).
+
+    Args:
+        api_url: The SystemLink API base URL
+
+    Returns:
+        Platform identifier (PLATFORM_SLE or PLATFORM_SLS)
+    """
+    api_url_lower = api_url.lower()
+
+    # SLE cloud service has specific URL patterns
+    sle_patterns = [
+        "api.systemlink.io",  # SLE production
+        "-api.lifecyclesolutions.ni.com",  # SLE dev/demo with -api suffix
+        "dev-api.lifecyclesolutions",
+        "demo-api.lifecyclesolutions",
+    ]
+    for pattern in sle_patterns:
+        if pattern in api_url_lower:
+            return PLATFORM_SLE
+
+    # Default to SLS for on-premises/custom URLs
+    # This includes on-prem servers that may use *.systemlink.io subdomains
     return PLATFORM_SLS
 
 
 def get_platform() -> str:
-    """Get the current platform from stored configuration.
+    """Get the current platform from stored configuration or environment.
+
+    Detection priority:
+    1. If SYSTEMLINK_API_URL environment variable is set, detect from URL pattern
+    2. Use stored platform from keyring config (set during login)
+    3. Return PLATFORM_UNKNOWN if neither is available
 
     Returns:
         Platform identifier (PLATFORM_SLE, PLATFORM_SLS, or PLATFORM_UNKNOWN)
     """
+    import os
+
+    # If environment variable is set, detect platform from URL dynamically
+    env_url = os.environ.get("SYSTEMLINK_API_URL")
+    if env_url:
+        return _detect_platform_from_url(env_url)
+
+    # Fall back to stored config
     cfg = _get_keyring_config()
     if cfg:
         platform = cfg.get("platform", PLATFORM_UNKNOWN)

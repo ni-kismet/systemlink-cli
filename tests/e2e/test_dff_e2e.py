@@ -33,10 +33,10 @@ class TestDFFE2E:
         )
 
     def test_dff_config_list_with_workspace_filter(
-        self, cli_runner: Any, cli_helper: Any, e2e_config: Any
+        self, cli_runner: Any, cli_helper: Any, configured_workspace: str
     ) -> None:
         """Test DFF config list with workspace filtering."""
-        workspace = e2e_config["workspace"]
+        workspace = configured_workspace
         result = cli_runner(["dff", "config", "list", "--workspace", workspace, "--format", "json"])
         cli_helper.assert_success(result)
 

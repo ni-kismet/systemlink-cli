@@ -22,10 +22,10 @@ class TestNotebookE2E:
         assert isinstance(notebooks, list)
 
     def test_notebook_list_with_workspace_filter(
-        self, cli_runner: Any, cli_helper: Any, e2e_config: Any
+        self, cli_runner: Any, cli_helper: Any, configured_workspace: str
     ) -> None:
         """Test notebook list with workspace filtering."""
-        workspace = e2e_config["workspace"]
+        workspace = configured_workspace
         result = cli_runner(
             [
                 "notebook",
@@ -103,8 +103,10 @@ class TestNotebookE2E:
             assert created_notebook, f"Created notebook '{notebook_name}' not found in list"
             assert created_notebook["id"] == notebook_id
 
-            # Delete notebook
-            result = cli_runner(["notebook", "manage", "delete", "--id", notebook_id])
+            # Delete notebook (need to confirm with 'y')
+            result = cli_runner(
+                ["notebook", "manage", "delete", "--id", notebook_id], input_data="y\n"
+            )
             cli_helper.assert_success(result, "Notebook deleted")
 
             # Verify notebook is deleted
@@ -208,7 +210,11 @@ class TestNotebookE2E:
 
             # Cleanup
             Path(download_path).unlink(missing_ok=True)
-            cli_runner(["notebook", "manage", "delete", "--id", notebook_id], check=False)
+            cli_runner(
+                ["notebook", "manage", "delete", "--id", notebook_id],
+                input_data="y\n",
+                check=False,
+            )
 
         finally:
             Path(temp_file).unlink(missing_ok=True)
@@ -287,7 +293,11 @@ class TestNotebookE2E:
             notebooks = cli_helper.get_json_output(result)
             notebook = cli_helper.find_resource_by_name(notebooks, notebook_name)
             if notebook:
-                cli_runner(["notebook", "manage", "delete", "--id", notebook["id"]], check=False)
+                cli_runner(
+                    ["notebook", "manage", "delete", "--id", notebook["id"]],
+                    input_data="y\n",
+                    check=False,
+                )
 
         finally:
             Path(temp_file).unlink(missing_ok=True)
@@ -356,7 +366,11 @@ class TestNotebookE2E:
 
         if notebook_id:
             # Cleanup
-            cli_runner(["notebook", "manage", "delete", "--id", notebook_id], check=False)
+            cli_runner(
+                ["notebook", "manage", "delete", "--id", notebook_id],
+                input_data="y\n",
+                check=False,
+            )
 
 
 @pytest.mark.e2e

@@ -149,7 +149,7 @@ def _make_cli_runner(config: Dict[str, Any], timeout: int = 30) -> Any:
         # Set up environment with platform-specific config
         env = os.environ.copy()
         if config.get("base_url"):
-            env["SYSTEMLINK_BASE_URL"] = config["base_url"]
+            env["SYSTEMLINK_API_URL"] = config["base_url"]
         if config.get("api_key"):
             env["SYSTEMLINK_API_KEY"] = config["api_key"]
 

@@ -39,10 +39,10 @@ class TestUserE2E:
         assert len(users) <= 5
 
     def test_user_list_with_workspace_filter(
-        self, cli_runner: Any, cli_helper: Any, e2e_config: Any
+        self, cli_runner: Any, cli_helper: Any, configured_workspace: str
     ) -> None:
         """Test user list with workspace filtering."""
-        workspace = e2e_config["workspace"]
+        workspace = configured_workspace
         result = cli_runner(["user", "list", "--workspace", workspace, "--format", "json"])
         cli_helper.assert_success(result)
 
