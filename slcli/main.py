@@ -236,9 +236,9 @@ def info(format: str) -> None:
             status_icon = "✓" if available else "✗"
             status_text = "Available" if available else "Not available"
             # Truncate feature name if needed
-            if len(feature_name) > 25:
-                feature_name = feature_name[:22] + "..."
-            click.echo(f"│  {status_icon} {feature_name:<26} {status_text:<20}│")
+            if len(feature_name) > 29:
+                feature_name = feature_name[:26] + "..."
+            click.echo(f"│  {status_icon} {feature_name:<30} {status_text:<26}│")
     else:
         if platform_info["platform"] == PLATFORM_UNKNOWN:
             click.echo("│  Run 'slcli login' to detect platform features.            │")

@@ -11,9 +11,34 @@ from typing import Any, Dict, Generator, List, Optional
 import pytest
 
 
+def _load_config_file() -> Dict[str, Any]:
+    """Load configuration from file if it exists."""
+    config_file = Path("tests/e2e/e2e_config.json")
+    if config_file.exists():
+        with open(config_file) as f:
+            return json.load(f)
+    return {}
+
+
 @pytest.fixture(scope="session")
 def e2e_config() -> Dict[str, Any]:
-    """Load E2E test configuration from environment or config file."""
+    """Load E2E test configuration from environment or config file.
+
+    Supports both legacy flat config and new multi-platform config.
+    """
+    file_config = _load_config_file()
+
+    # Check for new multi-platform config structure
+    if "sle" in file_config or "sls" in file_config:
+        # New format - return the whole config with platform sections
+        return {
+            "sle": file_config.get("sle", {}),
+            "sls": file_config.get("sls", {}),
+            "timeout": file_config.get("timeout", 30),
+            "cleanup": file_config.get("cleanup", True),
+        }
+
+    # Legacy format - convert to new format for compatibility
     config = {
         "base_url": os.getenv("SLCLI_E2E_BASE_URL"),
         "api_key": os.getenv("SLCLI_E2E_API_KEY"),
@@ -23,35 +48,84 @@ def e2e_config() -> Dict[str, Any]:
     }
 
     # Load from config file if environment variables not set
-    config_file = Path("tests/e2e/e2e_config.json")
-    if config_file.exists() and not all([config["base_url"], config["api_key"]]):
-        with open(config_file) as f:
-            file_config = json.load(f)
-            for key, value in file_config.items():
-                if not config.get(key):
-                    config[key] = value
-
-    # Validate required config
-    required_fields = ["base_url", "api_key"]
-    missing_fields = [field for field in required_fields if not config.get(field)]
-    if missing_fields:
-        pytest.skip(f"E2E tests skipped - missing config: {', '.join(missing_fields)}")
+    if not all([config["base_url"], config["api_key"]]):
+        for key, value in file_config.items():
+            if not config.get(key):
+                config[key] = value
 
     return config
 
 
+@pytest.fixture(scope="session")
+def sle_config(e2e_config: Dict[str, Any]) -> Dict[str, Any]:
+    """Get SLE-specific configuration."""
+    if "sle" in e2e_config:
+        return e2e_config["sle"]
+    # Legacy format - check if it's an SLE URL
+    base_url = e2e_config.get("base_url", "")
+    if "lifecyclesolutions.ni.com" in base_url or "systemlink.io" in base_url:
+        return e2e_config
+    return {}
+
+
+@pytest.fixture(scope="session")
+def sls_config(e2e_config: Dict[str, Any]) -> Dict[str, Any]:
+    """Get SLS-specific configuration."""
+    if "sls" in e2e_config:
+        return e2e_config["sls"]
+    # Legacy format - check if it's an SLS URL
+    base_url = e2e_config.get("base_url", "")
+    if "lifecyclesolutions.ni.com" not in base_url and "systemlink.io" not in base_url:
+        return e2e_config
+    return {}
+
+
+@pytest.fixture(scope="session")
+def sle_available(sle_config: Dict[str, Any]) -> bool:
+    """Check if SLE configuration is available for testing."""
+    return bool(sle_config.get("base_url") and sle_config.get("api_key"))
+
+
+@pytest.fixture(scope="session")
+def sls_available(sls_config: Dict[str, Any]) -> bool:
+    """Check if SLS configuration is available for testing."""
+    return bool(sls_config.get("base_url") and sls_config.get("api_key"))
+
+
+@pytest.fixture(scope="session")
+def require_sle(sle_available: bool) -> None:
+    """Skip test if SLE is not configured."""
+    if not sle_available:
+        pytest.skip("SLE configuration not available")
+
+
+@pytest.fixture(scope="session")
+def require_sls(sls_available: bool) -> None:
+    """Skip test if SLS is not configured."""
+    if not sls_available:
+        pytest.skip("SLS configuration not available")
+
+
 @pytest.fixture(scope="session", autouse=True)
 def setup_e2e_environment(e2e_config: Dict[str, Any]) -> Generator[None, None, None]:
-    """Set up environment for E2E tests."""
+    """Set up environment for E2E tests.
+
+    Note: Individual test classes/functions should use sle_cli_runner or sls_cli_runner
+    which configure the environment per-platform.
+    """
     # Store original environment
     original_env = {
         "SYSTEMLINK_BASE_URL": os.environ.get("SYSTEMLINK_BASE_URL"),
         "SYSTEMLINK_API_KEY": os.environ.get("SYSTEMLINK_API_KEY"),
     }
 
-    # Set test environment
-    os.environ["SYSTEMLINK_BASE_URL"] = e2e_config["base_url"]
-    os.environ["SYSTEMLINK_API_KEY"] = e2e_config["api_key"]
+    # For multi-platform config, don't set global env vars
+    # Tests should use platform-specific runners
+    if "sle" not in e2e_config and "sls" not in e2e_config:
+        # Legacy single-platform config
+        if e2e_config.get("base_url") and e2e_config.get("api_key"):
+            os.environ["SYSTEMLINK_BASE_URL"] = e2e_config["base_url"]
+            os.environ["SYSTEMLINK_API_KEY"] = e2e_config["api_key"]
 
     yield
 
@@ -63,22 +137,29 @@ def setup_e2e_environment(e2e_config: Dict[str, Any]) -> Generator[None, None, N
             del os.environ[key]
 
 
-@pytest.fixture
-def cli_runner() -> Any:
-    """CLI runner for executing slcli commands."""
+def _make_cli_runner(config: Dict[str, Any], timeout: int = 30) -> Any:
+    """Create a CLI runner with specific platform configuration."""
 
     def run_command(
         args: List[str], input_data: Optional[str] = None, check: bool = True
     ) -> subprocess.CompletedProcess:
-        """Run slcli command and return result."""
+        """Run slcli command with platform-specific environment."""
         cmd = ["poetry", "run", "slcli"] + args
+
+        # Set up environment with platform-specific config
+        env = os.environ.copy()
+        if config.get("base_url"):
+            env["SYSTEMLINK_BASE_URL"] = config["base_url"]
+        if config.get("api_key"):
+            env["SYSTEMLINK_API_KEY"] = config["api_key"]
 
         result = subprocess.run(
             cmd,
             input=input_data,
             text=True,
             capture_output=True,
-            timeout=30,
+            timeout=timeout,
+            env=env,
         )
 
         if check and result.returncode != 0:
@@ -95,9 +176,56 @@ def cli_runner() -> Any:
 
 
 @pytest.fixture
+def cli_runner() -> Any:
+    """CLI runner for executing slcli commands (uses current environment)."""
+    return _make_cli_runner({})
+
+
+@pytest.fixture
+def sle_cli_runner(sle_config: Dict[str, Any], e2e_config: Dict[str, Any]) -> Any:
+    """CLI runner configured for SystemLink Enterprise."""
+    timeout = e2e_config.get("timeout", 30)
+    return _make_cli_runner(sle_config, timeout)
+
+
+@pytest.fixture
+def sls_cli_runner(sls_config: Dict[str, Any], e2e_config: Dict[str, Any]) -> Any:
+    """CLI runner configured for SystemLink Server."""
+    timeout = e2e_config.get("timeout", 30)
+    return _make_cli_runner(sls_config, timeout)
+
+
+@pytest.fixture
 def configured_workspace(e2e_config: Dict[str, Any]) -> str:
     """Return the configured workspace name for E2E tests."""
-    return e2e_config["workspace"]
+    # Support both new and legacy config formats
+    if "sle" in e2e_config:
+        return e2e_config["sle"].get("workspace", "Default")
+    return e2e_config.get("workspace", "Default")
+
+
+@pytest.fixture
+def sle_workspace(sle_config: Dict[str, Any]) -> str:
+    """Return the SLE workspace name."""
+    return sle_config.get("workspace", "Default")
+
+
+@pytest.fixture
+def sls_workspace(sls_config: Dict[str, Any]) -> str:
+    """Return the SLS workspace name."""
+    return sls_config.get("workspace", "Default")
+
+
+@pytest.fixture
+def sle_test_notebook_id(sle_config: Dict[str, Any]) -> Optional[str]:
+    """Return the SLE test notebook ID."""
+    return sle_config.get("test_notebook_id")
+
+
+@pytest.fixture
+def sls_test_notebook_path(sls_config: Dict[str, Any]) -> Optional[str]:
+    """Return the SLS test notebook path."""
+    return sls_config.get("test_notebook_path")
 
 
 @pytest.fixture
@@ -246,6 +374,18 @@ def cli_helper(cli_runner: Any) -> CLITestHelper:
     return CLITestHelper(cli_runner)
 
 
+@pytest.fixture
+def sle_cli_helper(sle_cli_runner: Any) -> CLITestHelper:
+    """Helper for SLE-specific CLI test operations."""
+    return CLITestHelper(sle_cli_runner)
+
+
+@pytest.fixture
+def sls_cli_helper(sls_cli_runner: Any) -> CLITestHelper:
+    """Helper for SLS-specific CLI test operations."""
+    return CLITestHelper(sls_cli_runner)
+
+
 # Test markers
 def pytest_configure(config: Any) -> None:
     """Configure pytest with custom markers."""
@@ -255,3 +395,5 @@ def pytest_configure(config: Any) -> None:
     config.addinivalue_line("markers", "dff: mark test as dynamic form fields related")
     config.addinivalue_line("markers", "workspace: mark test as workspace-related")
     config.addinivalue_line("markers", "user: mark test as user management related")
+    config.addinivalue_line("markers", "sls: mark test as SystemLink Server specific")
+    config.addinivalue_line("markers", "sle: mark test as SystemLink Enterprise specific")
