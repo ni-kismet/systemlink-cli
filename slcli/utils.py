@@ -307,9 +307,9 @@ def get_base_url() -> str:
     # Second, try the combined keyring config
     cfg = _get_keyring_config()
     if cfg and isinstance(cfg, dict):
-        maybe = cfg.get("api_url")
-        if maybe:
-            return maybe
+        config_url = cfg.get("api_url")
+        if config_url:
+            return config_url
 
     # Third, try legacy keyring entry
     url = keyring.get_password("systemlink-cli", "SYSTEMLINK_API_URL")

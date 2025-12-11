@@ -175,8 +175,11 @@ def test_dff_config_get_success(monkeypatch: Any, runner: CliRunner) -> None:
 
 
 def test_dff_config_init_success(runner: CliRunner, monkeypatch: Any) -> None:
-    """Test initializing a new DFF configuration template."""
-    patch_keyring(monkeypatch)
+    """Test initializing a new DFF configuration template.
+
+    DFF is an SLE-only feature, so we explicitly set platform='SLE'.
+    """
+    patch_keyring(monkeypatch, platform="SLE")
     cli = make_cli()
 
     with tempfile.TemporaryDirectory() as temp_dir:

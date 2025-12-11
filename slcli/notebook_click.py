@@ -122,7 +122,7 @@ def _get_notebook_http(notebook_id: str) -> Dict[str, Any]:
         if is_sls:
             # SLS uses path-based endpoint: /v2/notebooks/{path}
             # The notebook_id is actually a path for SLS
-            # Path must be fully URL-encoded (including /)
+            # Path must be fully URL-encoded (with safe='' to encode all characters including /)
             encoded_path = urllib.parse.quote(notebook_id, safe="")
             url = f"{base_url}/notebooks/{encoded_path}"
         else:
@@ -155,7 +155,7 @@ def _get_notebook_content_http(notebook_id: str) -> bytes:
     try:
         if is_sls:
             # SLS uses path-based endpoint: /v2/notebooks/{path}/data
-            # Path must be fully URL-encoded (including /)
+            # Path must be fully URL-encoded (with safe='' to encode all characters including /)
             encoded_path = urllib.parse.quote(notebook_id, safe="")
             url = f"{base_url}/notebooks/{encoded_path}/data"
         else:
@@ -255,6 +255,81 @@ def _query_notebook_executions(
         if not continuation_token:
             break
     return all_execs
+
+
+def _build_create_execution_payload(
+    notebook_id: str,
+    workspace: str,
+    timeout: int,
+    no_cache: bool,
+    parameters: Optional[str],
+    is_sls: bool,
+) -> Dict[str, Any]:
+    """Build the CreateExecution payload based on platform.
+
+    Args:
+        notebook_id: Notebook ID (SLE) or path (SLS).
+        workspace: Workspace name or ID (SLE only).
+        timeout: Execution timeout in seconds.
+        no_cache: Whether to disable result caching.
+        parameters: Optional JSON parameters string or @filepath.
+        is_sls: Whether the platform is SLS (SystemLink Server).
+
+    Returns:
+        Dictionary with the CreateExecution payload.
+
+    Raises:
+        SystemExit: If parameters JSON is invalid.
+    """
+    if is_sls:
+        # SLS uses notebookPath, no workspaceId
+        create_execution: Dict[str, Any] = {
+            "notebookPath": notebook_id,
+            "timeout": timeout,
+        }
+    else:
+        # SLE uses notebookId and workspaceId
+        ws_id = get_workspace_id_with_fallback(workspace)
+        create_execution = {
+            "workspaceId": ws_id,
+            "timeout": timeout,
+            "notebookId": notebook_id,
+        }
+
+    if no_cache:
+        create_execution["resultCachePeriod"] = 0
+    if parameters:
+        try:
+            if parameters.strip().startswith("@"):
+                p_file = parameters[1:]
+                with open(p_file, "r", encoding="utf-8") as pf:
+                    create_execution["parameters"] = json.load(pf)
+            else:
+                create_execution["parameters"] = json.loads(parameters)
+        except Exception as exc:  # noqa: BLE001
+            click.echo(f"✗ Invalid parameters JSON: {exc}", err=True)
+            sys.exit(ExitCodes.INVALID_INPUT)
+
+    return create_execution
+
+
+def _parse_execution_response(resp_data: Any, is_sls: bool) -> List[Dict[str, Any]]:
+    """Parse the execution response based on platform.
+
+    Args:
+        resp_data: The JSON response data from the API.
+        is_sls: Whether the platform is SLS (SystemLink Server).
+
+    Returns:
+        List of execution dictionaries.
+    """
+    # SLS returns a list directly, SLE returns {"executions": [...]}
+    if is_sls:
+        return resp_data if isinstance(resp_data, list) else []
+    return cast(
+        List[Dict[str, Any]],
+        resp_data.get("executions") if isinstance(resp_data, dict) else [],
+    )
 
 
 def _create_notebook_http(name: str, workspace: str, content: bytes) -> Dict[str, Any]:
@@ -1187,55 +1262,27 @@ def register_notebook_commands(cli: Any) -> None:
         base = _get_notebook_execution_base()
         is_sls = get_platform() == PLATFORM_SLS
 
-        # Build CreateExecution object based on platform
-        if is_sls:
-            # SLS uses notebookPath, no workspaceId
-            create_execution: Dict[str, Any] = {
-                "notebookPath": notebook_id,
-                "timeout": timeout,
-            }
-        else:
-            # SLE uses notebookId and workspaceId
-            ws_id = get_workspace_id_with_fallback(workspace)
-            create_execution = {
-                "workspaceId": ws_id,
-                "timeout": timeout,
-                "notebookId": notebook_id,
-            }
-
-        if no_cache:
-            create_execution["resultCachePeriod"] = 0
-        if parameters:
-            try:
-                if parameters.strip().startswith("@"):
-                    p_file = parameters[1:]
-                    with open(p_file, "r", encoding="utf-8") as pf:
-                        create_execution["parameters"] = json.load(pf)
-                else:
-                    create_execution["parameters"] = json.loads(parameters)
-            except Exception as exc:  # noqa: BLE001
-                click.echo(f"✗ Invalid parameters JSON: {exc}", err=True)
-                sys.exit(ExitCodes.INVALID_INPUT)
+        # Build CreateExecution payload using helper function
+        create_execution = _build_create_execution_payload(
+            notebook_id=notebook_id,
+            workspace=workspace,
+            timeout=timeout,
+            no_cache=no_cache,
+            parameters=parameters,
+            is_sls=is_sls,
+        )
         # The API expects an array of CreateExecution objects.
         payload: List[Dict[str, Any]] = [create_execution]
         url = f"{base}/executions"
         try:
-            # make_api_request expects a dict payload; executions endpoint needs an array.
-            # Use direct requests.post until helper is generalized for list payloads.
-            # Direct POST because make_api_request currently only supports dict payloads.
+            # Use direct requests.post because make_api_request only supports dict payloads.
             headers = get_headers("application/json")
             resp = requests.post(url, headers=headers, json=payload, verify=get_ssl_verify())
             resp.raise_for_status()
             resp_data = resp.json()
 
-            # SLS returns a list directly, SLE returns {"executions": [...]}
-            if is_sls:
-                executions: List[Dict[str, Any]] = resp_data if isinstance(resp_data, list) else []
-            else:
-                executions = cast(
-                    List[Dict[str, Any]],
-                    resp_data.get("executions") if isinstance(resp_data, dict) else [],
-                )
+            # Parse response using helper function
+            executions = _parse_execution_response(resp_data, is_sls)
 
             if not executions:
                 # API may return error in BaseResponse.error
@@ -1243,7 +1290,7 @@ def register_notebook_commands(cli: Any) -> None:
                     error_obj = resp_data.get("error")
                     if error_obj:
                         click.echo(
-                            f"✗ Error: {error_obj.get('message', 'Unknown error')} ", err=True
+                            f"✗ Error: {error_obj.get('message', 'Unknown error')}", err=True
                         )
                         sys.exit(ExitCodes.GENERAL_ERROR)
                 click.echo("✗ No execution returned by service", err=True)
@@ -1342,35 +1389,15 @@ def register_notebook_commands(cli: Any) -> None:
         base = _get_notebook_execution_base()
         is_sls = get_platform() == PLATFORM_SLS
 
-        # Build CreateExecution object based on platform
-        if is_sls:
-            # SLS uses notebookPath, no workspaceId
-            create_execution: Dict[str, Any] = {
-                "notebookPath": notebook_id,
-                "timeout": timeout,
-            }
-        else:
-            # SLE uses notebookId and workspaceId
-            ws_id = get_workspace_id_with_fallback(workspace)
-            create_execution = {
-                "workspaceId": ws_id,
-                "timeout": timeout,
-                "notebookId": notebook_id,
-            }
-
-        if no_cache:
-            create_execution["resultCachePeriod"] = 0
-        if parameters:
-            try:
-                if parameters.strip().startswith("@"):
-                    p_file = parameters[1:]
-                    with open(p_file, "r", encoding="utf-8") as pf:
-                        create_execution["parameters"] = json.load(pf)
-                else:
-                    create_execution["parameters"] = json.loads(parameters)
-            except Exception as exc:  # noqa: BLE001
-                click.echo(f"✗ Invalid parameters JSON: {exc}", err=True)
-                sys.exit(ExitCodes.INVALID_INPUT)
+        # Build CreateExecution payload using helper function
+        create_execution = _build_create_execution_payload(
+            notebook_id=notebook_id,
+            workspace=workspace,
+            timeout=timeout,
+            no_cache=no_cache,
+            parameters=parameters,
+            is_sls=is_sls,
+        )
         payload: List[Dict[str, Any]] = [create_execution]
         url = f"{base}/executions"
         try:
@@ -1379,14 +1406,8 @@ def register_notebook_commands(cli: Any) -> None:
             resp.raise_for_status()
             resp_data = resp.json()
 
-            # SLS returns a list directly, SLE returns {"executions": [...]}
-            if is_sls:
-                executions: List[Dict[str, Any]] = resp_data if isinstance(resp_data, list) else []
-            else:
-                executions = cast(
-                    List[Dict[str, Any]],
-                    resp_data.get("executions") if isinstance(resp_data, dict) else [],
-                )
+            # Parse response using helper function
+            executions = _parse_execution_response(resp_data, is_sls)
 
             if not executions:
                 if isinstance(resp_data, dict):

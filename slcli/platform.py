@@ -5,6 +5,7 @@ This module provides utilities to detect and manage the target platform
 """
 
 import json
+import os
 import sys
 from typing import Any, Dict
 
@@ -121,7 +122,7 @@ def detect_platform(api_url: str, api_key: str) -> str:
         pass
 
     # Strategy 2: URL pattern matching
-    # SLE cloud service has specific URL patterns
+    # SLE (cloud and hosted) service has specific URL patterns
     api_url_lower = api_url.lower()
     sle_patterns = [
         "api.systemlink.io",  # SLE production
@@ -188,8 +189,6 @@ def get_platform() -> str:
     Returns:
         Platform identifier (PLATFORM_SLE, PLATFORM_SLS, or PLATFORM_UNKNOWN)
     """
-    import os
-
     # Priority 1: Explicit platform environment variable (most reliable)
     # This allows users/tests to explicitly specify the platform
     env_platform = os.environ.get("SYSTEMLINK_PLATFORM", "").upper()

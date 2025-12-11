@@ -539,13 +539,17 @@ class TestNotebookExecutionSLSE2E:
         """Test that retry command fails gracefully on SLS.
 
         SLS does not support the retry endpoint - the CLI should show a clear error.
+        Verifies both the error message content and the exit code.
         """
         # Use a fake execution ID - we just want to verify the error message
         result = sls_cli_runner(
             ["notebook", "execute", "retry", "--id", "fake-execution-id"],
             check=False,
         )
+        # Verify the error message explains SLS doesn't support retry
         sls_cli_helper.assert_failure(result, "not available on SystemLink Server")
+        # Verify correct exit code (INVALID_INPUT = 2)
+        assert result.returncode == 2, f"Expected exit code 2, got {result.returncode}"
 
     def test_notebook_execute_invalid_status_filter(
         self, sls_cli_runner: Any, sls_cli_helper: Any, require_sls: Any

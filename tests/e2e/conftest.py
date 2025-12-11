@@ -200,7 +200,12 @@ def sls_cli_runner(sls_config: Dict[str, Any], e2e_config: Dict[str, Any]) -> An
 
 @pytest.fixture
 def configured_workspace(e2e_config: Dict[str, Any]) -> str:
-    """Return the configured workspace name for E2E tests."""
+    """Return the configured workspace name for E2E tests.
+
+    Returns the workspace from 'sle' section if using multi-platform config,
+    otherwise from the top-level config. Defaults to 'Default' if not configured.
+    Note: For SLS-specific tests, use 'sls_workspace' fixture instead.
+    """
     # Support both new and legacy config formats
     if "sle" in e2e_config:
         return e2e_config["sle"].get("workspace", "Default")
