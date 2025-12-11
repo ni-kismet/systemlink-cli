@@ -45,14 +45,18 @@ types-tabulate = "*"
 python-semantic-release = "^9.0.0"
 
 [tool.pytest.ini_options]
-addopts = "--cov slcli --strict-markers --doctest-modules"
+addopts = "--cov slcli --strict-markers --doctest-modules --ignore=tests/e2e"
+testpaths = ["tests/unit"]
 markers = [
-    "e2e: marks tests as end-to-end tests",
+    "e2e: marks tests as end-to-end tests (not run by default)",
     "slow: marks tests as slow running",
     "notebook: marks tests as notebook-related",
     "dff: marks tests as dynamic form fields related", 
     "workspace: marks tests as workspace-related",
-    "user: marks tests as user management related"
+    "user: marks tests as user management related",
+    "sls: marks tests as SystemLink Server specific",
+    "sle: marks tests as SystemLink Enterprise specific",
+    "file: marks tests as file service related"
 ]
 
 [tool.black]
