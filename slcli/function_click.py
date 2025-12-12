@@ -16,6 +16,7 @@ from .function_templates import (
     TEMPLATE_BRANCH,
     TEMPLATE_SUBFOLDERS,
 )
+from .platform import require_feature
 from .universal_handlers import UniversalResponseHandler, FilteredResponse
 from .utils import (
     display_api_errors,
@@ -224,10 +225,13 @@ def register_function_commands(cli: Any) -> None:
     """Register the 'function' command group and its subcommands."""
 
     @cli.group(hidden=True)
-    def function() -> None:
+    @click.pass_context
+    def function(ctx: click.Context) -> None:
         """Manage function definitions and executions."""
-
-    pass
+        # Check for platform feature availability
+        # Only check if a subcommand is being invoked (not just --help)
+        if ctx.invoked_subcommand is not None:
+            require_feature("function_execution")
 
     # ------------------------------------------------------------------
     # Initialization (template bootstrap) command

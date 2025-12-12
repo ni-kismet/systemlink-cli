@@ -3,9 +3,12 @@ from typing import Any
 from click.testing import CliRunner
 
 from slcli import dff_click
+from .test_utils import patch_keyring
 
 
 def test_list_fields_filters_by_name(monkeypatch: Any) -> None:
+    patch_keyring(monkeypatch)
+
     # Prepare fake fields
     fake_fields = [
         {

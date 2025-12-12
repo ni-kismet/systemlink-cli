@@ -291,18 +291,32 @@ def get_http_configuration() -> SystemLinkConfig:
 
 
 def get_base_url() -> str:
-    """Retrieve the SystemLink API base URL from environment or keyring."""
-    # First, try the combined keyring config
+    """Retrieve the SystemLink API base URL from environment or keyring.
+
+    Preference order:
+    1. Environment variable SYSTEMLINK_API_URL (for runtime overrides/testing)
+    2. Combined keyring config (stored during login)
+    3. Legacy keyring entry SYSTEMLINK_API_URL
+    4. Default fallback to localhost
+    """
+    # First, check environment variable (highest priority for runtime overrides)
+    url = os.environ.get("SYSTEMLINK_API_URL")
+    if url:
+        return url
+
+    # Second, try the combined keyring config
     cfg = _get_keyring_config()
     if cfg and isinstance(cfg, dict):
-        maybe = cfg.get("api_url") or cfg.get("api_url")
-        if maybe:
-            return maybe
+        config_url = cfg.get("api_url")
+        if config_url:
+            return config_url
 
-    url = os.environ.get("SYSTEMLINK_API_URL")
-    if not url:
-        url = keyring.get_password("systemlink-cli", "SYSTEMLINK_API_URL")
-    return url or "http://localhost:8000"
+    # Third, try legacy keyring entry
+    url = keyring.get_password("systemlink-cli", "SYSTEMLINK_API_URL")
+    if url:
+        return url
+
+    return "http://localhost:8000"
 
 
 def get_web_url() -> str:
@@ -371,26 +385,37 @@ def _get_keyring_config() -> Dict[str, Any]:
 
 
 def get_api_key() -> str:
-    """Retrieve the SystemLink API key from environment or keyring."""
+    """Retrieve the SystemLink API key from environment or keyring.
+
+    Preference order:
+    1. Environment variable SYSTEMLINK_API_KEY (for runtime overrides/testing)
+    2. Combined keyring config (stored during login)
+    3. Legacy keyring entry SYSTEMLINK_API_KEY
+    """
     import click
 
-    # First, consult combined keyring config if present
+    # First, check environment variable (highest priority for runtime overrides)
+    api_key = os.environ.get("SYSTEMLINK_API_KEY")
+    if api_key:
+        return api_key
+
+    # Second, consult combined keyring config if present
     cfg = _get_keyring_config()
     if cfg and isinstance(cfg, dict):
         maybe = cfg.get("api_key") or cfg.get("apiKey") or cfg.get("apiToken")
         if maybe:
             return str(maybe)
 
-    api_key = os.environ.get("SYSTEMLINK_API_KEY")
-    if not api_key:
-        api_key = keyring.get_password("systemlink-cli", "SYSTEMLINK_API_KEY")
-    if not api_key:
-        click.echo(
-            "Error: API key not found. Please set the SYSTEMLINK_API_KEY "
-            "environment variable or run 'slcli login'."
-        )
-        raise click.ClickException("API key not found.")
-    return api_key
+    # Third, try legacy keyring entry
+    api_key = keyring.get_password("systemlink-cli", "SYSTEMLINK_API_KEY")
+    if api_key:
+        return api_key
+
+    click.echo(
+        "Error: API key not found. Please set the SYSTEMLINK_API_KEY "
+        "environment variable or run 'slcli login'."
+    )
+    raise click.ClickException("API key not found.")
 
 
 def get_headers(content_type: str = "") -> Dict[str, str]:

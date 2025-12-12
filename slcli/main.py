@@ -14,6 +14,13 @@ from .dff_click import register_dff_commands
 from .file_click import register_file_commands
 from .function_click import register_function_commands
 from .notebook_click import register_notebook_commands
+from .platform import (
+    PLATFORM_SLE,
+    PLATFORM_SLS,
+    PLATFORM_UNKNOWN,
+    detect_platform,
+    get_platform_info,
+)
 from .ssl_trust import OS_TRUST_INJECTED, OS_TRUST_REASON
 from .templates_click import register_templates_commands
 from .user_click import register_user_commands
@@ -146,6 +153,19 @@ def login(url: Optional[str], api_key: Optional[str], web_url: Optional[str]) ->
 
     # Attempt to store a combined JSON config in keyring by default
     combined: dict = {"api_url": url, "api_key": api_key.strip(), "web_url": web_url}
+
+    # Detect platform type
+    click.echo("Detecting platform type...")
+    platform = detect_platform(url, api_key.strip())
+    combined["platform"] = platform
+
+    if platform == PLATFORM_SLE:
+        click.echo("  Platform: SystemLink Enterprise (Cloud)")
+    elif platform == PLATFORM_SLS:
+        click.echo("  Platform: SystemLink Server (On-Premises)")
+    else:
+        click.echo("  Platform: Unknown (will attempt all features)")
+
     try:
         keyring.set_password("systemlink-cli", "SYSTEMLINK_CONFIG", json.dumps(combined))
         click.echo("API key, URL and web UI URL stored securely (combined entry).")
@@ -170,6 +190,71 @@ def logout() -> None:
     except Exception:
         pass
     click.echo("API key and URL removed from system keyring.")
+
+
+@cli.command()
+@click.option("--format", "-f", type=click.Choice(["table", "json"]), default="table")
+def info(format: str) -> None:
+    """Show current configuration and platform information."""
+    platform_info = get_platform_info()
+
+    if format == "json":
+        click.echo(json.dumps(platform_info, indent=2))
+        return
+
+    # Table format using box-drawing characters for key-value display.
+    # Note: This uses a custom layout rather than table_utils because table_utils
+    # is designed for list-style output (multiple uniform rows), while this command
+    # displays a single record with key-value pairs and feature availability.
+    # All text fields are truncated to prevent formatting issues with long values.
+    max_value_width = 45  # Maximum width for values before truncation
+    content_width = 61  # Total width inside the box
+
+    def truncate(value: str, max_len: int = max_value_width) -> str:
+        """Truncate a string with ellipsis if it exceeds max length."""
+        if len(value) > max_len:
+            return value[: max_len - 3] + "..."
+        return value
+
+    click.echo("\n┌" + "─" * content_width + "┐")
+    click.echo("│" + "SystemLink CLI Info".center(content_width) + "│")
+    click.echo("├" + "─" * content_width + "┤")
+
+    # Connection status
+    status = "✓ Connected" if platform_info["logged_in"] else "✗ Not logged in"
+    click.echo(f"│  Status:    {status:<48}│")
+
+    # Platform
+    platform_display = truncate(platform_info.get("platform_display", "Unknown"))
+    click.echo(f"│  Platform:  {platform_display:<48}│")
+
+    # API URL
+    api_url = truncate(platform_info.get("api_url", "Not configured"))
+    click.echo(f"│  API URL:   {api_url:<48}│")
+
+    # Web URL
+    web_url = truncate(platform_info.get("web_url", "Not configured"))
+    click.echo(f"│  Web URL:   {web_url:<48}│")
+
+    click.echo("├" + "─" * content_width + "┤")
+    click.echo("│" + "Feature Availability".center(content_width) + "│")
+    click.echo("├" + "─" * content_width + "┤")
+
+    features = platform_info.get("features", {})
+    if features:
+        for feature_name, available in features.items():
+            status_icon = "✓" if available else "✗"
+            status_text = "Available" if available else "Not available"
+            # Truncate feature name if needed
+            display_name = truncate(feature_name, 29)
+            click.echo(f"│  {status_icon} {display_name:<30} {status_text:<26}│")
+    else:
+        if platform_info["platform"] == PLATFORM_UNKNOWN:
+            click.echo("│  Run 'slcli login' to detect platform features.            │")
+        else:
+            click.echo("│  No feature information available.                          │")
+
+    click.echo("└" + "─" * content_width + "┘\n")
 
 
 register_completion_command(cli)

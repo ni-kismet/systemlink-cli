@@ -8,6 +8,7 @@ import datetime
 import json
 import sys
 import time
+import urllib.parse
 from pathlib import Path
 from typing import Any, Dict, List, Optional, cast
 
@@ -15,6 +16,7 @@ import click
 import requests
 
 from .cli_utils import validate_output_format
+from .platform import PLATFORM_SLS, get_platform
 from .universal_handlers import UniversalResponseHandler
 from .utils import (
     ExitCodes,
@@ -32,8 +34,32 @@ from .utils import (
 from .workspace_utils import get_workspace_display_name
 
 
+def _normalize_sls_notebook(notebook: Dict[str, Any]) -> None:
+    """Normalize SLS notebook response to include id/name fields.
+
+    SLS notebooks use 'path' as the identifier. This helper adds 'id' and 'name'
+    fields derived from 'path' to provide a consistent interface across platforms.
+
+    Args:
+        notebook: Notebook dictionary to normalize (modified in place).
+    """
+    if "path" in notebook:
+        if "id" not in notebook:
+            notebook["id"] = notebook["path"]
+        if "name" not in notebook:
+            path = notebook["path"]
+            notebook["name"] = path.split("/")[-1] if "/" in path else path
+
+
 def _get_notebook_base_url() -> str:
-    """Get the base URL for notebook API."""
+    """Get the base URL for notebook API.
+
+    Returns platform-specific URL:
+    - SLS (SystemLink Server): /ninbexec/v2 (notebooks by path)
+    - SLE (SystemLink Enterprise): /ninotebook/v1 (notebooks by ID)
+    """
+    if get_platform() == PLATFORM_SLS:
+        return f"{get_base_url()}/ninbexec/v2"
     return f"{get_base_url()}/ninotebook/v1"
 
 
@@ -43,6 +69,7 @@ def _query_notebooks_http(
     """Query notebooks using continuation token pagination for better performance."""
     base_url = _get_notebook_base_url()
     headers = get_headers("application/json")
+    is_sls = get_platform() == PLATFORM_SLS
 
     all_notebooks = []
     continuation_token = None
@@ -56,9 +83,13 @@ def _query_notebooks_http(
             payload["continuationToken"] = continuation_token
 
         try:
-            response = requests.post(
-                f"{base_url}/notebook/query", headers=headers, json=payload, verify=get_ssl_verify()
-            )
+            # SLS uses /query-notebooks, SLE uses /notebook/query
+            if is_sls:
+                url = f"{base_url}/query-notebooks"
+            else:
+                url = f"{base_url}/notebook/query"
+
+            response = requests.post(url, headers=headers, json=payload, verify=get_ssl_verify())
             response.raise_for_status()
 
             data = response.json()
@@ -74,6 +105,10 @@ def _query_notebooks_http(
                         }
                     elif "parameters" not in nb or not isinstance(nb["parameters"], dict):
                         nb["parameters"] = {}
+
+                    # For SLS, normalize to include id/name derived from path
+                    if is_sls:
+                        _normalize_sls_notebook(nb)
 
                     all_notebooks.append(nb)
                 except Exception:
@@ -94,29 +129,52 @@ def _query_notebooks_http(
 
 
 def _get_notebook_http(notebook_id: str) -> Dict[str, Any]:
-    """Get a single notebook by ID using HTTP."""
+    """Get a single notebook by ID (SLE) or path (SLS) using HTTP."""
     base_url = _get_notebook_base_url()
     headers = get_headers("application/json")
+    is_sls = get_platform() == PLATFORM_SLS
 
     try:
-        response = requests.get(
-            f"{base_url}/notebook/{notebook_id}", headers=headers, verify=get_ssl_verify()
-        )
+        if is_sls:
+            # SLS uses path-based endpoint: /v2/notebooks/{path}
+            # The notebook_id is actually a path for SLS
+            # Path must be fully URL-encoded (with safe='' to encode all characters including /)
+            encoded_path = urllib.parse.quote(notebook_id, safe="")
+            url = f"{base_url}/notebooks/{encoded_path}"
+        else:
+            # SLE uses ID-based endpoint: /notebook/{id}
+            url = f"{base_url}/notebook/{notebook_id}"
+
+        response = requests.get(url, headers=headers, verify=get_ssl_verify())
         response.raise_for_status()
-        return response.json()
+        result = response.json()
+
+        # For SLS, normalize the response to include id/name fields
+        if is_sls:
+            _normalize_sls_notebook(result)
+
+        return result
     except requests.exceptions.RequestException as exc:
         raise Exception(f"HTTP request failed: {exc}")
 
 
 def _get_notebook_content_http(notebook_id: str) -> bytes:
-    """Get notebook content by ID using HTTP."""
+    """Get notebook content by ID (SLE) or path (SLS) using HTTP."""
     base_url = _get_notebook_base_url()
     headers = get_headers()  # No content-type for binary content
+    is_sls = get_platform() == PLATFORM_SLS
 
     try:
-        response = requests.get(
-            f"{base_url}/notebook/{notebook_id}/content", headers=headers, verify=get_ssl_verify()
-        )
+        if is_sls:
+            # SLS uses path-based endpoint: /v2/notebooks/{path}/data
+            # Path must be fully URL-encoded (with safe='' to encode all characters including /)
+            encoded_path = urllib.parse.quote(notebook_id, safe="")
+            url = f"{base_url}/notebooks/{encoded_path}/data"
+        else:
+            # SLE uses ID-based endpoint: /notebook/{id}/content
+            url = f"{base_url}/notebook/{notebook_id}/content"
+
+        response = requests.get(url, headers=headers, verify=get_ssl_verify())
         response.raise_for_status()
         return response.content
     except requests.exceptions.RequestException as exc:
@@ -127,6 +185,14 @@ def _get_notebook_content_http(notebook_id: str) -> bytes:
 # Notebook Execution Service helpers (module-scope for test patching)
 # ------------------------------------------------------------------
 def _get_notebook_execution_base() -> str:
+    """Get the base URL for notebook execution API.
+
+    Returns platform-specific URL:
+    - SLS (SystemLink Server): /ninbexec/v2
+    - SLE (SystemLink Enterprise): /ninbexecution/v1
+    """
+    if get_platform() == PLATFORM_SLS:
+        return f"{get_base_url()}/ninbexec/v2"
     return f"{get_base_url()}/ninbexecution/v1"
 
 
@@ -134,13 +200,15 @@ def _query_notebook_executions(
     workspace_id: Optional[str] = None,
     status: Optional[str] = None,
     notebook_id: Optional[str] = None,
+    notebook_path: Optional[str] = None,
 ) -> List[Dict[str, Any]]:
     """Query all notebook executions via POST /query-executions with pagination.
 
     Args:
-        workspace_id: Optional workspace GUID filter.
+        workspace_id: Optional workspace GUID filter (SLE only).
         status: Optional already-mapped service status token (e.g. TIMEDOUT).
-        notebook_id: Optional notebook ID filter.
+        notebook_id: Optional notebook ID filter (SLE only).
+        notebook_path: Optional notebook path filter (SLS only).
 
     Returns:
         List of execution dictionaries.
@@ -149,22 +217,42 @@ def _query_notebook_executions(
     url = f"{base}/query-executions"
     all_execs: List[Dict[str, Any]] = []
     continuation_token: Optional[str] = None
+    is_sls = get_platform() == PLATFORM_SLS
+
+    def _escape_filter_value(value: str) -> str:
+        """Escape special characters in filter string values."""
+        # Escape backslashes and quotes to prevent filter injection
+        return value.replace("\\", "\\\\").replace('"', '\\"')
+
+    # Build filter based on platform
     base_parts: List[str] = []
-    if workspace_id:
-        base_parts.append(f'workspaceId == "{workspace_id}"')
-    if notebook_id:
-        base_parts.append(f'notebookId == "{notebook_id}"')
+    if is_sls:
+        # SLS uses notebookPath, no workspaceId
+        if notebook_path:
+            base_parts.append(f'notebookPath == "{_escape_filter_value(notebook_path)}"')
+    else:
+        # SLE uses workspaceId and notebookId
+        if workspace_id:
+            base_parts.append(f'workspaceId == "{_escape_filter_value(workspace_id)}"')
+        if notebook_id:
+            base_parts.append(f'notebookId == "{_escape_filter_value(notebook_id)}"')
 
     while True:
         payload: Dict[str, Any] = {
             "take": 100,
             "orderBy": "QUEUED_AT",
             "descending": True,
-            "projection": (
+        }
+
+        # SLS does not support projection, only SLE does
+        if not is_sls:
+            # SLE uses notebookId and workspaceId projection
+            projection = (
                 "new(id, notebookId, workspaceId, userId, status, queuedAt, startedAt, "
                 "completedAt, source, resourceProfile, errorCode, lastUpdatedBy, retryCount)"
-            ),
-        }
+            )
+            payload["projection"] = projection
+
         filters_local = list(base_parts)
         if status:
             filters_local.append(f'status = "{status}"')
@@ -186,8 +274,86 @@ def _query_notebook_executions(
     return all_execs
 
 
+def _build_create_execution_payload(
+    notebook_id: str,
+    workspace: str,
+    timeout: int,
+    no_cache: bool,
+    parameters: Optional[str],
+    is_sls: bool,
+) -> Dict[str, Any]:
+    """Build the CreateExecution payload based on platform.
+
+    Args:
+        notebook_id: Notebook ID (SLE) or path (SLS).
+        workspace: Workspace name or ID (SLE only).
+        timeout: Execution timeout in seconds.
+        no_cache: Whether to disable result caching.
+        parameters: Optional JSON parameters string or @filepath.
+        is_sls: Whether the platform is SLS (SystemLink Server).
+
+    Returns:
+        Dictionary with the CreateExecution payload.
+
+    Raises:
+        SystemExit: If parameters JSON is invalid.
+    """
+    if is_sls:
+        # SLS uses notebookPath, no workspaceId
+        create_execution: Dict[str, Any] = {
+            "notebookPath": notebook_id,
+            "timeout": timeout,
+        }
+    else:
+        # SLE uses notebookId and workspaceId
+        ws_id = get_workspace_id_with_fallback(workspace)
+        create_execution = {
+            "workspaceId": ws_id,
+            "timeout": timeout,
+            "notebookId": notebook_id,
+        }
+
+    if no_cache:
+        create_execution["resultCachePeriod"] = 0
+    if parameters:
+        try:
+            if parameters.strip().startswith("@"):
+                p_file = parameters[1:]
+                with open(p_file, "r", encoding="utf-8") as pf:
+                    create_execution["parameters"] = json.load(pf)
+            else:
+                create_execution["parameters"] = json.loads(parameters)
+        except Exception as exc:  # noqa: BLE001
+            click.echo(f"✗ Invalid parameters JSON: {exc}", err=True)
+            sys.exit(ExitCodes.INVALID_INPUT)
+
+    return create_execution
+
+
+def _parse_execution_response(resp_data: Any, is_sls: bool) -> List[Dict[str, Any]]:
+    """Parse the execution response based on platform.
+
+    Args:
+        resp_data: The JSON response data from the API.
+        is_sls: Whether the platform is SLS (SystemLink Server).
+
+    Returns:
+        List of execution dictionaries.
+    """
+    # SLS returns a list directly, SLE returns {"executions": [...]}
+    if is_sls:
+        return resp_data if isinstance(resp_data, list) else []
+    return cast(
+        List[Dict[str, Any]],
+        resp_data.get("executions") if isinstance(resp_data, dict) else [],
+    )
+
+
 def _create_notebook_http(name: str, workspace: str, content: bytes) -> Dict[str, Any]:
-    """Create a notebook using HTTP."""
+    """Create a notebook using HTTP. Only available on SLE."""
+    if get_platform() == PLATFORM_SLS:
+        raise Exception("Creating notebooks is not supported on SystemLink Server (SLS)")
+
     base_url = _get_notebook_base_url()
     headers = get_headers()  # No content-type for multipart
 
@@ -242,7 +408,10 @@ def _create_notebook_http(name: str, workspace: str, content: bytes) -> Dict[str
 def _update_notebook_http(
     notebook_id: str, metadata: Optional[Dict[str, Any]] = None, content: Optional[bytes] = None
 ) -> Dict[str, Any]:
-    """Update a notebook using HTTP."""
+    """Update a notebook using HTTP. Only available on SLE."""
+    if get_platform() == PLATFORM_SLS:
+        raise Exception("Updating notebooks is not supported on SystemLink Server (SLS)")
+
     base_url = _get_notebook_base_url()
     headers = get_headers()  # No content-type for multipart
 
@@ -266,7 +435,10 @@ def _update_notebook_http(
 
 
 def _delete_notebook_http(notebook_id: str) -> None:
-    """Delete a notebook using HTTP."""
+    """Delete a notebook using HTTP. Only available on SLE."""
+    if get_platform() == PLATFORM_SLS:
+        raise Exception("Deleting notebooks is not supported on SystemLink Server (SLS)")
+
     base_url = _get_notebook_base_url()
     headers = get_headers()
 
@@ -439,7 +611,20 @@ def register_notebook_commands(cli: Any) -> None:
         help="Path to .ipynb file containing notebook content",
     )
     def update_notebook(notebook_id: str, metadata: Optional[str], content: Optional[str]) -> None:
-        """Update a notebook's metadata, content, or both by ID."""
+        """Update a notebook's metadata, content, or both by ID.
+
+        Note: This command is only available on SystemLink Enterprise (SLE).
+        SystemLink Server (SLS) does not support notebook updates via API.
+        """
+        # Check if running on SLS - notebook updates not supported
+        if get_platform() == PLATFORM_SLS:
+            click.echo(
+                "✗ Updating notebooks is not supported on SystemLink Server (SLS). "
+                "Please use the SystemLink web interface to modify notebooks.",
+                err=True,
+            )
+            sys.exit(ExitCodes.INVALID_INPUT)
+
         if not metadata and not content:
             click.echo("✗ Must provide at least one of --metadata or --content.", err=True)
             sys.exit(ExitCodes.INVALID_INPUT)
@@ -652,7 +837,7 @@ def register_notebook_commands(cli: Any) -> None:
         "-i",
         "notebook_id",
         required=True,
-        help="Notebook ID to retrieve",
+        help="Notebook ID (SLE) or path (SLS) to retrieve",
     )
     @click.option(
         "--format",
@@ -667,17 +852,25 @@ def register_notebook_commands(cli: Any) -> None:
 
         Displays notebook metadata and basic properties. For content download use
         'slcli notebook manage download'.
+
+        On SLS, use the notebook path (e.g., '_shared/reports/First Pass Yield.ipynb').
+        On SLE, use the notebook ID (GUID).
         """
         format_output = validate_output_format(format)
-        # Build query filter to fetch notebook by ID (workspace not required for direct ID lookup)
-        filter_str = f'id = "{notebook_id}"'
+        is_sls = get_platform() == PLATFORM_SLS
 
         try:
-            results = _query_notebooks_http(filter_str)
-            if not results:
-                click.echo("✗ Notebook not found.", err=True)
-                sys.exit(ExitCodes.NOT_FOUND)
-            notebook = results[0]
+            if is_sls:
+                # SLS: Use direct GET endpoint with path
+                notebook = _get_notebook_http(notebook_id)
+            else:
+                # SLE: Use query filter to fetch notebook by ID
+                filter_str = f'id = "{notebook_id}"'
+                results = _query_notebooks_http(filter_str)
+                if not results:
+                    click.echo("✗ Notebook not found.", err=True)
+                    sys.exit(ExitCodes.NOT_FOUND)
+                notebook = results[0]
 
             if format_output == "json":
                 click.echo(json.dumps(notebook, indent=2))
@@ -693,6 +886,8 @@ def register_notebook_commands(cli: Any) -> None:
             click.echo("=" * 50)
             click.echo(f"ID:          {notebook.get('id', 'N/A')}")
             click.echo(f"Name:        {notebook.get('name', 'N/A')}")
+            if is_sls:
+                click.echo(f"Path:        {notebook.get('path', 'N/A')}")
             click.echo(f"Workspace:   {ws_name}")
             click.echo(f"Size (bytes): {notebook.get('size', 'N/A')}")
             click.echo(f"Created At:  {notebook.get('createdAt', 'N/A')}")
@@ -719,7 +914,19 @@ def register_notebook_commands(cli: Any) -> None:
         """Create a new notebook in the specified workspace.
 
         Fails if a notebook with the same name exists.
+
+        Note: This command is only available on SystemLink Enterprise (SLE).
+        SystemLink Server (SLS) does not support notebook creation via API.
         """
+        # Check if running on SLS - notebook creation not supported
+        if get_platform() == PLATFORM_SLS:
+            click.echo(
+                "✗ Creating notebooks is not supported on SystemLink Server (SLS). "
+                "Please use the SystemLink web interface to upload notebooks.",
+                err=True,
+            )
+            sys.exit(ExitCodes.INVALID_INPUT)
+
         ws_id = get_workspace_id_with_fallback(workspace)
 
         try:
@@ -799,7 +1006,20 @@ def register_notebook_commands(cli: Any) -> None:
     @click.option("--id", "-i", "notebook_id", required=True, help="Notebook ID to delete")
     @click.confirmation_option(prompt="Are you sure you want to delete this notebook?")
     def delete_notebook(notebook_id: str = "") -> None:
-        """Delete a notebook by ID."""
+        """Delete a notebook by ID.
+
+        Note: This command is only available on SystemLink Enterprise (SLE).
+        SystemLink Server (SLS) does not support notebook deletion via API.
+        """
+        # Check if running on SLS - notebook deletion not supported
+        if get_platform() == PLATFORM_SLS:
+            click.echo(
+                "✗ Deleting notebooks is not supported on SystemLink Server (SLS). "
+                "Please use the SystemLink web interface to delete notebooks.",
+                err=True,
+            )
+            sys.exit(ExitCodes.INVALID_INPUT)
+
         try:
             _delete_notebook_http(notebook_id)
             format_success("Notebook deleted", {"ID": notebook_id})
@@ -880,9 +1100,18 @@ def register_notebook_commands(cli: Any) -> None:
                 sys.exit(ExitCodes.INVALID_INPUT)
 
             status_service_value = _normalize_execution_status(status) if status else None
-            executions = _query_notebook_executions(
-                workspace_guid, status_service_value, notebook_id
-            )
+
+            is_sls = get_platform() == PLATFORM_SLS
+            if is_sls:
+                # SLS doesn't support workspaceId filtering, uses notebookPath
+                executions = _query_notebook_executions(
+                    status=status_service_value, notebook_path=notebook_id
+                )
+            else:
+                # SLE uses workspaceId and notebookId
+                executions = _query_notebook_executions(
+                    workspace_guid, status_service_value, notebook_id
+                )
 
             class ExecResp:
                 def json(self) -> Dict[str, Any]:  # noqa: D401
@@ -895,17 +1124,34 @@ def register_notebook_commands(cli: Any) -> None:
             mock_resp: Any = ExecResp()
 
             def exec_formatter(exe: Dict[str, Any]) -> List[str]:
-                ws_name = get_workspace_display_name(exe.get("workspaceId", ""), workspace_map)
                 queued_at = exe.get("queuedAt", "")
                 if queued_at:
                     queued_at = queued_at.split("T")[0]
-                return [
-                    exe.get("id", ""),
-                    exe.get("notebookId", ""),
-                    ws_name,
-                    exe.get("status", "UNKNOWN"),
-                    queued_at,
-                ]
+                if is_sls:
+                    # SLS uses notebookPath
+                    return [
+                        exe.get("id", ""),
+                        exe.get("notebookPath", ""),
+                        exe.get("status", "UNKNOWN"),
+                        queued_at,
+                    ]
+                else:
+                    # SLE uses notebookId and workspaceId
+                    ws_name = get_workspace_display_name(exe.get("workspaceId", ""), workspace_map)
+                    return [
+                        exe.get("id", ""),
+                        exe.get("notebookId", ""),
+                        ws_name,
+                        exe.get("status", "UNKNOWN"),
+                        queued_at,
+                    ]
+
+            if is_sls:
+                headers = ["ID", "Notebook Path", "Status", "Queued"]
+                column_widths = [36, 50, 12, 12]
+            else:
+                headers = ["ID", "Notebook ID", "Workspace", "Status", "Queued"]
+                column_widths = [36, 36, 20, 12, 12]
 
             UniversalResponseHandler.handle_list_response(
                 resp=mock_resp,
@@ -913,8 +1159,8 @@ def register_notebook_commands(cli: Any) -> None:
                 item_name="execution",
                 format_output=format_output,
                 formatter_func=exec_formatter,
-                headers=["ID", "Notebook ID", "Workspace", "Status", "Queued"],
-                column_widths=[36, 36, 20, 12, 12],
+                headers=headers,
+                column_widths=column_widths,
                 empty_message="No notebook executions found.",
                 enable_pagination=True,
                 page_size=take,
@@ -942,13 +1188,22 @@ def register_notebook_commands(cli: Any) -> None:
             if format_output == "json":
                 click.echo(json.dumps(data, indent=2))
                 return
-            workspace_map = get_workspace_map()
-            ws_name = get_workspace_display_name(data.get("workspaceId", ""), workspace_map)
+
+            is_sls = get_platform() == PLATFORM_SLS
             click.echo("Notebook Execution Details:")
             click.echo("=" * 50)
             click.echo(f"ID:               {data.get('id', 'N/A')}")
-            click.echo(f"Notebook ID:      {data.get('notebookId', 'N/A')}")
-            click.echo(f"Workspace:        {ws_name}")
+
+            if is_sls:
+                # SLS uses notebookPath
+                click.echo(f"Notebook Path:    {data.get('notebookPath', 'N/A')}")
+            else:
+                # SLE uses notebookId and workspaceId
+                workspace_map = get_workspace_map()
+                ws_name = get_workspace_display_name(data.get("workspaceId", ""), workspace_map)
+                click.echo(f"Notebook ID:      {data.get('notebookId', 'N/A')}")
+                click.echo(f"Workspace:        {ws_name}")
+
             click.echo(f"Status:           {data.get('status', 'N/A')}")
             click.echo(f"Timeout:          {data.get('timeout', 'N/A')}")
             click.echo(f"Queued At:        {data.get('queuedAt', 'N/A')}")
@@ -960,19 +1215,28 @@ def register_notebook_commands(cli: Any) -> None:
             if data.get("result"):
                 click.echo("\nResult:")
                 click.echo(json.dumps(data["result"], indent=2))
-            if data.get("errorMessage"):
+            # Display platform-specific error field with precise label
+            if is_sls and data.get("exception"):
+                click.echo("\nException:")
+                click.echo(data["exception"])
+            elif not is_sls and data.get("errorMessage"):
                 click.echo("\nError Message:")
                 click.echo(data["errorMessage"])
         except Exception as exc:  # noqa: BLE001
             handle_api_error(exc)
 
     @notebook_execute.command(name="start")
-    @click.option("--notebook-id", "-n", required=True, help="Notebook ID to execute")
+    @click.option(
+        "--notebook-id",
+        "-n",
+        required=True,
+        help="Notebook ID (SLE) or notebook path (SLS) to execute",
+    )
     @click.option(
         "--workspace",
         "-w",
         default="Default",
-        help="Workspace name or ID (default: 'Default')",
+        help="Workspace name or ID (SLE only, default: 'Default')",
     )
     @click.option(
         "--parameters",
@@ -1015,47 +1279,48 @@ def register_notebook_commands(cli: Any) -> None:
         """
         format_output = validate_output_format(format)
         base = _get_notebook_execution_base()
-        ws_id = get_workspace_id_with_fallback(workspace)
-        # Build CreateExecution object (subset of fields exposed via CLI today)
-        create_execution: Dict[str, Any] = {
-            "workspaceId": ws_id,
-            "timeout": timeout,
-            "notebookId": notebook_id,
-        }
-        if no_cache:
-            create_execution["resultCachePeriod"] = 0
-        if parameters:
-            try:
-                if parameters.strip().startswith("@"):
-                    p_file = parameters[1:]
-                    with open(p_file, "r", encoding="utf-8") as pf:
-                        create_execution["parameters"] = json.load(pf)
-                else:
-                    create_execution["parameters"] = json.loads(parameters)
-            except Exception as exc:  # noqa: BLE001
-                click.echo(f"✗ Invalid parameters JSON: {exc}", err=True)
-                sys.exit(ExitCodes.INVALID_INPUT)
+        is_sls = get_platform() == PLATFORM_SLS
+
+        # Warn if workspace is specified on SLS (where it's ignored)
+        if is_sls and workspace != "Default":
+            click.echo(
+                "⚠ Warning: --workspace is ignored on SystemLink Server (SLS). "
+                "SLS does not use workspace filtering for notebook executions.",
+                err=True,
+            )
+
+        # Build CreateExecution payload using helper function
+        create_execution = _build_create_execution_payload(
+            notebook_id=notebook_id,
+            workspace=workspace,
+            timeout=timeout,
+            no_cache=no_cache,
+            parameters=parameters,
+            is_sls=is_sls,
+        )
         # The API expects an array of CreateExecution objects.
         payload: List[Dict[str, Any]] = [create_execution]
         url = f"{base}/executions"
         try:
-            # make_api_request expects a dict payload; executions endpoint needs an array.
-            # Use direct requests.post until helper is generalized for list payloads.
-            # Direct POST because make_api_request currently only supports dict payloads.
+            # Use direct requests.post because make_api_request only supports dict payloads.
             headers = get_headers("application/json")
             resp = requests.post(url, headers=headers, json=payload, verify=get_ssl_verify())
             resp.raise_for_status()
-            resp_json: Dict[str, Any] = resp.json()
-            executions: List[Dict[str, Any]] = cast(
-                List[Dict[str, Any]], resp_json.get("executions") or []
-            )
+            resp_data = resp.json()
+
+            # Parse response using helper function
+            executions = _parse_execution_response(resp_data, is_sls)
+
             if not executions:
                 # API may return error in BaseResponse.error
-                error_obj = resp_json.get("error")
-                if error_obj:
-                    click.echo(f"✗ Error: {error_obj.get('message', 'Unknown error')} ", err=True)
-                else:
-                    click.echo("✗ No execution returned by service", err=True)
+                if isinstance(resp_data, dict):
+                    error_obj = resp_data.get("error")
+                    if error_obj:
+                        click.echo(
+                            f"✗ Error: {error_obj.get('message', 'Unknown error')}", err=True
+                        )
+                        sys.exit(ExitCodes.GENERAL_ERROR)
+                click.echo("✗ No execution returned by service", err=True)
                 sys.exit(ExitCodes.GENERAL_ERROR)
             execution = executions[0]
             if format_output == "json":
@@ -1080,12 +1345,17 @@ def register_notebook_commands(cli: Any) -> None:
             handle_api_error(exc)
 
     @notebook_execute.command(name="sync")
-    @click.option("--notebook-id", "-n", required=True, help="Notebook ID to execute synchronously")
+    @click.option(
+        "--notebook-id",
+        "-n",
+        required=True,
+        help="Notebook ID (SLE) or notebook path (SLS) to execute synchronously",
+    )
     @click.option(
         "--workspace",
         "-w",
         default="Default",
-        help="Workspace name or ID (default: 'Default')",
+        help="Workspace name or ID (SLE only, default: 'Default')",
     )
     @click.option(
         "--parameters",
@@ -1144,44 +1414,38 @@ def register_notebook_commands(cli: Any) -> None:
         """
         format_output = validate_output_format(format)
         base = _get_notebook_execution_base()
-        ws_id = get_workspace_id_with_fallback(workspace)
-        create_execution: Dict[str, Any] = {
-            "workspaceId": ws_id,
-            "timeout": timeout,
-            "notebookId": notebook_id,
-        }
-        if no_cache:
-            create_execution["resultCachePeriod"] = 0
-        if parameters:
-            try:
-                if parameters.strip().startswith("@"):
-                    p_file = parameters[1:]
-                    with open(p_file, "r", encoding="utf-8") as pf:
-                        create_execution["parameters"] = json.load(pf)
-                else:
-                    create_execution["parameters"] = json.loads(parameters)
-            except Exception as exc:  # noqa: BLE001
-                click.echo(f"✗ Invalid parameters JSON: {exc}", err=True)
-                sys.exit(ExitCodes.INVALID_INPUT)
+        is_sls = get_platform() == PLATFORM_SLS
+
+        # Build CreateExecution payload using helper function
+        create_execution = _build_create_execution_payload(
+            notebook_id=notebook_id,
+            workspace=workspace,
+            timeout=timeout,
+            no_cache=no_cache,
+            parameters=parameters,
+            is_sls=is_sls,
+        )
         payload: List[Dict[str, Any]] = [create_execution]
         url = f"{base}/executions"
         try:
             headers = get_headers("application/json")
             resp = requests.post(url, headers=headers, json=payload, verify=get_ssl_verify())
             resp.raise_for_status()
-            resp_json: Dict[str, Any] = resp.json()
-            executions: List[Dict[str, Any]] = cast(
-                List[Dict[str, Any]], resp_json.get("executions") or []
-            )
+            resp_data = resp.json()
+
+            # Parse response using helper function
+            executions = _parse_execution_response(resp_data, is_sls)
+
             if not executions:
-                error_obj = resp_json.get("error")
-                if error_obj:
-                    click.echo(
-                        f"✗ Error creating execution: {error_obj.get('message', 'Unknown error')}",
-                        err=True,
-                    )
-                else:
-                    click.echo("✗ No execution returned by service", err=True)
+                if isinstance(resp_data, dict):
+                    error_obj = resp_data.get("error")
+                    if error_obj:
+                        click.echo(
+                            f"✗ Error creating execution: {error_obj.get('message', 'Unknown error')}",
+                            err=True,
+                        )
+                        sys.exit(ExitCodes.GENERAL_ERROR)
+                click.echo("✗ No execution returned by service", err=True)
                 sys.exit(ExitCodes.GENERAL_ERROR)
             execution = executions[0]
             execution_id = execution.get("id")
@@ -1257,9 +1521,21 @@ def register_notebook_commands(cli: Any) -> None:
     def cancel_notebook_execution(execution_id: str) -> None:
         """Cancel a running notebook execution."""
         base = _get_notebook_execution_base()
-        url = f"{base}/executions/{execution_id}/cancel"
+        is_sls = get_platform() == PLATFORM_SLS
+
         try:
-            make_api_request("POST", url, payload={})
+            if is_sls:
+                # SLS uses bulk cancel endpoint with array of IDs
+                url = f"{base}/cancel-executions"
+                headers = get_headers("application/json")
+                resp = requests.post(
+                    url, headers=headers, json=[execution_id], verify=get_ssl_verify()
+                )
+                resp.raise_for_status()
+            else:
+                # SLE uses individual cancel endpoint
+                url = f"{base}/executions/{execution_id}/cancel"
+                make_api_request("POST", url, payload={})
             format_success("Notebook execution cancellation requested", {"ID": execution_id})
         except Exception as exc:  # noqa: BLE001
             handle_api_error(exc)
@@ -1267,7 +1543,20 @@ def register_notebook_commands(cli: Any) -> None:
     @notebook_execute.command(name="retry")
     @click.option("--id", "-i", "execution_id", required=True, help="Execution ID to retry")
     def retry_notebook_execution(execution_id: str) -> None:
-        """Retry a failed notebook execution."""
+        """Retry a failed notebook execution.
+
+        Note: This command is only available on SystemLink Enterprise (SLE).
+        SystemLink Server (SLS) does not support execution retry.
+        """
+        is_sls = get_platform() == PLATFORM_SLS
+        if is_sls:
+            click.echo(
+                "✗ Execution retry is not available on SystemLink Server. "
+                "Please create a new execution instead.",
+                err=True,
+            )
+            sys.exit(ExitCodes.INVALID_INPUT)
+
         base = _get_notebook_execution_base()
         url = f"{base}/executions/{execution_id}/retry"
         try:

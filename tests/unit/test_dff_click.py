@@ -174,8 +174,12 @@ def test_dff_config_get_success(monkeypatch: Any, runner: CliRunner) -> None:
     assert output_json["configuration"]["name"] == "Test Configuration"
 
 
-def test_dff_config_init_success(runner: CliRunner) -> None:
-    """Test initializing a new DFF configuration template."""
+def test_dff_config_init_success(runner: CliRunner, monkeypatch: Any) -> None:
+    """Test initializing a new DFF configuration template.
+
+    DFF is an SLE-only feature, so we explicitly set platform='SLE'.
+    """
+    patch_keyring(monkeypatch, platform="SLE")
     cli = make_cli()
 
     with tempfile.TemporaryDirectory() as temp_dir:
@@ -629,8 +633,9 @@ def test_dff_config_workspace_filtering(monkeypatch: Any, runner: CliRunner) -> 
     assert "Config 2" not in result.output
 
 
-def test_dff_help_commands(runner: CliRunner) -> None:
+def test_dff_help_commands(runner: CliRunner, monkeypatch: Any) -> None:
     """Test that help is available for all DFF commands."""
+    patch_keyring(monkeypatch)
     cli = make_cli()
 
     # Test main dff help
@@ -659,8 +664,9 @@ def test_dff_help_commands(runner: CliRunner) -> None:
     assert "Manage table properties" in result.output
 
 
-def test_dff_edit_command_help(runner: CliRunner) -> None:
+def test_dff_edit_command_help(runner: CliRunner, monkeypatch: Any) -> None:
     """Test that the edit command shows proper help."""
+    patch_keyring(monkeypatch)
     cli = make_cli()
 
     result = runner.invoke(cli, ["dff", "edit", "--help"])

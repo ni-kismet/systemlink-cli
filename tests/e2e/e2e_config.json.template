@@ -1,7 +1,18 @@
 {
-  "base_url": "https://your-dev-systemlink.domain.com",
-  "api_key": "your-api-key-here",
-  "workspace": "Default",
+  "sle": {
+    "base_url": "https://your-dev-systemlink.lifecyclesolutions.ni.com",
+    "api_key": "your-sle-api-key-here",
+    "workspace": "Default",
+    "platform": "SLE",
+    "test_notebook_id": "your-test-notebook-id"
+  },
+  "sls": {
+    "base_url": "https://your-systemlink-server.local",
+    "api_key": "your-sls-api-key-here",
+    "workspace": "Default",
+    "platform": "SLS",
+    "test_notebook_path": "_shared/reports/your-test-notebook.ipynb"
+  },
   "timeout": 30,
   "cleanup": true
 }

@@ -27,9 +27,11 @@ class TestWorkspaceE2E:
         # Should show table headers
         assert "Workspace" in result.stdout or "Name" in result.stdout
 
-    def test_workspace_get_by_name(self, cli_runner: Any, cli_helper: Any, e2e_config: Any) -> None:
+    def test_workspace_get_by_name(
+        self, cli_runner: Any, cli_helper: Any, configured_workspace: str
+    ) -> None:
         """Test getting workspace details by name."""
-        workspace_name = e2e_config["workspace"]
+        workspace_name = configured_workspace
 
         result = cli_runner(["workspace", "get", "--name", workspace_name, "--format", "json"])
         cli_helper.assert_success(result)
@@ -39,9 +41,11 @@ class TestWorkspaceE2E:
         assert "workspace" in workspace_info
         assert workspace_info["workspace"]["name"] == workspace_name
 
-    def test_workspace_get_by_id(self, cli_runner: Any, cli_helper: Any, e2e_config: Any) -> None:
+    def test_workspace_get_by_id(
+        self, cli_runner: Any, cli_helper: Any, configured_workspace: str
+    ) -> None:
         """Test getting workspace details by ID."""
-        workspace_name = e2e_config["workspace"]
+        workspace_name = configured_workspace
 
         # First get workspace ID
         result = cli_runner(["workspace", "list", "--format", "json"])

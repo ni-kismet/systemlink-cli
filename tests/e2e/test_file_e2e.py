@@ -65,10 +65,10 @@ class TestFileE2E:
         assert len(files) <= 3
 
     def test_file_list_with_workspace(
-        self, cli_runner: Any, cli_helper: Any, e2e_config: Any
+        self, cli_runner: Any, cli_helper: Any, configured_workspace: str
     ) -> None:
         """Test file list with workspace filter."""
-        workspace = e2e_config["workspace"]
+        workspace = configured_workspace
 
         # First get workspace ID
         result = cli_runner(["workspace", "list", "--format", "json"])
@@ -96,10 +96,10 @@ class TestFileE2E:
         cli_helper: Any,
         temp_test_file: Path,
         temp_download_dir: Path,
-        e2e_config: Any,
+        configured_workspace: str,
     ) -> None:
         """Test full file lifecycle: upload, get, download, delete."""
-        workspace = e2e_config["workspace"]
+        workspace = configured_workspace
         unique_name = f"e2e-test-{uuid.uuid4().hex[:8]}.txt"
 
         # Get workspace ID

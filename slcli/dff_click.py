@@ -7,6 +7,7 @@ from typing import Any, Dict, List, Optional
 import click
 import requests
 
+from .platform import require_feature
 from .universal_handlers import UniversalResponseHandler, FilteredResponse
 from .utils import (
     ExitCodes,
@@ -299,9 +300,13 @@ def register_dff_commands(cli: Any) -> None:
     """Register the 'dff' command group and its subcommands."""
 
     @cli.group()
-    def dff() -> None:
+    @click.pass_context
+    def dff(ctx: click.Context) -> None:
         """Manage dynamic form fields (configurations, groups, fields, tables)."""
-        pass
+        # Check for platform feature availability
+        # Only check if a subcommand is being invoked (not just --help)
+        if ctx.invoked_subcommand is not None:
+            require_feature("dynamic_form_fields")
 
     # Configuration commands
     @dff.group()

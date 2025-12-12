@@ -4,6 +4,7 @@ SystemLink CLI (`slcli`) is a cross-platform Python CLI for SystemLink integrato
 
 ## Features
 
+- **Multi-Platform Support**: Works with both SystemLink Enterprise (SLE) and SystemLink Server (SLS) with automatic platform detection
 - **Secure Authentication**: Credential storage using [keyring](https://github.com/jaraco/keyring) with `login`/`logout` commands
 - **File Management**: Full file lifecycle management (list, upload, download, delete, query) with folder watch feature for automated uploads
 - **Function Management**: Complete WebAssembly (WASM) function definition and execution management with metadata-driven organization
@@ -174,6 +175,33 @@ slcli login --url "https://your-server.com/api"
 ```bash
 slcli logout
 ```
+
+## Platform Support
+
+SystemLink CLI supports both **SystemLink Enterprise (SLE)** and **SystemLink Server (SLS)**:
+
+| Platform | Notebook Execution | DFF/Templates/Workflows |
+| -------- | ------------------ | ----------------------- |
+| **SLE**  | ✓ Full support     | ✓ Full support          |
+| **SLS**  | ✓ Path-based API   | ✗ Not available         |
+
+### Platform Detection
+
+The CLI automatically detects your platform during `slcli login` by probing endpoints. You can also:
+
+```bash
+# View current platform and feature availability
+slcli info
+
+# JSON output for scripting
+slcli info --format json
+```
+
+### Platform-Specific Notes
+
+- **Notebook Execution on SLS**: Uses notebook path (e.g., `_shared/reports/notebook.ipynb`) instead of notebook ID
+- **Feature Gating**: Commands for DFF, templates, workflows, and functions show clear error messages when run on SLS
+- **Environment Override**: Set `SYSTEMLINK_PLATFORM=SLE` or `SYSTEMLINK_PLATFORM=SLS` to explicitly specify the platform
 
 ## Test Plan Template Management
 
