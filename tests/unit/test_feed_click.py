@@ -422,6 +422,235 @@ def test_feed_package_list_json(mock_request: MagicMock, mock_detect: MagicMock)
 
 
 # =============================================================================
+# Feed Package Upload Tests
+# =============================================================================
+
+
+@patch("slcli.feed_click.get_platform")
+@patch("slcli.feed_click._wait_for_job")
+@patch("slcli.feed_click.make_api_request")
+def test_feed_package_upload_sle_no_wait(
+    mock_request: MagicMock, mock_wait: MagicMock, mock_detect: MagicMock, tmp_path: Any
+) -> None:
+    """Test package upload on SLE without --wait."""
+    mock_detect.return_value = "SLE"
+    mock_request.return_value = MockResponse(json_data={"jobId": "job-123"})
+
+    pkg_path = tmp_path / "pkg.nipkg"
+    pkg_path.write_bytes(b"data")
+
+    cli = make_cli()
+    runner = CliRunner()
+    result = runner.invoke(
+        cli,
+        [
+            "feed",
+            "package",
+            "upload",
+            "--feed-id",
+            "feed-1",
+            "--file",
+            str(pkg_path),
+        ],
+    )
+
+    assert result.exit_code == 0
+    assert "upload started" in result.output.lower()
+    mock_wait.assert_not_called()
+
+
+@patch("slcli.feed_click.get_platform")
+@patch("slcli.feed_click._wait_for_job")
+@patch("slcli.feed_click.make_api_request")
+def test_feed_package_upload_sle_wait(
+    mock_request: MagicMock, mock_wait: MagicMock, mock_detect: MagicMock, tmp_path: Any
+) -> None:
+    """Test package upload on SLE with --wait."""
+    mock_detect.return_value = "SLE"
+    mock_request.return_value = MockResponse(json_data={"jobId": "job-123"})
+    mock_wait.return_value = {"resourceId": "pkg-123", "status": "SUCCEEDED"}
+
+    pkg_path = tmp_path / "pkg.nipkg"
+    pkg_path.write_bytes(b"data")
+
+    cli = make_cli()
+    runner = CliRunner()
+    result = runner.invoke(
+        cli,
+        [
+            "feed",
+            "package",
+            "upload",
+            "--feed-id",
+            "feed-1",
+            "--file",
+            str(pkg_path),
+            "--wait",
+        ],
+    )
+
+    assert result.exit_code == 0
+    assert "package uploaded" in result.output.lower()
+    mock_wait.assert_called_once_with("job-123", timeout=300)
+
+
+@patch("slcli.feed_click.get_platform")
+@patch("slcli.feed_click._wait_for_job")
+@patch("slcli.feed_click.make_api_request")
+def test_feed_package_upload_sls_no_wait(
+    mock_request: MagicMock, mock_wait: MagicMock, mock_detect: MagicMock, tmp_path: Any
+) -> None:
+    """Test package upload on SLS without --wait (still waits for pool upload)."""
+    mock_detect.return_value = "SLS"
+    mock_request.side_effect = [
+        MockResponse(json_data={"jobIds": ["upload-job"]}),
+        MockResponse(json_data={"jobId": "assoc-job"}),
+    ]
+    mock_wait.side_effect = [{"resourceId": "pkg-123"}]
+
+    pkg_path = tmp_path / "pkg.nipkg"
+    pkg_path.write_bytes(b"data")
+
+    cli = make_cli()
+    runner = CliRunner()
+    result = runner.invoke(
+        cli,
+        [
+            "feed",
+            "package",
+            "upload",
+            "--feed-id",
+            "feed-1",
+            "--file",
+            str(pkg_path),
+        ],
+    )
+
+    assert result.exit_code == 0
+    assert "upload started" in result.output.lower()
+    mock_wait.assert_called_once_with("upload-job", timeout=300)
+
+
+@patch("slcli.feed_click.get_platform")
+@patch("slcli.feed_click._wait_for_job")
+@patch("slcli.feed_click.make_api_request")
+def test_feed_package_upload_sls_wait(
+    mock_request: MagicMock, mock_wait: MagicMock, mock_detect: MagicMock, tmp_path: Any
+) -> None:
+    """Test package upload on SLS with --wait polls both stages."""
+    mock_detect.return_value = "SLS"
+    mock_request.side_effect = [
+        MockResponse(json_data={"jobIds": ["upload-job"]}),
+        MockResponse(json_data={"jobId": "assoc-job"}),
+    ]
+    mock_wait.side_effect = [
+        {"resourceId": "pkg-123"},
+        {"status": "SUCCEEDED", "resourceId": "pkg-123"},
+    ]
+
+    pkg_path = tmp_path / "pkg.nipkg"
+    pkg_path.write_bytes(b"data")
+
+    cli = make_cli()
+    runner = CliRunner()
+    result = runner.invoke(
+        cli,
+        [
+            "feed",
+            "package",
+            "upload",
+            "--feed-id",
+            "feed-1",
+            "--file",
+            str(pkg_path),
+            "--wait",
+        ],
+    )
+
+    assert result.exit_code == 0
+    assert "package uploaded" in result.output.lower()
+    assert mock_wait.call_count == 2
+    mock_wait.assert_any_call("upload-job", timeout=300)
+    mock_wait.assert_any_call("assoc-job", timeout=300)
+
+
+def test_feed_package_upload_missing_file() -> None:
+    """Test package upload fails for missing file."""
+    cli = make_cli()
+    runner = CliRunner()
+    result = runner.invoke(
+        cli,
+        [
+            "feed",
+            "package",
+            "upload",
+            "--feed-id",
+            "feed-1",
+            "--file",
+            "./does-not-exist.nipkg",
+        ],
+    )
+
+    assert result.exit_code == 2
+    assert "file not found" in result.output.lower()
+
+
+# =============================================================================
+# Feed Package Delete Tests
+# =============================================================================
+
+
+@patch("slcli.feed_click._wait_for_job")
+@patch("slcli.feed_click._delete_package")
+def test_feed_package_delete_with_yes(mock_delete: MagicMock, mock_wait: MagicMock) -> None:
+    """Test package delete with --yes and --wait flags."""
+    mock_delete.return_value = "job-123"
+    mock_wait.return_value = {"status": "SUCCEEDED"}
+
+    cli = make_cli()
+    runner = CliRunner()
+    result = runner.invoke(
+        cli,
+        ["feed", "package", "delete", "--id", "pkg-1", "--yes", "--wait"],
+    )
+
+    assert result.exit_code == 0
+    assert "package deleted" in result.output.lower()
+    mock_delete.assert_called_once_with("pkg-1")
+    mock_wait.assert_called_once_with("job-123", timeout=300)
+
+
+@patch("slcli.feed_click.click.confirm", return_value=False)
+@patch("slcli.feed_click._delete_package")
+def test_feed_package_delete_prompt_cancel(mock_delete: MagicMock, mock_confirm: MagicMock) -> None:
+    """Test package delete cancellation when user declines confirmation."""
+    cli = make_cli()
+    runner = CliRunner()
+    result = runner.invoke(cli, ["feed", "package", "delete", "--id", "pkg-1"])
+
+    assert result.exit_code == 0
+    assert "cancelled" in result.output.lower()
+    mock_confirm.assert_called_once()
+    mock_delete.assert_not_called()
+
+
+@patch("slcli.feed_click._wait_for_job")
+@patch("slcli.feed_click._delete_package")
+def test_feed_package_delete_no_wait(mock_delete: MagicMock, mock_wait: MagicMock) -> None:
+    """Test package delete without --wait returns quickly."""
+    mock_delete.return_value = "job-123"
+
+    cli = make_cli()
+    runner = CliRunner()
+    result = runner.invoke(cli, ["feed", "package", "delete", "--id", "pkg-1", "--yes"])
+
+    assert result.exit_code == 0
+    assert "deletion started" in result.output.lower()
+    mock_delete.assert_called_once_with("pkg-1")
+    mock_wait.assert_not_called()
+
+
+# =============================================================================
 # Feed Job List Tests
 # =============================================================================
 
@@ -474,6 +703,70 @@ def test_feed_job_get(mock_request: MagicMock, mock_detect: MagicMock) -> None:
 
     assert result.exit_code == 0
     assert "job-123" in result.output
+
+
+# =============================================================================
+# Feed Job Wait Tests
+# =============================================================================
+
+
+@patch("slcli.feed_click._wait_for_job")
+def test_feed_job_wait_table(mock_wait: MagicMock) -> None:
+    """Test job wait command with table output."""
+    mock_wait.return_value = {"status": "SUCCEEDED", "resourceId": "res-1"}
+
+    cli = make_cli()
+    runner = CliRunner()
+    result = runner.invoke(cli, ["feed", "job", "wait", "--id", "job-1"])
+
+    assert result.exit_code == 0
+    assert "Job completed" in result.output
+    mock_wait.assert_called_once_with("job-1", timeout=300)
+
+
+@patch("slcli.feed_click._wait_for_job")
+def test_feed_job_wait_json(mock_wait: MagicMock) -> None:
+    """Test job wait command with JSON output."""
+    mock_wait.return_value = {"status": "SUCCEEDED", "resourceId": "res-1"}
+
+    cli = make_cli()
+    runner = CliRunner()
+    result = runner.invoke(
+        cli,
+        ["feed", "job", "wait", "--id", "job-1", "--format", "json", "--timeout", "10"],
+    )
+
+    assert result.exit_code == 0
+    assert '"resourceId"' in result.output
+    mock_wait.assert_called_once_with("job-1", timeout=10)
+
+
+@patch("slcli.feed_click._wait_for_job")
+def test_feed_job_wait_timeout(mock_wait: MagicMock) -> None:
+    """Test job wait command handles TimeoutError."""
+    mock_wait.side_effect = TimeoutError("Job timed out")
+
+    cli = make_cli()
+    runner = CliRunner()
+    result = runner.invoke(cli, ["feed", "job", "wait", "--id", "job-1", "--timeout", "1"])
+
+    assert result.exit_code != 0
+    assert "timed out" in result.output.lower()
+    mock_wait.assert_called_once_with("job-1", timeout=1)
+
+
+@patch("slcli.feed_click._wait_for_job")
+def test_feed_job_wait_error(mock_wait: MagicMock) -> None:
+    """Test job wait command handles job failure."""
+    mock_wait.side_effect = Exception("Job failed")
+
+    cli = make_cli()
+    runner = CliRunner()
+    result = runner.invoke(cli, ["feed", "job", "wait", "--id", "job-1"])
+
+    assert result.exit_code != 0
+    assert "job failed" in result.output.lower()
+    mock_wait.assert_called_once_with("job-1", timeout=300)
 
 
 # =============================================================================

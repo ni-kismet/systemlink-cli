@@ -183,6 +183,7 @@ slcli feed delete --id <feed-id> --yes
 
 - Feed and package endpoints use `/nirepo/v1` instead of `/nifeed/v1`.
 - Package uploads use the shared package pool before being associated with a feed, but the CLI abstracts this difference.
+- Note: On SLS, package upload commands block for the initial upload to the shared pool even without the `--wait` flag so a package ID can be obtained. The `--wait` flag controls waiting for the final association step. On SLE, the upload command returns immediately unless `--wait` is specified.
 
 ### Pagination & Formats
 

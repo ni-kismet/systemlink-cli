@@ -319,6 +319,9 @@ def _upload_package_sls(feed_id: str, file_path: str, overwrite: bool = False) -
 
     SLS uploads to the package pool first, then adds reference to feed.
 
+    Note: Even when the CLI command is invoked without ``--wait``, this helper must block on the
+    initial upload job to obtain the package ID before the feed association step can be queued.
+
     Args:
         feed_id: Feed ID
         file_path: Path to the package file
@@ -742,7 +745,13 @@ def register_feed_commands(cli: Any) -> None:
     @click.option("--feed-id", "-f", required=True, help="Feed ID to upload to")
     @click.option("--file", "-i", "file_path", required=True, help="Path to package file")
     @click.option("--overwrite", is_flag=True, help="Overwrite existing package")
-    @click.option("--wait", is_flag=True, help="Wait for operation to complete")
+    @click.option(
+        "--wait",
+        is_flag=True,
+        help=(
+            "Wait for the final association job to finish (SLS still waits for initial pool upload)."
+        ),
+    )
     @click.option("--timeout", type=int, default=300, help="Timeout in seconds when using --wait")
     def upload_package(
         feed_id: str, file_path: str, overwrite: bool, wait: bool, timeout: int
@@ -759,6 +768,13 @@ def register_feed_commands(cli: Any) -> None:
             sys.exit(ExitCodes.INVALID_INPUT)
 
         try:
+            platform_value = get_platform()
+            if platform_value == PLATFORM_SLS and not wait:
+                click.echo(
+                    "Note: SLS uploads wait for the initial package pool upload even without --wait.",
+                    err=False,
+                )
+
             job_id = _upload_package(feed_id, file_path, overwrite)
 
             if wait:

@@ -33,10 +33,11 @@ This document outlines the implementation plan for NI Package Manager feed manag
 
 ### Job Commands (`slcli feed job`)
 
-| Command    | Description     | Status         |
-| ---------- | --------------- | -------------- |
-| `job list` | List feed jobs  | ✅ Implemented |
-| `job get`  | Get job details | ✅ Implemented |
+| Command    | Description                | Status         |
+| ---------- | -------------------------- | -------------- |
+| `job list` | List feed jobs             | ✅ Implemented |
+| `job get`  | Get job details            | ✅ Implemented |
+| `job wait` | Wait for a job to complete | ✅ Implemented |
 
 ### Key Features
 
@@ -106,7 +107,7 @@ This document outlines the implementation plan for NI Package Manager feed manag
 - Wait/polling tests
 - Error handling tests
 
-### E2E Tests (TODO)
+### E2E Tests (Completed)
 
 - ✅ `tests/e2e/test_feed_e2e.py`
   - SLE: list feeds, create feed, get feed, list packages (empty), delete feed
