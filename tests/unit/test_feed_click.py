@@ -66,6 +66,7 @@ def mock_workspace_helpers(monkeypatch: pytest.MonkeyPatch) -> None:
     monkeypatch.setattr(
         "slcli.feed_click.get_workspace_id_with_fallback", lambda workspace: workspace
     )
+    monkeypatch.setattr("slcli.feed_click.get_base_url", lambda: "http://localhost:8000")
 
 
 # =============================================================================
