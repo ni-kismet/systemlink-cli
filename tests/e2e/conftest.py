@@ -56,14 +56,30 @@ def e2e_config() -> Dict[str, Any]:
     return config
 
 
+def _is_sle_url(base_url: str) -> bool:
+    """Check if a URL matches SLE (SystemLink Enterprise) patterns.
+
+    Uses the same patterns as platform.py for consistency.
+    Only specific URL patterns are SLE - not all systemlink.io subdomains.
+    """
+    url_lower = base_url.lower()
+    sle_patterns = [
+        "api.systemlink.io",  # SLE production
+        "-api.lifecyclesolutions.ni.com",  # SLE dev/demo with -api suffix
+        "dev-api.lifecyclesolutions",
+        "demo-api.lifecyclesolutions",
+    ]
+    return any(pattern in url_lower for pattern in sle_patterns)
+
+
 @pytest.fixture(scope="session")
 def sle_config(e2e_config: Dict[str, Any]) -> Dict[str, Any]:
     """Get SLE-specific configuration."""
     if "sle" in e2e_config:
         return e2e_config["sle"]
-    # Legacy format - check if it's an SLE URL
+    # Legacy format - check if it's an SLE URL using consistent patterns
     base_url = e2e_config.get("base_url", "")
-    if "lifecyclesolutions.ni.com" in base_url or "systemlink.io" in base_url:
+    if _is_sle_url(base_url):
         return e2e_config
     return {}
 
@@ -73,9 +89,9 @@ def sls_config(e2e_config: Dict[str, Any]) -> Dict[str, Any]:
     """Get SLS-specific configuration."""
     if "sls" in e2e_config:
         return e2e_config["sls"]
-    # Legacy format - check if it's an SLS URL
+    # Legacy format - check if it's an SLS URL (anything not matching SLE patterns)
     base_url = e2e_config.get("base_url", "")
-    if "lifecyclesolutions.ni.com" not in base_url and "systemlink.io" not in base_url:
+    if base_url and not _is_sle_url(base_url):
         return e2e_config
     return {}
 

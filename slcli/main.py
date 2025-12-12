@@ -202,34 +202,43 @@ def info(format: str) -> None:
         click.echo(json.dumps(platform_info, indent=2))
         return
 
-    # Table format
-    click.echo("\n┌─────────────────────────────────────────────────────────────┐")
-    click.echo("│                   SystemLink CLI Info                       │")
-    click.echo("├─────────────────────────────────────────────────────────────┤")
+    # Table format using box-drawing characters for key-value display.
+    # Note: This uses a custom layout rather than table_utils because table_utils
+    # is designed for list-style output (multiple uniform rows), while this command
+    # displays a single record with key-value pairs and feature availability.
+    # All text fields are truncated to prevent formatting issues with long values.
+    max_value_width = 45  # Maximum width for values before truncation
+    content_width = 61  # Total width inside the box
+
+    def truncate(value: str, max_len: int = max_value_width) -> str:
+        """Truncate a string with ellipsis if it exceeds max length."""
+        if len(value) > max_len:
+            return value[: max_len - 3] + "..."
+        return value
+
+    click.echo("\n┌" + "─" * content_width + "┐")
+    click.echo("│" + "SystemLink CLI Info".center(content_width) + "│")
+    click.echo("├" + "─" * content_width + "┤")
 
     # Connection status
     status = "✓ Connected" if platform_info["logged_in"] else "✗ Not logged in"
     click.echo(f"│  Status:    {status:<48}│")
 
     # Platform
-    platform_display = platform_info.get("platform_display", "Unknown")
+    platform_display = truncate(platform_info.get("platform_display", "Unknown"))
     click.echo(f"│  Platform:  {platform_display:<48}│")
 
-    # API URL (truncate if too long)
-    api_url = platform_info.get("api_url", "Not configured")
-    if len(api_url) > 45:
-        api_url = api_url[:42] + "..."
+    # API URL
+    api_url = truncate(platform_info.get("api_url", "Not configured"))
     click.echo(f"│  API URL:   {api_url:<48}│")
 
-    # Web URL (truncate if too long)
-    web_url = platform_info.get("web_url", "Not configured")
-    if len(web_url) > 45:
-        web_url = web_url[:42] + "..."
+    # Web URL
+    web_url = truncate(platform_info.get("web_url", "Not configured"))
     click.echo(f"│  Web URL:   {web_url:<48}│")
 
-    click.echo("├─────────────────────────────────────────────────────────────┤")
-    click.echo("│                      Feature Availability                   │")
-    click.echo("├─────────────────────────────────────────────────────────────┤")
+    click.echo("├" + "─" * content_width + "┤")
+    click.echo("│" + "Feature Availability".center(content_width) + "│")
+    click.echo("├" + "─" * content_width + "┤")
 
     features = platform_info.get("features", {})
     if features:
@@ -237,16 +246,15 @@ def info(format: str) -> None:
             status_icon = "✓" if available else "✗"
             status_text = "Available" if available else "Not available"
             # Truncate feature name if needed
-            if len(feature_name) > 29:
-                feature_name = feature_name[:26] + "..."
-            click.echo(f"│  {status_icon} {feature_name:<30} {status_text:<26}│")
+            display_name = truncate(feature_name, 29)
+            click.echo(f"│  {status_icon} {display_name:<30} {status_text:<26}│")
     else:
         if platform_info["platform"] == PLATFORM_UNKNOWN:
             click.echo("│  Run 'slcli login' to detect platform features.            │")
         else:
             click.echo("│  No feature information available.                          │")
 
-    click.echo("└─────────────────────────────────────────────────────────────┘\n")
+    click.echo("└" + "─" * content_width + "┘\n")
 
 
 register_completion_command(cli)
