@@ -1082,3 +1082,27 @@ def test_replicate_payload(mock_request: MagicMock, mock_detect: MagicMock) -> N
     payload = kwargs.get("payload", {})
     assert payload.get("urls") == ["https://source-feed.example.com"]
     assert "uri" not in payload
+
+
+@patch("slcli.feed_click.get_platform")
+@patch("slcli.feed_click.make_api_request")
+def test_delete_package_payload(mock_request: MagicMock, mock_detect: MagicMock) -> None:
+    """Test delete package command sends correct payload and uses POST."""
+    mock_detect.return_value = "SLE"
+    mock_request.return_value = MockResponse(json_data={"jobId": "job-123"})
+
+    cli = make_cli()
+    runner = CliRunner()
+    result = runner.invoke(
+        cli,
+        ["feed", "package", "delete", "--id", "pkg-1", "--yes"],
+    )
+
+    assert result.exit_code == 0
+
+    # Verify request
+    args, kwargs = mock_request.call_args
+    assert args[0] == "POST"
+    assert args[1].endswith("/delete-packages")
+    payload = kwargs.get("payload", {})
+    assert payload.get("packageIds") == ["pkg-1"]

@@ -406,9 +406,10 @@ def _delete_package(package_id: str) -> str:
         Job ID for the async operation
     """
     base_url = _get_feed_base_url()
-    url = f"{base_url}/packages/{package_id}"
+    url = f"{base_url}/delete-packages"
+    payload = {"packageIds": [package_id]}
 
-    resp = make_api_request("DELETE", url)
+    resp = make_api_request("POST", url, payload=payload)
     data = resp.json()
     return data.get("jobId", data.get("job", {}).get("id", ""))
 
@@ -747,7 +748,7 @@ def register_feed_commands(cli: Any) -> None:
                 format_output=format_output,
                 formatter_func=package_formatter,
                 headers=["Name", "Version", "Architecture", "ID"],
-                column_widths=[30, 20, 15, 26],
+                column_widths=[30, 20, 15, 36],
                 empty_message="No packages found in this feed.",
                 enable_pagination=True,
                 page_size=take,
