@@ -1,6 +1,71 @@
 # CHANGELOG
 
 
+## v0.15.0 (2025-12-12)
+
+### Bug Fixes
+
+- Address remaining PR review comments
+  ([`4cadd1e`](https://github.com/ni-kismet/systemlink-cli/commit/4cadd1e6f3c18eb061e413cf8f8074c73800f13a))
+
+- Fix SLE/SLS URL detection inconsistency in conftest.py - Extract _is_sle_url() helper using same
+  patterns as platform.py - Only specific URL patterns (api.systemlink.io,
+  *-api.lifecyclesolutions.ni.com) are classified as SLE, matching production detection logic
+
+- Improve info command table formatting - Add detailed comment explaining why table_utils is not
+  used (designed for list-style output, not key-value display) - Extract truncate() helper function
+  for cleaner code - Use variables for magic numbers (max_value_width, content_width)
+
+- Improve platform detection reliability and address PR feedback
+  ([`69c0dc8`](https://github.com/ni-kismet/systemlink-cli/commit/69c0dc89b581dfdcdc3bc29a00d8a06210dd3dc4))
+
+- Add SYSTEMLINK_PLATFORM env var for explicit platform specification - Update detection priority:
+  explicit env var > keyring config > URL fallback - Add explicit platform field to e2e config
+  template and CLI runner - Add explanatory comment for bare except clause in _get_keyring_config -
+  Fix return type annotations (Optional[str]) in test_info_command.py - Update _make_cli_runner to
+  pass SYSTEMLINK_PLATFORM when specified
+
+This makes platform detection more reliable by preferring explicit specification over URL pattern
+  matching, which is brittle since both SLE and SLS can be installed on arbitrary servers/DNS names.
+
+- Exclude e2e tests from default pytest run
+  ([`1e50650`](https://github.com/ni-kismet/systemlink-cli/commit/1e50650cef7362b0483ce14d23d63e718e99bc5f))
+
+Configure pytest to only run unit tests by default: - Add --ignore=tests/e2e to addopts - Set
+  testpaths to tests/unit - Add missing pytest markers (sls, sle, file)
+
+E2E tests can still be run explicitly with: poetry run pytest tests/e2e/
+
+- E2e tests for dual SLE/SLS configuration
+  ([`8b2289a`](https://github.com/ni-kismet/systemlink-cli/commit/8b2289a33d4f0d2a410ea8ea2de637dea9d7d762))
+
+- Fix credential lookup order: env vars now checked before keyring - Add dynamic platform detection
+  from URL for runtime overrides - Fix URL patterns to correctly distinguish SLE cloud from SLS
+  on-prem - Fix e2e test fixtures to use correct env var (SYSTEMLINK_API_URL) - Update tests to use
+  configured_workspace fixture - Add confirmation input for notebook delete commands in tests -
+  Update unit tests for new URL pattern detection
+
+- Address PR review comments and merge with main
+  ([`c0b2873`](https://github.com/ni-kismet/systemlink-cli/commit/c0b2873104629205cf85314e320755e7a5646774))
+
+- Remove duplicate is_sls variable in notebook_click.py start command - Fix return type annotation
+  in test_info_command.py (Optional[str]) - Add explanatory comment for bare except clause in
+  platform.py - Merge with main branch (resolve conflict in conftest.py markers)
+
+### Refactoring
+
+- Address remaining PR review feedback
+  ([`c4a7b3e`](https://github.com/ni-kismet/systemlink-cli/commit/c4a7b3e7b0d67c8829f227f2cc353429dccacdc0))
+
+- Move 'os' import to module level in platform.py - Rename 'maybe' variable to 'config_url' in
+  utils.py for clarity - Update URL encoding comments for accuracy (safe='') - Fix trailing space in
+  error message - Remove duplicate API comments in notebook_click.py - Update SLE comment to 'cloud
+  and hosted' for accuracy - Extract _build_create_execution_payload helper function - Extract
+  _parse_execution_response helper function - Add explicit platform='SLE' to DFF test for clarity -
+  Improve retry test assertions with exit code verification - Update configured_workspace fixture
+  docstring for clarity
+
+
 ## v0.14.0 (2025-12-10)
 
 ### Bug Fixes
@@ -16,6 +81,9 @@
   tests
 
 ### Chores
+
+- **release**: 0.14.0
+  ([`44eb88f`](https://github.com/ni-kismet/systemlink-cli/commit/44eb88f581bacb4c24ebfe4da84c12ea8e936ee7))
 
 - **deps**: Bump urllib3 from 2.5.0 to 2.6.0
   ([`e055ea3`](https://github.com/ni-kismet/systemlink-cli/commit/e055ea329f5f2e8cbb266752bae35cdeb57ace71))
@@ -52,6 +120,39 @@ Features: - Uses performant /search-files endpoint instead of /query-files-linq 
 Tests: - 31 unit tests covering all file commands - 12 E2E tests against dev tier
 
 Dependencies: - watchdog ~=6.0.0 (optional, for watch command)
+
+- **notebook**: Add SLS support for notebook commands and fix e2e test fixtures
+  ([`1a50ced`](https://github.com/ni-kismet/systemlink-cli/commit/1a50cedc5181111bd7e48279354a3ccf1f6db4a1))
+
+- Add platform-aware notebook management APIs (SLS uses path-based endpoints) - Add platform-aware
+  notebook execution APIs (SLS uses ninbexec/v2) - Fix URL encoding for SLS notebook paths (encode
+  all characters including /) - Handle SLS response formats (list vs wrapped object) - Add SLS
+  guards for unsupported operations (create, update, delete, retry) - Update e2e config to support
+  both SLE and SLS servers simultaneously - Add platform-specific CLI runners and fixtures for e2e
+  tests - Fix DFF tests to mock keyring with SLE platform for feature gating - Update
+  test_utils.patch_keyring to return SLE platform by default
+
+- Add platform detection and feature gating for SLE/SLS
+  ([`3bf8c7c`](https://github.com/ni-kismet/systemlink-cli/commit/3bf8c7c573c9c9daaf766a3b0587b3a404f344f6))
+
+Implements Issue #25 Phase 1 & 2:
+
+## Platform Detection - Auto-detect platform during `slcli login` by probing /niworkorder endpoint -
+  URL pattern matching as fallback (*.systemlink.io -> SLE) - Store platform in keyring config
+
+## New Commands - `slcli info`: Shows current config, platform, and feature availability - Supports
+  --format table|json
+
+## Feature Gating - Gate SLE-only commands: dff, template, workflow, function - Graceful error
+  messages for unavailable features on SLS - Commands still show in --help (not hidden)
+
+## New Module: slcli/platform.py - Platform constants: PLATFORM_SLE, PLATFORM_SLS, PLATFORM_UNKNOWN
+  - detect_platform(): Probes endpoints to identify platform - get_platform(): Get stored platform
+  from keyring - has_feature(): Check feature availability - require_feature(): Exit gracefully if
+  feature unavailable - get_platform_info(): Get full platform details for info command
+
+## Tests - 32 new unit tests for platform detection and feature gating - 100% coverage on
+  platform.py module - All 166 tests passing
 
 ### Refactoring
 
