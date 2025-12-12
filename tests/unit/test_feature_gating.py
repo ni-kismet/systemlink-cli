@@ -3,9 +3,17 @@
 import json
 from typing import Any
 
+import pytest
 from click.testing import CliRunner
 
 from slcli.main import cli
+from slcli.platform import clear_platform_cache
+
+
+@pytest.fixture(autouse=True)
+def clear_cache() -> None:
+    """Clear the platform cache before each test."""
+    clear_platform_cache()
 
 
 class TestFeatureGatingDFF:

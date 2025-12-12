@@ -7,6 +7,7 @@ This module provides utilities to detect and manage the target platform
 import json
 import os
 import sys
+from functools import lru_cache
 from typing import Any, Dict
 
 import click
@@ -157,7 +158,8 @@ def _detect_platform_from_url(api_url: str) -> str:
         api_url: The SystemLink API base URL
 
     Returns:
-        Platform identifier (PLATFORM_SLE or PLATFORM_SLS)
+        Platform identifier: PLATFORM_SLE or PLATFORM_SLS.
+        Note: This function never returns PLATFORM_UNKNOWN - it defaults to SLS.
     """
     api_url_lower = api_url.lower()
 
@@ -177,6 +179,7 @@ def _detect_platform_from_url(api_url: str) -> str:
     return PLATFORM_SLS
 
 
+@lru_cache(maxsize=1)
 def get_platform() -> str:
     """Get the current platform from stored configuration or environment.
 
@@ -185,6 +188,8 @@ def get_platform() -> str:
     2. Stored platform from keyring config (set during login via endpoint probing)
     3. URL pattern matching (fallback, less reliable)
     4. Return PLATFORM_UNKNOWN if all methods fail
+
+    Note: Results are cached for performance. Use clear_platform_cache() to reset.
 
     Returns:
         Platform identifier (PLATFORM_SLE, PLATFORM_SLS, or PLATFORM_UNKNOWN)
@@ -210,6 +215,15 @@ def get_platform() -> str:
         return _detect_platform_from_url(env_url)
 
     return PLATFORM_UNKNOWN
+
+
+def clear_platform_cache() -> None:
+    """Clear the cached platform result.
+
+    Call this when the platform configuration changes (e.g., after login/logout)
+    to ensure the next get_platform() call re-detects the platform.
+    """
+    get_platform.cache_clear()
 
 
 def has_feature(feature_name: str) -> bool:

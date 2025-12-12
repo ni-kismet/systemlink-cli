@@ -34,6 +34,23 @@ from .utils import (
 from .workspace_utils import get_workspace_display_name
 
 
+def _normalize_sls_notebook(notebook: Dict[str, Any]) -> None:
+    """Normalize SLS notebook response to include id/name fields.
+
+    SLS notebooks use 'path' as the identifier. This helper adds 'id' and 'name'
+    fields derived from 'path' to provide a consistent interface across platforms.
+
+    Args:
+        notebook: Notebook dictionary to normalize (modified in place).
+    """
+    if "path" in notebook:
+        if "id" not in notebook:
+            notebook["id"] = notebook["path"]
+        if "name" not in notebook:
+            path = notebook["path"]
+            notebook["name"] = path.split("/")[-1] if "/" in path else path
+
+
 def _get_notebook_base_url() -> str:
     """Get the base URL for notebook API.
 
@@ -89,10 +106,9 @@ def _query_notebooks_http(
                     elif "parameters" not in nb or not isinstance(nb["parameters"], dict):
                         nb["parameters"] = {}
 
-                    # For SLS, use path as the identifier (no id field)
-                    if is_sls and "path" in nb and "id" not in nb:
-                        nb["id"] = nb["path"]
-                        nb["name"] = nb["path"].split("/")[-1] if "/" in nb["path"] else nb["path"]
+                    # For SLS, normalize to include id/name derived from path
+                    if is_sls:
+                        _normalize_sls_notebook(nb)
 
                     all_notebooks.append(nb)
                 except Exception:
@@ -134,12 +150,8 @@ def _get_notebook_http(notebook_id: str) -> Dict[str, Any]:
         result = response.json()
 
         # For SLS, normalize the response to include id/name fields
-        if is_sls and "path" in result:
-            if "id" not in result:
-                result["id"] = result["path"]
-            if "name" not in result:
-                path = result["path"]
-                result["name"] = path.split("/")[-1] if "/" in path else path
+        if is_sls:
+            _normalize_sls_notebook(result)
 
         return result
     except requests.exceptions.RequestException as exc:
@@ -207,18 +219,23 @@ def _query_notebook_executions(
     continuation_token: Optional[str] = None
     is_sls = get_platform() == PLATFORM_SLS
 
+    def _escape_filter_value(value: str) -> str:
+        """Escape special characters in filter string values."""
+        # Escape backslashes and quotes to prevent filter injection
+        return value.replace("\\", "\\\\").replace('"', '\\"')
+
     # Build filter based on platform
     base_parts: List[str] = []
     if is_sls:
         # SLS uses notebookPath, no workspaceId
         if notebook_path:
-            base_parts.append(f'notebookPath == "{notebook_path}"')
+            base_parts.append(f'notebookPath == "{_escape_filter_value(notebook_path)}"')
     else:
         # SLE uses workspaceId and notebookId
         if workspace_id:
-            base_parts.append(f'workspaceId == "{workspace_id}"')
+            base_parts.append(f'workspaceId == "{_escape_filter_value(workspace_id)}"')
         if notebook_id:
-            base_parts.append(f'notebookId == "{notebook_id}"')
+            base_parts.append(f'notebookId == "{_escape_filter_value(notebook_id)}"')
 
     while True:
         payload: Dict[str, Any] = {
@@ -1198,11 +1215,13 @@ def register_notebook_commands(cli: Any) -> None:
             if data.get("result"):
                 click.echo("\nResult:")
                 click.echo(json.dumps(data["result"], indent=2))
-            # Handle both SLE's errorMessage and SLS's exception field
-            error_msg = data.get("errorMessage") or data.get("exception")
-            if error_msg:
-                click.echo("\nError/Exception:")
-                click.echo(error_msg)
+            # Display platform-specific error field with precise label
+            if is_sls and data.get("exception"):
+                click.echo("\nException:")
+                click.echo(data["exception"])
+            elif not is_sls and data.get("errorMessage"):
+                click.echo("\nError Message:")
+                click.echo(data["errorMessage"])
         except Exception as exc:  # noqa: BLE001
             handle_api_error(exc)
 
@@ -1261,6 +1280,14 @@ def register_notebook_commands(cli: Any) -> None:
         format_output = validate_output_format(format)
         base = _get_notebook_execution_base()
         is_sls = get_platform() == PLATFORM_SLS
+
+        # Warn if workspace is specified on SLS (where it's ignored)
+        if is_sls and workspace != "Default":
+            click.echo(
+                "⚠ Warning: --workspace is ignored on SystemLink Server (SLS). "
+                "SLS does not use workspace filtering for notebook executions.",
+                err=True,
+            )
 
         # Build CreateExecution payload using helper function
         create_execution = _build_create_execution_payload(

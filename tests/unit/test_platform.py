@@ -9,6 +9,8 @@ from slcli.platform import (
     PLATFORM_SLE,
     PLATFORM_SLS,
     PLATFORM_UNKNOWN,
+    _detect_platform_from_url,
+    clear_platform_cache,
     detect_platform,
     get_platform,
     get_platform_info,
@@ -16,6 +18,12 @@ from slcli.platform import (
     require_feature,
     PLATFORM_FEATURES,
 )
+
+
+@pytest.fixture(autouse=True)
+def clear_cache() -> None:
+    """Clear the platform cache before each test."""
+    clear_platform_cache()
 
 
 class TestDetectPlatform:
@@ -102,6 +110,49 @@ class TestDetectPlatform:
             result = detect_platform("https://my-server.company.local", "test-key")
 
             assert result == PLATFORM_SLS
+
+
+class TestDetectPlatformFromUrl:
+    """Tests for _detect_platform_from_url function (URL pattern matching only)."""
+
+    def test_sle_api_systemlink_io(self) -> None:
+        """Test api.systemlink.io is detected as SLE."""
+        assert _detect_platform_from_url("https://api.systemlink.io") == PLATFORM_SLE
+
+    def test_sle_dev_api_lifecyclesolutions(self) -> None:
+        """Test dev-api.lifecyclesolutions.ni.com is detected as SLE."""
+        assert (
+            _detect_platform_from_url("https://dev-api.lifecyclesolutions.ni.com") == PLATFORM_SLE
+        )
+
+    def test_sle_demo_api_lifecyclesolutions(self) -> None:
+        """Test demo-api.lifecyclesolutions.ni.com is detected as SLE."""
+        assert (
+            _detect_platform_from_url("https://demo-api.lifecyclesolutions.ni.com") == PLATFORM_SLE
+        )
+
+    def test_sls_base_systemlink_io(self) -> None:
+        """Test base.systemlink.io (on-prem subdomain) is detected as SLS."""
+        assert _detect_platform_from_url("https://base.systemlink.io") == PLATFORM_SLS
+
+    def test_sls_custom_systemlink_io_subdomain(self) -> None:
+        """Test custom systemlink.io subdomains are detected as SLS."""
+        assert _detect_platform_from_url("https://mycompany.systemlink.io") == PLATFORM_SLS
+
+    def test_sls_custom_domain(self) -> None:
+        """Test custom on-prem domains are detected as SLS."""
+        assert _detect_platform_from_url("https://my-server.company.local") == PLATFORM_SLS
+
+    def test_sls_localhost(self) -> None:
+        """Test localhost is detected as SLS."""
+        assert _detect_platform_from_url("http://localhost:8000") == PLATFORM_SLS
+
+    def test_case_insensitive(self) -> None:
+        """Test URL matching is case-insensitive."""
+        assert _detect_platform_from_url("https://API.SYSTEMLINK.IO") == PLATFORM_SLE
+        assert (
+            _detect_platform_from_url("https://Demo-API.LifecycleSolutions.NI.COM") == PLATFORM_SLE
+        )
 
 
 class TestGetPlatform:
