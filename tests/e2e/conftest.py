@@ -195,8 +195,35 @@ def _make_cli_runner(config: Dict[str, Any], timeout: int = 30) -> Any:
 
 
 @pytest.fixture
-def cli_runner() -> Any:
-    """CLI runner for executing slcli commands (uses current environment)."""
+def cli_runner(e2e_config: Dict[str, Any]) -> Any:
+    """CLI runner for executing slcli commands.
+
+    Prefer the SLE config when available, otherwise fall back to SLS, and
+    finally the bare environment. This keeps legacy single-config runs working
+    while enabling multi-platform configs to still have a sensible default
+    runner for tests that do not opt into a platform-specific fixture.
+    """
+    timeout = e2e_config.get("timeout", 30)
+
+    # Prefer SLE when configured
+    if (
+        "sle" in e2e_config
+        and e2e_config["sle"].get("base_url")
+        and e2e_config["sle"].get("api_key")
+    ):
+        config = {**e2e_config["sle"], "platform": "SLE"}
+        return _make_cli_runner(config, timeout)
+
+    # Fall back to SLS when configured
+    if (
+        "sls" in e2e_config
+        and e2e_config["sls"].get("base_url")
+        and e2e_config["sls"].get("api_key")
+    ):
+        config = {**e2e_config["sls"], "platform": "SLS"}
+        return _make_cli_runner(config, timeout)
+
+    # Legacy / no config: use current environment
     return _make_cli_runner({})
 
 

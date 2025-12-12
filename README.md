@@ -11,6 +11,7 @@ SystemLink CLI (`slcli`) is a cross-platform Python CLI for SystemLink integrato
 - **Test Plan Templates**: Complete management (list, export, import, delete, init) with JSON and table output formats
 - **Jupyter Notebooks**: Full lifecycle management (list, download, create, update, delete) with workspace filtering
 - **User Management**: Comprehensive user administration (list, get, create, update, delete) with Dynamic LINQ filtering, pagination, and support for service accounts
+- **Feed Management**: Manage NI Package Manager feeds (list, get, create, delete, package list/upload/delete) with platform-aware behavior for SLE/SLS
 - **Workflows**: Full workflow management (list, export, import, delete, init, update) with comprehensive state and action definitions
 - **Workspace Management**: Essential workspace administration (list, info, disable) with comprehensive resource details
 - **Cross-Platform**: Windows, macOS, and Linux support with standalone binaries
@@ -149,7 +150,45 @@ After installation, restart your shell or source the completion file. See [docs/
    slcli workflow --help
    slcli notebook --help
    slcli dff --help
+   slcli feed --help
    ```
+
+## Feed Management
+
+Manage NI Package Manager feeds for both SystemLink Enterprise (SLE) and SystemLink Server (SLS). Platform detection is automatic, and platform values are case-insensitive.
+
+### Common Commands (SLE example)
+
+```bash
+# List feeds
+slcli feed list --format table
+
+# Create a feed (wait for completion)
+slcli feed create --name my-feed --platform windows --workspace Default
+
+# Get feed details
+slcli feed get --id <feed-id> --format json
+
+# List packages in a feed
+slcli feed package list --feed-id <feed-id> --format json
+
+# Upload a package and wait for completion
+slcli feed package upload --feed-id <feed-id> --file mypkg.nipkg --wait
+
+# Delete a feed
+slcli feed delete --id <feed-id> --yes
+```
+
+### SLS-Specific Notes
+
+- Feed and package endpoints use `/nirepo/v1` instead of `/nifeed/v1`.
+- Package uploads use the shared package pool before being associated with a feed.
+- **Note:** On SLS, package upload commands will block for the initial upload phase even without the `--wait` flag, as the package must be uploaded to the shared pool before being associated with the feed. The `--wait` flag controls waiting for the final association step. On SLE, the upload command returns immediately unless `--wait` is specified.
+
+### Pagination & Formats
+
+- All list commands support `--format` (`table` default, `json`) and `--take` (default 25) for pagination.
+- JSON outputs return full results without pagination.
 
 ## Authentication
 
