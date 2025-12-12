@@ -8,6 +8,7 @@ import pytest
 
 @pytest.mark.e2e
 @pytest.mark.sle
+@pytest.mark.usefixtures("require_sle")
 class TestFeedE2E:
     """End-to-end tests for feed commands (SLE)."""
 

@@ -4,6 +4,7 @@ from typing import Any, Dict, Optional
 from unittest.mock import MagicMock, patch
 
 import click
+import pytest
 from click.testing import CliRunner
 
 from slcli.feed_click import register_feed_commands
@@ -56,6 +57,15 @@ class MockResponse:
             from requests.exceptions import HTTPError
 
             raise HTTPError(f"HTTP {self._status_code}")
+
+
+@pytest.fixture(autouse=True)
+def mock_workspace_helpers(monkeypatch: pytest.MonkeyPatch) -> None:
+    """Prevent workspace lookups from hitting keyring or network in unit tests."""
+    monkeypatch.setattr("slcli.feed_click.get_workspace_map", lambda: {})
+    monkeypatch.setattr(
+        "slcli.feed_click.get_workspace_id_with_fallback", lambda workspace: workspace
+    )
 
 
 # =============================================================================
