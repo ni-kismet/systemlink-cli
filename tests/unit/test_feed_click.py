@@ -364,6 +364,21 @@ def test_feed_delete(mock_request: MagicMock, mock_detect: MagicMock) -> None:
     assert result.exit_code == 0
 
 
+@patch("slcli.feed_click.get_platform")
+@patch("slcli.feed_click.make_api_request")
+def test_feed_delete_synchronous(mock_request: MagicMock, mock_detect: MagicMock) -> None:
+    """Test feed delete command with synchronous 204 response."""
+    mock_detect.return_value = "SLE"
+    mock_request.return_value = MockResponse(status_code=204, text="")
+
+    cli = make_cli()
+    runner = CliRunner()
+    result = runner.invoke(cli, ["feed", "delete", "--id", "feed-123", "--yes"])
+
+    assert result.exit_code == 0
+    assert "Feed deleted" in result.output
+
+
 # =============================================================================
 # Feed Package List Tests
 # =============================================================================

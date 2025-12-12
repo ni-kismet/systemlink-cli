@@ -240,6 +240,10 @@ def _delete_feed(feed_id: str) -> str:
     url = f"{base_url}/feeds/{feed_id}"
 
     resp = make_api_request("DELETE", url)
+
+    if resp.status_code == 204 or not resp.content:
+        return ""
+
     data = resp.json()
     return data.get("jobId", data.get("job", {}).get("id", ""))
 
@@ -639,6 +643,10 @@ def register_feed_commands(cli: Any) -> None:
 
         try:
             job_id = _delete_feed(feed_id)
+
+            if not job_id:
+                format_success("Feed deleted", {"ID": feed_id})
+                return
 
             if wait:
                 click.echo(f"Deleting feed... (job: {job_id})")
