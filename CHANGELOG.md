@@ -1,6 +1,14 @@
 # CHANGELOG
 
 
+## v0.16.0 (2025-12-12)
+
+### Features
+
+- Mvp feed support
+  ([`194cf91`](https://github.com/ni-kismet/systemlink-cli/commit/194cf91f268926a8f47f3ba59ed2242982a0546c))
+
+
 ## v0.15.0 (2025-12-12)
 
 ### Bug Fixes
@@ -51,6 +59,11 @@ E2E tests can still be run explicitly with: poetry run pytest tests/e2e/
 - Remove duplicate is_sls variable in notebook_click.py start command - Fix return type annotation
   in test_info_command.py (Optional[str]) - Add explanatory comment for bare except clause in
   platform.py - Merge with main branch (resolve conflict in conftest.py markers)
+
+### Chores
+
+- **release**: 0.15.0
+  ([`0b397b4`](https://github.com/ni-kismet/systemlink-cli/commit/0b397b401e7ad8d315bc579851c0daebbf2e8214))
 
 ### Refactoring
 
