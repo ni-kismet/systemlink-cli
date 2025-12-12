@@ -84,13 +84,16 @@ def _extract_feed_name(feed: Dict[str, Any]) -> str:
     return feed.get("name") or feed.get("feedName") or "Unknown"
 
 
-def _wait_for_job(job_id: str, timeout: int = 300, poll_interval: int = 2) -> Dict[str, Any]:
+def _wait_for_job(
+    job_id: str, timeout: int = 300, poll_interval: int = 2, feed_id: Optional[str] = None
+) -> Dict[str, Any]:
     """Wait for an async job to complete.
 
     Args:
         job_id: The job ID to wait for
         timeout: Maximum time to wait in seconds
         poll_interval: Time between status checks in seconds
+        feed_id: Optional feed ID for feed-specific jobs
 
     Returns:
         Final job status dictionary
@@ -100,7 +103,10 @@ def _wait_for_job(job_id: str, timeout: int = 300, poll_interval: int = 2) -> Di
         Exception: If job fails
     """
     base_url = _get_feed_base_url()
-    url = f"{base_url}/jobs/{job_id}"
+    if feed_id:
+        url = f"{base_url}/feeds/{feed_id}/jobs/{job_id}"
+    else:
+        url = f"{base_url}/jobs/{job_id}"
     start_time = time.time()
 
     while True:
@@ -265,7 +271,7 @@ def _replicate_feed(
     payload: Dict[str, Any] = {
         name_field: name,
         "platform": _normalize_platform(platform),
-        "uri": source_url,
+        "urls": [source_url],
     }
 
     if description:
@@ -511,7 +517,7 @@ def register_feed_commands(cli: Any) -> None:
                 format_output=format_output,
                 formatter_func=feed_formatter,
                 headers=["Name", "Platform", "ID", "Workspace"],
-                column_widths=[30, 12, 26, 20],
+                column_widths=[30, 12, 36, 20],
                 empty_message="No feeds found.",
                 enable_pagination=True,
                 page_size=take,
@@ -787,7 +793,7 @@ def register_feed_commands(cli: Any) -> None:
 
             if wait:
                 click.echo(f"Uploading {path.name}... (job: {job_id})")
-                job = _wait_for_job(job_id, timeout=timeout)
+                job = _wait_for_job(job_id, timeout=timeout, feed_id=feed_id)
                 package_id = job.get("resourceId", "")
                 format_success("Package uploaded", {"ID": package_id, "File": path.name})
             else:
@@ -920,6 +926,7 @@ def register_feed_commands(cli: Any) -> None:
 
     @job.command(name="wait")
     @click.option("--id", "-i", "job_id", required=True, help="Job ID to wait for")
+    @click.option("--feed-id", help="Feed ID (required for some job types)")
     @click.option("--timeout", type=int, default=300, help="Timeout in seconds")
     @click.option(
         "--format",
@@ -929,13 +936,13 @@ def register_feed_commands(cli: Any) -> None:
         default="table",
         help="Output format",
     )
-    def wait_job(job_id: str, timeout: int, format_: str) -> None:
+    def wait_job(job_id: str, feed_id: Optional[str], timeout: int, format_: str) -> None:
         """Wait for a job to complete."""
         format_output = validate_output_format(format_)
 
         try:
             click.echo(f"Waiting for job {job_id}...")
-            job_data = _wait_for_job(job_id, timeout=timeout)
+            job_data = _wait_for_job(job_id, timeout=timeout, feed_id=feed_id)
 
             if format_output == "json":
                 click.echo(json.dumps(job_data, indent=2))

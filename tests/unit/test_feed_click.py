@@ -492,7 +492,7 @@ def test_feed_package_upload_sle_wait(
 
     assert result.exit_code == 0
     assert "package uploaded" in result.output.lower()
-    mock_wait.assert_called_once_with("job-123", timeout=300)
+    mock_wait.assert_called_once_with("job-123", timeout=300, feed_id="feed-1")
 
 
 @patch("slcli.feed_click.get_platform")
@@ -572,7 +572,7 @@ def test_feed_package_upload_sls_wait(
     assert "package uploaded" in result.output.lower()
     assert mock_wait.call_count == 2
     mock_wait.assert_any_call("upload-job", timeout=300)
-    mock_wait.assert_any_call("assoc-job", timeout=300)
+    mock_wait.assert_any_call("assoc-job", timeout=300, feed_id="feed-1")
 
 
 def test_feed_package_upload_missing_file() -> None:
@@ -837,7 +837,7 @@ def test_feed_job_wait_table(mock_wait: MagicMock) -> None:
 
     assert result.exit_code == 0
     assert "Job completed" in result.output
-    mock_wait.assert_called_once_with("job-1", timeout=300)
+    mock_wait.assert_called_once_with("job-1", timeout=300, feed_id=None)
 
 
 @patch("slcli.feed_click._wait_for_job")
@@ -854,7 +854,7 @@ def test_feed_job_wait_json(mock_wait: MagicMock) -> None:
 
     assert result.exit_code == 0
     assert '"resourceId"' in result.output
-    mock_wait.assert_called_once_with("job-1", timeout=10)
+    mock_wait.assert_called_once_with("job-1", timeout=10, feed_id=None)
 
 
 @patch("slcli.feed_click._wait_for_job")
@@ -868,7 +868,7 @@ def test_feed_job_wait_timeout(mock_wait: MagicMock) -> None:
 
     assert result.exit_code != 0
     assert "timed out" in result.output.lower()
-    mock_wait.assert_called_once_with("job-1", timeout=1)
+    mock_wait.assert_called_once_with("job-1", timeout=1, feed_id=None)
 
 
 @patch("slcli.feed_click._wait_for_job")
@@ -882,7 +882,7 @@ def test_feed_job_wait_error(mock_wait: MagicMock) -> None:
 
     assert result.exit_code != 0
     assert "job failed" in result.output.lower()
-    mock_wait.assert_called_once_with("job-1", timeout=300)
+    mock_wait.assert_called_once_with("job-1", timeout=300, feed_id=None)
 
 
 # =============================================================================
@@ -1050,3 +1050,35 @@ def test_replicate_with_wait_polls_until_complete(
     assert result.exit_code == 0, f"Failed with: {result.output}"
     # Verify sleep was called for polling
     assert mock_sleep.call_count >= 2
+
+
+@patch("slcli.feed_click.get_platform")
+@patch("slcli.feed_click.make_api_request")
+def test_replicate_payload(mock_request: MagicMock, mock_detect: MagicMock) -> None:
+    """Test replicate command sends correct payload with 'urls'."""
+    mock_detect.return_value = "SLE"
+    mock_request.return_value = MockResponse(json_data={"jobId": "job-123"})
+
+    cli = make_cli()
+    runner = CliRunner()
+    result = runner.invoke(
+        cli,
+        [
+            "feed",
+            "replicate",
+            "--name",
+            "MyReplicatedFeed",
+            "--platform",
+            "windows",
+            "--url",
+            "https://source-feed.example.com",
+        ],
+    )
+
+    assert result.exit_code == 0
+
+    # Verify payload
+    args, kwargs = mock_request.call_args
+    payload = kwargs.get("payload", {})
+    assert payload.get("urls") == ["https://source-feed.example.com"]
+    assert "uri" not in payload
