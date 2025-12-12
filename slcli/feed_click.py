@@ -27,6 +27,14 @@ from .utils import (
 from .workspace_utils import get_workspace_display_name, get_workspace_map
 
 
+class JobPollingError(Exception):
+    """Raised when a job fails or cannot be retrieved."""
+
+
+class PackageUploadError(Exception):
+    """Raised when a package upload response is missing required identifiers."""
+
+
 def _get_feed_base_url() -> str:
     """Get the base URL for feed API.
 
@@ -110,11 +118,11 @@ def _wait_for_job(job_id: str, timeout: int = 300, poll_interval: int = 2) -> Di
 
             if status in ("SUCCESS", "SUCCEEDED", "COMPLETED"):
                 return job
-            elif status in ("FAILED", "ERROR"):
+            if status in ("FAILED", "ERROR"):
                 error = job.get("error", {})
                 error_msg = error.get("message", "Unknown error")
-                raise Exception(f"Job failed: {error_msg}")
-            elif status in ("COMPLETED_WITH_ERROR",):
+                raise JobPollingError(f"Job failed: {error_msg}")
+            if status in ("COMPLETED_WITH_ERROR",):
                 # Partial success - return but with warning
                 click.echo("⚠ Job completed with errors", err=True)
                 return job
@@ -122,8 +130,8 @@ def _wait_for_job(job_id: str, timeout: int = 300, poll_interval: int = 2) -> Di
             # Still processing - wait and retry
             time.sleep(poll_interval)
 
-        except requests.RequestException as exc:
-            raise Exception(f"Failed to check job status: {exc}")
+        except requests.RequestException:
+            raise
 
 
 def _list_feeds(
@@ -346,14 +354,14 @@ def _upload_package_sls(feed_id: str, file_path: str, overwrite: bool = False) -
     job_ids = data.get("jobIds", [])
 
     if not job_ids:
-        raise Exception("No job ID returned from package upload")
+        raise PackageUploadError("No job ID returned from package upload")
 
     # Wait for upload to complete to get package ID
     job = _wait_for_job(job_ids[0], timeout=300)
     package_id = job.get("resourceId")
 
     if not package_id:
-        raise Exception("Package upload completed but no package ID returned")
+        raise PackageUploadError("Package upload completed but no package ID returned")
 
     # Step 2: Add package reference to feed
     ref_url = f"{base_url}/feeds/{feed_id}/add-package-references"

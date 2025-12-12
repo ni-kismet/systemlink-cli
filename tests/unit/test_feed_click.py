@@ -7,7 +7,8 @@ import click
 import pytest
 from click.testing import CliRunner
 
-from slcli.feed_click import register_feed_commands
+from slcli.feed_click import PackageUploadError, register_feed_commands
+from slcli.utils import ExitCodes
 
 
 def make_cli() -> click.Group:
@@ -595,6 +596,61 @@ def test_feed_package_upload_missing_file() -> None:
     assert "file not found" in result.output.lower()
 
 
+def test_feed_package_upload_not_a_file(tmp_path: Any) -> None:
+    """Test package upload fails when path is a directory."""
+    cli = make_cli()
+    runner = CliRunner()
+    dir_path = tmp_path / "dir"
+    dir_path.mkdir()
+
+    result = runner.invoke(
+        cli,
+        [
+            "feed",
+            "package",
+            "upload",
+            "--feed-id",
+            "feed-1",
+            "--file",
+            str(dir_path),
+        ],
+    )
+
+    assert result.exit_code == ExitCodes.INVALID_INPUT
+    assert "not a file" in result.output.lower()
+
+
+@patch("slcli.feed_click.handle_api_error")
+@patch("slcli.feed_click._upload_package")
+def test_feed_package_upload_error_handling(
+    mock_upload: MagicMock, mock_handle: MagicMock, tmp_path: Any
+) -> None:
+    """Test package upload surfaces errors via handle_api_error."""
+    mock_upload.side_effect = PackageUploadError("missing job")
+    mock_handle.side_effect = SystemExit(ExitCodes.GENERAL_ERROR)
+
+    pkg_path = tmp_path / "pkg.nipkg"
+    pkg_path.write_bytes(b"data")
+
+    cli = make_cli()
+    runner = CliRunner()
+    result = runner.invoke(
+        cli,
+        [
+            "feed",
+            "package",
+            "upload",
+            "--feed-id",
+            "feed-1",
+            "--file",
+            str(pkg_path),
+        ],
+    )
+
+    assert result.exit_code == ExitCodes.GENERAL_ERROR
+    mock_handle.assert_called_once()
+
+
 # =============================================================================
 # Feed Package Delete Tests
 # =============================================================================
@@ -618,6 +674,66 @@ def test_feed_package_delete_with_yes(mock_delete: MagicMock, mock_wait: MagicMo
     assert "package deleted" in result.output.lower()
     mock_delete.assert_called_once_with("pkg-1")
     mock_wait.assert_called_once_with("job-123", timeout=300)
+
+
+@patch("slcli.feed_click._wait_for_job")
+@patch("slcli.feed_click._delete_package")
+def test_feed_package_delete_without_wait(mock_delete: MagicMock, mock_wait: MagicMock) -> None:
+    """Test package delete with --yes and no --wait."""
+    mock_delete.return_value = "job-123"
+
+    cli = make_cli()
+    runner = CliRunner()
+    result = runner.invoke(
+        cli,
+        [
+            "feed",
+            "package",
+            "delete",
+            "--id",
+            "pkg-1",
+            "--yes",
+        ],
+    )
+
+    assert result.exit_code == 0
+    assert "deletion started" in result.output.lower()
+    mock_delete.assert_called_once_with("pkg-1")
+    mock_wait.assert_not_called()
+
+
+@patch("slcli.feed_click._delete_package")
+def test_feed_package_delete_confirmation_cancel(mock_delete: MagicMock) -> None:
+    """Test package delete prompts and cancels without --yes."""
+    cli = make_cli()
+    runner = CliRunner()
+    result = runner.invoke(
+        cli,
+        ["feed", "package", "delete", "--id", "pkg-1"],
+        input="n\n",
+    )
+
+    assert result.exit_code == 0
+    assert "cancelled" in result.output.lower()
+    mock_delete.assert_not_called()
+
+
+@patch("slcli.feed_click.handle_api_error")
+@patch("slcli.feed_click._delete_package")
+def test_feed_package_delete_error_handling(mock_delete: MagicMock, mock_handle: MagicMock) -> None:
+    """Test package delete surfaces errors via handle_api_error."""
+    mock_delete.side_effect = Exception("delete failed")
+    mock_handle.side_effect = SystemExit(ExitCodes.GENERAL_ERROR)
+
+    cli = make_cli()
+    runner = CliRunner()
+    result = runner.invoke(
+        cli,
+        ["feed", "package", "delete", "--id", "pkg-1", "--yes"],
+    )
+
+    assert result.exit_code == ExitCodes.GENERAL_ERROR
+    mock_handle.assert_called_once()
 
 
 @patch("slcli.feed_click.click.confirm", return_value=False)
