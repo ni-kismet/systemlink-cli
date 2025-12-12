@@ -656,7 +656,7 @@ def test_feed_package_upload_sls_job_gone(
         MockResponse(status_code=404),  # GET assoc-job
     ]
 
-    def side_effect(*args, **kwargs):
+    def side_effect(*args: Any, **kwargs: Any) -> Any:
         if not responses:
             raise StopIteration
         resp = responses.pop(0)
