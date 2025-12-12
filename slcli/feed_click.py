@@ -410,6 +410,10 @@ def _delete_package(package_id: str) -> str:
     payload = {"packageIds": [package_id]}
 
     resp = make_api_request("POST", url, payload=payload)
+
+    if resp.status_code == 204 or not resp.content:
+        return ""
+
     data = resp.json()
     return data.get("jobId", data.get("job", {}).get("id", ""))
 
@@ -822,13 +826,17 @@ def register_feed_commands(cli: Any) -> None:
             job_id = _delete_package(package_id)
 
             if wait:
-                click.echo(f"Deleting package... (job: {job_id})")
-                _wait_for_job(job_id, timeout=timeout)
+                if job_id:
+                    click.echo(f"Deleting package... (job: {job_id})")
+                    _wait_for_job(job_id, timeout=timeout)
                 format_success("Package deleted", {"ID": package_id})
             else:
-                format_success(
-                    "Package deletion started", {"Job ID": job_id, "Package ID": package_id}
-                )
+                if job_id:
+                    format_success(
+                        "Package deletion started", {"Job ID": job_id, "Package ID": package_id}
+                    )
+                else:
+                    format_success("Package deleted", {"ID": package_id})
 
         except TimeoutError as exc:
             click.echo(f"✗ {exc}", err=True)

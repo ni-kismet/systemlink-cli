@@ -41,6 +41,10 @@ class MockResponse:
         self._json_data = json_data or {}
         self._status_code = status_code
         self._text = text
+        if not self._text and self._json_data:
+            import json
+
+            self._text = json.dumps(self._json_data)
 
     def json(self) -> Dict[str, Any]:
         return self._json_data
@@ -52,6 +56,10 @@ class MockResponse:
     @property
     def text(self) -> str:
         return self._text
+
+    @property
+    def content(self) -> bytes:
+        return self._text.encode("utf-8")
 
     def raise_for_status(self) -> None:
         if self._status_code >= 400:
@@ -1106,3 +1114,37 @@ def test_delete_package_payload(mock_request: MagicMock, mock_detect: MagicMock)
     assert args[1].endswith("/delete-packages")
     payload = kwargs.get("payload", {})
     assert payload.get("packageIds") == ["pkg-1"]
+
+
+@patch("slcli.feed_click._wait_for_job")
+@patch("slcli.feed_click._delete_package")
+def test_feed_package_delete_synchronous(mock_delete: MagicMock, mock_wait: MagicMock) -> None:
+    """Test package delete when operation completes synchronously (no job ID)."""
+    mock_delete.return_value = ""
+
+    cli = make_cli()
+    runner = CliRunner()
+    result = runner.invoke(
+        cli,
+        ["feed", "package", "delete", "--id", "pkg-1", "--yes", "--wait"],
+    )
+
+    assert result.exit_code == 0
+    assert "package deleted" in result.output.lower()
+    mock_delete.assert_called_once_with("pkg-1")
+    mock_wait.assert_not_called()
+
+
+@patch("slcli.feed_click.get_platform")
+@patch("slcli.feed_click.make_api_request")
+def test_delete_package_synchronous_response(
+    mock_request: MagicMock, mock_detect: MagicMock
+) -> None:
+    """Test _delete_package handles 204 No Content response."""
+    from slcli.feed_click import _delete_package
+
+    mock_detect.return_value = "SLE"
+    mock_request.return_value = MockResponse(status_code=204, json_data=None)
+
+    job_id = _delete_package("pkg-1")
+    assert job_id == ""
