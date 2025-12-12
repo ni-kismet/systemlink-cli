@@ -203,7 +203,7 @@ def _get_feed(feed_id: str) -> Dict[str, Any]:
 
 def _create_feed(
     name: str, platform: str, description: Optional[str] = None, workspace: Optional[str] = None
-) -> str:
+) -> Dict[str, Any]:
     """Create a new feed.
 
     Args:
@@ -213,7 +213,7 @@ def _create_feed(
         workspace: Optional workspace ID
 
     Returns:
-        Job ID for the async operation
+        Response dictionary containing job ID or feed details
     """
     base_url = _get_feed_base_url()
     url = f"{base_url}/feeds"
@@ -231,8 +231,7 @@ def _create_feed(
         payload["workspace"] = workspace
 
     resp = make_api_request("POST", url, payload=payload)
-    data = resp.json()
-    return data.get("jobId", data.get("job", {}).get("id", ""))
+    return resp.json()
 
 
 def _delete_feed(feed_id: str) -> str:
@@ -262,7 +261,7 @@ def _replicate_feed(
     source_url: str,
     description: Optional[str] = None,
     workspace: Optional[str] = None,
-) -> str:
+) -> Dict[str, Any]:
     """Replicate a feed from an external source.
 
     Args:
@@ -273,7 +272,7 @@ def _replicate_feed(
         workspace: Optional workspace ID
 
     Returns:
-        Job ID for the async operation
+        Response dictionary containing job ID or feed details
     """
     base_url = _get_feed_base_url()
     url = f"{base_url}/replicate-feed"
@@ -292,8 +291,7 @@ def _replicate_feed(
         payload["workspace"] = workspace
 
     resp = make_api_request("POST", url, payload=payload)
-    data = resp.json()
-    return data.get("jobId", data.get("job", {}).get("id", ""))
+    return resp.json()
 
 
 def _list_packages(feed_id: str) -> List[Dict[str, Any]]:
@@ -580,20 +578,31 @@ def register_feed_commands(cli: Any) -> None:
             if workspace:
                 workspace_id = get_workspace_id_with_fallback(workspace)
 
-            job_id = _create_feed(
+            result = _create_feed(
                 name=name,
                 platform=platform,
                 description=description,
                 workspace=workspace_id,
             )
 
+            job_id = result.get("jobId", result.get("job", {}).get("id"))
+
             if wait:
-                click.echo(f"Creating feed '{name}'... (job: {job_id})")
-                job = _wait_for_job(job_id, timeout=timeout)
-                feed_id = job.get("resourceId", "")
+                if job_id:
+                    click.echo(f"Creating feed '{name}'... (job: {job_id})")
+                    job = _wait_for_job(job_id, timeout=timeout)
+                    feed_id = job.get("resourceId", "")
+                else:
+                    # Synchronous creation
+                    feed_id = result.get("id", "")
+
                 format_success("Feed created", {"ID": feed_id, "Name": name})
             else:
-                format_success("Feed creation started", {"Job ID": job_id, "Name": name})
+                if job_id:
+                    format_success("Feed creation started", {"Job ID": job_id, "Name": name})
+                else:
+                    feed_id = result.get("id", "")
+                    format_success("Feed created", {"ID": feed_id, "Name": name})
 
         except TimeoutError as exc:
             click.echo(f"✗ {exc}", err=True)
@@ -662,7 +671,7 @@ def register_feed_commands(cli: Any) -> None:
             if workspace:
                 workspace_id = get_workspace_id_with_fallback(workspace)
 
-            job_id = _replicate_feed(
+            result = _replicate_feed(
                 name=name,
                 platform=platform,
                 source_url=url,
@@ -670,17 +679,27 @@ def register_feed_commands(cli: Any) -> None:
                 workspace=workspace_id,
             )
 
+            job_id = result.get("jobId", result.get("job", {}).get("id"))
+
             if wait:
-                click.echo(f"Replicating feed from {url}... (job: {job_id})")
-                click.echo("This may take several minutes for large feeds.")
-                job = _wait_for_job(job_id, timeout=timeout)
-                feed_id = job.get("resourceId", "")
+                if job_id:
+                    click.echo(f"Replicating feed from {url}... (job: {job_id})")
+                    click.echo("This may take several minutes for large feeds.")
+                    job = _wait_for_job(job_id, timeout=timeout)
+                    feed_id = job.get("resourceId", "")
+                else:
+                    feed_id = result.get("id", "")
+
                 format_success("Feed replicated", {"ID": feed_id, "Name": name})
             else:
-                format_success(
-                    "Feed replication started",
-                    {"Job ID": job_id, "Name": name, "Source": url},
-                )
+                if job_id:
+                    format_success(
+                        "Feed replication started",
+                        {"Job ID": job_id, "Name": name, "Source": url},
+                    )
+                else:
+                    feed_id = result.get("id", "")
+                    format_success("Feed replicated", {"ID": feed_id, "Name": name})
 
         except TimeoutError as exc:
             click.echo(f"✗ {exc}", err=True)
