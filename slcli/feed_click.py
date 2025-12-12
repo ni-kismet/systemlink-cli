@@ -134,14 +134,14 @@ def _wait_for_job(
                 raise JobPollingError(f"Job failed: {error_msg}")
             if status in ("COMPLETED_WITH_ERROR",):
                 # Partial success - return but with warning
-                click.echo("⚠ Job completed with errors", err=True)
+                click.echo("⚠️ Job completed with errors", err=True)
                 return job
 
             # Still processing - wait and retry
             time.sleep(poll_interval)
 
         except requests.exceptions.HTTPError as exc:
-            if exc.response.status_code == 404:
+            if exc.response is not None and exc.response.status_code == 404:
                 raise JobNotFoundError(f"Job {job_id} not found")
             raise
         except requests.RequestException:
@@ -808,7 +808,7 @@ def register_feed_commands(cli: Any) -> None:
                         if pkg_id_from_start:
                             package_id = pkg_id_from_start
                             click.echo(
-                                "⚠ Job not found, but package ID is known. Assuming success.",
+                                "⚠️ Job not found, but package ID is known. Assuming success.",
                                 err=True,
                             )
                         else:
