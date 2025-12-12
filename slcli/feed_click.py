@@ -31,6 +31,10 @@ class JobPollingError(Exception):
     """Raised when a job fails or cannot be retrieved."""
 
 
+class JobNotFoundError(Exception):
+    """Raised when a job is not found."""
+
+
 class PackageUploadError(Exception):
     """Raised when a package upload response is missing required identifiers."""
 
@@ -136,6 +140,10 @@ def _wait_for_job(
             # Still processing - wait and retry
             time.sleep(poll_interval)
 
+        except requests.exceptions.HTTPError as exc:
+            if exc.response.status_code == 404:
+                raise JobNotFoundError(f"Job {job_id} not found")
+            raise
         except requests.RequestException:
             raise
 
@@ -305,7 +313,7 @@ def _list_packages(feed_id: str) -> List[Dict[str, Any]]:
     return data.get("packages", [])
 
 
-def _upload_package_sle(feed_id: str, file_path: str, overwrite: bool = False) -> str:
+def _upload_package_sle(feed_id: str, file_path: str, overwrite: bool = False) -> Dict[str, Any]:
     """Upload a package to a feed on SLE.
 
     SLE uploads directly to the feed.
@@ -316,7 +324,7 @@ def _upload_package_sle(feed_id: str, file_path: str, overwrite: bool = False) -
         overwrite: Whether to overwrite existing package
 
     Returns:
-        Job ID for the async operation
+        Response dictionary containing job ID or package details
     """
     base_url = _get_feed_base_url()
     url = f"{base_url}/feeds/{feed_id}/packages"
@@ -328,11 +336,10 @@ def _upload_package_sle(feed_id: str, file_path: str, overwrite: bool = False) -
         files = {"package": (file_name, f, "application/octet-stream")}
         resp = make_api_request("POST", url, files=files)
 
-    data = resp.json()
-    return data.get("jobId", data.get("job", {}).get("id", ""))
+    return resp.json()
 
 
-def _upload_package_sls(feed_id: str, file_path: str, overwrite: bool = False) -> str:
+def _upload_package_sls(feed_id: str, file_path: str, overwrite: bool = False) -> Dict[str, Any]:
     """Upload a package on SLS.
 
     SLS uploads to the package pool first, then adds reference to feed.
@@ -346,7 +353,7 @@ def _upload_package_sls(feed_id: str, file_path: str, overwrite: bool = False) -
         overwrite: Whether to overwrite existing package
 
     Returns:
-        Job ID for the async operation
+        Response dictionary containing job ID and package ID
     """
     base_url = _get_feed_base_url()
 
@@ -379,10 +386,13 @@ def _upload_package_sls(feed_id: str, file_path: str, overwrite: bool = False) -
     resp = make_api_request("POST", ref_url, payload=ref_payload)
 
     data = resp.json()
-    return data.get("jobId", data.get("job", {}).get("id", ""))
+    # Inject packageId into response for CLI usage
+    result = data.copy()
+    result["packageId"] = package_id
+    return result
 
 
-def _upload_package(feed_id: str, file_path: str, overwrite: bool = False) -> str:
+def _upload_package(feed_id: str, file_path: str, overwrite: bool = False) -> Dict[str, Any]:
     """Upload a package to a feed.
 
     Routes to platform-specific implementation.
@@ -393,7 +403,7 @@ def _upload_package(feed_id: str, file_path: str, overwrite: bool = False) -> st
         overwrite: Whether to overwrite existing package
 
     Returns:
-        Job ID for the async operation
+        Response dictionary containing job ID or package details
     """
     if get_platform() == PLATFORM_SLS:
         return _upload_package_sls(feed_id, file_path, overwrite)
@@ -764,15 +774,37 @@ def register_feed_commands(cli: Any) -> None:
                     err=False,
                 )
 
-            job_id = _upload_package(feed_id, file_path, overwrite)
+            result = _upload_package(feed_id, file_path, overwrite)
+            job_id = result.get("jobId", result.get("job", {}).get("id", ""))
 
             if wait:
-                click.echo(f"Uploading {path.name}... (job: {job_id})")
-                job = _wait_for_job(job_id, timeout=timeout, feed_id=feed_id)
-                package_id = job.get("resourceId", "")
+                if job_id:
+                    click.echo(f"Uploading {path.name}... (job: {job_id})")
+                    try:
+                        job = _wait_for_job(job_id, timeout=timeout, feed_id=feed_id)
+                        package_id = job.get("resourceId", "")
+                    except JobNotFoundError:
+                        # If job is gone but we have a package ID (e.g. SLS), assume success
+                        pkg_id_from_start = result.get("packageId")
+                        if pkg_id_from_start:
+                            package_id = pkg_id_from_start
+                            click.echo(
+                                "⚠ Job not found, but package ID is known. Assuming success.",
+                                err=True,
+                            )
+                        else:
+                            raise
+                else:
+                    # Synchronous success
+                    package_id = result.get("id", result.get("packageId", ""))
+
                 format_success("Package uploaded", {"ID": package_id, "File": path.name})
             else:
-                format_success("Package upload started", {"Job ID": job_id, "File": path.name})
+                if job_id:
+                    format_success("Package upload started", {"Job ID": job_id, "File": path.name})
+                else:
+                    package_id = result.get("id", result.get("packageId", ""))
+                    format_success("Package uploaded", {"ID": package_id, "File": path.name})
 
         except TimeoutError as exc:
             click.echo(f"✗ {exc}", err=True)

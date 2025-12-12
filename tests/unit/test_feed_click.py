@@ -65,7 +65,9 @@ class MockResponse:
         if self._status_code >= 400:
             from requests.exceptions import HTTPError
 
-            raise HTTPError(f"HTTP {self._status_code}")
+            exc = HTTPError(f"HTTP {self._status_code}")
+            exc.response = self  # type: ignore
+            raise exc
 
 
 @pytest.fixture(autouse=True)
@@ -596,6 +598,96 @@ def test_feed_package_upload_sls_wait(
     assert mock_wait.call_count == 2
     mock_wait.assert_any_call("upload-job", timeout=300)
     mock_wait.assert_any_call("assoc-job", timeout=300, feed_id="feed-1")
+
+
+@patch("slcli.feed_click.get_platform")
+@patch("slcli.feed_click._wait_for_job")
+@patch("slcli.feed_click.make_api_request")
+def test_feed_package_upload_sle_synchronous(
+    mock_request: MagicMock, mock_wait: MagicMock, mock_detect: MagicMock, tmp_path: Any
+) -> None:
+    """Test package upload on SLE when operation is synchronous."""
+    mock_detect.return_value = "SLE"
+    # Return package details directly, no jobId
+    mock_request.return_value = MockResponse(json_data={"id": "pkg-123", "metadata": {}})
+
+    pkg_path = tmp_path / "pkg.nipkg"
+    pkg_path.write_bytes(b"data")
+
+    cli = make_cli()
+    runner = CliRunner()
+    result = runner.invoke(
+        cli,
+        [
+            "feed",
+            "package",
+            "upload",
+            "--feed-id",
+            "feed-1",
+            "--file",
+            str(pkg_path),
+            "--wait",
+        ],
+    )
+
+    assert result.exit_code == 0
+    assert "Package uploaded" in result.output
+    assert "pkg-123" in result.output
+    mock_wait.assert_not_called()
+
+
+@patch("slcli.feed_click.get_platform")
+@patch("slcli.feed_click.make_api_request")
+def test_feed_package_upload_sls_job_gone(
+    mock_request: MagicMock, mock_detect: MagicMock, tmp_path: Any
+) -> None:
+    """Test package upload on SLS when job disappears but package ID is known."""
+    mock_detect.return_value = "SLS"
+
+    # 1. Upload to pool -> returns jobIds
+    # 2. Check pool upload job -> returns success + resourceId (pkg-123)
+    # 3. Add ref -> returns jobId (assoc-job)
+    # 4. Check assoc job -> returns 404 (JobNotFoundError)
+
+    responses = [
+        MockResponse(json_data={"jobIds": ["upload-job"]}),  # POST upload
+        MockResponse(json_data={"status": "SUCCEEDED", "resourceId": "pkg-123"}),  # GET upload-job
+        MockResponse(json_data={"jobId": "assoc-job"}),  # POST add-ref
+        MockResponse(status_code=404),  # GET assoc-job
+    ]
+
+    def side_effect(*args, **kwargs):
+        if not responses:
+            raise StopIteration
+        resp = responses.pop(0)
+        resp.raise_for_status()
+        return resp
+
+    mock_request.side_effect = side_effect
+
+    pkg_path = tmp_path / "pkg.nipkg"
+    pkg_path.write_bytes(b"data")
+
+    cli = make_cli()
+    runner = CliRunner()
+    result = runner.invoke(
+        cli,
+        [
+            "feed",
+            "package",
+            "upload",
+            "--feed-id",
+            "feed-1",
+            "--file",
+            str(pkg_path),
+            "--wait",
+        ],
+    )
+
+    assert result.exit_code == 0
+    assert "Package uploaded" in result.output
+    assert "pkg-123" in result.output
+    assert "Job not found" in result.output
 
 
 def test_feed_package_upload_missing_file() -> None:
