@@ -204,14 +204,18 @@ def cli_runner() -> Any:
 def sle_cli_runner(sle_config: Dict[str, Any], e2e_config: Dict[str, Any]) -> Any:
     """CLI runner configured for SystemLink Enterprise."""
     timeout = e2e_config.get("timeout", 30)
-    return _make_cli_runner(sle_config, timeout)
+    # Ensure platform is explicitly set for SLE
+    config = {**sle_config, "platform": "SLE"}
+    return _make_cli_runner(config, timeout)
 
 
 @pytest.fixture
 def sls_cli_runner(sls_config: Dict[str, Any], e2e_config: Dict[str, Any]) -> Any:
     """CLI runner configured for SystemLink Server."""
     timeout = e2e_config.get("timeout", 30)
-    return _make_cli_runner(sls_config, timeout)
+    # Ensure platform is explicitly set for SLS
+    config = {**sls_config, "platform": "SLS"}
+    return _make_cli_runner(config, timeout)
 
 
 @pytest.fixture
