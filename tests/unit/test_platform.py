@@ -291,7 +291,7 @@ class TestGetPlatformInfo:
             result = get_platform_info()
 
             assert result["platform"] == "SLE"
-            assert result["platform_display"] == "SystemLink Enterprise (Cloud)"
+            assert result["platform_display"] == "SystemLink Enterprise"
             assert result["logged_in"] is True
             assert "features" in result
             assert result["features"]["Dynamic Form Fields"] is True
@@ -311,7 +311,7 @@ class TestGetPlatformInfo:
             result = get_platform_info()
 
             assert result["platform"] == "SLS"
-            assert result["platform_display"] == "SystemLink Server (On-Premises)"
+            assert result["platform_display"] == "SystemLink Server"
             assert result["logged_in"] is True
             assert "features" in result
             assert result["features"]["Dynamic Form Fields"] is False

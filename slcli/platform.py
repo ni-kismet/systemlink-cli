@@ -311,8 +311,8 @@ def _get_platform_display_name(platform: str) -> str:
         Human-readable platform name
     """
     names = {
-        PLATFORM_SLE: "SystemLink Enterprise (Cloud)",
-        PLATFORM_SLS: "SystemLink Server (On-Premises)",
+        PLATFORM_SLE: "SystemLink Enterprise",
+        PLATFORM_SLS: "SystemLink Server",
         PLATFORM_UNKNOWN: "Unknown",
     }
     return names.get(platform, platform)
