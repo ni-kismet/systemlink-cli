@@ -31,6 +31,10 @@ class JobPollingError(Exception):
     """Raised when a job fails or cannot be retrieved."""
 
 
+class JobNotFoundError(Exception):
+    """Raised when a job is not found."""
+
+
 class PackageUploadError(Exception):
     """Raised when a package upload response is missing required identifiers."""
 
@@ -130,12 +134,16 @@ def _wait_for_job(
                 raise JobPollingError(f"Job failed: {error_msg}")
             if status in ("COMPLETED_WITH_ERROR",):
                 # Partial success - return but with warning
-                click.echo("⚠ Job completed with errors", err=True)
+                click.echo("⚠️ Job completed with errors", err=True)
                 return job
 
             # Still processing - wait and retry
             time.sleep(poll_interval)
 
+        except requests.exceptions.HTTPError as exc:
+            if exc.response is not None and exc.response.status_code == 404:
+                raise JobNotFoundError(f"Job {job_id} not found")
+            raise
         except requests.RequestException:
             raise
 
@@ -195,7 +203,7 @@ def _get_feed(feed_id: str) -> Dict[str, Any]:
 
 def _create_feed(
     name: str, platform: str, description: Optional[str] = None, workspace: Optional[str] = None
-) -> str:
+) -> Dict[str, Any]:
     """Create a new feed.
 
     Args:
@@ -205,7 +213,7 @@ def _create_feed(
         workspace: Optional workspace ID
 
     Returns:
-        Job ID for the async operation
+        Response dictionary containing job ID or feed details
     """
     base_url = _get_feed_base_url()
     url = f"{base_url}/feeds"
@@ -223,8 +231,7 @@ def _create_feed(
         payload["workspace"] = workspace
 
     resp = make_api_request("POST", url, payload=payload)
-    data = resp.json()
-    return data.get("jobId", data.get("job", {}).get("id", ""))
+    return resp.json()
 
 
 def _delete_feed(feed_id: str) -> str:
@@ -240,6 +247,10 @@ def _delete_feed(feed_id: str) -> str:
     url = f"{base_url}/feeds/{feed_id}"
 
     resp = make_api_request("DELETE", url)
+
+    if resp.status_code == 204 or not resp.content:
+        return ""
+
     data = resp.json()
     return data.get("jobId", data.get("job", {}).get("id", ""))
 
@@ -250,7 +261,7 @@ def _replicate_feed(
     source_url: str,
     description: Optional[str] = None,
     workspace: Optional[str] = None,
-) -> str:
+) -> Dict[str, Any]:
     """Replicate a feed from an external source.
 
     Args:
@@ -261,7 +272,7 @@ def _replicate_feed(
         workspace: Optional workspace ID
 
     Returns:
-        Job ID for the async operation
+        Response dictionary containing job ID or feed details
     """
     base_url = _get_feed_base_url()
     url = f"{base_url}/replicate-feed"
@@ -280,8 +291,7 @@ def _replicate_feed(
         payload["workspace"] = workspace
 
     resp = make_api_request("POST", url, payload=payload)
-    data = resp.json()
-    return data.get("jobId", data.get("job", {}).get("id", ""))
+    return resp.json()
 
 
 def _list_packages(feed_id: str) -> List[Dict[str, Any]]:
@@ -301,7 +311,7 @@ def _list_packages(feed_id: str) -> List[Dict[str, Any]]:
     return data.get("packages", [])
 
 
-def _upload_package_sle(feed_id: str, file_path: str, overwrite: bool = False) -> str:
+def _upload_package_sle(feed_id: str, file_path: str, overwrite: bool = False) -> Dict[str, Any]:
     """Upload a package to a feed on SLE.
 
     SLE uploads directly to the feed.
@@ -312,7 +322,7 @@ def _upload_package_sle(feed_id: str, file_path: str, overwrite: bool = False) -
         overwrite: Whether to overwrite existing package
 
     Returns:
-        Job ID for the async operation
+        Response dictionary containing job ID or package details
     """
     base_url = _get_feed_base_url()
     url = f"{base_url}/feeds/{feed_id}/packages"
@@ -324,11 +334,10 @@ def _upload_package_sle(feed_id: str, file_path: str, overwrite: bool = False) -
         files = {"package": (file_name, f, "application/octet-stream")}
         resp = make_api_request("POST", url, files=files)
 
-    data = resp.json()
-    return data.get("jobId", data.get("job", {}).get("id", ""))
+    return resp.json()
 
 
-def _upload_package_sls(feed_id: str, file_path: str, overwrite: bool = False) -> str:
+def _upload_package_sls(feed_id: str, file_path: str, overwrite: bool = False) -> Dict[str, Any]:
     """Upload a package on SLS.
 
     SLS uploads to the package pool first, then adds reference to feed.
@@ -342,7 +351,7 @@ def _upload_package_sls(feed_id: str, file_path: str, overwrite: bool = False) -
         overwrite: Whether to overwrite existing package
 
     Returns:
-        Job ID for the async operation
+        Response dictionary containing job ID and package ID
     """
     base_url = _get_feed_base_url()
 
@@ -375,10 +384,13 @@ def _upload_package_sls(feed_id: str, file_path: str, overwrite: bool = False) -
     resp = make_api_request("POST", ref_url, payload=ref_payload)
 
     data = resp.json()
-    return data.get("jobId", data.get("job", {}).get("id", ""))
+    # Inject packageId into response for CLI usage
+    result = data.copy()
+    result["packageId"] = package_id
+    return result
 
 
-def _upload_package(feed_id: str, file_path: str, overwrite: bool = False) -> str:
+def _upload_package(feed_id: str, file_path: str, overwrite: bool = False) -> Dict[str, Any]:
     """Upload a package to a feed.
 
     Routes to platform-specific implementation.
@@ -389,7 +401,7 @@ def _upload_package(feed_id: str, file_path: str, overwrite: bool = False) -> st
         overwrite: Whether to overwrite existing package
 
     Returns:
-        Job ID for the async operation
+        Response dictionary containing job ID or package details
     """
     if get_platform() == PLATFORM_SLS:
         return _upload_package_sls(feed_id, file_path, overwrite)
@@ -406,49 +418,16 @@ def _delete_package(package_id: str) -> str:
         Job ID for the async operation
     """
     base_url = _get_feed_base_url()
-    url = f"{base_url}/packages/{package_id}"
+    url = f"{base_url}/delete-packages"
+    payload = {"packageIds": [package_id]}
 
-    resp = make_api_request("DELETE", url)
+    resp = make_api_request("POST", url, payload=payload)
+
+    if resp.status_code == 204 or not resp.content:
+        return ""
+
     data = resp.json()
     return data.get("jobId", data.get("job", {}).get("id", ""))
-
-
-def _list_jobs(feed_id: Optional[str] = None) -> List[Dict[str, Any]]:
-    """List jobs, optionally filtered by feed.
-
-    Args:
-        feed_id: Optional feed ID to filter by
-
-    Returns:
-        List of job dictionaries
-    """
-    base_url = _get_feed_base_url()
-
-    if feed_id:
-        url = f"{base_url}/feeds/{feed_id}/jobs"
-    else:
-        url = f"{base_url}/jobs"
-
-    resp = make_api_request("GET", url)
-    data = resp.json()
-    return data.get("jobs", [])
-
-
-def _get_job(job_id: str) -> Dict[str, Any]:
-    """Get a single job by ID.
-
-    Args:
-        job_id: Job ID
-
-    Returns:
-        Job dictionary
-    """
-    base_url = _get_feed_base_url()
-    url = f"{base_url}/jobs/{job_id}"
-
-    resp = make_api_request("GET", url)
-    data = resp.json()
-    return data.get("job", data)
 
 
 def register_feed_commands(cli: Any) -> None:
@@ -599,20 +578,31 @@ def register_feed_commands(cli: Any) -> None:
             if workspace:
                 workspace_id = get_workspace_id_with_fallback(workspace)
 
-            job_id = _create_feed(
+            result = _create_feed(
                 name=name,
                 platform=platform,
                 description=description,
                 workspace=workspace_id,
             )
 
+            job_id = result.get("jobId", result.get("job", {}).get("id"))
+
             if wait:
-                click.echo(f"Creating feed '{name}'... (job: {job_id})")
-                job = _wait_for_job(job_id, timeout=timeout)
-                feed_id = job.get("resourceId", "")
+                if job_id:
+                    click.echo(f"Creating feed '{name}'... (job: {job_id})")
+                    job = _wait_for_job(job_id, timeout=timeout)
+                    feed_id = job.get("resourceId", "")
+                else:
+                    # Synchronous creation
+                    feed_id = result.get("id", "")
+
                 format_success("Feed created", {"ID": feed_id, "Name": name})
             else:
-                format_success("Feed creation started", {"Job ID": job_id, "Name": name})
+                if job_id:
+                    format_success("Feed creation started", {"Job ID": job_id, "Name": name})
+                else:
+                    feed_id = result.get("id", "")
+                    format_success("Feed created", {"ID": feed_id, "Name": name})
 
         except TimeoutError as exc:
             click.echo(f"✗ {exc}", err=True)
@@ -634,6 +624,10 @@ def register_feed_commands(cli: Any) -> None:
 
         try:
             job_id = _delete_feed(feed_id)
+
+            if not job_id:
+                format_success("Feed deleted", {"ID": feed_id})
+                return
 
             if wait:
                 click.echo(f"Deleting feed... (job: {job_id})")
@@ -677,7 +671,7 @@ def register_feed_commands(cli: Any) -> None:
             if workspace:
                 workspace_id = get_workspace_id_with_fallback(workspace)
 
-            job_id = _replicate_feed(
+            result = _replicate_feed(
                 name=name,
                 platform=platform,
                 source_url=url,
@@ -685,17 +679,27 @@ def register_feed_commands(cli: Any) -> None:
                 workspace=workspace_id,
             )
 
+            job_id = result.get("jobId", result.get("job", {}).get("id"))
+
             if wait:
-                click.echo(f"Replicating feed from {url}... (job: {job_id})")
-                click.echo("This may take several minutes for large feeds.")
-                job = _wait_for_job(job_id, timeout=timeout)
-                feed_id = job.get("resourceId", "")
+                if job_id:
+                    click.echo(f"Replicating feed from {url}... (job: {job_id})")
+                    click.echo("This may take several minutes for large feeds.")
+                    job = _wait_for_job(job_id, timeout=timeout)
+                    feed_id = job.get("resourceId", "")
+                else:
+                    feed_id = result.get("id", "")
+
                 format_success("Feed replicated", {"ID": feed_id, "Name": name})
             else:
-                format_success(
-                    "Feed replication started",
-                    {"Job ID": job_id, "Name": name, "Source": url},
-                )
+                if job_id:
+                    format_success(
+                        "Feed replication started",
+                        {"Job ID": job_id, "Name": name, "Source": url},
+                    )
+                else:
+                    feed_id = result.get("id", "")
+                    format_success("Feed replicated", {"ID": feed_id, "Name": name})
 
         except TimeoutError as exc:
             click.echo(f"✗ {exc}", err=True)
@@ -747,7 +751,7 @@ def register_feed_commands(cli: Any) -> None:
                 format_output=format_output,
                 formatter_func=package_formatter,
                 headers=["Name", "Version", "Architecture", "ID"],
-                column_widths=[30, 20, 15, 26],
+                column_widths=[30, 20, 15, 36],
                 empty_message="No packages found in this feed.",
                 enable_pagination=True,
                 page_size=take,
@@ -789,15 +793,37 @@ def register_feed_commands(cli: Any) -> None:
                     err=False,
                 )
 
-            job_id = _upload_package(feed_id, file_path, overwrite)
+            result = _upload_package(feed_id, file_path, overwrite)
+            job_id = result.get("jobId", result.get("job", {}).get("id", ""))
 
             if wait:
-                click.echo(f"Uploading {path.name}... (job: {job_id})")
-                job = _wait_for_job(job_id, timeout=timeout, feed_id=feed_id)
-                package_id = job.get("resourceId", "")
+                if job_id:
+                    click.echo(f"Uploading {path.name}... (job: {job_id})")
+                    try:
+                        job = _wait_for_job(job_id, timeout=timeout, feed_id=feed_id)
+                        package_id = job.get("resourceId", "")
+                    except JobNotFoundError:
+                        # If job is gone but we have a package ID (e.g. SLS), assume success
+                        pkg_id_from_start = result.get("packageId")
+                        if pkg_id_from_start:
+                            package_id = pkg_id_from_start
+                            click.echo(
+                                "⚠️ Job not found, but package ID is known. Assuming success.",
+                                err=True,
+                            )
+                        else:
+                            raise
+                else:
+                    # Synchronous success
+                    package_id = result.get("id", result.get("packageId", ""))
+
                 format_success("Package uploaded", {"ID": package_id, "File": path.name})
             else:
-                format_success("Package upload started", {"Job ID": job_id, "File": path.name})
+                if job_id:
+                    format_success("Package upload started", {"Job ID": job_id, "File": path.name})
+                else:
+                    package_id = result.get("id", result.get("packageId", ""))
+                    format_success("Package uploaded", {"ID": package_id, "File": path.name})
 
         except TimeoutError as exc:
             click.echo(f"✗ {exc}", err=True)
@@ -821,135 +847,17 @@ def register_feed_commands(cli: Any) -> None:
             job_id = _delete_package(package_id)
 
             if wait:
-                click.echo(f"Deleting package... (job: {job_id})")
-                _wait_for_job(job_id, timeout=timeout)
+                if job_id:
+                    click.echo(f"Deleting package... (job: {job_id})")
+                    _wait_for_job(job_id, timeout=timeout)
                 format_success("Package deleted", {"ID": package_id})
             else:
-                format_success(
-                    "Package deletion started", {"Job ID": job_id, "Package ID": package_id}
-                )
-
-        except TimeoutError as exc:
-            click.echo(f"✗ {exc}", err=True)
-            sys.exit(ExitCodes.GENERAL_ERROR)
-        except Exception as exc:
-            handle_api_error(exc)
-
-    # -------------------------------------------------------------------------
-    # Job subgroup
-    # -------------------------------------------------------------------------
-
-    @feed.group(name="job")
-    def job() -> None:
-        """Monitor feed operation jobs."""
-        pass
-
-    @job.command(name="list")
-    @click.option("--feed-id", "-f", help="Filter by feed ID")
-    @click.option(
-        "--format",
-        "format_",
-        type=click.Choice(["table", "json"]),
-        default="table",
-        help="Output format",
-    )
-    @click.option("--take", "-t", type=int, default=25, show_default=True, help="Items per page")
-    def list_jobs(feed_id: Optional[str], format_: str, take: int) -> None:
-        """List feed operation jobs."""
-        format_output = validate_output_format(format_)
-
-        try:
-            jobs = _list_jobs(feed_id=feed_id)
-
-            def job_formatter(j: Dict[str, Any]) -> List[str]:
-                return [
-                    j.get("id", "")[:20],
-                    j.get("operation", j.get("type", "N/A")),
-                    j.get("status", "N/A"),
-                    j.get("created", j.get("createdAt", ""))[:10],
-                ]
-
-            mock_resp: Any = FilteredResponse({"jobs": jobs})
-
-            UniversalResponseHandler.handle_list_response(
-                resp=mock_resp,
-                data_key="jobs",
-                item_name="job",
-                format_output=format_output,
-                formatter_func=job_formatter,
-                headers=["ID", "Operation", "Status", "Created"],
-                column_widths=[22, 20, 15, 12],
-                empty_message="No jobs found.",
-                enable_pagination=True,
-                page_size=take,
-            )
-        except Exception as exc:
-            handle_api_error(exc)
-
-    @job.command(name="get")
-    @click.option("--id", "-i", "job_id", required=True, help="Job ID")
-    @click.option(
-        "--format",
-        "-f",
-        "format_",
-        type=click.Choice(["table", "json"]),
-        default="table",
-        help="Output format",
-    )
-    def get_job(job_id: str, format_: str) -> None:
-        """Get details of a specific job."""
-        format_output = validate_output_format(format_)
-
-        try:
-            job_data = _get_job(job_id)
-
-            if format_output == "json":
-                click.echo(json.dumps(job_data, indent=2))
-                return
-
-            click.echo("Job Details:")
-            click.echo("=" * 50)
-            click.echo(f"ID:         {job_data.get('id', 'N/A')}")
-            click.echo(f"Operation:  {job_data.get('operation', job_data.get('type', 'N/A'))}")
-            click.echo(f"Status:     {job_data.get('status', 'N/A')}")
-            click.echo(f"Resource:   {job_data.get('resourceId', 'N/A')}")
-            click.echo(f"Created:    {job_data.get('created', job_data.get('createdAt', 'N/A'))}")
-
-            error = job_data.get("error")
-            if error:
-                click.echo("\nError:")
-                click.echo(f"  Name:    {error.get('name', 'N/A')}")
-                click.echo(f"  Message: {error.get('message', 'N/A')}")
-
-        except Exception as exc:
-            handle_api_error(exc)
-
-    @job.command(name="wait")
-    @click.option("--id", "-i", "job_id", required=True, help="Job ID to wait for")
-    @click.option("--feed-id", help="Feed ID (required for some job types)")
-    @click.option("--timeout", type=int, default=300, help="Timeout in seconds")
-    @click.option(
-        "--format",
-        "-f",
-        "format_",
-        type=click.Choice(["table", "json"]),
-        default="table",
-        help="Output format",
-    )
-    def wait_job(job_id: str, feed_id: Optional[str], timeout: int, format_: str) -> None:
-        """Wait for a job to complete."""
-        format_output = validate_output_format(format_)
-
-        try:
-            click.echo(f"Waiting for job {job_id}...")
-            job_data = _wait_for_job(job_id, timeout=timeout, feed_id=feed_id)
-
-            if format_output == "json":
-                click.echo(json.dumps(job_data, indent=2))
-            else:
-                status = job_data.get("status", "UNKNOWN")
-                resource_id = job_data.get("resourceId", "N/A")
-                format_success("Job completed", {"Status": status, "Resource ID": resource_id})
+                if job_id:
+                    format_success(
+                        "Package deletion started", {"Job ID": job_id, "Package ID": package_id}
+                    )
+                else:
+                    format_success("Package deleted", {"ID": package_id})
 
         except TimeoutError as exc:
             click.echo(f"✗ {exc}", err=True)
