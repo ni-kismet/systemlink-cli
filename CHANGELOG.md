@@ -1,7 +1,22 @@
 # CHANGELOG
 
 
+## v0.16.1 (2025-12-13)
+
+### Bug Fixes
+
+- Merge pull request #31 from ni-kismet/fix/feed-package-issues
+  ([`b191d93`](https://github.com/ni-kismet/systemlink-cli/commit/b191d93fa9a1aca9393aeb25b1da1c1b40307f30))
+
+Fix feed package upload issues and add E2E tests
+
+
 ## v0.16.0 (2025-12-12)
+
+### Chores
+
+- **release**: 0.16.0
+  ([`81ff4e7`](https://github.com/ni-kismet/systemlink-cli/commit/81ff4e734cec511eb32c546d137565dbee8ad7cb))
 
 ### Features
 
