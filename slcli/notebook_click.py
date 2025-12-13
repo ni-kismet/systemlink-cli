@@ -772,7 +772,7 @@ def register_notebook_commands(cli: Any) -> None:
     @notebook_manage.command(name="download")
     @click.option("--id", "-i", "notebook_id", help="Notebook ID")
     @click.option("--name", "notebook_name", help="Notebook name")
-    @click.option("--workspace", default="Default", help="Workspace name (default: Default)")
+    @click.option("--workspace", default="Default", help="Workspace name or ID (default: Default)")
     @click.option("--output", required=False, help="Output file path (defaults to notebook name)")
     @click.option(
         "--type",
@@ -904,7 +904,7 @@ def register_notebook_commands(cli: Any) -> None:
 
     @notebook_manage.command(name="create")
     @click.option("--file", "input_file", required=False, help="Path to notebook file to create")
-    @click.option("--workspace", default="Default", help="Workspace name (default: Default)")
+    @click.option("--workspace", default="Default", help="Workspace name or ID (default: Default)")
     @click.option("--name", "notebook_name", required=True, help="Notebook name")
     def create_notebook(
         input_file: str = "",

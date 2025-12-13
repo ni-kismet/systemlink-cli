@@ -282,27 +282,117 @@ def register_templates_commands(cli: Any) -> None:
         except Exception as exc:
             handle_api_error(exc)
 
-    @template.command(name="export")
+    @template.command(name="get")
+    @click.option("--id", "-i", "template_id", help="Test plan template ID")
+    @click.option("--name", "-n", "template_name", help="Test plan template name")
     @click.option(
-        "--id",
-        "-i",
-        "template_id",
-        required=True,
-        help="Test plan template ID to export",
+        "--format",
+        "-f",
+        type=click.Choice(["table", "json"]),
+        default="table",
+        show_default=True,
+        help="Output format",
     )
-    @click.option("--output", "-o", help="Output JSON file (default: <template-name>.json)")
-    def export_template(template_id: str, output: Optional[str] = None) -> None:
-        """Export a template to JSON."""
+    def get_template(
+        template_id: Optional[str] = None,
+        template_name: Optional[str] = None,
+        format: str = "table",
+    ) -> None:
+        """Show template details by ID or name."""
+        if not template_id and not template_name:
+            click.echo("✗ Must provide either --id or --name.", err=True)
+            sys.exit(ExitCodes.INVALID_INPUT)
+        if template_id and template_name:
+            click.echo("✗ Cannot specify both --id and --name.", err=True)
+            sys.exit(ExitCodes.INVALID_INPUT)
+
+        format_output = validate_output_format(format)
         url = f"{get_base_url()}/niworkorder/v1/query-testplan-templates"
-        payload = {"take": 1, "filter": f'ID == "{template_id}"'}
+
+        # Build filter based on what was provided
+        if template_id:
+            filter_str = f'ID == "{template_id}"'
+        else:
+            filter_str = f'NAME == "{template_name}"'
+
+        payload = {"take": 1000, "filter": filter_str}
 
         try:
             resp = make_api_request("POST", url, payload)
             data = resp.json()
             items = data.get("testPlanTemplates", []) if isinstance(data, dict) else []
 
+            # If searching by name, need to find exact match
+            if template_name:
+                items = [t for t in items if t.get("name") == template_name]
+
             if not items:
-                click.echo(f"✗ Test plan template with ID {template_id} not found.", err=True)
+                identifier = template_id if template_id else template_name
+                click.echo(f"✗ Template '{identifier}' not found.", err=True)
+                sys.exit(ExitCodes.NOT_FOUND)
+
+            template = items[0]
+
+            if format_output == "json":
+                click.echo(json.dumps(template, indent=2))
+                return
+
+            # Table format
+            workspace_map = get_workspace_map()
+            ws_name = get_workspace_display_name(
+                template.get("workspace", ""),
+                workspace_map,
+            )
+
+            click.echo("Template Details:")
+            click.echo("=" * 50)
+            click.echo(f"Name:         {template.get('name', 'N/A')}")
+            click.echo(f"ID:           {template.get('id', 'N/A')}")
+            click.echo(f"Workspace:    {ws_name}")
+            click.echo(f"Group:        {template.get('templateGroup', 'N/A')}")
+            click.echo(f"Description:  {template.get('description', 'N/A')}")
+
+        except Exception as exc:
+            handle_api_error(exc)
+
+    @template.command(name="export")
+    @click.option("--id", "-i", "template_id", help="Test plan template ID to export")
+    @click.option("--name", "-n", "template_name", help="Test plan template name to export")
+    @click.option("--output", "-o", help="Output JSON file (default: <template-name>.json)")
+    def export_template(
+        template_id: Optional[str] = None,
+        template_name: Optional[str] = None,
+        output: Optional[str] = None,
+    ) -> None:
+        """Export a template to JSON by ID or name."""
+        if not template_id and not template_name:
+            click.echo("✗ Must provide either --id or --name.", err=True)
+            sys.exit(ExitCodes.INVALID_INPUT)
+        if template_id and template_name:
+            click.echo("✗ Cannot specify both --id and --name.", err=True)
+            sys.exit(ExitCodes.INVALID_INPUT)
+
+        url = f"{get_base_url()}/niworkorder/v1/query-testplan-templates"
+
+        # Build filter based on what was provided
+        if template_id:
+            filter_str = f'ID == "{template_id}"'
+        else:
+            filter_str = f'NAME == "{template_name}"'
+
+        payload = {"take": 1000, "filter": filter_str}
+
+        try:
+            resp = make_api_request("POST", url, payload)
+            data = resp.json()
+            items = data.get("testPlanTemplates", []) if isinstance(data, dict) else []
+            # If searching by name, need to find exact match (filter is case-insensitive substring)
+            if template_name:
+                items = [t for t in items if t.get("name") == template_name]
+
+            if not items:
+                identifier = template_id if template_id else template_name
+                click.echo(f"✗ Test plan template '{identifier}' not found.", err=True)
                 sys.exit(ExitCodes.NOT_FOUND)
 
             template_data = items[0]
@@ -327,7 +417,6 @@ def register_templates_commands(cli: Any) -> None:
     @template.command(name="import")
     @click.option(
         "--file",
-        "-f",
         "input_file",
         required=True,
         help="Input JSON file",

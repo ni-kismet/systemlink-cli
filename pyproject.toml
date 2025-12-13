@@ -43,6 +43,7 @@ types-tabulate = "*"
 
 # Semantic Release
 python-semantic-release = "^9.0.0"
+pytest-xdist = "^3.8.0"
 
 [tool.pytest.ini_options]
 addopts = "--cov slcli --strict-markers --doctest-modules --ignore=tests/e2e"

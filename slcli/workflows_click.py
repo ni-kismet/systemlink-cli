@@ -409,24 +409,127 @@ def register_workflows_commands(cli: Any) -> None:
         except Exception as exc:
             handle_api_error(exc)
 
-    @workflow.command(name="export")
+    @workflow.command(name="get")
+    @click.option("--id", "-i", "workflow_id", help="Workflow ID")
+    @click.option("--name", "-n", "workflow_name", help="Workflow name")
     @click.option(
-        "--id",
-        "-i",
-        "workflow_id",
-        required=True,
-        help="Workflow ID to export",
+        "--format",
+        "-f",
+        type=click.Choice(["table", "json"]),
+        default="table",
+        show_default=True,
+        help="Output format",
     )
+    def get_workflow(
+        workflow_id: Optional[str] = None,
+        workflow_name: Optional[str] = None,
+        format: str = "table",
+    ) -> None:
+        """Show workflow details by ID or name."""
+        if not workflow_id and not workflow_name:
+            click.echo("✗ Must provide either --id or --name.", err=True)
+            sys.exit(ExitCodes.INVALID_INPUT)
+        if workflow_id and workflow_name:
+            click.echo("✗ Cannot specify both --id and --name.", err=True)
+            sys.exit(ExitCodes.INVALID_INPUT)
+
+        format_output = validate_output_format(format)
+
+        try:
+            # If name is provided, find the workflow by name first
+            if workflow_name:
+                query_url = f"{get_base_url()}/niworkorder/v1/query-workflows?ff-userdefinedworkflowsfortestplaninstances=true"
+                query_payload = {
+                    "take": 1000,
+                    "filter": f'NAME == "{workflow_name}"',
+                }
+                query_resp = make_api_request("POST", query_url, query_payload)
+                query_data = query_resp.json()
+                workflows = query_data.get("workflows", [])
+
+                # Find exact match
+                matching = [w for w in workflows if w.get("name") == workflow_name]
+                if not matching:
+                    click.echo(f"✗ Workflow '{workflow_name}' not found.", err=True)
+                    sys.exit(ExitCodes.NOT_FOUND)
+                workflow_id = matching[0].get("id", "")
+
+            # Fetch the workflow by ID
+            url = f"{get_base_url()}/niworkorder/v1/workflows/{workflow_id}?ff-userdefinedworkflowsfortestplaninstances=true"
+            resp = make_api_request("GET", url)
+            workflow = resp.json()
+
+            if not workflow:
+                identifier = workflow_id if not workflow_name else workflow_name
+                click.echo(f"✗ Workflow '{identifier}' not found.", err=True)
+                sys.exit(ExitCodes.NOT_FOUND)
+
+            if format_output == "json":
+                click.echo(json.dumps(workflow, indent=2))
+                return
+
+            # Table format
+            workspace_map = get_workspace_map()
+            ws_name = get_workspace_display_name(
+                workflow.get("workspace", ""),
+                workspace_map,
+            )
+
+            click.echo("Workflow Details:")
+            click.echo("=" * 50)
+            click.echo(f"Name:         {workflow.get('name', 'N/A')}")
+            click.echo(f"ID:           {workflow.get('id', 'N/A')}")
+            click.echo(f"Workspace:    {ws_name}")
+            click.echo(f"Description:  {workflow.get('description', 'N/A')}")
+            click.echo(f"State:        {workflow.get('state', 'N/A')}")
+
+        except Exception as exc:
+            handle_api_error(exc)
+
+    @workflow.command(name="export")
+    @click.option("--id", "-i", "workflow_id", help="Workflow ID to export")
+    @click.option("--name", "-n", "workflow_name", help="Workflow name to export")
     @click.option("--output", "-o", help="Output JSON file (default: <workflow-name>.json)")
-    def export_workflow(workflow_id: str, output: Optional[str]) -> None:
-        """Export a workflow to JSON."""
+    def export_workflow(
+        workflow_id: Optional[str] = None,
+        workflow_name: Optional[str] = None,
+        output: Optional[str] = None,
+    ) -> None:
+        """Export a workflow to JSON by ID or name."""
+        if not workflow_id and not workflow_name:
+            click.echo("✗ Must provide either --id or --name.", err=True)
+            sys.exit(ExitCodes.INVALID_INPUT)
+        if workflow_id and workflow_name:
+            click.echo("✗ Cannot specify both --id and --name.", err=True)
+            sys.exit(ExitCodes.INVALID_INPUT)
+
+        # If name is provided, find the workflow by name first
+        if workflow_name:
+            query_url = f"{get_base_url()}/niworkorder/v1/query-workflows?ff-userdefinedworkflowsfortestplaninstances=true"
+            query_payload = {
+                "take": 1000,
+                "filter": f'NAME == "{workflow_name}"',
+            }
+            query_resp = make_api_request("POST", query_url, query_payload)
+            query_data = query_resp.json()
+            workflows = query_data.get("workflows", [])
+
+            # Find exact match (filter is case-insensitive substring)
+            matching = [w for w in workflows if w.get("name") == workflow_name]
+            if not matching:
+                click.echo(f"✗ Workflow '{workflow_name}' not found.", err=True)
+                sys.exit(ExitCodes.NOT_FOUND)
+            workflow_id = matching[0].get("id", "")
+
+        # Fetch the workflow by ID
         url = f"{get_base_url()}/niworkorder/v1/workflows/{workflow_id}?ff-userdefinedworkflowsfortestplaninstances=true"
         try:
             resp = make_api_request("GET", url)
             data = resp.json()
 
             if not data:
-                click.echo(f"✗ Workflow with ID {workflow_id} not found.", err=True)
+                identifier = workflow_id if not workflow_name else workflow_name
+                click.echo(f"✗ Workflow '{identifier}' not found.", err=True)
                 sys.exit(ExitCodes.NOT_FOUND)
 
             # Generate output filename if not provided
@@ -447,7 +550,6 @@ def register_workflows_commands(cli: Any) -> None:
     @workflow.command(name="import")
     @click.option(
         "--file",
-        "-f",
         "input_file",
         required=True,
         help="Input JSON file",
