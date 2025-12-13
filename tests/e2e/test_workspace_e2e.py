@@ -33,7 +33,7 @@ class TestWorkspaceE2E:
         """Test getting workspace details by name."""
         workspace_name = configured_workspace
 
-        result = cli_runner(["workspace", "get", "--name", workspace_name, "--format", "json"])
+        result = cli_runner(["workspace", "get", "--workspace", workspace_name, "--format", "json"])
         cli_helper.assert_success(result)
 
         workspace_info = cli_helper.get_json_output(result)
@@ -58,7 +58,7 @@ class TestWorkspaceE2E:
         workspace_id = target_workspace["id"]
 
         # Get workspace by ID
-        result = cli_runner(["workspace", "get", "--id", workspace_id, "--format", "json"])
+        result = cli_runner(["workspace", "get", "--workspace", workspace_id, "--format", "json"])
         cli_helper.assert_success(result)
 
         workspace_info = cli_helper.get_json_output(result)
@@ -80,14 +80,14 @@ class TestWorkspaceE2E:
         """Test error handling for invalid workspace operations."""
         # Test get with invalid workspace name
         result = cli_runner(
-            ["workspace", "get", "--name", "NonExistentWorkspace12345", "--format", "json"],
+            ["workspace", "get", "--workspace", "NonExistentWorkspace12345", "--format", "json"],
             check=False,
         )
         cli_helper.assert_failure(result)
 
         # Test get with invalid workspace ID
         result = cli_runner(
-            ["workspace", "get", "--id", "invalid-workspace-id-12345", "--format", "json"],
+            ["workspace", "get", "--workspace", "invalid-workspace-id-12345", "--format", "json"],
             check=False,
         )
         cli_helper.assert_failure(result)
