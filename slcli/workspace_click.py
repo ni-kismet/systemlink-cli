@@ -190,7 +190,7 @@ def register_workspace_commands(cli: Any) -> None:
         help="Output format",
     )
     def get_workspace(id: Optional[str], name: Optional[str], format: str) -> None:
-        """Get detailed information about a workspace and its contents."""
+        """Show workspace details and contents."""
         if not id and not name:
             click.echo("✗ Must provide either --id or --name", err=True)
             sys.exit(ExitCodes.INVALID_INPUT)

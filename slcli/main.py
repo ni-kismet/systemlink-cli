@@ -70,7 +70,7 @@ def get_ascii_art() -> str:
 @click.option("--version", "-v", is_flag=True, help="Show version and exit")
 @click.pass_context
 def cli(ctx: click.Context, version: bool) -> None:
-    """SystemLink CLI (slcli) - Command-line interface for SystemLink resources."""  # noqa: D403
+    """SystemLink CLI for managing SystemLink resources."""  # noqa: D403
     if version:
         click.echo(f"slcli version {get_version()}")
         ctx.exit()
@@ -100,7 +100,7 @@ def ca_info() -> None:
 @click.option("--api-key", help="SystemLink API key")
 @click.option("--web-url", help="SystemLink Web UI base URL")
 def login(url: Optional[str], api_key: Optional[str], web_url: Optional[str]) -> None:
-    """Store your SystemLink API key, URL and Web UI URL securely.
+    """Save SystemLink API key, API URL, and Web UI URL securely.
 
     The command will always attempt to persist a combined JSON config into the
     system keyring under service 'systemlink-cli' and key 'SYSTEMLINK_CONFIG'.
@@ -177,7 +177,7 @@ def login(url: Optional[str], api_key: Optional[str], web_url: Optional[str]) ->
 
 @cli.command()
 def logout() -> None:
-    """Remove your stored SystemLink API key and URL."""
+    """Remove stored SystemLink credentials."""
     try:
         keyring.delete_password("systemlink-cli", "SYSTEMLINK_API_KEY")
     except Exception:
@@ -196,7 +196,7 @@ def logout() -> None:
 @cli.command()
 @click.option("--format", "-f", type=click.Choice(["table", "json"]), default="table")
 def info(format: str) -> None:
-    """Show current configuration and platform information."""
+    """Show current configuration and detected platform."""
     platform_info = get_platform_info()
 
     if format == "json":

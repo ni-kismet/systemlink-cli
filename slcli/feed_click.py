@@ -435,11 +435,11 @@ def register_feed_commands(cli: Any) -> None:
 
     @cli.group()
     def feed() -> None:
-        """Manage NI Package Manager feeds.
+        """Manage NI Package Manager feeds and their packages.
 
-        Feeds are package repositories that can be used by NI Package Manager
-        to install software on test systems. Supports both Windows (.nipkg)
-        and NI Linux RT (.ipk/.deb) platforms.
+        Feeds are package repositories used by NI Package Manager to install
+        software on test systems. Supports Windows (.nipkg) and NI Linux RT
+        (.ipk/.deb) platforms.
         """
         pass
 
@@ -467,7 +467,7 @@ def register_feed_commands(cli: Any) -> None:
     def list_feeds(
         format_: str, take: int, platform: Optional[str], workspace: Optional[str]
     ) -> None:
-        """List all feeds."""
+        """List feeds."""
         format_output = validate_output_format(format_)
 
         try:
@@ -515,7 +515,7 @@ def register_feed_commands(cli: Any) -> None:
         help="Output format",
     )
     def get_feed(feed_id: str, format_: str) -> None:
-        """Get details of a specific feed."""
+        """Show details for a feed."""
         format_output = validate_output_format(format_)
 
         try:
@@ -572,7 +572,7 @@ def register_feed_commands(cli: Any) -> None:
         wait: bool,
         timeout: int,
     ) -> None:
-        """Create a new feed."""
+        """Create a feed."""
         try:
             workspace_id = None
             if workspace:
@@ -616,7 +616,7 @@ def register_feed_commands(cli: Any) -> None:
     @click.option("--wait", is_flag=True, help="Wait for operation to complete")
     @click.option("--timeout", type=int, default=300, help="Timeout in seconds when using --wait")
     def delete_feed(feed_id: str, yes: bool, wait: bool, timeout: int) -> None:
-        """Delete a feed and all its packages."""
+        """Delete a feed and its packages."""
         if not yes:
             if not click.confirm(f"Are you sure you want to delete feed {feed_id}?"):
                 click.echo("Cancelled.")
@@ -665,7 +665,7 @@ def register_feed_commands(cli: Any) -> None:
         wait: bool,
         timeout: int,
     ) -> None:
-        """Replicate a feed from an external source URL."""
+        """Replicate a feed from an external URL."""
         try:
             workspace_id = None
             if workspace:
@@ -713,7 +713,7 @@ def register_feed_commands(cli: Any) -> None:
 
     @feed.group(name="package")
     def package() -> None:
-        """Manage packages within feeds."""
+        """Manage packages in a feed."""
         pass
 
     @package.command(name="list")
@@ -727,7 +727,7 @@ def register_feed_commands(cli: Any) -> None:
     )
     @click.option("--take", "-t", type=int, default=25, show_default=True, help="Items per page")
     def list_packages(feed_id: str, format_: str, take: int) -> None:
-        """List all packages in a feed."""
+        """List packages in a feed."""
         format_output = validate_output_format(format_)
 
         try:
@@ -837,7 +837,7 @@ def register_feed_commands(cli: Any) -> None:
     @click.option("--wait", is_flag=True, help="Wait for operation to complete")
     @click.option("--timeout", type=int, default=300, help="Timeout in seconds when using --wait")
     def delete_package(package_id: str, yes: bool, wait: bool, timeout: int) -> None:
-        """Delete a package from the repository."""
+        """Delete a package from a feed."""
         if not yes:
             if not click.confirm(f"Are you sure you want to delete package {package_id}?"):
                 click.echo("Cancelled.")

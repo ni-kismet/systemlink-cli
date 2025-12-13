@@ -510,7 +510,7 @@ def register_notebook_commands(cli: Any) -> None:
 
     @cli.group()
     def notebook() -> None:  # pragma: no cover - Click wiring
-        """Manage notebooks (local init, remote manage, execution)."""
+        """Manage notebooks (init locally, manage remotely, run)."""
         pass
 
     # ------------------------------------------------------------------
@@ -677,7 +677,7 @@ def register_notebook_commands(cli: Any) -> None:
         help="Output format",
     )
     def list_notebooks(workspace: str = "", take: int = 25, format_output: str = "table") -> None:
-        """List all notebooks. Optionally filter by workspace."""
+        """List notebooks."""
         format_output = validate_output_format(format_output)
 
         try:
@@ -789,7 +789,7 @@ def register_notebook_commands(cli: Any) -> None:
         output: str = "",
         download_type: str = "content",
     ) -> None:
-        """Download a notebook's content, metadata, or both by ID or name."""
+        """Download notebook content/metadata."""
         if not notebook_id and not notebook_name:
             click.echo("✗ Must provide either --id or --name.", err=True)
             sys.exit(ExitCodes.INVALID_INPUT)
@@ -848,7 +848,7 @@ def register_notebook_commands(cli: Any) -> None:
         help="Output format",
     )
     def get_notebook(notebook_id: str, format: str = "table") -> None:  # type: ignore[override]
-        """Get detailed information about a specific notebook.
+        """Show notebook details.
 
         Displays notebook metadata and basic properties. For content download use
         'slcli notebook manage download'.
@@ -911,7 +911,7 @@ def register_notebook_commands(cli: Any) -> None:
         workspace: str = "Default",
         notebook_name: str = "",
     ) -> None:
-        """Create a new notebook in the specified workspace.
+        """Create a notebook.
 
         Fails if a notebook with the same name exists.
 
@@ -1006,7 +1006,7 @@ def register_notebook_commands(cli: Any) -> None:
     @click.option("--id", "-i", "notebook_id", required=True, help="Notebook ID to delete")
     @click.confirmation_option(prompt="Are you sure you want to delete this notebook?")
     def delete_notebook(notebook_id: str = "") -> None:
-        """Delete a notebook by ID.
+        """Delete a notebook.
 
         Note: This command is only available on SystemLink Enterprise (SLE).
         SystemLink Server (SLS) does not support notebook deletion via API.
@@ -1179,7 +1179,7 @@ def register_notebook_commands(cli: Any) -> None:
         help="Output format",
     )
     def get_notebook_execution(execution_id: str, format: str = "table") -> None:
-        """Get detailed information about a notebook execution."""
+        """Show a notebook execution."""
         format_output = validate_output_format(format)
         base = _get_notebook_execution_base()
         url = f"{base}/executions/{execution_id}"
@@ -1272,11 +1272,7 @@ def register_notebook_commands(cli: Any) -> None:
         no_cache: bool = False,
         format: str = "table",
     ) -> None:
-        """Start a notebook execution and return immediately.
-
-        This creates an execution (async) and returns the created execution record.
-        Use 'notebook execute sync' to wait for completion.
-        """
+        """Start a notebook execution and return immediately."""
         format_output = validate_output_format(format)
         base = _get_notebook_execution_base()
         is_sls = get_platform() == PLATFORM_SLS
@@ -1406,12 +1402,7 @@ def register_notebook_commands(cli: Any) -> None:
         no_cache: bool = False,
         format: str = "table",
     ) -> None:
-        """Execute a notebook and wait until completion.
-
-        This submits an execution then polls the execution status until it reaches a
-        terminal state (SUCCEEDED, FAILED, CANCELED, TIMED_OUT). Shows a spinner and
-        status updates while waiting.
-        """
+        """Execute a notebook and wait for completion."""
         format_output = validate_output_format(format)
         base = _get_notebook_execution_base()
         is_sls = get_platform() == PLATFORM_SLS
@@ -1519,7 +1510,7 @@ def register_notebook_commands(cli: Any) -> None:
     @notebook_execute.command(name="cancel")
     @click.option("--id", "-i", "execution_id", required=True, help="Execution ID to cancel")
     def cancel_notebook_execution(execution_id: str) -> None:
-        """Cancel a running notebook execution."""
+        """Cancel a notebook execution."""
         base = _get_notebook_execution_base()
         is_sls = get_platform() == PLATFORM_SLS
 
@@ -1543,11 +1534,7 @@ def register_notebook_commands(cli: Any) -> None:
     @notebook_execute.command(name="retry")
     @click.option("--id", "-i", "execution_id", required=True, help="Execution ID to retry")
     def retry_notebook_execution(execution_id: str) -> None:
-        """Retry a failed notebook execution.
-
-        Note: This command is only available on SystemLink Enterprise (SLE).
-        SystemLink Server (SLS) does not support execution retry.
-        """
+        """Retry a failed notebook execution (SLE only)."""
         is_sls = get_platform() == PLATFORM_SLS
         if is_sls:
             click.echo(

@@ -171,7 +171,7 @@ def register_file_commands(cli: Any) -> None:
         id_filter: Optional[str] = None,
         name_filter: Optional[str] = None,
     ) -> None:
-        """List files in the File Service.
+        """List files.
 
         Use --filter to search for files by name or extension.
         """
@@ -255,7 +255,7 @@ def register_file_commands(cli: Any) -> None:
         help="Output format",
     )
     def get_file(file_id: str, format: str = "table") -> None:
-        """Get metadata for a specific file.
+        """Show metadata for a file.
 
         FILE_ID is the unique identifier of the file.
         """
@@ -317,7 +317,7 @@ def register_file_commands(cli: Any) -> None:
         name: Optional[str] = None,
         properties: Optional[str] = None,
     ) -> None:
-        """Upload a file to the File Service.
+        """Upload a file.
 
         FILE_PATH is the local path to the file to upload.
         """
@@ -402,7 +402,7 @@ def register_file_commands(cli: Any) -> None:
         output: Optional[str] = None,
         force: bool = False,
     ) -> None:
-        """Download a file from the File Service.
+        """Download a file.
 
         FILE_ID is the unique identifier of the file to download.
         """
@@ -458,7 +458,7 @@ def register_file_commands(cli: Any) -> None:
         help="Delete without confirmation",
     )
     def delete_file(file_id: str, force: bool = False) -> None:
-        """Delete a file from the File Service.
+        """Delete a file.
 
         FILE_ID is the unique identifier of the file to delete.
         """
@@ -531,7 +531,7 @@ def register_file_commands(cli: Any) -> None:
         descending: bool = True,
         workspace: Optional[str] = None,
     ) -> None:
-        r"""Query files using search expressions.
+        r"""Search files with a query.
 
         Filter syntax uses field:(value) format with wildcards:
         \b
@@ -623,7 +623,7 @@ def register_file_commands(cli: Any) -> None:
         properties: Optional[str] = None,
         add_property: tuple = (),
     ) -> None:
-        """Update metadata for a file.
+        """Update file metadata.
 
         FILE_ID is the unique identifier of the file to update.
         """
@@ -736,12 +736,12 @@ def register_file_commands(cli: Any) -> None:
         debounce: float = 1.0,
         recursive: bool = False,
     ) -> None:
-        """Watch a folder and upload new files automatically.
+        """Watch a folder and auto-upload new files.
 
         WATCH_DIR is the directory to watch for new files.
 
-        Files will be uploaded to the File Service when they are created or modified.
-        Use --move-to to move files after upload, or --delete-after-upload to remove them.
+        Files upload when created or modified. Use --move-to to move files after upload,
+        or --delete-after-upload to remove them.
         """
         # Validate mutual exclusivity
         if move_to and delete_after_upload:
