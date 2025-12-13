@@ -314,7 +314,7 @@ def test_get_workspace_success(monkeypatch: Any, runner: CliRunner) -> None:
     monkeypatch.setattr("requests.post", mock_post)
 
     cli = make_cli()
-    result = runner.invoke(cli, ["workspace", "get", "--id", "test-ws-id"])
+    result = runner.invoke(cli, ["workspace", "get", "--workspace", "test-ws-id"])
     assert result.exit_code == 0
     assert "Workspace Information: Test Workspace" in result.output
     assert "Test Plan Templates (1)" in result.output
@@ -338,7 +338,7 @@ def test_get_workspace_not_found(monkeypatch: Any, runner: CliRunner) -> None:
     monkeypatch.setattr("requests.get", mock_get)
 
     cli = make_cli()
-    result = runner.invoke(cli, ["workspace", "get", "--name", "nonexistent"])
+    result = runner.invoke(cli, ["workspace", "get", "--workspace", "nonexistent"])
     assert result.exit_code == 3  # NOT_FOUND exit code
     assert "Workspace 'nonexistent' not found" in result.output
 
@@ -394,7 +394,7 @@ def test_get_workspace_with_permission_errors(monkeypatch: Any, runner: CliRunne
     cli = make_cli()
 
     # Test table format shows error messages
-    result = runner.invoke(cli, ["workspace", "get", "--id", "test-ws-id"])
+    result = runner.invoke(cli, ["workspace", "get", "--workspace", "test-ws-id"])
     assert result.exit_code == 0
     assert "Workspace Information: Test Workspace" in result.output
     assert "Test Plan Templates (0)" in result.output
@@ -405,7 +405,9 @@ def test_get_workspace_with_permission_errors(monkeypatch: Any, runner: CliRunne
     assert "Access forbidden" in result.output
 
     # Test JSON format includes access_errors
-    result = runner.invoke(cli, ["workspace", "get", "--id", "test-ws-id", "--format", "json"])
+    result = runner.invoke(
+        cli, ["workspace", "get", "--workspace", "test-ws-id", "--format", "json"]
+    )
     assert result.exit_code == 0
     import json
 

@@ -7,6 +7,7 @@
 ## Executive Summary
 
 This document analyzes consistency across all SystemLink CLI commands and proposes improvements. The analysis focuses on:
+
 1. **Flag naming** (--workspace, --id, --name, --filter, etc.)
 2. **Resource identification patterns** (by ID vs. by name)
 3. **Filtering mechanisms** (--filter vs. specialized filters)
@@ -18,20 +19,20 @@ This document analyzes consistency across all SystemLink CLI commands and propos
 
 ### Current State
 
-| Command | Workspace Support | Pattern |
-|---------|------------------|---------|
-| `feed list` | `--workspace` (name or ID) | ✓ Flexible |
-| `feed create` | `--workspace` (name or ID) | ✓ Flexible |
-| `file list` | `--workspace` (name or ID) | ✓ Flexible |
-| `notebook manage list` | `--workspace` (name, default "Default") | Name only |
-| `notebook manage create` | `--workspace` (name, default "Default") | Name only |
-| `notebook execute list` | `--workspace` (name or ID) | ✓ Flexible |
-| `template list` | `--workspace` (name or ID) | ✓ Flexible |
-| `workflow list` | `--workspace` (name or ID) | ✓ Flexible |
-| `webapp list` | `--workspace` (name or ID) | ✓ Flexible |
-| `dff config list` | `--workspace` (name or ID) | ✓ Flexible |
-| `workspace list` | `--name` filter only | ❌ Different pattern |
-| `workspace get` | `--id` OR `--name` (separate flags) | ❌ Different pattern |
+| Command                  | Workspace Support                       | Pattern              |
+| ------------------------ | --------------------------------------- | -------------------- |
+| `feed list`              | `--workspace` (name or ID)              | ✓ Flexible           |
+| `feed create`            | `--workspace` (name or ID)              | ✓ Flexible           |
+| `file list`              | `--workspace` (name or ID)              | ✓ Flexible           |
+| `notebook manage list`   | `--workspace` (name, default "Default") | Name only            |
+| `notebook manage create` | `--workspace` (name, default "Default") | Name only            |
+| `notebook execute list`  | `--workspace` (name or ID)              | ✓ Flexible           |
+| `template list`          | `--workspace` (name or ID)              | ✓ Flexible           |
+| `workflow list`          | `--workspace` (name or ID)              | ✓ Flexible           |
+| `webapp list`            | `--workspace` (name or ID)              | ✓ Flexible           |
+| `dff config list`        | `--workspace` (name or ID)              | ✓ Flexible           |
+| `workspace list`         | `--name` filter only                    | ❌ Different pattern |
+| `workspace get`          | `--id` OR `--name` (separate flags)     | ❌ Different pattern |
 
 ### Issues Identified
 
@@ -44,6 +45,7 @@ This document analyzes consistency across all SystemLink CLI commands and propos
 **Rationale**: Users should be able to use workspace names or IDs interchangeably across all commands.
 
 **Changes**:
+
 ```bash
 # Current (notebook)
 slcli notebook manage create --workspace Default --name test.ipynb
@@ -67,7 +69,8 @@ slcli workspace list --name Production
 slcli workspace list --workspace Production
 ```
 
-**Impact**: 
+**Impact**:
+
 - Medium breaking change for `workspace get` (flag rename)
 - Low breaking change for `workspace list` (can support both during transition)
 - Notebook commands enhanced (backward compatible if we still accept names)
@@ -78,16 +81,16 @@ slcli workspace list --workspace Production
 
 ### Current State
 
-| Command | ID Flag | Name Flag | Pattern |
-|---------|---------|-----------|---------|
-| `feed get` | `--id` (required) | ❌ | ID only |
-| `template export` | `--id` (required) | ❌ | ID only |
-| `workflow export` | `--id` (required) | ❌ | ID only |
-| `webapp get` | `--id` (required) | ❌ | ID only |
-| `notebook manage download` | `--id` (optional) | `--name` (optional) | ✓ Either |
-| `notebook manage get` | `--id` (required) | ❌ | ID only |
-| `workspace get` | `--id` (optional) | `--name` (optional) | ✓ Either |
-| `user get` | `--id` (optional) | `--email` (optional) | ✓ Either (email) |
+| Command                    | ID Flag           | Name Flag            | Pattern          |
+| -------------------------- | ----------------- | -------------------- | ---------------- |
+| `feed get`                 | `--id` (required) | ❌                   | ID only          |
+| `template export`          | `--id` (required) | ❌                   | ID only          |
+| `workflow export`          | `--id` (required) | ❌                   | ID only          |
+| `webapp get`               | `--id` (required) | ❌                   | ID only          |
+| `notebook manage download` | `--id` (optional) | `--name` (optional)  | ✓ Either         |
+| `notebook manage get`      | `--id` (required) | ❌                   | ID only          |
+| `workspace get`            | `--id` (optional) | `--name` (optional)  | ✓ Either         |
+| `user get`                 | `--id` (optional) | `--email` (optional) | ✓ Either (email) |
 
 ### Issues Identified
 
@@ -97,24 +100,26 @@ slcli workspace list --workspace Production
 
 ### Proposal 2: Support Name Lookup Where Practical
 
-**Rationale**: 
+**Rationale**:
+
 - Users often know resource names better than IDs
 - API constraints mean some resources don't have unique names
 - Trade-off between consistency and API capabilities
 
 **Decision Matrix**:
 
-| Resource | Unique Names? | Support Name Lookup? | Reason |
-|----------|---------------|---------------------|---------|
-| Feed | No (per workspace) | ❌ Keep ID only | Names not globally unique |
-| Template | Yes | ✓ Add name support | Names are unique identifiers |
-| Workflow | No (per workspace) | ❌ Keep ID only | Names not globally unique |
-| Webapp | No | ❌ Keep ID only | Names not globally unique |
+| Resource | Unique Names?      | Support Name Lookup?          | Reason                        |
+| -------- | ------------------ | ----------------------------- | ----------------------------- |
+| Feed     | No (per workspace) | ❌ Keep ID only               | Names not globally unique     |
+| Template | Yes                | ✓ Add name support            | Names are unique identifiers  |
+| Workflow | No (per workspace) | ❌ Keep ID only               | Names not globally unique     |
+| Webapp   | No                 | ❌ Keep ID only               | Names not globally unique     |
 | Notebook | No (per workspace) | ✓ Keep current (inconsistent) | Already supported in download |
-| User | Email unique | ✓ Keep email | Email is natural identifier |
-| File | N/A | ❌ Keep ID only | No meaningful name field |
+| User     | Email unique       | ✓ Keep email                  | Email is natural identifier   |
+| File     | N/A                | ❌ Keep ID only               | No meaningful name field      |
 
 **Proposed Changes**:
+
 ```bash
 # Add name support to template commands
 slcli template export --id <id>           # Current
@@ -126,6 +131,7 @@ slcli notebook manage get --name "test.ipynb" --workspace Default  # Proposed ad
 ```
 
 **Non-changes** (keep as-is with justification):
+
 - Feed, workflow, webapp: Names not unique, ID-only appropriate
 - File: No meaningful name alternative to ID
 
@@ -135,16 +141,16 @@ slcli notebook manage get --name "test.ipynb" --workspace Default  # Proposed ad
 
 ### Current State
 
-| Command | Filter Options | Pattern |
-|---------|---------------|---------|
-| `user list` | `--filter` (LINQ), `--type`, `--sortby`, `--order` | ✓ Advanced LINQ |
-| `function manage list` | `--filter` (LINQ), `--name`, `--workspace`, `--interface-contains` | ✓ LINQ + shortcuts |
-| `file list` | `--filter` (name search), `--workspace`, `--id-filter` | Simple search |
-| `file query` | `--filter` (search expression), `--workspace`, `--order-by` | ✓ Advanced search |
-| `feed list` | `--platform`, `--workspace` | ❌ No general filter |
-| `template list` | `--workspace` | ❌ No general filter |
-| `workflow list` | `--workspace`, `--status` | ❌ No general filter |
-| `notebook execute list` | `--workspace`, `--status`, `--notebook-id` | ❌ No general filter |
+| Command                 | Filter Options                                                     | Pattern              |
+| ----------------------- | ------------------------------------------------------------------ | -------------------- |
+| `user list`             | `--filter` (LINQ), `--type`, `--sortby`, `--order`                 | ✓ Advanced LINQ      |
+| `function manage list`  | `--filter` (LINQ), `--name`, `--workspace`, `--interface-contains` | ✓ LINQ + shortcuts   |
+| `file list`             | `--filter` (name search), `--workspace`, `--id-filter`             | Simple search        |
+| `file query`            | `--filter` (search expression), `--workspace`, `--order-by`        | ✓ Advanced search    |
+| `feed list`             | `--platform`, `--workspace`                                        | ❌ No general filter |
+| `template list`         | `--workspace`                                                      | ❌ No general filter |
+| `workflow list`         | `--workspace`, `--status`                                          | ❌ No general filter |
+| `notebook execute list` | `--workspace`, `--status`, `--notebook-id`                         | ❌ No general filter |
 
 ### Issues Identified
 
@@ -154,12 +160,14 @@ slcli notebook manage get --name "test.ipynb" --workspace Default  # Proposed ad
 
 ### Proposal 3: Standardize Filtering Approach
 
-**Rationale**: 
+**Rationale**:
+
 - Advanced LINQ filtering is powerful but complex
 - Specific filters (--status, --platform) are more discoverable
 - Two-tier approach: common filters + advanced --filter for power users
 
 **Proposed Standard**:
+
 ```bash
 # Tier 1: Common, specific filters (always available where applicable)
 --workspace <id-or-name>    # Workspace filter
@@ -174,6 +182,7 @@ slcli notebook manage get --name "test.ipynb" --workspace Default  # Proposed ad
 **Specific Changes**:
 
 **3a. Merge file commands** (breaking change):
+
 ```bash
 # Current
 slcli file list --filter searchterm        # Simple search
@@ -186,12 +195,13 @@ slcli file list --filter 'name:("*test*")'  # Advanced case
 ```
 
 **3b. Add --filter to resource lists** where backend supports it:
+
 ```bash
 # Enhanced feed list
 slcli feed list --platform windows --workspace Default
 slcli feed list --filter 'name.Contains("prod")'  # If API supports
 
-# Enhanced workflow list  
+# Enhanced workflow list
 slcli workflow list --status active
 slcli workflow list --filter 'status = "active" AND workspace = "<id>"'  # If API supports
 ```
@@ -202,17 +212,17 @@ slcli workflow list --filter 'status = "active" AND workspace = "<id>"'  # If AP
 
 ### Current State - CRUD Operations
 
-| Resource | List | Get | Create | Update | Delete | Export | Import |
-|----------|------|-----|--------|--------|--------|--------|--------|
-| Feed | list | get | create | ❌ | delete | ❌ | ❌ |
-| Template | list | ❌ | ❌ | ❌ | delete | export | import |
-| Workflow | list | ❌ | ❌ | update | delete | export | import |
-| Webapp | list | get | ❌ | ❌ | delete | ❌ | ❌ |
-| Notebook | list | get | create | update | delete | ❌ | ❌ |
-| User | list | get | create | update | delete | ❌ | ❌ |
-| File | list | get | upload | update-metadata | delete | ❌ | ❌ |
-| Function | list | get | create | update | delete | ❌ | ❌ |
-| Workspace | list | get | ❌ | ❌ | disable | ❌ | ❌ |
+| Resource  | List | Get | Create | Update          | Delete  | Export | Import |
+| --------- | ---- | --- | ------ | --------------- | ------- | ------ | ------ |
+| Feed      | list | get | create | ❌              | delete  | ❌     | ❌     |
+| Template  | list | ❌  | ❌     | ❌              | delete  | export | import |
+| Workflow  | list | ❌  | ❌     | update          | delete  | export | import |
+| Webapp    | list | get | ❌     | ❌              | delete  | ❌     | ❌     |
+| Notebook  | list | get | create | update          | delete  | ❌     | ❌     |
+| User      | list | get | create | update          | delete  | ❌     | ❌     |
+| File      | list | get | upload | update-metadata | delete  | ❌     | ❌     |
+| Function  | list | get | create | update          | delete  | ❌     | ❌     |
+| Workspace | list | get | ❌     | ❌              | disable | ❌     | ❌     |
 
 ### Issues Identified
 
@@ -223,7 +233,8 @@ slcli workflow list --filter 'status = "active" AND workspace = "<id>"'  # If AP
 
 ### Proposal 4: Clarify Command Naming Conventions
 
-**Rationale**: 
+**Rationale**:
+
 - CRUD pattern is intuitive but not always applicable
 - Domain-specific terms (upload, publish, disable) are clearer than generic CRUD
 - Consistency with API capabilities is more important than forcing CRUD
@@ -239,6 +250,7 @@ slcli workflow list --filter 'status = "active" AND workspace = "<id>"'  # If AP
 4. **Don't force get** where export is sufficient
 
 **Specific Recommendations**:
+
 - Keep current naming (it's already pretty good)
 - Add `template get` for consistency (show metadata without file export)
 - Add `workflow get` for consistency (show metadata without file export)
@@ -250,18 +262,18 @@ slcli workflow list --filter 'status = "active" AND workspace = "<id>"'  # If AP
 
 ### Current State
 
-| Command Group | Subgroups | Pattern |
-|---------------|-----------|---------|
-| `notebook` | `manage`, `execute` | ✓ Logical grouping |
-| `function` | `manage`, `execute` | ✓ Logical grouping |
-| `feed` | `package` | ✓ Nested resource |
-| `dff` | `config`, `groups`, `fields`, `tables` | ✓ Multiple resources |
-| `file` | ❌ | Flat structure |
-| `template` | ❌ | Flat structure |
-| `workflow` | ❌ | Flat structure |
-| `webapp` | ❌ | Flat structure |
-| `user` | ❌ | Flat structure |
-| `workspace` | ❌ | Flat structure |
+| Command Group | Subgroups                              | Pattern              |
+| ------------- | -------------------------------------- | -------------------- |
+| `notebook`    | `manage`, `execute`                    | ✓ Logical grouping   |
+| `function`    | `manage`, `execute`                    | ✓ Logical grouping   |
+| `feed`        | `package`                              | ✓ Nested resource    |
+| `dff`         | `config`, `groups`, `fields`, `tables` | ✓ Multiple resources |
+| `file`        | ❌                                     | Flat structure       |
+| `template`    | ❌                                     | Flat structure       |
+| `workflow`    | ❌                                     | Flat structure       |
+| `webapp`      | ❌                                     | Flat structure       |
+| `user`        | ❌                                     | Flat structure       |
+| `workspace`   | ❌                                     | Flat structure       |
 
 ### Issues Identified
 
@@ -271,7 +283,8 @@ slcli workflow list --filter 'status = "active" AND workspace = "<id>"'  # If AP
 
 ### Proposal 5: Keep Current Subcommand Structure
 
-**Rationale**: 
+**Rationale**:
+
 - Subgroups used where there are distinct operation types (manage vs. execute)
 - Flat structure is simpler for basic CRUD
 - No strong consistency issue here
@@ -284,15 +297,15 @@ slcli workflow list --filter 'status = "active" AND workspace = "<id>"'  # If AP
 
 ### Current State
 
-| Flag | Shorthand | Commands | Consistency |
-|------|-----------|----------|-------------|
-| `--workspace` | `-w` | Most commands | ✓ Consistent |
-| `--format` | `-f` | All list commands | ✓ Consistent |
-| `--take` | `-t` | All list commands | ✓ Consistent |
-| `--id` | `-i` | Most commands | ✓ Consistent |
-| `--name` | `-n` | Mixed usage | ⚠️ Varies |
-| `--output` | `-o` | Export/download commands | ✓ Consistent |
-| `--file` | `-f` | Import commands | ⚠️ Conflicts with --format |
+| Flag          | Shorthand | Commands                 | Consistency                |
+| ------------- | --------- | ------------------------ | -------------------------- |
+| `--workspace` | `-w`      | Most commands            | ✓ Consistent               |
+| `--format`    | `-f`      | All list commands        | ✓ Consistent               |
+| `--take`      | `-t`      | All list commands        | ✓ Consistent               |
+| `--id`        | `-i`      | Most commands            | ✓ Consistent               |
+| `--name`      | `-n`      | Mixed usage              | ⚠️ Varies                  |
+| `--output`    | `-o`      | Export/download commands | ✓ Consistent               |
+| `--file`      | `-f`      | Import commands          | ⚠️ Conflicts with --format |
 
 ### Issues Identified
 
@@ -304,6 +317,7 @@ slcli workflow list --filter 'status = "active" AND workspace = "<id>"'  # If AP
 **Rationale**: Shorthand conflicts cause user errors and confusion.
 
 **Changes**:
+
 ```bash
 # Current (conflict)
 slcli template list --format json -f json  # -f is --format
@@ -327,6 +341,7 @@ slcli template import --file template.json --input template.json  # Alias
 ### Current State
 
 All list commands support:
+
 - `--format` (`-f`): table | json
 - `--take` (`-t`): pagination size
 
@@ -343,11 +358,13 @@ All list commands support:
 ### High Priority (User-Facing Benefits)
 
 1. **[P1] Standardize workspace handling across all commands**
+
    - Allow ID or name everywhere
    - Update notebook commands to accept workspace IDs
    - Unify workspace get to use `--workspace` flag
 
 2. **[P1] Resolve `-f` flag conflict**
+
    - Keep `-f` for `--format` (more common)
    - Remove `-f` shorthand from `--file` in import commands
 
@@ -358,6 +375,7 @@ All list commands support:
 ### Medium Priority (Improved UX)
 
 4. **[P2] Standardize filtering with two-tier approach**
+
    - Common filters: `--workspace`, `--status`, `--name`, `--type`
    - Advanced filter: `--filter <expression>`
    - Merge `file list` and `file query` (deprecate query)
@@ -378,17 +396,20 @@ All list commands support:
 ## Implementation Strategy
 
 ### Phase 1: Non-Breaking Enhancements (Safe to implement)
+
 - Add workspace ID support to notebook commands (backward compatible)
 - Add `--name` support to template export (backward compatible)
 - Add `template get` and `workflow get` commands (new functionality)
 - Add `--workspace` filter to workspace list (keep `--name` as alias)
 
 ### Phase 2: Breaking Changes (Requires version bump)
+
 - Remove `-f` shorthand from `--file` in import commands
 - Rename workspace get flags to unified `--workspace`
 - Merge `file list` and `file query` (deprecate query)
 
 ### Phase 3: Documentation
+
 - Update README with consistent patterns
 - Add migration guide for breaking changes
 - Update shell completion

@@ -40,9 +40,9 @@ def register_workspace_commands(cli: Any) -> None:
         help="Include disabled workspaces in the results",
     )
     @click.option(
-        "--name",
-        "-n",
-        help="Filter workspaces by name",
+        "--workspace",
+        "-w",
+        help="Filter by workspace name or ID",
     )
     @click.option(
         "--take",
@@ -55,7 +55,7 @@ def register_workspace_commands(cli: Any) -> None:
     def list_workspaces(
         format: str = "table",
         include_disabled: bool = False,
-        name: Optional[str] = None,
+        workspace: Optional[str] = None,
         take: int = 25,
     ) -> None:
         """List workspaces."""
@@ -80,8 +80,8 @@ def register_workspace_commands(cli: Any) -> None:
                 )  # 25 is the default, so fetch more for pagination
 
             query_params.append(f"take={api_take}")
-            if name:
-                query_params.append(f"name={name}")
+            if workspace:
+                query_params.append(f"name={workspace}")
 
             if query_params:
                 url += "?" + "&".join(query_params)
@@ -172,14 +172,10 @@ def register_workspace_commands(cli: Any) -> None:
 
     @workspace.command(name="get")
     @click.option(
-        "--id",
-        "-i",
-        help="ID of the workspace to get details for",
-    )
-    @click.option(
-        "--name",
-        "-n",
-        help="Name of the workspace to get details for",
+        "--workspace",
+        "-w",
+        required=True,
+        help="Workspace name or ID",
     )
     @click.option(
         "--format",
@@ -189,12 +185,8 @@ def register_workspace_commands(cli: Any) -> None:
         show_default=True,
         help="Output format",
     )
-    def get_workspace(id: Optional[str], name: Optional[str], format: str) -> None:
+    def get_workspace(workspace: str, format: str) -> None:
         """Show workspace details and contents."""
-        if not id and not name:
-            click.echo("✗ Must provide either --id or --name", err=True)
-            sys.exit(ExitCodes.INVALID_INPUT)
-
         try:
             # Get workspace info
             workspace_info_url = f"{get_base_url()}/niuser/v1/workspaces?take=1000"
@@ -202,16 +194,19 @@ def register_workspace_commands(cli: Any) -> None:
             data = resp.json()
             workspaces = data.get("workspaces", [])
 
-            # Find the workspace
+            # Find the workspace by ID or name
             target_workspace = None
-            if id:
-                target_workspace = next((ws for ws in workspaces if ws.get("id") == id), None)
-            elif name:
-                target_workspace = next((ws for ws in workspaces if ws.get("name") == name), None)
+            target_workspace = next(
+                (
+                    ws
+                    for ws in workspaces
+                    if ws.get("id") == workspace or ws.get("name") == workspace
+                ),
+                None,
+            )
 
             if not target_workspace:
-                identifier = id if id else name
-                click.echo(f"✗ Workspace '{identifier}' not found", err=True)
+                click.echo(f"✗ Workspace '{workspace}' not found", err=True)
                 sys.exit(ExitCodes.NOT_FOUND)
 
             workspace_id = target_workspace.get("id")

@@ -281,10 +281,19 @@ slcli template list --format json
 slcli template list --workspace "Production Workspace"
 ```
 
-### Export a template to JSON
+### Get or export a template
 
 ```bash
+# Show details (table)
+slcli template get --id <template_id>
+slcli template get --name "My Template"
+
+# JSON details
+slcli template get --name "My Template" --format json
+
+# Export to JSON file (supports --id or --name)
 slcli template export --id <template_id> --output template.json
+slcli template export --name "My Template" --output template.json
 ```
 
 ### Import a template from JSON
@@ -340,10 +349,19 @@ slcli workflow list --format json
 slcli workflow list --workspace "Production Workspace"
 ```
 
-### Export a workflow to JSON
+### Get or export a workflow
 
 ```bash
+# Show details (table)
+slcli workflow get --id <workflow_id>
+slcli workflow get --name "Battery Test Workflow"
+
+# JSON details
+slcli workflow get --name "Battery Test Workflow" --format json
+
+# Export to JSON file (supports --id or --name)
 slcli workflow export --id <workflow_id> --output workflow.json
+slcli workflow export --name "Battery Test Workflow" --output workflow.json
 ```
 
 ### Import a workflow from JSON
@@ -1666,7 +1684,7 @@ SystemLink CLI uses consistent flag patterns across all commands:
 - `--output/-o`: File path for export/save operations
 - `--workspace/-w`: Workspace filtering
 - `--id/-i`: Resource identifiers
-- `--file/-f`: Input file paths for import operations
+- `--file`: Input file paths for import operations (shorthand `-f` reserved for `--format`)
 
 ## Contributing
 
