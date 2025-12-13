@@ -102,7 +102,7 @@ def register_templates_commands(cli: Any) -> None:
     def init_template(
         name: Optional[str], template_group: Optional[str], output: Optional[str]
     ) -> None:
-        """Initialize a new test plan template JSON file.
+        """Create a template JSON scaffold.
 
         Creates a template JSON file with the required schema structure.
         Name and Template Group are mandatory, all other fields are optional.
@@ -238,7 +238,7 @@ def register_templates_commands(cli: Any) -> None:
     def list_templates(
         workspace: Optional[str] = None, take: int = 25, format: str = "table"
     ) -> None:
-        """List available user-defined test plan templates."""
+        """List test plan templates."""
         format_output = validate_output_format(format)
 
         try:
@@ -292,7 +292,7 @@ def register_templates_commands(cli: Any) -> None:
     )
     @click.option("--output", "-o", help="Output JSON file (default: <template-name>.json)")
     def export_template(template_id: str, output: Optional[str] = None) -> None:
-        """Download/export a test plan template as a local JSON file."""
+        """Export a template to JSON."""
         url = f"{get_base_url()}/niworkorder/v1/query-testplan-templates"
         payload = {"take": 1, "filter": f'ID == "{template_id}"'}
 
@@ -333,7 +333,7 @@ def register_templates_commands(cli: Any) -> None:
         help="Input JSON file",
     )
     def import_template(input_file: str) -> None:
-        """Upload/import a test plan template from a local JSON file."""
+        """Import a template from JSON."""
         url = f"{get_base_url()}/niworkorder/v1/testplan-templates"
         allowed_fields = {
             "name",
@@ -431,7 +431,7 @@ def register_templates_commands(cli: Any) -> None:
     )
     @click.confirmation_option(prompt="Are you sure you want to delete this template?")
     def delete_template(template_id: str) -> None:
-        """Delete a test plan template by ID."""
+        """Delete a template."""
         url = f"{get_base_url()}/niworkorder/v1/delete-testplan-templates"
         payload = {"ids": [template_id]}
         try:

@@ -89,7 +89,7 @@ def register_workflows_commands(cli: Any) -> None:
     @cli.group()
     @click.pass_context
     def workflow(ctx: click.Context) -> None:
-        """Manage workflows."""
+        """Manage workflows (init, import/export, update)."""
         # Check for platform feature availability
         # Only check if a subcommand is being invoked (not just --help)
         if ctx.invoked_subcommand is not None:
@@ -120,7 +120,7 @@ def register_workflows_commands(cli: Any) -> None:
     def init_workflow(
         name: Optional[str], description: Optional[str], workspace: str, output: Optional[str]
     ) -> None:
-        """Initialize a new workflow JSON file.
+        """Create a workflow JSON skeleton.
 
         Creates a workflow JSON file with the required schema structure.
         Name and description are recommended fields. Workspace is required
@@ -419,7 +419,7 @@ def register_workflows_commands(cli: Any) -> None:
     )
     @click.option("--output", "-o", help="Output JSON file (default: <workflow-name>.json)")
     def export_workflow(workflow_id: str, output: Optional[str]) -> None:
-        """Download/export a workflow as a local JSON file."""
+        """Export a workflow to JSON."""
         url = f"{get_base_url()}/niworkorder/v1/workflows/{workflow_id}?ff-userdefinedworkflowsfortestplaninstances=true"
         try:
             resp = make_api_request("GET", url)
@@ -458,7 +458,7 @@ def register_workflows_commands(cli: Any) -> None:
         help="Override workspace name or ID (uses value from file if not specified)",
     )
     def import_workflow(input_file: str, workspace: Optional[str]) -> None:
-        """Upload/import a workflow from a local JSON file.
+        """Import a workflow from JSON.
 
         Workspace can be specified via --workspace flag or included in the JSON file.
         Command line workspace takes precedence over file contents.
@@ -546,7 +546,7 @@ def register_workflows_commands(cli: Any) -> None:
     )
     @click.confirmation_option(prompt="Are you sure you want to delete this workflow?")
     def delete_workflow(workflow_id: str) -> None:
-        """Delete a workflow by ID."""
+        """Delete a workflow."""
         url = f"{get_base_url()}/niworkorder/v1/delete-workflows?ff-userdefinedworkflowsfortestplaninstances=true"
         payload = {"ids": [workflow_id]}
         try:
@@ -596,7 +596,7 @@ def register_workflows_commands(cli: Any) -> None:
         help="Override workspace name or ID (uses value from file if not specified)",
     )
     def update_workflow(workflow_id: str, input_file: str, workspace: Optional[str]) -> None:
-        """Update a workflow from a local JSON file.
+        """Update a workflow from JSON.
 
         Workspace can be specified via --workspace flag or included in the JSON file.
         Command line workspace takes precedence over file contents.
@@ -704,6 +704,7 @@ def register_workflows_commands(cli: Any) -> None:
         no_legend: bool,
         no_open: bool,
     ) -> None:
+        """Preview a workflow file without applying changes."""
         from .utils import ExitCodes
 
         if bool(workflow_id) == bool(input_file):

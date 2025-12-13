@@ -248,7 +248,7 @@ def register_webapp_commands(cli: Any) -> None:
 
     @cli.group()
     def webapp() -> None:  # pragma: no cover - Click wiring
-        """Manage web applications (local pack/init + remote CRUD)."""
+        """Manage web applications (init/pack locally, publish/CRUD remotely)."""
 
     @webapp.command(name="init")
     @click.option(
@@ -261,7 +261,7 @@ def register_webapp_commands(cli: Any) -> None:
     )
     @click.option("--force", is_flag=True, help="Overwrite existing files")
     def init_webapp(directory: Path, force: bool) -> None:
-        """Create a simple example index.html for a webapp scaffold."""
+        """Scaffold a sample webapp (index.html)."""
         try:
             directory.mkdir(parents=True, exist_ok=True)
             # Create a subfolder named 'app' and put the example index.html inside it
@@ -301,7 +301,7 @@ def register_webapp_commands(cli: Any) -> None:
         help="Output .nipkg file path",
     )
     def pack_cmd(folder: Path, output: Optional[Path]) -> None:
-        """Pack a folder into a .nipkg archive."""
+        """Pack a folder into a .nipkg."""
         try:
             out = Path(output) if output else None
             result = _pack_folder_to_nipkg(folder, out)
@@ -325,7 +325,7 @@ def register_webapp_commands(cli: Any) -> None:
         help="Output format",
     )
     def list_webapps(workspace: str, take: int, format_output: str) -> None:
-        """List webapps. Optionally filter by workspace."""
+        """List webapps."""
         try:
 
             # Validate and normalize format option
@@ -505,7 +505,7 @@ def register_webapp_commands(cli: Any) -> None:
         show_default=True,
     )
     def get_webapp(webapp_id: str, format_output: str) -> None:
-        """Get webapp metadata by ID."""
+        """Show webapp metadata."""
         try:
             base = _get_webapp_base_url()
             resp = requests.get(
@@ -526,7 +526,7 @@ def register_webapp_commands(cli: Any) -> None:
     @click.option("--id", "-i", "webapp_id", required=True, help="Webapp ID to delete")
     @click.confirmation_option(prompt="Are you sure you want to delete this webapp?")
     def delete_webapp(webapp_id: str) -> None:
-        """Delete a webapp by ID."""
+        """Delete a webapp."""
         try:
             base = _get_webapp_base_url()
             resp = requests.delete(
@@ -550,7 +550,7 @@ def register_webapp_commands(cli: Any) -> None:
     @webapp.command(name="open")
     @click.option("--id", "-i", "webapp_id", required=True, help="Webapp ID to open in browser")
     def open_webapp(webapp_id: str) -> None:
-        """Open the webapp in the default browser (best-effort)."""
+        """Open a webapp in the browser."""
         import webbrowser
         from urllib.parse import quote
 
@@ -631,7 +631,7 @@ def register_webapp_commands(cli: Any) -> None:
         help="Workspace name or ID for new webapp",
     )
     def publish(source: Path, webapp_id: str, name: str, workspace: str) -> None:
-        """Publish a .nipkg file (or folder) to the WebApp service.
+        """Publish a .nipkg (or folder) to the WebApp service.
 
         SOURCE may be a .nipkg file or a folder. If a folder is provided it will be
         packed into a .nipkg archive prior to upload.

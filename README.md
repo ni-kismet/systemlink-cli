@@ -166,7 +166,7 @@ slcli feed list --format table
 # Create a feed (wait for completion)
 slcli feed create --name my-feed --platform windows --workspace Default
 
-# Get feed details
+# Show feed details
 slcli feed get --id <feed-id> --format json
 
 # List packages in a feed
@@ -175,7 +175,7 @@ slcli feed package list --feed-id <feed-id> --format json
 # Upload a package and wait for completion
 slcli feed package upload --feed-id <feed-id> --file mypkg.nipkg --wait
 
-# Delete a feed
+# Delete a feed and its packages
 slcli feed delete --id <feed-id> --yes
 ```
 
@@ -246,7 +246,7 @@ slcli info --format json
 
 The `template` command group allows you to manage test plan templates in SystemLink.
 
-### Initialize a new template
+### Create a template JSON scaffold
 
 Create a new test plan template JSON file with the complete schema structure:
 
@@ -268,7 +268,7 @@ The `init` command creates a JSON file with:
 - Complete `executionActions` examples (JOB, NOTEBOOK, MANUAL actions)
 - Property placeholders for customization
 
-### List all test plan templates
+### List test plan templates
 
 ```bash
 # Table format (default)
@@ -281,13 +281,13 @@ slcli template list --format json
 slcli template list --workspace "Production Workspace"
 ```
 
-### Export a template to a local JSON file
+### Export a template to JSON
 
 ```bash
 slcli template export --id <template_id> --output template.json
 ```
 
-### Import a template from a local JSON file
+### Import a template from JSON
 
 ```bash
 slcli template import --file template.json
@@ -305,7 +305,7 @@ slcli template delete --id <template_id>
 
 The `workflow` command group allows you to manage workflows in SystemLink. All workflow commands use the beta feature flag automatically.
 
-### Initialize a new workflow
+### Create a workflow JSON skeleton
 
 Create a new workflow JSON file with a complete state machine structure:
 
@@ -327,7 +327,7 @@ The `init` command creates a JSON file with:
 - Example state transitions (Created → InProgress → Completed)
 - Sample actions (Start, Pause, Resume, Complete, Fail, Abort)
 
-### List all workflows
+### List workflows
 
 ```bash
 # Table format (default)
@@ -340,13 +340,13 @@ slcli workflow list --format json
 slcli workflow list --workspace "Production Workspace"
 ```
 
-### Export a workflow to a local JSON file
+### Export a workflow to JSON
 
 ```bash
 slcli workflow export --id <workflow_id> --output workflow.json
 ```
 
-### Import a workflow from a local JSON file
+### Import a workflow from JSON
 
 ```bash
 slcli workflow import --file workflow.json
@@ -1091,7 +1091,7 @@ slcli notebook execute list --format json --take 100
 Valid statuses for --status: in_progress, queued, failed, succeeded, canceled, timed_out.
 
 ```bash
-# List all notebooks (table format - default)
+# List notebooks (table format - default)
 slcli notebook manage list
 
 # List notebooks in a specific workspace
@@ -1104,7 +1104,7 @@ slcli notebook manage list --format json
 slcli notebook manage list --take 50
 ```
 
-### Download notebook content and/or metadata
+### Download notebook content/metadata
 
 ```bash
 # Download notebook content (.ipynb) by ID
@@ -1120,7 +1120,7 @@ slcli notebook manage download --id <notebook_id> --type metadata --output metad
 slcli notebook manage download --id <notebook_id> --type both --output mynotebook.ipynb
 ```
 
-### Create a new notebook
+### Create a notebook
 
 ```bash
 # Create from existing .ipynb file
@@ -1159,31 +1159,31 @@ The `webapp` group provides a small local scaffold and .nipkg packer, and also m
 
 - `slcli webapp init [--directory PATH] [--force]`
 
-  - Create a simple example `index.html` scaffold in `./app` inside the target directory. Use `--force` to overwrite an existing file.
+  - Scaffold a sample webapp (`index.html`) in `./app` inside the target directory. Use `--force` to overwrite an existing file.
 
 - `slcli webapp pack <FOLDER> [--output FILE.nipkg]`
 
-  - Pack a folder into a `.nipkg` archive. The `.nipkg` uses a Debian-style `ar` layout (members: `debian-binary`, `control.tar.gz`, `data.tar.gz`).
+  - Pack a folder into a `.nipkg`. The `.nipkg` uses a Debian-style `ar` layout (members: `debian-binary`, `control.tar.gz`, `data.tar.gz`).
 
 - `slcli webapp publish <SOURCE> [--id ID] [--name NAME] [--workspace WORKSPACE]`
 
-  - Publish a `.nipkg` file or a folder (the CLI will pack folders automatically) to the WebApp service. Provide either `--id` to upload into an existing webapp, or `--name` to create a new WebVI resource and upload the content. `--workspace` selects the workspace for newly created webapps.
+  - Publish a `.nipkg` (or folder) to the WebApp service. Provide either `--id` to upload into an existing webapp, or `--name` to create a new resource and upload the content. `--workspace` selects the workspace for newly created webapps.
   - When publishing a folder, the CLI creates a temporary `.nipkg` inside a context-managed temporary directory so the packaged file is available during upload and is cleaned up automatically.
 
 - `slcli webapp list [--workspace WORKSPACE] [--take N] [--format table|json]`
 
-  - List WebVI webapps. Defaults to interactive paging for `table` output (25 rows/page) and returns all results for `--format json`.
+  - List webapps. Defaults to interactive paging for `table` output (25 rows/page) and returns all results for `--format json`.
 
 - `slcli webapp get --id ID`
 
-  - Show metadata for a single webapp.
+  - Show webapp metadata.
 
 - `slcli webapp delete --id ID`
 
-  - Delete a webapp by ID.
+  - Delete a webapp.
 
 - `slcli webapp open --id ID`
-  - Open the webapp in your browser. The command prefers an explicit web UI URL (from `SYSTEMLINK_WEB_URL` environment variable or combined keyring config), falls back to properties on the webapp resource, and finally falls back to the content endpoint.
+  - Open a webapp in the browser. The command prefers an explicit web UI URL (from `SYSTEMLINK_WEB_URL` environment variable or combined keyring config), falls back to properties on the webapp resource, and finally falls back to the content endpoint.
 
 Examples
 
@@ -1468,17 +1468,17 @@ slcli file list --take 10
 slcli file list --format json
 ```
 
-### Get file metadata
+### Show file metadata
 
 ```bash
-# Get details for a specific file
+# Show metadata for a file
 slcli file get <file_id>
 
 # JSON output
 slcli file get <file_id> --format json
 ```
 
-### Upload files
+### Upload a file
 
 ```bash
 # Upload a file
@@ -1494,7 +1494,7 @@ slcli file upload /path/to/myfile.txt --name "custom-name.txt"
 slcli file upload /path/to/myfile.txt --properties '{"author": "test", "version": "1.0"}'
 ```
 
-### Download files
+### Download a file
 
 ```bash
 # Download a file (uses original filename)
@@ -1507,7 +1507,7 @@ slcli file download <file_id> --output /path/to/save/file.txt
 slcli file download <file_id> --force
 ```
 
-### Delete files
+### Delete a file
 
 ```bash
 # Delete a file (with confirmation)
@@ -1517,7 +1517,7 @@ slcli file delete <file_id>
 slcli file delete <file_id> --force
 ```
 
-### Query files with filters
+### Search files with a query
 
 ```bash
 # Query files by name (wildcard match)
@@ -1546,7 +1546,7 @@ slcli file update-metadata <file_id> --add-property "author=John Doe"
 slcli file update-metadata <file_id> --properties '{"key1": "value1", "key2": "value2"}'
 ```
 
-### Watch folder for automatic uploads
+### Watch a folder and auto-upload new files
 
 The `watch` command monitors a directory and automatically uploads new or modified files:
 
@@ -1599,10 +1599,10 @@ slcli workspace list --name "Production"
 slcli workspace list --format json
 ```
 
-### Get detailed workspace information
+### Show workspace details and contents
 
 ```bash
-# Get workspace details by ID
+# Show workspace details by ID
 slcli workspace info --id <workspace_id>
 
 # Get workspace details by name
