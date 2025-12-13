@@ -123,16 +123,19 @@ poetry run pytest tests/e2e/ -m "e2e and not slow" -n auto -v
 ```
 
 **Benefits:**
+
 - Reduces test execution time by ~60-70%
 - Each worker runs tests in isolation
 - Safe for tests that create independent resources
 
 **Requirements:**
+
 - `pytest-xdist` must be installed (included in dev dependencies)
 - Tests must be stateless and not depend on execution order
 - Each test should clean up its own resources
 
 **Verifying Parallel Safety:**
+
 ```bash
 # Run tests multiple times in parallel to detect race conditions
 poetry run pytest tests/e2e/ -n auto --count=3
@@ -146,6 +149,7 @@ poetry run pytest tests/e2e/test_notebook_e2e.py -n auto -v
 ```
 
 If tests fail only in parallel mode, they likely have:
+
 - Shared resource naming conflicts (missing UUID)
 - Missing cleanup (resources leak between runs)
 - Order dependencies (test A expects test B ran first)
@@ -213,7 +217,9 @@ Configure these environment variables for local E2E testing:
 Tests follow one of two patterns:
 
 #### Pattern A: Read-Only (Fully Stateless)
+
 Tests that only read existing data are inherently stateless and safe for parallel execution:
+
 ```python
 def test_user_list_basic(self, cli_runner, cli_helper):
     """Read-only test - fully stateless."""
@@ -222,20 +228,22 @@ def test_user_list_basic(self, cli_runner, cli_helper):
 ```
 
 #### Pattern B: Self-Contained CRUD Cycles
+
 Tests that create resources must clean up in the same test using unique identifiers:
+
 ```python
 def test_notebook_create_and_delete_cycle(self, cli_runner, cli_helper):
     """Self-contained test - stateless across test runs."""
     # Use UUID for unique resource names to avoid conflicts
     notebook_name = f"e2e-test-{uuid.uuid4().hex[:8]}.ipynb"
-    
+
     try:
         # Create resource
         result = cli_runner(["notebook", "create", "--name", notebook_name])
         notebook_id = extract_id(result)
-        
+
         # Test operations...
-        
+
         # Always clean up
         cli_runner(["notebook", "delete", "--id", notebook_id])
     finally:
@@ -244,6 +252,7 @@ def test_notebook_create_and_delete_cycle(self, cli_runner, cli_helper):
 ```
 
 **Key Requirements for Parallel Safety:**
+
 - ✅ Use `uuid.uuid4()` or timestamps for unique resource names
 - ✅ Clean up resources in the same test (try/finally or fixtures)
 - ✅ Don't assume specific resource counts (use relative assertions)
