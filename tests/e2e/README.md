@@ -132,6 +132,24 @@ poetry run pytest tests/e2e/ -m "e2e and not slow" -n auto -v
 - Tests must be stateless and not depend on execution order
 - Each test should clean up its own resources
 
+**Verifying Parallel Safety:**
+```bash
+# Run tests multiple times in parallel to detect race conditions
+poetry run pytest tests/e2e/ -n auto --count=3
+
+# Run with different worker counts to verify isolation
+poetry run pytest tests/e2e/ -n 2
+poetry run pytest tests/e2e/ -n 4
+
+# Run specific test files in parallel
+poetry run pytest tests/e2e/test_notebook_e2e.py -n auto -v
+```
+
+If tests fail only in parallel mode, they likely have:
+- Shared resource naming conflicts (missing UUID)
+- Missing cleanup (resources leak between runs)
+- Order dependencies (test A expects test B ran first)
+
 ## Test Categories
 
 ### ✅ Core Functionality Tests
@@ -190,11 +208,48 @@ Configure these environment variables for local E2E testing:
 
 ## Test Design Principles
 
-### 1. Isolation
+### 1. Statefulness and Isolation
 
-- Each test creates its own test data when possible
-- Tests clean up after themselves
-- Temporary workspaces used for destructive operations
+Tests follow one of two patterns:
+
+#### Pattern A: Read-Only (Fully Stateless)
+Tests that only read existing data are inherently stateless and safe for parallel execution:
+```python
+def test_user_list_basic(self, cli_runner, cli_helper):
+    """Read-only test - fully stateless."""
+    result = cli_runner(["user", "list", "--format", "json"])
+    # No mutations, no cleanup needed
+```
+
+#### Pattern B: Self-Contained CRUD Cycles
+Tests that create resources must clean up in the same test using unique identifiers:
+```python
+def test_notebook_create_and_delete_cycle(self, cli_runner, cli_helper):
+    """Self-contained test - stateless across test runs."""
+    # Use UUID for unique resource names to avoid conflicts
+    notebook_name = f"e2e-test-{uuid.uuid4().hex[:8]}.ipynb"
+    
+    try:
+        # Create resource
+        result = cli_runner(["notebook", "create", "--name", notebook_name])
+        notebook_id = extract_id(result)
+        
+        # Test operations...
+        
+        # Always clean up
+        cli_runner(["notebook", "delete", "--id", notebook_id])
+    finally:
+        # Ensure cleanup even on failure
+        cleanup_if_exists(notebook_id)
+```
+
+**Key Requirements for Parallel Safety:**
+- ✅ Use `uuid.uuid4()` or timestamps for unique resource names
+- ✅ Clean up resources in the same test (try/finally or fixtures)
+- ✅ Don't assume specific resource counts (use relative assertions)
+- ✅ Don't depend on test execution order
+- ❌ Avoid shared state between tests
+- ❌ Don't rely on resources created by other tests
 
 ### 2. Resilience
 
