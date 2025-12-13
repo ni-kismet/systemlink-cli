@@ -107,6 +107,31 @@ poetry run pytest tests/e2e/ -m "e2e and slow" -v
 poetry run pytest tests/e2e/ -m "e2e and notebook" -v
 ```
 
+### Parallel Execution
+
+E2E tests can be run in parallel to significantly reduce execution time:
+
+```bash
+# Auto-detect CPU count and run in parallel
+poetry run pytest tests/e2e/ -n auto
+
+# Run with specific number of workers
+poetry run pytest tests/e2e/ -n 4
+
+# Combine with other options
+poetry run pytest tests/e2e/ -m "e2e and not slow" -n auto -v
+```
+
+**Benefits:**
+- Reduces test execution time by ~60-70%
+- Each worker runs tests in isolation
+- Safe for tests that create independent resources
+
+**Requirements:**
+- `pytest-xdist` must be installed (included in dev dependencies)
+- Tests must be stateless and not depend on execution order
+- Each test should clean up its own resources
+
 ## Test Categories
 
 ### ✅ Core Functionality Tests

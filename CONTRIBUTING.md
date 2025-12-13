@@ -55,6 +55,9 @@ poetry run pytest
 
 # Run tests with coverage
 poetry run pytest --cov
+
+# Run E2E tests in parallel (requires configuration - see tests/e2e/README.md)
+poetry run pytest tests/e2e/ -n auto
 ```
 
 ### CLI Standards
