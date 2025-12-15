@@ -1,9 +1,27 @@
 # CHANGELOG
 
 
+## v0.18.0 (2025-12-15)
+
+### Features
+
+- Resolve PR review comments for notebook interface support
+  ([`94b39bd`](https://github.com/ni-kismet/systemlink-cli/commit/94b39bd032438a0bbb33f9566f251c7e740ffa01))
+
+- Add interface validation in update command before adding to metadata - Validate interface early in
+  create command to fail fast on invalid input - Simplify properties dict creation in list to avoid
+  empty dicts - All tests passing (266 passed), mypy clean, lint clean
+
+- Notebook interface support
+  ([`f3938c8`](https://github.com/ni-kismet/systemlink-cli/commit/f3938c8a9daf6d7a1c6f8948a09e789644758538))
+
+
 ## v0.17.0 (2025-12-15)
 
 ### Chores
+
+- **release**: 0.17.0
+  ([`3f2694f`](https://github.com/ni-kismet/systemlink-cli/commit/3f2694fc53c6f5801d1affea1584d3a7737f5e98))
 
 - Refresh CLI help text
   ([`aa9d8f3`](https://github.com/ni-kismet/systemlink-cli/commit/aa9d8f386d95e07ee2b4ddc6dfb07b77ac0295f6))
