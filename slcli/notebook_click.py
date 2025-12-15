@@ -718,8 +718,9 @@ def register_notebook_commands(cli: Any) -> None:
                 with open(content, "rb") as f:
                     content_bytes = f.read()
 
-            # If interface is provided, add it to the metadata
+            # If interface is provided, validate and add it to the metadata
             if interface:
+                _validate_notebook_interface(interface)
                 if not meta_dict:
                     meta_dict = {}
                 if "properties" not in meta_dict:
@@ -843,15 +844,15 @@ def register_notebook_commands(cli: Any) -> None:
                     parameters = nb.get("parameters", {})
                     interface = nb.get("properties", {}).get("interface")
 
-                    notebooks.append(
-                        {
-                            "workspace": ws_name,
-                            "name": name,
-                            "id": nb_id,
-                            "parameters": parameters,
-                            "properties": {"interface": interface} if interface else {},
-                        }
-                    )
+                    notebook_data = {
+                        "workspace": ws_name,
+                        "name": name,
+                        "id": nb_id,
+                        "parameters": parameters,
+                    }
+                    if interface:
+                        notebook_data["properties"] = {"interface": interface}
+                    notebooks.append(notebook_data)
                 except Exception as nb_exc:
                     click.echo(
                         f"✗ Warning: Skipping invalid notebook result at index {idx}: {nb_exc}",
@@ -1061,6 +1062,14 @@ def register_notebook_commands(cli: Any) -> None:
         Note: This command is only available on SystemLink Enterprise (SLE).
         SystemLink Server (SLS) does not support notebook creation via API.
         """
+        # Validate interface early if provided
+        if interface:
+            try:
+                _validate_notebook_interface(interface)
+            except ValueError as exc:
+                click.echo(f"✗ {exc}", err=True)
+                sys.exit(ExitCodes.INVALID_INPUT)
+
         # Check if running on SLS - notebook creation not supported
         if get_platform() == PLATFORM_SLS:
             click.echo(
@@ -1140,7 +1149,7 @@ def register_notebook_commands(cli: Any) -> None:
                 result = _create_notebook_http(notebook_name, ws_id, content)
                 format_success("Notebook created", {"ID": result.get("id")})
 
-            # Assign interface if provided
+            # Validate and assign interface if provided (requires separate call after creation)
             if interface and result:
                 try:
                     notebook_id = result.get("id", "")
