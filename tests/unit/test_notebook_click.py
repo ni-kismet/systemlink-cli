@@ -2,12 +2,15 @@
 
 import os
 import tempfile
+from typing import Any
 
 # Shared test utilities
 from click.testing import CliRunner
 from pytest import MonkeyPatch
 
 from slcli.main import cli
+from slcli.platform import PLATFORM_SLE, PLATFORM_SLS
+from slcli.utils import ExitCodes
 from .test_utils import patch_keyring
 
 
@@ -139,3 +142,82 @@ def test_notebook_upload(monkeypatch: MonkeyPatch) -> None:
         assert result.exit_code == 0
         assert "uploaded123" in result.output
         os.unlink(tmp.name)
+
+
+def test_notebook_update_requires_payload(monkeypatch: MonkeyPatch) -> None:
+    """Update should fail when no metadata or content provided."""
+    runner = CliRunner()
+    patch_keyring(monkeypatch)
+    import slcli.notebook_click
+
+    monkeypatch.setattr(slcli.notebook_click, "get_platform", lambda: PLATFORM_SLE)
+
+    result = runner.invoke(cli, ["notebook", "manage", "update", "--id", "nb1"])
+
+    assert result.exit_code == ExitCodes.INVALID_INPUT
+    assert "Must provide at least one" in result.output
+
+
+def test_notebook_update_rejected_on_sls(monkeypatch: MonkeyPatch) -> None:
+    """Update should reject on SLS platforms."""
+    runner = CliRunner()
+    patch_keyring(monkeypatch)
+    import slcli.notebook_click
+
+    monkeypatch.setattr(slcli.notebook_click, "get_platform", lambda: PLATFORM_SLS)
+
+    result = runner.invoke(
+        cli,
+        ["notebook", "manage", "update", "--id", "nb1", "--metadata", __file__],
+    )
+
+    assert result.exit_code == ExitCodes.INVALID_INPUT
+    assert "not supported" in result.output
+
+
+def test_notebook_execute_sync_success(monkeypatch: MonkeyPatch) -> None:
+    """Execute sync should emit completion output when execution finishes immediately."""
+    runner = CliRunner()
+    patch_keyring(monkeypatch)
+    import slcli.notebook_click
+
+    monkeypatch.setattr(slcli.notebook_click, "get_platform", lambda: PLATFORM_SLE)
+    monkeypatch.setattr(
+        slcli.notebook_click, "_build_create_execution_payload", lambda **_: {"id": "payload"}
+    )
+
+    def fake_parse(resp_data: Any, is_sls: bool) -> list[dict[str, Any]]:
+        return [
+            {
+                "id": "exec-1",
+                "status": "SUCCEEDED",
+                "result": {"ok": True},
+                "cachedResult": False,
+            }
+        ]
+
+    class PostResp:
+        def json(self) -> Any:
+            return {}
+
+        def raise_for_status(self) -> None:
+            return None
+
+    monkeypatch.setattr(slcli.notebook_click, "_parse_execution_response", fake_parse)
+    monkeypatch.setattr(slcli.notebook_click.requests, "post", lambda *a, **k: PostResp())
+
+    result = runner.invoke(
+        cli,
+        [
+            "notebook",
+            "execute",
+            "sync",
+            "--notebook-id",
+            "nb1",
+            "--format",
+            "json",
+        ],
+    )
+
+    assert result.exit_code == 0
+    assert '"exec-1"' in result.output

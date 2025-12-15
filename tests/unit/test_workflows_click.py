@@ -5,6 +5,7 @@ import click
 import pytest
 from click.testing import CliRunner
 
+from slcli.utils import ExitCodes
 from slcli.workflows_click import register_workflows_commands
 from .test_utils import patch_keyring
 
@@ -905,3 +906,103 @@ def test_preview_stdin(monkeypatch: Any, runner: CliRunner) -> None:
         assert result.exit_code == 0, result.output
         content = open("wf.mmd", "r", encoding="utf-8").read()
         assert content.startswith("stateDiagram-v2")
+
+
+def test_init_workflow_writes_file(monkeypatch: Any, runner: CliRunner, tmp_path: Any) -> None:
+    """Ensure workflow init writes scaffold with resolved workspace."""
+    patch_keyring(monkeypatch)
+    monkeypatch.setattr(
+        "slcli.workflows_click.get_workspace_id_with_fallback", lambda *a, **kw: "ws123"
+    )
+
+    cli = make_cli()
+    out_file = tmp_path / "sample-workflow.json"
+    result = runner.invoke(
+        cli,
+        [
+            "workflow",
+            "init",
+            "--name",
+            "WF1",
+            "--description",
+            "desc",
+            "--workspace",
+            "Default",
+            "--output",
+            str(out_file),
+        ],
+    )
+
+    assert result.exit_code == 0
+    data = json.loads(out_file.read_text())
+    assert data["name"] == "WF1"
+    assert data["workspace"] == "ws123"
+
+
+def test_get_workflow_by_name(monkeypatch: Any, runner: CliRunner) -> None:
+    """Fetch workflow details by name using the get command."""
+    patch_keyring(monkeypatch)
+
+    def fake_make_api_request(
+        method: str, url: str, payload: Any = None, handle_errors: bool = True
+    ) -> Any:
+        class Resp:
+            def __init__(self, data: Any) -> None:
+                self._data = data
+
+            def json(self) -> Any:
+                return self._data
+
+        if method == "POST":
+            return Resp({"workflows": [{"id": "wf1", "name": "WF1", "workspace": "ws1"}]})
+        return Resp(
+            {
+                "id": "wf1",
+                "name": "WF1",
+                "workspace": "ws1",
+                "description": "desc",
+                "state": "ACTIVE",
+            }
+        )
+
+    monkeypatch.setattr("slcli.workflows_click.make_api_request", fake_make_api_request)
+    monkeypatch.setattr("slcli.workflows_click.get_workspace_map", lambda: {"ws1": "Workspace"})
+
+    cli = make_cli()
+    result = runner.invoke(cli, ["workflow", "get", "--name", "WF1", "--format", "json"])
+
+    assert result.exit_code == 0
+    assert '"wf1"' in result.output
+
+
+def test_get_workflow_not_found(monkeypatch: Any, runner: CliRunner) -> None:
+    """Ensure get returns not found when workflow is missing."""
+    patch_keyring(monkeypatch)
+
+    def fake_make_api_request(
+        method: str, url: str, payload: Any = None, handle_errors: bool = True
+    ) -> Any:
+        class Resp:
+            def json(self) -> Any:
+                return {"workflows": []}
+
+        return Resp()
+
+    monkeypatch.setattr("slcli.workflows_click.make_api_request", fake_make_api_request)
+    monkeypatch.setattr("slcli.workflows_click.get_workspace_map", lambda: {})
+
+    cli = make_cli()
+    result = runner.invoke(cli, ["workflow", "get", "--name", "Missing"])
+
+    assert result.exit_code == ExitCodes.NOT_FOUND
+    assert "not found" in result.output
+
+
+def test_get_workflow_requires_identifier(monkeypatch: Any, runner: CliRunner) -> None:
+    """Ensure get enforces id or name requirement."""
+    patch_keyring(monkeypatch)
+    cli = make_cli()
+    result = runner.invoke(cli, ["workflow", "get"])
+
+    assert result.exit_code == ExitCodes.INVALID_INPUT
+    assert "Must provide either --id or --name" in result.output

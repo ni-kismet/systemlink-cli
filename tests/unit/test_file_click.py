@@ -9,6 +9,7 @@ import pytest
 from click.testing import CliRunner
 
 from slcli.file_click import register_file_commands
+from slcli.utils import ExitCodes
 
 
 def patch_keyring(monkeypatch: Any) -> None:
@@ -901,6 +902,31 @@ def test_watch_requires_watchdog(monkeypatch: Any, runner: CliRunner) -> None:
         result = runner.invoke(cli, ["file", "watch", "watch-dir"])
         assert result.exit_code != 0
         assert "watchdog" in result.output.lower()
+
+
+def test_watch_folder_mutually_exclusive(monkeypatch: Any, runner: CliRunner) -> None:
+    """Ensure watch rejects mutually exclusive move/delete options."""
+    patch_keyring(monkeypatch)
+    cli = make_cli()
+
+    with runner.isolated_filesystem():
+        import os
+
+        os.makedirs("watch-dir")
+        result = runner.invoke(
+            cli,
+            [
+                "file",
+                "watch",
+                "watch-dir",
+                "--move-to",
+                "archived",
+                "--delete-after-upload",
+            ],
+        )
+
+        assert result.exit_code == ExitCodes.INVALID_INPUT
+        assert "Cannot use both --move-to and --delete-after-upload" in result.output
 
 
 # --- Test helper functions ---
