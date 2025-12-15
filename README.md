@@ -9,7 +9,7 @@ SystemLink CLI (`slcli`) is a cross-platform Python CLI for SystemLink integrato
 - **File Management**: Full file lifecycle management (list, upload, download, delete, query) with folder watch feature for automated uploads
 - **Function Management**: Complete WebAssembly (WASM) function definition and execution management with metadata-driven organization
 - **Test Plan Templates**: Complete management (list, export, import, delete, init) with JSON and table output formats
-- **Jupyter Notebooks**: Full lifecycle management (list, download, create, update, delete) with workspace filtering
+- **Jupyter Notebooks**: Full lifecycle management (list, download, create, update, delete) with workspace filtering and interface assignment
 - **User Management**: Comprehensive user administration (list, get, create, update, delete) with Dynamic LINQ filtering, pagination, and support for service accounts
 - **Feed Management**: Manage NI Package Manager feeds (list, get, create, delete, package list/upload/delete) with platform-aware behavior for SLE/SLS
 - **Workflows**: Full workflow management (list, export, import, delete, init, update) with comprehensive state and action definitions
@@ -1072,7 +1072,7 @@ any time.
 The `notebook` command group is organized into logical subgroups to mirror function command structure:
 
 - `slcli notebook init` – scaffold a local notebook file.
-- `slcli notebook manage <subcommand>` – list, create, update, download, delete remote notebooks.
+- `slcli notebook manage <subcommand>` – list, create, update, download, delete remote notebooks, and assign interfaces.
 - `slcli notebook execute list` – list notebook execution records (supports --workspace, --notebook-id, --status, --take, --format json|table).
 
 Legacy top-level aliases (e.g. `slcli notebook list`) have been removed; always use the `manage` subgroup for server operations.
@@ -1161,7 +1161,38 @@ slcli notebook manage update --id <notebook_id> --content mynotebook.ipynb
 
 # Update both metadata and content
 slcli notebook manage update --id <notebook_id> --metadata metadata.json --content mynotebook.ipynb
+
+# Update interface only
+slcli notebook manage update --id <notebook_id> --interface "File Analysis"
 ```
+
+### Assign an interface to a notebook
+
+Each notebook can be assigned one of the predefined interfaces to indicate where it should appear in SystemLink UI.
+
+```bash
+# Set interface
+slcli notebook manage set-interface --id <notebook_id> --interface "File Analysis"
+
+# Create notebook with interface
+slcli notebook manage create --name MyNotebook --interface "Data Table Analysis"
+```
+
+#### Available Interfaces
+
+- Assets Grid
+- Data Table Analysis
+- Data Space Analysis
+- File Analysis
+- Periodic Execution
+- Resource Changed Routine
+- Specification Analysis
+- Systems Grid
+- Test Data Analysis
+- Test Data Extraction
+- Work Item Automations
+- Work Item Operations
+- Work Item Scheduler
 
 ### Delete a notebook
 

@@ -34,6 +34,24 @@ from .utils import (
 from .workspace_utils import get_workspace_display_name
 
 
+# Predefined notebook interfaces - must be assigned exactly as shown
+PREDEFINED_NOTEBOOK_INTERFACES = [
+    "Assets Grid",
+    "Data Table Analysis",
+    "Data Space Analysis",
+    "File Analysis",
+    "Periodic Execution",
+    "Resource Changed Routine",
+    "Specification Analysis",
+    "Systems Grid",
+    "Test Data Analysis",
+    "Test Data Extraction",
+    "Work Item Automations",
+    "Work Item Operations",
+    "Work Item Scheduler",
+]
+
+
 def _normalize_sls_notebook(notebook: Dict[str, Any]) -> None:
     """Normalize SLS notebook response to include id/name fields.
 
@@ -417,7 +435,8 @@ def _update_notebook_http(
 
     files = {}
     if metadata:
-        files["metadata"] = (None, json.dumps(metadata), "application/json")
+        # Use filename 'blob' to mirror working requests accepted by the service
+        files["metadata"] = ("blob", json.dumps(metadata), "application/json")
     if content:
         files["content"] = ("notebook.ipynb", content, "application/octet-stream")  # type: ignore
 
@@ -449,6 +468,51 @@ def _delete_notebook_http(notebook_id: str) -> None:
         response.raise_for_status()
     except requests.exceptions.RequestException as exc:
         raise Exception(f"HTTP request failed: {exc}")
+
+
+def _validate_notebook_interface(interface: str) -> None:
+    """Validate that the interface string is one of the predefined interfaces.
+
+    Args:
+        interface: The interface string to validate.
+
+    Raises:
+        ValueError: If the interface is not in the predefined list.
+    """
+    if interface not in PREDEFINED_NOTEBOOK_INTERFACES:
+        valid = ", ".join(PREDEFINED_NOTEBOOK_INTERFACES)
+        raise ValueError(f"Invalid interface '{interface}'. Must be one of: {valid}")
+
+
+def _set_notebook_interface_http(notebook_id: str, interface: str) -> Dict[str, Any]:
+    """Set the interface property on a notebook via HTTP PUT.
+
+    Args:
+        notebook_id: The notebook ID (SLE only).
+        interface: One of the predefined interface names.
+
+    Returns:
+        The updated notebook metadata.
+
+    Raises:
+        Exception: If the update fails or platform is SLS.
+    """
+    if get_platform() == PLATFORM_SLS:
+        raise Exception("Setting notebook interfaces is not supported on SystemLink Server (SLS)")
+
+    _validate_notebook_interface(interface)
+
+    # Fetch current notebook to get name and workspace
+    current_notebook = _get_notebook_http(notebook_id)
+
+    # Build metadata with all required fields
+    metadata = {
+        "name": current_notebook.get("name"),
+        "workspace": current_notebook.get("workspace"),
+        "properties": {"interface": interface},
+    }
+
+    return _update_notebook_http(notebook_id, metadata=metadata)
 
 
 def _download_notebook_content_and_metadata(
@@ -610,8 +674,19 @@ def register_notebook_commands(cli: Any) -> None:
         required=False,
         help="Path to .ipynb file containing notebook content",
     )
-    def update_notebook(notebook_id: str, metadata: Optional[str], content: Optional[str]) -> None:
-        """Update a notebook's metadata, content, or both by ID.
+    @click.option(
+        "--interface",
+        type=click.Choice(PREDEFINED_NOTEBOOK_INTERFACES, case_sensitive=True),
+        required=False,
+        help="Interface to assign to the notebook (optional)",
+    )
+    def update_notebook(
+        notebook_id: str,
+        metadata: Optional[str],
+        content: Optional[str],
+        interface: Optional[str] = None,
+    ) -> None:
+        """Update a notebook's metadata, content, interface, or any combination by ID.
 
         Note: This command is only available on SystemLink Enterprise (SLE).
         SystemLink Server (SLS) does not support notebook updates via API.
@@ -625,8 +700,11 @@ def register_notebook_commands(cli: Any) -> None:
             )
             sys.exit(ExitCodes.INVALID_INPUT)
 
-        if not metadata and not content:
-            click.echo("✗ Must provide at least one of --metadata or --content.", err=True)
+        if not metadata and not content and not interface:
+            click.echo(
+                "✗ Must provide at least one of --metadata, --content, or --interface.",
+                err=True,
+            )
             sys.exit(ExitCodes.INVALID_INPUT)
 
         try:
@@ -640,15 +718,66 @@ def register_notebook_commands(cli: Any) -> None:
                 with open(content, "rb") as f:
                     content_bytes = f.read()
 
+            # If interface is provided, add it to the metadata
+            if interface:
+                if not meta_dict:
+                    meta_dict = {}
+                if "properties" not in meta_dict:
+                    meta_dict["properties"] = {}
+                meta_dict["properties"]["interface"] = interface
+
             if not meta_dict and not content_bytes:
                 click.echo(
-                    "✗ Nothing to update. Provide --metadata and/or --content.",
+                    "✗ Nothing to update. Provide --metadata, --content, and/or --interface.",
                     err=True,
                 )
                 sys.exit(ExitCodes.INVALID_INPUT)
 
             _update_notebook_http(notebook_id, metadata=meta_dict, content=content_bytes)
             format_success("Notebook updated", {"ID": notebook_id})
+        except Exception as exc:
+            handle_api_error(exc)
+
+    @notebook_manage.command(name="set-interface")
+    @click.option(
+        "--id",
+        "-i",
+        "notebook_id",
+        required=True,
+        help="Notebook ID to update",
+    )
+    @click.option(
+        "--interface",
+        "-f",
+        "interface_name",
+        required=True,
+        type=click.Choice(PREDEFINED_NOTEBOOK_INTERFACES, case_sensitive=True),
+        help="Interface to assign to the notebook",
+    )
+    def set_notebook_interface(notebook_id: str, interface_name: str) -> None:
+        """Assign an interface to a notebook.
+
+        The interface determines which SystemLink UI selectors will display
+        this notebook.
+
+        Note: This command is only available on SystemLink Enterprise (SLE).
+        SystemLink Server (SLS) does not support notebook interface assignment.
+        """
+        if get_platform() == PLATFORM_SLS:
+            click.echo(
+                "✗ Setting notebook interfaces is not supported on SystemLink Server (SLS). "
+                "Please use the SystemLink web interface to assign interfaces.",
+                err=True,
+            )
+            sys.exit(ExitCodes.INVALID_INPUT)
+
+        try:
+            result = _set_notebook_interface_http(notebook_id, interface_name)
+            assigned_interface = result.get("properties", {}).get("interface", interface_name)
+            format_success(
+                "Interface assigned",
+                {"Notebook ID": notebook_id, "Interface": assigned_interface},
+            )
         except Exception as exc:
             handle_api_error(exc)
 
@@ -712,6 +841,7 @@ def register_notebook_commands(cli: Any) -> None:
                     name = nb.get("name", "")
                     nb_id = nb.get("id", "")
                     parameters = nb.get("parameters", {})
+                    interface = nb.get("properties", {}).get("interface")
 
                     notebooks.append(
                         {
@@ -719,6 +849,7 @@ def register_notebook_commands(cli: Any) -> None:
                             "name": name,
                             "id": nb_id,
                             "parameters": parameters,
+                            "properties": {"interface": interface} if interface else {},
                         }
                     )
                 except Exception as nb_exc:
@@ -746,9 +877,11 @@ def register_notebook_commands(cli: Any) -> None:
             mock_resp: Any = MockResponse()  # Type annotation to avoid type checker issues
 
             def notebook_formatter(notebook: dict) -> list:
+                interface = notebook.get("properties", {}).get("interface", "—")
                 return [
                     notebook.get("name", "Unknown"),
                     notebook.get("workspace", "N/A"),
+                    interface,
                     notebook.get("id", ""),
                     "Jupyter",  # Type
                 ]
@@ -759,8 +892,8 @@ def register_notebook_commands(cli: Any) -> None:
                 item_name="notebook",
                 format_output=format_output,
                 formatter_func=notebook_formatter,
-                headers=["Name", "Workspace", "ID", "Type"],
-                column_widths=[40, 30, 36, 12],
+                headers=["Name", "Workspace", "Interface", "ID", "Type"],
+                column_widths=[30, 20, 25, 36, 12],
                 empty_message="No notebooks found.",
                 enable_pagination=True,
                 page_size=take,
@@ -889,6 +1022,9 @@ def register_notebook_commands(cli: Any) -> None:
             if is_sls:
                 click.echo(f"Path:        {notebook.get('path', 'N/A')}")
             click.echo(f"Workspace:   {ws_name}")
+            interface = notebook.get("properties", {}).get("interface")
+            if interface:
+                click.echo(f"Interface:   {interface}")
             click.echo(f"Size (bytes): {notebook.get('size', 'N/A')}")
             click.echo(f"Created At:  {notebook.get('createdAt', 'N/A')}")
             click.echo(f"Updated At:  {notebook.get('updatedAt', 'N/A')}")
@@ -906,12 +1042,19 @@ def register_notebook_commands(cli: Any) -> None:
     @click.option("--file", "input_file", required=False, help="Path to notebook file to create")
     @click.option("--workspace", default="Default", help="Workspace name or ID (default: Default)")
     @click.option("--name", "notebook_name", required=True, help="Notebook name")
+    @click.option(
+        "--interface",
+        type=click.Choice(PREDEFINED_NOTEBOOK_INTERFACES, case_sensitive=True),
+        required=False,
+        help="Interface to assign to the notebook (optional)",
+    )
     def create_notebook(
         input_file: str = "",
         workspace: str = "Default",
         notebook_name: str = "",
+        interface: Optional[str] = None,
     ) -> None:
-        """Create a notebook.
+        """Create a notebook with optional interface assignment.
 
         Fails if a notebook with the same name exists.
 
@@ -996,6 +1139,16 @@ def register_notebook_commands(cli: Any) -> None:
                 content = json.dumps(empty_nb, indent=2).encode("utf-8")
                 result = _create_notebook_http(notebook_name, ws_id, content)
                 format_success("Notebook created", {"ID": result.get("id")})
+
+            # Assign interface if provided
+            if interface and result:
+                try:
+                    notebook_id = result.get("id", "")
+                    if notebook_id:
+                        _set_notebook_interface_http(notebook_id, interface)
+                        click.echo(f"✓ Interface '{interface}' assigned")
+                except Exception as exc:
+                    click.echo(f"⚠ Warning: Failed to assign interface: {exc}", err=True)
 
             # Download option removed: users should run 'notebook manage download' after creation
             # if they want to retrieve content or metadata.

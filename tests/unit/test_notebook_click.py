@@ -221,3 +221,128 @@ def test_notebook_execute_sync_success(monkeypatch: MonkeyPatch) -> None:
 
     assert result.exit_code == 0
     assert '"exec-1"' in result.output
+
+
+def test_set_notebook_interface_valid(monkeypatch: MonkeyPatch) -> None:
+    """Test setting a valid interface on a notebook."""
+    runner = CliRunner()
+    patch_keyring(monkeypatch)
+
+    import slcli.notebook_click
+
+    def mock_set_interface(notebook_id: str, interface: str) -> dict[str, Any]:
+        return {
+            "id": "abc123",
+            "name": "test-notebook",
+            "properties": {"interface": interface},
+        }
+
+    monkeypatch.setattr(
+        slcli.notebook_click,
+        "_set_notebook_interface_http",
+        mock_set_interface,
+    )
+
+    def mock_get_notebook(*args: Any, **kwargs: Any) -> dict[str, Any]:
+        return {
+            "id": "abc123",
+            "name": "test-notebook",
+            "workspace": "default-workspace",
+        }
+
+    monkeypatch.setattr(slcli.notebook_click, "_get_notebook_http", mock_get_notebook)
+
+    result = runner.invoke(
+        cli,
+        [
+            "notebook",
+            "manage",
+            "set-interface",
+            "--id",
+            "abc123",
+            "--interface",
+            "File Analysis",
+        ],
+    )
+    assert result.exit_code == 0
+    assert "Interface assigned" in result.output
+    assert "File Analysis" in result.output
+
+
+def test_set_notebook_interface_invalid(monkeypatch: MonkeyPatch) -> None:
+    """Test that invalid interface is rejected."""
+    runner = CliRunner()
+    patch_keyring(monkeypatch)
+
+    result = runner.invoke(
+        cli,
+        [
+            "notebook",
+            "manage",
+            "set-interface",
+            "--id",
+            "abc123",
+            "--interface",
+            "Invalid Interface",
+        ],
+    )
+    assert result.exit_code != 0
+
+
+def test_set_notebook_interface_sls_not_supported(monkeypatch: MonkeyPatch) -> None:
+    """Test that interface assignment fails on SLS."""
+    runner = CliRunner()
+    patch_keyring(monkeypatch)
+
+    import slcli.notebook_click
+
+    # Mock platform to be SLS
+    monkeypatch.setattr(slcli.notebook_click, "get_platform", lambda: PLATFORM_SLS)
+
+    result = runner.invoke(
+        cli,
+        [
+            "notebook",
+            "manage",
+            "set-interface",
+            "--id",
+            "abc123",
+            "--interface",
+            "File Analysis",
+        ],
+    )
+    assert result.exit_code == ExitCodes.INVALID_INPUT
+    assert "not supported" in result.output
+
+
+def test_list_notebooks_with_interface(monkeypatch: MonkeyPatch) -> None:
+    """Test that list command displays interface column."""
+    runner = CliRunner()
+    patch_keyring(monkeypatch)
+
+    notebooks = [
+        {
+            "id": "abc123",
+            "name": "TestNotebook1",
+            "properties": {"interface": "File Analysis"},
+        },
+        {
+            "id": "def456",
+            "name": "TestNotebook2",
+            "properties": {"interface": "Data Table Analysis"},
+        },
+    ]
+
+    import slcli.notebook_click
+    import slcli.utils
+
+    def mock_query(*args: Any, **kwargs: Any) -> list[dict[str, Any]]:
+        return notebooks
+
+    monkeypatch.setattr(slcli.notebook_click, "_query_notebooks_http", mock_query)
+    monkeypatch.setattr(slcli.utils, "get_workspace_map", lambda: {})
+
+    result = runner.invoke(cli, ["notebook", "manage", "list"])
+    assert result.exit_code == 0
+    assert "File Analysis" in result.output
+    assert "Data Table Analysis" in result.output
