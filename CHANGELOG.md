@@ -1,6 +1,48 @@
 # CHANGELOG
 
 
+## v0.17.0 (2025-12-15)
+
+### Chores
+
+- Refresh CLI help text
+  ([`aa9d8f3`](https://github.com/ni-kismet/systemlink-cli/commit/aa9d8f386d95e07ee2b4ddc6dfb07b77ac0295f6))
+
+### Documentation
+
+- **e2e**: Clarify statefulness patterns and parallel safety verification
+  ([`de832b3`](https://github.com/ni-kismet/systemlink-cli/commit/de832b342b0c9dc39a0726342f317c9009307698))
+
+- Add parallel e2e test execution guidance with pytest-xdist
+  ([`b4d077a`](https://github.com/ni-kismet/systemlink-cli/commit/b4d077a817893acea64888bd7a5d3310c097d576))
+
+- Comprehensive CLI consistency analysis and improvement proposals
+  ([`95bafbb`](https://github.com/ni-kismet/systemlink-cli/commit/95bafbb240f10e4664ed690dc4e212a9198d698e))
+
+- Analyzed all commands for consistency in flags, naming, and patterns - Identified 7 key areas with
+  specific inconsistencies - Proposed prioritized recommendations with rationale - Outlined 3-phase
+  implementation strategy (non-breaking, breaking, docs)
+
+- Update README to match refreshed CLI help text
+  ([`8c69cd1`](https://github.com/ni-kismet/systemlink-cli/commit/8c69cd17b399e1f55b92d4bc6c47d38fd14eaaa2))
+
+### Features
+
+- **cli**: Add template/workflow get; support name for export; unify workspace flags; remove -f from
+  --file; update notebook help; README updates
+  ([`4729569`](https://github.com/ni-kismet/systemlink-cli/commit/4729569b6b5d7648cc4fed40480ac58ea048251c))
+
+### Testing
+
+- Add unit coverage for main auth/info, templates/workflows get/init, notebook update/sync, file
+  watch guard, webapp open; fix webapp open test; format + lint
+  ([`927892c`](https://github.com/ni-kismet/systemlink-cli/commit/927892c5c1ca107f0fb24d903aec95090f99f272))
+
+- **e2e**: Update workspace e2e for unified --workspace; docs: README for get/export and flags;
+  chore: dev install pytest-xdist
+  ([`4b75ecb`](https://github.com/ni-kismet/systemlink-cli/commit/4b75ecb6d7cebc3c29bf9e188656a7c7e010eede))
+
+
 ## v0.16.1 (2025-12-13)
 
 ### Bug Fixes
@@ -9,6 +51,11 @@
   ([`b191d93`](https://github.com/ni-kismet/systemlink-cli/commit/b191d93fa9a1aca9393aeb25b1da1c1b40307f30))
 
 Fix feed package upload issues and add E2E tests
+
+### Chores
+
+- **release**: 0.16.1
+  ([`74b022a`](https://github.com/ni-kismet/systemlink-cli/commit/74b022aa615bdda5d5efdec108e21545ba161735))
 
 
 ## v0.16.0 (2025-12-12)
