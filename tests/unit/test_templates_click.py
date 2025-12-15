@@ -6,6 +6,7 @@ import pytest
 from click.testing import CliRunner
 
 from slcli.templates_click import register_templates_commands
+from slcli.utils import ExitCodes
 from .test_utils import patch_keyring
 
 
@@ -189,6 +190,98 @@ def test_export_template_success(monkeypatch: Any, runner: CliRunner, tmp_path: 
     assert result.exit_code == 0
     assert output_file.read_text().startswith("{")
     assert "exported to" in result.output
+
+
+def test_init_template_writes_file(monkeypatch: Any, runner: CliRunner, tmp_path: Any) -> None:
+    """Ensure template init writes scaffold to disk."""
+    patch_keyring(monkeypatch)
+    cli = make_cli()
+    out_file = tmp_path / "sample-template.json"
+
+    result = runner.invoke(
+        cli,
+        [
+            "template",
+            "init",
+            "--name",
+            "Sample",
+            "--template-group",
+            "GroupA",
+            "--output",
+            str(out_file),
+        ],
+    )
+
+    assert result.exit_code == 0
+    data = json.loads(out_file.read_text())
+    assert data["testPlanTemplates"][0]["name"] == "Sample"
+    assert data["testPlanTemplates"][0]["templateGroup"] == "GroupA"
+
+
+def test_get_template_by_name(monkeypatch: Any, runner: CliRunner) -> None:
+    """Fetch template details by name using the get command."""
+    patch_keyring(monkeypatch)
+
+    class MockResponse:
+        def json(self) -> Any:
+            return {
+                "testPlanTemplates": [
+                    {
+                        "id": "t1",
+                        "name": "Template1",
+                        "workspace": "ws1",
+                        "templateGroup": "G",
+                        "description": "d",
+                    }
+                ]
+            }
+
+        @property
+        def status_code(self) -> int:
+            return 200
+
+    monkeypatch.setattr("slcli.templates_click.make_api_request", lambda *a, **kw: MockResponse())
+    monkeypatch.setattr("slcli.templates_click.get_workspace_map", lambda: {"ws1": "Workspace"})
+
+    cli = make_cli()
+    result = runner.invoke(cli, ["template", "get", "--name", "Template1", "--format", "json"])
+
+    assert result.exit_code == 0
+    assert '"Template1"' in result.output
+
+
+def test_get_template_not_found(monkeypatch: Any, runner: CliRunner) -> None:
+    """Ensure get returns not found when template is missing."""
+    patch_keyring(monkeypatch)
+
+    class MockResponse:
+        def json(self) -> Any:
+            return {"testPlanTemplates": []}
+
+        @property
+        def status_code(self) -> int:
+            return 200
+
+    monkeypatch.setattr("slcli.templates_click.make_api_request", lambda *a, **kw: MockResponse())
+    monkeypatch.setattr("slcli.templates_click.get_workspace_map", lambda: {})
+
+    cli = make_cli()
+    result = runner.invoke(cli, ["template", "get", "--name", "Missing"])
+
+    assert result.exit_code == ExitCodes.NOT_FOUND
+    assert "not found" in result.output
+
+
+def test_get_template_conflicting_options(monkeypatch: Any, runner: CliRunner) -> None:
+    """Ensure get rejects both id and name being provided."""
+    patch_keyring(monkeypatch)
+    cli = make_cli()
+    result = runner.invoke(
+        cli, ["template", "get", "--id", "t1", "--name", "Template1", "--format", "json"]
+    )
+
+    assert result.exit_code == ExitCodes.INVALID_INPUT
+    assert "Cannot specify both" in result.output
 
 
 def test_export_template_auto_filename(monkeypatch: Any, runner: CliRunner, tmp_path: Any) -> None:

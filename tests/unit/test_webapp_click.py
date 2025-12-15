@@ -271,3 +271,40 @@ def test_webapp_publish_creates_and_uploads(tmp_path: Path, monkeypatch: MonkeyP
     )
     assert result.exit_code == 0
     assert "Published webapp content" in result.output or "Created webapp metadata" in result.output
+
+
+def test_webapp_open_uses_workspace_url(monkeypatch: MonkeyPatch) -> None:
+    """Ensure open builds friendly URL when workspace name is available."""
+    runner = CliRunner()
+    patch_keyring(monkeypatch)
+
+    import requests
+    import slcli.webapp_click
+
+    class MockResp:
+        def json(self) -> Dict[str, Any]:
+            return {
+                "id": "app1",
+                "name": "AppOne",
+                "workspace": "ws1",
+                "properties": {},
+                "type": "WebVI",
+            }
+
+        def raise_for_status(self) -> None:
+            return None
+
+    opened: list[str] = []
+
+    import webbrowser
+
+    monkeypatch.setattr(requests, "get", lambda *a, **k: MockResp())
+    monkeypatch.setattr(slcli.webapp_click, "get_web_url", lambda: "https://web.example.test")
+    monkeypatch.setattr(slcli.webapp_click, "get_workspace_map", lambda: {"ws1": "Workspace One"})
+    monkeypatch.setattr(webbrowser, "open", lambda url: opened.append(url))
+
+    result = runner.invoke(cli, ["webapp", "open", "--id", "app1"])
+
+    assert result.exit_code == 0
+    assert opened[0] == "https://web.example.test/webapps/app/Workspace%20One/AppOne"
+    assert "Opening" in result.output
