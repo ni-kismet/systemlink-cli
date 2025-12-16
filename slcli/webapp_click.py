@@ -315,6 +315,12 @@ def register_webapp_commands(cli: Any) -> None:
     @click.option(
         "--workspace", "-w", "workspace", default="", help="Filter by workspace name or ID"
     )
+    @click.option(
+        "--filter",
+        "filter_text",
+        default="",
+        help="Case-insensitive substring match on name",
+    )
     @click.option("--take", "take", type=int, default=25, show_default=True, help="Max rows/page")
     @click.option(
         "--format",
@@ -324,7 +330,7 @@ def register_webapp_commands(cli: Any) -> None:
         show_default=True,
         help="Output format",
     )
-    def list_webapps(workspace: str, take: int, format_output: str) -> None:
+    def list_webapps(workspace: str, filter_text: str, take: int, format_output: str) -> None:
         """List webapps."""
         try:
 
@@ -345,6 +351,11 @@ def register_webapp_commands(cli: Any) -> None:
                 ws_id = get_workspace_id_with_fallback(workspace)
                 # add workspace constraint to filter
                 base_filter = f'{base_filter} and workspace == "{ws_id}"'
+
+            if filter_text:
+                term = filter_text.lower().replace("\\", "\\\\").replace('"', '\\"')
+                name_clause = f'name.ToLower().Contains("{term}")'
+                base_filter = f"({base_filter}) and ({name_clause})"
 
             # If the user requested JSON output or did not request a specific take,
             # fetch all matching items (using server-side paging). Otherwise, if

@@ -790,6 +790,12 @@ def register_notebook_commands(cli: Any) -> None:
         help="Filter by workspace name or ID",
     )
     @click.option(
+        "--filter",
+        "filter_text",
+        default="",
+        help="Case-insensitive substring to match name or interface",
+    )
+    @click.option(
         "--take",
         "-t",
         type=int,
@@ -806,7 +812,12 @@ def register_notebook_commands(cli: Any) -> None:
         show_default=True,
         help="Output format",
     )
-    def list_notebooks(workspace: str = "", take: int = 25, format_output: str = "table") -> None:
+    def list_notebooks(
+        workspace: str = "",
+        filter_text: str = "",
+        take: int = 25,
+        format_output: str = "table",
+    ) -> None:
         """List notebooks."""
         format_output = validate_output_format(format_output)
 
@@ -815,12 +826,19 @@ def register_notebook_commands(cli: Any) -> None:
             if workspace:
                 ws_id = validate_workspace_access(workspace, warn_on_error=True)
 
-            filter_str = None
+            filter_parts: List[str] = []
             if ws_id:
-                filter_str = f'workspace = "{ws_id}"'
+                filter_parts.append(f'workspace = "{ws_id}"')
+            if filter_text:
+                term = filter_text.lower().replace("\\", "\\\\").replace('"', '\\"')
+                name_clause = f'name.ToLower().Contains("{term}")'
+                interface_clause = f'properties.interface.ToLower().Contains("{term}")'
+                filter_parts.append(f"({name_clause} or {interface_clause})")
+
+            combined_filter = " and ".join(filter_parts) if filter_parts else None
 
             try:
-                notebooks_raw = _query_notebooks_http(filter_str, take=1000)
+                notebooks_raw = _query_notebooks_http(combined_filter, take=1000)
             except Exception as exc:
                 click.echo(
                     f"✗ Error querying notebooks: {exc}",

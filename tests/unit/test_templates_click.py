@@ -137,6 +137,52 @@ def test_list_templates_with_workspace_filter(monkeypatch: Any, runner: CliRunne
     assert "Template2" not in result.output
 
 
+def test_list_templates_with_custom_filter(monkeypatch: Any, runner: CliRunner) -> None:
+    """Ensure user-supplied filter is forwarded to the service."""
+    patch_keyring(monkeypatch)
+
+    def mock_get(*a: Any, **kw: Any) -> Any:
+        class R:
+            def raise_for_status(self) -> None:
+                pass
+
+            def json(self) -> Any:
+                return {"workspaces": []}
+
+        return R()
+
+    def mock_post(*a: Any, **kw: Any) -> Any:
+        class R:
+            def raise_for_status(self) -> None:
+                pass
+
+            def json(self) -> Any:
+                payload = kw.get("json", {})
+                assert (
+                    payload.get("filter")
+                    == '((NAME.ToLower().Contains("temp") or TEMPLATE_GROUP.ToLower().Contains("temp") or DESCRIPTION.ToLower().Contains("temp")))'
+                )
+                return {
+                    "testPlanTemplates": [
+                        {
+                            "id": "t1",
+                            "name": "Template1",
+                            "workspace": "ws1",
+                            "templateGroup": "G1",
+                        }
+                    ]
+                }
+
+        return R()
+
+    monkeypatch.setattr("requests.get", mock_get)
+    monkeypatch.setattr("requests.post", mock_post)
+    cli = make_cli()
+    result = runner.invoke(cli, ["template", "list", "--filter", "Temp"])
+    assert result.exit_code == 0
+    assert "Template1" in result.output
+
+
 def test_list_templates_empty(monkeypatch: Any, runner: CliRunner) -> None:
     """Test listing templates when none exist."""
     patch_keyring(monkeypatch)

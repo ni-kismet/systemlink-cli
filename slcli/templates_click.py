@@ -23,8 +23,24 @@ from .utils import (
 from .workspace_utils import get_workspace_display_name, resolve_workspace_filter
 
 
+def _escape_filter_value(value: str) -> str:
+    """Escape quotes and backslashes for filter literals."""
+    return value.replace("\\", "\\\\").replace('"', '\\"')
+
+
+def _build_template_search_filter(search: str) -> str:
+    """Build a case-insensitive substring filter across key template fields."""
+    term = _escape_filter_value(search.lower())
+    fields = ["NAME", "TEMPLATE_GROUP", "DESCRIPTION"]
+    clauses = [f'{field}.ToLower().Contains("{term}")' for field in fields]
+    joined = " or ".join(clauses)
+    return f"(({joined}))"
+
+
 def _query_all_templates(
-    workspace_filter: Optional[str] = None, workspace_map: Optional[dict] = None
+    workspace_filter: Optional[str] = None,
+    workspace_map: Optional[dict] = None,
+    search_text: Optional[str] = None,
 ) -> List[Dict[str, Any]]:
     """Query all test plan templates using continuation token pagination.
 
@@ -48,9 +64,14 @@ def _query_all_templates(
             "projection": ["ID", "NAME", "WORKSPACE", "TEMPLATE_GROUP"],
         }
 
-        # Add workspace filter if specified
+        # Add workspace filter and user filter if specified
+        filter_parts: List[str] = []
         if workspace_filter:
-            payload["filter"] = f'WORKSPACE == "{workspace_filter}"'
+            filter_parts.append(f'WORKSPACE == "{workspace_filter}"')
+        if search_text:
+            filter_parts.append(_build_template_search_filter(search_text))
+        if filter_parts:
+            payload["filter"] = " and ".join(filter_parts)
 
         # Add continuation token if we have one
         if continuation_token:
@@ -235,8 +256,16 @@ def register_templates_commands(cli: Any) -> None:
         show_default=True,
         help="Output format",
     )
+    @click.option(
+        "--filter",
+        "filter_text",
+        help="Case-insensitive substring to match name/group/description",
+    )
     def list_templates(
-        workspace: Optional[str] = None, take: int = 25, format: str = "table"
+        workspace: Optional[str] = None,
+        take: int = 25,
+        format: str = "table",
+        filter_text: Optional[str] = None,
     ) -> None:
         """List test plan templates."""
         format_output = validate_output_format(format)
@@ -250,7 +279,7 @@ def register_templates_commands(cli: Any) -> None:
                 workspace_id = resolve_workspace_filter(workspace, workspace_map)
 
             # Use continuation token pagination to get all templates
-            all_templates = _query_all_templates(workspace_id, workspace_map)
+            all_templates = _query_all_templates(workspace_id, workspace_map, filter_text)
 
             # Create a mock response with all data
             resp: Any = FilteredResponse({"testPlanTemplates": all_templates})

@@ -58,6 +58,57 @@ def test_notebook_list(monkeypatch: MonkeyPatch) -> None:
     assert "TestNotebook2" in result.output
 
 
+def test_notebook_list_with_filter(monkeypatch: MonkeyPatch) -> None:
+    """Ensure custom filter combines with workspace filter."""
+    runner = CliRunner()
+    patch_keyring(monkeypatch)
+
+    import slcli.notebook_click
+    import slcli.utils
+
+    captured: dict[str, Any] = {}
+
+    def mock_validate_workspace_access(workspace: str, warn_on_error: bool = True) -> str:
+        return "ws-123"
+
+    def mock_query(filter_str: str | None = None, take: int = 1000) -> list[dict[str, Any]]:
+        captured["filter"] = filter_str
+        return [
+            {
+                "id": "abc123",
+                "name": "TestNotebook",
+                "workspace": "ws-123",
+                "properties": {"interface": "File Analysis"},
+            }
+        ]
+
+    monkeypatch.setattr(
+        slcli.notebook_click, "validate_workspace_access", mock_validate_workspace_access
+    )
+    monkeypatch.setattr(slcli.utils, "get_workspace_map", lambda: {"ws-123": "WS"})
+    monkeypatch.setattr(slcli.notebook_click, "_query_notebooks_http", mock_query)
+
+    result = runner.invoke(
+        cli,
+        [
+            "notebook",
+            "manage",
+            "list",
+            "--workspace",
+            "Default",
+            "--filter",
+            "Test",
+        ],
+    )
+
+    assert result.exit_code == 0
+    assert (
+        captured.get("filter")
+        == 'workspace = "ws-123" and (name.ToLower().Contains("test") or properties.interface.ToLower().Contains("test"))'
+    )
+    assert "TestNotebook" in result.output
+
+
 def test_notebook_download_by_id(monkeypatch: MonkeyPatch) -> None:
     runner = CliRunner()
     patch_keyring(monkeypatch)
