@@ -17,6 +17,37 @@ from .utils import (
 )
 
 
+def _fetch_all_workspaces() -> list:
+    """Fetch all workspaces using pagination (API max take=100).
+
+    Returns:
+        List of all workspace dictionaries.
+    """
+    url = f"{get_base_url()}/niuser/v1/workspaces"
+    all_workspaces = []
+    skip = 0
+    page_size = 100  # API max take is 100
+
+    while True:
+        query_params = [f"take={page_size}", f"skip={skip}"]
+        paginated_url = url + "?" + "&".join(query_params)
+
+        resp = make_api_request("GET", paginated_url, payload=None)
+        data = resp.json()
+
+        workspaces = data.get("workspaces", [])
+        all_workspaces.extend(workspaces)
+
+        # Check if we have more pages
+        total_count = data.get("totalCount", 0)
+        if skip + page_size >= total_count:
+            break
+
+        skip += page_size
+
+    return all_workspaces
+
+
 def register_workspace_commands(cli: Any) -> None:
     """Register the 'workspace' command group and its subcommands."""
 
@@ -45,6 +76,10 @@ def register_workspace_commands(cli: Any) -> None:
         help="Filter by workspace name or ID",
     )
     @click.option(
+        "--filter",
+        help="Filter by workspace name (case-insensitive substring match)",
+    )
+    @click.option(
         "--take",
         "-t",
         type=int,
@@ -56,49 +91,42 @@ def register_workspace_commands(cli: Any) -> None:
         format: str = "table",
         include_disabled: bool = False,
         workspace: Optional[str] = None,
+        filter: Optional[str] = None,
         take: int = 25,
     ) -> None:
         """List workspaces."""
         format_output = validate_output_format(format)
 
-        url = f"{get_base_url()}/niuser/v1/workspaces"
-
         try:
-            # Build URL with query parameters
-            query_params = []
+            # Fetch all workspaces using pagination helper
+            all_workspaces = _fetch_all_workspaces()
 
-            # For JSON format, respect the take parameter exactly
-            # For table format, use take if specified, otherwise fetch larger dataset
-            # for local pagination
-            if format_output.lower() == "json":
-                api_take = take
-            else:
-                # For table format, use take if specified, otherwise fetch larger amount
-                # for pagination
-                api_take = (
-                    take if take != 25 else 1000
-                )  # 25 is the default, so fetch more for pagination
-
-            query_params.append(f"take={api_take}")
+            # Filter by workspace name/ID if specified
             if workspace:
-                query_params.append(f"name={workspace}")
+                all_workspaces = [
+                    ws
+                    for ws in all_workspaces
+                    if ws.get("id") == workspace or ws.get("name") == workspace
+                ]
 
-            if query_params:
-                url += "?" + "&".join(query_params)
-
-            resp = make_api_request("GET", url, payload=None)
+            # Filter by name (case-insensitive substring match) if specified
+            if filter:
+                filter_lower = filter.lower()
+                all_workspaces = [
+                    ws
+                    for ws in all_workspaces
+                    if filter_lower in (ws.get("name", "") or "").lower()
+                ]
 
             # Filter workspaces by enabled status if needed
             if not include_disabled:
-                data = resp.json()
-                workspaces = data.get("workspaces", []) if isinstance(data, dict) else []
-                filtered_workspaces = [ws for ws in workspaces if ws.get("enabled", True)]
+                all_workspaces = [ws for ws in all_workspaces if ws.get("enabled", True)]
 
-                # Create a new response with filtered data
-                filtered_resp: Any = FilteredResponse(
-                    {"workspaces": filtered_workspaces}
-                )  # Type annotation to avoid type checker issues
-                resp = filtered_resp
+            # Create a response object with the filtered workspaces
+            filtered_resp: Any = FilteredResponse(
+                {"workspaces": all_workspaces}
+            )  # Type annotation to avoid type checker issues
+            resp = filtered_resp
 
             def workspace_formatter(workspace: dict) -> list:
                 enabled = "✓" if workspace.get("enabled", True) else "✗"
@@ -133,10 +161,7 @@ def register_workspace_commands(cli: Any) -> None:
         """Disable a workspace."""
         try:
             # Get workspace info before disabling for confirmation
-            workspace_info_url = f"{get_base_url()}/niuser/v1/workspaces?take=1000"
-            resp = make_api_request("GET", workspace_info_url)
-            data = resp.json()
-            workspaces = data.get("workspaces", [])
+            workspaces = _fetch_all_workspaces()
 
             # Find the workspace to get its details
             workspace_to_disable = None
@@ -189,10 +214,7 @@ def register_workspace_commands(cli: Any) -> None:
         """Show workspace details and contents."""
         try:
             # Get workspace info
-            workspace_info_url = f"{get_base_url()}/niuser/v1/workspaces?take=1000"
-            resp = make_api_request("GET", workspace_info_url)
-            data = resp.json()
-            workspaces = data.get("workspaces", [])
+            workspaces = _fetch_all_workspaces()
 
             # Find the workspace by ID or name
             target_workspace = None

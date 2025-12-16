@@ -1641,11 +1641,20 @@ slcli workspace list
 # Include disabled workspaces
 slcli workspace list --include-disabled
 
-# Filter by workspace name
-slcli workspace list --name "Production"
+# Filter by exact workspace name or ID
+slcli workspace list --workspace "Production"
+
+# Filter by substring match (case-insensitive)
+slcli workspace list --filter "prod"
+
+# Combine filters
+slcli workspace list --filter "test" --include-disabled
 
 # JSON output for programmatic use
 slcli workspace list --format json
+
+# Paginate results (default: 25 per page)
+slcli workspace list --take 50
 ```
 
 ### Show workspace details and contents
