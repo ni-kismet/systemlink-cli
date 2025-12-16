@@ -7,7 +7,6 @@ from typing import Any, Dict, Optional, Tuple
 import click
 
 from .cli_utils import validate_output_format
-from .universal_handlers import UniversalResponseHandler, FilteredResponse
 from .utils import (
     ExitCodes,
     format_success,
@@ -15,6 +14,43 @@ from .utils import (
     handle_api_error,
     make_api_request,
 )
+
+
+def _fetch_workspaces_page(
+    name_filter: Optional[str] = None, take: int = 25, skip: int = 0
+) -> Tuple[list, int, Optional[str]]:
+    """Fetch a single page of workspaces with optional server-side filtering.
+
+    Args:
+        name_filter: Optional filter pattern for workspace name (uses *TEXT* format
+                     for case-insensitive substring matching)
+        take: Number of items to fetch (max 100)
+        skip: Number of items to skip
+
+    Returns:
+        Tuple of (workspaces_list, total_count, error_message).
+        Error message is None if successful.
+    """
+    try:
+        url = f"{get_base_url()}/niuser/v1/workspaces"
+        page_size = min(take, 100)  # API max take is 100
+
+        query_params = [f"take={page_size}", f"skip={skip}"]
+        if name_filter:
+            # Use *TEXT* pattern for case-insensitive substring matching
+            query_params.append(f"name=*{name_filter}*")
+
+        paginated_url = url + "?" + "&".join(query_params)
+
+        resp = make_api_request("GET", paginated_url, payload=None)
+        data = resp.json()
+
+        workspaces = data.get("workspaces", [])
+        total_count = data.get("totalCount", 0)
+
+        return workspaces, total_count, None
+    except Exception as exc:
+        return [], 0, f"Failed to fetch workspaces: {str(exc)}"
 
 
 def register_workspace_commands(cli: Any) -> None:
@@ -40,9 +76,9 @@ def register_workspace_commands(cli: Any) -> None:
         help="Include disabled workspaces in the results",
     )
     @click.option(
-        "--workspace",
-        "-w",
-        help="Filter by workspace name or ID",
+        "--filter",
+        "name_filter",
+        help="Filter by workspace name (case-insensitive substring match)",
     )
     @click.option(
         "--take",
@@ -50,73 +86,106 @@ def register_workspace_commands(cli: Any) -> None:
         type=int,
         default=25,
         show_default=True,
-        help="Maximum number of workspaces to return",
+        help="Maximum number of workspaces to return from API",
     )
     def list_workspaces(
         format: str = "table",
         include_disabled: bool = False,
-        workspace: Optional[str] = None,
+        name_filter: Optional[str] = None,
         take: int = 25,
     ) -> None:
-        """List workspaces."""
+        """List workspaces with optional filtering.
+
+        The --filter option performs server-side case-insensitive substring
+        matching on workspace names. The --take option limits the number of
+        results shown per page (max 100).
+        """
         format_output = validate_output_format(format)
 
-        url = f"{get_base_url()}/niuser/v1/workspaces"
-
         try:
-            # Build URL with query parameters
-            query_params = []
-
-            # For JSON format, respect the take parameter exactly
-            # For table format, use take if specified, otherwise fetch larger dataset
-            # for local pagination
+            # For JSON format, fetch all results and display at once
             if format_output.lower() == "json":
-                api_take = take
-            else:
-                # For table format, use take if specified, otherwise fetch larger amount
-                # for pagination
-                api_take = (
-                    take if take != 25 else 1000
-                )  # 25 is the default, so fetch more for pagination
+                all_workspaces = []
+                skip = 0
+                while True:
+                    workspaces, total_count, error = _fetch_workspaces_page(
+                        name_filter, take=100, skip=skip
+                    )
+                    if error:
+                        click.echo(f"✗ {error}", err=True)
+                        sys.exit(ExitCodes.GENERAL_ERROR)
 
-            query_params.append(f"take={api_take}")
-            if workspace:
-                query_params.append(f"name={workspace}")
+                    # Filter by enabled status if needed
+                    if not include_disabled:
+                        workspaces = [ws for ws in workspaces if ws.get("enabled", True)]
 
-            if query_params:
-                url += "?" + "&".join(query_params)
+                    all_workspaces.extend(workspaces)
 
-            resp = make_api_request("GET", url, payload=None)
+                    if skip + 100 >= total_count:
+                        break
+                    skip += 100
 
-            # Filter workspaces by enabled status if needed
-            if not include_disabled:
-                data = resp.json()
-                workspaces = data.get("workspaces", []) if isinstance(data, dict) else []
-                filtered_workspaces = [ws for ws in workspaces if ws.get("enabled", True)]
+                click.echo(json.dumps(all_workspaces, indent=2))
+                return
 
-                # Create a new response with filtered data
-                filtered_resp: Any = FilteredResponse(
-                    {"workspaces": filtered_workspaces}
-                )  # Type annotation to avoid type checker issues
-                resp = filtered_resp
+            # For table format, implement interactive lazy loading
+            skip = 0
+            total_count_from_api = 0
+            shown_count = 0
 
             def workspace_formatter(workspace: dict) -> list:
                 enabled = "✓" if workspace.get("enabled", True) else "✗"
                 default = "✓" if workspace.get("default", False) else ""
                 return [workspace.get("name", "Unknown"), workspace.get("id", ""), enabled, default]
 
-            UniversalResponseHandler.handle_list_response(
-                resp=resp,
-                data_key="workspaces",
-                item_name="workspace",
-                format_output=format_output,
-                formatter_func=workspace_formatter,
-                headers=["Name", "ID", "Enabled", "Default"],
-                column_widths=[30, 36, 8, 8],
-                empty_message="No workspaces found.",
-                enable_pagination=True,
-                page_size=take,
-            )
+            while True:
+                # Fetch next page
+                workspaces, total_count_from_api, error = _fetch_workspaces_page(
+                    name_filter, take=take, skip=skip
+                )
+
+                if error:
+                    click.echo(f"✗ {error}", err=True)
+                    sys.exit(ExitCodes.GENERAL_ERROR)
+
+                # Filter by enabled status if needed
+                if not include_disabled:
+                    workspaces = [ws for ws in workspaces if ws.get("enabled", True)]
+
+                if not workspaces and skip == 0:
+                    click.echo("No workspaces found.")
+                    return
+
+                if not workspaces:
+                    # No more results on this page
+                    break
+
+                # Display the page
+                from .table_utils import output_formatted_list
+
+                output_formatted_list(
+                    workspaces,
+                    format_output,
+                    ["Name", "ID", "Enabled", "Default"],
+                    [30, 36, 8, 8],
+                    workspace_formatter,
+                    "",  # Empty message not needed here
+                    "workspace(s)",
+                )
+
+                shown_count += len(workspaces)
+                skip += take
+
+                # Check if there are potentially more results from the API
+                # We check skip against total_count to see if the next page exists
+                if skip >= total_count_from_api:
+                    break
+
+                # Ask user if they want to see more
+                click.echo(f"\nShowing {shown_count} workspace(s) so far. More may be available.")
+
+                if not click.confirm("Show next page?", default=True):
+                    break
 
         except Exception as exc:
             handle_api_error(exc)
@@ -133,14 +202,24 @@ def register_workspace_commands(cli: Any) -> None:
         """Disable a workspace."""
         try:
             # Get workspace info before disabling for confirmation
-            workspace_info_url = f"{get_base_url()}/niuser/v1/workspaces?take=1000"
-            resp = make_api_request("GET", workspace_info_url)
-            data = resp.json()
-            workspaces = data.get("workspaces", [])
+            # Fetch all workspaces to find the target
+            all_workspaces = []
+            skip = 0
+            while True:
+                workspaces, total_count, error = _fetch_workspaces_page(take=100, skip=skip)
+                if error:
+                    click.echo(f"✗ {error}", err=True)
+                    sys.exit(ExitCodes.GENERAL_ERROR)
+
+                all_workspaces.extend(workspaces)
+
+                if skip + 100 >= total_count:
+                    break
+                skip += 100
 
             # Find the workspace to get its details
             workspace_to_disable = None
-            for ws in workspaces:
+            for ws in all_workspaces:
                 if ws.get("id") == id:
                     workspace_to_disable = ws
                     break
@@ -188,18 +267,27 @@ def register_workspace_commands(cli: Any) -> None:
     def get_workspace(workspace: str, format: str) -> None:
         """Show workspace details and contents."""
         try:
-            # Get workspace info
-            workspace_info_url = f"{get_base_url()}/niuser/v1/workspaces?take=1000"
-            resp = make_api_request("GET", workspace_info_url)
-            data = resp.json()
-            workspaces = data.get("workspaces", [])
+            # Get workspace info - fetch all pages until we find the workspace
+            all_workspaces = []
+            skip = 0
+            while True:
+                workspaces, total_count, error = _fetch_workspaces_page(take=100, skip=skip)
+                if error:
+                    click.echo(f"✗ {error}", err=True)
+                    sys.exit(ExitCodes.GENERAL_ERROR)
+
+                all_workspaces.extend(workspaces)
+
+                if skip + 100 >= total_count:
+                    break
+                skip += 100
 
             # Find the workspace by ID or name
             target_workspace = None
             target_workspace = next(
                 (
                     ws
-                    for ws in workspaces
+                    for ws in all_workspaces
                     if ws.get("id") == workspace or ws.get("name") == workspace
                 ),
                 None,
