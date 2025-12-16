@@ -161,9 +161,9 @@ def test_list_templates_with_custom_filter(monkeypatch: Any, runner: CliRunner) 
                 filt = payload.get("filter", "")
                 # New implementation avoids ToLower() and uses lowercase field names
                 assert (
-                    "name.Contains(\"temp\")" in filt
-                    or "templateGroup.Contains(\"temp\")" in filt
-                    or "description.Contains(\"temp\")" in filt
+                    'name.Contains("temp")' in filt
+                    or 'templateGroup.Contains("temp")' in filt
+                    or 'description.Contains("temp")' in filt
                 )
                 return {
                     "testPlanTemplates": [

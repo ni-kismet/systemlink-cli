@@ -464,7 +464,9 @@ def register_file_commands(cli: Any) -> None:
         is_flag=True,
         help="Delete without confirmation",
     )
-    def delete_file(file_id: Optional[str] = None, file_id_opt: Optional[str] = None, force: bool = False) -> None:
+    def delete_file(
+        file_id: Optional[str] = None, file_id_opt: Optional[str] = None, force: bool = False
+    ) -> None:
         """Delete a file."""
         try:
             # Prefer positional ID, fall back to --id

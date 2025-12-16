@@ -848,7 +848,9 @@ def register_notebook_commands(cli: Any) -> None:
                     f'properties.interface.Contains("{upper}")',
                     f'properties.interface.Contains("{title}")',
                 ]
-                filter_parts.append(f"(({' or '.join(name_variants)}) or ({' or '.join(iface_variants)}))")
+                filter_parts.append(
+                    f"(({' or '.join(name_variants)}) or ({' or '.join(iface_variants)}))"
+                )
 
             combined_filter = " and ".join(filter_parts) if filter_parts else None
 
