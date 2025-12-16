@@ -103,13 +103,15 @@ def register_workspace_commands(cli: Any) -> None:
         format_output = validate_output_format(format)
 
         try:
-            # For JSON format, fetch all results and display at once
+            # For JSON format, respect --take and output without interactive pagination
             if format_output.lower() == "json":
                 all_workspaces = []
                 skip = 0
-                while True:
+                remaining = take if take and take > 0 else 25
+                while remaining > 0:
+                    page_take = min(remaining, 100)
                     workspaces, total_count, error = _fetch_workspaces_page(
-                        name_filter, take=100, skip=skip
+                        name_filter, take=page_take, skip=skip
                     )
                     if error:
                         click.echo(f"✗ {error}", err=True)
@@ -121,10 +123,16 @@ def register_workspace_commands(cli: Any) -> None:
 
                     all_workspaces.extend(workspaces)
 
-                    if skip + 100 >= total_count:
+                    # Stop when we've collected the requested amount or reached total
+                    if len(all_workspaces) >= take or skip + page_take >= total_count:
                         break
-                    skip += 100
 
+                    skip += page_take
+                    remaining = take - len(all_workspaces)
+
+                # Trim in case we over-collected due to page boundaries
+                if take:
+                    all_workspaces = all_workspaces[:take]
                 click.echo(json.dumps(all_workspaces, indent=2))
                 return
 
@@ -181,9 +189,16 @@ def register_workspace_commands(cli: Any) -> None:
                 if skip >= total_count_from_api:
                     break
 
-                # Ask user if they want to see more
+                # Ask user if they want to see more; if non-interactive, stop
                 click.echo(f"\nShowing {shown_count} workspace(s) so far. More may be available.")
 
+                try:
+                    is_tty = sys.stdout.isatty() and sys.stdin.isatty()
+                except Exception:
+                    is_tty = False
+
+                if not is_tty:
+                    break
                 if not click.confirm("Show next page?", default=True):
                     break
 
