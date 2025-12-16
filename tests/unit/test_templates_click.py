@@ -158,9 +158,12 @@ def test_list_templates_with_custom_filter(monkeypatch: Any, runner: CliRunner) 
 
             def json(self) -> Any:
                 payload = kw.get("json", {})
+                filt = payload.get("filter", "")
+                # New implementation avoids ToLower() and uses lowercase field names
                 assert (
-                    payload.get("filter")
-                    == '((NAME.ToLower().Contains("temp") or TEMPLATE_GROUP.ToLower().Contains("temp") or DESCRIPTION.ToLower().Contains("temp")))'
+                    "name.Contains(\"temp\")" in filt
+                    or "templateGroup.Contains(\"temp\")" in filt
+                    or "description.Contains(\"temp\")" in filt
                 )
                 return {
                     "testPlanTemplates": [

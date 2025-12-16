@@ -29,12 +29,29 @@ def _escape_filter_value(value: str) -> str:
 
 
 def _build_template_search_filter(search: str) -> str:
-    """Build a case-insensitive substring filter across key template fields."""
-    term = _escape_filter_value(search.lower())
-    fields = ["NAME", "TEMPLATE_GROUP", "DESCRIPTION"]
-    clauses = [f'{field}.ToLower().Contains("{term}")' for field in fields]
-    joined = " or ".join(clauses)
-    return f"(({joined}))"
+    """Build a case-insensitive substring filter across key template fields.
+
+    Avoid ToLower() and use Contains() with several case variants.
+    Uses field names: name, templateGroup, description.
+    """
+    original = _escape_filter_value(search)
+    lower = _escape_filter_value(search.lower())
+    upper = _escape_filter_value(search.upper())
+    title = _escape_filter_value(search.title())
+
+    def variants(field: str) -> str:
+        return " or ".join(
+            [
+                f'{field}.Contains("{original}")',
+                f'{field}.Contains("{lower}")',
+                f'{field}.Contains("{upper}")',
+                f'{field}.Contains("{title}")',
+            ]
+        )
+
+    fields = ["name", "templateGroup", "description"]
+    clauses = [f"({variants(f)})" for f in fields]
+    return f"(({' or '.join(clauses)}))"
 
 
 def _query_all_templates(
