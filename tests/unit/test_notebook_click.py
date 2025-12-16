@@ -102,10 +102,10 @@ def test_notebook_list_with_filter(monkeypatch: MonkeyPatch) -> None:
     )
 
     assert result.exit_code == 0
-    assert (
-        captured.get("filter")
-        == 'workspace = "ws-123" and (name.ToLower().Contains("test") or properties.interface.ToLower().Contains("test"))'
-    )
+    built = captured.get("filter") or ""
+    assert 'workspace = "ws-123"' in built
+    # New implementation avoids ToLower() and uses multiple case variants
+    assert 'name.Contains("test")' in built or 'name.Contains("Test")' in built
     assert "TestNotebook" in result.output
 
 

@@ -830,10 +830,25 @@ def register_notebook_commands(cli: Any) -> None:
             if ws_id:
                 filter_parts.append(f'workspace = "{ws_id}"')
             if filter_text:
-                term = filter_text.lower().replace("\\", "\\\\").replace('"', '\\"')
-                name_clause = f'name.ToLower().Contains("{term}")'
-                interface_clause = f'properties.interface.ToLower().Contains("{term}")'
-                filter_parts.append(f"({name_clause} or {interface_clause})")
+                # Build case-insensitive contains without ToLower() due to backend limitations.
+                # Match common variants: original, lower, upper, title-case.
+                original = filter_text.replace("\\", "\\\\").replace('"', '\\"')
+                lower = original.lower()
+                upper = original.upper()
+                title = original.title()
+                name_variants = [
+                    f'name.Contains("{original}")',
+                    f'name.Contains("{lower}")',
+                    f'name.Contains("{upper}")',
+                    f'name.Contains("{title}")',
+                ]
+                iface_variants = [
+                    f'properties.interface.Contains("{original}")',
+                    f'properties.interface.Contains("{lower}")',
+                    f'properties.interface.Contains("{upper}")',
+                    f'properties.interface.Contains("{title}")',
+                ]
+                filter_parts.append(f"(({' or '.join(name_variants)}) or ({' or '.join(iface_variants)}))")
 
             combined_filter = " and ".join(filter_parts) if filter_parts else None
 
