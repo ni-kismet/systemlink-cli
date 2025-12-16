@@ -416,3 +416,202 @@ def test_get_workspace_with_permission_errors(monkeypatch: Any, runner: CliRunne
     assert output_data["access_errors"]["templates"] == "Access denied (insufficient permissions)"
     assert output_data["access_errors"]["notebooks"] == "Access forbidden"
     assert "workflows" not in output_data["access_errors"]  # Should not have workflow errors
+
+
+def test_list_workspaces_with_filter(monkeypatch: Any, runner: CliRunner) -> None:
+    """Test listing workspaces with --filter flag for substring matching."""
+    patch_keyring(monkeypatch)
+
+    def mock_get(*a: Any, **kw: Any) -> Any:
+        class R:
+            def raise_for_status(self) -> None:
+                pass
+
+            def json(self) -> Any:
+                return {
+                    "workspaces": [
+                        {
+                            "id": "ws1",
+                            "name": "Production Workspace",
+                            "enabled": True,
+                            "default": False,
+                        },
+                        {
+                            "id": "ws2",
+                            "name": "Test Workspace",
+                            "enabled": True,
+                            "default": False,
+                        },
+                        {
+                            "id": "ws3",
+                            "name": "Production Data",
+                            "enabled": True,
+                            "default": False,
+                        },
+                    ],
+                    "totalCount": 3,
+                }
+
+        return R()
+
+    monkeypatch.setattr("requests.get", mock_get)
+    cli = make_cli()
+
+    # Test filter for "prod" (case-insensitive, substring match)
+    result = runner.invoke(cli, ["workspace", "list", "--filter", "prod"])
+    assert result.exit_code == 0
+    assert "Production Workspace" in result.output
+    assert "Production Data" in result.output
+    assert "Test Workspace" not in result.output
+
+
+def test_list_workspaces_filter_json(monkeypatch: Any, runner: CliRunner) -> None:
+    """Test --filter flag with JSON output."""
+    patch_keyring(monkeypatch)
+
+    def mock_get(*a: Any, **kw: Any) -> Any:
+        class R:
+            def raise_for_status(self) -> None:
+                pass
+
+            def json(self) -> Any:
+                return {
+                    "workspaces": [
+                        {
+                            "id": "ws1",
+                            "name": "Production A",
+                            "enabled": True,
+                            "default": False,
+                        },
+                        {
+                            "id": "ws2",
+                            "name": "Test B",
+                            "enabled": True,
+                            "default": False,
+                        },
+                        {
+                            "id": "ws3",
+                            "name": "Production C",
+                            "enabled": True,
+                            "default": False,
+                        },
+                    ],
+                    "totalCount": 3,
+                }
+
+        return R()
+
+    monkeypatch.setattr("requests.get", mock_get)
+    cli = make_cli()
+
+    result = runner.invoke(cli, ["workspace", "list", "--filter", "production", "--format", "json"])
+    assert result.exit_code == 0
+
+    output_data = json.loads(result.output)
+    assert len(output_data) == 2
+    assert all("Production" in ws["name"] for ws in output_data)
+
+
+def test_list_workspaces_pagination(monkeypatch: Any, runner: CliRunner) -> None:
+    """Test pagination with take=100 and skip parameters."""
+    patch_keyring(monkeypatch)
+
+    call_count = 0
+
+    def mock_get(*a: Any, **kw: Any) -> Any:
+        nonlocal call_count
+        call_count += 1
+
+        # Check that pagination parameters are being used
+        url = a[0] if a else ""
+        assert "take=100" in url or call_count == 1  # First call might vary
+
+        class R:
+            def raise_for_status(self) -> None:
+                pass
+
+            def json(self) -> Any:
+                if "skip=0" in url:
+                    # First page
+                    return {
+                        "workspaces": [
+                            {
+                                "id": f"ws{i}",
+                                "name": f"Workspace {i}",
+                                "enabled": True,
+                                "default": False,
+                            }
+                            for i in range(1, 101)
+                        ],
+                        "totalCount": 150,  # More workspaces available
+                    }
+                elif "skip=100" in url:
+                    # Second page
+                    return {
+                        "workspaces": [
+                            {
+                                "id": f"ws{i}",
+                                "name": f"Workspace {i}",
+                                "enabled": True,
+                                "default": False,
+                            }
+                            for i in range(101, 151)
+                        ],
+                        "totalCount": 150,
+                    }
+                else:
+                    return {"workspaces": [], "totalCount": 150}
+
+        return R()
+
+    monkeypatch.setattr("requests.get", mock_get)
+    cli = make_cli()
+
+    result = runner.invoke(cli, ["workspace", "list", "--take", "25"])
+    assert result.exit_code == 0
+    # Should have called pagination multiple times to get all workspaces
+    assert call_count >= 2
+
+
+def test_list_workspaces_filter_case_insensitive(monkeypatch: Any, runner: CliRunner) -> None:
+    """Test that --filter is case-insensitive."""
+    patch_keyring(monkeypatch)
+
+    def mock_get(*a: Any, **kw: Any) -> Any:
+        class R:
+            def raise_for_status(self) -> None:
+                pass
+
+            def json(self) -> Any:
+                return {
+                    "workspaces": [
+                        {
+                            "id": "ws1",
+                            "name": "MyWorkspace",
+                            "enabled": True,
+                            "default": False,
+                        },
+                        {
+                            "id": "ws2",
+                            "name": "YourWorkspace",
+                            "enabled": True,
+                            "default": False,
+                        },
+                    ],
+                    "totalCount": 2,
+                }
+
+        return R()
+
+    monkeypatch.setattr("requests.get", mock_get)
+    cli = make_cli()
+
+    # Test with uppercase filter
+    result = runner.invoke(cli, ["workspace", "list", "--filter", "MY"])
+    assert result.exit_code == 0
+    assert "MyWorkspace" in result.output
+
+    # Test with lowercase filter
+    result = runner.invoke(cli, ["workspace", "list", "--filter", "your"])
+    assert result.exit_code == 0
+    assert "YourWorkspace" in result.output
