@@ -1,7 +1,26 @@
 # CHANGELOG
 
 
+## v0.19.1 (2025-12-16)
+
+### Bug Fixes
+
+- Make file delete command consistent with other delete subcommands
+  ([#36](https://github.com/ni-kismet/systemlink-cli/pull/36),
+  [`f3c765d`](https://github.com/ni-kismet/systemlink-cli/commit/f3c765d499e714f4c4e346bf554367f912c91909))
+
+- Change 'file delete' from positional argument to --id/-i flag - All delete subcommands now use
+  consistent --id/-i flag pattern - Update tests to use new flag-based syntax - Update README
+  documentation with new command syntax - All tests passing (34 file tests + linting + type
+  checking)
+
+
 ## v0.19.0 (2025-12-16)
+
+### Chores
+
+- **release**: 0.19.0
+  ([`99391c5`](https://github.com/ni-kismet/systemlink-cli/commit/99391c5bf0f88bf68495a783e5a9dad22466fd0d))
 
 ### Features
 
