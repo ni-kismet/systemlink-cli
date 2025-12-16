@@ -563,7 +563,7 @@ def test_delete_file_success(monkeypatch: Any, runner: CliRunner) -> None:
     monkeypatch.setattr("requests.delete", mock_delete)
     cli = make_cli()
 
-    result = runner.invoke(cli, ["file", "delete", "file123"], input="y\n")
+    result = runner.invoke(cli, ["file", "delete", "--id", "file123"], input="y\n")
     assert result.exit_code == 0
     assert "deleted" in result.output.lower()
 
@@ -595,7 +595,7 @@ def test_delete_file_force(monkeypatch: Any, runner: CliRunner) -> None:
     monkeypatch.setattr("requests.delete", mock_delete)
     cli = make_cli()
 
-    result = runner.invoke(cli, ["file", "delete", "file123", "--force"])
+    result = runner.invoke(cli, ["file", "delete", "--id", "file123", "--force"])
     assert result.exit_code == 0
     assert "deleted" in result.output.lower()
 
@@ -623,7 +623,7 @@ def test_delete_file_cancelled(monkeypatch: Any, runner: CliRunner) -> None:
     monkeypatch.setattr("requests.post", mock_post)
     cli = make_cli()
 
-    result = runner.invoke(cli, ["file", "delete", "file123"], input="n\n")
+    result = runner.invoke(cli, ["file", "delete", "--id", "file123"], input="n\n")
     assert result.exit_code == 0
     assert "cancelled" in result.output.lower()
 

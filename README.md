@@ -1560,10 +1560,10 @@ slcli file download <file_id> --force
 
 ```bash
 # Delete a file (with confirmation)
-slcli file delete <file_id>
+slcli file delete --id <file_id>
 
 # Delete without confirmation
-slcli file delete <file_id> --force
+slcli file delete --id <file_id> --force
 ```
 
 ### Search files with a query
