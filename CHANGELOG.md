@@ -1,7 +1,43 @@
 # CHANGELOG
 
 
+## v0.19.0 (2025-12-16)
+
+### Features
+
+- Improve workspace list command with pagination and filtering
+  ([`1524f82`](https://github.com/ni-kismet/systemlink-cli/commit/1524f8236eec16369c7312768c6f1ee423e740cc))
+
+- Add _fetch_all_workspaces() helper with proper pagination using take=100 and skip - API's max take
+  parameter is 100, use skip and totalCount for multi-page retrieval - Add --filter flag for
+  case-insensitive substring matching on workspace names - Update disable_workspace and
+  get_workspace to use pagination helper - Update _get_workspace_map to use the helper for
+  consistency - Documentation updated with new filtering examples
+
+Changes: - slcli/workspace_click.py: Added pagination helper and --filter option - README.md:
+  Updated workspace list command examples with new features
+
+Testing: - All 266 unit tests passing - mypy type checking clean - linting clean
+
+### Testing
+
+- Add comprehensive tests for workspace pagination and filtering
+  ([`68adf16`](https://github.com/ni-kismet/systemlink-cli/commit/68adf16ea7956feda02f7359aca49816dbb42bc1))
+
+- test_list_workspaces_with_filter: Test --filter flag with substring matching -
+  test_list_workspaces_filter_json: Test --filter with JSON output format -
+  test_list_workspaces_pagination: Test pagination with skip/totalCount handling -
+  test_list_workspaces_filter_case_insensitive: Test case-insensitive filtering
+
+All tests pass (270 total, +4 new tests) mypy: clean linting: clean
+
+
 ## v0.18.0 (2025-12-15)
+
+### Chores
+
+- **release**: 0.18.0
+  ([`7a3a971`](https://github.com/ni-kismet/systemlink-cli/commit/7a3a971d6af6461caeeb4d829b7cb18ccf93a4eb))
 
 ### Features
 
