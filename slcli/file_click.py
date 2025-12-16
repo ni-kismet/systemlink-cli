@@ -451,17 +451,20 @@ def register_file_commands(cli: Any) -> None:
             handle_api_error(exc)
 
     @file.command(name="delete")
-    @click.argument("file_id")
+    @click.option(
+        "--id",
+        "-i",
+        "file_id",
+        required=True,
+        help="File ID to delete",
+    )
     @click.option(
         "--force",
         is_flag=True,
         help="Delete without confirmation",
     )
     def delete_file(file_id: str, force: bool = False) -> None:
-        """Delete a file.
-
-        FILE_ID is the unique identifier of the file to delete.
-        """
+        """Delete a file."""
         try:
             # Get file info first using query (no GET endpoint exists)
             metadata = _get_file_by_id(file_id)
