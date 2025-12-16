@@ -106,7 +106,10 @@ def test_webapp_list_with_filter(monkeypatch: MonkeyPatch) -> None:
 
     def mock_post(url: str, **kwargs: Any) -> MockResp:
         payload = kwargs.get("json", {})
-        assert payload.get("filter") == '(type == "WebVI") and (name.ToLower().Contains("appone"))'
+        filt = payload.get("filter", "")
+        assert '(type == "WebVI")' in filt
+        # New implementation avoids ToLower(); ensure one of the variants is present
+        assert 'name.Contains("appone")' in filt or 'name.Contains("Appone")' in filt
         return MockResp({"webapps": []})
 
     monkeypatch.setattr(requests, "post", mock_post)

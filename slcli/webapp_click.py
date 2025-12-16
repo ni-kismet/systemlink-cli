@@ -353,8 +353,18 @@ def register_webapp_commands(cli: Any) -> None:
                 base_filter = f'{base_filter} and workspace == "{ws_id}"'
 
             if filter_text:
-                term = filter_text.lower().replace("\\", "\\\\").replace('"', '\\"')
-                name_clause = f'name.ToLower().Contains("{term}")'
+                # Avoid ToLower() due to backend limitations; match common case variants
+                original = filter_text.replace("\\", "\\\\").replace('"', '\\"')
+                lower = original.lower()
+                upper = original.upper()
+                title = original.title()
+                variants = [
+                    f'name.Contains("{original}")',
+                    f'name.Contains("{lower}")',
+                    f'name.Contains("{upper}")',
+                    f'name.Contains("{title}")',
+                ]
+                name_clause = f"({' or '.join(variants)})"
                 base_filter = f"({base_filter}) and ({name_clause})"
 
             # If the user requested JSON output or did not request a specific take,
