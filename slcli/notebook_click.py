@@ -832,21 +832,25 @@ def register_notebook_commands(cli: Any) -> None:
             if filter_text:
                 # Build case-insensitive contains without ToLower() due to backend limitations.
                 # Match common variants: original, lower, upper, title-case.
-                original = filter_text.replace("\\", "\\\\").replace('"', '\\"')
-                lower = original.lower()
-                upper = original.upper()
-                title = original.title()
+                # Apply case transformations first, then escape each variant.
+                def _esc(s: str) -> str:
+                    return s.replace("\\", "\\\\").replace('"', '\\"')
+
+                original_raw = filter_text
+                lower_raw = original_raw.lower()
+                upper_raw = original_raw.upper()
+                title_raw = original_raw.title()
                 name_variants = [
-                    f'name.Contains("{original}")',
-                    f'name.Contains("{lower}")',
-                    f'name.Contains("{upper}")',
-                    f'name.Contains("{title}")',
+                    f'name.Contains("{_esc(original_raw)}")',
+                    f'name.Contains("{_esc(lower_raw)}")',
+                    f'name.Contains("{_esc(upper_raw)}")',
+                    f'name.Contains("{_esc(title_raw)}")',
                 ]
                 iface_variants = [
-                    f'properties.interface.Contains("{original}")',
-                    f'properties.interface.Contains("{lower}")',
-                    f'properties.interface.Contains("{upper}")',
-                    f'properties.interface.Contains("{title}")',
+                    f'properties.interface.Contains("{_esc(original_raw)}")',
+                    f'properties.interface.Contains("{_esc(lower_raw)}")',
+                    f'properties.interface.Contains("{_esc(upper_raw)}")',
+                    f'properties.interface.Contains("{_esc(title_raw)}")',
                 ]
                 filter_parts.append(
                     f"(({' or '.join(name_variants)}) or ({' or '.join(iface_variants)}))"

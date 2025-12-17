@@ -8,9 +8,9 @@ from typing import Any
 from click.testing import CliRunner
 from pytest import MonkeyPatch
 
+import slcli.utils as slutils
 from slcli.main import cli
 from slcli.platform import PLATFORM_SLE, PLATFORM_SLS
-from slcli.utils import ExitCodes
 from .test_utils import patch_keyring
 
 
@@ -47,9 +47,7 @@ def test_notebook_list(monkeypatch: MonkeyPatch) -> None:
         "_query_notebooks_http",
         mock_query_notebooks_http,
     )
-    import slcli.utils
-
-    monkeypatch.setattr(slcli.utils, "get_workspace_map", lambda: {})
+    monkeypatch.setattr(slutils, "get_workspace_map", lambda: {})
     result = runner.invoke(cli, ["notebook", "manage", "list"])
     if result.exit_code != 0:
         print(result.output)
@@ -64,7 +62,6 @@ def test_notebook_list_with_filter(monkeypatch: MonkeyPatch) -> None:
     patch_keyring(monkeypatch)
 
     import slcli.notebook_click
-    import slcli.utils
 
     captured: dict[str, Any] = {}
 
@@ -85,7 +82,7 @@ def test_notebook_list_with_filter(monkeypatch: MonkeyPatch) -> None:
     monkeypatch.setattr(
         slcli.notebook_click, "validate_workspace_access", mock_validate_workspace_access
     )
-    monkeypatch.setattr(slcli.utils, "get_workspace_map", lambda: {"ws-123": "WS"})
+    monkeypatch.setattr(slutils, "get_workspace_map", lambda: {"ws-123": "WS"})
     monkeypatch.setattr(slcli.notebook_click, "_query_notebooks_http", mock_query)
 
     result = runner.invoke(
@@ -205,7 +202,7 @@ def test_notebook_update_requires_payload(monkeypatch: MonkeyPatch) -> None:
 
     result = runner.invoke(cli, ["notebook", "manage", "update", "--id", "nb1"])
 
-    assert result.exit_code == ExitCodes.INVALID_INPUT
+    assert result.exit_code == slutils.ExitCodes.INVALID_INPUT
     assert "Must provide at least one" in result.output
 
 
@@ -222,7 +219,7 @@ def test_notebook_update_rejected_on_sls(monkeypatch: MonkeyPatch) -> None:
         ["notebook", "manage", "update", "--id", "nb1", "--metadata", __file__],
     )
 
-    assert result.exit_code == ExitCodes.INVALID_INPUT
+    assert result.exit_code == slutils.ExitCodes.INVALID_INPUT
     assert "not supported" in result.output
 
 
@@ -362,7 +359,7 @@ def test_set_notebook_interface_sls_not_supported(monkeypatch: MonkeyPatch) -> N
             "File Analysis",
         ],
     )
-    assert result.exit_code == ExitCodes.INVALID_INPUT
+    assert result.exit_code == slutils.ExitCodes.INVALID_INPUT
     assert "not supported" in result.output
 
 
@@ -385,13 +382,12 @@ def test_list_notebooks_with_interface(monkeypatch: MonkeyPatch) -> None:
     ]
 
     import slcli.notebook_click
-    import slcli.utils
 
     def mock_query(*args: Any, **kwargs: Any) -> list[dict[str, Any]]:
         return notebooks
 
     monkeypatch.setattr(slcli.notebook_click, "_query_notebooks_http", mock_query)
-    monkeypatch.setattr(slcli.utils, "get_workspace_map", lambda: {})
+    monkeypatch.setattr(slutils, "get_workspace_map", lambda: {})
 
     result = runner.invoke(cli, ["notebook", "manage", "list"])
     assert result.exit_code == 0
