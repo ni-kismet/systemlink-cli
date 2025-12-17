@@ -8,9 +8,9 @@ from typing import Any
 from click.testing import CliRunner
 from pytest import MonkeyPatch
 
+import slcli.utils as slutils
 from slcli.main import cli
 from slcli.platform import PLATFORM_SLE, PLATFORM_SLS
-from slcli.utils import ExitCodes
 from .test_utils import patch_keyring
 
 
@@ -47,15 +47,63 @@ def test_notebook_list(monkeypatch: MonkeyPatch) -> None:
         "_query_notebooks_http",
         mock_query_notebooks_http,
     )
-    import slcli.utils
-
-    monkeypatch.setattr(slcli.utils, "get_workspace_map", lambda: {})
+    monkeypatch.setattr(slutils, "get_workspace_map", lambda: {})
     result = runner.invoke(cli, ["notebook", "manage", "list"])
     if result.exit_code != 0:
         print(result.output)
     assert result.exit_code == 0
     assert "TestNotebook1" in result.output
     assert "TestNotebook2" in result.output
+
+
+def test_notebook_list_with_filter(monkeypatch: MonkeyPatch) -> None:
+    """Ensure custom filter combines with workspace filter."""
+    runner = CliRunner()
+    patch_keyring(monkeypatch)
+
+    import slcli.notebook_click
+
+    captured: dict[str, Any] = {}
+
+    def mock_validate_workspace_access(workspace: str, warn_on_error: bool = True) -> str:
+        return "ws-123"
+
+    def mock_query(filter_str: str | None = None, take: int = 1000) -> list[dict[str, Any]]:
+        captured["filter"] = filter_str
+        return [
+            {
+                "id": "abc123",
+                "name": "TestNotebook",
+                "workspace": "ws-123",
+                "properties": {"interface": "File Analysis"},
+            }
+        ]
+
+    monkeypatch.setattr(
+        slcli.notebook_click, "validate_workspace_access", mock_validate_workspace_access
+    )
+    monkeypatch.setattr(slutils, "get_workspace_map", lambda: {"ws-123": "WS"})
+    monkeypatch.setattr(slcli.notebook_click, "_query_notebooks_http", mock_query)
+
+    result = runner.invoke(
+        cli,
+        [
+            "notebook",
+            "manage",
+            "list",
+            "--workspace",
+            "Default",
+            "--filter",
+            "Test",
+        ],
+    )
+
+    assert result.exit_code == 0
+    built = captured.get("filter") or ""
+    assert 'workspace = "ws-123"' in built
+    # New implementation avoids ToLower() and uses multiple case variants
+    assert 'name.Contains("test")' in built or 'name.Contains("Test")' in built
+    assert "TestNotebook" in result.output
 
 
 def test_notebook_download_by_id(monkeypatch: MonkeyPatch) -> None:
@@ -154,7 +202,7 @@ def test_notebook_update_requires_payload(monkeypatch: MonkeyPatch) -> None:
 
     result = runner.invoke(cli, ["notebook", "manage", "update", "--id", "nb1"])
 
-    assert result.exit_code == ExitCodes.INVALID_INPUT
+    assert result.exit_code == slutils.ExitCodes.INVALID_INPUT
     assert "Must provide at least one" in result.output
 
 
@@ -171,7 +219,7 @@ def test_notebook_update_rejected_on_sls(monkeypatch: MonkeyPatch) -> None:
         ["notebook", "manage", "update", "--id", "nb1", "--metadata", __file__],
     )
 
-    assert result.exit_code == ExitCodes.INVALID_INPUT
+    assert result.exit_code == slutils.ExitCodes.INVALID_INPUT
     assert "not supported" in result.output
 
 
@@ -311,7 +359,7 @@ def test_set_notebook_interface_sls_not_supported(monkeypatch: MonkeyPatch) -> N
             "File Analysis",
         ],
     )
-    assert result.exit_code == ExitCodes.INVALID_INPUT
+    assert result.exit_code == slutils.ExitCodes.INVALID_INPUT
     assert "not supported" in result.output
 
 
@@ -334,13 +382,12 @@ def test_list_notebooks_with_interface(monkeypatch: MonkeyPatch) -> None:
     ]
 
     import slcli.notebook_click
-    import slcli.utils
 
     def mock_query(*args: Any, **kwargs: Any) -> list[dict[str, Any]]:
         return notebooks
 
     monkeypatch.setattr(slcli.notebook_click, "_query_notebooks_http", mock_query)
-    monkeypatch.setattr(slcli.utils, "get_workspace_map", lambda: {})
+    monkeypatch.setattr(slutils, "get_workspace_map", lambda: {})
 
     result = runner.invoke(cli, ["notebook", "manage", "list"])
     assert result.exit_code == 0

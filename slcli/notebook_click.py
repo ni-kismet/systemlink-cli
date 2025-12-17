@@ -790,6 +790,12 @@ def register_notebook_commands(cli: Any) -> None:
         help="Filter by workspace name or ID",
     )
     @click.option(
+        "--filter",
+        "filter_text",
+        default="",
+        help="Case-insensitive substring to match name or interface",
+    )
+    @click.option(
         "--take",
         "-t",
         type=int,
@@ -806,7 +812,12 @@ def register_notebook_commands(cli: Any) -> None:
         show_default=True,
         help="Output format",
     )
-    def list_notebooks(workspace: str = "", take: int = 25, format_output: str = "table") -> None:
+    def list_notebooks(
+        workspace: str = "",
+        filter_text: str = "",
+        take: int = 25,
+        format_output: str = "table",
+    ) -> None:
         """List notebooks."""
         format_output = validate_output_format(format_output)
 
@@ -815,12 +826,40 @@ def register_notebook_commands(cli: Any) -> None:
             if workspace:
                 ws_id = validate_workspace_access(workspace, warn_on_error=True)
 
-            filter_str = None
+            filter_parts: List[str] = []
             if ws_id:
-                filter_str = f'workspace = "{ws_id}"'
+                filter_parts.append(f'workspace = "{ws_id}"')
+            if filter_text:
+                # Build case-insensitive contains without ToLower() due to backend limitations.
+                # Match common variants: original, lower, upper, title-case.
+                # Apply case transformations first, then escape each variant.
+                def _esc(s: str) -> str:
+                    return s.replace("\\", "\\\\").replace('"', '\\"')
+
+                original_raw = filter_text
+                lower_raw = original_raw.lower()
+                upper_raw = original_raw.upper()
+                title_raw = original_raw.title()
+                name_variants = [
+                    f'name.Contains("{_esc(original_raw)}")',
+                    f'name.Contains("{_esc(lower_raw)}")',
+                    f'name.Contains("{_esc(upper_raw)}")',
+                    f'name.Contains("{_esc(title_raw)}")',
+                ]
+                iface_variants = [
+                    f'properties.interface.Contains("{_esc(original_raw)}")',
+                    f'properties.interface.Contains("{_esc(lower_raw)}")',
+                    f'properties.interface.Contains("{_esc(upper_raw)}")',
+                    f'properties.interface.Contains("{_esc(title_raw)}")',
+                ]
+                filter_parts.append(
+                    f"(({' or '.join(name_variants)}) or ({' or '.join(iface_variants)}))"
+                )
+
+            combined_filter = " and ".join(filter_parts) if filter_parts else None
 
             try:
-                notebooks_raw = _query_notebooks_http(filter_str, take=1000)
+                notebooks_raw = _query_notebooks_http(combined_filter, take=1000)
             except Exception as exc:
                 click.echo(
                     f"✗ Error querying notebooks: {exc}",

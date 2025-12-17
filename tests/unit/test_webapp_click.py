@@ -83,6 +83,47 @@ def test_webapp_list_shows_items(monkeypatch: MonkeyPatch) -> None:
     assert "AppOne" in result.output
 
 
+def test_webapp_list_with_filter(monkeypatch: MonkeyPatch) -> None:
+    """Ensure user filter is combined with base filter."""
+    runner = CliRunner()
+    patch_keyring(monkeypatch)
+
+    import requests
+
+    class MockResp:
+        def __init__(self, data: Dict[str, Any]):
+            self._data = data
+
+        def json(self) -> Dict[str, Any]:
+            return self._data
+
+        @property
+        def status_code(self) -> int:
+            return 200
+
+        def raise_for_status(self) -> None:
+            return None
+
+    def mock_post(url: str, **kwargs: Any) -> MockResp:
+        payload = kwargs.get("json", {})
+        filt = payload.get("filter", "")
+        assert '(type == "WebVI")' in filt
+        # New implementation avoids ToLower(); ensure one of the variants is present
+        assert 'name.Contains("appone")' in filt or 'name.Contains("Appone")' in filt
+        return MockResp({"webapps": []})
+
+    monkeypatch.setattr(requests, "post", mock_post)
+    import slcli.utils
+
+    monkeypatch.setattr(slcli.utils, "get_workspace_map", lambda: {})
+
+    result = runner.invoke(
+        cli,
+        ["webapp", "list", "--filter", "AppOne", "--format", "json"],
+    )
+    assert result.exit_code == 0
+
+
 def test_webapp_list_paging_default(monkeypatch: MonkeyPatch) -> None:
     """Default take should be 25 and the CLI should offer to show the next 25."""
     runner = CliRunner()

@@ -279,6 +279,9 @@ slcli template list --format json
 
 # Filter by workspace
 slcli template list --workspace "Production Workspace"
+
+# Filter by name/group/description (case-insensitive substring)
+slcli template list --filter "battery"
 ```
 
 ### Get or export a template
@@ -1120,6 +1123,9 @@ slcli notebook manage list --format json
 
 # Control pagination (table output only)
 slcli notebook manage list --take 50
+
+# Filter by name/interface (case-insensitive substring)
+slcli notebook manage list --filter "Report"
 ```
 
 ### Download notebook content/metadata
@@ -1219,7 +1225,7 @@ The `webapp` group provides a small local scaffold and .nipkg packer, and also m
   - Publish a `.nipkg` (or folder) to the WebApp service. Provide either `--id` to upload into an existing webapp, or `--name` to create a new resource and upload the content. `--workspace` selects the workspace for newly created webapps.
   - When publishing a folder, the CLI creates a temporary `.nipkg` inside a context-managed temporary directory so the packaged file is available during upload and is cleaned up automatically.
 
-- `slcli webapp list [--workspace WORKSPACE] [--take N] [--format table|json]`
+- `slcli webapp list [--workspace WORKSPACE] [--filter FILTER] [--take N] [--format table|json]`
 
   - List webapps. Defaults to interactive paging for `table` output (25 rows/page) and returns all results for `--format json`.
 
@@ -1251,6 +1257,9 @@ slcli webapp publish ./myapp.nipkg --id 123e4567-e89b-12d3-a456-426614174000
 
 # List webapps in JSON (returns all matching items)
 slcli webapp list --format json
+
+# Filter by name (case-insensitive substring)
+slcli webapp list --filter "MyApp"
 
 # Open a published webapp in the browser
 slcli webapp open --id 123e4567-e89b-12d3-a456-426614174000

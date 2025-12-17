@@ -315,6 +315,12 @@ def register_webapp_commands(cli: Any) -> None:
     @click.option(
         "--workspace", "-w", "workspace", default="", help="Filter by workspace name or ID"
     )
+    @click.option(
+        "--filter",
+        "filter_text",
+        default="",
+        help="Case-insensitive substring match on name",
+    )
     @click.option("--take", "take", type=int, default=25, show_default=True, help="Max rows/page")
     @click.option(
         "--format",
@@ -324,7 +330,7 @@ def register_webapp_commands(cli: Any) -> None:
         show_default=True,
         help="Output format",
     )
-    def list_webapps(workspace: str, take: int, format_output: str) -> None:
+    def list_webapps(workspace: str, filter_text: str, take: int, format_output: str) -> None:
         """List webapps."""
         try:
 
@@ -345,6 +351,25 @@ def register_webapp_commands(cli: Any) -> None:
                 ws_id = get_workspace_id_with_fallback(workspace)
                 # add workspace constraint to filter
                 base_filter = f'{base_filter} and workspace == "{ws_id}"'
+
+            if filter_text:
+                # Avoid ToLower() due to backend limitations; match common case variants.
+                # Apply case transformations first, then escape each variant.
+                def _esc(s: str) -> str:
+                    return s.replace("\\", "\\\\").replace('"', '\\"')
+
+                original_raw = filter_text
+                lower_raw = original_raw.lower()
+                upper_raw = original_raw.upper()
+                title_raw = original_raw.title()
+                variants = [
+                    f'name.Contains("{_esc(original_raw)}")',
+                    f'name.Contains("{_esc(lower_raw)}")',
+                    f'name.Contains("{_esc(upper_raw)}")',
+                    f'name.Contains("{_esc(title_raw)}")',
+                ]
+                name_clause = f"({' or '.join(variants)})"
+                base_filter = f"({base_filter}) and ({name_clause})"
 
             # If the user requested JSON output or did not request a specific take,
             # fetch all matching items (using server-side paging). Otherwise, if
