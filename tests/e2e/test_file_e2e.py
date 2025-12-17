@@ -159,7 +159,7 @@ class TestFileE2E:
             assert downloaded_content == original_content
 
             # Delete file
-            result = cli_runner(["file", "delete", file_id, "--force"])
+            result = cli_runner(["file", "delete", "--id", file_id, "--force"])
             cli_helper.assert_success(result)
             assert "Deleted" in result.stdout or "✓" in result.stdout
 

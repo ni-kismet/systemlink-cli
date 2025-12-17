@@ -451,30 +451,21 @@ def register_file_commands(cli: Any) -> None:
             handle_api_error(exc)
 
     @file.command(name="delete")
-    @click.argument("file_id", required=False)
     @click.option(
         "--id",
         "-i",
-        "file_id_opt",
-        required=False,
-        help="File ID to delete (can also be provided positionally)",
+        "file_id",
+        required=True,
+        help="File ID to delete",
     )
     @click.option(
         "--force",
         is_flag=True,
         help="Delete without confirmation",
     )
-    def delete_file(
-        file_id: Optional[str] = None, file_id_opt: Optional[str] = None, force: bool = False
-    ) -> None:
+    def delete_file(file_id: str, force: bool = False) -> None:
         """Delete a file."""
         try:
-            # Prefer positional ID, fall back to --id
-            if not file_id:
-                file_id = file_id_opt
-            if not file_id:
-                click.echo("✗ Missing file ID. Provide as positional arg or with --id.", err=True)
-                sys.exit(ExitCodes.INVALID_INPUT)
             # Get file info first using query (no GET endpoint exists)
             metadata = _get_file_by_id(file_id)
             if metadata is None:
