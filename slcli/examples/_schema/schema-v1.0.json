@@ -1,0 +1,163 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "title": "SLE Example Configuration Schema v1.0",
+  "type": "object",
+  "required": [
+    "format_version",
+    "name",
+    "title",
+    "resources"
+  ],
+  "properties": {
+    "format_version": {
+      "type": "string",
+      "enum": [
+        "1.0"
+      ],
+      "description": "Schema version"
+    },
+    "name": {
+      "type": "string",
+      "pattern": "^[a-z0-9-]+$",
+      "description": "Unique slug identifier (lowercase, hyphens, numbers)"
+    },
+    "title": {
+      "type": "string",
+      "description": "Human-readable example title"
+    },
+    "description": {
+      "type": "string",
+      "description": "Detailed description of what example includes"
+    },
+    "author": {
+      "type": "string",
+      "description": "Author/organization name"
+    },
+    "created_date": {
+      "type": "string",
+      "description": "ISO 8601 creation date (YYYY-MM-DD)"
+    },
+    "updated_date": {
+      "type": "string",
+      "description": "ISO 8601 update date (YYYY-MM-DD)"
+    },
+    "tags": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      },
+      "description": "Tags for categorization (training, beginner, etc.)"
+    },
+    "estimated_setup_time_minutes": {
+      "type": "integer",
+      "minimum": 1,
+      "description": "Estimated setup time in minutes"
+    },
+    "required_systemlink_version": {
+      "type": "string",
+      "description": "Minimum required SLE version (e.g., 2024.1)"
+    },
+    "target_workspace": {
+      "type": [
+        "string",
+        "null"
+      ],
+      "description": "Target workspace name or null for default"
+    },
+    "resources": {
+      "type": "array",
+      "items": {
+        "$ref": "#/definitions/resource"
+      },
+      "description": "Resources to provision in order"
+    },
+    "cleanup": {
+      "type": "object",
+      "properties": {
+        "order": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          },
+          "description": "Resource types to delete in this order"
+        },
+        "filter_tags": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          },
+          "description": "Only delete resources with these tags"
+        },
+        "require_confirmation": {
+          "type": "boolean",
+          "default": true,
+          "description": "Require confirmation before cleanup"
+        }
+      }
+    },
+    "validation": {
+      "type": "object",
+      "properties": {
+        "require_workspace": {
+          "type": "boolean",
+          "default": true,
+          "description": "Workspace must exist before install"
+        }
+      }
+    },
+    "post_install": {
+      "type": "object",
+      "properties": {
+        "instructions": {
+          "type": "string",
+          "description": "Post-install instructions for user"
+        }
+      }
+    }
+  },
+  "definitions": {
+    "resource": {
+      "type": "object",
+      "required": [
+        "type",
+        "name",
+        "properties",
+        "id_reference"
+      ],
+      "properties": {
+        "type": {
+          "type": "string",
+          "enum": [
+            "location",
+            "product",
+            "system",
+            "asset",
+            "dut",
+            "testtemplate"
+          ],
+          "description": "SLE resource type"
+        },
+        "name": {
+          "type": "string",
+          "description": "Resource name (displayed in SLE)"
+        },
+        "properties": {
+          "type": "object",
+          "description": "Resource-specific properties (API fields)"
+        },
+        "id_reference": {
+          "type": "string",
+          "pattern": "^[a-z_][a-z0-9_]*$",
+          "description": "Internal reference ID for interpolation (${ref_name})"
+        },
+        "tags": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          },
+          "description": "Tags for cleanup filtering and organization"
+        }
+      }
+    }
+  }
+}
