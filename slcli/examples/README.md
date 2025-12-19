@@ -7,6 +7,7 @@ This directory contains example configurations for quickly setting up demo resou
 ### demo-test-plans
 
 A complete example demonstrating the end-to-end test planning workflow. Includes:
+
 - 1 location (Demo HQ)
 - 1 product (Demo Widget Pro)
 - 2 systems (Test Stand 1 & 2)
@@ -26,19 +27,24 @@ slcli example list
 slcli example info demo-test-plans
 
 # Preview what would be created (dry-run)
-slcli example install demo-test-plans --dry-run
+slcli example install demo-test-plans -w <workspace-id> --dry-run
 
-# Create resources (requires confirmation)
-slcli example install demo-test-plans
+# Create resources in a specific workspace (name or ID)
+slcli example install demo-test-plans -w <workspace>
+# Write an audit log of provisioning results
+slcli example install demo-test-plans -w <workspace> --audit-log install-log.json --format json
 
-# Delete example resources
-slcli example delete demo-test-plans --dry-run
-slcli example delete demo-test-plans --force
+# Delete example resources from a workspace
+slcli example delete demo-test-plans -w <workspace-id> --dry-run
+slcli example delete demo-test-plans -w <workspace>
+# Write an audit log of deletion results
+slcli example delete demo-test-plans -w <workspace> --audit-log delete-log.json --format json
 ```
 
 ## Creating New Examples
 
 1. Create a new directory in `examples/`:
+
    ```
    examples/my-example/
    ├── config.yaml          # Example configuration
@@ -72,11 +78,11 @@ resources:
       # API-specific fields
     id_reference: "loc_ref"
     tags: ["example"]
-  
+
   - type: "system"
     name: "System Name"
     properties:
-      location_id: "${loc_ref}"  # Reference resolution
+      location_id: "${loc_ref}" # Reference resolution
     id_reference: "sys_ref"
     tags: ["example"]
 

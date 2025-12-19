@@ -13,7 +13,7 @@ Implement a local example configuration system that allows users to provision pr
 
 **Key goals:**
 
-- Simple to use: `slcli example install demo-test-plans`
+- Simple to use: `slcli example install demo-test-plans -w <workspace-id>`
 - Easy to extend: Add new examples by dropping a YAML file
 - Safe: Validate before provisioning; support cleanup
 - Maintainable: Schema versioning; minimal CLI logic
@@ -84,8 +84,8 @@ tags:
 estimated_setup_time_minutes: 5
 required_systemlink_version: "2024.1" # Minimum SLE version
 
-# Optional: workspace targeting (if different from CLI default)
-target_workspace: null # null = use CLI default
+# Optional: workspace targeting (informational; CLI requires -w)
+target_workspace: null
 
 # Resource definitions in dependency order
 resources:
@@ -209,7 +209,7 @@ cleanup:
   # Only delete resources with these tags (for safety)
   filter_tags: ["demo"]
 
-  # If true, require --force to cleanup
+  # If true, require confirmation to cleanup (use -y to skip)
   require_confirmation: true
 
 # Validation rules
@@ -280,7 +280,7 @@ post_install:
 **Deliverables:**
 
 1. `example_provisioner.py` - Provision resources to SLE
-2. `slcli example install` command with `--dry-run` and `--force`
+2. `slcli example install` command with `--dry-run` and `--yes`
 3. Provisioning for all Phase 1 resource types
 4. Error handling with rollback
 5. ID reference tracking
@@ -288,8 +288,8 @@ post_install:
 
 **Acceptance Criteria:**
 
-- `slcli example install demo-test-plans --dry-run` validates without creating
-- `slcli example install demo-test-plans` provisions all resources
+- `slcli example install demo-test-plans -w <workspace-id> --dry-run` validates without creating
+- `slcli example install demo-test-plans -w <workspace-id>` provisions all resources
 - Resources created match config; IDs tracked correctly
 - Error in resource N doesn't crash; partial rollback support
 - E2E test confirms resources exist in SLE after install
@@ -302,7 +302,7 @@ post_install:
 
 **Deliverables:**
 
-1. `slcli example delete` command
+1. `slcli example delete` command (with `--filter-tag` support)
 2. Cleanup in reverse dependency order
 3. Tag-based filtering (only delete demo-tagged resources)
 4. Audit logging (what was created/deleted)
@@ -311,8 +311,8 @@ post_install:
 
 **Acceptance Criteria:**
 
-- `slcli example delete demo-test-plans --dry-run` shows what would be deleted
-- `slcli example delete demo-test-plans --force` deletes all demo resources
+- `slcli example delete demo-test-plans -w <workspace-id> --dry-run` shows what would be deleted
+- `slcli example delete demo-test-plans -w <workspace-id> -y --filter-tag demo` deletes demo-tagged resources
 - Deletion respects tag filter
 - Audit log records all actions
 - No orphaned resources left behind
@@ -626,7 +626,7 @@ def register_example_commands(cli: Any) -> None:
                   help="Target workspace (default: Default workspace)")
     @click.option("--dry-run", is_flag=True,
                   help="Validate config without provisioning")
-    @click.option("--force", is_flag=True,
+    @click.option("--yes", "-y", is_flag=True,
                   help="Skip confirmation prompt")
     def install_example(
         example_name: str,
@@ -640,12 +640,12 @@ def register_example_commands(cli: Any) -> None:
         test templates, etc.) in the specified workspace.
 
         Use --dry-run to validate without creating resources.
-        Use --force to skip the confirmation prompt.
+        Use -y/--yes to skip the confirmation prompt.
 
         Example:
-            slcli example install demo-test-plans
-            slcli example install demo-test-plans --dry-run
-            slcli example install demo-test-plans --workspace Production --force
+            slcli example install demo-test-plans -w Production
+            slcli example install demo-test-plans -w Production --dry-run
+            slcli example install demo-test-plans -w Production -y --audit-file install.json
         """
 
     @example.command(name="delete")
@@ -654,7 +654,7 @@ def register_example_commands(cli: Any) -> None:
                   help="Target workspace (default: Default workspace)")
     @click.option("--dry-run", is_flag=True,
                   help="Show what would be deleted without deleting")
-    @click.option("--force", is_flag=True,
+    @click.option("--yes", "-y", is_flag=True,
                   help="Skip confirmation prompt")
     def delete_example(
         example_name: str,
@@ -670,12 +670,12 @@ def register_example_commands(cli: Any) -> None:
         Only deletes resources with tags matching the example.
 
         Use --dry-run to preview what would be deleted.
-        Use --force to skip the confirmation prompt.
+        Use -y/--yes to skip the confirmation prompt.
 
         Example:
-            slcli example delete demo-test-plans
-            slcli example delete demo-test-plans --dry-run
-            slcli example delete demo-test-plans --force
+            slcli example delete demo-test-plans -w Production
+            slcli example delete demo-test-plans -w Production --dry-run
+            slcli example delete demo-test-plans -w Production -y --filter-tag demo --audit-file delete.json
         """
 ```
 
@@ -762,7 +762,7 @@ cleanup:
 - `info` command shows details ✓
 - `install --dry-run` validates without creating ✓
 - `install` prompts for confirmation ✓
-- `install --force` skips confirmation ✓
+- `install -y/--yes` skips confirmation ✓
 - `delete --dry-run` shows deletion plan ✓
 - Help text accessible ✓
 
@@ -925,10 +925,10 @@ cleanup:
 
 - [ ] `slcli example list` works
 - [ ] `slcli example info <name>` works
-- [ ] `slcli example install <name>` creates resources
-- [ ] `slcli example install <name> --dry-run` validates
-- [ ] `slcli example delete <name>` removes resources
-- [ ] `slcli example delete <name> --dry-run` shows plan
+- [ ] `slcli example install <name> -w <workspace>` creates resources
+- [ ] `slcli example install <name> -w <workspace> --dry-run` validates
+- [ ] `slcli example delete <name> -w <workspace>` removes resources
+- [ ] `slcli example delete <name> -w <workspace> --dry-run` shows plan
 - [ ] Cleanup respects tags (only deletes demo resources)
 - [ ] Audit logs recorded
 

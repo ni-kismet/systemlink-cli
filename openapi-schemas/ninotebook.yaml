@@ -1,0 +1,412 @@
+openapi: 3.0.1
+info:
+  version: '1.0'
+  title: SystemLink Notebook Service
+  contact:
+    name: NI
+    url: https://www.ni.com/systemlink
+    email: support@ni.com
+components:
+  securitySchemes:
+    ApiKeyAuth:
+      type: apiKey
+      name: x-ni-api-key
+      in: header
+  parameters:
+    notebookId:
+      in: path
+      name: id
+      description: The notebook identifier
+      required: true
+      schema:
+        type: string
+  responses:
+    Error:
+      description: Error
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/Error'
+    Unauthorized:
+      description: API Key is missing or invalid
+    NotFound:
+      description: The resource was not found.
+    ValidationError:
+      description: Invalid input data
+    GetNotebookResponse:
+      description: Get Notebook Response
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/notebook'
+    CreateNotebookResponse:
+      description: Create Notebook Response
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/notebook'
+    UpdateNotebookResponse:
+      description: Update Notebook Response
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/notebook'
+    NotebookQueryResponse:
+      description: Query Notebook Response
+      content:
+        application/json:
+          schema:
+            type: object
+            title: Query Notebook Response
+            properties:
+              notebook:
+                description: List of Notebooks
+                type: array
+                items:
+                  $ref: '#/components/schemas/notebook'
+              continuationToken:
+                description: The continuation token can be used to paginate through the notebooks query results. Provide this token in the next query notebooks call.
+                type: string
+                example: P60TXHCmhXZtsccgwEUs11nB-kg3Rej4ytHhcRodrxUs5LFSJENr_ukSjXZvdsa3P0hslNb8VpNKqFX4-s3D9zJAyJJI
+  schemas:
+    notebook:
+      type: object
+      title: notebook Metadata
+      properties:
+        id:
+          type: string
+          description: The notebook Id
+          example: "hhjyty-17a6-45323-b64b-65325287372d"
+        name:
+          type: string
+          description: The notebook name
+          example: My notebook.ipynb
+        workspace:
+          type: string
+          description: The Id of the workspace containing the notebook
+          example: 0c80cf49-54e9-4e92-b117-3bfa574caa84
+        createdBy:
+          type: string
+          description: The Id of the user that created the notebook
+          example: d4f6b766-da45-4fe5-85c5-bd745c402cf9
+        updatedBy:
+          type: string
+          description: The Id of the user that created the notebook
+          example: d4f6b766-da45-4fe5-85c5-bd745c402cf9
+        createdAt:
+          type: string
+          format: date-time
+          description: The created timestamp (ISO8601 format)
+          example: "2019-12-02T15:31:45.379Z"
+        updatedAt:
+          type: string
+          format: date-time
+          description: The last updated timestamp (ISO8601 format)
+          example: "2019-12-02T15:31:45.379Z"
+        properties:
+          type: object
+          description: A map of key value properties associated with the notebook
+          example:
+            key1: value1
+            key2: value2
+        metadata:
+          type: object
+          description: The metadata of the notebook
+          example:
+            outputs:
+              - display_name: "Output"
+                id: "output"
+                type: "scalar"
+            parameters:
+              - display_name: "Parameter1"
+                id: "parameter1"
+                type: "string"
+              - display_name: "Parameter2"
+                id: "parameter2"
+                type: "string[]"
+        parameters:
+          type: object
+          description: The parameters of the notebook
+          example:
+            parameter1: ""
+            parameter2: []
+    notebookContent:
+      type: string
+      format: binary
+      title: notebook Content
+      description: The notebook binary content.
+    notebookRequestMetadata:
+      type: object
+      description: The metadata of the notebook. Refer to schemas section below for more details.
+      required:
+        - name
+      properties:
+        name:
+          type: string
+          description: The notebook's name
+          example: My notebook.ipynb
+        workspace:
+          type: string
+          description: The workspace Id for the notebook. If this is not specified, the notebook will remain in its existing workspace.
+          example: 0c80cf49-54e9-4e92-b117-3bfa574caa84
+        properties:
+          type: object
+          description: A map of key value properties associated with the notebook
+          additionalProperties:
+            type: string
+          example:
+            key1: value1
+    notebookQueryRequest:
+      type: object
+      title: Query Notebooks Request
+      properties:
+        filter:
+          description: >
+            The filter criteria for notebook, consisting of a string of queries composed using AND/OR operators.
+            String values need to be enclosed in double quotes.
+            Parenthesis can be used within the filter to better define the order of operations.
+
+            Filter syntax: '[property name][operator][operand] and [property name][operator][operand]'
+
+            Operators:
+
+            - Equals operator '='. Example: 'x = y'
+
+            - Not equal operator '!='. Example: 'x != y'
+
+            - Greater than operator '>'. Example: 'x > y'
+
+            - Greater than or equal operator '>='. Example: 'x >= y'
+
+            - Less than operator '<'. Example: 'x < y'
+
+            - Less than or equal operator '<='. Example: 'x <= y'
+
+            - Logical AND operator 'and'. Example: 'x and y'
+
+            - Logical OR operator 'or'. Example: 'x or y'
+
+            - Starts with operator '.StartsWith()', used to check whether a string starts with another string. Example: 'x.StartsWith(y)'
+
+            - Does not start with operator '!.StartsWith()', used to check whether a string does not start with another string. Example: '!x.StartsWith(y)'
+
+            - String null or empty 'string.IsNullOrEmpty()', used to check whether a string is null or empty. Example: 'string.IsNullOrEmpty(x)'
+
+            - String is not null or empty '!string.IsNullOrEmpty()', used to check whether a string is not null or empty. Example: '!string.IsNullOrEmpty(x)'
+
+            Valid notebook properties that can be used in the filter:
+
+            - id
+
+            - name
+
+            - properties.interface
+
+            - workspace
+          type: string
+          example: name.StartsWith("mynotebook") && (properties.interface = "interface1" || properties.interface = "interface2")
+        take:
+          description: The maximum number of notebooks to return
+          type: integer
+          default: 100
+          minimum: 1
+          maximum: 1000
+          example: 10
+        continuationToken:
+          description: The continuation token can be used to paginate through the notebook query results. Provide this token in the next query notebook call.
+          type: string
+          example: P60TXHCmhXZtsccgwEUs11nB-kg3Rej4ytHhcRodrxUs5LFSJENr_ukSjXZvdsa3P0hslNb8VpNKqFX4-s3D9zJAyJJI
+    Error:
+      type: object
+      description: Contains error information
+      properties:
+        name:
+          type: string
+          description: String error code
+        code:
+          type: integer
+          description: Numeric error code
+        message:
+          type: string
+          description: Complete error message
+        args:
+          type: array
+          items:
+            type: string
+          description: Positional argument values for the error code
+        innerErrors:
+          type: array
+          items:
+            $ref: '#/components/schemas/Error'
+      example:
+        name: Skyline.OneOrMoreErrorsOccurred
+        code: -251041
+        message: >
+          One or more errors occurred. See the contained list for details of each
+          error.
+        args: []
+        innerErrors:
+          - name: Notebook.NotFound
+            code: -252520
+            message: The specified notebook was not found.
+            args: []
+paths:
+  /ninotebook/v1/notebook/{id}:
+    get:
+      tags:
+        - notebook
+      summary: Get notebook metadata by Id
+      description: Get notebook metadata by Id
+      operationId: get-notebook
+      parameters:
+        - $ref: '#/components/parameters/notebookId'
+      responses:
+        200:
+          $ref: '#/components/responses/GetNotebookResponse'
+        401:
+          $ref: '#/components/responses/Unauthorized'
+        404:
+          $ref: '#/components/responses/NotFound'
+        default:
+          $ref: '#/components/responses/Error'
+    put:
+      tags:
+        - notebook
+      summary: Update notebook by Id
+      description: Update existing notebook
+      operationId: update-notebook
+      parameters:
+        - $ref: '#/components/parameters/notebookId'
+      requestBody:
+        required: true
+        content:
+          multipart/form-data:
+            schema:
+              type: object
+              properties:
+                metadata:
+                  $ref: '#/components/schemas/notebookRequestMetadata'
+                content:
+                  $ref: '#/components/schemas/notebookContent'
+              oneOf:
+                - required: ["metadata"]
+                - required: ["content"]
+                - required: ["metadata", "content"]
+            encoding:
+              metadata:
+                contentType: application/json
+              content:
+                contentType: application/octet-stream
+      responses:
+        200:
+          $ref: '#/components/responses/UpdateNotebookResponse'
+        400:
+          $ref: '#/components/responses/ValidationError'
+        401:
+          $ref: '#/components/responses/Unauthorized'
+        404:
+          $ref: '#/components/responses/NotFound'
+        default:
+          $ref: '#/components/responses/Error'
+    delete:
+      tags:
+        - notebook
+      summary: Delete notebook by Id
+      description: Delete existing notebook metadata and content
+      operationId: delete-notebook
+      parameters:
+        - $ref: '#/components/parameters/notebookId'
+      responses:
+        204:
+          description: Success
+        401:
+          $ref: '#/components/responses/Unauthorized'
+        404:
+          $ref: '#/components/responses/NotFound'
+        default:
+          $ref: '#/components/responses/Error'
+  /ninotebook/v1/notebook:
+    post:
+      tags:
+        - notebook
+      summary: Create a new notebook
+      description: Create a new notebook
+      operationId: create-notebook
+      requestBody:
+        required: true
+        content:
+          multipart/form-data:
+            schema:
+              type: object
+              properties:
+                metadata:
+                  $ref: '#/components/schemas/notebookRequestMetadata'
+                content:
+                  $ref: '#/components/schemas/notebookContent'
+              required:
+                - metadata
+                - content
+            encoding:
+              metadata:
+                contentType: application/json
+              content:
+                contentType: application/octet-stream
+      responses:
+        200:
+          $ref: '#/components/responses/CreateNotebookResponse'
+        401:
+          $ref: '#/components/responses/Unauthorized'
+        default:
+          $ref: '#/components/responses/Error'
+  /ninotebook/v1/notebook/query:
+    post:
+      tags:
+        - notebook
+      summary: Query notebooks
+      description: >
+        Use the Dynamic Linq query language to specify filters for notebooks.
+        An empty request body queries all notebooks.
+      operationId: query
+      requestBody:
+        description: Query Notebooks Request
+        required: false
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/notebookQueryRequest'
+      responses:
+        200:
+          $ref: '#/components/responses/NotebookQueryResponse'
+        400:
+          $ref: '#/components/responses/ValidationError'
+        401:
+          $ref: '#/components/responses/Unauthorized'
+        default:
+          $ref: '#/components/responses/Error'
+  /ninotebook/v1/notebook/{id}/content:
+    get:
+      tags:
+        - notebook
+      summary: Get notebook content
+      description: Get the content of a notebook.
+      operationId: get-content
+      parameters:
+        - $ref: '#/components/parameters/notebookId'
+      responses:
+        200:
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/notebookContent'
+            application/octet-stream:
+              schema:
+                $ref: '#/components/schemas/notebookContent'
+        401:
+          $ref: '#/components/responses/Unauthorized'
+        404:
+          $ref: '#/components/responses/NotFound'
+        default:
+          $ref: '#/components/responses/Error'
+security:
+  - ApiKeyAuth: []

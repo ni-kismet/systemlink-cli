@@ -1,0 +1,875 @@
+{
+  "openapi": "3.0.4",
+  "info": {
+    "title": "SystemLink Routine Manager",
+    "description": "Creates and manages routines that run notebooks against SystemLink resources.",
+    "contact": {
+      "name": "NI",
+      "url": "https://www.ni.com/systemlink",
+      "email": "support@ni.com"
+    },
+    "version": "1"
+  },
+  "paths": {
+    "/niroutine": {
+      "get": {
+        "tags": [
+          "RootEndpoint"
+        ],
+        "summary": "Returns information about API versions and available operations.",
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Versions"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/niroutine/v1": {
+      "get": {
+        "tags": [
+          "RootEndpoint"
+        ],
+        "summary": "Returns information and available operations for version 1 of the API.",
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Version"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/niroutine/v1/routines": {
+      "post": {
+        "tags": [
+          "Routine"
+        ],
+        "summary": "Creates a new routine that triggers a Jupyter notebook execution",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CreateRoutineRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "Created",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Routine"
+                }
+              }
+            }
+          },
+          "default": {
+            "description": "Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/BaseResponse"
+                }
+              }
+            }
+          }
+        }
+      },
+      "get": {
+        "tags": [
+          "Routine"
+        ],
+        "summary": "Query routines that trigger Jupyter notebook executions",
+        "parameters": [
+          {
+            "name": "Enabled",
+            "in": "query",
+            "description": "Returns only routines with matching Enabled field if this value is set",
+            "schema": {
+              "type": "boolean",
+              "example": false
+            },
+            "example": false
+          },
+          {
+            "name": "Type",
+            "in": "query",
+            "description": "Returns only routines with matching Type field if this value is set",
+            "schema": {
+              "enum": [
+                "TRIGGERED",
+                "SCHEDULED"
+              ],
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ListRoutinesResponse"
+                }
+              }
+            }
+          },
+          "default": {
+            "description": "Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/BaseResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/niroutine/v1/routines/{id}": {
+      "get": {
+        "tags": [
+          "Routine"
+        ],
+        "summary": "Query routines by id that trigger Jupyter notebook executions",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Routine"
+                }
+              }
+            }
+          },
+          "default": {
+            "description": "Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/BaseResponse"
+                }
+              }
+            }
+          }
+        }
+      },
+      "patch": {
+        "tags": [
+          "Routine"
+        ],
+        "summary": "Updates a routine that triggers a Jupyter notebook execution",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/UpdateRoutineRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "OK"
+          },
+          "401": {
+            "description": "Unauthorized",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Forbidden",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Not Found",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Conflict",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "default": {
+            "description": "Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/BaseResponse"
+                }
+              }
+            }
+          }
+        }
+      },
+      "delete": {
+        "tags": [
+          "Routine"
+        ],
+        "summary": "Delete a routine by id",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": "No content"
+          },
+          "default": {
+            "description": "Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/BaseResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/niroutine/v1/routines/{id}/execution": {
+      "get": {
+        "tags": [
+          "Routine"
+        ],
+        "summary": "Get execution definition by the routine id",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/GetExecutionDefinitionResponse"
+                }
+              }
+            }
+          },
+          "default": {
+            "description": "Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/BaseResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    }
+  },
+  "components": {
+    "schemas": {
+      "BaseResponse": {
+        "type": "object",
+        "properties": {
+          "error": {
+            "$ref": "#/components/schemas/HttpError"
+          }
+        },
+        "additionalProperties": false
+      },
+      "CreateRoutineRequest": {
+        "required": [
+          "execution",
+          "name",
+          "type"
+        ],
+        "type": "object",
+        "properties": {
+          "name": {
+            "maxLength": 100,
+            "minLength": 0,
+            "type": "string",
+            "description": "Name of the routine",
+            "example": "Example routine"
+          },
+          "description": {
+            "maxLength": 500,
+            "minLength": 0,
+            "type": "string",
+            "description": "Description of the routine",
+            "default": "",
+            "nullable": true,
+            "example": "An example routine"
+          },
+          "workspace": {
+            "type": "string",
+            "description": "The ID of workspace this routine belongs to",
+            "nullable": true,
+            "example": "846e294a-a007-47ac-9fc2-fac07eab240e"
+          },
+          "enabled": {
+            "type": "boolean",
+            "description": "Indicates whether the routine is enabled or not",
+            "default": false,
+            "example": false
+          },
+          "type": {
+            "enum": [
+              "TRIGGERED",
+              "SCHEDULED"
+            ],
+            "type": "string",
+            "description": "The routine type"
+          },
+          "trigger": {
+            "$ref": "#/components/schemas/Trigger"
+          },
+          "schedule": {
+            "$ref": "#/components/schemas/Schedule"
+          },
+          "execution": {
+            "$ref": "#/components/schemas/Execution"
+          }
+        },
+        "additionalProperties": false,
+        "description": "Creation information of a routine."
+      },
+      "Execution": {
+        "required": [
+          "type"
+        ],
+        "type": "object",
+        "properties": {
+          "type": {
+            "enum": [
+              "NOTEBOOK"
+            ],
+            "type": "string",
+            "description": "Type of execution",
+            "example": "NOTEBOOK"
+          },
+          "definition": {
+            "type": "object",
+            "additionalProperties": {
+              "type": "string"
+            },
+            "description": "Defines the execution. The dictionary must contain a \"notebookId\" key with the notebook ID as the value.",
+            "nullable": true,
+            "example": {
+              "notebookId": "f3244a09-8755-4ad9-8ed3-79faa2fda095"
+            }
+          }
+        },
+        "additionalProperties": false,
+        "description": "The execution details of the routine"
+      },
+      "GetExecutionDefinitionResponse": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "description": "The auto-generated ID of the routine",
+            "nullable": true,
+            "example": "dbd3bb57-73be-41d9-b9d3-7f4d87c2c71f"
+          },
+          "createdBy": {
+            "type": "string",
+            "description": "ID of user that created the routine",
+            "nullable": true,
+            "example": "10fd52a2-c502-4090-939a-9c9374f9a3ad"
+          },
+          "workspace": {
+            "type": "string",
+            "description": "The ID of workspace this routine belongs to",
+            "nullable": true,
+            "example": "846e294a-a007-47ac-9fc2-fac07eab240e"
+          },
+          "execution": {
+            "$ref": "#/components/schemas/Execution"
+          }
+        },
+        "additionalProperties": false,
+        "description": "Model of a routine that triggers the execution of Jupyter notebooks"
+      },
+      "HttpError": {
+        "type": "object",
+        "properties": {
+          "name": {
+            "type": "string",
+            "nullable": true
+          },
+          "code": {
+            "type": "integer",
+            "format": "int32",
+            "nullable": true
+          },
+          "message": {
+            "type": "string",
+            "nullable": true
+          },
+          "resourceType": {
+            "type": "string",
+            "nullable": true
+          },
+          "resourceId": {
+            "type": "string",
+            "nullable": true
+          },
+          "args": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            },
+            "nullable": true
+          },
+          "innerErrors": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/HttpError"
+            },
+            "nullable": true
+          }
+        },
+        "additionalProperties": false
+      },
+      "ListRoutinesResponse": {
+        "type": "object",
+        "properties": {
+          "routines": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/Routine"
+            },
+            "description": "The collection of returned routines.",
+            "nullable": true
+          }
+        },
+        "additionalProperties": false,
+        "description": "Model of a response to a request to list routines."
+      },
+      "Operation": {
+        "type": "object",
+        "properties": {
+          "available": {
+            "type": "boolean",
+            "description": "Whether the operation is available to the caller.",
+            "example": true
+          },
+          "version": {
+            "type": "integer",
+            "description": "Version of the available operation.",
+            "format": "int32",
+            "default": 1,
+            "example": 1
+          }
+        },
+        "additionalProperties": false,
+        "description": "Operation information"
+      },
+      "Operations": {
+        "type": "object",
+        "properties": {
+          "queryRoutines": {
+            "$ref": "#/components/schemas/Operation"
+          },
+          "createRoutine": {
+            "$ref": "#/components/schemas/Operation"
+          },
+          "deleteRoutine": {
+            "$ref": "#/components/schemas/Operation"
+          },
+          "editRoutine": {
+            "$ref": "#/components/schemas/Operation"
+          }
+        },
+        "additionalProperties": false,
+        "description": "Available operations in the V1 version of the API."
+      },
+      "ProblemDetails": {
+        "type": "object",
+        "properties": {
+          "type": {
+            "type": "string",
+            "nullable": true
+          },
+          "title": {
+            "type": "string",
+            "nullable": true
+          },
+          "status": {
+            "type": "integer",
+            "format": "int32",
+            "nullable": true
+          },
+          "detail": {
+            "type": "string",
+            "nullable": true
+          },
+          "instance": {
+            "type": "string",
+            "nullable": true
+          }
+        },
+        "additionalProperties": { }
+      },
+      "Routine": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "description": "The auto-generated ID of the routine",
+            "nullable": true,
+            "example": "fe920104-2b5b-41ed-8074-82d73182cde1"
+          },
+          "createdBy": {
+            "type": "string",
+            "description": "ID of user that created the routine",
+            "nullable": true,
+            "example": "10fd52a2-c502-4090-939a-9c9374f9a3ad"
+          },
+          "updatedBy": {
+            "type": "string",
+            "description": "ID of user that updated the routine",
+            "nullable": true,
+            "example": "10fd52a2-c502-4090-939a-9c9374f9a3ad"
+          },
+          "created": {
+            "type": "string",
+            "description": "ISO-formatted timestamp of the creation",
+            "format": "date-time",
+            "example": "2022-11-14T17:14:50.0567096Z"
+          },
+          "updated": {
+            "type": "string",
+            "description": "ISO-formatted timestamp of the last time the routine was edited",
+            "format": "date-time",
+            "example": "2022-11-14T17:14:50.0567096Z"
+          },
+          "name": {
+            "type": "string",
+            "description": "Name of the routine",
+            "nullable": true,
+            "example": "Example routine"
+          },
+          "description": {
+            "type": "string",
+            "description": "Description of the routine",
+            "nullable": true,
+            "example": "An example routine"
+          },
+          "workspace": {
+            "type": "string",
+            "description": "The ID of workspace this routine belongs to",
+            "nullable": true,
+            "example": "846e294a-a007-47ac-9fc2-fac07eab240e"
+          },
+          "enabled": {
+            "type": "boolean",
+            "description": "Indicates whether the routine is enabled or not",
+            "example": false
+          },
+          "type": {
+            "enum": [
+              "TRIGGERED",
+              "SCHEDULED"
+            ],
+            "type": "string",
+            "description": "The type of the routine.",
+            "example": "TRIGGERED"
+          },
+          "trigger": {
+            "$ref": "#/components/schemas/Trigger"
+          },
+          "schedule": {
+            "$ref": "#/components/schemas/Schedule"
+          },
+          "execution": {
+            "$ref": "#/components/schemas/Execution"
+          }
+        },
+        "additionalProperties": false,
+        "description": "Model of a routine that triggers the execution of Jupyter notebooks"
+      },
+      "Schedule": {
+        "required": [
+          "repeat",
+          "startTime"
+        ],
+        "type": "object",
+        "properties": {
+          "startTime": {
+            "type": "string",
+            "description": "The schedule start timestamp in UTC format",
+            "format": "date-time",
+            "example": "2022-11-14T18:23:37.1408393Z"
+          },
+          "repeat": {
+            "enum": [
+              "RUN_ONCE",
+              "HOUR",
+              "DAY",
+              "WEEK",
+              "MONTH"
+            ],
+            "type": "string",
+            "description": "Specifies how frequently the routine execution repeats",
+            "example": "RUN_ONCE"
+          }
+        },
+        "additionalProperties": false,
+        "description": "The routine schedule. This field is required and always set for routines that have the RoutineType.Scheduled type.\nThis field is mutually exclusive with Trigger."
+      },
+      "Trigger": {
+        "required": [
+          "events",
+          "filter",
+          "source"
+        ],
+        "type": "object",
+        "properties": {
+          "source": {
+            "enum": [
+              "FILES"
+            ],
+            "type": "string",
+            "description": "Source that triggers a routine",
+            "example": "FILES"
+          },
+          "events": {
+            "minItems": 1,
+            "uniqueItems": true,
+            "type": "array",
+            "items": {
+              "enum": [
+                "CREATED",
+                "UPDATED"
+              ],
+              "type": "string",
+              "description": "Event that triggers a routine"
+            },
+            "description": "Event that triggers a routine"
+          },
+          "filter": {
+            "maxLength": 1000,
+            "minLength": 0,
+            "type": "string",
+            "description": "Filter for the events that can trigger a routine",
+            "example": "extension = \".csv\""
+          }
+        },
+        "additionalProperties": false,
+        "description": "The routine trigger. This field is required and always set for routines that have the RoutineType.Triggered type.\nThis field is mutually exclusive with Schedule."
+      },
+      "UpdateRoutineRequest": {
+        "type": "object",
+        "properties": {
+          "name": {
+            "maxLength": 100,
+            "minLength": 0,
+            "type": "string",
+            "description": "Name of the routine",
+            "nullable": true,
+            "example": "example routine"
+          },
+          "description": {
+            "maxLength": 500,
+            "minLength": 0,
+            "type": "string",
+            "description": "Description of the routine",
+            "nullable": true,
+            "example": "An example routine"
+          },
+          "workspace": {
+            "type": "string",
+            "description": "Workspace of the routine",
+            "nullable": true,
+            "example": "846e294a-a007-47ac-9fc2-fac07eab240e"
+          },
+          "enabled": {
+            "type": "boolean",
+            "description": "Indicates whether the routine is enabled or not",
+            "nullable": true,
+            "example": false
+          },
+          "trigger": {
+            "$ref": "#/components/schemas/UpdateTrigger"
+          },
+          "schedule": {
+            "$ref": "#/components/schemas/UpdateSchedule"
+          }
+        },
+        "additionalProperties": false,
+        "description": "Update routine information"
+      },
+      "UpdateSchedule": {
+        "type": "object",
+        "properties": {
+          "startTime": {
+            "type": "string",
+            "description": "The schedule start timestamp in UTC format",
+            "format": "date-time",
+            "nullable": true
+          },
+          "repeat": {
+            "enum": [
+              "RUN_ONCE",
+              "HOUR",
+              "DAY",
+              "WEEK",
+              "MONTH"
+            ],
+            "type": "string",
+            "description": "Specifies how frequently the routine execution repeats",
+            "nullable": true
+          }
+        },
+        "additionalProperties": false,
+        "description": "Update routine schedule information"
+      },
+      "UpdateTrigger": {
+        "type": "object",
+        "properties": {
+          "source": {
+            "enum": [
+              "FILES"
+            ],
+            "type": "string",
+            "description": "Source that triggers a routine",
+            "nullable": true
+          },
+          "events": {
+            "minItems": 1,
+            "uniqueItems": true,
+            "type": "array",
+            "items": {
+              "enum": [
+                "CREATED",
+                "UPDATED"
+              ],
+              "type": "string",
+              "description": "Event that triggers a routine"
+            },
+            "description": "Event that triggers a routine",
+            "nullable": true
+          },
+          "filter": {
+            "maxLength": 1000,
+            "minLength": 0,
+            "type": "string",
+            "description": "Filter for the events that can trigger a routine",
+            "nullable": true,
+            "example": "extension = \".csv\""
+          }
+        },
+        "additionalProperties": false,
+        "description": "Update routine trigger information"
+      },
+      "Version": {
+        "type": "object",
+        "properties": {
+          "operations": {
+            "$ref": "#/components/schemas/Operations"
+          }
+        },
+        "additionalProperties": false,
+        "description": "Information about the v1 version of the API."
+      },
+      "Versions": {
+        "type": "object",
+        "properties": {
+          "version": {
+            "type": "string",
+            "description": "Implementation version of the web service.",
+            "nullable": true,
+            "example": "v1"
+          },
+          "v1": {
+            "$ref": "#/components/schemas/Version"
+          }
+        },
+        "additionalProperties": false,
+        "description": "Version information."
+      }
+    },
+    "securitySchemes": {
+      "apikey": {
+        "type": "apiKey",
+        "name": "X-NI-API-KEY",
+        "in": "header"
+      }
+    }
+  },
+  "security": [
+    {
+      "apikey": [ ]
+    }
+  ]
+}

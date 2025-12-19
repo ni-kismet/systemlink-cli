@@ -7,11 +7,13 @@ This example provides a complete, ready-to-use setup for demonstrating SystemLin
 The example creates the following resources in your SystemLink workspace:
 
 ### Infrastructure
+
 - **Location**: Demo HQ (Austin, TX)
 - **Product**: Demo Widget Pro (Industrial Equipment)
 
 ### Test Infrastructure
-- **Systems**: 
+
+- **Systems**:
   - Test Stand 1 (Serial: TS-001)
   - Test Stand 2 (Serial: TS-002)
 - **Assets**:
@@ -22,6 +24,7 @@ The example creates the following resources in your SystemLink workspace:
   - DUT 2 - Model X2 (Serial: DUT-002) on Asset 2
 
 ### Test Planning
+
 - **Test Template**: Demo Test Template
   - Pre-configured for both test systems
   - Ready to use in test creation workflow
@@ -43,21 +46,19 @@ This shows all 9 resources that will be created.
 ### 2. Dry-run (validate without creating)
 
 ```bash
-slcli example install demo-test-plans --dry-run
+slcli example install demo-test-plans -w <workspace-id> --dry-run
 ```
 
-### 3. Install to default workspace
+### 3. Install to a workspace
 
 ```bash
-slcli example install demo-test-plans
+slcli example install demo-test-plans -w <workspace>
 ```
 
-You'll be prompted for confirmation before creation proceeds.
-
-To skip the prompt:
+Optionally write an audit log with JSON output:
 
 ```bash
-slcli example install demo-test-plans --force
+slcli example install demo-test-plans -w <workspace> --audit-log install-log.json --format json
 ```
 
 ### 4. Verify in SystemLink Web UI
@@ -81,13 +82,13 @@ To remove all example resources:
 
 ```bash
 # Preview what would be deleted
-slcli example delete demo-test-plans --dry-run
+slcli example delete demo-test-plans -w <workspace-id> --dry-run
 
-# Delete all demo-tagged resources (requires confirmation)
-slcli example delete demo-test-plans
+# Delete all demo-tagged resources in a workspace
+slcli example delete demo-test-plans -w <workspace>
 
-# Force deletion without confirmation
-slcli example delete demo-test-plans --force
+# Write an audit log of deletion results
+slcli example delete demo-test-plans -w <workspace> --audit-log delete-log.json --format json
 ```
 
 **Important**: Cleanup only deletes resources tagged with "demo". Any resources you created or modified separately will not be deleted.
@@ -116,9 +117,8 @@ slcli workspace create --name "Default workspace"
 
 ### Can't delete resources
 
-1. Ensure deletion confirmation is not required (`--force` flag)
-2. Check that resources have "demo" tag
-3. Verify workspace permissions
+1. Verify workspace permissions
+2. Confirm resources are tagged for deletion in the config
 
 ## Next Steps
 

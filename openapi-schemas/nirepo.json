@@ -1,0 +1,988 @@
+{
+  "openapi": "3.0.4",
+  "info": {
+    "title": "Repository Service",
+    "description": "Repository Service HTTP API. Manages a repository of packages",
+    "contact": {
+      "name": "National Instruments",
+      "url": "https://www.ni.com/systemlink",
+      "email": "support@ni.com"
+    },
+    "version": "1"
+  },
+  "paths": {
+    "/nirepo/v1/configure-feeds": {
+      "post": {
+        "tags": [
+          "Feed"
+        ],
+        "summary": "Configure Systems Packages feeds",
+        "description": "Sample request:\n            \n    [\n        \"https://download.ni.com/support/nipkg/products/ni-package-manager/released\"\n    ]",
+        "requestBody": {
+          "description": "The list of feedURLs to configure",
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "array",
+                "items": {
+                  "type": "string"
+                }
+              }
+            },
+            "text/json": {
+              "schema": {
+                "type": "array",
+                "items": {
+                  "type": "string"
+                }
+              }
+            },
+            "application/*+json": {
+              "schema": {
+                "type": "array",
+                "items": {
+                  "type": "string"
+                }
+              }
+            },
+            "text/plain": {
+              "schema": {
+                "type": "array",
+                "items": {
+                  "type": "string"
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "204": {
+            "description": "Success"
+          },
+          "200": {
+            "description": "Returns the list of failed feeds",
+            "content": {
+              "text/plain": {
+                "schema": {
+                  "$ref": "#/components/schemas/BaseResponse"
+                }
+              },
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/BaseResponse"
+                }
+              },
+              "text/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/BaseResponse"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Bad Request",
+            "content": {
+              "text/plain": {
+                "schema": {
+                  "$ref": "#/components/schemas/HttpError"
+                }
+              },
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HttpError"
+                }
+              },
+              "text/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HttpError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/nirepo/v1/query-available-packages": {
+      "post": {
+        "tags": [
+          "Feed"
+        ],
+        "summary": "Query the available packages from the configured feeds",
+        "requestBody": {
+          "description": "An instance of NationalInstruments.RepositoryService.Model.API.QueryAvailablePackagesRequest that contains the feeds from which the packages are retrieved",
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/QueryAvailablePackagesRequest"
+              }
+            },
+            "text/json": {
+              "schema": {
+                "$ref": "#/components/schemas/QueryAvailablePackagesRequest"
+              }
+            },
+            "application/*+json": {
+              "schema": {
+                "$ref": "#/components/schemas/QueryAvailablePackagesRequest"
+              }
+            },
+            "text/plain": {
+              "schema": {
+                "$ref": "#/components/schemas/QueryAvailablePackagesRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "List of available packages from feeds",
+            "content": {
+              "text/plain": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/PackageResponse"
+                  }
+                }
+              },
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/PackageResponse"
+                  }
+                }
+              },
+              "text/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/PackageResponse"
+                  }
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Bad Request",
+            "content": {
+              "text/plain": {
+                "schema": {
+                  "$ref": "#/components/schemas/HttpError"
+                }
+              },
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HttpError"
+                }
+              },
+              "text/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HttpError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/nirepo/v1/store/items": {
+      "get": {
+        "tags": [
+          "Store"
+        ],
+        "summary": "Query store items from the cache",
+        "parameters": [
+          {
+            "name": "query",
+            "in": "query",
+            "description": "The query used to filter the result; matches the name of store items",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "pageSize",
+            "in": "query",
+            "description": "The number of store items to return",
+            "schema": {
+              "type": "integer",
+              "format": "int32",
+              "default": 10
+            }
+          },
+          {
+            "name": "pageNumber",
+            "in": "query",
+            "description": "The page from which to fetch the store items. If it is more than the maximum number of pages, it returns store items from the last page",
+            "schema": {
+              "type": "integer",
+              "format": "int32",
+              "default": 0
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "List of store items from the cache",
+            "content": {
+              "text/plain": {
+                "schema": {
+                  "$ref": "#/components/schemas/StoreItemsExtendedResponse"
+                }
+              },
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/StoreItemsExtendedResponse"
+                }
+              },
+              "text/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/StoreItemsExtendedResponse"
+                }
+              }
+            }
+          },
+          "504": {
+            "description": "Gateway Timeout"
+          }
+        }
+      }
+    },
+    "/nirepo/v1/store/items/{storeItemId}": {
+      "get": {
+        "tags": [
+          "Store"
+        ],
+        "summary": "Get a store item by id",
+        "parameters": [
+          {
+            "name": "storeItemId",
+            "in": "path",
+            "description": "The store item id",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Store item with a matching storeItemId",
+            "content": {
+              "text/plain": {
+                "schema": {
+                  "$ref": "#/components/schemas/StoreItemResponse"
+                }
+              },
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/StoreItemResponse"
+                }
+              },
+              "text/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/StoreItemResponse"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Bad Request",
+            "content": {
+              "text/plain": {
+                "schema": {
+                  "$ref": "#/components/schemas/HttpError"
+                }
+              },
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HttpError"
+                }
+              },
+              "text/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HttpError"
+                }
+              }
+            }
+          },
+          "504": {
+            "description": "Gateway Timeout"
+          }
+        }
+      }
+    }
+  },
+  "components": {
+    "schemas": {
+      "ArchitectureInformation": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "description": "Gets or sets the ID of this element.",
+            "nullable": true,
+            "example": "1"
+          },
+          "value": {
+            "type": "string",
+            "description": "Gets or sets the architecture that this package can run on.",
+            "nullable": true,
+            "example": "64-bit"
+          }
+        },
+        "additionalProperties": false,
+        "description": "Model for an object defining the architecture the software can run on."
+      },
+      "BaseResponse": {
+        "type": "object",
+        "properties": {
+          "error": {
+            "$ref": "#/components/schemas/HttpError"
+          }
+        },
+        "additionalProperties": false
+      },
+      "FeedNameAndUri": {
+        "type": "object",
+        "properties": {
+          "feedName": {
+            "type": "string",
+            "description": "Gets or sets the name of the feed. Feed names must begin with an alphabetical character and contain only alphanumeric characters, spaces, underscores, and hyphens.",
+            "nullable": true,
+            "example": "ni-labview-2022-core-en"
+          },
+          "uri": {
+            "type": "string",
+            "description": "Gets or sets the path to the feed.",
+            "nullable": true,
+            "example": "https://download.ni.com/support/nipkg/products/ni-l/ni-labview-2022/22.3/released"
+          }
+        },
+        "additionalProperties": false,
+        "description": "Feed name and its uri"
+      },
+      "HttpError": {
+        "type": "object",
+        "properties": {
+          "name": {
+            "type": "string",
+            "nullable": true
+          },
+          "code": {
+            "type": "integer",
+            "format": "int32",
+            "nullable": true
+          },
+          "message": {
+            "type": "string",
+            "nullable": true
+          },
+          "resourceType": {
+            "type": "string",
+            "nullable": true
+          },
+          "resourceId": {
+            "type": "string",
+            "nullable": true
+          },
+          "args": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            },
+            "nullable": true
+          },
+          "innerErrors": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/HttpError"
+            },
+            "nullable": true
+          }
+        },
+        "additionalProperties": false
+      },
+      "LanguageInformation": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "description": "Gets or sets the ID of this element.",
+            "nullable": true,
+            "example": "2"
+          },
+          "value": {
+            "type": "string",
+            "description": "Gets or sets the language the product supports.",
+            "nullable": true,
+            "example": "English"
+          }
+        },
+        "additionalProperties": false,
+        "description": "Model for contains information about the supported locale of the product."
+      },
+      "PackageResponse": {
+        "type": "object",
+        "properties": {
+          "arch": {
+            "type": "string",
+            "description": "Gets or sets the architecture of the package.",
+            "nullable": true,
+            "example": "windows_x64"
+          },
+          "breaks": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            },
+            "description": "Gets or sets an array containing information about other packages this package breaks.",
+            "nullable": true,
+            "example": [
+              "ni-mdfsupport (<= 19.5.0)"
+            ]
+          },
+          "conflicts": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            },
+            "description": "Gets or sets an array containing information about other packages this package conflicts with.",
+            "nullable": true,
+            "example": [
+              "1f2c1e66-64c0-4ce1-b96e-7bb6ec99fcb1 (<<1.99.0)"
+            ]
+          },
+          "depends": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            },
+            "description": "Gets or sets an array containing information about other packages this package depends on.",
+            "nullable": true,
+            "example": [
+              "ni-mdfsupport (>= 19.5.0)",
+              "ni-metauninstaller (>= 19.5.0)"
+            ]
+          },
+          "description": {
+            "type": "string",
+            "description": "Gets or sets the description of the package.",
+            "nullable": true,
+            "example": "This is a NI product."
+          },
+          "displayName": {
+            "type": "string",
+            "description": "Gets or sets the display name of the package.",
+            "nullable": true,
+            "example": "NI Certificates Installer"
+          },
+          "displayVersion": {
+            "type": "string",
+            "description": "Gets or sets the display version of the package.",
+            "nullable": true,
+            "example": "2.0.0"
+          },
+          "enhances": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            },
+            "description": "Gets or sets an array containing information about other packages this package enhances.",
+            "nullable": true,
+            "example": [
+              "ni-labview-nxg-5.0.0 (>= 8.1.0)"
+            ]
+          },
+          "essential": {
+            "type": "boolean",
+            "description": "Gets or sets whether the package is essential or not. If true then the package management system will refuse to remove the package (upgrading and replacing it is still possible).",
+            "nullable": true
+          },
+          "fileName": {
+            "type": "string",
+            "description": "Gets or sets the location of the file, including the file extension.\nDepending on the platform you select, you will be able to use the following package extensions: .nipkg for windows feeds, .ipk and .deb for ni-linux-rt feeds.",
+            "nullable": true,
+            "example": "ni-certificates_2.0.0.49154-0+f2_windows_x64.nipkg"
+          },
+          "hardwareSupport": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            },
+            "description": "Gets or sets when a package provides functionality for specific hardware product(s), it can list such products in this section.",
+            "nullable": true,
+            "example": [
+              "PXI"
+            ]
+          },
+          "homepage": {
+            "type": "string",
+            "description": "Gets or sets the website of the maintainers for this package.",
+            "nullable": true,
+            "example": "http://www.ni.com"
+          },
+          "installedSize": {
+            "type": "integer",
+            "description": "Gets or sets the size of this package after install.",
+            "format": "int64",
+            "nullable": true,
+            "example": 2000
+          },
+          "maintainer": {
+            "type": "string",
+            "description": "Gets or sets the maintainer of this package.",
+            "nullable": true,
+            "example": "National Instruments <support@ni.com> "
+          },
+          "name": {
+            "type": "string",
+            "description": "Gets or sets the name of the package.",
+            "nullable": true,
+            "example": "ni-certificates"
+          },
+          "plugin": {
+            "type": "string",
+            "description": "Gets or sets agent that will be used to install the package.",
+            "nullable": true,
+            "example": "wininst"
+          },
+          "predepends": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            },
+            "description": "Gets or sets an array containing information about other packages this package predepends.",
+            "nullable": true,
+            "example": [
+              "1ce721f0-22a5-4158-8359-b4268cd1a67e (=20.00.49152)"
+            ]
+          },
+          "priority": {
+            "type": "string",
+            "description": "Gets or sets the priority of the package.",
+            "nullable": true,
+            "example": "essential"
+          },
+          "provides": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            },
+            "description": "Gets or sets an array containing information about other packages this package provides.",
+            "nullable": true,
+            "example": [
+              "1f2c1e66-64c0-4ce1-b96e-7bb6ec99fcb1 (=2.00.49154)"
+            ]
+          },
+          "recommends": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            },
+            "description": "Gets or sets an array containing information about other packages this package recommends.",
+            "nullable": true,
+            "example": [
+              "ni-certificates (>=2.0.2)",
+              "ni-max (>=20.0.0)",
+              "ni-vipm (>=20.0.0)"
+            ]
+          },
+          "releaseNotes": {
+            "type": "string",
+            "description": "Gets or sets a page containing the release notes of the package.",
+            "nullable": true,
+            "example": "These are the notes."
+          },
+          "replaces": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            },
+            "description": "Gets or sets an array containing information about other packages this package replaces.",
+            "nullable": true,
+            "example": [
+              "1f2c1e66-64c0-4ce1-b96e-7bb6ec99fcb1 (<<1.99.0)"
+            ]
+          },
+          "section": {
+            "type": "string",
+            "description": "Gets or sets the section of the package.",
+            "nullable": true,
+            "example": "Utilities"
+          },
+          "size": {
+            "type": "integer",
+            "description": "Gets or sets the size of the package in bytes.",
+            "format": "int64",
+            "nullable": true,
+            "example": 400234
+          },
+          "source": {
+            "type": "string",
+            "description": "Gets or sets the source of this package, if any.",
+            "nullable": true,
+            "example": "https://download.ni.com"
+          },
+          "storeProduct": {
+            "type": "boolean",
+            "description": "Gets or sets whether the package represent a product in the store or not.",
+            "nullable": true
+          },
+          "suggests": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            },
+            "description": "Gets or sets an array containing information about other packages this package suggests.",
+            "nullable": true,
+            "example": [
+              "ni-labview-2020-ff-runtime-engine (>=20.0.0)"
+            ]
+          },
+          "tags": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            },
+            "description": "Gets or sets an array containing tags for the package.",
+            "nullable": true,
+            "example": [
+              "tag1",
+              "tag2",
+              "tag3"
+            ]
+          },
+          "uservisible": {
+            "type": "boolean",
+            "description": "Gets or sets the installed packages with this attribute set to true are considered to be installed by a user, thus not installed to fulfill some dependency. This is needed input for the calculation of unneeded packages when removing a package.",
+            "nullable": true,
+            "example": true
+          },
+          "version": {
+            "type": "string",
+            "description": "Gets or sets the version of the package.",
+            "nullable": true,
+            "example": "2.0.0.49154-0+f2"
+          }
+        },
+        "additionalProperties": false
+      },
+      "QueryAvailablePackagesRequest": {
+        "type": "object",
+        "properties": {
+          "returnDuplicates": {
+            "type": "boolean",
+            "description": "Return duplicates of available packages",
+            "example": true
+          },
+          "systemConfigurations": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/SystemConfiguration"
+            },
+            "description": "List of systems configurations",
+            "nullable": true
+          },
+          "fields": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            },
+            "description": "Fields projection",
+            "nullable": true,
+            "example": [
+              "UserVisible"
+            ]
+          }
+        },
+        "additionalProperties": false,
+        "description": "Request for available packages for the systems configuration"
+      },
+      "SoftwareInformation": {
+        "type": "object",
+        "properties": {
+          "storeItemId": {
+            "type": "string",
+            "description": "Gets or sets the ID of this element.",
+            "nullable": true,
+            "example": "2880"
+          },
+          "productName": {
+            "type": "string",
+            "description": "Gets or sets the name of one the products contained in the software suite.",
+            "nullable": true,
+            "example": "LabVIEW"
+          },
+          "shortDescription": {
+            "type": "string",
+            "description": "Gets or sets a short description of the product.",
+            "nullable": true,
+            "example": "LabVIEW is systems engineering software for applications that require test, measurement, and control with rapid access to hardware and data insights."
+          },
+          "downloadItemVersion": {
+            "type": "string",
+            "description": "Gets or sets the item version number.",
+            "nullable": true,
+            "example": "2022 Q3"
+          },
+          "packageName": {
+            "type": "string",
+            "description": "Gets or sets the name of the package to install.",
+            "nullable": true,
+            "example": "ni-labview-2022-core-en"
+          },
+          "packageVersion": {
+            "type": "string",
+            "description": "Gets or sets the version of the package to install.",
+            "nullable": true,
+            "example": "22.3.1.49153-0+f1"
+          },
+          "feeds": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/FeedNameAndUri"
+            },
+            "description": "Gets or sets the feeds where the suite contents are located at.",
+            "nullable": true
+          }
+        },
+        "additionalProperties": false,
+        "description": "Model for contains information about a piece of software that a store item contains."
+      },
+      "StoreDownloadItems": {
+        "type": "object",
+        "properties": {
+          "downloadItemVersion": {
+            "type": "string",
+            "description": "Gets or sets the version of the download item.",
+            "nullable": true,
+            "example": "2022 Q3"
+          },
+          "productVersionedId": {
+            "type": "string",
+            "description": "Gets or sets the ID of the product. Not set on the query all route.",
+            "nullable": true,
+            "example": "443033"
+          },
+          "storeItemInstallers": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/StoreItemInstaller"
+            },
+            "nullable": true
+          }
+        },
+        "additionalProperties": false
+      },
+      "StoreItem": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "description": "Gets or sets the ID of the store item.",
+            "nullable": true,
+            "example": "4240"
+          },
+          "storeItemName": {
+            "type": "string",
+            "description": "Gets or sets the name of the store item.",
+            "nullable": true,
+            "example": "LabVIEW and Drivers"
+          },
+          "shortDescription": {
+            "type": "string",
+            "description": "Gets or sets the short description of the store item.",
+            "nullable": true,
+            "example": "LabVIEW and Drivers provides LabVIEW software and compatible NI driver software and software add-ons."
+          },
+          "longDescription": {
+            "type": "string",
+            "description": "Gets or sets the long description of the store item. Not set on the query all route.",
+            "nullable": true,
+            "example": "The System Driver Suite provides sets of NI driver software with validated compatibility that you can use to configure PXI, CompactRIO, or CompactDAQ systems. These sets help you maintain standardization of a fixed collection of driver software throughout an application life cycle. With the System Driver Suite, you can install common drivers such as NI-FlexRIO, NI-Motion, NI-DAQmx, NI-VISA, NI-CAN, NI-IMAQ, NI-DMM, NI-SCOPE, NI-VXI, and more."
+          },
+          "companyName": {
+            "type": "string",
+            "description": "Gets or sets the CompanyName (maintainer) of the store item.",
+            "nullable": true,
+            "example": "NI"
+          },
+          "iconUri": {
+            "type": "string",
+            "description": "Gets or sets the icon location of the store item.",
+            "nullable": true,
+            "example": "https://ni.scene7.com/is/image/ni/LabVIEW?$ni-icon-pm$"
+          },
+          "category": {
+            "type": "string",
+            "description": "Gets or sets the Category of the store item.",
+            "nullable": true,
+            "example": "Programming Environments"
+          },
+          "isSuite": {
+            "type": "boolean",
+            "description": "Gets or sets whether this store item is a suite. Not returned on the query all route.",
+            "nullable": true,
+            "example": true
+          },
+          "downloadItems": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/StoreDownloadItems"
+            },
+            "description": "The list of download items",
+            "nullable": true
+          }
+        },
+        "additionalProperties": false
+      },
+      "StoreItemInstaller": {
+        "type": "object",
+        "properties": {
+          "guid": {
+            "type": "string",
+            "description": "Gets or sets the global unique identifier (GUID) of the store item.",
+            "nullable": true,
+            "example": "ni-labview-2022_22.5_suite"
+          },
+          "bitnesses": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/ArchitectureInformation"
+            },
+            "description": "Gets or sets an array containing information about the possible architectures the software can run on.",
+            "nullable": true
+          },
+          "languages": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/LanguageInformation"
+            },
+            "description": "Gets or sets an array containing objects that offer information about the supported locale of the product.",
+            "nullable": true
+          },
+          "suiteContents": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/SoftwareInformation"
+            },
+            "description": "Gets or sets array of descriptions about what this store item contains.",
+            "nullable": true
+          },
+          "feeds": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/FeedNameAndUri"
+            },
+            "description": "Gets or sets the feeds where the suite contents are located at.",
+            "nullable": true
+          }
+        },
+        "additionalProperties": false
+      },
+      "StoreItemResponse": {
+        "type": "object",
+        "properties": {
+          "storeItem": {
+            "$ref": "#/components/schemas/StoreItem"
+          }
+        },
+        "additionalProperties": false,
+        "description": "Model that contains a single StoreItem."
+      },
+      "StoreItemsExtendedResponse": {
+        "type": "object",
+        "properties": {
+          "error": {
+            "$ref": "#/components/schemas/HttpError"
+          },
+          "items": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/StoreItem"
+            },
+            "nullable": true
+          },
+          "pageSize": {
+            "type": "integer",
+            "description": "Gets or sets the number of the records contained by one page. Maximum is 1000.",
+            "format": "int32",
+            "nullable": true,
+            "example": 10
+          },
+          "pageNumber": {
+            "type": "integer",
+            "description": "Gets or sets the number of the current page.",
+            "format": "int32",
+            "nullable": true,
+            "example": 1
+          },
+          "totalPages": {
+            "type": "integer",
+            "description": "Gets or sets the total number of pages.",
+            "format": "int32",
+            "nullable": true,
+            "example": 5
+          },
+          "totalItems": {
+            "type": "integer",
+            "description": "Gets or sets the total number of items.",
+            "format": "int32",
+            "nullable": true,
+            "example": 50
+          }
+        },
+        "additionalProperties": false,
+        "description": "Model for contains a list of StoreItem elements together with the coresponding paging information."
+      },
+      "SystemConfiguration": {
+        "type": "object",
+        "properties": {
+          "feedUris": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            },
+            "description": "Gets or sets an array of strings representing feed URIs a system(s) has configured.",
+            "nullable": true,
+            "example": [
+              "https://download.ni.com/support/nipkg/products/ni-package-manager/released"
+            ]
+          },
+          "osArchitectures": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            },
+            "description": "Gets or sets an array of strings representing OS architectures supported by a system(s) in descending priority.",
+            "nullable": true,
+            "example": [
+              "windows_x64"
+            ]
+          },
+          "userVisible": {
+            "type": "boolean",
+            "description": "Query only for user visible packages",
+            "nullable": true,
+            "example": true
+          }
+        },
+        "additionalProperties": false
+      }
+    },
+    "securitySchemes": {
+      "apikey": {
+        "type": "apiKey",
+        "name": "X-NI-API-KEY",
+        "in": "header"
+      }
+    }
+  },
+  "security": [
+    {
+      "apikey": [ ]
+    }
+  ]
+}

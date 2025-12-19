@@ -1,0 +1,2227 @@
+{
+  "openapi": "3.0.4",
+  "info": {
+    "title": "SystemLink DataFrame Service",
+    "description": "API for creating new tables, append rows to tables, and read rows from the tables. Rows are encoded as data frames.",
+    "contact": {
+      "name": "National Instruments",
+      "url": "https://www.ni.com/systemlink",
+      "email": "support@ni.com"
+    },
+    "version": "1"
+  },
+  "paths": {
+    "/nidataframe/v1/tables/{id}/data": {
+      "get": {
+        "tags": [
+          "Data"
+        ],
+        "summary": "Get rows of data from the specified table",
+        "description": "Reads raw data from the table identified by its ID. For more advanced filtering and ordering, use the `POST /v1/tables/{id}/query-data` route.",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "description": "Unique ID of a DataFrame table.",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "columns",
+            "in": "query",
+            "description": "A comma-separated list of the names of columns to include in the response. The response\n            will include the columns in the same order specified in this parameter. All columns are included in the order\n            specified at table creation if this property is excluded.",
+            "schema": {
+              "type": "string"
+            },
+            "example": "Time,Voltage,State"
+          },
+          {
+            "name": "orderBy",
+            "in": "query",
+            "description": "A comma-separated list of the names of columns to order the results by. Multiple columns may be specified to order rows that have the same value for prior columns.\n            The columns used for ordering do not need to be included in the `columns` list, in which case they are not returned in the response.\n            If orderBy is not specified, then the order in which results are returned is undefined.",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "orderByDescending",
+            "in": "query",
+            "description": "Whether to order descending instead of ascending. If orderBy is specified, then elements in the response\n            are ordered ascending by default. The orderByDescending value must be a boolean string. The elements in the response are ordered ascending if false\n            and descending if true.",
+            "schema": {
+              "type": "boolean",
+              "default": false
+            }
+          },
+          {
+            "name": "take",
+            "in": "query",
+            "description": "Limits the returned list to the specified number of results. Use with the `continuationToken` property\n            to implement pagination.",
+            "schema": {
+              "maximum": 500,
+              "minimum": 1,
+              "type": "integer",
+              "format": "int32",
+              "default": 500
+            }
+          },
+          {
+            "name": "continuationToken",
+            "in": "query",
+            "description": "A token which allows the user to resume a query at the next item in the matching results. When\nquerying, a token will be returned if a query may be continued. To obtain the next page of results,\npass the token to the service on a subsequent request. The service will respond with a new continuation\ntoken. To paginate results, continue sending requests with the newest continuation token provided\nby the service, until this value is null.",
+            "schema": {
+              "type": "string"
+            },
+            "example": "eyJUYWJsZUlkIjoidGVzdC10YXhpLWZpeHR1cmUiLCJKb2JJZCI6IjFkN2U2NjM1LTA3YjktMmJmZS00NjY2LTQ1YWMyY2RkN2UwMCIsIlNraXAiOjJ9"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/DataFrameQueryResponse"
+                }
+              }
+            }
+          },
+          "default": {
+            "description": "Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          }
+        }
+      },
+      "post": {
+        "tags": [
+          "Data"
+        ],
+        "summary": "Append one or more rows of data to the table identified by its ID",
+        "description": "Multiple data formats are supported, distinguished by the `Content-Type` header\nof the request:\n\n\n- `application/json`: Each row of data must contain a value for each non-nullable column\nin the table, in a format that can be converted to the column's datatype. Any nullable\ncolumns not included in `data` will receive a null value for each appended row. `endOfData`\nis provided in the request body.\n\n\n- `application/vnd.apache.arrow.stream`: [Apache Arrow IPC Streaming](https://www.ni.com/r/arrow-ipc-format)\nbinary format. The data must contain a column for each non-nullable column in the table\nusing data types compatible with the column's datatype. Any nullable columns not included\nin the request will receive a null value for each appended row. Timestamp values are\ntruncated to milliseconds, even when using nanosecond or microsecond units. `endOfData`\nis provided as a query parameter. Added in version 2 of the `writeData` operation.",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "description": "Unique ID of a DataFrame table.",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "endOfData",
+            "in": "query",
+            "description": "Whether the table should expect any additional rows to be appended in future requests.\nNot valid for JSON requests; use the `endOfData` property in the request body instead.\nAdded in version 2 of the `writeData` operation.",
+            "schema": {
+              "type": "boolean"
+            }
+          }
+        ],
+        "requestBody": {
+          "description": "Request body.",
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/AppendTableDataRequest"
+              }
+            },
+            "text/json": {
+              "schema": {
+                "$ref": "#/components/schemas/AppendTableDataRequest"
+              }
+            },
+            "application/*+json": {
+              "schema": {
+                "$ref": "#/components/schemas/AppendTableDataRequest"
+              }
+            },
+            "application/vnd.apache.arrow.stream": {
+              "schema": {
+                "type": "string",
+                "format": "binary"
+              }
+            }
+          }
+        },
+        "responses": {
+          "204": {
+            "description": "OK"
+          },
+          "409": {
+            "description": "The table does not support appending additional rows.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "The service is processing too many requests.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "default": {
+            "description": "Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/nidataframe/v1/tables/{id}/query-data": {
+      "post": {
+        "tags": [
+          "Data"
+        ],
+        "summary": "Query for rows of data with ordering and filtering",
+        "description": "Reads rows of data that match a filter from the table identified by its ID.\n\n\nUse the `columns` property to return a subset of each row.\n\n\nUse the `filters` property to filter the returned rows.\n\n\nUse the `orderBy` and `filters` properties to order and filter the returned rows.\n\n\nUse the `take` and `continuationToken` properties to return paged responses.\n\n\nFor more requests that don't require filtering, use the `GET /v1/tables/{id}/data` route.",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "description": "Unique ID of a DataFrame table.",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "description": "Request body.",
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/StringQueryTableDataRequest"
+              }
+            },
+            "text/json": {
+              "schema": {
+                "$ref": "#/components/schemas/StringQueryTableDataRequest"
+              }
+            },
+            "application/*+json": {
+              "schema": {
+                "$ref": "#/components/schemas/StringQueryTableDataRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/DataFrameQueryResponse"
+                }
+              }
+            }
+          },
+          "default": {
+            "description": "Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/nidataframe/v1/tables/{id}/export-data": {
+      "post": {
+        "tags": [
+          "Data"
+        ],
+        "summary": "Export data with sorting and filtering",
+        "description": "Exports rows of data that match a filter from the table identified by its ID.\n\n\nUse the `columns` property to return a subset of each row.\n\n\nUse the `orderBy` and `filters` properties to order and filter the returned rows.\n\n\nUse the `take` property to limit the number of rows returned.\n\n\nUse the `responseFormat` property to select the format of the exported content. The only response format currently supported is `CSV`.\n\n\nAdded in version 2 of the `readData` operation. The `take` property was added in version 3 of the `readData` operation.",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "description": "Unique ID of a DataFrame table.",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "description": "Request body.",
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/StringExportTableDataRequest"
+              }
+            },
+            "text/json": {
+              "schema": {
+                "$ref": "#/components/schemas/StringExportTableDataRequest"
+              }
+            },
+            "application/*+json": {
+              "schema": {
+                "$ref": "#/components/schemas/StringExportTableDataRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "Created"
+          },
+          "default": {
+            "description": "Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "200": {
+            "description": "OK",
+            "content": {
+              "text/csv": {
+                "example": "\"Voltage\",\"State\"\n1.00,\"value\""
+              }
+            }
+          }
+        }
+      }
+    },
+    "/nidataframe/v1/tables/{id}/query-decimated-data": {
+      "post": {
+        "tags": [
+          "Data"
+        ],
+        "summary": "Query for rows of decimated data with filtering",
+        "description": "Reads rows of data that match a filter from the table identified by its ID.\n\n\nUse the `columns` property to return a subset of each row.\n\n\nUse the `filters` property to filter the returned rows.\n\n\nUse the `decimation` property to specify parameters on how data will be decimated.\n\n\nFor more requests that don't require data decimation, use the `POST /v1/tables/{id}/query-data` route.",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "description": "Unique ID of a DataFrame table.",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "description": "Request body.",
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/StringDecimatedDataQueryRequest"
+              }
+            },
+            "text/json": {
+              "schema": {
+                "$ref": "#/components/schemas/StringDecimatedDataQueryRequest"
+              }
+            },
+            "application/*+json": {
+              "schema": {
+                "$ref": "#/components/schemas/StringDecimatedDataQueryRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/DecimatedDataFrameQueryResponse"
+                }
+              }
+            }
+          },
+          "default": {
+            "description": "Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/nidataframe/v1/tables": {
+      "get": {
+        "tags": [
+          "Tables"
+        ],
+        "summary": "List available tables",
+        "description": "Lists available tables on the SystemLink DataFrame service.\n\n\nUse the `take` and `continuationToken` parameters to return paged responses.\n\n\nThe `orderBy` and `orderByDescending` parameters can be used to manage sorting the list by metadata objects.",
+        "parameters": [
+          {
+            "name": "take",
+            "in": "query",
+            "description": "Limits the returned list to the specified number of results.",
+            "schema": {
+              "maximum": 1000,
+              "minimum": 1,
+              "type": "integer",
+              "format": "int32",
+              "default": 1000
+            }
+          },
+          {
+            "name": "id",
+            "in": "query",
+            "description": "Comma-separated list of table IDs",
+            "schema": {
+              "type": "string"
+            },
+            "example": "5afb2ce3741fe11d88838cc9,4afb2ce3741fe11d88838cca"
+          },
+          {
+            "name": "orderBy",
+            "in": "query",
+            "description": "The sort order of the returned list of tables. By default, tables are sorted in ascending order based on the specified value:\n\n- CREATED_AT: The date and time the table was created (default oldest table first).\n\n- METADATA_MODIFIED_AT: The date and time the table's metadata properties were modified.\n\n- NAME: The table's name, which defaults to the table's ID if a name is not provided.\n\n- NUMBER_OF_ROWS: The number of rows of data in the table (default least number of rows first).\n\n- ROWS_MODIFIED_AT: Date and time rows were most recently appended to the table.",
+            "schema": {
+              "enum": [
+                "CREATED_AT",
+                "METADATA_MODIFIED_AT",
+                "NAME",
+                "NUMBER_OF_ROWS",
+                "ROWS_MODIFIED_AT"
+              ],
+              "type": "string",
+              "description": "- CREATED_AT: The date and time the table was created (default oldest table first).\n\n- METADATA_MODIFIED_AT: The date and time the table's metadata properties were modified.\n\n- NAME: The table's name, which defaults to the table's ID if a name is not provided.\n\n- NUMBER_OF_ROWS: The number of rows of data in the table (default least number of rows first).\n\n- ROWS_MODIFIED_AT: Date and time rows were most recently appended to the table."
+            }
+          },
+          {
+            "name": "orderByDescending",
+            "in": "query",
+            "description": "Whether to sort descending instead of ascending. The elements in the list are sorted ascending by default.\nIf the orderByDescending parameter is specified, the elements in the list are sorted based on it's value.\nThe orderByDescending value must be a boolean string. The elements in the list are sorted ascending if false\nand descending if true.",
+            "schema": {
+              "type": "boolean",
+              "default": false
+            }
+          },
+          {
+            "name": "continuationToken",
+            "in": "query",
+            "description": "A token which allows the user to resume a query at the next item in the matching results. When\nquerying, a token will be returned if a query may be continued. To obtain the next page of results,\npass the token to the service on a subsequent request. The service will respond with a new continuation\ntoken. To paginate results, continue sending requests with the newest continuation token provided\nby the service, until this value is null.",
+            "schema": {
+              "type": "string"
+            },
+            "example": "FAAAAAdpAGI53TyaE2rJbS8lmQA="
+          },
+          {
+            "name": "workspace",
+            "in": "query",
+            "description": "Comma-separated list of workspace IDs",
+            "schema": {
+              "type": "string"
+            },
+            "example": "f94b178e-288c-4101-afb1-833992413aa7,f94b178e-288c-4101-afb1-833992413aa8"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ListTablesResponse"
+                }
+              }
+            }
+          },
+          "default": {
+            "description": "Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          }
+        }
+      },
+      "post": {
+        "tags": [
+          "Tables"
+        ],
+        "summary": "Create a new table",
+        "description": "Create a new table with the provided metadata and column definitions.",
+        "requestBody": {
+          "description": "Request body.",
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CreateTableRequest"
+              }
+            },
+            "text/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CreateTableRequest"
+              }
+            },
+            "application/*+json": {
+              "schema": {
+                "$ref": "#/components/schemas/CreateTableRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "Created",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CreatedResponse"
+                }
+              }
+            }
+          },
+          "default": {
+            "description": "Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/nidataframe/v1/query-tables": {
+      "post": {
+        "tags": [
+          "Tables"
+        ],
+        "summary": "Query available tables",
+        "description": "Queries available tables on the SystemLink DataFrame service and returns the table metadata.\n\n\nUse the `take` and `continuationToken` properties to return paged responses.\n\n\nThe `orderBy` and `orderByDescending` properties can be used to manage sorting the list by metadata objects.\n\n",
+        "requestBody": {
+          "description": "The parameters for querying the tables.",
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/QueryTablesRequest"
+              }
+            },
+            "text/json": {
+              "schema": {
+                "$ref": "#/components/schemas/QueryTablesRequest"
+              }
+            },
+            "application/*+json": {
+              "schema": {
+                "$ref": "#/components/schemas/QueryTablesRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ListTablesResponse"
+                }
+              }
+            }
+          },
+          "default": {
+            "description": "Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/nidataframe/v1/tables/{id}": {
+      "get": {
+        "tags": [
+          "Tables"
+        ],
+        "summary": "Get table metadata and column info",
+        "description": "Retrieves the metadata and column information for a single table identified by its ID. This route does not return row data.",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "description": "Unique ID of a DataFrame table.",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HttpTableMetadata"
+                }
+              }
+            }
+          },
+          "default": {
+            "description": "Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          }
+        }
+      },
+      "patch": {
+        "tags": [
+          "Tables"
+        ],
+        "summary": "Modify metadata of table",
+        "description": "Modify the properties associated with the table or columns of the table identified by its ID.",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "description": "Unique ID of a DataFrame table.",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "description": "Contains the metadata properties to modify. Values not included in the request body will remain unchanged.",
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ModifyTableRequest"
+              }
+            },
+            "text/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ModifyTableRequest"
+              }
+            },
+            "application/*+json": {
+              "schema": {
+                "$ref": "#/components/schemas/ModifyTableRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "204": {
+            "description": "No content"
+          },
+          "default": {
+            "description": "Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          }
+        }
+      },
+      "delete": {
+        "tags": [
+          "Tables"
+        ],
+        "summary": "Delete a table",
+        "description": "Deletes the table identified by its ID.",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "description": "Unique ID of a DataFrame table.",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": "No content"
+          },
+          "default": {
+            "description": "Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/nidataframe/v1/delete-tables": {
+      "post": {
+        "tags": [
+          "Tables"
+        ],
+        "summary": "Delete one or more tables",
+        "description": "Deletes tables identified by their IDs.",
+        "requestBody": {
+          "description": "The parameters for deleting tables.",
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/DeleteTablesRequest"
+              }
+            },
+            "text/json": {
+              "schema": {
+                "$ref": "#/components/schemas/DeleteTablesRequest"
+              }
+            },
+            "application/*+json": {
+              "schema": {
+                "$ref": "#/components/schemas/DeleteTablesRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Partial success: one or more tables could not be deleted",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/DeleteTablesPartialSuccessResponse"
+                }
+              }
+            }
+          },
+          "204": {
+            "description": "No content: all tables were successfully deleted"
+          },
+          "default": {
+            "description": "Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/nidataframe/v1/modify-tables": {
+      "post": {
+        "tags": [
+          "Tables"
+        ],
+        "summary": "Modify metadata of one or more tables",
+        "description": "Modify the properties associated with the tables identified by their IDs.",
+        "requestBody": {
+          "description": "Contains the table modifications to apply.",
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ModifyTablesRequest"
+              }
+            },
+            "text/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ModifyTablesRequest"
+              }
+            },
+            "application/*+json": {
+              "schema": {
+                "$ref": "#/components/schemas/ModifyTablesRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Partial success: one or more tables could not be modified",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ModifyTablesPartialSuccessResponse"
+                }
+              }
+            }
+          },
+          "204": {
+            "description": "No content: all tables were successfully modified"
+          },
+          "default": {
+            "description": "Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/nidataframe": {
+      "get": {
+        "tags": [
+          "Versioning"
+        ],
+        "summary": "API information",
+        "description": "Returns information about API versions and available operations.",
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/RootEndpointResponse"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          { }
+        ]
+      }
+    },
+    "/nidataframe/{version}": {
+      "get": {
+        "tags": [
+          "Versioning"
+        ],
+        "summary": "API version information",
+        "description": "Returns available operations for a single version of the API.",
+        "parameters": [
+          {
+            "name": "version",
+            "in": "path",
+            "description": "The version of the API to retrieve operations.",
+            "required": true,
+            "schema": {
+              "type": "string"
+            },
+            "example": "v1"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/V1Operations"
+                }
+              }
+            }
+          },
+          "default": {
+            "description": "Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          { }
+        ]
+      }
+    }
+  },
+  "components": {
+    "schemas": {
+      "AppendTableDataRequest": {
+        "title": "Append Table Data Request",
+        "type": "object",
+        "properties": {
+          "frame": {
+            "$ref": "#/components/schemas/DataFrame"
+          },
+          "endOfData": {
+            "type": "boolean",
+            "description": "Whether the table should expect any additional rows to be appended in future requests.",
+            "default": false
+          }
+        },
+        "additionalProperties": false,
+        "description": "Contains the rows to append and optional flags. The `frame` property is\nrequired unless `endOfData` is true."
+      },
+      "AvailableV1Operations": {
+        "title": "Available V1 Operations",
+        "required": [
+          "createTables",
+          "deleteTables",
+          "listTables",
+          "modifyMetadata",
+          "readData",
+          "writeData"
+        ],
+        "type": "object",
+        "properties": {
+          "createTables": {
+            "$ref": "#/components/schemas/Operation"
+          },
+          "deleteTables": {
+            "$ref": "#/components/schemas/Operation"
+          },
+          "modifyMetadata": {
+            "$ref": "#/components/schemas/Operation"
+          },
+          "listTables": {
+            "$ref": "#/components/schemas/Operation"
+          },
+          "readData": {
+            "$ref": "#/components/schemas/Operation"
+          },
+          "writeData": {
+            "$ref": "#/components/schemas/Operation"
+          }
+        },
+        "additionalProperties": false,
+        "description": "Available operations in the v1 version of the API:\n\n\n- createTables: The ability to create new DataFrame tables.\n\n\n- deleteTables: The ability to delete tables and all of their data.\n\n\n- modifyMetadata: The ability to modify metadata for tables.\n\n\n- listTables: The ability to locate and read metadata for tables.\n\n\n- readData: The ability to query and read data from tables.\n\n\n- writeData: The ability to append rows of data to tables."
+      },
+      "ColumnMetadataPatch": {
+        "title": "Column Metadata Patch",
+        "required": [
+          "name",
+          "properties"
+        ],
+        "type": "object",
+        "properties": {
+          "name": {
+            "maxLength": 256,
+            "minLength": 1,
+            "type": "string",
+            "description": "The column name to edit.",
+            "example": "PeakVoltage"
+          },
+          "properties": {
+            "minLength": 1,
+            "type": "object",
+            "additionalProperties": {
+              "type": "string",
+              "nullable": true
+            },
+            "description": "The properties to modify. A map of key value properties containing the metadata to be added or\nmodified. Set a property value to `null` to delete that property.",
+            "example": {
+              "alias": "Peak Voltage",
+              "units": null
+            }
+          }
+        },
+        "additionalProperties": false,
+        "description": "Specifies column properties to add, modify, or delete when editing table metadata."
+      },
+      "CreateTableColumn": {
+        "title": "Create Table Column",
+        "required": [
+          "dataType",
+          "name"
+        ],
+        "type": "object",
+        "properties": {
+          "name": {
+            "maxLength": 256,
+            "minLength": 1,
+            "type": "string",
+            "description": "The column name, which must be unique across all columns within a single table.",
+            "example": "PeakVoltage"
+          },
+          "dataType": {
+            "enum": [
+              "INT32",
+              "BOOL",
+              "INT64",
+              "FLOAT32",
+              "FLOAT64",
+              "STRING",
+              "TIMESTAMP"
+            ],
+            "type": "string",
+            "description": "The column datatype:\n\n- INT32: 32-bit signed integers.\n\n- BOOL: Boolean true or false.\n\n- INT64: 64-bit signed integers.\n\n- FLOAT32: 32-bit IEEE 754 floating-point number.\n\n- FLOAT64: 64-bit IEEE 754 floating-point number.\n\n- STRING: Arbitrary string data.\n\n- TIMESTAMP: Date and time represented in UTC with millisecond precision."
+          },
+          "columnType": {
+            "enum": [
+              "NORMAL",
+              "INDEX",
+              "NULLABLE"
+            ],
+            "type": "string",
+            "description": "Specifies a specialized type of column:\n\n- NORMAL: The column has no special properties. This is the default behavior.\n\n- INDEX: The column provides a unique value per row. Each table must provide exactly one INDEX column.\nThe column's `dataType` must be `INT32`, `INT64`, or `TIMESTAMP`.\n\n- NULLABLE: Rows may contain `null` values for this column. When appending rows, NULLABLE columns may be left out entirely,\nin which case all rows being appended will use `null` values for that column.",
+            "default": "NORMAL",
+            "example": "INDEX"
+          },
+          "properties": {
+            "type": "object",
+            "additionalProperties": {
+              "type": "string"
+            },
+            "description": "The columns's properties.",
+            "nullable": true,
+            "example": {
+              "alias": "Peak Voltage",
+              "units": "mV"
+            }
+          }
+        },
+        "additionalProperties": false,
+        "description": "Defines a single column when creating a table."
+      },
+      "CreateTableRequest": {
+        "title": "Create Table Request",
+        "required": [
+          "columns"
+        ],
+        "type": "object",
+        "properties": {
+          "columns": {
+            "minItems": 1,
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/CreateTableColumn"
+            },
+            "description": "The tables's column definitions. Exactly one column must have a `columnType` of `INDEX`."
+          },
+          "name": {
+            "maxLength": 256,
+            "minLength": 0,
+            "type": "string",
+            "description": "The name to associate with the table. When not specified, a name will be assigned from the table's ID.",
+            "nullable": true,
+            "example": "Battery Test 2018-05-15"
+          },
+          "properties": {
+            "type": "object",
+            "additionalProperties": {
+              "type": "string"
+            },
+            "description": "The properties to set. A map of key value properties containing the metadata to be attached.",
+            "nullable": true,
+            "example": {
+              "myProperty": "value",
+              "testerNumber": "12"
+            }
+          },
+          "testResultId": {
+            "maxLength": 50,
+            "minLength": 0,
+            "type": "string",
+            "description": "The ID of the test result associated with the table. A null or empty string indicates\nthere is no associated test result. Added in version 2 of the `createTables` operation.",
+            "nullable": true,
+            "example": "02600cf8-c2bb-4ff9-a139-031e943fb0c0"
+          },
+          "workspace": {
+            "maxLength": 256,
+            "minLength": 0,
+            "type": "string",
+            "description": "This is an optional value. When specified, the workspace the table will be created in. Uses Default workspace if not specified.",
+            "nullable": true,
+            "example": "f94b178e-288c-4101-afb1-833992413aa7"
+          }
+        },
+        "additionalProperties": false,
+        "description": "The tables's column definitions and metadata. Exactly one column must have a `columnType` of `INDEX`."
+      },
+      "CreatedResponse": {
+        "title": "Created Response",
+        "required": [
+          "id"
+        ],
+        "type": "object",
+        "properties": {
+          "id": {
+            "minLength": 1,
+            "type": "string",
+            "description": "The ID of the created table.",
+            "example": "5afb2ce3741fe11d88838cc9"
+          }
+        },
+        "additionalProperties": false,
+        "description": "Response for successfully creating a table."
+      },
+      "DataFrame": {
+        "title": "Data Frame",
+        "required": [
+          "data"
+        ],
+        "type": "object",
+        "properties": {
+          "columns": {
+            "minItems": 1,
+            "type": "array",
+            "items": {
+              "type": "string"
+            },
+            "description": "The names and order of the columns included in the data frame.",
+            "nullable": true,
+            "example": [
+              "int_col",
+              "float_col",
+              "text_col"
+            ]
+          },
+          "data": {
+            "type": "array",
+            "items": {
+              "type": "array",
+              "items": {
+                "type": "string"
+              }
+            },
+            "description": "The data for each row with the order specified in the columns property.\nMust contain a value for each column in the columns property.",
+            "example": [
+              [
+                "1",
+                "1.1",
+                "first"
+              ],
+              [
+                "2",
+                "2.2",
+                "second"
+              ]
+            ]
+          }
+        },
+        "additionalProperties": false,
+        "description": "Data read from or to be written to a table. Values may be `null` (if the column is of type\n`NULLABLE`) or encoded as a string in a format according to each column's datatype:\n            \n- BOOL: One of `\"true\"` or `\"false\"`, case-insensitive.\n            \n- INT32: Any integer number in the range [-2147483648, 2147483647], surrounded by quotes.\n            \n- INT64: Any integer number in the range [-9223372036854775808, 9223372036854775807], surrounded by quotes.\n            \n- FLOAT32: A decimal number using a period for the decimal point, optionally in scientific\nnotation, in the range [-3.40282347E+38, 3.40282347E+38], surrounded by quotes. Not all values\nwithin the range can be represented with 32 bits. To preserve the exact binary encoding of\nthe value when converting to a string, clients should serialize 9 digits after the decimal.\nInstead of a number, the value may be `\"NaN\"` (not a number), `\"Infinity\"` (positive infinity),\nor `\"-Infinity\"` (negative infinity), case-sensitive.\n            \n- FLOAT64: A decimal number using a period for the decimal point, optionally in scientific\nnotation, in the range [-1.7976931348623157E+308, 1.7976931348623157E+308], surrounded by quotes.\nNot all values within the range can be represented with 64 bits. To preserve the exact binary\nencoding of the value when converting to a string, clients should serialize 17 digits after the\ndecimal. Instead of a number, the value may be `\"NaN\"` (not a number), `\"Infinity\"` (positive\ninfinity), or `\"-Infinity\"` (negative infinity), case-sensitive.\n            \n- STRING: Any quoted string, escaped as required by JSON.\n            \n- TIMESTAMP: A date and time with millisecond precision in ISO-8601 format and time zone.\nFor example: `\"2022-08-19T16:17:30.123Z\"`. If a time zone is not provided, UTC is assumed.\nIf a time zone other than UTC is provided, the value will be converted to UTC. If more than\nthree digits of fractional seconds are provided, the time will be truncated to three digits\n(i.e. milliseconds).\n            \nThe format is the same as a serialized Pandas DataFrame with `orient=\"split\"` and `index=False`.\nSee https://pandas.pydata.org/docs/reference/api/pandas.DataFrame.to_json.html.\n            \nWhen providing a DataFrame for appending rows, any of the table's columns not\nspecified `columns` will receive a value of `null`. If any such columns aren't\nnullable, an error will be returned. If the entire `columns` property is left\nout, each row is assumed to contain all columns in the order specified when the\ntable was created. When specified, the `columns` property must appear in the JSON\nbefore the `data` property."
+      },
+      "DataFrameQueryResponse": {
+        "title": "Data Frame Query Response",
+        "required": [
+          "continuationToken",
+          "frame",
+          "totalRowCount"
+        ],
+        "type": "object",
+        "properties": {
+          "frame": {
+            "$ref": "#/components/schemas/DataFrame"
+          },
+          "totalRowCount": {
+            "type": "integer",
+            "description": "The total number of rows matched by the query across all pages of results.",
+            "format": "int32"
+          },
+          "continuationToken": {
+            "type": "string",
+            "description": "A token which allows the user to resume a query at the next item in the matching results. When\nquerying, a token will be returned if a query may be continued. To obtain the next page of results,\npass the token to the service on a subsequent request. The service will respond with a new continuation\ntoken. To paginate results, continue sending requests with the newest continuation token provided\nby the service, until this value is null.",
+            "nullable": true,
+            "example": "eyJUYWJsZUlkIjoidGVzdC10YXhpLWZpeHR1cmUiLCJKb2JJZCI6IjFkN2U2NjM1LTA3YjktMmJmZS00NjY2LTQ1YWMyY2RkN2UwMCIsIlNraXAiOjJ9"
+          }
+        },
+        "additionalProperties": false,
+        "description": "Contains the result of a query for rows of data."
+      },
+      "DecimatedDataFrameQueryResponse": {
+        "title": "Decimated Data Frame Query Response",
+        "required": [
+          "frame"
+        ],
+        "type": "object",
+        "properties": {
+          "frame": {
+            "$ref": "#/components/schemas/DataFrame"
+          }
+        },
+        "additionalProperties": false,
+        "description": "Contains the result of a query for rows of decimated data."
+      },
+      "DeleteTablesPartialSuccessResponse": {
+        "title": "Delete Tables Partial Success",
+        "required": [
+          "deletedTableIds",
+          "error",
+          "failedTableIds"
+        ],
+        "type": "object",
+        "properties": {
+          "deletedTableIds": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            },
+            "description": "The IDs of the tables that were successfully deleted.",
+            "example": [
+              "5afb2ce3741fe11d88838cca"
+            ]
+          },
+          "failedTableIds": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            },
+            "description": "The IDs of the tables that could not be deleted.",
+            "example": [
+              "5afb2ce3741fe11d88838cc9"
+            ]
+          },
+          "error": {
+            "$ref": "#/components/schemas/HttpError"
+          }
+        },
+        "additionalProperties": false,
+        "description": "Contains the result of deleting multiple tables when one or more tables\ncould not be deleted."
+      },
+      "DeleteTablesRequest": {
+        "title": "Delete Tables Request",
+        "required": [
+          "ids"
+        ],
+        "type": "object",
+        "properties": {
+          "ids": {
+            "minItems": 1,
+            "type": "array",
+            "items": {
+              "type": "string"
+            },
+            "description": "The IDs of the tables to delete.",
+            "example": [
+              "5afb2ce3741fe11d88838cc9",
+              "5afb2ce3741fe11d88838cca"
+            ]
+          }
+        },
+        "additionalProperties": false,
+        "description": "Identifies the tables to delete."
+      },
+      "ErrorResponse": {
+        "title": "Error Response",
+        "required": [
+          "error"
+        ],
+        "type": "object",
+        "properties": {
+          "error": {
+            "$ref": "#/components/schemas/HttpError"
+          }
+        },
+        "additionalProperties": false,
+        "description": "Contains error information."
+      },
+      "HttpColumn": {
+        "title": "Column",
+        "type": "object",
+        "properties": {
+          "name": {
+            "maxLength": 256,
+            "minLength": 1,
+            "type": "string",
+            "description": "The column name, which is unique across all columns within a single table.",
+            "example": "PeakVoltage"
+          },
+          "dataType": {
+            "enum": [
+              "INT32",
+              "BOOL",
+              "INT64",
+              "FLOAT32",
+              "FLOAT64",
+              "STRING",
+              "TIMESTAMP"
+            ],
+            "type": "string",
+            "description": "The column datatype:\n\n- INT32: 32-bit signed integers.\n\n- BOOL: Boolean true or false.\n\n- INT64: 64-bit signed integers.\n\n- FLOAT32: 32-bit IEEE 754 floating-point number.\n\n- FLOAT64: 64-bit IEEE 754 floating-point number.\n\n- STRING: Arbitrary string data.\n\n- TIMESTAMP: Date and time represented in UTC with millisecond precision."
+          },
+          "columnType": {
+            "enum": [
+              "NORMAL",
+              "INDEX",
+              "NULLABLE"
+            ],
+            "type": "string",
+            "description": "Specifies a specialized type of column:\n\n- NORMAL: The column has no special properties. This is the default behavior.\n\n- INDEX: The column provides a unique value per row. Each table must provide exactly one INDEX column.\nThe column's `dataType` must be `INT32`, `INT64`, or `TIMESTAMP`.\n\n- NULLABLE: Rows may contain `null` values for this column. When appending rows, NULLABLE columns may be left out entirely,\nin which case all rows being appended will use `null` values for that column.",
+            "example": "INDEX"
+          },
+          "properties": {
+            "type": "object",
+            "additionalProperties": {
+              "type": "string"
+            },
+            "description": "The columns's properties.",
+            "example": {
+              "alias": "Peak Voltage",
+              "units": "mV"
+            }
+          }
+        },
+        "additionalProperties": false,
+        "description": "Defines a single column in a table. Fields are required unless a projection is specified\nin the request."
+      },
+      "HttpError": {
+        "title": "Error",
+        "required": [
+          "name",
+          "message"
+        ],
+        "type": "object",
+        "properties": {
+          "name": {
+            "type": "string",
+            "description": "String error code",
+            "example": "DataFrame.TableNotFoundOrNoAccess"
+          },
+          "code": {
+            "type": "integer",
+            "description": "Numeric error code",
+            "format": "int32",
+            "nullable": true,
+            "example": -255130
+          },
+          "message": {
+            "type": "string",
+            "description": "Complete error message",
+            "example": "A table with id '4afb2ce3741fe11d88838cc9' was not found or you don't have permission to perform the requested operation on it."
+          },
+          "resourceType": {
+            "type": "string",
+            "description": "Type of resource associated with the error",
+            "nullable": true,
+            "example": "table"
+          },
+          "resourceId": {
+            "type": "string",
+            "description": "Identifier of the resource associated with the error",
+            "nullable": true,
+            "example": "4afb2ce3741fe11d88838cc9"
+          },
+          "args": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            },
+            "description": "Positional argument values for the error code",
+            "example": [
+              "4afb2ce3741fe11d88838cc9"
+            ]
+          },
+          "innerErrors": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/HttpError"
+            },
+            "description": "Inner errors when the top-level error represents more than one error",
+            "nullable": true
+          }
+        },
+        "additionalProperties": false,
+        "description": "Contains error information.",
+        "example": {
+          "name": "Skyline.OneOrMoreErrorsOccurred",
+          "code": -251041,
+          "message": "One or more errors occurred. See the contained list for details of each error.",
+          "args": [ ],
+          "innerErrors": [
+            {
+              "name": "DataFrame.TableNotFoundOrNoAccess",
+              "code": -255130,
+              "message": "A table with id '4afb2ce3741fe11d88838cc9' was not found or you don't have permission to perform the requested operation on it.",
+              "resourceType": "table",
+              "resourceId": "4afb2ce3741fe11d88838cc9",
+              "args": [
+                "4afb2ce3741fe11d88838cc9"
+              ],
+              "innerErrors": [ ]
+            }
+          ]
+        }
+      },
+      "HttpTableMetadata": {
+        "title": "Table Metadata",
+        "required": [
+          "id"
+        ],
+        "type": "object",
+        "properties": {
+          "id": {
+            "minLength": 1,
+            "type": "string",
+            "description": "The table's unique identifier.",
+            "example": "5afb2ce3741fe11d88838cc9"
+          },
+          "columnCount": {
+            "maximum": 2147483647,
+            "minimum": 1,
+            "type": "integer",
+            "description": "The number of columns in the table. This field is only present when a projection\ncontaining `COLUMN_COUNT` is specified in the request.",
+            "format": "int32",
+            "example": 1
+          },
+          "columns": {
+            "minItems": 1,
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/HttpColumn"
+            },
+            "description": "The list of columns in the table."
+          },
+          "createdAt": {
+            "type": "string",
+            "description": "The date and time the table was created.",
+            "format": "date-time",
+            "example": "2018-05-15T18:54:27.519Z"
+          },
+          "metadataModifiedAt": {
+            "type": "string",
+            "description": "The date and time the table's metadata was last modified.",
+            "format": "date-time",
+            "example": "2018-05-15T18:54:27.519Z"
+          },
+          "metadataRevision": {
+            "maximum": 2147483647,
+            "minimum": 1,
+            "type": "integer",
+            "description": "The table's metadata revision number. When a table is created, the revision number starts at 1.\nEvery time metadata is modified, the revision number is incremented by 1.",
+            "format": "int32",
+            "example": 1
+          },
+          "name": {
+            "type": "string",
+            "description": "The name associated with the table.",
+            "example": "Battery Test 2018-05-15"
+          },
+          "properties": {
+            "type": "object",
+            "additionalProperties": {
+              "type": "string"
+            },
+            "description": "The table's properties.",
+            "example": {
+              "myProperty": "value",
+              "testerNumber": "12"
+            }
+          },
+          "rowCount": {
+            "maximum": 2147483647,
+            "minimum": 0,
+            "type": "integer",
+            "description": "The number of rows in the table.",
+            "format": "int32",
+            "example": 12345
+          },
+          "rowsModifiedAt": {
+            "type": "string",
+            "description": "The date and time the table's data was last modified.",
+            "format": "date-time",
+            "example": "2018-05-15T18:54:27.519Z"
+          },
+          "supportsAppend": {
+            "type": "boolean",
+            "description": "Whether the table supports appending additional rows of data. Clients may pass an `endOfData`\nflag when appending rows to mark all data received."
+          },
+          "testResultId": {
+            "type": "string",
+            "description": "The ID of the test result associated with the table. Responses do not include this\nfield when there is no associated test result. Added in version 2 of the `listTables`\noperation.",
+            "nullable": true,
+            "example": "02600cf8-c2bb-4ff9-a139-031e943fb0c0"
+          },
+          "workspace": {
+            "type": "string",
+            "description": "The workspace the table belongs to.",
+            "example": "f94b178e-288c-4101-afb1-833992413aa7"
+          }
+        },
+        "additionalProperties": false,
+        "description": "Contains information about a table, including its properties and column definitions. Each\ntable must provide exactly one column with `columnType` of `INDEX`. All fields except\n`columnCount` and `testResultId` are required, unless a projection is specified in the\nrequest."
+      },
+      "ListTablesResponse": {
+        "title": "List Tables Response",
+        "required": [
+          "continuationToken",
+          "tables"
+        ],
+        "type": "object",
+        "properties": {
+          "tables": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/HttpTableMetadata"
+            },
+            "description": "The list of tables returned by the query."
+          },
+          "continuationToken": {
+            "type": "string",
+            "description": "A token which allows the user to resume a query at the next item in the matching results. When\nquerying, a token will be returned if a query may be continued.To obtain the next page of results,\npass the token to the service on a subsequent request.The service will respond with a new continuation\ntoken.To paginate results, continue sending requests with the newest continuation token provided\nby the service, until this value is null.",
+            "nullable": true,
+            "example": "KgAAAAdpAGWYTN6mRFCDQ3x9CwhkAAAQbwAAAAAACXYAYkPs2owBAAAA"
+          }
+        },
+        "additionalProperties": false,
+        "description": "The response for a table query containing the matched tables."
+      },
+      "ModifyTableRequest": {
+        "title": "Modify Table Request",
+        "type": "object",
+        "properties": {
+          "metadataRevision": {
+            "maximum": 2147483647,
+            "minimum": 2,
+            "type": "integer",
+            "description": "When specified, this is an integer that must match the last known revision number of the table,\nincremented by one. If it doesn't match the current `metadataRevision` incremented by one at the\ntime of execution, the modify request will be rejected with a 409 Conflict. This is used to\nensure that changes to this table's metadata are based on a known, previous state.",
+            "format": "int32",
+            "example": 2
+          },
+          "name": {
+            "maxLength": 256,
+            "minLength": 0,
+            "type": "string",
+            "description": "The new name of the table. Set to `null` to reset the name to the table's ID.",
+            "nullable": true,
+            "example": "Battery Test 2018-05-15"
+          },
+          "testResultId": {
+            "maxLength": 50,
+            "minLength": 0,
+            "type": "string",
+            "description": "The new test result ID associated with the table. Set to `null` or an empty string to\nremove the test result ID. Added in version 2 of the `modifyMetadata` operation.",
+            "nullable": true,
+            "example": "02600cf8-c2bb-4ff9-a139-031e943fb0c0"
+          },
+          "workspace": {
+            "maxLength": 256,
+            "minLength": 0,
+            "type": "string",
+            "description": "The new workspace for the table. Set to `null` to reset to the default workspace.\nChanging the workspace requires permission to delete the table in its current workspace\nand permission to create the table in its new workspace.",
+            "nullable": true,
+            "example": "f94b178e-288c-4101-afb1-833992413aa7"
+          },
+          "properties": {
+            "minLength": 1,
+            "type": "object",
+            "additionalProperties": {
+              "type": "string",
+              "nullable": true
+            },
+            "description": "The properties to modify. A map of key value properties containing the metadata to be added or\nmodified. Set a property value to `null` to delete that property.",
+            "example": {
+              "propertyToAddOrEdit": "value",
+              "propertyToDelete": null
+            }
+          },
+          "columns": {
+            "minItems": 1,
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/ColumnMetadataPatch"
+            },
+            "description": "Updates to the column properties. Cannot add or remove columns, or change the name of a column."
+          }
+        },
+        "additionalProperties": false,
+        "description": "Contains the metadata properties to modify. Values not included in the request body will remain unchanged."
+      },
+      "ModifyTablesPartialSuccessResponse": {
+        "title": "Modify Tables Partial Success",
+        "required": [
+          "error",
+          "failedModifications",
+          "modifiedTableIds"
+        ],
+        "type": "object",
+        "properties": {
+          "modifiedTableIds": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            },
+            "description": "The IDs of the tables that were successfully modified.",
+            "example": [
+              "5afb2ce3741fe11d88838cca"
+            ]
+          },
+          "failedModifications": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/TableMetadataModification"
+            },
+            "description": "The requested modifications that could not be applied."
+          },
+          "error": {
+            "$ref": "#/components/schemas/HttpError"
+          }
+        },
+        "additionalProperties": false,
+        "description": "Contains the result of modifying multiple tables when one or more tables\ncould not be modified."
+      },
+      "ModifyTablesRequest": {
+        "title": "Modify Tables Request",
+        "required": [
+          "tables"
+        ],
+        "type": "object",
+        "properties": {
+          "tables": {
+            "minItems": 1,
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/TableMetadataModification"
+            },
+            "description": "The table modifications to apply. Each table may only appear in the list once."
+          },
+          "replace": {
+            "type": "boolean",
+            "description": "When `true`, existing properties are replaced instead of merged.",
+            "default": false
+          }
+        },
+        "additionalProperties": false,
+        "description": "Contains one or more table modifications to apply."
+      },
+      "Operation": {
+        "required": [
+          "available",
+          "version"
+        ],
+        "type": "object",
+        "properties": {
+          "available": {
+            "type": "boolean",
+            "description": "Whether the operation is available to the caller (e.g. due to permissions).",
+            "example": true
+          },
+          "version": {
+            "maximum": 2147483647,
+            "minimum": 1,
+            "type": "integer",
+            "description": "The version of the available operation.",
+            "format": "int32",
+            "example": 1
+          }
+        },
+        "additionalProperties": false,
+        "description": "An operation provided by the API. Each route functionality is covered by an operation.\nAs new functionality is added to an operation, the `version` is incremented."
+      },
+      "ProblemDetails": {
+        "type": "object",
+        "properties": {
+          "type": {
+            "type": "string",
+            "nullable": true
+          },
+          "title": {
+            "type": "string",
+            "nullable": true
+          },
+          "status": {
+            "type": "integer",
+            "format": "int32",
+            "nullable": true
+          },
+          "detail": {
+            "type": "string",
+            "nullable": true
+          },
+          "instance": {
+            "type": "string",
+            "nullable": true
+          }
+        },
+        "additionalProperties": { }
+      },
+      "QueryTablesRequest": {
+        "title": "Query Tables Request",
+        "type": "object",
+        "properties": {
+          "filter": {
+            "maxLength": 20000,
+            "minLength": 0,
+            "type": "string",
+            "description": "The table query filter in [Dynamic Linq](https://github.com/ni/systemlink-OpenAPI-documents/wiki/Dynamic-Linq-Query-Language).\nAllowed properties in the filter are:\n\n\n- `columns`: List of columns in the table (see below)\n\n\n- `createdAt`: DateTime the table was created\n\n\n- `createdWithin`: TimeSpan in which the table was created\n\n\n- `id`: String value uniquely identifying the table\n\n\n- `name`: String name for the table\n\n\n- `metadataModifiedAt`: DateTime the table's metadata was last modified\n\n\n- `metadataModifiedWithin`: TimeSpan in which the table's metadata was last modified\n\n\n- `properties`: Dictionary with string keys and values representing table metadata\n\n\n- `rowsModifiedAt`: DateTime rows were last appended to the table\n\n\n- `rowsModifiedWithin`: TimeSpan within rows were last appended to the table\n\n\n- `rowCount`: Int32 number of rows in the table\n\n\n- `supportsAppend`: Boolean indicating whether or not the table supports appending additional rows of data\n\n\n- `testResultId`: String ID of the test result associated with the table\n\n\n- `workspace`: String ID of the workspace the table belongs to\n\n\n- `workspaceName`: String name of the workspace the table belongs to\n\n\n            \nAllowed properties in the `columns` list are:\n\n\n- `name`: String name of the column (requires a `testResultId` filter)\n\n\n            \nAllowed constants in the filter are:\n\n\n- `RelativeTime.CurrentDay`: TimeSpan representing the elapsed time between now and the start of the current day\n\n\n- `RelativeTime.CurrentWeek`: TimeSpan representing the elapsed time between now and the start of the current week\n\n\n- `RelativeTime.CurrentMonth`: TimeSpan representing the elapsed time between now and the start of the current month\n\n\n- `RelativeTime.CurrentYear`: TimeSpan representing the elapsed time between now and the start of the current year",
+            "nullable": true,
+            "example": "properties[\"testerNumber\"] == @0 and (rowCount > @1 or rowsModifiedWithin <= RelativeTime.CurrentDay)"
+          },
+          "substitutions": {
+            "type": "array",
+            "items": {
+              "oneOf": [
+                {
+                  "type": "boolean"
+                },
+                {
+                  "type": "integer",
+                  "format": "int32"
+                },
+                {
+                  "type": "string",
+                  "nullable": true
+                }
+              ],
+              "description": "A `boolean`, `integer`, `string`, or `null` value."
+            },
+            "description": "Makes substitutions in the query filter expression. Substitutions for the query expression are indicated\nby non-negative integers that are prefixed with the `@` symbol. Each substitution in the given expression\nwill be replaced by the element at the corresponding index (zero-based) in this list. For example,\n`@0` in the filter expression will be replaced with the element at the zeroth index of the substitutions list.",
+            "nullable": true,
+            "example": [
+              "12",
+              50
+            ]
+          },
+          "referenceTime": {
+            "type": "string",
+            "description": "The date and time to use as the reference point for `RelativeTime` filters, including time zone information.\nDefaults to the current time in UTC.",
+            "format": "date-time",
+            "nullable": true,
+            "example": "2022-02-15T18:54:27.519+02:00"
+          },
+          "projection": {
+            "type": "array",
+            "items": {
+              "enum": [
+                "COLUMN_COUNT",
+                "COLUMN_NAME",
+                "COLUMN_DATA_TYPE",
+                "COLUMN_COLUMN_TYPE",
+                "COLUMN_PROPERTIES",
+                "CREATED_AT",
+                "METADATA_MODIFIED_AT",
+                "METADATA_REVISION",
+                "NAME",
+                "PROPERTIES",
+                "ROW_COUNT",
+                "ROWS_MODIFIED_AT",
+                "SUPPORTS_APPEND",
+                "TEST_RESULT_ID",
+                "WORKSPACE"
+              ],
+              "type": "string",
+              "description": "The fields that may be selected for table metadata projections:\n\n- COLUMN_COUNT: Selects the `ColumnCount` field.\n\n- COLUMN_NAME: Selects the `Name` field of each element of the `Columns` array.\n\n- COLUMN_DATA_TYPE: Selects the `DataType` field of each element of the `Columns` array.\n\n- COLUMN_COLUMN_TYPE: Selects the `ColumnType` field of each element of the `Columns` array.\n\n- COLUMN_PROPERTIES: Selects the `Properties` field of each element of the `Columns` array.\n\n- CREATED_AT: Selects the `CreatedAt` field.\n\n- METADATA_MODIFIED_AT: Selects the `MetadataModifiedAt` field.\n\n- METADATA_REVISION: Selects the `MetadataRevision` field.\n\n- NAME: Selects the `Name` field.\n\n- PROPERTIES: Selects the `Properties` field.\n\n- ROW_COUNT: Selects the `RowCount` field.\n\n- ROWS_MODIFIED_AT: Selects the `RowsModifiedAt` field.\n\n- SUPPORTS_APPEND: Selects the `SupportsAppend` field.\n\n- TEST_RESULT_ID: Selects the `TestResultId` field. Added in version 2 of the `listTables` operation.\n\n- WORKSPACE: Selects the `Workspace` field."
+            },
+            "description": "The list of fields to return for each table in the response. When not specified, all\nfields are returned. When empty, only table IDs are returned. When specifying both\n`orderBy` and `projection`, the `orderBy` field must be included in the `projection` list.",
+            "nullable": true,
+            "example": [
+              "COLUMN_NAME",
+              "CREATED_AT",
+              "NAME"
+            ]
+          },
+          "take": {
+            "maximum": 1000,
+            "minimum": 1,
+            "type": "integer",
+            "description": "Limits the returned list to the specified number of results.",
+            "format": "int32",
+            "default": 1000
+          },
+          "continuationToken": {
+            "type": "string",
+            "description": "A token which allows the user to resume a query at the next item in the matching results. When\nquerying, a token will be returned if a query may be continued. To obtain the next page of results,\npass the token to the service on a subsequent request. The service will respond with a new continuation\ntoken. To paginate results, continue sending requests with the newest continuation token provided\nby the service, until this value is null.",
+            "nullable": true,
+            "example": "KgAAAAdpAGWYTN6mRFCDQ3x9CwhkAAAQbwAAAAAACXYAYkPs2owBAAAA"
+          },
+          "orderBy": {
+            "enum": [
+              "CREATED_AT",
+              "METADATA_MODIFIED_AT",
+              "NAME",
+              "NUMBER_OF_ROWS",
+              "ROWS_MODIFIED_AT"
+            ],
+            "type": "string",
+            "description": "The sort order of the returned list of tables. By default, tables are sorted in ascending order based on the specified value.\nWhen specifying both `orderBy` and `projection`, the `orderBy` field must be included in the `projection` list:\n\n- CREATED_AT: The date and time the table was created (default oldest table first).\n\n- METADATA_MODIFIED_AT: The date and time the table's metadata properties were modified.\n\n- NAME: The table's name, which defaults to the table's ID if a name is not provided.\n\n- NUMBER_OF_ROWS: The number of rows of data in the table (default least number of rows first).\n\n- ROWS_MODIFIED_AT: Date and time rows were most recently appended to the table.",
+            "nullable": true
+          },
+          "orderByDescending": {
+            "type": "boolean",
+            "description": "Whether to sort descending instead of ascending. The elements in the list are sorted ascending by default.\nIf the orderByDescending parameter is specified, the elements in the list are sorted based on it's value.\nThe orderByDescending value must be a boolean string. The elements in the list are sorted ascending if false\nand descending if true.",
+            "default": false
+          },
+          "interactive": {
+            "type": "boolean",
+            "description": "Whether the query is being made within an interactive context, such as a web UI.\nInteractive queries receive faster feedback for slow queries.",
+            "default": false
+          }
+        },
+        "additionalProperties": false,
+        "description": "The parameters for querying the tables."
+      },
+      "RootEndpointResponse": {
+        "title": "Root Endpoint Response",
+        "required": [
+          "v1",
+          "version"
+        ],
+        "type": "object",
+        "properties": {
+          "v1": {
+            "$ref": "#/components/schemas/V1Operations"
+          },
+          "version": {
+            "minLength": 1,
+            "type": "string",
+            "description": "The implementation version of the web service.",
+            "example": "22.0"
+          }
+        },
+        "additionalProperties": false,
+        "description": "Version information"
+      },
+      "StringColumnFilter": {
+        "title": "Column Filter",
+        "required": [
+          "column",
+          "operation",
+          "value"
+        ],
+        "type": "object",
+        "properties": {
+          "column": {
+            "minLength": 1,
+            "type": "string",
+            "description": "The name of the column to use for filtering.",
+            "example": "Time"
+          },
+          "operation": {
+            "enum": [
+              "EQUALS",
+              "LESS_THAN",
+              "LESS_THAN_EQUALS",
+              "GREATER_THAN",
+              "GREATER_THAN_EQUALS",
+              "NOT_EQUALS",
+              "CONTAINS",
+              "NOT_CONTAINS"
+            ],
+            "type": "string",
+            "description": "How to compare the column's value with the specified `value` property. An error\nis returned if the column's data type does not support the specified operation:\n            \n- String columns only support `EQUALS`, `NOT_EQUALS`, `CONTAINS`, and `NOT_CONTAINS`.\n            \n- Non-string columns do not support `CONTAINS` or `NOT_CONTAINS`.\n            \n- When `value` is null, `operation` must be `EQUALS` or `NOT_EQUALS`.\n            \n- When `value` is `NaN` for a floating-point column, `operation` must be `NOT_EQUALS`."
+          },
+          "value": {
+            "type": "string",
+            "description": "The comparison value to use for filtering. An error will be returned if the value cannot be converted to the column's data type.",
+            "nullable": true,
+            "example": "2020-03-11T16:30:00.000Z"
+          }
+        },
+        "additionalProperties": false,
+        "description": "A filter to apply to the table data."
+      },
+      "StringColumnOrderBy": {
+        "title": "Column Order By",
+        "required": [
+          "column"
+        ],
+        "type": "object",
+        "properties": {
+          "column": {
+            "minLength": 1,
+            "type": "string",
+            "description": "The name of the column to order by.",
+            "example": "Time"
+          },
+          "descending": {
+            "type": "boolean",
+            "description": "Whether the ordering should be in descending order.",
+            "default": false
+          }
+        },
+        "additionalProperties": false,
+        "description": "Specifies a column to order by and the ordering direction."
+      },
+      "StringDecimatedDataQueryRequest": {
+        "title": "Decimated DataFrame Query Request",
+        "type": "object",
+        "properties": {
+          "columns": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            },
+            "description": "The names of columns to include in the response.\nThe response will include the columns in the same order specified in this parameter.\nAll columns are included in the order specified at table creation if this property is excluded.",
+            "nullable": true,
+            "example": [
+              "Time",
+              "Voltage"
+            ]
+          },
+          "filters": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/StringColumnFilter"
+            },
+            "description": "A list of columns to filter by.\nOnly rows whose columns contain values matching all of the specified filters are returned.\nThe columns used for filtering do not need to be included in the `columns` list,\nin which case they are not returned in the response.\nThese filters are applied before data is decimated.",
+            "nullable": true,
+            "example": [
+              {
+                "column": "Time",
+                "operation": "GREATER_THAN_EQUALS",
+                "value": "2020-03-11T16:30:00.000Z"
+              },
+              {
+                "column": "Time",
+                "operation": "LESS_THAN",
+                "value": "2020-03-12T16:30:00.000Z"
+              }
+            ]
+          },
+          "decimation": {
+            "$ref": "#/components/schemas/StringDecimationOptions"
+          }
+        },
+        "additionalProperties": false,
+        "description": "Specifies the columns, filters and decimation parameters for a query."
+      },
+      "StringDecimationOptions": {
+        "title": "Decimation Options",
+        "type": "object",
+        "properties": {
+          "xColumn": {
+            "type": "string",
+            "description": "The name of the column that will be used as the x-axis for decimating the data.\nThe column in the table that was specified as Index will be used if this property is excluded.\nOnly numeric columns are supported. i.e. `INT32`, `INT64`, `FLOAT32`, `FLOAT64` and `TIMESTAMP`.",
+            "nullable": true,
+            "example": "Time"
+          },
+          "yColumns": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            },
+            "description": "A list of columns to decimate by.\nThis property is only needed when the specified `method` is `MAX_MIN` or `ENTRY_EXIT`.\nOnly numeric columns are supported. i.e. `INT32`, `INT64`, `FLOAT32`, `FLOAT64` and `TIMESTAMP`.",
+            "nullable": true,
+            "example": [
+              "Voltage"
+            ]
+          },
+          "intervals": {
+            "maximum": 2147483647,
+            "minimum": 1,
+            "type": "integer",
+            "description": "Number of intervals to use for decimation.",
+            "format": "int32",
+            "default": 1000
+          },
+          "method": {
+            "enum": [
+              "LOSSY",
+              "MAX_MIN",
+              "ENTRY_EXIT"
+            ],
+            "type": "string",
+            "description": "Specifies the method used to decimate the data:\n\n- LOSSY: Creates an `xColumn` ordered set and returns an uniformly distributed sample of\nrows with as many rows as the number specified as `intervals`.\n\n- MAX_MIN: Creates an `xColumn` ordered set which will be divided in the number of `intervals` specified.\nFor each of the intervals, the maximum and minimum values for all the\ncolumns specified in `yColumns` will be returned.\n\n- ENTRY_EXIT: Creates an `xColumn` ordered set which will be divided in the number of `intervals` specified.\nFor each of the intervals, the first and last row within the interval will be returned\nin addition to the maximum and minimum values for all the columns specified in `yColumns`.",
+            "default": "LOSSY",
+            "example": "MAX_MIN"
+          }
+        },
+        "additionalProperties": false,
+        "description": "Contains the parameters to use for data decimation."
+      },
+      "StringExportTableDataRequest": {
+        "title": "Export Table Data Request",
+        "required": [
+          "responseFormat"
+        ],
+        "type": "object",
+        "properties": {
+          "columns": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            },
+            "description": "The names of columns to include in the export. The export will include the columns in the same order specified in this parameter. All columns are included in the order specified at table creation if this property is excluded.",
+            "nullable": true,
+            "example": [
+              "Time",
+              "Voltage",
+              "State"
+            ]
+          },
+          "orderBy": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/StringColumnOrderBy"
+            },
+            "description": "A list of columns to order the results by. Multiple columns may be specified to order rows that have the same value for prior columns. The columns used for sorting do not need to be included in the columns list, in which case they are not included in the export.",
+            "nullable": true,
+            "example": [
+              {
+                "column": "Time",
+                "descending": false
+              },
+              {
+                "column": "Voltage",
+                "descending": true
+              },
+              {
+                "column": "Current"
+              }
+            ]
+          },
+          "filters": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/StringColumnFilter"
+            },
+            "description": "A list of columns to filter by. Only rows whose columns contain values matching all of the specified filters are returned. The columns used for filtering do not need to be included in the columns list, in which case they are not included in the export.",
+            "nullable": true,
+            "example": [
+              {
+                "column": "Time",
+                "operation": "GREATER_THAN_EQUALS",
+                "value": "2020-03-11T16:30:00.000Z"
+              },
+              {
+                "column": "Voltage",
+                "operation": "NOT_EQUALS",
+                "value": null
+              }
+            ]
+          },
+          "take": {
+            "maximum": 2147483647,
+            "minimum": 1,
+            "type": "integer",
+            "description": "The maximum number of rows to include in the export. If not specified, all rows are included.",
+            "format": "int32",
+            "nullable": true,
+            "example": 100
+          },
+          "destination": {
+            "enum": [
+              "INLINE",
+              "DOWNLOAD_LINK"
+            ],
+            "type": "string",
+            "description": "The destination of the exported data:\n\n- INLINE: Returns the exported data as the body of the response.\n\n- DOWNLOAD_LINK: Creates a one-time download URL for executing an export as a file download. Make a `GET` request to the URL returned\nin the `Location` response header to retrieve the requested export data.",
+            "default": "INLINE"
+          },
+          "responseFormat": {
+            "enum": [
+              "CSV"
+            ],
+            "type": "string",
+            "description": "The format of the exported data. The only response format currently supported is `CSV`:\n\n- CSV: Comma-separated values."
+          }
+        },
+        "additionalProperties": false,
+        "description": "Specifies the parameters for a data export with ordering and filtering."
+      },
+      "StringQueryTableDataRequest": {
+        "title": "Query Table Data Request",
+        "type": "object",
+        "properties": {
+          "columns": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            },
+            "description": "The names of columns to include in the response. The response will include the columns in the same order specified in this parameter. All columns are included in the order specified at table creation if this property is excluded.",
+            "nullable": true,
+            "example": [
+              "Time",
+              "Voltage",
+              "State"
+            ]
+          },
+          "orderBy": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/StringColumnOrderBy"
+            },
+            "description": "A list of columns to order the results by. Multiple columns may be specified to order rows that have the same value for prior columns. The columns used for sorting do not need to be included in the `columns` list, in which case they are not returned in the response. If orderBy is not specified, then the order in which results are returned is undefined.",
+            "nullable": true,
+            "example": [
+              {
+                "column": "Time",
+                "descending": false
+              },
+              {
+                "column": "Voltage",
+                "descending": true
+              },
+              {
+                "column": "Current"
+              }
+            ]
+          },
+          "filters": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/StringColumnFilter"
+            },
+            "description": "A list of columns to filter by. Only rows whose columns contain values matching all of the specified filters are returned. The columns used for filtering do not need to be included in the `columns` list, in which case they are not returned in the response.",
+            "nullable": true,
+            "example": [
+              {
+                "column": "Time",
+                "operation": "GREATER_THAN_EQUALS",
+                "value": "2020-03-11T16:30:00.000Z"
+              },
+              {
+                "column": "Voltage",
+                "operation": "NOT_EQUALS",
+                "value": null
+              }
+            ]
+          },
+          "take": {
+            "maximum": 500,
+            "minimum": 1,
+            "type": "integer",
+            "description": "Limits the returned list to the specified number of results. Use with the continuationToken property to implement pagination.",
+            "format": "int32",
+            "default": 500
+          },
+          "continuationToken": {
+            "type": "string",
+            "description": "A token which allows the user to resume a query at the next item in the matching results. When\nquerying, a token will be returned if a query may be continued. To obtain the next page of results,\npass the token to the service on a subsequent request. The service will respond with a new continuation\ntoken. To paginate results, continue sending requests with the newest continuation token provided\nby the service, until this value is null.",
+            "nullable": true,
+            "example": "eyJUYWJsZUlkIjoidGVzdC10YXhpLWZpeHR1cmUiLCJKb2JJZCI6IjFkN2U2NjM1LTA3YjktMmJmZS00NjY2LTQ1YWMyY2RkN2UwMCIsIlNraXAiOjJ9"
+          }
+        },
+        "additionalProperties": false,
+        "description": "Specifies the ordering and filtering query."
+      },
+      "TableMetadataModification": {
+        "title": "Table Metadata Modification",
+        "required": [
+          "id"
+        ],
+        "type": "object",
+        "properties": {
+          "id": {
+            "minLength": 1,
+            "type": "string",
+            "description": "The ID of the table to modify.",
+            "example": "4afb2ce3741fe11d88838cc9"
+          },
+          "metadataRevision": {
+            "maximum": 2147483647,
+            "minimum": 2,
+            "type": "integer",
+            "description": "When specified, this is an integer that must match the last known revision number of the table,\nincremented by one. If it doesn't match the current `metadataRevision` incremented by one at the\ntime of execution, the modify request will be rejected with a conflict error. This is used to\nensure that changes to this table's metadata are based on a known, previous state.",
+            "format": "int32",
+            "nullable": true,
+            "example": 2
+          },
+          "name": {
+            "maxLength": 256,
+            "minLength": 0,
+            "type": "string",
+            "description": "The new name of the table.",
+            "nullable": true,
+            "example": "Battery Test 2018-05-15"
+          },
+          "testResultId": {
+            "maxLength": 50,
+            "minLength": 0,
+            "type": "string",
+            "description": "The new test result ID associated with the table. Set to an empty string to remove the\ntest result ID. Added in version 2 of the `modifyMetadata` operation.",
+            "nullable": true,
+            "example": "02600cf8-c2bb-4ff9-a139-031e943fb0c0"
+          },
+          "workspace": {
+            "maxLength": 256,
+            "minLength": 0,
+            "type": "string",
+            "description": "The new workspace for the table. Changing the workspace requires permission to delete the\ntable in its current workspace and permission to create the table in its new workspace.",
+            "nullable": true,
+            "example": "f94b178e-288c-4101-afb1-833992413aa7"
+          },
+          "properties": {
+            "type": "object",
+            "additionalProperties": {
+              "type": "string",
+              "nullable": true
+            },
+            "description": "The properties to modify. A map of key value properties containing the metadata to be added or\nmodified. Set a property value to `null` to delete that property. Existing properties not\nincluded in the map are unaffected unless `replace` is `true` in the top-level request object.",
+            "nullable": true,
+            "example": {
+              "propertyToAddOrEdit": "value",
+              "propertyToDelete": null
+            }
+          }
+        },
+        "additionalProperties": false,
+        "description": "Contains the modifications for a table's metadata. Values not included in the request body\nor included with a `null` value will remain unchanged."
+      },
+      "V1Operations": {
+        "title": "V1 Operations",
+        "required": [
+          "operations"
+        ],
+        "type": "object",
+        "properties": {
+          "operations": {
+            "$ref": "#/components/schemas/AvailableV1Operations"
+          }
+        },
+        "additionalProperties": false,
+        "description": "The operations available in the routes provided by the `/v1` HTTP API."
+      }
+    },
+    "securitySchemes": {
+      "apikey": {
+        "type": "apiKey",
+        "name": "X-NI-API-KEY",
+        "in": "header"
+      }
+    }
+  },
+  "security": [
+    {
+      "apikey": [ ]
+    }
+  ],
+  "tags": [
+    {
+      "name": "Versioning",
+      "description": "Information about API versions and available operations"
+    },
+    {
+      "name": "Tables",
+      "description": "Create, list, and delete tables and their metadata"
+    },
+    {
+      "name": "Data",
+      "description": "Read and write data for tables"
+    }
+  ]
+}

@@ -420,13 +420,34 @@ def register_workspace_commands(cli: Any) -> None:
 
 
 def _get_workspace_map() -> Dict[str, str]:
-    """Get a mapping of workspace IDs to names."""
+    """Get a mapping of workspace IDs to names.
+
+    Fetches all workspaces using pagination (max 100 per request).
+    """
     try:
-        url = f"{get_base_url()}/niuser/v1/workspaces"
-        resp = make_api_request("GET", url)
-        data = resp.json()
-        workspaces = data.get("workspaces", [])
-        return {ws.get("id"): ws.get("name") for ws in workspaces if ws.get("id")}
+        workspace_map: Dict[str, str] = {}
+        skip = 0
+        page_size = 100  # API max take is 100
+
+        while True:
+            url = f"{get_base_url()}/niuser/v1/workspaces?take={page_size}&skip={skip}"
+            resp = make_api_request("GET", url)
+            data = resp.json()
+            workspaces = data.get("workspaces", [])
+
+            # Add workspaces from this page to the map
+            for ws in workspaces:
+                if ws.get("id"):
+                    workspace_map[ws.get("id")] = ws.get("name")
+
+            # Check if we got all workspaces
+            total_count = data.get("totalCount", 0)
+            if skip + len(workspaces) >= total_count:
+                break
+
+            skip += page_size
+
+        return workspace_map
     except Exception:
         return {}
 

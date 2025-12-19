@@ -3,7 +3,7 @@
 import json
 import tempfile
 from pathlib import Path
-from typing import Any, Generator
+from typing import Generator
 
 import pytest
 

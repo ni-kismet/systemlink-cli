@@ -1,0 +1,2245 @@
+{
+  "openapi": "3.0.4",
+  "info": {
+    "title": "SystemLink Feed Service",
+    "description": "Enables hosting a package repository within SystemLink",
+    "contact": {
+      "name": "NI",
+      "url": "https://www.ni.com/systemlink",
+      "email": "support@ni.com"
+    },
+    "version": "1"
+  },
+  "paths": {
+    "/nifeed/v1/feeds": {
+      "get": {
+        "tags": [
+          "Feed"
+        ],
+        "summary": "Query feeds.",
+        "parameters": [
+          {
+            "name": "Platform",
+            "in": "query",
+            "description": "Returns only feeds with matching Platform field if this value is set",
+            "schema": {
+              "enum": [
+                "WINDOWS",
+                "NI_LINUX_RT"
+              ],
+              "type": "string"
+            }
+          },
+          {
+            "name": "Workspace",
+            "in": "query",
+            "description": "Returns only feeds with matching Workspace field if this value is set",
+            "schema": {
+              "maxLength": 36,
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ListFeedsResponse"
+                }
+              }
+            }
+          },
+          "default": {
+            "description": "Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/BaseResponse"
+                }
+              }
+            }
+          }
+        }
+      },
+      "post": {
+        "tags": [
+          "Feed"
+        ],
+        "summary": "Create a new feed.",
+        "requestBody": {
+          "description": "",
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CreateFeedRequest"
+              }
+            },
+            "text/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CreateFeedRequest"
+              }
+            },
+            "application/*+json": {
+              "schema": {
+                "$ref": "#/components/schemas/CreateFeedRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "Created",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Feed"
+                }
+              }
+            }
+          },
+          "default": {
+            "description": "Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/BaseResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/nifeed/v1/feeds/{feedId}": {
+      "get": {
+        "tags": [
+          "Feed"
+        ],
+        "summary": "Query feed by ID.",
+        "parameters": [
+          {
+            "name": "feedId",
+            "in": "path",
+            "description": "The ID of the feed to query",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Feed"
+                }
+              }
+            }
+          },
+          "default": {
+            "description": "Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/BaseResponse"
+                }
+              }
+            }
+          }
+        }
+      },
+      "delete": {
+        "tags": [
+          "Feed"
+        ],
+        "summary": "Delete feed and its packages.",
+        "parameters": [
+          {
+            "name": "feedId",
+            "in": "path",
+            "description": "The ID of the feed to delete.",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": "No content"
+          },
+          "default": {
+            "description": "Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/BaseResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/nifeed/v1/feeds/{feedId}/metadata": {
+      "patch": {
+        "tags": [
+          "Feed"
+        ],
+        "summary": "Update feed metadata.",
+        "parameters": [
+          {
+            "name": "feedId",
+            "in": "path",
+            "description": "The ID of the feed to update.",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "description": "",
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/UpdateFeedMetadataRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Feed"
+                }
+              }
+            }
+          },
+          "default": {
+            "description": "Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/BaseResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/nifeed/v1/delete-feeds": {
+      "post": {
+        "tags": [
+          "Feed"
+        ],
+        "summary": "Delete multiple feeds and their packages.",
+        "requestBody": {
+          "description": "A list of IDs of the feeds that are going to be deleted.",
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/DeleteFeedsRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "No content",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/DeleteFeedsResponse"
+                }
+              }
+            }
+          },
+          "default": {
+            "description": "Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/BaseResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/nifeed/v1/replicate-feed": {
+      "post": {
+        "tags": [
+          "Feed"
+        ],
+        "summary": "Replicate a feed.",
+        "parameters": [
+          {
+            "name": "ignoreImportErrors",
+            "in": "query",
+            "description": "A query parameter that determines whether the service should abort the request if errors occur while importing some packages. If false, the service will abort and roll back the request if an error occurs while importing a package. If true, the service will import as many packages as it can, and return an error describing which packages could not be imported.",
+            "schema": {
+              "type": "boolean",
+              "default": false
+            }
+          }
+        ],
+        "requestBody": {
+          "description": "",
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ReplicateFeedRequest"
+              }
+            },
+            "text/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ReplicateFeedRequest"
+              }
+            },
+            "application/*+json": {
+              "schema": {
+                "$ref": "#/components/schemas/ReplicateFeedRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "Created",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ReplicateFeedResult"
+                }
+              }
+            }
+          },
+          "default": {
+            "description": "Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/BaseResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/nifeed/v1/replicate-feeds": {
+      "post": {
+        "tags": [
+          "Feed"
+        ],
+        "summary": "Replicate multiple feeds.",
+        "parameters": [
+          {
+            "name": "ignoreImportErrors",
+            "in": "query",
+            "description": "A query parameter that determines whether the service should abort the request if errors occur while importing some packages. If false, the service will abort and roll back the request if an error occurs while importing a package. If true, the service will import as many packages as it can, and return an error describing which packages could not be imported.",
+            "schema": {
+              "type": "boolean",
+              "default": false
+            }
+          }
+        ],
+        "requestBody": {
+          "description": "",
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ReplicateFeedsRequest"
+              }
+            },
+            "text/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ReplicateFeedsRequest"
+              }
+            },
+            "application/*+json": {
+              "schema": {
+                "$ref": "#/components/schemas/ReplicateFeedsRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ReplicateFeedsResult"
+                }
+              }
+            }
+          },
+          "201": {
+            "description": "Created",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ReplicateFeedsResult"
+                }
+              }
+            }
+          },
+          "default": {
+            "description": "Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/BaseResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/nifeed/v1/feeds/{feedId}/check-for-updates": {
+      "post": {
+        "tags": [
+          "Feed"
+        ],
+        "summary": "Asynchronously checks for updates to a feed.",
+        "parameters": [
+          {
+            "name": "feedId",
+            "in": "path",
+            "description": "The ID of the feed.",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "201": {
+            "description": "Created",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/JobIDResponse"
+                }
+              }
+            }
+          },
+          "default": {
+            "description": "Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/BaseResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/nifeed/v1/feeds/{feedId}/apply-updates": {
+      "post": {
+        "tags": [
+          "Feed"
+        ],
+        "summary": "Asynchronously apply updates for a feed.",
+        "parameters": [
+          {
+            "name": "feedId",
+            "in": "path",
+            "description": "The ID of the feed.",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "ignoreImportErrors",
+            "in": "query",
+            "description": "Whether the request should ignore import errors or not.",
+            "schema": {
+              "type": "boolean"
+            }
+          }
+        ],
+        "requestBody": {
+          "description": "",
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ApplyFeedUpdatesRequest"
+              }
+            },
+            "text/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ApplyFeedUpdatesRequest"
+              }
+            },
+            "application/*+json": {
+              "schema": {
+                "$ref": "#/components/schemas/ApplyFeedUpdatesRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "Created",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/JobIDResponse"
+                }
+              }
+            }
+          },
+          "default": {
+            "description": "Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/BaseResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/nifeed/v1/feed-updates/{updateDescriptorListId}": {
+      "get": {
+        "tags": [
+          "Feed"
+        ],
+        "summary": "Get update descriptor list by ID",
+        "parameters": [
+          {
+            "name": "updateDescriptorListId",
+            "in": "path",
+            "description": "The ID of the update descriptor list",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/GetUpdateDescriptorsResponse"
+                }
+              }
+            }
+          },
+          "default": {
+            "description": "Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/BaseResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/nifeed/v1/feeds/{feedId}/clean": {
+      "post": {
+        "tags": [
+          "Feed"
+        ],
+        "summary": "Enqueues a job for package cleanup",
+        "parameters": [
+          {
+            "name": "feedId",
+            "in": "path",
+            "description": "The ID of the feed that will be cleaned",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "201": {
+            "description": "Created",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/JobIDResponse"
+                }
+              }
+            }
+          },
+          "default": {
+            "description": "Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/BaseResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/nifeed/v1/feeds/{feedId}/files/Packages.gz": {
+      "get": {
+        "tags": [
+          "FeedContent"
+        ],
+        "summary": "Download Packages.gz.",
+        "parameters": [
+          {
+            "name": "feedId",
+            "in": "path",
+            "description": "The ID of the package's feed",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "string",
+                  "format": "binary"
+                }
+              }
+            }
+          },
+          "default": {
+            "description": "Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/BaseResponse"
+                }
+              }
+            }
+          }
+        }
+      },
+      "head": {
+        "tags": [
+          "FeedContent"
+        ],
+        "summary": "HEAD request for Feed content.",
+        "parameters": [
+          {
+            "name": "feedId",
+            "in": "path",
+            "description": "The ID of the package's feed",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "string",
+                  "format": "binary"
+                }
+              }
+            }
+          },
+          "default": {
+            "description": "Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/BaseResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/nifeed/v1/feeds/{feedId}/files/Packages": {
+      "get": {
+        "tags": [
+          "FeedContent"
+        ],
+        "summary": "Download Package file.",
+        "parameters": [
+          {
+            "name": "feedId",
+            "in": "path",
+            "description": "The ID of the package's feed",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "string",
+                  "format": "binary"
+                }
+              }
+            }
+          },
+          "default": {
+            "description": "Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/BaseResponse"
+                }
+              }
+            }
+          }
+        }
+      },
+      "head": {
+        "tags": [
+          "FeedContent"
+        ],
+        "summary": "HEAD request for Feed content.",
+        "parameters": [
+          {
+            "name": "feedId",
+            "in": "path",
+            "description": "The ID of the package's feed",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "string",
+                  "format": "binary"
+                }
+              }
+            }
+          },
+          "default": {
+            "description": "Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/BaseResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/nifeed/v1/feeds/{feedId}/jobs": {
+      "get": {
+        "tags": [
+          "Job"
+        ],
+        "summary": "Query jobs for a feed id.",
+        "parameters": [
+          {
+            "name": "feedId",
+            "in": "path",
+            "description": "The ID of the feed",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ListJobsResponse"
+                }
+              }
+            }
+          },
+          "default": {
+            "description": "Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/BaseResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/nifeed/v1/jobs/{jobId}": {
+      "get": {
+        "tags": [
+          "Job"
+        ],
+        "summary": "Query jobs for a job id.",
+        "parameters": [
+          {
+            "name": "jobId",
+            "in": "path",
+            "description": "The ID of the job",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Job"
+                }
+              }
+            }
+          },
+          "default": {
+            "description": "Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/BaseResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/nifeed/v1/feeds/{feedId}/packages": {
+      "get": {
+        "tags": [
+          "Package"
+        ],
+        "summary": "Query packages for a feed.",
+        "parameters": [
+          {
+            "name": "feedId",
+            "in": "path",
+            "description": "The ID of the feed",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ListPackagesResponse"
+                }
+              }
+            }
+          },
+          "default": {
+            "description": "Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/BaseResponse"
+                }
+              }
+            }
+          }
+        }
+      },
+      "post": {
+        "tags": [
+          "Package"
+        ],
+        "summary": "Upload a package to a feed.",
+        "operationId": "UploadPackageToFeedAsync",
+        "parameters": [
+          {
+            "name": "feedId",
+            "in": "path",
+            "description": "The ID of the feed",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "shouldOverwrite",
+            "in": "query",
+            "description": "If the existing package should be overwritten",
+            "schema": {
+              "type": "boolean",
+              "default": false
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "multipart/form-data": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "package": {
+                    "type": "string",
+                    "format": "binary"
+                  }
+                }
+              },
+              "encoding": {
+                "package": {
+                  "style": "form"
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Package"
+                }
+              }
+            }
+          },
+          "default": {
+            "description": "Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/BaseResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/nifeed/v1/packages/{packageId}": {
+      "get": {
+        "tags": [
+          "Package"
+        ],
+        "summary": "Get package by ID.",
+        "parameters": [
+          {
+            "name": "packageId",
+            "in": "path",
+            "description": "The ID of the package",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Package"
+                }
+              }
+            }
+          },
+          "default": {
+            "description": "Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/BaseResponse"
+                }
+              }
+            }
+          }
+        }
+      },
+      "delete": {
+        "tags": [
+          "Package"
+        ],
+        "summary": "Delete a package.",
+        "parameters": [
+          {
+            "name": "packageId",
+            "in": "path",
+            "description": "The ID of the package",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": "No content"
+          },
+          "default": {
+            "description": "Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/BaseResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/nifeed/v1/delete-packages": {
+      "post": {
+        "tags": [
+          "Package"
+        ],
+        "summary": "Delete multiple packages.",
+        "requestBody": {
+          "description": "",
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/DeletePackagesRequest"
+              }
+            },
+            "text/json": {
+              "schema": {
+                "$ref": "#/components/schemas/DeletePackagesRequest"
+              }
+            },
+            "application/*+json": {
+              "schema": {
+                "$ref": "#/components/schemas/DeletePackagesRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "204": {
+            "description": "No content"
+          },
+          "default": {
+            "description": "Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/BaseResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/nifeed/v1/feeds/{feedId}/files/{fileName}": {
+      "head": {
+        "tags": [
+          "PackageContent"
+        ],
+        "summary": "Returns headers for downloading a package from a feed.",
+        "parameters": [
+          {
+            "name": "feedId",
+            "in": "path",
+            "description": "The ID of the package's feed",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "fileName",
+            "in": "path",
+            "description": "The file name of the package",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "string",
+                  "format": "binary"
+                }
+              }
+            }
+          },
+          "default": {
+            "description": "Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/BaseResponse"
+                }
+              }
+            }
+          }
+        }
+      },
+      "get": {
+        "tags": [
+          "PackageContent"
+        ],
+        "summary": "Download a package from a feed.",
+        "parameters": [
+          {
+            "name": "feedId",
+            "in": "path",
+            "description": "The ID of the package's feed",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "fileName",
+            "in": "path",
+            "description": "The file name of the package",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "string",
+                  "format": "binary"
+                }
+              }
+            }
+          },
+          "default": {
+            "description": "Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/BaseResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/nifeed": {
+      "get": {
+        "tags": [
+          "RootEndpoint"
+        ],
+        "summary": "Returns information about API versions and available operations.",
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Versions"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/nifeed/v1": {
+      "get": {
+        "tags": [
+          "RootEndpoint"
+        ],
+        "summary": "Returns information and available operations for version 1 of the API.",
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Version"
+                }
+              }
+            }
+          }
+        }
+      }
+    }
+  },
+  "components": {
+    "schemas": {
+      "ApplyFeedUpdatesRequest": {
+        "type": "object",
+        "properties": {
+          "applyUpdateDescriptors": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/ApplyUpdateDescriptor"
+            },
+            "description": "Gets or sets an array of update descriptors.",
+            "nullable": true
+          }
+        },
+        "additionalProperties": false
+      },
+      "ApplyUpdateDescriptor": {
+        "type": "object",
+        "properties": {
+          "packageUri": {
+            "type": "string",
+            "description": "Package URL that is going to update.",
+            "format": "uri",
+            "nullable": true,
+            "example": "https://download.ni.com/support/nipkg/products/ni-package-manager/released/package.nipkg"
+          }
+        },
+        "additionalProperties": false
+      },
+      "BaseResponse": {
+        "type": "object",
+        "properties": {
+          "error": {
+            "$ref": "#/components/schemas/HttpError"
+          }
+        },
+        "additionalProperties": false
+      },
+      "CreateFeedRequest": {
+        "required": [
+          "name",
+          "platform"
+        ],
+        "type": "object",
+        "properties": {
+          "name": {
+            "maxLength": 100,
+            "minLength": 1,
+            "type": "string",
+            "description": "The name of the feed.",
+            "example": "My new feed"
+          },
+          "description": {
+            "maxLength": 500,
+            "type": "string",
+            "description": "The description of the feed.",
+            "nullable": true,
+            "example": "my feed description text"
+          },
+          "platform": {
+            "enum": [
+              "WINDOWS",
+              "NI_LINUX_RT"
+            ],
+            "type": "string",
+            "description": "The platform of the feed, the following package extensions are available: .nipkg for windows feeds, .ipk and .deb for ni-linux-rt feeds.",
+            "example": "WINDOWS"
+          },
+          "workspace": {
+            "maxLength": 36,
+            "type": "string",
+            "description": "The ID of the workspace this feed belongs to.\nIf the workspace is not defined, the default workspace is used.",
+            "nullable": true,
+            "example": "116e294a-a117-47ac-1fc2-fac11eab111e"
+          }
+        },
+        "additionalProperties": false
+      },
+      "DeleteFeedResult": {
+        "type": "object",
+        "properties": {
+          "feedId": {
+            "type": "string",
+            "description": "The id of the feed that is to be deleted.",
+            "nullable": true
+          },
+          "jobId": {
+            "type": "string",
+            "description": "The id of the job that will delete the feed.",
+            "nullable": true
+          }
+        },
+        "additionalProperties": false
+      },
+      "DeleteFeedsRequest": {
+        "type": "object",
+        "properties": {
+          "ids": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            },
+            "description": "Collection of Feed Ids for the feeds that are going to be deleted",
+            "nullable": true
+          }
+        },
+        "additionalProperties": false
+      },
+      "DeleteFeedsResponse": {
+        "type": "object",
+        "properties": {
+          "error": {
+            "$ref": "#/components/schemas/HttpError"
+          },
+          "feeds": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/DeleteFeedResult"
+            },
+            "description": "A collection of feeds containing feeds scheduled for deletion",
+            "nullable": true
+          }
+        },
+        "additionalProperties": false
+      },
+      "DeletePackagesRequest": {
+        "type": "object",
+        "properties": {
+          "packageIds": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            },
+            "description": "Package IDs to delete from the feed.",
+            "nullable": true,
+            "example": [
+              "fe920104-2b5b-41ed-8074-82d73182cde1"
+            ]
+          }
+        },
+        "additionalProperties": false
+      },
+      "Feed": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "description": "The auto-generated ID of the feed.",
+            "nullable": true,
+            "example": "fe920104-2b5b-41ed-8074-82d73182cde1"
+          },
+          "name": {
+            "type": "string",
+            "description": "The name of the feed.",
+            "nullable": true,
+            "example": "My feed name"
+          },
+          "description": {
+            "type": "string",
+            "description": "The description of the feed.",
+            "nullable": true,
+            "example": "my feed description text"
+          },
+          "platform": {
+            "enum": [
+              "WINDOWS",
+              "NI_LINUX_RT"
+            ],
+            "type": "string",
+            "description": "The platform of the feed, the following package extensions are available: .nipkg for windows feeds, .ipk and .deb for ni-linux-rt feeds.",
+            "example": "NI_LINUX_RT"
+          },
+          "workspace": {
+            "type": "string",
+            "description": "The ID of the workspace this feed belongs to.",
+            "nullable": true,
+            "example": "116e294a-a117-47ac-1fc2-fac11eab111e"
+          },
+          "updatedAt": {
+            "type": "string",
+            "description": "The date of the latest feed update.",
+            "format": "date-time"
+          },
+          "createdAt": {
+            "type": "string",
+            "description": "The date when the feed was created at.",
+            "format": "date-time"
+          },
+          "packageSources": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            },
+            "description": "The package sources list of the feed.",
+            "nullable": true,
+            "example": [
+              "https://download.ni.com/support/nipkg/products/ni-s/ni-systemlink-client/24.0/released/"
+            ]
+          },
+          "deleted": {
+            "type": "boolean",
+            "description": "Whether the feed deletion was requested."
+          }
+        },
+        "additionalProperties": false
+      },
+      "GetUpdateDescriptorsResponse": {
+        "type": "object",
+        "properties": {
+          "updateDescriptors": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/UpdateDescriptor"
+            },
+            "description": "Gets or sets an array of update descriptors.",
+            "nullable": true
+          },
+          "destinationFeedId": {
+            "type": "string",
+            "description": "The ID of the feed which will be modified. This is used to reference the feed in the service.",
+            "nullable": true,
+            "example": "111ebcc9-f4e0-4649-ac82-8fe9d474e111"
+          }
+        },
+        "additionalProperties": false,
+        "description": "Model for object containing an array of update descriptors."
+      },
+      "HttpError": {
+        "title": "Error",
+        "required": [
+          "name",
+          "message"
+        ],
+        "type": "object",
+        "properties": {
+          "name": {
+            "type": "string",
+            "description": "String error code",
+            "example": "feedservice.PackageNotFoundError"
+          },
+          "code": {
+            "type": "integer",
+            "description": "Numeric error code",
+            "format": "int32",
+            "nullable": true,
+            "example": 42
+          },
+          "message": {
+            "type": "string",
+            "description": "Complete error message",
+            "example": "The provided package ID does not exist or the user has no access to it."
+          },
+          "resourceType": {
+            "type": "string",
+            "description": "Type of resource associated with the error",
+            "nullable": true,
+            "example": "resource group"
+          },
+          "resourceId": {
+            "type": "string",
+            "description": "Identifier of the resource associated with the error",
+            "nullable": true,
+            "example": "6515c5ed9f5f51c53c6a9732"
+          },
+          "args": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            },
+            "description": "Positional argument values for the error code",
+            "example": [
+              "6515c5ed9f5f51c53c6a9732"
+            ]
+          },
+          "innerErrors": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/HttpError"
+            },
+            "description": "Inner errors when the top-level error represents more than one error",
+            "nullable": true
+          }
+        },
+        "additionalProperties": false,
+        "description": "Contains error information.",
+        "example": {
+          "name": "Skyline.OneOrMoreErrorsOccurred",
+          "code": -251041,
+          "message": "One or more errors occurred. See the contained list for details of each error.",
+          "args": [ ],
+          "innerErrors": [
+            {
+              "name": "feedservice.PackageNotFoundError",
+              "message": "The provided package ID does not exist or the user has no access to it.",
+              "resourceType": "resource group",
+              "resourceId": "6515c5ed9f5f51c53c6a9732",
+              "args": [
+                "6515c5ed9f5f51c53c6a9732"
+              ],
+              "innerErrors": [ ]
+            }
+          ]
+        }
+      },
+      "Job": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "description": "The auto-generated ID of the job.",
+            "nullable": true,
+            "example": "fe920104-2b5b-41ed-8074-82d73182cde1"
+          },
+          "type": {
+            "enum": [
+              "REPLICATE_FEED",
+              "DELETE_FEED",
+              "CHECK_FEED_UPDATE",
+              "APPLY_UPDATES",
+              "CLEAN_FEED"
+            ],
+            "type": "string",
+            "description": "The type of the job.",
+            "example": "REPLICATE_FEED"
+          },
+          "status": {
+            "enum": [
+              "QUEUED",
+              "PROCESSING",
+              "SUCCESS",
+              "ERROR",
+              "COMPLETED_WITH_ERROR",
+              "CLEANUP"
+            ],
+            "type": "string",
+            "description": "The status of the job.",
+            "example": "ERROR"
+          },
+          "resourceId": {
+            "type": "string",
+            "description": "The ID of the resouce associated with the job.",
+            "nullable": true,
+            "example": "fe920104-2b5b-41ed-8074-82d73182cde1"
+          },
+          "workspace": {
+            "type": "string",
+            "description": "The ID of the workspace this job belongs to.",
+            "nullable": true,
+            "example": "116e294a-a117-47ac-1fc2-fac11eab111e"
+          },
+          "updatedAt": {
+            "type": "string",
+            "description": "The date of the latest job update.",
+            "format": "date-time"
+          },
+          "createdAt": {
+            "type": "string",
+            "description": "The date when the job was created at.",
+            "format": "date-time"
+          },
+          "createdBy": {
+            "type": "string",
+            "description": "The ID of the user that created the job.",
+            "nullable": true,
+            "example": "124d294a-a234-47ac-1fc2-fac11eag1f1e"
+          },
+          "error": {
+            "$ref": "#/components/schemas/JobError"
+          },
+          "result": {
+            "$ref": "#/components/schemas/JobResult"
+          }
+        },
+        "additionalProperties": false
+      },
+      "JobError": {
+        "type": "object",
+        "properties": {
+          "name": {
+            "type": "string",
+            "description": "Name string from the ErrorCode class.",
+            "nullable": true,
+            "example": "FailedJobError"
+          },
+          "message": {
+            "type": "string",
+            "description": "Error message which describes why the job failed.",
+            "nullable": true,
+            "example": "Job failed: One or more errors occurred."
+          },
+          "innerErrors": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/JobError"
+            },
+            "description": "Internal errors that occurred in the service.",
+            "nullable": true,
+            "example": [
+              {
+                "Name": "InvalidPackageError",
+                "Message": "The provided package 'package.nipkg' is invalid. Details: None"
+              },
+              {
+                "Name": "IncompatiblePackageError",
+                "Message": "The provided package 'package.deb' is incompatible with the feed's architecture."
+              }
+            ]
+          }
+        },
+        "additionalProperties": false,
+        "description": "Model class for Error objects"
+      },
+      "JobIDResponse": {
+        "type": "object",
+        "properties": {
+          "jobId": {
+            "type": "string",
+            "nullable": true
+          }
+        },
+        "additionalProperties": false,
+        "description": "The response used to return a Job ID."
+      },
+      "JobResult": {
+        "type": "object",
+        "properties": {
+          "resourceIds": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            },
+            "description": "The results associated with the job.",
+            "nullable": true
+          }
+        },
+        "additionalProperties": false
+      },
+      "ListFeedsResponse": {
+        "type": "object",
+        "properties": {
+          "feeds": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/Feed"
+            },
+            "description": "A collection of feeds",
+            "nullable": true
+          }
+        },
+        "additionalProperties": false
+      },
+      "ListJobsResponse": {
+        "type": "object",
+        "properties": {
+          "jobs": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/Job"
+            },
+            "nullable": true
+          }
+        },
+        "additionalProperties": false
+      },
+      "ListPackagesResponse": {
+        "type": "object",
+        "properties": {
+          "packages": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/Package"
+            },
+            "nullable": true
+          }
+        },
+        "additionalProperties": false
+      },
+      "Operation": {
+        "type": "object",
+        "properties": {
+          "available": {
+            "type": "boolean",
+            "description": "Whether the operation is available to the caller.",
+            "example": true
+          },
+          "version": {
+            "type": "integer",
+            "description": "Version of the available operation.",
+            "format": "int32",
+            "default": 1,
+            "example": 1
+          }
+        },
+        "additionalProperties": false,
+        "description": "Operation information"
+      },
+      "Operations": {
+        "type": "object",
+        "properties": {
+          "queryFeeds": {
+            "$ref": "#/components/schemas/Operation"
+          },
+          "createFeed": {
+            "$ref": "#/components/schemas/Operation"
+          },
+          "deleteFeed": {
+            "$ref": "#/components/schemas/Operation"
+          },
+          "updateFeed": {
+            "$ref": "#/components/schemas/Operation"
+          },
+          "downloadFeedControlFile": {
+            "$ref": "#/components/schemas/Operation"
+          },
+          "queueJob": {
+            "$ref": "#/components/schemas/Operation"
+          },
+          "queryJobs": {
+            "$ref": "#/components/schemas/Operation"
+          },
+          "queryPackages": {
+            "$ref": "#/components/schemas/Operation"
+          },
+          "uploadPackage": {
+            "$ref": "#/components/schemas/Operation"
+          },
+          "deletePackage": {
+            "$ref": "#/components/schemas/Operation"
+          },
+          "downloadPackage": {
+            "$ref": "#/components/schemas/Operation"
+          }
+        },
+        "additionalProperties": false,
+        "description": "Available operations in the V1 version of the API."
+      },
+      "Package": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "description": "Gets or sets the ID of this package. This is used to reference this package in the service.",
+            "nullable": true,
+            "example": "111ebcc9-f4e0-4649-ac82-8fe9d474e111"
+          },
+          "fileName": {
+            "type": "string",
+            "description": "The name of the file in this package.",
+            "nullable": true,
+            "example": "ni_curl_21.0.52644-0+f0.nipkg"
+          },
+          "feedId": {
+            "type": "string",
+            "description": "The ID of the feed this package is associated with.",
+            "nullable": true,
+            "example": "fe920104-2b5b-41ed-8074-82d73182cde1"
+          },
+          "workspace": {
+            "type": "string",
+            "description": "The ID of the workspace this package belongs to.\nThe workspace of a package is the workspace of feed this package is associated with.",
+            "nullable": true,
+            "example": "116e294a-a117-47ac-1fc2-fac11eab111e"
+          },
+          "updatedAt": {
+            "type": "string",
+            "description": "The date of the latest package update.",
+            "format": "date-time"
+          },
+          "createdAt": {
+            "type": "string",
+            "description": "The date when the package was created at.",
+            "format": "date-time"
+          },
+          "metadata": {
+            "$ref": "#/components/schemas/PackageMetadata"
+          }
+        },
+        "additionalProperties": false
+      },
+      "PackageMetadata": {
+        "type": "object",
+        "properties": {
+          "packageName": {
+            "type": "string",
+            "description": "The name of the package.",
+            "nullable": true,
+            "example": "NI Curl"
+          },
+          "version": {
+            "type": "string",
+            "description": "The version number of the package.",
+            "nullable": true,
+            "example": "21.0.52644-0+f0"
+          },
+          "architecture": {
+            "type": "string",
+            "description": "The architecture of the package.",
+            "nullable": true,
+            "example": "windows_x64"
+          },
+          "breaks": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            },
+            "description": "Information about other packages this package breaks.",
+            "nullable": true,
+            "example": [
+              "ni-package-manager"
+            ]
+          },
+          "conflicts": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            },
+            "description": "Information about other packages this package conflicts with.",
+            "nullable": true,
+            "example": [
+              "ni-package-manager (<<16.0.16384)"
+            ]
+          },
+          "depends": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            },
+            "description": "Information about other packages this package depends on.",
+            "nullable": true,
+            "example": [
+              "ni-metauninstaller (>=21.0.0)"
+            ]
+          },
+          "description": {
+            "type": "string",
+            "description": "The description of the package.",
+            "nullable": true,
+            "example": "NI Curl provides the build of the \"C URL\" library"
+          },
+          "enhances": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            },
+            "description": "Information about other packages this package enchances.",
+            "nullable": true,
+            "example": [
+              "ni-metauninstaller"
+            ]
+          },
+          "essential": {
+            "type": "boolean",
+            "description": "True if the package is essential.",
+            "nullable": true,
+            "example": false
+          },
+          "fileName": {
+            "type": "string",
+            "description": "The file name of the package.\nDepending on the selected platform, the following package extensions are available: .nipkg for windows feeds, .ipk and .deb for ni-linux-rt feeds.",
+            "nullable": true,
+            "example": "ni_curl_21.0.52644-0+f0.nipkg"
+          },
+          "homepage": {
+            "type": "string",
+            "description": "The website of the maintainers for the package.",
+            "nullable": true,
+            "example": "https://www.ni.com"
+          },
+          "installedSize": {
+            "type": "integer",
+            "description": "The size of the package after install.",
+            "format": "int64",
+            "nullable": true,
+            "example": 2354356
+          },
+          "maintainer": {
+            "type": "string",
+            "description": "The maintainer of the package (name and email address).",
+            "nullable": true,
+            "example": "National Instruments <support@ni.com>"
+          },
+          "predepends": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            },
+            "description": "Information about other packages this package predepends.",
+            "nullable": true,
+            "example": [
+              "ni-metauninstaller (>=21.0.0)"
+            ]
+          },
+          "priority": {
+            "type": "integer",
+            "description": "The priority of the package.",
+            "format": "int32",
+            "example": 4
+          },
+          "provides": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            },
+            "description": "Information about other packages that this package provides.",
+            "nullable": true,
+            "example": [
+              "ni-metauninstaller (=21.30.49152)"
+            ]
+          },
+          "recommends": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            },
+            "description": "Information about other packages this package recommends.",
+            "nullable": true,
+            "example": [
+              "ni-ceip (>=21.0.0)"
+            ]
+          },
+          "releaseNotes": {
+            "type": "string",
+            "description": "The release notes of the package.",
+            "nullable": true,
+            "example": "Release notes for ni-curl"
+          },
+          "replaces": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            },
+            "description": "Information about other packages this package replaces.",
+            "nullable": true,
+            "example": [
+              "ni-curl (<21.0.5)"
+            ]
+          },
+          "section": {
+            "type": "string",
+            "description": "The application area of the package.",
+            "nullable": true,
+            "example": "Infrastructure"
+          },
+          "size": {
+            "type": "integer",
+            "description": "The size (in bytes) of the package.",
+            "format": "int64",
+            "nullable": true,
+            "example": 12545215
+          },
+          "source": {
+            "type": "string",
+            "description": "The source of the package.",
+            "nullable": true,
+            "example": "NI"
+          },
+          "suggests": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            },
+            "description": "Information about other packages this package suggests.",
+            "nullable": true,
+            "example": [
+              "1245787b-f80a-4224-80ee-124578a2a8bb (=21.30.49152)"
+            ]
+          },
+          "tags": {
+            "type": "string",
+            "description": "The tags of the package.",
+            "nullable": true,
+            "example": "curl"
+          },
+          "attributes": {
+            "type": "object",
+            "additionalProperties": {
+              "type": "string"
+            },
+            "description": "The attributes of the package.",
+            "nullable": true
+          }
+        },
+        "additionalProperties": false
+      },
+      "ReplicateFeedRequest": {
+        "required": [
+          "name",
+          "platform",
+          "urls"
+        ],
+        "type": "object",
+        "properties": {
+          "name": {
+            "maxLength": 100,
+            "minLength": 1,
+            "type": "string",
+            "description": "The name of the feed.",
+            "example": "My new feed"
+          },
+          "description": {
+            "maxLength": 500,
+            "type": "string",
+            "description": "The description of the feed.",
+            "nullable": true,
+            "example": "my feed description text"
+          },
+          "platform": {
+            "enum": [
+              "WINDOWS",
+              "NI_LINUX_RT"
+            ],
+            "type": "string",
+            "description": "The platform of the feed, the following package extensions are available: .nipkg for windows feeds, .ipk and .deb for ni-linux-rt feeds.",
+            "example": "WINDOWS"
+          },
+          "workspace": {
+            "maxLength": 36,
+            "type": "string",
+            "description": "The ID of the workspace this feed belongs to.\nIf the workspace is not defined, the default workspace is used.",
+            "nullable": true,
+            "example": "116e294a-a117-47ac-1fc2-fac11eab111e"
+          },
+          "urls": {
+            "type": "array",
+            "items": {
+              "type": "string",
+              "format": "uri"
+            },
+            "description": "Collection of Feed URLs that are going to be replicated",
+            "example": [
+              "https://download.ni.com/support/nipkg/products/ni-package-manager/released"
+            ]
+          }
+        },
+        "additionalProperties": false
+      },
+      "ReplicateFeedResult": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "description": "The auto-generated ID of the feed.",
+            "nullable": true,
+            "example": "fe920104-2b5b-41ed-8074-82d73182cde1"
+          },
+          "name": {
+            "type": "string",
+            "description": "The name of the feed.",
+            "nullable": true,
+            "example": "My feed name"
+          },
+          "description": {
+            "type": "string",
+            "description": "The description of the feed.",
+            "nullable": true,
+            "example": "my feed description text"
+          },
+          "platform": {
+            "enum": [
+              "WINDOWS",
+              "NI_LINUX_RT"
+            ],
+            "type": "string",
+            "description": "The platform of the feed, the following package extensions are available: .nipkg for windows feeds, .ipk and .deb for ni-linux-rt feeds.",
+            "example": "NI_LINUX_RT"
+          },
+          "workspace": {
+            "type": "string",
+            "description": "The ID of the workspace this feed belongs to.",
+            "nullable": true,
+            "example": "116e294a-a117-47ac-1fc2-fac11eab111e"
+          },
+          "updatedAt": {
+            "type": "string",
+            "description": "The date of the latest feed update.",
+            "format": "date-time"
+          },
+          "createdAt": {
+            "type": "string",
+            "description": "The date when the feed was created at.",
+            "format": "date-time"
+          },
+          "packageSources": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            },
+            "description": "The package sources list of the feed.",
+            "nullable": true,
+            "example": [
+              "https://download.ni.com/support/nipkg/products/ni-s/ni-systemlink-client/24.0/released/"
+            ]
+          },
+          "deleted": {
+            "type": "boolean",
+            "description": "Whether the feed deletion was requested."
+          },
+          "jobId": {
+            "type": "string",
+            "description": "The auto-generated ID of the job used on the feed.",
+            "nullable": true,
+            "example": "fe920104-2b5b-41ed-8074-82d73182cde1"
+          }
+        },
+        "additionalProperties": false
+      },
+      "ReplicateFeedsRequest": {
+        "type": "object",
+        "properties": {
+          "feeds": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/ReplicateFeedRequest"
+            },
+            "description": "Collection of Feeds that are going to be replicated",
+            "nullable": true
+          }
+        },
+        "additionalProperties": false
+      },
+      "ReplicateFeedsResult": {
+        "type": "object",
+        "properties": {
+          "error": {
+            "$ref": "#/components/schemas/HttpError"
+          },
+          "feeds": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/ReplicateFeedResult"
+            },
+            "description": "A collection of feeds",
+            "nullable": true
+          }
+        },
+        "additionalProperties": false
+      },
+      "UpdateDescriptor": {
+        "type": "object",
+        "properties": {
+          "packageName": {
+            "type": "string",
+            "description": "The name of the package.",
+            "nullable": true,
+            "example": "NI Curl"
+          },
+          "version": {
+            "type": "string",
+            "description": "The version number of the package after update.",
+            "nullable": true,
+            "example": "21.0.52644-0+f1"
+          },
+          "packageUri": {
+            "type": "string",
+            "description": "Package URL that is going to update.",
+            "format": "uri",
+            "nullable": true,
+            "example": "https://download.ni.com/support/nipkg/products/ni-package-manager/released"
+          }
+        },
+        "additionalProperties": false
+      },
+      "UpdateFeedMetadataRequest": {
+        "type": "object",
+        "properties": {
+          "name": {
+            "maxLength": 100,
+            "type": "string",
+            "description": "The name of the feed.",
+            "nullable": true,
+            "example": "My renamed feed"
+          },
+          "description": {
+            "maxLength": 500,
+            "type": "string",
+            "description": "The description of the feed.",
+            "nullable": true,
+            "example": "my feed description text"
+          },
+          "workspace": {
+            "maxLength": 36,
+            "type": "string",
+            "description": "The ID of the workspace this feed belongs to.\nIf the workspace is not defined, the default workspace is used.",
+            "nullable": true,
+            "example": "116e294a-a117-47ac-1fc2-fac11eab111e"
+          }
+        },
+        "additionalProperties": false
+      },
+      "Version": {
+        "type": "object",
+        "properties": {
+          "operations": {
+            "$ref": "#/components/schemas/Operations"
+          }
+        },
+        "additionalProperties": false,
+        "description": "Information about the v1 version of the API."
+      },
+      "Versions": {
+        "type": "object",
+        "properties": {
+          "version": {
+            "type": "string",
+            "description": "Implementation version of the web service.",
+            "nullable": true,
+            "example": "v1"
+          },
+          "v1": {
+            "$ref": "#/components/schemas/Version"
+          }
+        },
+        "additionalProperties": false,
+        "description": "Version information."
+      }
+    },
+    "securitySchemes": {
+      "apikey": {
+        "type": "apiKey",
+        "name": "X-NI-API-KEY",
+        "in": "header"
+      }
+    }
+  },
+  "security": [
+    {
+      "apikey": [ ]
+    }
+  ]
+}

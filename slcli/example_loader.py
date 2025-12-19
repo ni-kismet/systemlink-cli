@@ -1,6 +1,5 @@
 """Load and validate example configurations."""
 
-import json
 from pathlib import Path
 from typing import Any, Dict, List, Optional
 
@@ -27,6 +26,12 @@ class ExampleLoader:
         "asset",
         "dut",
         "testtemplate",
+        "workflow",
+        "work_item",
+        "work_order",
+        "test_result",
+        "data_table",
+        "file",
     }
 
     def __init__(self, examples_dir: Optional[Path] = None) -> None:
@@ -132,8 +137,6 @@ class ExampleLoader:
         errors = []
 
         # Check all required top-level fields are present
-        if not isinstance(config, dict):
-            return ["Config must be a dictionary"]
 
         missing_fields = self.REQUIRED_FIELDS - set(config.keys())
         if missing_fields:
@@ -151,36 +154,33 @@ class ExampleLoader:
         resources = config.get("resources", [])
         if not isinstance(resources, list):
             errors.append("resources must be a list")
-            return errors
+        else:
+            for idx, resource in enumerate(resources):
+                if not isinstance(resource, dict):
+                    errors.append(f"Resource {idx}: must be a dictionary")
+                    continue
 
-        for idx, resource in enumerate(resources):
-            if not isinstance(resource, dict):
-                errors.append(f"Resource {idx}: must be a dictionary")
-                continue
+                # Check required resource fields
+                missing = self.REQUIRED_RESOURCE_FIELDS - set(resource.keys())
+                if missing:
+                    errors.append(f"Resource {idx}: missing fields: {', '.join(sorted(missing))}")
 
-            # Check required resource fields
-            missing = self.REQUIRED_RESOURCE_FIELDS - set(resource.keys())
-            if missing:
-                errors.append(
-                    f"Resource {idx}: missing fields: {', '.join(sorted(missing))}"
-                )
+                # Check resource type is supported
+                res_type = resource.get("type")
+                if res_type and res_type not in self.SUPPORTED_RESOURCE_TYPES:
+                    errors.append(
+                        f"Resource {idx}: unsupported type '{res_type}'. "
+                        f"Supported: {', '.join(sorted(self.SUPPORTED_RESOURCE_TYPES))}"
+                    )
 
-            # Check resource type is supported
-            res_type = resource.get("type")
-            if res_type and res_type not in self.SUPPORTED_RESOURCE_TYPES:
-                errors.append(
-                    f"Resource {idx}: unsupported type '{res_type}'. "
-                    f"Supported: {', '.join(sorted(self.SUPPORTED_RESOURCE_TYPES))}"
-                )
-
-            # Validate id_reference format (should be valid identifier)
-            id_ref = resource.get("id_reference", "")
-            if id_ref and not self._is_valid_identifier(id_ref):
-                errors.append(
-                    f"Resource {idx}: invalid id_reference '{id_ref}'. "
-                    f"Must start with letter or underscore, contain only "
-                    f"alphanumeric and underscores."
-                )
+                # Validate id_reference format (should be valid identifier)
+                id_ref = resource.get("id_reference", "")
+                if id_ref and not self._is_valid_identifier(id_ref):
+                    errors.append(
+                        f"Resource {idx}: invalid id_reference '{id_ref}'. "
+                        f"Must start with letter or underscore, contain only "
+                        f"alphanumeric and underscores."
+                    )
 
         return errors
 

@@ -1,0 +1,931 @@
+{
+  "openapi": "3.0.4",
+  "info": {
+    "title": "Comments",
+    "description": "Comments service facilitates collaboration by providing users with a platform to provide feedback, share information, and engage in discussions about specific resources.\r\n\r\nComments service provides HTTP APIs to create, update, query, and delete comments on resources.",
+    "contact": {
+      "name": "NI",
+      "url": "https://www.ni.com/systemlink",
+      "email": "support@ni.com"
+    },
+    "version": "1"
+  },
+  "paths": {
+    "/nicomments/v1/comments": {
+      "post": {
+        "tags": [
+          "Comments"
+        ],
+        "summary": "Creates comments.",
+        "description": "Creates one or more comments.\n</br>\nThe required parameters are `resourceType`, `resourceId`, `message` and `workspace`.\n</br>\n`resourceType` contains the type of the resource for which comment is created.\nAll the resources will have a unique value. Since a service can hold\nmultiple resources, the resource type is represented in the format of `<service>:<resource>`.\nTo create a comment in a `Result` of `Test Insights`, the value of the `resourceType` must be\n`testmonitor:Result`. This value will be evaluated with the user permissions for authorization.\n</br><u>Supported ResourceTypes:</u>\n</br><ol><li>`testmonitor:Result`</li></ol>\n</br>\n`resourceId` contains the id of the resource for which the comment is created.\n</br>\n`message` contains the comment message in the markdown format.\n</br>\n`workspace` contains the workspace id under which the comment gets created. This id is expected to be\nthe workspace id of the resource. With this configuration, all the comments will be created under the\nsame workspace of the resource.\n</br>\n`resourceName` contains the name of the resource for which the comment is created. ResourceName\nwill be added in the notification email to the mentioned users.\n</br>\n`resourceTypeName` contains the user-friendly name of the type of the resource for which the comment is created.\nResourceTypeName will be added in the notification email to the mentioned users.\n</br>\n`commentUrl` contains the relative URL in the application to which the user will be navigated to, from the email.\nCommentUrl will be added in the notification email to the mentioned users.\n</br>\n`mentionedUsers` contains the list of ids of the users mentioned in the comment.",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CreateCommentsRequest"
+              }
+            },
+            "text/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CreateCommentsRequest"
+              }
+            },
+            "application/*+json": {
+              "schema": {
+                "$ref": "#/components/schemas/CreateCommentsRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "The resources were partially created.",
+            "content": {
+              "text/plain": {
+                "schema": {
+                  "$ref": "#/components/schemas/CreateCommentsPartialSuccessResponse"
+                }
+              },
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CreateCommentsPartialSuccessResponse"
+                }
+              },
+              "text/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CreateCommentsPartialSuccessResponse"
+                }
+              }
+            }
+          },
+          "201": {
+            "description": "The resources were created successfully.",
+            "content": {
+              "text/plain": {
+                "schema": {
+                  "$ref": "#/components/schemas/CreateCommentsResponse"
+                }
+              },
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CreateCommentsResponse"
+                }
+              },
+              "text/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CreateCommentsResponse"
+                }
+              }
+            }
+          },
+          "default": {
+            "description": "Error",
+            "content": {
+              "text/plain": {
+                "schema": {
+                  "$ref": "#/components/schemas/HttpError"
+                }
+              },
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HttpError"
+                }
+              },
+              "text/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HttpError"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized."
+          }
+        }
+      },
+      "get": {
+        "tags": [
+          "Comments"
+        ],
+        "summary": "List comments.",
+        "description": "List comments that belongs to the given `ResourceType` and `ResourceId`. The API will return the latest 1000\ncomments based on the `CreatedAt` field.",
+        "parameters": [
+          {
+            "name": "ResourceType",
+            "in": "query",
+            "description": "Resource type that represents the resource the comment belongs to.",
+            "required": true,
+            "schema": {
+              "type": "string"
+            },
+            "example": "testmonitor:Result"
+          },
+          {
+            "name": "ResourceId",
+            "in": "query",
+            "description": "Unique id that represents the resource the comment belongs to.",
+            "required": true,
+            "schema": {
+              "type": "string"
+            },
+            "example": "afbf16ae-1f8d-4422-b592-8b846316929c"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Response information for List Comments API.",
+            "content": {
+              "text/plain": {
+                "schema": {
+                  "$ref": "#/components/schemas/ListCommentsResponse"
+                }
+              },
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ListCommentsResponse"
+                }
+              },
+              "text/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ListCommentsResponse"
+                }
+              }
+            }
+          },
+          "default": {
+            "description": "Error",
+            "content": {
+              "text/plain": {
+                "schema": {
+                  "$ref": "#/components/schemas/HttpError"
+                }
+              },
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HttpError"
+                }
+              },
+              "text/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HttpError"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Bad Request."
+          },
+          "401": {
+            "description": "Unauthorized."
+          }
+        }
+      }
+    },
+    "/nicomments/v1/comments/{id}": {
+      "patch": {
+        "tags": [
+          "Comments"
+        ],
+        "summary": "Update comment.",
+        "description": "Updates the comment identified by the id. The user can update the comment message only for their own comments.\nThe user can add or remove a user mention while updating the comment.",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "description": "Id of the comment.",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "description": "The request parameter for updating the comment.",
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/UpdateCommentRequest"
+              }
+            },
+            "text/json": {
+              "schema": {
+                "$ref": "#/components/schemas/UpdateCommentRequest"
+              }
+            },
+            "application/*+json": {
+              "schema": {
+                "$ref": "#/components/schemas/UpdateCommentRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "default": {
+            "description": "Error",
+            "content": {
+              "text/plain": {
+                "schema": {
+                  "$ref": "#/components/schemas/HttpError"
+                }
+              },
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HttpError"
+                }
+              },
+              "text/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HttpError"
+                }
+              }
+            }
+          },
+          "204": {
+            "description": "The resource is updated successfully."
+          },
+          "401": {
+            "description": "Unauthorized."
+          }
+        }
+      }
+    },
+    "/nicomments/v1/delete-comments": {
+      "post": {
+        "tags": [
+          "Comments"
+        ],
+        "summary": "Deletes comments.",
+        "description": "Deletes one or more comments identified by their ids. Users can typically delete their own comments.\n            Users must have elevated permissions in order to delete others' comments. This API supports deletion of at\n            most 1000 comments per request.",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/DeleteCommentsRequest"
+              }
+            },
+            "text/json": {
+              "schema": {
+                "$ref": "#/components/schemas/DeleteCommentsRequest"
+              }
+            },
+            "application/*+json": {
+              "schema": {
+                "$ref": "#/components/schemas/DeleteCommentsRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "The resources were partially deleted.",
+            "content": {
+              "text/plain": {
+                "schema": {
+                  "$ref": "#/components/schemas/DeleteCommentsPartialSuccessResponse"
+                }
+              },
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/DeleteCommentsPartialSuccessResponse"
+                }
+              },
+              "text/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/DeleteCommentsPartialSuccessResponse"
+                }
+              }
+            }
+          },
+          "default": {
+            "description": "Error",
+            "content": {
+              "text/plain": {
+                "schema": {
+                  "$ref": "#/components/schemas/HttpError"
+                }
+              },
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HttpError"
+                }
+              },
+              "text/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HttpError"
+                }
+              }
+            }
+          },
+          "204": {
+            "description": "The resources were deleted successfully."
+          },
+          "401": {
+            "description": "Unauthorized."
+          }
+        }
+      }
+    },
+    "/nicomments": {
+      "get": {
+        "tags": [
+          "Versioning"
+        ],
+        "summary": "API Information.",
+        "description": "Returns information about API and available operations.",
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Versions"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/nicomments/v1": {
+      "get": {
+        "tags": [
+          "Versioning"
+        ],
+        "summary": "Information about API versions and available operations of version V1 of APIs.",
+        "description": "Returns available operations for version V1 of the API.",
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/V1Operations"
+                }
+              }
+            }
+          }
+        }
+      }
+    }
+  },
+  "components": {
+    "schemas": {
+      "CreateCommentRequest": {
+        "title": "Create Comment Request",
+        "required": [
+          "message",
+          "resourceId",
+          "resourceType",
+          "workspace"
+        ],
+        "type": "object",
+        "properties": {
+          "message": {
+            "minLength": 1,
+            "type": "string",
+            "description": "The comment message in the markdown format.",
+            "example": "Hi <user:afbf16ae-1f8d-4422-b592-8b846316929c>,\\n\\nPlease schedule all the below *tests* now that the test system setup is **complete**.\\n\\n   1. Test 1\\n\\n 2. Test 2\\n\\nMoreover, these are a few points to be noted before scheduling Tests.\\n\\n * Point 1\\n\\n * Point 2\\n\\nFor further queries you could check this link: <https://www.ni.com/>\\n\\ncc:<user:e27dc41a-40a3-47f5-841e-0e4e17c3986c>"
+          },
+          "resourceType": {
+            "minLength": 1,
+            "type": "string",
+            "description": "The type of resource that is being commented on.",
+            "example": "testmonitor:Result"
+          },
+          "resourceId": {
+            "minLength": 1,
+            "type": "string",
+            "description": "Unique id that represents the resource the comment belongs to.",
+            "example": "afbf16ae-1f8d-4422-b592-8b846316929c"
+          },
+          "workspace": {
+            "minLength": 1,
+            "type": "string",
+            "description": "The workspace id of the comment. This should match the workspace id of the related resource.",
+            "example": "846e294a-a007-47ac-9fc2-fac07eab240e"
+          },
+          "resourceName": {
+            "type": "string",
+            "description": "The name of the resource the comment belongs to. ResourceName\nwill be added in the notification email to the mentioned users.",
+            "nullable": true,
+            "example": "My Test Program"
+          },
+          "resourceTypeName": {
+            "type": "string",
+            "description": "User-friendly name of the type of the resource that is being commented on.\nResourceTypeName will be added in the notification email to the mentioned users.",
+            "nullable": true,
+            "example": "Results"
+          },
+          "commentUrl": {
+            "type": "string",
+            "description": "Relative URL to the comment. CommentUrl will be added in the notification email to the mentioned users.",
+            "nullable": true,
+            "example": "testinsights/results/result/fff17de5-2a3a-4274-bdcb-09dad869f1f2/comments"
+          },
+          "mentionedUsers": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            },
+            "description": "The ids of the users mentioned in the comment.",
+            "nullable": true,
+            "example": [
+              "afbf16ae-1f8d-4422-b592-8b846316929c",
+              "e27dc41a-40a3-47f5-841e-0e4e17c3986c"
+            ]
+          }
+        },
+        "additionalProperties": false,
+        "description": "Comment model for the create comment API."
+      },
+      "CreateCommentResponse": {
+        "title": "Create Comment Response",
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "description": "Id of the comment.",
+            "nullable": true,
+            "example": "6arv2de6843ra12d84831ca1"
+          },
+          "message": {
+            "type": "string",
+            "description": "The comment message in the markdown format.",
+            "nullable": true,
+            "example": "Hi <user:afbf16ae-1f8d-4422-b592-8b846316929c>,\\n\\nPlease schedule all the below *tests* now that the test system setup is **complete**.\\n\\n   1. Test 1\\n\\n 2. Test 2\\n\\nMoreover, these are a few points to be noted before scheduling Tests.\\n\\n * Point 1\\n\\n * Point 2\\n\\nFor further queries you could check this link: <https://www.ni.com/>\\n\\ncc:<user:e27dc41a-40a3-47f5-841e-0e4e17c3986c>"
+          },
+          "resourceType": {
+            "type": "string",
+            "description": "The type of resource that is being commented on.",
+            "nullable": true,
+            "example": "testmonitor:Result"
+          },
+          "resourceId": {
+            "type": "string",
+            "description": "Unique id that represents the resource the comment belongs to.",
+            "nullable": true,
+            "example": "afbf16ae-1f8d-4422-b592-8b846316929c"
+          },
+          "workspace": {
+            "type": "string",
+            "description": "The workspace id of the comment. This should match the workspace id of the related resource.",
+            "nullable": true,
+            "example": "846e294a-a007-47ac-9fc2-fac07eab240e"
+          },
+          "mentionedUsers": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            },
+            "description": "The IDs of users mentioned in the comment.",
+            "nullable": true,
+            "example": [
+              "afbf16ae-1f8d-4422-b592-8b846316929c",
+              "e27dc41a-40a3-47f5-841e-0e4e17c3986c"
+            ]
+          },
+          "createdBy": {
+            "type": "string",
+            "description": "Id of the user who created the comment.",
+            "nullable": true,
+            "example": "ea9cd47e-23fc-4d71-b47e-e38b7a930e42"
+          },
+          "createdAt": {
+            "type": "string",
+            "description": "ISO-8601 formatted timestamp indicating when the comment was created.",
+            "format": "date-time",
+            "example": "2018-05-09T15:07:42.527921Z"
+          },
+          "updatedBy": {
+            "type": "string",
+            "description": "Id of the user who updated the comment.",
+            "nullable": true,
+            "example": "ea9cd47e-23fc-4d71-b47e-e38b7a930e42"
+          },
+          "updatedAt": {
+            "type": "string",
+            "description": "ISO-8601 formatted timestamp indicating when the comment was most recently updated.",
+            "format": "date-time",
+            "example": "2018-05-09T15:07:42.527921Z"
+          }
+        },
+        "additionalProperties": false,
+        "description": "Created comment."
+      },
+      "CreateCommentsPartialSuccessResponse": {
+        "title": "Create Comments Partial Success Response",
+        "type": "object",
+        "properties": {
+          "createdComments": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/CreateCommentResponse"
+            },
+            "description": "List of created comments.",
+            "nullable": true
+          },
+          "failedComments": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/CreateCommentRequest"
+            },
+            "description": "List of comment requests that are failed during creation.",
+            "nullable": true
+          },
+          "error": {
+            "$ref": "#/components/schemas/HttpError"
+          }
+        },
+        "additionalProperties": false,
+        "description": "Response information for create comments API."
+      },
+      "CreateCommentsRequest": {
+        "title": "Create Comments Request",
+        "required": [
+          "comments"
+        ],
+        "type": "object",
+        "properties": {
+          "comments": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/CreateCommentRequest"
+            },
+            "description": "List of comments to create."
+          }
+        },
+        "additionalProperties": false,
+        "description": "Request information for create comments API."
+      },
+      "CreateCommentsResponse": {
+        "title": "Create Comments Response",
+        "type": "object",
+        "properties": {
+          "createdComments": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/CreateCommentResponse"
+            },
+            "description": "List of created comments.",
+            "nullable": true
+          }
+        },
+        "additionalProperties": false,
+        "description": "Response information for create comments API."
+      },
+      "DeleteCommentsPartialSuccessResponse": {
+        "title": "Delete Comments Partial Success Response",
+        "type": "object",
+        "properties": {
+          "deletedCommentIds": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            },
+            "description": "The ids of the comments that were successfully deleted.",
+            "nullable": true,
+            "example": [
+              "6bgb2ce3741fe11d67638dd9"
+            ]
+          },
+          "failedCommentIds": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            },
+            "description": "The ids of the comments that could not be deleted.",
+            "nullable": true,
+            "example": [
+              "6bgb2ce3741fe11d67638dda"
+            ]
+          },
+          "error": {
+            "$ref": "#/components/schemas/HttpError"
+          }
+        },
+        "additionalProperties": false,
+        "description": "Response information for delete comments API."
+      },
+      "DeleteCommentsRequest": {
+        "title": "Delete Comments Request",
+        "type": "object",
+        "properties": {
+          "ids": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            },
+            "description": "List of comment ids to delete.",
+            "nullable": true,
+            "example": [
+              "6bgb2ce3741fe11d67638dd9",
+              "6bgb2ce3741fe11d67638dda"
+            ]
+          }
+        },
+        "additionalProperties": false,
+        "description": "Request information for delete comments API."
+      },
+      "HttpError": {
+        "title": "Error",
+        "required": [
+          "name",
+          "message"
+        ],
+        "type": "object",
+        "properties": {
+          "name": {
+            "type": "string",
+            "description": "String error code",
+            "example": "Skyline.UnknownWorkspace"
+          },
+          "code": {
+            "type": "integer",
+            "description": "Numeric error code",
+            "format": "int32",
+            "nullable": true,
+            "example": -251048
+          },
+          "message": {
+            "type": "string",
+            "description": "Complete error message",
+            "example": "Workspace '846e294a-a007-47ac-9fc2-fac07eab240a' does not exist."
+          },
+          "resourceType": {
+            "type": "string",
+            "description": "Type of resource associated with the error",
+            "nullable": true,
+            "example": "comment"
+          },
+          "resourceId": {
+            "type": "string",
+            "description": "Identifier of the resource associated with the error",
+            "nullable": true,
+            "example": "5afb2ce3741fe11d88838cc9"
+          },
+          "args": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            },
+            "description": "Positional argument values for the error code",
+            "example": [
+              "846e294a-a007-47ac-9fc2-fac07eab240a"
+            ]
+          },
+          "innerErrors": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/HttpError"
+            },
+            "description": "Inner errors when the top-level error represents more than one error",
+            "nullable": true
+          }
+        },
+        "additionalProperties": false,
+        "description": "Contains error information.",
+        "example": {
+          "name": "Skyline.OneOrMoreErrorsOccurred",
+          "code": -251041,
+          "message": "One or more errors occurred. See the contained list for details of each error.",
+          "args": [ ],
+          "innerErrors": [
+            {
+              "name": "Skyline.UnknownWorkspace",
+              "code": -251048,
+              "message": "Workspace '846e294a-a007-47ac-9fc2-fac07eab240a' does not exist.",
+              "resourceType": "comment",
+              "resourceId": "5afb2ce3741fe11d88838cc9",
+              "args": [
+                "846e294a-a007-47ac-9fc2-fac07eab240a"
+              ],
+              "innerErrors": [ ]
+            }
+          ]
+        }
+      },
+      "ListCommentResponse": {
+        "title": "List Comment Response",
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "description": "Id of the comment.",
+            "nullable": true,
+            "example": "6arv2de6843ra12d84831ca1"
+          },
+          "message": {
+            "type": "string",
+            "description": "The comment message in the markdown format.",
+            "nullable": true,
+            "example": "Hi <user:afbf16ae-1f8d-4422-b592-8b846316929c>,\\n\\nPlease schedule all the below *tests* now that the test system setup is **complete**.\\n\\n   1. Test 1\\n\\n 2. Test 2\\n\\nMoreover, these are a few points to be noted before scheduling Tests.\\n\\n * Point 1\\n\\n * Point 2\\n\\nFor further queries you could check this link: <https://www.ni.com/>\\n\\ncc:<user:e27dc41a-40a3-47f5-841e-0e4e17c3986c>"
+          },
+          "resourceType": {
+            "type": "string",
+            "description": "The type of resource that is being commented on.",
+            "nullable": true,
+            "example": "testmonitor:Result"
+          },
+          "resourceId": {
+            "type": "string",
+            "description": "Unique id that represents the resource the comment belongs to.",
+            "nullable": true,
+            "example": "afbf16ae-1f8d-4422-b592-8b846316929c"
+          },
+          "workspace": {
+            "type": "string",
+            "description": "The workspace id of the comment. This should match the workspace id of the related resource.",
+            "nullable": true,
+            "example": "846e294a-a007-47ac-9fc2-fac07eab240e"
+          },
+          "mentionedUsers": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            },
+            "description": "The IDs of users mentioned in the comment.",
+            "nullable": true,
+            "example": [
+              "afbf16ae-1f8d-4422-b592-8b846316929c",
+              "e27dc41a-40a3-47f5-841e-0e4e17c3986c"
+            ]
+          },
+          "createdBy": {
+            "type": "string",
+            "description": "Id of the user who created the comment.",
+            "nullable": true,
+            "example": "ea9cd47e-23fc-4d71-b47e-e38b7a930e42"
+          },
+          "createdAt": {
+            "type": "string",
+            "description": "ISO-8601 formatted timestamp indicating when the comment was created.",
+            "format": "date-time",
+            "example": "2018-05-09T15:07:42.527921Z"
+          },
+          "updatedBy": {
+            "type": "string",
+            "description": "Id of the user who updated the comment.",
+            "nullable": true,
+            "example": "ea9cd47e-23fc-4d71-b47e-e38b7a930e42"
+          },
+          "updatedAt": {
+            "type": "string",
+            "description": "ISO-8601 formatted timestamp indicating when the comment was most recently updated.",
+            "format": "date-time",
+            "example": "2018-05-09T15:07:42.527921Z"
+          }
+        },
+        "additionalProperties": false,
+        "description": "List Comment response."
+      },
+      "ListCommentsResponse": {
+        "title": "List Comments Response",
+        "type": "object",
+        "properties": {
+          "comments": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/ListCommentResponse"
+            },
+            "description": "List of comments.",
+            "nullable": true
+          }
+        },
+        "additionalProperties": false,
+        "description": "Response information for list comments API."
+      },
+      "Operation": {
+        "required": [
+          "version"
+        ],
+        "type": "object",
+        "properties": {
+          "available": {
+            "type": "boolean",
+            "description": "Whether the operation is available to the caller.",
+            "example": true
+          },
+          "version": {
+            "maximum": 2147483647,
+            "minimum": 1,
+            "type": "integer",
+            "description": "Version of the available operation.",
+            "format": "int32",
+            "example": 1
+          }
+        },
+        "additionalProperties": false,
+        "description": "Operation information."
+      },
+      "UpdateCommentRequest": {
+        "title": "Update Comment Request",
+        "required": [
+          "message"
+        ],
+        "type": "object",
+        "properties": {
+          "message": {
+            "minLength": 1,
+            "type": "string",
+            "description": "The comment message in the markdown format.",
+            "example": "Hi <user:afbf16ae-1f8d-4422-b592-8b846316929c>,\\n\\nPlease schedule all the below *tests* now that the test system setup is **complete**.\\n\\n   1. Test 1\\n\\n 2. Test 2\\n\\nMoreover, these are a few points to be noted before scheduling Tests.\\n\\n * Point 1\\n\\n * Point 2\\n\\nFor further queries you could check this link: <https://www.ni.com/>\\n\\ncc:<user:e27dc41a-40a3-47f5-841e-0e4e17c3986c>"
+          },
+          "resourceName": {
+            "type": "string",
+            "description": "The name of the resource the comment belongs to. ResourceName will be\nadded in the notification email to the mentioned users.",
+            "nullable": true,
+            "example": "My Test Program"
+          },
+          "resourceTypeName": {
+            "type": "string",
+            "description": "User-friendly name of the type of the resource that is being commented on.\nResourceTypeName will be added in the notification email to the mentioned users.",
+            "nullable": true,
+            "example": "Results"
+          },
+          "commentUrl": {
+            "type": "string",
+            "description": "Relative URL to the comment. CommentUrl will\nbe addded in the notification email to the mentioned users.",
+            "nullable": true,
+            "example": "testinsights/results/result/fff17de5-2a3a-4274-bdcb-09dad869f1f2/comments"
+          },
+          "mentionedUsers": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            },
+            "description": "The ids of the users mentioned in the comment.",
+            "nullable": true,
+            "example": [
+              "afbf16ae-1f8d-4422-b592-8b846316929c",
+              "e27dc41a-40a3-47f5-841e-0e4e17c3986c"
+            ]
+          }
+        },
+        "additionalProperties": false,
+        "description": "Request information for the update comment API."
+      },
+      "V1Operations": {
+        "title": "V1 Operations",
+        "required": [
+          "createComments",
+          "deleteComments",
+          "listComments",
+          "updateComment"
+        ],
+        "type": "object",
+        "properties": {
+          "createComments": {
+            "$ref": "#/components/schemas/Operation"
+          },
+          "listComments": {
+            "$ref": "#/components/schemas/Operation"
+          },
+          "updateComment": {
+            "$ref": "#/components/schemas/Operation"
+          },
+          "deleteComments": {
+            "$ref": "#/components/schemas/Operation"
+          }
+        },
+        "additionalProperties": false,
+        "description": "Information about the v1 version of the API."
+      },
+      "Versions": {
+        "type": "object",
+        "properties": {
+          "v1": {
+            "$ref": "#/components/schemas/V1Operations"
+          },
+          "version": {
+            "type": "string",
+            "description": "The version of the web service.",
+            "nullable": true,
+            "example": "0.0.1 build 20230101.1"
+          }
+        },
+        "additionalProperties": false,
+        "description": "Version information."
+      }
+    },
+    "securitySchemes": {
+      "apikey": {
+        "type": "apiKey",
+        "name": "X-NI-API-KEY",
+        "in": "header"
+      }
+    }
+  },
+  "security": [
+    {
+      "apikey": [ ]
+    }
+  ],
+  "tags": [
+    {
+      "name": "Versioning"
+    },
+    {
+      "name": "Comments"
+    }
+  ]
+}

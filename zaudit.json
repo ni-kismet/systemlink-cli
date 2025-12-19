@@ -1,0 +1,74 @@
+[
+  {
+    "id_reference": "template_demo",
+    "resource_type": "testtemplate",
+    "resource_name": "Demo Test Template",
+    "action": "skipped",
+    "server_id": null,
+    "error": null
+  },
+  {
+    "id_reference": "dut_2",
+    "resource_type": "dut",
+    "resource_name": "DUT 2 - Stand 2",
+    "action": "skipped",
+    "server_id": null,
+    "error": null
+  },
+  {
+    "id_reference": "dut_1",
+    "resource_type": "dut",
+    "resource_name": "DUT 1 - Stand 1",
+    "action": "skipped",
+    "server_id": null,
+    "error": null
+  },
+  {
+    "id_reference": "asset_2",
+    "resource_type": "asset",
+    "resource_name": "Asset 2 - Stand 2",
+    "action": "skipped",
+    "server_id": null,
+    "error": null
+  },
+  {
+    "id_reference": "asset_1",
+    "resource_type": "asset",
+    "resource_name": "Asset 1 - Stand 1",
+    "action": "skipped",
+    "server_id": null,
+    "error": null
+  },
+  {
+    "id_reference": "sys_ts2",
+    "resource_type": "system",
+    "resource_name": "Test Stand 2",
+    "action": "skipped",
+    "server_id": null,
+    "error": null
+  },
+  {
+    "id_reference": "sys_ts1",
+    "resource_type": "system",
+    "resource_name": "Test Stand 1",
+    "action": "skipped",
+    "server_id": null,
+    "error": null
+  },
+  {
+    "id_reference": "prod_widget",
+    "resource_type": "product",
+    "resource_name": "Demo Widget Pro",
+    "action": "skipped",
+    "server_id": null,
+    "error": null
+  },
+  {
+    "id_reference": "loc_hq",
+    "resource_type": "location",
+    "resource_name": "Demo HQ",
+    "action": "skipped",
+    "server_id": null,
+    "error": null
+  }
+]

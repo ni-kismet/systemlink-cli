@@ -1,0 +1,3066 @@
+{
+  "openapi": "3.0.4",
+  "info": {
+    "title": "Systems Management",
+    "description": "Systems Management Service HTTP API. Manage and monitor your distributed systems.",
+    "contact": {
+      "name": "National Instruments",
+      "url": "https://www.ni.com/systemlink",
+      "email": "support@ni.com"
+    },
+    "version": "1"
+  },
+  "paths": {
+    "/nisysmgmt/v1/jobs": {
+      "get": {
+        "tags": [
+          "Job"
+        ],
+        "summary": "Get jobs",
+        "parameters": [
+          {
+            "name": "systemId",
+            "in": "query",
+            "description": "The ID of the system to that the jobs belong",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "jid",
+            "in": "query",
+            "description": "The ID of the job",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "state",
+            "in": "query",
+            "description": "The state of the jobs",
+            "schema": {
+              "$ref": "#/components/schemas/JobState"
+            }
+          },
+          {
+            "name": "function",
+            "in": "query",
+            "description": "The salt function to run on the client",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "skip",
+            "in": "query",
+            "description": "How many jobs to skip",
+            "schema": {
+              "type": "integer",
+              "format": "int32"
+            }
+          },
+          {
+            "name": "take",
+            "in": "query",
+            "description": "How many jobs to return",
+            "schema": {
+              "type": "integer",
+              "format": "int32"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "The jobs that matched the criteria",
+            "content": {
+              "text/plain": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/Job"
+                  }
+                }
+              },
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/Job"
+                  }
+                }
+              },
+              "text/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/Job"
+                  }
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "If the request is invalid",
+            "content": {
+              "text/plain": {
+                "schema": {
+                  "$ref": "#/components/schemas/BaseResponse"
+                }
+              },
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/BaseResponse"
+                }
+              },
+              "text/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/BaseResponse"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized",
+            "content": {
+              "text/plain": {
+                "schema": {
+                  "$ref": "#/components/schemas/BaseResponse"
+                }
+              },
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/BaseResponse"
+                }
+              },
+              "text/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/BaseResponse"
+                }
+              }
+            }
+          }
+        }
+      },
+      "post": {
+        "tags": [
+          "Job"
+        ],
+        "summary": "Create job",
+        "requestBody": {
+          "description": "An instance of NationalInstruments.SystemsManagementService.Model.API.CreateJobRequest",
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CreateJobRequest"
+              }
+            },
+            "text/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CreateJobRequest"
+              }
+            },
+            "application/*+json": {
+              "schema": {
+                "$ref": "#/components/schemas/CreateJobRequest"
+              }
+            },
+            "text/plain": {
+              "schema": {
+                "$ref": "#/components/schemas/CreateJobRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "The job that was created",
+            "content": {
+              "text/plain": {
+                "schema": {
+                  "$ref": "#/components/schemas/CreateJobResponse"
+                }
+              },
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CreateJobResponse"
+                }
+              },
+              "text/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CreateJobResponse"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "If the request is invalid",
+            "content": {
+              "text/plain": {
+                "schema": {
+                  "$ref": "#/components/schemas/BaseResponse"
+                }
+              },
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/BaseResponse"
+                }
+              },
+              "text/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/BaseResponse"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "If the user is not authorized to create a job",
+            "content": {
+              "text/plain": {
+                "schema": {
+                  "$ref": "#/components/schemas/BaseResponse"
+                }
+              },
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/BaseResponse"
+                }
+              },
+              "text/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/BaseResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/nisysmgmt/v1/get-jobs-summary": {
+      "get": {
+        "tags": [
+          "Job"
+        ],
+        "summary": "Get jobs summary",
+        "responses": {
+          "200": {
+            "description": "An instance of a NationalInstruments.SystemsManagementService.Model.API.JobsSummaryResponse",
+            "content": {
+              "text/plain": {
+                "schema": {
+                  "$ref": "#/components/schemas/JobsSummaryResponse"
+                }
+              },
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/JobsSummaryResponse"
+                }
+              },
+              "text/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/JobsSummaryResponse"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized",
+            "content": {
+              "text/plain": {
+                "schema": {
+                  "$ref": "#/components/schemas/BaseResponse"
+                }
+              },
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/BaseResponse"
+                }
+              },
+              "text/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/BaseResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/nisysmgmt/v1/query-jobs": {
+      "post": {
+        "tags": [
+          "Job"
+        ],
+        "summary": "Query jobs",
+        "requestBody": {
+          "description": "An instance of NationalInstruments.SystemsManagementService.Model.API.QueryJobsRequest",
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/QueryJobsRequest"
+              }
+            },
+            "text/json": {
+              "schema": {
+                "$ref": "#/components/schemas/QueryJobsRequest"
+              }
+            },
+            "application/*+json": {
+              "schema": {
+                "$ref": "#/components/schemas/QueryJobsRequest"
+              }
+            },
+            "text/plain": {
+              "schema": {
+                "$ref": "#/components/schemas/QueryJobsRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "The list of jobs that match the query",
+            "content": {
+              "text/plain": {
+                "schema": {
+                  "$ref": "#/components/schemas/QueryJobsResponse"
+                }
+              },
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/QueryJobsResponse"
+                }
+              },
+              "text/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/QueryJobsResponse"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "If the request is invalid",
+            "content": {
+              "text/plain": {
+                "schema": {
+                  "$ref": "#/components/schemas/BaseResponse"
+                }
+              },
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/BaseResponse"
+                }
+              },
+              "text/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/BaseResponse"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized",
+            "content": {
+              "text/plain": {
+                "schema": {
+                  "$ref": "#/components/schemas/BaseResponse"
+                }
+              },
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/BaseResponse"
+                }
+              },
+              "text/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/BaseResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/nisysmgmt/v1/cancel-jobs": {
+      "post": {
+        "tags": [
+          "Job"
+        ],
+        "summary": "Cancel jobs",
+        "requestBody": {
+          "description": "A list of NationalInstruments.SystemsManagementService.Model.API.CancelJobRequest",
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "array",
+                "items": {
+                  "$ref": "#/components/schemas/CancelJobRequest"
+                }
+              }
+            },
+            "text/json": {
+              "schema": {
+                "type": "array",
+                "items": {
+                  "$ref": "#/components/schemas/CancelJobRequest"
+                }
+              }
+            },
+            "application/*+json": {
+              "schema": {
+                "type": "array",
+                "items": {
+                  "$ref": "#/components/schemas/CancelJobRequest"
+                }
+              }
+            },
+            "text/plain": {
+              "schema": {
+                "type": "array",
+                "items": {
+                  "$ref": "#/components/schemas/CancelJobRequest"
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "204": {
+            "description": "Success"
+          },
+          "200": {
+            "description": "The errors that appear while attempting the operation",
+            "content": {
+              "text/plain": {
+                "schema": {
+                  "$ref": "#/components/schemas/BaseResponse"
+                }
+              },
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/BaseResponse"
+                }
+              },
+              "text/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/BaseResponse"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "If the request is invalid",
+            "content": {
+              "text/plain": {
+                "schema": {
+                  "$ref": "#/components/schemas/HttpError"
+                }
+              },
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HttpError"
+                }
+              },
+              "text/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HttpError"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "If the user is not authorized to cancel jobs",
+            "content": {
+              "text/plain": {
+                "schema": {
+                  "$ref": "#/components/schemas/BaseResponse"
+                }
+              },
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/BaseResponse"
+                }
+              },
+              "text/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/BaseResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/nisysmgmt": {
+      "get": {
+        "tags": [
+          "RootEndpoint"
+        ],
+        "summary": "API information",
+        "responses": {
+          "200": {
+            "description": "OK"
+          }
+        }
+      }
+    },
+    "/nisysmgmt/v1": {
+      "get": {
+        "tags": [
+          "RootEndpoint"
+        ],
+        "summary": "API version information",
+        "responses": {
+          "200": {
+            "description": "OK"
+          }
+        }
+      }
+    },
+    "/nisysmgmt/v1/query-systems": {
+      "post": {
+        "tags": [
+          "System"
+        ],
+        "summary": "Query systems",
+        "requestBody": {
+          "description": "An instance of a NationalInstruments.SystemsManagementService.Model.API.QuerySystemsRequest",
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/QuerySystemsRequest"
+              }
+            },
+            "text/json": {
+              "schema": {
+                "$ref": "#/components/schemas/QuerySystemsRequest"
+              }
+            },
+            "application/*+json": {
+              "schema": {
+                "$ref": "#/components/schemas/QuerySystemsRequest"
+              }
+            },
+            "text/plain": {
+              "schema": {
+                "$ref": "#/components/schemas/QuerySystemsRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "The list of systems matching the query",
+            "content": {
+              "text/plain": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/SystemsResponse"
+                  }
+                }
+              },
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/SystemsResponse"
+                  }
+                }
+              },
+              "text/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/SystemsResponse"
+                  }
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Invalid request",
+            "content": {
+              "text/plain": {
+                "schema": {
+                  "$ref": "#/components/schemas/BaseResponse"
+                }
+              },
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/BaseResponse"
+                }
+              },
+              "text/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/BaseResponse"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized",
+            "content": {
+              "text/plain": {
+                "schema": {
+                  "$ref": "#/components/schemas/BaseResponse"
+                }
+              },
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/BaseResponse"
+                }
+              },
+              "text/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/BaseResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/nisysmgmt/v1/generate-systems-report": {
+      "post": {
+        "tags": [
+          "System"
+        ],
+        "summary": "Generate systems report",
+        "requestBody": {
+          "description": "An instance of NationalInstruments.SystemsManagementService.Model.API.SystemsReportRequest",
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/SystemsReportRequest"
+              }
+            },
+            "text/json": {
+              "schema": {
+                "$ref": "#/components/schemas/SystemsReportRequest"
+              }
+            },
+            "application/*+json": {
+              "schema": {
+                "$ref": "#/components/schemas/SystemsReportRequest"
+              }
+            },
+            "text/plain": {
+              "schema": {
+                "$ref": "#/components/schemas/SystemsReportRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "The system report",
+            "content": {
+              "text/plain": {
+                "schema": {
+                  "type": "string",
+                  "format": "binary"
+                }
+              },
+              "application/json": {
+                "schema": {
+                  "type": "string",
+                  "format": "binary"
+                }
+              },
+              "text/json": {
+                "schema": {
+                  "type": "string",
+                  "format": "binary"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Invalid request",
+            "content": {
+              "text/plain": {
+                "schema": {
+                  "$ref": "#/components/schemas/BaseResponse"
+                }
+              },
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/BaseResponse"
+                }
+              },
+              "text/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/BaseResponse"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized",
+            "content": {
+              "text/plain": {
+                "schema": {
+                  "$ref": "#/components/schemas/BaseResponse"
+                }
+              },
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/BaseResponse"
+                }
+              },
+              "text/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/BaseResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/nisysmgmt/v1/get-pending-systems-summary": {
+      "get": {
+        "tags": [
+          "System"
+        ],
+        "summary": "Get pending systems summary",
+        "responses": {
+          "200": {
+            "description": "The pending system summary",
+            "content": {
+              "text/plain": {
+                "schema": {
+                  "$ref": "#/components/schemas/GetPendingSystemsSummaryResponse"
+                }
+              },
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/GetPendingSystemsSummaryResponse"
+                }
+              },
+              "text/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/GetPendingSystemsSummaryResponse"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized",
+            "content": {
+              "text/plain": {
+                "schema": {
+                  "$ref": "#/components/schemas/BaseResponse"
+                }
+              },
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/BaseResponse"
+                }
+              },
+              "text/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/BaseResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/nisysmgmt/v1/get-systems-summary": {
+      "get": {
+        "tags": [
+          "System"
+        ],
+        "summary": "Get systems summary",
+        "responses": {
+          "200": {
+            "description": "The system summary",
+            "content": {
+              "text/plain": {
+                "schema": {
+                  "$ref": "#/components/schemas/SystemsSummaryResponse"
+                }
+              },
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SystemsSummaryResponse"
+                }
+              },
+              "text/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SystemsSummaryResponse"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized",
+            "content": {
+              "text/plain": {
+                "schema": {
+                  "$ref": "#/components/schemas/BaseResponse"
+                }
+              },
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/BaseResponse"
+                }
+              },
+              "text/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/BaseResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/nisysmgmt/v1/get-systems-keys": {
+      "get": {
+        "tags": [
+          "System"
+        ],
+        "summary": "Get systems keys for all systems",
+        "responses": {
+          "200": {
+            "description": "The system keys",
+            "content": {
+              "text/plain": {
+                "schema": {
+                  "$ref": "#/components/schemas/GetSystemsKeysResponse"
+                }
+              },
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/GetSystemsKeysResponse"
+                }
+              },
+              "text/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/GetSystemsKeysResponse"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized",
+            "content": {
+              "text/plain": {
+                "schema": {
+                  "$ref": "#/components/schemas/BaseResponse"
+                }
+              },
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/BaseResponse"
+                }
+              },
+              "text/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/BaseResponse"
+                }
+              }
+            }
+          }
+        }
+      },
+      "post": {
+        "tags": [
+          "System"
+        ],
+        "summary": "Get keys for a set of systemes",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ListSystemsKeysRequest"
+              }
+            },
+            "text/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ListSystemsKeysRequest"
+              }
+            },
+            "application/*+json": {
+              "schema": {
+                "$ref": "#/components/schemas/ListSystemsKeysRequest"
+              }
+            },
+            "text/plain": {
+              "schema": {
+                "$ref": "#/components/schemas/ListSystemsKeysRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "The system keys",
+            "content": {
+              "text/plain": {
+                "schema": {
+                  "$ref": "#/components/schemas/GetSystemsKeysResponse"
+                }
+              },
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/GetSystemsKeysResponse"
+                }
+              },
+              "text/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/GetSystemsKeysResponse"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Bad Request",
+            "content": {
+              "text/plain": {
+                "schema": {
+                  "$ref": "#/components/schemas/BaseResponse"
+                }
+              },
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/BaseResponse"
+                }
+              },
+              "text/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/BaseResponse"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized",
+            "content": {
+              "text/plain": {
+                "schema": {
+                  "$ref": "#/components/schemas/BaseResponse"
+                }
+              },
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/BaseResponse"
+                }
+              },
+              "text/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/BaseResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/nisysmgmt/v1/manage-systems-keys": {
+      "post": {
+        "tags": [
+          "System"
+        ],
+        "summary": "Manage systems keys",
+        "requestBody": {
+          "description": "An instance of a NationalInstruments.SystemsManagementService.Model.API.ManageKeysRequest",
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ManageKeysRequest"
+              }
+            },
+            "text/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ManageKeysRequest"
+              }
+            },
+            "application/*+json": {
+              "schema": {
+                "$ref": "#/components/schemas/ManageKeysRequest"
+              }
+            },
+            "text/plain": {
+              "schema": {
+                "$ref": "#/components/schemas/ManageKeysRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "204": {
+            "description": "Success"
+          },
+          "200": {
+            "description": "The errors that appear while attempting the operation",
+            "content": {
+              "text/plain": {
+                "schema": {
+                  "$ref": "#/components/schemas/BaseResponse"
+                }
+              },
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/BaseResponse"
+                }
+              },
+              "text/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/BaseResponse"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Bad Request",
+            "content": {
+              "text/plain": {
+                "schema": {
+                  "$ref": "#/components/schemas/BaseResponse"
+                }
+              },
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/BaseResponse"
+                }
+              },
+              "text/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/BaseResponse"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized",
+            "content": {
+              "text/plain": {
+                "schema": {
+                  "$ref": "#/components/schemas/BaseResponse"
+                }
+              },
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/BaseResponse"
+                }
+              },
+              "text/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/BaseResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/nisysmgmt/v1/virtual": {
+      "post": {
+        "tags": [
+          "System"
+        ],
+        "summary": "Create virtual system",
+        "requestBody": {
+          "description": "An instance of a NationalInstruments.SystemsManagementService.Model.API.CreateVirtualSystemRequest",
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CreateVirtualSystemRequest"
+              }
+            },
+            "text/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CreateVirtualSystemRequest"
+              }
+            },
+            "application/*+json": {
+              "schema": {
+                "$ref": "#/components/schemas/CreateVirtualSystemRequest"
+              }
+            },
+            "text/plain": {
+              "schema": {
+                "$ref": "#/components/schemas/CreateVirtualSystemRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "The minion ID of the created virtual system",
+            "content": {
+              "text/plain": {
+                "schema": {
+                  "$ref": "#/components/schemas/CreateVirtualSystemResponse"
+                }
+              },
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CreateVirtualSystemResponse"
+                }
+              },
+              "text/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CreateVirtualSystemResponse"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Bad Request",
+            "content": {
+              "text/plain": {
+                "schema": {
+                  "$ref": "#/components/schemas/BaseResponse"
+                }
+              },
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/BaseResponse"
+                }
+              },
+              "text/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/BaseResponse"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized",
+            "content": {
+              "text/plain": {
+                "schema": {
+                  "$ref": "#/components/schemas/BaseResponse"
+                }
+              },
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/BaseResponse"
+                }
+              },
+              "text/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/BaseResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/nisysmgmt/v1/virtual/generate-system-apikey": {
+      "post": {
+        "tags": [
+          "System"
+        ],
+        "summary": "Generate API key for a virtual system",
+        "requestBody": {
+          "description": "An instance of a NationalInstruments.SystemsManagementService.Model.API.GenerateSystemApiKeyRequest",
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/GenerateSystemApiKeyRequest"
+              }
+            },
+            "text/json": {
+              "schema": {
+                "$ref": "#/components/schemas/GenerateSystemApiKeyRequest"
+              }
+            },
+            "application/*+json": {
+              "schema": {
+                "$ref": "#/components/schemas/GenerateSystemApiKeyRequest"
+              }
+            },
+            "text/plain": {
+              "schema": {
+                "$ref": "#/components/schemas/GenerateSystemApiKeyRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "The generated API key",
+            "content": {
+              "text/plain": {
+                "schema": {
+                  "$ref": "#/components/schemas/GenerateSystemApiKeyResponse"
+                }
+              },
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/GenerateSystemApiKeyResponse"
+                }
+              },
+              "text/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/GenerateSystemApiKeyResponse"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Invalid request",
+            "content": {
+              "text/plain": {
+                "schema": {
+                  "$ref": "#/components/schemas/BaseResponse"
+                }
+              },
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/BaseResponse"
+                }
+              },
+              "text/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/BaseResponse"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized",
+            "content": {
+              "text/plain": {
+                "schema": {
+                  "$ref": "#/components/schemas/BaseResponse"
+                }
+              },
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/BaseResponse"
+                }
+              },
+              "text/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/BaseResponse"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "System not found",
+            "content": {
+              "text/plain": {
+                "schema": {
+                  "$ref": "#/components/schemas/BaseResponse"
+                }
+              },
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/BaseResponse"
+                }
+              },
+              "text/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/BaseResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/nisysmgmt/v1/systems": {
+      "get": {
+        "tags": [
+          "System"
+        ],
+        "summary": "Get systems",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "query",
+            "description": "The ID of the system whose metadata to return",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "The metadata of the system that matches the ID",
+            "content": {
+              "text/plain": {
+                "schema": {
+                  "type": "array",
+                  "items": { }
+                },
+                "example": [
+                  {
+                    "id": "6b70e1df-ae93-4ded-9fe0-dc775732289b",
+                    "alias": "MySystem",
+                    "createdTimestamp": "2025-07-31T19:35:11.6165561Z",
+                    "lastUpdatedTimestamp": "2025-07-31T19:35:11.6165561Z",
+                    "connected": {
+                      "lastPresentTimestamp": "2025-07-31T19:35:11.6165561Z",
+                      "lastUpdatedTimestamp": "2025-07-31T19:35:11.6165561Z",
+                      "data": {
+                        "state": "CONNECTED"
+                      }
+                    },
+                    "grains": {
+                      "lastUpdatedTimestamp": "2025-07-31T19:35:11.6165561Z",
+                      "data": {
+                        "kernel": "Windows",
+                        "osversion": "10.0.19042.928",
+                        "osmanufacturer": "Microsoft Corporation",
+                        "host": "MyComputer",
+                        "cpuarch": "AMD64",
+                        "deviceclass": "Desktop"
+                      }
+                    },
+                    "status": {
+                      "lastUpdatedTimestamp": "2025-07-31T19:35:11.6165561Z",
+                      "data": {
+                        "http_connected": true
+                      }
+                    },
+                    "packages": {
+                      "lastUpdatedTimestamp": "2025-07-31T19:35:11.6165561Z",
+                      "data": {
+                        "ni-apal-errors": {
+                          "arch": "windows_x64",
+                          "description": "NI device driver error code descriptions (infrastructure)\nError code descriptions common to many NI device drivers.",
+                          "displayname": "NI-APAL Error Code Descriptions (infrastructure)",
+                          "displayversion": "2023 Q1",
+                          "group": "Infrastructure",
+                          "packager": "National Instruments <support@ni.com>",
+                          "priority": "standard",
+                          "size": "1184118",
+                          "url": "https://www.ni.com",
+                          "version": "23.0.0.49253-0+f101"
+                        },
+                        "ni-curl": {
+                          "arch": "windows_x64",
+                          "description": "NI Curl provides the build of the \"C URL\" library that is an open-source command line tool and library for transferring data with URL syntax.",
+                          "displayname": "NI Curl",
+                          "displayversion": "21.3.0",
+                          "group": "Infrastructure",
+                          "packager": "National Instruments <support@ni.com>",
+                          "priority": "standard",
+                          "size": "2096594",
+                          "url": "https://www.ni.com",
+                          "version": "21.3.0.49152-0+f0"
+                        }
+                      }
+                    },
+                    "feeds": {
+                      "lastUpdatedTimestamp": "2025-07-31T19:35:11.6165561Z",
+                      "data": {
+                        "https://download.ni.com/support/nipkg/products/ni-d/ni-digital/23.0/released": [
+                          {
+                            "configurable": true,
+                            "enabled": true,
+                            "name": "ni-digital-2023 Q1-released",
+                            "ni-managed": true,
+                            "uri": "https://download.ni.com/support/nipkg/products/ni-d/ni-digital/23.0/released"
+                          }
+                        ],
+                        "https://download.ni.com/support/nipkg/products/ni-s/ni-sv-toolkit-2021/21.5/released": [
+                          {
+                            "configurable": true,
+                            "enabled": true,
+                            "name": "ni-sv-toolkit-2021-2021-released",
+                            "ni-managed": true,
+                            "uri": "https://download.ni.com/support/nipkg/products/ni-s/ni-sv-toolkit-2021/21.5/released"
+                          }
+                        ]
+                      }
+                    },
+                    "keywords": {
+                      "lastUpdatedTimestamp": "2025-07-31T19:35:11.6165561Z",
+                      "data": [
+                        "Running",
+                        "InUse"
+                      ]
+                    },
+                    "properties": {
+                      "LastUpdatedTimestamp": "2025-07-31T19:35:11.6165561Z",
+                      "data": {
+                        "RunningTestsVersion": "3.9.2",
+                        "TestStandVersion": "2020"
+                      }
+                    },
+                    "workspace": "6b70e1df-ae93-4ded-9fe0-dc775732289b",
+                    "orgId": "e740733d-da55-4031-b32f-fb7cd8961810",
+                    "removed": false
+                  }
+                ]
+              },
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": { }
+                },
+                "example": [
+                  {
+                    "id": "6b70e1df-ae93-4ded-9fe0-dc775732289b",
+                    "alias": "MySystem",
+                    "createdTimestamp": "2025-07-31T19:35:11.6165561Z",
+                    "lastUpdatedTimestamp": "2025-07-31T19:35:11.6165561Z",
+                    "connected": {
+                      "lastPresentTimestamp": "2025-07-31T19:35:11.6165561Z",
+                      "lastUpdatedTimestamp": "2025-07-31T19:35:11.6165561Z",
+                      "data": {
+                        "state": "CONNECTED"
+                      }
+                    },
+                    "grains": {
+                      "lastUpdatedTimestamp": "2025-07-31T19:35:11.6165561Z",
+                      "data": {
+                        "kernel": "Windows",
+                        "osversion": "10.0.19042.928",
+                        "osmanufacturer": "Microsoft Corporation",
+                        "host": "MyComputer",
+                        "cpuarch": "AMD64",
+                        "deviceclass": "Desktop"
+                      }
+                    },
+                    "status": {
+                      "lastUpdatedTimestamp": "2025-07-31T19:35:11.6165561Z",
+                      "data": {
+                        "http_connected": true
+                      }
+                    },
+                    "packages": {
+                      "lastUpdatedTimestamp": "2025-07-31T19:35:11.6165561Z",
+                      "data": {
+                        "ni-apal-errors": {
+                          "arch": "windows_x64",
+                          "description": "NI device driver error code descriptions (infrastructure)\nError code descriptions common to many NI device drivers.",
+                          "displayname": "NI-APAL Error Code Descriptions (infrastructure)",
+                          "displayversion": "2023 Q1",
+                          "group": "Infrastructure",
+                          "packager": "National Instruments <support@ni.com>",
+                          "priority": "standard",
+                          "size": "1184118",
+                          "url": "https://www.ni.com",
+                          "version": "23.0.0.49253-0+f101"
+                        },
+                        "ni-curl": {
+                          "arch": "windows_x64",
+                          "description": "NI Curl provides the build of the \"C URL\" library that is an open-source command line tool and library for transferring data with URL syntax.",
+                          "displayname": "NI Curl",
+                          "displayversion": "21.3.0",
+                          "group": "Infrastructure",
+                          "packager": "National Instruments <support@ni.com>",
+                          "priority": "standard",
+                          "size": "2096594",
+                          "url": "https://www.ni.com",
+                          "version": "21.3.0.49152-0+f0"
+                        }
+                      }
+                    },
+                    "feeds": {
+                      "lastUpdatedTimestamp": "2025-07-31T19:35:11.6165561Z",
+                      "data": {
+                        "https://download.ni.com/support/nipkg/products/ni-d/ni-digital/23.0/released": [
+                          {
+                            "configurable": true,
+                            "enabled": true,
+                            "name": "ni-digital-2023 Q1-released",
+                            "ni-managed": true,
+                            "uri": "https://download.ni.com/support/nipkg/products/ni-d/ni-digital/23.0/released"
+                          }
+                        ],
+                        "https://download.ni.com/support/nipkg/products/ni-s/ni-sv-toolkit-2021/21.5/released": [
+                          {
+                            "configurable": true,
+                            "enabled": true,
+                            "name": "ni-sv-toolkit-2021-2021-released",
+                            "ni-managed": true,
+                            "uri": "https://download.ni.com/support/nipkg/products/ni-s/ni-sv-toolkit-2021/21.5/released"
+                          }
+                        ]
+                      }
+                    },
+                    "keywords": {
+                      "lastUpdatedTimestamp": "2025-07-31T19:35:11.6165561Z",
+                      "data": [
+                        "Running",
+                        "InUse"
+                      ]
+                    },
+                    "properties": {
+                      "LastUpdatedTimestamp": "2025-07-31T19:35:11.6165561Z",
+                      "data": {
+                        "RunningTestsVersion": "3.9.2",
+                        "TestStandVersion": "2020"
+                      }
+                    },
+                    "workspace": "6b70e1df-ae93-4ded-9fe0-dc775732289b",
+                    "orgId": "e740733d-da55-4031-b32f-fb7cd8961810",
+                    "removed": false
+                  }
+                ]
+              },
+              "text/json": {
+                "schema": {
+                  "type": "array",
+                  "items": { }
+                },
+                "example": [
+                  {
+                    "id": "6b70e1df-ae93-4ded-9fe0-dc775732289b",
+                    "alias": "MySystem",
+                    "createdTimestamp": "2025-07-31T19:35:11.6165561Z",
+                    "lastUpdatedTimestamp": "2025-07-31T19:35:11.6165561Z",
+                    "connected": {
+                      "lastPresentTimestamp": "2025-07-31T19:35:11.6165561Z",
+                      "lastUpdatedTimestamp": "2025-07-31T19:35:11.6165561Z",
+                      "data": {
+                        "state": "CONNECTED"
+                      }
+                    },
+                    "grains": {
+                      "lastUpdatedTimestamp": "2025-07-31T19:35:11.6165561Z",
+                      "data": {
+                        "kernel": "Windows",
+                        "osversion": "10.0.19042.928",
+                        "osmanufacturer": "Microsoft Corporation",
+                        "host": "MyComputer",
+                        "cpuarch": "AMD64",
+                        "deviceclass": "Desktop"
+                      }
+                    },
+                    "status": {
+                      "lastUpdatedTimestamp": "2025-07-31T19:35:11.6165561Z",
+                      "data": {
+                        "http_connected": true
+                      }
+                    },
+                    "packages": {
+                      "lastUpdatedTimestamp": "2025-07-31T19:35:11.6165561Z",
+                      "data": {
+                        "ni-apal-errors": {
+                          "arch": "windows_x64",
+                          "description": "NI device driver error code descriptions (infrastructure)\nError code descriptions common to many NI device drivers.",
+                          "displayname": "NI-APAL Error Code Descriptions (infrastructure)",
+                          "displayversion": "2023 Q1",
+                          "group": "Infrastructure",
+                          "packager": "National Instruments <support@ni.com>",
+                          "priority": "standard",
+                          "size": "1184118",
+                          "url": "https://www.ni.com",
+                          "version": "23.0.0.49253-0+f101"
+                        },
+                        "ni-curl": {
+                          "arch": "windows_x64",
+                          "description": "NI Curl provides the build of the \"C URL\" library that is an open-source command line tool and library for transferring data with URL syntax.",
+                          "displayname": "NI Curl",
+                          "displayversion": "21.3.0",
+                          "group": "Infrastructure",
+                          "packager": "National Instruments <support@ni.com>",
+                          "priority": "standard",
+                          "size": "2096594",
+                          "url": "https://www.ni.com",
+                          "version": "21.3.0.49152-0+f0"
+                        }
+                      }
+                    },
+                    "feeds": {
+                      "lastUpdatedTimestamp": "2025-07-31T19:35:11.6165561Z",
+                      "data": {
+                        "https://download.ni.com/support/nipkg/products/ni-d/ni-digital/23.0/released": [
+                          {
+                            "configurable": true,
+                            "enabled": true,
+                            "name": "ni-digital-2023 Q1-released",
+                            "ni-managed": true,
+                            "uri": "https://download.ni.com/support/nipkg/products/ni-d/ni-digital/23.0/released"
+                          }
+                        ],
+                        "https://download.ni.com/support/nipkg/products/ni-s/ni-sv-toolkit-2021/21.5/released": [
+                          {
+                            "configurable": true,
+                            "enabled": true,
+                            "name": "ni-sv-toolkit-2021-2021-released",
+                            "ni-managed": true,
+                            "uri": "https://download.ni.com/support/nipkg/products/ni-s/ni-sv-toolkit-2021/21.5/released"
+                          }
+                        ]
+                      }
+                    },
+                    "keywords": {
+                      "lastUpdatedTimestamp": "2025-07-31T19:35:11.6165561Z",
+                      "data": [
+                        "Running",
+                        "InUse"
+                      ]
+                    },
+                    "properties": {
+                      "LastUpdatedTimestamp": "2025-07-31T19:35:11.6165561Z",
+                      "data": {
+                        "RunningTestsVersion": "3.9.2",
+                        "TestStandVersion": "2020"
+                      }
+                    },
+                    "workspace": "6b70e1df-ae93-4ded-9fe0-dc775732289b",
+                    "orgId": "e740733d-da55-4031-b32f-fb7cd8961810",
+                    "removed": false
+                  }
+                ]
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized",
+            "content": {
+              "text/plain": {
+                "schema": {
+                  "$ref": "#/components/schemas/BaseResponse"
+                }
+              },
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/BaseResponse"
+                }
+              },
+              "text/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/BaseResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/nisysmgmt/v1/remove-systems": {
+      "post": {
+        "tags": [
+          "System"
+        ],
+        "summary": "Remove systems",
+        "requestBody": {
+          "description": "An instance of a NationalInstruments.SystemsManagementService.Model.API.RemoveSystemsRequest",
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/RemoveSystemsRequest"
+              }
+            },
+            "text/json": {
+              "schema": {
+                "$ref": "#/components/schemas/RemoveSystemsRequest"
+              }
+            },
+            "application/*+json": {
+              "schema": {
+                "$ref": "#/components/schemas/RemoveSystemsRequest"
+              }
+            },
+            "text/plain": {
+              "schema": {
+                "$ref": "#/components/schemas/RemoveSystemsRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "The job ID of the job to remove the systems and the IDs of the removed systems",
+            "content": {
+              "text/plain": {
+                "schema": {
+                  "$ref": "#/components/schemas/RemoveSystemsResponse"
+                }
+              },
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/RemoveSystemsResponse"
+                }
+              },
+              "text/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/RemoveSystemsResponse"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Bad Request",
+            "content": {
+              "text/plain": {
+                "schema": {
+                  "$ref": "#/components/schemas/BaseResponse"
+                }
+              },
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/BaseResponse"
+                }
+              },
+              "text/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/BaseResponse"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized",
+            "content": {
+              "text/plain": {
+                "schema": {
+                  "$ref": "#/components/schemas/BaseResponse"
+                }
+              },
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/BaseResponse"
+                }
+              },
+              "text/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/BaseResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/nisysmgmt/v1/update-systems": {
+      "post": {
+        "tags": [
+          "System"
+        ],
+        "summary": "Update systems metadata",
+        "requestBody": {
+          "description": "An instance of a NationalInstruments.SystemsManagementService.Model.API.UpdateSystemsRequest",
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/UpdateSystemsRequest"
+              }
+            },
+            "text/json": {
+              "schema": {
+                "$ref": "#/components/schemas/UpdateSystemsRequest"
+              }
+            },
+            "application/*+json": {
+              "schema": {
+                "$ref": "#/components/schemas/UpdateSystemsRequest"
+              }
+            },
+            "text/plain": {
+              "schema": {
+                "$ref": "#/components/schemas/UpdateSystemsRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "The errors that may have appeared while attempting the operation",
+            "content": {
+              "text/plain": {
+                "schema": {
+                  "$ref": "#/components/schemas/BaseResponse"
+                }
+              },
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/BaseResponse"
+                }
+              },
+              "text/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/BaseResponse"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Bad Request",
+            "content": {
+              "text/plain": {
+                "schema": {
+                  "$ref": "#/components/schemas/BaseResponse"
+                }
+              },
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/BaseResponse"
+                }
+              },
+              "text/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/BaseResponse"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized",
+            "content": {
+              "text/plain": {
+                "schema": {
+                  "$ref": "#/components/schemas/BaseResponse"
+                }
+              },
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/BaseResponse"
+                }
+              },
+              "text/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/BaseResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/nisysmgmt/v1/systems/managed/{id}": {
+      "patch": {
+        "tags": [
+          "System"
+        ],
+        "summary": "Update system metadata",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "description": "The ID of the system to be updated",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "description": "An instance of a NationalInstruments.SystemsManagementService.Model.API.SystemPatchRequest",
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/SystemPatchRequest"
+              }
+            },
+            "text/json": {
+              "schema": {
+                "$ref": "#/components/schemas/SystemPatchRequest"
+              }
+            },
+            "application/*+json": {
+              "schema": {
+                "$ref": "#/components/schemas/SystemPatchRequest"
+              }
+            },
+            "text/plain": {
+              "schema": {
+                "$ref": "#/components/schemas/SystemPatchRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "204": {
+            "description": "Success"
+          },
+          "200": {
+            "description": "The errors that appear while attempting the operation",
+            "content": {
+              "text/plain": {
+                "schema": {
+                  "$ref": "#/components/schemas/BaseResponse"
+                }
+              },
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/BaseResponse"
+                }
+              },
+              "text/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/BaseResponse"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized",
+            "content": {
+              "text/plain": {
+                "schema": {
+                  "$ref": "#/components/schemas/BaseResponse"
+                }
+              },
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/BaseResponse"
+                }
+              },
+              "text/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/BaseResponse"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Not Found",
+            "content": {
+              "text/plain": {
+                "schema": {
+                  "$ref": "#/components/schemas/BaseResponse"
+                }
+              },
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/BaseResponse"
+                }
+              },
+              "text/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/BaseResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    }
+  },
+  "components": {
+    "schemas": {
+      "BaseResponse": {
+        "type": "object",
+        "properties": {
+          "error": {
+            "$ref": "#/components/schemas/HttpError"
+          }
+        },
+        "additionalProperties": false,
+        "description": "Represents a basic response object containing an optional error."
+      },
+      "CancelJobRequest": {
+        "type": "object",
+        "properties": {
+          "jid": {
+            "type": "string",
+            "description": "Gets or sets the job ID of the job to cancel.",
+            "nullable": true,
+            "example": "54af4b95-ea89-48df-b21f-dddf56083476"
+          },
+          "systemId": {
+            "type": "string",
+            "description": "Gets or sets the system ID that the job to cancel targets.",
+            "nullable": true,
+            "example": "HVM_domU--SN-ec20418e-d93b-2de3-b957-28e29379cade--MAC-12-9D-96-E7-CA-51"
+          }
+        },
+        "additionalProperties": false
+      },
+      "CreateJobRequest": {
+        "type": "object",
+        "properties": {
+          "arg": {
+            "type": "array",
+            "items": {
+              "type": "array",
+              "items": { }
+            },
+            "description": "List of arguments to the functions specified in the \"fun\" property.",
+            "nullable": true,
+            "example": [
+              [
+                "A description"
+              ]
+            ]
+          },
+          "tgt": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            },
+            "description": "List of system IDs on which to run the job.",
+            "nullable": true,
+            "example": [
+              "HVM_domU--SN-ec200972-eeca-062e-5bf5-017a25451b39--MAC-0A-E1-20-D6-96-2B"
+            ]
+          },
+          "fun": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            },
+            "description": "Functions contained in the job.",
+            "nullable": true,
+            "example": [
+              "system.set_computer_desc"
+            ]
+          },
+          "metadata": {
+            "type": "object",
+            "additionalProperties": {
+              "nullable": true
+            },
+            "description": "Additional information of the job.",
+            "nullable": true,
+            "example": {
+              "queued": true,
+              "refresh_minion_cache": {
+                "grains": true
+              }
+            }
+          }
+        },
+        "additionalProperties": false
+      },
+      "CreateJobResponse": {
+        "type": "object",
+        "properties": {
+          "error": {
+            "$ref": "#/components/schemas/HttpError"
+          },
+          "jid": {
+            "type": "string",
+            "description": "Gets or sets the ID of the job.",
+            "nullable": true,
+            "example": "d762dfad-f644-4470-8ecd-6b9e0769e22d"
+          },
+          "metadata": {
+            "type": "object",
+            "additionalProperties": {
+              "nullable": true
+            },
+            "description": "Gets or sets the metadata of the job.",
+            "nullable": true,
+            "example": {
+              "queued": true,
+              "refresh_minion_cache": {
+                "grains": true
+              },
+              "user_id": "a-user-id",
+              "user_login": "John Doe",
+              "orgId": "an-org-id",
+              "fun": [
+                null,
+                {
+                  "_update_minion_db_col_root": "grains.data",
+                  "_update_minion_db_strip_data_on_success": true
+                }
+              ]
+            }
+          },
+          "arg": {
+            "type": "array",
+            "items": {
+              "type": "array",
+              "items": { }
+            },
+            "description": "Gets or sets the arguments of the salt functions contained in the job.",
+            "nullable": true,
+            "example": [
+              [
+                "A description"
+              ]
+            ]
+          },
+          "tgt": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            },
+            "description": "Gets or sets the target systems of the job.",
+            "nullable": true,
+            "example": [
+              "HVM_domU--SN-ec20418e-d93b-2de3-b957-28e29379cade--MAC-12-9D-96-E7-CA-51"
+            ]
+          },
+          "fun": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            },
+            "description": "Gets or sets the salt functions of the job.",
+            "nullable": true,
+            "example": [
+              "system.set_computer_desc",
+              "nisysmgmt.grains_items"
+            ]
+          }
+        },
+        "additionalProperties": false
+      },
+      "CreateVirtualSystemRequest": {
+        "type": "object",
+        "properties": {
+          "alias": {
+            "type": "string",
+            "description": "Alias of the virtual system",
+            "nullable": true,
+            "example": "MyVirtualSystem"
+          },
+          "workspace": {
+            "type": "string",
+            "description": "Workspace to create the virtual system in",
+            "nullable": true,
+            "example": "33eba2fe-fe42-48a1-a47f-a6669479a8aa"
+          }
+        },
+        "additionalProperties": false
+      },
+      "CreateVirtualSystemResponse": {
+        "type": "object",
+        "properties": {
+          "minionId": {
+            "type": "string",
+            "description": "Id of the virtual system",
+            "nullable": true,
+            "example": "33eba2fe-fe42-48a1-a47f-a6669479a8aa"
+          }
+        },
+        "additionalProperties": false
+      },
+      "FailedUnregisterRequest": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "description": "Gets or sets the ID of the system on which unregister operation failed.",
+            "nullable": true
+          },
+          "error": {
+            "$ref": "#/components/schemas/HttpError"
+          }
+        },
+        "additionalProperties": false
+      },
+      "GenerateSystemApiKeyRequest": {
+        "type": "object",
+        "properties": {
+          "systemId": {
+            "type": "string",
+            "description": "Gets or sets a string representing the system ID for which to generated the API key.",
+            "nullable": true,
+            "example": "HVM_domU--SN-ec20418e-d93b-2de3-b957-28e29379cade--MAC-12-9D-96-E7-CA-51"
+          }
+        },
+        "additionalProperties": false,
+        "description": "Model for request for permanent api key to be used by SystemLink Client."
+      },
+      "GenerateSystemApiKeyResponse": {
+        "type": "object",
+        "properties": {
+          "error": {
+            "$ref": "#/components/schemas/HttpError"
+          },
+          "apiKey": {
+            "type": "string",
+            "description": "Permanent api key",
+            "nullable": true,
+            "example": "gcm7LNGO7-b13gJNQnckgbG4Hd142NMSmhPPqTu2qb"
+          }
+        },
+        "additionalProperties": false,
+        "description": "Model for permanent api key response for SystemLink Client to use when communicating with salt master."
+      },
+      "GetPendingSystemsSummaryResponse": {
+        "type": "object",
+        "properties": {
+          "pendingCount": {
+            "type": "integer",
+            "description": "Gets or sets number of systems pending approval to connect to the server.",
+            "format": "int64",
+            "example": 5
+          }
+        },
+        "additionalProperties": false,
+        "description": "Model for summary information about the systems attempting to connect to the server but aren't accepted yet."
+      },
+      "GetSystemsKeysResponse": {
+        "type": "object",
+        "properties": {
+          "systemsPending": {
+            "type": "object",
+            "additionalProperties": {
+              "type": "string",
+              "nullable": true
+            },
+            "description": "Gets or sets an object of system ID to key pairs that are pending approval or rejection. Keys may be pending when they are not pre-seeded via the automated registration process and attempt to connect to the master.",
+            "nullable": true,
+            "example": {
+              "HVM_domU--SN-ec20418e-d93b-2de3-b957-28e29379cade--MAC-12-9D-96-E7-CA-51": "-----BEGIN PUBLIC KEY-----\nMIIBIjANBgkqhkiG9w0BAQEFAAOCAQ8AMIIBCgKCAQEAsEKXgqqHjU93r5LL4SeE\nCEjCtlUzQQBJ73tgmXIGyvDNo9FaOuw1yM+FAD/FSuoX9fwMuLXD52etaImZGV4b\nUrGy7mWiRzTa1U20/Jt2G/IwSowM5zHdpCWXKrnAi0talC5/XUSs3qYpuI8FQaVi\nG5Wilyddj5GY3VLxPBAvLd6Q0gMBb0HhZ5QR4f6Nw7bpwtVBkHdlh95eDXw/w9Zp\n0cAui6tkXBXtVKECRqaTjNa0UBcUrXKLDnf20ILTuYUiMcW+FRLLOLmpBFvJnxW/\nCY0htWHyeM1vY8mUSu6UKrJEa+TZ6EhRGzBkcV27y64hXD5RBKxdmE45pppHjTyl\n0QIDAQAB\n-----END PUBLIC KEY-----"
+            }
+          },
+          "systemsDenied": {
+            "type": "object",
+            "additionalProperties": {
+              "type": "string",
+              "nullable": true
+            },
+            "description": "Gets or sets an object of system ID to key pairs that have been denied. A key is denied when a system is trying to connect the master with a different key than the one that is accepted. This can occur if two systems have the same ID or if a key is removed from a system.",
+            "nullable": true,
+            "example": {
+              "30BFS51M16--SN-S4LT7442--MAC-A4-AE-11-11-0F-B2": "-----BEGIN PUBLIC KEY-----\nMIIBIjANBgkqhkiG9w0BAQEFAAOCAQ8AMIIBCgKCAQEA2yTEUog12AX1wM5Vfr15\nIr37JZK2Oeks47mDDdivuAfZv28ah2RpYqcCalZ7ozcKFrT+B7T66fBk2R+TzSoI\nEX9FA6AqkF/6DLQGckxOx49Ir0ulG0INB3pYSC7TsW8uIrmCQdAKK7hIYghAUEGw\nvqNJs34eS1F26p/ej/uErzDrbuluQpMRArpe0CvNQGPtdh4vTKLujiQoAdjFvLMg\n4smFE9fcFEYb4OsSlpZsCeXq1jTJL6mp95iR4yd/iO40G7/RyoD+xWeM0hgqB0XT\ntmsYc6HdHbLeHy5UPmYocFnbPJxwfdno6q9bpgV/fT1y5mga/8yaxj44bCyoxQcS\n1wIDAQAB\n-----END PUBLIC KEY-----"
+            }
+          },
+          "systemsApproved": {
+            "type": "object",
+            "additionalProperties": {
+              "type": "string",
+              "nullable": true
+            },
+            "description": "Gets or sets an object of system ID to key pairs that have been approved. These could have been approved explicitly by the user or pre-seeded via the automated registration process.",
+            "nullable": true,
+            "example": {
+              "HVM_domU--SN-ec2c5434-6181-b837-fdd3-21d8d9478227--MAC-0E-7A-04-25-97-43": "-----BEGIN PUBLIC KEY-----\nMIIBIjANBgkqhkiG9w0BAQEFAAOCAQ8AMIIBCgKCAQEAqisA5iVwbwCfYiQHQAlT\nr5iqr0Gyws6XXft2LvtHbdDV09OuxQ1IJdf+B/xWOCEzCn+Flh9JGxKxGP/7IOiK\nH//6TkD3owtpqjnVOW0wbu2WOfnpsCMMo+IlCQk03CBhcrdSg5y6IGTIsgciqyRU\nD2NqYDGbabmEJ2xByj4REiq/PirNkdu6i2mXHDvZCCiTCUQOouj9Yq8Azl6ok6IL\n5cOLaLfaTUgXP3osjrjJuMBuAHlRuWVXSnA2zZ0oquZeXC80H/S7xmiKnfPivPQe\nsddnztHjkvJe5GVHM0AbsDxal1jcf22pgGqo3kFBOPuuQYe6h6dkOwNWtEB+y7ao\nfwIDAQAB\n-----END PUBLIC KEY-----"
+            }
+          },
+          "systemsRejected": {
+            "type": "object",
+            "additionalProperties": {
+              "type": "string",
+              "nullable": true
+            },
+            "description": "Gets or sets an object of system ID to key pairs that have been rejected. Keys are rejected explicitly by the user.",
+            "nullable": true,
+            "example": {
+              "HVM_domU--SN-ec2c5434-6181-b837-fdd3-21d8d9478227--MAC-0E-7A-04-25-97-43": "-----BEGIN PUBLIC KEY-----\nMIIBIjANBgkqhkiG9w0BAQEFAAOCAQ8AMIIBCgKCAQEAtIPmfDCJLz3r9kybnOma\ng+PV8dhc4qmzyM9+koId6fmTdEcMXa3pURfMqlFJ3iFU+m980Pj0/58LeH/oXJyl\n93SfNLEyk7iJmGJsKYYMYUkhPLpwgUIrEMThpi5aTTKaQfWdFv+vLUTG097qytDE\n0N0Z8ZqFEn7+OGxddu8Pc+3EobnxUmYCTrhbkRx6kNzmlfsrHZ22Nzf001RxOL+o\nUWEpJlxOllna1vkthdNu3+bBjW8+1v8CAFcolndwy2udiXKM54b5tTenLu1jdIeB\nuY4c+N8myu8q0/Rrmpg5yhdXH9L2+EVP6IpiUg5NEdSxkCkTax0LWY94bC3yiOxl\n1wIDAQAB\n-----END PUBLIC KEY-----"
+            }
+          }
+        },
+        "additionalProperties": false,
+        "description": "Model for an object containing pending, denied, approved, and rejected system keys. If there are no entries in a given category, then the key representing that category is omitted. The value for the keys is in itself a dictionary, with the key representing the system ID and the value the public authorization key used."
+      },
+      "HttpError": {
+        "type": "object",
+        "properties": {
+          "name": {
+            "type": "string",
+            "description": "Gets the fully-qualified name that identifies the error code, such as\nthe output of M:NationalInstruments.SystemLink.ServiceBase.ErrorHandling.ErrorCode.ToString.",
+            "nullable": true,
+            "example": "Skyline.UnknownWorkspace"
+          },
+          "code": {
+            "type": "integer",
+            "description": "Gets the optional NationalInstruments.SystemLink.ServiceBase.ErrorHandling.ErrorCode.NumericCode (not HTTP status code)\nthat identifies the error code.",
+            "format": "int32",
+            "nullable": true,
+            "example": -251048
+          },
+          "message": {
+            "type": "string",
+            "description": "Gets the formatted error message, which is the NationalInstruments.SystemLink.ServiceBase.ErrorHandling.ErrorCode.Message\nwith NationalInstruments.SystemLink.ServiceBase.HttpError.Args inserted into any placeholders.",
+            "nullable": true,
+            "example": "Workspace '{0}' does not exist."
+          },
+          "resourceType": {
+            "type": "string",
+            "description": "Gets the type of resource associated with the error, if any. Typically only\nused for instances within NationalInstruments.SystemLink.ServiceBase.HttpError.InnerErrors.",
+            "nullable": true,
+            "example": "Resource type"
+          },
+          "resourceId": {
+            "type": "string",
+            "description": "Gets the ID of the resource associated with the error, if any. Typically only\nused for instances within NationalInstruments.SystemLink.ServiceBase.HttpError.InnerErrors.",
+            "nullable": true,
+            "example": "f0d90565fe4b4c1ea78b7bd433d4d214"
+          },
+          "args": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            },
+            "description": "Gets the arguments that produced NationalInstruments.SystemLink.ServiceBase.HttpError.Message.",
+            "nullable": true,
+            "example": [
+              "Workspace"
+            ]
+          },
+          "innerErrors": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/HttpError"
+            },
+            "description": "Gets any nested errors if this instance represents more than one error. Typically\nonly set for instances related to NationalInstruments.SystemLink.ServiceBase.ErrorHandling.SkylineErrorCodes.OneOrMoreErrorsOccurred.",
+            "nullable": true
+          }
+        },
+        "additionalProperties": false,
+        "description": "Represents the standard error structure."
+      },
+      "Job": {
+        "type": "object",
+        "properties": {
+          "jid": {
+            "type": "string",
+            "description": "The job ID.",
+            "nullable": true,
+            "example": "54af4b95-ea89-48df-b21f-dddf56083476"
+          },
+          "id": {
+            "type": "string",
+            "description": "The ID of the system that the job targets.",
+            "nullable": true,
+            "example": "HVM_domU--SN-ec20418e-d93b-2de3-b957-28e29379cade--MAC-12-9D-96-E7-CA-51"
+          },
+          "createdTimestamp": {
+            "type": "string",
+            "description": "The timestamp representing when the job was created.",
+            "format": "date-time",
+            "example": "2024-03-15T15:15:13.378Z"
+          },
+          "lastUpdatedTimestamp": {
+            "type": "string",
+            "description": "The timestamp representing when the job was last updated.",
+            "format": "date-time",
+            "example": "2024-03-20T15:15:13.378Z"
+          },
+          "dispatchedTimestamp": {
+            "type": "string",
+            "description": "The timestamp representing when the job was dispatched.",
+            "format": "date-time",
+            "nullable": true,
+            "example": "2024-03-20T15:15:13.378Z"
+          },
+          "state": {
+            "$ref": "#/components/schemas/JobState"
+          },
+          "metadata": {
+            "type": "object",
+            "additionalProperties": {
+              "nullable": true
+            },
+            "description": "Metadata of the job.",
+            "nullable": true,
+            "example": {
+              "queued": true
+            }
+          },
+          "config": {
+            "$ref": "#/components/schemas/JobConfig"
+          },
+          "result": {
+            "$ref": "#/components/schemas/JobResult"
+          }
+        },
+        "additionalProperties": false
+      },
+      "JobConfig": {
+        "type": "object",
+        "properties": {
+          "user": {
+            "type": "string",
+            "description": "The user who created the job.",
+            "nullable": true,
+            "example": "a-valid-user-id"
+          },
+          "tgt": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            },
+            "description": "Target system of the job.",
+            "nullable": true,
+            "example": [
+              "HVM_domU--SN-ec20418e-d93b-2de3-b957-28e29379cade--MAC-12-9D-96-E7-CA-51"
+            ]
+          },
+          "fun": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            },
+            "description": "Salt functions related to the job.",
+            "nullable": true,
+            "example": [
+              "system.set_computer_desc"
+            ]
+          },
+          "arg": {
+            "type": "array",
+            "items": { },
+            "description": "Arguments of the salt functions.",
+            "nullable": true,
+            "example": [
+              "A description"
+            ]
+          }
+        },
+        "additionalProperties": false
+      },
+      "JobResult": {
+        "type": "object",
+        "properties": {
+          "jid": {
+            "type": "string",
+            "description": "The job ID.",
+            "nullable": true,
+            "example": "54af4b95-ea89-48df-b21f-dddf56083476"
+          },
+          "id": {
+            "type": "string",
+            "description": "The ID of the system that the job targeted.",
+            "nullable": true,
+            "example": "HVM_domU--SN-ec20418e-d93b-2de3-b957-28e29379cade--MAC-12-9D-96-E7-CA-51"
+          },
+          "retcode": {
+            "type": "array",
+            "items": {
+              "type": "integer",
+              "format": "int32"
+            },
+            "description": "Return code of the job.",
+            "nullable": true,
+            "example": [
+              0
+            ]
+          },
+          "return": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            },
+            "description": "Return code of the job.",
+            "nullable": true,
+            "example": [
+              "SUCCESS"
+            ]
+          },
+          "success": {
+            "type": "array",
+            "items": {
+              "type": "boolean"
+            },
+            "description": "Whether the job succeeded or not.",
+            "nullable": true,
+            "example": true
+          }
+        },
+        "additionalProperties": false
+      },
+      "JobState": {
+        "enum": [
+          "SUCCEEDED",
+          "OUTOFQUEUE",
+          "INQUEUE",
+          "INPROGRESS",
+          "CANCELED",
+          "FAILED"
+        ],
+        "type": "string"
+      },
+      "JobsSummaryResponse": {
+        "type": "object",
+        "properties": {
+          "activeCount": {
+            "type": "integer",
+            "description": "Gets or sets number of active jobs.",
+            "format": "int32",
+            "example": 5
+          },
+          "failedCount": {
+            "type": "integer",
+            "description": "Gets or sets number of failed jobs.",
+            "format": "int32",
+            "example": 5
+          },
+          "succeededCount": {
+            "type": "integer",
+            "description": "Gets or sets number of succeeded jobs.",
+            "format": "int32",
+            "example": 5
+          }
+        },
+        "additionalProperties": false
+      },
+      "KeyAction": {
+        "enum": [
+          "ACCEPT",
+          "REJECT",
+          "DELETE"
+        ],
+        "type": "string",
+        "description": "Model for action to be performed.\n  * ACCEPT: Accept the associated key.\n  * REJECT: Reject the associated key.\n  * DELETE: Delete the associated key."
+      },
+      "KeyRequest": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "description": "Gets or sets a string representing the system ID.",
+            "nullable": true,
+            "example": "HVM_domU--SN-ec200972-eeca-062e-5bf5-017a25451b39--MAC-0A-E1-20-D6-96-2B"
+          },
+          "action": {
+            "$ref": "#/components/schemas/KeyAction"
+          },
+          "key": {
+            "type": "string",
+            "description": "Gets or sets a string representing the public authorization key. If this field is specified, verification that the system ID is associated with this auth key will happen before the desired action is executed.",
+            "nullable": true
+          },
+          "workspace": {
+            "type": "string",
+            "description": "Gets or sets the ID of the workspace.",
+            "nullable": true,
+            "example": "33eba2fe-fe42-48a1-a47f-a6669479a8aa"
+          }
+        },
+        "additionalProperties": false,
+        "description": "Model for object defining a system ID and the action that should be performed over the key."
+      },
+      "ListSystemsKeysRequest": {
+        "type": "object",
+        "properties": {
+          "systemIds": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            },
+            "description": "The list of system ids for which to return keys.",
+            "nullable": true,
+            "example": [
+              "NI_PXIe-8840_Quad-Core--SN-03103DD2--MAC-00-80-2F-16-48-7E"
+            ]
+          }
+        },
+        "additionalProperties": false
+      },
+      "ManageKeysRequest": {
+        "type": "object",
+        "properties": {
+          "isAsync": {
+            "type": "boolean",
+            "description": "Deprecated"
+          },
+          "keyActions": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/KeyRequest"
+            },
+            "description": "Gets or sets the list of NationalInstruments.SystemsManagementService.Model.API.KeyRequest",
+            "nullable": true
+          }
+        },
+        "additionalProperties": false,
+        "description": "Model for request to perform specific acceptance actions to system keys."
+      },
+      "QueryJobsRequest": {
+        "type": "object",
+        "properties": {
+          "skip": {
+            "type": "integer",
+            "description": "Gets or sets the number of resources to skip.",
+            "format": "int64",
+            "example": 0
+          },
+          "take": {
+            "type": "integer",
+            "description": "Gets or sets the number of resources to return. The maximum value is 1000.",
+            "format": "int64",
+            "nullable": true,
+            "example": 1000
+          },
+          "filter": {
+            "type": "string",
+            "description": "Gets or sets the filter criteria for jobs or systems. Consists of a string of queries composed using AND/OR operators. String values and date strings need to be enclosed in double quotes. Parenthesis can be used around filters to better define the order of operations.\nFilter syntax: '[property name][operator][operand] and [property name][operator][operand]'\n            \nOperators:\n- Equals operator '='. Example: 'x = y'\n- Not equal operator '!='. Example: 'x != y'\n- Greater than operator '>'. Example: 'x > y'\n- Greater than or equal operator '>='. Example: 'x >= y'\n- Less than operator '<'. Example: 'x < y'\n- Less than or equal operator '<='. Example: 'x <= y'\n- Logical AND operator 'and' or '&&'. Example: 'x and y'\n- Logical OR operator 'or' or '||'. Example: 'x or y'\n- Contains operator '.Contains()', used to check if a list contains an element. Example: 'x.Contains(y)'\n- Not Contains operator '!.Contains()', used to check if a list does not contain an element. Example: '!x.Contains(y)'\n            \nValid job properties that can be used in the filter:\n- jid : String representing the ID of the job.\n- id : String representing the ID of the system.\n- createdTimestamp: ISO-8601 formatted timestamp string specifying the date when the job was created.\n- lastUpdatedTimestamp: ISO-8601 formatted timestamp string specifying the last date the job was updated.\n- dispatchedTimestamp: ISO-8601 formatted timestamp string specifying the date when the job was actually sent to the system.\n- state: String representing the state of the job.\n- metadata: Object containg the the metadata of job. Example: metadata.queued\n- config.user: String representing the user who created the job.\n- config.tgt: List of strings representing the targeted systems. Example: config.tgt.Contains(\"id\")\n- config.fun: List of strings representing the functions to be executed within the job. Example: config.fun.Contains(\"nisysmgmt.set_blackout\")\n- config.arg: An array of arrays of variable type elements that are arguments to the function specified by the \"fun\" property. Example: config.arg[0].Contains(\"test\")\n- result.return: An array of objects representing return values for each executed function. Example:\n  result.return[0].Contains(\"Success\")\n            \n- result.retcode: An array of integers representing code values for each executed function. Example: result.retcode\n- result.success: An array of booleans representing success values for each executed function. Example:\n  result.success.Contains(false)",
+            "nullable": true,
+            "example": "result.success.Contains(false)"
+          },
+          "projection": {
+            "type": "string",
+            "description": "Gets or sets specifies the projection for resources. Use this field to receive specific properties of the model.\nExamples:\n    - 'new(id,jid,state)'\n    - 'new(id,jid,config.user as user)'\n    - 'new(id,jid,state,lastUpdatedTimestamp,metadata.queued as queued)'",
+            "nullable": true,
+            "example": "new(id,jid,state,lastUpdatedTimestamp,metadata.queued as queued)"
+          },
+          "orderBy": {
+            "type": "string",
+            "description": "Gets or sets the order in which data returns.",
+            "nullable": true,
+            "example": "createdTimestamp descending"
+          }
+        },
+        "additionalProperties": false
+      },
+      "QueryJobsResponse": {
+        "type": "object",
+        "properties": {
+          "data": {
+            "type": "array",
+            "items": { },
+            "description": "Gets or sets the data returned by query.",
+            "nullable": true
+          },
+          "count": {
+            "type": "integer",
+            "description": "Gets or sets the total number of resources that matched the query.",
+            "format": "int64",
+            "example": 5
+          }
+        },
+        "additionalProperties": false,
+        "description": "Model for response of a query request."
+      },
+      "QuerySystemsRequest": {
+        "type": "object",
+        "properties": {
+          "skip": {
+            "type": "integer",
+            "description": "Gets or sets the number of resources to skip.",
+            "format": "int32",
+            "example": 0
+          },
+          "take": {
+            "type": "integer",
+            "description": "Gets or sets the number of resources to return. The maximum value is 1000.",
+            "format": "int32",
+            "example": 1000
+          },
+          "filter": {
+            "type": "string",
+            "description": "Gets or sets the filter criteria for jobs or systems. Consists of a string of queries composed using AND/OR operators. String values and date strings need to be enclosed in double quotes. Parenthesis can be used around filters to better define the order of operations.\nFilter syntax: '[property name][operator][operand] and [property name][operator][operand]'\n            \nOperators:\n- Equals operator '='. Example: 'x = y'\n- Not equal operator '!='. Example: 'x != y'\n- Greater than operator '>'. Example: 'x > y'\n- Greater than or equal operator '>='. Example: 'x >= y'\n- Less than operator '<'. Example: 'x < y'\n- Less than or equal operator '<='. Example: 'x <= y'\n- Logical AND operator 'and' or '&&'. Example: 'x and y'\n- Logical OR operator 'or' or '||'. Example: 'x or y'\n- Contains operator '.Contains()', used to check if a list contains an element. Example: 'x.Contains(y)'\n- Not Contains operator '!.Contains()', used to check if a list does not contain an element. Example: '!x.Contains(y)'\n            \nValid system properties that can be used in the filter:\n- id : String representing the ID of the system.\n- createdTimestamp: ISO-8601 formatted timestamp string specifying the date when the system was registered.\n- lastUpdatedTimestamp: ISO-8601 formatted timestamp string specifying the last date the system was updated.\n- alias: String representing the alias of the system.\n- activation.lastUpdatedTimestamp: ISO-8601 formatted timestamp string specifying the last date the system activation was updated.\n- activation.data.activated: Boolean representing whether the system is activated or not.\n- activation.data.licenseName: String representing the name of the license.\n- activation.data.licenseVersion: String representing the license version.\n- connected.lastUpdatedTimestamp: ISO-8601 formatted timestamp string specifying the last date the system connection was updated.\n- connected.data.state: String representing the state of the system.\n- grains.lastUpdatedTimestamp: ISO-8601 formatted timestamp string specifying the last date the system grains were updated.\n- grains.data: Dictionary of string to object representing general information about the system. Example: grains.data.os == \"Windows\"\n- packages.lastUpdatedTimestamp: ISO-8601 formatted timestamp string specifying the last date the system installed packages were updated.\n- packages.data: Dictionary representing software packages installed on the system. Example: packages.data.ni-package-manager-upgrader.version: String representing the installed version of ni-package-manager-upgrader package.\n- feeds.lastUpdatedTimestamp: ISO-8601 formatted timestamp string specifying the last date the system configured feeds were updated.\n- feeds.data: Dictionary representing the feeds configured on the system.\n- keywords.lastUpdatedTimestamp: ISO-8601 formatted timestamp string specifying the last date the system keywords were updated.\n- keywords.data: Array of strings representing the keywords of the system. Example: keywords.data.Contains(\"test\")\n- properties.lastUpdatedTimestamp: ISO-8601 formatted timestamp string specifying the last date the system properties were updated.\n- properties.data: Dictionary of string to string representing metadata information about a system. Example: properties.data.owner == \"admin\"\n- status.data.http_connected: Boolean representing the status of the http connection to the master.",
+            "nullable": true,
+            "example": "status.data.http_connected.Equals(true)"
+          },
+          "projection": {
+            "type": "string",
+            "description": "Gets or sets specifies the projection for resources. Use this field to receive specific properties of the model.\nExamples:\n    - 'new(id,connected)'\n    - 'new(id,alias,grains.data.host as host)'\n    - 'new(id,lastUpdatedTimestamp,properties.data.location as location)'",
+            "nullable": true,
+            "example": "new(id,alias,grains.data.host as host)"
+          },
+          "orderBy": {
+            "type": "string",
+            "description": "Gets or sets the order in which data returns.",
+            "nullable": true,
+            "example": "alias"
+          }
+        },
+        "additionalProperties": false
+      },
+      "RemoveSystemsRequest": {
+        "type": "object",
+        "properties": {
+          "tgt": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            },
+            "description": "Gets or sets array of strings representing the IDs of systems to remove from SystemLink.",
+            "nullable": true,
+            "example": [
+              "HVM_domU--SN-ec200972-eeca-062e-5bf5-017a25451b39--MAC-0A-E1-20-D6-96-2B"
+            ]
+          },
+          "force": {
+            "type": "boolean",
+            "description": "Gets or sets a Boolean which specifies whether to remove systems from the database immediately (True) or wait until the unregister job returns from systems (False). If True, unregister job failures are not cached.",
+            "default": true,
+            "example": false
+          }
+        },
+        "additionalProperties": false,
+        "description": "Model for request to unregister systems from the server."
+      },
+      "RemoveSystemsResponse": {
+        "type": "object",
+        "properties": {
+          "error": {
+            "$ref": "#/components/schemas/HttpError"
+          },
+          "jid": {
+            "type": "string",
+            "description": "Gets or sets the job ID of the unregistration job sent to connected systems.",
+            "nullable": true
+          },
+          "removedIds": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            },
+            "description": "Gets or sets an array of system IDs removed from the database immediately.",
+            "nullable": true,
+            "example": [
+              "HVM_domU--SN-ec200972-eeca-062e-5bf5-017a25451b39--MAC-0A-E1-20-D6-96-2B"
+            ]
+          },
+          "failedIds": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/FailedUnregisterRequest"
+            },
+            "description": "Gets or sets an array of objects defining failed unregister operations.",
+            "nullable": true,
+            "example": [
+              "HVM_domU--SN-ec200972-eeca-062e-5bf5-017a25451b39--MAC-0A-E1-20-D6-96-2B"
+            ]
+          }
+        },
+        "additionalProperties": false,
+        "description": "Model for response of the request to unregister systems."
+      },
+      "ReportType": {
+        "enum": [
+          "SOFTWARE",
+          "HARDWARE"
+        ],
+        "type": "string",
+        "description": "Model for the type of the report to be created.\n * SOFTWARE: The report will contain the installed software packages.\n * HARDWARE: The report will contain information about the hardware configuration of the system."
+      },
+      "SystemMetadata": {
+        "type": "object",
+        "properties": {
+          "workspace": {
+            "type": "string",
+            "description": "Gets or sets the ID of the workspace.",
+            "nullable": true,
+            "example": "33eba2fe-fe42-48a1-a47f-a6669479a8aa"
+          },
+          "properties": {
+            "type": "object",
+            "additionalProperties": {
+              "type": "string",
+              "nullable": true
+            },
+            "description": "Gets or sets the properties (key, value).",
+            "nullable": true,
+            "example": {
+              "property_name": "pancakesort"
+            }
+          }
+        },
+        "additionalProperties": false
+      },
+      "SystemPatchRequest": {
+        "type": "object",
+        "properties": {
+          "keywords": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            },
+            "description": "Gets or sets the new keywords assigned to the system.",
+            "nullable": true,
+            "example": [
+              "This",
+              "is",
+              "a list",
+              "of",
+              "keywords"
+            ]
+          },
+          "properties": {
+            "type": "object",
+            "additionalProperties": {
+              "type": "string",
+              "nullable": true
+            },
+            "description": "Gets or sets the new properties assigned to the system.",
+            "nullable": true,
+            "example": {
+              "property_name": "pancakesort"
+            }
+          },
+          "alias": {
+            "type": "string",
+            "description": "Gets or sets the new  alias of the system.",
+            "nullable": true,
+            "example": "Some example system"
+          },
+          "workspace": {
+            "type": "string",
+            "description": "Gets or sets the ID of the workspace.",
+            "nullable": true,
+            "example": "33eba2fe-fe42-48a1-a47f-a6669479a8aa"
+          }
+        },
+        "additionalProperties": false
+      },
+      "SystemUpdateInformation": {
+        "type": "object",
+        "properties": {
+          "systemId": {
+            "type": "string",
+            "description": "Gets or sets the system id.",
+            "nullable": true,
+            "example": "HVM_domU--SN-ec200972-eeca-062e-5bf5-017a25451b39--MAC-0A-E1-20-D6-96-2B"
+          },
+          "systemMetadata": {
+            "$ref": "#/components/schemas/SystemMetadata"
+          }
+        },
+        "additionalProperties": false,
+        "description": "Model for system ids and changes that need to be applied to the systems."
+      },
+      "SystemsReportRequest": {
+        "type": "object",
+        "properties": {
+          "type": {
+            "$ref": "#/components/schemas/ReportType"
+          },
+          "filter": {
+            "type": "string",
+            "description": "Gets or sets specifies the filter criteria for systems.",
+            "nullable": true,
+            "example": "status.data.http_connected.Equals(true)"
+          }
+        },
+        "additionalProperties": false,
+        "description": "Model for request containing the report type followed by a query filter that will be applied on systems."
+      },
+      "SystemsResponse": {
+        "type": "object",
+        "properties": {
+          "count": {
+            "type": "integer",
+            "description": "Gets or sets the total number of resources that matched the query.",
+            "format": "int64"
+          },
+          "data": {
+            "type": "object",
+            "properties": {
+              "id": {
+                "type": "string",
+                "description": "Id of the system",
+                "example": "6b70e1df-ae93-4ded-9fe0-dc775732289b"
+              },
+              "alias": {
+                "type": "string",
+                "description": "Alias of the systme",
+                "example": "MySystem"
+              },
+              "createdTimestamp": {
+                "type": "string",
+                "description": "Timestamp that represents the time the system was approved",
+                "format": "date-time",
+                "example": "2025-07-31T19:35:11.6065021Z"
+              },
+              "lastUpdatedTimestamp": {
+                "type": "string",
+                "description": "Timestamp that represents the last time the system entry has been changed",
+                "format": "date-time",
+                "example": "2025-07-31T19:35:11.6065021Z"
+              },
+              "connected": {
+                "type": "object",
+                "properties": {
+                  "lastPresentTimestamp": {
+                    "type": "string",
+                    "description": "The time at which the last connection heartbeat was received for the system.",
+                    "format": "date-time",
+                    "example": "2025-07-31T19:35:11.6065021Z"
+                  },
+                  "lastUpdatedTimestamp": {
+                    "type": "string",
+                    "description": "Timestamp that represents the last time when the system connection information has changed.",
+                    "format": "date-time",
+                    "example": "2025-07-31T19:35:11.6065021Z"
+                  },
+                  "data": {
+                    "type": "object",
+                    "properties": {
+                      "state": {
+                        "title": "SystemsState",
+                        "enum": [
+                          "ACTIVATED_WITHOUT_CONNECTION",
+                          "APPROVED",
+                          "DISCONNECTED",
+                          "CONNECTED_REFRESH_PENDING",
+                          "CONNECTED",
+                          "CONNECTED_REFRESH_FAILED",
+                          "VIRTUAL"
+                        ],
+                        "type": "enum",
+                        "description": "Specifies whether the system is connected to the server and has updated the server with its data",
+                        "example": "CONNECTED"
+                      }
+                    }
+                  }
+                },
+                "description": "The connected information of a system"
+              },
+              "grains": {
+                "type": "object",
+                "properties": {
+                  "lastUpdatedTimestamp": {
+                    "type": "string",
+                    "format": "date-time",
+                    "example": "2025-07-31T19:35:11.6065021Z"
+                  },
+                  "data": {
+                    "type": "object",
+                    "additionalProperties": {
+                      "type": "string",
+                      "example": "pancakesort"
+                    }
+                  }
+                },
+                "description": "The grains information of a system"
+              },
+              "status": {
+                "type": "object",
+                "properties": {
+                  "lastUpdatedTimestamp": {
+                    "type": "string",
+                    "format": "date-time",
+                    "example": "2025-07-31T19:35:11.6065021Z"
+                  },
+                  "data": {
+                    "type": "object",
+                    "additionalProperties": {
+                      "type": "string",
+                      "example": "pancakesort"
+                    }
+                  }
+                },
+                "description": "The status information of a systme"
+              },
+              "packages": {
+                "type": "object",
+                "properties": {
+                  "lastUpdatedTimestamp": {
+                    "type": "string",
+                    "format": "date-time",
+                    "example": "2025-07-31T19:35:11.6065021Z"
+                  },
+                  "data": {
+                    "type": "object",
+                    "additionalProperties": {
+                      "type": "string",
+                      "example": "pancakesort"
+                    }
+                  }
+                },
+                "description": "The packages information of a system"
+              },
+              "feeds": {
+                "type": "object",
+                "properties": {
+                  "lastUpdatedTimestamp": {
+                    "type": "string",
+                    "format": "date-time",
+                    "example": "2025-07-31T19:35:11.6065021Z"
+                  },
+                  "data": {
+                    "type": "object",
+                    "additionalProperties": {
+                      "type": "string",
+                      "example": "pancakesort"
+                    }
+                  }
+                },
+                "description": "The feeds information of a system"
+              },
+              "keywords": {
+                "type": "object",
+                "properties": {
+                  "lastUpdatedTimestamp": {
+                    "type": "string",
+                    "format": "date-time",
+                    "example": "2025-07-31T19:35:11.6065021Z"
+                  },
+                  "data": {
+                    "type": "array"
+                  }
+                },
+                "description": "The keywords information of a system"
+              },
+              "properties": {
+                "type": "object",
+                "properties": {
+                  "lastUpdatedTimestamp": {
+                    "type": "string",
+                    "format": "date-time",
+                    "example": "2025-07-31T19:35:11.6065021Z"
+                  },
+                  "data": {
+                    "type": "object",
+                    "additionalProperties": {
+                      "type": "string",
+                      "example": "pancakesort"
+                    }
+                  }
+                },
+                "description": "The properties information of a system"
+              },
+              "workspace": {
+                "type": "string",
+                "description": "The workspace information of a system",
+                "example": "6b70e1df-ae93-4ded-9fe0-dc775732289b"
+              },
+              "orgId": {
+                "type": "string",
+                "description": "The org id of a system",
+                "example": "e740733d-da55-4031-b32f-fb7cd8961810"
+              },
+              "removed": {
+                "type": "boolean",
+                "description": "Indicates whether the system is being removed",
+                "example": false
+              }
+            },
+            "description": "A system data"
+          }
+        },
+        "additionalProperties": false,
+        "description": "Model for response of a query systems request."
+      },
+      "SystemsSummaryResponse": {
+        "type": "object",
+        "properties": {
+          "connectedCount": {
+            "type": "integer",
+            "description": "Gets or sets number of systems connected to the server.",
+            "format": "int32",
+            "example": 5
+          },
+          "disconnectedCount": {
+            "type": "integer",
+            "description": "Gets or sets number of systems disconnected from the server.",
+            "format": "int32",
+            "example": 5
+          },
+          "virtualCount": {
+            "type": "integer",
+            "description": "Gets or sets number of virtual systems that have no connection to the server.",
+            "format": "int32",
+            "example": 5
+          }
+        },
+        "additionalProperties": false,
+        "description": "Model for summary information about the systems that have been approved to the server that are connected or disconnected."
+      },
+      "UpdateSystemsRequest": {
+        "type": "object",
+        "properties": {
+          "systemsUpdateInformation": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/SystemUpdateInformation"
+            },
+            "description": "Data with which to update the information of one or more systems.",
+            "nullable": true
+          }
+        },
+        "additionalProperties": false
+      }
+    },
+    "securitySchemes": {
+      "apikey": {
+        "type": "apiKey",
+        "name": "X-NI-API-KEY",
+        "in": "header"
+      }
+    }
+  },
+  "security": [
+    {
+      "apikey": [ ]
+    }
+  ]
+}

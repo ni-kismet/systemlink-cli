@@ -1,0 +1,1169 @@
+{
+  "openapi": "3.0.4",
+  "info": {
+    "title": "Notebook Execution Service",
+    "description": "Execute Jupyter notebooks.",
+    "contact": {
+      "name": "NI",
+      "url": "https://www.ni.com/systemlink",
+      "email": "support@ni.com"
+    },
+    "version": "1"
+  },
+  "paths": {
+    "/ninbexecution/v1/executions": {
+      "post": {
+        "tags": [
+          "Execution"
+        ],
+        "summary": "Create one or more executions of Jupyter notebooks.",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "array",
+                "items": {
+                  "$ref": "#/components/schemas/CreateExecution"
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "OK.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CreateExecutionsResponse"
+                }
+              }
+            }
+          },
+          "default": {
+            "description": "Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/BaseResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/ninbexecution/v1/create-executions-from-existing": {
+      "post": {
+        "tags": [
+          "Execution"
+        ],
+        "summary": "Create new executions based on already existing succeeded executions.",
+        "requestBody": {
+          "description": "List of execution IDs to run again.\nExample: [\"40c45213-8627-4948-8248-3b7a40ea6fa0\", \"ab1ada3c-7cd0-4189-b687-aabb3c6a4070\"]",
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "array",
+                "items": {
+                  "type": "string"
+                }
+              }
+            },
+            "text/json": {
+              "schema": {
+                "type": "array",
+                "items": {
+                  "type": "string"
+                }
+              }
+            },
+            "application/*+json": {
+              "schema": {
+                "type": "array",
+                "items": {
+                  "type": "string"
+                }
+              }
+            },
+            "text/plain": {
+              "schema": {
+                "type": "array",
+                "items": {
+                  "type": "string"
+                }
+              }
+            },
+            "application/x-www-form-urlencoded": {
+              "schema": {
+                "type": "array",
+                "items": {
+                  "type": "string"
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CreateExecutionsResponse"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/BaseResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/ninbexecution/v1/executions/{id}": {
+      "get": {
+        "tags": [
+          "Execution"
+        ],
+        "summary": "Get information about the specified execution of a Jupyter notebook.",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "description": "The ID of the execution.",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Execution returned."
+          },
+          "404": {
+            "description": "Execution not found.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "default": {
+            "description": "Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/BaseResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/ninbexecution/v1/query-executions": {
+      "post": {
+        "tags": [
+          "Execution"
+        ],
+        "summary": "Query executions of Jupyter notebooks.",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/QueryExecutions"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Queried executions returned.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/Execution"
+                  }
+                }
+              }
+            }
+          },
+          "default": {
+            "description": "Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/BaseResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/ninbexecution/v1/cancel-executions": {
+      "post": {
+        "tags": [
+          "Execution"
+        ],
+        "summary": "Cancel queued and in progress executions.",
+        "requestBody": {
+          "description": "List of execution IDs to cancel.\nExample: [\"40c45213-8627-4948-8248-3b7a40ea6fa0\", \"ab1ada3c-7cd0-4189-b687-aabb3c6a4070\"]",
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "array",
+                "items": {
+                  "type": "string"
+                }
+              }
+            },
+            "text/json": {
+              "schema": {
+                "type": "array",
+                "items": {
+                  "type": "string"
+                }
+              }
+            },
+            "application/*+json": {
+              "schema": {
+                "type": "array",
+                "items": {
+                  "type": "string"
+                }
+              }
+            },
+            "text/plain": {
+              "schema": {
+                "type": "array",
+                "items": {
+                  "type": "string"
+                }
+              }
+            },
+            "application/x-www-form-urlencoded": {
+              "schema": {
+                "type": "array",
+                "items": {
+                  "type": "string"
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/BaseResponse"
+                }
+              }
+            }
+          },
+          "204": {
+            "description": "No Content"
+          },
+          "401": {
+            "description": "Unauthorized",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/BaseResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/ninbexecution/v1/retry-executions": {
+      "post": {
+        "tags": [
+          "Execution"
+        ],
+        "summary": "Retries existing executions based on failed, canceled or timed-out executions.",
+        "requestBody": {
+          "description": "List of execution IDs to retry.\nExample: [\"40c45213-8627-4948-8248-3b7a40ea6fa0\", \"ab1ada3c-7cd0-4189-b687-aabb3c6a4070\"]",
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "array",
+                "items": {
+                  "type": "string"
+                }
+              }
+            },
+            "text/json": {
+              "schema": {
+                "type": "array",
+                "items": {
+                  "type": "string"
+                }
+              }
+            },
+            "application/*+json": {
+              "schema": {
+                "type": "array",
+                "items": {
+                  "type": "string"
+                }
+              }
+            },
+            "text/plain": {
+              "schema": {
+                "type": "array",
+                "items": {
+                  "type": "string"
+                }
+              }
+            },
+            "application/x-www-form-urlencoded": {
+              "schema": {
+                "type": "array",
+                "items": {
+                  "type": "string"
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/BaseResponse"
+                }
+              }
+            }
+          },
+          "204": {
+            "description": "No Content"
+          },
+          "401": {
+            "description": "Unauthorized",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/BaseResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/ninbexecution/up": {
+      "get": {
+        "tags": [
+          "RootEndpoint"
+        ],
+        "summary": "Up route used to check whether the service is running.",
+        "responses": {
+          "200": {
+            "description": "OK"
+          }
+        }
+      }
+    },
+    "/ninbexecution": {
+      "get": {
+        "tags": [
+          "RootEndpoint"
+        ],
+        "summary": "API information",
+        "description": "Returns information about API versions and available operations.",
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Versions"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/ninbexecution/v1": {
+      "get": {
+        "tags": [
+          "RootEndpoint"
+        ],
+        "summary": "API version 3 information",
+        "description": "Returns information and available operations for version 3 of the API.",
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Version"
+                }
+              }
+            }
+          }
+        }
+      }
+    }
+  },
+  "components": {
+    "schemas": {
+      "BaseResponse": {
+        "type": "object",
+        "properties": {
+          "error": {
+            "$ref": "#/components/schemas/HttpError"
+          }
+        },
+        "additionalProperties": false
+      },
+      "CreateExecution": {
+        "required": [
+          "notebookId",
+          "workspaceId"
+        ],
+        "type": "object",
+        "properties": {
+          "notebookId": {
+            "minLength": 1,
+            "type": "string",
+            "description": "The ID of the notebook to execute.",
+            "example": "b7cc0156-931c-472f-a027-d88dc51cb936"
+          },
+          "parameters": {
+            "type": "object",
+            "additionalProperties": {
+              "nullable": true
+            },
+            "description": "The input parameters for this execution of the notebook.\nThe keys are strings and the values can be of any valid JSON type.",
+            "nullable": true,
+            "example": {
+              "key1": "val1",
+              "key2": "val2"
+            }
+          },
+          "workspaceId": {
+            "minLength": 1,
+            "type": "string",
+            "description": "The ID of the workspace this execution belongs to.",
+            "example": "40c45213-8627-4948-8248-3b7a40ea6fa0"
+          },
+          "timeout": {
+            "type": "integer",
+            "description": "The number of seconds the execution runs before it aborts if uncompleted.\nThe timer starts once status is IN_PROGRESS. 0 means infinite.",
+            "format": "int32",
+            "default": 3600,
+            "nullable": true,
+            "example": 300
+          },
+          "resultCachePeriod": {
+            "type": "integer",
+            "description": "The period of time, in seconds, when the result of a previous notebook execution can be\nused as the result of the current notebook execution. Results will only be reused if\nthe notebook and input parameters match. A value of 0 means do not reuse results from\nany previous executions. A value of -1 means always reuse results if possible and\nreturn an error if not possible. This prevents actual execution of a notebook.",
+            "format": "int32",
+            "default": 86400,
+            "nullable": true,
+            "example": 3600
+          },
+          "source": {
+            "$ref": "#/components/schemas/Source"
+          },
+          "reportSettings": {
+            "$ref": "#/components/schemas/ReportSettings"
+          },
+          "clientRequestId": {
+            "type": "string",
+            "description": "The client request ID unique for each execution to be created. This is provided by the\ncaller to be able to track executions that could not be created. The error response\nwill contain this in the resourceId field. If not provided, the notebookId is used as the resourceId.",
+            "nullable": true,
+            "example": "b7cc0156-931c-472f-a027-d88dc51cb936"
+          },
+          "priority": {
+            "enum": [
+              "LOW",
+              "MEDIUM",
+              "HIGH"
+            ],
+            "type": "string",
+            "description": "The priority of the execution.",
+            "default": "MEDIUM",
+            "nullable": true,
+            "example": "LOW"
+          },
+          "resourceProfile": {
+            "enum": [
+              "DEFAULT",
+              "LOW",
+              "MEDIUM",
+              "HIGH"
+            ],
+            "type": "string",
+            "description": "The resource profile to use for the execution.",
+            "default": "DEFAULT",
+            "example": "MEDIUM"
+          }
+        },
+        "additionalProperties": false,
+        "description": "Creation information about an execution of a Jupyter notebook."
+      },
+      "CreateExecutionsResponse": {
+        "type": "object",
+        "properties": {
+          "error": {
+            "$ref": "#/components/schemas/HttpError"
+          },
+          "executions": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/CreatedExecutionModel"
+            },
+            "description": "Gets or sets the collection of authorized executions.",
+            "nullable": true
+          }
+        },
+        "additionalProperties": false,
+        "description": "Model for response to a request to create an execution."
+      },
+      "CreatedExecutionModel": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "description": "The ID of the execution.",
+            "nullable": true,
+            "example": "6d958d07-2d85-4655-90ba-8ff84a0482aa"
+          },
+          "notebookId": {
+            "type": "string",
+            "description": "The ID of the executed notebook.",
+            "nullable": true,
+            "example": "b7cc0156-931c-472f-a027-d88dc51cb936"
+          },
+          "orgId": {
+            "type": "string",
+            "description": "The org ID of the user creating the request.",
+            "nullable": true,
+            "example": "6d10ad07-2d85-4655-90ba-8ff84a2482aa"
+          },
+          "userId": {
+            "type": "string",
+            "description": "The user ID of the user creating the request.",
+            "nullable": true,
+            "example": "a1b28c37-2d85-4655-90ba-8ff84a0482aa"
+          },
+          "parameters": {
+            "type": "object",
+            "additionalProperties": {
+              "nullable": true
+            },
+            "description": "The input parameters for this execution of the notebook.\nThe keys are strings and the values can be of any valid JSON type.",
+            "nullable": true,
+            "example": {
+              "key1": "val1",
+              "key2": "val2"
+            }
+          },
+          "workspaceId": {
+            "type": "string",
+            "description": "The ID of the workspace this execution belongs to.",
+            "nullable": true,
+            "example": "40c45213-8627-4948-8248-3b7a40ea6fa0"
+          },
+          "timeout": {
+            "type": "integer",
+            "description": "The number of seconds the execution runs before it aborts if uncompleted.\nThe timer starts once status is IN_PROGRESS. 0 means infinite.",
+            "format": "int32",
+            "example": 300
+          },
+          "status": {
+            "enum": [
+              "IN_PROGRESS",
+              "QUEUED",
+              "FAILED",
+              "SUCCEEDED",
+              "CANCELED",
+              "TIMED_OUT"
+            ],
+            "type": "string",
+            "description": "Status of the execution.",
+            "example": "IN_PROGRESS"
+          },
+          "queuedAt": {
+            "type": "string",
+            "description": "Timestamp of when the notebook execution was queued.",
+            "format": "date-time",
+            "example": "2017-11-14T15:41:06.106Z"
+          },
+          "startedAt": {
+            "type": "string",
+            "description": "Timestamp of when the notebook execution was started.",
+            "format": "date-time",
+            "nullable": true,
+            "example": "2017-11-14T15:41:06.106Z"
+          },
+          "completedAt": {
+            "type": "string",
+            "description": "Timestamp of when the notebook execution was completed.",
+            "format": "date-time",
+            "nullable": true,
+            "example": "2017-11-14T15:41:06.106Z"
+          },
+          "lastUpdatedTimestamp": {
+            "type": "string",
+            "description": "Timestamp of when the notebook execution was last updated.",
+            "format": "date-time",
+            "example": "2017-11-14T15:41:06.106Z"
+          },
+          "lastUpdatedBy": {
+            "type": "string",
+            "description": "The ID of the user that updated the notebook execution last time.",
+            "nullable": true,
+            "example": "a1b28c37-2d85-4655-90ba-8ff84a0482aa"
+          },
+          "retryCount": {
+            "type": "integer",
+            "description": "The number of manually retried attempts of the notebook execution.",
+            "format": "int64",
+            "nullable": true
+          },
+          "exception": {
+            "type": "string",
+            "description": "Exception that occured during the execution. This is used only when status is FAILED.",
+            "nullable": true,
+            "example": "FileNotFoundError: [Errno 2] No such file or directory: 'foo.txt'"
+          },
+          "errorCode": {
+            "enum": [
+              "NO_ERROR",
+              "NOTEBOOK_ERROR",
+              "NOTEBOOK_TIMEOUT_ERROR",
+              "NOTEBOOK_NOT_FOUND_ERROR",
+              "NOTEBOOK_RESULT_TOO_BIG_ERROR",
+              "NOT_PUBLISHED_ERROR",
+              "OUT_OF_MEMORY_ERROR",
+              "UNKNOWN_ERROR",
+              "DEAD_KERNEL_ERROR",
+              "EXECUTION_COULD_NOT_BE_RETRIED",
+              "NOTEBOOK_NOT_ACCESSIBLE_ERROR"
+            ],
+            "type": "string",
+            "description": "Error code of the execution.",
+            "example": "NO_ERROR"
+          },
+          "reportId": {
+            "type": "string",
+            "description": "The ID of the report this execution generates.",
+            "nullable": true,
+            "example": "40c45213-8627-4948-8248-3b7a40ea6fa0"
+          },
+          "reportSettings": {
+            "$ref": "#/components/schemas/ReportSettings"
+          },
+          "result": {
+            "type": "object",
+            "additionalProperties": {
+              "nullable": true
+            },
+            "description": "Result of the execution. This is used only when status is SUCCEEDED.",
+            "nullable": true,
+            "example": {
+              "string_result": "string value",
+              "integer_result": 10
+            }
+          },
+          "source": {
+            "$ref": "#/components/schemas/Source"
+          },
+          "priority": {
+            "enum": [
+              "LOW",
+              "MEDIUM",
+              "HIGH"
+            ],
+            "type": "string",
+            "description": "The priority of the execution."
+          },
+          "resourceProfile": {
+            "enum": [
+              "DEFAULT",
+              "LOW",
+              "MEDIUM",
+              "HIGH"
+            ],
+            "type": "string",
+            "description": "The resource profile to use for the execution. If not provided, the default resource specifications\nwill be used.",
+            "nullable": true
+          },
+          "cachedResult": {
+            "type": "boolean",
+            "description": "Returns `true` if the execution is returned from cache",
+            "example": true
+          }
+        },
+        "additionalProperties": false,
+        "description": "Information about an execution of a Jupyter notebook that has the cachedResult field added."
+      },
+      "Execution": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "description": "The ID of the execution.",
+            "nullable": true,
+            "example": "6d958d07-2d85-4655-90ba-8ff84a0482aa"
+          },
+          "notebookId": {
+            "type": "string",
+            "description": "The ID of the executed notebook.",
+            "nullable": true,
+            "example": "b7cc0156-931c-472f-a027-d88dc51cb936"
+          },
+          "orgId": {
+            "type": "string",
+            "description": "The org ID of the user creating the request.",
+            "nullable": true,
+            "example": "6d10ad07-2d85-4655-90ba-8ff84a2482aa"
+          },
+          "userId": {
+            "type": "string",
+            "description": "The user ID of the user creating the request.",
+            "nullable": true,
+            "example": "a1b28c37-2d85-4655-90ba-8ff84a0482aa"
+          },
+          "parameters": {
+            "type": "object",
+            "additionalProperties": {
+              "nullable": true
+            },
+            "description": "The input parameters for this execution of the notebook.\nThe keys are strings and the values can be of any valid JSON type.",
+            "nullable": true,
+            "example": {
+              "key1": "val1",
+              "key2": "val2"
+            }
+          },
+          "workspaceId": {
+            "type": "string",
+            "description": "The ID of the workspace this execution belongs to.",
+            "nullable": true,
+            "example": "40c45213-8627-4948-8248-3b7a40ea6fa0"
+          },
+          "timeout": {
+            "type": "integer",
+            "description": "The number of seconds the execution runs before it aborts if uncompleted.\nThe timer starts once status is IN_PROGRESS. 0 means infinite.",
+            "format": "int32",
+            "example": 300
+          },
+          "status": {
+            "enum": [
+              "IN_PROGRESS",
+              "QUEUED",
+              "FAILED",
+              "SUCCEEDED",
+              "CANCELED",
+              "TIMED_OUT"
+            ],
+            "type": "string",
+            "description": "Status of the execution.",
+            "example": "IN_PROGRESS"
+          },
+          "queuedAt": {
+            "type": "string",
+            "description": "Timestamp of when the notebook execution was queued.",
+            "format": "date-time",
+            "example": "2017-11-14T15:41:06.106Z"
+          },
+          "startedAt": {
+            "type": "string",
+            "description": "Timestamp of when the notebook execution was started.",
+            "format": "date-time",
+            "nullable": true,
+            "example": "2017-11-14T15:41:06.106Z"
+          },
+          "completedAt": {
+            "type": "string",
+            "description": "Timestamp of when the notebook execution was completed.",
+            "format": "date-time",
+            "nullable": true,
+            "example": "2017-11-14T15:41:06.106Z"
+          },
+          "lastUpdatedTimestamp": {
+            "type": "string",
+            "description": "Timestamp of when the notebook execution was last updated.",
+            "format": "date-time",
+            "example": "2017-11-14T15:41:06.106Z"
+          },
+          "lastUpdatedBy": {
+            "type": "string",
+            "description": "The ID of the user that updated the notebook execution last time.",
+            "nullable": true,
+            "example": "a1b28c37-2d85-4655-90ba-8ff84a0482aa"
+          },
+          "retryCount": {
+            "type": "integer",
+            "description": "The number of manually retried attempts of the notebook execution.",
+            "format": "int64",
+            "nullable": true
+          },
+          "exception": {
+            "type": "string",
+            "description": "Exception that occured during the execution. This is used only when status is FAILED.",
+            "nullable": true,
+            "example": "FileNotFoundError: [Errno 2] No such file or directory: 'foo.txt'"
+          },
+          "errorCode": {
+            "enum": [
+              "NO_ERROR",
+              "NOTEBOOK_ERROR",
+              "NOTEBOOK_TIMEOUT_ERROR",
+              "NOTEBOOK_NOT_FOUND_ERROR",
+              "NOTEBOOK_RESULT_TOO_BIG_ERROR",
+              "NOT_PUBLISHED_ERROR",
+              "OUT_OF_MEMORY_ERROR",
+              "UNKNOWN_ERROR",
+              "DEAD_KERNEL_ERROR",
+              "EXECUTION_COULD_NOT_BE_RETRIED",
+              "NOTEBOOK_NOT_ACCESSIBLE_ERROR"
+            ],
+            "type": "string",
+            "description": "Error code of the execution.",
+            "example": "NO_ERROR"
+          },
+          "reportId": {
+            "type": "string",
+            "description": "The ID of the report this execution generates.",
+            "nullable": true,
+            "example": "40c45213-8627-4948-8248-3b7a40ea6fa0"
+          },
+          "reportSettings": {
+            "$ref": "#/components/schemas/ReportSettings"
+          },
+          "result": {
+            "type": "object",
+            "additionalProperties": {
+              "nullable": true
+            },
+            "description": "Result of the execution. This is used only when status is SUCCEEDED.",
+            "nullable": true,
+            "example": {
+              "string_result": "string value",
+              "integer_result": 10
+            }
+          },
+          "source": {
+            "$ref": "#/components/schemas/Source"
+          },
+          "priority": {
+            "enum": [
+              "LOW",
+              "MEDIUM",
+              "HIGH"
+            ],
+            "type": "string",
+            "description": "The priority of the execution."
+          },
+          "resourceProfile": {
+            "enum": [
+              "DEFAULT",
+              "LOW",
+              "MEDIUM",
+              "HIGH"
+            ],
+            "type": "string",
+            "description": "The resource profile to use for the execution. If not provided, the default resource specifications\nwill be used.",
+            "nullable": true
+          }
+        },
+        "additionalProperties": false,
+        "description": "Information about an execution of a Jupyter notebook."
+      },
+      "HttpError": {
+        "title": "Error",
+        "required": [
+          "name",
+          "message"
+        ],
+        "type": "object",
+        "properties": {
+          "name": {
+            "type": "string",
+            "description": "String error code",
+            "example": "NotebookExecutionService.NonExistingExecutionWithIdentifier"
+          },
+          "code": {
+            "type": "integer",
+            "description": "Numeric error code",
+            "format": "int32",
+            "nullable": true,
+            "example": -251007
+          },
+          "message": {
+            "type": "string",
+            "description": "Complete error message",
+            "example": "The execution ID does not exist or the user has no access to it."
+          },
+          "resourceType": {
+            "type": "string",
+            "description": "Type of resource associated with the error",
+            "nullable": true,
+            "example": "Execution"
+          },
+          "resourceId": {
+            "type": "string",
+            "description": "Identifier of the resource associated with the error",
+            "nullable": true,
+            "example": "04fa1537-94e4-4033-8bff-0fda285b1f06"
+          },
+          "args": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            },
+            "description": "Positional argument values for the error code",
+            "example": [
+              "04fa1537-94e4-4033-8bff-0fda285b1f06"
+            ]
+          },
+          "innerErrors": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/HttpError"
+            },
+            "description": "Inner errors when the top-level error represents more than one error",
+            "nullable": true
+          }
+        },
+        "additionalProperties": false,
+        "description": "Contains error information.",
+        "example": {
+          "name": "Skyline.OneOrMoreErrorsOccurred",
+          "code": -251041,
+          "message": "One or more errors occurred. See the contained list for details of each error.",
+          "args": [ ],
+          "innerErrors": [
+            {
+              "name": "NotebookExecutionService.NonExistingExecutionWithIdentifier",
+              "code": -251007,
+              "message": "The execution ID does not exist or the user has no access to it.",
+              "resourceType": "Execution",
+              "resourceId": "04fa1537-94e4-4033-8bff-0fda285b1f06",
+              "args": [
+                "04fa1537-94e4-4033-8bff-0fda285b1f06"
+              ],
+              "innerErrors": [ ]
+            }
+          ]
+        }
+      },
+      "Operation": {
+        "type": "object",
+        "properties": {
+          "available": {
+            "type": "boolean",
+            "description": "Whether the operation is available to the caller.",
+            "example": true
+          },
+          "version": {
+            "type": "integer",
+            "description": "Version of the available operation.",
+            "format": "int32",
+            "default": 1,
+            "example": 1
+          }
+        },
+        "additionalProperties": false,
+        "description": "An operation provided by the API."
+      },
+      "Operations": {
+        "type": "object",
+        "properties": {
+          "queryExecutions": {
+            "$ref": "#/components/schemas/Operation"
+          },
+          "createExecutions": {
+            "$ref": "#/components/schemas/Operation"
+          }
+        },
+        "additionalProperties": false,
+        "description": "Available operations in the v1 version of the API."
+      },
+      "ProblemDetails": {
+        "type": "object",
+        "properties": {
+          "type": {
+            "type": "string",
+            "nullable": true
+          },
+          "title": {
+            "type": "string",
+            "nullable": true
+          },
+          "status": {
+            "type": "integer",
+            "format": "int32",
+            "nullable": true
+          },
+          "detail": {
+            "type": "string",
+            "nullable": true
+          },
+          "instance": {
+            "type": "string",
+            "nullable": true
+          }
+        },
+        "additionalProperties": { }
+      },
+      "QueryExecutions": {
+        "type": "object",
+        "properties": {
+          "filter": {
+            "type": "string",
+            "description": "The query filter in Dynamic LINQ.",
+            "nullable": true,
+            "example": "(status = \"SUCCEEDED\" && DateTime(completedAt) > DateTime.parse(\"2023-04-10T07:22:40.339Z\"))"
+          },
+          "orderBy": {
+            "enum": [
+              "NOTEBOOK_ID",
+              "EXECUTION_HASH",
+              "TIMEOUT",
+              "QUEUED_AT",
+              "STARTED_AT",
+              "COMPLETED_AT",
+              "STATUS"
+            ],
+            "type": "string",
+            "description": "Order the executions by a given field. If no sort order is specified, the executions\nare ordered by queue time.",
+            "default": "QUEUED_AT"
+          },
+          "descending": {
+            "type": "boolean",
+            "description": "Whether to return the executions in descending order.",
+            "default": false,
+            "example": true
+          },
+          "projection": {
+            "type": "string",
+            "description": "The projection to be applied for the items in the provider.",
+            "nullable": true,
+            "example": "new(id, notebookId, workspaceId, userId, status, queuedAt, startedAt, completedAt, source)"
+          }
+        },
+        "additionalProperties": false,
+        "description": "Query for executions of Jupyter notebooks."
+      },
+      "ReportSettings": {
+        "type": "object",
+        "properties": {
+          "format": {
+            "enum": [
+              "NO_REPORT",
+              "HTML",
+              "PDF"
+            ],
+            "type": "string",
+            "description": "Format of the report.",
+            "default": "NO_REPORT",
+            "example": "NO_REPORT"
+          },
+          "excludeCode": {
+            "type": "boolean",
+            "description": "Boolean parameter that will define if the source code should be included in the report or not.",
+            "default": false,
+            "example": true
+          }
+        },
+        "additionalProperties": false,
+        "description": "Defines the settings of the Report that will be generated."
+      },
+      "Source": {
+        "type": "object",
+        "properties": {
+          "type": {
+            "enum": [
+              "MANUAL",
+              "TRIGGERED"
+            ],
+            "type": "string",
+            "description": "Type of execution",
+            "default": "MANUAL",
+            "example": "MANUAL"
+          },
+          "routineId": {
+            "type": "string",
+            "description": "ID of the rutine that triggered the execution",
+            "default": null,
+            "nullable": true,
+            "example": "26deb3dc-c26d-4f16-ac63-25010031f5c6"
+          },
+          "eventId": {
+            "type": "string",
+            "description": "Unique identifier of event that triggered the execution",
+            "default": null,
+            "nullable": true,
+            "example": "ab1ada3c-7cd0-4189-b687-aabb3c6a4070"
+          }
+        },
+        "additionalProperties": false,
+        "description": "The source of the execution set by the routines service"
+      },
+      "Version": {
+        "type": "object",
+        "properties": {
+          "operations": {
+            "$ref": "#/components/schemas/Operations"
+          }
+        },
+        "additionalProperties": false,
+        "description": "Information about the v1 version of the API."
+      },
+      "Versions": {
+        "type": "object",
+        "properties": {
+          "version": {
+            "type": "string",
+            "description": "Implementation version of the web service.",
+            "nullable": true,
+            "example": "v1"
+          },
+          "v1": {
+            "$ref": "#/components/schemas/Version"
+          }
+        },
+        "additionalProperties": false,
+        "description": "Version information."
+      }
+    },
+    "securitySchemes": {
+      "apikey": {
+        "type": "apiKey",
+        "name": "X-NI-API-KEY",
+        "in": "header"
+      }
+    }
+  },
+  "security": [
+    {
+      "apikey": [ ]
+    }
+  ]
+}
