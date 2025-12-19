@@ -5,6 +5,7 @@ A **comprehensive example** demonstrating the full SystemLink test execution wor
 ## Overview
 
 This example showcases:
+
 - **Tier 0 (Foundational)**: Locations, products, test systems
 - **Tier 1 (Cross-cutting)**: DUTs (devices under test), assets, fixtures, reference equipment
 - **Tier 2 (Work & Execution)**: Custom workflows, test templates, work items, work orders
@@ -47,22 +48,26 @@ Location: Production Test Lab
 ## Key Features
 
 ### 1. **Custom Workflow** (Tier 2)
+
 - Event-driven execution model with 5 sequential procedures
 - Integrates with test template for automated test planning
 - Tracks initialization, testing phases, data collection, and cleanup
 
 ### 2. **Test Template** (Tier 2)
+
 - Reusable test plan for ACS validation
 - Detailed procedures for voltage regulation, response time, and thermal testing
 - Explicit acceptance criteria (< 2% ripple, < 100ms response, < 80°C thermal)
 - References custom workflow for execution coordination
 
 ### 3. **Work Items & Work Order** (Tier 2)
+
 - **Work Item 1**: Validates ACS unit 001 on primary bench (high priority)
 - **Work Item 2**: Regression tests ACS unit 002 on secondary bench (medium priority)
 - **Work Order**: Coordinates both work items with resource reservation (start: 08:00, end: 12:00)
 
 ### 4. **Test Results** (Tier 3)
+
 - **5 result records** capturing execution outcomes:
   - Voltage regulation (Run 1)
   - Response time (Run 1)
@@ -72,6 +77,7 @@ Location: Production Test Lab
 - Each result tracks operator, timestamps, measurements, verdict, and linked files
 
 ### 5. **Data Tables** (Tier 3)
+
 - **Voltage Regulation**: 25 rows of load sweep data (0A-5A)
 - **Response Time**: 5 rows of step response measurements
 - **Thermal Profile**: 33 rows of temperature evolution (0-30 minutes)
@@ -79,6 +85,7 @@ Location: Production Test Lab
 - All structured with proper column definitions, units, and sample data
 
 ### 6. **Files & Documentation** (Tier 1 & 3)
+
 - Raw test data (`.csv` files)
 - Waveform captures (`.tds` oscilloscope format)
 - Test execution logs (`.txt`)
@@ -88,6 +95,7 @@ Location: Production Test Lab
 ## Installation
 
 ### Prerequisites
+
 - SystemLink server (v2024.1 or later)
 - Target workspace with product/system/asset management enabled
 - SystemLink CLI configured with valid credentials
@@ -140,13 +148,15 @@ Estimated setup time: 10 minutes
 ## Resource Details
 
 ### Foundational Resources
+
 - **Location**: Production Test Lab (Austin, TX)
 - **Product**: Advanced Control System v3.0 (part # DCS-3000)
-- **Systems**: 
+- **Systems**:
   - Test Bench 1 (CSTB-001) → Primary validation bench
   - Test Bench 2 (CSTB-002) → Regression testing bench
 
 ### Test Assets
+
 - **DUT-001**: ACS unit 001 (serial: ACS-SN-20250101-001)
 - **DUT-002**: ACS unit 002 (serial: ACS-SN-20250102-002)
 - **Reference Equipment**:
@@ -154,6 +164,7 @@ Estimated setup time: 10 minutes
   - Data Logger (Ethernet-connected)
 
 ### Test Execution Configuration
+
 - **Campaign Duration**: 2 hours (08:00-10:10)
 - **DUTs Tested**: 2
 - **Test Phases**: 3 (voltage, response time, thermal)
@@ -161,6 +172,7 @@ Estimated setup time: 10 minutes
 - **Measurements**: 73 total data points across 4 tables
 
 ### Acceptance Criteria
+
 - **Voltage Regulation**: Ripple < 2% across 0-5A load range
 - **Response Time**: Rise time < 100ms for step input
 - **Thermal**: Peak internal temperature < 80°C at full load
@@ -190,18 +202,22 @@ slcli datatable export <workspace> <table-id> -o measurements.csv
 ## Workflow Understanding
 
 ### Phase 1: Planning (Tier 0-1 Provisioning)
+
 Resources created: Location, Product, Systems, Assets
 
 ### Phase 2: Test Planning (Tier 2 Provisioning)
+
 Resources created: Workflow, Test Template, Work Items, Work Order
 
 ### Phase 3: Test Execution (Tier 2 Execution)
+
 - Work Order triggers scheduled start at 08:00
 - Work Item 1 executes on Bench 1 (08:15-09:30)
 - Work Item 2 executes on Bench 2 (09:45-10:10)
 - Each item executes 3 test phases with measurements logged
 
 ### Phase 4: Results Collection (Tier 3 Population)
+
 - Test Results created as executions complete
 - Data Tables populated with measurement data
 - Files stored (logs, reports, raw data)
@@ -246,7 +262,9 @@ This removes all resources tagged with `slcli-example:demo-complete-workflow`, l
 ## Troubleshooting
 
 ### Resources Already Exist
+
 If you see "skipped" status:
+
 ```bash
 # List existing resources to verify
 slcli location list -w <workspace> | grep "Production Test Lab"
@@ -255,7 +273,9 @@ slcli location list -w <workspace> | grep "Production Test Lab"
 ```
 
 ### Partial Installation Failure
+
 Resources are created individually. If installation fails mid-way:
+
 ```bash
 # Check what was created
 slcli location list -w <workspace>
@@ -268,7 +288,9 @@ slcli example install demo-complete-workflow -w <workspace>
 ```
 
 ### Test Results Not Appearing
+
 Test results are created as part of the provisioning flow:
+
 ```bash
 # Verify work items were created
 slcli workitem list -w <workspace>
@@ -289,6 +311,7 @@ slcli result list -w <workspace>
 ## Contact & Support
 
 For issues or questions about this example:
+
 - File an issue: [GitHub Issues](https://github.com/ni/systemlink-cli/issues)
 - Check existing examples in `slcli/examples/`
 - Review the CLI help: `slcli example --help`

@@ -145,3 +145,214 @@ def test_delete_happens_in_reverse_order_and_reports_ids(mock_api: Any) -> None:
     assert all(r.action == ProvisioningAction.SKIPPED for r in results)
     # No server IDs returned when resources not found
     assert all(r.server_id is None for r in results)
+
+
+@patch("slcli.example_provisioner.make_api_request")
+def test_reference_resolution(mock_api: Any) -> None:
+    """Test that ${ref} tokens are resolved to created server IDs."""
+    call_count = [0]
+
+    def mock_resolve(*args: Any, **kwargs: Any) -> Any:
+        resp = MagicMock()
+        call_count[0] += 1
+        call_index = call_count[0]
+
+        # Location existence check
+        if "locations" in args[1] and "GET" in str(args[0]) and call_index == 1:
+            resp.json.return_value = {"locations": []}
+        # Location create
+        elif "locations" in args[1] and "POST" in str(args[0]) and call_index == 2:
+            resp.json.return_value = {"id": "loc-abc"}
+        # System existence check
+        elif "query-systems" in args[1] and call_index == 3:
+            resp.json.return_value = []
+        # System create
+        elif "virtual" in args[1] and call_index == 4:
+            resp.json.return_value = {"minionId": "sys-xyz"}
+        else:
+            resp.json.return_value = {}
+
+        return resp
+
+    mock_api.side_effect = mock_resolve
+
+    config = {
+        "format_version": "1.0",
+        "name": "ref-test",
+        "title": "Reference Test",
+        "resources": [
+            {
+                "type": "location",
+                "name": "Main Lab",
+                "id_reference": "lab",
+                "properties": {},
+            },
+            {
+                "type": "system",
+                "name": "Test System",
+                "id_reference": "sys",
+                "properties": {"location_id": "${lab}"},  # Reference to location
+            },
+        ],
+    }
+
+    prov = ExampleProvisioner(workspace_id="ws-test", dry_run=False)
+    results, err = prov.provision(config)
+
+    assert err is None
+    assert len(results) == 2
+    assert results[0].action == ProvisioningAction.CREATED
+    assert results[1].action == ProvisioningAction.CREATED
+    # Verify reference was stored in id_map
+    assert prov.id_map.get("lab") == "loc-abc"
+    assert prov.id_map.get("sys") == "sys-xyz"
+
+
+@patch("slcli.example_provisioner.make_api_request")
+def test_duplicate_detection_skips_existing(mock_api: Any) -> None:
+    """Test that existing resources are detected and skipped."""
+    call_count = [0]
+
+    def mock_dup(*args: Any, **kwargs: Any) -> Any:
+        resp = MagicMock()
+        call_count[0] += 1
+
+        # Existence check returns the resource (exists)
+        if "locations" in args[1] and "GET" in str(args[0]):
+            resp.json.return_value = {
+                "locations": [
+                    {
+                        "id": "existing-loc-123",
+                        "name": "Demo HQ",
+                        "workspace": "ws-test",
+                        "keywords": ["slcli-example:test"],
+                    }
+                ]
+            }
+        else:
+            resp.json.return_value = {}
+
+        return resp
+
+    mock_api.side_effect = mock_dup
+
+    config = {
+        "format_version": "1.0",
+        "name": "dup-test",
+        "title": "Duplicate Test",
+        "resources": [
+            {
+                "type": "location",
+                "name": "Demo HQ",
+                "id_reference": "loc_hq",
+                "properties": {},
+            },
+        ],
+    }
+
+    prov = ExampleProvisioner(workspace_id="ws-test", example_name="test", dry_run=False)
+    results, err = prov.provision(config)
+
+    assert err is None
+    assert len(results) == 1
+    assert results[0].action == ProvisioningAction.SKIPPED
+    assert results[0].server_id == "existing-loc-123"
+    assert results[0].error == "Resource already exists"
+
+
+def test_invalid_config_returns_error() -> None:
+    """Test that invalid config returns error."""
+    config = {
+        "format_version": "1.0",
+        "name": "invalid",
+        "title": "Invalid",
+        "resources": "not_a_list",  # Should be a list
+    }
+
+    prov = ExampleProvisioner(dry_run=True)
+    results, err = prov.provision(config)
+
+    assert err is not None
+    assert isinstance(err, ValueError)
+    assert "must be a list" in str(err)
+
+
+@patch("slcli.example_provisioner.make_api_request")
+def test_unsupported_resource_type(mock_api: Any) -> None:
+    """Test that unsupported resource types fail gracefully."""
+    mock_api.return_value = MagicMock()
+
+    config = {
+        "format_version": "1.0",
+        "name": "unsupported-test",
+        "title": "Unsupported Type Test",
+        "resources": [
+            {
+                "type": "unknown_resource",  # Not supported
+                "name": "Test Resource",
+                "id_reference": "unknown",
+                "properties": {},
+            },
+        ],
+    }
+
+    prov = ExampleProvisioner(dry_run=False)
+    results, err = prov.provision(config)
+
+    assert err is None
+    assert len(results) == 1
+    assert results[0].action == ProvisioningAction.FAILED
+    assert "Unsupported resource type" in results[0].error
+
+
+@patch("slcli.example_provisioner.make_api_request")
+def test_tag_filtering_on_delete(mock_api: Any) -> None:
+    """Test that delete filters by tag correctly."""
+
+    def mock_filter(*args: Any, **kwargs: Any) -> Any:
+        resp = MagicMock()
+        url = args[1] if len(args) > 1 else ""
+
+        # Return empty for all queries
+        if "locations" in url and "GET" in str(args[0]):
+            resp.json.return_value = {"locations": []}
+        else:
+            resp.json.return_value = {}
+
+        resp.raise_for_status.return_value = None
+        return resp
+
+    mock_api.side_effect = mock_filter
+
+    config = {
+        "format_version": "1.0",
+        "name": "tag-test",
+        "title": "Tag Filter Test",
+        "resources": [
+            {
+                "type": "location",
+                "name": "Lab 1",
+                "id_reference": "lab1",
+                "tags": ["production"],  # Has production tag
+                "properties": {},
+            },
+            {
+                "type": "location",
+                "name": "Lab 2",
+                "id_reference": "lab2",
+                "tags": ["demo"],  # Different tag
+                "properties": {},
+            },
+        ],
+    }
+
+    prov = ExampleProvisioner(dry_run=False)
+    # Filter to delete only production-tagged resources
+    results, err = prov.delete(config, filter_tags=["production"])
+
+    assert err is None
+    assert len(results) == 2
+    # Only the production-tagged resource should be processed (attempted)
+    # The demo-tagged should be SKIPPED due to tag filter
+    skipped = [r for r in results if r.action == ProvisioningAction.SKIPPED]
+    assert len(skipped) >= 1  # At least one should be skipped

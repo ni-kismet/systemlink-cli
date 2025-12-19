@@ -149,34 +149,91 @@ resources:
   # TIER 2: WORK & EXECUTION RESOURCES
   # ============================================================================
 
-  # Phase 6: Custom Workflow (optional, for event-driven test execution)
+  # Phase 6: Custom Workflow (defines work item state machine)
+  # Workflow must define all 8 work item states: NEW, DEFINED, REVIEWED, SCHEDULED, IN_PROGRESS, PENDING_APPROVAL, CLOSED, CANCELED
   - type: "workflow"
     name: "ACS Validation Workflow"
     properties:
-      description: "Event-driven workflow for automated ACS validation"
-      trigger: "manual"
-      execution_model: "sequential"
-      procedures:
-        - step: 1
-          name: "Initialize Test Environment"
-          description: "Set up test benches and verify calibration"
-          timeout_minutes: 5
-        - step: 2
-          name: "Voltage Regulation Test"
-          description: "Test output voltage stability across load range"
-          timeout_minutes: 15
-        - step: 3
-          name: "Response Time Test"
-          description: "Measure response time to command inputs"
-          timeout_minutes: 10
-        - step: 4
-          name: "Data Collection"
-          description: "Log all test measurements to data tables"
-          timeout_minutes: 5
-        - step: 5
-          name: "Cleanup"
-          description: "Power down systems and log completion"
-          timeout_minutes: 5
+      description: "Work item state machine for ACS validation tests"
+      # Define actions that transition work items between states
+      actions:
+        - name: "START"
+          displayText: "Start Test"
+          executionAction:
+            type: "MANUAL"
+            action: "START"
+        - name: "END"
+          displayText: "End Test"
+          executionAction:
+            type: "MANUAL"
+            action: "END"
+      # Define all required states (must match work item states exactly)
+      # Work item state machine requires: NEW, DEFINED, REVIEWED, SCHEDULED, IN_PROGRESS, PENDING_APPROVAL, CLOSED, CANCELED
+      states:
+        - name: "NEW"
+          dashboardAvailable: false
+          defaultSubstate: "NEW"
+          substates:
+            - name: "NEW"
+              displayText: "New"
+              availableActions: []
+        - name: "DEFINED"
+          dashboardAvailable: false
+          defaultSubstate: "DEFINED"
+          substates:
+            - name: "DEFINED"
+              displayText: "Defined"
+              availableActions: []
+        - name: "REVIEWED"
+          dashboardAvailable: false
+          defaultSubstate: "REVIEWED"
+          substates:
+            - name: "REVIEWED"
+              displayText: "Reviewed"
+              availableActions: []
+        - name: "SCHEDULED"
+          dashboardAvailable: true
+          defaultSubstate: "SCHEDULED"
+          substates:
+            - name: "SCHEDULED"
+              displayText: "Scheduled"
+              availableActions:
+                - action: "START"
+                  nextState: "IN_PROGRESS"
+                  nextSubstate: "IN_PROGRESS"
+                  showInUI: true
+        - name: "IN_PROGRESS"
+          dashboardAvailable: true
+          defaultSubstate: "IN_PROGRESS"
+          substates:
+            - name: "IN_PROGRESS"
+              displayText: "In Progress"
+              availableActions:
+                - action: "END"
+                  nextState: "PENDING_APPROVAL"
+                  nextSubstate: "PENDING_APPROVAL"
+                  showInUI: true
+        - name: "PENDING_APPROVAL"
+          dashboardAvailable: true
+          defaultSubstate: "PENDING_APPROVAL"
+          substates:
+            - name: "PENDING_APPROVAL"
+              displayText: "Pending Approval"
+              availableActions: []
+        - name: "CLOSED"
+          dashboardAvailable: false
+          defaultSubstate: "CLOSED"
+          substates:
+            - name: "CLOSED"
+              displayText: "Closed"
+              availableActions: []
+        - name: "CANCELED"
+          dashboardAvailable: false
+          defaultSubstate: "CANCELED"
+          substates:
+            - name: "CANCELED"
+              displayText: "Canceled"
+              availableActions: []
     id_reference: "wf_acs_validation"
     tags: ["demo-complete-workflow"]
 
@@ -230,7 +287,7 @@ resources:
     name: "ACS Validation Run 1 - Unit 001"
     properties:
       description: "Validation of ACS unit 001 on primary bench"
-      work_item_type: "validation"
+      work_item_type: "testplan"
       test_template_id: "${tt_acs_validation}"
       scheduled_dut: "${dut_acs_001}"
       scheduled_system: "${sys_bench1}"
@@ -245,7 +302,7 @@ resources:
     name: "ACS Regression Test - Unit 002"
     properties:
       description: "Regression validation of ACS unit 002 on secondary bench"
-      work_item_type: "regression"
+      work_item_type: "testplan"
       test_template_id: "${tt_acs_validation}"
       scheduled_dut: "${dut_acs_002}"
       scheduled_system: "${sys_bench2}"

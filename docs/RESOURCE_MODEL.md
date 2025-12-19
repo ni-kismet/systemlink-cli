@@ -1467,4 +1467,40 @@ This ensures that:
 - Demo resources can be safely deleted
 - Production resources are never accidentally deleted
 - Multiple example configs can coexist without conflicts
+
+## Changelog
+
+### December 18, 2025
+
+**Key Corrections to Resource Definitions:**
+
+1. **Feeds** - Corrected definition
+   - **Was**: Real-time data acquisition from sensors, PLCs
+   - **Now**: Package repository management (npm, pip, apt equivalent)
+   - **Implication**: Data acquisition comes from Tags (timestamped key-value pairs), not Feeds
+
+2. **Asset Hierarchy** - Consolidated resource types
+   - DUT, Fixture, Sensor are now defined as **types of Assets** (via `type` property)
+   - Not separate resources, but typed instances of Asset
+   - Enables flexible hierarchy: Tier 0 now shows unified Asset with type variants
+
+3. **Data Spaces** - Clarified as visualization interface
+   - Not a resource container
+   - Web application interface for analyzing parametric test data
+   - Displays data from Test Results and Data Tables
+
+4. **Tier 4 (Automation & Visualization)** - Added
+   - Routines (event-driven automation)
+   - Notebooks (code execution)
+   - Alarms (condition monitoring)
+   - Dashboards (metrics visualization)
+   - Web Apps (custom interfaces)
+   - Data Spaces (parametric analysis)
+
+### Source
+
+Corrections verified against:
+- OpenAPI schemas (nifeed.json, niresourcemanagement.json, etc.)
+- SystemLink Enterprise User Manual
+- Production API behavior
 ````
