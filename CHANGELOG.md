@@ -1,6 +1,39 @@
 # CHANGELOG
 
 
+## v0.20.0 (2025-12-19)
+
+### Features
+
+- Add example CLI workflow, schemas, and review guidance
+  ([#38](https://github.com/ni-kismet/systemlink-cli/pull/38),
+  [`cfdd750`](https://github.com/ni-kismet/systemlink-cli/commit/cfdd75000c545578bf537d036f101a87075d1000))
+
+* Phase 1: Example configuration system - loader, CLI, and demo config
+
+* Add support for new resource types: workflow, work_item, work_order, test_result, data_table,
+  file. Create comprehensive demo-complete-workflow example showing full resource hierarchy (Tier
+  0-3)
+
+* doc cleanup and initial reviews
+
+* prompt updates
+
+* lint
+
+* remove openapi schema
+
+* readme and example list changes
+
+* fix: Add missing get_base_url mocks and fix mypy type errors in tests
+
+* fix: Add explanatory comments to bare except clauses in example_provisioner.py
+
+- Added comments explaining why exceptions are silently handled in query/getter methods - These
+  methods fail gracefully (returning None/empty list) when APIs are unavailable - Addresses Copilot
+  PR review comments on 8 bare except clauses across getter methods
+
+
 ## v0.19.1 (2025-12-16)
 
 ### Bug Fixes
@@ -13,6 +46,11 @@
   consistent --id/-i flag pattern - Update tests to use new flag-based syntax - Update README
   documentation with new command syntax - All tests passing (34 file tests + linting + type
   checking)
+
+### Chores
+
+- **release**: 0.19.1
+  ([`e67b303`](https://github.com/ni-kismet/systemlink-cli/commit/e67b3037347f69ecfc51f6abb48734f4a146d832))
 
 
 ## v0.19.0 (2025-12-16)
