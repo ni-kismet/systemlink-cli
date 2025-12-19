@@ -2,6 +2,8 @@
 
 SystemLink CLI (`slcli`) is a cross-platform Python CLI for SystemLink integrators, managing resources via REST APIs. Uses **Click** for CLI, **Poetry** for dependencies, and **keyring** for credential storage.
 
+**For Code Review Agents:** See [AGENTS.md](AGENTS.md) for comprehensive code review guidance, slash commands, and standards.
+
 ## Architecture Overview
 
 ```
@@ -173,7 +175,28 @@ filtered_resp: Any = FilteredResponse({"workspaces": filtered_list})
    - Every pull request must include a passing lint and mypy run (for example: `poetry run ni-python-styleguide lint` and `poetry run mypy slcli tests`) and include any necessary fixes; CI will enforce these checks.
 
 9. **Copilot-Specific Instructions**:  
-   - After making any code change, always:  
+
+   ### Slash Commands for PR Review
+
+   Use the `/slcli-pr-review` slash command in Copilot Chat to trigger comprehensive PR reviews with high standards:
+
+   ```bash
+   /slcli-pr-review                    # Standard comprehensive review (default)
+   /slcli-pr-review cli                # CLI-focused review (commands, options, formatting)
+   /slcli-pr-review api                # API-focused review (query safety, error handling)
+   /slcli-pr-review refactor           # Code reuse & architecture review (DRY, patterns)
+   /slcli-pr-review e2e                # E2E testing review (test isolation, coverage)
+   /slcli-pr-review standard coverage  # With optional focus area
+   ```
+
+   The prompt file is located at [`.github/prompts/pr-review.prompt.md`](.github/prompts/pr-review.prompt.md) and contains specialized review criteria for each type. All reviews enforce:
+   - **Test Coverage**: ≥80% for new code, all tests (unit + E2E) passing
+   - **Code Reuse**: Strict DRY principle, no duplication across modules
+   - **Architecture**: Pattern adherence (UniversalResponseHandler, exit codes, error handling)
+   - **Query Safety**: No string interpolation, parameterized queries only
+   - **Standards Compliance**: Consistent formatting, type annotations, docstrings
+
+   After making any code change, always:  
      1. Run linting and auto-formatting.  
      2. Run static type checks with mypy (`poetry run mypy slcli tests`) for quick type validation.  
      3. Run unit tests only first for quick validation (`poetry run pytest tests/unit`).  
