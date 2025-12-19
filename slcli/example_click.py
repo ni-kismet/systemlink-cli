@@ -72,6 +72,19 @@ def _result_row_formatter(item: Dict[str, Any]) -> List[str]:
     ]
 
 
+def _example_row_formatter(item: Dict[str, Any]) -> List[str]:
+    """Formatter for table rows in example list output."""
+    tags = item.get("tags") or []
+    setup = item.get("estimated_setup_time_minutes", 0)
+    return [
+        item.get("name", ""),
+        item.get("title", ""),
+        ", ".join(tags),
+        str(setup),
+        item.get("author", ""),
+    ]
+
+
 def _output_results(results: List[Dict[str, Any]], format_output: str) -> None:
     """Render provisioning results in the requested format."""
     UniversalResponseHandler.handle_list_response(
@@ -145,15 +158,14 @@ def register_example_commands(cli: Any) -> None:
                 # JSON: show all at once
                 click.echo(json.dumps(examples, indent=2))
             else:
-                # Table format without custom formatter
                 UniversalResponseHandler.handle_list_response(
                     resp=FilteredResponse({"examples": examples}),
                     data_key="examples",
                     item_name="example",
                     format_output=format,
-                    formatter_func=None,
-                    headers=None,
-                    column_widths=None,
+                    formatter_func=_example_row_formatter,
+                    headers=["Name", "Title", "Tags", "Setup (min)", "Author"],
+                    column_widths=[22, 28, 24, 11, 18],
                     enable_pagination=False,  # Unlikely to have > 25 examples
                 )
 
