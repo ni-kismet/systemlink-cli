@@ -125,10 +125,13 @@ After installation, restart your shell or source the completion file. See [docs/
 
    # View dynamic form field configurations
    slcli dff config list
+   ```
 
-  # View dynamic form field groups
-  slcli dff groups list
-  ```
+# View dynamic form field groups
+
+slcli dff groups list
+
+````
 
 ## Example Command (demo systems)
 
@@ -149,9 +152,10 @@ slcli example install demo-complete-workflow --workspace MyWorkspace --dry-run
 
 # Delete previously installed example resources (with audit log)
 slcli example delete demo-complete-workflow --workspace MyWorkspace --audit-log delete-log.json
-```
+````
 
 Available samples:
+
 - `demo-complete-workflow`: end-to-end workflow with systems, assets, DUTs, plans, and results
 - `demo-test-plans`: focused test-plan setup with reusable assets and templates
 

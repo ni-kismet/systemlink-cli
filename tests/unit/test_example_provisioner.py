@@ -46,14 +46,18 @@ def test_dry_run_skips_creation() -> None:
     assert all(r.server_id is None for r in results)
 
 
+@patch("slcli.example_provisioner.get_base_url")
 @patch("slcli.example_provisioner.make_api_request")
-def test_provision_creates_in_order_and_assigns_ids(mock_api: Any) -> None:
+def test_provision_creates_in_order_and_assigns_ids(mock_api: Any, mock_base_url: Any) -> None:
+    # Mock base URL
+    mock_base_url.return_value = "https://api.test.com"
+
     # Mock API responses with IDs
     def mock_post(*args: Any, **kwargs: Any) -> Any:
         resp = MagicMock()
         # Return appropriate ID based on URL and method
         url = args[1] if len(args) > 1 else ""
-        method = str(args[0])
+        method = str(args[0]) if len(args) > 0 else ""
         if "locations" in url and "GET" in method:
             # GET request to check if location exists - return empty list
             resp.json.return_value = {"locations": []}
@@ -123,7 +127,7 @@ def test_delete_happens_in_reverse_order_and_reports_ids(mock_api: Any) -> None:
         resp = MagicMock()
         # For location existence check, return empty list
         url = args[1] if len(args) > 1 else ""
-        if "locations" in url and "GET" in str(args[0]):
+        if "locations" in url and len(args) > 0 and "GET" in str(args[0]):
             resp.json.return_value = {"locations": []}
         else:
             # All other API calls succeed but return nothing (resource not found)
@@ -147,9 +151,13 @@ def test_delete_happens_in_reverse_order_and_reports_ids(mock_api: Any) -> None:
     assert all(r.server_id is None for r in results)
 
 
+@patch("slcli.example_provisioner.get_base_url")
 @patch("slcli.example_provisioner.make_api_request")
-def test_reference_resolution(mock_api: Any) -> None:
+def test_reference_resolution(mock_api: Any, mock_base_url: Any) -> None:
     """Test that ${ref} tokens are resolved to created server IDs."""
+    # Mock base URL
+    mock_base_url.return_value = "https://api.test.com"
+
     call_count = [0]
 
     def mock_resolve(*args: Any, **kwargs: Any) -> Any:
@@ -158,16 +166,28 @@ def test_reference_resolution(mock_api: Any) -> None:
         call_index = call_count[0]
 
         # Location existence check
-        if "locations" in args[1] and "GET" in str(args[0]) and call_index == 1:
+        if (
+            len(args) > 1
+            and "locations" in args[1]
+            and len(args) > 0
+            and "GET" in str(args[0])
+            and call_index == 1
+        ):
             resp.json.return_value = {"locations": []}
         # Location create
-        elif "locations" in args[1] and "POST" in str(args[0]) and call_index == 2:
+        elif (
+            len(args) > 1
+            and "locations" in args[1]
+            and len(args) > 0
+            and "POST" in str(args[0])
+            and call_index == 2
+        ):
             resp.json.return_value = {"id": "loc-abc"}
         # System existence check
-        elif "query-systems" in args[1] and call_index == 3:
+        elif len(args) > 1 and "query-systems" in args[1] and call_index == 3:
             resp.json.return_value = []
         # System create
-        elif "virtual" in args[1] and call_index == 4:
+        elif len(args) > 1 and "virtual" in args[1] and call_index == 4:
             resp.json.return_value = {"minionId": "sys-xyz"}
         else:
             resp.json.return_value = {}
@@ -208,9 +228,13 @@ def test_reference_resolution(mock_api: Any) -> None:
     assert prov.id_map.get("sys") == "sys-xyz"
 
 
+@patch("slcli.example_provisioner.get_base_url")
 @patch("slcli.example_provisioner.make_api_request")
-def test_duplicate_detection_skips_existing(mock_api: Any) -> None:
+def test_duplicate_detection_skips_existing(mock_api: Any, mock_base_url: Any) -> None:
     """Test that existing resources are detected and skipped."""
+    # Mock base URL
+    mock_base_url.return_value = "https://api.test.com"
+
     call_count = [0]
 
     def mock_dup(*args: Any, **kwargs: Any) -> Any:
@@ -302,7 +326,7 @@ def test_unsupported_resource_type(mock_api: Any) -> None:
     assert err is None
     assert len(results) == 1
     assert results[0].action == ProvisioningAction.FAILED
-    assert "Unsupported resource type" in results[0].error
+    assert results[0].error is not None and "Unsupported resource type" in results[0].error
 
 
 @patch("slcli.example_provisioner.make_api_request")
@@ -314,7 +338,7 @@ def test_tag_filtering_on_delete(mock_api: Any) -> None:
         url = args[1] if len(args) > 1 else ""
 
         # Return empty for all queries
-        if "locations" in url and "GET" in str(args[0]):
+        if "locations" in url and len(args) > 0 and "GET" in str(args[0]):
             resp.json.return_value = {"locations": []}
         else:
             resp.json.return_value = {}
