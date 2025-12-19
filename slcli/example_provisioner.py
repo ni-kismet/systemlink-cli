@@ -463,6 +463,7 @@ class ExampleProvisioner:
                         continue
                 return str(loc.get("id", "")) or None
         except Exception:
+            # API unavailable or malformed response; return None to allow fallback to creation
             pass
         return None
 
@@ -564,6 +565,7 @@ class ExampleProvisioner:
                             # Duplicate detected but ID not found in any page
                             return "__DUPLICATE_NOTFOUND__"
                         except Exception:
+                            # Pagination or query error during duplicate detection; treat as unfound
                             return "__DUPLICATE_NOTFOUND__"
         return ""
 
@@ -593,6 +595,7 @@ class ExampleProvisioner:
                         continue
                 return str(prod.get("id", "")) or None
         except Exception:
+            # API unavailable or malformed response; return None to allow fallback to creation
             pass
         return None
 
@@ -652,6 +655,7 @@ class ExampleProvisioner:
                     continue
                 return str(sys.get("id", "")) or None
         except Exception:
+            # API unavailable or malformed response; return None to allow fallback to creation
             pass
         return None
 
@@ -688,6 +692,7 @@ class ExampleProvisioner:
                 if sid:
                     ids.append(sid)
         except Exception:
+            # API unavailable or malformed response; return empty list to proceed with creation
             pass
         return ids
 
@@ -838,6 +843,7 @@ class ExampleProvisioner:
                         continue
                 return str(asset.get("id", "")) or None
         except Exception:
+            # API unavailable or malformed response; return None to allow fallback to creation
             pass
         return None
 
@@ -985,6 +991,7 @@ class ExampleProvisioner:
                         continue
                 return str(asset.get("id", "")) or None
         except Exception:
+            # API unavailable or malformed response; return None to allow fallback to creation
             pass
         return None
 
@@ -1061,6 +1068,7 @@ class ExampleProvisioner:
                     continue
                 return str(tmpl.get("id", "")) or None
         except Exception:
+            # API unavailable or malformed response; return None to allow fallback to creation
             pass
         return None
 
