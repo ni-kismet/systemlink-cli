@@ -1,0 +1,638 @@
+---
+# SLE Example Configuration: Production Quality Assurance Lab
+format_version: "1.0"
+name: "demo-complete-workflow"
+title: "Production Quality Assurance Testing Laboratory"
+description: |
+  A comprehensive example demonstrating a complete production testing facility
+  with multiple test systems, DUTs, and assets for quality assurance validation.
+  
+  Includes:
+  - Centralized production QA facility with location hierarchy
+  - Multiple product variants with different part numbers
+  - Dedicated test systems and benches
+  - Collection of DUTs under test with full identification
+  - Support equipment and reference instruments
+  - Reusable test templates for validation procedures
+  
+  Perfect for understanding how to model a complete testing lab environment
+  with multiple systems working in parallel on different product variants.
+
+author: "NI"
+created_date: "2025-12-18"
+updated_date: "2025-12-18"
+tags:
+  - "production"
+  - "quality-assurance"
+  - "test-lab"
+  - "multi-system"
+
+estimated_setup_time_minutes: 5
+required_systemlink_version: "2024.1"
+target_workspace: null
+
+resources:
+  # ============================================================================
+  # TIER 0: FOUNDATIONAL RESOURCES
+  # ============================================================================
+
+  # Phase 1: Locations
+  - type: "location"
+    name: "Production Test Lab"
+    properties:
+      description: "Main production testing facility"
+      address: "456 Industrial Blvd"
+      city: "Austin"
+      state: "TX"
+      country: "USA"
+      building: "Lab Complex A"
+    id_reference: "loc_lab"
+    tags: ["demo-complete-workflow"]
+
+  # Phase 2: Products
+  - type: "product"
+    name: "Advanced Control System v3.0"
+    properties:
+      description: "Multi-axis motion control system with real-time feedback"
+      category: "Control Systems"
+      manufacturer: "Demo Advanced Tech"
+      part_number: "DCS-3000"
+    id_reference: "prod_acs"
+    tags: ["demo-complete-workflow"]
+
+  # Phase 3: Systems
+  - type: "system"
+    name: "Control System Test Bench 1"
+    properties:
+      description: "Primary test bench for ACS validation"
+      location_id: "${loc_lab}"
+      product_id: "${prod_acs}"
+      serial_number: "CSTB-001"
+      status: "operational"
+    id_reference: "sys_bench1"
+    tags: ["demo-complete-workflow"]
+
+  - type: "system"
+    name: "Control System Test Bench 2"
+    properties:
+      description: "Secondary test bench for regression testing"
+      location_id: "${loc_lab}"
+      product_id: "${prod_acs}"
+      serial_number: "CSTB-002"
+      status: "operational"
+    id_reference: "sys_bench2"
+    tags: ["demo-complete-workflow"]
+
+  # ============================================================================
+  # TIER 1: CROSS-CUTTING RESOURCES
+  # ============================================================================
+
+  # Phase 4: Assets (DUTs under test)
+  - type: "dut"
+    name: "DUT-ACS-001 (Bench 1)"
+    properties:
+      description: "Advanced Control System unit 001 for validation"
+      system_id: "${sys_bench1}"
+      location_id: "${loc_lab}"
+      model_name: "ACS3000"
+      model_number: "3000"
+      vendor_name: "Demo Advanced Tech"
+      vendor_number: "DAT-001"
+      serial_number: "ACS-SN-20250101-001"
+      bus_type: "USB"
+    id_reference: "dut_acs_001"
+    tags: ["demo-complete-workflow"]
+
+  - type: "dut"
+    name: "DUT-ACS-002 (Bench 2)"
+    properties:
+      description: "Advanced Control System unit 002 for regression"
+      system_id: "${sys_bench2}"
+      location_id: "${loc_lab}"
+      model_name: "ACS3000"
+      model_number: "3000"
+      vendor_name: "Demo Advanced Tech"
+      vendor_number: "DAT-001"
+      serial_number: "ACS-SN-20250102-002"
+      bus_type: "USB"
+    id_reference: "dut_acs_002"
+    tags: ["demo-complete-workflow"]
+
+  # Phase 5: Fixtures/Reference instruments
+  - type: "asset"
+    name: "Reference Voltage Source"
+    properties:
+      description: "Calibrated reference for voltage validation"
+      system_id: "${sys_bench1}"
+      location_id: "${loc_lab}"
+      model_name: "RefVoltage Pro"
+      vendor_name: "Demo Advanced Tech"
+      bus_type: "GPIB"
+      serial_number: "REF-VS-SN-001"
+    id_reference: "asset_ref_vs"
+    tags: ["demo-complete-workflow"]
+
+  - type: "asset"
+    name: "Data Logger"
+    properties:
+      description: "Multi-channel data logging system"
+      system_id: "${sys_bench1}"
+      location_id: "${loc_lab}"
+      model_name: "DataLog-X"
+      vendor_name: "Demo Advanced Tech"
+      bus_type: "Ethernet"
+      serial_number: "DLX-SN-001"
+    id_reference: "asset_datalogger"
+    tags: ["demo-complete-workflow"]
+
+  # ============================================================================
+  # TIER 2: WORK & EXECUTION RESOURCES
+  # ============================================================================
+
+  # Phase 6: Custom Workflow (defines work item state machine)
+  # Workflow must define all 8 work item states: NEW, DEFINED, REVIEWED, SCHEDULED, IN_PROGRESS, PENDING_APPROVAL, CLOSED, CANCELED
+  - type: "workflow"
+    name: "ACS Validation Workflow"
+    properties:
+      description: "Work item state machine for ACS validation tests"
+      # Define actions that transition work items between states
+      actions:
+        - name: "START"
+          displayText: "Start Test"
+          executionAction:
+            type: "MANUAL"
+            action: "START"
+        - name: "END"
+          displayText: "End Test"
+          executionAction:
+            type: "MANUAL"
+            action: "END"
+      # Define all required states (must match work item states exactly)
+      # Work item state machine requires: NEW, DEFINED, REVIEWED, SCHEDULED, IN_PROGRESS, PENDING_APPROVAL, CLOSED, CANCELED
+      states:
+        - name: "NEW"
+          dashboardAvailable: false
+          defaultSubstate: "NEW"
+          substates:
+            - name: "NEW"
+              displayText: "New"
+              availableActions: []
+        - name: "DEFINED"
+          dashboardAvailable: false
+          defaultSubstate: "DEFINED"
+          substates:
+            - name: "DEFINED"
+              displayText: "Defined"
+              availableActions: []
+        - name: "REVIEWED"
+          dashboardAvailable: false
+          defaultSubstate: "REVIEWED"
+          substates:
+            - name: "REVIEWED"
+              displayText: "Reviewed"
+              availableActions: []
+        - name: "SCHEDULED"
+          dashboardAvailable: true
+          defaultSubstate: "SCHEDULED"
+          substates:
+            - name: "SCHEDULED"
+              displayText: "Scheduled"
+              availableActions:
+                - action: "START"
+                  nextState: "IN_PROGRESS"
+                  nextSubstate: "IN_PROGRESS"
+                  showInUI: true
+        - name: "IN_PROGRESS"
+          dashboardAvailable: true
+          defaultSubstate: "IN_PROGRESS"
+          substates:
+            - name: "IN_PROGRESS"
+              displayText: "In Progress"
+              availableActions:
+                - action: "END"
+                  nextState: "PENDING_APPROVAL"
+                  nextSubstate: "PENDING_APPROVAL"
+                  showInUI: true
+        - name: "PENDING_APPROVAL"
+          dashboardAvailable: true
+          defaultSubstate: "PENDING_APPROVAL"
+          substates:
+            - name: "PENDING_APPROVAL"
+              displayText: "Pending Approval"
+              availableActions: []
+        - name: "CLOSED"
+          dashboardAvailable: false
+          defaultSubstate: "CLOSED"
+          substates:
+            - name: "CLOSED"
+              displayText: "Closed"
+              availableActions: []
+        - name: "CANCELED"
+          dashboardAvailable: false
+          defaultSubstate: "CANCELED"
+          substates:
+            - name: "CANCELED"
+              displayText: "Canceled"
+              availableActions: []
+    id_reference: "wf_acs_validation"
+    tags: ["demo-complete-workflow"]
+
+  # Phase 7: Test Template (references Workflow)
+  - type: "testtemplate"
+    name: "ACS Validation Suite"
+    properties:
+      description: "Complete validation test suite for Advanced Control Systems"
+      template_group: "Validation"
+      type: "testplan"
+      workflow_id: "${wf_acs_validation}"
+      product_families: ["Advanced Control Systems"]
+      part_numbers: ["DCS-3000"]
+      test_program: "ACS_Validation_v3.0"
+      procedures: |
+        # ACS Validation Test Procedures
+        
+        ## Setup Phase
+        1. Connect DUT to test bench via USB
+        2. Verify power supply output: 24V ±0.5V
+        3. Calibrate reference voltage source
+        4. Configure data logger for 100 Hz sampling
+        
+        ## Test Phases
+        ### Phase 1: DC Voltage Regulation
+        - Set output to 12V
+        - Vary load from 0A to 5A
+        - Measure voltage stability (target: < 2% ripple)
+        - Record data to Table: voltage_regulation_results
+        
+        ### Phase 2: Response Time
+        - Apply step input: 0V → 10V
+        - Measure rise time (target: < 100ms)
+        - Repeat 5 times, record average to Table: response_time_results
+        
+        ### Phase 3: Thermal Test
+        - Run at full load for 30 minutes
+        - Monitor temperature continuously
+        - Record peak temperature to Table: thermal_results
+        
+        ## Acceptance Criteria
+        - Voltage ripple: < 2%
+        - Response time: < 100ms
+        - Thermal: < 80°C
+      acceptance_criteria: "All measurements within specification limits"
+    id_reference: "tt_acs_validation"
+    tags: ["demo-complete-workflow"]
+
+  # Phase 8: Work Items (Test Plans - scheduled via Work Order)
+  - type: "work_item"
+    name: "ACS Validation Run 1 - Unit 001"
+    properties:
+      description: "Validation of ACS unit 001 on primary bench"
+      work_item_type: "testplan"
+      test_template_id: "${tt_acs_validation}"
+      scheduled_dut: "${dut_acs_001}"
+      scheduled_system: "${sys_bench1}"
+      assigned_operator: "Test Engineer A"
+      priority: "high"
+      expected_duration_minutes: 60
+      acceptance_criteria: "All measurements pass spec limits"
+    id_reference: "wi_acs_run1"
+    tags: ["demo-complete-workflow", "run1"]
+
+  - type: "work_item"
+    name: "ACS Regression Test - Unit 002"
+    properties:
+      description: "Regression validation of ACS unit 002 on secondary bench"
+      work_item_type: "testplan"
+      test_template_id: "${tt_acs_validation}"
+      scheduled_dut: "${dut_acs_002}"
+      scheduled_system: "${sys_bench2}"
+      assigned_operator: "Test Engineer B"
+      priority: "medium"
+      expected_duration_minutes: 60
+      acceptance_criteria: "All measurements pass spec limits"
+    id_reference: "wi_acs_run2"
+    tags: ["demo-complete-workflow", "run2"]
+
+  # Phase 9: Work Order (schedules Work Items and reserves resources)
+  - type: "work_order"
+    name: "ACS Validation Campaign - December 2025"
+    properties:
+      description: "Complete validation campaign for ACS v3.0 release"
+      work_order_type: "validation"
+      status: "completed"
+      priority: "high"
+      scheduled_start: "2025-12-18T08:00:00Z"
+      scheduled_end: "2025-12-18T12:00:00Z"
+      assigned_team: "Validation Team A"
+      work_items:
+        - "${wi_acs_run1}"
+        - "${wi_acs_run2}"
+      reserved_systems:
+        - "${sys_bench1}"
+        - "${sys_bench2}"
+      reserved_assets:
+        - "${dut_acs_001}"
+        - "${dut_acs_002}"
+    id_reference: "wo_acs_campaign"
+    tags: ["demo-complete-workflow"]
+
+  # ============================================================================
+  # TIER 3: DATA & RESULTS RESOURCES
+  # ============================================================================
+
+  # Phase 10: Test Results (generated from Work Item execution)
+  - type: "test_result"
+    name: "ACS Run 1 - Result 1 (Voltage Test)"
+    properties:
+      description: "Voltage regulation test results for ACS unit 001"
+      work_item_id: "${wi_acs_run1}"
+      dut_id: "${dut_acs_001}"
+      system_id: "${sys_bench1}"
+      test_phase: "DC Voltage Regulation"
+      start_time: "2025-12-18T08:15:00Z"
+      end_time: "2025-12-18T08:35:00Z"
+      status: "passed"
+      operator: "Test Engineer A"
+      measurements:
+        output_voltage_12v_0a: "12.00V"
+        output_voltage_12v_5a: "11.98V"
+        ripple_percentage: "0.8%"
+      test_verdict: "PASS"
+      notes: "Voltage regulation excellent across all load points"
+      data_table_id: "dt_voltage_reg_run1"
+      files:
+        - "voltage_regulation_run1.csv"
+        - "voltage_waveform_run1.tds"
+    id_reference: "tr_acs_run1_voltage"
+    tags: ["demo-complete-workflow", "run1"]
+
+  - type: "test_result"
+    name: "ACS Run 1 - Result 2 (Response Time Test)"
+    properties:
+      description: "Response time measurements for ACS unit 001"
+      work_item_id: "${wi_acs_run1}"
+      dut_id: "${dut_acs_001}"
+      system_id: "${sys_bench1}"
+      test_phase: "Response Time"
+      start_time: "2025-12-18T08:40:00Z"
+      end_time: "2025-12-18T08:52:00Z"
+      status: "passed"
+      operator: "Test Engineer A"
+      measurements:
+        rise_time_avg_ms: "87.3"
+        rise_time_min_ms: "85.1"
+        rise_time_max_ms: "89.5"
+        settling_time_ms: "92.0"
+      test_verdict: "PASS"
+      notes: "Response time consistently under 100ms specification"
+      data_table_id: "dt_response_time_run1"
+      files:
+        - "response_time_run1.csv"
+        - "step_response_run1.tds"
+    id_reference: "tr_acs_run1_response"
+    tags: ["demo-complete-workflow", "run1"]
+
+  - type: "test_result"
+    name: "ACS Run 1 - Result 3 (Thermal Test)"
+    properties:
+      description: "Thermal performance test for ACS unit 001"
+      work_item_id: "${wi_acs_run1}"
+      dut_id: "${dut_acs_001}"
+      system_id: "${sys_bench1}"
+      test_phase: "Thermal Performance"
+      start_time: "2025-12-18T08:55:00Z"
+      end_time: "2025-12-18T09:28:00Z"
+      status: "passed"
+      operator: "Test Engineer A"
+      measurements:
+        ambient_temperature_c: "22.5"
+        peak_internal_temp_c: "68.3"
+        thermal_rise_c: "45.8"
+        stabilization_time_minutes: "18"
+      test_verdict: "PASS"
+      notes: "Thermal performance excellent; peak temp well below 80C limit"
+      data_table_id: "dt_thermal_run1"
+      files:
+        - "thermal_profile_run1.csv"
+        - "thermal_log_run1.txt"
+    id_reference: "tr_acs_run1_thermal"
+    tags: ["demo-complete-workflow", "run1"]
+
+  - type: "test_result"
+    name: "ACS Run 2 - Voltage Regression Test"
+    properties:
+      description: "Voltage regression test for ACS unit 002"
+      work_item_id: "${wi_acs_run2}"
+      dut_id: "${dut_acs_002}"
+      system_id: "${sys_bench2}"
+      test_phase: "DC Voltage Regulation"
+      start_time: "2025-12-18T09:45:00Z"
+      end_time: "2025-12-18T10:05:00Z"
+      status: "passed"
+      operator: "Test Engineer B"
+      measurements:
+        output_voltage_12v_0a: "12.01V"
+        output_voltage_12v_5a: "11.97V"
+        ripple_percentage: "0.9%"
+      test_verdict: "PASS"
+      notes: "Consistent with Run 1 results; no regression detected"
+      data_table_id: "dt_voltage_reg_run2"
+      files:
+        - "voltage_regression_run2.csv"
+        - "regression_comparison_run2.txt"
+    id_reference: "tr_acs_run2_regression"
+    tags: ["demo-complete-workflow", "run2"]
+
+  - type: "test_result"
+    name: "ACS Campaign Summary"
+    properties:
+      description: "Summary of complete validation campaign"
+      work_order_id: "${wo_acs_campaign}"
+      test_phase: "Campaign Summary"
+      start_time: "2025-12-18T08:00:00Z"
+      end_time: "2025-12-18T10:10:00Z"
+      status: "passed"
+      operator: "Test Engineer A"
+      measurements:
+        total_tests_run: "5"
+        tests_passed: "5"
+        tests_failed: "0"
+        units_validated: "2"
+        duration_minutes: "130"
+      test_verdict: "CAMPAIGN PASS"
+      notes: "ACS v3.0 successfully validated for production release"
+      files:
+        - "campaign_summary_report.pdf"
+        - "executive_summary.md"
+        - "test_matrix_completed.xlsx"
+    id_reference: "tr_campaign_summary"
+    tags: ["demo-complete-workflow"]
+
+  # Phase 11: Data Tables (structured measurement data)
+  - type: "data_table"
+    name: "Voltage Regulation Results - Run 1"
+    properties:
+      description: "Structured voltage measurement data from Run 1"
+      test_result_id: "${tr_acs_run1_voltage}"
+      columns:
+        - name: "timestamp"
+          type: "timestamp"
+          unit: "ISO-8601"
+        - name: "load_amps"
+          type: "number"
+          unit: "A"
+        - name: "output_voltage"
+          type: "number"
+          unit: "V"
+        - name: "ripple_mv"
+          type: "number"
+          unit: "mV"
+        - name: "status"
+          type: "string"
+      row_count: 25
+      sample_rows:
+        - ["2025-12-18T08:15:00Z", 0.0, 12.00, 0.5, "PASS"]
+        - ["2025-12-18T08:17:00Z", 1.0, 11.99, 0.7, "PASS"]
+        - ["2025-12-18T08:19:00Z", 2.0, 11.98, 0.8, "PASS"]
+        - ["2025-12-18T08:21:00Z", 3.0, 11.97, 0.9, "PASS"]
+        - ["2025-12-18T08:23:00Z", 5.0, 11.98, 0.8, "PASS"]
+    id_reference: "dt_voltage_reg_run1"
+    tags: ["demo-complete-workflow", "run1"]
+
+  - type: "data_table"
+    name: "Response Time Results - Run 1"
+    properties:
+      description: "Step response measurements from Run 1"
+      test_result_id: "${tr_acs_run1_response}"
+      columns:
+        - name: "test_number"
+          type: "number"
+          unit: "count"
+        - name: "rise_time_ms"
+          type: "number"
+          unit: "ms"
+        - name: "settling_time_ms"
+          type: "number"
+          unit: "ms"
+        - name: "overshoot_percent"
+          type: "number"
+          unit: "%"
+      row_count: 5
+      sample_rows:
+        - [1, 86.2, 91.5, 2.3]
+        - [2, 87.5, 92.1, 2.1]
+        - [3, 88.1, 92.8, 2.4]
+        - [4, 86.8, 91.2, 2.0]
+        - [5, 87.7, 93.5, 2.5]
+    id_reference: "dt_response_time_run1"
+    tags: ["demo-complete-workflow", "run1"]
+
+  - type: "data_table"
+    name: "Thermal Profile - Run 1"
+    properties:
+      description: "Temperature over time during thermal test"
+      test_result_id: "${tr_acs_run1_thermal}"
+      columns:
+        - name: "elapsed_minutes"
+          type: "number"
+          unit: "minutes"
+        - name: "internal_temperature_c"
+          type: "number"
+          unit: "°C"
+        - name: "case_temperature_c"
+          type: "number"
+          unit: "°C"
+        - name: "ambient_temperature_c"
+          type: "number"
+          unit: "°C"
+      row_count: 33
+      sample_rows:
+        - [0, 22.8, 23.0, 22.5]
+        - [5, 35.2, 34.8, 22.4]
+        - [10, 48.5, 47.2, 22.5]
+        - [15, 58.6, 56.3, 22.5]
+        - [30, 68.3, 65.1, 22.6]
+    id_reference: "dt_thermal_run1"
+    tags: ["demo-complete-workflow", "run1"]
+
+  - type: "data_table"
+    name: "Voltage Regression Results - Run 2"
+    properties:
+      description: "Regression comparison for Run 2 against baseline"
+      test_result_id: "${tr_acs_run2_regression}"
+      columns:
+        - name: "load_amps"
+          type: "number"
+          unit: "A"
+        - name: "run1_voltage_v"
+          type: "number"
+          unit: "V"
+        - name: "run2_voltage_v"
+          type: "number"
+          unit: "V"
+        - name: "delta_mv"
+          type: "number"
+          unit: "mV"
+        - name: "regression_status"
+          type: "string"
+      row_count: 5
+      sample_rows:
+        - [0.0, 12.00, 12.01, 10, "NO_REGRESSION"]
+        - [1.0, 11.99, 11.98, -10, "NO_REGRESSION"]
+        - [2.0, 11.98, 11.97, -10, "NO_REGRESSION"]
+        - [3.0, 11.97, 11.96, -10, "NO_REGRESSION"]
+        - [5.0, 11.98, 11.97, -10, "NO_REGRESSION"]
+    id_reference: "dt_voltage_reg_run2"
+    tags: ["demo-complete-workflow", "run2"]
+
+  # Phase 12: Files (test logs, reports, raw data)
+  - type: "file"
+    name: "voltage_regulation_run1.csv"
+    properties:
+      description: "Voltage regulation test data for Run 1"
+      test_result_id: "${tr_acs_run1_voltage}"
+      content_type: "text/csv"
+      size_bytes: 2048
+      created_date: "2025-12-18T08:35:00Z"
+      file_category: "test_data"
+    id_reference: "f_voltage_run1"
+    tags: ["demo-complete-workflow", "run1"]
+
+  - type: "file"
+    name: "test_log_run1_complete.txt"
+    properties:
+      description: "Complete test execution log for Run 1"
+      work_item_id: "${wi_acs_run1}"
+      content_type: "text/plain"
+      size_bytes: 5120
+      created_date: "2025-12-18T09:30:00Z"
+      file_category: "test_log"
+      log_entries: 156
+    id_reference: "f_test_log_run1"
+    tags: ["demo-complete-workflow", "run1"]
+
+  - type: "file"
+    name: "campaign_summary_report.pdf"
+    properties:
+      description: "Executive summary report for validation campaign"
+      work_order_id: "${wo_acs_campaign}"
+      content_type: "application/pdf"
+      size_bytes: 512000
+      created_date: "2025-12-18T10:15:00Z"
+      file_category: "report"
+      pages: 12
+    id_reference: "f_campaign_report"
+    tags: ["demo-complete-workflow"]
+
+  - type: "file"
+    name: "test_matrix_completed.xlsx"
+    properties:
+      description: "Completed test matrix with all results cross-referenced"
+      work_order_id: "${wo_acs_campaign}"
+      content_type: "application/vnd.ms-excel"
+      size_bytes: 256000
+      created_date: "2025-12-18T10:20:00Z"
+      file_category: "report"
+      sheets: 5
+    id_reference: "f_test_matrix"
+    tags: ["demo-complete-workflow"]

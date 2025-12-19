@@ -1,0 +1,154 @@
+---
+# SLE Example Configuration: Demo Test Plans
+format_version: "1.0"
+name: "demo-test-plans"
+title: "Demo Test Plans"
+description: |
+  A complete example demonstrating the end-to-end test planning workflow.
+  Includes systems, assets, DUTs, locations, products, and test templates.
+  Perfect for training and evaluation scenarios.
+
+author: "NI"
+created_date: "2025-12-17"
+updated_date: "2025-12-17"
+tags:
+  - "training"
+  - "beginner"
+  - "test-plans"
+
+estimated_setup_time_minutes: 5
+required_systemlink_version: "2024.1"
+target_workspace: null
+
+resources:
+  # Phase 1: Locations (no dependencies)
+  - type: "location"
+    name: "Demo HQ"
+    properties:
+      address: "123 Main St"
+      city: "Austin"
+      state: "TX"
+      country: "USA"
+    id_reference: "loc_hq"
+    tags: ["demo"]
+
+  # Phase 2: Products (no dependencies)
+  - type: "product"
+    name: "Demo Widget Pro"
+    properties:
+      description: "Professional widget for demonstration"
+      category: "Industrial Equipment"
+      manufacturer: "Demo Inc."
+    id_reference: "prod_widget"
+    tags: ["demo"]
+
+  # Phase 3: Systems (depends on location, product)
+  - type: "system"
+    name: "Test Stand 1"
+    properties:
+      description: "First test system for demo workflow"
+      location_id: "${loc_hq}"
+      product_id: "${prod_widget}"
+      serial_number: "TS-001"
+      status: "operational"
+    id_reference: "sys_ts1"
+    tags: ["demo"]
+
+  - type: "system"
+    name: "Test Stand 2"
+    properties:
+      description: "Second test system for demo workflow"
+      location_id: "${loc_hq}"
+      product_id: "${prod_widget}"
+      serial_number: "TS-002"
+      status: "operational"
+    id_reference: "sys_ts2"
+    tags: ["demo"]
+
+  # Phase 4: Assets (depends on system)
+  - type: "asset"
+    name: "Asset 1 - Stand 1"
+    properties:
+      system_id: "${sys_ts1}"
+      serial_number: "ASSET-001"
+      status: "active"
+    id_reference: "asset_1"
+    tags: ["demo"]
+
+  - type: "asset"
+    name: "Asset 2 - Stand 2"
+    properties:
+      system_id: "${sys_ts2}"
+      serial_number: "ASSET-002"
+      status: "active"
+    id_reference: "asset_2"
+    tags: ["demo"]
+
+  # Phase 5: DUTs (depends on asset)
+  - type: "dut"
+    name: "DUT 1 - Stand 1"
+    properties:
+      asset_id: "${asset_1}"
+      model: "Demo Model X1"
+      serial_number: "DUT-001"
+      status: "ready"
+    id_reference: "dut_1"
+    tags: ["demo"]
+
+  - type: "dut"
+    name: "DUT 2 - Stand 2"
+    properties:
+      asset_id: "${asset_2}"
+      model: "Demo Model X2"
+      serial_number: "DUT-002"
+      status: "ready"
+    id_reference: "dut_2"
+    tags: ["demo"]
+
+  # Phase 6: Templates (no direct dependencies)
+  - type: "testtemplate"
+    name: "Demo Test Template"
+    properties:
+      description: "Basic test template for demo workflow"
+      version: "1.0"
+      systems: ["${sys_ts1}", "${sys_ts2}"]
+      products: ["${prod_widget}"]
+    id_reference: "template_demo"
+    tags: ["demo"]
+
+cleanup:
+  order:
+    - "testtemplate"
+    - "dut"
+    - "asset"
+    - "system"
+    - "product"
+    - "location"
+  filter_tags: ["demo"]
+  require_confirmation: true
+
+validation:
+  require_workspace: true
+
+post_install:
+  instructions: |
+    ✓ Example installed successfully!
+    
+    Resources created:
+    - 1 location: Demo HQ
+    - 1 product: Demo Widget Pro
+    - 2 systems: Test Stand 1, Test Stand 2
+    - 2 assets: Asset 1, Asset 2
+    - 2 DUTs: DUT 1, DUT 2
+    - 1 test template: Demo Test Template
+    
+    Next steps:
+    1. Open SystemLink web interface
+    2. Navigate to Assets & Test Planning
+    3. Create a test by selecting:
+       - System: "Test Stand 1" or "Test Stand 2"
+       - Product: "Demo Widget Pro"
+       - Template: "Demo Test Template"
+    4. Run a test to verify setup
+    
+    Learn more: https://docs.systemlink.local/examples

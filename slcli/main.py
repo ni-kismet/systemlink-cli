@@ -11,6 +11,7 @@ import tomllib
 
 from .completion_click import register_completion_command
 from .dff_click import register_dff_commands
+from .example_click import register_example_commands
 from .feed_click import register_feed_commands
 from .file_click import register_file_commands
 from .function_click import register_function_commands
@@ -260,6 +261,7 @@ def info(format: str) -> None:
 
 register_completion_command(cli)
 register_dff_commands(cli)
+register_example_commands(cli)
 register_feed_commands(cli)
 register_file_commands(cli)
 register_function_commands(cli)

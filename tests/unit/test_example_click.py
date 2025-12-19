@@ -1,0 +1,529 @@
+"""Unit tests for example CLI commands."""
+
+import json
+import tempfile
+from pathlib import Path
+from typing import Any, Dict, Generator, List, Optional, Tuple
+
+import click
+import pytest
+from click.testing import CliRunner
+
+from slcli.example_click import register_example_commands
+from slcli.example_loader import ExampleLoader
+from slcli.example_provisioner import ProvisioningAction, ProvisioningResult
+from slcli.utils import ExitCodes
+
+
+def make_cli() -> click.Group:
+    """Create a dummy CLI for testing."""
+
+    @click.group()
+    def cli() -> None:
+        pass
+
+    register_example_commands(cli)
+    return cli
+
+
+@pytest.fixture
+def runner() -> CliRunner:
+    """Return a CLI runner."""
+    return CliRunner()
+
+
+@pytest.fixture
+def temp_examples_dir() -> Generator[Path, None, None]:
+    """Create a temporary examples directory for testing."""
+    with tempfile.TemporaryDirectory() as tmpdir:
+        tmppath = Path(tmpdir)
+        # Create the schema directory and a minimal schema
+        schema_dir = tmppath / "_schema"
+        schema_dir.mkdir()
+        schema_path = schema_dir / "schema-v1.0.json"
+        with open(schema_path, "w") as f:
+            json.dump(
+                {
+                    "$schema": "http://json-schema.org/draft-07/schema#",
+                    "type": "object",
+                    "required": ["format_version", "name", "title", "resources"],
+                    "properties": {
+                        "format_version": {"type": "string"},
+                        "name": {"type": "string"},
+                        "title": {"type": "string"},
+                        "resources": {"type": "array"},
+                    },
+                },
+                f,
+            )
+        yield tmppath
+
+
+def create_example_config(
+    dir_path: Path,
+    name: str,
+    config: dict,
+) -> None:
+    """Create an example config file in a directory."""
+    example_dir = dir_path / name
+    example_dir.mkdir(exist_ok=True)
+    config_path = example_dir / "config.yaml"
+
+    import yaml  # type: ignore
+
+    with open(config_path, "w") as f:
+        yaml.dump(config, f)
+
+
+def test_list_examples_empty(runner: CliRunner, monkeypatch: Any) -> None:
+    """Test listing examples when none exist."""
+    with tempfile.TemporaryDirectory() as tmpdir:
+        monkeypatch.setattr(
+            "slcli.example_click.ExampleLoader",
+            lambda: ExampleLoader(Path(tmpdir)),
+        )
+        cli = make_cli()
+        result = runner.invoke(cli, ["example", "list"])
+
+        assert result.exit_code == 0
+
+
+def test_list_examples_table_format(
+    runner: CliRunner, temp_examples_dir: Path, monkeypatch: Any
+) -> None:
+    """Test listing examples in table format."""
+    # Create a test example
+    config = {
+        "format_version": "1.0",
+        "name": "demo-test",
+        "title": "Demo Test Example",
+        "author": "Test Author",
+        "tags": ["training", "demo"],
+        "estimated_setup_time_minutes": 5,
+        "resources": [],
+    }
+    create_example_config(temp_examples_dir, "demo-test", config)
+
+    # Mock the loader
+    monkeypatch.setattr(
+        "slcli.example_click.ExampleLoader",
+        lambda: ExampleLoader(temp_examples_dir),
+    )
+
+    monkeypatch.setattr("slcli.example_click.get_workspace_map", lambda: {"ws-1": "Test Workspace"})
+
+    cli = make_cli()
+    result = runner.invoke(cli, ["example", "list", "--format", "table"])
+
+    assert result.exit_code == 0
+    assert "demo-test" in result.output
+
+
+def test_list_examples_json_format(
+    runner: CliRunner, temp_examples_dir: Path, monkeypatch: Any
+) -> None:
+    """Test listing examples in JSON format."""
+    # Create a test example
+    config = {
+        "format_version": "1.0",
+        "name": "demo-test",
+        "title": "Demo Test Example",
+        "author": "Test Author",
+        "tags": ["training"],
+        "estimated_setup_time_minutes": 5,
+        "resources": [],
+    }
+    create_example_config(temp_examples_dir, "demo-test", config)
+
+    # Mock the loader
+    monkeypatch.setattr(
+        "slcli.example_click.ExampleLoader",
+        lambda: ExampleLoader(temp_examples_dir),
+    )
+
+    monkeypatch.setattr("slcli.example_click.get_workspace_map", lambda: {"ws-1": "Test Workspace"})
+
+    cli = make_cli()
+    result = runner.invoke(cli, ["example", "list", "--format", "json"])
+
+    assert result.exit_code == 0
+    data = json.loads(result.output)
+    assert isinstance(data, list)
+    assert len(data) == 1
+    assert data[0]["name"] == "demo-test"
+
+
+def test_list_examples_default_format(
+    runner: CliRunner, temp_examples_dir: Path, monkeypatch: Any
+) -> None:
+    """Test that default format is table."""
+    # Create a test example
+    config = {
+        "format_version": "1.0",
+        "name": "test",
+        "title": "Test",
+        "resources": [],
+    }
+    create_example_config(temp_examples_dir, "test", config)
+
+    # Mock the loader
+    monkeypatch.setattr(
+        "slcli.example_click.ExampleLoader",
+        lambda: ExampleLoader(temp_examples_dir),
+    )
+
+    monkeypatch.setattr("slcli.example_click.get_workspace_map", lambda: {"ws-1": "Test Workspace"})
+
+    cli = make_cli()
+    result = runner.invoke(cli, ["example", "list"])
+
+    assert result.exit_code == 0
+    # Table format should not be JSON
+    assert "{" not in result.output or "[" not in result.output
+
+
+def test_info_example_table_format(
+    runner: CliRunner, temp_examples_dir: Path, monkeypatch: Any
+) -> None:
+    """Test info command in table format."""
+    config = {
+        "format_version": "1.0",
+        "name": "demo-test",
+        "title": "Demo Test Example",
+        "description": "Test description",
+        "author": "Test Author",
+        "tags": ["training"],
+        "estimated_setup_time_minutes": 5,
+        "resources": [
+            {
+                "type": "location",
+                "name": "Location 1",
+                "properties": {},
+                "id_reference": "loc1",
+            },
+            {
+                "type": "system",
+                "name": "System 1",
+                "properties": {},
+                "id_reference": "sys1",
+            },
+        ],
+    }
+    create_example_config(temp_examples_dir, "demo-test", config)
+
+    # Mock the loader
+    monkeypatch.setattr(
+        "slcli.example_click.ExampleLoader",
+        lambda: ExampleLoader(temp_examples_dir),
+    )
+
+    monkeypatch.setattr("slcli.example_click.get_workspace_map", lambda: {"ws-1": "Test Workspace"})
+
+    cli = make_cli()
+    result = runner.invoke(cli, ["example", "info", "demo-test"])
+
+    assert result.exit_code == 0
+    assert "Demo Test Example" in result.output
+    assert "Test Author" in result.output
+    assert "Location 1" in result.output
+    assert "System 1" in result.output
+
+
+def test_info_example_json_format(
+    runner: CliRunner, temp_examples_dir: Path, monkeypatch: Any
+) -> None:
+    """Test info command in JSON format."""
+    config = {
+        "format_version": "1.0",
+        "name": "demo-test",
+        "title": "Demo Test Example",
+        "author": "Test Author",
+        "resources": [],
+    }
+    create_example_config(temp_examples_dir, "demo-test", config)
+
+    # Mock the loader
+    monkeypatch.setattr(
+        "slcli.example_click.ExampleLoader",
+        lambda: ExampleLoader(temp_examples_dir),
+    )
+
+    monkeypatch.setattr("slcli.example_click.get_workspace_map", lambda: {"ws-1": "Test Workspace"})
+
+    cli = make_cli()
+    result = runner.invoke(cli, ["example", "info", "demo-test", "--format", "json"])
+
+    assert result.exit_code == 0
+    data = json.loads(result.output)
+    assert data["name"] == "demo-test"
+    assert data["title"] == "Demo Test Example"
+
+
+def test_info_example_not_found(runner: CliRunner, monkeypatch: Any) -> None:
+    """Test info command with non-existent example."""
+    with tempfile.TemporaryDirectory() as tmpdir:
+        monkeypatch.setattr(
+            "slcli.example_click.ExampleLoader",
+            lambda: ExampleLoader(Path(tmpdir)),
+        )
+
+        cli = make_cli()
+        result = runner.invoke(cli, ["example", "info", "nonexistent"])
+
+        assert result.exit_code == ExitCodes.NOT_FOUND
+
+
+def test_info_example_invalid_config(
+    runner: CliRunner, temp_examples_dir: Path, monkeypatch: Any
+) -> None:
+    """Test info command with invalid config."""
+    # Create invalid config
+    example_dir = temp_examples_dir / "invalid"
+    example_dir.mkdir()
+    config_path = example_dir / "config.yaml"
+    with open(config_path, "w") as f:
+        # Missing required fields
+        import yaml  # type: ignore
+
+        yaml.dump({"format_version": "1.0"}, f)
+
+    # Mock the loader
+    monkeypatch.setattr(
+        "slcli.example_click.ExampleLoader",
+        lambda: ExampleLoader(temp_examples_dir),
+    )
+
+    monkeypatch.setattr("slcli.example_click.get_workspace_map", lambda: {"ws-1": "Test Workspace"})
+
+    cli = make_cli()
+    result = runner.invoke(cli, ["example", "info", "invalid"])
+
+    assert result.exit_code == ExitCodes.INVALID_INPUT
+
+
+def test_list_help_text(runner: CliRunner) -> None:
+    """Test list command help text."""
+    cli = make_cli()
+    result = runner.invoke(cli, ["example", "list", "--help"])
+
+    assert result.exit_code == 0
+    assert "list available example configurations" in result.output.lower()
+
+
+def test_info_help_text(runner: CliRunner) -> None:
+    """Test info command help text."""
+    cli = make_cli()
+    result = runner.invoke(cli, ["example", "info", "--help"])
+
+    assert result.exit_code == 0
+    assert "show detailed information" in result.output.lower()
+
+
+def test_example_group_help(runner: CliRunner) -> None:
+    """Test example group help text."""
+    cli = make_cli()
+    result = runner.invoke(cli, ["example", "--help"])
+
+    assert result.exit_code == 0
+    assert "example resource configurations" in result.output.lower()
+
+
+def test_install_example_resolves_workspace_and_outputs_table(
+    runner: CliRunner, temp_examples_dir: Path, monkeypatch: Any
+) -> None:
+    """Install command should resolve workspace names and render table output."""
+    config = {
+        "format_version": "1.0",
+        "name": "demo-test",
+        "title": "Demo Test Example",
+        "resources": [
+            {
+                "type": "system",
+                "name": "System 1",
+                "id_reference": "sys1",
+                "properties": {"name": "System 1"},
+            }
+        ],
+    }
+    create_example_config(temp_examples_dir, "demo-test", config)
+
+    captured: Dict[str, Any] = {}
+
+    class DummyProvisioner:
+        def __init__(
+            self, workspace_id: Optional[str], example_name: Optional[str], dry_run: bool
+        ) -> None:
+            captured["workspace_id"] = workspace_id
+            captured["example_name"] = example_name
+            captured["dry_run"] = dry_run
+
+        def provision(self, _: Dict[str, Any]) -> Tuple[List[ProvisioningResult], None]:
+            res = ProvisioningResult(
+                id_reference="sys1",
+                resource_type="system",
+                resource_name="System 1",
+                action=ProvisioningAction.CREATED,
+                server_id="sys-123",
+            )
+            return [res], None
+
+    monkeypatch.setattr(
+        "slcli.example_click.ExampleLoader", lambda: ExampleLoader(temp_examples_dir)
+    )
+    monkeypatch.setattr("slcli.example_click.ExampleProvisioner", DummyProvisioner)
+    monkeypatch.setattr("slcli.example_click.get_workspace_map", lambda: {"ws-1": "Training"})
+
+    cli = make_cli()
+    result = runner.invoke(cli, ["example", "install", "demo-test", "--workspace", "Training"])
+
+    assert result.exit_code == 0
+    assert "System 1" in result.output
+    assert captured["workspace_id"] == "ws-1"
+    assert captured["dry_run"] is False
+
+
+def test_install_example_json_and_audit_log(
+    runner: CliRunner, temp_examples_dir: Path, monkeypatch: Any
+) -> None:
+    """Install command should support JSON output and audit logging."""
+    config = {
+        "format_version": "1.0",
+        "name": "demo-test",
+        "title": "Demo Test Example",
+        "resources": [
+            {
+                "type": "system",
+                "name": "System 1",
+                "id_reference": "sys1",
+                "properties": {"name": "System 1"},
+            }
+        ],
+    }
+    create_example_config(temp_examples_dir, "demo-test", config)
+
+    class DummyProvisioner:
+        def __init__(self, *args: Any, **kwargs: Any) -> None:
+            pass
+
+        def provision(self, _: Dict[str, Any]) -> Tuple[List[ProvisioningResult], None]:
+            res = ProvisioningResult(
+                id_reference="sys1",
+                resource_type="system",
+                resource_name="System 1",
+                action=ProvisioningAction.SKIPPED,
+                server_id=None,
+            )
+            return [res], None
+
+    audit_path = temp_examples_dir / "audit.json"
+
+    monkeypatch.setattr(
+        "slcli.example_click.ExampleLoader", lambda: ExampleLoader(temp_examples_dir)
+    )
+    monkeypatch.setattr("slcli.example_click.ExampleProvisioner", DummyProvisioner)
+    monkeypatch.setattr("slcli.example_click.get_workspace_map", lambda: {"ws-1": "Training"})
+
+    cli = make_cli()
+    result = runner.invoke(
+        cli,
+        [
+            "example",
+            "install",
+            "demo-test",
+            "--format",
+            "json",
+            "--audit-log",
+            str(audit_path),
+            "--dry-run",
+        ],
+    )
+
+    assert result.exit_code == 0
+    data = json.loads(result.output)
+    assert data[0]["action"] == "skipped"
+    assert audit_path.exists()
+    with open(audit_path, "r") as f:
+        saved = json.load(f)
+    assert saved[0]["action"] == "skipped"
+
+
+def test_delete_example_outputs_deleted_results(
+    runner: CliRunner, temp_examples_dir: Path, monkeypatch: Any
+) -> None:
+    """Delete command should surface deletion actions."""
+    config = {
+        "format_version": "1.0",
+        "name": "demo-test",
+        "title": "Demo Test Example",
+        "resources": [
+            {
+                "type": "system",
+                "name": "System 1",
+                "id_reference": "sys1",
+                "properties": {"name": "System 1"},
+            }
+        ],
+    }
+    create_example_config(temp_examples_dir, "demo-test", config)
+
+    class DummyProvisioner:
+        def __init__(self, *args: Any, **kwargs: Any) -> None:
+            pass
+
+        def delete(self, _: Dict[str, Any]) -> Tuple[List[ProvisioningResult], None]:
+            res = ProvisioningResult(
+                id_reference="sys1",
+                resource_type="system",
+                resource_name="System 1",
+                action=ProvisioningAction.DELETED,
+                server_id="sys-123",
+            )
+            return [res], None
+
+    monkeypatch.setattr(
+        "slcli.example_click.ExampleLoader", lambda: ExampleLoader(temp_examples_dir)
+    )
+    monkeypatch.setattr("slcli.example_click.ExampleProvisioner", DummyProvisioner)
+    monkeypatch.setattr("slcli.example_click.get_workspace_map", lambda: {"ws-1": "Training"})
+
+    cli = make_cli()
+    result = runner.invoke(cli, ["example", "delete", "demo-test"])
+
+    assert result.exit_code == 0
+    assert "deleted" in result.output.lower()
+
+
+def test_install_example_workspace_not_found(
+    runner: CliRunner, temp_examples_dir: Path, monkeypatch: Any
+) -> None:
+    """Install should exit with invalid input when workspace cannot be resolved."""
+    config = {
+        "format_version": "1.0",
+        "name": "demo-test",
+        "title": "Demo Test Example",
+        "resources": [
+            {
+                "type": "system",
+                "name": "System 1",
+                "id_reference": "sys1",
+                "properties": {"name": "System 1"},
+            }
+        ],
+    }
+    create_example_config(temp_examples_dir, "demo-test", config)
+
+    # Provisioner should never be invoked when workspace resolution fails
+    class DummyProvisioner:
+        def __init__(self, *args: Any, **kwargs: Any) -> None:
+            raise AssertionError("Provisioner should not be constructed")
+
+    monkeypatch.setattr(
+        "slcli.example_click.ExampleLoader", lambda: ExampleLoader(temp_examples_dir)
+    )
+    monkeypatch.setattr("slcli.example_click.ExampleProvisioner", DummyProvisioner)
+    monkeypatch.setattr("slcli.example_click.get_workspace_map", lambda: {"ws-1": "Training"})
+
+    cli = make_cli()
+    result = runner.invoke(cli, ["example", "install", "demo-test", "--workspace", "Missing"])
+
+    assert result.exit_code == ExitCodes.INVALID_INPUT
