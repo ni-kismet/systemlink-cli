@@ -44,6 +44,13 @@ def main():
 
     project_root = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
     entry_point = os.path.join(project_root, "slcli", "__main__.py")
+    examples_dir = os.path.join(project_root, "slcli", "examples")
+
+    if not os.path.isdir(examples_dir):
+        print(f"Examples directory not found at {examples_dir}")
+        sys.exit(1)
+
+    examples_data_arg = f"{examples_dir}{os.pathsep}slcli/examples"
     cmd = [
         sys.executable,
         "-m",
@@ -51,6 +58,8 @@ def main():
         "--name=slcli",
         "--noconfirm",
         "--collect-submodules=shellingham",
+        "--add-data",
+        examples_data_arg,
         entry_point,
     ]
     print(f"Running: {' '.join(cmd)}")
