@@ -1,7 +1,20 @@
 # CHANGELOG
 
 
+## v0.20.1 (2025-12-30)
+
+### Bug Fixes
+
+- Include examples in PyInstaller build ([#39](https://github.com/ni-kismet/systemlink-cli/pull/39),
+  [`92ab074`](https://github.com/ni-kismet/systemlink-cli/commit/92ab0747e0d3a4ecf81e96010d02b3ff00b32883))
+
+
 ## v0.20.0 (2025-12-19)
+
+### Chores
+
+- **release**: 0.20.0
+  ([`15f37ee`](https://github.com/ni-kismet/systemlink-cli/commit/15f37eed99c0c7b55518179ad96096e72b563930))
 
 ### Features
 
