@@ -1,0 +1,80 @@
+---
+# SLE Example Configuration: Spec Compliance Analysis Notebooks
+format_version: "1.0"
+name: "spec-compliance-notebooks"
+title: "Specification Compliance Analysis Notebooks"
+description: |
+  A complete example providing Jupyter notebooks for performing specification
+  compliance analysis on test data. Includes notebooks for BDC extraction,
+  spec compliance calculation, and compliance analysis workflows.
+
+  Notebooks are published to SystemLink with the File Analysis interface,
+  enabling seamless integration with test data and measurement workflows.
+
+author: "NI"
+created_date: "2025-12-30"
+updated_date: "2025-12-30"
+tags:
+  - "analysis"
+  - "compliance"
+  - "notebooks"
+  - "file-analysis"
+
+estimated_setup_time_minutes: 3
+required_systemlink_version: "2024.1"
+target_workspace: null
+
+resources:
+  # Spec Compliance Calculation Notebook
+  - type: "file"
+    name: "Spec Compliance Calculation"
+    properties:
+      # File path relative to example directory
+      file_path: "notebooks/SpecComplianceCalculation.ipynb"
+      # Notebook interface for File Analysis
+      notebook_interface: "File Analysis"
+      description: "Calculate compliance and generate reports for parametric specifications"
+      tags: ["spec-compliance", "analysis"]
+    id_reference: "nb_spec_calc"
+    tags: ["example"]
+
+  # Spec Analysis & Compliance Calculation Notebook
+  - type: "file"
+    name: "Spec Analysis Compliance Calculation"
+    properties:
+      file_path: "notebooks/SpecAnalysis_ComplianceCalculation.ipynb"
+      notebook_interface: "File Analysis"
+      description: "Combined spec analysis and compliance calculation workflow"
+      tags: ["spec-analysis", "compliance"]
+    id_reference: "nb_spec_analysis_calc"
+    tags: ["example"]
+
+  # Specfile Extraction and Ingestion Notebook
+  - type: "file"
+    name: "Specfile Extraction and Ingestion"
+    properties:
+      file_path: "notebooks/SpecfileExtractionAndIngestion.ipynb"
+      notebook_interface: "File Analysis"
+      description: "Extract and ingest specification data from specfiles"
+      tags: ["spec-extraction", "data-ingestion"]
+    id_reference: "nb_spec_extraction"
+    tags: ["example"]
+
+cleanup:
+  order: ["file"]
+  filter_tags: ["example"]
+  require_confirmation: true
+
+post_install:
+  instructions: |
+    All specification compliance analysis notebooks have been published to your workspace.
+    
+    Available Notebooks:
+    - Spec Compliance Calculation: Run compliance calculations on measurement data
+    - Spec Analysis Compliance Calculation: Combined analysis and compliance workflow
+    - Specfile Extraction and Ingestion: Extract and ingest specification data
+    
+    All notebooks are configured with the File Analysis interface and can be run directly
+    from the SystemLink file explorer or invoked programmatically.
+    
+    For usage details, refer to the documentation in each notebook.

@@ -2318,12 +2318,24 @@ class ExampleProvisioner:
     def _create_file(self, props: Dict[str, Any]) -> Optional[str]:
         """Create file via /nifile/v1/service-groups/Default/upload-files (multipart).
 
+        If file_path is provided, creates a notebook resource from the file.
+        Supports notebook_interface property for assigning interfaces.
+
         Returns file ID if created, None on error.
         """
         name = props.get("name", "")
         if not name:
             return None
 
+        # Check if this is a notebook resource (has file_path and notebook_interface)
+        file_path = props.get("file_path")
+        notebook_interface = props.get("notebook_interface")
+
+        if file_path and notebook_interface:
+            # Handle as notebook creation
+            return self._create_notebook_from_file(name, file_path, notebook_interface)
+
+        # Handle as regular file upload
         try:
             url = f"{get_base_url()}/nifile/v1/service-groups/Default/upload-files"
             # Prepare metadata as JSON string
@@ -2376,6 +2388,101 @@ class ExampleProvisioner:
                 return file_id if file_id else None
             # Fallback: return None (files don't support name-based lookup)
             return None
+        except Exception:
+            return None
+
+    def _create_notebook_from_file(
+        self, name: str, file_path: str, interface: str
+    ) -> Optional[str]:
+        """Create a notebook from a file path and assign an interface.
+
+        Args:
+            name: Notebook name in SystemLink
+            file_path: Path to .ipynb file relative to example directory
+            interface: Notebook interface name (e.g., "File Analysis")
+
+        Returns:
+            Notebook ID if created, None on error.
+        """
+        from pathlib import Path
+
+        try:
+            # Resolve file path relative to example directory
+            if self.example_name:
+                # Path relative to slcli/examples/{example_name}/
+                example_dir = Path(__file__).parent / "examples" / self.example_name
+                notebook_file = example_dir / file_path
+            else:
+                notebook_file = Path(file_path)
+
+            if not notebook_file.exists():
+                return None
+
+            # Read notebook content
+            with open(notebook_file, "rb") as f:
+                content = f.read()
+
+            # Create notebook via multipart API
+            base_url = get_base_url()
+            headers = get_headers()
+
+            # Create metadata following the SystemLink NotebookMetadata model
+            metadata: Dict[str, Any] = {
+                "name": name,
+                "workspace": self.workspace_id or "Default",
+                "properties": {},
+                "parameters": {},
+            }
+
+            # Add example tag for cleanup
+            if self.example_name:
+                metadata["properties"]["slcli-example"] = self.example_name
+
+            metadata_json = json_module.dumps(metadata, separators=(",", ":"))
+            metadata_bytes = metadata_json.encode("utf-8")
+
+            files = {
+                "metadata": ("metadata.json", metadata_bytes, "application/json"),
+                "content": ("notebook.ipynb", content, "application/octet-stream"),
+            }
+
+            # Create the notebook
+            notebook_url = f"{base_url}/ninotebook/v1/notebook"
+            resp = requests.post(
+                notebook_url, headers=headers, files=files, verify=True, timeout=30
+            )
+            resp.raise_for_status()
+            response_data = resp.json()
+            notebook_id = response_data.get("id")
+
+            if not notebook_id:
+                return None
+
+            # Assign the interface
+            if interface:
+                interface_metadata = {
+                    "name": name,
+                    "workspace": self.workspace_id or "Default",
+                    "properties": {"interface": interface},
+                }
+
+                update_url = f"{base_url}/ninotebook/v1/notebook/{notebook_id}"
+                update_files = {
+                    "metadata": (
+                        "metadata.json",
+                        json_module.dumps(interface_metadata, separators=(",", ":")).encode(
+                            "utf-8"
+                        ),
+                        "application/json",
+                    )
+                }
+
+                resp = requests.put(
+                    update_url, headers=headers, files=update_files, verify=True, timeout=30
+                )
+                resp.raise_for_status()
+
+            return notebook_id
         except Exception:
             return None
 
