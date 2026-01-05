@@ -72,6 +72,7 @@ class ExampleProvisioner:
         self.id_map: Dict[str, str] = {}
         self._test_results_deleted: bool = False
         self._files_deleted: bool = False
+        self._notebooks_deleted: bool = False
 
     def provision(
         self, config: Dict[str, Any]
@@ -145,6 +146,7 @@ class ExampleProvisioner:
         # Reset per-run flags
         self._test_results_deleted = False
         self._files_deleted = False
+        self._notebooks_deleted = False
 
         try:
             for resource in reversed([r for r in resources if isinstance(r, dict)]):
@@ -196,6 +198,7 @@ class ExampleProvisioner:
                     "test_result": self._delete_test_result,
                     "data_table": self._delete_data_table,
                     "file": self._delete_file,
+                    "notebook": self._delete_notebook,
                 }
                 delete_fn = delete_map.get(rtype)
                 if not delete_fn:
@@ -265,6 +268,7 @@ class ExampleProvisioner:
             "test_result": self._create_test_result,
             "data_table": self._create_data_table,
             "file": self._create_file,
+            "notebook": self._create_notebook,
         }
 
         create_fn = create_map.get(rtype)
@@ -479,9 +483,23 @@ class ExampleProvisioner:
             "workspace": self.workspace_id or "",
         }
         # Copy optional fields from ProductRequestObject schema
-        for key in ["partNumber", "family", "properties", "fileIds"]:
+        for key in ["partNumber", "family", "properties"]:
             if key in props:
                 product_obj[key] = props[key]
+
+        # Handle fileIds: resolve file references from id_map
+        file_ids: List[str] = []
+        # Check for fileIds directly in props
+        if "fileIds" in props and isinstance(props["fileIds"], list):
+            file_ids.extend([str(fid) for fid in props["fileIds"]])
+        # Check for file_id_references that need to be resolved
+        if "file_id_references" in props and isinstance(props["file_id_references"], list):
+            for ref in props["file_id_references"]:
+                if ref in self.id_map:
+                    file_ids.append(self.id_map[ref])
+        # If we have file IDs, add them to the product object
+        if file_ids:
+            product_obj["fileIds"] = file_ids
 
         # Ensure part number is present to avoid silent failures
         if "partNumber" not in product_obj:
@@ -2318,31 +2336,42 @@ class ExampleProvisioner:
     def _create_file(self, props: Dict[str, Any]) -> Optional[str]:
         """Create file via /nifile/v1/service-groups/Default/upload-files (multipart).
 
-        If file_path is provided, creates a notebook resource from the file.
-        Supports notebook_interface property for assigning interfaces.
-
         Returns file ID if created, None on error.
         """
         name = props.get("name", "")
         if not name:
             return None
 
-        # Check if this is a notebook resource (has file_path and notebook_interface)
-        file_path = props.get("file_path")
-        notebook_interface = props.get("notebook_interface")
-
-        if file_path and notebook_interface:
-            # Handle as notebook creation
-            return self._create_notebook_from_file(name, file_path, notebook_interface)
-
         # Handle as regular file upload
         try:
             url = f"{get_base_url()}/nifile/v1/service-groups/Default/upload-files"
+
+            # Get file content from file_path if provided, otherwise use placeholder
+            file_path = props.get("file_path")
+            if file_path:
+                file_content = self._read_example_file(file_path)
+                if file_content is None:
+                    return None
+                # Extract filename from file_path to preserve extension
+                from pathlib import Path
+
+                file_basename = Path(file_path).name
+                # Append extension to name if not already present and we have a file_path
+                upload_name = name
+                if "." not in upload_name and "." in file_basename:
+                    upload_name = f"{name}.{file_basename.split('.')[-1]}"
+            else:
+                # Create minimal file content (placeholder for demo)
+                file_content = (f"# {name}\n# Created by SystemLink example provisioner\n").encode(
+                    "utf-8"
+                )
+                upload_name = name
+
             # Prepare metadata as JSON string
             # File metadata supports Name, description, and custom properties
             metadata = {
                 "description": props.get("description", ""),
-                "Name": name,
+                "Name": upload_name,  # Use upload_name which includes extension
             }
 
             # Build cleanup tags and store in properties
@@ -2364,11 +2393,13 @@ class ExampleProvisioner:
                 # Store tags as comma-separated string in a custom property
                 metadata["slcli-tags"] = ",".join(dedup)
 
-            # Create minimal file content (mock data for demo)
-            file_content = f"# {name}\n# Created by SystemLink example provisioner\n"
             # Prepare multipart form data
             files = {
-                "file": (name, file_content, props.get("content_type", "application/octet-stream"))
+                "file": (
+                    upload_name,
+                    file_content,
+                    props.get("content_type", "application/octet-stream"),
+                )
             }
             data = {"metadata": json_module.dumps(metadata)}
             if self.workspace_id:
@@ -2391,19 +2422,51 @@ class ExampleProvisioner:
         except Exception:
             return None
 
-    def _create_notebook_from_file(
-        self, name: str, file_path: str, interface: str
-    ) -> Optional[str]:
+    def _read_example_file(self, file_path: str) -> Optional[bytes]:
+        """Read a file from the example directory.
+
+        Args:
+            file_path: Path relative to example directory
+
+        Returns:
+            File contents as bytes, or None if not found.
+        """
+        from pathlib import Path
+
+        try:
+            if self.example_name:
+                # Path relative to slcli/examples/{example_name}/
+                example_dir = Path(__file__).parent / "examples" / self.example_name
+                full_path = example_dir / file_path
+            else:
+                full_path = Path(file_path)
+
+            if not full_path.exists():
+                return None
+
+            with open(full_path, "rb") as f:
+                return f.read()
+        except Exception:
+            return None
+
+    def _create_notebook(self, props: Dict[str, Any]) -> Optional[str]:
         """Create a notebook from a file path and assign an interface.
 
         Args:
-            name: Notebook name in SystemLink
-            file_path: Path to .ipynb file relative to example directory
-            interface: Notebook interface name (e.g., "File Analysis")
+            props: Resource properties containing:
+                - name: Notebook name in SystemLink
+                - file_path: Path to .ipynb file relative to example directory
+                - notebook_interface: Notebook interface name (e.g., "File Analysis")
 
         Returns:
             Notebook ID if created, None on error.
         """
+        name = props.get("name", "")
+        file_path = props.get("file_path", "")
+        interface = props.get("notebook_interface", "")
+
+        if not name or not file_path:
+            return None
         from pathlib import Path
 
         try:
@@ -2460,10 +2523,14 @@ class ExampleProvisioner:
 
             # Assign the interface
             if interface:
+                # Merge interface with existing properties to preserve slcli-example tag
+                updated_properties = metadata["properties"].copy()
+                updated_properties["interface"] = interface
+
                 interface_metadata = {
                     "name": name,
                     "workspace": self.workspace_id or "Default",
-                    "properties": {"interface": interface},
+                    "properties": updated_properties,
                 }
 
                 update_url = f"{base_url}/ninotebook/v1/notebook/{notebook_id}"
@@ -2504,39 +2571,101 @@ class ExampleProvisioner:
         example_tag = f"slcli-example:{self.example_name}" if self.example_name else None
 
         try:
-            # Build Dynamic Linq filter on properties['slcli-tags']
-            # which stores comma-separated tags
-            tag_checks = ['properties["slcli-tags"].Contains("slcli-provisioner")']
-            if example_tag:
-                tag_checks.append(f'properties["slcli-tags"].Contains("{example_tag}")')
+            deleted_ids: List[str] = []
 
-            filter_expr = " && ".join(tag_checks)
-            if self.workspace_id:
-                filter_expr = f'({filter_expr}) && workspace == "{self.workspace_id}"'
+            # Try to query files by workspace
+            if self.workspace_id and example_tag:
+                # Simple query by workspace only - custom properties may not be queryable
+                filter_expr = f'workspace == "{self.workspace_id}"'
 
-            query_url = f"{get_base_url()}/nifile/v1/service-groups/Default/query-files-linq"
-            query_payload = {"filter": filter_expr, "take": 1000}
-            query_resp = make_api_request("POST", query_url, query_payload, handle_errors=False)
-            files = query_resp.json().get("availableFiles", [])
+                query_url = f"{get_base_url()}/nifile/v1/service-groups/Default/query-files-linq"
+                query_payload = {"filter": filter_expr, "take": 1000}
+                query_resp = make_api_request("POST", query_url, query_payload, handle_errors=False)
+                files = query_resp.json().get("availableFiles", [])
 
-            file_ids: List[str] = []
-            for file_item in files:
-                fid = file_item.get("id")
-                if fid:
-                    file_ids.append(str(fid))
+                # Filter client-side by checking metadata for our tags
+                file_ids: List[str] = []
+                for file_item in files:
+                    # Check if this file has our example tag in metadata
+                    props_meta = file_item.get("properties", {})
+                    tags_str = props_meta.get("slcli-tags", "")
+                    if example_tag in tags_str and "slcli-provisioner" in tags_str:
+                        fid = file_item.get("id")
+                        if fid:
+                            file_ids.append(str(fid))
 
-            if not file_ids:
+                if file_ids:
+                    delete_url = f"{get_base_url()}/nifile/v1/service-groups/Default/delete-files"
+                    delete_payload = {"ids": file_ids}
+                    make_api_request("POST", delete_url, delete_payload, handle_errors=False)
+                    deleted_ids.extend(file_ids)
+                    self._files_deleted = True
+
+            if not deleted_ids:
                 if self._files_deleted:
                     return "__ALREADY_DELETED__"
                 return None
 
-            delete_url = f"{get_base_url()}/nifile/v1/service-groups/Default/delete-files"
-            delete_payload = {"ids": file_ids}
-            make_api_request("POST", delete_url, delete_payload, handle_errors=False)
-            self._files_deleted = True
+            if len(deleted_ids) == 1:
+                return deleted_ids[0]
+            return f"{deleted_ids[0]} (+{len(deleted_ids) - 1} more)"
+        except Exception:
+            return None
 
-            if len(file_ids) == 1:
-                return file_ids[0]
-            return f"{file_ids[0]} (+{len(file_ids) - 1} more)"
+    def _delete_notebook(self, props: Dict[str, Any]) -> Optional[str]:
+        """Delete notebooks via /ninotebook/v1/notebook using tags.
+
+        Returns an ID summary if deleted, None otherwise.
+        """
+        example_tag = f"slcli-example:{self.example_name}" if self.example_name else None
+
+        try:
+            deleted_ids: List[str] = []
+
+            # Query notebooks by workspace and filter client-side
+            # Note: Notebook API doesn't support querying on custom properties
+            if example_tag and self.workspace_id:
+                base_url = get_base_url()
+
+                # Extract example name from tag
+                example_name = example_tag.split(":")[-1]
+
+                # Query by workspace only
+                filter_str = f'workspace == "{self.workspace_id}"'
+                payload: Dict[str, Any] = {"filter": filter_str, "take": 100}
+                resp = make_api_request(
+                    "POST",
+                    f"{base_url}/ninotebook/v1/notebook/query",
+                    payload,
+                    handle_errors=False,
+                )
+                notebooks = resp.json().get("notebooks", [])
+
+                # Filter client-side by checking properties for our example tag
+                for notebook in notebooks:
+                    props_meta = notebook.get("properties", {})
+                    if props_meta.get("slcli-example") == example_name:
+                        nb_id = notebook.get("id")
+                        if nb_id:
+                            try:
+                                # Delete the notebook
+                                delete_nb_url = f"{base_url}/ninotebook/v1/notebook/{nb_id}"
+                                make_api_request("DELETE", delete_nb_url, handle_errors=False)
+                                deleted_ids.append(nb_id)
+                            except Exception:
+                                pass  # Continue deleting other notebooks
+
+                # Mark notebooks as deleted after bulk operation
+                if deleted_ids:
+                    self._notebooks_deleted = True
+
+            if not deleted_ids:
+                if self._notebooks_deleted:
+                    return "__ALREADY_DELETED__"
+                return None
+
+            if len(deleted_ids) == 1:
+                return deleted_ids[0]
+            return f"{deleted_ids[0]} (+{len(deleted_ids) - 1} more)"
         except Exception:
             return None

@@ -20,14 +20,34 @@ tags:
   - "notebooks"
   - "file-analysis"
 
-estimated_setup_time_minutes: 3
+estimated_setup_time_minutes: 5
 required_systemlink_version: "2024.1"
 target_workspace: null
 
 resources:
-  # Spec Compliance Calculation Notebook
+  # Specification Template File (created first so product can reference it)
   - type: "file"
-    name: "Spec Compliance Calculation"
+    name: "spec_template.xlsx"
+    properties:
+      file_path: "spec_template.xlsx"
+      description: "Example Excel template for specification ingestion. Upload this file and run the SpecfileExtractionAndIngestion.ipynb notebook to see how specifications are extracted and ingested into SystemLink."
+      tags: ["template", "specification"]
+    id_reference: "file_spec_template"
+    tags: ["example"]
+
+  # Product for Spec Compliance (created after file so it can reference file ID)
+  - type: "product"
+    name: "Spec Compliance Example Product"
+    properties:
+      description: "Example product for specification compliance analysis demonstration"
+      tags: ["example", "spec-compliance"]
+      file_id_references: ["file_spec_template"]
+    id_reference: "prod_spec_example"
+    tags: ["example"]
+
+  # Spec Compliance Calculation Notebook
+  - type: "notebook"
+    name: "Spec Compliance Calculation.ipynb"
     properties:
       # File path relative to example directory
       file_path: "notebooks/SpecComplianceCalculation.ipynb"
@@ -39,8 +59,8 @@ resources:
     tags: ["example"]
 
   # Spec Analysis & Compliance Calculation Notebook
-  - type: "file"
-    name: "Spec Analysis Compliance Calculation"
+  - type: "notebook"
+    name: "Spec Analysis Compliance Calculation.ipynb"
     properties:
       file_path: "notebooks/SpecAnalysis_ComplianceCalculation.ipynb"
       notebook_interface: "File Analysis"
@@ -50,8 +70,8 @@ resources:
     tags: ["example"]
 
   # Specfile Extraction and Ingestion Notebook
-  - type: "file"
-    name: "Specfile Extraction and Ingestion"
+  - type: "notebook"
+    name: "SpecfileExtractionAndIngestion.ipynb"
     properties:
       file_path: "notebooks/SpecfileExtractionAndIngestion.ipynb"
       notebook_interface: "File Analysis"
@@ -61,20 +81,32 @@ resources:
     tags: ["example"]
 
 cleanup:
-  order: ["file"]
+  order: ["notebook", "file", "product"]
   filter_tags: ["example"]
   require_confirmation: true
 
 post_install:
   instructions: |
-    All specification compliance analysis notebooks have been published to your workspace.
+    All specification compliance analysis resources have been published to your workspace.
     
-    Available Notebooks:
-    - Spec Compliance Calculation: Run compliance calculations on measurement data
-    - Spec Analysis Compliance Calculation: Combined analysis and compliance workflow
-    - Specfile Extraction and Ingestion: Extract and ingest specification data
+    Created Resources:
+    - Product: Spec Compliance Example Product (for organizing spec data)
+    - Notebooks:
+      * Spec Compliance Calculation.ipynb: Run compliance calculations on measurement data
+      * Spec Analysis Compliance Calculation.ipynb: Combined analysis and compliance workflow
+      * SpecfileExtractionAndIngestion.ipynb: Extract and ingest specification data
+    - Files:
+      * spec_template.xlsx: Example Excel template for specification ingestion
     
     All notebooks are configured with the File Analysis interface and can be run directly
     from the SystemLink file explorer or invoked programmatically.
     
-    For usage details, refer to the documentation in each notebook.
+    GETTING STARTED:
+    1. The "spec_template.xlsx" file is a ready-to-use example that demonstrates the
+       Excel format required for spec files.
+    2. Use this template as a reference when preparing your own specification files.
+    3. Upload your spec file to the File service and associate it with the product.
+    4. Run the "SpecfileExtractionAndIngestion.ipynb" notebook to extract and ingest
+       specs into your product.
+    
+    For detailed usage and format documentation, refer to the example README.

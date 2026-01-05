@@ -430,6 +430,8 @@ def test_install_example_json_and_audit_log(
             "example",
             "install",
             "demo-test",
+            "--workspace",
+            "Training",
             "--format",
             "json",
             "--audit-log",
@@ -487,7 +489,7 @@ def test_delete_example_outputs_deleted_results(
     monkeypatch.setattr("slcli.example_click.get_workspace_map", lambda: {"ws-1": "Training"})
 
     cli = make_cli()
-    result = runner.invoke(cli, ["example", "delete", "demo-test"])
+    result = runner.invoke(cli, ["example", "delete", "demo-test", "--workspace", "Training"])
 
     assert result.exit_code == 0
     assert "deleted" in result.output.lower()
