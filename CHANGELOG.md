@@ -1,7 +1,22 @@
 # CHANGELOG
 
 
+## v0.22.0 (2026-01-06)
+
+### Features
+
+- Add tag commands ([#41](https://github.com/ni-kismet/systemlink-cli/pull/41),
+  [`38d015f`](https://github.com/ni-kismet/systemlink-cli/commit/38d015f3032e7fa6551bb6a89027eded5f0f345e))
+
+* feat: add tag management commands
+
+
 ## v0.21.0 (2026-01-06)
+
+### Chores
+
+- **release**: 0.21.0
+  ([`763a652`](https://github.com/ni-kismet/systemlink-cli/commit/763a6529e43bfca61650979633f29e2e437c1430))
 
 ### Features
 
