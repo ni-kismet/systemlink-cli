@@ -568,7 +568,7 @@ class TestTagE2E:
             cli_helper.assert_success(result)
 
             # Try to get value (should handle gracefully)
-            result = cli_runner(
+            cli_runner(
                 ["tag", "get-value", tag_path, "--workspace", configured_workspace],
                 check=False,
             )

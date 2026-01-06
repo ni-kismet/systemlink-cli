@@ -1,10 +1,11 @@
 """Unit tests for tag management CLI commands."""
 
 import json
-from typing import Any
+from typing import Any, Optional
 from unittest.mock import MagicMock, patch
 
 import click
+import keyring
 from click.testing import CliRunner
 
 from slcli.tag_click import register_tag_commands
@@ -32,8 +33,16 @@ def mock_response(data: dict, status_code: int = 200) -> Any:
 class TestTagList:
     """Tests for tag list command."""
 
-    def test_list_tags_with_pagination(self) -> None:
+    def test_list_tags_with_pagination(self, monkeypatch: Any) -> None:
         """Test tag listing with server-side pagination."""
+
+        def mock_get_password(service: str, key: str) -> Optional[str]:
+            if key == "SYSTEMLINK_CONFIG":
+                return json.dumps({"api_url": "http://localhost", "api_key": "test"})
+            return None
+
+        monkeypatch.setattr(keyring, "get_password", mock_get_password)
+
         cli = make_cli()
         runner = CliRunner()
 
@@ -55,8 +64,16 @@ class TestTagList:
                 assert "tag1" in result.output
                 assert "Showing 1 of 2 tags" in result.output
 
-    def test_list_tags_success(self) -> None:
+    def test_list_tags_success(self, monkeypatch: Any) -> None:
         """Test successful tag listing."""
+
+        def mock_get_password(service: str, key: str) -> Optional[str]:
+            if key == "SYSTEMLINK_CONFIG":
+                return json.dumps({"api_url": "http://localhost", "api_key": "test"})
+            return None
+
+        monkeypatch.setattr(keyring, "get_password", mock_get_password)
+
         cli = make_cli()
         runner = CliRunner()
 
@@ -83,8 +100,16 @@ class TestTagList:
                 assert result.exit_code == 0
                 assert "temperature" in result.output
 
-    def test_list_tags_json_format(self) -> None:
+    def test_list_tags_json_format(self, monkeypatch: Any) -> None:
         """Test tag listing with JSON output."""
+
+        def mock_get_password(service: str, key: str) -> Optional[str]:
+            if key == "SYSTEMLINK_CONFIG":
+                return json.dumps({"api_url": "http://localhost", "api_key": "test"})
+            return None
+
+        monkeypatch.setattr(keyring, "get_password", mock_get_password)
+
         cli = make_cli()
         runner = CliRunner()
 
@@ -112,8 +137,16 @@ class TestTagList:
                 output_json = json.loads(result.output)
                 assert len(output_json) >= 0
 
-    def test_list_tags_with_filter(self) -> None:
+    def test_list_tags_with_filter(self, monkeypatch: Any) -> None:
         """Test tag listing with filter."""
+
+        def mock_get_password(service: str, key: str) -> Optional[str]:
+            if key == "SYSTEMLINK_CONFIG":
+                return json.dumps({"api_url": "http://localhost", "api_key": "test"})
+            return None
+
+        monkeypatch.setattr(keyring, "get_password", mock_get_password)
+
         cli = make_cli()
         runner = CliRunner()
 
@@ -131,8 +164,16 @@ class TestTagList:
                 expected_filter = 'workspace = "ws-123" && path = "*temp*"'
                 assert call_args[1]["payload"]["filter"] == expected_filter
 
-    def test_list_tags_with_keywords(self) -> None:
+    def test_list_tags_with_keywords(self, monkeypatch: Any) -> None:
         """Test tag listing with keywords."""
+
+        def mock_get_password(service: str, key: str) -> Optional[str]:
+            if key == "SYSTEMLINK_CONFIG":
+                return json.dumps({"api_url": "http://localhost", "api_key": "test"})
+            return None
+
+        monkeypatch.setattr(keyring, "get_password", mock_get_password)
+
         cli = make_cli()
         runner = CliRunner()
 
@@ -153,8 +194,16 @@ class TestTagList:
                 assert 'keywords.Contains("key2")' in payload["filter"]
                 assert "&&" in payload["filter"]
 
-    def test_list_tags_with_workspace_override(self) -> None:
+    def test_list_tags_with_workspace_override(self, monkeypatch: Any) -> None:
         """Test tag listing with explicit workspace."""
+
+        def mock_get_password(service: str, key: str) -> Optional[str]:
+            if key == "SYSTEMLINK_CONFIG":
+                return json.dumps({"api_url": "http://localhost", "api_key": "test"})
+            return None
+
+        monkeypatch.setattr(keyring, "get_password", mock_get_password)
+
         cli = make_cli()
         runner = CliRunner()
 
@@ -169,8 +218,16 @@ class TestTagList:
                 assert result.exit_code == 0
                 mock_resolve.assert_called_once_with("ws-999")
 
-    def test_list_tags_api_error(self) -> None:
+    def test_list_tags_api_error(self, monkeypatch: Any) -> None:
         """Test tag listing API error."""
+
+        def mock_get_password(service: str, key: str) -> Optional[str]:
+            if key == "SYSTEMLINK_CONFIG":
+                return json.dumps({"api_url": "http://localhost", "api_key": "test"})
+            return None
+
+        monkeypatch.setattr(keyring, "get_password", mock_get_password)
+
         cli = make_cli()
         runner = CliRunner()
 
@@ -188,8 +245,16 @@ class TestTagList:
 class TestTagView:
     """Tests for tag view command."""
 
-    def test_view_tag_success(self) -> None:
+    def test_view_tag_success(self, monkeypatch: Any) -> None:
         """Test successful tag view."""
+
+        def mock_get_password(service: str, key: str) -> Optional[str]:
+            if key == "SYSTEMLINK_CONFIG":
+                return json.dumps({"api_url": "http://localhost", "api_key": "test"})
+            return None
+
+        monkeypatch.setattr(keyring, "get_password", mock_get_password)
+
         cli = make_cli()
         runner = CliRunner()
 
@@ -220,8 +285,16 @@ class TestTagView:
                 assert "temperature" in result.output
                 assert "DOUBLE" in result.output
 
-    def test_view_tag_with_aggregates(self) -> None:
+    def test_view_tag_with_aggregates(self, monkeypatch: Any) -> None:
         """Test tag view with aggregates display."""
+
+        def mock_get_password(service: str, key: str) -> Optional[str]:
+            if key == "SYSTEMLINK_CONFIG":
+                return json.dumps({"api_url": "http://localhost", "api_key": "test"})
+            return None
+
+        monkeypatch.setattr(keyring, "get_password", mock_get_password)
+
         cli = make_cli()
         runner = CliRunner()
 
@@ -247,8 +320,16 @@ class TestTagView:
 class TestTagCreate:
     """Tests for tag create command."""
 
-    def test_create_tag_success(self) -> None:
+    def test_create_tag_success(self, monkeypatch: Any) -> None:
         """Test successful tag creation."""
+
+        def mock_get_password(service: str, key: str) -> Optional[str]:
+            if key == "SYSTEMLINK_CONFIG":
+                return json.dumps({"api_url": "http://localhost", "api_key": "test"})
+            return None
+
+        monkeypatch.setattr(keyring, "get_password", mock_get_password)
+
         cli = make_cli()
         runner = CliRunner()
 
@@ -261,8 +342,16 @@ class TestTagCreate:
                 assert result.exit_code == 0
                 assert "Tag created" in result.output
 
-    def test_create_tag_with_keywords(self) -> None:
+    def test_create_tag_with_keywords(self, monkeypatch: Any) -> None:
         """Test tag creation with keywords."""
+
+        def mock_get_password(service: str, key: str) -> Optional[str]:
+            if key == "SYSTEMLINK_CONFIG":
+                return json.dumps({"api_url": "http://localhost", "api_key": "test"})
+            return None
+
+        monkeypatch.setattr(keyring, "get_password", mock_get_password)
+
         cli = make_cli()
         runner = CliRunner()
 
@@ -291,8 +380,16 @@ class TestTagCreate:
                 assert "keywords" in payload
                 assert "sensor" in payload["keywords"]
 
-    def test_create_tag_with_properties(self) -> None:
+    def test_create_tag_with_properties(self, monkeypatch: Any) -> None:
         """Test tag creation with properties."""
+
+        def mock_get_password(service: str, key: str) -> Optional[str]:
+            if key == "SYSTEMLINK_CONFIG":
+                return json.dumps({"api_url": "http://localhost", "api_key": "test"})
+            return None
+
+        monkeypatch.setattr(keyring, "get_password", mock_get_password)
+
         cli = make_cli()
         runner = CliRunner()
 
@@ -321,8 +418,16 @@ class TestTagCreate:
                 assert payload["properties"]["location"] == "room1"
                 assert payload["properties"]["unit"] == "celsius"
 
-    def test_create_tag_missing_type(self) -> None:
+    def test_create_tag_missing_type(self, monkeypatch: Any) -> None:
         """Test tag creation fails without type."""
+
+        def mock_get_password(service: str, key: str) -> Optional[str]:
+            if key == "SYSTEMLINK_CONFIG":
+                return json.dumps({"api_url": "http://localhost", "api_key": "test"})
+            return None
+
+        monkeypatch.setattr(keyring, "get_password", mock_get_password)
+
         cli = make_cli()
         runner = CliRunner()
 
@@ -330,8 +435,16 @@ class TestTagCreate:
         assert result.exit_code != 0
         assert "Missing option" in result.output or "required" in result.output.lower()
 
-    def test_create_tag_with_aggregates(self) -> None:
+    def test_create_tag_with_aggregates(self, monkeypatch: Any) -> None:
         """Test tag creation with aggregates enabled."""
+
+        def mock_get_password(service: str, key: str) -> Optional[str]:
+            if key == "SYSTEMLINK_CONFIG":
+                return json.dumps({"api_url": "http://localhost", "api_key": "test"})
+            return None
+
+        monkeypatch.setattr(keyring, "get_password", mock_get_password)
+
         cli = make_cli()
         runner = CliRunner()
 
@@ -360,8 +473,16 @@ class TestTagCreate:
 class TestTagUpdate:
     """Tests for tag update command."""
 
-    def test_update_tag_keywords(self) -> None:
+    def test_update_tag_keywords(self, monkeypatch: Any) -> None:
         """Test updating tag keywords."""
+
+        def mock_get_password(service: str, key: str) -> Optional[str]:
+            if key == "SYSTEMLINK_CONFIG":
+                return json.dumps({"api_url": "http://localhost", "api_key": "test"})
+            return None
+
+        monkeypatch.setattr(keyring, "get_password", mock_get_password)
+
         cli = make_cli()
         runner = CliRunner()
 
@@ -383,8 +504,16 @@ class TestTagUpdate:
                 assert result.exit_code == 0
                 assert "Tag updated" in result.output
 
-    def test_update_tag_with_merge(self) -> None:
+    def test_update_tag_with_merge(self, monkeypatch: Any) -> None:
         """Test updating tag with merge flag."""
+
+        def mock_get_password(service: str, key: str) -> Optional[str]:
+            if key == "SYSTEMLINK_CONFIG":
+                return json.dumps({"api_url": "http://localhost", "api_key": "test"})
+            return None
+
+        monkeypatch.setattr(keyring, "get_password", mock_get_password)
+
         cli = make_cli()
         runner = CliRunner()
 
@@ -413,8 +542,16 @@ class TestTagUpdate:
 class TestTagDelete:
     """Tests for tag delete command."""
 
-    def test_delete_tag_success(self) -> None:
+    def test_delete_tag_success(self, monkeypatch: Any) -> None:
         """Test successful tag deletion."""
+
+        def mock_get_password(service: str, key: str) -> Optional[str]:
+            if key == "SYSTEMLINK_CONFIG":
+                return json.dumps({"api_url": "http://localhost", "api_key": "test"})
+            return None
+
+        monkeypatch.setattr(keyring, "get_password", mock_get_password)
+
         cli = make_cli()
         runner = CliRunner()
 
@@ -427,8 +564,16 @@ class TestTagDelete:
                 assert result.exit_code == 0
                 assert "Tag deleted" in result.output
 
-    def test_delete_tag_confirmation_declined(self) -> None:
+    def test_delete_tag_confirmation_declined(self, monkeypatch: Any) -> None:
         """Test tag deletion with confirmation declined."""
+
+        def mock_get_password(service: str, key: str) -> Optional[str]:
+            if key == "SYSTEMLINK_CONFIG":
+                return json.dumps({"api_url": "http://localhost", "api_key": "test"})
+            return None
+
+        monkeypatch.setattr(keyring, "get_password", mock_get_password)
+
         cli = make_cli()
         runner = CliRunner()
 
@@ -444,8 +589,16 @@ class TestTagDelete:
 class TestTagSetValue:
     """Tests for tag set-value command."""
 
-    def test_set_tag_value_success(self) -> None:
+    def test_set_tag_value_success(self, monkeypatch: Any) -> None:
         """Test successful tag value setting."""
+
+        def mock_get_password(service: str, key: str) -> Optional[str]:
+            if key == "SYSTEMLINK_CONFIG":
+                return json.dumps({"api_url": "http://localhost", "api_key": "test"})
+            return None
+
+        monkeypatch.setattr(keyring, "get_password", mock_get_password)
+
         cli = make_cli()
         runner = CliRunner()
 
@@ -458,8 +611,16 @@ class TestTagSetValue:
                 assert result.exit_code == 0
                 assert "Tag value updated" in result.output
 
-    def test_set_tag_value_with_timestamp(self) -> None:
+    def test_set_tag_value_with_timestamp(self, monkeypatch: Any) -> None:
         """Test setting tag value with custom timestamp."""
+
+        def mock_get_password(service: str, key: str) -> Optional[str]:
+            if key == "SYSTEMLINK_CONFIG":
+                return json.dumps({"api_url": "http://localhost", "api_key": "test"})
+            return None
+
+        monkeypatch.setattr(keyring, "get_password", mock_get_password)
+
         cli = make_cli()
         runner = CliRunner()
 
@@ -488,8 +649,16 @@ class TestTagSetValue:
 class TestTagGetValue:
     """Tests for tag get-value command."""
 
-    def test_get_tag_value_success(self) -> None:
+    def test_get_tag_value_success(self, monkeypatch: Any) -> None:
         """Test successful tag value retrieval."""
+
+        def mock_get_password(service: str, key: str) -> Optional[str]:
+            if key == "SYSTEMLINK_CONFIG":
+                return json.dumps({"api_url": "http://localhost", "api_key": "test"})
+            return None
+
+        monkeypatch.setattr(keyring, "get_password", mock_get_password)
+
         cli = make_cli()
         runner = CliRunner()
 
@@ -509,8 +678,16 @@ class TestTagGetValue:
                 assert result.exit_code == 0
                 assert "23.5" in result.output
 
-    def test_get_tag_value_json_format(self) -> None:
+    def test_get_tag_value_json_format(self, monkeypatch: Any) -> None:
         """Test tag value retrieval with JSON format."""
+
+        def mock_get_password(service: str, key: str) -> Optional[str]:
+            if key == "SYSTEMLINK_CONFIG":
+                return json.dumps({"api_url": "http://localhost", "api_key": "test"})
+            return None
+
+        monkeypatch.setattr(keyring, "get_password", mock_get_password)
+
         cli = make_cli()
         runner = CliRunner()
 
@@ -526,8 +703,16 @@ class TestTagGetValue:
                 output_json = json.loads(result.output)
                 assert "current" in output_json
 
-    def test_get_tag_value_with_aggregates(self) -> None:
+    def test_get_tag_value_with_aggregates(self, monkeypatch: Any) -> None:
         """Test tag value retrieval with aggregates."""
+
+        def mock_get_password(service: str, key: str) -> Optional[str]:
+            if key == "SYSTEMLINK_CONFIG":
+                return json.dumps({"api_url": "http://localhost", "api_key": "test"})
+            return None
+
+        monkeypatch.setattr(keyring, "get_password", mock_get_password)
+
         cli = make_cli()
         runner = CliRunner()
 
@@ -551,8 +736,16 @@ class TestTagGetValue:
 class TestWorkspaceResolution:
     """Tests for workspace resolution logic."""
 
-    def test_explicit_workspace(self) -> None:
+    def test_explicit_workspace(self, monkeypatch: Any) -> None:
         """Test explicit workspace parameter."""
+
+        def mock_get_password(service: str, key: str) -> Optional[str]:
+            if key == "SYSTEMLINK_CONFIG":
+                return json.dumps({"api_url": "http://localhost", "api_key": "test"})
+            return None
+
+        monkeypatch.setattr(keyring, "get_password", mock_get_password)
+
         cli = make_cli()
         runner = CliRunner()
 
@@ -565,8 +758,16 @@ class TestWorkspaceResolution:
                 assert result.exit_code == 0
                 mock_resolve.assert_called_once_with("ws-custom")
 
-    def test_default_workspace_resolution(self) -> None:
+    def test_default_workspace_resolution(self, monkeypatch: Any) -> None:
         """Test default workspace when not specified."""
+
+        def mock_get_password(service: str, key: str) -> Optional[str]:
+            if key == "SYSTEMLINK_CONFIG":
+                return json.dumps({"api_url": "http://localhost", "api_key": "test"})
+            return None
+
+        monkeypatch.setattr(keyring, "get_password", mock_get_password)
+
         cli = make_cli()
         runner = CliRunner()
 
@@ -579,8 +780,16 @@ class TestWorkspaceResolution:
                 assert result.exit_code == 0
                 mock_resolve.assert_called_once_with(None)
 
-    def test_default_workspace_failure(self) -> None:
+    def test_default_workspace_failure(self, monkeypatch: Any) -> None:
         """Test default workspace resolution failure."""
+
+        def mock_get_password(service: str, key: str) -> Optional[str]:
+            if key == "SYSTEMLINK_CONFIG":
+                return json.dumps({"api_url": "http://localhost", "api_key": "test"})
+            return None
+
+        monkeypatch.setattr(keyring, "get_password", mock_get_password)
+
         cli = make_cli()
         runner = CliRunner()
 

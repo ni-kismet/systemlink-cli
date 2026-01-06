@@ -7,7 +7,7 @@ tag values. All tag operations are scoped to workspaces with proper error handli
 import json
 import shutil
 import urllib.parse
-from typing import Any, Dict, List, Optional
+from typing import Any, Dict, List, Optional, Tuple
 
 import click
 
@@ -141,7 +141,54 @@ def _calculate_column_widths() -> List[int]:
     return [path_width, type_width, value_width, last_updated_width]
 
 
-def _detect_value_type(value_str: str) -> tuple[Any, str]:
+def _escape_query_value(value: str) -> str:
+    """Escape double quotes in query filter values.
+
+    Args:
+        value: Raw filter value
+
+    Returns:
+        Escaped value safe for use in query strings
+    """
+    return value.replace('"', '\\"')
+
+
+def _parse_keywords(keywords: Optional[str]) -> List[str]:
+    """Parse comma-separated keywords string into list.
+
+    Args:
+        keywords: Comma-separated keywords string
+
+    Returns:
+        List of trimmed keyword strings
+    """
+    if not keywords:
+        return []
+    return [k.strip() for k in keywords.split(",") if k.strip()]
+
+
+def _parse_properties(properties: tuple) -> Dict[str, str]:
+    """Parse properties tuple into dictionary.
+
+    Args:
+        properties: Tuple of key=value strings
+
+    Returns:
+        Dictionary of property key-value pairs
+
+    Raises:
+        ValueError: If property format is invalid
+    """
+    properties_dict: Dict[str, str] = {}
+    for prop in properties:
+        if "=" not in prop:
+            raise ValueError(f"Invalid property format: {prop}. Use key=value")
+        key, val = prop.split("=", 1)
+        properties_dict[key.strip()] = val.strip()
+    return properties_dict
+
+
+def _detect_value_type(value_str: str) -> Tuple[Any, str]:
     """Detect the type of a value from its string representation.
 
     Args:
@@ -162,6 +209,7 @@ def _detect_value_type(value_str: str) -> tuple[Any, str]:
         if "." not in value_str:
             return int_val, "INT"
     except ValueError:
+        # Not an integer, continue to check for other types
         pass
 
     # Check for double/float
@@ -169,6 +217,7 @@ def _detect_value_type(value_str: str) -> tuple[Any, str]:
         float_val = float(value_str)
         return float_val, "DOUBLE"
     except ValueError:
+        # Not a number, default to string
         pass
 
     # Default to string
@@ -236,13 +285,15 @@ def register_tag_commands(cli: Any) -> None:
             filter_parts = [f'workspace = "{ws_id}"']
 
             if filter:
-                filter_parts.append(f'path = "*{filter}*"')
+                escaped_filter = _escape_query_value(filter)
+                filter_parts.append(f'path = "*{escaped_filter}*"')
 
             if keywords:
                 for k in keywords.split(","):
                     k_clean = k.strip()
                     if k_clean:
-                        filter_parts.append(f'keywords.Contains("{k_clean}")')
+                        escaped_keyword = _escape_query_value(k_clean)
+                        filter_parts.append(f'keywords.Contains("{escaped_keyword}")')
 
             query_filter = " && ".join(filter_parts)
 
@@ -417,7 +468,7 @@ def register_tag_commands(cli: Any) -> None:
         "-w",
         type=str,
         default=None,
-        help="Workspace ID (defaults to default workspace)",
+        help="Workspace ID or name (defaults to default workspace)",
     )
     @click.option(
         "--keywords",
@@ -450,18 +501,9 @@ def register_tag_commands(cli: Any) -> None:
         try:
             ws_id = _resolve_workspace(workspace)
 
-            # Parse keywords
-            keywords_list = []
-            if keywords:
-                keywords_list = [k.strip() for k in keywords.split(",")]
-
-            # Parse properties
-            properties_dict: Dict[str, str] = {}
-            for prop in properties:
-                if "=" not in prop:
-                    raise ValueError(f"Invalid property format: {prop}. Use key=value")
-                key, val = prop.split("=", 1)
-                properties_dict[key.strip()] = val.strip()
+            # Parse keywords and properties
+            keywords_list = _parse_keywords(keywords)
+            properties_dict = _parse_properties(properties)
 
             # Create tag payload
             tag_payload = {
@@ -525,18 +567,9 @@ def register_tag_commands(cli: Any) -> None:
         try:
             ws_id = _resolve_workspace(workspace)
 
-            # Parse keywords
-            keywords_list = []
-            if keywords:
-                keywords_list = [k.strip() for k in keywords.split(",")]
-
-            # Parse properties
-            properties_dict: Dict[str, str] = {}
-            for prop in properties:
-                if "=" not in prop:
-                    raise ValueError(f"Invalid property format: {prop}. Use key=value")
-                key, val = prop.split("=", 1)
-                properties_dict[key.strip()] = val.strip()
+            # Parse keywords and properties
+            keywords_list = _parse_keywords(keywords)
+            properties_dict = _parse_properties(properties)
 
             # Create update payload
             tag_update: Dict[str, Any] = {
