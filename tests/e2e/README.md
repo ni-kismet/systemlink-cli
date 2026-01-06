@@ -15,6 +15,7 @@ tests/e2e/
 ├── test_user_e2e.py           # User command tests
 ├── test_dff_e2e.py            # Dynamic Form Fields tests
 ├── test_workspace_e2e.py      # Workspace command tests
+├── test_tag_e2e.py            # Tag command tests
 ├── run_e2e.py                 # E2E test runner
 ├── e2e_config.json.template   # Configuration template
 └── README.md                  # This file
@@ -92,6 +93,9 @@ poetry run pytest tests/e2e/test_workspace_e2e.py -m e2e -v
 
 # DFF tests only
 poetry run pytest tests/e2e/test_dff_e2e.py -m e2e -v
+
+# Tag tests only
+poetry run pytest tests/e2e/test_tag_e2e.py -m e2e -v
 ```
 
 ### Run with Different Markers
@@ -105,6 +109,9 @@ poetry run pytest tests/e2e/ -m "e2e and slow" -v
 
 # Notebook-specific tests
 poetry run pytest tests/e2e/ -m "e2e and notebook" -v
+
+# Tag-specific tests
+poetry run pytest tests/e2e/ -m "e2e and tag" -v
 ```
 
 ### Parallel Execution

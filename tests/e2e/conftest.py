@@ -453,3 +453,4 @@ def pytest_configure(config: Any) -> None:
     config.addinivalue_line("markers", "sls: mark test as SystemLink Server specific")
     config.addinivalue_line("markers", "sle: mark test as SystemLink Enterprise specific")
     config.addinivalue_line("markers", "file: mark test as file service related")
+    config.addinivalue_line("markers", "tag: mark test as tag service related")

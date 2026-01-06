@@ -1401,6 +1401,89 @@ slcli user update --id <user_id> --properties '{"role": "Senior Developer"}'
 slcli user delete --id <user_id>
 ```
 
+## Tag Management
+
+SystemLink CLI provides comprehensive management for SystemLink Tags, allowing you to create, read, update, delete tags and manage their values.
+
+All tag operations are workspace-scoped. You can specify a workspace with `--workspace`/`-w`, or the CLI will attempt to use the default workspace if available.
+
+### List Tags
+
+```bash
+# List all tags in default workspace (table format)
+slcli tag list
+
+# List tags in a specific workspace
+slcli tag list --workspace "Target Workspace"
+
+# Filter by keywords
+slcli tag list --keywords "sensor,temperature"
+
+# Filter by path substring
+slcli tag list --filter "temperature"
+
+# JSON output
+slcli tag list --format json
+```
+
+### View Tag Details
+
+```bash
+# View tag metadata and current value
+slcli tag get "my-tag-path"
+
+# Include aggregate statistics (min, max, avg, count)
+slcli tag get "my-tag-path" --include-aggregates
+```
+
+### Create Tag
+
+```bash
+# Create a DOUBLE tag
+slcli tag create "my-tag-path" --type DOUBLE
+
+# Create with keywords and properties
+slcli tag create "sensor.temp" --type DOUBLE --keywords "lab,sensor" --properties "location=room1"
+
+# Enable aggregate collection
+slcli tag create "sensor.temp" --type DOUBLE --collect-aggregates
+```
+
+Supported types: `DOUBLE`, `INT`, `STRING`, `BOOLEAN`, `U_INT64`, `DATE_TIME`
+
+### Update Tag
+
+```bash
+# Update keywords
+slcli tag update "my-tag-path" --keywords "new-keyword"
+
+# Update properties (merge with existing)
+slcli tag update "my-tag-path" --properties "status=active" --merge
+```
+
+### Manage Tag Values
+
+```bash
+# Set current value
+slcli tag set-value "my-tag-path" "42.5"
+
+# Set value with custom timestamp
+slcli tag set-value "my-tag-path" "42.5" --timestamp "2024-01-01T12:00:00Z"
+
+# Get current value
+slcli tag get-value "my-tag-path"
+
+# Get value with aggregates
+slcli tag get-value "my-tag-path" --include-aggregates
+```
+
+### Delete Tag
+
+```bash
+# Delete a tag
+slcli tag delete "my-tag-path"
+```
+
 ## Dynamic Form Fields (DFF) Management
 
 The `dff` command group allows you to manage dynamic form fields in SystemLink, including configurations, groups, fields, and tables. DFF provides a web-based editor for visual editing of JSON configurations.
