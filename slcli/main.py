@@ -24,6 +24,7 @@ from .platform import (
     get_platform_info,
 )
 from .ssl_trust import OS_TRUST_INJECTED, OS_TRUST_REASON
+from .tag_click import register_tag_commands
 from .templates_click import register_templates_commands
 from .user_click import register_user_commands
 from .webapp_click import register_webapp_commands
@@ -267,6 +268,7 @@ register_file_commands(cli)
 register_function_commands(cli)
 register_templates_commands(cli)
 register_notebook_commands(cli)
+register_tag_commands(cli)
 register_webapp_commands(cli)
 register_user_commands(cli)
 register_workflows_commands(cli)
