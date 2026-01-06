@@ -606,7 +606,10 @@ class TestTagSetValue:
         with patch("slcli.tag_click.make_api_request") as mock_request:
             with patch("slcli.tag_click.resolve_workspace_id") as mock_resolve:
                 mock_resolve.return_value = "ws-123"
-                mock_request.return_value = mock_response({}, 202)
+                mock_request.side_effect = [
+                    mock_response({"type": "DOUBLE"}),  # tag metadata lookup
+                    mock_response({}, 202),
+                ]
 
                 result = runner.invoke(cli, ["tag", "set-value", "temperature", "23.5"])
                 assert result.exit_code == 0
@@ -628,7 +631,10 @@ class TestTagSetValue:
         with patch("slcli.tag_click.make_api_request") as mock_request:
             with patch("slcli.tag_click.resolve_workspace_id") as mock_resolve:
                 mock_resolve.return_value = "ws-123"
-                mock_request.return_value = mock_response({}, 202)
+                mock_request.side_effect = [
+                    mock_response({"type": "DOUBLE"}),  # tag metadata lookup
+                    mock_response({}, 202),
+                ]
 
                 result = runner.invoke(
                     cli,
@@ -645,6 +651,64 @@ class TestTagSetValue:
                 call_args = mock_request.call_args
                 payload = call_args[1]["payload"]
                 assert payload["timestamp"] == "2024-01-01T00:00:00Z"
+
+    def test_set_tag_value_uint64(self, monkeypatch: Any) -> None:
+        """Ensure uint64 tags use U_INT64 type even for small integers."""
+
+        def mock_get_password(service: str, key: str) -> Optional[str]:
+            if key == "SYSTEMLINK_CONFIG":
+                return json.dumps({"api_url": "http://localhost", "api_key": "test"})
+            return None
+
+        monkeypatch.setattr(keyring, "get_password", mock_get_password)
+
+        cli = make_cli()
+        runner = CliRunner()
+
+        with patch("slcli.tag_click.make_api_request") as mock_request:
+            with patch("slcli.tag_click.resolve_workspace_id") as mock_resolve:
+                mock_resolve.return_value = "ws-123"
+                mock_request.side_effect = [
+                    mock_response({"type": "U_INT64"}),  # tag metadata lookup
+                    mock_response({}, 202),
+                ]
+
+                result = runner.invoke(cli, ["tag", "set-value", "temperature", "1"])
+                assert result.exit_code == 0
+                # The last call is the PUT with payload
+                _, kwargs = mock_request.call_args
+                payload = kwargs["payload"]
+                assert payload["value"]["type"] == "U_INT64"
+                assert payload["value"]["value"] == "1"
+
+    def test_set_tag_value_datetime(self, monkeypatch: Any) -> None:
+        """Ensure DATE_TIME tags send the correct type and value."""
+
+        def mock_get_password(service: str, key: str) -> Optional[str]:
+            if key == "SYSTEMLINK_CONFIG":
+                return json.dumps({"api_url": "http://localhost", "api_key": "test"})
+            return None
+
+        monkeypatch.setattr(keyring, "get_password", mock_get_password)
+
+        cli = make_cli()
+        runner = CliRunner()
+
+        with patch("slcli.tag_click.make_api_request") as mock_request:
+            with patch("slcli.tag_click.resolve_workspace_id") as mock_resolve:
+                mock_resolve.return_value = "ws-123"
+                mock_request.side_effect = [
+                    mock_response({"type": "DATE_TIME"}),  # tag metadata lookup
+                    mock_response({}, 202),
+                ]
+
+                value_str = "2024-01-01T00:00:00Z"
+                result = runner.invoke(cli, ["tag", "set-value", "temperature", value_str])
+                assert result.exit_code == 0
+                _, kwargs = mock_request.call_args
+                payload = kwargs["payload"]
+                assert payload["value"]["type"] == "DATE_TIME"
+                assert payload["value"]["value"] == value_str
 
 
 class TestTagGetValue:

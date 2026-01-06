@@ -604,15 +604,46 @@ def register_tag_commands(cli: Any) -> None:
             ws_id = resolve_workspace_id(workspace)
             encoded_path = urllib.parse.quote(tag_path, safe="")
 
+            # Retrieve tag metadata to align value type with the tag definition
+            tag_meta_url = f"{get_base_url()}/nitag/v2/tags/{ws_id}/{encoded_path}"
+            tag_resp = make_api_request("GET", tag_meta_url, payload=None)
+            tag_data = tag_resp.json()
+            tag_type = tag_data.get("type")
+
             # Detect value type and convert
             converted_value, value_type = _detect_value_type(value)
 
             # API expects value as string
-            if value_type == "BOOLEAN":
-                api_value_str = "True" if converted_value else "False"
-            else:
-                # Keep the original string representation for numbers
+            api_value_str = value
+
+            # If the tag is U_INT64, enforce non-negative integer and set correct type
+            if tag_type == "U_INT64":
+                try:
+                    numeric_val = int(value)
+                except ValueError:
+                    click.echo(
+                        "✗ Error: U_INT64 tags require a non-negative integer value",
+                        err=True,
+                    )
+                    sys.exit(ExitCodes.INVALID_INPUT)
+
+                if numeric_val < 0:
+                    click.echo(
+                        "✗ Error: U_INT64 tags require a non-negative integer value",
+                        err=True,
+                    )
+                    sys.exit(ExitCodes.INVALID_INPUT)
+
+                converted_value = numeric_val
+                value_type = "U_INT64"
                 api_value_str = value
+            elif tag_type == "DATE_TIME":
+                # For date-time tags, pass the value through as-is and set the type explicitly
+                value_type = "DATE_TIME"
+                converted_value = value
+                api_value_str = value
+            elif value_type == "BOOLEAN":
+                api_value_str = "True" if converted_value else "False"
 
             # Create value payload
             value_payload: Dict[str, Any] = {
