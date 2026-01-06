@@ -6,6 +6,7 @@ tag values. All tag operations are scoped to workspaces with proper error handli
 
 import json
 import shutil
+import sys
 import urllib.parse
 from typing import Any, Dict, List, Optional, Tuple
 
@@ -14,6 +15,7 @@ import click
 from .cli_utils import validate_output_format
 from .universal_handlers import FilteredResponse, UniversalResponseHandler
 from .utils import (
+    ExitCodes,
     format_success,
     get_base_url,
     handle_api_error,
@@ -66,7 +68,10 @@ def _calculate_column_widths() -> List[int]:
     value_width = 30
     last_updated_width = 20
 
-    # Account for table borders and padding: 5 vertical bars + 8 spaces (2 per column)
+    # Account for table borders and padding for 4 columns.
+    # Row layout: "│ {col1} │ {col2} │ {col3} │ {col4} │"
+    # This is 5 vertical bars (│) and 8 spaces (2 per column) = 13 characters.
+    # Using 14 to account for terminal rendering variations.
     border_overhead = 14
 
     # Calculate remaining space for path
@@ -138,24 +143,22 @@ def _detect_value_type(value_str: str) -> Tuple[Any, str]:
     """
     # Check for boolean
     if value_str.lower() in ("true", "false"):
-        return value_str.lower() == "true", "BOOLEAN"
+        is_true = value_str.lower() == "true"
+        return is_true, "BOOLEAN"
 
-    # Check for integer
-    try:
-        int_val = int(value_str)
-        # Make sure it's not a float disguised as int
-        if "." not in value_str:
+    # Check for integer (excluding scientific notation)
+    if "." not in value_str and "e" not in value_str.lower():
+        try:
+            int_val = int(value_str)
             return int_val, "INT"
-    except ValueError:
-        # Not an integer, continue to check for other types
-        pass
+        except ValueError:
+            pass
 
     # Check for double/float
     try:
         float_val = float(value_str)
         return float_val, "DOUBLE"
     except ValueError:
-        # Not a number, default to string
         pass
 
     # Default to string
@@ -190,7 +193,7 @@ def register_tag_commands(cli: Any) -> None:
         "--filter",
         type=str,
         default=None,
-        help="Filter by tag path (e.g., '*.temperature')",
+        help="Filter by tag path substring (e.g., 'temperature')",
     )
     @click.option(
         "--keywords",
@@ -510,6 +513,14 @@ def register_tag_commands(cli: Any) -> None:
             keywords_list = _parse_keywords(keywords)
             properties_dict = _parse_properties(properties)
 
+            # Validate at least one field is provided
+            if not keywords_list and not properties_dict:
+                click.echo(
+                    "✗ Error: At least one of --keywords or --properties must be specified",
+                    err=True,
+                )
+                sys.exit(ExitCodes.INVALID_INPUT)
+
             # Create update payload
             tag_update: Dict[str, Any] = {
                 "path": tag_path,
@@ -615,16 +626,13 @@ def register_tag_commands(cli: Any) -> None:
                 value_payload["timestamp"] = timestamp
 
             url = f"{get_base_url()}/nitag/v2/tags/{ws_id}/{encoded_path}/values/current"
-            resp = make_api_request("PUT", url, payload=value_payload)
+            make_api_request("PUT", url, payload=value_payload)
 
-            # Handle both 200 and 202 responses
-            if resp.status_code in (200, 202):
-                format_success(
-                    "Tag value updated",
-                    {"path": tag_path, "value": converted_value, "type": value_type},
-                )
-            else:
-                raise Exception(f"Unexpected response status: {resp.status_code}")
+            # make_api_request raises on HTTP error status codes, so if we reach here it succeeded
+            format_success(
+                "Tag value updated",
+                {"path": tag_path, "value": converted_value, "type": value_type},
+            )
 
         except Exception as exc:
             handle_api_error(exc)

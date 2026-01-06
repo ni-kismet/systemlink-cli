@@ -1419,8 +1419,8 @@ slcli tag list --workspace "Target Workspace"
 # Filter by keywords
 slcli tag list --keywords "sensor,temperature"
 
-# Filter using server-side query syntax
-slcli tag list --filter 'path = "*.temperature"'
+# Filter by path substring
+slcli tag list --filter "temperature"
 
 # JSON output
 slcli tag list --format json

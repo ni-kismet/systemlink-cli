@@ -135,7 +135,8 @@ class TestTagList:
                 assert result.exit_code == 0
                 # JSON output should contain the tag data
                 output_json = json.loads(result.output)
-                assert len(output_json) >= 0
+                assert isinstance(output_json, list)
+                assert any("pressure" in str(tag) for tag in output_json)
 
     def test_list_tags_with_filter(self, monkeypatch: Any) -> None:
         """Test tag listing with filter."""

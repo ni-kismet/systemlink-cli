@@ -1,6 +1,7 @@
 """E2E tests for tag commands against dev tier."""
 
 import time
+import uuid
 from typing import Any
 
 import pytest
@@ -15,7 +16,7 @@ class TestTagE2E:
         self, cli_runner: Any, cli_helper: Any, configured_workspace: str
     ) -> None:
         """Test basic tag lifecycle: create, get, set-value, get-value, delete."""
-        tag_path = f"e2e.test.basic.{int(time.time())}"
+        tag_path = f"e2e.test.basic.{uuid.uuid4().hex[:8]}"
 
         try:
             # Create tag
@@ -81,10 +82,11 @@ class TestTagE2E:
         self, cli_runner: Any, cli_helper: Any, configured_workspace: str
     ) -> None:
         """Test tag listing with path filter."""
-        tag_path_prefix = f"e2e.test.filter.{int(time.time())}"
+        unique_id = uuid.uuid4().hex[:8]
+        tag_path_prefix = f"e2e.test.filter.{unique_id}"
         tag_path1 = f"{tag_path_prefix}.tag1"
         tag_path2 = f"{tag_path_prefix}.tag2"
-        tag_path3 = f"e2e.other.{int(time.time())}"
+        tag_path3 = f"e2e.other.{uuid.uuid4().hex[:8]}"
 
         try:
             # Create test tags
@@ -101,30 +103,45 @@ class TestTagE2E:
                     ]
                 )
 
-            # Give server time to index
-            time.sleep(1)
+            # List with filter, retrying to account for eventual consistency in indexing
+            tags = []
+            filtered_paths = []
+            max_attempts = 5
+            for attempt in range(max_attempts):
+                result = cli_runner(
+                    [
+                        "tag",
+                        "list",
+                        "--workspace",
+                        configured_workspace,
+                        "--filter",
+                        tag_path_prefix,
+                        "--format",
+                        "json",
+                    ]
+                )
+                cli_helper.assert_success(result)
 
-            # List with filter
-            result = cli_runner(
-                [
-                    "tag",
-                    "list",
-                    "--workspace",
-                    configured_workspace,
-                    "--filter",
-                    tag_path_prefix,
-                    "--format",
-                    "json",
-                ]
+                tags = cli_helper.get_json_output(result)
+                filtered_paths = [t["tag"]["path"] for t in tags]
+
+                # Break early if we already see tags with the expected prefix
+                if any(tag_path_prefix in p for p in filtered_paths):
+                    break
+
+                if attempt < max_attempts - 1:
+                    time.sleep(0.5 * (2**attempt))
+
+            # Should include both tags with matching prefix
+            # Note: Due to eventual consistency, we check for either exact match or prefix presence
+            has_tag1 = tag_path1 in filtered_paths or any(
+                tag_path_prefix in p for p in filtered_paths
             )
-            cli_helper.assert_success(result)
-
-            tags = cli_helper.get_json_output(result)
-            filtered_paths = [t["tag"]["path"] for t in tags]
-
-            # Should include tags with matching prefix
-            assert tag_path1 in filtered_paths or any(tag_path_prefix in p for p in filtered_paths)
-            assert tag_path2 in filtered_paths or any(tag_path_prefix in p for p in filtered_paths)
+            has_tag2 = tag_path2 in filtered_paths or any(
+                tag_path_prefix in p for p in filtered_paths
+            )
+            assert has_tag1, f"Expected tag1 ({tag_path1}) or prefix ({tag_path_prefix}) in results"
+            assert has_tag2, f"Expected tag2 ({tag_path2}) or prefix ({tag_path_prefix}) in results"
 
         finally:
             # Cleanup
@@ -138,8 +155,8 @@ class TestTagE2E:
         self, cli_runner: Any, cli_helper: Any, configured_workspace: str
     ) -> None:
         """Test tag listing with keyword filter."""
-        tag_path = f"e2e.test.keywords.{int(time.time())}"
-        keyword = f"e2e-test-{int(time.time())}"
+        tag_path = f"e2e.test.keywords.{uuid.uuid4().hex[:8]}"
+        keyword = f"e2e-test-{uuid.uuid4().hex[:8]}"
 
         try:
             # Create tag with keyword
@@ -215,7 +232,7 @@ class TestTagE2E:
         self, cli_runner: Any, cli_helper: Any, configured_workspace: str
     ) -> None:
         """Test creating tag with keywords and properties."""
-        tag_path = f"e2e.test.metadata.{int(time.time())}"
+        tag_path = f"e2e.test.metadata.{uuid.uuid4().hex[:8]}"
 
         try:
             result = cli_runner(
@@ -257,7 +274,7 @@ class TestTagE2E:
         self, cli_runner: Any, cli_helper: Any, configured_workspace: str
     ) -> None:
         """Test updating tag keywords and properties."""
-        tag_path = f"e2e.test.update.{int(time.time())}"
+        tag_path = f"e2e.test.update.{uuid.uuid4().hex[:8]}"
 
         try:
             # Create tag
@@ -315,7 +332,7 @@ class TestTagE2E:
         self, cli_runner: Any, cli_helper: Any, configured_workspace: str
     ) -> None:
         """Test automatic type detection for boolean values."""
-        tag_path = f"e2e.test.bool.{int(time.time())}"
+        tag_path = f"e2e.test.bool.{uuid.uuid4().hex[:8]}"
 
         try:
             # Create STRING tag (to test type detection on set-value)
@@ -348,8 +365,8 @@ class TestTagE2E:
             # Get value
             result = cli_runner(["tag", "get-value", tag_path, "--workspace", configured_workspace])
             cli_helper.assert_success(result)
-            # Should show boolean representation
-            assert "True" in result.stdout or "true" in result.stdout.lower()
+            # Should show boolean representation (case-insensitive)
+            assert "true" in result.stdout.lower()
 
         finally:
             cli_runner(
@@ -361,7 +378,7 @@ class TestTagE2E:
         self, cli_runner: Any, cli_helper: Any, configured_workspace: str
     ) -> None:
         """Test automatic type detection for integer values."""
-        tag_path = f"e2e.test.int.{int(time.time())}"
+        tag_path = f"e2e.test.int.{uuid.uuid4().hex[:8]}"
 
         try:
             result = cli_runner(
@@ -403,7 +420,7 @@ class TestTagE2E:
         self, cli_runner: Any, cli_helper: Any, configured_workspace: str
     ) -> None:
         """Test automatic type detection for double values."""
-        tag_path = f"e2e.test.double.{int(time.time())}"
+        tag_path = f"e2e.test.double.{uuid.uuid4().hex[:8]}"
 
         try:
             result = cli_runner(
@@ -445,7 +462,7 @@ class TestTagE2E:
         self, cli_runner: Any, cli_helper: Any, configured_workspace: str
     ) -> None:
         """Test tag with special characters in path (URL encoding)."""
-        tag_path = f"e2e/test/special-chars/{int(time.time())}"
+        tag_path = f"e2e/test/special-chars/{uuid.uuid4().hex[:8]}"
 
         try:
             result = cli_runner(
@@ -520,7 +537,7 @@ class TestTagE2E:
             [
                 "tag",
                 "create",
-                f"e2e.test.invalid.{int(time.time())}",
+                f"e2e.test.invalid.{uuid.uuid4().hex[:8]}",
                 "--type",
                 "INVALID_TYPE",
                 "--workspace",
@@ -538,7 +555,7 @@ class TestTagE2E:
             [
                 "tag",
                 "delete",
-                f"nonexistent.tag.{int(time.time())}",
+                f"nonexistent.tag.{uuid.uuid4().hex[:8]}",
                 "--workspace",
                 configured_workspace,
             ],
@@ -550,7 +567,7 @@ class TestTagE2E:
         self, cli_runner: Any, cli_helper: Any, configured_workspace: str
     ) -> None:
         """Test getting value from tag that has no current value."""
-        tag_path = f"e2e.test.novalue.{int(time.time())}"
+        tag_path = f"e2e.test.novalue.{uuid.uuid4().hex[:8]}"
 
         try:
             # Create tag without setting value
@@ -567,13 +584,17 @@ class TestTagE2E:
             )
             cli_helper.assert_success(result)
 
-            # Try to get value (should handle gracefully)
-            cli_runner(
+            # Try to get value - should return "No value found" or empty JSON
+            result = cli_runner(
                 ["tag", "get-value", tag_path, "--workspace", configured_workspace],
                 check=False,
             )
-            # May return success with "No value" or fail gracefully
-            # Just ensure it doesn't crash
+            # Should either succeed with "No value found" message or return 204 status gracefully
+            assert (
+                result.returncode == 0
+                or "No value" in result.stdout
+                or result.stdout.strip() == "{}"
+            )
 
         finally:
             cli_runner(
@@ -603,6 +624,8 @@ class TestTagE2E:
         assert "Show next" not in result.stdout
         assert "results?" not in result.stdout
 
-        # Should be valid JSON
+        # Should be valid JSON (pagination prompts would break parsing)
+        tags = cli_helper.get_json_output(result)
+        assert isinstance(tags, list)
         tags = cli_helper.get_json_output(result)
         assert isinstance(tags, list)
