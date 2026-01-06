@@ -32,6 +32,7 @@ class ExampleLoader:
         "test_result",
         "data_table",
         "file",
+        "notebook",
     }
 
     def __init__(self, examples_dir: Optional[Path] = None) -> None:

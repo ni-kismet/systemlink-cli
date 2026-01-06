@@ -380,3 +380,72 @@ def test_tag_filtering_on_delete(mock_api: Any) -> None:
     # The demo-tagged should be SKIPPED due to tag filter
     skipped = [r for r in results if r.action == ProvisioningAction.SKIPPED]
     assert len(skipped) >= 1  # At least one should be skipped
+
+
+@patch("slcli.example_provisioner.requests")
+@patch("slcli.example_provisioner.get_base_url")
+@patch("slcli.example_provisioner.get_headers")
+@patch("builtins.open", create=True)
+@patch("pathlib.Path")
+def test_notebook_properties_preserved_with_interface(
+    mock_path: Any, mock_open: Any, mock_headers: Any, mock_base_url: Any, mock_requests: Any
+) -> None:
+    """Test that slcli-example property is preserved when adding interface."""
+    # Setup mocks
+    mock_base_url.return_value = "https://api.test.com"
+    mock_headers.return_value = {"Authorization": "Bearer test"}
+
+    # Mock file system
+    mock_file_obj = MagicMock()
+    mock_file_obj.read.return_value = b'{"cells":[]}'
+    mock_open.return_value.__enter__.return_value = mock_file_obj
+
+    mock_notebook_path = MagicMock()
+    mock_notebook_path.exists.return_value = True
+    mock_path.return_value.__truediv__.return_value.__truediv__.return_value = mock_notebook_path
+
+    # Track PUT request metadata
+    put_metadata = None
+
+    def mock_post(url: str, **kwargs: Any) -> Any:
+        resp = MagicMock()
+        resp.json.return_value = {"id": "nb-12345"}
+        resp.raise_for_status.return_value = None
+        return resp
+
+    def mock_put(url: str, **kwargs: Any) -> Any:
+        nonlocal put_metadata
+        # Extract metadata from the files parameter
+        if "files" in kwargs and "metadata" in kwargs["files"]:
+            import json
+
+            metadata_bytes = kwargs["files"]["metadata"][1]
+            put_metadata = json.loads(metadata_bytes.decode("utf-8"))
+        resp = MagicMock()
+        resp.raise_for_status.return_value = None
+        return resp
+
+    mock_requests.post.side_effect = mock_post
+    mock_requests.put.side_effect = mock_put
+
+    # Create provisioner and test notebook creation
+    prov = ExampleProvisioner(example_name="test-example", workspace_id="ws-test", dry_run=False)
+    notebook_id = prov._create_notebook(
+        {
+            "name": "Test Notebook",
+            "file_path": "test.ipynb",
+            "notebook_interface": "File Analysis",
+        }
+    )
+
+    # Verify notebook was created
+    assert notebook_id == "nb-12345"
+    assert mock_requests.post.called
+    assert mock_requests.put.called
+
+    # Verify PUT request preserved slcli-example property and added interface
+    assert put_metadata is not None
+    assert "properties" in put_metadata
+    assert put_metadata["properties"].get("slcli-example") == "test-example"
+    # Verify interface property was actually added
+    assert put_metadata["properties"].get("interface") == "File Analysis"

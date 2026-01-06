@@ -46,6 +46,9 @@ types-tabulate = "*"
 python-semantic-release = "^9.0.0"
 pytest-xdist = "^3.8.0"
 
+# Excel file generation
+openpyxl = "^3.1.5"
+
 [tool.pytest.ini_options]
 addopts = "--cov slcli --strict-markers --doctest-modules --ignore=tests/e2e"
 testpaths = ["tests/unit"]

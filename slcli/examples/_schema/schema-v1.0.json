@@ -133,7 +133,13 @@
             "system",
             "asset",
             "dut",
-            "testtemplate"
+            "testtemplate",
+            "workflow",
+            "work_item",
+            "work_order",
+            "test_result",
+            "data_table",
+            "file"
           ],
           "description": "SLE resource type"
         },

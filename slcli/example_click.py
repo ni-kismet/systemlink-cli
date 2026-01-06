@@ -94,7 +94,7 @@ def _output_results(results: List[Dict[str, Any]], format_output: str) -> None:
         format_output=format_output,
         formatter_func=_result_row_formatter,
         headers=["Name", "Type", "Action", "Server ID", "Error"],
-        column_widths=[24, 12, 10, 38, 30],
+        column_widths=[45, 12, 10, 38, 30],
         empty_message="No resources processed.",
         enable_pagination=False,
     )
@@ -165,7 +165,7 @@ def register_example_commands(cli: Any) -> None:
                     format_output=format,
                     formatter_func=_example_row_formatter,
                     headers=["Name", "Title", "Tags", "Setup (min)", "Author"],
-                    column_widths=[22, 28, 24, 11, 18],
+                    column_widths=[35, 28, 24, 11, 18],
                     enable_pagination=False,  # Unlikely to have > 25 examples
                 )
 
@@ -234,7 +234,7 @@ def register_example_commands(cli: Any) -> None:
 
     @example.command(name="install")
     @click.argument("example_name")
-    @click.option("--workspace", "-w", help="Workspace name or ID for resources")
+    @click.option("--workspace", "-w", required=True, help="Workspace name or ID for resources")
     @click.option(
         "--format",
         "-f",
@@ -317,7 +317,7 @@ def register_example_commands(cli: Any) -> None:
 
     @example.command(name="delete")
     @click.argument("example_name")
-    @click.option("--workspace", "-w", help="Workspace name or ID for resources")
+    @click.option("--workspace", "-w", required=True, help="Workspace name or ID for resources")
     @click.option(
         "--format",
         "-f",

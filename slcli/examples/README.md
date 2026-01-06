@@ -17,6 +17,16 @@ A complete example demonstrating the end-to-end test planning workflow. Includes
 
 **Setup time:** ~5 minutes
 
+### spec-compliance-notebooks
+
+A complete example providing Jupyter notebooks for performing specification compliance analysis on test data. Publishes three notebooks with the File Analysis interface:
+
+- Spec Compliance Calculation
+- Spec Analysis & Compliance Calculation
+- Specfile Extraction and Ingestion
+
+**Setup time:** ~3 minutes
+
 ## Usage
 
 ```bash
