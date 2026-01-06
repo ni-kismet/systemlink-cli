@@ -1430,10 +1430,10 @@ slcli tag list --format json
 
 ```bash
 # View tag metadata and current value
-slcli tag view "my-tag-path"
+slcli tag get "my-tag-path"
 
 # Include aggregate statistics (min, max, avg, count)
-slcli tag view "my-tag-path" --include-aggregates
+slcli tag get "my-tag-path" --include-aggregates
 ```
 
 ### Create Tag

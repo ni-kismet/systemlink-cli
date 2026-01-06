@@ -53,7 +53,7 @@ class TestTagList:
         }
 
         with patch("slcli.tag_click.make_api_request") as mock_request:
-            with patch("slcli.tag_click._resolve_workspace") as mock_resolve:
+            with patch("slcli.tag_click.resolve_workspace_id") as mock_resolve:
                 mock_resolve.return_value = "ws-123"
                 # Return page 1 first
                 mock_request.return_value = mock_response(page1_data)
@@ -92,7 +92,7 @@ class TestTagList:
         }
 
         with patch("slcli.tag_click.make_api_request") as mock_request:
-            with patch("slcli.tag_click._resolve_workspace") as mock_resolve:
+            with patch("slcli.tag_click.resolve_workspace_id") as mock_resolve:
                 mock_resolve.return_value = "ws-123"
                 mock_request.return_value = mock_response(mock_data)
 
@@ -127,7 +127,7 @@ class TestTagList:
         }
 
         with patch("slcli.tag_click.make_api_request") as mock_request:
-            with patch("slcli.tag_click._resolve_workspace") as mock_resolve:
+            with patch("slcli.tag_click.resolve_workspace_id") as mock_resolve:
                 mock_resolve.return_value = "ws-123"
                 mock_request.return_value = mock_response(mock_data)
 
@@ -153,7 +153,7 @@ class TestTagList:
         mock_data: Any = {"tagsWithValues": []}
 
         with patch("slcli.tag_click.make_api_request") as mock_request:
-            with patch("slcli.tag_click._resolve_workspace") as mock_resolve:
+            with patch("slcli.tag_click.resolve_workspace_id") as mock_resolve:
                 mock_resolve.return_value = "ws-123"
                 mock_request.return_value = mock_response(mock_data)
 
@@ -180,7 +180,7 @@ class TestTagList:
         mock_data: Any = {"tagsWithValues": []}
 
         with patch("slcli.tag_click.make_api_request") as mock_request:
-            with patch("slcli.tag_click._resolve_workspace") as mock_resolve:
+            with patch("slcli.tag_click.resolve_workspace_id") as mock_resolve:
                 mock_resolve.return_value = "ws-123"
                 mock_request.return_value = mock_response(mock_data)
 
@@ -210,7 +210,7 @@ class TestTagList:
         mock_data: Any = {"tagsWithValues": []}
 
         with patch("slcli.tag_click.make_api_request") as mock_request:
-            with patch("slcli.tag_click._resolve_workspace") as mock_resolve:
+            with patch("slcli.tag_click.resolve_workspace_id") as mock_resolve:
                 mock_resolve.return_value = "ws-999"
                 mock_request.return_value = mock_response(mock_data)
 
@@ -232,7 +232,7 @@ class TestTagList:
         runner = CliRunner()
 
         with patch("slcli.tag_click.make_api_request") as mock_request:
-            with patch("slcli.tag_click._resolve_workspace") as mock_resolve:
+            with patch("slcli.tag_click.resolve_workspace_id") as mock_resolve:
                 mock_resolve.return_value = "ws-123"
                 # Mock query tags failure
                 mock_request.side_effect = Exception("Query Failed")
@@ -242,8 +242,8 @@ class TestTagList:
                 assert "Query Failed" in result.output
 
 
-class TestTagView:
-    """Tests for tag view command."""
+class TestTagGet:
+    """Tests for tag get command."""
 
     def test_view_tag_success(self, monkeypatch: Any) -> None:
         """Test successful tag view."""
@@ -273,7 +273,7 @@ class TestTagView:
         }
 
         with patch("slcli.tag_click.make_api_request") as mock_request:
-            with patch("slcli.tag_click._resolve_workspace") as mock_resolve:
+            with patch("slcli.tag_click.resolve_workspace_id") as mock_resolve:
                 mock_resolve.return_value = "ws-123"
                 mock_request.side_effect = [
                     mock_response(tag_data),
@@ -305,7 +305,7 @@ class TestTagView:
         }
 
         with patch("slcli.tag_click.make_api_request") as mock_request:
-            with patch("slcli.tag_click._resolve_workspace") as mock_resolve:
+            with patch("slcli.tag_click.resolve_workspace_id") as mock_resolve:
                 mock_resolve.return_value = "ws-123"
                 mock_request.side_effect = [
                     mock_response(tag_data),
@@ -334,7 +334,7 @@ class TestTagCreate:
         runner = CliRunner()
 
         with patch("slcli.tag_click.make_api_request") as mock_request:
-            with patch("slcli.tag_click._resolve_workspace") as mock_resolve:
+            with patch("slcli.tag_click.resolve_workspace_id") as mock_resolve:
                 mock_resolve.return_value = "ws-123"
                 mock_request.return_value = mock_response({}, 201)
 
@@ -356,7 +356,7 @@ class TestTagCreate:
         runner = CliRunner()
 
         with patch("slcli.tag_click.make_api_request") as mock_request:
-            with patch("slcli.tag_click._resolve_workspace") as mock_resolve:
+            with patch("slcli.tag_click.resolve_workspace_id") as mock_resolve:
                 mock_resolve.return_value = "ws-123"
                 mock_request.return_value = mock_response({}, 201)
 
@@ -394,7 +394,7 @@ class TestTagCreate:
         runner = CliRunner()
 
         with patch("slcli.tag_click.make_api_request") as mock_request:
-            with patch("slcli.tag_click._resolve_workspace") as mock_resolve:
+            with patch("slcli.tag_click.resolve_workspace_id") as mock_resolve:
                 mock_resolve.return_value = "ws-123"
                 mock_request.return_value = mock_response({}, 201)
 
@@ -449,7 +449,7 @@ class TestTagCreate:
         runner = CliRunner()
 
         with patch("slcli.tag_click.make_api_request") as mock_request:
-            with patch("slcli.tag_click._resolve_workspace") as mock_resolve:
+            with patch("slcli.tag_click.resolve_workspace_id") as mock_resolve:
                 mock_resolve.return_value = "ws-123"
                 mock_request.return_value = mock_response({}, 201)
 
@@ -487,7 +487,7 @@ class TestTagUpdate:
         runner = CliRunner()
 
         with patch("slcli.tag_click.make_api_request") as mock_request:
-            with patch("slcli.tag_click._resolve_workspace") as mock_resolve:
+            with patch("slcli.tag_click.resolve_workspace_id") as mock_resolve:
                 mock_resolve.return_value = "ws-123"
                 mock_request.return_value = mock_response({})
 
@@ -518,7 +518,7 @@ class TestTagUpdate:
         runner = CliRunner()
 
         with patch("slcli.tag_click.make_api_request") as mock_request:
-            with patch("slcli.tag_click._resolve_workspace") as mock_resolve:
+            with patch("slcli.tag_click.resolve_workspace_id") as mock_resolve:
                 mock_resolve.return_value = "ws-123"
                 mock_request.return_value = mock_response({})
 
@@ -556,7 +556,7 @@ class TestTagDelete:
         runner = CliRunner()
 
         with patch("slcli.tag_click.make_api_request") as mock_request:
-            with patch("slcli.tag_click._resolve_workspace") as mock_resolve:
+            with patch("slcli.tag_click.resolve_workspace_id") as mock_resolve:
                 mock_resolve.return_value = "ws-123"
                 mock_request.return_value = mock_response({}, 204)
 
@@ -578,7 +578,7 @@ class TestTagDelete:
         runner = CliRunner()
 
         with patch("slcli.tag_click.make_api_request") as mock_request:
-            with patch("slcli.tag_click._resolve_workspace") as mock_resolve:
+            with patch("slcli.tag_click.resolve_workspace_id") as mock_resolve:
                 mock_resolve.return_value = "ws-123"
                 mock_request.return_value = mock_response({}, 204)
 
@@ -603,7 +603,7 @@ class TestTagSetValue:
         runner = CliRunner()
 
         with patch("slcli.tag_click.make_api_request") as mock_request:
-            with patch("slcli.tag_click._resolve_workspace") as mock_resolve:
+            with patch("slcli.tag_click.resolve_workspace_id") as mock_resolve:
                 mock_resolve.return_value = "ws-123"
                 mock_request.return_value = mock_response({}, 202)
 
@@ -625,7 +625,7 @@ class TestTagSetValue:
         runner = CliRunner()
 
         with patch("slcli.tag_click.make_api_request") as mock_request:
-            with patch("slcli.tag_click._resolve_workspace") as mock_resolve:
+            with patch("slcli.tag_click.resolve_workspace_id") as mock_resolve:
                 mock_resolve.return_value = "ws-123"
                 mock_request.return_value = mock_response({}, 202)
 
@@ -670,7 +670,7 @@ class TestTagGetValue:
         }
 
         with patch("slcli.tag_click.make_api_request") as mock_request:
-            with patch("slcli.tag_click._resolve_workspace") as mock_resolve:
+            with patch("slcli.tag_click.resolve_workspace_id") as mock_resolve:
                 mock_resolve.return_value = "ws-123"
                 mock_request.return_value = mock_response(value_data)
 
@@ -694,7 +694,7 @@ class TestTagGetValue:
         value_data = {"current": {"value": {"value": "23.5"}, "timestamp": "2024-01-01T00:00:00Z"}}
 
         with patch("slcli.tag_click.make_api_request") as mock_request:
-            with patch("slcli.tag_click._resolve_workspace") as mock_resolve:
+            with patch("slcli.tag_click.resolve_workspace_id") as mock_resolve:
                 mock_resolve.return_value = "ws-123"
                 mock_request.return_value = mock_response(value_data)
 
@@ -722,7 +722,7 @@ class TestTagGetValue:
         }
 
         with patch("slcli.tag_click.make_api_request") as mock_request:
-            with patch("slcli.tag_click._resolve_workspace") as mock_resolve:
+            with patch("slcli.tag_click.resolve_workspace_id") as mock_resolve:
                 mock_resolve.return_value = "ws-123"
                 mock_request.return_value = mock_response(value_data)
 
@@ -750,7 +750,7 @@ class TestWorkspaceResolution:
         runner = CliRunner()
 
         with patch("slcli.tag_click.make_api_request") as mock_request:
-            with patch("slcli.tag_click._resolve_workspace") as mock_resolve:
+            with patch("slcli.tag_click.resolve_workspace_id") as mock_resolve:
                 mock_resolve.return_value = "ws-custom"
                 mock_request.return_value = mock_response({"tagsWithValues": []})
 
@@ -772,7 +772,7 @@ class TestWorkspaceResolution:
         runner = CliRunner()
 
         with patch("slcli.tag_click.make_api_request") as mock_request:
-            with patch("slcli.tag_click._resolve_workspace") as mock_resolve:
+            with patch("slcli.tag_click.resolve_workspace_id") as mock_resolve:
                 mock_resolve.return_value = "ws-default"
                 mock_request.return_value = mock_response({"tagsWithValues": []})
 
@@ -794,9 +794,9 @@ class TestWorkspaceResolution:
         runner = CliRunner()
 
         with patch("slcli.tag_click.make_api_request") as mock_request:
-            # Mock get workspaces failure
+            # Mock API failure
             mock_request.side_effect = Exception("API Error")
 
             result = runner.invoke(cli, ["tag", "list"])
             assert result.exit_code != 0
-            assert "Failed to get default workspace" in result.output
+            assert "API Error" in result.output

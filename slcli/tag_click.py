@@ -22,45 +22,6 @@ from .utils import (
 from .workspace_utils import resolve_workspace_id
 
 
-def _get_default_workspace_id() -> str:
-    """Get the default workspace ID from configuration.
-
-    Returns:
-        The default workspace ID
-
-    Raises:
-        Exception: If default workspace cannot be determined
-    """
-    try:
-        url = f"{get_base_url()}/niuser/v1/workspaces"
-        resp = make_api_request("GET", url, payload=None)
-        data = resp.json()
-        workspaces = data.get("workspaces", [])
-        if workspaces:
-            # Return the first workspace as default
-            return workspaces[0]["id"]
-        raise Exception("No workspaces available")
-    except Exception as exc:
-        raise Exception(f"Failed to get default workspace: {str(exc)}")
-
-
-def _resolve_workspace(workspace_id: Optional[str] = None) -> str:
-    """Resolve workspace ID, using default if not provided.
-
-    Args:
-        workspace_id: Optional workspace ID or name. If None, uses default workspace.
-
-    Returns:
-        The resolved workspace ID
-
-    Raises:
-        Exception: If workspace cannot be resolved
-    """
-    if workspace_id:
-        return resolve_workspace_id(workspace_id)
-    return _get_default_workspace_id()
-
-
 def _tag_formatter(item: Dict[str, Any]) -> List[str]:
     """Format a tag for table output.
 
@@ -86,29 +47,6 @@ def _tag_formatter(item: Dict[str, Any]) -> List[str]:
         value = "N/A"
 
     return [path, tag_type, value, last_updated]
-
-
-def _get_tag_value_display(tag_data: Dict[str, Any]) -> str:
-    """Format tag value for display.
-
-    Args:
-        tag_data: Tag data with value information
-
-    Returns:
-        Formatted value string
-    """
-    # handle nested structure if present
-    current = tag_data.get("current", tag_data)
-    if not current:
-        return "No value"
-
-    value_obj = current.get("value", {})
-    value = value_obj.get("value", "N/A")
-    timestamp = current.get("timestamp", "")
-
-    if timestamp:
-        return f"{value} (at {timestamp})"
-    return str(value)
 
 
 def _calculate_column_widths() -> List[int]:
@@ -278,7 +216,7 @@ def register_tag_commands(cli: Any) -> None:
         validate_output_format(format)
 
         try:
-            ws_id = _resolve_workspace(workspace)
+            ws_id = resolve_workspace_id(workspace)
 
             # Build filter string
             # API requires workspace in the filter
@@ -397,7 +335,7 @@ def register_tag_commands(cli: Any) -> None:
         TAG_PATH is the path identifier of the tag (e.g., 'system.temperature').
         """
         try:
-            ws_id = _resolve_workspace(workspace)
+            ws_id = resolve_workspace_id(workspace)
             encoded_path = urllib.parse.quote(tag_path, safe="")
 
             # Get tag metadata
@@ -459,6 +397,7 @@ def register_tag_commands(cli: Any) -> None:
     @click.option(
         "--type",
         "-t",
+        "tag_type",
         type=click.Choice(["DOUBLE", "INT", "STRING", "BOOLEAN", "U_INT64", "DATE_TIME"]),
         required=True,
         help="Tag data type",
@@ -491,7 +430,7 @@ def register_tag_commands(cli: Any) -> None:
     )
     def create_tag(
         tag_path: str,
-        type: str,
+        tag_type: str,
         workspace: Optional[str],
         keywords: Optional[str],
         properties: tuple,
@@ -499,7 +438,7 @@ def register_tag_commands(cli: Any) -> None:
     ) -> None:
         """Create a new tag."""
         try:
-            ws_id = _resolve_workspace(workspace)
+            ws_id = resolve_workspace_id(workspace)
 
             # Parse keywords and properties
             keywords_list = _parse_keywords(keywords)
@@ -508,7 +447,7 @@ def register_tag_commands(cli: Any) -> None:
             # Create tag payload
             tag_payload = {
                 "path": tag_path,
-                "type": type,
+                "type": tag_type,
                 "workspace": ws_id,
                 "collectAggregates": collect_aggregates,
             }
@@ -523,7 +462,7 @@ def register_tag_commands(cli: Any) -> None:
             url = f"{get_base_url()}/nitag/v2/tags/{ws_id}/{encoded_path}"
             make_api_request("PUT", url, payload=tag_payload)
 
-            format_success("Tag created", {"path": tag_path, "type": type, "workspace": ws_id})
+            format_success("Tag created", {"path": tag_path, "type": tag_type, "workspace": ws_id})
 
         except Exception as exc:
             handle_api_error(exc)
@@ -565,7 +504,7 @@ def register_tag_commands(cli: Any) -> None:
     ) -> None:
         """Update tag metadata (keywords, properties)."""
         try:
-            ws_id = _resolve_workspace(workspace)
+            ws_id = resolve_workspace_id(workspace)
 
             # Parse keywords and properties
             keywords_list = _parse_keywords(keywords)
@@ -609,7 +548,7 @@ def register_tag_commands(cli: Any) -> None:
         TAG_PATH is the path identifier of the tag to delete.
         """
         try:
-            ws_id = _resolve_workspace(workspace)
+            ws_id = resolve_workspace_id(workspace)
             encoded_path = urllib.parse.quote(tag_path, safe="")
 
             url = f"{get_base_url()}/nitag/v2/tags/{ws_id}/{encoded_path}"
@@ -651,7 +590,7 @@ def register_tag_commands(cli: Any) -> None:
         - Everything else -> STRING
         """
         try:
-            ws_id = _resolve_workspace(workspace)
+            ws_id = resolve_workspace_id(workspace)
             encoded_path = urllib.parse.quote(tag_path, safe="")
 
             # Detect value type and convert
@@ -725,7 +664,7 @@ def register_tag_commands(cli: Any) -> None:
         validate_output_format(format)
 
         try:
-            ws_id = _resolve_workspace(workspace)
+            ws_id = resolve_workspace_id(workspace)
             encoded_path = urllib.parse.quote(tag_path, safe="")
 
             url = f"{get_base_url()}/nitag/v2/tags/{ws_id}/{encoded_path}/values"
