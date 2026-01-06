@@ -11,6 +11,7 @@ from dataclasses import dataclass
 from enum import Enum
 from typing import Any, Dict, List, Optional, Tuple
 
+import click
 import requests
 
 from .utils import get_base_url, get_headers, make_api_request
@@ -497,6 +498,11 @@ class ExampleProvisioner:
             for ref in props["file_id_references"]:
                 if ref in self.id_map:
                     file_ids.append(self.id_map[ref])
+                else:
+                    click.echo(
+                        f"Warning: File reference '{ref}' not found in id_map for product {product_obj['name']}",
+                        err=True,
+                    )
         # If we have file IDs, add them to the product object
         if file_ids:
             product_obj["fileIds"] = file_ids
@@ -2442,11 +2448,31 @@ class ExampleProvisioner:
                 full_path = Path(file_path)
 
             if not full_path.exists():
+                click.echo(
+                    f"Warning: File not found: {full_path}",
+                    err=True,
+                )
                 return None
 
             with open(full_path, "rb") as f:
                 return f.read()
-        except Exception:
+        except FileNotFoundError:
+            click.echo(
+                f"Warning: File not found: {file_path}",
+                err=True,
+            )
+            return None
+        except PermissionError:
+            click.echo(
+                f"Warning: Permission denied reading file: {file_path}",
+                err=True,
+            )
+            return None
+        except Exception as exc:
+            click.echo(
+                f"Warning: Error reading file {file_path}: {exc}",
+                err=True,
+            )
             return None
 
     def _create_notebook(self, props: Dict[str, Any]) -> Optional[str]:
@@ -2550,7 +2576,17 @@ class ExampleProvisioner:
                 resp.raise_for_status()
 
             return notebook_id
-        except Exception:
+        except FileNotFoundError:
+            click.echo(
+                f"Warning: Notebook file not found: {file_path}",
+                err=True,
+            )
+            return None
+        except Exception as exc:
+            click.echo(
+                f"Warning: Failed to create notebook {name}: {exc}",
+                err=True,
+            )
             return None
 
     def _get_file_by_name(self, name: str) -> Optional[str]:

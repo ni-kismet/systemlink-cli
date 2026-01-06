@@ -443,8 +443,9 @@ def test_notebook_properties_preserved_with_interface(
     assert mock_requests.post.called
     assert mock_requests.put.called
 
-    # Verify PUT request preserved slcli-example property
+    # Verify PUT request preserved slcli-example property and added interface
     assert put_metadata is not None
     assert "properties" in put_metadata
     assert put_metadata["properties"].get("slcli-example") == "test-example"
+    # Verify interface property was actually added
     assert put_metadata["properties"].get("interface") == "File Analysis"
