@@ -1,12 +1,40 @@
 # CHANGELOG
 
 
+## v0.21.0 (2026-01-06)
+
+### Features
+
+- Add spec compliance notebook example ([#40](https://github.com/ni-kismet/systemlink-cli/pull/40),
+  [`261621c`](https://github.com/ni-kismet/systemlink-cli/commit/261621c3a9131637440243610609cd43ff092edf))
+
+* Add spec-compliance-notebooks example with notebook publishing support
+
+- Create new example 'spec-compliance-notebooks' that publishes three Jupyter notebooks (Spec
+  Compliance Calculation, Spec Analysis & Compliance Calculation, Specfile Extraction) to SystemLink
+  with File Analysis interface - Move notebooks from Jupyter/ to
+  spec-compliance-notebooks/notebooks/ - Enhance example_provisioner._create_file() to support
+  notebook creation via file_path and notebook_interface properties - Add
+  _create_notebook_from_file() helper to load .ipynb files from example directory and create
+  notebooks with interface assignment - Update example_loader and schema to support 'file' resource
+  type for notebooks - All unit tests pass; no regressions
+
+* feat: add spec notebook example
+
+* review feedback
+
+
 ## v0.20.1 (2025-12-30)
 
 ### Bug Fixes
 
 - Include examples in PyInstaller build ([#39](https://github.com/ni-kismet/systemlink-cli/pull/39),
   [`92ab074`](https://github.com/ni-kismet/systemlink-cli/commit/92ab0747e0d3a4ecf81e96010d02b3ff00b32883))
+
+### Chores
+
+- **release**: 0.20.1
+  ([`11dfdd8`](https://github.com/ni-kismet/systemlink-cli/commit/11dfdd8de47deb007a1917e8b9e8592d460448e7))
 
 
 ## v0.20.0 (2025-12-19)
