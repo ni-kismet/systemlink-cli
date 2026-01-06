@@ -643,7 +643,8 @@ def register_tag_commands(cli: Any) -> None:
                 converted_value = value
                 api_value_str = value
             elif value_type == "BOOLEAN":
-                api_value_str = "True" if converted_value else "False"
+                # Normalize boolean string values to lowercase
+                api_value_str = "true" if converted_value else "false"
 
             # Create value payload
             value_payload: Dict[str, Any] = {
