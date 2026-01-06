@@ -1,7 +1,20 @@
 # CHANGELOG
 
 
+## v0.22.1 (2026-01-06)
+
+### Bug Fixes
+
+- Tag set-value for dates and uint64
+  ([`2936df8`](https://github.com/ni-kismet/systemlink-cli/commit/2936df839fbf107b6443cce65a41749964da6fac))
+
+
 ## v0.22.0 (2026-01-06)
+
+### Chores
+
+- **release**: 0.22.0
+  ([`8915234`](https://github.com/ni-kismet/systemlink-cli/commit/89152344a7da1035695741a707b22055083a5414))
 
 ### Features
 
