@@ -1,12 +1,25 @@
 # CHANGELOG
 
 
+## v0.22.2 (2026-01-06)
+
+### Bug Fixes
+
+- Lowercase boolean tags
+  ([`460808b`](https://github.com/ni-kismet/systemlink-cli/commit/460808b755568a5ca5dc6496dba7c42a62b5994f))
+
+
 ## v0.22.1 (2026-01-06)
 
 ### Bug Fixes
 
 - Tag set-value for dates and uint64
   ([`2936df8`](https://github.com/ni-kismet/systemlink-cli/commit/2936df839fbf107b6443cce65a41749964da6fac))
+
+### Chores
+
+- **release**: 0.22.1
+  ([`83bacca`](https://github.com/ni-kismet/systemlink-cli/commit/83bacca70842af0d44b0d17a93cecde020fbc4da))
 
 
 ## v0.22.0 (2026-01-06)
