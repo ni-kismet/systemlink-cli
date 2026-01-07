@@ -127,7 +127,6 @@ After installation, restart your shell or source the completion file. See [docs/
    slcli dff list
    ```
 
-
 ````
 
 ## Example Command (demo systems)
