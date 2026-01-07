@@ -11,6 +11,7 @@ SystemLink CLI (`slcli`) is a cross-platform Python CLI for SystemLink integrato
 - **Test Plan Templates**: Complete management (list, export, import, delete, init) with JSON and table output formats
 - **Jupyter Notebooks**: Full lifecycle management (list, download, create, update, delete) with workspace filtering and interface assignment
 - **User Management**: Comprehensive user administration (list, get, create, update, delete) with Dynamic LINQ filtering, pagination, and support for service accounts
+- **Authorization Management**: Full auth policy and template management (list, get, create, update, delete, diff) with workspace scoping and template-based policy generation
 - **Feed Management**: Manage NI Package Manager feeds (list, get, create, delete, package list/upload/delete) with platform-aware behavior for SLE/SLS
 - **Workflows**: Full workflow management (list, export, import, delete, init, update) with comprehensive state and action definitions
 - **Workspace Management**: Essential workspace administration (list, info, disable) with comprehensive resource details
@@ -125,6 +126,10 @@ After installation, restart your shell or source the completion file. See [docs/
 
    # View dynamic form field configurations
    slcli dff config list
+
+  # View auth policies and templates
+  slcli auth policy list
+  slcli auth template list
    ```
 
 # View dynamic form field groups
@@ -180,6 +185,69 @@ Available samples:
    slcli notebook --help
    slcli dff --help
    slcli feed --help
+   slcli auth policy --help
+   slcli auth template --help
+
+## Auth Policy Management
+
+Manage authorization policies and policy templates for workspace-based access control.
+
+### Policy Commands
+
+```bash
+# List all policies (filter by type/name), table or JSON formats
+slcli auth policy list --type custom --format table
+
+# Get policy details
+slcli auth policy get <policy-id>
+
+# Create policy from template for a workspace
+slcli auth policy create <template-id> \
+  --name "my-policy" \
+  --workspace <workspace-id>
+
+# Update policy (change name/workspace or reapply template)
+slcli auth policy update <policy-id> \
+  --name "new-name" \
+  --workspace <new-workspace-id>
+
+# Compare two policies
+slcli auth policy diff <policy-id-1> <policy-id-2>
+
+# Delete policy
+slcli auth policy delete <policy-id> --force
+```
+
+### Template Commands
+
+```bash
+# List policy templates
+slcli auth template list
+
+# Get template details
+slcli auth template get <template-id>
+
+# Delete template
+slcli auth template delete <template-id>
+```
+
+### User Integration
+
+Assign policies to users during create/update.
+
+```bash
+# Create user with single policy
+slcli user create --type user \
+  --first-name John --last-name Doe \
+  --email john@example.com \
+  --policy <policy-id>
+
+# Create user with workspace-scoped policies from templates
+slcli user create --type user \
+  --first-name Jane --last-name Doe \
+  --email jane@example.com \
+  --workspace-policies "dev-ws:template-dev,prod-ws:template-prod"
+```
    ```
 
 ## Feed Management
