@@ -233,7 +233,7 @@ slcli auth template delete <template-id>
 
 ### User Integration
 
-Assign policies to users during create/update.
+Assign policies to users during create/update. Workspace names or IDs are both supported.
 
 ```bash
 # Create user with single policy
@@ -243,10 +243,11 @@ slcli user create --type user \
   --policy <policy-id>
 
 # Create user with workspace-scoped policies from templates
+# Format: workspaceName:templateId or workspaceId:templateId
 slcli user create --type user \
   --first-name Jane --last-name Doe \
   --email jane@example.com \
-  --workspace-policies "dev-ws:template-dev,prod-ws:template-prod"
+  --workspace-policies "DevWorkspace:template-dev,ProdWorkspace:template-prod"
 ```
    ```
 

@@ -21,7 +21,7 @@ from .utils import (
     handle_api_error,
     make_api_request,
 )
-from .workspace_utils import get_workspace_display_name
+from .workspace_utils import get_workspace_display_name, resolve_workspace_id
 
 
 def _get_policy_details(policy_id: str) -> Optional[dict]:
@@ -692,8 +692,9 @@ def register_user_commands(cli: click.Group) -> None:
     @click.option(
         "--workspace-policies",
         help=(
-            "Comma-separated list of workspace:templateId entries; a policy will be created per"
-            " workspace from the template and assigned to the user"
+            "Comma-separated list of workspace:templateId entries (workspace can be name or"
+            " ID); a policy will be created per workspace from the template and assigned to"
+            " the user"
         ),
     )
     @click.option(
@@ -822,7 +823,7 @@ def register_user_commands(cli: click.Group) -> None:
                     continue
                 if ":" not in pair:
                     click.echo(
-                        "✗ Invalid workspace-policies format. Use workspace:templateId",
+                        "✗ Invalid workspace-policies format. Use workspace:templateId (e.g., 'myWorkspace:template-123')",
                         err=True,
                     )
                     sys.exit(ExitCodes.INVALID_INPUT)
@@ -835,14 +836,24 @@ def register_user_commands(cli: click.Group) -> None:
                         err=True,
                     )
                     sys.exit(ExitCodes.INVALID_INPUT)
-                mappings.append((ws, template_id))
+
+                # Resolve workspace name to ID
+                ws_id = resolve_workspace_id(ws)
+                if not ws_id:
+                    click.echo(
+                        f"✗ Could not resolve workspace '{ws}'. Please verify the workspace exists.",
+                        err=True,
+                    )
+                    sys.exit(ExitCodes.NOT_FOUND)
+
+                mappings.append((ws_id, template_id))
 
             # Create policies for each mapping
-            for ws, template_id in mappings:
+            for ws_id, template_id in mappings:
                 try:
                     created_policy_id = _create_workspace_policy_from_template(
                         template_id=template_id,
-                        workspace=ws,
+                        workspace=ws_id,
                         name_hint=first_name or "user",
                     )
                     policy_ids.append(created_policy_id)
@@ -939,8 +950,9 @@ def register_user_commands(cli: click.Group) -> None:
     @click.option(
         "--workspace-policies",
         help=(
-            "Comma-separated list of workspace:templateId entries; a policy will be created per"
-            " workspace from the template and assigned to the user"
+            "Comma-separated list of workspace:templateId entries (workspace can be name or"
+            " ID); a policy will be created per workspace from the template and assigned to"
+            " the user"
         ),
     )
     @click.option(
@@ -1039,7 +1051,7 @@ def register_user_commands(cli: click.Group) -> None:
                     continue
                 if ":" not in pair:
                     click.echo(
-                        "✗ Invalid workspace-policies format. Use workspace:templateId",
+                        "✗ Invalid workspace-policies format. Use workspace:templateId (e.g., 'myWorkspace:template-123')",
                         err=True,
                     )
                     sys.exit(ExitCodes.INVALID_INPUT)
@@ -1052,13 +1064,23 @@ def register_user_commands(cli: click.Group) -> None:
                         err=True,
                     )
                     sys.exit(ExitCodes.INVALID_INPUT)
-                mappings_upd.append((ws, template_id))
 
-            for ws, template_id in mappings_upd:
+                # Resolve workspace name to ID
+                ws_id = resolve_workspace_id(ws)
+                if not ws_id:
+                    click.echo(
+                        f"✗ Could not resolve workspace '{ws}'. Please verify the workspace exists.",
+                        err=True,
+                    )
+                    sys.exit(ExitCodes.NOT_FOUND)
+
+                mappings_upd.append((ws_id, template_id))
+
+            for ws_id, template_id in mappings_upd:
                 try:
                     created_policy_id = _create_workspace_policy_from_template(
                         template_id=template_id,
-                        workspace=ws,
+                        workspace=ws_id,
                         name_hint=first_name or "user",
                     )
                     policy_ids_upd.append(created_policy_id)
