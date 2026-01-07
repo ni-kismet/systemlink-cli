@@ -1,12 +1,54 @@
 # CHANGELOG
 
 
+## v0.23.0 (2026-01-07)
+
+### Features
+
+- Add auth policy management commands + docs
+  ([#43](https://github.com/ni-kismet/systemlink-cli/pull/43),
+  [`018379d`](https://github.com/ni-kismet/systemlink-cli/commit/018379d08f100589fcfae6704257da8bf6f897f5))
+
+* feat: add policy management commands
+
+* docs: document auth policy management commands and examples
+
+* feat: support workspace name/ID in --workspace-policies option
+
+- Add workspace name resolution using resolve_workspace_id() - Update help text to clarify both name
+  and ID are supported - Improve validation with better error messages - Update README examples to
+  show workspace name usage - All tests passing (44 user tests)
+
+* fix: Address PR review comments - DRY workspace policy parsing, fix test mocking, add error
+  coverage (#44)
+
+* Initial plan
+
+* fix: Address PR review comments - extract helper, fix tests, add error coverage
+
+Co-authored-by: fredvisser <1458528+fredvisser@users.noreply.github.com>
+
+---------
+
+Co-authored-by: copilot-swe-agent[bot] <198982749+Copilot@users.noreply.github.com> Co-authored-by:
+  fredvisser <1458528+fredvisser@users.noreply.github.com>
+
+---------
+
+Co-authored-by: Copilot <198982749+Copilot@users.noreply.github.com>
+
+
 ## v0.22.2 (2026-01-06)
 
 ### Bug Fixes
 
 - Lowercase boolean tags
   ([`460808b`](https://github.com/ni-kismet/systemlink-cli/commit/460808b755568a5ca5dc6496dba7c42a62b5994f))
+
+### Chores
+
+- **release**: 0.22.2
+  ([`5038e2b`](https://github.com/ni-kismet/systemlink-cli/commit/5038e2bf0875b1b63627f8c6b9c2c5bbe7d709ec))
 
 
 ## v0.22.1 (2026-01-06)
