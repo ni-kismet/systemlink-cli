@@ -104,6 +104,74 @@ def _create_workspace_policy_from_template(
     return policy_id
 
 
+def _process_workspace_policies(
+    workspace_policies: str, name_hint: Optional[str] = None
+) -> List[str]:
+    """Process workspace-policies string and create policies from templates.
+
+    Args:
+        workspace_policies: Comma-separated list of workspace:templateId pairs
+        name_hint: Optional name hint for generated policy names
+
+    Returns:
+        List of created policy IDs
+
+    Raises:
+        SystemExit: If format is invalid, values are empty, or workspace cannot be resolved
+    """
+    policy_ids: List[str] = []
+    mappings = []
+
+    for item in workspace_policies.split(","):
+        pair = item.strip()
+        if not pair:
+            continue
+        if ":" not in pair:
+            click.echo(
+                "✗ Invalid workspace-policies format. Use workspace:templateId "
+                "(e.g., 'myWorkspace:template-123')",
+                err=True,
+            )
+            sys.exit(ExitCodes.INVALID_INPUT)
+        ws, template_id = pair.split(":", 1)
+        ws = ws.strip()
+        template_id = template_id.strip()
+        if not ws or not template_id:
+            click.echo(
+                "✗ Invalid workspace-policies entry. Both workspace and templateId are required.",
+                err=True,
+            )
+            sys.exit(ExitCodes.INVALID_INPUT)
+
+        # Resolve workspace name to ID
+        ws_id = resolve_workspace_id(ws)
+        if not ws_id:
+            click.echo(
+                f"✗ Could not resolve workspace '{ws}'. Please verify the workspace exists.",
+                err=True,
+            )
+            sys.exit(ExitCodes.NOT_FOUND)
+
+        mappings.append((ws_id, template_id))
+
+    # Create policies for each mapping
+    for ws_id, template_id in mappings:
+        try:
+            created_policy_id = _create_workspace_policy_from_template(
+                template_id=template_id,
+                workspace=ws_id,
+                name_hint=name_hint or "user",
+            )
+            policy_ids.append(created_policy_id)
+        except ValueError as e:
+            click.echo(f"✗ Error: {str(e)}", err=True)
+            sys.exit(ExitCodes.INVALID_INPUT)
+        except Exception as exc:
+            handle_api_error(exc)
+
+    return policy_ids
+
+
 def _calculate_policy_column_widths() -> List[int]:
     """Calculate dynamic column widths for policy statements based on terminal size."""
     try:
@@ -816,52 +884,7 @@ def register_user_commands(cli: click.Group) -> None:
             policy_ids.extend([p.strip() for p in policies.split(",")])
 
         if workspace_policies:
-            mappings = []
-            for item in workspace_policies.split(","):
-                pair = item.strip()
-                if not pair:
-                    continue
-                if ":" not in pair:
-                    click.echo(
-                        "✗ Invalid workspace-policies format. Use workspace:templateId (e.g., 'myWorkspace:template-123')",
-                        err=True,
-                    )
-                    sys.exit(ExitCodes.INVALID_INPUT)
-                ws, template_id = pair.split(":", 1)
-                ws = ws.strip()
-                template_id = template_id.strip()
-                if not ws or not template_id:
-                    click.echo(
-                        "✗ Invalid workspace-policies entry. Both workspace and templateId are required.",
-                        err=True,
-                    )
-                    sys.exit(ExitCodes.INVALID_INPUT)
-
-                # Resolve workspace name to ID
-                ws_id = resolve_workspace_id(ws)
-                if not ws_id:
-                    click.echo(
-                        f"✗ Could not resolve workspace '{ws}'. Please verify the workspace exists.",
-                        err=True,
-                    )
-                    sys.exit(ExitCodes.NOT_FOUND)
-
-                mappings.append((ws_id, template_id))
-
-            # Create policies for each mapping
-            for ws_id, template_id in mappings:
-                try:
-                    created_policy_id = _create_workspace_policy_from_template(
-                        template_id=template_id,
-                        workspace=ws_id,
-                        name_hint=first_name or "user",
-                    )
-                    policy_ids.append(created_policy_id)
-                except ValueError as e:
-                    click.echo(f"✗ Error: {str(e)}", err=True)
-                    sys.exit(ExitCodes.INVALID_INPUT)
-                except Exception as exc:
-                    handle_api_error(exc)
+            policy_ids.extend(_process_workspace_policies(workspace_policies, first_name))
 
         if policy_ids:
             # de-duplicate while preserving order
@@ -1044,51 +1067,7 @@ def register_user_commands(cli: click.Group) -> None:
             policy_ids_upd.extend([p.strip() for p in policies.split(",")])
 
         if workspace_policies:
-            mappings_upd = []
-            for item in workspace_policies.split(","):
-                pair = item.strip()
-                if not pair:
-                    continue
-                if ":" not in pair:
-                    click.echo(
-                        "✗ Invalid workspace-policies format. Use workspace:templateId (e.g., 'myWorkspace:template-123')",
-                        err=True,
-                    )
-                    sys.exit(ExitCodes.INVALID_INPUT)
-                ws, template_id = pair.split(":", 1)
-                ws = ws.strip()
-                template_id = template_id.strip()
-                if not ws or not template_id:
-                    click.echo(
-                        "✗ Invalid workspace-policies entry. Both workspace and templateId are required.",
-                        err=True,
-                    )
-                    sys.exit(ExitCodes.INVALID_INPUT)
-
-                # Resolve workspace name to ID
-                ws_id = resolve_workspace_id(ws)
-                if not ws_id:
-                    click.echo(
-                        f"✗ Could not resolve workspace '{ws}'. Please verify the workspace exists.",
-                        err=True,
-                    )
-                    sys.exit(ExitCodes.NOT_FOUND)
-
-                mappings_upd.append((ws_id, template_id))
-
-            for ws_id, template_id in mappings_upd:
-                try:
-                    created_policy_id = _create_workspace_policy_from_template(
-                        template_id=template_id,
-                        workspace=ws_id,
-                        name_hint=first_name or "user",
-                    )
-                    policy_ids_upd.append(created_policy_id)
-                except ValueError as e:
-                    click.echo(f"✗ Error: {str(e)}", err=True)
-                    sys.exit(ExitCodes.INVALID_INPUT)
-                except Exception as exc:
-                    handle_api_error(exc)
+            policy_ids_upd.extend(_process_workspace_policies(workspace_policies, first_name))
 
         if policy_ids_upd:
             seen_upd: set[str] = set()

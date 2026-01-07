@@ -800,8 +800,11 @@ class TestUserCreate:
         policy_resp = {"id": "pol-ws-1", "name": "generated"}
         user_resp = {"id": "new-user-id", "email": "john.doe@example.com"}
 
-        with patch("slcli.user_click.make_api_request") as mock_request:
+        with patch("slcli.user_click.make_api_request") as mock_request, patch(
+            "slcli.user_click.resolve_workspace_id"
+        ) as mock_resolve:
             mock_request.side_effect = [mock_response(policy_resp), mock_response(user_resp)]
+            mock_resolve.return_value = "dev"
 
             result = runner_local.invoke(
                 cli,
@@ -828,6 +831,122 @@ class TestUserCreate:
             user_payload = user_call.kwargs.get("payload")
             assert user_payload
             assert user_payload.get("policies") == ["pol-ws-1"]
+
+    def test_create_user_workspace_policies_invalid_format(
+        self, runner: CliRunner, monkeypatch: Any
+    ) -> None:
+        """Test workspace-policies with invalid format (missing colon)."""
+        patch_keyring(monkeypatch)
+
+        cli = make_cli()
+        result = runner.invoke(
+            cli,
+            [
+                "user",
+                "create",
+                "--type",
+                "user",
+                "--first-name",
+                "John",
+                "--last-name",
+                "Doe",
+                "--email",
+                "john.doe@example.com",
+                "--workspace-policies",
+                "invalidformat",
+            ],
+        )
+
+        assert result.exit_code == 2  # INVALID_INPUT
+        assert "✗ Invalid workspace-policies format" in result.output
+
+    def test_create_user_workspace_policies_empty_workspace(
+        self, runner: CliRunner, monkeypatch: Any
+    ) -> None:
+        """Test workspace-policies with empty workspace name."""
+        patch_keyring(monkeypatch)
+
+        cli = make_cli()
+        result = runner.invoke(
+            cli,
+            [
+                "user",
+                "create",
+                "--type",
+                "user",
+                "--first-name",
+                "John",
+                "--last-name",
+                "Doe",
+                "--email",
+                "john.doe@example.com",
+                "--workspace-policies",
+                ":template123",
+            ],
+        )
+
+        assert result.exit_code == 2  # INVALID_INPUT
+        assert "✗ Invalid workspace-policies entry" in result.output
+
+    def test_create_user_workspace_policies_empty_template(
+        self, runner: CliRunner, monkeypatch: Any
+    ) -> None:
+        """Test workspace-policies with empty template ID."""
+        patch_keyring(monkeypatch)
+
+        cli = make_cli()
+        result = runner.invoke(
+            cli,
+            [
+                "user",
+                "create",
+                "--type",
+                "user",
+                "--first-name",
+                "John",
+                "--last-name",
+                "Doe",
+                "--email",
+                "john.doe@example.com",
+                "--workspace-policies",
+                "workspace:",
+            ],
+        )
+
+        assert result.exit_code == 2  # INVALID_INPUT
+        assert "✗ Invalid workspace-policies entry" in result.output
+
+    def test_create_user_workspace_policies_workspace_not_found(
+        self, runner: CliRunner, monkeypatch: Any
+    ) -> None:
+        """Test workspace-policies with workspace that cannot be resolved."""
+        patch_keyring(monkeypatch)
+
+        cli = make_cli()
+
+        with patch("slcli.user_click.resolve_workspace_id") as mock_resolve:
+            mock_resolve.return_value = ""  # Workspace not found
+
+            result = runner.invoke(
+                cli,
+                [
+                    "user",
+                    "create",
+                    "--type",
+                    "user",
+                    "--first-name",
+                    "John",
+                    "--last-name",
+                    "Doe",
+                    "--email",
+                    "john.doe@example.com",
+                    "--workspace-policies",
+                    "nonexistent:template123",
+                ],
+            )
+
+            assert result.exit_code == 3  # NOT_FOUND
+            assert "✗ Could not resolve workspace 'nonexistent'" in result.output
 
     def test_create_user_invalid_properties(self, runner: CliRunner, monkeypatch: Any) -> None:
         """Test creating a user with invalid properties JSON."""
@@ -1158,12 +1277,15 @@ class TestUserUpdate:
         policy_resp = {"id": "pol-ws-2", "name": "generated"}
         user_resp = {"id": "user1", "email": "jane.doe@example.com"}
 
-        with patch("slcli.user_click.make_api_request") as mock_request:
+        with patch("slcli.user_click.make_api_request") as mock_request, patch(
+            "slcli.user_click.resolve_workspace_id"
+        ) as mock_resolve:
             mock_request.side_effect = [
                 mock_response(existing_user_resp),
                 mock_response(policy_resp),
                 mock_response(user_resp),
             ]
+            mock_resolve.return_value = "qa"
 
             result = runner_local.invoke(
                 cli,
@@ -1183,6 +1305,98 @@ class TestUserUpdate:
             payload = user_call.kwargs.get("payload")
             assert payload
             assert payload.get("policies") == ["pol-ws-2"]
+
+    def test_update_user_workspace_policies_invalid_format(
+        self, runner: CliRunner, monkeypatch: Any
+    ) -> None:
+        """Test update with workspace-policies invalid format (missing colon)."""
+        patch_keyring(monkeypatch)
+
+        cli = make_cli()
+        result = runner.invoke(
+            cli,
+            [
+                "user",
+                "update",
+                "--id",
+                "user1",
+                "--workspace-policies",
+                "invalidformat",
+            ],
+        )
+
+        assert result.exit_code == 2  # INVALID_INPUT
+        assert "✗ Invalid workspace-policies format" in result.output
+
+    def test_update_user_workspace_policies_empty_workspace(
+        self, runner: CliRunner, monkeypatch: Any
+    ) -> None:
+        """Test update with workspace-policies with empty workspace name."""
+        patch_keyring(monkeypatch)
+
+        cli = make_cli()
+        result = runner.invoke(
+            cli,
+            [
+                "user",
+                "update",
+                "--id",
+                "user1",
+                "--workspace-policies",
+                ":template123",
+            ],
+        )
+
+        assert result.exit_code == 2  # INVALID_INPUT
+        assert "✗ Invalid workspace-policies entry" in result.output
+
+    def test_update_user_workspace_policies_empty_template(
+        self, runner: CliRunner, monkeypatch: Any
+    ) -> None:
+        """Test update with workspace-policies with empty template ID."""
+        patch_keyring(monkeypatch)
+
+        cli = make_cli()
+        result = runner.invoke(
+            cli,
+            [
+                "user",
+                "update",
+                "--id",
+                "user1",
+                "--workspace-policies",
+                "workspace:",
+            ],
+        )
+
+        assert result.exit_code == 2  # INVALID_INPUT
+        assert "✗ Invalid workspace-policies entry" in result.output
+
+    def test_update_user_workspace_policies_workspace_not_found(
+        self, runner: CliRunner, monkeypatch: Any
+    ) -> None:
+        """Test update with workspace-policies with workspace that cannot be resolved."""
+        patch_keyring(monkeypatch)
+
+        cli = make_cli()
+
+        with patch("slcli.user_click.resolve_workspace_id") as mock_resolve:
+            mock_resolve.return_value = ""  # Workspace not found
+
+            result = runner.invoke(
+                cli,
+                [
+                    "user",
+                    "update",
+                    "--id",
+                    "user1",
+                    "--workspace-policies",
+                    "nonexistent:template123",
+                ],
+            )
+
+            assert result.exit_code == 3  # NOT_FOUND
+            assert "✗ Could not resolve workspace 'nonexistent'" in result.output
 
     def test_update_user_no_fields(self, runner: Any, monkeypatch: Any) -> None:
         """Test updating a user with no fields provided."""

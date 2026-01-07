@@ -249,7 +249,6 @@ slcli user create --type user \
   --email jane@example.com \
   --workspace-policies "DevWorkspace:template-dev,ProdWorkspace:template-prod"
 ```
-   ```
 
 ## Feed Management
 
