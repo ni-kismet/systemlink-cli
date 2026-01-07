@@ -1,7 +1,8 @@
 """Unit tests for user CLI commands."""
 
 import json
-from typing import Any
+from typing import Any, Optional
+from unittest.mock import patch
 
 import click
 import pytest
@@ -16,6 +17,23 @@ def patch_keyring(monkeypatch: Any) -> None:
         "slcli.utils.keyring.get_password",
         lambda service, key: "test-key" if key == "SYSTEMLINK_API_KEY" else "https://test.com",
     )
+
+
+def mock_response(data: Any, status_code: int = 200) -> Any:
+    """Create a mock response object with json and status code."""
+
+    class MockResponse:
+        def __init__(self) -> None:
+            self.status_code = status_code
+
+        def json(self) -> Any:
+            return data
+
+        def raise_for_status(self) -> None:
+            if self.status_code >= 400:
+                raise Exception("HTTP error")
+
+    return MockResponse()
 
 
 def make_cli() -> click.Group:
@@ -719,6 +737,98 @@ class TestUserCreate:
         assert result.exit_code == 0
         assert "✓ User created" in result.output
 
+    def test_create_user_with_single_policy(self, runner: CliRunner, monkeypatch: Any) -> None:
+        """Test creating a user with --policy single ID."""
+        patch_keyring(monkeypatch)
+        captured_payload: dict[str, Any] = {}
+
+        def mock_post_with_capture(url: str, json: Any = None, **kwargs: Any) -> Any:
+            captured_payload.update(json or {})
+
+            class MockResponse:
+                def __init__(self) -> None:
+                    self.status_code = 200
+
+                def json(self) -> Any:
+                    return {"id": "new-user-id", "email": "john.doe@example.com"}
+
+                def raise_for_status(self) -> None:
+                    pass
+
+            return MockResponse()
+
+        monkeypatch.setattr("requests.post", mock_post_with_capture)
+
+        cli = make_cli()
+        result = runner.invoke(
+            cli,
+            [
+                "user",
+                "create",
+                "--type",
+                "user",
+                "--first-name",
+                "John",
+                "--last-name",
+                "Doe",
+                "--email",
+                "john.doe@example.com",
+                "--policy",
+                "policy1",
+            ],
+        )
+
+        assert result.exit_code == 0
+        assert captured_payload.get("policies") == ["policy1"]
+
+    def test_create_user_with_workspace_policies(self, runner: CliRunner, monkeypatch: Any) -> None:
+        """Create user while generating workspace policies from templates."""
+        patch_keyring(monkeypatch)
+
+        def mock_get_password(service: str, key: str) -> Optional[str]:
+            if key == "SYSTEMLINK_CONFIG":
+                return json.dumps({"api_url": "http://localhost", "api_key": "test"})
+            if key == "SYSTEMLINK_API_KEY":
+                return "test"
+            return None
+
+        monkeypatch.setattr("slcli.utils.keyring.get_password", mock_get_password)
+
+        cli = make_cli()
+        runner_local = runner
+
+        policy_resp = {"id": "pol-ws-1", "name": "generated"}
+        user_resp = {"id": "new-user-id", "email": "john.doe@example.com"}
+
+        with patch("slcli.user_click.make_api_request") as mock_request:
+            mock_request.side_effect = [mock_response(policy_resp), mock_response(user_resp)]
+
+            result = runner_local.invoke(
+                cli,
+                [
+                    "user",
+                    "create",
+                    "--type",
+                    "user",
+                    "--first-name",
+                    "John",
+                    "--last-name",
+                    "Doe",
+                    "--email",
+                    "john.doe@example.com",
+                    "--workspace-policies",
+                    "dev:templateDev",
+                ],
+            )
+
+            assert result.exit_code == 0
+            # First call creates policy, second call creates user
+            assert len(mock_request.call_args_list) == 2
+            user_call = mock_request.call_args_list[1]
+            user_payload = user_call.kwargs.get("payload")
+            assert user_payload
+            assert user_payload.get("policies") == ["pol-ws-1"]
+
     def test_create_user_invalid_properties(self, runner: CliRunner, monkeypatch: Any) -> None:
         """Test creating a user with invalid properties JSON."""
         patch_keyring(monkeypatch)
@@ -989,6 +1099,90 @@ class TestUserUpdate:
 
         assert result.exit_code == 0
         assert "✓ User updated" in result.output
+
+    def test_update_user_with_single_policy(self, runner: CliRunner, monkeypatch: Any) -> None:
+        """Test updating a user with --policy single ID."""
+        patch_keyring(monkeypatch)
+        captured_payload: dict[str, Any] = {}
+
+        def mock_put_with_capture(url: str, json: Any = None, **kwargs: Any) -> Any:
+            captured_payload.update(json or {})
+
+            class MockResponse:
+                def __init__(self) -> None:
+                    self.status_code = 200
+
+                def json(self) -> Any:
+                    return {"id": "user1", "email": "jane.doe@example.com"}
+
+                def raise_for_status(self) -> None:
+                    pass
+
+            return MockResponse()
+
+        monkeypatch.setattr("requests.put", mock_put_with_capture)
+
+        cli = make_cli()
+        result = runner.invoke(
+            cli,
+            [
+                "user",
+                "update",
+                "--id",
+                "user1",
+                "--policy",
+                "policyA",
+            ],
+        )
+
+        assert result.exit_code == 0
+        assert captured_payload.get("policies") == ["policyA"]
+
+    def test_update_user_with_workspace_policies(self, runner: CliRunner, monkeypatch: Any) -> None:
+        """Update user and generate workspace policies from templates."""
+        patch_keyring(monkeypatch)
+
+        def mock_get_password(service: str, key: str) -> Optional[str]:
+            if key == "SYSTEMLINK_CONFIG":
+                return json.dumps({"api_url": "http://localhost", "api_key": "test"})
+            if key == "SYSTEMLINK_API_KEY":
+                return "test"
+            return None
+
+        monkeypatch.setattr("slcli.utils.keyring.get_password", mock_get_password)
+
+        cli = make_cli()
+        runner_local = runner
+
+        existing_user_resp = {"id": "user1", "type": "user"}
+        policy_resp = {"id": "pol-ws-2", "name": "generated"}
+        user_resp = {"id": "user1", "email": "jane.doe@example.com"}
+
+        with patch("slcli.user_click.make_api_request") as mock_request:
+            mock_request.side_effect = [
+                mock_response(existing_user_resp),
+                mock_response(policy_resp),
+                mock_response(user_resp),
+            ]
+
+            result = runner_local.invoke(
+                cli,
+                [
+                    "user",
+                    "update",
+                    "--id",
+                    "user1",
+                    "--workspace-policies",
+                    "qa:templateQA",
+                ],
+            )
+
+            assert result.exit_code == 0
+            assert len(mock_request.call_args_list) == 3
+            user_call = mock_request.call_args_list[2]
+            payload = user_call.kwargs.get("payload")
+            assert payload
+            assert payload.get("policies") == ["pol-ws-2"]
 
     def test_update_user_no_fields(self, runner: Any, monkeypatch: Any) -> None:
         """Test updating a user with no fields provided."""
