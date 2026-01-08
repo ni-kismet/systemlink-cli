@@ -6,8 +6,10 @@ All commands use Click for robust CLI interfaces and error handling.
 
 import json
 import re
+import shutil
 import sys
-from typing import Any, Dict, Optional
+from typing import Any, Dict, List, Optional
+from uuid import uuid4
 
 import click
 
@@ -19,6 +21,7 @@ from .utils import (
     handle_api_error,
     make_api_request,
 )
+from .workspace_utils import get_workspace_display_name, resolve_workspace_id
 
 
 def _get_policy_details(policy_id: str) -> Optional[dict]:
@@ -75,6 +78,125 @@ def _get_policy_template_details(template_id: str) -> Optional[dict]:
                 pass
         # If template fetch fails for other reasons, return None
         return None
+
+
+def _create_workspace_policy_from_template(
+    template_id: str, workspace: str, name_hint: Optional[str] = None
+) -> str:
+    """Create a workspace-scoped policy from a template and return its ID."""
+    policy_name = name_hint or "workspace-policy"
+    # Ensure a reasonably unique name to avoid conflicts
+    generated_name = f"{policy_name}-{workspace}-{uuid4().hex[:8]}"
+
+    payload: Dict[str, Any] = {
+        "name": generated_name,
+        "type": "custom",
+        "templateId": template_id,
+        "workspace": workspace,
+    }
+
+    url = f"{get_base_url()}/niauth/v1/policies"
+    resp = make_api_request("POST", url, payload=payload)
+    data = resp.json()
+    policy_id = data.get("id")
+    if not policy_id:
+        raise ValueError("Policy creation did not return an ID")
+    return policy_id
+
+
+def _process_workspace_policies(
+    workspace_policies: str, name_hint: Optional[str] = None
+) -> List[str]:
+    """Process workspace-policies string and create policies from templates.
+
+    Args:
+        workspace_policies: Comma-separated list of workspace:templateId pairs
+        name_hint: Optional name hint for generated policy names
+
+    Returns:
+        List of created policy IDs
+
+    Raises:
+        SystemExit: If format is invalid, values are empty, or workspace cannot be resolved
+    """
+    policy_ids: List[str] = []
+    mappings = []
+
+    for item in workspace_policies.split(","):
+        pair = item.strip()
+        if not pair:
+            continue
+        if ":" not in pair:
+            click.echo(
+                "✗ Invalid workspace-policies format. Use workspace:templateId "
+                "(e.g., 'myWorkspace:template-123')",
+                err=True,
+            )
+            sys.exit(ExitCodes.INVALID_INPUT)
+        ws, template_id = pair.split(":", 1)
+        ws = ws.strip()
+        template_id = template_id.strip()
+        if not ws or not template_id:
+            click.echo(
+                "✗ Invalid workspace-policies entry. Both workspace and templateId are required.",
+                err=True,
+            )
+            sys.exit(ExitCodes.INVALID_INPUT)
+
+        # Resolve workspace name to ID
+        ws_id = resolve_workspace_id(ws)
+        if not ws_id:
+            click.echo(
+                f"✗ Could not resolve workspace '{ws}'. Please verify the workspace exists.",
+                err=True,
+            )
+            sys.exit(ExitCodes.NOT_FOUND)
+
+        mappings.append((ws_id, template_id))
+
+    # Create policies for each mapping
+    for ws_id, template_id in mappings:
+        try:
+            created_policy_id = _create_workspace_policy_from_template(
+                template_id=template_id,
+                workspace=ws_id,
+                name_hint=name_hint or "user",
+            )
+            policy_ids.append(created_policy_id)
+        except ValueError as e:
+            click.echo(f"✗ Error: {str(e)}", err=True)
+            sys.exit(ExitCodes.INVALID_INPUT)
+        except Exception as exc:
+            handle_api_error(exc)
+
+    return policy_ids
+
+
+def _calculate_policy_column_widths() -> List[int]:
+    """Calculate dynamic column widths for policy statements based on terminal size."""
+    try:
+        terminal_width = shutil.get_terminal_size().columns
+    except Exception:
+        terminal_width = 120
+
+    actions_width = 48
+    resources_width = 24
+    workspace_width = 18
+    border_overhead = 14  # Table borders plus spacing for four columns
+
+    description_width = terminal_width - (
+        actions_width + resources_width + workspace_width + border_overhead
+    )
+    description_width = max(30, description_width)
+
+    return [actions_width, resources_width, workspace_width, description_width]
+
+
+def _truncate_cell(value: str, width: int) -> str:
+    """Truncate cell content to fit within the specified width."""
+    if len(value) > width:
+        return value[: max(0, width - 3)] + "..."
+    return value
 
 
 def _format_policy_table(policies: list) -> None:
@@ -146,41 +268,37 @@ def _format_policy_table(policies: list) -> None:
 
         statements = policy.get("statements", [])
         if statements:
-            # Display statements table
-            click.echo("┌" + "─" * 30 + "┬" + "─" * 20 + "┬" + "─" * 25 + "┐")
-            click.echo(f"│ {'Actions':<28} │ {'Resources':<18} │ {'Workspace':<23} │")
-            click.echo("├" + "─" * 30 + "┼" + "─" * 20 + "┼" + "─" * 25 + "┤")
+            column_widths = _calculate_policy_column_widths()
+            headers = ["Actions", "Resources", "Workspace", "Description"]
+
+            def _border(left: str, junction: str, right: str) -> str:
+                parts = [left] + ["─" * (w + 2) for w in column_widths]
+                border_line = parts[0] + parts[1]
+                for segment in parts[2:]:
+                    border_line += junction + segment
+                return border_line + right
+
+            click.echo(_border("┌", "┬", "┐"))
+            header_parts = ["│"]
+            for header, width in zip(headers, column_widths):
+                header_parts.append(f" {header:<{width}} │")
+            click.echo("".join(header_parts))
+            click.echo(_border("├", "┼", "┤"))
 
             for statement in statements:
-                actions = statement.get("actions", [])
-                resources = statement.get("resource", [])
-                workspace = statement.get("workspace", "")
-                description = statement.get("description", "")
+                row_data = [
+                    ", ".join(statement.get("actions", [])),
+                    ", ".join(statement.get("resource", [])),
+                    statement.get("workspace", ""),
+                    statement.get("description", "") or "",
+                ]
+                row_parts = ["│"]
+                for value, width in zip(row_data, column_widths):
+                    cell = _truncate_cell(str(value), width)
+                    row_parts.append(f" {cell:<{width}} │")
+                click.echo("".join(row_parts))
 
-                # Format actions (truncate if too long)
-                actions_str = ", ".join(actions)[:28]
-                if len(", ".join(actions)) > 28:
-                    actions_str = actions_str[:25] + "..."
-
-                # Format resources (truncate if too long)
-                resources_str = ", ".join(resources)[:18]
-                if len(", ".join(resources)) > 18:
-                    resources_str = resources_str[:15] + "..."
-
-                # Format workspace (truncate if too long)
-                workspace_str = workspace[:23]
-                if len(workspace) > 23:
-                    workspace_str = workspace[:20] + "..."
-
-                click.echo(f"│ {actions_str:<28} │ {resources_str:<18} │ {workspace_str:<23} │")
-
-                # Show description if available
-                if description:
-                    click.echo(
-                        f"│ Description: {description[:50]:<50}{'│' if len(description) <= 50 else '...│'}"
-                    )
-
-            click.echo("└" + "─" * 30 + "┴" + "─" * 20 + "┴" + "─" * 25 + "┘")
+            click.echo(_border("└", "┴", "┘"))
         else:
             click.echo("  No statements defined for this policy.")
 
@@ -204,7 +322,11 @@ def _format_policy_table(policies: list) -> None:
 
         workspace = policy.get("workspace")
         if workspace:
-            click.echo(f"  Workspace: {workspace}")
+            workspace_name = get_workspace_display_name(workspace)
+            if workspace_name and workspace_name != workspace:
+                click.echo(f"  Workspace: {workspace_name} (ID: {workspace})")
+            else:
+                click.echo(f"  Workspace: {workspace}")
 
 
 def _query_all_users(
@@ -632,6 +754,18 @@ def register_user_commands(cli: click.Group) -> None:
         help="Comma-separated list of policy IDs to assign to the user",
     )
     @click.option(
+        "--policy",
+        help="Single policy ID to assign to the user",
+    )
+    @click.option(
+        "--workspace-policies",
+        help=(
+            "Comma-separated list of workspace:templateId entries (workspace can be name or"
+            " ID); a policy will be created per workspace from the template and assigned to"
+            " the user"
+        ),
+    )
+    @click.option(
         "--keywords",
         help="Comma-separated list of keywords to associate with the user",
     )
@@ -648,7 +782,9 @@ def register_user_commands(cli: click.Group) -> None:
         login: Optional[str] = None,
         phone: Optional[str] = None,
         accepted_tos: bool = False,
+        policy: Optional[str] = None,
         policies: Optional[str] = None,
+        workspace_policies: Optional[str] = None,
         keywords: Optional[str] = None,
         properties: Optional[str] = None,
     ) -> None:
@@ -741,18 +877,39 @@ def register_user_commands(cli: click.Group) -> None:
             if phone:
                 payload["phone"] = phone
 
+        policy_ids: list[str] = []
+        if policy:
+            policy_ids.append(policy.strip())
         if policies:
-            payload["policies"] = [p.strip() for p in policies.split(",")]
+            policy_ids.extend([p.strip() for p in policies.split(",")])
+
+        if workspace_policies:
+            policy_ids.extend(_process_workspace_policies(workspace_policies, first_name))
+
+        if policy_ids:
+            # de-duplicate while preserving order
+            seen: set[str] = set()
+            deduped: list[str] = []
+            for pid in policy_ids:
+                if pid and pid not in seen:
+                    seen.add(pid)
+                    deduped.append(pid)
+            payload["policies"] = deduped
 
         if keywords:
             payload["keywords"] = [k.strip() for k in keywords.split(",")]
 
+        # Start properties with provided JSON, if any
+        props_obj: Dict[str, Any] = {}
         if properties:
             try:
-                payload["properties"] = json.loads(properties)
+                props_obj = json.loads(properties)
             except json.JSONDecodeError:
                 click.echo("✗ Invalid JSON format for properties.", err=True)
                 sys.exit(ExitCodes.INVALID_INPUT)
+
+        if props_obj:
+            payload["properties"] = props_obj
 
         try:
             resp = make_api_request("POST", url, payload=payload)
@@ -806,8 +963,20 @@ def register_user_commands(cli: click.Group) -> None:
         help="Whether user has accepted terms of service",
     )
     @click.option(
+        "--policy",
+        help="Single policy ID to assign to the user",
+    )
+    @click.option(
         "--policies",
         help="Comma-separated list of policy IDs to assign to the user",
+    )
+    @click.option(
+        "--workspace-policies",
+        help=(
+            "Comma-separated list of workspace:templateId entries (workspace can be name or"
+            " ID); a policy will be created per workspace from the template and assigned to"
+            " the user"
+        ),
     )
     @click.option(
         "--keywords",
@@ -826,7 +995,9 @@ def register_user_commands(cli: click.Group) -> None:
         phone: Optional[str] = None,
         niua_id: Optional[str] = None,
         accepted_tos: Optional[str] = None,
+        policy: Optional[str] = None,
         policies: Optional[str] = None,
+        workspace_policies: Optional[str] = None,
         keywords: Optional[str] = None,
         properties: Optional[str] = None,
     ) -> None:
@@ -889,18 +1060,37 @@ def register_user_commands(cli: click.Group) -> None:
         if accepted_tos:
             payload["acceptedToS"] = accepted_tos.lower() == "true"
 
+        policy_ids_upd: list[str] = []
+        if policy:
+            policy_ids_upd.append(policy.strip())
         if policies:
-            payload["policies"] = [p.strip() for p in policies.split(",")]
+            policy_ids_upd.extend([p.strip() for p in policies.split(",")])
+
+        if workspace_policies:
+            policy_ids_upd.extend(_process_workspace_policies(workspace_policies, first_name))
+
+        if policy_ids_upd:
+            seen_upd: set[str] = set()
+            deduped_upd: list[str] = []
+            for pid in policy_ids_upd:
+                if pid and pid not in seen_upd:
+                    seen_upd.add(pid)
+                    deduped_upd.append(pid)
+            payload["policies"] = deduped_upd
 
         if keywords:
             payload["keywords"] = [k.strip() for k in keywords.split(",")]
 
+        props_upd: Dict[str, Any] = {}
         if properties:
             try:
-                payload["properties"] = json.loads(properties)
+                props_upd = json.loads(properties)
             except json.JSONDecodeError:
                 click.echo("✗ Invalid JSON format for properties.", err=True)
                 sys.exit(ExitCodes.INVALID_INPUT)
+
+        if props_upd:
+            payload["properties"] = props_upd
 
         if not payload:
             click.echo("✗ No fields provided to update.", err=True)
