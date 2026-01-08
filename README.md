@@ -1528,9 +1528,6 @@ slcli dff edit
 # Custom port and directory
 slcli dff edit --port 9000 --output-dir ./my_editor
 
-# Auto-open browser (default: true)
-slcli dff edit --open-browser
-
 # Don't auto-open browser
 slcli dff edit --no-open-browser
 ```
