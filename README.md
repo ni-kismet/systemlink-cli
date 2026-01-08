@@ -126,13 +126,16 @@ After installation, restart your shell or source the completion file. See [docs/
 
    # View dynamic form field configurations
    slcli dff list
-
-  # View auth policies and templates
-  slcli auth policy list
-  slcli auth template list
    ```
 
-````
+# View auth policies and templates
+
+slcli auth policy list
+slcli auth template list
+
+```
+
+```
 
 ## Example Command (demo systems)
 
@@ -153,7 +156,7 @@ slcli example install demo-complete-workflow --workspace MyWorkspace --dry-run
 
 # Delete previously installed example resources (with audit log)
 slcli example delete demo-complete-workflow --workspace MyWorkspace --audit-log delete-log.json
-````
+```
 
 Available samples:
 
@@ -183,6 +186,7 @@ Available samples:
    slcli feed --help
    slcli auth policy --help
    slcli auth template --help
+   ```
 
 ## Auth Policy Management
 

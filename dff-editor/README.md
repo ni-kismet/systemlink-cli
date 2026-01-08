@@ -12,9 +12,10 @@ This directory contains a standalone web editor for SystemLink Dynamic Form Fiel
 ## Usage
 
 1. Start the editor server:
-  ```bash
-  slcli dff edit --output-dir dff-editor --port 8080
-  ```
+
+```bash
+slcli dff edit --output-dir dff-editor --port 8080
+```
 
 2. Open your browser to: http://localhost:8080
 
@@ -25,6 +26,7 @@ This directory contains a standalone web editor for SystemLink Dynamic Form Fiel
 ## Features
 
 ### Monaco Editor
+
 - Syntax highlighting and IntelliSense for JSON
 - Real-time validation against DFF schema
 - Auto-formatting (Alt+F) and validate (Alt+V)
@@ -33,17 +35,20 @@ This directory contains a standalone web editor for SystemLink Dynamic Form Fiel
 - Auto-save every 30 seconds to local storage
 
 ### Configuration Tree View
+
 - Root configuration, configurations, groups, fields
 - Counts for groups/fields; required field indicator
 - Click to navigate
 
 ### Add New Items
+
 - Add Configuration: name, workspace, resource type, group keys
 - Add Group: key, name, display text, field keys (with duplicate key guard)
 - Add Field: key, name, display text, type, required (with duplicate key guard)
 - Templates with inline help and validation
 
 ### Validation
+
 - JSON syntax correctness
 - Required fields present
 - Unique keys for groups/fields
@@ -52,12 +57,14 @@ This directory contains a standalone web editor for SystemLink Dynamic Form Fiel
 - Schema compliance
 
 ### Server Integration
+
 - Load from Server (GET /api/dff/configurations)
 - Apply to Server (POST /api/dff/configurations)
 - Confirmation dialog before apply
 - Error handling with clear messages
 
 ### Keyboard Shortcuts
+
 - Alt+F: Format document
 - Alt+V: Validate document
 - Ctrl/Cmd+S: Save to server
@@ -65,17 +72,20 @@ This directory contains a standalone web editor for SystemLink Dynamic Form Fiel
 - Ctrl+H: Find and replace
 
 ### Persistence & Safety
+
 - Auto-save to localStorage every 30 seconds
 - Auto-recovery prompt for drafts <24h old
 - Unsaved changes warning on navigation
 - Download JSON export
 
 ### Toolbar Actions
+
 - Format, Validate, Load Example, Download JSON, Reset
 
 ## Configuration Structure
 
 ### Configurations
+
 ```json
 {
   "name": "Work Order Configuration",
@@ -85,9 +95,11 @@ This directory contains a standalone web editor for SystemLink Dynamic Form Fiel
   "properties": {}
 }
 ```
+
 Resource types: workorder:workorder, workorder:testplan, asset:asset, system:system, testmonitor:product
 
 ### Groups
+
 ```json
 {
   "key": "basicInfo",
@@ -100,6 +112,7 @@ Resource types: workorder:workorder, workorder:testplan, asset:asset, system:sys
 ```
 
 ### Fields
+
 ```json
 {
   "key": "deviceId",
@@ -112,10 +125,12 @@ Resource types: workorder:workorder, workorder:testplan, asset:asset, system:sys
   "properties": {}
 }
 ```
+
 Field types: STRING, NUMBER, BOOLEAN, DATE, DATETIME, SELECT, MULTISELECT
 Validation options: STRING (minLength, maxLength, pattern), NUMBER (min, max, step), DATE/DATETIME (min, max), SELECT/MULTISELECT (options)
 
 ## Example Workflow
+
 1. Load example or start empty
 2. Add configuration (resource type)
 3. Add groups
@@ -126,18 +141,21 @@ Validation options: STRING (minLength, maxLength, pattern), NUMBER (min, max, st
 8. Apply to server
 
 ## Technical Details
+
 - Monaco Editor 0.45.0 via CDN
 - Pure vanilla JS; no build step
 - Uses fetch for API calls; localStorage for drafts
 - Customize `serverUrl`, schema, and templates in editor.js
 
 ## Troubleshooting
+
 - Editor not loading: check console/CDN access
 - Validation errors: ensure unique keys and valid references
 - Server issues: check port, CORS, network tab
 - Auto-save: ensure localStorage is available
 
 ## Future Enhancements
+
 - Drag-and-drop reordering
 - Visual preview
 - Diff view (local vs server)
@@ -150,4 +168,5 @@ Validation options: STRING (minLength, maxLength, pattern), NUMBER (min, max, st
 - Version history
 
 ---
+
 Version: 2.0 | Updated: January 7, 2026

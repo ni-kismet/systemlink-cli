@@ -20,6 +20,7 @@ dff-editor/                # Source assets (packaged with CLI)
 ## Features Implemented
 
 ### ✅ Monaco Editor Foundation
+
 - Full Monaco Editor 0.45.0 integration via CDN
 - JSON schema validation for DFF configurations
 - Syntax highlighting, IntelliSense, auto-completion
@@ -27,12 +28,14 @@ dff-editor/                # Source assets (packaged with CLI)
 - Dark theme matching VS Code
 
 ### ✅ Tree View Navigation
+
 - Hierarchical sidebar showing configurations, groups, fields
 - Item counts and visual icons (📄⚙️📁📦🏷️🔖)
 - Required field indicators
 - Click-to-navigate functionality
 
 ### ✅ Add/Edit Dialogs
+
 - Modal dialogs for adding configurations, groups, fields
 - Pre-filled templates with validation
 - Duplicate key detection
@@ -40,6 +43,7 @@ dff-editor/                # Source assets (packaged with CLI)
 - Inline help text for all fields
 
 ### ✅ Validation Engine
+
 - Real-time JSON syntax checking
 - Required fields verification
 - Unique key enforcement
@@ -48,6 +52,7 @@ dff-editor/                # Source assets (packaged with CLI)
 - Schema compliance with SystemLink DFF API
 
 ### ✅ Server Integration
+
 - Load from Server (GET /api/dff/configurations)
 - Apply to Server (POST /api/dff/configurations)
 - Dynamic server URL (uses current origin)
@@ -55,19 +60,21 @@ dff-editor/                # Source assets (packaged with CLI)
 - Error handling with clear messages
 
 ### ✅ Persistence & Safety
+
 - Auto-save every 30 seconds to localStorage
 - Auto-recovery for drafts < 24 hours old
 - Unsaved changes warning on navigation
 - Download JSON to file
 
 ### ✅ Keyboard Shortcuts
-| Shortcut | Action |
-|----------|--------|
-| Alt+F | Format document |
-| Alt+V | Validate document |
-| Ctrl/Cmd+S | Save to server |
-| Ctrl+F | Find |
-| Ctrl+H | Find and replace |
+
+| Shortcut   | Action            |
+| ---------- | ----------------- |
+| Alt+F      | Format document   |
+| Alt+V      | Validate document |
+| Ctrl/Cmd+S | Save to server    |
+| Ctrl+F     | Find              |
+| Ctrl+H     | Find and replace  |
 
 ## Implementation Details
 
@@ -110,6 +117,7 @@ else:
 - **Persistence**: localStorage auto-save and recovery
 
 **Dynamic Server URL**:
+
 ```javascript
 // Automatically uses the current port
 let serverUrl = window.location.origin;
@@ -136,6 +144,7 @@ The editor validates against this JSON schema:
 ## Usage
 
 ### Basic Usage
+
 ```bash
 # Default: port 8080, ./dff-editor directory
 poetry run slcli dff edit
@@ -157,6 +166,7 @@ poetry run slcli dff edit --id config-uuid --file my-config.json
 ```
 
 ### Development Workflow
+
 1. **Load a configuration** (from file or server by ID)
    - Use `--file` to edit an existing local JSON file
    - Use `--id` to fetch from server and load in editor
@@ -171,15 +181,18 @@ poetry run slcli dff edit --id config-uuid --file my-config.json
 ### Installation Scenarios
 
 **Scenario 1: Development from Repo**
+
 - Running from repo root → Assets already in place
 - Changes to `dff-editor/*.{html,js,md}` are immediately active
 
 **Scenario 2: Installed Package**
+
 - Assets packaged with `slcli` module
 - Copied to user-specified output directory on launch
 - Standalone directory can be moved/shared
 
 **Scenario 3: Custom Deployment**
+
 - Copy `dff-editor/` folder to any web server
 - Update `serverUrl` in editor.js if needed
 - Open index.html in any modern browser
@@ -234,6 +247,7 @@ Potential features for v3.0:
 ### Updating Monaco Version
 
 Edit CDN links in `index.html`:
+
 ```html
 <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/monaco-editor/X.Y.Z/...">
 <script src="https://cdnjs.cloudflare.com/ajax/libs/monaco-editor/X.Y.Z/...">
@@ -242,6 +256,7 @@ Edit CDN links in `index.html`:
 ### Updating Schema
 
 Edit `dffSchema` object in `editor.js`:
+
 ```javascript
 const dffSchema = {
   type: 'object',
@@ -274,21 +289,25 @@ const dffSchema = {
 ## Troubleshooting
 
 **Editor doesn't load?**
+
 - Check browser console for errors
 - Verify CDN access (Monaco Editor)
 - Try hard refresh (Ctrl+Shift+R)
 
 **Validation errors?**
+
 - Ensure JSON syntax is correct
 - Check for duplicate keys
 - Verify all references exist
 
 **Server communication failing?**
+
 - Check port is correct
 - Verify SystemLink server is accessible
 - Review browser network tab
 
 **Auto-save not working?**
+
 - Check localStorage is enabled
 - Ensure browser allows localStorage
 - Check for quota exceeded errors
