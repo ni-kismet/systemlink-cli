@@ -88,9 +88,7 @@ class TestDFFE2E:
 
                 if config_id:
                     # Verify configuration exists
-                    result = cli_runner(
-                        ["dff", "get", "--id", config_id, "--format", "json"]
-                    )
+                    result = cli_runner(["dff", "get", "--id", config_id, "--format", "json"])
                     if result.returncode == 0:
                         config_data = cli_helper.get_json_output(result)
                         # The get command returns configurations array
@@ -99,9 +97,7 @@ class TestDFFE2E:
                         assert config_data["configurations"][0]["id"] == config_id
 
                     # Delete configuration
-                    result = cli_runner(
-                        ["dff", "delete", "--id", config_id], input_data="y\n"
-                    )
+                    result = cli_runner(["dff", "delete", "--id", config_id], input_data="y\n")
                     # Deletion may succeed or fail depending on dependencies
                     # Both are acceptable for E2E tests
             else:
@@ -130,9 +126,7 @@ class TestDFFE2E:
                 with tempfile.NamedTemporaryFile(suffix=".json", delete=False) as export_file:
                     export_path = export_file.name
 
-                result = cli_runner(
-                    ["dff", "export", "--id", config_id, "--output", export_path]
-                )
+                result = cli_runner(["dff", "export", "--id", config_id, "--output", export_path])
 
                 try:
                     cli_helper.assert_success(result, "exported")
