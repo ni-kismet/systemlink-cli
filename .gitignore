@@ -3,6 +3,11 @@ __pycache__/
 *.py[cod]
 *$py.class
 
+# DFF Editor generated files
+.editor-metadata.json
+config-*.json
+dff-editor/slcli-config.json
+
 # C extensions
 *.so
 
@@ -57,8 +62,14 @@ warn-*.txt
 xref-*.html
 localpycs/
 
-# Allow DFF editor HTML files
-!dff-editor/*.html
+# DFF editor source files (keep these)
+!dff-editor/index.html
+!dff-editor/editor.js
+!dff-editor/README.md
+
+# DFF editor generated/temporary files (ignore these)
+dff-editor/*.backup
+dff-editor/IMPLEMENTATION.md
 
 # VS Code
 .vscode/

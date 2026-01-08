@@ -1593,6 +1593,9 @@ Launch a local web-based editor for visual editing of DFF JSON files:
 # Launch web editor with default settings (port 8080, ./dff-editor directory)
 slcli dff edit
 
+# Load a specific configuration by ID from the server
+slcli dff edit --id <configuration-id>
+
 # Custom port and directory
 slcli dff edit --port 9000 --output-dir ./my_editor
 
@@ -1600,13 +1603,13 @@ slcli dff edit --port 9000 --output-dir ./my_editor
 slcli dff edit --no-open-browser
 ```
 
-The web editor:
+The web editor (Monaco-based):
 
 - Hosts a local HTTP server for editing DFF configurations
-- Provides a simple HTML interface for JSON file management
-- Creates standalone editor files in the specified directory
-- Automatically opens your default browser to the editor interface
-- Allows you to create, edit, and save DFF JSON configurations locally
+- Provides a VS Code-like editor with JSON validation, formatting, and find/replace
+- Includes a tree view, add dialogs for configurations/groups/fields, and schema validation
+- Supports loading/saving to the SystemLink server from the UI
+- Creates standalone editor files in the specified directory for reuse
 
 **Note**: The web editor creates a self-contained directory with all necessary HTML, CSS, and JavaScript files. This directory can be moved or shared independently.
 

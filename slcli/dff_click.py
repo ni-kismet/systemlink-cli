@@ -2,6 +2,7 @@
 
 import json
 import sys
+from pathlib import Path
 from typing import Any, Dict, List, Optional
 
 import click
@@ -25,7 +26,7 @@ from .workspace_utils import filter_by_workspace, resolve_workspace_filter, Work
 # Valid resource types for Dynamic Form Fields
 VALID_RESOURCE_TYPES = [
     "workorder:workorder",
-    "workorder:testplan",
+    "workitem:workitem",
     "asset:asset",
     "system:system",
     "testmonitor:product",
@@ -54,12 +55,15 @@ def _handle_dff_error_response(error_data: Dict[str, Any], operation: str = "ope
     # Check for DFF-specific error structure with failedConfigurations, failedGroups, etc.
     if any(key in error_data for key in ["failedConfigurations", "failedGroups", "failedFields"]):
         _handle_dff_creation_errors(error_data, operation)
+
     elif "error" in error_data and "innerErrors" in error_data["error"]:
         # Handle nested error structure
         _handle_dff_nested_errors(error_data["error"])
+
     elif "errors" in error_data:
         # Handle simple validation errors structure
         _handle_simple_validation_errors(error_data)
+
     else:
         # Fallback for unknown error structure
         click.echo("✗ Request failed with validation errors:", err=True)
@@ -850,12 +854,18 @@ def register_dff_commands(cli: Any) -> None:
             click.echo(f"✗ Error creating configuration template: {exc}", err=True)
             sys.exit(ExitCodes.GENERAL_ERROR)
 
-    # Editor command (future stub)
+    # Editor command
     @dff.command(name="edit")
     @click.option(
         "--file",
         "-f",
         help="JSON file to edit (will create new if not exists)",
+    )
+    @click.option(
+        "--id",
+        "-i",
+        "config_id",
+        help="Configuration ID to load in the editor",
     )
     @click.option(
         "--port",
@@ -878,6 +888,7 @@ def register_dff_commands(cli: Any) -> None:
     )
     def edit_configuration(
         file: Optional[str] = None,
+        config_id: Optional[str] = None,
         port: int = 8080,
         output_dir: str = "dff-editor",
         no_browser: bool = False,
@@ -886,5 +897,42 @@ def register_dff_commands(cli: Any) -> None:
 
         This command will create a standalone HTML editor in the specified directory
         and start a local HTTP server for editing dynamic form field configurations.
+
+        You can provide a JSON file to edit, or load a configuration by ID from the server.
         """
-        launch_dff_editor(file=file, port=port, output_dir=output_dir, open_browser=not no_browser)
+        try:
+            # If config_id is provided, fetch and export it temporarily
+            if config_id:
+                url = f"{get_base_url()}/nidynamicformfields/v1/resolved-configuration"
+                params = {"configurationId": config_id}
+                query_string = "&".join([f"{k}={v}" for k, v in params.items()])
+                full_url = f"{url}?{query_string}"
+
+                resp = make_api_request("GET", full_url)
+                data = resp.json()
+
+                # Ensure output directory exists before writing fetched file
+                output_path = Path(output_dir)
+                output_path.mkdir(parents=True, exist_ok=True)
+
+                # Use a temp file or generate a filename inside output_dir
+                if not file:
+                    config_name = data.get("configuration", {}).get("name", f"config-{config_id}")
+                    safe_name = sanitize_filename(config_name, f"config-{config_id}")
+                    file = str(output_path / f"{safe_name}.json")
+                else:
+                    file = str(Path(file))
+
+                # Save the fetched configuration to file
+                save_json_file(data, file)
+                click.echo(f"✓ Configuration loaded from server: {file}")
+
+                # Save editor metadata with config ID
+                metadata = {"configId": config_id, "configFile": Path(file).name}
+                save_json_file(metadata, str(output_path / ".editor-metadata.json"))
+
+            launch_dff_editor(
+                file=file, port=port, output_dir=output_dir, open_browser=not no_browser
+            )
+        except Exception as exc:
+            handle_api_error(exc)

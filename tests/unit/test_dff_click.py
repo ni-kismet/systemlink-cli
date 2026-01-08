@@ -486,3 +486,176 @@ def test_dff_edit_command_help(runner: CliRunner, monkeypatch: Any) -> None:
     assert "Launch a local web editor" in result.output
     assert "--port" in result.output
     assert "--output-dir" in result.output
+
+
+def test_dff_edit_with_config_id_saves_metadata(monkeypatch: Any, runner: CliRunner) -> None:
+    """Test that dff edit --id saves metadata file."""
+    patch_keyring(monkeypatch)
+
+    # Track calls to save_json_file
+    saved_files: dict[str, Any] = {}
+
+    def mock_save_json_file(data: Any, path: str) -> None:
+        saved_files[path] = data
+
+    def mock_get(*a: Any, **kw: Any) -> Any:
+        class R:
+            def raise_for_status(self) -> None:
+                pass
+
+            def json(self) -> Any:
+                return {
+                    "configuration": {
+                        "id": "test-config-123",
+                        "name": "Test Config",
+                        "workspace": "ws1",
+                    },
+                    "groups": [],
+                    "fields": [],
+                }
+
+        return R()
+
+    # Mock launch_dff_editor to prevent actual server launch
+    def mock_launch_editor(*args: Any, **kwargs: Any) -> None:
+        pass
+
+    monkeypatch.setattr("slcli.dff_click.make_api_request", lambda *a, **kw: mock_get())
+    monkeypatch.setattr("slcli.dff_click.save_json_file", mock_save_json_file)
+    monkeypatch.setattr("slcli.dff_click.launch_dff_editor", mock_launch_editor)
+
+    cli = make_cli()
+    result = runner.invoke(cli, ["dff", "edit", "--id", "test-config-123", "--no-browser"])
+
+    assert result.exit_code == 0
+
+    # Check that metadata file was saved
+    metadata_files = [path for path in saved_files.keys() if ".editor-metadata.json" in path]
+    assert len(metadata_files) == 1
+
+    metadata = saved_files[metadata_files[0]]
+    assert metadata["configId"] == "test-config-123"
+    assert "configFile" in metadata
+    assert ".json" in metadata["configFile"]
+
+
+def test_dff_edit_with_config_id_fetches_resolved_configuration(
+    monkeypatch: Any, runner: CliRunner
+) -> None:
+    """Test that dff edit --id uses resolved-configuration endpoint."""
+    patch_keyring(monkeypatch)
+
+    requested_url = None
+
+    def mock_make_api_request(method: str, url: str, *args: Any, **kwargs: Any) -> Any:
+        nonlocal requested_url
+        requested_url = url
+
+        class R:
+            def raise_for_status(self) -> None:
+                pass
+
+            def json(self) -> Any:
+                return {
+                    "configuration": {"id": "cfg-123", "name": "Config"},
+                    "groups": [],
+                    "fields": [],
+                }
+
+        return R()
+
+    def mock_launch_editor(*args: Any, **kwargs: Any) -> None:
+        pass
+
+    def mock_save_json_file(data: Any, path: str) -> None:
+        pass
+
+    monkeypatch.setattr("slcli.dff_click.make_api_request", mock_make_api_request)
+    monkeypatch.setattr("slcli.dff_click.launch_dff_editor", mock_launch_editor)
+    monkeypatch.setattr("slcli.dff_click.save_json_file", mock_save_json_file)
+
+    cli = make_cli()
+    result = runner.invoke(cli, ["dff", "edit", "--id", "cfg-123", "--no-browser"])
+
+    assert result.exit_code == 0
+    assert requested_url is not None
+    assert "resolved-configuration" in requested_url
+    assert "configurationId=cfg-123" in requested_url
+
+
+def test_dff_edit_without_id_no_metadata_saved(monkeypatch: Any, runner: CliRunner) -> None:
+    """Test that dff edit without --id does not save metadata."""
+    patch_keyring(monkeypatch)
+
+    saved_files: dict[str, Any] = {}
+
+    def mock_save_json_file(data: Any, path: str) -> None:
+        saved_files[path] = data
+
+    def mock_launch_editor(*args: Any, **kwargs: Any) -> None:
+        pass
+
+    monkeypatch.setattr("slcli.dff_click.save_json_file", mock_save_json_file)
+    monkeypatch.setattr("slcli.dff_click.launch_dff_editor", mock_launch_editor)
+
+    cli = make_cli()
+    result = runner.invoke(cli, ["dff", "edit", "--no-browser"])
+
+    assert result.exit_code == 0
+
+    # Check that no metadata file was saved
+    metadata_files = [path for path in saved_files.keys() if ".editor-metadata.json" in path]
+    assert len(metadata_files) == 0
+
+
+def test_dff_edit_with_id_generates_filename_from_config_name(
+    monkeypatch: Any, runner: CliRunner
+) -> None:
+    """Test that dff edit --id generates safe filename from config name."""
+    patch_keyring(monkeypatch)
+
+    saved_files: dict[str, Any] = {}
+
+    def mock_save_json_file(data: Any, path: str) -> None:
+        saved_files[path] = data
+
+    def mock_get(*a: Any, **kw: Any) -> Any:
+        class R:
+            def raise_for_status(self) -> None:
+                pass
+
+            def json(self) -> Any:
+                return {
+                    "configuration": {
+                        "id": "cfg-xyz",
+                        "name": "My Test / Configuration",
+                        "workspace": "ws1",
+                    },
+                    "groups": [],
+                    "fields": [],
+                }
+
+        return R()
+
+    def mock_launch_editor(*args: Any, **kwargs: Any) -> None:
+        pass
+
+    monkeypatch.setattr("slcli.dff_click.make_api_request", lambda *a, **kw: mock_get())
+    monkeypatch.setattr("slcli.dff_click.save_json_file", mock_save_json_file)
+    monkeypatch.setattr("slcli.dff_click.launch_dff_editor", mock_launch_editor)
+
+    cli = make_cli()
+    result = runner.invoke(cli, ["dff", "edit", "--id", "cfg-xyz", "--no-browser"])
+
+    assert result.exit_code == 0
+
+    # Check that config file was saved with sanitized filename
+    config_files = [
+        path for path in saved_files.keys() if ".json" in path and "metadata" not in path
+    ]
+    assert len(config_files) >= 1
+
+    # Filename should not contain unsafe characters
+    config_file = config_files[0]
+    assert "/" not in Path(config_file).name
+    assert "\\" not in Path(config_file).name
