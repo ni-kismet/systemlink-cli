@@ -441,6 +441,12 @@ See the example configuration in the editor for a sample structure.
 
             def _proxy_request(self, method: str) -> bool:
                 parsed = urllib.parse.urlparse(self.path)
+
+                # Handle metadata saving (local file operation)
+                if parsed.path == "/api/dff/save-metadata" and method == "POST":
+                    return self._handle_save_metadata()
+
+                # Handle API proxying
                 path_map = {
                     "/api/dff/configurations": "/nidynamicformfields/v1/configurations",
                     "/api/dff/update-configurations": "/nidynamicformfields/v1/update-configurations",
@@ -484,6 +490,31 @@ See the example configuration in the editor for a sample structure.
                 self.end_headers()
                 self.wfile.write(resp.content)
                 return True
+
+            def _handle_save_metadata(self) -> bool:
+                """Save metadata to .editor-metadata.json file."""
+                try:
+                    content_length = int(self.headers.get("Content-Length", "0"))
+                    if content_length == 0:
+                        self.send_error(400, "No metadata provided")
+                        return True
+
+                    data = self.rfile.read(content_length)
+                    metadata = json.loads(data)
+
+                    # Save to .editor-metadata.json in the output directory
+                    metadata_path = output_dir / ".editor-metadata.json"
+                    with open(metadata_path, "w") as f:
+                        json.dump(metadata, f, indent=2)
+
+                    self.send_response(200)
+                    self.send_header("Content-Type", "application/json")
+                    self.end_headers()
+                    self.wfile.write(json.dumps({"status": "success"}).encode())
+                    return True
+                except Exception as e:  # pragma: no cover
+                    self.send_error(500, f"Failed to save metadata: {e}")
+                    return True
 
             def do_GET(self) -> None:  # noqa: N802
                 if self._proxy_request("GET"):

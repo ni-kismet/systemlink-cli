@@ -103,6 +103,39 @@
         .status-bar.success { background: #107c10; }
         .status-bar.error { background: #e81123; }
         .status-bar.warning { background: #ff8c00; }
+        .error-panel {
+            display: none;
+            position: fixed;
+            bottom: 35px;
+            left: 0;
+            right: 0;
+            background: #e81123;
+            color: white;
+            padding: 12px 15px;
+            border-top: 1px solid #a91213;
+            max-height: 200px;
+            overflow-y: auto;
+            z-index: 999;
+            box-shadow: 0 -2px 8px rgba(0, 0, 0, 0.3);
+        }
+        .error-panel.active { display: block; }
+        .error-panel-content {
+            font-size: 13px;
+            white-space: pre-wrap;
+            word-wrap: break-word;
+        }
+        .error-panel-close {
+            position: absolute;
+            top: 8px;
+            right: 8px;
+            background: none;
+            color: white;
+            padding: 2px 6px;
+            cursor: pointer;
+            font-size: 18px;
+            border: none;
+        }
+        .error-panel-close:hover { opacity: 0.8; }
         .modal-overlay {
             display: none;
             position: fixed;
@@ -212,6 +245,10 @@
         <div class="status-bar" id="statusBar">
             <span id="statusText">Ready</span>
             <span id="statusInfo">Ln 1, Col 1</span>
+        </div>
+        <div class="error-panel" id="errorPanel">
+            <button class="error-panel-close" onclick="closeErrorPanel()">×</button>
+            <div class="error-panel-content" id="errorPanelContent"></div>
         </div>
     </div>
     <div class="modal-overlay" id="modalOverlay">

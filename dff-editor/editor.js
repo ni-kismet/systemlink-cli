@@ -115,7 +115,6 @@ require(['vs/editor/editor.main'], async function () {
                         editable: { type: 'boolean' },
                         visible: { type: 'boolean' },
                         retainWhenHidden: { type: 'boolean' },
-                        fieldKeys: { type: 'array', items: { type: 'string' } },
                         fields: { type: 'array', items: { type: 'string' } },
                         properties: { type: 'object' },
                         createdBy: { type: 'string' },
@@ -291,7 +290,7 @@ function getExampleConfig() {
                         visible: true,
                         retainWhenHidden: false,
                         i18n: [],
-                        displayLocations: ["compact", "detailed"],
+                        displayLocations: ["compact", "full"],
                         groups: ["basicInfo", "measurements"]
                     }
                 ]
@@ -303,7 +302,7 @@ function getExampleConfig() {
                 workspace: "your-workspace-id",
                 displayText: "Basic Information",
                 helpText: "General identifiers",
-                fieldKeys: ["deviceId", "operator"],
+                fields: ["deviceId", "operator"],
                 editable: true,
                 visible: true,
                 retainWhenHidden: false,
@@ -314,7 +313,7 @@ function getExampleConfig() {
                 workspace: "your-workspace-id",
                 displayText: "Test Measurements",
                 helpText: "Captured measurements",
-                fieldKeys: ["voltage", "current"],
+                fields: ["voltage", "current"],
                 editable: true,
                 visible: true,
                 retainWhenHidden: false,
@@ -382,7 +381,7 @@ const TEMPLATES = {
         workspace: "",
         displayText: "",
         helpText: "",
-        fieldKeys: [],
+        fields: [],
         properties: {}
     },
     field: {
@@ -487,8 +486,8 @@ function validateConfig(config) {
     
     if (config.groups && config.fields) {
         config.groups.forEach((group, i) => {
-            if (group.fieldKeys) {
-                group.fieldKeys.forEach(fk => {
+            if (group.fields) {
+                group.fields.forEach(fk => {
                     if (!config.fields.some(f => f.key === fk)) {
                         errors.push(`Group '${group.key}': references non-existent field '${fk}'`);
                     }
@@ -752,7 +751,8 @@ function showAddDialog(type) {
             </div>
             <div class="form-group">
                 <label>Display Locations (comma-separated)</label>
-                <input type="text" id="viewDisplayLocations" placeholder="e.g., compact, full" value="compact">
+                <input type="text" id="viewDisplayLocations" placeholder="e.g., compact, full, split, global" value="compact">
+                <small>Valid values: compact, full, split, global</small>
             </div>
             <div class="form-group">
                 <label>Group Keys (comma-separated)</label>
@@ -953,7 +953,7 @@ function submitModal() {
                 workspace,
                 displayText,
                 helpText,
-                fieldKeys,
+                fields: fieldKeys,
                 properties: {}
             });
         } else if (modalType === 'field') {
@@ -1044,45 +1044,302 @@ async function loadFromServer() {
     }
 }
 
+function mergeResponseIntoDocument(doc, responseData) {
+    // Build maps of successful and failed items by key
+    const successConfigs = new Map();
+    const successGroups = new Map();
+    const successFields = new Map();
+    const failedConfigKeys = new Set();
+    const failedGroupKeys = new Set();
+    const failedFieldKeys = new Set();
+    
+    // Map successful items
+    (responseData?.configurations || []).forEach(cfg => {
+        if (cfg.key) successConfigs.set(cfg.key, cfg);
+    });
+    (responseData?.groups || []).forEach(grp => {
+        if (grp.key) successGroups.set(grp.key, grp);
+    });
+    (responseData?.fields || []).forEach(fld => {
+        if (fld.key) successFields.set(fld.key, fld);
+    });
+    
+    // Track failed items by their key
+    (responseData?.failedConfigurations || []).forEach(cfg => {
+        if (cfg.key) failedConfigKeys.add(cfg.key);
+    });
+    (responseData?.failedGroups || []).forEach(grp => {
+        if (grp.key) failedGroupKeys.add(grp.key);
+    });
+    (responseData?.failedFields || []).forEach(fld => {
+        if (fld.key) failedFieldKeys.add(fld.key);
+    });
+    
+    // Merge configurations: successful get new data, failed keep original
+    if (Array.isArray(doc.configurations)) {
+        doc.configurations = doc.configurations.map(cfg => {
+            const key = cfg.key || cfg.name;
+            const serverCfg = successConfigs.get(key);
+            // Merge: keep original as base, overlay server data (includes new ID)
+            return serverCfg ? { ...cfg, ...serverCfg } : cfg;
+        });
+    } else if (doc.configuration) {
+        const key = doc.configuration.key || doc.configuration.name;
+        const serverCfg = successConfigs.get(key);
+        if (serverCfg) {
+            doc.configuration = { ...doc.configuration, ...serverCfg };
+        }
+    }
+    
+    // Merge groups: successful get new data, failed keep original for retry
+    if (Array.isArray(doc.groups)) {
+        doc.groups = doc.groups.map(grp => {
+            const serverGrp = successGroups.get(grp.key);
+            // Merge: keep original as base, overlay server data (includes new ID)
+            return serverGrp ? { ...grp, ...serverGrp } : grp;
+        });
+    }
+    
+    // Merge fields: successful get new data, failed keep original for retry
+    if (Array.isArray(doc.fields)) {
+        doc.fields = doc.fields.map(fld => {
+            const serverFld = successFields.get(fld.key);
+            // Merge: keep original as base, overlay server data (includes new ID)
+            return serverFld ? { ...fld, ...serverFld } : fld;
+        });
+    }
+    
+    return doc;
+}
+
+function buildSummary(responseData) {
+    const successes = {
+        configs: (responseData?.configurations || []).length,
+        groups: (responseData?.groups || []).length,
+        fields: (responseData?.fields || []).length
+    };
+    const failures = {
+        configs: (responseData?.failedConfigurations || []).length,
+        groups: (responseData?.failedGroups || []).length,
+        fields: (responseData?.failedFields || []).length
+    };
+    
+    const totalSuccessful = successes.configs + successes.groups + successes.fields;
+    const totalFailed = failures.configs + failures.groups + failures.fields;
+    
+    let text = '';
+    if (totalFailed > 0) {
+        text = `${totalSuccessful} created, ${totalFailed} failed`;
+    } else if (totalSuccessful > 0) {
+        text = `All ${totalSuccessful} items created successfully`;
+    } else {
+        text = 'No items created';
+    }
+    
+    let details = '';
+    if (successes.configs > 0) details += `✓ Configurations: ${successes.configs}\n`;
+    if (successes.groups > 0) details += `✓ Groups: ${successes.groups}\n`;
+    if (successes.fields > 0) details += `✓ Fields: ${successes.fields}\n`;
+    
+    // Add detailed error information for failed items
+    if (failures.configs > 0) {
+        details += `\n✗ Failed Configurations: ${failures.configs}\n`;
+        (responseData?.failedConfigurations || []).forEach(cfg => {
+            details += `  • ${cfg.key || cfg.name || 'Unknown'}: ${cfg.error?.message || 'Unknown error'}\n`;
+        });
+    }
+    if (failures.groups > 0) {
+        details += `\n✗ Failed Groups: ${failures.groups}\n`;
+        (responseData?.failedGroups || []).forEach(grp => {
+            details += `  • ${grp.key || 'Unknown'}: ${grp.error?.message || 'Unknown error'}\n`;
+        });
+    }
+    if (failures.fields > 0) {
+        details += `\n✗ Failed Fields: ${failures.fields}\n`;
+        (responseData?.failedFields || []).forEach(fld => {
+            details += `  • ${fld.key || 'Unknown'}: ${fld.error?.message || 'Unknown error'}`;
+        });
+    }
+    
+    return { text, details, failed: totalFailed };
+}
+
 async function saveToServer() {
     if (!validateDocument()) {
         showStatus('Cannot save: Configuration has errors', 'error');
         return;
     }
-    
-    if (!confirm('Apply this configuration to the server? This will update the live configuration.')) {
+
+    const content = editor.getValue();
+    const doc = JSON.parse(content);
+
+    // Helpers to read/write ID across supported shapes
+    const getConfigId = (d) => {
+        if (d?.configuration?.id) return d.configuration.id;
+        if (d?.id) return d.id;
+        if (Array.isArray(d?.configurations) && d.configurations.length > 0) {
+            return d.configurations[0]?.id || null;
+        }
+        return null;
+    };
+
+    const setConfigId = (d, id) => {
+        if (d.configuration) {
+            d.configuration.id = id;
+            return;
+        }
+        if (Array.isArray(d.configurations) && d.configurations.length > 0) {
+            d.configurations[0].id = id;
+            return;
+        }
+        d.id = id;
+    };
+
+    const existingId = getConfigId(doc);
+    const isNewConfig = !existingId; // rely on document state only
+    const operation = isNewConfig ? 'create' : 'update';
+    const confirmMessage = isNewConfig
+        ? 'Create this configuration on the server?'
+        : 'Apply this configuration to the server? This will update the live configuration.';
+
+    if (!confirm(confirmMessage)) {
         return;
     }
-    
-    showStatus('Saving to server...', 'info');
-    
+
+    showStatus(`${isNewConfig ? 'Creating' : 'Updating'} configuration on server...`, 'info');
+
     try {
-        const content = editor.getValue();
-        const config = JSON.parse(content);
-        
-        const response = await fetch(apiUrl('/nidynamicformfields/v1/update-configurations'), {
+        const endpoint = isNewConfig
+            ? '/api/dff/configurations'
+            : '/nidynamicformfields/v1/update-configurations';
+
+        const response = await fetch(apiUrl(endpoint), {
             method: 'POST',
-            headers: {
-                'Content-Type': 'application/json'
-            },
-            body: JSON.stringify(config)
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(doc)
         });
-        
+
+        const responseData = await response.json();
+
+        // Check for HTTP errors
         if (!response.ok) {
-            const errorData = await response.json().catch(() => ({}));
-            throw new Error(errorData.message || `Server returned ${response.status}`);
+            const errorMsg = responseData?.error?.message || responseData?.message || `Server returned ${response.status}`;
+            throw new Error(errorMsg);
         }
-        
-        // If the config has an id, track it
-        if (config.id) {
-            currentConfigId = config.id;
+
+        // Check for DFF API errors even in 200 responses (with possible partial success)
+        if (responseData?.error?.innerErrors && responseData.error.innerErrors.length > 0) {
+            const errorMessages = responseData.error.innerErrors
+                .map(err => err.message)
+                .join('\n');
+            
+            // NOTE: We don't throw here - we continue to merge successful items
+            // The error will be shown after merge and editor update
+            const hasSuccesses = (responseData?.configurations?.length || 0) + 
+                                (responseData?.groups?.length || 0) + 
+                                (responseData?.fields?.length || 0) > 0;
+            
+            if (!hasSuccesses) {
+                // Only throw if there were no successful items to merge
+                throw new Error(`Server errors:\n${errorMessages}`);
+            }
         }
-        
-        isDirty = false;
-        showStatus('Configuration successfully applied to server ✓', 'success');
+
+        if (isNewConfig) {
+            let newConfigId = null;
+            if (Array.isArray(responseData?.configurations) && responseData.configurations.length > 0) {
+                newConfigId = responseData.configurations[0]?.id || null;
+            } else if (responseData?.configuration?.id) {
+                newConfigId = responseData.configuration.id;
+            } else if (responseData?.id) {
+                newConfigId = responseData.id;
+            }
+
+            // Check if configuration creation failed
+            if (!newConfigId) {
+                const failedCount = (responseData?.failedConfigurations?.length || 0);
+                if (failedCount > 0) {
+                    throw new Error(`Configuration creation failed. Check workspace permissions and configuration validity.`);
+                }
+                showStatus('Configuration created successfully ✓', 'success');
+            } else {
+                currentConfigId = newConfigId;
+                await saveMetadata(newConfigId);
+
+                // Merge successful items from response back into document
+                const updatedDoc = JSON.parse(content);
+                const mergedDoc = mergeResponseIntoDocument(updatedDoc, responseData);
+                
+                editor.setValue(JSON.stringify(mergedDoc, null, 2));
+                isDirty = false;
+                refreshTree();
+                
+                // Display summary of what succeeded and what failed
+                const successSummary = buildSummary(responseData);
+                if (successSummary.failed > 0) {
+                    showStatus(`Configuration created (ID: ${newConfigId}). ${successSummary.text}`, 'warning');
+                    showErrorPanel(`Creation Summary:\n${successSummary.details}`);
+                } else {
+                    showStatus(`Configuration created successfully (ID: ${newConfigId}) ✓`, 'success');
+                }
+            }
+        } else {
+            // Update: track current ID using doc or response
+            const updatedId = existingId || (Array.isArray(responseData?.configurations) && responseData.configurations[0]?.id)
+                || responseData?.configuration?.id || responseData?.id || null;
+            if (updatedId) currentConfigId = updatedId;
+            
+            // Check if configuration update failed
+            if (!updatedId) {
+                const failedCount = (responseData?.failedConfigurations?.length || 0);
+                if (failedCount > 0) {
+                    throw new Error(`Configuration update failed. Check configuration validity.`);
+                }
+            }
+            
+            // Merge successful items from response back into document
+            const updatedDoc = JSON.parse(content);
+            const mergedDoc = mergeResponseIntoDocument(updatedDoc, responseData);
+            editor.setValue(JSON.stringify(mergedDoc, null, 2));
+            isDirty = false;
+            refreshTree();
+            
+            // Display summary of what succeeded and what failed
+            const successSummary = buildSummary(responseData);
+            if (successSummary.failed > 0) {
+                showStatus(`Configuration updated. ${successSummary.text}`, 'warning');
+                showErrorPanel(`Update Summary:\n${successSummary.details}`);
+            } else {
+                showStatus('Configuration successfully updated on server ✓', 'success');
+            }
+        }
+
+        return;
     } catch (e) {
-        showStatus('Failed to save to server: ' + e.message, 'error');
+        showStatus(`Failed to ${operation} configuration: ` + e.message, 'error');
         console.error(e);
+    }
+}
+
+async function saveMetadata(configId) {
+    try {
+        const metadata = {
+            configId: configId,
+            configFile: 'config.json',
+            timestamp: new Date().toISOString()
+        };
+
+        const response = await fetch(apiUrl('/api/dff/save-metadata'), {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(metadata)
+        });
+
+        if (!response.ok) {
+            console.warn('Failed to save metadata:', await response.text());
+        }
+    } catch (e) {
+        console.warn('Failed to save metadata:', e);
     }
 }
 
@@ -1127,12 +1384,41 @@ function showStatus(message, type = 'info') {
     statusBar.className = 'status-bar ' + type;
     statusText.textContent = message;
     
-    if (type === 'success' || type === 'error') {
+    // For errors, show detailed panel if message has multiple lines
+    if (type === 'error') {
+        if (message.includes('\n')) {
+            showErrorPanel(message);
+            // Keep status bar for 10 seconds
+            setTimeout(() => {
+                statusBar.className = 'status-bar';
+                statusText.textContent = 'Ready';
+            }, 10000);
+        } else {
+            // Keep short errors for 10 seconds
+            setTimeout(() => {
+                statusBar.className = 'status-bar';
+                statusText.textContent = 'Ready';
+            }, 10000);
+        }
+    } else if (type === 'success') {
+        // Success messages disappear after 5 seconds
         setTimeout(() => {
             statusBar.className = 'status-bar';
             statusText.textContent = 'Ready';
         }, 5000);
     }
+}
+
+function showErrorPanel(message) {
+    const errorPanel = document.getElementById('errorPanel');
+    const errorContent = document.getElementById('errorPanelContent');
+    errorContent.textContent = message;
+    errorPanel.classList.add('active');
+}
+
+function closeErrorPanel() {
+    const errorPanel = document.getElementById('errorPanel');
+    errorPanel.classList.remove('active');
 }
 
 // Warn before leaving with unsaved changes

@@ -58,10 +58,15 @@ slcli dff edit --output-dir dff-editor --port 8080
 
 ### Server Integration
 
-- Load from Server (GET /api/dff/configurations)
-- Apply to Server (POST /api/dff/configurations)
-- Confirmation dialog before apply
+- **Load from Server**: Fetch configurations by ID or list all configurations
+- **Apply to Server**: Seamlessly creates new or updates existing configurations
+  - **New configurations** (no ID): Automatically calls create endpoint and saves returned ID
+  - **Existing configurations** (has ID): Updates configuration on server
+  - Automatically detects operation type and uses appropriate endpoint
+- **Smart ID tracking**: After creating a config, the ID is saved to metadata and injected into the editor
+- Confirmation dialog before apply with operation-specific messaging
 - Error handling with clear messages
+- Metadata persistence: `.editor-metadata.json` tracks configuration IDs for seamless workflows
 
 ### Keyboard Shortcuts
 
@@ -138,7 +143,8 @@ Validation options: STRING (minLength, maxLength, pattern), NUMBER (min, max, st
 5. Link fields to groups via fieldKeys
 6. Link groups to configuration via groupKeys
 7. Validate
-8. Apply to server
+8. Apply to server (automatically creates new or updates existing configuration)
+9. Configuration ID is saved automatically for future updates
 
 ## Technical Details
 
@@ -146,6 +152,8 @@ Validation options: STRING (minLength, maxLength, pattern), NUMBER (min, max, st
 - Pure vanilla JS; no build step
 - Uses fetch for API calls; localStorage for drafts
 - Customize `serverUrl`, schema, and templates in editor.js
+- Smart create/update detection based on configuration ID presence
+- Metadata tracking in `.editor-metadata.json` for seamless workflows
 
 ## Troubleshooting
 
@@ -169,4 +177,4 @@ Validation options: STRING (minLength, maxLength, pattern), NUMBER (min, max, st
 
 ---
 
-Version: 2.0 | Updated: January 7, 2026
+Version: 2.1 | Updated: January 8, 2026
