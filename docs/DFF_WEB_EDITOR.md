@@ -139,7 +139,7 @@ The editor validates against this JSON schema:
 ```
 
 **Field Types**: STRING, NUMBER, BOOLEAN, DATE, DATETIME, SELECT, MULTISELECT  
-**Resource Types**: workorder:workorder, workorder:testplan, asset:asset, system:system, testmonitor:product
+**Resource Types**: workorder:workorder, workitem:workitem, asset:asset, system:system, testmonitor:product
 
 ## Usage
 
@@ -272,11 +272,13 @@ const dffSchema = {
 
 ## Security Considerations
 
-- **No Secrets**: All API calls go through user's browser (no stored credentials)
-- **CORS**: Server must allow requests from localhost:{port}
-- **Validation**: Client-side only (server should validate as well)
-- **Auto-save**: Stored in browser localStorage (user's machine only)
-- **No External Dependencies**: Monaco Editor is the only external resource
+- **Localhost Binding**: The helper server binds only to `127.0.0.1:{port}` and is not reachable from other machines.
+- **Per-session Secret**: On startup, the helper server generates a random per-session secret and requires it on all proxied API requests via the `X-Editor-Secret` header. The web editor includes this automatically.
+- **Credentials Not Exposed**: CLI credentials are not exposed to the browser; the proxy adds them server-side when forwarding to SystemLink.
+- **Origin Model**: The editor runs on your machine; only browser tabs that can read the secret header (served alongside the editor) can make proxied API calls.
+- **Validation**: Client-side validation is for convenience; the server still validates requests.
+- **Auto-save**: Drafts are stored in browser localStorage only (on your machine).
+- **Dependencies**: Monaco Editor is served via CDN; all other assets are local.
 
 ## Performance
 

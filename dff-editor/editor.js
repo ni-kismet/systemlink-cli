@@ -19,6 +19,15 @@ const apiUrl = (path) => `${serverUrl}${path}`;
 require.config({ paths: { vs: 'https://cdnjs.cloudflare.com/ajax/libs/monaco-editor/0.45.0/min/vs' } });
 
 require(['vs/editor/editor.main'], async function () {
+    let editorSecret = null;
+    try {
+        const respCfg = await fetch('slcli-config.json');
+        if (respCfg.ok) {
+            const cfg = await respCfg.json();
+            editorSecret = cfg.secret || null;
+        }
+    } catch (e) { /* ignore */ }
+
     // Define JSON schema for DFF configuration
     const dffSchema = {
         type: 'object',
@@ -612,7 +621,6 @@ function selectNodeInEditor(nodeId) {
             if (!searchKey) return;
             
             // Find this view's key in the JSON within the configuration's views array
-            let inConfigSection = false;
             let inViewsArray = false;
             for (let i = 0; i < lines.length; i++) {
                 const line = lines[i];
@@ -726,7 +734,6 @@ function showAddDialog(type) {
     const body = document.getElementById('modalBody');
     
     if (type === 'view') {
-        const workspace = getCurrentWorkspace();
         const defaultKey = generateTempKey('NewView');
         title.textContent = 'Add View';
         body.innerHTML = `
@@ -1025,7 +1032,7 @@ async function loadFromServer() {
         showStatus('Loading configuration from server...', 'info');
         
         // Fetch the resolved configuration by ID (matches CLI behavior)
-        const response = await fetch(apiUrl(`/nidynamicformfields/v1/resolved-configuration?configurationId=${encodeURIComponent(configId)}`));
+        const response = await fetch(apiUrl(`/nidynamicformfields/v1/resolved-configuration?configurationId=${encodeURIComponent(configId)}`), { headers: { 'X-Editor-Secret': editorSecret || '' } });
         
         if (!response.ok) {
             throw new Error(`Server returned ${response.status}: ${response.statusText}`);
@@ -1215,7 +1222,7 @@ async function saveToServer() {
 
         const response = await fetch(apiUrl(endpoint), {
             method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
+            headers: { 'Content-Type': 'application/json', 'X-Editor-Secret': editorSecret || '' },
             body: JSON.stringify(doc)
         });
 
@@ -1331,7 +1338,7 @@ async function saveMetadata(configId) {
 
         const response = await fetch(apiUrl('/api/dff/save-metadata'), {
             method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
+            headers: { 'Content-Type': 'application/json', 'X-Editor-Secret': editorSecret || '' },
             body: JSON.stringify(metadata)
         });
 
@@ -1347,11 +1354,21 @@ function autoSave() {
     if (isDirty && editor) {
         try {
             const content = editor.getValue();
+            // Avoid saving excessively large documents (>2MB)
+            const byteLen = new Blob([content]).size;
+            if (byteLen > 2 * 1024 * 1024) {
+                showStatus('Auto-save skipped: document > 2MB', 'warning');
+                return;
+            }
             localStorage.setItem('dff-editor-autosave', content);
             localStorage.setItem('dff-editor-autosave-time', new Date().toISOString());
             console.log('Auto-saved at', new Date().toLocaleTimeString());
         } catch (e) {
-            console.error('Auto-save failed:', e);
+            if (e && (e.name === 'QuotaExceededError' || e.name === 'NS_ERROR_DOM_QUOTA_REACHED')) {
+                showStatus('Auto-save failed: storage quota exceeded. Please download your JSON.', 'error');
+            } else {
+                console.error('Auto-save failed:', e);
+            }
         }
     }
 }

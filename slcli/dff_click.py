@@ -2,6 +2,7 @@
 
 import json
 import sys
+import urllib.parse
 from pathlib import Path
 from typing import Any, Dict, List, Optional
 
@@ -945,7 +946,7 @@ def register_dff_commands(cli: Any) -> None:
             if config_id:
                 url = f"{get_base_url()}/nidynamicformfields/v1/resolved-configuration"
                 params = {"configurationId": config_id}
-                query_string = "&".join([f"{k}={v}" for k, v in params.items()])
+                query_string = urllib.parse.urlencode(params)
                 full_url = f"{url}?{query_string}"
 
                 resp = make_api_request("GET", full_url)

@@ -101,7 +101,9 @@ slcli dff edit --output-dir dff-editor --port 8080
 }
 ```
 
-Resource types: workorder:workorder, workorder:testplan, asset:asset, system:system, testmonitor:product
+Resource types: workorder:workorder, workitem:workitem, asset:asset, system:system, testmonitor:product
+
+Note: workorder:testplan has been replaced by workitem:workitem to align with the current API.
 
 ### Groups
 

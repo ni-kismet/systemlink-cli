@@ -2,6 +2,7 @@
 
 import http.server
 import json
+import secrets
 import shutil
 import socketserver
 import sys
@@ -40,6 +41,8 @@ class DFFWebEditor:
         try:
             self._create_editor_directory()
             initial_content = self._load_initial_content(file)
+            # Generate per-session secret for proxy auth
+            self._secret = secrets.token_urlsafe(24)
             self._create_editor_files(initial_content, file)
             self._write_editor_config()
             self._start_server(open_browser)
@@ -129,8 +132,11 @@ class DFFWebEditor:
                     shutil.copy2(source_file, target_file)
             return
         elif source_dir.exists() and source_dir == target_dir:
-            # Already in the right place (development mode)
-            return
+            # Development mode: ensure essential files are present before assuming assets
+            essential_files = ["index.html", "editor.js", "README.md"]
+            if all((target_dir / f).exists() for f in essential_files):
+                return
+            # else fall through to legacy fallback generation
 
         # Fallback to legacy generated assets if packaged files are unavailable.
         html_content = self._generate_html_content(initial_content, file)
@@ -142,7 +148,9 @@ class DFFWebEditor:
         """Write the editor configuration consumed by the frontend."""
         server_url = get_base_url().rstrip("/")
         config_path = self.output_dir / "slcli-config.json"
-        config_path.write_text(json.dumps({"serverUrl": server_url}, indent=2))
+        # Include per-session secret for proxy authentication
+        config = {"serverUrl": server_url, "secret": getattr(self, "_secret", None)}
+        config_path.write_text(json.dumps(config, indent=2))
 
     def _generate_html_content(self, initial_content: str, file: Optional[str]) -> str:
         """Generate the HTML editor content."""
@@ -409,7 +417,7 @@ Dynamic Form Fields configurations consist of:
 The `resourceType` field in configurations must be one of these valid values:
 
 - `workorder:workorder`
-- `workorder:testplan`
+- `workitem:workitem`
 - `asset:asset`
 - `system:system`
 - `testmonitor:product`
@@ -427,6 +435,7 @@ See the example configuration in the editor for a sample structure.
         api_base = get_base_url().rstrip("/")
         default_headers = get_headers()
         ssl_verify = get_ssl_verify()
+        secret = getattr(self, "_secret", None)
 
         class EditorTCPServer(socketserver.TCPServer):
             allow_reuse_address = True
@@ -458,6 +467,12 @@ See the example configuration in the editor for a sample structure.
                     target_path = parsed.path
                 else:
                     return False
+
+                # Require per-session secret on all proxied routes
+                req_secret = self.headers.get("X-Editor-Secret")
+                if not secret or req_secret != secret:
+                    self.send_error(403, "Forbidden: Missing or invalid editor secret")
+                    return True
 
                 target_url = f"{api_base}{target_path}"
                 if parsed.query:
@@ -494,6 +509,12 @@ See the example configuration in the editor for a sample structure.
             def _handle_save_metadata(self) -> bool:
                 """Save metadata to .editor-metadata.json file."""
                 try:
+                    # Require per-session secret for local save
+                    req_secret = self.headers.get("X-Editor-Secret")
+                    if not secret or req_secret != secret:
+                        self.send_error(403, "Forbidden: Missing or invalid editor secret")
+                        return True
+
                     content_length = int(self.headers.get("Content-Length", "0"))
                     if content_length == 0:
                         self.send_error(400, "No metadata provided")
@@ -528,8 +549,8 @@ See the example configuration in the editor for a sample structure.
                 self.send_error(405, "Method Not Allowed")
 
         try:
-            with EditorTCPServer(("", self.port), Handler) as httpd:
-                server_url = f"http://localhost:{self.port}"
+            with EditorTCPServer(("127.0.0.1", self.port), Handler) as httpd:
+                server_url = f"http://127.0.0.1:{self.port}"
 
                 # Start server in background thread
                 server_thread = threading.Thread(target=httpd.serve_forever)

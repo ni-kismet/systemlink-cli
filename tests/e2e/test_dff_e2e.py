@@ -97,7 +97,7 @@ class TestDFFE2E:
                         assert config_data["configurations"][0]["id"] == config_id
 
                     # Delete configuration
-                    result = cli_runner(["dff", "delete", "--id", config_id], input_data="y\n")
+                    cli_runner(["dff", "delete", "--id", config_id], input_data="y\n")
                     # Deletion may succeed or fail depending on dependencies
                     # Both are acceptable for E2E tests
             else:
