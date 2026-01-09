@@ -118,7 +118,30 @@ class DFFWebEditor:
             initial_content: Initial JSON content for the editor (used for legacy fallback)
             file: Optional source file name for display (used for legacy fallback)
         """
-        source_dir = Path(__file__).resolve().parent.parent / "dff-editor"
+        # Resolve source directory for bundled assets across dev, pip, and frozen builds
+        # Priority:
+        # 1) PyInstaller MEIPASS (onefile extraction dir)
+        # 2) Frozen onedir next to the executable
+        # 3) Site-packages root containing dff-editor (pip/Poetry install)
+        # 4) Source tree relative to this file (development)
+        source_dir_candidates = []
+        meipass = getattr(sys, "_MEIPASS", None)
+        if meipass:
+            source_dir_candidates.append(Path(meipass) / "dff-editor")
+        if getattr(sys, "frozen", False):
+            # Onedir layout keeps data beside the executable
+            source_dir_candidates.append(Path(sys.executable).resolve().parent / "dff-editor")
+
+        # pip/Poetry install: dff-editor sits alongside the slcli package in site-packages
+        site_packages_dir = Path(__file__).resolve().parent.parent
+        source_dir_candidates.append(site_packages_dir / "dff-editor")
+
+        source_dir_candidates.append(Path(__file__).resolve().parent.parent / "dff-editor")
+
+        source_dir: Path = next(
+            (p for p in source_dir_candidates if p.exists()),
+            Path(__file__).resolve().parent.parent / "dff-editor",
+        )
         target_dir = self.output_dir.resolve()
 
         # If source and target are the same, assets are already in place (development mode)
@@ -153,133 +176,86 @@ class DFFWebEditor:
         config_path.write_text(json.dumps(config, indent=2))
 
     def _generate_html_content(self, initial_content: str, file: Optional[str]) -> str:
-        """Generate the HTML editor content."""
-        file_info = f"Editing: {file}" if file else "Mode: New Configuration"
-
+        """Generate minimal error HTML when editor assets are not properly installed."""
         return f"""<!DOCTYPE html>
 <html lang="en">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Dynamic Form Fields Editor</title>
+    <title>Editor Installation Error</title>
     <style>
         body {{
             font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
-            max-width: 1200px;
-            margin: 0 auto;
+            max-width: 800px;
+            margin: 50px auto;
             padding: 20px;
             background-color: #f5f5f5;
         }}
         .container {{
             background: white;
-            padding: 30px;
+            padding: 40px;
             border-radius: 8px;
             box-shadow: 0 2px 10px rgba(0,0,0,0.1);
         }}
         h1 {{
-            color: #333;
-            border-bottom: 2px solid #007acc;
+            color: #d32f2f;
+            border-bottom: 2px solid #d32f2f;
             padding-bottom: 10px;
         }}
-        .notice {{
-            background: #e3f2fd;
-            border: 1px solid #2196f3;
-            padding: 15px;
+        .error-box {{
+            background: #ffebee;
+            border: 2px solid #d32f2f;
+            padding: 20px;
             border-radius: 4px;
             margin: 20px 0;
         }}
-        .file-info {{
-            background: #f0f0f0;
-            padding: 15px;
+        .error-box h2 {{
+            color: #d32f2f;
+            margin-top: 0;
+        }}
+        .code {{
+            background: #f5f5f5;
+            padding: 10px;
             border-radius: 4px;
+            font-family: monospace;
             margin: 10px 0;
-            font-family: monospace;
         }}
-        button {{
-            background: #007acc;
-            color: white;
-            border: none;
-            padding: 10px 20px;
-            border-radius: 4px;
-            cursor: pointer;
-            margin: 5px;
-        }}
-        button:hover {{
-            background: #005a9e;
-        }}
-        textarea {{
-            width: 100%;
-            height: 400px;
-            font-family: monospace;
-            padding: 10px;
-            border: 1px solid #ddd;
-            border-radius: 4px;
-        }}
-        .status {{
-            margin-top: 20px;
-            padding: 10px;
-            border-radius: 4px;
-        }}
-        .status.success {{
-            background: #d4edda;
-            border: 1px solid #c3e6cb;
-            color: #155724;
-        }}
-        .status.error {{
-            background: #f8d7da;
-            border: 1px solid #f5c6cb;
-            color: #721c24;
+        ul {{
+            line-height: 1.8;
         }}
     </style>
 </head>
 <body>
     <div class="container">
-        <h1>Dynamic Form Fields Editor</h1>
+        <h1>✗ Editor Installation Error</h1>
         
-        <div class="notice">
-            <strong>🚧 Under Development</strong><br>
-            This web-based editor for Dynamic Form Fields is currently under development.
-            In the future, this will provide:
-            <ul>
-                <li>Visual configuration builder</li>
-                <li>Field validation</li>
-                <li>Real-time preview</li>
-                <li>Schema validation</li>
-                <li>Import/export functionality</li>
-                <li>Save to file functionality</li>
-            </ul>
+        <div class="error-box">
+            <h2>DFF Web Editor Not Properly Installed</h2>
+            <p>The Dynamic Form Fields web editor assets (Monaco-based editor) could not be found. 
+            This usually indicates an incomplete or corrupted installation.</p>
         </div>
         
-        <div class="file-info"><strong>{file_info}</strong></div>
+        <h3>How to Fix:</h3>
+        <ul>
+            <li><strong>If installed via pip/pipx:</strong>
+                <div class="code">pip install --force-reinstall slcli</div>
+            </li>
+            <li><strong>If installed via Homebrew:</strong>
+                <div class="code">brew reinstall slcli</div>
+            </li>
+            <li><strong>If installed via Scoop:</strong>
+                <div class="code">scoop uninstall slcli<br>scoop install slcli</div>
+            </li>
+            <li><strong>If running from source:</strong>
+                <div class="code">git pull<br>poetry install</div>
+                Ensure the <code>dff-editor/</code> directory exists in the repository root.
+            </li>
+        </ul>
         
-        <div class="notice">
-            <strong>📋 Resource Types</strong><br>
-            The <code>resourceType</code> field must be one of these valid values:
-            <ul>
-                <li><code>workorder:workorder</code></li>
-                <li><code>workorder:testplan</code></li>
-                <li><code>asset:asset</code></li>
-                <li><code>system:system</code></li>
-                <li><code>testmonitor:product</code></li>
-            </ul>
-        </div>
-        
-        <h3>JSON Configuration</h3>
-        <textarea id="jsonEditor" placeholder="Enter your Dynamic Form Fields configuration JSON here...">{initial_content}</textarea>
-        
-        <div>
-            <button onclick="validateJson()">Validate JSON</button>
-            <button onclick="formatJson()">Format JSON</button>
-            <button onclick="downloadConfiguration()">Download JSON</button>
-            <button onclick="loadExample()">Load Example</button>
-        </div>
-        
-        <div id="status"></div>
+        <h3>Need Help?</h3>
+        <p>Visit the project repository: <a href="https://github.com/ni-kismet/systemlink-cli">github.com/ni-kismet/systemlink-cli</a></p>
+        <p>Or file an issue if the problem persists after reinstalling.</p>
     </div>
-    
-    <script>
-        {self._get_javascript_content()}
-    </script>
 </body>
 </html>"""
 

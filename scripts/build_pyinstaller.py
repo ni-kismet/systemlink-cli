@@ -45,12 +45,18 @@ def main():
     project_root = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
     entry_point = os.path.join(project_root, "slcli", "__main__.py")
     examples_dir = os.path.join(project_root, "slcli", "examples")
+    editor_assets_dir = os.path.join(project_root, "dff-editor")
 
     if not os.path.isdir(examples_dir):
         print(f"Examples directory not found at {examples_dir}")
         sys.exit(1)
 
+    if not os.path.isdir(editor_assets_dir):
+        print(f"Editor assets directory not found at {editor_assets_dir}")
+        sys.exit(1)
+
     examples_data_arg = f"{examples_dir}{os.pathsep}slcli/examples"
+    editor_data_arg = f"{editor_assets_dir}{os.pathsep}dff-editor"
     cmd = [
         sys.executable,
         "-m",
@@ -60,6 +66,8 @@ def main():
         "--collect-submodules=shellingham",
         "--add-data",
         examples_data_arg,
+        "--add-data",
+        editor_data_arg,
         entry_point,
     ]
     print(f"Running: {' '.join(cmd)}")
