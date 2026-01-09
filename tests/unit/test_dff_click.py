@@ -659,3 +659,35 @@ def test_dff_edit_with_id_generates_filename_from_config_name(
     config_file = config_files[0]
     assert "/" not in Path(config_file).name
     assert "\\" not in Path(config_file).name
+
+
+def test_dff_delete_with_recursive_flag(monkeypatch: Any, runner: CliRunner) -> None:
+    """Test delete command with --no-recursive flag."""
+    patch_keyring(monkeypatch)
+
+    payload_data = {}
+
+    def mock_make_api_request(
+        method: str, url: str, data: Any = None, handle_errors: bool = True
+    ) -> Any:
+        nonlocal payload_data
+        payload_data = data
+
+        class MockResponse:
+            status_code = 200
+
+            def json(self) -> dict[str, Any]:
+                return {"configurations": [{"id": "config1"}], "groups": [], "fields": []}
+
+            def raise_for_status(self) -> None:
+                pass
+
+        return MockResponse()
+
+    monkeypatch.setattr("slcli.dff_click.make_api_request", mock_make_api_request)
+
+    cli = make_cli()
+    result = runner.invoke(cli, ["dff", "delete", "--id", "config1", "--no-recursive"], input="y\n")
+
+    assert result.exit_code == 0
+    assert payload_data["recursive"] is False

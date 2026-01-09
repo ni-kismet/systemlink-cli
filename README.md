@@ -1582,8 +1582,25 @@ slcli dff create --file config.json
 # Update configurations from JSON file
 slcli dff update --file config.json
 
-# Delete a configuration
+# Delete a configuration (recursive by default - deletes dependent groups/fields)
 slcli dff delete --id <config_id>
+
+# Delete multiple configurations
+slcli dff delete --id <config_id1> --id <config_id2>
+
+# Delete groups (standalone or multiple)
+slcli dff delete --group-id <group_id>
+slcli dff delete -g <group_id1> -g <group_id2>
+
+# Delete fields
+slcli dff delete --field-id <field_id>
+slcli dff delete --fid <field_id1> --fid <field_id2>
+
+# Delete mixed types in one command
+slcli dff delete --id <config_id> -g <group_id> --field-id <field_id>
+
+# Non-recursive delete (only deletes specified items, not dependent items)
+slcli dff delete --id <config_id> --no-recursive
 
 # Initialize a new configuration template
 slcli dff init --name "My Config" --workspace "MyWorkspace" --resource-type workorder:workorder

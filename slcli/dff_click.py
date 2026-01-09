@@ -9,7 +9,7 @@ import click
 import requests
 
 from .platform import require_feature
-from .universal_handlers import UniversalResponseHandler, FilteredResponse
+from .universal_handlers import FilteredResponse, UniversalResponseHandler
 from .utils import (
     ExitCodes,
     get_base_url,
@@ -21,7 +21,11 @@ from .utils import (
     save_json_file,
 )
 from .web_editor import launch_dff_editor
-from .workspace_utils import filter_by_workspace, resolve_workspace_filter, WorkspaceFormatter
+from .workspace_utils import (
+    WorkspaceFormatter,
+    filter_by_workspace,
+    resolve_workspace_filter,
+)
 
 # Valid resource types for Dynamic Form Fields
 VALID_RESOURCE_TYPES = [
@@ -645,12 +649,6 @@ def register_dff_commands(cli: Any) -> None:
         help="Field ID(s) to delete (can be specified multiple times)",
     )
     @click.option(
-        "--file",
-        "-f",
-        "input_file",
-        help="JSON file containing IDs to delete",
-    )
-    @click.option(
         "--no-recursive",
         "recursive",
         is_flag=True,
@@ -663,14 +661,11 @@ def register_dff_commands(cli: Any) -> None:
         config_ids: tuple[str, ...],
         group_ids: tuple[str, ...],
         field_ids: tuple[str, ...],
-        input_file: Optional[str] = None,
         recursive: bool = True,
     ) -> None:
         """Delete dynamic form field configurations, groups, and fields."""
-        if not config_ids and not group_ids and not field_ids and not input_file:
-            click.echo(
-                "✗ Must provide at least one of: --id, --group-id, --field-id, or --file", err=True
-            )
+        if not config_ids and not group_ids and not field_ids:
+            click.echo("✗ Must provide at least one of: --id, --group-id, or --field-id", err=True)
             sys.exit(ExitCodes.INVALID_INPUT)
 
         url = f"{get_base_url()}/nidynamicformfields/v1/delete"
@@ -681,20 +676,6 @@ def register_dff_commands(cli: Any) -> None:
                 "groupIds": list(group_ids),
                 "fieldIds": list(field_ids),
             }
-
-            if input_file:
-                file_data = load_json_file(input_file)
-                if isinstance(file_data, dict):
-                    ids_to_delete["configurationIds"].extend(file_data.get("configurationIds", []))
-                    ids_to_delete["groupIds"].extend(file_data.get("groupIds", []))
-                    ids_to_delete["fieldIds"].extend(file_data.get("fieldIds", []))
-                    # Override recursive flag if specified in file
-                    file_recursive = file_data.get("recursive")
-                    if isinstance(file_recursive, bool):
-                        recursive = file_recursive
-                elif isinstance(file_data, list):
-                    # Legacy format: assume configuration IDs
-                    ids_to_delete["configurationIds"].extend(file_data)
 
             # Build payload with only non-empty ID lists
             payload: dict[str, Any] = {k: v for k, v in ids_to_delete.items() if v}
@@ -721,38 +702,7 @@ def register_dff_commands(cli: Any) -> None:
                 summary = " and ".join(summary_parts) if summary_parts else "item(s)"
                 click.echo(f"✓ {summary} deleted successfully.")
 
-                # If input file was provided, reload it to remove successfully deleted items
-                if input_file:
-                    try:
-                        updated_data = (
-                            file_data.copy() if isinstance(file_data, dict) else list(file_data)
-                        )
-                        if isinstance(updated_data, dict):
-                            # Remove successfully deleted IDs from each list
-                            for config_id in ids_to_delete.get("configurationIds", []):
-                                if config_id in updated_data.get("configurationIds", []):
-                                    updated_data["configurationIds"].remove(config_id)
-                            for group_id in ids_to_delete.get("groupIds", []):
-                                if group_id in updated_data.get("groupIds", []):
-                                    updated_data["groupIds"].remove(group_id)
-                            for field_id in ids_to_delete.get("fieldIds", []):
-                                if field_id in updated_data.get("fieldIds", []):
-                                    updated_data["fieldIds"].remove(field_id)
-
-                            # Write updated data back to file
-                            with open(input_file, "w") as f:
-                                json.dump(updated_data, f, indent=2)
-                        elif isinstance(updated_data, list):
-                            # Legacy format: remove successfully deleted config IDs
-                            for config_id in ids_to_delete.get("configurationIds", []):
-                                if config_id in updated_data:
-                                    updated_data.remove(config_id)
-
-                            # Write updated data back to file
-                            with open(input_file, "w") as f:
-                                json.dump(updated_data, f, indent=2)
-                    except Exception as e:
-                        click.echo(f"⚠ Could not update input file: {e}", err=True)
+                # File-based delete removed; no input file updates
             else:
                 # Handle partial success if needed
                 response_data = resp.json() if resp.text.strip() else {}
@@ -765,45 +715,6 @@ def register_dff_commands(cli: Any) -> None:
                         error = failure.get("error", {})
                         error_msg = error.get("message", "Unknown error")
                         click.echo(f"  ✗ {item_id}: {error_msg}", err=True)
-
-                    # If input file was provided, reload it to remove successfully deleted items
-                    if input_file:
-                        try:
-                            updated_data = (
-                                file_data.copy() if isinstance(file_data, dict) else list(file_data)
-                            )
-                            failed_ids = {f.get("id") for f in failed_deletes if f.get("id")}
-
-                            if isinstance(updated_data, dict):
-                                # Keep only failed items
-                                updated_data["configurationIds"] = [
-                                    cid
-                                    for cid in updated_data.get("configurationIds", [])
-                                    if cid in failed_ids
-                                ]
-                                updated_data["groupIds"] = [
-                                    gid
-                                    for gid in updated_data.get("groupIds", [])
-                                    if gid in failed_ids
-                                ]
-                                updated_data["fieldIds"] = [
-                                    fid
-                                    for fid in updated_data.get("fieldIds", [])
-                                    if fid in failed_ids
-                                ]
-
-                                # Write updated data back to file
-                                with open(input_file, "w") as f:
-                                    json.dump(updated_data, f, indent=2)
-                            elif isinstance(updated_data, list):
-                                # Legacy format: keep only failed IDs
-                                updated_data = [cid for cid in updated_data if cid in failed_ids]
-
-                                # Write updated data back to file
-                                with open(input_file, "w") as f:
-                                    json.dump(updated_data, f, indent=2)
-                        except Exception as e:
-                            click.echo(f"⚠ Could not update input file: {e}", err=True)
 
                     sys.exit(ExitCodes.GENERAL_ERROR)
 
