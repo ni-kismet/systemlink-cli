@@ -10,6 +10,7 @@ let serverUrl = window.location.origin;
 let undoStack = [];
 let redoStack = [];
 let isDirty = false;
+let editorSecret = null;  // Global variable for editor session secret
 
 const apiUrl = (path) => `${serverUrl}${path}`;
 
@@ -19,7 +20,7 @@ const apiUrl = (path) => `${serverUrl}${path}`;
 require.config({ paths: { vs: 'https://cdnjs.cloudflare.com/ajax/libs/monaco-editor/0.45.0/min/vs' } });
 
 require(['vs/editor/editor.main'], async function () {
-    let editorSecret = null;
+    // Load editor secret from config
     try {
         const respCfg = await fetch('slcli-config.json');
         if (respCfg.ok) {
