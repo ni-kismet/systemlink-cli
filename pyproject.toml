@@ -3,6 +3,7 @@ name = "slcli"
 version = "0.24.0"
 description = "SystemLink Integrator CLI - cross-platform CLI for SystemLink workflows and templates."
 authors = ["Fred Visser <fred.visser@emerson.com>"]
+include = ["dff-editor/**/*"]
 
 
 [tool.poetry.scripts]
@@ -28,6 +29,7 @@ pyyaml = "^6.0.3"
 # Lint
 ni-python-styleguide = ">=0.4.3"
 cyclonedx-bom = "^5.0.0"
+setuptools = "<81"  # pin to retain pkg_resources used by flake8-import-order
 
 # Type checking
 mypy = ">=1.0"
