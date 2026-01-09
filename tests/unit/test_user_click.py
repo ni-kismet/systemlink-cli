@@ -797,13 +797,19 @@ class TestUserCreate:
         cli = make_cli()
         runner_local = runner
 
+        template_resp = {"id": "template-dev-123", "name": "templateDev"}
         policy_resp = {"id": "pol-ws-1", "name": "generated"}
         user_resp = {"id": "new-user-id", "email": "john.doe@example.com"}
 
         with patch("slcli.user_click.make_api_request") as mock_request, patch(
             "slcli.user_click.resolve_workspace_id"
         ) as mock_resolve:
-            mock_request.side_effect = [mock_response(policy_resp), mock_response(user_resp)]
+            # First call: template lookup, second: policy creation, third: user creation
+            mock_request.side_effect = [
+                mock_response({"policyTemplates": [template_resp]}),
+                mock_response(policy_resp),
+                mock_response(user_resp),
+            ]
             mock_resolve.return_value = "dev"
 
             result = runner_local.invoke(
@@ -825,9 +831,9 @@ class TestUserCreate:
             )
 
             assert result.exit_code == 0
-            # First call creates policy, second call creates user
-            assert len(mock_request.call_args_list) == 2
-            user_call = mock_request.call_args_list[1]
+            # First call looks up template, second call creates policy, third call creates user
+            assert len(mock_request.call_args_list) == 3
+            user_call = mock_request.call_args_list[2]
             user_payload = user_call.kwargs.get("payload")
             assert user_payload
             assert user_payload.get("policies") == ["pol-ws-1"]
@@ -1274,14 +1280,17 @@ class TestUserUpdate:
         runner_local = runner
 
         existing_user_resp = {"id": "user1", "type": "user"}
+        template_resp = {"id": "template-qa-123", "name": "templateQA"}
         policy_resp = {"id": "pol-ws-2", "name": "generated"}
         user_resp = {"id": "user1", "email": "jane.doe@example.com"}
 
         with patch("slcli.user_click.make_api_request") as mock_request, patch(
             "slcli.user_click.resolve_workspace_id"
         ) as mock_resolve:
+            # First: get user, Second: template lookup, Third: policy creation, Fourth: update
             mock_request.side_effect = [
                 mock_response(existing_user_resp),
+                mock_response({"policyTemplates": [template_resp]}),
                 mock_response(policy_resp),
                 mock_response(user_resp),
             ]
@@ -1300,8 +1309,8 @@ class TestUserUpdate:
             )
 
             assert result.exit_code == 0
-            assert len(mock_request.call_args_list) == 3
-            user_call = mock_request.call_args_list[2]
+            assert len(mock_request.call_args_list) == 4
+            user_call = mock_request.call_args_list[3]
             payload = user_call.kwargs.get("payload")
             assert payload
             assert payload.get("policies") == ["pol-ws-2"]

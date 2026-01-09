@@ -80,6 +80,75 @@ def _get_policy_template_details(template_id: str) -> Optional[dict]:
         return None
 
 
+def _resolve_policy_template(template_id_or_name: str) -> str:
+    """Resolve a policy template by ID or name.
+
+    Args:
+        template_id_or_name: Either a template ID or a template name
+
+    Returns:
+        The policy template ID
+
+    Raises:
+        SystemExit: If template cannot be found or resolved
+    """
+    from urllib.parse import urlencode
+
+    # Try to look up by name first (more user-friendly), then fall back to ID lookup
+    base_url = f"{get_base_url()}/niauth/v1/policy-templates"
+    query_params = {"name": template_id_or_name}
+    url = f"{base_url}?{urlencode(query_params)}"
+
+    try:
+        resp = make_api_request("GET", url, payload=None, handle_errors=False)
+        resp.raise_for_status()
+        data = resp.json()
+
+        templates = data.get("policyTemplates", [])
+        if templates:
+            if len(templates) > 1:
+                click.echo(
+                    f"✗ Multiple policy templates found with name '{template_id_or_name}'. "
+                    "Please use the template ID instead.",
+                    err=True,
+                )
+                sys.exit(ExitCodes.INVALID_INPUT)
+
+            # Found exactly one template by name - return its ID
+            template_id = templates[0].get("id")
+            if not template_id:
+                click.echo(
+                    f"✗ Policy template '{template_id_or_name}' found but has no ID.",
+                    err=True,
+                )
+                sys.exit(ExitCodes.INVALID_INPUT)
+            return template_id
+        # If no templates found by name, fall through to try as ID
+    except Exception:
+        # If name lookup fails (network error, etc.), we'll try as ID below
+        pass
+
+    # Try as template ID
+    try:
+        url = f"{get_base_url()}/niauth/v1/policy-templates/{template_id_or_name}"
+        resp = make_api_request("GET", url, payload=None, handle_errors=False)
+        resp.raise_for_status()
+        return template_id_or_name
+    except Exception as exc:
+        # Check if this is a 404 or other not found error
+        response = getattr(exc, "response", None)
+        if response is not None and response.status_code == 404:
+            click.echo(
+                f"✗ Policy template '{template_id_or_name}' not found by ID or name.",
+                err=True,
+            )
+            sys.exit(ExitCodes.NOT_FOUND)
+        # For other errors, propagate through standard error handling
+        handle_api_error(exc)
+        # This should never be reached, but make mypy happy
+        raise RuntimeError(f"Failed to resolve policy template: {template_id_or_name}")
+
+
 def _create_workspace_policy_from_template(
     template_id: str, workspace: str, name_hint: Optional[str] = None
 ) -> str:
@@ -110,7 +179,8 @@ def _process_workspace_policies(
     """Process workspace-policies string and create policies from templates.
 
     Args:
-        workspace_policies: Comma-separated list of workspace:templateId pairs
+        workspace_policies: Comma-separated list of workspace:templateId pairs (or
+            workspace:templateName to lookup by name)
         name_hint: Optional name hint for generated policy names
 
     Returns:
@@ -128,17 +198,18 @@ def _process_workspace_policies(
             continue
         if ":" not in pair:
             click.echo(
-                "✗ Invalid workspace-policies format. Use workspace:templateId "
-                "(e.g., 'myWorkspace:template-123')",
+                "✗ Invalid workspace-policies format. Use workspace:templateId or "
+                "workspace:templateName (e.g., 'myWorkspace:template-123' or "
+                "'myWorkspace:MyPolicyTemplate')",
                 err=True,
             )
             sys.exit(ExitCodes.INVALID_INPUT)
-        ws, template_id = pair.split(":", 1)
+        ws, template_id_or_name = pair.split(":", 1)
         ws = ws.strip()
-        template_id = template_id.strip()
-        if not ws or not template_id:
+        template_id_or_name = template_id_or_name.strip()
+        if not ws or not template_id_or_name:
             click.echo(
-                "✗ Invalid workspace-policies entry. Both workspace and templateId are required.",
+                "✗ Invalid workspace-policies entry. Both workspace and template ID/name are required.",
                 err=True,
             )
             sys.exit(ExitCodes.INVALID_INPUT)
@@ -152,11 +223,14 @@ def _process_workspace_policies(
             )
             sys.exit(ExitCodes.NOT_FOUND)
 
-        mappings.append((ws_id, template_id))
+        mappings.append((ws_id, template_id_or_name))
 
     # Create policies for each mapping
-    for ws_id, template_id in mappings:
+    for ws_id, template_id_or_name in mappings:
         try:
+            # Resolve template name/ID to actual template ID
+            template_id = _resolve_policy_template(template_id_or_name)
+
             created_policy_id = _create_workspace_policy_from_template(
                 template_id=template_id,
                 workspace=ws_id,
@@ -166,6 +240,9 @@ def _process_workspace_policies(
         except ValueError as e:
             click.echo(f"✗ Error: {str(e)}", err=True)
             sys.exit(ExitCodes.INVALID_INPUT)
+        except SystemExit:
+            # Re-raise SystemExit (from _resolve_policy_template) to propagate errors
+            raise
         except Exception as exc:
             handle_api_error(exc)
 
@@ -760,9 +837,9 @@ def register_user_commands(cli: click.Group) -> None:
     @click.option(
         "--workspace-policies",
         help=(
-            "Comma-separated list of workspace:templateId entries (workspace can be name or"
-            " ID); a policy will be created per workspace from the template and assigned to"
-            " the user"
+            "Comma-separated list of workspace:template entries (workspace can be name or"
+            " ID; template can be template ID or template name); a policy will be created"
+            " per workspace from the template and assigned to the user"
         ),
     )
     @click.option(
@@ -973,9 +1050,9 @@ def register_user_commands(cli: click.Group) -> None:
     @click.option(
         "--workspace-policies",
         help=(
-            "Comma-separated list of workspace:templateId entries (workspace can be name or"
-            " ID); a policy will be created per workspace from the template and assigned to"
-            " the user"
+            "Comma-separated list of workspace:template entries (workspace can be name or"
+            " ID; template can be template ID or template name); a policy will be created"
+            " per workspace from the template and assigned to the user"
         ),
     )
     @click.option(
