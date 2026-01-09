@@ -1,12 +1,25 @@
 # CHANGELOG
 
 
+## v0.24.2 (2026-01-09)
+
+### Bug Fixes
+
+- Move editorSecret to global scope to fix reference error in dff editor
+  ([`cdcbb12`](https://github.com/ni-kismet/systemlink-cli/commit/cdcbb1276a446b3c68d6e516f53eec7c93bf7b2e))
+
+
 ## v0.24.1 (2026-01-09)
 
 ### Bug Fixes
 
 - Dff editor installer fix ([#47](https://github.com/ni-kismet/systemlink-cli/pull/47),
   [`600fd08`](https://github.com/ni-kismet/systemlink-cli/commit/600fd08dd45f33ad3b06f0ff814a36f5c902fe39))
+
+### Chores
+
+- **release**: 0.24.1
+  ([`0e1aed8`](https://github.com/ni-kismet/systemlink-cli/commit/0e1aed8f29230f81cb6267183cb5ff12351e55b9))
 
 
 ## v0.24.0 (2026-01-09)
