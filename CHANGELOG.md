@@ -1,9 +1,20 @@
 # CHANGELOG
 
 
+## v0.24.1 (2026-01-09)
+
+### Bug Fixes
+
+- Dff editor installer fix ([#47](https://github.com/ni-kismet/systemlink-cli/pull/47),
+  [`600fd08`](https://github.com/ni-kismet/systemlink-cli/commit/600fd08dd45f33ad3b06f0ff814a36f5c902fe39))
+
+
 ## v0.24.0 (2026-01-09)
 
 ### Chores
+
+- **release**: 0.24.0
+  ([`e9c01b1`](https://github.com/ni-kismet/systemlink-cli/commit/e9c01b157a91825c989796f260a86a315c935137))
 
 - **deps**: Bump urllib3 from 2.6.0 to 2.6.3
   ([#46](https://github.com/ni-kismet/systemlink-cli/pull/46),
