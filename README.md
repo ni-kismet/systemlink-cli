@@ -629,7 +629,7 @@ slcli function manage create \
 
 This repository includes a sample WebAssembly function (`samples/math.wasm`) that demonstrates basic mathematical operations. Here's how to create a function using this sample:
 
-```bash
+````bash
 # Create a function using the provided sample WASM file
 slcli function manage create \
     --name "Sample Math Functions - fred 1" \
@@ -673,7 +673,7 @@ slcli function init -l python -d my-py-func
 
 # Overwrite non-empty directory
 slcli function init -l ts -d existing --force
-```
+````
 
 Templates are fetched on-demand from branch `function-examples` of `ni/systemlink-enterprise-examples`:
 
