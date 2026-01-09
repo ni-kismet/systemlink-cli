@@ -15,7 +15,7 @@ class TestDFFE2E:
 
     def test_dff_config_list_basic(self, cli_runner: Any, cli_helper: Any) -> None:
         """Test basic DFF configuration list functionality."""
-        result = cli_runner(["dff", "config", "list", "--format", "json"])
+        result = cli_runner(["dff", "list", "--format", "json"])
         cli_helper.assert_success(result)
 
         configs = cli_helper.get_json_output(result)
@@ -23,7 +23,7 @@ class TestDFFE2E:
 
     def test_dff_config_list_table_format(self, cli_runner: Any, cli_helper: Any) -> None:
         """Test DFF config list with table format."""
-        result = cli_runner(["dff", "config", "list", "--format", "table"])
+        result = cli_runner(["dff", "list", "--format", "table"])
         cli_helper.assert_success(result)
 
         # Should show table headers or "No configurations found"
@@ -37,27 +37,11 @@ class TestDFFE2E:
     ) -> None:
         """Test DFF config list with workspace filtering."""
         workspace = configured_workspace
-        result = cli_runner(["dff", "config", "list", "--workspace", workspace, "--format", "json"])
+        result = cli_runner(["dff", "list", "--workspace", workspace, "--format", "json"])
         cli_helper.assert_success(result)
 
         configs = cli_helper.get_json_output(result)
         assert isinstance(configs, list)
-
-    def test_dff_groups_list_basic(self, cli_runner: Any, cli_helper: Any) -> None:
-        """Test basic DFF groups list functionality."""
-        result = cli_runner(["dff", "groups", "list", "--format", "json"])
-        cli_helper.assert_success(result)
-
-        groups = cli_helper.get_json_output(result)
-        assert isinstance(groups, list)
-
-    def test_dff_fields_list_basic(self, cli_runner: Any, cli_helper: Any) -> None:
-        """Test basic DFF fields list functionality."""
-        result = cli_runner(["dff", "fields", "list", "--format", "json"])
-        cli_helper.assert_success(result)
-
-        fields = cli_helper.get_json_output(result)
-        assert isinstance(fields, list)
 
     def test_dff_config_create_and_delete_cycle(
         self, cli_runner: Any, cli_helper: Any, sample_dff_config: Any, configured_workspace: Any
@@ -88,7 +72,7 @@ class TestDFFE2E:
 
         try:
             # Create DFF configuration
-            result = cli_runner(["dff", "config", "create", "--file", temp_file])
+            result = cli_runner(["dff", "create", "--file", temp_file])
 
             if result.returncode == 0:
                 # Creation succeeded
@@ -104,9 +88,7 @@ class TestDFFE2E:
 
                 if config_id:
                     # Verify configuration exists
-                    result = cli_runner(
-                        ["dff", "config", "get", "--id", config_id, "--format", "json"]
-                    )
+                    result = cli_runner(["dff", "get", "--id", config_id, "--format", "json"])
                     if result.returncode == 0:
                         config_data = cli_helper.get_json_output(result)
                         # The get command returns configurations array
@@ -115,9 +97,7 @@ class TestDFFE2E:
                         assert config_data["configurations"][0]["id"] == config_id
 
                     # Delete configuration
-                    result = cli_runner(
-                        ["dff", "config", "delete", "--id", config_id], input_data="y\n"
-                    )
+                    cli_runner(["dff", "delete", "--id", config_id], input_data="y\n")
                     # Deletion may succeed or fail depending on dependencies
                     # Both are acceptable for E2E tests
             else:
@@ -132,7 +112,7 @@ class TestDFFE2E:
     def test_dff_config_export_functionality(self, cli_runner: Any, cli_helper: Any) -> None:
         """Test DFF configuration export functionality."""
         # First, get list of configurations
-        result = cli_runner(["dff", "config", "list", "--format", "json"])
+        result = cli_runner(["dff", "list", "--format", "json"])
         cli_helper.assert_success(result)
 
         configs = cli_helper.get_json_output(result)
@@ -146,9 +126,7 @@ class TestDFFE2E:
                 with tempfile.NamedTemporaryFile(suffix=".json", delete=False) as export_file:
                     export_path = export_file.name
 
-                result = cli_runner(
-                    ["dff", "config", "export", "--id", config_id, "--output", export_path]
-                )
+                result = cli_runner(["dff", "export", "--id", config_id, "--output", export_path])
 
                 try:
                     cli_helper.assert_success(result, "exported")
@@ -183,7 +161,6 @@ class TestDFFE2E:
             result = cli_runner(
                 [
                     "dff",
-                    "config",
                     "init",
                     "--name",
                     "E2E Test Template",
@@ -222,16 +199,11 @@ class TestDFFE2E:
     def test_dff_pagination(self, cli_runner: Any, cli_helper: Any) -> None:
         """Test DFF list commands pagination."""
         # Test config pagination
-        result = cli_runner(["dff", "config", "list", "--take", "3", "--format", "table"])
+        result = cli_runner(["dff", "list", "--take", "3", "--format", "table"])
         cli_helper.assert_success(result)
 
-        # Test groups pagination
-        result = cli_runner(["dff", "groups", "list", "--take", "3", "--format", "table"])
-        cli_helper.assert_success(result)
-
-        # Test fields pagination
-        result = cli_runner(["dff", "fields", "list", "--take", "3", "--format", "table"])
-        cli_helper.assert_success(result)
+        # Note: groups and fields commands removed in flattened structure
+        # Only configuration listing has pagination
 
     def test_dff_error_handling(self, cli_runner: Any, cli_helper: Any) -> None:
         """Test error handling for invalid DFF operations."""
@@ -253,7 +225,6 @@ class TestDFFE2E:
         result = cli_runner(
             [
                 "dff",
-                "config",
                 "init",
                 "--name",
                 "Invalid Test",

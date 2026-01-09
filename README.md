@@ -115,8 +115,8 @@ After installation, restart your shell or source the completion file. See [docs/
    # View workflows
    slcli workflow list
 
-    # View notebooks
-    slcli notebook manage list
+   # View notebooks
+   slcli notebook manage list
 
    # View users
    slcli user list
@@ -125,18 +125,15 @@ After installation, restart your shell or source the completion file. See [docs/
    slcli workspace list
 
    # View dynamic form field configurations
-   slcli dff config list
-
-  # View auth policies and templates
-  slcli auth policy list
-  slcli auth template list
+   slcli dff list
    ```
 
-# View dynamic form field groups
+# View auth policies and templates
 
-slcli dff groups list
-
-````
+```bash
+slcli auth policy list
+slcli auth template list
+```
 
 ## Example Command (demo systems)
 
@@ -157,7 +154,7 @@ slcli example install demo-complete-workflow --workspace MyWorkspace --dry-run
 
 # Delete previously installed example resources (with audit log)
 slcli example delete demo-complete-workflow --workspace MyWorkspace --audit-log delete-log.json
-````
+```
 
 Available samples:
 
@@ -187,6 +184,7 @@ Available samples:
    slcli feed --help
    slcli auth policy --help
    slcli auth template --help
+   ```
 
 ## Auth Policy Management
 
@@ -1562,97 +1560,48 @@ Manage dynamic form field configurations:
 
 ```bash
 # List all configurations
-slcli dff config list
+slcli dff list
 
 # JSON format for programmatic use
-slcli dff config list --format json
+slcli dff list --format json
 
 # Filter by workspace
-slcli dff config list --workspace "Production Workspace"
+slcli dff list --workspace "Production Workspace"
+
+# Get a specific configuration
+slcli dff get --id <config_id>
 
 # Export a configuration to JSON file
-slcli dff config export --id <config_id> --output config.json
+slcli dff export --id <config_id> --output config.json
 
-# Import a configuration from JSON file
-slcli dff config import --file config.json
+# Create configurations from JSON file
+slcli dff create --file config.json
 
-# Delete a configuration
-slcli dff config delete --id <config_id>
-```
+# Update configurations from JSON file
+slcli dff update --file config.json
 
-### Group Management
+# Delete a configuration (recursive by default - deletes dependent groups/fields)
+slcli dff delete --id <config_id>
 
-Manage dynamic form field groups:
+# Delete multiple configurations
+slcli dff delete --id <config_id1> --id <config_id2>
 
-```bash
-# List all groups
-slcli dff groups list
+# Delete groups (standalone or multiple)
+slcli dff delete --group-id <group_id>
+slcli dff delete -g <group_id1> -g <group_id2>
 
-# JSON format for programmatic use
-slcli dff groups list --format json
+# Delete fields
+slcli dff delete --field-id <field_id>
+slcli dff delete --fid <field_id1> --fid <field_id2>
 
-# Filter by workspace
-slcli dff groups list --workspace "Production Workspace"
+# Delete mixed types in one command
+slcli dff delete --id <config_id> -g <group_id> --field-id <field_id>
 
-# Export a group to JSON file
-slcli dff groups export --id <group_id> --output group.json
+# Non-recursive delete (only deletes specified items, not dependent items)
+slcli dff delete --id <config_id> --no-recursive
 
-# Import a group from JSON file
-slcli dff groups import --file group.json
-
-# Delete a group
-slcli dff groups delete --id <group_id>
-```
-
-### Field Management
-
-Manage individual dynamic form fields:
-
-```bash
-# List all fields
-slcli dff fields list
-
-# JSON format for programmatic use
-slcli dff fields list --format json
-
-# Filter by workspace
-slcli dff fields list --workspace "Production Workspace"
-
-# Filter by displayed name (case-insensitive substring)
-slcli dff fields list --name min
-
-# Export a field to JSON file
-slcli dff fields export --id <field_id> --output field.json
-
-# Import a field from JSON file
-slcli dff fields import --file field.json
-
-# Delete a field
-slcli dff fields delete --id <field_id>
-```
-
-### Table Management
-
-Manage dynamic form field tables:
-
-```bash
-# List all tables
-slcli dff tables list
-
-# JSON format for programmatic use
-slcli dff tables list --format json
-
-# Filter by workspace
-slcli dff tables list --workspace "Production Workspace"
-
-# Export a table to JSON file
-slcli dff tables export --id <table_id> --output table.json
-
-# Import a table from JSON file
-slcli dff tables import --file table.json
-
-# Delete a table
-slcli dff tables delete --id <table_id>
+# Initialize a new configuration template
+slcli dff init --name "My Config" --workspace "MyWorkspace" --resource-type workorder:workorder
 ```
 
 ### Web Editor
@@ -1660,26 +1609,26 @@ slcli dff tables delete --id <table_id>
 Launch a local web-based editor for visual editing of DFF JSON files:
 
 ```bash
-# Launch web editor with default settings (port 8080, ./dff_editor directory)
+# Launch web editor with default settings (port 8080, ./dff-editor directory)
 slcli dff edit
 
-# Custom port and directory
-slcli dff edit --port 9000 --directory ./my_editor
+# Load a specific configuration by ID from the server
+slcli dff edit --id <configuration-id>
 
-# Auto-open browser (default: true)
-slcli dff edit --open-browser
+# Custom port and directory
+slcli dff edit --port 9000 --output-dir ./my_editor
 
 # Don't auto-open browser
 slcli dff edit --no-open-browser
 ```
 
-The web editor:
+The web editor (Monaco-based):
 
 - Hosts a local HTTP server for editing DFF configurations
-- Provides a simple HTML interface for JSON file management
-- Creates standalone editor files in the specified directory
-- Automatically opens your default browser to the editor interface
-- Allows you to create, edit, and save DFF JSON configurations locally
+- Provides a VS Code-like editor with JSON validation, formatting, and find/replace
+- Includes a tree view, add dialogs for configurations/groups/fields, and schema validation
+- Supports loading/saving to the SystemLink server from the UI
+- Creates standalone editor files in the specified directory for reuse
 
 **Note**: The web editor creates a self-contained directory with all necessary HTML, CSS, and JavaScript files. This directory can be moved or shared independently.
 

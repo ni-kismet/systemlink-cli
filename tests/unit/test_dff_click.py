@@ -94,7 +94,7 @@ def test_dff_config_list_success(monkeypatch: Any, runner: CliRunner) -> None:
     )
 
     cli = make_cli()
-    result = runner.invoke(cli, ["dff", "config", "list"])
+    result = runner.invoke(cli, ["dff", "list"])
 
     assert result.exit_code == 0
     assert "Test Configuration" in result.output
@@ -129,7 +129,7 @@ def test_dff_config_list_json_format(monkeypatch: Any, runner: CliRunner) -> Non
     )
 
     cli = make_cli()
-    result = runner.invoke(cli, ["dff", "config", "list", "--format", "json"])
+    result = runner.invoke(cli, ["dff", "list", "--format", "json"])
 
     assert result.exit_code == 0
     output_json = json.loads(result.output)
@@ -167,7 +167,7 @@ def test_dff_config_get_success(monkeypatch: Any, runner: CliRunner) -> None:
     )
 
     cli = make_cli()
-    result = runner.invoke(cli, ["dff", "config", "get", "--id", "config1"])
+    result = runner.invoke(cli, ["dff", "get", "--id", "config1"])
 
     assert result.exit_code == 0
     output_json = json.loads(result.output)
@@ -189,7 +189,6 @@ def test_dff_config_init_success(runner: CliRunner, monkeypatch: Any) -> None:
             cli,
             [
                 "dff",
-                "config",
                 "init",
                 "--name",
                 "Test Config",
@@ -280,7 +279,7 @@ def test_dff_config_create_success(monkeypatch: Any, runner: CliRunner) -> None:
         input_file = f.name
 
     try:
-        result = runner.invoke(cli, ["dff", "config", "create", "--file", input_file])
+        result = runner.invoke(cli, ["dff", "create", "--file", input_file])
         assert result.exit_code == 0
         assert "configurations created successfully" in result.output
     finally:
@@ -350,180 +349,13 @@ def test_dff_config_create_validation_error(monkeypatch: Any, runner: CliRunner)
         json.dump(invalid_config, f)
 
     try:
-        result = runner.invoke(cli, ["dff", "config", "create", "--file", input_file])
+        result = runner.invoke(cli, ["dff", "create", "--file", input_file])
         assert result.exit_code == 2  # ExitCodes.INVALID_INPUT
         assert "Validation errors occurred" in result.output
         assert "request: The request field is required" in result.output
         assert "$.fields[0].type: Unknown value INVALID_TYPE" in result.output
     finally:
         Path(input_file).unlink()
-
-
-def test_dff_groups_list_success(monkeypatch: Any, runner: CliRunner) -> None:
-    """Test listing DFF groups."""
-    patch_keyring(monkeypatch)
-
-    def mock_get(*a: Any, **kw: Any) -> Any:
-        class R:
-            def raise_for_status(self) -> None:
-                pass
-
-            def json(self) -> Any:
-                return {"groups": [{"key": "group1", "name": "Test Group", "workspace": "ws1"}]}
-
-        return R()
-
-    monkeypatch.setattr(
-        "slcli.dff_click.make_api_request", lambda method, url, *args, **kwargs: mock_get()
-    )
-
-    cli = make_cli()
-    result = runner.invoke(cli, ["dff", "groups", "list"])
-
-    assert result.exit_code == 0
-    assert "Test Group" in result.output
-    assert "group1" in result.output
-
-
-def test_dff_fields_list_success(monkeypatch: Any, runner: CliRunner) -> None:
-    """Test listing DFF fields."""
-    patch_keyring(monkeypatch)
-
-    def mock_get(*a: Any, **kw: Any) -> Any:
-        class R:
-            def raise_for_status(self) -> None:
-                pass
-
-            def json(self) -> Any:
-                return {
-                    "fields": [
-                        {
-                            "key": "field1",
-                            "name": "Test Field",
-                            "workspace": "ws1",
-                            "fieldType": "STRING",
-                        }
-                    ]
-                }
-
-        return R()
-
-    monkeypatch.setattr(
-        "slcli.dff_click.make_api_request", lambda method, url, *args, **kwargs: mock_get()
-    )
-
-    cli = make_cli()
-    result = runner.invoke(cli, ["dff", "fields", "list"])
-
-    assert result.exit_code == 0
-    assert "Test Field" in result.output
-    assert "field1" in result.output
-
-
-def test_dff_tables_query_success(monkeypatch: Any, runner: CliRunner) -> None:
-    """Test querying table properties."""
-    patch_keyring(monkeypatch)
-
-    def mock_post(*a: Any, **kw: Any) -> Any:
-        class R:
-            def raise_for_status(self) -> None:
-                pass
-
-            def json(self) -> Any:
-                return {
-                    "tables": [
-                        {
-                            "id": "table1",
-                            "workspace": "ws1",
-                            "resourceType": "workorder:workorder",
-                            "resourceId": "resource1",
-                        }
-                    ]
-                }
-
-        return R()
-
-    monkeypatch.setattr(
-        "slcli.dff_click.make_api_request", lambda method, url, data, *args, **kwargs: mock_post()
-    )
-
-    cli = make_cli()
-    result = runner.invoke(
-        cli,
-        [
-            "dff",
-            "tables",
-            "query",
-            "--workspace",
-            "ws1",
-            "--resource-type",
-            "workorder:workorder",
-            "--resource-id",
-            "resource1",
-        ],
-    )
-
-    assert result.exit_code == 0
-    assert "table1" in result.output
-    assert "workorder:workorder" in result.output
-
-
-def test_dff_tables_query_with_optional_params(monkeypatch: Any, runner: CliRunner) -> None:
-    """Test querying table properties with optional parameters."""
-    patch_keyring(monkeypatch)
-
-    def mock_post(*a: Any, **kw: Any) -> Any:
-        class R:
-            def raise_for_status(self) -> None:
-                pass
-
-            def json(self) -> Any:
-                return {
-                    "tables": [
-                        {
-                            "id": "table1",
-                            "workspace": "ws1",
-                            "resourceType": "workorder:workorder",
-                            "resourceId": "resource1",
-                        }
-                    ],
-                    "totalCount": 5,
-                }
-
-        return R()
-
-    monkeypatch.setattr(
-        "slcli.dff_click.make_api_request", lambda method, url, data, *args, **kwargs: mock_post()
-    )
-
-    cli = make_cli()
-    result = runner.invoke(
-        cli,
-        [
-            "dff",
-            "tables",
-            "query",
-            "--workspace",
-            "ws1",
-            "--resource-type",
-            "workorder:workorder",
-            "--resource-id",
-            "resource1",
-            "--keys",
-            "key1",
-            "--keys",
-            "key2",
-            "--take",
-            "50",
-            "--return-count",
-            "--format",
-            "json",
-        ],
-    )
-
-    assert result.exit_code == 0
-    assert "table1" in result.output
-    assert "workorder:workorder" in result.output
 
 
 def test_dff_config_export_success(monkeypatch: Any, runner: CliRunner) -> None:
@@ -556,7 +388,7 @@ def test_dff_config_export_success(monkeypatch: Any, runner: CliRunner) -> None:
         output_file = Path(temp_dir) / "exported-config.json"
 
         result = runner.invoke(
-            cli, ["dff", "config", "export", "--id", "config1", "--output", str(output_file)]
+            cli, ["dff", "export", "--id", "config1", "--output", str(output_file)]
         )
 
         assert result.exit_code == 0
@@ -577,7 +409,7 @@ def test_dff_config_delete_confirmation_abort(monkeypatch: Any, runner: CliRunne
     cli = make_cli()
 
     # Simulate user saying 'no' to confirmation
-    result = runner.invoke(cli, ["dff", "config", "delete", "--id", "config1"], input="n\n")
+    result = runner.invoke(cli, ["dff", "delete", "--id", "config1"], input="n\n")
 
     assert result.exit_code == 1  # Aborted
     assert "Aborted" in result.output
@@ -627,7 +459,7 @@ def test_dff_config_workspace_filtering(monkeypatch: Any, runner: CliRunner) -> 
     cli = make_cli()
 
     # Test filtering by workspace name
-    result = runner.invoke(cli, ["dff", "config", "list", "--workspace", "Workspace1"])
+    result = runner.invoke(cli, ["dff", "list", "--workspace", "Workspace1"])
     assert result.exit_code == 0
     assert "Config 1" in result.output
     assert "Config 2" not in result.output
@@ -641,27 +473,7 @@ def test_dff_help_commands(runner: CliRunner, monkeypatch: Any) -> None:
     # Test main dff help
     result = runner.invoke(cli, ["dff", "--help"])
     assert result.exit_code == 0
-    assert "Manage dynamic form fields" in result.output
-
-    # Test config help
-    result = runner.invoke(cli, ["dff", "config", "--help"])
-    assert result.exit_code == 0
     assert "Manage dynamic form field configurations" in result.output
-
-    # Test groups help
-    result = runner.invoke(cli, ["dff", "groups", "--help"])
-    assert result.exit_code == 0
-    assert "Manage dynamic form field groups" in result.output
-
-    # Test fields help
-    result = runner.invoke(cli, ["dff", "fields", "--help"])
-    assert result.exit_code == 0
-    assert "Manage dynamic form field definitions" in result.output
-
-    # Test tables help
-    result = runner.invoke(cli, ["dff", "tables", "--help"])
-    assert result.exit_code == 0
-    assert "Manage table properties" in result.output
 
 
 def test_dff_edit_command_help(runner: CliRunner, monkeypatch: Any) -> None:
@@ -674,3 +486,208 @@ def test_dff_edit_command_help(runner: CliRunner, monkeypatch: Any) -> None:
     assert "Launch a local web editor" in result.output
     assert "--port" in result.output
     assert "--output-dir" in result.output
+
+
+def test_dff_edit_with_config_id_saves_metadata(monkeypatch: Any, runner: CliRunner) -> None:
+    """Test that dff edit --id saves metadata file."""
+    patch_keyring(monkeypatch)
+
+    # Track calls to save_json_file
+    saved_files: dict[str, Any] = {}
+
+    def mock_save_json_file(data: Any, path: str) -> None:
+        saved_files[path] = data
+
+    def mock_get(*a: Any, **kw: Any) -> Any:
+        class R:
+            def raise_for_status(self) -> None:
+                pass
+
+            def json(self) -> Any:
+                return {
+                    "configuration": {
+                        "id": "test-config-123",
+                        "name": "Test Config",
+                        "workspace": "ws1",
+                    },
+                    "groups": [],
+                    "fields": [],
+                }
+
+        return R()
+
+    # Mock launch_dff_editor to prevent actual server launch
+    def mock_launch_editor(*args: Any, **kwargs: Any) -> None:
+        pass
+
+    monkeypatch.setattr("slcli.dff_click.make_api_request", lambda *a, **kw: mock_get())
+    monkeypatch.setattr("slcli.dff_click.save_json_file", mock_save_json_file)
+    monkeypatch.setattr("slcli.dff_click.launch_dff_editor", mock_launch_editor)
+
+    cli = make_cli()
+    result = runner.invoke(cli, ["dff", "edit", "--id", "test-config-123", "--no-browser"])
+
+    assert result.exit_code == 0
+
+    # Check that metadata file was saved
+    metadata_files = [path for path in saved_files.keys() if ".editor-metadata.json" in path]
+    assert len(metadata_files) == 1
+
+    metadata = saved_files[metadata_files[0]]
+    assert metadata["configId"] == "test-config-123"
+    assert "configFile" in metadata
+    assert ".json" in metadata["configFile"]
+
+
+def test_dff_edit_with_config_id_fetches_resolved_configuration(
+    monkeypatch: Any, runner: CliRunner
+) -> None:
+    """Test that dff edit --id uses resolved-configuration endpoint."""
+    patch_keyring(monkeypatch)
+
+    requested_url = None
+
+    def mock_make_api_request(method: str, url: str, *args: Any, **kwargs: Any) -> Any:
+        nonlocal requested_url
+        requested_url = url
+
+        class R:
+            def raise_for_status(self) -> None:
+                pass
+
+            def json(self) -> Any:
+                return {
+                    "configuration": {"id": "cfg-123", "name": "Config"},
+                    "groups": [],
+                    "fields": [],
+                }
+
+        return R()
+
+    def mock_launch_editor(*args: Any, **kwargs: Any) -> None:
+        pass
+
+    def mock_save_json_file(data: Any, path: str) -> None:
+        pass
+
+    monkeypatch.setattr("slcli.dff_click.make_api_request", mock_make_api_request)
+    monkeypatch.setattr("slcli.dff_click.launch_dff_editor", mock_launch_editor)
+    monkeypatch.setattr("slcli.dff_click.save_json_file", mock_save_json_file)
+
+    cli = make_cli()
+    result = runner.invoke(cli, ["dff", "edit", "--id", "cfg-123", "--no-browser"])
+
+    assert result.exit_code == 0
+    assert requested_url is not None
+    assert "resolved-configuration" in requested_url
+    assert "configurationId=cfg-123" in requested_url
+
+
+def test_dff_edit_without_id_no_metadata_saved(monkeypatch: Any, runner: CliRunner) -> None:
+    """Test that dff edit without --id does not save metadata."""
+    patch_keyring(monkeypatch)
+
+    saved_files: dict[str, Any] = {}
+
+    def mock_save_json_file(data: Any, path: str) -> None:
+        saved_files[path] = data
+
+    def mock_launch_editor(*args: Any, **kwargs: Any) -> None:
+        pass
+
+    monkeypatch.setattr("slcli.dff_click.save_json_file", mock_save_json_file)
+    monkeypatch.setattr("slcli.dff_click.launch_dff_editor", mock_launch_editor)
+
+    cli = make_cli()
+    result = runner.invoke(cli, ["dff", "edit", "--no-browser"])
+
+    assert result.exit_code == 0
+
+    # Check that no metadata file was saved
+    metadata_files = [path for path in saved_files.keys() if ".editor-metadata.json" in path]
+    assert len(metadata_files) == 0
+
+
+def test_dff_edit_with_id_generates_filename_from_config_name(
+    monkeypatch: Any, runner: CliRunner
+) -> None:
+    """Test that dff edit --id generates safe filename from config name."""
+    patch_keyring(monkeypatch)
+
+    saved_files: dict[str, Any] = {}
+
+    def mock_save_json_file(data: Any, path: str) -> None:
+        saved_files[path] = data
+
+    def mock_get(*a: Any, **kw: Any) -> Any:
+        class R:
+            def raise_for_status(self) -> None:
+                pass
+
+            def json(self) -> Any:
+                return {
+                    "configuration": {
+                        "id": "cfg-xyz",
+                        "name": "My Test / Configuration",
+                        "workspace": "ws1",
+                    },
+                    "groups": [],
+                    "fields": [],
+                }
+
+        return R()
+
+    def mock_launch_editor(*args: Any, **kwargs: Any) -> None:
+        pass
+
+    monkeypatch.setattr("slcli.dff_click.make_api_request", lambda *a, **kw: mock_get())
+    monkeypatch.setattr("slcli.dff_click.save_json_file", mock_save_json_file)
+    monkeypatch.setattr("slcli.dff_click.launch_dff_editor", mock_launch_editor)
+
+    cli = make_cli()
+    result = runner.invoke(cli, ["dff", "edit", "--id", "cfg-xyz", "--no-browser"])
+
+    assert result.exit_code == 0
+
+    # Check that config file was saved with sanitized filename
+    config_files = [
+        path for path in saved_files.keys() if ".json" in path and "metadata" not in path
+    ]
+    assert len(config_files) >= 1
+
+    # Filename should not contain unsafe characters
+    config_file = config_files[0]
+    assert "/" not in Path(config_file).name
+    assert "\\" not in Path(config_file).name
+
+
+def test_dff_delete_with_recursive_flag(monkeypatch: Any, runner: CliRunner) -> None:
+    """Test delete command with --no-recursive flag."""
+    patch_keyring(monkeypatch)
+
+    payload_data = {}
+
+    def mock_make_api_request(
+        method: str, url: str, data: Any = None, handle_errors: bool = True
+    ) -> Any:
+        nonlocal payload_data
+        payload_data = data
+
+        class MockResponse:
+            status_code = 200
+
+            def json(self) -> dict[str, Any]:
+                return {"configurations": [{"id": "config1"}], "groups": [], "fields": []}
+
+            def raise_for_status(self) -> None:
+                pass
+
+        return MockResponse()
+
+    monkeypatch.setattr("slcli.dff_click.make_api_request", mock_make_api_request)
+
+    cli = make_cli()
+    result = runner.invoke(cli, ["dff", "delete", "--id", "config1", "--no-recursive"], input="y\n")
+
+    assert result.exit_code == 0
+    assert payload_data["recursive"] is False

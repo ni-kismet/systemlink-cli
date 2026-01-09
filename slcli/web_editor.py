@@ -2,16 +2,20 @@
 
 import http.server
 import json
+import secrets
+import shutil
 import socketserver
 import sys
 import threading
+import urllib.parse
 import webbrowser
 from pathlib import Path
 from typing import Optional, Any
 
 import click
+import requests
 
-from .utils import ExitCodes, load_json_file
+from .utils import ExitCodes, get_base_url, get_headers, get_ssl_verify, load_json_file
 
 
 class DFFWebEditor:
@@ -37,7 +41,10 @@ class DFFWebEditor:
         try:
             self._create_editor_directory()
             initial_content = self._load_initial_content(file)
+            # Generate per-session secret for proxy auth
+            self._secret = secrets.token_urlsafe(24)
             self._create_editor_files(initial_content, file)
+            self._write_editor_config()
             self._start_server(open_browser)
         except Exception as exc:
             click.echo(f"✗ Error starting editor: {exc}", err=True)
@@ -102,19 +109,48 @@ class DFFWebEditor:
 }"""
 
     def _create_editor_files(self, initial_content: str, file: Optional[str]) -> None:
-        """Create the HTML editor and documentation files.
+        """Create or copy the editor assets into the output directory.
+
+        Prefers copying the packaged `dff-editor` assets (Monaco-based editor).
+        Falls back to the legacy generated HTML/JS if the assets are missing.
 
         Args:
-            initial_content: Initial JSON content for the editor
-            file: Optional source file name for display
+            initial_content: Initial JSON content for the editor (used for legacy fallback)
+            file: Optional source file name for display (used for legacy fallback)
         """
-        html_content = self._generate_html_content(initial_content, file)
-        html_file = self.output_dir / "index.html"
-        html_file.write_text(html_content)
+        source_dir = Path(__file__).resolve().parent.parent / "dff-editor"
+        target_dir = self.output_dir.resolve()
 
+        # If source and target are the same, assets are already in place (development mode)
+        if source_dir.exists() and source_dir != target_dir:
+            # Only copy the essential editor files
+            essential_files = ["index.html", "editor.js", "README.md"]
+            for filename in essential_files:
+                source_file = source_dir / filename
+                if source_file.exists():
+                    target_file = target_dir / filename
+                    shutil.copy2(source_file, target_file)
+            return
+        elif source_dir.exists() and source_dir == target_dir:
+            # Development mode: ensure essential files are present before assuming assets
+            essential_files = ["index.html", "editor.js", "README.md"]
+            if all((target_dir / f).exists() for f in essential_files):
+                return
+            # else fall through to legacy fallback generation
+
+        # Fallback to legacy generated assets if packaged files are unavailable.
+        html_content = self._generate_html_content(initial_content, file)
+        (self.output_dir / "index.html").write_text(html_content)
         readme_content = self._generate_readme_content()
-        readme_file = self.output_dir / "README.md"
-        readme_file.write_text(readme_content)
+        (self.output_dir / "README.md").write_text(readme_content)
+
+    def _write_editor_config(self) -> None:
+        """Write the editor configuration consumed by the frontend."""
+        server_url = get_base_url().rstrip("/")
+        config_path = self.output_dir / "slcli-config.json"
+        # Include per-session secret for proxy authentication
+        config = {"serverUrl": server_url, "secret": getattr(self, "_secret", None)}
+        config_path.write_text(json.dumps(config, indent=2))
 
     def _generate_html_content(self, initial_content: str, file: Optional[str]) -> str:
         """Generate the HTML editor content."""
@@ -381,7 +417,7 @@ Dynamic Form Fields configurations consist of:
 The `resourceType` field in configurations must be one of these valid values:
 
 - `workorder:workorder`
-- `workorder:testplan`
+- `workitem:workitem`
 - `asset:asset`
 - `system:system`
 - `testmonitor:product`
@@ -396,6 +432,13 @@ See the example configuration in the editor for a sample structure.
             open_browser: Whether to automatically open browser
         """
         output_dir = self.output_dir  # Capture for closure
+        api_base = get_base_url().rstrip("/")
+        default_headers = get_headers()
+        ssl_verify = get_ssl_verify()
+        secret = getattr(self, "_secret", None)
+
+        class EditorTCPServer(socketserver.TCPServer):
+            allow_reuse_address = True
 
         class Handler(http.server.SimpleHTTPRequestHandler):
             def __init__(self, *args, **kwargs) -> None:  # type: ignore
@@ -405,9 +448,109 @@ See the example configuration in the editor for a sample structure.
                 # Suppress server logs
                 pass
 
+            def _proxy_request(self, method: str) -> bool:
+                parsed = urllib.parse.urlparse(self.path)
+
+                # Handle metadata saving (local file operation)
+                if parsed.path == "/api/dff/save-metadata" and method == "POST":
+                    return self._handle_save_metadata()
+
+                # Handle API proxying
+                path_map = {
+                    "/api/dff/configurations": "/nidynamicformfields/v1/configurations",
+                    "/api/dff/update-configurations": "/nidynamicformfields/v1/update-configurations",
+                }
+
+                if parsed.path in path_map:
+                    target_path = path_map[parsed.path]
+                elif parsed.path.startswith("/nidynamicformfields/v1/"):
+                    target_path = parsed.path
+                else:
+                    return False
+
+                # Require per-session secret on all proxied routes
+                req_secret = self.headers.get("X-Editor-Secret")
+                if not secret or req_secret != secret:
+                    self.send_error(403, "Forbidden: Missing or invalid editor secret")
+                    return True
+
+                target_url = f"{api_base}{target_path}"
+                if parsed.query:
+                    target_url = f"{target_url}?{parsed.query}"
+
+                headers = dict(default_headers)
+                data = None
+
+                if method == "POST":
+                    content_length = int(self.headers.get("Content-Length", "0"))
+                    data = self.rfile.read(content_length) if content_length > 0 else b""
+                    headers["Content-Type"] = self.headers.get("Content-Type", "application/json")
+
+                try:
+                    resp = requests.request(
+                        method=method,
+                        url=target_url,
+                        headers=headers,
+                        data=data,
+                        verify=ssl_verify,
+                    )
+                except requests.RequestException as exc:  # pragma: no cover - network failure path
+                    self.send_error(502, f"Proxy error: {exc}")
+                    return True
+
+                self.send_response(resp.status_code)
+                content_type = resp.headers.get("Content-Type")
+                if content_type:
+                    self.send_header("Content-Type", content_type)
+                self.end_headers()
+                self.wfile.write(resp.content)
+                return True
+
+            def _handle_save_metadata(self) -> bool:
+                """Save metadata to .editor-metadata.json file."""
+                try:
+                    # Require per-session secret for local save
+                    req_secret = self.headers.get("X-Editor-Secret")
+                    if not secret or req_secret != secret:
+                        self.send_error(403, "Forbidden: Missing or invalid editor secret")
+                        return True
+
+                    content_length = int(self.headers.get("Content-Length", "0"))
+                    if content_length == 0:
+                        self.send_error(400, "No metadata provided")
+                        return True
+
+                    data = self.rfile.read(content_length)
+                    metadata = json.loads(data)
+
+                    # Save to .editor-metadata.json in the output directory
+                    metadata_path = output_dir / ".editor-metadata.json"
+                    with open(metadata_path, "w") as f:
+                        json.dump(metadata, f, indent=2)
+
+                    self.send_response(200)
+                    self.send_header("Content-Type", "application/json")
+                    self.end_headers()
+                    self.wfile.write(json.dumps({"status": "success"}).encode())
+                    return True
+                except Exception as e:  # pragma: no cover
+                    self.send_error(500, f"Failed to save metadata: {e}")
+                    return True
+
+            def do_GET(self) -> None:  # noqa: N802
+                if self._proxy_request("GET"):
+                    return
+                super().do_GET()
+
+            def do_POST(self) -> None:  # noqa: N802
+                if self._proxy_request("POST"):
+                    return
+                # SimpleHTTPRequestHandler lacks POST; return 405 when not proxied.
+                self.send_error(405, "Method Not Allowed")
+
         try:
-            with socketserver.TCPServer(("", self.port), Handler) as httpd:
-                server_url = f"http://localhost:{self.port}"
+            with EditorTCPServer(("127.0.0.1", self.port), Handler) as httpd:
+                server_url = f"http://127.0.0.1:{self.port}"
 
                 # Start server in background thread
                 server_thread = threading.Thread(target=httpd.serve_forever)
@@ -434,6 +577,8 @@ See the example configuration in the editor for a sample structure.
                     click.echo("\n✓ Editor server stopped")
                     click.echo(f"✓ Editor files remain in: {self.output_dir.absolute()}")
                     httpd.shutdown()
+                    httpd.server_close()
+                    server_thread.join(timeout=2)
 
         except OSError as e:
             if "Address already in use" in str(e):

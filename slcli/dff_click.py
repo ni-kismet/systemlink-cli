@@ -2,13 +2,15 @@
 
 import json
 import sys
+import urllib.parse
+from pathlib import Path
 from typing import Any, Dict, List, Optional
 
 import click
 import requests
 
 from .platform import require_feature
-from .universal_handlers import UniversalResponseHandler, FilteredResponse
+from .universal_handlers import FilteredResponse, UniversalResponseHandler
 from .utils import (
     ExitCodes,
     get_base_url,
@@ -20,12 +22,16 @@ from .utils import (
     save_json_file,
 )
 from .web_editor import launch_dff_editor
-from .workspace_utils import filter_by_workspace, resolve_workspace_filter, WorkspaceFormatter
+from .workspace_utils import (
+    WorkspaceFormatter,
+    filter_by_workspace,
+    resolve_workspace_filter,
+)
 
 # Valid resource types for Dynamic Form Fields
 VALID_RESOURCE_TYPES = [
     "workorder:workorder",
-    "workorder:testplan",
+    "workitem:workitem",
     "asset:asset",
     "system:system",
     "testmonitor:product",
@@ -54,12 +60,15 @@ def _handle_dff_error_response(error_data: Dict[str, Any], operation: str = "ope
     # Check for DFF-specific error structure with failedConfigurations, failedGroups, etc.
     if any(key in error_data for key in ["failedConfigurations", "failedGroups", "failedFields"]):
         _handle_dff_creation_errors(error_data, operation)
+
     elif "error" in error_data and "innerErrors" in error_data["error"]:
         # Handle nested error structure
         _handle_dff_nested_errors(error_data["error"])
+
     elif "errors" in error_data:
         # Handle simple validation errors structure
         _handle_simple_validation_errors(error_data)
+
     else:
         # Fallback for unknown error structure
         click.echo("✗ Request failed with validation errors:", err=True)
@@ -302,19 +311,14 @@ def register_dff_commands(cli: Any) -> None:
     @cli.group()
     @click.pass_context
     def dff(ctx: click.Context) -> None:
-        """Manage dynamic form fields (configurations, groups, fields, tables)."""
+        """Manage dynamic form field configurations."""
         # Check for platform feature availability
         # Only check if a subcommand is being invoked (not just --help)
         if ctx.invoked_subcommand is not None:
             require_feature("dynamic_form_fields")
 
-    # Configuration commands
-    @dff.group()
-    def config() -> None:
-        """Manage dynamic form field configurations."""
-        pass
-
-    @config.command(name="list")
+    # Configuration commands (now at top level under dff)
+    @dff.command(name="list")
     @click.option("--workspace", "-w", help="Filter by workspace name or ID")
     @click.option(
         "--take",
@@ -366,7 +370,7 @@ def register_dff_commands(cli: Any) -> None:
         except Exception as exc:
             handle_api_error(exc)
 
-    @config.command(name="get")
+    @dff.command(name="get")
     @click.option(
         "--id",
         "-i",
@@ -419,7 +423,7 @@ def register_dff_commands(cli: Any) -> None:
         except Exception as exc:
             handle_api_error(exc)
 
-    @config.command(name="create")
+    @dff.command(name="create")
     @click.option(
         "--file",
         "-f",
@@ -537,7 +541,7 @@ def register_dff_commands(cli: Any) -> None:
         except Exception as exc:
             handle_api_error(exc)
 
-    @config.command(name="update")
+    @dff.command(name="update")
     @click.option(
         "--file",
         "-f",
@@ -623,7 +627,7 @@ def register_dff_commands(cli: Any) -> None:
         except Exception as exc:
             handle_api_error(exc)
 
-    @config.command(name="delete")
+    @dff.command(name="delete")
     @click.option(
         "--id",
         "-i",
@@ -632,51 +636,87 @@ def register_dff_commands(cli: Any) -> None:
         help="Configuration ID(s) to delete (can be specified multiple times)",
     )
     @click.option(
-        "--file",
-        "-f",
-        "input_file",
-        help="JSON file containing IDs to delete",
+        "--group-id",
+        "-g",
+        "group_ids",
+        multiple=True,
+        help="Group ID(s) to delete (can be specified multiple times)",
     )
-    @click.confirmation_option(prompt="Are you sure you want to delete these configurations?")
-    def delete_configuration(config_ids: tuple, input_file: Optional[str] = None) -> None:
-        """Delete dynamic form field configurations."""
-        if not config_ids and not input_file:
-            click.echo("✗ Must provide either --id or --file", err=True)
+    @click.option(
+        "--field-id",
+        "--fid",
+        "field_ids",
+        multiple=True,
+        help="Field ID(s) to delete (can be specified multiple times)",
+    )
+    @click.option(
+        "--no-recursive",
+        "recursive",
+        is_flag=True,
+        flag_value=False,
+        default=True,
+        help="Do not recursively delete dependent items (groups/fields when deleting configs)",
+    )
+    @click.confirmation_option(prompt="Are you sure you want to delete these items?")
+    def delete_configuration(
+        config_ids: tuple[str, ...],
+        group_ids: tuple[str, ...],
+        field_ids: tuple[str, ...],
+        recursive: bool = True,
+    ) -> None:
+        """Delete dynamic form field configurations, groups, and fields."""
+        if not config_ids and not group_ids and not field_ids:
+            click.echo("✗ Must provide at least one of: --id, --group-id, or --field-id", err=True)
             sys.exit(ExitCodes.INVALID_INPUT)
 
         url = f"{get_base_url()}/nidynamicformfields/v1/delete"
 
         try:
-            ids_to_delete = list(config_ids)
+            ids_to_delete = {
+                "configurationIds": list(config_ids),
+                "groupIds": list(group_ids),
+                "fieldIds": list(field_ids),
+            }
 
-            if input_file:
-                file_data = load_json_file(input_file)
-                if isinstance(file_data, dict):
-                    ids_to_delete.extend(file_data.get("configurationIds", []))
-                elif isinstance(file_data, list):
-                    ids_to_delete.extend(file_data)
+            # Build payload with only non-empty ID lists
+            payload: dict[str, Any] = {k: v for k, v in ids_to_delete.items() if v}
+            payload["recursive"] = recursive
 
-            if not ids_to_delete:
-                click.echo("✗ No configuration IDs found to delete", err=True)
+            if not payload or all(not v for k, v in payload.items() if k != "recursive"):
+                click.echo("✗ No IDs found to delete", err=True)
                 sys.exit(ExitCodes.INVALID_INPUT)
 
-            payload = {"configurationIds": ids_to_delete}
             resp = make_api_request("POST", url, payload, handle_errors=False)
 
             if resp.status_code in (200, 204):
-                click.echo(f"✓ {len(ids_to_delete)} configuration(s) deleted successfully.")
+                # Build summary
+                summary_parts = []
+                if ids_to_delete.get("configurationIds"):
+                    summary_parts.append(
+                        f"{len(ids_to_delete['configurationIds'])} configuration(s)"
+                    )
+                if ids_to_delete.get("groupIds"):
+                    summary_parts.append(f"{len(ids_to_delete['groupIds'])} group(s)")
+                if ids_to_delete.get("fieldIds"):
+                    summary_parts.append(f"{len(ids_to_delete['fieldIds'])} field(s)")
+
+                summary = " and ".join(summary_parts) if summary_parts else "item(s)"
+                click.echo(f"✓ {summary} deleted successfully.")
+
+                # File-based delete removed; no input file updates
             else:
                 # Handle partial success if needed
                 response_data = resp.json() if resp.text.strip() else {}
                 failed_deletes = response_data.get("failed", [])
 
                 if failed_deletes:
-                    click.echo("⚠ Some configurations were deleted, but some failed:", err=True)
+                    click.echo("⚠ Some items were deleted, but some failed:", err=True)
                     for failure in failed_deletes:
-                        config_id = failure.get("id", "Unknown")
+                        item_id = failure.get("id", "Unknown")
                         error = failure.get("error", {})
                         error_msg = error.get("message", "Unknown error")
-                        click.echo(f"  ✗ {config_id}: {error_msg}", err=True)
+                        click.echo(f"  ✗ {item_id}: {error_msg}", err=True)
+
                     sys.exit(ExitCodes.GENERAL_ERROR)
 
         except requests.RequestException as exc:
@@ -702,7 +742,7 @@ def register_dff_commands(cli: Any) -> None:
         except Exception as exc:
             handle_api_error(exc)
 
-    @config.command(name="export")
+    @dff.command(name="export")
     @click.option(
         "--id",
         "-i",
@@ -735,7 +775,7 @@ def register_dff_commands(cli: Any) -> None:
         except Exception as exc:
             handle_api_error(exc)
 
-    @config.command(name="init")
+    @dff.command(name="init")
     @click.option(
         "--name",
         "-n",
@@ -855,347 +895,18 @@ def register_dff_commands(cli: Any) -> None:
             click.echo(f"✗ Error creating configuration template: {exc}", err=True)
             sys.exit(ExitCodes.GENERAL_ERROR)
 
-    # Groups commands
-    @dff.group()
-    def groups() -> None:
-        """Manage dynamic form field groups."""
-        pass
-
-    @groups.command(name="list")
-    @click.option("--workspace", "-w", help="Filter by workspace name or ID")
-    @click.option(
-        "--take",
-        default=25,
-        show_default=True,
-        help="Maximum number of groups to return",
-    )
-    @click.option(
-        "--format",
-        "-f",
-        type=click.Choice(["table", "json"], case_sensitive=False),
-        default="table",
-        show_default=True,
-        help="Output format: table or json",
-    )
-    def list_groups(workspace: Optional[str] = None, take: int = 25, format: str = "table") -> None:
-        """List dynamic form field groups."""
-        try:
-            # Get workspace map once and reuse it
-            workspace_map = get_workspace_map()
-
-            # Use continuation token pagination following the pattern
-            all_groups = _query_all_groups(workspace, workspace_map)
-
-            # Use the workspace formatter for consistent formatting
-            format_group_row = WorkspaceFormatter.create_group_field_row_formatter(workspace_map)
-
-            # Use UniversalResponseHandler for consistent pagination
-            from typing import Any
-
-            # Create a mock response with all data
-            filtered_resp: Any = FilteredResponse({"groups": all_groups})
-
-            handler = UniversalResponseHandler()
-            handler.handle_list_response(
-                filtered_resp,
-                "groups",
-                "group",
-                format,
-                format_group_row,
-                ["Workspace", "Name", "Key"],
-                [23, 32, 39],
-                "No dynamic form field groups found.",
-                enable_pagination=True,
-            )
-
-        except Exception as exc:
-            handle_api_error(exc)
-
-    # Fields commands
-    @dff.group()
-    def fields() -> None:
-        """Manage dynamic form field definitions."""
-        pass
-
-    @fields.command(name="list")
-    @click.option("--workspace", "-w", help="Filter by workspace name or ID")
-    @click.option(
-        "--take",
-        default=25,
-        show_default=True,
-        help="Maximum number of fields to return",
-    )
-    @click.option(
-        "--name",
-        "name_filter",
-        default="",
-        help="Filter fields by the displayed Name column (case-insensitive substring)",
-    )
-    @click.option(
-        "--format",
-        "-f",
-        type=click.Choice(["table", "json"], case_sensitive=False),
-        default="table",
-        show_default=True,
-        help="Output format: table or json",
-    )
-    def list_fields(
-        workspace: Optional[str] = None,
-        take: int = 25,
-        format: str = "table",
-        name_filter: str = "",
-    ) -> None:
-        """List dynamic form fields."""
-        try:
-            # Get workspace map once and reuse it
-            workspace_map = get_workspace_map()
-
-            # Use continuation token pagination following the pattern
-            all_fields = _query_all_fields(workspace, workspace_map)
-
-            # Use the workspace formatter for consistent formatting
-            format_field_row = WorkspaceFormatter.create_group_field_row_formatter(workspace_map)
-
-            # Use UniversalResponseHandler for consistent pagination
-            from typing import Any
-
-            # Create a mock response with all data
-            # Apply name filter (case-insensitive substring) if provided.
-            # The displayed Name column uses displayText if present, otherwise name
-            # (see WorkspaceFormatter.create_group_field_row_formatter). Only
-            # match against that displayed value so CLI filtering aligns with
-            # what the user sees in the Name column.
-            if name_filter:
-                nf = name_filter.lower()
-
-                def _field_matches_display_name(f: dict) -> bool:
-                    display_name = f.get("displayText") or f.get("name") or ""
-                    return nf in str(display_name).lower()
-
-                all_fields = [f for f in all_fields if _field_matches_display_name(f)]
-
-            filtered_resp: Any = FilteredResponse({"fields": all_fields})
-
-            handler = UniversalResponseHandler()
-            handler.handle_list_response(
-                filtered_resp,
-                "fields",
-                "field",
-                format,
-                format_field_row,
-                ["Workspace", "Name", "Key"],
-                [23, 32, 39],
-                "No dynamic form fields found.",
-                enable_pagination=True,
-            )
-
-        except Exception as exc:
-            handle_api_error(exc)
-
-    # Table properties commands
-    @dff.group()
-    def tables() -> None:
-        """Manage table properties."""
-        pass
-
-    @tables.command(name="query")
-    @click.option(
-        "--workspace",
-        "-w",
-        required=True,
-        help="Workspace name or ID to query tables for",
-    )
-    @click.option(
-        "--resource-id",
-        "-i",
-        required=True,
-        help="Resource ID to filter by",
-    )
-    @click.option(
-        "--resource-type",
-        "-r",
-        required=True,
-        type=click.Choice(VALID_RESOURCE_TYPES, case_sensitive=False),
-        help=RESOURCE_TYPE_HELP,
-    )
-    @click.option(
-        "--keys",
-        "-k",
-        multiple=True,
-        help="Table keys to filter by (can be specified multiple times)",
-    )
-    @click.option(
-        "--take",
-        default=25,
-        show_default=True,
-        help="Maximum number of table properties to return",
-    )
-    @click.option(
-        "--continuation-token",
-        "-c",
-        help="Continuation token for pagination",
-    )
-    @click.option(
-        "--return-count",
-        is_flag=True,
-        help="Return the total count of accessible table properties",
-    )
-    @click.option(
-        "--format",
-        "-f",
-        type=click.Choice(["table", "json"], case_sensitive=False),
-        default="table",
-        show_default=True,
-        help="Output format: table or json",
-    )
-    def query_tables(
-        workspace: str,
-        resource_id: str,
-        resource_type: str,
-        keys: tuple = (),
-        take: int = 25,
-        continuation_token: Optional[str] = None,
-        return_count: bool = False,
-        format: str = "table",
-    ) -> None:
-        """Query table properties."""
-        url = f"{get_base_url()}/nidynamicformfields/v1/query-tables"
-
-        try:
-            # Try to resolve workspace name to ID
-            try:
-                workspace_map = get_workspace_map()
-                workspace_id = resolve_workspace_filter(workspace, workspace_map)
-            except Exception:
-                workspace_id = workspace
-
-            # Build payload according to the correct API schema
-            payload = {
-                "workspace": workspace_id,
-                "resourceType": resource_type,
-                "resourceId": resource_id,
-                "take": take,
-                "returnCount": return_count,
-            }
-
-            # Add optional parameters if provided
-            if keys:
-                payload["keys"] = list(keys)
-
-            if continuation_token:
-                payload["continuationToken"] = continuation_token
-
-            resp = make_api_request("POST", url, payload, handle_errors=False)
-            data = resp.json()
-            tables = data.get("tables", [])
-
-            # Use the workspace formatter for consistent formatting
-            format_table_row = WorkspaceFormatter.create_table_row_formatter(workspace_map)
-
-            # Use UniversalResponseHandler for consistent pagination
-            from typing import Any
-
-            # Create a mock response with filtered data
-            filtered_resp: Any = FilteredResponse({"tables": tables})
-
-            handler = UniversalResponseHandler()
-            handler.handle_list_response(
-                filtered_resp,
-                "tables",
-                "table",
-                format,
-                format_table_row,
-                ["Workspace", "Resource Type", "Resource ID", "Table ID"],
-                [36, 30, 18, 36],
-                "No table properties found.",
-                enable_pagination=True,
-            )
-
-        except requests.RequestException as exc:
-            # Handle HTTP errors with detailed validation error parsing
-            if hasattr(exc, "response") and exc.response is not None:
-                try:
-                    error_data = exc.response.json()
-                    status_code = exc.response.status_code
-
-                    if status_code == 400:
-                        # Parse DFF-specific error structure
-                        _handle_dff_error_response(error_data, "query")
-                        sys.exit(ExitCodes.INVALID_INPUT)
-                    else:
-                        # Fallback to general error handling for other HTTP errors
-                        handle_api_error(exc)
-                except (ValueError, KeyError):
-                    # If JSON parsing fails, fall back to general error handling
-                    handle_api_error(exc)
-            else:
-                # For non-HTTP errors, use general error handling
-                handle_api_error(exc)
-        except Exception as exc:
-            handle_api_error(exc)
-
-    @tables.command(name="get")
-    @click.option(
-        "--id",
-        "-i",
-        "table_id",
-        required=True,
-        help="Table property ID to retrieve",
-    )
-    @click.option(
-        "--format",
-        "-f",
-        type=click.Choice(["table", "json"], case_sensitive=False),
-        default="json",
-        show_default=True,
-        help="Output format: table or json",
-    )
-    def get_table(table_id: str, format: str = "json") -> None:
-        """Get a specific table property by ID."""
-        url = f"{get_base_url()}/nidynamicformfields/v1/table"
-
-        try:
-            params = {"tablePropertyId": table_id}
-            query_string = "&".join([f"{k}={v}" for k, v in params.items()])
-            full_url = f"{url}?{query_string}"
-
-            resp = make_api_request("GET", full_url)
-            data = resp.json()
-
-            if format == "json":
-                click.echo(json.dumps(data, indent=2))
-                return
-
-            # Table format - show basic info
-            table_property = data.get("tableProperty", {})
-            workspace_map = get_workspace_map()
-            workspace_id = table_property.get("workspace", "")
-            workspace_name = workspace_map.get(workspace_id, workspace_id)
-
-            click.echo("Table Property Details")
-            click.echo("=" * 50)
-            click.echo(f"ID: {table_property.get('id', '')}")
-            click.echo(f"Workspace: {workspace_name}")
-            click.echo(f"Resource Type: {table_property.get('resourceType', '')}")
-            click.echo(f"Resource ID: {table_property.get('resourceId', '')}")
-
-            # Show data frame info if available
-            data_frame = table_property.get("dataFrame", {})
-            if data_frame:
-                columns = data_frame.get("columns", [])
-                data_rows = data_frame.get("data", [])
-                click.echo(f"Columns: {len(columns)}")
-                click.echo(f"Rows: {len(data_rows)}")
-
-        except Exception as exc:
-            handle_api_error(exc)
-
-    # Editor command (future stub)
+    # Editor command
     @dff.command(name="edit")
     @click.option(
         "--file",
         "-f",
         help="JSON file to edit (will create new if not exists)",
+    )
+    @click.option(
+        "--id",
+        "-i",
+        "config_id",
+        help="Configuration ID to load in the editor",
     )
     @click.option(
         "--port",
@@ -1218,6 +929,7 @@ def register_dff_commands(cli: Any) -> None:
     )
     def edit_configuration(
         file: Optional[str] = None,
+        config_id: Optional[str] = None,
         port: int = 8080,
         output_dir: str = "dff-editor",
         no_browser: bool = False,
@@ -1226,5 +938,42 @@ def register_dff_commands(cli: Any) -> None:
 
         This command will create a standalone HTML editor in the specified directory
         and start a local HTTP server for editing dynamic form field configurations.
+
+        You can provide a JSON file to edit, or load a configuration by ID from the server.
         """
-        launch_dff_editor(file=file, port=port, output_dir=output_dir, open_browser=not no_browser)
+        try:
+            # If config_id is provided, fetch and export it temporarily
+            if config_id:
+                url = f"{get_base_url()}/nidynamicformfields/v1/resolved-configuration"
+                params = {"configurationId": config_id}
+                query_string = urllib.parse.urlencode(params)
+                full_url = f"{url}?{query_string}"
+
+                resp = make_api_request("GET", full_url)
+                data = resp.json()
+
+                # Ensure output directory exists before writing fetched file
+                output_path = Path(output_dir)
+                output_path.mkdir(parents=True, exist_ok=True)
+
+                # Use a temp file or generate a filename inside output_dir
+                if not file:
+                    config_name = data.get("configuration", {}).get("name", f"config-{config_id}")
+                    safe_name = sanitize_filename(config_name, f"config-{config_id}")
+                    file = str(output_path / f"{safe_name}.json")
+                else:
+                    file = str(Path(file))
+
+                # Save the fetched configuration to file
+                save_json_file(data, file)
+                click.echo(f"✓ Configuration loaded from server: {file}")
+
+                # Save editor metadata with config ID
+                metadata = {"configId": config_id, "configFile": Path(file).name}
+                save_json_file(metadata, str(output_path / ".editor-metadata.json"))
+
+            launch_dff_editor(
+                file=file, port=port, output_dir=output_dir, open_browser=not no_browser
+            )
+        except Exception as exc:
+            handle_api_error(exc)

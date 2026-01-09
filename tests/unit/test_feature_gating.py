@@ -35,7 +35,7 @@ class TestFeatureGatingDFF:
         monkeypatch.setattr("slcli.platform.keyring.get_password", mock_get_password)
 
         runner = CliRunner()
-        result = runner.invoke(cli, ["dff", "config", "list"])
+        result = runner.invoke(cli, ["dff", "list"])
 
         assert result.exit_code == 2  # INVALID_INPUT
         assert "Dynamic Form Fields is not available on SystemLink Server" in result.output
@@ -60,7 +60,7 @@ class TestFeatureGatingDFF:
         result = runner.invoke(cli, ["dff", "--help"])
 
         assert result.exit_code == 0
-        assert "Manage dynamic form fields" in result.output
+        assert "Manage dynamic form field configurations" in result.output
 
 
 class TestFeatureGatingTemplates:

@@ -338,7 +338,7 @@ def test_notebook_create_and_delete_cycle(self, cli_runner, cli_helper):
    - DFF API requires workspace IDs, not workspace names
    - Use `slcli workspace list --format json` to get workspace IDs
    - Verify all required fields are present in configuration JSON
-   - Check that `resourceType` values are valid (use `slcli dff config init --help`)
+   - Check that `resourceType` values are valid (use `slcli dff init --help`)
 
 7. **DFF Export/Import Structure Issues**
    - Export commands return data with `configurations` (plural) key
@@ -367,17 +367,17 @@ For Dynamic Form Fields tests, common issues and solutions:
 
 ```bash
 # Test DFF configuration creation manually
-poetry run slcli dff config create --file /path/to/config.json
+poetry run slcli dff create --file /path/to/config.json
 
 # Check workspace ID (DFF requires IDs, not names)
 poetry run slcli workspace list --format json | jq '.[] | select(.name=="Default") | .id'
 
 # Verify DFF export structure
-poetry run slcli dff config export --id <config-id> --output /tmp/export.json
+poetry run slcli dff export --id <config-id> --output /tmp/export.json
 cat /tmp/export.json | jq keys  # Should show "configurations", "groups", "fields"
 
 # Test resource type validation
-poetry run slcli dff config init --help  # Shows valid resource types
+poetry run slcli dff init --help  # Shows valid resource types
 ```
 
 ## Best Practices
