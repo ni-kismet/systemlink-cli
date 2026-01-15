@@ -27,7 +27,7 @@ SystemLink CLI (`slcli`) is a cross-platform Python CLI for SystemLink integrato
 
 ### Homebrew (macOS/Linux)
 
-Install SystemLink CLI using Homebrew from our official tap:
+Install SystemLink CLI using [Homebrew](https://brew.sh) from our official tap:
 
 ```bash
 # Add the NI developer tools tap
@@ -39,7 +39,7 @@ brew install slcli
 
 ### Scoop (Windows)
 
-Install SystemLink CLI using Scoop from our official bucket:
+Install SystemLink CLI using [Scoop](https://scoop.sh) from our official bucket:
 
 ```bash
 # Add the NI developer tools bucket
