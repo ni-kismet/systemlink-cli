@@ -152,10 +152,10 @@ Register-ArgumentCompleter -Native -CommandName slcli -ScriptBlock {{
         $completions = Get-SlcliOptions $command $subCommand | Where-Object { $_ -like "$wordToComplete*" }
     }
     
-    $completions | ForEach-Object {{
+    $completions | ForEach-Object {
         [System.Management.Automation.CompletionResult]::new($_, $_, 'ParameterValue', $_)
-    }}
-}}
+    }
+}
 """
 
     return powershell_script
