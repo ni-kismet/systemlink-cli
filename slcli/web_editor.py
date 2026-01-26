@@ -39,12 +39,12 @@ class DFFWebEditor:
         """
         try:
             import tempfile
-            
+
             # Create a per-session temp directory for runtime files (config, uploaded files)
             # Keep it alive for the server lifetime
             self._temp_dir = tempfile.TemporaryDirectory(prefix="slcli-dff-")
             self._temp_path = Path(self._temp_dir.name)
-            
+
             # Generate per-session secret for proxy auth
             self._secret = secrets.token_urlsafe(24)
             self._write_editor_config(file)
