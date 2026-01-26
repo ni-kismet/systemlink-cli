@@ -38,6 +38,13 @@ class DFFWebEditor:
             open_browser: Whether to automatically open browser
         """
         try:
+            import tempfile
+            
+            # Create a per-session temp directory for runtime files (config, uploaded files)
+            # Keep it alive for the server lifetime
+            self._temp_dir = tempfile.TemporaryDirectory(prefix="slcli-dff-")
+            self._temp_path = Path(self._temp_dir.name)
+            
             # Generate per-session secret for proxy auth
             self._secret = secrets.token_urlsafe(24)
             self._write_editor_config(file)
@@ -45,6 +52,10 @@ class DFFWebEditor:
         except Exception as exc:
             click.echo(f"✗ Error starting editor: {exc}", err=True)
             sys.exit(ExitCodes.GENERAL_ERROR)
+        finally:
+            # Clean up temp directory on exit
+            if hasattr(self, "_temp_dir"):
+                self._temp_dir.cleanup()
 
     def _resolve_editor_directory(self) -> Path:
         """Resolve the editor directory from the install location.
@@ -92,24 +103,15 @@ class DFFWebEditor:
     def _write_editor_config(self, file: Optional[str]) -> None:
         """Write the editor configuration consumed by the frontend.
 
-        Config is written to a per-session temp directory to avoid permission
-        errors in read-only installations (site-packages, frozen builds).
-
         Args:
             file: Optional initial file to load (currently unused by frontend)
         """
-        import tempfile
-
-        # Use a temporary directory that is definitely writable
-        temp_dir = Path(tempfile.gettempdir()) / f"slcli-dff-{os.getpid()}"
-        temp_dir.mkdir(parents=True, exist_ok=True)
-
         config: dict[str, Any] = {
             "serverUrl": get_base_url().rstrip("/"),
             "secret": getattr(self, "_secret", None),
         }
 
-        config_path = temp_dir / "slcli-config.json"
+        config_path = self._temp_path / "slcli-config.json"
         config_path.write_text(json.dumps(config, indent=2))
 
     def _start_server(self, open_browser: bool) -> None:
@@ -119,10 +121,11 @@ class DFFWebEditor:
             open_browser: Whether to automatically open browser
         """
         editor_dir = self._editor_dir  # Capture for closure
+        temp_path = self._temp_path  # Capture for closure
         api_base = get_base_url().rstrip("/")
         default_headers = get_headers()
         ssl_verify = get_ssl_verify()
-        secret = getattr(self, "_secret", None)
+        secret = self._secret
 
         class EditorTCPServer(socketserver.TCPServer):
             allow_reuse_address = True
@@ -137,6 +140,19 @@ class DFFWebEditor:
 
             def _proxy_request(self, method: str) -> bool:
                 parsed = urllib.parse.urlparse(self.path)
+
+                # Serve slcli-config.json from temp directory
+                if parsed.path == "/slcli-config.json" and method == "GET":
+                    config_file = temp_path / "slcli-config.json"
+                    if config_file.exists():
+                        self.send_response(200)
+                        self.send_header("Content-Type", "application/json")
+                        self.end_headers()
+                        self.wfile.write(config_file.read_bytes())
+                        return True
+                    else:
+                        self.send_error(404, "Config not found")
+                        return True
 
                 # Handle API proxying
                 path_map = {

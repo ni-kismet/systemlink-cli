@@ -560,7 +560,7 @@ function refreshTree() {
             // Show views under each configuration
             if (conf.views && conf.views.length > 0) {
                 conf.views.forEach((view, vi) => {
-                    html += `<div class="tree-node indent-2" onclick="selectTreeNode('config-${i}-view-${vi}')"><span class="tree-icon">👁️</span><span>${view.displayText || view.key}</span><button class="edit-btn" onclick="event.stopPropagation(); showEditDialog('view', ${i}, ${vi})">✎</button></div>`;
+                    html += `<div class="tree-node indent-2" onclick="selectTreeNode('config-${i}-view-${vi}')"><span class="tree-icon">👁️</span><span>${view.displayText || view.key}</span><button class="edit-btn" aria-label="Edit view: ${view.displayText || view.key}" title="Edit view" onclick="event.stopPropagation(); showEditDialog('view', ${i}, ${vi})">✎</button></div>`;
                 });
             }
         });
@@ -571,7 +571,7 @@ function refreshTree() {
         html += '<div class="tree-node indent-1"><span class="tree-icon">📁</span><span>Groups (' + config.groups.length + ')</span></div>';
         config.groups.forEach((group, i) => {
             const groupLabel = group.displayText || group.key;
-            html += `<div class="tree-node indent-2" onclick="selectTreeNode('group-${i}')"><span class="tree-icon">📦</span><span>${groupLabel}</span><button class="edit-btn" onclick="event.stopPropagation(); showEditDialog('group', ${i})">✎</button></div>`;
+            html += `<div class="tree-node indent-2" onclick="selectTreeNode('group-${i}')"><span class="tree-icon">📦</span><span>${groupLabel}</span><button class="edit-btn" aria-label="Edit group: ${groupLabel}" title="Edit group" onclick="event.stopPropagation(); showEditDialog('group', ${i})">✎</button></div>`;
         });
     }
     
@@ -581,7 +581,7 @@ function refreshTree() {
         config.fields.forEach((field, i) => {
             const icon = field.required ? '🏷️' : '🔖';
             const fieldLabel = field.displayText || field.key;
-            html += `<div class="tree-node indent-2" onclick="selectTreeNode('field-${i}')"><span class="tree-icon">${icon}</span><span>${fieldLabel}</span><button class="edit-btn" onclick="event.stopPropagation(); showEditDialog('field', ${i})">✎</button></div>`;
+            html += `<div class="tree-node indent-2" onclick="selectTreeNode('field-${i}')"><span class="tree-icon">${icon}</span><span>${fieldLabel}</span><button class="edit-btn" aria-label="Edit field: ${fieldLabel}" title="Edit field" onclick="event.stopPropagation(); showEditDialog('field', ${i})">✎</button></div>`;
         });
     }
     
@@ -861,6 +861,69 @@ function showEditDialog(type, configIdx, viewIdx = null) {
     const title = document.getElementById('modalTitle');
     const body = document.getElementById('modalBody');
     
+    // Helper to safely create form groups
+    function createFormGroup(labelText, inputId, inputType, value, placeholder = '', helpText = '') {
+        const group = document.createElement('div');
+        group.className = 'form-group';
+        
+        const label = document.createElement('label');
+        label.textContent = labelText;
+        group.appendChild(label);
+        
+        if (inputType === 'select') {
+            const select = document.createElement('select');
+            select.id = inputId;
+            const options = ['STRING', 'NUMBER', 'BOOLEAN', 'DATE', 'DATETIME', 'SELECT', 'MULTISELECT', 'TEXT'];
+            options.forEach(opt => {
+                const option = document.createElement('option');
+                option.value = opt;
+                option.textContent = opt.charAt(0) + opt.slice(1).toLowerCase();
+                if (opt === value) option.selected = true;
+                select.appendChild(option);
+            });
+            group.appendChild(select);
+        } else if (inputType === 'checkbox') {
+            const checkbox = document.createElement('input');
+            checkbox.type = 'checkbox';
+            checkbox.id = inputId;
+            checkbox.checked = !!value;
+            group.appendChild(checkbox);
+        } else {
+            const input = document.createElement('input');
+            input.type = inputType;
+            input.id = inputId;
+            input.placeholder = placeholder;
+            input.value = String(value || '');
+            group.appendChild(input);
+        }
+        
+        if (helpText) {
+            const small = document.createElement('small');
+            small.textContent = helpText;
+            group.appendChild(small);
+        }
+        
+        return group;
+    }
+    
+    function createCheckboxGroup(labelText, inputId, checked) {
+        const group = document.createElement('div');
+        group.className = 'form-group checkbox-group';
+        
+        const checkbox = document.createElement('input');
+        checkbox.type = 'checkbox';
+        checkbox.id = inputId;
+        checkbox.checked = !!checked;
+        group.appendChild(checkbox);
+        
+        const label = document.createElement('label');
+        label.htmlFor = inputId;
+        label.textContent = labelText;
+        group.appendChild(label);
+        
+        return group;
+    }
+    
     if (type === 'view' && viewIdx !== null) {
         const conf = currentConfig.configurations?.[configIdx];
         const view = conf?.views?.[viewIdx];
@@ -870,45 +933,16 @@ function showEditDialog(type, configIdx, viewIdx = null) {
         }
         
         title.textContent = 'Edit View';
-        body.innerHTML = `
-            <div class="form-group">
-                <label>Key *</label>
-                <input type="text" id="viewKey" placeholder="e.g., defaultView" value="${view.key || ''}">
-                <small>Unique identifier</small>
-            </div>
-            <div class="form-group">
-                <label>Display Text *</label>
-                <input type="text" id="viewDisplayText" placeholder="e.g., Default View" value="${view.displayText || ''}">
-                <small>Text shown to users</small>
-            </div>
-            <div class="form-group">
-                <label>Help Text</label>
-                <input type="text" id="viewHelpText" placeholder="Optional help text" value="${view.helpText || ''}">
-            </div>
-            <div class="form-group">
-                <label>Order</label>
-                <input type="number" id="viewOrder" value="${view.order || 10}">
-                <small>Display order (lower numbers appear first)</small>
-            </div>
-            <div class="form-group">
-                <label>Display Locations (comma-separated)</label>
-                <input type="text" id="viewDisplayLocations" placeholder="e.g., compact, full, split, global" value="${(view.displayLocations || []).join(', ')}">
-                <small>Valid values: compact, full, split, global</small>
-            </div>
-            <div class="form-group">
-                <label>Group Keys (comma-separated)</label>
-                <input type="text" id="viewGroups" placeholder="e.g., group1, group2" value="${(view.groups || []).join(', ')}">
-                <small>Keys of groups to include in this view</small>
-            </div>
-            <div class="form-group checkbox-group">
-                <input type="checkbox" id="viewEditable" ${view.editable ? 'checked' : ''}>
-                <label for="viewEditable">Editable</label>
-            </div>
-            <div class="form-group checkbox-group">
-                <input type="checkbox" id="viewVisible" ${view.visible ? 'checked' : ''}>
-                <label for="viewVisible">Visible</label>
-            </div>
-        `;
+        body.innerHTML = '';
+        
+        body.appendChild(createFormGroup('Key *', 'viewKey', 'text', view.key || '', 'e.g., defaultView', 'Unique identifier'));
+        body.appendChild(createFormGroup('Display Text *', 'viewDisplayText', 'text', view.displayText || '', 'e.g., Default View', 'Text shown to users'));
+        body.appendChild(createFormGroup('Help Text', 'viewHelpText', 'text', view.helpText || '', 'Optional help text'));
+        body.appendChild(createFormGroup('Order', 'viewOrder', 'number', view.order || 10, '', 'Display order (lower numbers appear first)'));
+        body.appendChild(createFormGroup('Display Locations (comma-separated)', 'viewDisplayLocations', 'text', (view.displayLocations || []).join(', '), 'e.g., compact, full, split, global', 'Valid values: compact, full, split, global'));
+        body.appendChild(createFormGroup('Group Keys (comma-separated)', 'viewGroups', 'text', (view.groups || []).join(', '), 'e.g., group1, group2', 'Keys of groups to include in this view'));
+        body.appendChild(createCheckboxGroup('Editable', 'viewEditable', view.editable));
+        body.appendChild(createCheckboxGroup('Visible', 'viewVisible', view.visible));
         
         // Store indices in modal for use during submit
         overlay.dataset.editType = 'view';
@@ -923,31 +957,13 @@ function showEditDialog(type, configIdx, viewIdx = null) {
         }
         
         title.textContent = 'Edit Group';
-        body.innerHTML = `
-            <div class="form-group">
-                <label>Key *</label>
-                <input type="text" id="groupKey" placeholder="e.g., basicInfo" value="${group.key || ''}">
-                <small>Unique identifier (lowercase, no spaces)</small>
-            </div>
-            <div class="form-group">
-                <label>Display Text *</label>
-                <input type="text" id="groupDisplayText" placeholder="e.g., Basic Information" value="${group.displayText || ''}">
-                <small>Text shown to users</small>
-            </div>
-            <div class="form-group">
-                <label>Help Text</label>
-                <input type="text" id="groupHelpText" placeholder="Optional help text" value="${group.helpText || ''}">
-            </div>
-            <div class="form-group">
-                <label>Workspace ID *</label>
-                <input type="text" id="groupWorkspace" placeholder="e.g., workspace-123" value="${group.workspace || ''}">
-            </div>
-            <div class="form-group">
-                <label>Field Keys (comma-separated)</label>
-                <input type="text" id="groupFieldKeys" placeholder="e.g., field1, field2" value="${(group.fields || []).join(', ')}">
-                <small>Optional: Keys of fields to include</small>
-            </div>
-        `;
+        body.innerHTML = '';
+        
+        body.appendChild(createFormGroup('Key *', 'groupKey', 'text', group.key || '', 'e.g., basicInfo', 'Unique identifier (lowercase, no spaces)'));
+        body.appendChild(createFormGroup('Display Text *', 'groupDisplayText', 'text', group.displayText || '', 'e.g., Basic Information', 'Text shown to users'));
+        body.appendChild(createFormGroup('Help Text', 'groupHelpText', 'text', group.helpText || '', 'Optional help text'));
+        body.appendChild(createFormGroup('Workspace ID *', 'groupWorkspace', 'text', group.workspace || '', 'e.g., workspace-123'));
+        body.appendChild(createFormGroup('Field Keys (comma-separated)', 'groupFieldKeys', 'text', (group.fields || []).join(', '), 'e.g., field1, field2', 'Optional: Keys of fields to include'));
         
         overlay.dataset.editType = 'group';
         overlay.dataset.groupIdx = configIdx;
@@ -960,47 +976,15 @@ function showEditDialog(type, configIdx, viewIdx = null) {
         }
         
         title.textContent = 'Edit Field';
-        body.innerHTML = `
-            <div class="form-group">
-                <label>Key *</label>
-                <input type="text" id="fieldKey" placeholder="e.g., deviceId" value="${field.key || ''}">
-                <small>Unique identifier (lowercase, no spaces)</small>
-            </div>
-            <div class="form-group">
-                <label>Display Text *</label>
-                <input type="text" id="fieldDisplayText" placeholder="e.g., Device Identifier" value="${field.displayText || ''}">
-                <small>Text shown to users</small>
-            </div>
-            <div class="form-group">
-                <label>Help Text</label>
-                <input type="text" id="fieldHelpText" placeholder="Optional help text" value="${field.helpText || ''}">
-            </div>
-            <div class="form-group">
-                <label>Placeholder</label>
-                <input type="text" id="fieldPlaceholder" placeholder="Optional placeholder text" value="${field.placeHolder || ''}">
-            </div>
-            <div class="form-group">
-                <label>Workspace ID *</label>
-                <input type="text" id="fieldWorkspace" placeholder="e.g., workspace-123" value="${field.workspace || ''}">
-            </div>
-            <div class="form-group">
-                <label>Field Type *</label>
-                <select id="fieldType">
-                    <option value="STRING" ${field.fieldType === 'STRING' ? 'selected' : ''}>String</option>
-                    <option value="NUMBER" ${field.fieldType === 'NUMBER' ? 'selected' : ''}>Number</option>
-                    <option value="BOOLEAN" ${field.fieldType === 'BOOLEAN' ? 'selected' : ''}>Boolean</option>
-                    <option value="DATE" ${field.fieldType === 'DATE' ? 'selected' : ''}>Date</option>
-                    <option value="DATETIME" ${field.fieldType === 'DATETIME' ? 'selected' : ''}>DateTime</option>
-                    <option value="SELECT" ${field.fieldType === 'SELECT' ? 'selected' : ''}>Select</option>
-                    <option value="MULTISELECT" ${field.fieldType === 'MULTISELECT' ? 'selected' : ''}>Multi-Select</option>
-                    <option value="TEXT" ${field.fieldType === 'TEXT' ? 'selected' : ''}>Text</option>
-                </select>
-            </div>
-            <div class="form-group checkbox-group">
-                <input type="checkbox" id="fieldRequired" ${field.required ? 'checked' : ''}>
-                <label for="fieldRequired">Required field</label>
-            </div>
-        `;
+        body.innerHTML = '';
+        
+        body.appendChild(createFormGroup('Key *', 'fieldKey', 'text', field.key || '', 'e.g., deviceId', 'Unique identifier (lowercase, no spaces)'));
+        body.appendChild(createFormGroup('Display Text *', 'fieldDisplayText', 'text', field.displayText || '', 'e.g., Device Identifier', 'Text shown to users'));
+        body.appendChild(createFormGroup('Help Text', 'fieldHelpText', 'text', field.helpText || '', 'Optional help text'));
+        body.appendChild(createFormGroup('Placeholder', 'fieldPlaceholder', 'text', field.placeHolder || '', 'Optional placeholder text'));
+        body.appendChild(createFormGroup('Workspace ID *', 'fieldWorkspace', 'text', field.workspace || '', 'e.g., workspace-123'));
+        body.appendChild(createFormGroup('Field Type *', 'fieldType', 'select', field.fieldType || 'STRING', '', ''));
+        body.appendChild(createCheckboxGroup('Required field', 'fieldRequired', field.required));
         
         overlay.dataset.editType = 'field';
         overlay.dataset.fieldIdx = configIdx;
@@ -1064,7 +1048,15 @@ function submitModal() {
                 return;
             }
             
-            const targetConfig = currentConfig.configurations[0];
+            // Get the correct config index (from stored value in edit mode, or use first in add mode)
+            let configIdx = 0;
+            if (isEdit) {
+                const storedIdx = parseInt(overlay.dataset.configIdx);
+                if (!Number.isNaN(storedIdx) && storedIdx >= 0 && storedIdx < currentConfig.configurations.length) {
+                    configIdx = storedIdx;
+                }
+            }
+            const targetConfig = currentConfig.configurations[configIdx];
             if (!targetConfig.views) {
                 targetConfig.views = [];
             }
