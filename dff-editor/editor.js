@@ -556,7 +556,7 @@ function refreshTree() {
     if (config.configurations && config.configurations.length > 0) {
         config.configurations.forEach((conf, i) => {
             const confLabel = conf.displayText || conf.name || conf.key || ('Configuration ' + (i + 1));
-            html += `<div class="tree-node indent-1" onclick="selectTreeNode('config-${i}')"><span class="tree-icon">⚙️</span><span>${confLabel}</span><button class="edit-btn" onclick="event.stopPropagation(); showEditDialog('config', ${i})">✎</button></div>`;
+            html += `<div class="tree-node indent-1" onclick="selectTreeNode('config-${i}')"><span class="tree-icon">⚙️</span><span>${confLabel}</span></div>`;
             // Show views under each configuration
             if (conf.views && conf.views.length > 0) {
                 conf.views.forEach((view, vi) => {

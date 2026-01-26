@@ -2,6 +2,7 @@
 
 import http.server
 import json
+import os
 import secrets
 import socketserver
 import sys
@@ -91,19 +92,24 @@ class DFFWebEditor:
     def _write_editor_config(self, file: Optional[str]) -> None:
         """Write the editor configuration consumed by the frontend.
 
+        Config is written to a per-session temp directory to avoid permission
+        errors in read-only installations (site-packages, frozen builds).
+
         Args:
-            file: Optional initial file to load
+            file: Optional initial file to load (currently unused by frontend)
         """
+        import tempfile
+
+        # Use a temporary directory that is definitely writable
+        temp_dir = Path(tempfile.gettempdir()) / f"slcli-dff-{os.getpid()}"
+        temp_dir.mkdir(parents=True, exist_ok=True)
+
         config: dict[str, Any] = {
             "serverUrl": get_base_url().rstrip("/"),
             "secret": getattr(self, "_secret", None),
         }
 
-        # Include initial file path if provided
-        if file:
-            config["initialFile"] = str(Path(file).absolute())
-
-        config_path = self._editor_dir / "slcli-config.json"
+        config_path = temp_dir / "slcli-config.json"
         config_path.write_text(json.dumps(config, indent=2))
 
     def _start_server(self, open_browser: bool) -> None:
