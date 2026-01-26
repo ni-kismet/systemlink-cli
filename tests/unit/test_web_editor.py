@@ -16,28 +16,22 @@ def _make_assets(base: Path) -> None:
         (base / name).write_text(f"src-{name}")
 
 
-def _assert_copied(target: Path) -> None:
-    for name in ESSENTIAL_FILES:
-        assert (target / name).read_text() == f"src-{name}"
-
-
 def test_source_from_meipass(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    """Test that DFFWebEditor resolves editor directory from PyInstaller MEIPASS."""
     meipass = tmp_path / "meipass"
     _make_assets(meipass / "dff-editor")
 
     monkeypatch.setattr(sys, "_MEIPASS", str(meipass), raising=False)
     monkeypatch.setattr(sys, "frozen", False, raising=False)
 
-    target = tmp_path / "out"
-    target.mkdir()
-    editor = DFFWebEditor(port=0, output_dir=str(target))
+    editor = DFFWebEditor(port=0)
 
-    editor._create_editor_files("{}", None)
-
-    _assert_copied(target)
+    # Verify it resolved to the MEIPASS location
+    assert editor._editor_dir == meipass / "dff-editor"
 
 
 def test_source_from_frozen_onedir(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    """Test that DFFWebEditor resolves editor directory from frozen onedir layout."""
     monkeypatch.setattr(sys, "_MEIPASS", None, raising=False)
     monkeypatch.setattr(sys, "frozen", True, raising=False)
 
@@ -49,16 +43,14 @@ def test_source_from_frozen_onedir(tmp_path: Path, monkeypatch: pytest.MonkeyPat
     fake_executable.write_text("")
     monkeypatch.setattr(sys, "executable", str(fake_executable))
 
-    target = tmp_path / "out"
-    target.mkdir()
-    editor = DFFWebEditor(port=0, output_dir=str(target))
+    editor = DFFWebEditor(port=0)
 
-    editor._create_editor_files("{}", None)
-
-    _assert_copied(target)
+    # Verify it resolved to the frozen onedir location
+    assert editor._editor_dir == assets
 
 
 def test_source_from_site_packages(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    """Test that DFFWebEditor resolves editor directory from site-packages."""
     import slcli.web_editor as web_editor
 
     monkeypatch.setattr(sys, "_MEIPASS", None, raising=False)
@@ -73,10 +65,7 @@ def test_source_from_site_packages(tmp_path: Path, monkeypatch: pytest.MonkeyPat
 
     _make_assets(site_root / "dff-editor")
 
-    target = tmp_path / "out"
-    target.mkdir()
-    editor = DFFWebEditor(port=0, output_dir=str(target))
+    editor = DFFWebEditor(port=0)
 
-    editor._create_editor_files("{}", None)
-
-    _assert_copied(target)
+    # Verify it resolved to the site-packages location
+    assert editor._editor_dir == site_root / "dff-editor"

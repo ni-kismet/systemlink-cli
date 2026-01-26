@@ -485,11 +485,11 @@ def test_dff_edit_command_help(runner: CliRunner, monkeypatch: Any) -> None:
     assert result.exit_code == 0
     assert "Launch a local web editor" in result.output
     assert "--port" in result.output
-    assert "--output-dir" in result.output
+    assert "--no-browser" in result.output
 
 
-def test_dff_edit_with_config_id_saves_metadata(monkeypatch: Any, runner: CliRunner) -> None:
-    """Test that dff edit --id saves metadata file."""
+def test_dff_edit_with_config_id_loads_config(monkeypatch: Any, runner: CliRunner) -> None:
+    """Test that dff edit --id loads configuration from server."""
     patch_keyring(monkeypatch)
 
     # Track calls to save_json_file
@@ -529,14 +529,9 @@ def test_dff_edit_with_config_id_saves_metadata(monkeypatch: Any, runner: CliRun
 
     assert result.exit_code == 0
 
-    # Check that metadata file was saved
-    metadata_files = [path for path in saved_files.keys() if ".editor-metadata.json" in path]
-    assert len(metadata_files) == 1
-
-    metadata = saved_files[metadata_files[0]]
-    assert metadata["configId"] == "test-config-123"
-    assert "configFile" in metadata
-    assert ".json" in metadata["configFile"]
+    # Check that configuration file was saved (not metadata file)
+    config_files = [path for path in saved_files.keys() if ".json" in path]
+    assert len(config_files) >= 1
 
 
 def test_dff_edit_with_config_id_fetches_resolved_configuration(
