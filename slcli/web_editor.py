@@ -2,7 +2,6 @@
 
 import http.server
 import json
-import os
 import secrets
 import socketserver
 import sys
