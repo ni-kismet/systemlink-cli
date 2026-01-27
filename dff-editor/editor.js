@@ -560,7 +560,7 @@ function refreshTree() {
             // Show views under each configuration
             if (conf.views && conf.views.length > 0) {
                 conf.views.forEach((view, vi) => {
-                    html += `<div class="tree-node indent-2" onclick="selectTreeNode('config-${i}-view-${vi}')"><span class="tree-icon">👁️</span><span>${view.displayText || view.key}</span></div>`;
+                    html += `<div class="tree-node indent-2" onclick="selectTreeNode('config-${i}-view-${vi}')"><span class="tree-icon">👁️</span><span>${view.displayText || view.key}</span><button class="edit-btn" aria-label="Edit view: ${view.displayText || view.key}" title="Edit view" onclick="event.stopPropagation(); showEditDialog('view', ${i}, ${vi})">✎</button></div>`;
                 });
             }
         });
@@ -571,7 +571,7 @@ function refreshTree() {
         html += '<div class="tree-node indent-1"><span class="tree-icon">📁</span><span>Groups (' + config.groups.length + ')</span></div>';
         config.groups.forEach((group, i) => {
             const groupLabel = group.displayText || group.key;
-            html += `<div class="tree-node indent-2" onclick="selectTreeNode('group-${i}')"><span class="tree-icon">📦</span><span>${groupLabel}</span></div>`;
+            html += `<div class="tree-node indent-2" onclick="selectTreeNode('group-${i}')"><span class="tree-icon">📦</span><span>${groupLabel}</span><button class="edit-btn" aria-label="Edit group: ${groupLabel}" title="Edit group" onclick="event.stopPropagation(); showEditDialog('group', ${i})">✎</button></div>`;
         });
     }
     
@@ -581,7 +581,7 @@ function refreshTree() {
         config.fields.forEach((field, i) => {
             const icon = field.required ? '🏷️' : '🔖';
             const fieldLabel = field.displayText || field.key;
-            html += `<div class="tree-node indent-2" onclick="selectTreeNode('field-${i}')"><span class="tree-icon">${icon}</span><span>${fieldLabel}</span></div>`;
+            html += `<div class="tree-node indent-2" onclick="selectTreeNode('field-${i}')"><span class="tree-icon">${icon}</span><span>${fieldLabel}</span><button class="edit-btn" aria-label="Edit field: ${fieldLabel}" title="Edit field" onclick="event.stopPropagation(); showEditDialog('field', ${i})">✎</button></div>`;
         });
     }
     
@@ -855,6 +855,144 @@ function showAddDialog(type) {
     overlay.classList.add('active');
 }
 
+function showEditDialog(type, configIdx, viewIdx = null) {
+    modalType = `edit-${type}`;
+    const overlay = document.getElementById('modalOverlay');
+    const title = document.getElementById('modalTitle');
+    const body = document.getElementById('modalBody');
+    
+    // Helper to safely create form groups
+    function createFormGroup(labelText, inputId, inputType, value, placeholder = '', helpText = '') {
+        const group = document.createElement('div');
+        group.className = 'form-group';
+        
+        const label = document.createElement('label');
+        label.textContent = labelText;
+        group.appendChild(label);
+        
+        if (inputType === 'select') {
+            const select = document.createElement('select');
+            select.id = inputId;
+            const options = ['STRING', 'NUMBER', 'BOOLEAN', 'DATE', 'DATETIME', 'SELECT', 'MULTISELECT', 'TEXT'];
+            options.forEach(opt => {
+                const option = document.createElement('option');
+                option.value = opt;
+                option.textContent = opt.charAt(0) + opt.slice(1).toLowerCase();
+                if (opt === value) option.selected = true;
+                select.appendChild(option);
+            });
+            group.appendChild(select);
+        } else if (inputType === 'checkbox') {
+            const checkbox = document.createElement('input');
+            checkbox.type = 'checkbox';
+            checkbox.id = inputId;
+            checkbox.checked = !!value;
+            group.appendChild(checkbox);
+        } else {
+            const input = document.createElement('input');
+            input.type = inputType;
+            input.id = inputId;
+            input.placeholder = placeholder;
+            input.value = String(value || '');
+            group.appendChild(input);
+        }
+        
+        if (helpText) {
+            const small = document.createElement('small');
+            small.textContent = helpText;
+            group.appendChild(small);
+        }
+        
+        return group;
+    }
+    
+    function createCheckboxGroup(labelText, inputId, checked) {
+        const group = document.createElement('div');
+        group.className = 'form-group checkbox-group';
+        
+        const checkbox = document.createElement('input');
+        checkbox.type = 'checkbox';
+        checkbox.id = inputId;
+        checkbox.checked = !!checked;
+        group.appendChild(checkbox);
+        
+        const label = document.createElement('label');
+        label.htmlFor = inputId;
+        label.textContent = labelText;
+        group.appendChild(label);
+        
+        return group;
+    }
+    
+    if (type === 'view' && viewIdx !== null) {
+        const conf = currentConfig.configurations?.[configIdx];
+        const view = conf?.views?.[viewIdx];
+        if (!view) {
+            showStatus('View not found', 'error');
+            return;
+        }
+        
+        title.textContent = 'Edit View';
+        body.innerHTML = '';
+        
+        body.appendChild(createFormGroup('Key *', 'viewKey', 'text', view.key || '', 'e.g., defaultView', 'Unique identifier'));
+        body.appendChild(createFormGroup('Display Text *', 'viewDisplayText', 'text', view.displayText || '', 'e.g., Default View', 'Text shown to users'));
+        body.appendChild(createFormGroup('Help Text', 'viewHelpText', 'text', view.helpText || '', 'Optional help text'));
+        body.appendChild(createFormGroup('Order', 'viewOrder', 'number', view.order || 10, '', 'Display order (lower numbers appear first)'));
+        body.appendChild(createFormGroup('Display Locations (comma-separated)', 'viewDisplayLocations', 'text', (view.displayLocations || []).join(', '), 'e.g., compact, full, split, global', 'Valid values: compact, full, split, global'));
+        body.appendChild(createFormGroup('Group Keys (comma-separated)', 'viewGroups', 'text', (view.groups || []).join(', '), 'e.g., group1, group2', 'Keys of groups to include in this view'));
+        body.appendChild(createCheckboxGroup('Editable', 'viewEditable', view.editable));
+        body.appendChild(createCheckboxGroup('Visible', 'viewVisible', view.visible));
+        
+        // Store indices in modal for use during submit
+        overlay.dataset.editType = 'view';
+        overlay.dataset.configIdx = configIdx;
+        overlay.dataset.viewIdx = viewIdx;
+        
+    } else if (type === 'group') {
+        const group = currentConfig.groups?.[configIdx];
+        if (!group) {
+            showStatus('Group not found', 'error');
+            return;
+        }
+        
+        title.textContent = 'Edit Group';
+        body.innerHTML = '';
+        
+        body.appendChild(createFormGroup('Key *', 'groupKey', 'text', group.key || '', 'e.g., basicInfo', 'Unique identifier (lowercase, no spaces)'));
+        body.appendChild(createFormGroup('Display Text *', 'groupDisplayText', 'text', group.displayText || '', 'e.g., Basic Information', 'Text shown to users'));
+        body.appendChild(createFormGroup('Help Text', 'groupHelpText', 'text', group.helpText || '', 'Optional help text'));
+        body.appendChild(createFormGroup('Workspace ID *', 'groupWorkspace', 'text', group.workspace || '', 'e.g., workspace-123'));
+        body.appendChild(createFormGroup('Field Keys (comma-separated)', 'groupFieldKeys', 'text', (group.fields || []).join(', '), 'e.g., field1, field2', 'Optional: Keys of fields to include'));
+        
+        overlay.dataset.editType = 'group';
+        overlay.dataset.groupIdx = configIdx;
+        
+    } else if (type === 'field') {
+        const field = currentConfig.fields?.[configIdx];
+        if (!field) {
+            showStatus('Field not found', 'error');
+            return;
+        }
+        
+        title.textContent = 'Edit Field';
+        body.innerHTML = '';
+        
+        body.appendChild(createFormGroup('Key *', 'fieldKey', 'text', field.key || '', 'e.g., deviceId', 'Unique identifier (lowercase, no spaces)'));
+        body.appendChild(createFormGroup('Display Text *', 'fieldDisplayText', 'text', field.displayText || '', 'e.g., Device Identifier', 'Text shown to users'));
+        body.appendChild(createFormGroup('Help Text', 'fieldHelpText', 'text', field.helpText || '', 'Optional help text'));
+        body.appendChild(createFormGroup('Placeholder', 'fieldPlaceholder', 'text', field.placeHolder || '', 'Optional placeholder text'));
+        body.appendChild(createFormGroup('Workspace ID *', 'fieldWorkspace', 'text', field.workspace || '', 'e.g., workspace-123'));
+        body.appendChild(createFormGroup('Field Type *', 'fieldType', 'select', field.fieldType || 'STRING', '', ''));
+        body.appendChild(createCheckboxGroup('Required field', 'fieldRequired', field.required));
+        
+        overlay.dataset.editType = 'field';
+        overlay.dataset.fieldIdx = configIdx;
+    }
+    
+    overlay.classList.add('active');
+}
+
 function getCurrentWorkspace() {
     if (!currentConfig) return '';
     if (currentConfig.configuration && currentConfig.configuration.workspace) {
@@ -885,14 +1023,12 @@ function submitModal() {
     if (!currentConfig.groups) currentConfig.groups = [];
     if (!currentConfig.fields) currentConfig.fields = [];
     
+    // Check if we're in edit mode
+    const overlay = document.getElementById('modalOverlay');
+    const isEdit = modalType && modalType.startsWith('edit-');
+    
     try {
-        if (modalType === 'view') {
-            // Add view to the first configuration (or show error if none exist)
-            if (!currentConfig.configurations || currentConfig.configurations.length === 0) {
-                showStatus('Please add a configuration first before adding views', 'error');
-                return;
-            }
-            
+        if (modalType === 'view' || modalType === 'edit-view') {
             const key = document.getElementById('viewKey').value.trim();
             const displayText = document.getElementById('viewDisplayText').value.trim();
             const helpText = document.getElementById('viewHelpText').value.trim();
@@ -907,21 +1043,28 @@ function submitModal() {
                 return;
             }
             
-            const targetConfig = currentConfig.configurations[0];
+            if (!currentConfig.configurations || currentConfig.configurations.length === 0) {
+                showStatus('Please add a configuration first before adding/editing views', 'error');
+                return;
+            }
+            
+            // Get the correct config index (from stored value in edit mode, or use first in add mode)
+            let configIdx = 0;
+            if (isEdit) {
+                const storedIdx = parseInt(overlay.dataset.configIdx);
+                if (!Number.isNaN(storedIdx) && storedIdx >= 0 && storedIdx < currentConfig.configurations.length) {
+                    configIdx = storedIdx;
+                }
+            }
+            const targetConfig = currentConfig.configurations[configIdx];
             if (!targetConfig.views) {
                 targetConfig.views = [];
             }
             
-            // Check for duplicate key
-            if (targetConfig.views.some(v => v.key === key)) {
-                showStatus(`View key '${key}' already exists`, 'error');
-                return;
-            }
-            
             const displayLocations = displayLocationsStr ? displayLocationsStr.split(',').map(k => k.trim()).filter(k => k) : ['compact'];
-            const groups = groupsStr ? groupsStr.split(',').map(k => k.trim()).filter(k => k) : [];
+            const groupsList = groupsStr ? groupsStr.split(',').map(k => k.trim()).filter(k => k) : [];
             
-            targetConfig.views.push({
+            const viewData = {
                 key,
                 displayText,
                 helpText,
@@ -931,9 +1074,33 @@ function submitModal() {
                 retainWhenHidden: false,
                 i18n: [],
                 displayLocations,
-                groups
-            });
-        } else if (modalType === 'group') {
+                groups: groupsList
+            };
+            
+            if (isEdit) {
+                // Edit mode: replace the existing view
+                const viewIdx = parseInt(overlay.dataset.viewIdx);
+                if (viewIdx >= 0 && viewIdx < targetConfig.views.length) {
+                    // Check for duplicate key only if key has changed
+                    const originalKey = targetConfig.views[viewIdx].key;
+                    if (key !== originalKey && targetConfig.views.some((v, i) => i !== viewIdx && v.key === key)) {
+                        showStatus(`View key '${key}' already exists`, 'error');
+                        return;
+                    }
+                    targetConfig.views[viewIdx] = viewData;
+                    showStatus('View updated successfully', 'success');
+                }
+            } else {
+                // Add mode: check for duplicate and push new view
+                if (targetConfig.views.some(v => v.key === key)) {
+                    showStatus(`View key '${key}' already exists`, 'error');
+                    return;
+                }
+                targetConfig.views.push(viewData);
+                showStatus('View added successfully', 'success');
+            }
+            
+        } else if (modalType === 'group' || modalType === 'edit-group') {
             const key = document.getElementById('groupKey').value.trim();
             const displayText = document.getElementById('groupDisplayText').value.trim();
             const helpText = document.getElementById('groupHelpText').value.trim();
@@ -948,23 +1115,41 @@ function submitModal() {
                 return;
             }
             
-            // Check for duplicate key
-            if (currentConfig.groups.some(g => g.key === key)) {
-                showStatus(`Group key '${key}' already exists`, 'error');
-                return;
-            }
-            
             const fieldKeys = fieldKeysStr ? fieldKeysStr.split(',').map(k => k.trim()).filter(k => k) : [];
             
-            currentConfig.groups.push({
+            const groupData = {
                 key,
                 workspace,
                 displayText,
                 helpText,
                 fields: fieldKeys,
                 properties: {}
-            });
-        } else if (modalType === 'field') {
+            };
+            
+            if (isEdit) {
+                // Edit mode: replace the existing group
+                const groupIdx = parseInt(overlay.dataset.groupIdx);
+                if (groupIdx >= 0 && groupIdx < currentConfig.groups.length) {
+                    // Check for duplicate key only if key has changed
+                    const originalKey = currentConfig.groups[groupIdx].key;
+                    if (key !== originalKey && currentConfig.groups.some((g, i) => i !== groupIdx && g.key === key)) {
+                        showStatus(`Group key '${key}' already exists`, 'error');
+                        return;
+                    }
+                    currentConfig.groups[groupIdx] = groupData;
+                    showStatus('Group updated successfully', 'success');
+                }
+            } else {
+                // Add mode: check for duplicate and push new group
+                if (currentConfig.groups.some(g => g.key === key)) {
+                    showStatus(`Group key '${key}' already exists`, 'error');
+                    return;
+                }
+                currentConfig.groups.push(groupData);
+                showStatus('Group added successfully', 'success');
+            }
+            
+        } else if (modalType === 'field' || modalType === 'edit-field') {
             const key = document.getElementById('fieldKey').value.trim();
             const displayText = document.getElementById('fieldDisplayText').value.trim();
             const helpText = document.getElementById('fieldHelpText').value.trim();
@@ -981,13 +1166,7 @@ function submitModal() {
                 return;
             }
             
-            // Check for duplicate key
-            if (currentConfig.fields.some(f => f.key === key)) {
-                showStatus(`Field key '${key}' already exists`, 'error');
-                return;
-            }
-            
-            currentConfig.fields.push({
+            const fieldData = {
                 key,
                 workspace,
                 displayText,
@@ -997,16 +1176,38 @@ function submitModal() {
                 required,
                 validation: {},
                 properties: {}
-            });
+            };
+            
+            if (isEdit) {
+                // Edit mode: replace the existing field
+                const fieldIdx = parseInt(overlay.dataset.fieldIdx);
+                if (fieldIdx >= 0 && fieldIdx < currentConfig.fields.length) {
+                    // Check for duplicate key only if key has changed
+                    const originalKey = currentConfig.fields[fieldIdx].key;
+                    if (key !== originalKey && currentConfig.fields.some((f, i) => i !== fieldIdx && f.key === key)) {
+                        showStatus(`Field key '${key}' already exists`, 'error');
+                        return;
+                    }
+                    currentConfig.fields[fieldIdx] = fieldData;
+                    showStatus('Field updated successfully', 'success');
+                }
+            } else {
+                // Add mode: check for duplicate and push new field
+                if (currentConfig.fields.some(f => f.key === key)) {
+                    showStatus(`Field key '${key}' already exists`, 'error');
+                    return;
+                }
+                currentConfig.fields.push(fieldData);
+                showStatus('Field added successfully', 'success');
+            }
         }
         
         // Update editor with new config
         editor.setValue(JSON.stringify(currentConfig, null, 2));
         refreshTree();
         closeModal();
-        showStatus(`${modalType.charAt(0).toUpperCase() + modalType.slice(1)} added successfully`, 'success');
     } catch (e) {
-        showStatus('Error adding item: ' + e.message, 'error');
+        showStatus(`Error ${isEdit ? 'updating' : 'adding'} item: ` + e.message, 'error');
     }
 }
 

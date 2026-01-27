@@ -3,7 +3,6 @@
 import json
 import sys
 import urllib.parse
-from pathlib import Path
 from typing import Any, Dict, List, Optional
 
 import click
@@ -916,13 +915,6 @@ def register_dff_commands(cli: Any) -> None:
         help="Port for local HTTP server",
     )
     @click.option(
-        "--output-dir",
-        "-o",
-        default="dff-editor",
-        show_default=True,
-        help="Directory to create editor files in",
-    )
-    @click.option(
         "--no-browser",
         is_flag=True,
         help="Don't automatically open browser",
@@ -931,18 +923,15 @@ def register_dff_commands(cli: Any) -> None:
         file: Optional[str] = None,
         config_id: Optional[str] = None,
         port: int = 8080,
-        output_dir: str = "dff-editor",
         no_browser: bool = False,
     ) -> None:
         """Launch a local web editor for dynamic form field configurations.
 
-        This command will create a standalone HTML editor in the specified directory
-        and start a local HTTP server for editing dynamic form field configurations.
-
+        This command starts a web editor for editing dynamic form field configurations.
         You can provide a JSON file to edit, or load a configuration by ID from the server.
         """
         try:
-            # If config_id is provided, fetch and export it temporarily
+            # If config_id is provided, fetch and save it to a temporary file
             if config_id:
                 url = f"{get_base_url()}/nidynamicformfields/v1/resolved-configuration"
                 params = {"configurationId": config_id}
@@ -952,28 +941,16 @@ def register_dff_commands(cli: Any) -> None:
                 resp = make_api_request("GET", full_url)
                 data = resp.json()
 
-                # Ensure output directory exists before writing fetched file
-                output_path = Path(output_dir)
-                output_path.mkdir(parents=True, exist_ok=True)
-
-                # Use a temp file or generate a filename inside output_dir
+                # Generate a temporary file for the configuration
                 if not file:
                     config_name = data.get("configuration", {}).get("name", f"config-{config_id}")
                     safe_name = sanitize_filename(config_name, f"config-{config_id}")
-                    file = str(output_path / f"{safe_name}.json")
-                else:
-                    file = str(Path(file))
+                    file = f"{safe_name}.json"
 
                 # Save the fetched configuration to file
                 save_json_file(data, file)
                 click.echo(f"✓ Configuration loaded from server: {file}")
 
-                # Save editor metadata with config ID
-                metadata = {"configId": config_id, "configFile": Path(file).name}
-                save_json_file(metadata, str(output_path / ".editor-metadata.json"))
-
-            launch_dff_editor(
-                file=file, port=port, output_dir=output_dir, open_browser=not no_browser
-            )
+            launch_dff_editor(file=file, port=port, open_browser=not no_browser)
         except Exception as exc:
             handle_api_error(exc)

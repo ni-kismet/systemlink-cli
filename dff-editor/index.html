@@ -91,6 +91,22 @@
         button.danger:hover { background: #f1343e; }
         button.success { background: #107c10; }
         button.success:hover { background: #0e6b0e; }
+        .edit-btn {
+            background: #6c8ebf;
+            color: white;
+            border: none;
+            padding: 2px 6px;
+            border-radius: 2px;
+            cursor: pointer;
+            font-size: 12px;
+            margin-left: auto;
+            opacity: 0;
+            transition: opacity 0.2s, background 0.2s;
+        }
+        .tree-node:hover .edit-btn {
+            opacity: 1;
+        }
+        .edit-btn:hover { background: #85a8d4; }
         .status-bar {
             background: #007acc;
             color: white;
