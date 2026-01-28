@@ -14,7 +14,7 @@ This directory contains a standalone web editor for SystemLink Custom Fields con
 1. Start the editor server:
 
 ```bash
-slcli customfields edit --port 8080
+slcli customfield edit --port 8080
 ```
 
 2. Open your browser to: http://localhost:8080

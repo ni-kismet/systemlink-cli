@@ -125,7 +125,7 @@ After installation, restart your shell or source the completion file. See [docs/
    slcli workspace list
 
    # View custom field configurations
-   slcli customfields list
+   slcli customfield list
    ```
 
 # View auth policies and templates
@@ -171,7 +171,7 @@ Available samples:
    slcli workflow init --name "My Workflow" --description "Custom workflow"
 
    # Launch custom fields web editor
-   slcli customfields edit
+   slcli customfield edit
    ```
 
 4. **Get help for any command:**
@@ -180,7 +180,7 @@ Available samples:
    slcli template --help
    slcli workflow --help
    slcli notebook --help
-   slcli customfields --help
+   slcli customfield --help
    slcli feed --help
    slcli auth policy --help
    slcli auth template --help
@@ -315,9 +315,9 @@ slcli logout
 SystemLink CLI supports both **SystemLink Enterprise (SLE)** and **SystemLink Server (SLS)**:
 
 | Platform | Notebook Execution | Custom Fields/Templates/Workflows |
-| -------- | ------------------ | ----------------------- |
-| **SLE**  | ✓ Full support     | ✓ Full support          |
-| **SLS**  | ✓ Path-based API   | ✗ Not available         |
+| -------- | ------------------ | --------------------------------- |
+| **SLE**  | ✓ Full support     | ✓ Full support                    |
+| **SLS**  | ✓ Path-based API   | ✗ Not available                   |
 
 ### Platform Detection
 
@@ -1308,28 +1308,22 @@ Manage static web applications (pack, publish and remote management) using the `
 The `webapp` group provides a small local scaffold and .nipkg packer, and also manages WebApp resources on the SystemLink server.
 
 - `slcli webapp init [--directory PATH] [--force]`
-
   - Scaffold a sample webapp (`index.html`) in `./app` inside the target directory. Use `--force` to overwrite an existing file.
 
 - `slcli webapp pack <FOLDER> [--output FILE.nipkg]`
-
   - Pack a folder into a `.nipkg`. The `.nipkg` uses a Debian-style `ar` layout (members: `debian-binary`, `control.tar.gz`, `data.tar.gz`).
 
 - `slcli webapp publish <SOURCE> [--id ID] [--name NAME] [--workspace WORKSPACE]`
-
   - Publish a `.nipkg` (or folder) to the WebApp service. Provide either `--id` to upload into an existing webapp, or `--name` to create a new resource and upload the content. `--workspace` selects the workspace for newly created webapps.
   - When publishing a folder, the CLI creates a temporary `.nipkg` inside a context-managed temporary directory so the packaged file is available during upload and is cleaned up automatically.
 
 - `slcli webapp list [--workspace WORKSPACE] [--filter FILTER] [--take N] [--format table|json]`
-
   - List webapps. Defaults to interactive paging for `table` output (25 rows/page) and returns all results for `--format json`.
 
 - `slcli webapp get --id ID`
-
   - Show webapp metadata.
 
 - `slcli webapp delete --id ID`
-
   - Delete a webapp.
 
 - `slcli webapp open --id ID`
@@ -1552,7 +1546,7 @@ slcli tag delete "my-tag-path"
 
 ## Custom Fields Management
 
-The `customfields` command group allows you to manage custom fields in SystemLink, including configurations, groups, fields, and tables. Custom fields provide a web-based editor for visual editing of JSON configurations.
+The `customfield` command group allows you to manage custom fields in SystemLink, including configurations, groups, fields, and tables. Custom fields provide a web-based editor for visual editing of JSON configurations.
 
 ### Configuration Management
 
@@ -1560,13 +1554,13 @@ Manage custom field configurations:
 
 ```bash
 # List all configurations
-slcli customfields list
+slcli customfield list
 
 # JSON format for programmatic use
-slcli customfields list --format json
+slcli customfield list --format json
 
 # Filter by workspace
-slcli customfields list --workspace "Production Workspace"
+slcli customfield list --workspace "Production Workspace"
 
 # Get a specific configuration
 slcli customfields get --id <config_id>
@@ -1601,7 +1595,7 @@ slcli customfields delete --id <config_id> -g <group_id> --field-id <field_id>
 slcli customfields delete --id <config_id> --no-recursive
 
 # Initialize a new configuration template
-slcli customfields init --name "My Config" --workspace "MyWorkspace" --resource-type workorder:workorder
+slcli customfield init --name "My Config" --workspace "MyWorkspace" --resource-type workorder:workorder
 ```
 
 ### Web Editor

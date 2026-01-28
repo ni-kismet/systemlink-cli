@@ -53,7 +53,7 @@ dff-editor/                # Source assets (packaged with CLI)
 
 ### ✅ Server Integration
 
-- Load from Server (GET /api/customfields/configurations)
+- Load from Server (GET /api/customfield/configurations)
 - Apply to Server (POST /api/customfields/configurations)
 - Dynamic server URL (uses current origin)
 - Confirmation dialogs before destructive operations

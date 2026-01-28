@@ -35,7 +35,7 @@ class TestFeatureGatingDFF:
         monkeypatch.setattr("slcli.platform.keyring.get_password", mock_get_password)
 
         runner = CliRunner()
-        result = runner.invoke(cli, ["customfields", "list"])
+        result = runner.invoke(cli, ["customfield", "list"])
 
         assert result.exit_code == 2  # INVALID_INPUT
         assert "Dynamic Form Fields is not available on SystemLink Server" in result.output
@@ -57,7 +57,7 @@ class TestFeatureGatingDFF:
         monkeypatch.setattr("slcli.platform.keyring.get_password", mock_get_password)
 
         runner = CliRunner()
-        result = runner.invoke(cli, ["customfields", "--help"])
+        result = runner.invoke(cli, ["customfield", "--help"])
 
         assert result.exit_code == 0
         assert "Manage custom field" in result.output
@@ -170,7 +170,7 @@ class TestFeatureGatingSLE:
         monkeypatch.setattr("slcli.utils.make_api_request", mock_make_api_request)
 
         runner = CliRunner()
-        result = runner.invoke(cli, ["customfields", "config", "list", "--format", "json"])
+        result = runner.invoke(cli, ["customfield", "config", "list", "--format", "json"])
 
         # Should not be blocked by feature gating (exit code 2)
         # It may fail for other reasons, but not due to platform gating

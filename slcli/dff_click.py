@@ -305,9 +305,9 @@ def _query_all_configurations(
 
 
 def register_dff_commands(cli: Any) -> None:
-    """Register the 'customfields' command group and its subcommands."""
+    """Register the 'customfield' command group and its subcommands."""
 
-    @cli.group(name="customfields")
+    @cli.group(name="customfield")
     @click.pass_context
     def dff(ctx: click.Context) -> None:
         """Manage custom field (DFF) configurations."""

@@ -303,42 +303,36 @@ def test_notebook_create_and_delete_cycle(self, cli_runner, cli_helper):
 ### Common Issues
 
 1. **Authentication Failures**
-
    - Verify credentials are correct
    - Check if test user account is active
    - Ensure user has required permissions
 
 2. **Network/Connectivity Issues**
-
    - Verify dev environment URL is accessible
    - Check firewall/VPN requirements
    - Increase timeout values if needed
 
 3. **Permission Errors**
-
    - Verify test user has workspace access
    - Check API permissions for user role
    - Ensure workspace exists and is accessible
 
 4. **Test Data Conflicts**
-
    - Enable cleanup to remove test artifacts
    - Use unique names with UUID suffixes
    - Check for leftover data from previous runs
 
 5. **Interactive Pagination Issues**
-
    - E2E tests automatically disable interactive pagination
    - CLI detects non-interactive environments (pytest, automated testing, piped output)
    - Set `SLCLI_NON_INTERACTIVE=true` to force non-interactive mode
    - Use `--format json` to avoid pagination entirely
 
 6. **Custom Fields Configuration Creation Failures**
-
    - Custom Fields API requires workspace IDs, not workspace names
    - Use `slcli workspace list --format json` to get workspace IDs
    - Verify all required fields are present in configuration JSON
-   - Check that `resourceType` values are valid (use `slcli customfields init --help`)
+   - Check that `resourceType` values are valid (use `slcli customfield init --help`)
 
 7. **Custom Fields Export/Import Structure Issues**
    - Export commands return data with `configurations` (plural) key
