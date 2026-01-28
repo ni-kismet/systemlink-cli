@@ -1,12 +1,45 @@
 # CHANGELOG
 
 
+## v0.25.0 (2026-01-27)
+
+### Features
+
+- Simplify DFF editor and add edit functionality
+  ([#48](https://github.com/ni-kismet/systemlink-cli/pull/48),
+  [`5fbcaac`](https://github.com/ni-kismet/systemlink-cli/commit/5fbcaac9035e2ac11fddb8bc1501b87d2bcb6b84))
+
+* feat: dff editor no longer copies files. Add edit dialog support
+
+* fix: resolve PR review feedback
+
+- Write config to temp directory instead of read-only install location - Remove unused initialFile
+  config parameter (not consumed by frontend) - Remove config edit button since edit-config is not
+  implemented - All tests passing, linting and type checking clean
+
+* fix: resolve remaining PR review feedback
+
+- Use TemporaryDirectory for config file cleanup - Serve slcli-config.json from temp directory via
+  dedicated GET handler - Replace HTML innerHTML with safe DOM API calls in showEditDialog - Add
+  aria-labels and title attributes to edit buttons for accessibility - Fix configIdx bug: use stored
+  value instead of always using config[0] - All tests passing, linting and type checking clean
+
+* lint fix
+
+* lint fix
+
+
 ## v0.24.3 (2026-01-21)
 
 ### Bug Fixes
 
 - Powershell completion script
   ([`772efd5`](https://github.com/ni-kismet/systemlink-cli/commit/772efd508f344290563bdbcff0d3648ec5a56d9d))
+
+### Chores
+
+- **release**: 0.24.3
+  ([`bbe496e`](https://github.com/ni-kismet/systemlink-cli/commit/bbe496ed5a0b57e07fc1bf0faeb5ef8e0d8941ce))
 
 
 ## v0.24.2 (2026-01-09)

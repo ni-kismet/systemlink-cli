@@ -1110,6 +1110,144 @@ function showEditDialog(type, configIdx, viewIdx = null) {
     overlay.classList.add('active');
 }
 
+function showEditDialog(type, configIdx, viewIdx = null) {
+    modalType = `edit-${type}`;
+    const overlay = document.getElementById('modalOverlay');
+    const title = document.getElementById('modalTitle');
+    const body = document.getElementById('modalBody');
+    
+    // Helper to safely create form groups
+    function createFormGroup(labelText, inputId, inputType, value, placeholder = '', helpText = '') {
+        const group = document.createElement('div');
+        group.className = 'form-group';
+        
+        const label = document.createElement('label');
+        label.textContent = labelText;
+        group.appendChild(label);
+        
+        if (inputType === 'select') {
+            const select = document.createElement('select');
+            select.id = inputId;
+            const options = ['STRING', 'NUMBER', 'BOOLEAN', 'DATE', 'DATETIME', 'SELECT', 'MULTISELECT', 'TEXT'];
+            options.forEach(opt => {
+                const option = document.createElement('option');
+                option.value = opt;
+                option.textContent = opt.charAt(0) + opt.slice(1).toLowerCase();
+                if (opt === value) option.selected = true;
+                select.appendChild(option);
+            });
+            group.appendChild(select);
+        } else if (inputType === 'checkbox') {
+            const checkbox = document.createElement('input');
+            checkbox.type = 'checkbox';
+            checkbox.id = inputId;
+            checkbox.checked = !!value;
+            group.appendChild(checkbox);
+        } else {
+            const input = document.createElement('input');
+            input.type = inputType;
+            input.id = inputId;
+            input.placeholder = placeholder;
+            input.value = String(value || '');
+            group.appendChild(input);
+        }
+        
+        if (helpText) {
+            const small = document.createElement('small');
+            small.textContent = helpText;
+            group.appendChild(small);
+        }
+        
+        return group;
+    }
+    
+    function createCheckboxGroup(labelText, inputId, checked) {
+        const group = document.createElement('div');
+        group.className = 'form-group checkbox-group';
+        
+        const checkbox = document.createElement('input');
+        checkbox.type = 'checkbox';
+        checkbox.id = inputId;
+        checkbox.checked = !!checked;
+        group.appendChild(checkbox);
+        
+        const label = document.createElement('label');
+        label.htmlFor = inputId;
+        label.textContent = labelText;
+        group.appendChild(label);
+        
+        return group;
+    }
+    
+    if (type === 'view' && viewIdx !== null) {
+        const conf = currentConfig.configurations?.[configIdx];
+        const view = conf?.views?.[viewIdx];
+        if (!view) {
+            showStatus('View not found', 'error');
+            return;
+        }
+        
+        title.textContent = 'Edit View';
+        body.innerHTML = '';
+        
+        body.appendChild(createFormGroup('Key *', 'viewKey', 'text', view.key || '', 'e.g., defaultView', 'Unique identifier'));
+        body.appendChild(createFormGroup('Display Text *', 'viewDisplayText', 'text', view.displayText || '', 'e.g., Default View', 'Text shown to users'));
+        body.appendChild(createFormGroup('Help Text', 'viewHelpText', 'text', view.helpText || '', 'Optional help text'));
+        body.appendChild(createFormGroup('Order', 'viewOrder', 'number', view.order || 10, '', 'Display order (lower numbers appear first)'));
+        body.appendChild(createFormGroup('Display Locations (comma-separated)', 'viewDisplayLocations', 'text', (view.displayLocations || []).join(', '), 'e.g., compact, full, split, global', 'Valid values: compact, full, split, global'));
+        body.appendChild(createFormGroup('Group Keys (comma-separated)', 'viewGroups', 'text', (view.groups || []).join(', '), 'e.g., group1, group2', 'Keys of groups to include in this view'));
+        body.appendChild(createCheckboxGroup('Editable', 'viewEditable', view.editable));
+        body.appendChild(createCheckboxGroup('Visible', 'viewVisible', view.visible));
+        
+        // Store indices in modal for use during submit
+        overlay.dataset.editType = 'view';
+        overlay.dataset.configIdx = configIdx;
+        overlay.dataset.viewIdx = viewIdx;
+        
+    } else if (type === 'group') {
+        const group = currentConfig.groups?.[configIdx];
+        if (!group) {
+            showStatus('Group not found', 'error');
+            return;
+        }
+        
+        title.textContent = 'Edit Group';
+        body.innerHTML = '';
+        
+        body.appendChild(createFormGroup('Key *', 'groupKey', 'text', group.key || '', 'e.g., basicInfo', 'Unique identifier (lowercase, no spaces)'));
+        body.appendChild(createFormGroup('Display Text *', 'groupDisplayText', 'text', group.displayText || '', 'e.g., Basic Information', 'Text shown to users'));
+        body.appendChild(createFormGroup('Help Text', 'groupHelpText', 'text', group.helpText || '', 'Optional help text'));
+        body.appendChild(createFormGroup('Workspace ID *', 'groupWorkspace', 'text', group.workspace || '', 'e.g., workspace-123'));
+        body.appendChild(createFormGroup('Field Keys (comma-separated)', 'groupFieldKeys', 'text', (group.fields || []).join(', '), 'e.g., field1, field2', 'Optional: Keys of fields to include'));
+        
+        overlay.dataset.editType = 'group';
+        overlay.dataset.groupIdx = configIdx;
+        
+    } else if (type === 'field') {
+        const field = currentConfig.fields?.[configIdx];
+        if (!field) {
+            showStatus('Field not found', 'error');
+            return;
+        }
+        
+        title.textContent = 'Edit Field';
+        body.innerHTML = '';
+        
+        body.appendChild(createFormGroup('Key *', 'fieldKey', 'text', field.key || '', 'e.g., deviceId', 'Unique identifier (lowercase, no spaces)'));
+        body.appendChild(createFormGroup('Display Text *', 'fieldDisplayText', 'text', field.displayText || '', 'e.g., Device Identifier', 'Text shown to users'));
+        body.appendChild(createFormGroup('Help Text', 'fieldHelpText', 'text', field.helpText || '', 'Optional help text'));
+        body.appendChild(createFormGroup('Placeholder', 'fieldPlaceholder', 'text', field.placeHolder || '', 'Optional placeholder text'));
+        body.appendChild(createFormGroup('Workspace ID *', 'fieldWorkspace', 'text', field.workspace || '', 'e.g., workspace-123'));
+        body.appendChild(createFormGroup('Field Type *', 'fieldType', 'select', field.fieldType || 'STRING', '', ''));
+        body.appendChild(createCheckboxGroup('Required field', 'fieldRequired', field.required));
+        
+        overlay.dataset.editType = 'field';
+        overlay.dataset.fieldIdx = configIdx;
+    }
+    
+    overlay.classList.add('active');
+}
+
 function getCurrentWorkspace() {
     if (!currentConfig) return '';
     if (currentConfig.configuration && currentConfig.configuration.workspace) {
