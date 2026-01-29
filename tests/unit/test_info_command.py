@@ -1,7 +1,7 @@
 """Unit tests for slcli info command."""
 
 import json
-from typing import Any, Optional
+from typing import Any
 from unittest.mock import patch
 
 from click.testing import CliRunner
@@ -15,22 +15,26 @@ class TestInfoCommand:
 
     def test_info_command_table_format_sle(self, monkeypatch: Any) -> None:
         """Test info command with table format for SLE platform."""
-        config = {
-            "api_url": "https://demo-api.lifecyclesolutions.ni.com",
-            "web_url": "https://demo.lifecyclesolutions.ni.com",
-            "api_key": "test-key",
-            "platform": "SLE",
-        }
+        test_profile = Profile(
+            name="test",
+            server="https://demo-api.lifecyclesolutions.ni.com",
+            api_key="test-key",
+            web_url="https://demo.lifecyclesolutions.ni.com",
+            platform="SLE",
+        )
 
-        def mock_get_password(service: str, key: str) -> Optional[str]:
-            if key == "SYSTEMLINK_CONFIG":
-                return json.dumps(config)
-            return None
+        with patch("slcli.profiles.get_active_profile") as mock_profile, patch(
+            "slcli.utils.get_base_url"
+        ) as mock_base_url, patch("slcli.utils.get_web_url") as mock_web_url, patch(
+            "slcli.utils.get_api_key"
+        ) as mock_api_key:
+            mock_profile.return_value = test_profile
+            mock_base_url.return_value = "https://demo-api.lifecyclesolutions.ni.com"
+            mock_web_url.return_value = "https://demo.lifecyclesolutions.ni.com"
+            mock_api_key.return_value = "test-key"
 
-        monkeypatch.setattr("slcli.platform.keyring.get_password", mock_get_password)
-
-        runner = CliRunner()
-        result = runner.invoke(cli, ["info"])
+            runner = CliRunner()
+            result = runner.invoke(cli, ["info"])
 
         assert result.exit_code == 0
         assert "SystemLink CLI Info" in result.output
@@ -71,22 +75,26 @@ class TestInfoCommand:
 
     def test_info_command_json_format_sle(self, monkeypatch: Any) -> None:
         """Test info command with JSON format for SLE platform."""
-        config = {
-            "api_url": "https://demo-api.lifecyclesolutions.ni.com",
-            "web_url": "https://demo.lifecyclesolutions.ni.com",
-            "api_key": "test-key",
-            "platform": "SLE",
-        }
+        test_profile = Profile(
+            name="test",
+            server="https://demo-api.lifecyclesolutions.ni.com",
+            api_key="test-key",
+            web_url="https://demo.lifecyclesolutions.ni.com",
+            platform="SLE",
+        )
 
-        def mock_get_password(service: str, key: str) -> Optional[str]:
-            if key == "SYSTEMLINK_CONFIG":
-                return json.dumps(config)
-            return None
+        with patch("slcli.profiles.get_active_profile") as mock_profile, patch(
+            "slcli.utils.get_base_url"
+        ) as mock_base_url, patch("slcli.utils.get_web_url") as mock_web_url, patch(
+            "slcli.utils.get_api_key"
+        ) as mock_api_key:
+            mock_profile.return_value = test_profile
+            mock_base_url.return_value = "https://demo-api.lifecyclesolutions.ni.com"
+            mock_web_url.return_value = "https://demo.lifecyclesolutions.ni.com"
+            mock_api_key.return_value = "test-key"
 
-        monkeypatch.setattr("slcli.platform.keyring.get_password", mock_get_password)
-
-        runner = CliRunner()
-        result = runner.invoke(cli, ["info", "--format", "json"])
+            runner = CliRunner()
+            result = runner.invoke(cli, ["info", "--format", "json"])
 
         assert result.exit_code == 0
         output = json.loads(result.output)
