@@ -278,15 +278,25 @@ class TestGetPlatformInfo:
 
     def test_get_platform_info_sle(self) -> None:
         """Test getting platform info for SLE."""
-        config = {
-            "api_url": "https://demo-api.lifecyclesolutions.ni.com",
-            "web_url": "https://demo.lifecyclesolutions.ni.com",
-            "api_key": "test-key",
-            "platform": "SLE",
-        }
+        from slcli.profiles import Profile
 
-        with patch("slcli.platform.keyring.get_password") as mock_keyring:
-            mock_keyring.return_value = json.dumps(config)
+        profile = Profile(
+            name="test",
+            server="https://demo-api.lifecyclesolutions.ni.com",
+            api_key="test-key",
+            web_url="https://demo.lifecyclesolutions.ni.com",
+            platform="SLE",
+        )
+
+        with patch("slcli.profiles.get_active_profile") as mock_profile, patch(
+            "slcli.utils.get_base_url"
+        ) as mock_base_url, patch("slcli.utils.get_web_url") as mock_web_url, patch(
+            "slcli.utils.get_api_key"
+        ) as mock_api_key:
+            mock_profile.return_value = profile
+            mock_base_url.return_value = "https://demo-api.lifecyclesolutions.ni.com"
+            mock_web_url.return_value = "https://demo.lifecyclesolutions.ni.com"
+            mock_api_key.return_value = "test-key"
 
             result = get_platform_info()
 
@@ -298,15 +308,25 @@ class TestGetPlatformInfo:
 
     def test_get_platform_info_sls(self) -> None:
         """Test getting platform info for SLS."""
-        config = {
-            "api_url": "https://my-server.local",
-            "web_url": "https://my-server.local",
-            "api_key": "test-key",
-            "platform": "SLS",
-        }
+        from slcli.profiles import Profile
 
-        with patch("slcli.platform.keyring.get_password") as mock_keyring:
-            mock_keyring.return_value = json.dumps(config)
+        profile = Profile(
+            name="test",
+            server="https://my-server.local",
+            api_key="test-key",
+            web_url="https://my-server.local",
+            platform="SLS",
+        )
+
+        with patch("slcli.profiles.get_active_profile") as mock_profile, patch(
+            "slcli.utils.get_base_url"
+        ) as mock_base_url, patch("slcli.utils.get_web_url") as mock_web_url, patch(
+            "slcli.utils.get_api_key"
+        ) as mock_api_key:
+            mock_profile.return_value = profile
+            mock_base_url.return_value = "https://my-server.local"
+            mock_web_url.return_value = "https://my-server.local"
+            mock_api_key.return_value = "test-key"
 
             result = get_platform_info()
 
@@ -318,8 +338,18 @@ class TestGetPlatformInfo:
 
     def test_get_platform_info_not_logged_in(self) -> None:
         """Test getting platform info when not logged in."""
-        with patch("slcli.platform.keyring.get_password") as mock_keyring:
-            mock_keyring.return_value = None
+        with patch("slcli.profiles.get_active_profile") as mock_profile, patch(
+            "slcli.utils.get_base_url"
+        ) as mock_base_url, patch("slcli.utils.get_web_url") as mock_web_url, patch(
+            "slcli.utils.get_api_key"
+        ) as mock_api_key, patch(
+            "slcli.platform._get_keyring_config"
+        ) as mock_keyring:
+            mock_profile.return_value = None
+            mock_base_url.side_effect = Exception("Not configured")
+            mock_web_url.side_effect = Exception("Not configured")
+            mock_api_key.side_effect = Exception("Not configured")
+            mock_keyring.return_value = {}
 
             result = get_platform_info()
 

@@ -269,17 +269,15 @@ def filter_by_workspace(
 
 # --- SystemLink HTTP Configuration ---
 def get_http_configuration() -> SystemLinkConfig:
-    """Return a configured SystemLink configuration using environment or keyring credentials."""
-    server_uri = (
-        os.environ.get("SYSTEMLINK_API_URL")
-        or keyring.get_password("systemlink-cli", "SYSTEMLINK_API_URL")
-        or "http://localhost:8000"
-    )
-    api_key = os.environ.get("SYSTEMLINK_API_KEY") or keyring.get_password(
-        "systemlink-cli", "SYSTEMLINK_API_KEY"
-    )
-    if not api_key:
-        raise RuntimeError("API key not found. Please set SYSTEMLINK_API_KEY or run 'slcli login'.")
+    """Return a configured SystemLink configuration using profiles, environment, or keyring.
+
+    Preference order:
+    1. Environment variables (SYSTEMLINK_API_URL, SYSTEMLINK_API_KEY)
+    2. Active profile from config file
+    3. Keyring (legacy fallback)
+    """
+    server_uri = get_base_url()
+    api_key = get_api_key()
 
     ssl_verify = get_ssl_verify()
 
@@ -291,27 +289,39 @@ def get_http_configuration() -> SystemLinkConfig:
 
 
 def get_base_url() -> str:
-    """Retrieve the SystemLink API base URL from environment or keyring.
+    """Retrieve the SystemLink API base URL.
 
     Preference order:
     1. Environment variable SYSTEMLINK_API_URL (for runtime overrides/testing)
-    2. Combined keyring config (stored during login)
-    3. Legacy keyring entry SYSTEMLINK_API_URL
-    4. Default fallback to localhost
+    2. Active profile from config file
+    3. Combined keyring config (legacy)
+    4. Legacy keyring entry SYSTEMLINK_API_URL
+    5. Default fallback to localhost
     """
     # First, check environment variable (highest priority for runtime overrides)
     url = os.environ.get("SYSTEMLINK_API_URL")
     if url:
         return url
 
-    # Second, try the combined keyring config
+    # Second, try the active profile
+    try:
+        from .profiles import get_active_profile
+
+        profile = get_active_profile()
+        if profile and profile.server:
+            return profile.server
+    except (FileNotFoundError, json.JSONDecodeError, KeyError, AttributeError):
+        # Profile file missing, corrupted, or malformed - fall back to keyring
+        pass
+
+    # Third, try the combined keyring config (legacy)
     cfg = _get_keyring_config()
     if cfg and isinstance(cfg, dict):
         config_url = cfg.get("api_url")
         if config_url:
             return config_url
 
-    # Third, try legacy keyring entry
+    # Fourth, try legacy keyring entry
     url = keyring.get_password("systemlink-cli", "SYSTEMLINK_API_URL")
     if url:
         return url
@@ -324,27 +334,35 @@ def get_web_url() -> str:
 
     Preference order:
     1. Environment variable SYSTEMLINK_WEB_URL
-    2. Keyring entry 'SYSTEMLINK_WEB_URL'
-    3. Derived from get_base_url() by extracting the host and returning
-       a canonical https://<host> URL as a best-effort fallback.
-
-    This helper centralizes the logic so callers (like `webapp open`) can
-    prefer an explicit web UI URL and fall back to deriving one from the
-    configured API base URL.
+    2. Active profile from config file
+    3. Combined keyring config (legacy)
+    4. Legacy keyring entry SYSTEMLINK_WEB_URL
+    5. Derived from get_base_url()
     """
     # 1) Explicit override via environment variable
     url = os.environ.get("SYSTEMLINK_WEB_URL")
     if url:
         return url.rstrip("/")
 
-    # 2) Combined keyring config entry (if present)
+    # 2) Try the active profile
+    try:
+        from .profiles import get_active_profile
+
+        profile = get_active_profile()
+        if profile and profile.web_url:
+            return profile.web_url.rstrip("/")
+    except (FileNotFoundError, json.JSONDecodeError, KeyError, AttributeError):
+        # Profile unavailable or misconfigured, fall back to other sources
+        pass
+
+    # 3) Combined keyring config entry (legacy)
     cfg = _get_keyring_config()
     if cfg and isinstance(cfg, dict):
         maybe = cfg.get("web_url") or cfg.get("webUrl") or cfg.get("web_ui_url")
         if maybe:
             return str(maybe).rstrip("/")
 
-    # 3) Legacy keyring entry fallback
+    # 4) Legacy keyring entry fallback
     url = keyring.get_password("systemlink-cli", "SYSTEMLINK_WEB_URL")
     if url:
         return url.rstrip("/")
@@ -385,12 +403,13 @@ def _get_keyring_config() -> Dict[str, Any]:
 
 
 def get_api_key() -> str:
-    """Retrieve the SystemLink API key from environment or keyring.
+    """Retrieve the SystemLink API key.
 
     Preference order:
     1. Environment variable SYSTEMLINK_API_KEY (for runtime overrides/testing)
-    2. Combined keyring config (stored during login)
-    3. Legacy keyring entry SYSTEMLINK_API_KEY
+    2. Active profile from config file
+    3. Combined keyring config (legacy)
+    4. Legacy keyring entry SYSTEMLINK_API_KEY
     """
     import click
 
@@ -399,21 +418,32 @@ def get_api_key() -> str:
     if api_key:
         return api_key
 
-    # Second, consult combined keyring config if present
+    # Second, try the active profile
+    try:
+        from .profiles import get_active_profile
+
+        profile = get_active_profile()
+        if profile and profile.api_key:
+            return profile.api_key
+    except (FileNotFoundError, json.JSONDecodeError, KeyError, AttributeError):
+        # Profile lookup error, fall back to keyring-based configuration
+        pass
+
+    # Third, consult combined keyring config if present (legacy)
     cfg = _get_keyring_config()
     if cfg and isinstance(cfg, dict):
         maybe = cfg.get("api_key") or cfg.get("apiKey") or cfg.get("apiToken")
         if maybe:
             return str(maybe)
 
-    # Third, try legacy keyring entry
+    # Fourth, try legacy keyring entry
     api_key = keyring.get_password("systemlink-cli", "SYSTEMLINK_API_KEY")
     if api_key:
         return api_key
 
     click.echo(
         "Error: API key not found. Please set the SYSTEMLINK_API_KEY "
-        "environment variable or run 'slcli login'."
+        "environment variable or run 'slcli login --profile <name>'."
     )
     raise click.ClickException("API key not found.")
 

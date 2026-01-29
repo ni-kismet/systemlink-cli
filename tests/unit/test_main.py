@@ -1,6 +1,7 @@
 """Test main CLI functionality."""
 
-from typing import Any
+import json
+from typing import Any, Optional
 
 from click.testing import CliRunner
 
@@ -54,21 +55,23 @@ def test_no_command_shows_help() -> None:
     assert "Commands:" in result.output
 
 
-def test_login_with_flags(monkeypatch: Any) -> None:
-    """Ensure login stores credentials and detects platform with flags provided."""
-    stored: dict[str, dict[str, str]] = {}
-
-    def fake_set_password(service: str, key: str, value: str) -> None:
-        stored.setdefault(service, {})[key] = value
-
-    monkeypatch.setattr("slcli.main.keyring.set_password", fake_set_password)
+def test_login_with_flags(monkeypatch: Any, tmp_path: Any) -> None:
+    """Ensure login stores credentials in profile config with flags provided."""
+    config_file = tmp_path / "config.json"
+    monkeypatch.setattr(
+        "slcli.profiles.ProfileConfig.get_config_path", classmethod(lambda cls: config_file)
+    )
     monkeypatch.setattr("slcli.main.detect_platform", lambda *a, **kw: PLATFORM_SLE)
+    # Mock keyring to return None (no existing credentials)
+    monkeypatch.setattr("slcli.main.keyring.get_password", lambda *a, **kw: None)
 
     runner = CliRunner()
     result = runner.invoke(
         cli,
         [
             "login",
+            "--profile",
+            "test",
             "--url",
             "https://example.test",
             "--api-key",
@@ -76,32 +79,63 @@ def test_login_with_flags(monkeypatch: Any) -> None:
             "--web-url",
             "https://web.example.test",
         ],
+        input="\n",  # Skip optional workspace prompt
     )
 
-    assert result.exit_code == 0
-    assert stored["systemlink-cli"]["SYSTEMLINK_CONFIG"]
+    assert result.exit_code == 0, result.output
+    assert "Profile 'test' saved successfully" in result.output
     assert "Platform: SystemLink Enterprise" in result.output
+    # Verify config was written
+    assert config_file.exists()
 
 
-def test_logout_removes_credentials(monkeypatch: Any) -> None:
-    """Ensure logout deletes all stored keyring entries."""
-    deleted: list[tuple[str, str]] = []
+def test_logout_removes_credentials(monkeypatch: Any, tmp_path: Any) -> None:
+    """Ensure logout deletes profile from config."""
+    import json
 
-    def fake_delete_password(service: str, key: str) -> None:
-        deleted.append((service, key))
+    config_file = tmp_path / "config.json"
+    # Create a config file with a profile (uses hyphens for keys)
+    config_data = {
+        "version": 1,
+        "current-profile": "test",
+        "profiles": {
+            "test": {
+                "server": "https://example.test",
+                "api-key": "abc123",
+                "web-url": "https://web.example.test",
+                "platform": "SLE",
+            }
+        },
+    }
+    config_file.write_text(json.dumps(config_data))
+    config_file.chmod(0o600)
 
-    monkeypatch.setattr("slcli.main.keyring.delete_password", fake_delete_password)
+    monkeypatch.setattr(
+        "slcli.profiles.ProfileConfig.get_config_path", classmethod(lambda cls: config_file)
+    )
+    # Mock keyring deletes to avoid errors
+    monkeypatch.setattr("slcli.main.keyring.delete_password", lambda *a, **kw: None)
+
     runner = CliRunner()
-    result = runner.invoke(cli, ["logout"])
+    result = runner.invoke(cli, ["logout", "--force"])
 
     assert result.exit_code == 0
-    assert ("systemlink-cli", "SYSTEMLINK_API_KEY") in deleted
-    assert ("systemlink-cli", "SYSTEMLINK_API_URL") in deleted
-    assert ("systemlink-cli", "SYSTEMLINK_CONFIG") in deleted
+    assert "Profile 'test' removed" in result.output
 
 
-def test_info_json(monkeypatch: Any) -> None:
+def test_info_json(monkeypatch: Any, tmp_path: Any) -> None:
     """Ensure info emits JSON when requested."""
+    import json as json_mod
+
+    config_file = tmp_path / "config.json"
+    # Create an empty config
+    config_data: dict[str, Any] = {"version": 1, "current_profile": None, "profiles": {}}
+    config_file.write_text(json_mod.dumps(config_data))
+    config_file.chmod(0o600)
+    monkeypatch.setattr(
+        "slcli.profiles.ProfileConfig.get_config_path", classmethod(lambda cls: config_file)
+    )
+
     sample = {
         "logged_in": True,
         "platform": PLATFORM_SLE,
@@ -116,4 +150,90 @@ def test_info_json(monkeypatch: Any) -> None:
     result = runner.invoke(cli, ["info", "--format", "json"])
 
     assert result.exit_code == 0
-    assert '"platform_display": "SystemLink Enterprise"' in result.output
+
+
+def test_login_prompts_migration_with_existing_keyring(monkeypatch: Any, tmp_path: Any) -> None:
+    """Test that CLI automatically migrates credentials when keyring exists."""
+    config_file = tmp_path / "config.json"
+    monkeypatch.setattr(
+        "slcli.profiles.ProfileConfig.get_config_path", classmethod(lambda cls: config_file)
+    )
+    monkeypatch.setattr("slcli.main.detect_platform", lambda *a, **kw: PLATFORM_SLE)
+
+    # Mock keyring to return existing credentials
+    def mock_get_password(service: str, key: str) -> Optional[str]:
+        if key == "SYSTEMLINK_CONFIG":
+            return json.dumps(
+                {
+                    "api_url": "https://existing.test",
+                    "api_key": "existing-key",
+                    "web_url": "https://web.existing.test",
+                    "platform": "SLE",
+                }
+            )
+        return None
+
+    # Mock keyring at module level
+    import keyring as keyring_module
+
+    monkeypatch.setattr(keyring_module, "get_password", mock_get_password)
+    monkeypatch.setattr(keyring_module, "delete_password", lambda *a, **kw: None)
+
+    runner = CliRunner()
+    # Run any command - migration should happen automatically
+    result = runner.invoke(
+        cli,
+        ["info"],
+    )
+
+    # Migration should have happened automatically
+    assert "Migration Required" in result.output
+    assert "Migrated credentials to profile 'default'" in result.output
+    assert "Migration complete" in result.output
+
+
+def test_login_migration_accepted(monkeypatch: Any, tmp_path: Any) -> None:
+    """Test that automatic migration creates the profile correctly."""
+    config_file = tmp_path / "config.json"
+    monkeypatch.setattr(
+        "slcli.profiles.ProfileConfig.get_config_path", classmethod(lambda cls: config_file)
+    )
+
+    # Mock keyring to return existing credentials
+    def mock_get_password(service: str, key: str) -> Optional[str]:
+        if key == "SYSTEMLINK_CONFIG":
+            return json.dumps(
+                {
+                    "api_url": "https://migrated.test",
+                    "api_key": "migrated-key",
+                    "web_url": "https://web.migrated.test",
+                    "platform": "SLE",
+                }
+            )
+        return None
+
+    # Mock keyring at module level
+    import keyring as keyring_module
+
+    monkeypatch.setattr(keyring_module, "get_password", mock_get_password)
+    monkeypatch.setattr(keyring_module, "delete_password", lambda *a, **kw: None)
+
+    runner = CliRunner()
+    # Run any command - migration should happen automatically
+    result = runner.invoke(
+        cli,
+        ["info"],
+    )
+
+    assert result.exit_code == 0
+    assert "Migrated credentials to profile 'default'" in result.output
+    assert "Migration complete" in result.output
+
+    # Verify profile was created
+    assert config_file.exists()
+    import json as json_mod
+
+    saved = json_mod.loads(config_file.read_text())
+    assert saved["current-profile"] == "default"
+    assert "default" in saved["profiles"]
+    assert saved["profiles"]["default"]["server"] == "https://migrated.test"

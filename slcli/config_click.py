@@ -1,0 +1,281 @@
+"""CLI commands for managing slcli configuration and profiles."""
+
+import json
+import sys
+from typing import Any
+
+import click
+
+from .profiles import ProfileConfig, check_config_file_permissions
+from .table_utils import output_formatted_list
+from .utils import ExitCodes
+
+
+def register_config_commands(cli: Any) -> None:
+    """Register the 'config' command group and its subcommands."""
+
+    @cli.group()
+    def config() -> None:
+        """Manage slcli configuration and profiles.
+
+        Profiles allow you to configure multiple SystemLink environments
+        (dev, test, prod) and switch between them easily.
+        """
+        pass
+
+    @config.command(name="list-profiles")
+    @click.option(
+        "--format",
+        "-f",
+        type=click.Choice(["table", "json"]),
+        default="table",
+        help="Output format",
+    )
+    @click.option(
+        "--take",
+        "-t",
+        type=int,
+        default=25,
+        show_default=True,
+        help="Maximum number of profiles to display per page",
+    )
+    def list_profiles(format: str, take: int) -> None:
+        """List all configured profiles."""
+        cfg = ProfileConfig.load()
+        profiles = cfg.list_profiles()
+
+        if format == "json":
+            output = []
+            for p in profiles:
+                item = {
+                    "name": p.name,
+                    "server": p.server,
+                    "current": p.name == cfg.current_profile,
+                }
+                if p.web_url:
+                    item["web-url"] = p.web_url
+                if p.platform:
+                    item["platform"] = p.platform
+                if p.workspace:
+                    item["workspace"] = p.workspace
+                output.append(item)
+            click.echo(json.dumps(output, indent=2))
+            return
+
+        if not profiles:
+            click.echo("No profiles configured.")
+            click.echo("\nRun 'slcli login --profile <name>' to create a profile.")
+            return
+
+        # Check for permission warning
+        warning = check_config_file_permissions()
+        if warning:
+            click.echo(f"⚠️  {warning}\n", err=True)
+
+        # Convert Profile objects to dictionaries for type compatibility
+        from typing import Any, Dict, List
+
+        table_items: List[Dict[str, Any]] = []
+        for p in profiles:
+            table_items.append(
+                {
+                    "name": p.name,
+                    "server": p.server,
+                    "workspace": p.workspace,
+                    "is_current": p.name == cfg.current_profile,
+                }
+            )
+
+        def format_row(profile_dict: Dict[str, Any]) -> List[str]:
+            current = "*" if profile_dict.get("is_current") else ""
+            # Truncate workspace if too long
+            workspace = profile_dict.get("workspace") or "-"
+            if profile_dict.get("workspace") and len(str(profile_dict["workspace"])) > 20:
+                workspace = str(profile_dict["workspace"])[:17] + "..."
+            # Truncate server URL if too long
+            server = profile_dict["server"]
+            if len(server) > 40:
+                server = server[:37] + "..."
+            return [current, profile_dict["name"], server, workspace]
+
+        output_formatted_list(
+            items=table_items,
+            output_format="table",
+            headers=["", "NAME", "SERVER", "WORKSPACE"],
+            column_widths=[1, 15, 40, 20],
+            row_formatter_func=format_row,
+            empty_message="No profiles configured.",
+            total_label="profile(s)",
+        )
+
+    @config.command(name="current-profile")
+    def current_profile() -> None:
+        """Show the current profile name."""
+        cfg = ProfileConfig.load()
+
+        if not cfg.current_profile:
+            click.echo("No current profile set.", err=True)
+            click.echo("Run 'slcli config use-profile <name>' to set one.", err=True)
+            sys.exit(ExitCodes.GENERAL_ERROR)
+
+        click.echo(cfg.current_profile)
+
+    @config.command(name="use-profile")
+    @click.argument("name")
+    def use_profile(name: str) -> None:
+        """Switch to a different profile."""
+        cfg = ProfileConfig.load()
+
+        if name not in cfg.profiles:
+            click.echo(f"✗ Profile '{name}' not found.", err=True)
+            if cfg.profiles:
+                click.echo(f"Available profiles: {', '.join(cfg.profiles.keys())}", err=True)
+            sys.exit(ExitCodes.NOT_FOUND)
+
+        cfg.set_current_profile(name)
+        cfg.save()
+
+        profile = cfg.get_profile(name)
+        click.echo(f"✓ Switched to profile '{name}'")
+        if profile:
+            click.echo(f"  Server: {profile.server}")
+            if profile.workspace:
+                click.echo(f"  Default workspace: {profile.workspace}")
+
+    @config.command(name="view")
+    @click.option(
+        "--format",
+        "-f",
+        type=click.Choice(["table", "json"]),
+        default="table",
+        help="Output format",
+    )
+    @click.option(
+        "--show-secrets",
+        is_flag=True,
+        help="Show API keys in output (use with caution)",
+    )
+    def view(format: str, show_secrets: bool) -> None:
+        """View the full configuration."""
+        cfg = ProfileConfig.load()
+
+        if format == "json":
+            data: dict = {}
+            if cfg.current_profile:
+                data["current-profile"] = cfg.current_profile
+            if cfg.profiles:
+                # Mask API keys unless --show-secrets is specified
+                data["profiles"] = {}
+                for name, profile in cfg.profiles.items():
+                    profile_dict = profile.to_dict()
+                    if not show_secrets and "api-key" in profile_dict:
+                        # Show only last 4 characters
+                        key = profile_dict["api-key"]
+                        profile_dict["api-key"] = "****" + key[-4:] if len(key) >= 4 else "****"
+                    data["profiles"][name] = profile_dict
+            if cfg.settings:
+                data.update(cfg.settings)
+            click.echo(json.dumps(data, indent=2))
+            return
+
+        # Table format
+        click.echo("┌─────────────────────────────────────────────────────────────┐")
+        click.echo("│ slcli Configuration                                         │")
+        click.echo("├─────────────────────────────────────────────────────────────┤")
+
+        if cfg.current_profile:
+            click.echo(f"│ Current Profile: {cfg.current_profile:<43} │")
+        else:
+            click.echo("│ Current Profile: (none)                                     │")
+
+        config_path_str = str(ProfileConfig.get_config_path())
+        if len(config_path_str) > 47:
+            config_path_str = config_path_str[:44] + "..."
+        click.echo(f"│ Config File: {config_path_str:<47} │")
+
+        if cfg.profiles:
+            click.echo("├─────────────────────────────────────────────────────────────┤")
+            click.echo("│ Profiles:                                                   │")
+            for name, profile in cfg.profiles.items():
+                marker = " *" if name == cfg.current_profile else "  "
+                click.echo(f"│{marker} {name}: {profile.server[:45]:<45} │")
+                if profile.workspace:
+                    click.echo(f"│      Workspace: {profile.workspace[:42]:<42} │")
+
+        click.echo("└─────────────────────────────────────────────────────────────┘")
+
+        # Check for permission warning
+        warning = check_config_file_permissions()
+        if warning:
+            click.echo(f"\n⚠️  {warning}", err=True)
+
+    @config.command(name="delete-profile")
+    @click.argument("name")
+    @click.option("--force", "-f", is_flag=True, help="Skip confirmation prompt")
+    def delete_profile(name: str, force: bool) -> None:
+        """Delete a profile."""
+        cfg = ProfileConfig.load()
+
+        if name not in cfg.profiles:
+            click.echo(f"✗ Profile '{name}' not found.", err=True)
+            sys.exit(ExitCodes.NOT_FOUND)
+
+        if not force:
+            if not click.confirm(f"Delete profile '{name}'?"):
+                click.echo("Aborted.")
+                sys.exit(ExitCodes.GENERAL_ERROR)
+
+        was_current = cfg.current_profile == name
+        cfg.delete_profile(name)
+        cfg.save()
+
+        click.echo(f"✓ Profile '{name}' deleted.")
+        if was_current and cfg.current_profile:
+            click.echo(f"  Current profile is now: {cfg.current_profile}")
+
+    @config.command(name="migrate")
+    @click.option(
+        "--profile-name",
+        "-n",
+        default="default",
+        help="Name for the migrated profile",
+    )
+    @click.option(
+        "--delete-keyring",
+        is_flag=True,
+        help="Delete keyring entries after migration",
+    )
+    def migrate(profile_name: str, delete_keyring: bool) -> None:
+        """Migrate credentials from keyring to config file.
+
+        This command reads existing credentials from the system keyring
+        and creates a new profile in the config file.
+        """
+        from .profiles import migrate_from_keyring
+
+        # Check if profile already exists
+        cfg = ProfileConfig.load()
+        if profile_name in cfg.profiles:
+            if not click.confirm(f"Profile '{profile_name}' already exists. Overwrite?"):
+                click.echo("Aborted.")
+                sys.exit(ExitCodes.GENERAL_ERROR)
+
+        # Use centralized migration function
+        profile = migrate_from_keyring(profile_name=profile_name, delete_keyring=delete_keyring)
+
+        if not profile:
+            click.echo("✗ No credentials found in keyring.", err=True)
+            click.echo("Run 'slcli login --profile <name>' to create a new profile.", err=True)
+            sys.exit(ExitCodes.NOT_FOUND)
+
+        click.echo(f"✓ Migrated credentials to profile '{profile_name}'")
+        click.echo(f"  Server: {profile.server}")
+        if profile.web_url:
+            click.echo(f"  Web URL: {profile.web_url}")
+        if profile.platform:
+            click.echo(f"  Platform: {profile.platform}")
+
+        if delete_keyring:
+            click.echo("✓ Deleted keyring entries")
+        else:
+            click.echo("\nNote: Keyring entries still exist. Use --delete-keyring to remove them.")

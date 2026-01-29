@@ -37,6 +37,12 @@ def test__get_keyring_config_parses_combined(monkeypatch: MonkeyPatch) -> None:
 
 
 def test_get_web_url_precedence(monkeypatch: MonkeyPatch, tmp_path: Path) -> None:
+    # Disable profiles to test keyring fallback
+    config_file = tmp_path / "config.json"
+    monkeypatch.setattr(
+        "slcli.profiles.ProfileConfig.get_config_path", classmethod(lambda cls: config_file)
+    )
+
     # Env var should take precedence
     monkeypatch.setenv("SYSTEMLINK_WEB_URL", "https://env.example")
     # even if combined keyring exists

@@ -280,18 +280,45 @@ def get_platform_info() -> Dict[str, Any]:
     Returns:
         Dictionary with platform info including URL, platform type, and features.
     """
-    cfg = _get_keyring_config()
+    from .utils import get_api_key, get_base_url, get_web_url
+
+    # Use profile-aware functions instead of keyring directly
+    try:
+        api_url = get_base_url()
+    except Exception:
+        api_url = "Not configured"
+
+    try:
+        web_url = get_web_url()
+    except Exception:
+        web_url = "Not configured"
+
+    try:
+        api_key = get_api_key()
+        logged_in = bool(api_key)
+    except Exception:
+        logged_in = False
+
+    # Get platform from profile or keyring config
+    from .profiles import get_active_profile
+
+    active_profile = get_active_profile()
+    if active_profile and active_profile.platform:
+        platform = active_profile.platform
+    else:
+        # Fall back to keyring config
+        cfg = _get_keyring_config()
+        platform = cfg.get("platform", PLATFORM_UNKNOWN)
 
     info: Dict[str, Any] = {
-        "api_url": cfg.get("api_url", "Not configured"),
-        "web_url": cfg.get("web_url", "Not configured"),
-        "platform": cfg.get("platform", PLATFORM_UNKNOWN),
-        "platform_display": _get_platform_display_name(cfg.get("platform", PLATFORM_UNKNOWN)),
-        "logged_in": bool(cfg.get("api_key")),
+        "api_url": api_url,
+        "web_url": web_url,
+        "platform": platform,
+        "platform_display": _get_platform_display_name(platform),
+        "logged_in": logged_in,
     }
 
     # Add feature availability if platform is known
-    platform = cfg.get("platform", PLATFORM_UNKNOWN)
     if platform in PLATFORM_FEATURES:
         info["features"] = {}
         for feature, available in PLATFORM_FEATURES[platform].items():
