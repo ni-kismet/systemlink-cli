@@ -5,8 +5,15 @@ class Slcli < Formula
   license "MIT"
 
   on_macos do
-    url "https://github.com/ni-kismet/systemlink-cli/releases/download/v{{ version }}/slcli-macos.tar.gz"
-    sha256 "{{ sha256_macos }}"
+    on_intel do
+      url "https://github.com/ni-kismet/systemlink-cli/releases/download/v{{ version }}/slcli-macos-13.tar.gz"
+      sha256 "{{ sha256_macos_13 }}"
+    end
+
+    on_arm do
+      url "https://github.com/ni-kismet/systemlink-cli/releases/download/v{{ version }}/slcli-macos.tar.gz"
+      sha256 "{{ sha256_macos }}"
+    end
   end
 
   on_linux do

@@ -15,7 +15,7 @@ jobs:
   build:
     strategy:
       matrix:
-        os: [ubuntu-latest, macos-latest, windows-latest]
+        os: [ubuntu-latest, macos-latest, macos-13, windows-latest]
         include:
           - os: ubuntu-latest
             platform: linux
@@ -23,6 +23,9 @@ jobs:
           - os: macos-latest
             platform: macos
             artifact_name: slcli-macos
+          - os: macos-13
+            platform: macos
+            artifact_name: slcli-macos-13
           - os: windows-latest
             platform: windows
             artifact_name: slcli-windows
@@ -55,13 +58,13 @@ jobs:
         if: matrix.platform == 'linux'
         run: |
           cd dist
-          tar -czf slcli-linux.tar.gz slcli/
+          tar -czf "${{ matrix.artifact_name }}.tar.gz" slcli/
 
       - name: Create platform-specific tarball (macOS)
         if: matrix.platform == 'macos'
         run: |
           cd dist
-          tar -czf slcli-macos.tar.gz slcli/
+          tar -czf "${{ matrix.artifact_name }}.tar.gz" slcli/
 
       - name: Create Windows ZIP for Scoop
         if: matrix.platform == 'windows'
@@ -166,6 +169,7 @@ jobs:
             scoop-artifacts/scoop-slcli.json
             slcli-linux/slcli-linux.tar.gz
             slcli-macos/slcli-macos.tar.gz
+            slcli-macos-13/slcli-macos-13.tar.gz
             slcli-windows/slcli.zip
           generate_release_notes: true
         env:
