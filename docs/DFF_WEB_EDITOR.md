@@ -53,8 +53,8 @@ dff-editor/                # Source assets (packaged with CLI)
 
 ### ✅ Server Integration
 
-- Load from Server (GET /api/customfield/configurations)
-- Apply to Server (POST /api/customfields/configurations)
+- Load from Server (GET /api/dff/configurations)
+- Apply to Server (POST /api/dff/configurations)
 - Dynamic server URL (uses current origin)
 - Confirmation dialogs before destructive operations
 - Error handling with clear messages
@@ -147,22 +147,22 @@ The editor validates against this JSON schema:
 
 ```bash
 # Default: port 8080
-poetry run slcli customfields edit
+poetry run slcli customfield edit
 
 # Custom port
-poetry run slcli customfields edit --port 9000
+poetry run slcli customfield edit --port 9000
 
 # Suppress auto-browser open
-poetry run slcli customfields edit --no-browser
+poetry run slcli customfield edit --no-browser
 
 # Load a configuration from the server by ID
-poetry run slcli customfields edit --id d772cb8c-db2a-4201-81b8-6c3777e81f22
+poetry run slcli customfield edit --id d772cb8c-db2a-4201-81b8-6c3777e81f22
 
 # Load from server with custom port
-poetry run slcli customfields edit --id config-uuid --port 9000
+poetry run slcli customfield edit --id config-uuid --port 9000
 
 # Load from a local file
-poetry run slcli customfields edit --file my-config.json
+poetry run slcli customfield edit --file my-config.json
 ```
 
 ### Development Workflow
@@ -318,7 +318,7 @@ const dffSchema = {
 
 - **Documentation**: [dff-editor/README.md](../dff-editor/README.md)
 - **Examples**: Use "Load Example" button in editor
-- **CLI Help**: `slcli customfields edit --help`
+- **CLI Help**: `slcli customfield edit --help`
 - **Issues**: Report via GitHub issues
 
 ---

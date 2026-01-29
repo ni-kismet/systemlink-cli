@@ -361,17 +361,17 @@ For Custom Fields tests, common issues and solutions:
 
 ```bash
 # Test custom fields configuration creation manually
-poetry run slcli customfields create --file /path/to/config.json
+poetry run slcli customfield create --file /path/to/config.json
 
 # Check workspace ID (custom fields require IDs, not names)
 poetry run slcli workspace list --format json | jq '.[] | select(.name=="Default") | .id'
 
 # Verify custom fields export structure
-poetry run slcli customfields export --id <config-id> --output /tmp/export.json
+poetry run slcli customfield export --id <config-id> --output /tmp/export.json
 cat /tmp/export.json | jq keys  # Should show "configurations", "groups", "fields"
 
 # Test resource type validation
-poetry run slcli customfields init --help  # Shows valid resource types
+poetry run slcli customfield init --help  # Shows valid resource types
 ```
 
 ## Best Practices

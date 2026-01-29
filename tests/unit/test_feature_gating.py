@@ -60,7 +60,7 @@ class TestFeatureGatingDFF:
         result = runner.invoke(cli, ["customfield", "--help"])
 
         assert result.exit_code == 0
-        assert "Manage custom field" in result.output
+        assert "Manage custom field (DFF) configurations" in result.output
 
 
 class TestFeatureGatingTemplates:

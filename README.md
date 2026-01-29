@@ -1563,36 +1563,36 @@ slcli customfield list --format json
 slcli customfield list --workspace "Production Workspace"
 
 # Get a specific configuration
-slcli customfields get --id <config_id>
+slcli customfield get --id <config_id>
 
 # Export a configuration to JSON file
-slcli customfields export --id <config_id> --output config.json
+slcli customfield export --id <config_id> --output config.json
 
 # Create configurations from JSON file
-slcli customfields create --file config.json
+slcli customfield create --file config.json
 
 # Update configurations from JSON file
-slcli customfields update --file config.json
+slcli customfield update --file config.json
 
 # Delete a configuration (recursive by default - deletes dependent groups/fields)
-slcli customfields delete --id <config_id>
+slcli customfield delete --id <config_id>
 
 # Delete multiple configurations
-slcli customfields delete --id <config_id1> --id <config_id2>
+slcli customfield delete --id <config_id1> --id <config_id2>
 
 # Delete groups (standalone or multiple)
-slcli customfields delete --group-id <group_id>
-slcli customfields delete -g <group_id1> -g <group_id2>
+slcli customfield delete --group-id <group_id>
+slcli customfield delete -g <group_id1> -g <group_id2>
 
 # Delete fields
-slcli customfields delete --field-id <field_id>
-slcli customfields delete --fid <field_id1> --fid <field_id2>
+slcli customfield delete --field-id <field_id>
+slcli customfield delete --fid <field_id1> --fid <field_id2>
 
 # Delete mixed types in one command
-slcli customfields delete --id <config_id> -g <group_id> --field-id <field_id>
+slcli customfield delete --id <config_id> -g <group_id> --field-id <field_id>
 
 # Non-recursive delete (only deletes specified items, not dependent items)
-slcli customfields delete --id <config_id> --no-recursive
+slcli customfield delete --id <config_id> --no-recursive
 
 # Initialize a new configuration template
 slcli customfield init --name "My Config" --workspace "MyWorkspace" --resource-type workorder:workorder
@@ -1604,16 +1604,16 @@ Launch a local web-based editor for visual editing of custom field JSON files:
 
 ```bash
 # Launch web editor with default settings (port 8080)
-slcli customfields edit
+slcli customfield edit
 
 # Load a specific configuration by ID from the server
-slcli customfields edit --id <configuration-id>
+slcli customfield edit --id <configuration-id>
 
 # Custom port
-slcli customfields edit --port 9000
+slcli customfield edit --port 9000
 
 # Don't auto-open browser
-slcli customfields edit --no-browser
+slcli customfield edit --no-browser
 ```
 
 The web editor (Monaco-based):

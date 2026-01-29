@@ -1110,144 +1110,6 @@ function showEditDialog(type, configIdx, viewIdx = null) {
     overlay.classList.add('active');
 }
 
-function showEditDialog(type, configIdx, viewIdx = null) {
-    modalType = `edit-${type}`;
-    const overlay = document.getElementById('modalOverlay');
-    const title = document.getElementById('modalTitle');
-    const body = document.getElementById('modalBody');
-    
-    // Helper to safely create form groups
-    function createFormGroup(labelText, inputId, inputType, value, placeholder = '', helpText = '') {
-        const group = document.createElement('div');
-        group.className = 'form-group';
-        
-        const label = document.createElement('label');
-        label.textContent = labelText;
-        group.appendChild(label);
-        
-        if (inputType === 'select') {
-            const select = document.createElement('select');
-            select.id = inputId;
-            const options = ['STRING', 'NUMBER', 'BOOLEAN', 'DATE', 'DATETIME', 'SELECT', 'MULTISELECT', 'TEXT'];
-            options.forEach(opt => {
-                const option = document.createElement('option');
-                option.value = opt;
-                option.textContent = opt.charAt(0) + opt.slice(1).toLowerCase();
-                if (opt === value) option.selected = true;
-                select.appendChild(option);
-            });
-            group.appendChild(select);
-        } else if (inputType === 'checkbox') {
-            const checkbox = document.createElement('input');
-            checkbox.type = 'checkbox';
-            checkbox.id = inputId;
-            checkbox.checked = !!value;
-            group.appendChild(checkbox);
-        } else {
-            const input = document.createElement('input');
-            input.type = inputType;
-            input.id = inputId;
-            input.placeholder = placeholder;
-            input.value = String(value || '');
-            group.appendChild(input);
-        }
-        
-        if (helpText) {
-            const small = document.createElement('small');
-            small.textContent = helpText;
-            group.appendChild(small);
-        }
-        
-        return group;
-    }
-    
-    function createCheckboxGroup(labelText, inputId, checked) {
-        const group = document.createElement('div');
-        group.className = 'form-group checkbox-group';
-        
-        const checkbox = document.createElement('input');
-        checkbox.type = 'checkbox';
-        checkbox.id = inputId;
-        checkbox.checked = !!checked;
-        group.appendChild(checkbox);
-        
-        const label = document.createElement('label');
-        label.htmlFor = inputId;
-        label.textContent = labelText;
-        group.appendChild(label);
-        
-        return group;
-    }
-    
-    if (type === 'view' && viewIdx !== null) {
-        const conf = currentConfig.configurations?.[configIdx];
-        const view = conf?.views?.[viewIdx];
-        if (!view) {
-            showStatus('View not found', 'error');
-            return;
-        }
-        
-        title.textContent = 'Edit View';
-        body.innerHTML = '';
-        
-        body.appendChild(createFormGroup('Key *', 'viewKey', 'text', view.key || '', 'e.g., defaultView', 'Unique identifier'));
-        body.appendChild(createFormGroup('Display Text *', 'viewDisplayText', 'text', view.displayText || '', 'e.g., Default View', 'Text shown to users'));
-        body.appendChild(createFormGroup('Help Text', 'viewHelpText', 'text', view.helpText || '', 'Optional help text'));
-        body.appendChild(createFormGroup('Order', 'viewOrder', 'number', view.order || 10, '', 'Display order (lower numbers appear first)'));
-        body.appendChild(createFormGroup('Display Locations (comma-separated)', 'viewDisplayLocations', 'text', (view.displayLocations || []).join(', '), 'e.g., compact, full, split, global', 'Valid values: compact, full, split, global'));
-        body.appendChild(createFormGroup('Group Keys (comma-separated)', 'viewGroups', 'text', (view.groups || []).join(', '), 'e.g., group1, group2', 'Keys of groups to include in this view'));
-        body.appendChild(createCheckboxGroup('Editable', 'viewEditable', view.editable));
-        body.appendChild(createCheckboxGroup('Visible', 'viewVisible', view.visible));
-        
-        // Store indices in modal for use during submit
-        overlay.dataset.editType = 'view';
-        overlay.dataset.configIdx = configIdx;
-        overlay.dataset.viewIdx = viewIdx;
-        
-    } else if (type === 'group') {
-        const group = currentConfig.groups?.[configIdx];
-        if (!group) {
-            showStatus('Group not found', 'error');
-            return;
-        }
-        
-        title.textContent = 'Edit Group';
-        body.innerHTML = '';
-        
-        body.appendChild(createFormGroup('Key *', 'groupKey', 'text', group.key || '', 'e.g., basicInfo', 'Unique identifier (lowercase, no spaces)'));
-        body.appendChild(createFormGroup('Display Text *', 'groupDisplayText', 'text', group.displayText || '', 'e.g., Basic Information', 'Text shown to users'));
-        body.appendChild(createFormGroup('Help Text', 'groupHelpText', 'text', group.helpText || '', 'Optional help text'));
-        body.appendChild(createFormGroup('Workspace ID *', 'groupWorkspace', 'text', group.workspace || '', 'e.g., workspace-123'));
-        body.appendChild(createFormGroup('Field Keys (comma-separated)', 'groupFieldKeys', 'text', (group.fields || []).join(', '), 'e.g., field1, field2', 'Optional: Keys of fields to include'));
-        
-        overlay.dataset.editType = 'group';
-        overlay.dataset.groupIdx = configIdx;
-        
-    } else if (type === 'field') {
-        const field = currentConfig.fields?.[configIdx];
-        if (!field) {
-            showStatus('Field not found', 'error');
-            return;
-        }
-        
-        title.textContent = 'Edit Field';
-        body.innerHTML = '';
-        
-        body.appendChild(createFormGroup('Key *', 'fieldKey', 'text', field.key || '', 'e.g., deviceId', 'Unique identifier (lowercase, no spaces)'));
-        body.appendChild(createFormGroup('Display Text *', 'fieldDisplayText', 'text', field.displayText || '', 'e.g., Device Identifier', 'Text shown to users'));
-        body.appendChild(createFormGroup('Help Text', 'fieldHelpText', 'text', field.helpText || '', 'Optional help text'));
-        body.appendChild(createFormGroup('Placeholder', 'fieldPlaceholder', 'text', field.placeHolder || '', 'Optional placeholder text'));
-        body.appendChild(createFormGroup('Workspace ID *', 'fieldWorkspace', 'text', field.workspace || '', 'e.g., workspace-123'));
-        body.appendChild(createFormGroup('Field Type *', 'fieldType', 'select', field.fieldType || 'STRING', '', ''));
-        body.appendChild(createCheckboxGroup('Required field', 'fieldRequired', field.required));
-        
-        overlay.dataset.editType = 'field';
-        overlay.dataset.fieldIdx = configIdx;
-    }
-    
-    overlay.classList.add('active');
-}
-
 function getCurrentWorkspace() {
     if (!currentConfig) return '';
     if (currentConfig.configuration && currentConfig.configuration.workspace) {
@@ -1929,17 +1791,85 @@ function addI18nEntry(existingEntry = null) {
     entryDiv.className = 'i18n-entry';
     entryDiv.id = entryId;
     entryDiv.style.cssText = 'padding: 10px; margin-bottom: 10px; border: 1px solid #3e3e42; border-radius: 3px; background: #252526;';
-    entryDiv.innerHTML = `
-        <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px;">
-            <label style="margin: 0; font-weight: bold;">Locale</label>
-            <button type="button" class="danger" style="padding: 2px 8px; font-size: 11px;" onclick="removeI18nEntry('${entryId}')">Remove</button>
-        </div>
-        <input type="text" class="i18n-locale" placeholder="e.g., de-DE, fr-FR, es-ES" value="${localeValue}" style="width: 100%; margin-bottom: 8px;">
-        <label style="display: block; margin-bottom: 5px;">Display Text</label>
-        <input type="text" class="i18n-displayText" placeholder="Translated display text" value="${displayTextValue}" style="width: 100%; margin-bottom: 8px;">
-        <label style="display: block; margin-bottom: 5px;">Help Text</label>
-        <input type="text" class="i18n-helpText" placeholder="Translated help text" value="${helpTextValue}" style="width: 100%;">
-    `;
+
+    // Header row with "Locale" label and "Remove" button
+    const headerDiv = document.createElement('div');
+    headerDiv.style.cssText = 'display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px;';
+
+    const localeLabel = document.createElement('label');
+    localeLabel.style.margin = '0';
+    localeLabel.style.fontWeight = 'bold';
+    localeLabel.textContent = 'Locale';
+
+    const removeButton = document.createElement('button');
+    removeButton.type = 'button';
+    removeButton.className = 'danger';
+    removeButton.style.cssText = 'padding: 2px 8px; font-size: 11px;';
+    removeButton.textContent = 'Remove';
+    removeButton.onclick = function () {
+        removeI18nEntry(entryId);
+    };
+
+    headerDiv.appendChild(localeLabel);
+    headerDiv.appendChild(removeButton);
+    entryDiv.appendChild(headerDiv);
+
+    // Locale select dropdown
+    const localeInput = document.createElement('select');
+    localeInput.className = 'i18n-locale';
+    localeInput.style.cssText = 'width: 100%; margin-bottom: 8px;';
+    
+    // Add language options
+    const languages = [
+        { value: '', label: 'Select a language...' },
+        { value: 'en', label: 'English (English)' },
+        { value: 'fr', label: 'French (Français)' },
+        { value: 'de', label: 'German (Deutsch)' },
+        { value: 'ja', label: 'Japanese (日本語)' },
+        { value: 'zh', label: 'Chinese (中文)' }
+    ];
+    
+    languages.forEach(lang => {
+        const option = document.createElement('option');
+        option.value = lang.value;
+        option.textContent = lang.label;
+        if (lang.value === localeValue) {
+            option.selected = true;
+        }
+        localeInput.appendChild(option);
+    });
+    
+    entryDiv.appendChild(localeInput);
+
+    // Display Text label and input
+    const displayTextLabel = document.createElement('label');
+    displayTextLabel.style.display = 'block';
+    displayTextLabel.style.marginBottom = '5px';
+    displayTextLabel.textContent = 'Display Text';
+    entryDiv.appendChild(displayTextLabel);
+
+    const displayTextInput = document.createElement('input');
+    displayTextInput.type = 'text';
+    displayTextInput.className = 'i18n-displayText';
+    displayTextInput.placeholder = 'Translated display text';
+    displayTextInput.style.cssText = 'width: 100%; margin-bottom: 8px;';
+    displayTextInput.value = displayTextValue;
+    entryDiv.appendChild(displayTextInput);
+
+    // Help Text label and input
+    const helpTextLabel = document.createElement('label');
+    helpTextLabel.style.display = 'block';
+    helpTextLabel.style.marginBottom = '5px';
+    helpTextLabel.textContent = 'Help Text';
+    entryDiv.appendChild(helpTextLabel);
+
+    const helpTextInput = document.createElement('input');
+    helpTextInput.type = 'text';
+    helpTextInput.className = 'i18n-helpText';
+    helpTextInput.placeholder = 'Translated help text';
+    helpTextInput.style.cssText = 'width: 100%;';
+    helpTextInput.value = helpTextValue;
+    entryDiv.appendChild(helpTextInput);
     
     i18nList.appendChild(entryDiv);
 }
@@ -2002,10 +1932,24 @@ function addEnumValue(existingValue = '') {
     entryDiv.className = 'enum-value-entry';
     entryDiv.id = valueId;
     entryDiv.style.cssText = 'display: flex; gap: 8px; margin-bottom: 8px; align-items: center;';
-    entryDiv.innerHTML = `
-        <input type="text" class="enum-value" placeholder="Enter value" value="${existingValue}" style="flex: 1;">
-        <button type="button" class="danger" style="padding: 4px 8px; font-size: 11px;" onclick="removeEnumValue('${valueId}')">Remove</button>
-    `;
+    
+    const input = document.createElement('input');
+    input.type = 'text';
+    input.className = 'enum-value';
+    input.placeholder = 'Enter value';
+    input.style.flex = '1';
+    input.value = existingValue;
+    
+    const button = document.createElement('button');
+    button.type = 'button';
+    button.className = 'danger';
+    button.style.padding = '4px 8px';
+    button.style.fontSize = '11px';
+    button.textContent = 'Remove';
+    button.addEventListener('click', () => removeEnumValue(valueId));
+    
+    entryDiv.appendChild(input);
+    entryDiv.appendChild(button);
     
     enumList.appendChild(entryDiv);
 }
