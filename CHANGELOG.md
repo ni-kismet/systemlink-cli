@@ -1,12 +1,77 @@
 # CHANGELOG
 
 
+## v0.27.0 (2026-01-29)
+
+### Features
+
+- Implement profile-based configuration management
+  ([#51](https://github.com/ni-kismet/systemlink-cli/pull/51),
+  [`fa1eab7`](https://github.com/ni-kismet/systemlink-cli/commit/fa1eab75b95f6312f1f19287d97b44ebe786a1d8))
+
+* feat: implement profile-based configuration management
+
+- Add profiles.py module for managing multiple named profiles - Add config CLI commands for profile
+  management (list, view, use, delete, migrate) - Update login/logout commands to support --profile
+  flag - Add global --profile flag to all commands - Update utils.py functions to check profiles
+  before keyring - Fix platform.py get_platform_info() to use profile-aware functions - Update info
+  command to display active profile information - Add comprehensive unit tests (22 for profiles, 12
+  for config commands) - Update README with profile usage documentation - Maintain backwards
+  compatibility with keyring-based auth
+
+Implements kubectl-style multi-profile configuration system with AWS CLI naming conventions.
+
+* fix: address PR review feedback
+
+- Fix URL/workspace truncation with proper ellipsis in list-profiles - Add SYSTEMLINK_WEB_URL to
+  environment variables documentation - Mask API keys in 'config view --format json' output (add
+  --show-secrets flag) - Fix config path truncation to avoid double pipe character - Remove
+  redundant platform variable assignment - Add explanatory comments to all bare except clauses -
+  Improve security by preventing accidental API key exposure
+
+Resolves all 15 review comments from copilot-pull-request-reviewer
+
+* Fix PR review feedback round 2: type safety and UX consistency
+
+- Fix type compatibility in list-profiles: convert Profile objects to Dict[str, Any] for
+  output_formatted_list - Update return type annotation from 'list' to 'List[str]' for consistency -
+  Add --take/-t option to list-profiles command for UX consistency (default=25) - Update add_profile
+  docstring to clarify first profile becomes current even with set_current=False - Replace broad
+  'except Exception:' with specific exceptions (FileNotFoundError, json.JSONDecodeError, KeyError,
+  AttributeError) in profile loading functions
+
+All tests pass (401/401). mypy and linting pass.
+
+* lint fix
+
+* Add migration prompt to login command
+
+- Detect existing keyring credentials when no profiles exist - Prompt user to migrate credentials
+  during first login - Offer interactive migration with option to delete keyring entries - Add 2 new
+  unit tests for migration prompt scenarios - Update test_login_with_flags to mock keyring (prevent
+  false positives)
+
+Addresses minor observation from PR review: 'Consider adding a prompt on first slcli login if
+  keyring credentials exist, suggesting migration.'
+
+All 403 unit tests pass. Linting and type checking pass.
+
+* automatically migrate
+
+* lint fix
+
+
 ## v0.26.1 (2026-01-29)
 
 ### Bug Fixes
 
 - Update to macos-15-intel runner
   ([`9352a4f`](https://github.com/ni-kismet/systemlink-cli/commit/9352a4f4240e4f9771bb07e1e4a22f8172cbe947))
+
+### Chores
+
+- **release**: 0.26.1
+  ([`12bbae3`](https://github.com/ni-kismet/systemlink-cli/commit/12bbae3f8a2f59b6cf1b9c6bd2876445071ab694))
 
 
 ## v0.26.0 (2026-01-29)
