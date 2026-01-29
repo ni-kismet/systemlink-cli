@@ -1782,7 +1782,7 @@ function addI18nEntry(existingEntry = null) {
     const i18nList = document.getElementById('i18nList');
     if (!i18nList) return;
     
-    const entryId = 'i18n-' + Date.now() + '-' + Math.random().toString(36).substr(2, 9);
+    const entryId = 'i18n-' + Date.now() + '-' + Math.random().toString(36).slice(2, 11);
     const localeValue = existingEntry?.locale || '';
     const displayTextValue = existingEntry?.displayText || '';
     const helpTextValue = existingEntry?.helpText || '';
@@ -1926,7 +1926,7 @@ function addEnumValue(existingValue = '') {
     const enumList = document.getElementById('enumValuesList');
     if (!enumList) return;
     
-    const valueId = 'enum-' + Date.now() + '-' + Math.random().toString(36).substr(2, 9);
+    const valueId = 'enum-' + Date.now() + '-' + Math.random().toString(36).slice(2, 11);
     
     const entryDiv = document.createElement('div');
     entryDiv.className = 'enum-value-entry';

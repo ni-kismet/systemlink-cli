@@ -113,7 +113,6 @@ class DFFWebEditor:
         # If a file was provided, copy it to the temp directory for the editor to load
         if file:
             import shutil
-            from pathlib import Path
 
             source_path = Path(file)
             if source_path.exists():
