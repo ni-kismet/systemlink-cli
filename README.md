@@ -5,7 +5,8 @@ SystemLink CLI (`slcli`) is a cross-platform Python CLI for SystemLink integrato
 ## Features
 
 - **Multi-Platform Support**: Works with both SystemLink Enterprise (SLE) and SystemLink Server (SLS) with automatic platform detection
-- **Secure Authentication**: Credential storage using [keyring](https://github.com/jaraco/keyring) with `login`/`logout` commands
+- **Multi-Profile Support**: Manage multiple SystemLink environments (dev, test, prod) with easy switching between profiles
+- **Secure Authentication**: Credential storage in config file with secure permissions, plus legacy keyring support
 - **File Management**: Full file lifecycle management (list, upload, download, delete, query) with folder watch feature for automated uploads
 - **Function Management**: Complete WebAssembly (WASM) function definition and execution management with metadata-driven organization
 - **Test Plan Templates**: Complete management (list, export, import, delete, init) with JSON and table output formats
@@ -97,7 +98,12 @@ After installation, restart your shell or source the completion file. See [docs/
 1. **Login to SystemLink:**
 
    ```bash
+   # First time setup - creates a 'default' profile
    slcli login
+   
+   # Or create named profiles for different environments
+   slcli login --profile dev
+   slcli login --profile prod
    ```
 
 2. **List available resources:**
@@ -177,6 +183,7 @@ Available samples:
 4. **Get help for any command:**
    ```bash
    slcli --help
+   slcli config --help
    slcli template --help
    slcli workflow --help
    slcli notebook --help
@@ -287,19 +294,23 @@ slcli feed delete --id <feed-id> --yes
 
 ## Authentication
 
-Before using SystemLink CLI commands, you need to authenticate with your SystemLink server:
+Before using SystemLink CLI commands, you need to authenticate with your SystemLink server.
 
 ### Login to SystemLink
 
 ```bash
-# Interactive login (prompts for URL and API key)
+# Interactive login (prompts for profile name, URL, and API key)
 slcli login
 
-# Non-interactive login with flags
-slcli login --url "https://your-server.com/api" --api-key "your-api-key"
+# Login with a named profile
+slcli login --profile dev
+slcli login --profile prod --url "https://prod-api.example.com"
 
-# Partial flags (will prompt for missing values)
-slcli login --url "https://your-server.com/api"
+# Non-interactive login with all flags
+slcli login --profile myprofile --url "https://your-server.com" --api-key "your-api-key" --web-url "https://your-server-web.com"
+
+# Set a default workspace for a profile
+slcli login --profile dev --workspace "Development"
 ```
 
 **Note**: The CLI automatically converts HTTP URLs to HTTPS for security. SystemLink servers typically require HTTPS for API access.
@@ -307,8 +318,71 @@ slcli login --url "https://your-server.com/api"
 ### Logout (remove stored credentials)
 
 ```bash
+# Remove current profile
 slcli logout
+
+# Remove a specific profile
+slcli logout --profile dev
+
+# Remove all profiles
+slcli logout --all --force
 ```
+
+### Multi-Profile Management
+
+Manage multiple SystemLink environments (development, testing, production) using profiles:
+
+```bash
+# List all configured profiles
+slcli config list-profiles
+
+# Show current profile
+slcli config current-profile
+
+# Switch to a different profile
+slcli config use-profile prod
+
+# View full configuration (with masked API keys)
+slcli config view
+
+# Delete a profile
+slcli config delete-profile old-profile --force
+```
+
+### Using Profiles with Commands
+
+```bash
+# Use a specific profile for a single command
+slcli --profile prod workspace list
+slcli -p dev template list
+
+# Set profile via environment variable
+export SLCLI_PROFILE=prod
+slcli workspace list  # Uses 'prod' profile
+```
+
+### Configuration File
+
+Profiles are stored in `~/.config/slcli/config.json` with secure file permissions (600). You can also:
+
+```bash
+# Set custom config location
+export SLCLI_CONFIG=/path/to/config.json
+
+# Migrate from legacy keyring storage
+slcli config migrate
+```
+
+### Environment Variable Overrides
+
+Environment variables take precedence over profile settings:
+
+| Variable | Description |
+|----------|-------------|
+| `SLCLI_PROFILE` | Profile to use (default: current profile) |
+| `SLCLI_CONFIG` | Custom config file path |
+| `SYSTEMLINK_API_URL` | Override API URL |
+| `SYSTEMLINK_API_KEY` | Override API key |
 
 ## Platform Support
 

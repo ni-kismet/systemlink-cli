@@ -54,14 +54,12 @@ def test_no_command_shows_help() -> None:
     assert "Commands:" in result.output
 
 
-def test_login_with_flags(monkeypatch: Any) -> None:
-    """Ensure login stores credentials and detects platform with flags provided."""
-    stored: dict[str, dict[str, str]] = {}
-
-    def fake_set_password(service: str, key: str, value: str) -> None:
-        stored.setdefault(service, {})[key] = value
-
-    monkeypatch.setattr("slcli.main.keyring.set_password", fake_set_password)
+def test_login_with_flags(monkeypatch: Any, tmp_path: Any) -> None:
+    """Ensure login stores credentials in profile config with flags provided."""
+    config_file = tmp_path / "config.json"
+    monkeypatch.setattr(
+        "slcli.profiles.ProfileConfig.get_config_path", classmethod(lambda cls: config_file)
+    )
     monkeypatch.setattr("slcli.main.detect_platform", lambda *a, **kw: PLATFORM_SLE)
 
     runner = CliRunner()
@@ -69,6 +67,8 @@ def test_login_with_flags(monkeypatch: Any) -> None:
         cli,
         [
             "login",
+            "--profile",
+            "test",
             "--url",
             "https://example.test",
             "--api-key",
@@ -76,32 +76,63 @@ def test_login_with_flags(monkeypatch: Any) -> None:
             "--web-url",
             "https://web.example.test",
         ],
+        input="\n",  # Skip optional workspace prompt
     )
 
-    assert result.exit_code == 0
-    assert stored["systemlink-cli"]["SYSTEMLINK_CONFIG"]
+    assert result.exit_code == 0, result.output
+    assert "Profile 'test' saved successfully" in result.output
     assert "Platform: SystemLink Enterprise" in result.output
+    # Verify config was written
+    assert config_file.exists()
 
 
-def test_logout_removes_credentials(monkeypatch: Any) -> None:
-    """Ensure logout deletes all stored keyring entries."""
-    deleted: list[tuple[str, str]] = []
+def test_logout_removes_credentials(monkeypatch: Any, tmp_path: Any) -> None:
+    """Ensure logout deletes profile from config."""
+    import json
 
-    def fake_delete_password(service: str, key: str) -> None:
-        deleted.append((service, key))
+    config_file = tmp_path / "config.json"
+    # Create a config file with a profile (uses hyphens for keys)
+    config_data = {
+        "version": 1,
+        "current-profile": "test",
+        "profiles": {
+            "test": {
+                "server": "https://example.test",
+                "api-key": "abc123",
+                "web-url": "https://web.example.test",
+                "platform": "SLE",
+            }
+        },
+    }
+    config_file.write_text(json.dumps(config_data))
+    config_file.chmod(0o600)
 
-    monkeypatch.setattr("slcli.main.keyring.delete_password", fake_delete_password)
+    monkeypatch.setattr(
+        "slcli.profiles.ProfileConfig.get_config_path", classmethod(lambda cls: config_file)
+    )
+    # Mock keyring deletes to avoid errors
+    monkeypatch.setattr("slcli.main.keyring.delete_password", lambda *a, **kw: None)
+
     runner = CliRunner()
-    result = runner.invoke(cli, ["logout"])
+    result = runner.invoke(cli, ["logout", "--force"])
 
     assert result.exit_code == 0
-    assert ("systemlink-cli", "SYSTEMLINK_API_KEY") in deleted
-    assert ("systemlink-cli", "SYSTEMLINK_API_URL") in deleted
-    assert ("systemlink-cli", "SYSTEMLINK_CONFIG") in deleted
+    assert "Profile 'test' removed" in result.output
 
 
-def test_info_json(monkeypatch: Any) -> None:
+def test_info_json(monkeypatch: Any, tmp_path: Any) -> None:
     """Ensure info emits JSON when requested."""
+    import json as json_mod
+
+    config_file = tmp_path / "config.json"
+    # Create an empty config
+    config_data: dict[str, Any] = {"version": 1, "current_profile": None, "profiles": {}}
+    config_file.write_text(json_mod.dumps(config_data))
+    config_file.chmod(0o600)
+    monkeypatch.setattr(
+        "slcli.profiles.ProfileConfig.get_config_path", classmethod(lambda cls: config_file)
+    )
+
     sample = {
         "logged_in": True,
         "platform": PLATFORM_SLE,
