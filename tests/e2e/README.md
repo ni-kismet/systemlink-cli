@@ -13,7 +13,7 @@ tests/e2e/
 ├── conftest.py                 # Shared fixtures and configuration
 ├── test_notebook_e2e.py        # Notebook command tests
 ├── test_user_e2e.py           # User command tests
-├── test_dff_e2e.py            # Dynamic Form Fields tests
+├── test_dff_e2e.py            # Custom Fields tests
 ├── test_workspace_e2e.py      # Workspace command tests
 ├── test_tag_e2e.py            # Tag command tests
 ├── run_e2e.py                 # E2E test runner
@@ -65,7 +65,7 @@ The API key should have:
 - Permissions to create/read/update/delete notebooks
 - Access to user management APIs
 - Access to workspace management APIs
-- Access to Dynamic Form Fields (if testing DFF functionality)
+- Access to Custom Fields (if testing custom fields functionality)
 
 ## Running E2E Tests
 
@@ -91,7 +91,7 @@ poetry run pytest tests/e2e/test_user_e2e.py -m e2e -v
 # Workspace tests only
 poetry run pytest tests/e2e/test_workspace_e2e.py -m e2e -v
 
-# DFF tests only
+# Custom fields tests only
 poetry run pytest tests/e2e/test_dff_e2e.py -m e2e -v
 
 # Tag tests only
@@ -177,7 +177,7 @@ If tests fail only in parallel mode, they likely have:
 - Workspace filtering
 - Name vs ID-based operations
 
-### 🔧 Dynamic Form Fields Tests
+### 🔧 Custom Fields Tests
 
 - Configuration CRUD operations
 - Groups and fields listing
@@ -197,7 +197,7 @@ The framework uses pytest markers to categorize tests:
 - `@pytest.mark.e2e` - All E2E tests
 - `@pytest.mark.slow` - Long-running tests
 - `@pytest.mark.notebook` - Notebook-related tests
-- `@pytest.mark.dff` - Dynamic Form Fields tests
+- `@pytest.mark.dff` - Custom Fields tests
 - `@pytest.mark.workspace` - Workspace-related tests
 - `@pytest.mark.user` - User management tests
 
@@ -292,7 +292,7 @@ def test_notebook_create_and_delete_cycle(self, cli_runner, cli_helper):
 ### Test Data Fixtures
 
 - `sample_notebook_content` - Valid notebook JSON
-- `sample_dff_config` - DFF configuration template
+- `sample_dff_config` - Custom Fields configuration template
 
 ### Helper Classes
 
@@ -303,44 +303,38 @@ def test_notebook_create_and_delete_cycle(self, cli_runner, cli_helper):
 ### Common Issues
 
 1. **Authentication Failures**
-
    - Verify credentials are correct
    - Check if test user account is active
    - Ensure user has required permissions
 
 2. **Network/Connectivity Issues**
-
    - Verify dev environment URL is accessible
    - Check firewall/VPN requirements
    - Increase timeout values if needed
 
 3. **Permission Errors**
-
    - Verify test user has workspace access
    - Check API permissions for user role
    - Ensure workspace exists and is accessible
 
 4. **Test Data Conflicts**
-
    - Enable cleanup to remove test artifacts
    - Use unique names with UUID suffixes
    - Check for leftover data from previous runs
 
 5. **Interactive Pagination Issues**
-
    - E2E tests automatically disable interactive pagination
    - CLI detects non-interactive environments (pytest, automated testing, piped output)
    - Set `SLCLI_NON_INTERACTIVE=true` to force non-interactive mode
    - Use `--format json` to avoid pagination entirely
 
-6. **DFF Configuration Creation Failures**
-
-   - DFF API requires workspace IDs, not workspace names
+6. **Custom Fields Configuration Creation Failures**
+   - Custom Fields API requires workspace IDs, not workspace names
    - Use `slcli workspace list --format json` to get workspace IDs
    - Verify all required fields are present in configuration JSON
-   - Check that `resourceType` values are valid (use `slcli dff init --help`)
+   - Check that `resourceType` values are valid (use `slcli customfield init --help`)
 
-7. **DFF Export/Import Structure Issues**
+7. **Custom Fields Export/Import Structure Issues**
    - Export commands return data with `configurations` (plural) key
    - Import commands expect same structure with `configurations` array
    - Single configuration get commands also return `configurations` array
@@ -361,23 +355,23 @@ poetry run pytest tests/e2e/ -x
 poetry run pytest tests/e2e/test_notebook_e2e.py::TestNotebookE2E::test_notebook_create_and_delete_cycle -v -s
 ```
 
-### DFF-Specific Debugging
+### Custom Fields Debugging
 
-For Dynamic Form Fields tests, common issues and solutions:
+For Custom Fields tests, common issues and solutions:
 
 ```bash
-# Test DFF configuration creation manually
-poetry run slcli dff create --file /path/to/config.json
+# Test custom fields configuration creation manually
+poetry run slcli customfield create --file /path/to/config.json
 
-# Check workspace ID (DFF requires IDs, not names)
+# Check workspace ID (custom fields require IDs, not names)
 poetry run slcli workspace list --format json | jq '.[] | select(.name=="Default") | .id'
 
-# Verify DFF export structure
-poetry run slcli dff export --id <config-id> --output /tmp/export.json
+# Verify custom fields export structure
+poetry run slcli customfield export --id <config-id> --output /tmp/export.json
 cat /tmp/export.json | jq keys  # Should show "configurations", "groups", "fields"
 
 # Test resource type validation
-poetry run slcli dff init --help  # Shows valid resource types
+poetry run slcli customfield init --help  # Shows valid resource types
 ```
 
 ## Best Practices

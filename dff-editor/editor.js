@@ -233,34 +233,41 @@ require(['vs/editor/editor.main'], async function () {
     // Auto-save to local storage every 30 seconds
     setInterval(autoSave, 30000);
     
-    // Load editor metadata if available (configId)
+    // Load configuration file if specified in slcli-config.json
     try {
-        const resp = await fetch('.editor-metadata.json');
-        if (resp.ok) {
-            const metadata = await resp.json();
-            if (metadata.configId) {
-                currentConfigId = metadata.configId;
-            }
-            if (metadata.configFile) {
-                // Try to load the saved config file
+        const respCfgCheck = await fetch('slcli-config.json');
+        if (respCfgCheck.ok) {
+            const cfgCheck = await respCfgCheck.json();
+            if (cfgCheck.configFile) {
+                // Try to load the config file
                 try {
-                    const configResp = await fetch(metadata.configFile);
+                    const configResp = await fetch(cfgCheck.configFile);
                     if (configResp.ok) {
                         const savedConfig = await configResp.json();
                         editor.setValue(JSON.stringify(savedConfig, null, 2));
                         currentConfig = savedConfig;
+                        
+                        // Extract config ID if present
+                        if (savedConfig.configuration?.id) {
+                            currentConfigId = savedConfig.configuration.id;
+                        } else if (savedConfig.configurations?.[0]?.id) {
+                            currentConfigId = savedConfig.configurations[0].id;
+                        }
+                        
                         isDirty = false;
                         showStatus('Configuration loaded from file', 'success');
                         refreshTree();
+                        validateDocument();
                         return;
                     }
                 } catch (e) {
-                    console.warn('Could not load saved config file:', e);
+                    console.warn('Could not load config file:', e);
                 }
             }
         }
     } catch (e) {
-        // Metadata file not found, use default
+        // Config file not specified or not found
+        console.log('No config file specified, using default or auto-save');
     }
     
     // Load from auto-save if available
@@ -775,6 +782,14 @@ function showAddDialog(type) {
                 <input type="checkbox" id="viewVisible" checked>
                 <label for="viewVisible">Visible</label>
             </div>
+            <div class="form-group">
+                <label>Localized Strings (i18n)</label>
+                <div id="i18nContainer" style="border: 1px solid #3e3e42; border-radius: 3px; padding: 10px; margin-top: 5px;">
+                    <div id="i18nList"></div>
+                    <button type="button" class="secondary" style="margin-top: 5px; width: 100%;" onclick="addI18nEntry()">+ Add Locale</button>
+                </div>
+                <small>Add translations for different locales (e.g., en, fr, de)</small>
+            </div>
         `;
     } else if (type === 'group') {
         const workspace = getCurrentWorkspace();
@@ -803,6 +818,14 @@ function showAddDialog(type) {
                 <label>Field Keys (comma-separated)</label>
                 <input type="text" id="groupFieldKeys" placeholder="e.g., field1, field2">
                 <small>Optional: Keys of fields to include</small>
+            </div>
+            <div class="form-group">
+                <label>Localized Strings (i18n)</label>
+                <div id="i18nContainer" style="border: 1px solid #3e3e42; border-radius: 3px; padding: 10px; margin-top: 5px;">
+                    <div id="i18nList"></div>
+                    <button type="button" class="secondary" style="margin-top: 5px; width: 100%;" onclick="addI18nEntry()">+ Add Locale</button>
+                </div>
+                <small>Add translations for different locales (e.g., en, fr, de)</small>
             </div>
         `;
     } else if (type === 'field') {
@@ -834,7 +857,7 @@ function showAddDialog(type) {
             </div>
             <div class="form-group">
                 <label>Field Type *</label>
-                <select id="fieldType">
+                <select id="fieldType" onchange="updateFieldTypeOptions()">
                     <option value="STRING">String</option>
                     <option value="NUMBER">Number</option>
                     <option value="BOOLEAN">Boolean</option>
@@ -849,7 +872,25 @@ function showAddDialog(type) {
                 <input type="checkbox" id="fieldRequired">
                 <label for="fieldRequired">Required field</label>
             </div>
+            <div id="enumValuesContainer" class="form-group" style="display: none;">
+                <label>Allowed Values (for Select/Multi-Select)</label>
+                <div id="enumValuesWrapper" style="border: 1px solid #3e3e42; border-radius: 3px; padding: 10px; margin-top: 5px;">
+                    <div id="enumValuesList"></div>
+                    <button type="button" class="secondary" style="margin-top: 5px; width: 100%;" onclick="addEnumValue()">+ Add Value</button>
+                </div>
+                <small>Define the options available for selection</small>
+            </div>
+            <div class="form-group">
+                <label>Localized Strings (i18n)</label>
+                <div id="i18nContainer" style="border: 1px solid #3e3e42; border-radius: 3px; padding: 10px; margin-top: 5px;">
+                    <div id="i18nList"></div>
+                    <button type="button" class="secondary" style="margin-top: 5px; width: 100%;" onclick="addI18nEntry()">+ Add Locale</button>
+                </div>
+                <small>Add translations for different locales (e.g., en, fr, de)</small>
+            </div>
         `;
+        // Initialize the field type options visibility
+        setTimeout(() => updateFieldTypeOptions(), 0);
     }
     
     overlay.classList.add('active');
@@ -944,6 +985,22 @@ function showEditDialog(type, configIdx, viewIdx = null) {
         body.appendChild(createCheckboxGroup('Editable', 'viewEditable', view.editable));
         body.appendChild(createCheckboxGroup('Visible', 'viewVisible', view.visible));
         
+        // Add i18n section
+        const i18nGroup = document.createElement('div');
+        i18nGroup.className = 'form-group';
+        i18nGroup.innerHTML = `
+            <label>Localized Strings (i18n)</label>
+            <div id="i18nContainer" style="border: 1px solid #3e3e42; border-radius: 3px; padding: 10px; margin-top: 5px;">
+                <div id="i18nList"></div>
+                <button type="button" class="secondary" style="margin-top: 5px; width: 100%;" onclick="addI18nEntry()">+ Add Locale</button>
+            </div>
+            <small>Add translations for different locales (e.g., en, fr, de)</small>
+        `;
+        body.appendChild(i18nGroup);
+        
+        // Populate existing i18n entries
+        setTimeout(() => populateI18nEntries(view.i18n || []), 0);
+        
         // Store indices in modal for use during submit
         overlay.dataset.editType = 'view';
         overlay.dataset.configIdx = configIdx;
@@ -965,6 +1022,22 @@ function showEditDialog(type, configIdx, viewIdx = null) {
         body.appendChild(createFormGroup('Workspace ID *', 'groupWorkspace', 'text', group.workspace || '', 'e.g., workspace-123'));
         body.appendChild(createFormGroup('Field Keys (comma-separated)', 'groupFieldKeys', 'text', (group.fields || []).join(', '), 'e.g., field1, field2', 'Optional: Keys of fields to include'));
         
+        // Add i18n section
+        const i18nGroup = document.createElement('div');
+        i18nGroup.className = 'form-group';
+        i18nGroup.innerHTML = `
+            <label>Localized Strings (i18n)</label>
+            <div id="i18nContainer" style="border: 1px solid #3e3e42; border-radius: 3px; padding: 10px; margin-top: 5px;">
+                <div id="i18nList"></div>
+                <button type="button" class="secondary" style="margin-top: 5px; width: 100%;" onclick="addI18nEntry()">+ Add Locale</button>
+            </div>
+            <small>Add translations for different locales (e.g., en, fr, de)</small>
+        `;
+        body.appendChild(i18nGroup);
+        
+        // Populate existing i18n entries
+        setTimeout(() => populateI18nEntries(group.i18n || []), 0);
+        
         overlay.dataset.editType = 'group';
         overlay.dataset.groupIdx = configIdx;
         
@@ -985,6 +1058,50 @@ function showEditDialog(type, configIdx, viewIdx = null) {
         body.appendChild(createFormGroup('Workspace ID *', 'fieldWorkspace', 'text', field.workspace || '', 'e.g., workspace-123'));
         body.appendChild(createFormGroup('Field Type *', 'fieldType', 'select', field.fieldType || 'STRING', '', ''));
         body.appendChild(createCheckboxGroup('Required field', 'fieldRequired', field.required));
+        
+        // Add enum values section
+        const enumGroup = document.createElement('div');
+        enumGroup.id = 'enumValuesContainer';
+        enumGroup.className = 'form-group';
+        enumGroup.style.display = 'none';
+        enumGroup.innerHTML = `
+            <label>Allowed Values (for Select/Multi-Select)</label>
+            <div id="enumValuesWrapper" style="border: 1px solid #3e3e42; border-radius: 3px; padding: 10px; margin-top: 5px;">
+                <div id="enumValuesList"></div>
+                <button type="button" class="secondary" style="margin-top: 5px; width: 100%;" onclick="addEnumValue()">+ Add Value</button>
+            </div>
+            <small>Define the options available for selection</small>
+        `;
+        body.appendChild(enumGroup);
+        
+        // Add i18n section
+        const i18nGroup = document.createElement('div');
+        i18nGroup.className = 'form-group';
+        i18nGroup.innerHTML = `
+            <label>Localized Strings (i18n)</label>
+            <div id="i18nContainer" style="border: 1px solid #3e3e42; border-radius: 3px; padding: 10px; margin-top: 5px;">
+                <div id="i18nList"></div>
+                <button type="button" class="secondary" style="margin-top: 5px; width: 100%;" onclick="addI18nEntry()">+ Add Locale</button>
+            </div>
+            <small>Add translations for different locales (e.g., en, fr, de)</small>
+        `;
+        body.appendChild(i18nGroup);
+        
+        // Add onchange handler to field type select
+        setTimeout(() => {
+            const fieldTypeSelect = document.getElementById('fieldType');
+            if (fieldTypeSelect) {
+                fieldTypeSelect.onchange = updateFieldTypeOptions;
+                updateFieldTypeOptions();
+            }
+            
+            // Populate existing enum values if applicable
+            const allowedValues = field.validation?.allowedValues || field.allowedValues || [];
+            populateEnumValues(allowedValues);
+            
+            // Populate existing i18n entries
+            populateI18nEntries(field.i18n || []);
+        }, 0);
         
         overlay.dataset.editType = 'field';
         overlay.dataset.fieldIdx = configIdx;
@@ -1063,6 +1180,11 @@ function submitModal() {
             
             const displayLocations = displayLocationsStr ? displayLocationsStr.split(',').map(k => k.trim()).filter(k => k) : ['compact'];
             const groupsList = groupsStr ? groupsStr.split(',').map(k => k.trim()).filter(k => k) : [];
+            const i18nEntries = collectI18nEntries();
+            if (i18nEntries === null) {
+                // Validation error already shown by collectI18nEntries
+                return;
+            }
             
             const viewData = {
                 key,
@@ -1072,7 +1194,7 @@ function submitModal() {
                 editable,
                 visible,
                 retainWhenHidden: false,
-                i18n: [],
+                i18n: i18nEntries,
                 displayLocations,
                 groups: groupsList
             };
@@ -1116,6 +1238,11 @@ function submitModal() {
             }
             
             const fieldKeys = fieldKeysStr ? fieldKeysStr.split(',').map(k => k.trim()).filter(k => k) : [];
+            const i18nEntries = collectI18nEntries();
+            if (i18nEntries === null) {
+                // Validation error already shown by collectI18nEntries
+                return;
+            }
             
             const groupData = {
                 key,
@@ -1123,6 +1250,7 @@ function submitModal() {
                 displayText,
                 helpText,
                 fields: fieldKeys,
+                i18n: i18nEntries,
                 properties: {}
             };
             
@@ -1166,6 +1294,23 @@ function submitModal() {
                 return;
             }
             
+            const i18nEntries = collectI18nEntries();
+            if (i18nEntries === null) {
+                // Validation error already shown by collectI18nEntries
+                return;
+            }
+            const enumValues = collectEnumValues();
+            if (enumValues === null) {
+                // Validation error already shown by collectEnumValues
+                return;
+            }
+            
+            // Validate that SELECT/MULTISELECT fields have at least one allowed value
+            if ((fieldType === 'SELECT' || fieldType === 'MULTISELECT') && enumValues.length === 0) {
+                showStatus('SELECT and MULTISELECT fields require at least one allowed value', 'error');
+                return;
+            }
+            
             const fieldData = {
                 key,
                 workspace,
@@ -1174,9 +1319,15 @@ function submitModal() {
                 placeHolder,
                 fieldType,
                 required,
+                i18n: i18nEntries,
                 validation: {},
                 properties: {}
             };
+            
+            // Add allowed values for SELECT and MULTISELECT field types
+            if ((fieldType === 'SELECT' || fieldType === 'MULTISELECT') && enumValues.length > 0) {
+                fieldData.validation.allowedValues = enumValues;
+            }
             
             if (isEdit) {
                 // Edit mode: replace the existing field
@@ -1647,3 +1798,244 @@ window.addEventListener('beforeunload', (e) => {
         e.returnValue = '';
     }
 });
+
+// i18n management functions
+function addI18nEntry(existingEntry = null) {
+    const i18nList = document.getElementById('i18nList');
+    if (!i18nList) return;
+    
+    const entryId = 'i18n-' + Date.now() + '-' + Math.random().toString(36).slice(2, 11);
+    const localeValue = existingEntry?.locale || '';
+    const displayTextValue = existingEntry?.displayText || '';
+    const helpTextValue = existingEntry?.helpText || '';
+    
+    const entryDiv = document.createElement('div');
+    entryDiv.className = 'i18n-entry';
+    entryDiv.id = entryId;
+    entryDiv.style.cssText = 'padding: 10px; margin-bottom: 10px; border: 1px solid #3e3e42; border-radius: 3px; background: #252526;';
+
+    // Header row with "Locale" label and "Remove" button
+    const headerDiv = document.createElement('div');
+    headerDiv.style.cssText = 'display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px;';
+
+    const localeLabel = document.createElement('label');
+    localeLabel.style.margin = '0';
+    localeLabel.style.fontWeight = 'bold';
+    localeLabel.textContent = 'Locale';
+
+    const removeButton = document.createElement('button');
+    removeButton.type = 'button';
+    removeButton.className = 'danger';
+    removeButton.style.cssText = 'padding: 2px 8px; font-size: 11px;';
+    removeButton.textContent = 'Remove';
+    removeButton.onclick = function () {
+        removeI18nEntry(entryId);
+    };
+
+    headerDiv.appendChild(localeLabel);
+    headerDiv.appendChild(removeButton);
+    entryDiv.appendChild(headerDiv);
+
+    // Locale select dropdown
+    const localeInput = document.createElement('select');
+    localeInput.className = 'i18n-locale';
+    localeInput.style.cssText = 'width: 100%; margin-bottom: 8px;';
+    
+    // Add language options
+    const languages = [
+        { value: '', label: 'Select a language...' },
+        { value: 'en', label: 'English (English)' },
+        { value: 'fr', label: 'French (Français)' },
+        { value: 'de', label: 'German (Deutsch)' },
+        { value: 'ja', label: 'Japanese (日本語)' },
+        { value: 'zh', label: 'Chinese (中文)' }
+    ];
+    
+    languages.forEach(lang => {
+        const option = document.createElement('option');
+        option.value = lang.value;
+        option.textContent = lang.label;
+        if (lang.value === localeValue) {
+            option.selected = true;
+        }
+        localeInput.appendChild(option);
+    });
+    
+    entryDiv.appendChild(localeInput);
+
+    // Display Text label and input
+    const displayTextLabel = document.createElement('label');
+    displayTextLabel.style.display = 'block';
+    displayTextLabel.style.marginBottom = '5px';
+    displayTextLabel.textContent = 'Display Text';
+    entryDiv.appendChild(displayTextLabel);
+
+    const displayTextInput = document.createElement('input');
+    displayTextInput.type = 'text';
+    displayTextInput.className = 'i18n-displayText';
+    displayTextInput.placeholder = 'Translated display text';
+    displayTextInput.style.cssText = 'width: 100%; margin-bottom: 8px;';
+    displayTextInput.value = displayTextValue;
+    entryDiv.appendChild(displayTextInput);
+
+    // Help Text label and input
+    const helpTextLabel = document.createElement('label');
+    helpTextLabel.style.display = 'block';
+    helpTextLabel.style.marginBottom = '5px';
+    helpTextLabel.textContent = 'Help Text';
+    entryDiv.appendChild(helpTextLabel);
+
+    const helpTextInput = document.createElement('input');
+    helpTextInput.type = 'text';
+    helpTextInput.className = 'i18n-helpText';
+    helpTextInput.placeholder = 'Translated help text';
+    helpTextInput.style.cssText = 'width: 100%;';
+    helpTextInput.value = helpTextValue;
+    entryDiv.appendChild(helpTextInput);
+    
+    i18nList.appendChild(entryDiv);
+}
+
+function removeI18nEntry(entryId) {
+    const entry = document.getElementById(entryId);
+    if (entry) {
+        entry.remove();
+    }
+}
+
+function collectI18nEntries() {
+    const i18nList = document.getElementById('i18nList');
+    if (!i18nList) return [];
+    
+    const entries = [];
+    const seenLocales = new Set();
+    let hasDuplicates = false;
+    let duplicateLocale = '';
+    
+    const entryDivs = i18nList.querySelectorAll('.i18n-entry');
+    entryDivs.forEach(div => {
+        const locale = div.querySelector('.i18n-locale').value.trim();
+        const displayText = div.querySelector('.i18n-displayText').value.trim();
+        const helpText = div.querySelector('.i18n-helpText').value.trim();
+        
+        if (locale && (displayText || helpText)) {
+            // Check for duplicate locale
+            if (seenLocales.has(locale)) {
+                hasDuplicates = true;
+                duplicateLocale = locale;
+                return;
+            }
+            seenLocales.add(locale);
+            
+            const entry = { locale };
+            if (displayText) entry.displayText = displayText;
+            if (helpText) entry.helpText = helpText;
+            entries.push(entry);
+        }
+    });
+    
+    if (hasDuplicates) {
+        showStatus(`Duplicate locale '${duplicateLocale}' found. Each locale can only be used once.`, 'error');
+        return null;
+    }
+    
+    return entries;
+}
+
+function populateI18nEntries(i18nArray) {
+    if (!i18nArray || !Array.isArray(i18nArray)) return;
+    
+    i18nArray.forEach(entry => {
+        addI18nEntry(entry);
+    });
+}
+
+// Enum values management functions
+function updateFieldTypeOptions() {
+    const fieldType = document.getElementById('fieldType')?.value;
+    const enumContainer = document.getElementById('enumValuesContainer');
+    
+    if (!enumContainer) return;
+    
+    const isEnumType = fieldType === 'SELECT' || fieldType === 'MULTISELECT';
+    enumContainer.style.display = isEnumType ? 'block' : 'none';
+}
+
+function addEnumValue(existingValue = '') {
+    const enumList = document.getElementById('enumValuesList');
+    if (!enumList) return;
+    
+    const valueId = 'enum-' + Date.now() + '-' + Math.random().toString(36).slice(2, 11);
+    
+    const entryDiv = document.createElement('div');
+    entryDiv.className = 'enum-value-entry';
+    entryDiv.id = valueId;
+    entryDiv.style.cssText = 'display: flex; gap: 8px; margin-bottom: 8px; align-items: center;';
+    
+    const input = document.createElement('input');
+    input.type = 'text';
+    input.className = 'enum-value';
+    input.placeholder = 'Enter value';
+    input.style.flex = '1';
+    input.value = existingValue;
+    
+    const button = document.createElement('button');
+    button.type = 'button';
+    button.className = 'danger';
+    button.style.padding = '4px 8px';
+    button.style.fontSize = '11px';
+    button.textContent = 'Remove';
+    button.addEventListener('click', () => removeEnumValue(valueId));
+    
+    entryDiv.appendChild(input);
+    entryDiv.appendChild(button);
+    
+    enumList.appendChild(entryDiv);
+}
+
+function removeEnumValue(valueId) {
+    const entry = document.getElementById(valueId);
+    if (entry) {
+        entry.remove();
+    }
+}
+
+function collectEnumValues() {
+    const enumList = document.getElementById('enumValuesList');
+    if (!enumList) return [];
+    
+    const values = [];
+    const seenValues = new Set();
+    let hasDuplicates = false;
+    let duplicateValue = '';
+    
+    const entryDivs = enumList.querySelectorAll('.enum-value-entry');
+    entryDivs.forEach(div => {
+        const value = div.querySelector('.enum-value').value.trim();
+        if (value) {
+            // Check for duplicate value
+            if (seenValues.has(value)) {
+                hasDuplicates = true;
+                duplicateValue = value;
+                return;
+            }
+            seenValues.add(value);
+            values.push(value);
+        }
+    });
+    
+    if (hasDuplicates) {
+        showStatus(`Duplicate enum value '${duplicateValue}' found. Each value must be unique.`, 'error');
+        return null;
+    }
+    
+    return values;
+}
+
+function populateEnumValues(valuesArray) {
+    if (!valuesArray || !Array.isArray(valuesArray)) return;
+    
+    valuesArray.forEach(value => {
+        addEnumValue(value);
+    });
+}

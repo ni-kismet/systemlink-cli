@@ -124,8 +124,8 @@ After installation, restart your shell or source the completion file. See [docs/
    # View workspaces
    slcli workspace list
 
-   # View dynamic form field configurations
-   slcli dff list
+   # View custom field configurations
+   slcli customfield list
    ```
 
 # View auth policies and templates
@@ -170,8 +170,8 @@ Available samples:
    # Create a new workflow
    slcli workflow init --name "My Workflow" --description "Custom workflow"
 
-   # Launch DFF web editor
-   slcli dff edit
+   # Launch custom fields web editor
+   slcli customfield edit
    ```
 
 4. **Get help for any command:**
@@ -180,7 +180,7 @@ Available samples:
    slcli template --help
    slcli workflow --help
    slcli notebook --help
-   slcli dff --help
+   slcli customfield --help
    slcli feed --help
    slcli auth policy --help
    slcli auth template --help
@@ -314,10 +314,10 @@ slcli logout
 
 SystemLink CLI supports both **SystemLink Enterprise (SLE)** and **SystemLink Server (SLS)**:
 
-| Platform | Notebook Execution | DFF/Templates/Workflows |
-| -------- | ------------------ | ----------------------- |
-| **SLE**  | ✓ Full support     | ✓ Full support          |
-| **SLS**  | ✓ Path-based API   | ✗ Not available         |
+| Platform | Notebook Execution | Custom Fields/Templates/Workflows |
+| -------- | ------------------ | --------------------------------- |
+| **SLE**  | ✓ Full support     | ✓ Full support                    |
+| **SLS**  | ✓ Path-based API   | ✗ Not available                   |
 
 ### Platform Detection
 
@@ -334,7 +334,7 @@ slcli info --format json
 ### Platform-Specific Notes
 
 - **Notebook Execution on SLS**: Uses notebook path (e.g., `_shared/reports/notebook.ipynb`) instead of notebook ID
-- **Feature Gating**: Commands for DFF, templates, workflows, and functions show clear error messages when run on SLS
+- **Feature Gating**: Commands for custom fields, templates, workflows, and functions show clear error messages when run on SLS
 - **Environment Override**: Set `SYSTEMLINK_PLATFORM=SLE` or `SYSTEMLINK_PLATFORM=SLS` to explicitly specify the platform
 
 ## Test Plan Template Management
@@ -1308,28 +1308,22 @@ Manage static web applications (pack, publish and remote management) using the `
 The `webapp` group provides a small local scaffold and .nipkg packer, and also manages WebApp resources on the SystemLink server.
 
 - `slcli webapp init [--directory PATH] [--force]`
-
   - Scaffold a sample webapp (`index.html`) in `./app` inside the target directory. Use `--force` to overwrite an existing file.
 
 - `slcli webapp pack <FOLDER> [--output FILE.nipkg]`
-
   - Pack a folder into a `.nipkg`. The `.nipkg` uses a Debian-style `ar` layout (members: `debian-binary`, `control.tar.gz`, `data.tar.gz`).
 
 - `slcli webapp publish <SOURCE> [--id ID] [--name NAME] [--workspace WORKSPACE]`
-
   - Publish a `.nipkg` (or folder) to the WebApp service. Provide either `--id` to upload into an existing webapp, or `--name` to create a new resource and upload the content. `--workspace` selects the workspace for newly created webapps.
   - When publishing a folder, the CLI creates a temporary `.nipkg` inside a context-managed temporary directory so the packaged file is available during upload and is cleaned up automatically.
 
 - `slcli webapp list [--workspace WORKSPACE] [--filter FILTER] [--take N] [--format table|json]`
-
   - List webapps. Defaults to interactive paging for `table` output (25 rows/page) and returns all results for `--format json`.
 
 - `slcli webapp get --id ID`
-
   - Show webapp metadata.
 
 - `slcli webapp delete --id ID`
-
   - Delete a webapp.
 
 - `slcli webapp open --id ID`
@@ -1550,87 +1544,88 @@ slcli tag get-value "my-tag-path" --include-aggregates
 slcli tag delete "my-tag-path"
 ```
 
-## Dynamic Form Fields (DFF) Management
+## Custom Fields Management
 
-The `dff` command group allows you to manage dynamic form fields in SystemLink, including configurations, groups, fields, and tables. DFF provides a web-based editor for visual editing of JSON configurations.
+The `customfield` command group allows you to manage custom fields in SystemLink, including configurations, groups, fields, and tables. Custom fields provide a web-based editor for visual editing of JSON configurations.
 
 ### Configuration Management
 
-Manage dynamic form field configurations:
+Manage custom field configurations:
 
 ```bash
 # List all configurations
-slcli dff list
+slcli customfield list
 
 # JSON format for programmatic use
-slcli dff list --format json
+slcli customfield list --format json
 
 # Filter by workspace
-slcli dff list --workspace "Production Workspace"
+slcli customfield list --workspace "Production Workspace"
 
 # Get a specific configuration
-slcli dff get --id <config_id>
+slcli customfield get --id <config_id>
 
 # Export a configuration to JSON file
-slcli dff export --id <config_id> --output config.json
+slcli customfield export --id <config_id> --output config.json
 
 # Create configurations from JSON file
-slcli dff create --file config.json
+slcli customfield create --file config.json
 
 # Update configurations from JSON file
-slcli dff update --file config.json
+slcli customfield update --file config.json
 
 # Delete a configuration (recursive by default - deletes dependent groups/fields)
-slcli dff delete --id <config_id>
+slcli customfield delete --id <config_id>
 
 # Delete multiple configurations
-slcli dff delete --id <config_id1> --id <config_id2>
+slcli customfield delete --id <config_id1> --id <config_id2>
 
 # Delete groups (standalone or multiple)
-slcli dff delete --group-id <group_id>
-slcli dff delete -g <group_id1> -g <group_id2>
+slcli customfield delete --group-id <group_id>
+slcli customfield delete -g <group_id1> -g <group_id2>
 
 # Delete fields
-slcli dff delete --field-id <field_id>
-slcli dff delete --fid <field_id1> --fid <field_id2>
+slcli customfield delete --field-id <field_id>
+slcli customfield delete --fid <field_id1> --fid <field_id2>
 
 # Delete mixed types in one command
-slcli dff delete --id <config_id> -g <group_id> --field-id <field_id>
+slcli customfield delete --id <config_id> -g <group_id> --field-id <field_id>
 
 # Non-recursive delete (only deletes specified items, not dependent items)
-slcli dff delete --id <config_id> --no-recursive
+slcli customfield delete --id <config_id> --no-recursive
 
 # Initialize a new configuration template
-slcli dff init --name "My Config" --workspace "MyWorkspace" --resource-type workorder:workorder
+slcli customfield init --name "My Config" --workspace "MyWorkspace" --resource-type workorder:workorder
 ```
 
 ### Web Editor
 
-Launch a local web-based editor for visual editing of DFF JSON files:
+Launch a local web-based editor for visual editing of custom field JSON files:
 
 ```bash
-# Launch web editor with default settings (port 8080, ./dff-editor directory)
-slcli dff edit
+# Launch web editor with default settings (port 8080)
+slcli customfield edit
 
 # Load a specific configuration by ID from the server
-slcli dff edit --id <configuration-id>
+slcli customfield edit --id <configuration-id>
 
-# Custom port and directory
-slcli dff edit --port 9000 --output-dir ./my_editor
+# Custom port
+slcli customfield edit --port 9000
 
 # Don't auto-open browser
-slcli dff edit --no-open-browser
+slcli customfield edit --no-browser
 ```
 
 The web editor (Monaco-based):
 
-- Hosts a local HTTP server for editing DFF configurations
+- Hosts a local HTTP server for editing custom field configurations
 - Provides a VS Code-like editor with JSON validation, formatting, and find/replace
 - Includes a tree view, add dialogs for configurations/groups/fields, and schema validation
 - Supports loading/saving to the SystemLink server from the UI
-- Creates standalone editor files in the specified directory for reuse
+- Supports i18n (internationalization) field editing for multiple locales
+- Supports interactive enum value editing for SELECT and MULTISELECT field types
 
-**Note**: The web editor creates a self-contained directory with all necessary HTML, CSS, and JavaScript files. This directory can be moved or shared independently.
+**Note**: The web editor provides a professional editing experience for managing custom field configurations with real-time validation and server integration.
 
 ## File Management
 

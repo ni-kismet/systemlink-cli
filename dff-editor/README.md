@@ -1,6 +1,6 @@
-# Dynamic Form Fields Editor
+# Custom Fields Editor
 
-This directory contains a standalone web editor for SystemLink Dynamic Form Fields configurations with a modern, VS Code-like interface.
+This directory contains a standalone web editor for SystemLink Custom Fields configurations with a VS Code-like interface.
 
 ## Files
 
@@ -14,7 +14,7 @@ This directory contains a standalone web editor for SystemLink Dynamic Form Fiel
 1. Start the editor server:
 
 ```bash
-slcli dff edit --output-dir dff-editor --port 8080
+slcli customfield edit --port 8080
 ```
 
 2. Open your browser to: http://localhost:8080
@@ -28,7 +28,7 @@ slcli dff edit --output-dir dff-editor --port 8080
 ### Monaco Editor
 
 - Syntax highlighting and IntelliSense for JSON
-- Real-time validation against DFF schema
+- Real-time validation against custom fields schema
 - Auto-formatting (Alt+F) and validate (Alt+V)
 - Find/Replace (Ctrl+F / Ctrl+H)
 - Minimap, dark theme, format on paste/type

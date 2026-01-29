@@ -1,8 +1,8 @@
-# DFF Web Editor Implementation Guide
+# Custom Fields Web Editor Implementation Guide
 
 ## Overview
 
-The SystemLink CLI now includes a production-ready, Monaco Editor-based web interface for managing Dynamic Form Fields configurations.
+The SystemLink CLI now includes a production-ready, Monaco Editor-based web interface for managing Custom Fields configurations.
 
 ## Architecture
 
@@ -22,7 +22,7 @@ dff-editor/                # Source assets (packaged with CLI)
 ### ✅ Monaco Editor Foundation
 
 - Full Monaco Editor 0.45.0 integration via CDN
-- JSON schema validation for DFF configurations
+- JSON schema validation for custom fields configurations
 - Syntax highlighting, IntelliSense, auto-completion
 - Find/Replace, minimap, format on paste/type
 - Dark theme matching VS Code
@@ -49,7 +49,7 @@ dff-editor/                # Source assets (packaged with CLI)
 - Unique key enforcement
 - Reference integrity checks
 - Enum validation (resourceType, fieldType)
-- Schema compliance with SystemLink DFF API
+- Schema compliance with SystemLink Custom Fields API
 
 ### ✅ Server Integration
 
@@ -110,7 +110,7 @@ else:
 **editor.js** (~730 lines) provides:
 
 - **Monaco Setup**: Schema definition, editor initialization, event handlers
-- **Validation Engine**: JSON validation + custom DFF rules
+- **Validation Engine**: JSON validation + custom fields rules
 - **Tree Rendering**: Dynamic sidebar generation from parsed config
 - **Modal System**: Reusable dialog framework for add/edit operations
 - **Server Communication**: Fetch-based API calls with error handling
@@ -146,23 +146,23 @@ The editor validates against this JSON schema:
 ### Basic Usage
 
 ```bash
-# Default: port 8080, ./dff-editor directory
-poetry run slcli dff edit
+# Default: port 8080
+poetry run slcli customfield edit
 
-# Custom port and directory
-poetry run slcli dff edit --port 9000 --output-dir my-editor
+# Custom port
+poetry run slcli customfield edit --port 9000
 
 # Suppress auto-browser open
-poetry run slcli dff edit --no-browser
+poetry run slcli customfield edit --no-browser
 
 # Load a configuration from the server by ID
-poetry run slcli dff edit --id d772cb8c-db2a-4201-81b8-6c3777e81f22
+poetry run slcli customfield edit --id d772cb8c-db2a-4201-81b8-6c3777e81f22
 
-# Load from server and use custom output directory
-poetry run slcli dff edit --id config-uuid --output-dir my-editor --port 9000
+# Load from server with custom port
+poetry run slcli customfield edit --id config-uuid --port 9000
 
-# Load from server but save to specific file
-poetry run slcli dff edit --id config-uuid --file my-config.json
+# Load from a local file
+poetry run slcli customfield edit --file my-config.json
 ```
 
 ### Development Workflow
@@ -318,7 +318,7 @@ const dffSchema = {
 
 - **Documentation**: [dff-editor/README.md](../dff-editor/README.md)
 - **Examples**: Use "Load Example" button in editor
-- **CLI Help**: `slcli dff edit --help`
+- **CLI Help**: `slcli customfield edit --help`
 - **Issues**: Report via GitHub issues
 
 ---

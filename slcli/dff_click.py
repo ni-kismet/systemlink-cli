@@ -1,4 +1,4 @@
-"""CLI commands for managing SystemLink Dynamic Form Fields."""
+"""CLI commands for managing SystemLink Custom Fields."""
 
 import json
 import sys
@@ -27,7 +27,7 @@ from .workspace_utils import (
     resolve_workspace_filter,
 )
 
-# Valid resource types for Dynamic Form Fields
+# Valid resource types for Custom Fields
 VALID_RESOURCE_TYPES = [
     "workorder:workorder",
     "workitem:workitem",
@@ -36,7 +36,7 @@ VALID_RESOURCE_TYPES = [
     "testmonitor:product",
 ]
 
-# Valid field types for Dynamic Form Fields
+# Valid field types for Custom Fields
 VALID_FIELD_TYPES = [
     "Text",
     "Number",
@@ -305,12 +305,12 @@ def _query_all_configurations(
 
 
 def register_dff_commands(cli: Any) -> None:
-    """Register the 'dff' command group and its subcommands."""
+    """Register the 'customfield' command group and its subcommands."""
 
-    @cli.group()
+    @cli.group(name="customfield")
     @click.pass_context
     def dff(ctx: click.Context) -> None:
-        """Manage dynamic form field configurations."""
+        """Manage custom field (DFF) configurations."""
         # Check for platform feature availability
         # Only check if a subcommand is being invoked (not just --help)
         if ctx.invoked_subcommand is not None:
@@ -336,7 +336,7 @@ def register_dff_commands(cli: Any) -> None:
     def list_configurations(
         workspace: Optional[str] = None, take: int = 25, format: str = "table"
     ) -> None:
-        """List dynamic form field configurations."""
+        """List custom field configurations."""
         try:
             # Get workspace map once and reuse it
             workspace_map = get_workspace_map()
@@ -362,7 +362,7 @@ def register_dff_commands(cli: Any) -> None:
                 format_config_row,
                 ["Workspace", "Name", "Configuration ID"],
                 [36, 40, 36],
-                "No dynamic form field configurations found.",
+                "No custom field configurations found.",
                 enable_pagination=True,
             )
 
@@ -386,7 +386,7 @@ def register_dff_commands(cli: Any) -> None:
         help="Output format: table or json",
     )
     def get_configuration(config_id: str, format: str = "json") -> None:
-        """Get a specific dynamic form field configuration by ID."""
+        """Get a specific custom field configuration by ID."""
         url = f"{get_base_url()}/nidynamicformfields/v1/resolved-configuration"
 
         try:
@@ -431,7 +431,7 @@ def register_dff_commands(cli: Any) -> None:
         help="Input JSON file with configuration data",
     )
     def create_configuration(input_file: str) -> None:
-        """Create dynamic form field configurations from a JSON file."""
+        """Create custom field configurations from a JSON file."""
         url = f"{get_base_url()}/nidynamicformfields/v1/configurations"
 
         try:
@@ -479,7 +479,7 @@ def register_dff_commands(cli: Any) -> None:
 
             if resp.status_code == 201:
                 # Full success
-                click.echo("✓ Dynamic form field configurations created successfully.")
+                click.echo("✓ Custom field configurations created successfully.")
                 created_configs = response_data.get("configurations", [])
                 for config in created_configs:
                     click.echo(f"  - {config.get('name', 'Unknown')}: {config.get('id', '')}")
@@ -549,7 +549,7 @@ def register_dff_commands(cli: Any) -> None:
         help="Input JSON file with updated configuration data",
     )
     def update_configuration(input_file: str) -> None:
-        """Update dynamic form field configurations from a JSON file."""
+        """Update custom field configurations from a JSON file."""
         url = f"{get_base_url()}/nidynamicformfields/v1/update-configurations"
 
         try:
@@ -597,7 +597,7 @@ def register_dff_commands(cli: Any) -> None:
 
                         sys.exit(ExitCodes.GENERAL_ERROR)
                     else:
-                        click.echo("✓ Dynamic form field configurations updated successfully.")
+                        click.echo("✓ Custom field configurations updated successfully.")
                         for config in updated_configs:
                             click.echo(
                                 f"  - {config.get('name', 'Unknown')}: {config.get('id', '')}"
@@ -663,7 +663,7 @@ def register_dff_commands(cli: Any) -> None:
         field_ids: tuple[str, ...],
         recursive: bool = True,
     ) -> None:
-        """Delete dynamic form field configurations, groups, and fields."""
+        """Delete custom field configurations, groups, and fields."""
         if not config_ids and not group_ids and not field_ids:
             click.echo("✗ Must provide at least one of: --id, --group-id, or --field-id", err=True)
             sys.exit(ExitCodes.INVALID_INPUT)
@@ -751,7 +751,7 @@ def register_dff_commands(cli: Any) -> None:
     )
     @click.option("--output", "-o", help="Output JSON file (default: <config-name>.json)")
     def export_configuration(config_id: str, output: Optional[str] = None) -> None:
-        """Export a dynamic form field configuration to a JSON file."""
+        """Export a custom field configuration to a JSON file."""
         url = f"{get_base_url()}/nidynamicformfields/v1/resolved-configuration"
 
         try:
@@ -802,7 +802,7 @@ def register_dff_commands(cli: Any) -> None:
         resource_type: Optional[str] = None,
         output: Optional[str] = None,
     ) -> None:
-        """Create a template configuration file for dynamic form fields."""
+        """Create a template configuration file for custom fields."""
         try:
             # Prompt for required fields if not provided
             if not name:
@@ -925,9 +925,9 @@ def register_dff_commands(cli: Any) -> None:
         port: int = 8080,
         no_browser: bool = False,
     ) -> None:
-        """Launch a local web editor for dynamic form field configurations.
+        """Launch a local web editor for custom field configurations.
 
-        This command starts a web editor for editing dynamic form field configurations.
+        This command starts a web editor for editing custom field configurations.
         You can provide a JSON file to edit, or load a configuration by ID from the server.
         """
         try:

@@ -1,4 +1,4 @@
-"""Web editor utilities for DFF configuration editing."""
+"""Web editor utilities for custom fields configuration editing."""
 
 import http.server
 import json
@@ -18,7 +18,7 @@ from .utils import ExitCodes, get_base_url, get_headers, get_ssl_verify
 
 
 class DFFWebEditor:
-    """Web-based editor for Dynamic Form Fields configurations."""
+    """Web-based editor for custom fields configurations."""
 
     def __init__(self, port: int = 8080):
         """Initialize the DFF web editor.
@@ -103,12 +103,22 @@ class DFFWebEditor:
         """Write the editor configuration consumed by the frontend.
 
         Args:
-            file: Optional initial file to load (currently unused by frontend)
+            file: Optional initial file to load
         """
         config: dict[str, Any] = {
             "serverUrl": get_base_url().rstrip("/"),
             "secret": getattr(self, "_secret", None),
         }
+
+        # If a file was provided, copy it to the temp directory for the editor to load
+        if file:
+            import shutil
+
+            source_path = Path(file)
+            if source_path.exists():
+                dest_path = self._temp_path / "config.json"
+                shutil.copy(source_path, dest_path)
+                config["configFile"] = "config.json"
 
         config_path = self._temp_path / "slcli-config.json"
         config_path.write_text(json.dumps(config, indent=2))
@@ -151,6 +161,19 @@ class DFFWebEditor:
                         return True
                     else:
                         self.send_error(404, "Config not found")
+                        return True
+
+                # Serve config.json (the DFF configuration) from temp directory
+                if parsed.path == "/config.json" and method == "GET":
+                    config_file = temp_path / "config.json"
+                    if config_file.exists():
+                        self.send_response(200)
+                        self.send_header("Content-Type", "application/json")
+                        self.end_headers()
+                        self.wfile.write(config_file.read_bytes())
+                        return True
+                    else:
+                        self.send_error(404, "Config file not found")
                         return True
 
                 # Handle API proxying
@@ -224,7 +247,7 @@ class DFFWebEditor:
                 server_thread.daemon = True
                 server_thread.start()
 
-                click.echo(f"✓ Starting Dynamic Form Fields editor at {server_url}")
+                click.echo(f"✓ Starting Custom Fields editor at {server_url}")
                 click.echo(f"✓ Loading editor from: {editor_dir}")
 
                 if open_browser:
