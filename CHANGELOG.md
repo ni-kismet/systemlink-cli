@@ -1,7 +1,24 @@
 # CHANGELOG
 
 
+## v0.26.0 (2026-01-29)
+
+### Features
+
+- Add legacy mac support ([#50](https://github.com/ni-kismet/systemlink-cli/pull/50),
+  [`c5eb9fd`](https://github.com/ni-kismet/systemlink-cli/commit/c5eb9fd12add4fb4bcfa61e67e252f6ca3657fcb))
+
+* feat: add legacy mac support
+
+* review feedback
+
+
 ## v0.25.0 (2026-01-27)
+
+### Chores
+
+- **release**: 0.25.0
+  ([`2b40398`](https://github.com/ni-kismet/systemlink-cli/commit/2b403982604293a2b3f0b1871b30bfed539851ed))
 
 ### Features
 
