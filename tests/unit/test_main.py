@@ -153,7 +153,7 @@ def test_info_json(monkeypatch: Any, tmp_path: Any) -> None:
 
 
 def test_login_prompts_migration_with_existing_keyring(monkeypatch: Any, tmp_path: Any) -> None:
-    """Test that login prompts for migration when keyring credentials exist."""
+    """Test that CLI automatically migrates credentials when keyring exists."""
     config_file = tmp_path / "config.json"
     monkeypatch.setattr(
         "slcli.profiles.ProfileConfig.get_config_path", classmethod(lambda cls: config_file)
@@ -173,23 +173,27 @@ def test_login_prompts_migration_with_existing_keyring(monkeypatch: Any, tmp_pat
             )
         return None
 
-    monkeypatch.setattr("slcli.main.keyring.get_password", mock_get_password)
-    monkeypatch.setattr("slcli.main.keyring.delete_password", lambda *a, **kw: None)
+    # Mock keyring at module level
+    import keyring as keyring_module
+
+    monkeypatch.setattr(keyring_module, "get_password", mock_get_password)
+    monkeypatch.setattr(keyring_module, "delete_password", lambda *a, **kw: None)
 
     runner = CliRunner()
-    # User declines migration
+    # Run any command - migration should happen automatically
     result = runner.invoke(
         cli,
-        ["login"],
-        input="n\n",  # Decline migration
+        ["info"],
     )
 
-    assert "Existing credentials detected in system keyring" in result.output
-    assert "Would you like to migrate" in result.output
+    # Migration should have happened automatically
+    assert "Migration Required" in result.output
+    assert "Migrated credentials to profile 'default'" in result.output
+    assert "Migration complete" in result.output
 
 
 def test_login_migration_accepted(monkeypatch: Any, tmp_path: Any) -> None:
-    """Test that login can migrate credentials when user accepts."""
+    """Test that automatic migration creates the profile correctly."""
     config_file = tmp_path / "config.json"
     monkeypatch.setattr(
         "slcli.profiles.ProfileConfig.get_config_path", classmethod(lambda cls: config_file)
@@ -208,15 +212,17 @@ def test_login_migration_accepted(monkeypatch: Any, tmp_path: Any) -> None:
             )
         return None
 
-    monkeypatch.setattr("slcli.main.keyring.get_password", mock_get_password)
-    monkeypatch.setattr("slcli.main.keyring.delete_password", lambda *a, **kw: None)
+    # Mock keyring at module level
+    import keyring as keyring_module
+
+    monkeypatch.setattr(keyring_module, "get_password", mock_get_password)
+    monkeypatch.setattr(keyring_module, "delete_password", lambda *a, **kw: None)
 
     runner = CliRunner()
-    # User accepts migration and deletion
+    # Run any command - migration should happen automatically
     result = runner.invoke(
         cli,
-        ["login"],
-        input="Y\nY\nY\n",  # Accept migration, migrate now, delete keyring
+        ["info"],
     )
 
     assert result.exit_code == 0

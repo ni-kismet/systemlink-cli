@@ -90,6 +90,44 @@ def cli(ctx: click.Context, version: bool, profile: Optional[str]) -> None:
     if profile:
         set_profile_override(profile)
 
+    # Check for mandatory migration BEFORE any command runs
+    # Skip migration check only for version flag and config migrate command
+    if ctx.invoked_subcommand not in (None, "config"):
+        from .profiles import ProfileConfig, has_keyring_credentials, migrate_from_keyring
+
+        config_path = ProfileConfig.get_config_path()
+        if not config_path.exists() and has_keyring_credentials():
+            click.echo("⚠️  Migration Required")
+            click.echo("")
+            click.echo("slcli now uses profile-based configuration.")
+            click.echo("Existing keyring credentials detected and will be migrated to:")
+            click.echo(f"  {config_path}")
+            click.echo("")
+            click.echo("Migrating credentials...")
+
+            try:
+                migrated_profile = migrate_from_keyring(profile_name="default", delete_keyring=True)
+                if migrated_profile:
+                    click.echo(f"✓ Migrated credentials to profile 'default'")
+                    click.echo(f"  Server: {migrated_profile.server}")
+                    if migrated_profile.web_url:
+                        click.echo(f"  Web URL: {migrated_profile.web_url}")
+                    if migrated_profile.platform:
+                        click.echo(f"  Platform: {migrated_profile.platform}")
+                    click.echo("✓ Deleted keyring entries")
+                    click.echo("")
+                    click.echo("Migration complete! Continuing with your command...")
+                    click.echo("")
+                else:
+                    click.echo(
+                        "✗ Migration failed: No valid credentials found in keyring.", err=True
+                    )
+                    ctx.exit(1)
+            except Exception as e:
+                click.echo(f"✗ Migration failed: {e}", err=True)
+                click.echo("Run 'slcli config migrate' to try again.", err=True)
+                ctx.exit(1)
+
     if ctx.invoked_subcommand is None:
         click.echo(get_ascii_art())
         click.echo(ctx.get_help())
@@ -141,107 +179,6 @@ def login(
         slcli login --profile test --workspace "Testing"
     """
     from .profiles import Profile, ProfileConfig
-
-    # Check if this is first-time setup with existing keyring credentials
-    cfg = ProfileConfig.load()
-    if not cfg.profiles:  # No profiles exist yet
-        # Check for existing keyring credentials
-        try:
-            keyring_config = keyring.get_password("systemlink-cli", "SYSTEMLINK_CONFIG")
-            keyring_url = keyring.get_password("systemlink-cli", "SYSTEMLINK_API_URL")
-            keyring_key = keyring.get_password("systemlink-cli", "SYSTEMLINK_API_KEY")
-
-            if keyring_config or (keyring_url and keyring_key):
-                click.echo("⚠️  Existing credentials detected in system keyring.")
-                click.echo("")
-                click.echo("slcli now uses profile-based configuration stored in:")
-                click.echo(f"  {ProfileConfig.get_config_path()}")
-                click.echo("")
-                if click.confirm(
-                    "Would you like to migrate your existing credentials?", default=True
-                ):
-                    click.echo("")
-                    click.echo("Run: slcli config migrate")
-                    click.echo("")
-                    if click.confirm("Migrate now?", default=True):
-                        click.echo("")
-                        click.echo("Migrating credentials...")
-
-                        # Parse the keyring config
-                        try:
-                            if keyring_config:
-                                data = json.loads(keyring_config)
-                                api_url = data.get("api_url")
-                                api_key_val = data.get("api_key")
-                                web_url_val = data.get("web_url")
-                                platform_val = data.get("platform")
-                            else:
-                                api_url = keyring_url
-                                api_key_val = keyring_key
-                                web_url_val = keyring.get_password(
-                                    "systemlink-cli", "SYSTEMLINK_WEB_URL"
-                                )
-                                platform_val = None
-
-                            if api_url and api_key_val:
-                                migrated_profile = Profile(
-                                    name="default",
-                                    server=api_url,
-                                    api_key=api_key_val,
-                                    web_url=web_url_val,
-                                    platform=platform_val,
-                                )
-                                cfg.add_profile(migrated_profile, set_current=True)
-                                cfg.save()
-
-                                click.echo(f"✓ Migrated credentials to profile 'default'")
-                                click.echo(f"  Server: {api_url}")
-                                if web_url_val:
-                                    click.echo(f"  Web URL: {web_url_val}")
-                                if platform_val:
-                                    click.echo(f"  Platform: {platform_val}")
-                                click.echo("")
-
-                                if click.confirm("Delete keyring entries?", default=True):
-                                    try:
-                                        keyring.delete_password(
-                                            "systemlink-cli", "SYSTEMLINK_API_KEY"
-                                        )
-                                    except Exception:
-                                        pass
-                                    try:
-                                        keyring.delete_password(
-                                            "systemlink-cli", "SYSTEMLINK_API_URL"
-                                        )
-                                    except Exception:
-                                        pass
-                                    try:
-                                        keyring.delete_password(
-                                            "systemlink-cli", "SYSTEMLINK_WEB_URL"
-                                        )
-                                    except Exception:
-                                        pass
-                                    try:
-                                        keyring.delete_password(
-                                            "systemlink-cli", "SYSTEMLINK_CONFIG"
-                                        )
-                                    except Exception:
-                                        pass
-                                    click.echo("✓ Deleted keyring entries")
-
-                                click.echo("")
-                                click.echo("Migration complete! Your profile is ready to use.")
-                                return
-                        except (json.JSONDecodeError, Exception) as e:
-                            click.echo(f"⚠️  Could not migrate automatically: {e}", err=True)
-                            click.echo(
-                                "You can migrate manually with: slcli config migrate", err=True
-                            )
-
-                    click.echo("")
-        except Exception:
-            # Keyring access failed, continue with normal login
-            pass
 
     # Get profile name
     if not profile:

@@ -2,12 +2,11 @@
 
 import json
 import sys
-from typing import Any, Optional
+from typing import Any
 
 import click
-import keyring
 
-from .profiles import Profile, ProfileConfig, check_config_file_permissions
+from .profiles import ProfileConfig, check_config_file_permissions
 from .table_utils import output_formatted_list
 from .utils import ExitCodes
 
@@ -252,87 +251,31 @@ def register_config_commands(cli: Any) -> None:
         This command reads existing credentials from the system keyring
         and creates a new profile in the config file.
         """
-        # Try to load existing credentials from keyring
-        api_url: Optional[str] = None
-        api_key: Optional[str] = None
-        web_url: Optional[str] = None
-        platform: Optional[str] = None
+        from .profiles import migrate_from_keyring
 
-        # Try combined config first
-        try:
-            combined = keyring.get_password("systemlink-cli", "SYSTEMLINK_CONFIG")
-            if combined:
-                data = json.loads(combined)
-                api_url = data.get("api_url")
-                api_key = data.get("api_key")
-                web_url = data.get("web_url")
-                platform = data.get("platform")
-        except (json.JSONDecodeError, Exception):
-            # Ignore keyring read errors or invalid JSON
-            pass
-
-        # Fall back to individual entries
-        if not api_url:
-            api_url = keyring.get_password("systemlink-cli", "SYSTEMLINK_API_URL")
-        if not api_key:
-            api_key = keyring.get_password("systemlink-cli", "SYSTEMLINK_API_KEY")
-        if not web_url:
-            web_url = keyring.get_password("systemlink-cli", "SYSTEMLINK_WEB_URL")
-
-        if not api_url or not api_key:
-            click.echo("✗ No credentials found in keyring.", err=True)
-            click.echo("Run 'slcli login --profile <name>' to create a new profile.", err=True)
-            sys.exit(ExitCodes.NOT_FOUND)
-
-        # Create profile
-        profile = Profile(
-            name=profile_name,
-            server=api_url,
-            api_key=api_key,
-            web_url=web_url,
-            platform=platform,
-        )
-
-        # Load config and add profile
+        # Check if profile already exists
         cfg = ProfileConfig.load()
-
         if profile_name in cfg.profiles:
             if not click.confirm(f"Profile '{profile_name}' already exists. Overwrite?"):
                 click.echo("Aborted.")
                 sys.exit(ExitCodes.GENERAL_ERROR)
 
-        cfg.add_profile(profile, set_current=True)
-        cfg.save()
+        # Use centralized migration function
+        profile = migrate_from_keyring(profile_name=profile_name, delete_keyring=delete_keyring)
+
+        if not profile:
+            click.echo("✗ No credentials found in keyring.", err=True)
+            click.echo("Run 'slcli login --profile <name>' to create a new profile.", err=True)
+            sys.exit(ExitCodes.NOT_FOUND)
 
         click.echo(f"✓ Migrated credentials to profile '{profile_name}'")
-        click.echo(f"  Server: {api_url}")
-        if web_url:
-            click.echo(f"  Web URL: {web_url}")
-        if platform:
-            click.echo(f"  Platform: {platform}")
+        click.echo(f"  Server: {profile.server}")
+        if profile.web_url:
+            click.echo(f"  Web URL: {profile.web_url}")
+        if profile.platform:
+            click.echo(f"  Platform: {profile.platform}")
 
-        # Optionally delete keyring entries
         if delete_keyring:
-            try:
-                keyring.delete_password("systemlink-cli", "SYSTEMLINK_API_KEY")
-            except Exception:
-                # Key may not exist in keyring, ignore
-                pass
-            try:
-                keyring.delete_password("systemlink-cli", "SYSTEMLINK_API_URL")
-            except Exception:
-                # Key may not exist in keyring, ignore
-                pass
-            try:
-                keyring.delete_password("systemlink-cli", "SYSTEMLINK_WEB_URL")
-            except Exception:
-                # Key may not exist in keyring, ignore
-                pass
-            try:
-                keyring.delete_password("systemlink-cli", "SYSTEMLINK_CONFIG")
-            except Exception:
-                # Key may not exist in keyring, ignore
-                pass
             click.echo("✓ Deleted keyring entries")
         else:
             click.echo("\nNote: Keyring entries still exist. Use --delete-keyring to remove them.")
