@@ -1,7 +1,20 @@
 # CHANGELOG
 
 
+## v0.26.1 (2026-01-29)
+
+### Bug Fixes
+
+- Update to macos-15-intel runner
+  ([`9352a4f`](https://github.com/ni-kismet/systemlink-cli/commit/9352a4f4240e4f9771bb07e1e4a22f8172cbe947))
+
+
 ## v0.26.0 (2026-01-29)
+
+### Chores
+
+- **release**: 0.26.0
+  ([`50db120`](https://github.com/ni-kismet/systemlink-cli/commit/50db12068b0652695ee1c561737183bb7449af4a))
 
 ### Features
 
