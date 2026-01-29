@@ -108,6 +108,12 @@ jobs:
           name: slcli-macos
           path: dist/
 
+      - name: Download macOS 13 artifact
+        uses: actions/download-artifact@v4
+        with:
+          name: slcli-macos-13
+          path: dist/
+
       - name: Build Homebrew formula
         run: poetry run python scripts/build_homebrew.py
 
