@@ -10,7 +10,7 @@ ROOT = Path(__file__).parent.parent.resolve()
 DIST = ROOT / "dist"
 LINUX_TARBALL = DIST / "slcli-linux.tar.gz"
 MACOS_TARBALL = DIST / "slcli-macos.tar.gz"
-MACOS_13_TARBALL = DIST / "slcli-macos-13.tar.gz"
+MACOS_INTEL_TARBALL = DIST / "slcli-macos-15-intel.tar.gz"
 FORMULA_TEMPLATE = ROOT / "scripts" / "homebrew-slcli.rb.j2"
 DIST_FORMULA = DIST / "homebrew-slcli.rb"
 PYPROJECT = ROOT / "pyproject.toml"
@@ -35,7 +35,7 @@ def compute_sha256(tarball_path):
     return sha256
 
 
-def render_formula(sha256_linux, sha256_macos, sha256_macos_13, version):
+def render_formula(sha256_linux, sha256_macos, sha256_macos_intel, version):
     """Render the Homebrew formula from the template and write to dist/homebrew-slcli.rb."""
     if not FORMULA_TEMPLATE.exists():
         print(f"Error: {FORMULA_TEMPLATE} not found.")
@@ -44,7 +44,7 @@ def render_formula(sha256_linux, sha256_macos, sha256_macos_13, version):
     rendered = (
         template.replace("{{ sha256_linux }}", sha256_linux)
         .replace("{{ sha256_macos }}", sha256_macos)
-        .replace("{{ sha256_macos_13 }}", sha256_macos_13)
+        .replace("{{ sha256_macos_intel }}", sha256_macos_intel)
         .replace("{{ version }}", version)
     )
     DIST_FORMULA.write_text(rendered)
@@ -58,10 +58,10 @@ def main():
     # Compute SHA256 for both platform tarballs
     sha256_linux = compute_sha256(LINUX_TARBALL)
     sha256_macos = compute_sha256(MACOS_TARBALL)
-    sha256_macos_13 = compute_sha256(MACOS_13_TARBALL)
+    sha256_macos_intel = compute_sha256(MACOS_INTEL_TARBALL)
 
     # Render the formula
-    render_formula(sha256_linux, sha256_macos, sha256_macos_13, version)
+    render_formula(sha256_linux, sha256_macos, sha256_macos_intel, version)
     print("Homebrew formula build complete.")
 
 
