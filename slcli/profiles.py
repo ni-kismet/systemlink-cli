@@ -280,6 +280,7 @@ def check_config_file_permissions() -> Optional[str]:
                 "Consider running: chmod 600 " + str(config_path)
             )
     except OSError:
+        # Cannot read file permissions (transient OS error), skip warning
         pass
 
     return None

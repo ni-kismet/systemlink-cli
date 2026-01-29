@@ -311,6 +311,7 @@ def get_base_url() -> str:
         if profile and profile.server:
             return profile.server
     except Exception:
+        # Profile loading errors are ignored to allow fallback to keyring
         pass
 
     # Third, try the combined keyring config (legacy)
@@ -351,6 +352,7 @@ def get_web_url() -> str:
         if profile and profile.web_url:
             return profile.web_url.rstrip("/")
     except Exception:
+        # Profile unavailable or misconfigured, fall back to other sources
         pass
 
     # 3) Combined keyring config entry (legacy)
@@ -424,6 +426,7 @@ def get_api_key() -> str:
         if profile and profile.api_key:
             return profile.api_key
     except Exception:
+        # Profile lookup error, fall back to keyring-based configuration
         pass
 
     # Third, consult combined keyring config if present (legacy)

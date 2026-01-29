@@ -67,7 +67,10 @@ def register_config_commands(cli: Any) -> None:
 
         def format_row(profile: Profile) -> list:
             current = "*" if profile.name == cfg.current_profile else ""
+            # Truncate workspace if too long
             workspace = profile.workspace or "-"
+            if profile.workspace and len(profile.workspace) > 20:
+                workspace = profile.workspace[:17] + "..."
             # Truncate server URL if too long
             server = profile.server
             if len(server) > 40:
@@ -126,7 +129,12 @@ def register_config_commands(cli: Any) -> None:
         default="table",
         help="Output format",
     )
-    def view(format: str) -> None:
+    @click.option(
+        "--show-secrets",
+        is_flag=True,
+        help="Show API keys in output (use with caution)",
+    )
+    def view(format: str, show_secrets: bool) -> None:
         """View the full configuration."""
         cfg = ProfileConfig.load()
 
@@ -135,9 +143,15 @@ def register_config_commands(cli: Any) -> None:
             if cfg.current_profile:
                 data["current-profile"] = cfg.current_profile
             if cfg.profiles:
-                data["profiles"] = {
-                    name: profile.to_dict() for name, profile in cfg.profiles.items()
-                }
+                # Mask API keys unless --show-secrets is specified
+                data["profiles"] = {}
+                for name, profile in cfg.profiles.items():
+                    profile_dict = profile.to_dict()
+                    if not show_secrets and "api-key" in profile_dict:
+                        # Show only last 4 characters
+                        key = profile_dict["api-key"]
+                        profile_dict["api-key"] = "****" + key[-4:] if len(key) >= 4 else "****"
+                    data["profiles"][name] = profile_dict
             if cfg.settings:
                 data.update(cfg.settings)
             click.echo(json.dumps(data, indent=2))
@@ -153,7 +167,10 @@ def register_config_commands(cli: Any) -> None:
         else:
             click.echo("│ Current Profile: (none)                                     │")
 
-        click.echo(f"│ Config File: {str(ProfileConfig.get_config_path()):<47} │"[:64] + "│")
+        config_path_str = str(ProfileConfig.get_config_path())
+        if len(config_path_str) > 47:
+            config_path_str = config_path_str[:44] + "..."
+        click.echo(f"│ Config File: {config_path_str:<47} │")
 
         if cfg.profiles:
             click.echo("├─────────────────────────────────────────────────────────────┤")
@@ -229,6 +246,7 @@ def register_config_commands(cli: Any) -> None:
                 web_url = data.get("web_url")
                 platform = data.get("platform")
         except (json.JSONDecodeError, Exception):
+            # Ignore keyring read errors or invalid JSON
             pass
 
         # Fall back to individual entries
@@ -276,18 +294,22 @@ def register_config_commands(cli: Any) -> None:
             try:
                 keyring.delete_password("systemlink-cli", "SYSTEMLINK_API_KEY")
             except Exception:
+                # Key may not exist in keyring, ignore
                 pass
             try:
                 keyring.delete_password("systemlink-cli", "SYSTEMLINK_API_URL")
             except Exception:
+                # Key may not exist in keyring, ignore
                 pass
             try:
                 keyring.delete_password("systemlink-cli", "SYSTEMLINK_WEB_URL")
             except Exception:
+                # Key may not exist in keyring, ignore
                 pass
             try:
                 keyring.delete_password("systemlink-cli", "SYSTEMLINK_CONFIG")
             except Exception:
+                # Key may not exist in keyring, ignore
                 pass
             click.echo("✓ Deleted keyring entries")
         else:

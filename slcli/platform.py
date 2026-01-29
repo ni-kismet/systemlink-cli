@@ -302,7 +302,6 @@ def get_platform_info() -> Dict[str, Any]:
     # Get platform from profile or keyring config
     from .profiles import get_active_profile
 
-    platform = PLATFORM_UNKNOWN
     active_profile = get_active_profile()
     if active_profile and active_profile.platform:
         platform = active_profile.platform

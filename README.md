@@ -100,7 +100,7 @@ After installation, restart your shell or source the completion file. See [docs/
    ```bash
    # First time setup - creates a 'default' profile
    slcli login
-   
+
    # Or create named profiles for different environments
    slcli login --profile dev
    slcli login --profile prod
@@ -377,12 +377,13 @@ slcli config migrate
 
 Environment variables take precedence over profile settings:
 
-| Variable | Description |
-|----------|-------------|
-| `SLCLI_PROFILE` | Profile to use (default: current profile) |
-| `SLCLI_CONFIG` | Custom config file path |
-| `SYSTEMLINK_API_URL` | Override API URL |
-| `SYSTEMLINK_API_KEY` | Override API key |
+| Variable             | Description                               |
+| -------------------- | ----------------------------------------- |
+| `SLCLI_PROFILE`      | Profile to use (default: current profile) |
+| `SLCLI_CONFIG`       | Custom config file path                   |
+| `SYSTEMLINK_API_URL` | Override API URL                          |
+| `SYSTEMLINK_API_KEY` | Override API key                          |
+| `SYSTEMLINK_WEB_URL` | Override web UI URL                       |
 
 ## Platform Support
 
@@ -1382,28 +1383,22 @@ Manage static web applications (pack, publish and remote management) using the `
 The `webapp` group provides a small local scaffold and .nipkg packer, and also manages WebApp resources on the SystemLink server.
 
 - `slcli webapp init [--directory PATH] [--force]`
-
   - Scaffold a sample webapp (`index.html`) in `./app` inside the target directory. Use `--force` to overwrite an existing file.
 
 - `slcli webapp pack <FOLDER> [--output FILE.nipkg]`
-
   - Pack a folder into a `.nipkg`. The `.nipkg` uses a Debian-style `ar` layout (members: `debian-binary`, `control.tar.gz`, `data.tar.gz`).
 
 - `slcli webapp publish <SOURCE> [--id ID] [--name NAME] [--workspace WORKSPACE]`
-
   - Publish a `.nipkg` (or folder) to the WebApp service. Provide either `--id` to upload into an existing webapp, or `--name` to create a new resource and upload the content. `--workspace` selects the workspace for newly created webapps.
   - When publishing a folder, the CLI creates a temporary `.nipkg` inside a context-managed temporary directory so the packaged file is available during upload and is cleaned up automatically.
 
 - `slcli webapp list [--workspace WORKSPACE] [--filter FILTER] [--take N] [--format table|json]`
-
   - List webapps. Defaults to interactive paging for `table` output (25 rows/page) and returns all results for `--format json`.
 
 - `slcli webapp get --id ID`
-
   - Show webapp metadata.
 
 - `slcli webapp delete --id ID`
-
   - Delete a webapp.
 
 - `slcli webapp open --id ID`

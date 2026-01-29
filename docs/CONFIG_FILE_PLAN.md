@@ -7,15 +7,17 @@ Migrate from keyring-based credential storage to an AWS CLI-style configuration 
 ## Current State
 
 ### Authentication Storage
+
 - **Location**: System keyring via `keyring` library
 - **Service name**: `systemlink-cli`
 - **Keys stored**:
   - `SYSTEMLINK_API_KEY` - API key
-  - `SYSTEMLINK_API_URL` - API base URL  
+  - `SYSTEMLINK_API_URL` - API base URL
   - `SYSTEMLINK_CONFIG` - Combined JSON config (api_url, api_key, web_url, platform)
 - **Environment overrides**: `SYSTEMLINK_API_URL`, `SYSTEMLINK_API_KEY`, `SYSTEMLINK_WEB_URL`
 
 ### Files Affected
+
 - `slcli/main.py` - login/logout commands
 - `slcli/utils.py` - `get_base_url()`, `get_http_configuration()`, `get_web_url()`, `_get_keyring_config()`
 - `slcli/platform.py` - Platform detection
@@ -179,6 +181,7 @@ slcli workflow list -A
 ### Affected Commands
 
 Commands that currently support `--workspace` filtering:
+
 - `slcli customfield list`
 - `slcli workflow list`
 - `slcli template list`
@@ -272,12 +275,14 @@ Commands that currently support `--workspace` filtering:
 ## File Changes Summary
 
 ### New Files
+
 - `slcli/profiles.py` - New profile management module
 - `slcli/config_click.py` - Config CLI commands
 - `docs/PROFILES.md` - Documentation
 - `tests/unit/test_profiles.py` - Tests
 
 ### Modified Files
+
 - `slcli/main.py` - Login/logout commands, add --profile to CLI group
 - `slcli/utils.py` - Credential retrieval functions
 - `slcli/cli_utils.py` - Add workspace filtering helpers
@@ -290,6 +295,7 @@ Commands that currently support `--workspace` filtering:
 ## Security Considerations
 
 ### Config File Permissions
+
 ```python
 # Set restrictive permissions on config file (600 - owner read/write only)
 import os
@@ -298,12 +304,14 @@ config_path.chmod(stat.S_IRUSR | stat.S_IWUSR)
 ```
 
 ### Sensitive Data Warning
+
 - Config file contains API keys in plain text
 - Document this clearly in help text
 - Consider optional keyring integration for API keys only
 - Add warning if file permissions are too open
 
 ### Migration Security
+
 - Offer to delete keyring entries after migration
 - Don't leave credentials in both places
 
@@ -312,15 +320,17 @@ config_path.chmod(stat.S_IRUSR | stat.S_IWUSR)
 ## Backwards Compatibility
 
 ### Environment Variables (Highest Priority)
+
 ```python
 # Always check env vars first
 SYSTEMLINK_API_URL  # Override API URL
-SYSTEMLINK_API_KEY  # Override API key  
+SYSTEMLINK_API_KEY  # Override API key
 SYSTEMLINK_WEB_URL  # Override web URL
 SLCLI_PROFILE       # Override profile selection
 ```
 
 ### Keyring Fallback
+
 ```python
 # If config file doesn't exist, check keyring (migration period)
 def get_base_url():
@@ -331,6 +341,7 @@ def get_base_url():
 ```
 
 ### Grace Period
+
 - Support both keyring and config file for 2-3 releases
 - Show deprecation warning when using keyring
 - Auto-migrate option during login
@@ -340,6 +351,7 @@ def get_base_url():
 ## Example User Workflows
 
 ### Setting Up Multiple Environments
+
 ```bash
 # Add dev environment
 slcli login --profile dev
@@ -364,6 +376,7 @@ slcli config list-profiles
 ```
 
 ### Switching Profiles
+
 ```bash
 # Switch to production
 slcli config use-profile prod
@@ -374,6 +387,7 @@ slcli -p dev workflow list
 ```
 
 ### Working with Default Workspace
+
 ```bash
 # List workflows (uses profile default workspace "Development")
 slcli workflow list
@@ -409,8 +423,10 @@ slcli workflow list --all-workspaces
 ## Dependencies
 
 ### Current
+
 - `keyring` - Will become optional/deprecated
 
 ### Recommendation
+
 - Use JSON format (no new dependencies)
 - Keep `keyring` as optional for secure API key storage (advanced users)
