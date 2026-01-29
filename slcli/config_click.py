@@ -32,7 +32,15 @@ def register_config_commands(cli: Any) -> None:
         default="table",
         help="Output format",
     )
-    def list_profiles(format: str) -> None:
+    @click.option(
+        "--take",
+        "-t",
+        type=int,
+        default=25,
+        show_default=True,
+        help="Maximum number of profiles to display per page",
+    )
+    def list_profiles(format: str, take: int) -> None:
         """List all configured profiles."""
         cfg = ProfileConfig.load()
         profiles = cfg.list_profiles()
@@ -65,26 +73,41 @@ def register_config_commands(cli: Any) -> None:
         if warning:
             click.echo(f"⚠️  {warning}\n", err=True)
 
-        def format_row(profile: Profile) -> list:
-            current = "*" if profile.name == cfg.current_profile else ""
+        # Convert Profile objects to dictionaries for type compatibility
+        from typing import Any, Dict, List
+
+        table_items: List[Dict[str, Any]] = []
+        for p in profiles:
+            table_items.append(
+                {
+                    "name": p.name,
+                    "server": p.server,
+                    "workspace": p.workspace,
+                    "is_current": p.name == cfg.current_profile,
+                }
+            )
+
+        def format_row(profile_dict: Dict[str, Any]) -> List[str]:
+            current = "*" if profile_dict.get("is_current") else ""
             # Truncate workspace if too long
-            workspace = profile.workspace or "-"
-            if profile.workspace and len(profile.workspace) > 20:
-                workspace = profile.workspace[:17] + "..."
+            workspace = profile_dict.get("workspace") or "-"
+            if profile_dict.get("workspace") and len(str(profile_dict["workspace"])) > 20:
+                workspace = str(profile_dict["workspace"])[:17] + "..."
             # Truncate server URL if too long
-            server = profile.server
+            server = profile_dict["server"]
             if len(server) > 40:
                 server = server[:37] + "..."
-            return [current, profile.name, server, workspace]
+            return [current, profile_dict["name"], server, workspace]
 
         output_formatted_list(
-            items=profiles,  # type: ignore[arg-type]
+            items=table_items,
             output_format="table",
             headers=["", "NAME", "SERVER", "WORKSPACE"],
             column_widths=[1, 15, 40, 20],
-            row_formatter_func=format_row,  # type: ignore[arg-type]
+            row_formatter_func=format_row,
             empty_message="No profiles configured.",
             total_label="profile(s)",
+
         )
 
     @config.command(name="current-profile")

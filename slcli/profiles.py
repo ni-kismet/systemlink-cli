@@ -173,7 +173,16 @@ class ProfileConfig:
         self.current_profile = name
 
     def add_profile(self, profile: Profile, set_current: bool = False) -> None:
-        """Add or update a profile."""
+        """Add or update a profile.
+
+        Args:
+            profile: The profile to add or update.
+            set_current: If True, set this profile as the current profile.
+                Note: If there is no current profile configured yet, the first
+                profile added will become the current profile even if
+                set_current is False. If a current profile already exists and
+                set_current is False, the current profile will not be changed.
+        """
         self.profiles[profile.name] = profile
         if set_current or not self.current_profile:
             self.current_profile = profile.name

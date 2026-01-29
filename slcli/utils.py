@@ -310,8 +310,8 @@ def get_base_url() -> str:
         profile = get_active_profile()
         if profile and profile.server:
             return profile.server
-    except Exception:
-        # Profile loading errors are ignored to allow fallback to keyring
+    except (FileNotFoundError, json.JSONDecodeError, KeyError, AttributeError):
+        # Profile file missing, corrupted, or malformed - fall back to keyring
         pass
 
     # Third, try the combined keyring config (legacy)
@@ -351,7 +351,7 @@ def get_web_url() -> str:
         profile = get_active_profile()
         if profile and profile.web_url:
             return profile.web_url.rstrip("/")
-    except Exception:
+    except (FileNotFoundError, json.JSONDecodeError, KeyError, AttributeError):
         # Profile unavailable or misconfigured, fall back to other sources
         pass
 
@@ -425,7 +425,7 @@ def get_api_key() -> str:
         profile = get_active_profile()
         if profile and profile.api_key:
             return profile.api_key
-    except Exception:
+    except (FileNotFoundError, json.JSONDecodeError, KeyError, AttributeError):
         # Profile lookup error, fall back to keyring-based configuration
         pass
 
