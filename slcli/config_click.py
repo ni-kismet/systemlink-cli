@@ -107,7 +107,6 @@ def register_config_commands(cli: Any) -> None:
             row_formatter_func=format_row,
             empty_message="No profiles configured.",
             total_label="profile(s)",
-
         )
 
     @config.command(name="current-profile")
