@@ -788,7 +788,7 @@ function showAddDialog(type) {
                     <div id="i18nList"></div>
                     <button type="button" class="secondary" style="margin-top: 5px; width: 100%;" onclick="addI18nEntry()">+ Add Locale</button>
                 </div>
-                <small>Add translations for different locales (e.g., de-DE, fr-FR)</small>
+                <small>Add translations for different locales (e.g., en, fr, de)</small>
             </div>
         `;
     } else if (type === 'group') {
@@ -825,7 +825,7 @@ function showAddDialog(type) {
                     <div id="i18nList"></div>
                     <button type="button" class="secondary" style="margin-top: 5px; width: 100%;" onclick="addI18nEntry()">+ Add Locale</button>
                 </div>
-                <small>Add translations for different locales (e.g., de-DE, fr-FR)</small>
+                <small>Add translations for different locales (e.g., en, fr, de)</small>
             </div>
         `;
     } else if (type === 'field') {
@@ -886,7 +886,7 @@ function showAddDialog(type) {
                     <div id="i18nList"></div>
                     <button type="button" class="secondary" style="margin-top: 5px; width: 100%;" onclick="addI18nEntry()">+ Add Locale</button>
                 </div>
-                <small>Add translations for different locales (e.g., de-DE, fr-FR)</small>
+                <small>Add translations for different locales (e.g., en, fr, de)</small>
             </div>
         `;
         // Initialize the field type options visibility
@@ -994,7 +994,7 @@ function showEditDialog(type, configIdx, viewIdx = null) {
                 <div id="i18nList"></div>
                 <button type="button" class="secondary" style="margin-top: 5px; width: 100%;" onclick="addI18nEntry()">+ Add Locale</button>
             </div>
-            <small>Add translations for different locales (e.g., de-DE, fr-FR)</small>
+            <small>Add translations for different locales (e.g., en, fr, de)</small>
         `;
         body.appendChild(i18nGroup);
         
@@ -1031,7 +1031,7 @@ function showEditDialog(type, configIdx, viewIdx = null) {
                 <div id="i18nList"></div>
                 <button type="button" class="secondary" style="margin-top: 5px; width: 100%;" onclick="addI18nEntry()">+ Add Locale</button>
             </div>
-            <small>Add translations for different locales (e.g., de-DE, fr-FR)</small>
+            <small>Add translations for different locales (e.g., en, fr, de)</small>
         `;
         body.appendChild(i18nGroup);
         
@@ -1083,7 +1083,7 @@ function showEditDialog(type, configIdx, viewIdx = null) {
                 <div id="i18nList"></div>
                 <button type="button" class="secondary" style="margin-top: 5px; width: 100%;" onclick="addI18nEntry()">+ Add Locale</button>
             </div>
-            <small>Add translations for different locales (e.g., de-DE, fr-FR)</small>
+            <small>Add translations for different locales (e.g., en, fr, de)</small>
         `;
         body.appendChild(i18nGroup);
         
@@ -1181,6 +1181,10 @@ function submitModal() {
             const displayLocations = displayLocationsStr ? displayLocationsStr.split(',').map(k => k.trim()).filter(k => k) : ['compact'];
             const groupsList = groupsStr ? groupsStr.split(',').map(k => k.trim()).filter(k => k) : [];
             const i18nEntries = collectI18nEntries();
+            if (i18nEntries === null) {
+                // Validation error already shown by collectI18nEntries
+                return;
+            }
             
             const viewData = {
                 key,
@@ -1235,6 +1239,10 @@ function submitModal() {
             
             const fieldKeys = fieldKeysStr ? fieldKeysStr.split(',').map(k => k.trim()).filter(k => k) : [];
             const i18nEntries = collectI18nEntries();
+            if (i18nEntries === null) {
+                // Validation error already shown by collectI18nEntries
+                return;
+            }
             
             const groupData = {
                 key,
@@ -1287,7 +1295,21 @@ function submitModal() {
             }
             
             const i18nEntries = collectI18nEntries();
+            if (i18nEntries === null) {
+                // Validation error already shown by collectI18nEntries
+                return;
+            }
             const enumValues = collectEnumValues();
+            if (enumValues === null) {
+                // Validation error already shown by collectEnumValues
+                return;
+            }
+            
+            // Validate that SELECT/MULTISELECT fields have at least one allowed value
+            if ((fieldType === 'SELECT' || fieldType === 'MULTISELECT') && enumValues.length === 0) {
+                showStatus('SELECT and MULTISELECT fields require at least one allowed value', 'error');
+                return;
+            }
             
             const fieldData = {
                 key,
@@ -1886,6 +1908,10 @@ function collectI18nEntries() {
     if (!i18nList) return [];
     
     const entries = [];
+    const seenLocales = new Set();
+    let hasDuplicates = false;
+    let duplicateLocale = '';
+    
     const entryDivs = i18nList.querySelectorAll('.i18n-entry');
     entryDivs.forEach(div => {
         const locale = div.querySelector('.i18n-locale').value.trim();
@@ -1893,12 +1919,25 @@ function collectI18nEntries() {
         const helpText = div.querySelector('.i18n-helpText').value.trim();
         
         if (locale && (displayText || helpText)) {
+            // Check for duplicate locale
+            if (seenLocales.has(locale)) {
+                hasDuplicates = true;
+                duplicateLocale = locale;
+                return;
+            }
+            seenLocales.add(locale);
+            
             const entry = { locale };
             if (displayText) entry.displayText = displayText;
             if (helpText) entry.helpText = helpText;
             entries.push(entry);
         }
     });
+    
+    if (hasDuplicates) {
+        showStatus(`Duplicate locale '${duplicateLocale}' found. Each locale can only be used once.`, 'error');
+        return null;
+    }
     
     return entries;
 }
@@ -1966,13 +2005,29 @@ function collectEnumValues() {
     if (!enumList) return [];
     
     const values = [];
+    const seenValues = new Set();
+    let hasDuplicates = false;
+    let duplicateValue = '';
+    
     const entryDivs = enumList.querySelectorAll('.enum-value-entry');
     entryDivs.forEach(div => {
         const value = div.querySelector('.enum-value').value.trim();
         if (value) {
+            // Check for duplicate value
+            if (seenValues.has(value)) {
+                hasDuplicates = true;
+                duplicateValue = value;
+                return;
+            }
+            seenValues.add(value);
             values.push(value);
         }
     });
+    
+    if (hasDuplicates) {
+        showStatus(`Duplicate enum value '${duplicateValue}' found. Each value must be unique.`, 'error');
+        return null;
+    }
     
     return values;
 }
