@@ -359,7 +359,10 @@ class TestPermissions:
     """Tests for file permission handling."""
 
     def test_check_permissions_good(self, tmp_path: Path, monkeypatch: Any) -> None:
-        """Test that proper permissions are accepted."""
+        """Test that proper permissions are accepted.
+
+        Note: On Windows, permission checks are skipped, so this always returns None.
+        """
         config_file = tmp_path / "config.json"
         config_file.write_text("{}")
         config_file.chmod(0o600)
@@ -368,10 +371,19 @@ class TestPermissions:
         )
 
         result = check_config_file_permissions()
-        assert result is None  # No warning for good permissions
+        assert result is None  # No warning for good permissions (or on Windows)
 
     def test_check_permissions_too_permissive(self, tmp_path: Path, monkeypatch: Any) -> None:
-        """Test that world-readable permissions are flagged."""
+        """Test that world-readable permissions are flagged.
+
+        Note: This test is skipped on Windows where Unix permissions don't apply.
+        """
+        import platform
+        import pytest
+
+        if platform.system() == "Windows":
+            pytest.skip("Permission checks not applicable on Windows")
+
         config_file = tmp_path / "config.json"
         config_file.write_text("{}")
         config_file.chmod(0o644)

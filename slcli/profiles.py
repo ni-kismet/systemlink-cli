@@ -374,7 +374,14 @@ def check_config_file_permissions() -> Optional[str]:
     """Check if config file has appropriate permissions.
 
     Returns a warning message if permissions are too open, None otherwise.
+    Note: On Windows, this check is skipped as Windows uses a different permission model.
     """
+    import platform
+
+    # Skip permission check on Windows - Windows uses ACLs, not Unix permissions
+    if platform.system() == "Windows":
+        return None
+
     config_path = ProfileConfig.get_config_path()
     if not config_path.exists():
         return None
