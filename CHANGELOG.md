@@ -1,7 +1,20 @@
 # CHANGELOG
 
 
+## v0.27.1 (2026-01-30)
+
+### Bug Fixes
+
+- Windows permissions test failure
+  ([`9e3bfe9`](https://github.com/ni-kismet/systemlink-cli/commit/9e3bfe908d26203daa3f8d21619cde69817aff6d))
+
+
 ## v0.27.0 (2026-01-29)
+
+### Chores
+
+- **release**: 0.27.0
+  ([`344ae3c`](https://github.com/ni-kismet/systemlink-cli/commit/344ae3caf3aacb5f8d1dc8a1316eef63b95105fc))
 
 ### Features
 
