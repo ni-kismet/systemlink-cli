@@ -1,0 +1,25 @@
+<?xml version="1.0"?>
+<package xmlns="http://schemas.microsoft.com/packaging/2015/06/nuspec.xsd">
+  <metadata>
+    <id>slcli</id>
+    <version>$version$</version>
+    <title>SystemLink CLI</title>
+    <authors>NI</authors>
+    <owners>NI</owners>
+    <projectUrl>https://github.com/ni-kismet/systemlink-cli</projectUrl>
+    <license type="expression">MIT</license>
+    <requireLicenseAcceptance>false</requireLicenseAcceptance>
+    <summary>SystemLink Command Line Interface</summary>
+    <description>SystemLink CLI provides management and automation for SystemLink resources (workspaces, functions, notebooks, executions, etc.).</description>
+    <tags>systemlink ni cli automation</tags>
+    <packageSourceUrl>https://github.com/ni-kismet/systemlink-cli</packageSourceUrl>
+    <docsUrl>https://github.com/ni-kismet/systemlink-cli#readme</docsUrl>
+    <bugTrackerUrl>https://github.com/ni-kismet/systemlink-cli/issues</bugTrackerUrl>
+    <iconUrl>https://raw.githubusercontent.com/ni-kismet/systemlink-cli/main/docs/icon.png</iconUrl>
+    <releaseNotes>See CHANGELOG.md in the repository.</releaseNotes>
+  </metadata>
+  <files>
+    <!-- No embedded binaries: install script downloads release artifact -->
+    <file src="tools\**" target="tools" />
+  </files>
+</package>

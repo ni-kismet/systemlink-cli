@@ -158,8 +158,43 @@ jobs:
           path: |
             dist/scoop-slcli.json
 
+  choco-build:
+    runs-on: windows-latest
+    needs: build
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+
+      - name: Install Poetry
+        run: pip install poetry
+
+      - name: Install dependencies
+        run: poetry install
+
+      - name: Download Windows artifact
+        uses: actions/download-artifact@v4
+        with:
+          name: slcli-windows
+          path: dist/
+
+      - name: Build Chocolatey package
+        run: |
+          poetry run python scripts/build_chocolatey.py
+
+      - name: Upload Chocolatey artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: choco-artifacts
+          path: |
+            dist/*.nupkg
+
   release:
-    needs: [build, homebrew-build, scoop-build]
+    needs: [build, homebrew-build, scoop-build, choco-build]
     runs-on: ubuntu-latest
     permissions:
       contents: write
@@ -177,6 +212,7 @@ jobs:
             slcli-macos/slcli-macos.tar.gz
             slcli-macos-15-intel/slcli-macos-15-intel.tar.gz
             slcli-windows/slcli.zip
+            choco-artifacts/*.nupkg
           generate_release_notes: true
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
@@ -234,3 +270,22 @@ jobs:
           git add bucket/slcli.json
           git commit -m "slcli ${{ github.ref_name }}: update to latest release"
           git push
+
+  publish-chocolatey:
+    needs: release
+    runs-on: windows-latest
+    if: startsWith(github.ref, 'refs/tags/v')
+    steps:
+      - name: Download Chocolatey artifacts
+        uses: actions/download-artifact@v4
+        with:
+          name: choco-artifacts
+          path: choco/
+      - name: Push package to Chocolatey
+        env:
+          CHOCO_API_KEY: ${{ secrets.CHOCOLATEY_API_KEY }}
+        run: |
+          if (-not $env:CHOCO_API_KEY) { Write-Error 'Missing CHOCOLATEY_API_KEY secret'; exit 1 }
+          $pkg = Get-ChildItem choco/*.nupkg | Select-Object -First 1
+          choco apikey --source https://push.chocolatey.org/ --key $env:CHOCO_API_KEY
+          choco push $pkg.FullName --source https://push.chocolatey.org/

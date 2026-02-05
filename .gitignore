@@ -58,6 +58,7 @@ dist/
 *.toc
 *.pyz
 *.zip
+*.nupkg
 warn-*.txt
 xref-*.html
 localpycs/

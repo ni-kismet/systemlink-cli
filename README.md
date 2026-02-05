@@ -50,6 +50,24 @@ scoop bucket add ni-kismet https://github.com/ni-kismet/scoop-ni
 scoop install slcli
 ```
 
+### Chocolatey (Windows)
+
+Install SystemLink CLI using Chocolatey from the public community repository:
+
+```powershell
+# (Run from an elevated PowerShell / Command Prompt)
+choco install slcli
+
+# Upgrade to the latest version when released
+choco upgrade slcli
+```
+
+Notes:
+- Requires an elevated shell (Run as Administrator) for system-wide install
+- If you use a private Chocolatey server, push the published `.nupkg` there and install the same way
+- To view the installed files: `choco list --local-only slcli -v`
+
+
 ### From Source
 
 For development or if Homebrew isn't available:
