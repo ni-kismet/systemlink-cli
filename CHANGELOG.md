@@ -1,12 +1,67 @@
 # CHANGELOG
 
 
+## v0.28.0 (2026-02-06)
+
+### Features
+
+- Add Test Monitor commands with product and result listing
+  ([#52](https://github.com/ni-kismet/systemlink-cli/pull/52),
+  [`bc61b5a`](https://github.com/ni-kismet/systemlink-cli/commit/bc61b5ad59c30f80c0ff7d678fbd34f8eb710dc2))
+
+* feat: Add Test Monitor commands with product and result listing
+
+- Add testmonitor CLI module with product list and result list commands - Implement interactive
+  pagination for table output (25 items per page) - Support comprehensive filtering: name,
+  part-number, family, workspace, custom filters - Support Dynamic LINQ filter expressions with
+  substitution parameters - Support ordering by various fields with ascending/descending options -
+  Implement result-specific filters: status, program-name, serial-number, operator, host-name,
+  system-id - Support product filtering for test results queries - Format output as table (default)
+  or JSON with proper workspace name resolution - Add 6 comprehensive unit tests with 83% coverage -
+  Update README with usage examples and Dynamic LINQ documentation - Update DFF e2e tests to use new
+  'customfield' command name
+
+* Refactor Test Monitor commands: eliminate duplication and expand test coverage (#53)
+
+* Initial plan
+
+* refactor: Fix duplicate workspace_map fetch and extract pagination helper
+
+- Fixed duplicate workspace_map fetching in list_products - Extracted interactive pagination logic
+  into reusable _handle_interactive_pagination helper - Added explanatory comments to empty except
+  clauses
+
+Co-authored-by: fredvisser <1458528+fredvisser@users.noreply.github.com>
+
+* test: Add comprehensive unit test coverage for testmonitor commands
+
+- Add empty results scenario tests for products and results - Add order-by functionality tests - Add
+  descending/ascending parameter tests - Add product-filter with product-substitution test - Add
+  error handling scenario tests - Coverage increased from 85% to 91%
+
+Co-authored-by: fredvisser <1458528+fredvisser@users.noreply.github.com>
+
+---------
+
+Co-authored-by: copilot-swe-agent[bot] <198982749+Copilot@users.noreply.github.com> Co-authored-by:
+  fredvisser <1458528+fredvisser@users.noreply.github.com>
+
+---------
+
+Co-authored-by: Copilot <198982749+Copilot@users.noreply.github.com>
+
+
 ## v0.27.1 (2026-01-30)
 
 ### Bug Fixes
 
 - Windows permissions test failure
   ([`9e3bfe9`](https://github.com/ni-kismet/systemlink-cli/commit/9e3bfe908d26203daa3f8d21619cde69817aff6d))
+
+### Chores
+
+- **release**: 0.27.1
+  ([`4f6f161`](https://github.com/ni-kismet/systemlink-cli/commit/4f6f161685f63b59b4a6246eaaf1fdc6db649a87))
 
 
 ## v0.27.0 (2026-01-29)
