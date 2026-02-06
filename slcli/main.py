@@ -29,6 +29,7 @@ from .profiles import set_profile_override
 from .ssl_trust import OS_TRUST_INJECTED, OS_TRUST_REASON
 from .tag_click import register_tag_commands
 from .templates_click import register_templates_commands
+from .testmonitor_click import register_testmonitor_commands
 from .user_click import register_user_commands
 from .webapp_click import register_webapp_commands
 from .workflows_click import register_workflows_commands
@@ -448,6 +449,7 @@ register_templates_commands(cli)
 register_notebook_commands(cli)
 register_policy_commands(cli)
 register_tag_commands(cli)
+register_testmonitor_commands(cli)
 register_webapp_commands(cli)
 register_user_commands(cli)
 register_workflows_commands(cli)
