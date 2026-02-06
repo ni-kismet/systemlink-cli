@@ -307,3 +307,300 @@ def test_result_list_take_parameter(monkeypatch: Any, runner: CliRunner) -> None
     assert result.exit_code == 0
     assert captured_payloads
     assert captured_payloads[0]["take"] == 15
+
+
+def test_list_products_empty_results(monkeypatch: Any, runner: CliRunner) -> None:
+    """Test product list with no results."""
+    patch_keyring(monkeypatch)
+
+    def mock_request(
+        method: str,
+        url: str,
+        payload: Optional[Dict[str, Any]] = None,
+        **_: Any,
+    ) -> Any:
+        return MockResponse({"products": []})
+
+    monkeypatch.setattr("slcli.testmonitor_click.make_api_request", mock_request)
+    monkeypatch.setattr("slcli.testmonitor_click.get_workspace_map", lambda: {})
+
+    cli = make_cli()
+    result = runner.invoke(cli, ["testmonitor", "product", "list"])
+
+    assert result.exit_code == 0
+    assert "No products found" in result.output
+
+
+def test_list_results_empty_results(monkeypatch: Any, runner: CliRunner) -> None:
+    """Test test result list with no results."""
+    patch_keyring(monkeypatch)
+
+    def mock_request(
+        method: str,
+        url: str,
+        payload: Optional[Dict[str, Any]] = None,
+        **_: Any,
+    ) -> Any:
+        return MockResponse({"results": []})
+
+    monkeypatch.setattr("slcli.testmonitor_click.make_api_request", mock_request)
+    monkeypatch.setattr("slcli.testmonitor_click.get_workspace_map", lambda: {})
+
+    cli = make_cli()
+    result = runner.invoke(cli, ["testmonitor", "result", "list"])
+
+    assert result.exit_code == 0
+    assert "No test results found" in result.output
+
+
+def test_list_products_order_by(monkeypatch: Any, runner: CliRunner) -> None:
+    """Test product list with order-by parameter."""
+    patch_keyring(monkeypatch)
+
+    captured_payloads: List[Dict[str, Any]] = []
+
+    def mock_request(
+        method: str,
+        url: str,
+        payload: Optional[Dict[str, Any]] = None,
+        **_: Any,
+    ) -> Any:
+        if payload:
+            captured_payloads.append(payload)
+        return MockResponse(
+            {
+                "products": [
+                    {
+                        "id": "prod-1",
+                        "name": "Product-A",
+                        "partNumber": "123",
+                        "family": "Test",
+                    }
+                ]
+            }
+        )
+
+    monkeypatch.setattr("slcli.testmonitor_click.make_api_request", mock_request)
+    monkeypatch.setattr("slcli.testmonitor_click.get_workspace_map", lambda: {})
+
+    cli = make_cli()
+    result = runner.invoke(
+        cli, ["testmonitor", "product", "list", "--order-by", "NAME", "--format", "json"]
+    )
+
+    assert result.exit_code == 0
+    assert captured_payloads
+    assert captured_payloads[0].get("orderBy") == "NAME"
+
+
+def test_list_results_order_by(monkeypatch: Any, runner: CliRunner) -> None:
+    """Test test result list with order-by parameter."""
+    patch_keyring(monkeypatch)
+
+    captured_payloads: List[Dict[str, Any]] = []
+
+    def mock_request(
+        method: str,
+        url: str,
+        payload: Optional[Dict[str, Any]] = None,
+        **_: Any,
+    ) -> Any:
+        if payload:
+            captured_payloads.append(payload)
+        return MockResponse(
+            {
+                "results": [
+                    {
+                        "id": "res-1",
+                        "programName": "Test",
+                        "status": {"statusType": "PASSED"},
+                    }
+                ]
+            }
+        )
+
+    monkeypatch.setattr("slcli.testmonitor_click.make_api_request", mock_request)
+    monkeypatch.setattr("slcli.testmonitor_click.get_workspace_map", lambda: {})
+
+    cli = make_cli()
+    result = runner.invoke(
+        cli,
+        [
+            "testmonitor",
+            "result",
+            "list",
+            "--order-by",
+            "STARTED_AT",
+            "--format",
+            "json",
+        ],
+    )
+
+    assert result.exit_code == 0
+    assert captured_payloads
+    assert captured_payloads[0].get("orderBy") == "STARTED_AT"
+
+
+def test_list_products_descending_ascending(monkeypatch: Any, runner: CliRunner) -> None:
+    """Test product list with descending/ascending parameters."""
+    patch_keyring(monkeypatch)
+
+    captured_payloads: List[Dict[str, Any]] = []
+
+    def mock_request(
+        method: str,
+        url: str,
+        payload: Optional[Dict[str, Any]] = None,
+        **_: Any,
+    ) -> Any:
+        if payload:
+            captured_payloads.append(payload)
+        return MockResponse({"products": []})
+
+    monkeypatch.setattr("slcli.testmonitor_click.make_api_request", mock_request)
+    monkeypatch.setattr("slcli.testmonitor_click.get_workspace_map", lambda: {})
+
+    cli = make_cli()
+
+    # Test ascending
+    result = runner.invoke(
+        cli, ["testmonitor", "product", "list", "--ascending", "--format", "json"]
+    )
+    assert result.exit_code == 0
+    assert captured_payloads[-1].get("descending") is False
+
+    # Test descending (default)
+    result = runner.invoke(cli, ["testmonitor", "product", "list", "--format", "json"])
+    assert result.exit_code == 0
+    assert captured_payloads[-1].get("descending") is True
+
+
+def test_list_results_descending_ascending(monkeypatch: Any, runner: CliRunner) -> None:
+    """Test test result list with descending/ascending parameters."""
+    patch_keyring(monkeypatch)
+
+    captured_payloads: List[Dict[str, Any]] = []
+
+    def mock_request(
+        method: str,
+        url: str,
+        payload: Optional[Dict[str, Any]] = None,
+        **_: Any,
+    ) -> Any:
+        if payload:
+            captured_payloads.append(payload)
+        return MockResponse({"results": []})
+
+    monkeypatch.setattr("slcli.testmonitor_click.make_api_request", mock_request)
+    monkeypatch.setattr("slcli.testmonitor_click.get_workspace_map", lambda: {})
+
+    cli = make_cli()
+
+    # Test ascending
+    result = runner.invoke(
+        cli, ["testmonitor", "result", "list", "--ascending", "--format", "json"]
+    )
+    assert result.exit_code == 0
+    assert captured_payloads[-1].get("descending") is False
+
+    # Test descending (default)
+    result = runner.invoke(cli, ["testmonitor", "result", "list", "--format", "json"])
+    assert result.exit_code == 0
+    assert captured_payloads[-1].get("descending") is True
+
+
+def test_list_results_product_filter_with_substitution(monkeypatch: Any, runner: CliRunner) -> None:
+    """Test test result list with product-filter and product-substitution."""
+    patch_keyring(monkeypatch)
+
+    captured_payloads: List[Dict[str, Any]] = []
+
+    def mock_request(
+        method: str,
+        url: str,
+        payload: Optional[Dict[str, Any]] = None,
+        **_: Any,
+    ) -> Any:
+        if payload:
+            captured_payloads.append(payload)
+        return MockResponse(
+            {
+                "results": [
+                    {
+                        "id": "res-1",
+                        "programName": "Test",
+                        "status": {"statusType": "PASSED"},
+                    }
+                ]
+            }
+        )
+
+    monkeypatch.setattr("slcli.testmonitor_click.make_api_request", mock_request)
+    monkeypatch.setattr("slcli.testmonitor_click.get_workspace_map", lambda: {})
+
+    cli = make_cli()
+    result = runner.invoke(
+        cli,
+        [
+            "testmonitor",
+            "result",
+            "list",
+            "--product-filter",
+            "partNumber == @0",
+            "--product-substitution",
+            "cRIO-9030",
+            "--format",
+            "json",
+        ],
+    )
+
+    assert result.exit_code == 0
+    assert captured_payloads
+    payload = captured_payloads[0]
+    assert "productFilter" in payload
+    assert payload["productFilter"] == "partNumber == @0"
+    assert payload.get("productSubstitutions") == ["cRIO-9030"]
+
+
+def test_list_products_error_handling(monkeypatch: Any, runner: CliRunner) -> None:
+    """Test product list error handling."""
+    patch_keyring(monkeypatch)
+
+    def mock_request(
+        method: str,
+        url: str,
+        payload: Optional[Dict[str, Any]] = None,
+        **_: Any,
+    ) -> Any:
+        raise Exception("API Error")
+
+    monkeypatch.setattr("slcli.testmonitor_click.make_api_request", mock_request)
+    monkeypatch.setattr("slcli.testmonitor_click.get_workspace_map", lambda: {})
+
+    cli = make_cli()
+    result = runner.invoke(cli, ["testmonitor", "product", "list"])
+
+    assert result.exit_code != 0
+    assert "API Error" in result.output or "Error" in result.output
+
+
+def test_list_results_error_handling(monkeypatch: Any, runner: CliRunner) -> None:
+    """Test test result list error handling."""
+    patch_keyring(monkeypatch)
+
+    def mock_request(
+        method: str,
+        url: str,
+        payload: Optional[Dict[str, Any]] = None,
+        **_: Any,
+    ) -> Any:
+        raise Exception("API Error")
+
+    monkeypatch.setattr("slcli.testmonitor_click.make_api_request", mock_request)
+    monkeypatch.setattr("slcli.testmonitor_click.get_workspace_map", lambda: {})
+
+    cli = make_cli()
+    result = runner.invoke(cli, ["testmonitor", "result", "list"])
+
+    assert result.exit_code != 0
+    assert "API Error" in result.output or "Error" in result.output
