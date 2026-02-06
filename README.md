@@ -1240,6 +1240,59 @@ Use this command when troubleshooting TLS failures, validating that corporate ro
 or confirming environment variable effects. It produces no network traffic and is safe to run
 any time.
 
+## Test Monitor Management
+
+The `testmonitor` command group provides access to Test Monitor products and test results.
+
+### List products
+
+```bash
+# List products (table with pagination)
+slcli testmonitor product list
+
+# Filter by product fields (contains match)
+slcli testmonitor product list --name "cRIO" --family "cRIO"
+
+# Filter by workspace
+slcli testmonitor product list --workspace MyWorkspace
+
+# Dynamic LINQ filter with substitutions
+slcli testmonitor product list \
+  --filter '(family == @0) && (name.Contains(@1))' \
+  --substitution "cRIO" \
+  --substitution "9030"
+
+# JSON output (no interactive pagination)
+slcli testmonitor product list --format json
+```
+
+### List test results
+
+```bash
+# List test results (table with pagination)
+slcli testmonitor result list
+
+# Filter by status and program name
+slcli testmonitor result list --status passed --program-name "Calibration"
+
+# Filter by part number and serial number
+slcli testmonitor result list --part-number "cRIO-9030" --serial-number "abc-123"
+
+# Filter by workspace
+slcli testmonitor result list --workspace MyWorkspace
+
+# Advanced result and product filters with substitutions
+slcli testmonitor result list \
+  --filter '(operator == @0) && (totalTimeInSeconds < @1)' \
+  --substitution "user1" \
+  --substitution 30 \
+  --product-filter '(family == @0)' \
+  --product-substitution "cRIO"
+
+# JSON output (no interactive pagination)
+slcli testmonitor result list --format json
+```
+
 ## Notebook Management
 
 The `notebook` command group is organized into logical subgroups to mirror function command structure:

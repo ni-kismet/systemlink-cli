@@ -15,7 +15,7 @@ class TestDFFE2E:
 
     def test_dff_config_list_basic(self, cli_runner: Any, cli_helper: Any) -> None:
         """Test basic DFF configuration list functionality."""
-        result = cli_runner(["dff", "list", "--format", "json"])
+        result = cli_runner(["customfield", "list", "--format", "json"])
         cli_helper.assert_success(result)
 
         configs = cli_helper.get_json_output(result)
@@ -23,7 +23,7 @@ class TestDFFE2E:
 
     def test_dff_config_list_table_format(self, cli_runner: Any, cli_helper: Any) -> None:
         """Test DFF config list with table format."""
-        result = cli_runner(["dff", "list", "--format", "table"])
+        result = cli_runner(["customfield", "list", "--format", "table"])
         cli_helper.assert_success(result)
 
         # Should show table headers or "No configurations found"
@@ -37,7 +37,7 @@ class TestDFFE2E:
     ) -> None:
         """Test DFF config list with workspace filtering."""
         workspace = configured_workspace
-        result = cli_runner(["dff", "list", "--workspace", workspace, "--format", "json"])
+        result = cli_runner(["customfield", "list", "--workspace", workspace, "--format", "json"])
         cli_helper.assert_success(result)
 
         configs = cli_helper.get_json_output(result)
@@ -72,7 +72,7 @@ class TestDFFE2E:
 
         try:
             # Create DFF configuration
-            result = cli_runner(["dff", "create", "--file", temp_file])
+            result = cli_runner(["customfield", "create", "--file", temp_file])
 
             if result.returncode == 0:
                 # Creation succeeded
@@ -88,7 +88,9 @@ class TestDFFE2E:
 
                 if config_id:
                     # Verify configuration exists
-                    result = cli_runner(["dff", "get", "--id", config_id, "--format", "json"])
+                    result = cli_runner(
+                        ["customfield", "get", "--id", config_id, "--format", "json"]
+                    )
                     if result.returncode == 0:
                         config_data = cli_helper.get_json_output(result)
                         # The get command returns configurations array
@@ -97,7 +99,7 @@ class TestDFFE2E:
                         assert config_data["configurations"][0]["id"] == config_id
 
                     # Delete configuration
-                    cli_runner(["dff", "delete", "--id", config_id], input_data="y\n")
+                    cli_runner(["customfield", "delete", "--id", config_id], input_data="y\n")
                     # Deletion may succeed or fail depending on dependencies
                     # Both are acceptable for E2E tests
             else:
@@ -112,7 +114,7 @@ class TestDFFE2E:
     def test_dff_config_export_functionality(self, cli_runner: Any, cli_helper: Any) -> None:
         """Test DFF configuration export functionality."""
         # First, get list of configurations
-        result = cli_runner(["dff", "list", "--format", "json"])
+        result = cli_runner(["customfield", "list", "--format", "json"])
         cli_helper.assert_success(result)
 
         configs = cli_helper.get_json_output(result)
@@ -126,7 +128,9 @@ class TestDFFE2E:
                 with tempfile.NamedTemporaryFile(suffix=".json", delete=False) as export_file:
                     export_path = export_file.name
 
-                result = cli_runner(["dff", "export", "--id", config_id, "--output", export_path])
+                result = cli_runner(
+                    ["customfield", "export", "--id", config_id, "--output", export_path]
+                )
 
                 try:
                     cli_helper.assert_success(result, "exported")
@@ -160,7 +164,7 @@ class TestDFFE2E:
             # Initialize template with prompts
             result = cli_runner(
                 [
-                    "dff",
+                    "customfield",
                     "init",
                     "--name",
                     "E2E Test Template",
@@ -199,7 +203,7 @@ class TestDFFE2E:
     def test_dff_pagination(self, cli_runner: Any, cli_helper: Any) -> None:
         """Test DFF list commands pagination."""
         # Test config pagination
-        result = cli_runner(["dff", "list", "--take", "3", "--format", "table"])
+        result = cli_runner(["customfield", "list", "--take", "3", "--format", "table"])
         cli_helper.assert_success(result)
 
         # Note: groups and fields commands removed in flattened structure
@@ -224,7 +228,7 @@ class TestDFFE2E:
         """Test DFF config init with invalid resource type."""
         result = cli_runner(
             [
-                "dff",
+                "customfield",
                 "init",
                 "--name",
                 "Invalid Test",
