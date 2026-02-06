@@ -604,3 +604,222 @@ def test_list_results_error_handling(monkeypatch: Any, runner: CliRunner) -> Non
 
     assert result.exit_code != 0
     assert "API Error" in result.output or "Error" in result.output
+
+
+def test_get_product_json(monkeypatch: Any, runner: CliRunner) -> None:
+    """Test retrieving product details in JSON format."""
+    patch_keyring(monkeypatch)
+
+    product_data = {
+        "id": "prod-123",
+        "name": "Test Product",
+        "partNumber": "TP-001",
+        "family": "TestFamily",
+        "workspace": "ws-456",
+        "updatedAt": "2026-02-05T10:30:00Z",
+        "keywords": ["test", "mock"],
+        "properties": {"revision": "A", "status": "active"},
+    }
+
+    def mock_request(method: str, url: str, **_: Any) -> Any:
+        resp: Any = MockResponse(product_data)
+        return resp
+
+    monkeypatch.setattr("slcli.testmonitor_click.make_api_request", mock_request)
+    monkeypatch.setattr(
+        "slcli.testmonitor_click.get_workspace_display_name",
+        lambda ws: "Production",
+    )
+
+    cli = make_cli()
+    result = runner.invoke(cli, ["testmonitor", "product", "get", "prod-123", "--format", "json"])
+
+    assert result.exit_code == 0
+    output_data = json.loads(result.output)
+    assert output_data["name"] == "Test Product"
+    assert output_data["partNumber"] == "TP-001"
+
+
+def test_get_product_table(monkeypatch: Any, runner: CliRunner) -> None:
+    """Test retrieving product details in table format."""
+    patch_keyring(monkeypatch)
+
+    product_data = {
+        "id": "prod-123",
+        "name": "Test Product",
+        "partNumber": "TP-001",
+        "family": "TestFamily",
+        "workspace": "ws-456",
+        "updatedAt": "2026-02-05T10:30:00Z",
+        "keywords": ["test", "mock"],
+        "properties": {"revision": "A"},
+    }
+
+    def mock_request(method: str, url: str, **_: Any) -> Any:
+        resp: Any = MockResponse(product_data)
+        return resp
+
+    monkeypatch.setattr("slcli.testmonitor_click.make_api_request", mock_request)
+    monkeypatch.setattr(
+        "slcli.testmonitor_click.get_workspace_display_name",
+        lambda ws: "Production",
+    )
+
+    cli = make_cli()
+    result = runner.invoke(cli, ["testmonitor", "product", "get", "prod-123"])
+
+    assert result.exit_code == 0
+    assert "Test Product" in result.output
+    assert "TP-001" in result.output
+    assert "TestFamily" in result.output
+
+
+def test_get_result_json_with_steps(monkeypatch: Any, runner: CliRunner) -> None:
+    """Test retrieving result details with steps in JSON format."""
+    patch_keyring(monkeypatch)
+
+    result_data = {
+        "id": "result-789",
+        "status": {"statusType": "PASSED", "statusName": "Passed"},
+        "programName": "Calibration",
+        "partNumber": "XYZ-001",
+        "serialNumber": "SN123456",
+        "startedAt": "2026-02-05T10:30:00Z",
+        "updatedAt": "2026-02-05T10:35:42Z",
+        "systemId": "sys-abc",
+        "hostName": "test-station-01",
+        "operator": "engineer@test.com",
+        "totalTimeInSeconds": 342.5,
+        "workspace": "ws-456",
+    }
+
+    steps_data = {
+        "steps": [
+            {
+                "name": "DMM Voltage Test",
+                "stepType": "NumericLimitTest",
+                "stepId": "step-001",
+                "resultId": "result-789",
+                "path": ["Setup", "DMM Tests", "Voltage"],
+                "status": {"statusType": "PASSED", "statusName": "Passed"},
+                "totalTimeInSeconds": 5.2,
+                "outputs": [{"name": "Voltage", "value": 5.01}],
+                "dataModel": "TestStand",
+            }
+        ]
+    }
+
+    call_count = 0
+
+    def mock_request(method: str, url: str, **_: Any) -> Any:
+        nonlocal call_count
+        call_count += 1
+        if "results" in url and call_count == 1:
+            return MockResponse(result_data)
+        elif "query-steps" in url:
+            return MockResponse(steps_data)
+        return MockResponse({})
+
+    monkeypatch.setattr("slcli.testmonitor_click.make_api_request", mock_request)
+
+    cli = make_cli()
+    result = runner.invoke(
+        cli, ["testmonitor", "result", "get", "result-789", "--include-steps", "--format", "json"]
+    )
+
+    assert result.exit_code == 0
+    output_data = json.loads(result.output)
+    assert output_data["programName"] == "Calibration"
+    assert "steps" in output_data
+    assert len(output_data["steps"]) == 1
+    assert output_data["steps"][0]["name"] == "DMM Voltage Test"
+
+
+def test_get_result_table_with_measurements(monkeypatch: Any, runner: CliRunner) -> None:
+    """Test retrieving result details with measurements in table format."""
+    patch_keyring(monkeypatch)
+
+    result_data = {
+        "id": "result-789",
+        "status": {"statusType": "PASSED", "statusName": "Passed"},
+        "programName": "Calibration",
+        "partNumber": "XYZ-001",
+        "serialNumber": "SN123456",
+        "startedAt": "2026-02-05T10:30:00Z",
+        "updatedAt": "2026-02-05T10:35:42Z",
+        "systemId": "sys-abc",
+        "hostName": "test-station-01",
+        "operator": "engineer@test.com",
+        "totalTimeInSeconds": 342.5,
+        "workspace": "ws-456",
+    }
+
+    steps_data = {
+        "steps": [
+            {
+                "name": "DMM Voltage Test",
+                "stepType": "NumericLimitTest",
+                "stepId": "step-001",
+                "resultId": "result-789",
+                "path": ["Setup", "DMM Tests", "Voltage"],
+                "status": {"statusType": "PASSED", "statusName": "Passed"},
+                "totalTimeInSeconds": 5.2,
+                "outputs": [
+                    {"name": "Voltage", "value": 5.01},
+                    {"name": "Current", "value": 1.23},
+                ],
+                "dataModel": "TestStand",
+            }
+        ]
+    }
+
+    call_count = 0
+
+    def mock_request(method: str, url: str, **_: Any) -> Any:
+        nonlocal call_count
+        call_count += 1
+        if "results" in url and call_count == 1:
+            return MockResponse(result_data)
+        elif "query-steps" in url:
+            return MockResponse(steps_data)
+        return MockResponse({})
+
+    monkeypatch.setattr("slcli.testmonitor_click.make_api_request", mock_request)
+
+    cli = make_cli()
+    result = runner.invoke(
+        cli,
+        [
+            "testmonitor",
+            "result",
+            "get",
+            "result-789",
+            "--include-steps",
+            "--include-measurements",
+        ],
+    )
+
+    assert result.exit_code == 0
+    assert "Calibration" in result.output
+    assert "PASSED" in result.output
+    assert "DMM Voltage Test" in result.output
+    assert "Voltage" in result.output
+    assert "5.01" in result.output or "5.0" in result.output
+    assert "Current" in result.output
+    assert "1.23" in result.output or "1.2" in result.output
+
+
+def test_get_result_error_handling(monkeypatch: Any, runner: CliRunner) -> None:
+    """Test get result error handling."""
+    patch_keyring(monkeypatch)
+
+    def mock_request(method: str, url: str, **_: Any) -> Any:
+        raise Exception("API Error")
+
+    monkeypatch.setattr("slcli.testmonitor_click.make_api_request", mock_request)
+
+    cli = make_cli()
+    result = runner.invoke(cli, ["testmonitor", "result", "get", "result-789"])
+
+    assert result.exit_code != 0
+    assert "API Error" in result.output or "Error" in result.output

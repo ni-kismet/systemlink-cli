@@ -805,3 +805,121 @@ def register_testmonitor_commands(cli: Any) -> None:
                 )
         except Exception as exc:  # noqa: BLE001
             handle_api_error(exc)
+
+    @product.command(name="get")
+    @click.argument("product_id")
+    @click.option("--format", "-f", type=click.Choice(["table", "json"]), default="table")
+    def get_product(product_id: str, format: str) -> None:
+        """Get detailed information about a specific product.
+
+        Args:
+            product_id: The ID of the product to retrieve.
+            format: Output format (table or json).
+        """
+        try:
+            validate_output_format(format)
+            url = f"{_get_testmonitor_base_url()}/products/{product_id}"
+            resp = make_api_request("GET", url)
+            resp.raise_for_status()
+
+            product = resp.json()
+
+            if format == "json":
+                click.echo(json.dumps(product, indent=2))
+            else:
+                # Table format
+                click.echo(f"\nProduct: {product.get('name', 'N/A')} ({product.get('id', 'N/A')})")
+                click.echo(f"Part Number: {product.get('partNumber', 'N/A')}")
+                click.echo(f"Family: {product.get('family', 'N/A')}")
+                workspace = product.get("workspace", "N/A")
+                if workspace != "N/A":
+                    workspace_name = get_workspace_display_name(workspace)
+                    click.echo(f"Workspace: {workspace_name} ({workspace})")
+                click.echo(f"Updated: {_format_date(product.get('updatedAt', 'N/A'))}")
+
+                # Display keywords and properties if present
+                if product.get("keywords"):
+                    click.echo(f"Keywords: {', '.join(product['keywords'])}")
+                if product.get("properties"):
+                    click.echo("Properties:")
+                    for key, value in product["properties"].items():
+                        click.echo(f"  {key}: {value}")
+                click.echo()
+        except Exception as exc:  # noqa: BLE001
+            handle_api_error(exc)
+
+    @result.command(name="get")
+    @click.argument("result_id")
+    @click.option("--include-steps", is_flag=True, help="Include step details in output.")
+    @click.option(
+        "--include-measurements",
+        is_flag=True,
+        help="Include measurement data from steps.",
+    )
+    @click.option("--format", "-f", type=click.Choice(["table", "json"]), default="table")
+    def get_result(
+        result_id: str, include_steps: bool, include_measurements: bool, format: str
+    ) -> None:
+        """Get detailed information about a specific test result.
+
+        Args:
+            result_id: The ID of the result to retrieve.
+            include_steps: Include step details in output.
+            include_measurements: Include measurement data from steps.
+            format: Output format (table or json).
+        """
+        try:
+            validate_output_format(format)
+            url = f"{_get_testmonitor_base_url()}/results/{result_id}"
+            resp = make_api_request("GET", url)
+            resp.raise_for_status()
+
+            result = resp.json()
+
+            # Fetch steps if requested
+            steps: List[Dict[str, Any]] = []
+            if include_steps or include_measurements:
+                steps_url = f"{_get_testmonitor_base_url()}/query-steps"
+                steps_body = {"filter": "resultId == @0", "substitutions": [result_id]}
+                steps_resp = make_api_request("POST", steps_url, payload=steps_body)
+                steps_resp.raise_for_status()
+                steps = steps_resp.json().get("steps", [])
+                result["steps"] = steps
+
+            if format == "json":
+                click.echo(json.dumps(result, indent=2))
+            else:
+                # Table format - detailed view
+                status = result.get("status", {})
+                status_type = status.get("statusType", "N/A")
+                click.echo(f"\nTest Result: {result.get('programName', 'N/A')} ({result_id})")
+                click.echo(f"Status: {status_type}")
+                click.echo(f"Part Number: {result.get('partNumber', 'N/A')}")
+                click.echo(f"Serial Number: {result.get('serialNumber', 'N/A')}")
+                click.echo(f"Started: {_format_date(result.get('startedAt', 'N/A'))}")
+                click.echo(f"Updated: {_format_date(result.get('updatedAt', 'N/A'))}")
+                click.echo(f"Duration: {_format_duration(result.get('totalTimeInSeconds', 0))}")
+                click.echo(f"System ID: {result.get('systemId', 'N/A')}")
+                click.echo(f"Host: {result.get('hostName', 'N/A')}")
+                click.echo(f"Operator: {result.get('operator', 'N/A')}")
+
+                # Display steps if requested
+                if include_steps and steps:
+                    click.echo("\nSteps:")
+                    for i, step in enumerate(steps, 1):
+                        step_status = step.get("status", {})
+                        step_status_type = step_status.get("statusType", "N/A")
+                        click.echo(
+                            f"  {i}. {step.get('name', 'N/A')} [{step_status_type}] "
+                            f"({_format_duration(step.get('totalTimeInSeconds', 0))})"
+                        )
+
+                        # Display measurements if requested
+                        if include_measurements and step.get("outputs"):
+                            for output in step["outputs"]:
+                                output_name = output.get("name", "N/A")
+                                output_value = output.get("value", "N/A")
+                                click.echo(f"      • {output_name}: {output_value}")
+                click.echo()
+        except Exception as exc:  # noqa: BLE001
+            handle_api_error(exc)

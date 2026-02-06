@@ -1293,6 +1293,32 @@ slcli testmonitor result list \
 slcli testmonitor result list --format json
 ```
 
+### Get product details
+
+```bash
+# Get a specific product by ID in table format
+slcli testmonitor product get 02600cf8-c2bb-4ff9-a139-031e943fb0c0
+
+# Get product details in JSON format
+slcli testmonitor product get 02600cf8-c2bb-4ff9-a139-031e943fb0c0 --format json
+```
+
+### Get result details with steps and measurements
+
+```bash
+# Get a specific test result by ID
+slcli testmonitor result get abc123def456
+
+# Include step information
+slcli testmonitor result get abc123def456 --include-steps
+
+# Include step measurements (outputs)
+slcli testmonitor result get abc123def456 --include-steps --include-measurements
+
+# Get result details in JSON format
+slcli testmonitor result get abc123def456 --include-steps --format json
+```
+
 ## Notebook Management
 
 The `notebook` command group is organized into logical subgroups to mirror function command structure:
