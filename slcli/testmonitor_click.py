@@ -132,6 +132,73 @@ def _format_duration(value: Any) -> str:
     return str(value) if value is not None else ""
 
 
+def _handle_interactive_pagination(
+    fetch_page_func: Any,
+    data_key: str,
+    item_name: str,
+    format_output: str,
+    formatter_func: Any,
+    headers: List[str],
+    column_widths: List[int],
+    empty_message: str,
+    take: int,
+) -> None:
+    """Handle interactive pagination for table output.
+
+    Args:
+        fetch_page_func: Function that returns (items, continuation_token) tuple.
+        data_key: Key to use for data in the mock response.
+        item_name: Name of the item type (e.g., "product", "result").
+        format_output: Output format ("table" or "json").
+        formatter_func: Function to format each item for display.
+        headers: Column headers for the table.
+        column_widths: Column widths for the table.
+        empty_message: Message to display when no items are found.
+        take: Number of items per page.
+    """
+    cont: Optional[str] = None
+    shown_count = 0
+
+    while True:
+        page_items, cont = fetch_page_func(cont)
+
+        if not page_items:
+            if shown_count == 0:
+                click.echo(empty_message)
+            break
+
+        shown_count += len(page_items)
+
+        mock_resp = FilteredResponse({data_key: page_items})
+        UniversalResponseHandler.handle_list_response(
+            resp=mock_resp,
+            data_key=data_key,
+            item_name=item_name,
+            format_output=format_output,
+            formatter_func=formatter_func,
+            headers=headers,
+            column_widths=column_widths,
+            empty_message=empty_message,
+            enable_pagination=False,
+            page_size=take,
+            shown_count=shown_count,
+        )
+
+        # Flush stdout so the table is visible before prompting
+        try:
+            sys.stdout.flush()
+        except Exception:
+            # Best-effort flush; ignore failures to avoid crashing on I/O issues.
+            pass
+
+        # Ask if user wants to fetch the next page
+        if not cont:
+            break
+
+        if not click.confirm("Show next set of results?", default=True):
+            break
+
+
 def _query_all_products(
     filter_expr: Optional[str],
     substitutions: List[Any],
@@ -419,6 +486,12 @@ def register_testmonitor_commands(cli: Any) -> None:
         format_output = validate_output_format(format)
 
         try:
+            # Fetch workspace map once for both filter resolution and display
+            try:
+                workspace_map = get_workspace_map()
+            except Exception:
+                workspace_map = {}
+
             filter_parts: List[str] = []
             filter_substitutions: List[Any] = []
 
@@ -429,7 +502,6 @@ def register_testmonitor_commands(cli: Any) -> None:
             _append_filter(filter_parts, filter_substitutions, "family.Contains(@{index})", family)
 
             if workspace:
-                workspace_map = get_workspace_map()
                 workspace_id = resolve_workspace_filter(workspace, workspace_map)
                 _append_filter(
                     filter_parts, filter_substitutions, "workspace == @{index}", workspace_id
@@ -444,12 +516,6 @@ def register_testmonitor_commands(cli: Any) -> None:
 
             if order_by:
                 order_by = order_by.upper()
-
-            # Prepare workspace map once for display name resolution
-            try:
-                workspace_map = get_workspace_map()
-            except Exception:
-                workspace_map = {}
 
             def product_formatter(item: Dict[str, Any]) -> List[str]:
                 ws_id = item.get("workspace", "")
@@ -481,48 +547,24 @@ def register_testmonitor_commands(cli: Any) -> None:
                 )
             else:
                 # Interactive pagination for table output
-                cont: Optional[str] = None
-                shown_count = 0
-
-                while True:
-                    page_products, cont = _fetch_products_page(
+                def fetch_page(
+                    cont: Optional[str] = None,
+                ) -> Tuple[List[Dict[str, Any]], Optional[str]]:
+                    return _fetch_products_page(
                         filter_expr, merged_subs, order_by, descending, take, cont
                     )
 
-                    if not page_products:
-                        if shown_count == 0:
-                            click.echo("No products found.")
-                        break
-
-                    shown_count += len(page_products)
-
-                    mock_resp = FilteredResponse({"products": page_products})
-                    UniversalResponseHandler.handle_list_response(
-                        resp=mock_resp,
-                        data_key="products",
-                        item_name="product",
-                        format_output=format_output,
-                        formatter_func=product_formatter,
-                        headers=["Name", "Part Number", "Family", "Updated", "Workspace", "ID"],
-                        column_widths=[30, 18, 16, 12, 20, 36],
-                        empty_message="No products found.",
-                        enable_pagination=False,
-                        page_size=take,
-                        shown_count=shown_count,
-                    )
-
-                    # Flush stdout so the table is visible before prompting
-                    try:
-                        sys.stdout.flush()
-                    except Exception:
-                        pass
-
-                    # Ask if user wants to fetch the next page
-                    if not cont:
-                        break
-
-                    if not click.confirm("Show next set of results?", default=True):
-                        break
+                _handle_interactive_pagination(
+                    fetch_page_func=fetch_page,
+                    data_key="products",
+                    item_name="product",
+                    format_output=format_output,
+                    formatter_func=product_formatter,
+                    headers=["Name", "Part Number", "Family", "Updated", "Workspace", "ID"],
+                    column_widths=[30, 18, 16, 12, 20, 36],
+                    empty_message="No products found.",
+                    take=take,
+                )
         except Exception as exc:  # noqa: BLE001
             handle_api_error(exc)
 
@@ -728,11 +770,10 @@ def register_testmonitor_commands(cli: Any) -> None:
                 )
             else:
                 # Interactive pagination for table output
-                cont: Optional[str] = None
-                shown_count = 0
-
-                while True:
-                    page_results, cont = _fetch_results_page(
+                def fetch_page(
+                    cont: Optional[str] = None,
+                ) -> Tuple[List[Dict[str, Any]], Optional[str]]:
+                    return _fetch_results_page(
                         filter_expr,
                         merged_subs,
                         product_filter_expr,
@@ -743,47 +784,24 @@ def register_testmonitor_commands(cli: Any) -> None:
                         cont,
                     )
 
-                    if not page_results:
-                        if shown_count == 0:
-                            click.echo("No test results found.")
-                        break
-
-                    shown_count += len(page_results)
-
-                    mock_resp = FilteredResponse({"results": page_results})
-                    UniversalResponseHandler.handle_list_response(
-                        resp=mock_resp,
-                        data_key="results",
-                        item_name="result",
-                        format_output=format_output,
-                        formatter_func=result_formatter,
-                        headers=[
-                            "Status",
-                            "Program",
-                            "Part Number",
-                            "Serial",
-                            "Started",
-                            "Duration(s)",
-                            "ID",
-                        ],
-                        column_widths=[12, 30, 16, 16, 12, 12, 36],
-                        empty_message="No test results found.",
-                        enable_pagination=False,
-                        page_size=take,
-                        shown_count=shown_count,
-                    )
-
-                    # Flush stdout so the table is visible before prompting
-                    try:
-                        sys.stdout.flush()
-                    except Exception:
-                        pass
-
-                    # Ask if user wants to fetch the next page
-                    if not cont:
-                        break
-
-                    if not click.confirm("Show next set of results?", default=True):
-                        break
+                _handle_interactive_pagination(
+                    fetch_page_func=fetch_page,
+                    data_key="results",
+                    item_name="result",
+                    format_output=format_output,
+                    formatter_func=result_formatter,
+                    headers=[
+                        "Status",
+                        "Program",
+                        "Part Number",
+                        "Serial",
+                        "Started",
+                        "Duration(s)",
+                        "ID",
+                    ],
+                    column_widths=[12, 30, 16, 16, 12, 12, 36],
+                    empty_message="No test results found.",
+                    take=take,
+                )
         except Exception as exc:  # noqa: BLE001
             handle_api_error(exc)
