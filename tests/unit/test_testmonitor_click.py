@@ -877,6 +877,8 @@ def test_list_products_with_summary_flag_json(monkeypatch: Any, runner: CliRunne
     assert "total" in data
     assert data["total"] == 3
     assert "families" in data
+    # Verify we have 2 distinct families (cRIO and myRIO)
+    assert data["families"] == 2
 
 
 def test_list_products_with_summary_flag_table(monkeypatch: Any, runner: CliRunner) -> None:
@@ -984,6 +986,11 @@ def test_list_results_with_summary_flag_json(monkeypatch: Any, runner: CliRunner
     assert "total" in data
     assert data["total"] == 3
     assert "groups" in data
+    # Verify grouping by status is correct (PASSED: 2, FAILED: 1)
+    assert "PASSED" in data["groups"]
+    assert data["groups"]["PASSED"] == 2
+    assert "FAILED" in data["groups"]
+    assert data["groups"]["FAILED"] == 1
 
 
 def test_list_results_with_groupby_flag_json(monkeypatch: Any, runner: CliRunner) -> None:
@@ -1038,6 +1045,11 @@ def test_list_results_with_groupby_flag_json(monkeypatch: Any, runner: CliRunner
     assert "total" in data
     assert data["total"] == 3
     assert "groups" in data
+    # Verify grouping by programName is correct (Calibration: 2, Diagnostics: 1)
+    assert "Calibration" in data["groups"]
+    assert data["groups"]["Calibration"] == 2
+    assert "Diagnostics" in data["groups"]
+    assert data["groups"]["Diagnostics"] == 1
 
 
 def test_list_results_with_summary_flag_table(monkeypatch: Any, runner: CliRunner) -> None:
@@ -1093,45 +1105,6 @@ def test_list_results_with_summary_flag_table(monkeypatch: Any, runner: CliRunne
     assert result.exit_code == 0
     assert "Test Results Summary" in result.output
     assert "Total Results: 3" in result.output
-
-
-def test_parse_natural_date_yesterday() -> None:
-    """Test natural date parsing for 'yesterday'."""
-    from slcli.testmonitor_click import _parse_natural_date
-
-    result = _parse_natural_date("yesterday")
-    # Result should be a date string, just verify it's not the input
-    assert result != "yesterday"
-    # Should be in ISO format (YYYY-MM-DD or similar)
-    assert "T" in result or "-" in result
-
-
-def test_parse_natural_date_weeks_ago() -> None:
-    """Test natural date parsing for 'X weeks ago'."""
-    from slcli.testmonitor_click import _parse_natural_date
-
-    result = _parse_natural_date("2 weeks ago")
-    assert result != "2 weeks ago"
-    assert "T" in result or "-" in result
-
-
-def test_parse_natural_date_quarters_ago() -> None:
-    """Test natural date parsing for 'X quarters ago'."""
-    from slcli.testmonitor_click import _parse_natural_date
-
-    result = _parse_natural_date("3 quarters ago")
-    assert result != "3 quarters ago"
-    assert "T" in result or "-" in result
-
-
-def test_parse_natural_date_invalid() -> None:
-    """Test natural date parsing with invalid input."""
-    from slcli.testmonitor_click import _parse_natural_date
-
-    # Should return original on invalid input
-    result = _parse_natural_date("invalid-date")
-    assert result == "invalid-date"
-
 
 def test_summarize_results_empty_list() -> None:
     """Test summarize results with empty list."""

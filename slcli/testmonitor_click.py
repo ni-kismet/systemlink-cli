@@ -3,7 +3,6 @@
 import json
 import re
 import sys
-from datetime import datetime, timedelta
 from typing import Any, Dict, Iterable, List, Optional, Tuple
 
 import click
@@ -205,29 +204,39 @@ def _query_all_products(
     substitutions: List[Any],
     order_by: Optional[str],
     descending: bool,
-    take: int = 25,
+    take: Optional[int] = None,
 ) -> List[Dict[str, Any]]:
     """Query products using continuation token pagination.
 
-    Respects the take parameter and only fetches additional pages when needed.
+    Fetches all pages when take is None, otherwise fetches up to take items.
 
     Args:
         filter_expr: Optional Dynamic LINQ filter expression.
         substitutions: Substitution values for the filter.
         order_by: Field to order by.
         descending: Whether to return results in descending order.
-        take: Number of items to fetch per request.
+        take: Maximum number of items to fetch. If None, fetches all pages.
 
     Returns:
-        List of product objects (up to take count).
+        List of product objects (up to take count if specified, otherwise all).
     """
     url = f"{_get_testmonitor_base_url()}/query-products"
     all_products: List[Dict[str, Any]] = []
     continuation_token: Optional[str] = None
+    page_size = 100  # Fetch in larger batches for efficiency
 
-    while len(all_products) < take:
+    while True:
+        # Calculate how many items to request in this batch
+        if take is not None:
+            remaining = take - len(all_products)
+            if remaining <= 0:
+                break
+            batch_size = min(page_size, remaining)
+        else:
+            batch_size = page_size
+
         payload: Dict[str, Any] = {
-            "take": take - len(all_products),
+            "take": batch_size,
             "descending": descending,
         }
 
@@ -247,10 +256,13 @@ def _query_all_products(
         all_products.extend(products)
 
         continuation_token = data.get("continuationToken") if isinstance(data, dict) else None
-        if not continuation_token or len(all_products) >= take:
+        # Stop if no more pages or we've reached the limit
+        if not continuation_token:
+            break
+        if take is not None and len(all_products) >= take:
             break
 
-    return all_products[:take]
+    return all_products[:take] if take is not None else all_products
 
 
 def _fetch_products_page(
@@ -358,11 +370,11 @@ def _query_all_results(
     product_substitutions: List[Any],
     order_by: Optional[str],
     descending: bool,
-    take: int = 25,
+    take: Optional[int] = None,
 ) -> List[Dict[str, Any]]:
     """Query test results using continuation token pagination.
 
-    Respects the take parameter and only fetches additional pages when needed.
+    Fetches all pages when take is None, otherwise fetches up to take items.
 
     Args:
         filter_expr: Optional Dynamic LINQ filter expression for results.
@@ -371,18 +383,28 @@ def _query_all_results(
         product_substitutions: Substitution values for the product filter.
         order_by: Field to order by.
         descending: Whether to return results in descending order.
-        take: Number of items to fetch per request.
+        take: Maximum number of items to fetch. If None, fetches all pages.
 
     Returns:
-        List of test result objects (up to take count).
+        List of test result objects (up to take count if specified, otherwise all).
     """
     url = f"{_get_testmonitor_base_url()}/query-results"
     all_results: List[Dict[str, Any]] = []
     continuation_token: Optional[str] = None
+    page_size = 100  # Fetch in larger batches for efficiency
 
-    while len(all_results) < take:
+    while True:
+        # Calculate how many items to request in this batch
+        if take is not None:
+            remaining = take - len(all_results)
+            if remaining <= 0:
+                break
+            batch_size = min(page_size, remaining)
+        else:
+            batch_size = page_size
+
         payload: Dict[str, Any] = {
-            "take": take - len(all_results),
+            "take": batch_size,
             "descending": descending,
         }
 
@@ -406,75 +428,13 @@ def _query_all_results(
         all_results.extend(results)
 
         continuation_token = data.get("continuationToken") if isinstance(data, dict) else None
-        if not continuation_token or len(all_results) >= take:
+        # Stop if no more pages or we've reached the limit
+        if not continuation_token:
+            break
+        if take is not None and len(all_results) >= take:
             break
 
-    return all_results[:take]
-
-
-def _parse_natural_date(date_str: str) -> str:
-    """Parse natural language date strings to ISO-8601 format.
-
-    Args:
-        date_str: Natural language date string (e.g., "yesterday", "2 weeks ago", "last month")
-
-    Returns:
-        ISO-8601 date string, or original input if parsing fails.
-    """
-    date_str = date_str.lower().strip()
-    today = datetime.now()
-
-    # Handle simple cases
-    if date_str == "today":
-        return today.isoformat()
-    if date_str == "yesterday":
-        return (today - timedelta(days=1)).isoformat()
-
-    # Handle "N [units] ago" pattern
-    match = re.match(r"^(\d+)\s+(day|week|month|quarter|year)s?\s+ago$", date_str)
-    if match:
-        amount = int(match.group(1))
-        unit = match.group(2)
-
-        if unit == "day":
-            target = today - timedelta(days=amount)
-        elif unit == "week":
-            target = today - timedelta(weeks=amount)
-        elif unit == "month":
-            # Approximate: 30 days per month
-            target = today - timedelta(days=amount * 30)
-        elif unit == "quarter":
-            # 3 months = ~90 days
-            target = today - timedelta(days=amount * 90)
-        elif unit == "year":
-            target = today - timedelta(days=amount * 365)
-        else:
-            return date_str
-
-        return target.isoformat()
-
-    # Handle "last [unit]" pattern
-    match = re.match(r"^last\s+(day|week|month|quarter|year)$", date_str)
-    if match:
-        unit = match.group(1)
-
-        if unit == "day":
-            target = today - timedelta(days=1)
-        elif unit == "week":
-            target = today - timedelta(weeks=1)
-        elif unit == "month":
-            target = today - timedelta(days=30)
-        elif unit == "quarter":
-            target = today - timedelta(days=90)
-        elif unit == "year":
-            target = today - timedelta(days=365)
-        else:
-            return date_str
-
-        return target.isoformat()
-
-    # If no pattern matched, assume it's already ISO format
-    return date_str
+    return all_results[:take] if take is not None else all_results
 
 
 def _summarize_results(
@@ -502,7 +462,15 @@ def _summarize_results(
     groups: Dict[str, List[Dict[str, Any]]] = {}
     if group_by_field:
         for result in results:
-            key = str(result.get(group_by_field, "N/A"))
+            # Special case for status field - extract statusType
+            if group_by_field == "status":
+                status_value = result.get("status", {})
+                if isinstance(status_value, dict):
+                    key = str(status_value.get("statusType", "N/A"))
+                else:
+                    key = str(status_value)
+            else:
+                key = str(result.get(group_by_field, "N/A"))
             if key not in groups:
                 groups[key] = []
             groups[key].append(result)
@@ -515,10 +483,9 @@ def _summarize_results(
                 groups[status_type] = []
             groups[status_type].append(result)
 
-    # Calculate statistics per group
+    # Calculate statistics per group - store as integers, not dicts
     for group_key, group_results in groups.items():
-        group_count = len(group_results)
-        summary["groups"][group_key] = {"count": group_count}
+        summary["groups"][group_key] = len(group_results)
 
     return summary
 
@@ -532,7 +499,10 @@ def _summarize_products(products: List[Dict[str, Any]]) -> Dict[str, Any]:
     Returns:
         Dictionary with summary statistics.
     """
-    return {"total": len(products), "families": len(set(p.get("family") for p in products))}
+    return {
+        "total": len(products),
+        "families": len(set((p.get("family") or "N/A") for p in products)),
+    }
 
 
 def register_testmonitor_commands(cli: Any) -> None:
@@ -597,12 +567,7 @@ def register_testmonitor_commands(cli: Any) -> None:
     @click.option(
         "--summary",
         is_flag=True,
-        help="Show summary statistics (total count and count by family)",
-    )
-    @click.option(
-        "--show-paths",
-        is_flag=True,
-        help="Include test paths for each product",
+        help="Show summary statistics (total count and number of families)",
     )
     def list_products(
         format: str,
@@ -616,7 +581,6 @@ def register_testmonitor_commands(cli: Any) -> None:
         order_by: Optional[str],
         descending: bool,
         summary: bool,
-        show_paths: bool,
     ) -> None:
         """List products in Test Monitor."""
         format_output = validate_output_format(format)
@@ -665,9 +629,9 @@ def register_testmonitor_commands(cli: Any) -> None:
                     item.get("id", ""),
                 ]
 
-            # If JSON output or no take specified, fetch all using standard pagination
+            # If JSON output, fetch all pages
             if format_output.lower() == "json":
-                products = _query_all_products(filter_expr, merged_subs, order_by, descending, take)
+                products = _query_all_products(filter_expr, merged_subs, order_by, descending, None)
 
                 # Handle --summary flag for JSON output
                 if summary:
@@ -699,7 +663,7 @@ def register_testmonitor_commands(cli: Any) -> None:
                 # For table output with summary, collect all data first
                 if summary:
                     all_products = _query_all_products(
-                        filter_expr, merged_subs, order_by, descending, take
+                        filter_expr, merged_subs, order_by, descending, None
                     )
                     summary_stats = _summarize_products(all_products)
                     click.echo("\nProduct Summary Statistics:")
@@ -904,7 +868,7 @@ def register_testmonitor_commands(cli: Any) -> None:
                     item.get("id", ""),
                 ]
 
-            # If JSON output, fetch all using standard pagination
+            # If JSON output, fetch all pages
             if format_output.lower() == "json":
                 results = _query_all_results(
                     filter_expr,
@@ -913,21 +877,21 @@ def register_testmonitor_commands(cli: Any) -> None:
                     product_subs,
                     order_by,
                     descending,
-                    take,
+                    None,
                 )
 
                 # Handle --summary flag for JSON output
                 if summary or group_by:
                     group_key = group_by.lower() if group_by else "status"
                     group_field_map = {
-                        "status": "status",
+                        "status": None,  # Use default status grouping in _summarize_results
                         "programname": "programName",
                         "serialnumber": "serialNumber",
                         "operator": "operator",
                         "hostname": "hostName",
                         "systemid": "systemId",
                     }
-                    group_field = group_field_map.get(group_key, group_by or "status")
+                    group_field = group_field_map.get(group_key, group_by)
                     summary_stats = _summarize_results(results, group_field)
                     click.echo(json.dumps(summary_stats, indent=2))
                 else:
@@ -977,21 +941,23 @@ def register_testmonitor_commands(cli: Any) -> None:
                         product_subs,
                         order_by,
                         descending,
-                        take,
+                        None,
                     )
                     group_key = group_by.lower() if group_by else "status"
                     group_field_map = {
-                        "status": "status",
+                        "status": None,  # Use default status grouping in _summarize_results
                         "programname": "programName",
                         "serialnumber": "serialNumber",
                         "operator": "operator",
                         "hostname": "hostName",
                         "systemid": "systemId",
                     }
-                    group_field = group_field_map.get(group_key, group_by or "status")
+                    group_field = group_field_map.get(group_key, group_by)
                     summary_stats = _summarize_results(all_results, group_field)
 
-                    click.echo(f"\nTest Results Summary (grouped by {group_field}):")
+                    # Display appropriate label based on grouping
+                    group_label = group_key if group_key != "status" else "statusType"
+                    click.echo(f"\nTest Results Summary (grouped by {group_label}):")
                     click.echo(f"  Total Results: {summary_stats['total']}")
                     if "groups" in summary_stats:
                         for group_name, count in summary_stats["groups"].items():
@@ -1117,8 +1083,8 @@ def register_testmonitor_commands(cli: Any) -> None:
                 click.echo(f"Host: {result.get('hostName', 'N/A')}")
                 click.echo(f"Operator: {result.get('operator', 'N/A')}")
 
-                # Display steps if requested
-                if include_steps and steps:
+                # Display steps if requested or when measurements are requested
+                if (include_steps or include_measurements) and steps:
                     click.echo("\nSteps:")
                     for i, step in enumerate(steps, 1):
                         step_status = step.get("status", {})
