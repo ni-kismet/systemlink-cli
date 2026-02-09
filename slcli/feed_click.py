@@ -573,6 +573,10 @@ def register_feed_commands(cli: Any) -> None:
         timeout: int,
     ) -> None:
         """Create a feed."""
+        from .utils import check_readonly_mode
+
+        check_readonly_mode("create a feed")
+
         try:
             workspace_id = None
             if workspace:
@@ -617,6 +621,10 @@ def register_feed_commands(cli: Any) -> None:
     @click.option("--timeout", type=int, default=300, help="Timeout in seconds when using --wait")
     def delete_feed(feed_id: str, yes: bool, wait: bool, timeout: int) -> None:
         """Delete a feed and its packages."""
+        from .utils import check_readonly_mode
+
+        check_readonly_mode("delete a feed")
+
         if not yes:
             if not click.confirm(f"Are you sure you want to delete feed {feed_id}?"):
                 click.echo("Cancelled.")
@@ -775,6 +783,10 @@ def register_feed_commands(cli: Any) -> None:
         feed_id: str, file_path: str, overwrite: bool, wait: bool, timeout: int
     ) -> None:
         """Upload a package to a feed."""
+        from .utils import check_readonly_mode
+
+        check_readonly_mode("upload a feed package")
+
         # Validate file exists
         path = Path(file_path)
         if not path.exists():
@@ -838,6 +850,10 @@ def register_feed_commands(cli: Any) -> None:
     @click.option("--timeout", type=int, default=300, help="Timeout in seconds when using --wait")
     def delete_package(package_id: str, yes: bool, wait: bool, timeout: int) -> None:
         """Delete a package from a feed."""
+        from .utils import check_readonly_mode
+
+        check_readonly_mode("delete a package")
+
         if not yes:
             if not click.confirm(f"Are you sure you want to delete package {package_id}?"):
                 click.echo("Cancelled.")

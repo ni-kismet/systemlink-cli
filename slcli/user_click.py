@@ -875,6 +875,10 @@ def register_user_commands(cli: click.Group) -> None:
             First name is required. Last name defaults to "ServiceAccount" if not provided.
             Email, phone, niuaId, and login are not valid for service accounts.
         """
+        from .utils import check_readonly_mode
+
+        check_readonly_mode("create a user")
+
         # If user_type wasn't specified via CLI, prompt for it first
         if user_type is None:
             user_type = click.prompt(
@@ -1079,6 +1083,10 @@ def register_user_commands(cli: click.Group) -> None:
         properties: Optional[str] = None,
     ) -> None:
         """Update an existing user or service account."""
+        from .utils import check_readonly_mode
+
+        check_readonly_mode("update a user")
+
         # First, fetch the user to check if it's a service account
         get_url = f"{get_base_url()}/niuser/v1/users/{user_id}"
         try:
@@ -1194,6 +1202,10 @@ def register_user_commands(cli: click.Group) -> None:
     )
     def delete_user(user_id: str) -> None:
         """Delete a user by ID."""
+        from .utils import check_readonly_mode
+
+        check_readonly_mode("delete a user")
+
         url = f"{get_base_url()}/niuser/v1/users/{user_id}"
 
         try:

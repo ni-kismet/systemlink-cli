@@ -552,6 +552,10 @@ def register_webapp_commands(cli: Any) -> None:
     @click.confirmation_option(prompt="Are you sure you want to delete this webapp?")
     def delete_webapp(webapp_id: str) -> None:
         """Delete a webapp."""
+        from .utils import check_readonly_mode
+
+        check_readonly_mode("delete a webapp")
+
         try:
             base = _get_webapp_base_url()
             resp = requests.delete(
@@ -661,6 +665,10 @@ def register_webapp_commands(cli: Any) -> None:
         SOURCE may be a .nipkg file or a folder. If a folder is provided it will be
         packed into a .nipkg archive prior to upload.
         """
+        from .utils import check_readonly_mode
+
+        check_readonly_mode("publish a web application")
+
         tmp_file: Optional[Path] = None
         try:
             # If folder, pack it first using a context-managed TemporaryDirectory

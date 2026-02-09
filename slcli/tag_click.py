@@ -222,8 +222,11 @@ def register_tag_commands(cli: Any) -> None:
             ws_id = resolve_workspace_id(workspace)
 
             # Build filter string
-            # API requires workspace in the filter
-            filter_parts = [f'workspace = "{ws_id}"']
+            filter_parts = []
+
+            # Only add workspace filter if workspace is provided
+            if ws_id:
+                filter_parts.append(f'workspace = "{ws_id}"')
 
             if filter:
                 escaped_filter = _escape_query_value(filter)
@@ -440,6 +443,10 @@ def register_tag_commands(cli: Any) -> None:
         collect_aggregates: bool,
     ) -> None:
         """Create a new tag."""
+        from .utils import check_readonly_mode
+
+        check_readonly_mode("create a tag")
+
         try:
             ws_id = resolve_workspace_id(workspace)
 
@@ -506,6 +513,10 @@ def register_tag_commands(cli: Any) -> None:
         merge: bool,
     ) -> None:
         """Update tag metadata (keywords, properties)."""
+        from .utils import check_readonly_mode
+
+        check_readonly_mode("update a tag")
+
         try:
             ws_id = resolve_workspace_id(workspace)
 
@@ -558,6 +569,10 @@ def register_tag_commands(cli: Any) -> None:
 
         TAG_PATH is the path identifier of the tag to delete.
         """
+        from .utils import check_readonly_mode
+
+        check_readonly_mode("delete a tag")
+
         try:
             ws_id = resolve_workspace_id(workspace)
             encoded_path = urllib.parse.quote(tag_path, safe="")

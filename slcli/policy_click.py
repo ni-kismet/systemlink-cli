@@ -248,6 +248,10 @@ def register_policy_commands(cli: Any) -> None:
     )
     def create_policy(template_id: str, name: str, workspace: str, properties: tuple) -> None:
         """Create a new policy from a template scoped to a workspace."""
+        from .utils import check_readonly_mode
+
+        check_readonly_mode("create a policy")
+
         try:
             properties_dict = _parse_properties_from_cli(properties) if properties else None
 
@@ -309,6 +313,10 @@ def register_policy_commands(cli: Any) -> None:
         properties: tuple,
     ) -> None:
         """Update an existing policy, optionally applying a new template."""
+        from .utils import check_readonly_mode
+
+        check_readonly_mode("update a policy")
+
         try:
             url = f"{get_base_url()}/niauth/v1/policies/{policy_id}"
             current_resp = make_api_request("GET", url, payload=None)
@@ -359,6 +367,10 @@ def register_policy_commands(cli: Any) -> None:
     @click.option("--force", is_flag=True, help="Skip confirmation prompt")
     def delete_policy(policy_id: str, force: bool) -> None:
         """Delete a policy."""
+        from .utils import check_readonly_mode
+
+        check_readonly_mode("delete a policy")
+
         try:
             if not force:
                 details = _fetch_policy_details(policy_id, handle_errors=False)
@@ -638,6 +650,10 @@ def register_policy_commands(cli: Any) -> None:
     @click.option("--force", is_flag=True, help="Skip confirmation prompt")
     def delete_template(template_id: str, force: bool) -> None:
         """Delete a policy template."""
+        from .utils import check_readonly_mode
+
+        check_readonly_mode("delete a policy template")
+
         try:
             if not force:
                 details = _fetch_template_details(template_id, handle_errors=False)

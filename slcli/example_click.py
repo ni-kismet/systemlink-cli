@@ -344,6 +344,10 @@ def register_example_commands(cli: Any) -> None:
         audit_log: Optional[str],
     ) -> None:
         """Delete resources for an example configuration in reverse order."""
+        from .utils import check_readonly_mode
+
+        check_readonly_mode("delete an example")
+
         try:
             loader = ExampleLoader()
             config = loader.load_config(example_name)

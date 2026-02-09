@@ -321,6 +321,10 @@ def register_file_commands(cli: Any) -> None:
 
         FILE_PATH is the local path to the file to upload.
         """
+        from .utils import check_readonly_mode
+
+        check_readonly_mode("upload a file")
+
         file_path_obj = Path(file_path)
         file_name = name if name else file_path_obj.name
         file_size = file_path_obj.stat().st_size
@@ -465,6 +469,10 @@ def register_file_commands(cli: Any) -> None:
     )
     def delete_file(file_id: str, force: bool = False) -> None:
         """Delete a file."""
+        from .utils import check_readonly_mode
+
+        check_readonly_mode("delete a file")
+
         try:
             # Get file info first using query (no GET endpoint exists)
             metadata = _get_file_by_id(file_id)
@@ -630,6 +638,10 @@ def register_file_commands(cli: Any) -> None:
 
         FILE_ID is the unique identifier of the file to update.
         """
+        from .utils import check_readonly_mode
+
+        check_readonly_mode("update file metadata")
+
         update_url = f"{_get_file_service_url()}/files/{file_id}/update-metadata"
 
         try:

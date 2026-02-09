@@ -602,6 +602,10 @@ def register_function_commands(cli: Any) -> None:
         properties: Optional[str] = None,
     ) -> None:
         """Create a new function definition with metadata for efficient querying."""
+        from .utils import check_readonly_mode
+
+        check_readonly_mode("create a function")
+
         url = f"{get_unified_v2_base()}/functions"
         try:
             workspace_id = get_workspace_id_with_fallback(workspace)
@@ -778,6 +782,10 @@ def register_function_commands(cli: Any) -> None:
         properties: Optional[str] = None,
     ) -> None:
         """Update an existing function definition."""
+        from .utils import check_readonly_mode
+
+        check_readonly_mode("update a function")
+
         url = f"{get_unified_v2_base()}/functions/{function_id}"
         try:
             existing_function = make_api_request("GET", url).json()
@@ -918,6 +926,10 @@ def register_function_commands(cli: Any) -> None:
     )
     def delete_function(function_id: str, force: bool = False) -> None:
         """Delete a function definition."""
+        from .utils import check_readonly_mode
+
+        check_readonly_mode("delete a function")
+
         url = f"{get_unified_v2_base()}/functions/{function_id}"
         try:
             if not force and not click.confirm(
