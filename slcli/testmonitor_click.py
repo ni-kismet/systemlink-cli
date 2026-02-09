@@ -3,6 +3,7 @@
 import json
 import re
 import sys
+from datetime import datetime, timedelta
 from typing import Any, Dict, Iterable, List, Optional, Tuple
 
 import click
@@ -411,6 +412,129 @@ def _query_all_results(
     return all_results[:take]
 
 
+def _parse_natural_date(date_str: str) -> str:
+    """Parse natural language date strings to ISO-8601 format.
+
+    Args:
+        date_str: Natural language date string (e.g., "yesterday", "2 weeks ago", "last month")
+
+    Returns:
+        ISO-8601 date string, or original input if parsing fails.
+    """
+    date_str = date_str.lower().strip()
+    today = datetime.now()
+
+    # Handle simple cases
+    if date_str == "today":
+        return today.isoformat()
+    if date_str == "yesterday":
+        return (today - timedelta(days=1)).isoformat()
+
+    # Handle "N [units] ago" pattern
+    match = re.match(r"^(\d+)\s+(day|week|month|quarter|year)s?\s+ago$", date_str)
+    if match:
+        amount = int(match.group(1))
+        unit = match.group(2)
+
+        if unit == "day":
+            target = today - timedelta(days=amount)
+        elif unit == "week":
+            target = today - timedelta(weeks=amount)
+        elif unit == "month":
+            # Approximate: 30 days per month
+            target = today - timedelta(days=amount * 30)
+        elif unit == "quarter":
+            # 3 months = ~90 days
+            target = today - timedelta(days=amount * 90)
+        elif unit == "year":
+            target = today - timedelta(days=amount * 365)
+        else:
+            return date_str
+
+        return target.isoformat()
+
+    # Handle "last [unit]" pattern
+    match = re.match(r"^last\s+(day|week|month|quarter|year)$", date_str)
+    if match:
+        unit = match.group(1)
+
+        if unit == "day":
+            target = today - timedelta(days=1)
+        elif unit == "week":
+            target = today - timedelta(weeks=1)
+        elif unit == "month":
+            target = today - timedelta(days=30)
+        elif unit == "quarter":
+            target = today - timedelta(days=90)
+        elif unit == "year":
+            target = today - timedelta(days=365)
+        else:
+            return date_str
+
+        return target.isoformat()
+
+    # If no pattern matched, assume it's already ISO format
+    return date_str
+
+
+def _summarize_results(
+    results: List[Dict[str, Any]],
+    group_by_field: Optional[str] = None,
+) -> Dict[str, Any]:
+    """Summarize test results by aggregating status and other metrics.
+
+    Args:
+        results: List of result objects.
+        group_by_field: Field to group by (status, programName, etc.)
+
+    Returns:
+        Dictionary with summary statistics.
+    """
+    if not results:
+        return {"total": 0, "groups": {}}
+
+    summary: Dict[str, Any] = {
+        "total": len(results),
+        "groups": {},
+    }
+
+    # Group results
+    groups: Dict[str, List[Dict[str, Any]]] = {}
+    if group_by_field:
+        for result in results:
+            key = str(result.get(group_by_field, "N/A"))
+            if key not in groups:
+                groups[key] = []
+            groups[key].append(result)
+    else:
+        # Default grouping by status
+        for result in results:
+            status = result.get("status", {})
+            status_type = status.get("statusType", "N/A")
+            if status_type not in groups:
+                groups[status_type] = []
+            groups[status_type].append(result)
+
+    # Calculate statistics per group
+    for group_key, group_results in groups.items():
+        group_count = len(group_results)
+        summary["groups"][group_key] = {"count": group_count}
+
+    return summary
+
+
+def _summarize_products(products: List[Dict[str, Any]]) -> Dict[str, Any]:
+    """Summarize product data.
+
+    Args:
+        products: List of product objects.
+
+    Returns:
+        Dictionary with summary statistics.
+    """
+    return {"total": len(products), "families": len(set(p.get("family") for p in products))}
+
+
 def register_testmonitor_commands(cli: Any) -> None:
     """Register the 'testmonitor' command group and its subcommands."""
 
@@ -470,6 +594,16 @@ def register_testmonitor_commands(cli: Any) -> None:
         default=True,
         help="Sort order (default: descending)",
     )
+    @click.option(
+        "--summary",
+        is_flag=True,
+        help="Show summary statistics (total count and count by family)",
+    )
+    @click.option(
+        "--show-paths",
+        is_flag=True,
+        help="Include test paths for each product",
+    )
     def list_products(
         format: str,
         take: int,
@@ -481,6 +615,8 @@ def register_testmonitor_commands(cli: Any) -> None:
         substitutions: Tuple[str, ...],
         order_by: Optional[str],
         descending: bool,
+        summary: bool,
+        show_paths: bool,
     ) -> None:
         """List products in Test Monitor."""
         format_output = validate_output_format(format)
@@ -532,19 +668,25 @@ def register_testmonitor_commands(cli: Any) -> None:
             # If JSON output or no take specified, fetch all using standard pagination
             if format_output.lower() == "json":
                 products = _query_all_products(filter_expr, merged_subs, order_by, descending, take)
-                mock_resp: Any = FilteredResponse({"products": products})
-                UniversalResponseHandler.handle_list_response(
-                    resp=mock_resp,
-                    data_key="products",
-                    item_name="product",
-                    format_output=format_output,
-                    formatter_func=product_formatter,
-                    headers=["Name", "Part Number", "Family", "Updated", "Workspace", "ID"],
-                    column_widths=[30, 18, 16, 12, 20, 36],
-                    empty_message="No products found.",
-                    enable_pagination=False,
-                    page_size=take,
-                )
+
+                # Handle --summary flag for JSON output
+                if summary:
+                    summary_stats = _summarize_products(products)
+                    click.echo(json.dumps(summary_stats, indent=2))
+                else:
+                    mock_resp: Any = FilteredResponse({"products": products})
+                    UniversalResponseHandler.handle_list_response(
+                        resp=mock_resp,
+                        data_key="products",
+                        item_name="product",
+                        format_output=format_output,
+                        formatter_func=product_formatter,
+                        headers=["Name", "Part Number", "Family", "Updated", "Workspace", "ID"],
+                        column_widths=[30, 18, 16, 12, 20, 36],
+                        empty_message="No products found.",
+                        enable_pagination=False,
+                        page_size=take,
+                    )
             else:
                 # Interactive pagination for table output
                 def fetch_page(
@@ -554,17 +696,28 @@ def register_testmonitor_commands(cli: Any) -> None:
                         filter_expr, merged_subs, order_by, descending, take, cont
                     )
 
-                _handle_interactive_pagination(
-                    fetch_page_func=fetch_page,
-                    data_key="products",
-                    item_name="product",
-                    format_output=format_output,
-                    formatter_func=product_formatter,
-                    headers=["Name", "Part Number", "Family", "Updated", "Workspace", "ID"],
-                    column_widths=[30, 18, 16, 12, 20, 36],
-                    empty_message="No products found.",
-                    take=take,
-                )
+                # For table output with summary, collect all data first
+                if summary:
+                    all_products = _query_all_products(
+                        filter_expr, merged_subs, order_by, descending, take
+                    )
+                    summary_stats = _summarize_products(all_products)
+                    click.echo("\nProduct Summary Statistics:")
+                    click.echo(f"  Total Products: {summary_stats['total']}")
+                    click.echo(f"  Families: {summary_stats['families']}")
+                    click.echo()
+                else:
+                    _handle_interactive_pagination(
+                        fetch_page_func=fetch_page,
+                        data_key="products",
+                        item_name="product",
+                        format_output=format_output,
+                        formatter_func=product_formatter,
+                        headers=["Name", "Part Number", "Family", "Updated", "Workspace", "ID"],
+                        column_widths=[30, 18, 16, 12, 20, 36],
+                        empty_message="No products found.",
+                        take=take,
+                    )
         except Exception as exc:  # noqa: BLE001
             handle_api_error(exc)
 
@@ -639,6 +792,19 @@ def register_testmonitor_commands(cli: Any) -> None:
         default=True,
         help="Sort order (default: descending)",
     )
+    @click.option(
+        "--summary",
+        is_flag=True,
+        help="Show summary statistics grouped by status or specified field",
+    )
+    @click.option(
+        "--group-by",
+        type=click.Choice(
+            ["status", "programName", "serialNumber", "operator", "hostName", "systemId"],
+            case_sensitive=False,
+        ),
+        help="Group summary by field (implies --summary)",
+    )
     def list_results(
         format: str,
         take: int,
@@ -656,6 +822,8 @@ def register_testmonitor_commands(cli: Any) -> None:
         product_substitutions: Tuple[str, ...],
         order_by: Optional[str],
         descending: bool,
+        summary: bool,
+        group_by: Optional[str],
     ) -> None:
         """List test results in Test Monitor."""
         format_output = validate_output_format(format)
@@ -747,27 +915,43 @@ def register_testmonitor_commands(cli: Any) -> None:
                     descending,
                     take,
                 )
-                mock_resp: Any = FilteredResponse({"results": results})
-                UniversalResponseHandler.handle_list_response(
-                    resp=mock_resp,
-                    data_key="results",
-                    item_name="result",
-                    format_output=format_output,
-                    formatter_func=result_formatter,
-                    headers=[
-                        "Status",
-                        "Program",
-                        "Part Number",
-                        "Serial",
-                        "Started",
-                        "Duration(s)",
-                        "ID",
-                    ],
-                    column_widths=[12, 30, 16, 16, 12, 12, 36],
-                    empty_message="No test results found.",
-                    enable_pagination=False,
-                    page_size=take,
-                )
+
+                # Handle --summary flag for JSON output
+                if summary or group_by:
+                    group_key = group_by.lower() if group_by else "status"
+                    group_field_map = {
+                        "status": "status",
+                        "programname": "programName",
+                        "serialnumber": "serialNumber",
+                        "operator": "operator",
+                        "hostname": "hostName",
+                        "systemid": "systemId",
+                    }
+                    group_field = group_field_map.get(group_key, group_by or "status")
+                    summary_stats = _summarize_results(results, group_field)
+                    click.echo(json.dumps(summary_stats, indent=2))
+                else:
+                    mock_resp: Any = FilteredResponse({"results": results})
+                    UniversalResponseHandler.handle_list_response(
+                        resp=mock_resp,
+                        data_key="results",
+                        item_name="result",
+                        format_output=format_output,
+                        formatter_func=result_formatter,
+                        headers=[
+                            "Status",
+                            "Program",
+                            "Part Number",
+                            "Serial",
+                            "Started",
+                            "Duration(s)",
+                            "ID",
+                        ],
+                        column_widths=[12, 30, 16, 16, 12, 12, 36],
+                        empty_message="No test results found.",
+                        enable_pagination=False,
+                        page_size=take,
+                    )
             else:
                 # Interactive pagination for table output
                 def fetch_page(
@@ -784,25 +968,55 @@ def register_testmonitor_commands(cli: Any) -> None:
                         cont,
                     )
 
-                _handle_interactive_pagination(
-                    fetch_page_func=fetch_page,
-                    data_key="results",
-                    item_name="result",
-                    format_output=format_output,
-                    formatter_func=result_formatter,
-                    headers=[
-                        "Status",
-                        "Program",
-                        "Part Number",
-                        "Serial",
-                        "Started",
-                        "Duration(s)",
-                        "ID",
-                    ],
-                    column_widths=[12, 30, 16, 16, 12, 12, 36],
-                    empty_message="No test results found.",
-                    take=take,
-                )
+                # For table output with summary, collect all data first
+                if summary or group_by:
+                    all_results = _query_all_results(
+                        filter_expr,
+                        merged_subs,
+                        product_filter_expr,
+                        product_subs,
+                        order_by,
+                        descending,
+                        take,
+                    )
+                    group_key = group_by.lower() if group_by else "status"
+                    group_field_map = {
+                        "status": "status",
+                        "programname": "programName",
+                        "serialnumber": "serialNumber",
+                        "operator": "operator",
+                        "hostname": "hostName",
+                        "systemid": "systemId",
+                    }
+                    group_field = group_field_map.get(group_key, group_by or "status")
+                    summary_stats = _summarize_results(all_results, group_field)
+
+                    click.echo(f"\nTest Results Summary (grouped by {group_field}):")
+                    click.echo(f"  Total Results: {summary_stats['total']}")
+                    if "groups" in summary_stats:
+                        for group_name, count in summary_stats["groups"].items():
+                            click.echo(f"    {group_name}: {count}")
+                    click.echo()
+                else:
+                    _handle_interactive_pagination(
+                        fetch_page_func=fetch_page,
+                        data_key="results",
+                        item_name="result",
+                        format_output=format_output,
+                        formatter_func=result_formatter,
+                        headers=[
+                            "Status",
+                            "Program",
+                            "Part Number",
+                            "Serial",
+                            "Started",
+                            "Duration(s)",
+                            "ID",
+                        ],
+                        column_widths=[12, 30, 16, 16, 12, 12, 36],
+                        empty_message="No test results found.",
+                        take=take,
+                    )
         except Exception as exc:  # noqa: BLE001
             handle_api_error(exc)
 

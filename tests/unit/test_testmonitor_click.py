@@ -823,3 +823,329 @@ def test_get_result_error_handling(monkeypatch: Any, runner: CliRunner) -> None:
 
     assert result.exit_code != 0
     assert "API Error" in result.output or "Error" in result.output
+
+
+# --- Phase 3: Summary and grouping tests ---
+
+
+def test_list_products_with_summary_flag_json(monkeypatch: Any, runner: CliRunner) -> None:
+    """Test product list with --summary flag in JSON format."""
+    patch_keyring(monkeypatch)
+
+    def mock_request(
+        method: str,
+        url: str,
+        payload: Optional[Dict[str, Any]] = None,
+        **_: Any,
+    ) -> Any:
+        return MockResponse(
+            {
+                "products": [
+                    {
+                        "id": "prod-1",
+                        "name": "cRIO-9030",
+                        "family": "cRIO",
+                        "partNumber": "156502A-11L",
+                        "workspace": "ws-1",
+                    },
+                    {
+                        "id": "prod-2",
+                        "name": "cRIO-9050",
+                        "family": "cRIO",
+                        "partNumber": "157452-01",
+                        "workspace": "ws-1",
+                    },
+                    {
+                        "id": "prod-3",
+                        "name": "myRIO-1900",
+                        "family": "myRIO",
+                        "partNumber": "784026-01",
+                        "workspace": "ws-1",
+                    },
+                ]
+            }
+        )
+
+    monkeypatch.setattr("slcli.testmonitor_click.make_api_request", mock_request)
+    monkeypatch.setattr("slcli.testmonitor_click.get_workspace_map", lambda: {"ws-1": "Dev"})
+
+    cli = make_cli()
+    result = runner.invoke(cli, ["testmonitor", "product", "list", "--format", "json", "--summary"])
+
+    assert result.exit_code == 0
+    data = json.loads(result.output)
+    assert "total" in data
+    assert data["total"] == 3
+    assert "families" in data
+
+
+def test_list_products_with_summary_flag_table(monkeypatch: Any, runner: CliRunner) -> None:
+    """Test product list with --summary flag in table format."""
+    patch_keyring(monkeypatch)
+
+    def mock_request(
+        method: str,
+        url: str,
+        payload: Optional[Dict[str, Any]] = None,
+        **_: Any,
+    ) -> Any:
+        return MockResponse(
+            {
+                "products": [
+                    {
+                        "id": "prod-1",
+                        "name": "cRIO-9030",
+                        "family": "cRIO",
+                        "partNumber": "156502A-11L",
+                        "workspace": "ws-1",
+                        "updatedAt": "2024-01-10T12:00:00.000Z",
+                    },
+                    {
+                        "id": "prod-2",
+                        "name": "cRIO-9050",
+                        "family": "cRIO",
+                        "partNumber": "157452-01",
+                        "workspace": "ws-1",
+                        "updatedAt": "2024-01-11T12:00:00.000Z",
+                    },
+                    {
+                        "id": "prod-3",
+                        "name": "myRIO-1900",
+                        "family": "myRIO",
+                        "partNumber": "784026-01",
+                        "workspace": "ws-1",
+                        "updatedAt": "2024-01-12T12:00:00.000Z",
+                    },
+                ]
+            }
+        )
+
+    monkeypatch.setattr("slcli.testmonitor_click.make_api_request", mock_request)
+    monkeypatch.setattr("slcli.testmonitor_click.get_workspace_map", lambda: {"ws-1": "Dev"})
+
+    cli = make_cli()
+    result = runner.invoke(cli, ["testmonitor", "product", "list", "--summary"])
+
+    assert result.exit_code == 0
+    assert "Product Summary Statistics" in result.output
+    assert "Total Products: 3" in result.output
+    assert "Families:" in result.output
+
+
+def test_list_results_with_summary_flag_json(monkeypatch: Any, runner: CliRunner) -> None:
+    """Test result list with --summary flag in JSON format."""
+    patch_keyring(monkeypatch)
+
+    def mock_request(
+        method: str,
+        url: str,
+        payload: Optional[Dict[str, Any]] = None,
+        **_: Any,
+    ) -> Any:
+        return MockResponse(
+            {
+                "results": [
+                    {
+                        "id": "res-1",
+                        "programName": "Calibration",
+                        "serialNumber": "abc-123",
+                        "status": {"statusType": "PASSED"},
+                        "startedAt": "2024-01-12T10:00:00.000Z",
+                        "totalTimeInSeconds": 12.3,
+                    },
+                    {
+                        "id": "res-2",
+                        "programName": "Diagnostics",
+                        "serialNumber": "abc-124",
+                        "status": {"statusType": "PASSED"},
+                        "startedAt": "2024-01-12T11:00:00.000Z",
+                        "totalTimeInSeconds": 8.5,
+                    },
+                    {
+                        "id": "res-3",
+                        "programName": "Calibration",
+                        "serialNumber": "abc-125",
+                        "status": {"statusType": "FAILED"},
+                        "startedAt": "2024-01-12T12:00:00.000Z",
+                        "totalTimeInSeconds": 3.2,
+                    },
+                ]
+            }
+        )
+
+    monkeypatch.setattr("slcli.testmonitor_click.make_api_request", mock_request)
+    monkeypatch.setattr("slcli.testmonitor_click.get_workspace_map", lambda: {})
+
+    cli = make_cli()
+    result = runner.invoke(cli, ["testmonitor", "result", "list", "--format", "json", "--summary"])
+
+    assert result.exit_code == 0
+    data = json.loads(result.output)
+    assert "total" in data
+    assert data["total"] == 3
+    assert "groups" in data
+
+
+def test_list_results_with_groupby_flag_json(monkeypatch: Any, runner: CliRunner) -> None:
+    """Test result list with --group-by flag in JSON format."""
+    patch_keyring(monkeypatch)
+
+    def mock_request(
+        method: str,
+        url: str,
+        payload: Optional[Dict[str, Any]] = None,
+        **_: Any,
+    ) -> Any:
+        return MockResponse(
+            {
+                "results": [
+                    {
+                        "id": "res-1",
+                        "programName": "Calibration",
+                        "status": {"statusType": "PASSED"},
+                        "startedAt": "2024-01-12T10:00:00.000Z",
+                        "totalTimeInSeconds": 12.3,
+                    },
+                    {
+                        "id": "res-2",
+                        "programName": "Diagnostics",
+                        "status": {"statusType": "PASSED"},
+                        "startedAt": "2024-01-12T11:00:00.000Z",
+                        "totalTimeInSeconds": 8.5,
+                    },
+                    {
+                        "id": "res-3",
+                        "programName": "Calibration",
+                        "status": {"statusType": "FAILED"},
+                        "startedAt": "2024-01-12T12:00:00.000Z",
+                        "totalTimeInSeconds": 3.2,
+                    },
+                ]
+            }
+        )
+
+    monkeypatch.setattr("slcli.testmonitor_click.make_api_request", mock_request)
+    monkeypatch.setattr("slcli.testmonitor_click.get_workspace_map", lambda: {})
+
+    cli = make_cli()
+    result = runner.invoke(
+        cli,
+        ["testmonitor", "result", "list", "--format", "json", "--group-by", "programName"],
+    )
+
+    assert result.exit_code == 0
+    data = json.loads(result.output)
+    assert "total" in data
+    assert data["total"] == 3
+    assert "groups" in data
+
+
+def test_list_results_with_summary_flag_table(monkeypatch: Any, runner: CliRunner) -> None:
+    """Test result list with --summary flag in table format."""
+    patch_keyring(monkeypatch)
+
+    def mock_request(
+        method: str,
+        url: str,
+        payload: Optional[Dict[str, Any]] = None,
+        **_: Any,
+    ) -> Any:
+        return MockResponse(
+            {
+                "results": [
+                    {
+                        "id": "res-1",
+                        "programName": "Calibration",
+                        "serialNumber": "abc-123",
+                        "partNumber": "cRIO-9030",
+                        "status": {"statusType": "PASSED"},
+                        "startedAt": "2024-01-12T10:00:00.000Z",
+                        "totalTimeInSeconds": 12.3,
+                    },
+                    {
+                        "id": "res-2",
+                        "programName": "Diagnostics",
+                        "serialNumber": "abc-124",
+                        "partNumber": "cRIO-9030",
+                        "status": {"statusType": "PASSED"},
+                        "startedAt": "2024-01-12T11:00:00.000Z",
+                        "totalTimeInSeconds": 8.5,
+                    },
+                    {
+                        "id": "res-3",
+                        "programName": "Calibration",
+                        "serialNumber": "abc-125",
+                        "partNumber": "cRIO-9030",
+                        "status": {"statusType": "FAILED"},
+                        "startedAt": "2024-01-12T12:00:00.000Z",
+                        "totalTimeInSeconds": 3.2,
+                    },
+                ]
+            }
+        )
+
+    monkeypatch.setattr("slcli.testmonitor_click.make_api_request", mock_request)
+    monkeypatch.setattr("slcli.testmonitor_click.get_workspace_map", lambda: {})
+
+    cli = make_cli()
+    result = runner.invoke(cli, ["testmonitor", "result", "list", "--summary"])
+
+    assert result.exit_code == 0
+    assert "Test Results Summary" in result.output
+    assert "Total Results: 3" in result.output
+
+
+def test_parse_natural_date_yesterday() -> None:
+    """Test natural date parsing for 'yesterday'."""
+    from slcli.testmonitor_click import _parse_natural_date
+
+    result = _parse_natural_date("yesterday")
+    # Result should be a date string, just verify it's not the input
+    assert result != "yesterday"
+    # Should be in ISO format (YYYY-MM-DD or similar)
+    assert "T" in result or "-" in result
+
+
+def test_parse_natural_date_weeks_ago() -> None:
+    """Test natural date parsing for 'X weeks ago'."""
+    from slcli.testmonitor_click import _parse_natural_date
+
+    result = _parse_natural_date("2 weeks ago")
+    assert result != "2 weeks ago"
+    assert "T" in result or "-" in result
+
+
+def test_parse_natural_date_quarters_ago() -> None:
+    """Test natural date parsing for 'X quarters ago'."""
+    from slcli.testmonitor_click import _parse_natural_date
+
+    result = _parse_natural_date("3 quarters ago")
+    assert result != "3 quarters ago"
+    assert "T" in result or "-" in result
+
+
+def test_parse_natural_date_invalid() -> None:
+    """Test natural date parsing with invalid input."""
+    from slcli.testmonitor_click import _parse_natural_date
+
+    # Should return original on invalid input
+    result = _parse_natural_date("invalid-date")
+    assert result == "invalid-date"
+
+
+def test_summarize_results_empty_list() -> None:
+    """Test summarize results with empty list."""
+    from slcli.testmonitor_click import _summarize_results
+
+    result = _summarize_results([], "status")
+    assert result["total"] == 0
+    assert result.get("groups", {}) == {}
+
+
+def test_summarize_products_empty_list() -> None:
+    """Test summarize products with empty list."""
+    from slcli.testmonitor_click import _summarize_products
+
+    result = _summarize_products([])
+    assert result["total"] == 0
+    assert result["families"] == 0
