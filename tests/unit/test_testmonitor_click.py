@@ -1106,6 +1106,7 @@ def test_list_results_with_summary_flag_table(monkeypatch: Any, runner: CliRunne
     assert "Test Results Summary" in result.output
     assert "Total Results: 3" in result.output
 
+
 def test_summarize_results_empty_list() -> None:
     """Test summarize results with empty list."""
     from slcli.testmonitor_click import _summarize_results

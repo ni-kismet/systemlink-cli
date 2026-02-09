@@ -501,7 +501,7 @@ def _summarize_products(products: List[Dict[str, Any]]) -> Dict[str, Any]:
     """
     return {
         "total": len(products),
-        "families": len(set((p.get("family") or "N/A") for p in products)),
+        "families": len(set(p.get("family") or "N/A" for p in products)),
     }
 
 
