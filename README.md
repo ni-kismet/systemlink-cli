@@ -321,7 +321,7 @@ slcli login --profile aiagent --url "https://your-server.com" --api-key "your-ap
 
 **Readonly Mode**: Use the `--readonly` flag to enable read-only mode on a profile. This disables all mutation operations (create, update, delete, and edit commands), making it safer to use with AI agents or in untrusted environments.
 
-**Alias**: The `slcli login` command is an alias for `slcli config add-profile`. Both commands provide the same functionality.
+**Alias**: The `slcli login` command is an alias for `slcli config add`. Both commands provide the same functionality.
 
 #### Readonly Mode Protected Operations
 
@@ -365,23 +365,29 @@ Manage multiple SystemLink environments (development, testing, production) using
 
 ```bash
 # List all configured profiles
-slcli config list-profiles
+slcli config list
 
 # Show current profile
-slcli config current-profile
+slcli config current
 
 # Add or update a profile (same as slcli login)
-slcli config add-profile --profile dev
-slcli config add-profile --profile secure --readonly
+slcli config add --profile dev
+slcli config add --profile secure --readonly
 
 # Switch to a different profile
-slcli config use-profile prod
+slcli config use prod
 
-# View full configuration (with masked API keys)
+# View current profile configuration (API keys are masked by default)
 slcli config view
 
+# View with full API key visible (use with caution)
+slcli config view --show-secrets
+
+# View configuration in JSON format (shows all profiles)
+slcli config view --format json
+
 # Delete a profile
-slcli config delete-profile old-profile --force
+slcli config delete old-profile --force
 ```
 
 ### Using Profiles with Commands

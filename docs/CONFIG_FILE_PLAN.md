@@ -72,7 +72,7 @@ Following XDG Base Directory spec (already used for `config.json` in `config.py`
 
 ```bash
 # List all profiles (show current with asterisk)
-slcli config list-profiles
+slcli config list
 # Output:
 #   CURRENT   NAME    SERVER                                     WORKSPACE
 #   *         dev     https://dev-api.lifecyclesolutions.ni.com  Development
@@ -80,10 +80,10 @@ slcli config list-profiles
 #             prod    https://prod-api.example.com               -
 
 # Show current profile
-slcli config current-profile
+slcli config current
 
 # Switch profile
-slcli config use-profile test
+slcli config use test
 
 # View full config
 slcli config view
@@ -97,7 +97,7 @@ slcli config set current-profile prod
 slcli config unset profiles.dev.workspace
 
 # Delete a profile
-slcli config delete-profile test
+slcli config delete test
 ```
 
 ### Modified Login Command
@@ -107,9 +107,11 @@ slcli config delete-profile test
 slcli login
 # Prompts for:
 #   Profile name: [default]
-#   API URL: [https://demo-api.lifecyclesolutions.ni.com]
+#   Example: https://api.my-systemlink.com
+#   API URL:
 #   API Key: ****
-#   Web URL: [https://demo.lifecyclesolutions.ni.com]
+#   Example: https://my-systemlink.com
+#   Web URL:
 #   Default workspace (optional): []
 #   Set as current profile? [Y/n]
 
@@ -206,13 +208,13 @@ Commands that currently support `--workspace` filtering:
    - Migration from keyring to config file
 
 2. **Add config commands** in `slcli/config_click.py`
-   - `slcli config list-profiles`
-   - `slcli config current-profile`
-   - `slcli config use-profile <name>`
+   - `slcli config list`
+   - `slcli config current`
+   - `slcli config use <name>`
    - `slcli config view`
    - `slcli config set <key> <value>`
    - `slcli config unset <key>`
-   - `slcli config delete-profile <name>`
+   - `slcli config delete <name>`
 
 3. **Update `slcli/utils.py`**
    - Modify `get_base_url()` to use new config
@@ -355,21 +357,26 @@ def get_base_url():
 ```bash
 # Add dev environment
 slcli login --profile dev
+# Example: https://api.my-systemlink.com
 # Enter API URL: https://dev-api.example.com
 # Enter API key: ****
+# Example: https://my-systemlink.com
 # Enter Web URL: https://dev.example.com
 # Default workspace: Development
 # Set as current profile? Y
 
 # Add production environment
 slcli login --profile prod
+# Example: https://api.my-systemlink.com
 # Enter API URL: https://prod-api.example.com
 # Enter API key: ****
+# Example: https://my-systemlink.com
+# Enter Web URL: (leave empty for auto-detection)
 # Default workspace: (leave empty)
 # Set as current profile? N
 
 # List profiles
-slcli config list-profiles
+slcli config list
 #   CURRENT   NAME    SERVER                        WORKSPACE
 #   *         dev     https://dev-api.example.com   Development
 #             prod    https://prod-api.example.com  -
@@ -379,7 +386,7 @@ slcli config list-profiles
 
 ```bash
 # Switch to production
-slcli config use-profile prod
+slcli config use prod
 
 # Run command in different profile without switching
 slcli --profile dev workflow list
@@ -416,7 +423,7 @@ slcli workflow list --all-workspaces
    - Recommend: Yes, for CI/CD flexibility.
 
 5. **Default profile behavior**: If no current-profile set, error or use first profile?
-   - Recommend: Error with helpful message to run `slcli config use-profile`.
+   - Recommend: Error with helpful message to run `slcli config use`.
 
 ---
 

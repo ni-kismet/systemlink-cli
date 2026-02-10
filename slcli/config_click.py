@@ -43,10 +43,8 @@ def _add_profile_impl(
 
     # Get URL - either from flag or prompt
     if not url:
-        url = click.prompt(
-            "Enter your SystemLink API URL",
-            default="https://demo-api.lifecyclesolutions.ni.com",
-        )
+        click.echo("Example: https://api.my-systemlink.com")
+        url = click.prompt("Enter your SystemLink API URL")
     # Ensure url is a string now
     assert isinstance(url, str)
     if not url.strip():
@@ -73,9 +71,8 @@ def _add_profile_impl(
 
     # Normalize and validate web_url (prompt if not provided)
     if not web_url:
-        web_url = click.prompt(
-            "Enter your SystemLink Web UI URL", default="https://demo.lifecyclesolutions.ni.com"
-        )
+        click.echo("Example: https://my-systemlink.com")
+        web_url = click.prompt("Enter your SystemLink Web UI URL")
     assert isinstance(web_url, str)
     web_url = web_url.strip()
     if web_url.startswith("http://"):
@@ -143,7 +140,7 @@ def register_config_commands(cli: Any) -> None:
         """
         pass
 
-    @config.command(name="list-profiles")
+    @config.command(name="list")
     @click.option(
         "--format",
         "-f",
@@ -232,19 +229,19 @@ def register_config_commands(cli: Any) -> None:
             total_label="profile(s)",
         )
 
-    @config.command(name="current-profile")
+    @config.command(name="current")
     def current_profile() -> None:
         """Show the current profile name."""
         cfg = ProfileConfig.load()
 
         if not cfg.current_profile:
             click.echo("No current profile set.", err=True)
-            click.echo("Run 'slcli config use-profile <name>' to set one.", err=True)
+            click.echo("Run 'slcli config use <name>' to set one.", err=True)
             sys.exit(ExitCodes.GENERAL_ERROR)
 
         click.echo(cfg.current_profile)
 
-    @config.command(name="use-profile")
+    @config.command(name="use")
     @click.argument("name")
     def use_profile(name: str) -> None:
         """Switch to a different profile."""
@@ -308,25 +305,57 @@ def register_config_commands(cli: Any) -> None:
         click.echo("├─────────────────────────────────────────────────────────────┤")
 
         if cfg.current_profile:
-            click.echo(f"│ Current Profile: {cfg.current_profile:<43} │")
+            click.echo(f"│ Current Profile: {cfg.current_profile:<43}│")
         else:
             click.echo("│ Current Profile: (none)                                     │")
 
         config_path_str = str(ProfileConfig.get_config_path())
         if len(config_path_str) > 47:
             config_path_str = config_path_str[:44] + "..."
-        click.echo(f"│ Config File: {config_path_str:<47} │")
+        click.echo(f"│ Config File: {config_path_str:<47}│")
 
-        if cfg.profiles:
+        # Show current profile details
+        if cfg.current_profile and cfg.current_profile in cfg.profiles:
+            profile = cfg.profiles[cfg.current_profile]
             click.echo("├─────────────────────────────────────────────────────────────┤")
-            click.echo("│ Profiles:                                                   │")
-            for name, profile in cfg.profiles.items():
-                marker = " *" if name == cfg.current_profile else "  "
-                click.echo(f"│{marker} {name}: {profile.server[:45]:<45} │")
-                if profile.workspace:
-                    click.echo(f"│      Workspace: {profile.workspace[:42]:<42} │")
-                if profile.readonly:
-                    click.echo(f"│      Readonly: enabled                                      │")
+
+            # Server
+            server_str = profile.server
+            if len(server_str) > 47:
+                server_str = server_str[:44] + "..."
+            click.echo(f"│ Server: {server_str:<51} │")
+
+            # Web URL
+            if profile.web_url:
+                web_url_str = profile.web_url
+                if len(web_url_str) > 45:
+                    web_url_str = web_url_str[:42] + "..."
+                click.echo(f"│ Web URL: {web_url_str:<50} │")
+
+            # Platform
+            if profile.platform:
+                platform_str = profile.platform or "Unknown"
+                click.echo(f"│ Platform: {platform_str:<49} │")
+
+            # API Key (redacted)
+            if show_secrets:
+                click.echo(f"│ API Key: {profile.api_key:<50} │")
+            else:
+                # Show only last 4 characters
+                key = profile.api_key
+                redacted_key = "****" + key[-4:] if len(key) >= 4 else "****"
+                click.echo(f"│ API Key: {redacted_key:<50} │")
+
+            # Workspace
+            if profile.workspace:
+                workspace_str = profile.workspace
+                if len(workspace_str) > 45:
+                    workspace_str = workspace_str[:42] + "..."
+                click.echo(f"│ Workspace: {workspace_str:<48} │")
+
+            # Readonly
+            if profile.readonly:
+                click.echo("│ Readonly: enabled                                           │")
 
         click.echo("└─────────────────────────────────────────────────────────────┘")
 
@@ -335,7 +364,7 @@ def register_config_commands(cli: Any) -> None:
         if warning:
             click.echo(f"\n⚠️  {warning}", err=True)
 
-    @config.command(name="delete-profile")
+    @config.command(name="delete")
     @click.argument("name")
     @click.option("--force", "-f", is_flag=True, help="Skip confirmation prompt")
     def delete_profile(name: str, force: bool) -> None:
@@ -410,7 +439,7 @@ def register_config_commands(cli: Any) -> None:
         else:
             click.echo("\nNote: Keyring entries still exist. Use --delete-keyring to remove them.")
 
-    @config.command(name="add-profile")
+    @config.command(name="add")
     @click.option("--profile", "-p", help="Profile name (default: 'default')")
     @click.option("--url", help="SystemLink API URL")
     @click.option("--api-key", help="SystemLink API key")
@@ -447,9 +476,9 @@ def register_config_commands(cli: Any) -> None:
         commands in slcli. This is useful for AI agents or untrusted environments.
 
         Examples:
-            slcli config add-profile --profile dev
-            slcli config add-profile -p prod --url https://prod-api.example.com
-            slcli config add-profile --profile test --workspace "Testing" --readonly
+            slcli config add --profile dev
+            slcli config add -p prod --url https://prod-api.example.com
+            slcli config add --profile test --workspace "Testing" --readonly
         """
         _add_profile_impl(
             profile=profile,
