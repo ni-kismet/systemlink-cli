@@ -469,6 +469,10 @@ def register_templates_commands(cli: Any) -> None:
     )
     def import_template(input_file: str) -> None:
         """Import a template from JSON."""
+        from .utils import check_readonly_mode
+
+        check_readonly_mode("import a template")
+
         url = f"{get_base_url()}/niworkorder/v1/testplan-templates"
         allowed_fields = {
             "name",
@@ -567,6 +571,10 @@ def register_templates_commands(cli: Any) -> None:
     @click.confirmation_option(prompt="Are you sure you want to delete this template?")
     def delete_template(template_id: str) -> None:
         """Delete a template."""
+        from .utils import check_readonly_mode
+
+        check_readonly_mode("delete a template")
+
         url = f"{get_base_url()}/niworkorder/v1/delete-testplan-templates"
         payload = {"ids": [template_id]}
         try:

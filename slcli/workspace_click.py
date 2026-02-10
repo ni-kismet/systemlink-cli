@@ -215,6 +215,10 @@ def register_workspace_commands(cli: Any) -> None:
     @click.confirmation_option(prompt="Are you sure you want to disable this workspace?")
     def disable_workspace(id: str) -> None:
         """Disable a workspace."""
+        from .utils import check_readonly_mode
+
+        check_readonly_mode("disable a workspace")
+
         try:
             # Get workspace info before disabling for confirmation
             # Fetch all workspaces to find the target

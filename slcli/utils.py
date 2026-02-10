@@ -38,6 +38,31 @@ class ExitCodes:
     NETWORK_ERROR = 5
 
 
+def check_readonly_mode(operation: str = "this operation") -> None:
+    """Check if the active profile is in readonly mode and exit if it is.
+
+    This function should be called at the start of any mutation command
+    (create, update, delete, edit) to prevent modifications when the profile
+    is in readonly mode.
+
+    Args:
+        operation: Description of the operation being attempted (e.g., "delete this resource")
+
+    Raises:
+        SystemExit: If the active profile is in readonly mode
+    """
+    from .profiles import is_active_profile_readonly
+
+    if is_active_profile_readonly():
+        click.echo(f"✗ Cannot {operation}: profile is in readonly mode", err=True)
+        click.echo(
+            "Readonly mode disables all mutation operations "
+            "(create, update, delete, edit, import, upload, publish, disable) for safety.",
+            err=True,
+        )
+        sys.exit(ExitCodes.PERMISSION_DENIED)
+
+
 def handle_api_error(exc: Exception) -> None:
     """Handle API errors with appropriate exit codes and consistent formatting.
 

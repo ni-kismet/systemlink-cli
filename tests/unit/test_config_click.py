@@ -22,7 +22,7 @@ def make_cli() -> click.Group:
 
 
 class TestListProfiles:
-    """Tests for the list-profiles command."""
+    """Tests for the list command."""
 
     def test_list_profiles_empty(self, tmp_path: Path, monkeypatch: Any) -> None:
         """Test listing profiles when none exist."""
@@ -33,7 +33,7 @@ class TestListProfiles:
 
         cli = make_cli()
         runner = CliRunner()
-        result = runner.invoke(cli, ["config", "list-profiles"])
+        result = runner.invoke(cli, ["config", "list"])
 
         assert result.exit_code == 0
         assert "No profiles configured" in result.output
@@ -63,7 +63,7 @@ class TestListProfiles:
 
         cli = make_cli()
         runner = CliRunner()
-        result = runner.invoke(cli, ["config", "list-profiles"])
+        result = runner.invoke(cli, ["config", "list"])
 
         assert result.exit_code == 0
         assert "dev" in result.output
@@ -91,7 +91,7 @@ class TestListProfiles:
 
         cli = make_cli()
         runner = CliRunner()
-        result = runner.invoke(cli, ["config", "list-profiles", "--format", "json"])
+        result = runner.invoke(cli, ["config", "list", "--format", "json"])
 
         assert result.exit_code == 0
         output = json.loads(result.output)
@@ -102,7 +102,7 @@ class TestListProfiles:
 
 
 class TestCurrentProfile:
-    """Tests for the current-profile command."""
+    """Tests for the current command."""
 
     def test_current_profile_none(self, tmp_path: Path, monkeypatch: Any) -> None:
         """Test showing current profile when none is set."""
@@ -113,7 +113,7 @@ class TestCurrentProfile:
 
         cli = make_cli()
         runner = CliRunner()
-        result = runner.invoke(cli, ["config", "current-profile"])
+        result = runner.invoke(cli, ["config", "current"])
 
         # Exit code 1 indicates no profile is configured
         assert result.exit_code != 0 or "No current profile" in result.output
@@ -138,14 +138,14 @@ class TestCurrentProfile:
 
         cli = make_cli()
         runner = CliRunner()
-        result = runner.invoke(cli, ["config", "current-profile"])
+        result = runner.invoke(cli, ["config", "current"])
 
         assert result.exit_code == 0
         assert "myprofile" in result.output
 
 
 class TestUseProfile:
-    """Tests for the use-profile command."""
+    """Tests for the use command."""
 
     def test_use_profile_success(self, tmp_path: Path, monkeypatch: Any) -> None:
         """Test switching to an existing profile."""
@@ -165,7 +165,7 @@ class TestUseProfile:
 
         cli = make_cli()
         runner = CliRunner()
-        result = runner.invoke(cli, ["config", "use-profile", "new"])
+        result = runner.invoke(cli, ["config", "use", "new"])
 
         assert result.exit_code == 0
         assert "Switched to profile" in result.output
@@ -192,7 +192,7 @@ class TestUseProfile:
 
         cli = make_cli()
         runner = CliRunner()
-        result = runner.invoke(cli, ["config", "use-profile", "nonexistent"])
+        result = runner.invoke(cli, ["config", "use", "nonexistent"])
 
         assert result.exit_code != 0
         assert "not found" in result.output.lower()
@@ -228,7 +228,7 @@ class TestViewConfig:
 
 
 class TestDeleteProfile:
-    """Tests for the delete-profile command."""
+    """Tests for the delete command."""
 
     def test_delete_profile_success(self, tmp_path: Path, monkeypatch: Any) -> None:
         """Test deleting a profile with force flag."""
@@ -248,7 +248,7 @@ class TestDeleteProfile:
 
         cli = make_cli()
         runner = CliRunner()
-        result = runner.invoke(cli, ["config", "delete-profile", "todelete", "--force"])
+        result = runner.invoke(cli, ["config", "delete", "todelete", "--force"])
 
         assert result.exit_code == 0
         assert "deleted" in result.output.lower() or "removed" in result.output.lower()
@@ -275,7 +275,7 @@ class TestDeleteProfile:
 
         cli = make_cli()
         runner = CliRunner()
-        result = runner.invoke(cli, ["config", "delete-profile", "nonexistent", "--force"])
+        result = runner.invoke(cli, ["config", "delete", "nonexistent", "--force"])
 
         assert result.exit_code != 0
         assert "not found" in result.output.lower()

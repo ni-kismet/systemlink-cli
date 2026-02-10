@@ -432,6 +432,10 @@ def register_dff_commands(cli: Any) -> None:
     )
     def create_configuration(input_file: str) -> None:
         """Create custom field configurations from a JSON file."""
+        from .utils import check_readonly_mode
+
+        check_readonly_mode("create a DataFlow Definition")
+
         url = f"{get_base_url()}/nidynamicformfields/v1/configurations"
 
         try:
@@ -550,6 +554,10 @@ def register_dff_commands(cli: Any) -> None:
     )
     def update_configuration(input_file: str) -> None:
         """Update custom field configurations from a JSON file."""
+        from .utils import check_readonly_mode
+
+        check_readonly_mode("update a DataFlow Definition")
+
         url = f"{get_base_url()}/nidynamicformfields/v1/update-configurations"
 
         try:
@@ -664,6 +672,10 @@ def register_dff_commands(cli: Any) -> None:
         recursive: bool = True,
     ) -> None:
         """Delete custom field configurations, groups, and fields."""
+        from .utils import check_readonly_mode
+
+        check_readonly_mode("delete a custom field configuration")
+
         if not config_ids and not group_ids and not field_ids:
             click.echo("✗ Must provide at least one of: --id, --group-id, or --field-id", err=True)
             sys.exit(ExitCodes.INVALID_INPUT)
@@ -930,6 +942,10 @@ def register_dff_commands(cli: Any) -> None:
         This command starts a web editor for editing custom field configurations.
         You can provide a JSON file to edit, or load a configuration by ID from the server.
         """
+        from .utils import check_readonly_mode
+
+        check_readonly_mode("edit custom field configurations")
+
         try:
             # If config_id is provided, fetch and save it to a temporary file
             if config_id:

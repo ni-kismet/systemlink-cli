@@ -565,6 +565,10 @@ def register_workflows_commands(cli: Any) -> None:
         Workspace can be specified via --workspace flag or included in the JSON file.
         Command line workspace takes precedence over file contents.
         """
+        from .utils import check_readonly_mode
+
+        check_readonly_mode("import a workflow")
+
         url = f"{get_base_url()}/niworkorder/v1/workflows?ff-userdefinedworkflowsfortestplaninstances=true"
         allowed_fields = {
             "name",
@@ -649,6 +653,10 @@ def register_workflows_commands(cli: Any) -> None:
     @click.confirmation_option(prompt="Are you sure you want to delete this workflow?")
     def delete_workflow(workflow_id: str) -> None:
         """Delete a workflow."""
+        from .utils import check_readonly_mode
+
+        check_readonly_mode("delete a workflow")
+
         url = f"{get_base_url()}/niworkorder/v1/delete-workflows?ff-userdefinedworkflowsfortestplaninstances=true"
         payload = {"ids": [workflow_id]}
         try:
@@ -703,6 +711,10 @@ def register_workflows_commands(cli: Any) -> None:
         Workspace can be specified via --workspace flag or included in the JSON file.
         Command line workspace takes precedence over file contents.
         """
+        from .utils import check_readonly_mode
+
+        check_readonly_mode("update a workflow")
+
         url = f"{get_base_url()}/niworkorder/v1/workflows/{workflow_id}?ff-userdefinedworkflowsfortestplaninstances=true"
         allowed_fields = {
             "name",

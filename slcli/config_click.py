@@ -1,14 +1,131 @@
 """CLI commands for managing slcli configuration and profiles."""
 
+import getpass
 import json
 import sys
-from typing import Any
+from typing import Any, Optional
 
 import click
 
-from .profiles import ProfileConfig, check_config_file_permissions
+from .platform import PLATFORM_SLE, PLATFORM_SLS, detect_platform
+from .profiles import ProfileConfig, Profile, check_config_file_permissions
 from .table_utils import output_formatted_list
 from .utils import ExitCodes
+
+
+def _add_profile_impl(
+    profile: Optional[str],
+    url: Optional[str],
+    api_key: Optional[str],
+    web_url: Optional[str],
+    workspace: Optional[str],
+    set_current: bool,
+    readonly: bool,
+) -> None:
+    """Shared implementation for add-profile and login commands.
+
+    This function contains the common logic for both the config add-profile
+    and login commands. Both commands invoke this function with the same parameters.
+
+    Args:
+        profile: Profile name (default: 'default')
+        url: SystemLink API URL
+        api_key: SystemLink API key
+        web_url: SystemLink Web UI base URL
+        workspace: Default workspace for this profile
+        set_current: Whether to set as the current profile
+        readonly: Whether to enable readonly mode
+    """
+    # Get profile name
+    if not profile:
+        profile = click.prompt("Profile name", default="default")
+    assert isinstance(profile, str)
+
+    # Get URL - either from flag or prompt
+    if not url:
+        click.echo("Example: https://api.my-systemlink.com")
+        url = click.prompt("Enter your SystemLink API URL")
+    # Ensure url is a string now
+    assert isinstance(url, str)
+    if not url.strip():
+        click.echo("SystemLink URL cannot be empty.")
+        raise click.ClickException("SystemLink URL cannot be empty.")
+
+    # Ensure URL uses HTTPS
+    url = url.strip()
+    if url.startswith("http://"):
+        click.echo("⚠️  Warning: Converting HTTP to HTTPS for security.")
+        url = url.replace("http://", "https://", 1)
+    elif not url.startswith("https://"):
+        click.echo("⚠️  Warning: Adding HTTPS protocol to URL.")
+        url = f"https://{url}"
+
+    # Get API key - either from flag or prompt
+    if not api_key:
+        api_key = getpass.getpass("Enter your SystemLink API key: ")
+    # Ensure api_key is a string now
+    assert isinstance(api_key, str)
+    if not api_key.strip():
+        click.echo("API key cannot be empty.")
+        raise click.ClickException("API key cannot be empty.")
+
+    # Normalize and validate web_url (prompt if not provided)
+    if not web_url:
+        click.echo("Example: https://my-systemlink.com")
+        web_url = click.prompt("Enter your SystemLink Web UI URL")
+    assert isinstance(web_url, str)
+    web_url = web_url.strip()
+    if web_url.startswith("http://"):
+        click.echo("⚠️  Warning: Converting HTTP to HTTPS for security.")
+        web_url = web_url.replace("http://", "https://", 1)
+    elif not web_url.startswith("https://"):
+        click.echo("⚠️  Warning: Adding HTTPS protocol to web URL.")
+        web_url = f"https://{web_url}"
+
+    # Detect platform type
+    click.echo("Detecting platform type...")
+    platform = detect_platform(url, api_key.strip())
+
+    if platform == PLATFORM_SLE:
+        click.echo("  Platform: SystemLink Enterprise (Cloud)")
+    elif platform == PLATFORM_SLS:
+        click.echo("  Platform: SystemLink Server (On-Premises)")
+    else:
+        click.echo("  Platform: Unknown (will attempt all features)")
+
+    # Get default workspace (optional)
+    if workspace is None:
+        workspace_input = click.prompt(
+            "Default workspace (optional, press Enter to skip)", default="", show_default=False
+        )
+        workspace = workspace_input if workspace_input else None
+
+    # Create profile
+    new_profile = Profile(
+        name=profile,
+        server=url,
+        api_key=api_key.strip(),
+        web_url=web_url,
+        platform=platform,
+        workspace=workspace,
+        readonly=readonly,
+    )
+
+    # Load config and add profile
+    cfg = ProfileConfig.load()
+    cfg.add_profile(new_profile, set_current=set_current)
+    cfg.save()
+
+    click.echo(f"\n✓ Profile '{profile}' saved successfully.")
+    click.echo(f"  Server: {url}")
+    click.echo(f"  Web URL: {web_url}")
+    if workspace:
+        click.echo(f"  Default workspace: {workspace}")
+    if readonly:
+        click.echo(f"  Readonly mode: enabled (mutation operations disabled)")
+    if set_current:
+        click.echo(f"  Set as current profile: yes")
+    click.echo(f"\nConfig file: {ProfileConfig.get_config_path()}")
 
 
 def register_config_commands(cli: Any) -> None:
@@ -23,7 +140,7 @@ def register_config_commands(cli: Any) -> None:
         """
         pass
 
-    @config.command(name="list-profiles")
+    @config.command(name="list")
     @click.option(
         "--format",
         "-f",
@@ -58,6 +175,8 @@ def register_config_commands(cli: Any) -> None:
                     item["platform"] = p.platform
                 if p.workspace:
                     item["workspace"] = p.workspace
+                if p.readonly:
+                    item["readonly"] = p.readonly
                 output.append(item)
             click.echo(json.dumps(output, indent=2))
             return
@@ -82,6 +201,7 @@ def register_config_commands(cli: Any) -> None:
                     "name": p.name,
                     "server": p.server,
                     "workspace": p.workspace,
+                    "readonly": p.readonly,
                     "is_current": p.name == cfg.current_profile,
                 }
             )
@@ -96,31 +216,32 @@ def register_config_commands(cli: Any) -> None:
             server = profile_dict["server"]
             if len(server) > 40:
                 server = server[:37] + "..."
-            return [current, profile_dict["name"], server, workspace]
+            readonly = "✓" if profile_dict.get("readonly") else ""
+            return [current, profile_dict["name"], server, workspace, readonly]
 
         output_formatted_list(
             items=table_items,
             output_format="table",
-            headers=["", "NAME", "SERVER", "WORKSPACE"],
-            column_widths=[1, 15, 40, 20],
+            headers=["", "NAME", "SERVER", "WORKSPACE", "READONLY"],
+            column_widths=[1, 15, 40, 20, 8],
             row_formatter_func=format_row,
             empty_message="No profiles configured.",
             total_label="profile(s)",
         )
 
-    @config.command(name="current-profile")
+    @config.command(name="current")
     def current_profile() -> None:
         """Show the current profile name."""
         cfg = ProfileConfig.load()
 
         if not cfg.current_profile:
             click.echo("No current profile set.", err=True)
-            click.echo("Run 'slcli config use-profile <name>' to set one.", err=True)
+            click.echo("Run 'slcli config use <name>' to set one.", err=True)
             sys.exit(ExitCodes.GENERAL_ERROR)
 
         click.echo(cfg.current_profile)
 
-    @config.command(name="use-profile")
+    @config.command(name="use")
     @click.argument("name")
     def use_profile(name: str) -> None:
         """Switch to a different profile."""
@@ -184,23 +305,57 @@ def register_config_commands(cli: Any) -> None:
         click.echo("├─────────────────────────────────────────────────────────────┤")
 
         if cfg.current_profile:
-            click.echo(f"│ Current Profile: {cfg.current_profile:<43} │")
+            click.echo(f"│ Current Profile: {cfg.current_profile:<43}│")
         else:
             click.echo("│ Current Profile: (none)                                     │")
 
         config_path_str = str(ProfileConfig.get_config_path())
         if len(config_path_str) > 47:
             config_path_str = config_path_str[:44] + "..."
-        click.echo(f"│ Config File: {config_path_str:<47} │")
+        click.echo(f"│ Config File: {config_path_str:<47}│")
 
-        if cfg.profiles:
+        # Show current profile details
+        if cfg.current_profile and cfg.current_profile in cfg.profiles:
+            profile = cfg.profiles[cfg.current_profile]
             click.echo("├─────────────────────────────────────────────────────────────┤")
-            click.echo("│ Profiles:                                                   │")
-            for name, profile in cfg.profiles.items():
-                marker = " *" if name == cfg.current_profile else "  "
-                click.echo(f"│{marker} {name}: {profile.server[:45]:<45} │")
-                if profile.workspace:
-                    click.echo(f"│      Workspace: {profile.workspace[:42]:<42} │")
+
+            # Server
+            server_str = profile.server
+            if len(server_str) > 47:
+                server_str = server_str[:44] + "..."
+            click.echo(f"│ Server: {server_str:<51} │")
+
+            # Web URL
+            if profile.web_url:
+                web_url_str = profile.web_url
+                if len(web_url_str) > 45:
+                    web_url_str = web_url_str[:42] + "..."
+                click.echo(f"│ Web URL: {web_url_str:<50} │")
+
+            # Platform
+            if profile.platform:
+                platform_str = profile.platform or "Unknown"
+                click.echo(f"│ Platform: {platform_str:<49} │")
+
+            # API Key (redacted)
+            if show_secrets:
+                click.echo(f"│ API Key: {profile.api_key:<50} │")
+            else:
+                # Show only last 4 characters
+                key = profile.api_key
+                redacted_key = "****" + key[-4:] if len(key) >= 4 else "****"
+                click.echo(f"│ API Key: {redacted_key:<50} │")
+
+            # Workspace
+            if profile.workspace:
+                workspace_str = profile.workspace
+                if len(workspace_str) > 45:
+                    workspace_str = workspace_str[:42] + "..."
+                click.echo(f"│ Workspace: {workspace_str:<48} │")
+
+            # Readonly
+            if profile.readonly:
+                click.echo("│ Readonly: enabled                                           │")
 
         click.echo("└─────────────────────────────────────────────────────────────┘")
 
@@ -209,11 +364,15 @@ def register_config_commands(cli: Any) -> None:
         if warning:
             click.echo(f"\n⚠️  {warning}", err=True)
 
-    @config.command(name="delete-profile")
+    @config.command(name="delete")
     @click.argument("name")
     @click.option("--force", "-f", is_flag=True, help="Skip confirmation prompt")
     def delete_profile(name: str, force: bool) -> None:
         """Delete a profile."""
+        from .utils import check_readonly_mode
+
+        check_readonly_mode("delete a profile")
+
         cfg = ProfileConfig.load()
 
         if name not in cfg.profiles:
@@ -279,3 +438,54 @@ def register_config_commands(cli: Any) -> None:
             click.echo("✓ Deleted keyring entries")
         else:
             click.echo("\nNote: Keyring entries still exist. Use --delete-keyring to remove them.")
+
+    @config.command(name="add")
+    @click.option("--profile", "-p", help="Profile name (default: 'default')")
+    @click.option("--url", help="SystemLink API URL")
+    @click.option("--api-key", help="SystemLink API key")
+    @click.option("--web-url", help="SystemLink Web UI base URL")
+    @click.option("--workspace", "-w", help="Default workspace for this profile")
+    @click.option(
+        "--set-current/--no-set-current",
+        default=True,
+        help="Set as current profile (default: yes)",
+    )
+    @click.option(
+        "--readonly",
+        is_flag=True,
+        help=(
+            "Enable readonly mode (disables create, update, delete, import, upload, "
+            "publish, and disable commands)"
+        ),
+    )
+    def add_profile(
+        profile: Optional[str],
+        url: Optional[str],
+        api_key: Optional[str],
+        web_url: Optional[str],
+        workspace: Optional[str],
+        set_current: bool,
+        readonly: bool,
+    ) -> None:
+        """Add or update a SystemLink profile.
+
+        Profiles allow you to configure multiple SystemLink environments and switch
+        between them. Credentials are stored in ~/.config/slcli/config.json.
+
+        The readonly flag enables readonly mode, which disables all delete and edit
+        commands in slcli. This is useful for AI agents or untrusted environments.
+
+        Examples:
+            slcli config add --profile dev
+            slcli config add -p prod --url https://prod-api.example.com
+            slcli config add --profile test --workspace "Testing" --readonly
+        """
+        _add_profile_impl(
+            profile=profile,
+            url=url,
+            api_key=api_key,
+            web_url=web_url,
+            workspace=workspace,
+            set_current=set_current,
+            readonly=readonly,
+        )

@@ -39,6 +39,7 @@ class Profile:
     web_url: Optional[str] = None
     platform: Optional[str] = None
     workspace: Optional[str] = None
+    readonly: bool = False
 
     def to_dict(self) -> Dict[str, Any]:
         """Convert profile to dictionary for serialization."""
@@ -52,6 +53,8 @@ class Profile:
             result["platform"] = self.platform
         if self.workspace:
             result["workspace"] = self.workspace
+        if self.readonly:
+            result["readonly"] = self.readonly
         return result
 
     @classmethod
@@ -64,6 +67,7 @@ class Profile:
             web_url=data.get("web-url"),
             platform=data.get("platform"),
             workspace=data.get("workspace"),
+            readonly=data.get("readonly", False),
         )
 
 
@@ -263,6 +267,12 @@ def get_default_workspace() -> Optional[str]:
     """Get the default workspace from the active profile."""
     profile = get_active_profile()
     return profile.workspace if profile else None
+
+
+def is_active_profile_readonly() -> bool:
+    """Check if the currently active profile is in readonly mode."""
+    profile = get_active_profile()
+    return profile.readonly if profile else False
 
 
 def has_profiles_configured() -> bool:

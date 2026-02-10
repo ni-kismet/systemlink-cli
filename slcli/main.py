@@ -1,6 +1,5 @@
 """slcli entry points."""
 
-import getpass
 import json
 from pathlib import Path
 from typing import Optional
@@ -18,10 +17,7 @@ from .file_click import register_file_commands
 from .function_click import register_function_commands
 from .notebook_click import register_notebook_commands
 from .platform import (
-    PLATFORM_SLE,
-    PLATFORM_SLS,
     PLATFORM_UNKNOWN,
-    detect_platform,
     get_platform_info,
 )
 from .policy_click import register_policy_commands
@@ -161,6 +157,14 @@ def ca_info() -> None:
     default=True,
     help="Set as current profile (default: yes)",
 )
+@click.option(
+    "--readonly",
+    is_flag=True,
+    help=(
+        "Enable readonly mode (disables create, update, delete, import, upload, "
+        "publish, and disable commands)"
+    ),
+)
 def login(
     profile: Optional[str],
     url: Optional[str],
@@ -168,8 +172,12 @@ def login(
     web_url: Optional[str],
     workspace: Optional[str],
     set_current: bool,
+    readonly: bool,
 ) -> None:
     """Save SystemLink credentials to a profile.
+
+    This is an alias for 'slcli config add-profile'. Use that command
+    for the same functionality and more configuration options.
 
     Profiles allow you to configure multiple SystemLink environments and switch
     between them. Credentials are stored in ~/.config/slcli/config.json.
@@ -177,100 +185,20 @@ def login(
     Examples:
         slcli login --profile dev
         slcli login -p prod --url https://prod-api.example.com
-        slcli login --profile test --workspace "Testing"
+        slcli login --profile test --workspace "Testing" --readonly
     """
-    from .profiles import Profile, ProfileConfig
+    from .config_click import _add_profile_impl
 
-    # Get profile name
-    if not profile:
-        profile = click.prompt("Profile name", default="default")
-    assert isinstance(profile, str)
-
-    # Get URL - either from flag or prompt
-    if not url:
-        url = click.prompt(
-            "Enter your SystemLink API URL",
-            default="https://demo-api.lifecyclesolutions.ni.com",
-        )
-    # Ensure url is a string now
-    assert isinstance(url, str)
-    if not url.strip():
-        click.echo("SystemLink URL cannot be empty.")
-        raise click.ClickException("SystemLink URL cannot be empty.")
-
-    # Ensure URL uses HTTPS
-    url = url.strip()
-    if url.startswith("http://"):
-        click.echo("⚠️  Warning: Converting HTTP to HTTPS for security.")
-        url = url.replace("http://", "https://", 1)
-    elif not url.startswith("https://"):
-        click.echo("⚠️  Warning: Adding HTTPS protocol to URL.")
-        url = f"https://{url}"
-
-    # Get API key - either from flag or prompt
-    if not api_key:
-        api_key = getpass.getpass("Enter your SystemLink API key: ")
-    # Ensure api_key is a string now
-    assert isinstance(api_key, str)
-    if not api_key.strip():
-        click.echo("API key cannot be empty.")
-        raise click.ClickException("API key cannot be empty.")
-
-    # Normalize and validate web_url (prompt if not provided)
-    if not web_url:
-        web_url = click.prompt(
-            "Enter your SystemLink Web UI URL", default="https://demo.lifecyclesolutions.ni.com"
-        )
-    assert isinstance(web_url, str)
-    web_url = web_url.strip()
-    if web_url.startswith("http://"):
-        click.echo("⚠️  Warning: Converting HTTP to HTTPS for security.")
-        web_url = web_url.replace("http://", "https://", 1)
-    elif not web_url.startswith("https://"):
-        click.echo("⚠️  Warning: Adding HTTPS protocol to web URL.")
-        web_url = f"https://{web_url}"
-
-    # Detect platform type
-    click.echo("Detecting platform type...")
-    platform = detect_platform(url, api_key.strip())
-
-    if platform == PLATFORM_SLE:
-        click.echo("  Platform: SystemLink Enterprise (Cloud)")
-    elif platform == PLATFORM_SLS:
-        click.echo("  Platform: SystemLink Server (On-Premises)")
-    else:
-        click.echo("  Platform: Unknown (will attempt all features)")
-
-    # Get default workspace (optional)
-    if workspace is None:
-        workspace_input = click.prompt(
-            "Default workspace (optional, press Enter to skip)", default="", show_default=False
-        )
-        workspace = workspace_input if workspace_input else None
-
-    # Create profile
-    new_profile = Profile(
-        name=profile,
-        server=url,
-        api_key=api_key.strip(),
+    # Invoke the shared implementation
+    _add_profile_impl(
+        profile=profile,
+        url=url,
+        api_key=api_key,
         web_url=web_url,
-        platform=platform,
         workspace=workspace,
+        set_current=set_current,
+        readonly=readonly,
     )
-
-    # Load config and add profile
-    cfg = ProfileConfig.load()
-    cfg.add_profile(new_profile, set_current=set_current)
-    cfg.save()
-
-    click.echo(f"\n✓ Profile '{profile}' saved successfully.")
-    click.echo(f"  Server: {url}")
-    click.echo(f"  Web URL: {web_url}")
-    if workspace:
-        click.echo(f"  Default workspace: {workspace}")
-    if set_current:
-        click.echo(f"  Set as current profile: yes")
-    click.echo(f"\nConfig file: {ProfileConfig.get_config_path()}")
 
 
 @cli.command()

@@ -61,7 +61,7 @@ def test_login_with_flags(monkeypatch: Any, tmp_path: Any) -> None:
     monkeypatch.setattr(
         "slcli.profiles.ProfileConfig.get_config_path", classmethod(lambda cls: config_file)
     )
-    monkeypatch.setattr("slcli.main.detect_platform", lambda *a, **kw: PLATFORM_SLE)
+    monkeypatch.setattr("slcli.config_click.detect_platform", lambda *a, **kw: PLATFORM_SLE)
     # Mock keyring to return None (no existing credentials)
     monkeypatch.setattr("slcli.main.keyring.get_password", lambda *a, **kw: None)
 
@@ -79,7 +79,7 @@ def test_login_with_flags(monkeypatch: Any, tmp_path: Any) -> None:
             "--web-url",
             "https://web.example.test",
         ],
-        input="\n",  # Skip optional workspace prompt
+        input="\n\n",  # Skip optional workspace prompt and readonly confirmation
     )
 
     assert result.exit_code == 0, result.output
@@ -158,7 +158,7 @@ def test_login_prompts_migration_with_existing_keyring(monkeypatch: Any, tmp_pat
     monkeypatch.setattr(
         "slcli.profiles.ProfileConfig.get_config_path", classmethod(lambda cls: config_file)
     )
-    monkeypatch.setattr("slcli.main.detect_platform", lambda *a, **kw: PLATFORM_SLE)
+    monkeypatch.setattr("slcli.config_click.detect_platform", lambda *a, **kw: PLATFORM_SLE)
 
     # Mock keyring to return existing credentials
     def mock_get_password(service: str, key: str) -> Optional[str]:

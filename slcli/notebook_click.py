@@ -691,6 +691,10 @@ def register_notebook_commands(cli: Any) -> None:
         Note: This command is only available on SystemLink Enterprise (SLE).
         SystemLink Server (SLS) does not support notebook updates via API.
         """
+        from .utils import check_readonly_mode
+
+        check_readonly_mode("update a notebook")
+
         # Check if running on SLS - notebook updates not supported
         if get_platform() == PLATFORM_SLS:
             click.echo(
@@ -1101,6 +1105,10 @@ def register_notebook_commands(cli: Any) -> None:
         Note: This command is only available on SystemLink Enterprise (SLE).
         SystemLink Server (SLS) does not support notebook creation via API.
         """
+        from .utils import check_readonly_mode
+
+        check_readonly_mode("create a notebook")
+
         # Validate interface early if provided
         if interface:
             try:
@@ -1212,6 +1220,10 @@ def register_notebook_commands(cli: Any) -> None:
         Note: This command is only available on SystemLink Enterprise (SLE).
         SystemLink Server (SLS) does not support notebook deletion via API.
         """
+        from .utils import check_readonly_mode
+
+        check_readonly_mode("delete a notebook")
+
         # Check if running on SLS - notebook deletion not supported
         if get_platform() == PLATFORM_SLS:
             click.echo(

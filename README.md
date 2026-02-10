@@ -311,9 +311,40 @@ slcli login --profile myprofile --url "https://your-server.com" --api-key "your-
 
 # Set a default workspace for a profile
 slcli login --profile dev --workspace "Development"
+
+# Enable readonly mode (blocks all mutation operations for safety with AI agents)
+slcli login --profile aiagent --readonly
+slcli login --profile aiagent --url "https://your-server.com" --api-key "your-api-key" --readonly
 ```
 
 **Note**: The CLI automatically converts HTTP URLs to HTTPS for security. SystemLink servers typically require HTTPS for API access.
+
+**Readonly Mode**: Use the `--readonly` flag to enable read-only mode on a profile. This disables all mutation operations (create, update, delete, and edit commands), making it safer to use with AI agents or in untrusted environments.
+
+**Alias**: The `slcli login` command is an alias for `slcli config add`. Both commands provide the same functionality.
+
+#### Readonly Mode Protected Operations
+
+When a profile is in readonly mode, the following operations are blocked:
+
+- **Create commands**: Create feeds, tags, workflows, templates, policies, users, notebooks, functions, DataFlow Definitions, webapps
+- **Update/Edit commands**: Update profiles, configurations, workflows, notebooks, functions, policies, tags, users, DataFlow Definitions
+- **Delete commands**: Delete profiles, feeds, files, webapps, policies, tags, workflows, DataFlow Definitions
+- **Other mutations**: Import templates, import workflows, publish webapps, upload packages, disable workspaces
+
+When attempting a protected operation with a readonly profile, the CLI exits with error code 4 (PERMISSION_DENIED) and displays:
+
+```
+✗ Cannot <operation>: profile is in readonly mode
+Readonly mode disables all mutation operations (create, update, delete, edit) for safety.
+```
+
+This makes readonly mode ideal for:
+
+- AI agent safety: Prevent accidental data modification
+- Read-only reports: Generate analyses without changing data
+- Automated monitoring: Query systems without mutation risk
+- Demo/training environments: Allow exploration without modification
 
 ### Logout (remove stored credentials)
 
@@ -334,19 +365,29 @@ Manage multiple SystemLink environments (development, testing, production) using
 
 ```bash
 # List all configured profiles
-slcli config list-profiles
+slcli config list
 
 # Show current profile
-slcli config current-profile
+slcli config current
+
+# Add or update a profile (same as slcli login)
+slcli config add --profile dev
+slcli config add --profile secure --readonly
 
 # Switch to a different profile
-slcli config use-profile prod
+slcli config use prod
 
-# View full configuration (with masked API keys)
+# View current profile configuration (API keys are masked by default)
 slcli config view
 
+# View with full API key visible (use with caution)
+slcli config view --show-secrets
+
+# View configuration in JSON format (shows all profiles)
+slcli config view --format json
+
 # Delete a profile
-slcli config delete-profile old-profile --force
+slcli config delete old-profile --force
 ```
 
 ### Using Profiles with Commands
