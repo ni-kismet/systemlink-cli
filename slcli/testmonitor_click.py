@@ -499,15 +499,42 @@ def _query_all_results(
     return all_results[:take] if take is not None else all_results
 
 
+def _resolve_group_field(group_by: Optional[str]) -> Optional[str]:
+    """Resolve user-facing group-by value to internal field name.
+
+    Args:
+        group_by: User-facing group-by value (e.g., "status", "programName").
+
+    Returns:
+        Internal field name to use for grouping, or None for default status grouping.
+    """
+    if not group_by:
+        return None
+
+    group_key = group_by.lower()
+    group_field_map = {
+        "status": None,  # Use default status grouping in _summarize_results
+        "programname": "programName",
+        "serialnumber": "serialNumber",
+        "operator": "operator",
+        "hostname": "hostName",
+        "systemid": "systemId",
+    }
+    return group_field_map.get(group_key, group_by)
+
+
 def _summarize_results(
     results: List[Dict[str, Any]],
     group_by_field: Optional[str] = None,
+    max_items: Optional[int] = None,
 ) -> Dict[str, Any]:
     """Summarize test results by aggregating status and other metrics.
 
     Args:
         results: List of result objects.
         group_by_field: Field to group by (status, programName, etc.)
+        max_items: Maximum items that were fetched. If provided and equals len(results),
+                   adds a truncation indicator.
 
     Returns:
         Dictionary with summary statistics.
@@ -519,6 +546,11 @@ def _summarize_results(
         "total": len(results),
         "groups": {},
     }
+
+    # Add truncation indicator if results hit the max limit
+    if max_items is not None and len(results) >= max_items:
+        summary["truncated"] = True
+        summary["note"] = f"Results limited to {max_items} items"
 
     # Group results
     groups: Dict[str, List[Dict[str, Any]]] = {}
@@ -539,8 +571,11 @@ def _summarize_results(
     else:
         # Default grouping by status
         for result in results:
-            status = result.get("status", {})
-            status_type = status.get("statusType", "N/A")
+            status_value = result.get("status", {})
+            if isinstance(status_value, dict):
+                status_type = str(status_value.get("statusType", "N/A"))
+            else:
+                status_type = "N/A" if status_value is None else str(status_value)
             if status_type not in groups:
                 groups[status_type] = []
             groups[status_type].append(result)
@@ -552,19 +587,30 @@ def _summarize_results(
     return summary
 
 
-def _summarize_products(products: List[Dict[str, Any]]) -> Dict[str, Any]:
+def _summarize_products(
+    products: List[Dict[str, Any]], max_items: Optional[int] = None
+) -> Dict[str, Any]:
     """Summarize product data.
 
     Args:
         products: List of product objects.
+        max_items: Maximum items that were fetched. If provided and equals len(products),
+                   adds a truncation indicator.
 
     Returns:
         Dictionary with summary statistics.
     """
-    return {
+    summary: Dict[str, Any] = {
         "total": len(products),
         "families": len(set(p.get("family") or "N/A" for p in products)),
     }
+
+    # Add truncation indicator if results hit the max limit
+    if max_items is not None and len(products) >= max_items:
+        summary["truncated"] = True
+        summary["note"] = f"Results limited to {max_items} items"
+
+    return summary
 
 
 def register_testmonitor_commands(cli: Any) -> None:
@@ -707,7 +753,7 @@ def register_testmonitor_commands(cli: Any) -> None:
 
                 # Handle --summary flag for JSON output
                 if summary:
-                    summary_stats = _summarize_products(products)
+                    summary_stats = _summarize_products(products, max_items=10000)
                     click.echo(json.dumps(summary_stats, indent=2))
                 else:
                     mock_resp: Any = FilteredResponse({"products": products})
@@ -747,10 +793,12 @@ def register_testmonitor_commands(cli: Any) -> None:
                     all_products = _query_all_products(
                         filter_expr, merged_subs, order_by, descending
                     )
-                    summary_stats = _summarize_products(all_products)
+                    summary_stats = _summarize_products(all_products, max_items=10000)
                     click.echo("\nProduct Summary Statistics:")
                     click.echo(f"  Total Products: {summary_stats['total']}")
                     click.echo(f"  Families: {summary_stats['families']}")
+                    if summary_stats.get("truncated"):
+                        click.echo(f"  Note: {summary_stats['note']}", err=True)
                     click.echo()
                 else:
                     _handle_interactive_pagination(
@@ -973,17 +1021,8 @@ def register_testmonitor_commands(cli: Any) -> None:
 
                 # Handle --summary flag for JSON output
                 if summary or group_by:
-                    group_key = group_by.lower() if group_by else "status"
-                    group_field_map = {
-                        "status": None,  # Use default status grouping in _summarize_results
-                        "programname": "programName",
-                        "serialnumber": "serialNumber",
-                        "operator": "operator",
-                        "hostname": "hostName",
-                        "systemid": "systemId",
-                    }
-                    group_field = group_field_map.get(group_key, group_by)
-                    summary_stats = _summarize_results(results, group_field)
+                    group_field = _resolve_group_field(group_by)
+                    summary_stats = _summarize_results(results, group_field, max_items=10000)
                     click.echo(json.dumps(summary_stats, indent=2))
                 else:
                     mock_resp: Any = FilteredResponse({"results": results})
@@ -1043,25 +1082,19 @@ def register_testmonitor_commands(cli: Any) -> None:
                         order_by,
                         descending,
                     )
-                    group_key = group_by.lower() if group_by else "status"
-                    group_field_map = {
-                        "status": None,  # Use default status grouping in _summarize_results
-                        "programname": "programName",
-                        "serialnumber": "serialNumber",
-                        "operator": "operator",
-                        "hostname": "hostName",
-                        "systemid": "systemId",
-                    }
-                    group_field = group_field_map.get(group_key, group_by)
-                    summary_stats = _summarize_results(all_results, group_field)
+                    group_field = _resolve_group_field(group_by)
+                    summary_stats = _summarize_results(all_results, group_field, max_items=10000)
 
                     # Display appropriate label based on grouping
+                    group_key = group_by.lower() if group_by else "status"
                     group_label = group_key if group_key != "status" else "statusType"
                     click.echo(f"\nTest Results Summary (grouped by {group_label}):")
                     click.echo(f"  Total Results: {summary_stats['total']}")
                     if "groups" in summary_stats:
                         for group_name, count in summary_stats["groups"].items():
                             click.echo(f"    {group_name}: {count}")
+                    if summary_stats.get("truncated"):
+                        click.echo(f"  Note: {summary_stats['note']}", err=True)
                     click.echo()
                 else:
                     _handle_interactive_pagination(
@@ -1170,8 +1203,11 @@ def register_testmonitor_commands(cli: Any) -> None:
                 click.echo(json.dumps(result, indent=2))
             else:
                 # Table format - detailed view
-                status = result.get("status", {})
-                status_type = status.get("statusType", "N/A")
+                status_value = result.get("status", {})
+                if isinstance(status_value, dict):
+                    status_type = status_value.get("statusType", "N/A")
+                else:
+                    status_type = "N/A" if status_value is None else str(status_value)
                 click.echo(f"\nTest Result: {result.get('programName', 'N/A')} ({result_id})")
                 click.echo(f"Status: {status_type}")
                 click.echo(f"Part Number: {result.get('partNumber', 'N/A')}")
@@ -1187,8 +1223,13 @@ def register_testmonitor_commands(cli: Any) -> None:
                 if (include_steps or include_measurements) and steps:
                     click.echo("\nSteps:")
                     for i, step in enumerate(steps, 1):
-                        step_status = step.get("status", {})
-                        step_status_type = step_status.get("statusType", "N/A")
+                        step_status_value = step.get("status", {})
+                        if isinstance(step_status_value, dict):
+                            step_status_type = step_status_value.get("statusType", "N/A")
+                        else:
+                            step_status_type = (
+                                "N/A" if step_status_value is None else str(step_status_value)
+                            )
                         click.echo(
                             f"  {i}. {step.get('name', 'N/A')} [{step_status_type}] "
                             f"({_format_duration(step.get('totalTimeInSeconds', 0))})"
