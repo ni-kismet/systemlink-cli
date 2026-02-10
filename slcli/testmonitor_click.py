@@ -199,26 +199,87 @@ def _handle_interactive_pagination(
             break
 
 
+def _warn_if_large_dataset(
+    endpoint: str,
+    filter_expr: Optional[str],
+    substitutions: List[Any],
+    product_filter: Optional[str],
+    product_substitutions: List[Any],
+    order_by: Optional[str] = None,
+    descending: bool = False,
+) -> None:
+    """Check dataset size and warn user if fetching large number of items.
+
+    Args:
+        endpoint: API endpoint ("query-products" or "query-results").
+        filter_expr: Optional Dynamic LINQ filter expression.
+        substitutions: Substitution values for the filter.
+        product_filter: Optional product filter (for results only).
+        product_substitutions: Product filter substitutions (for results only).
+        order_by: Field to order by (included in count check for consistency).
+        descending: Whether results should be in descending order.
+    """
+    url = f"{_get_testmonitor_base_url()}/{endpoint}"
+    payload: Dict[str, Any] = {
+        "take": 1,  # Only fetch 1 item to check count
+        "returnCount": True,  # Request total count
+        "descending": descending,
+    }
+
+    if order_by:
+        payload["orderBy"] = order_by
+
+    if filter_expr:
+        payload["filter"] = filter_expr
+        if substitutions:
+            payload["substitutions"] = substitutions
+
+    if product_filter:
+        payload["productFilter"] = product_filter
+        if product_substitutions:
+            payload["productSubstitutions"] = product_substitutions
+
+    try:
+        resp = make_api_request("POST", url, payload=payload)
+        data = resp.json()
+        total_count = data.get("totalCount", 0) if isinstance(data, dict) else 0
+
+        if total_count > 10000:
+            click.echo(
+                f"⚠️  Warning: {total_count} items found. Fetching up to 10,000...",
+                err=True,
+            )
+        elif total_count > 1000:
+            click.echo(
+                f"ℹ️  Fetching {total_count} items...",
+                err=True,
+            )
+    except Exception:
+        # If count check fails, proceed without warning
+        pass
+
+
 def _query_all_products(
     filter_expr: Optional[str],
     substitutions: List[Any],
     order_by: Optional[str],
     descending: bool,
-    take: Optional[int] = None,
+    take: Optional[int] = 10000,
 ) -> List[Dict[str, Any]]:
     """Query products using continuation token pagination.
 
-    Fetches all pages when take is None, otherwise fetches up to take items.
+    Fetches up to take items (default 10,000 for performance).
 
     Args:
         filter_expr: Optional Dynamic LINQ filter expression.
         substitutions: Substitution values for the filter.
         order_by: Field to order by.
         descending: Whether to return results in descending order.
-        take: Maximum number of items to fetch. If None, fetches all pages.
+        take: Maximum number of items to fetch. Defaults to 10,000 to prevent
+              performance issues with very large datasets.
 
     Returns:
-        List of product objects (up to take count if specified, otherwise all).
+        List of product objects (up to take count).
     """
     url = f"{_get_testmonitor_base_url()}/query-products"
     all_products: List[Dict[str, Any]] = []
@@ -370,11 +431,11 @@ def _query_all_results(
     product_substitutions: List[Any],
     order_by: Optional[str],
     descending: bool,
-    take: Optional[int] = None,
+    take: Optional[int] = 10000,
 ) -> List[Dict[str, Any]]:
     """Query test results using continuation token pagination.
 
-    Fetches all pages when take is None, otherwise fetches up to take items.
+    Fetches up to take items (default 10,000 for performance).
 
     Args:
         filter_expr: Optional Dynamic LINQ filter expression for results.
@@ -383,10 +444,11 @@ def _query_all_results(
         product_substitutions: Substitution values for the product filter.
         order_by: Field to order by.
         descending: Whether to return results in descending order.
-        take: Maximum number of items to fetch. If None, fetches all pages.
+        take: Maximum number of items to fetch. Defaults to 10,000 to prevent
+              performance issues with very large datasets.
 
     Returns:
-        List of test result objects (up to take count if specified, otherwise all).
+        List of test result objects (up to take count).
     """
     url = f"{_get_testmonitor_base_url()}/query-results"
     all_results: List[Dict[str, Any]] = []
@@ -631,7 +693,17 @@ def register_testmonitor_commands(cli: Any) -> None:
 
             # If JSON output, fetch all pages
             if format_output.lower() == "json":
-                products = _query_all_products(filter_expr, merged_subs, order_by, descending, None)
+                # Check total count first to warn about large datasets
+                _warn_if_large_dataset(
+                    endpoint="query-products",
+                    filter_expr=filter_expr,
+                    substitutions=merged_subs,
+                    product_filter=None,
+                    product_substitutions=[],
+                    order_by=order_by,
+                    descending=descending,
+                )
+                products = _query_all_products(filter_expr, merged_subs, order_by, descending)
 
                 # Handle --summary flag for JSON output
                 if summary:
@@ -662,8 +734,18 @@ def register_testmonitor_commands(cli: Any) -> None:
 
                 # For table output with summary, collect all data first
                 if summary:
+                    # Check total count first to warn about large datasets
+                    _warn_if_large_dataset(
+                        endpoint="query-products",
+                        filter_expr=filter_expr,
+                        substitutions=merged_subs,
+                        product_filter=None,
+                        product_substitutions=[],
+                        order_by=order_by,
+                        descending=descending,
+                    )
                     all_products = _query_all_products(
-                        filter_expr, merged_subs, order_by, descending, None
+                        filter_expr, merged_subs, order_by, descending
                     )
                     summary_stats = _summarize_products(all_products)
                     click.echo("\nProduct Summary Statistics:")
@@ -870,6 +952,16 @@ def register_testmonitor_commands(cli: Any) -> None:
 
             # If JSON output, fetch all pages
             if format_output.lower() == "json":
+                # Check total count first to warn about large datasets
+                _warn_if_large_dataset(
+                    endpoint="query-results",
+                    filter_expr=filter_expr,
+                    substitutions=merged_subs,
+                    product_filter=product_filter_expr,
+                    product_substitutions=product_subs,
+                    order_by=order_by,
+                    descending=descending,
+                )
                 results = _query_all_results(
                     filter_expr,
                     merged_subs,
@@ -877,7 +969,6 @@ def register_testmonitor_commands(cli: Any) -> None:
                     product_subs,
                     order_by,
                     descending,
-                    None,
                 )
 
                 # Handle --summary flag for JSON output
@@ -934,6 +1025,16 @@ def register_testmonitor_commands(cli: Any) -> None:
 
                 # For table output with summary, collect all data first
                 if summary or group_by:
+                    # Check total count first to warn about large datasets
+                    _warn_if_large_dataset(
+                        endpoint="query-results",
+                        filter_expr=filter_expr,
+                        substitutions=merged_subs,
+                        product_filter=product_filter_expr,
+                        product_substitutions=product_subs,
+                        order_by=order_by,
+                        descending=descending,
+                    )
                     all_results = _query_all_results(
                         filter_expr,
                         merged_subs,
@@ -941,7 +1042,6 @@ def register_testmonitor_commands(cli: Any) -> None:
                         product_subs,
                         order_by,
                         descending,
-                        None,
                     )
                     group_key = group_by.lower() if group_by else "status"
                     group_field_map = {
