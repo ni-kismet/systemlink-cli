@@ -126,13 +126,15 @@ slcli asset
 └── location-history  # Get location/connection history for an asset
 ```
 
-**NOT creating:**
+**NOT creating (Phase 1 scope):**
 
 - ❌ `asset query` separate from `list` (consolidated into `list --filter`)
 - ❌ `asset find-systems` (AI agent can correlate `asset list` results)
-- ❌ `asset create` / `asset update` / `asset delete` (Phase 2, when needed)
 - ❌ `asset utilization` (Phase 2, lower priority)
 - ❌ `asset move-location` / `asset send-for-calibration` (Phase 2, mutation operations)
+
+> Note: In the current implementation, `asset create`, `asset update`, and `asset delete` are implemented
+> and documented in the README. They were originally proposed as Phase 2 work and are no longer excluded.
 
 ---
 
