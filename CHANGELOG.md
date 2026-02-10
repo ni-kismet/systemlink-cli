@@ -1,7 +1,61 @@
 # CHANGELOG
 
 
+## v0.30.0 (2026-02-10)
+
+### Features
+
+- Test Monitor Phase 2 + summary/grouping
+  ([#54](https://github.com/ni-kismet/systemlink-cli/pull/54),
+  [`facffc0`](https://github.com/ni-kismet/systemlink-cli/commit/facffc0fbbcebb72883e8ed2a247a5a517055bd7))
+
+* phase 2 changes
+
+* feat: testmonitor summary and grouping options
+
+* Fix testmonitor summary grouping, pagination, and remove dead code (#55)
+
+* Initial plan
+
+* Address PR review comments: fix grouping, pagination, and unused code
+
+Co-authored-by: fredvisser <1458528+fredvisser@users.noreply.github.com>
+
+* Remove redundant parentheses and format code
+
+Co-authored-by: fredvisser <1458528+fredvisser@users.noreply.github.com>
+
+* add checks for excessive results
+
+---------
+
+Co-authored-by: copilot-swe-agent[bot] <198982749+Copilot@users.noreply.github.com> Co-authored-by:
+  fredvisser <1458528+fredvisser@users.noreply.github.com>
+
+* Add defensive status handling and truncation warnings to testmonitor summaries (#58)
+
+* Initial plan
+
+* Fix testmonitor status handling, extract group field mapping, add truncation warnings
+
+Co-authored-by: fredvisser <1458528+fredvisser@users.noreply.github.com>
+
+---------
+
+Co-authored-by: copilot-swe-agent[bot] <198982749+Copilot@users.noreply.github.com> Co-authored-by:
+  fredvisser <1458528+fredvisser@users.noreply.github.com>
+
+---------
+
+Co-authored-by: Copilot <198982749+Copilot@users.noreply.github.com>
+
+
 ## v0.29.0 (2026-02-10)
+
+### Chores
+
+- **release**: 0.29.0
+  ([`44d5632`](https://github.com/ni-kismet/systemlink-cli/commit/44d563215cc62cd8e4cb3fbc4518c7123e16aeb8))
 
 ### Features
 
