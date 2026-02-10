@@ -1303,6 +1303,12 @@ slcli testmonitor product list \
   --substitution "cRIO" \
   --substitution "9030"
 
+# Show summary statistics (total count and number of distinct families)
+slcli testmonitor product list --summary
+
+# Show summary in JSON format (number of distinct families)
+slcli testmonitor product list --format json --summary
+
 # JSON output (no interactive pagination)
 slcli testmonitor product list --format json
 ```
@@ -1330,8 +1336,43 @@ slcli testmonitor result list \
   --product-filter '(family == @0)' \
   --product-substitution "cRIO"
 
+# Show summary statistics grouped by status
+slcli testmonitor result list --summary
+
+# Show results grouped by program name with counts
+slcli testmonitor result list --group-by programName
+
+# Show grouped summary in JSON format
+slcli testmonitor result list --format json --group-by status
+
 # JSON output (no interactive pagination)
 slcli testmonitor result list --format json
+```
+
+### Get product details
+
+```bash
+# Get a specific product by ID in table format
+slcli testmonitor product get 02600cf8-c2bb-4ff9-a139-031e943fb0c0
+
+# Get product details in JSON format
+slcli testmonitor product get 02600cf8-c2bb-4ff9-a139-031e943fb0c0 --format json
+```
+
+### Get result details with steps and measurements
+
+```bash
+# Get a specific test result by ID
+slcli testmonitor result get abc123def456
+
+# Include step information
+slcli testmonitor result get abc123def456 --include-steps
+
+# Include step measurements (outputs)
+slcli testmonitor result get abc123def456 --include-steps --include-measurements
+
+# Get result details in JSON format
+slcli testmonitor result get abc123def456 --include-steps --format json
 ```
 
 ## Notebook Management
