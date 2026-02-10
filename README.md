@@ -1262,10 +1262,10 @@ slcli testmonitor product list \
   --substitution "cRIO" \
   --substitution "9030"
 
-# Show summary statistics (total count and by family)
+# Show summary statistics (total count and number of distinct families)
 slcli testmonitor product list --summary
 
-# Show summary in JSON format
+# Show summary in JSON format (number of distinct families)
 slcli testmonitor product list --format json --summary
 
 # JSON output (no interactive pagination)
