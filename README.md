@@ -319,7 +319,7 @@ slcli login --profile aiagent --url "https://your-server.com" --api-key "your-ap
 
 **Note**: The CLI automatically converts HTTP URLs to HTTPS for security. SystemLink servers typically require HTTPS for API access.
 
-**Readonly Mode**: Use the `--readonly` flag to enable read-only mode on a profile. This disables all mutation operations (create, update, delete, and edit commands), making it safer to use with AI agents or in untrusted environments.
+**Readonly Mode**: Use the `--readonly` flag to enable read-only mode on a profile. This disables all mutation operations (create, update, delete, edit, import, upload, publish, and disable commands), making it safer to use with AI agents or in untrusted environments.
 
 **Alias**: The `slcli login` command is an alias for `slcli config add`. Both commands provide the same functionality.
 
@@ -336,7 +336,7 @@ When attempting a protected operation with a readonly profile, the CLI exits wit
 
 ```
 ✗ Cannot <operation>: profile is in readonly mode
-Readonly mode disables all mutation operations (create, update, delete, edit) for safety.
+Readonly mode disables all mutation operations (create, update, delete, edit, import, upload, publish, disable) for safety.
 ```
 
 This makes readonly mode ideal for:

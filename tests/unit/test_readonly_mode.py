@@ -206,7 +206,7 @@ def test_all_mutation_commands_have_readonly_guards() -> None:
             continue
 
         modules_checked += 1
-        content = module_path.read_text()
+        content = module_path.read_text(encoding="utf-8")
 
         # Find all mutation command definitions
         # Pattern: @<something>.command(name="verb") or def verb_<noun>

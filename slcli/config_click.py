@@ -305,14 +305,14 @@ def register_config_commands(cli: Any) -> None:
         click.echo("├─────────────────────────────────────────────────────────────┤")
 
         if cfg.current_profile:
-            click.echo(f"│ Current Profile: {cfg.current_profile:<43}│")
+            click.echo(f"│ Current Profile: {cfg.current_profile:<42} │")
         else:
             click.echo("│ Current Profile: (none)                                     │")
 
         config_path_str = str(ProfileConfig.get_config_path())
-        if len(config_path_str) > 47:
-            config_path_str = config_path_str[:44] + "..."
-        click.echo(f"│ Config File: {config_path_str:<47}│")
+        if len(config_path_str) > 46:
+            config_path_str = config_path_str[:43] + "..."
+        click.echo(f"│ Config File: {config_path_str:<46} │")
 
         # Show current profile details
         if cfg.current_profile and cfg.current_profile in cfg.profiles:
