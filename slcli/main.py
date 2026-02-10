@@ -176,7 +176,7 @@ def login(
 ) -> None:
     """Save SystemLink credentials to a profile.
 
-    This is an alias for 'slcli config add-profile'. Use that command
+    This is an alias for 'slcli config add'. Use that command
     for the same functionality and more configuration options.
 
     Profiles allow you to configure multiple SystemLink environments and switch
