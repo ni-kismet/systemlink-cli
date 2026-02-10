@@ -255,6 +255,118 @@ slcli user create --type user \
   --workspace-policies "DevWorkspace:template-dev,ProdWorkspace:template-prod"
 ```
 
+## Asset Management
+
+Manage hardware assets tracked by the Asset Management service. Query, inspect,
+and manage assets with rich filtering, calibration tracking, and location history.
+
+### List Assets
+
+```bash
+# List all assets (paginated table, 25 per page)
+slcli asset list
+
+# Filter by model name (contains match)
+slcli asset list --model "PXI-4071"
+
+# Filter by serial number (exact match)
+slcli asset list --serial-number "01BB877A"
+
+# Filter by bus type
+slcli asset list --bus-type PCI_PXI
+
+# Show only connected & present assets
+slcli asset list --connected
+
+# Show only calibratable assets
+slcli asset list --calibratable
+
+# Advanced filter with API filter syntax
+slcli asset list --filter 'ModelName.Contains("PXI") and BusType = "PCI_PXI"'
+
+# Filter by workspace
+slcli asset list --workspace "Production"
+
+# JSON output (all results, no pagination)
+slcli asset list --model "DMM" --format json
+
+# Order by last updated, ascending
+slcli asset list --order-by LAST_UPDATED_TIMESTAMP --ascending
+
+# Show inline summary statistics
+slcli asset list --summary
+```
+
+### Get Asset Details
+
+```bash
+# Detailed view in table format
+slcli asset get <asset-id>
+
+# JSON output
+slcli asset get <asset-id> --format json
+
+# Include calibration history
+slcli asset get <asset-id> --include-calibration
+```
+
+### Fleet Summary
+
+```bash
+# Fleet-wide statistics (total, active, calibration breakdown)
+slcli asset summary
+
+# JSON output
+slcli asset summary --format json
+```
+
+### Calibration History
+
+```bash
+# Show calibration history for an asset
+slcli asset calibration <asset-id>
+
+# JSON output
+slcli asset calibration <asset-id> --format json
+
+# Limit results
+slcli asset calibration <asset-id> --take 10
+```
+
+### Location History
+
+```bash
+# Show location/connection history
+slcli asset location-history <asset-id>
+
+# Filter by date range (for temporal correlation)
+slcli asset location-history <asset-id> \
+  --from "2025-12-01T00:00:00Z" \
+  --to "2025-12-02T00:00:00Z"
+
+# JSON output
+slcli asset location-history <asset-id> --format json
+```
+
+### Create, Update, Delete
+
+```bash
+# Create a new asset
+slcli asset create --model-name "PXI-4071" --serial-number "SN-123" --bus-type PCI_PXI
+
+# Create with keywords and properties
+slcli asset create --model-name "DMM" --keyword "lab-a" --property "owner=Team1"
+
+# Update asset properties
+slcli asset update <asset-id> --name "Updated Name" --serial-number "SN-456"
+
+# Delete an asset (with confirmation)
+slcli asset delete <asset-id>
+
+# Delete without confirmation
+slcli asset delete <asset-id> --force
+```
+
 ## Feed Management
 
 Manage NI Package Manager feeds for both SystemLink Enterprise (SLE) and SystemLink Server (SLS). Platform detection is automatic, and platform values are case-insensitive.
