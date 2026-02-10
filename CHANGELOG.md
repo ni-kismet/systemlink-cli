@@ -1,7 +1,49 @@
 # CHANGELOG
 
 
+## v0.29.0 (2026-02-10)
+
+### Features
+
+- Add readonly mode protection for mutation operations
+  ([#56](https://github.com/ni-kismet/systemlink-cli/pull/56),
+  [`48d6b0f`](https://github.com/ni-kismet/systemlink-cli/commit/48d6b0f9091514053b08a692dee9f894c6d8120a))
+
+* feat: readonly mode
+
+* Refine readonly mode documentation and remove interactive prompt (#57)
+
+* Initial plan
+
+* Address PR review comments on readonly mode documentation and testing
+
+- Updated README.md to say "blocks all mutation operations" instead of "disables all delete/edit
+  commands" - Removed interactive readonly prompt from config_click.py to avoid breaking
+  non-interactive usage - Updated --readonly help text in main.py and config_click.py to list all
+  blocked operations (create, update, delete, import, upload, publish, disable) - Updated utils.py
+  error message to list all blocked verbs - Added assertions to
+  test_readonly_mode_error_message_content to validate error message content
+
+Co-authored-by: fredvisser <1458528+fredvisser@users.noreply.github.com>
+
+---------
+
+Co-authored-by: copilot-swe-agent[bot] <198982749+Copilot@users.noreply.github.com> Co-authored-by:
+  fredvisser <1458528+fredvisser@users.noreply.github.com>
+
+* cleaned up config commands
+
+---------
+
+Co-authored-by: Copilot <198982749+Copilot@users.noreply.github.com>
+
+
 ## v0.28.0 (2026-02-06)
+
+### Chores
+
+- **release**: 0.28.0
+  ([`466c1b7`](https://github.com/ni-kismet/systemlink-cli/commit/466c1b7ee852e82d37c1851b224a477ca20a27f0))
 
 ### Features
 
