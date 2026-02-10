@@ -104,15 +104,22 @@ class UniversalResponseHandler:
                 click.echo(json.dumps(items, indent=2))
             elif formatter_func and headers and column_widths:
                 # Use traditional output (no pagination)
-                output_formatted_list(
-                    items,
-                    format_output,
-                    headers,
-                    column_widths,
-                    formatter_func,
-                    empty_message,
-                    f"{item_name}(s)",
-                )
+                # When total_count is provided (server-side pagination), use _output_formatted_page
+                # to suppress the per-page footer, since we'll show a custom summary below.
+                if total_count is not None:
+                    from .cli_utils import _output_formatted_page
+
+                    _output_formatted_page(items, headers, column_widths, formatter_func)
+                else:
+                    output_formatted_list(
+                        items,
+                        format_output,
+                        headers,
+                        column_widths,
+                        formatter_func,
+                        empty_message,
+                        f"{item_name}(s)",
+                    )
                 # If the caller provided a server-side total, display a
                 # concise summary like the notebook listing after rendering
                 # the formatted table for the current page.

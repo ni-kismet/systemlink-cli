@@ -6,6 +6,7 @@ number, bus type, asset type, calibration status, and connection state.
 """
 
 import json
+import os
 import sys
 from typing import Any, Dict, List, Optional, Tuple
 
@@ -115,7 +116,12 @@ def _build_asset_filter(
         escaped = _escape_filter_value(workspace_id)
         parts.append(f'Workspace = "{escaped}"')
     if custom_filter:
-        parts.append(custom_filter)
+        # Wrap custom filter in parentheses when combined with other filters to
+        # preserve operator precedence (e.g., when the custom filter uses "or").
+        if parts:
+            parts.append(f"({custom_filter})")
+        else:
+            parts.append(custom_filter)
 
     return " and ".join(parts) if parts else None
 
@@ -290,11 +296,27 @@ def _handle_asset_interactive_pagination(
         try:
             sys.stdout.flush()
         except Exception:
+            # Flushing stdout is best-effort; ignore non-critical I/O errors
+            # (for example, broken pipe).
             pass
 
         # Check if there are more results
         if shown_count >= total_count:
             break
+
+        # Check if we're in an interactive environment
+        # If stdin is not a TTY or we're in a test environment, disable interactive pagination
+        is_non_interactive = (
+            not sys.stdin.isatty()  # Piped input
+            or not sys.stdout.isatty()  # Piped output
+            or os.getenv("CI") == "true"  # CI environment
+            or os.getenv("PYTEST_CURRENT_TEST") is not None  # pytest
+            or os.getenv("SLCLI_NON_INTERACTIVE") == "true"  # Explicit override
+        )
+
+        if is_non_interactive:
+            # Continue to show all remaining pages without prompting
+            continue
 
         if not click.confirm("Show next set of results?", default=True):
             break
@@ -338,6 +360,8 @@ def _warn_if_large_dataset(
                 err=True,
             )
     except Exception:
+        # Best-effort preflight count only; ignore errors here and let the main asset query
+        # handle and report any real API issues.
         pass
 
 
