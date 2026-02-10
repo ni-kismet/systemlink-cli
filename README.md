@@ -312,7 +312,7 @@ slcli login --profile myprofile --url "https://your-server.com" --api-key "your-
 # Set a default workspace for a profile
 slcli login --profile dev --workspace "Development"
 
-# Enable readonly mode (disables all delete/edit commands for safety with AI agents)
+# Enable readonly mode (blocks all mutation operations for safety with AI agents)
 slcli login --profile aiagent --readonly
 slcli login --profile aiagent --url "https://your-server.com" --api-key "your-api-key" --readonly
 ```

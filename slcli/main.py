@@ -160,7 +160,10 @@ def ca_info() -> None:
 @click.option(
     "--readonly",
     is_flag=True,
-    help="Enable readonly mode (disable all delete/edit commands)",
+    help=(
+        "Enable readonly mode (disables create, update, delete, import, upload, "
+        "publish, and disable commands)"
+    ),
 )
 def login(
     profile: Optional[str],

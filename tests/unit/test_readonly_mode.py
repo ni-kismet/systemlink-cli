@@ -39,10 +39,30 @@ def test_check_readonly_mode_allows_when_inactive() -> None:
 def test_readonly_mode_error_message_content() -> None:
     """Test that readonly mode provides clear error message mentioning mutation operations."""
     from slcli.utils import check_readonly_mode
+    from click.testing import CliRunner
 
+    # Create a simple CLI command to capture output
+    @click.command()
+    def test_cmd() -> None:
+        check_readonly_mode("delete resource")
+
+    runner = CliRunner()
     with patch("slcli.profiles.is_active_profile_readonly", return_value=True):
-        with pytest.raises(SystemExit):
-            check_readonly_mode("delete resource")
+        result = runner.invoke(test_cmd)
+
+        # Check exit code
+        assert result.exit_code == ExitCodes.PERMISSION_DENIED
+
+        # Check error message content
+        assert "Cannot delete resource: profile is in readonly mode" in result.output
+        assert "Readonly mode disables all mutation operations" in result.output
+        assert "create" in result.output
+        assert "update" in result.output
+        assert "delete" in result.output
+        assert "import" in result.output
+        assert "upload" in result.output
+        assert "publish" in result.output
+        assert "disable" in result.output
 
 
 # Helper function for creating test CLI
