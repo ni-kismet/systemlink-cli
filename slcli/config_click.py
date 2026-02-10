@@ -103,12 +103,6 @@ def _add_profile_impl(
         )
         workspace = workspace_input if workspace_input else None
 
-    # Ask about readonly mode (interactive prompt only when flag not explicitly set)
-    if not readonly:
-        readonly = click.confirm(
-            "Enable readonly mode? (disables all mutation operations)", default=False
-        )
-
     # Create profile
     new_profile = Profile(
         name=profile,
@@ -430,7 +424,10 @@ def register_config_commands(cli: Any) -> None:
     @click.option(
         "--readonly",
         is_flag=True,
-        help="Enable readonly mode (disable all delete/edit commands)",
+        help=(
+            "Enable readonly mode (disables create, update, delete, import, upload, "
+            "publish, and disable commands)"
+        ),
     )
     def add_profile(
         profile: Optional[str],

@@ -56,7 +56,8 @@ def check_readonly_mode(operation: str = "this operation") -> None:
     if is_active_profile_readonly():
         click.echo(f"✗ Cannot {operation}: profile is in readonly mode", err=True)
         click.echo(
-            "Readonly mode disables all mutation operations (create, update, delete, edit) for safety.",
+            "Readonly mode disables all mutation operations "
+            "(create, update, delete, edit, import, upload, publish, disable) for safety.",
             err=True,
         )
         sys.exit(ExitCodes.PERMISSION_DENIED)
