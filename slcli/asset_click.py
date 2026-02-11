@@ -1066,14 +1066,46 @@ def register_asset_commands(cli: Any) -> None:
             url = f"{_get_asset_base_url()}/assets"
             payload: Dict[str, Any] = {"assets": [asset_data]}
             resp = make_api_request("POST", url, payload=payload)
+            result_data = resp.json()
+
+            # Check if creation was successful
+            assets = result_data.get("assets", [])
+            failed = result_data.get("failed", [])
 
             if format_output.lower() == "json":
-                click.echo(json.dumps(resp.json(), indent=2))
+                click.echo(json.dumps(result_data, indent=2))
+                # Exit with error if any assets failed (complete or partial failure)
+                if failed:
+                    sys.exit(ExitCodes.GENERAL_ERROR)
             else:
-                format_success(
-                    "Asset created",
-                    {"Model": model_name, "Serial": serial_number or "N/A"},
-                )
+                if assets and failed:
+                    # Partial success: show success but warn about failures
+                    format_success(
+                        "Asset created",
+                        {"Model": model_name, "Serial": serial_number or "N/A"},
+                    )
+                    error_info = failed[0] if failed else {}
+                    error_msg = error_info.get("error", {}).get("message", "Unknown error")
+                    click.echo(f"⚠ Warning: Some assets failed to create: {error_msg}", err=True)
+                    sys.exit(ExitCodes.GENERAL_ERROR)
+                elif assets:
+                    # Complete success
+                    format_success(
+                        "Asset created",
+                        {"Model": model_name, "Serial": serial_number or "N/A"},
+                    )
+                elif failed:
+                    # Complete failure
+                    error_info = failed[0] if failed else {}
+                    error_msg = error_info.get("error", {}).get("message", "Unknown error")
+                    click.echo(f"✗ Asset creation failed: {error_msg}", err=True)
+                    sys.exit(ExitCodes.GENERAL_ERROR)
+                else:
+                    # Edge case: empty response
+                    format_success(
+                        "Asset created",
+                        {"Model": model_name, "Serial": serial_number or "N/A"},
+                    )
 
         except Exception as exc:  # noqa: BLE001
             handle_api_error(exc)

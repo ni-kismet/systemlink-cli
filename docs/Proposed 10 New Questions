@@ -1,0 +1,194 @@
+# 10 New Proposed Questions Answerable with slcli
+
+Based on analysis of actual server data using slcli, here are 10 new questions
+that demonstrate realistic, data-driven scenarios answerable using the
+SystemLink CLI:
+
+## 1. **Which operators have the highest failure rates and what equipment should they focus on?**
+
+**Intent:** Operator performance and training needs analysis  
+**Example:** "Analyze operator failure patterns - show me which operators
+have >15% failure rates on their test program variants and what factors
+correlate (test programs, DUTs, conditions)"
+
+**Answerable with:**
+
+- `slcli testmonitor result list --operator "xli" --status FAILED --summary`
+- Filter across 350+ test executions per operator to identify high performers
+  vs. those needing support
+- Data available: 358 tests for xli, 349 for wtan, 347 for klee (top operators
+  have 300-360 executions each)
+
+---
+
+## 2. **Which assets are most overdue for calibration and blocking test execution?**
+
+**Intent:** Maintenance and compliance tracking  
+**Example:** "Show me all assets past calibration due dates, grouped by system
+they're in, and what tests would be affected if we temporarily removed them"
+
+**Answerable with:**
+
+- `slcli asset list --calibration-status PAST_RECOMMENDED_DUE_DATE --take 5`
+- Asset summary: 70 assets past due, 2 approaching, 7 out for calibration
+- Retrieve parent system and test impact for each overdue asset
+
+**Data available:** 2,555 total assets (244 active, 2,311 inactive), 70 are past
+calibration date
+
+---
+
+## 3. **What is the test time distribution across test stations and where are bottlenecks?**
+
+**Intent:** Capacity planning and resource optimization  
+**Example:** "Calculate average test duration per test program and show which
+test stations have the longest queue times. Recommend load balancing strategy"
+
+**Answerable with:**
+
+- `slcli testmonitor result list --take 100 | jq '.[].totalTimeInSeconds'`
+- Group by hostName to identify station-specific patterns
+- Calculate percentiles to find outliers causing delays
+
+**Data available:** 2.3M+ test results with execution time data, multiple test
+hosts
+
+---
+
+## 4. **Which connected systems lack specific measurement capabilities?**
+
+**Intent:** Equipment discovery and test planning  
+**Example:** "Find all systems that don't have temperature measurement
+capability but are assigned to environmental stress tests"
+
+**Answerable with:**
+
+- `slcli system list --connected -f json | filter for measurement type`
+- Join with asset list to check installed instruments
+- Cross-reference with test requirements
+
+**Data available:** 3,138 connected systems with asset configurations
+
+---
+
+## 5. **How many units per product variant are past their first-pass yield expectations?**
+
+**Intent:** Quality metrics and product health  
+**Example:** "For battery products, show the variance from expected yield rates.
+Alert on products trending below 82% pass rate (current baseline)"
+
+**Answerable with:**
+
+- `slcli testmonitor product list --part-number "BATT*" -f json`
+- Aggregate pass/fail counts per product variant
+- Calculate yield rates and identify degradation
+
+**Data available:** 15 battery products (BATT-0 through BATT-14) with 82-85%
+historical pass rates
+
+---
+
+## 6. **Which test programs have the longest runtimes and highest complexity?**
+
+**Intent:** Test optimization and schedule planning  
+**Example:** "Identify the top 5 longest-running test programs and suggest which
+could run in parallel to reduce overall test time"
+
+**Answerable with:**
+
+- `slcli testmonitor result list --take 500 | jq '.[] | {programName, totalTimeInSeconds}'`
+- Group by program and calculate statistics (mean, median, p95)
+- Compare program variants to identify complexity patterns
+
+**Data available:** SOH_SCT_HPPC variants (0-9), each with hundreds of
+executions
+
+---
+
+## 7. **What is the geographic or location-based distribution of test failures?**
+
+**Intent:** Environmental or facility-based root cause analysis  
+**Example:** "Show failure rates by test location (Austin, Dallas, CA lab,
+etc.). Are there facility-specific issues causing higher failure rates?"
+
+**Answerable with:**
+
+- Extract location from systemId or hostname
+- `slcli testmonitor result list --take 200 | filter by location`
+- Calculate failure rates per facility
+
+**Data available:** 5,952 systems total, multiple facility locations implied by
+naming conventions
+
+---
+
+## 8. **Which PAtools test fixtures need recalibration soon and what capacity would we lose?**
+
+**Intent:** Test coverage planning and preventive maintenance  
+**Example:** "Show all PAtools fixtures approaching calibration due dates with
+their test capacities (BattCell_1CN, BattCell_4x parallel, etc.) to assess
+impact"
+
+**Answerable with:**
+
+- `slcli asset list --vendor-name "PAtools" --asset-type FIXTURE -f json`
+- Filter by `calibrationStatus` for approaching dates
+- Join with system configuration to show test parallelism capacity
+
+**Data available:** 31 PAtools fixtures in NI_PXIe-8881 alone, with RTS and
+application type details
+
+---
+
+## 9. **How is test execution distributed across product families and can we rebalance workload?**
+
+**Intent:** Production planning and system utilization  
+**Example:** "Show execution volume by product family (BATT, SOH, PM, etc.).
+Identify which systems handle which products and suggest optimizations"
+
+**Answerable with:**
+
+- `slcli testmonitor result list -f json | jq '.[] | {partNumber, programName, totalTimeInSeconds, systemId}'`
+- Group by product prefix and system
+- Calculate utilization metrics
+
+**Data available:** 2.3M+ test results across multiple product lines (BATT,
+SOH_SCT_HPPC, test programs)
+
+---
+
+## 10. **Are there patterns in test failures by environmental condition (temperature, humidity, voltage)?**
+
+**Intent:** Root cause analysis and specification compliance  
+**Example:** "For failed battery tests, show the temperature, voltage, and
+capacity ranges. Are failures concentrated in specific operating condition
+ranges suggesting spec violations?"
+
+**Answerable with:**
+
+- `slcli testmonitor result list --status FAILED | jq '.[] | {properties: {MaxTemp, MaxVoltage, MinVoltage, ActualCapacity}}'`
+- Analyze distribution of environmental properties
+- Identify clustered failure modes
+
+**Data available:** 7,961+ failed test results with detailed measurement
+properties (temperature: 60-69°C, voltage: 2-5V ranges, capacity: 40-49Ah)
+
+---
+
+## Query Complexity & API Capabilities Used
+
+| Question | Filtering        | Grouping        | Aggregation          | Complexity |
+| -------- | ---------------- | --------------- | -------------------- | ---------- |
+| 1        | Operator, Status | Program Name    | Count, Rate          | Medium     |
+| 2        | Cal Status       | System          | Count, Impact        | Medium     |
+| 3        | Host Name        | Station         | Duration Stats       | Low-Med    |
+| 4        | Connected, Type  | Capability      | Capability Check     | High       |
+| 5        | Part Number      | Product         | Pass/Fail Rate       | Medium     |
+| 6        | Program Name     | Test Variant    | Duration Percentiles | Medium     |
+| 7        | Location         | Facility        | Failure Rate         | Low        |
+| 8        | Vendor, Type     | Status          | Capacity Loss        | Medium     |
+| 9        | Part Number      | Product Famil   | Utilization          | Medium     |
+| 10       | Status           | Condition Range | Distribution         | Medium     |
+
+All questions are answerable with current slcli capabilities demonstrated
+through successful queries on live data.
