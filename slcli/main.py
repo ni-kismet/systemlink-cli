@@ -8,6 +8,7 @@ import click
 import keyring
 import tomllib
 
+from .asset_click import register_asset_commands
 from .completion_click import register_completion_command
 from .config_click import register_config_commands
 from .dff_click import register_dff_commands
@@ -23,6 +24,7 @@ from .platform import (
 from .policy_click import register_policy_commands
 from .profiles import set_profile_override
 from .ssl_trust import OS_TRUST_INJECTED, OS_TRUST_REASON
+from .system_click import register_system_commands
 from .tag_click import register_tag_commands
 from .templates_click import register_templates_commands
 from .testmonitor_click import register_testmonitor_commands
@@ -367,6 +369,7 @@ def info(format: str) -> None:
 
 
 register_completion_command(cli)
+register_asset_commands(cli)
 register_dff_commands(cli)
 register_config_commands(cli)
 register_example_commands(cli)
@@ -376,6 +379,7 @@ register_function_commands(cli)
 register_templates_commands(cli)
 register_notebook_commands(cli)
 register_policy_commands(cli)
+register_system_commands(cli)
 register_tag_commands(cli)
 register_testmonitor_commands(cli)
 register_webapp_commands(cli)
