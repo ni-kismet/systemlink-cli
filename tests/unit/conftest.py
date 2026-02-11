@@ -22,17 +22,23 @@ keyring.set_keyring(NullKeyring())
 class MockResponse:
     """Mock HTTP response for preventing real network calls."""
 
-    def __init__(
-        self, json_data: Optional[Dict[str, Any]] = None, status_code: int = 200
-    ) -> None:
+    def __init__(self, json_data: Optional[Dict[str, Any]] = None, status_code: int = 200) -> None:
+        """Initialize mock response.
+
+        Args:
+            json_data: JSON data to return from json() method
+            status_code: HTTP status code
+        """
         self._json_data = json_data or {}
         self.status_code = status_code
         self.text = ""
 
     def json(self) -> Dict[str, Any]:
+        """Return the JSON data."""
         return self._json_data
 
     def raise_for_status(self) -> None:
+        """Raise an exception if status code indicates an error."""
         pass
 
 
