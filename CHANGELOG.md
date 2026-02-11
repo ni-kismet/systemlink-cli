@@ -1,12 +1,25 @@
 # CHANGELOG
 
 
+## v0.31.2 (2026-02-11)
+
+### Bug Fixes
+
+- Macos slow tests
+  ([`5b25bab`](https://github.com/ni-kismet/systemlink-cli/commit/5b25bab201f215fa86d9d943bad20abd7a551b8d))
+
+
 ## v0.31.1 (2026-02-11)
 
 ### Bug Fixes
 
 - Test slowdowns
   ([`18317fe`](https://github.com/ni-kismet/systemlink-cli/commit/18317fe168f6def4823261ecdeaf05e1722c756a))
+
+### Chores
+
+- **release**: 0.31.1
+  ([`d29f29e`](https://github.com/ni-kismet/systemlink-cli/commit/d29f29e8e9bcfcef9ff9af4d3eca377ce74a9ec0))
 
 
 ## v0.31.0 (2026-02-11)
