@@ -947,10 +947,10 @@ def register_asset_commands(cli: Any) -> None:
 
     @asset.command(name="create")
     @click.option("--model-name", required=True, help="Model name of the asset")
-    @click.option("--model-number", default=None, help="Model number")
+    @click.option("--model-number", type=int, default=None, help="Model number")
     @click.option("--serial-number", default=None, help="Serial number")
     @click.option("--vendor-name", default=None, help="Vendor name")
-    @click.option("--vendor-number", default=None, help="Vendor number")
+    @click.option("--vendor-number", type=int, default=None, help="Vendor number")
     @click.option("--part-number", default=None, help="Part number")
     @click.option("--name", "asset_name", default=None, help="Display name for the asset")
     @click.option(
@@ -996,10 +996,10 @@ def register_asset_commands(cli: Any) -> None:
     )
     def create_asset(
         model_name: str,
-        model_number: Optional[str],
+        model_number: Optional[int],
         serial_number: Optional[str],
         vendor_name: Optional[str],
-        vendor_number: Optional[str],
+        vendor_number: Optional[int],
         part_number: Optional[str],
         asset_name: Optional[str],
         bus_type: Optional[str],
@@ -1022,6 +1022,9 @@ def register_asset_commands(cli: Any) -> None:
         try:
             asset_data: Dict[str, Any] = {
                 "modelName": model_name,
+                "location": {
+                    "state": {"assetPresence": "UNKNOWN"},
+                },
             }
 
             if model_number:

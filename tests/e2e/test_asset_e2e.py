@@ -271,8 +271,13 @@ class TestAssetLifecycleE2E:
             cli_helper.assert_success(result)
 
             create_data = cli_helper.get_json_output(result)
-            # Handle both single-object and list responses from the create command
-            if isinstance(create_data, list):
+            # The create API returns {"assets": [...], "failed": [...]}
+            # Extract the first created asset from the response.
+            if isinstance(create_data, dict) and "assets" in create_data:
+                assets_list = create_data["assets"]
+                assert assets_list, "Create response assets list is empty"
+                asset_obj = assets_list[0]
+            elif isinstance(create_data, list):
                 assert create_data, "Create response list is empty"
                 asset_obj = create_data[0]
             elif isinstance(create_data, dict):
@@ -351,8 +356,12 @@ class TestAssetLifecycleE2E:
             cli_helper.assert_success(result)
 
             create_data = cli_helper.get_json_output(result)
-            # Handle both single-object and list responses from the create command
-            if isinstance(create_data, list):
+            # The create API returns {"assets": [...], "failed": [...]}
+            if isinstance(create_data, dict) and "assets" in create_data:
+                assets_list = create_data["assets"]
+                assert assets_list, "Create response assets list is empty"
+                asset_obj = assets_list[0]
+            elif isinstance(create_data, list):
                 assert create_data, "Create response list is empty"
                 asset_obj = create_data[0]
             elif isinstance(create_data, dict):
