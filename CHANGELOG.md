@@ -1,12 +1,35 @@
 # CHANGELOG
 
 
+## v0.31.6 (2026-02-11)
+
+### Bug Fixes
+
+- Performance improvements, bug fixes, and a new Agent Skills definition for slcli
+  ([#63](https://github.com/ni-kismet/systemlink-cli/pull/63),
+  [`634fb92`](https://github.com/ni-kismet/systemlink-cli/commit/634fb92ee3f708e8296fa3e4d6efa695a07acf3c))
+
+* chore: staged changes (create PR) — automated
+
+* feat: add skill.md
+
+* lint fix
+
+* fix: Resolve PR feedback - LINQ operators, asset failure handling, testmonitor improvements,
+  system list docs
+
+
 ## v0.31.5 (2026-02-11)
 
 ### Bug Fixes
 
 - Lint fixes
   ([`f553428`](https://github.com/ni-kismet/systemlink-cli/commit/f55342878b06eeb943459fc6f90c077939a59be3))
+
+### Chores
+
+- **release**: 0.31.5
+  ([`c4ad9e5`](https://github.com/ni-kismet/systemlink-cli/commit/c4ad9e5a4c8448c62a30a477708c77f8041a304e))
 
 
 ## v0.31.4 (2026-02-11)
