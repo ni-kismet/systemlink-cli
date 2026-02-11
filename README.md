@@ -376,7 +376,7 @@ operations dispatched to systems.
 ### List Systems
 
 ```bash
-# List all systems (paginated table, 25 per page)
+# List all systems (paginated table, 100 per page)
 slcli system list
 
 # Filter by alias (contains match)
@@ -406,7 +406,7 @@ slcli system list --workspace "Production"
 # Advanced filter with API filter syntax
 slcli system list --filter 'connected.data.state = "CONNECTED" and grains.data.kernel = "Windows"'
 
-# JSON output (all results, no pagination)
+# JSON output (up to --take limit, default 100)
 slcli system list -f json
 
 # Order by alias
@@ -543,8 +543,9 @@ slcli feed delete --id <feed-id> --yes
 
 ### Pagination & Formats
 
-- All list commands support `--format` (`table` default, `json`) and `--take` (default 25) for pagination.
-- JSON outputs return full results without pagination.
+- All list commands support `--format` (`table` default, `json`) and `--take` for pagination.
+- Table outputs: `--take` controls items per page (default 25 for most commands, 100 for systems).
+- JSON outputs: `--take` controls maximum items returned (default 25 for most commands, 100 for systems).
 
 ## Authentication
 

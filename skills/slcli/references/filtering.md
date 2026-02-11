@@ -69,10 +69,10 @@ Test Monitor uses Dynamic LINQ filter expressions.
 
 ```bash
 # Status filter
---filter 'status.statusType = "FAILED"'
+--filter 'status.statusType == "FAILED"'
 
 # Combined filters
---filter 'partNumber.Contains("ABC") and programName = "TestProgram"'
+--filter 'partNumber.Contains("ABC") and programName == "TestProgram"'
 
 # Date-based filtering
 --filter 'startedAt > DateTime(2026, 1, 1)'
@@ -85,7 +85,7 @@ Test Monitor uses Dynamic LINQ filter expressions.
 
 ```bash
 # Good — parameterized
---filter 'programName = @0' --substitution "SOH_SCT_HPPC_0"
+--filter 'programName == @0' --substitution "SOH_SCT_HPPC_0"
 
 # Bad — string interpolation (security risk)
 --filter "programName = '${PROGRAM}'"
@@ -94,7 +94,7 @@ Test Monitor uses Dynamic LINQ filter expressions.
 Multiple substitutions are positional:
 
 ```bash
---filter 'programName = @0 and operator = @1' \
+--filter 'programName == @0 and operator == @1' \
   --substitution "SOH_SCT_HPPC_0" \
   --substitution "xli"
 ```
@@ -105,7 +105,7 @@ Filter results by properties of their associated product:
 
 ```bash
 slcli testmonitor result list \
-  --product-filter 'family = @0' \
+  --product-filter 'family == @0' \
   --product-substitution "Battery"
 ```
 
@@ -118,10 +118,10 @@ Asset filtering uses the Asset API expression language:
 --filter 'ModelName.Contains("PXI")'
 
 # Exact match
---filter 'SerialNumber = "01BB877A"'
+--filter 'SerialNumber == "01BB877A"'
 
 # Combined with logical operators
---filter 'BusType = "PCI_PXI" and CalibrationStatus = "OK"'
+--filter 'BusType == "PCI_PXI" and CalibrationStatus == "OK"'
 
 # Vendor filtering
 --filter 'VendorName.Contains("PAtools")'
@@ -136,13 +136,13 @@ System filtering uses nested property access:
 
 ```bash
 # Connection state (nested property)
---filter 'connected.data.state = "CONNECTED"'
+--filter 'connected.data.state == "CONNECTED"'
 
 # OS filtering
---filter 'grains.data.kernel = "Windows"'
+--filter 'grains.data.kernel == "Windows"'
 
 # Combined
---filter 'connected.data.state = "CONNECTED" and grains.data.kernel = "Windows"'
+--filter 'connected.data.state == "CONNECTED" and grains.data.kernel == "Windows"'
 
 # Alias matching
 --filter 'alias.Contains("PXI")'

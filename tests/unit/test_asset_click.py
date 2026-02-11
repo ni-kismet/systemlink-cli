@@ -1313,6 +1313,119 @@ class TestCreateAsset:
         assert result.exit_code != 0
         assert "Invalid property format" in result.output
 
+    def test_create_asset_complete_failure(self, monkeypatch: Any, runner: CliRunner) -> None:
+        """Test create with complete failure (failed non-empty, assets empty)."""
+        patch_keyring(monkeypatch)
+
+        def mock_request(
+            method: str,
+            url: str,
+            payload: Any = None,
+            **_: Any,
+        ) -> Any:
+            return MockResponse(
+                {
+                    "assets": [],
+                    "failed": [
+                        {
+                            "asset": {"modelName": "Invalid"},
+                            "error": {"message": "Model not found in the database"},
+                        }
+                    ],
+                }
+            )
+
+        monkeypatch.setattr("slcli.asset_click.make_api_request", mock_request)
+        monkeypatch.setattr("slcli.asset_click.get_workspace_map", lambda: {})
+        monkeypatch.setattr("slcli.profiles.is_active_profile_readonly", lambda: False)
+
+        cli = make_cli()
+        result = runner.invoke(
+            cli,
+            ["asset", "create", "--model-name", "Invalid"],
+        )
+        # Should exit with GENERAL_ERROR (1)
+        assert result.exit_code == 1
+        assert "✗" in result.output
+        assert "Asset creation failed" in result.output
+        assert "Model not found in the database" in result.output
+
+    def test_create_asset_complete_failure_json(self, monkeypatch: Any, runner: CliRunner) -> None:
+        """Test create failure with JSON output."""
+        patch_keyring(monkeypatch)
+
+        def mock_request(
+            method: str,
+            url: str,
+            payload: Any = None,
+            **_: Any,
+        ) -> Any:
+            return MockResponse(
+                {
+                    "assets": [],
+                    "failed": [
+                        {
+                            "asset": {"modelName": "Invalid"},
+                            "error": {"message": "Model not found"},
+                        }
+                    ],
+                }
+            )
+
+        monkeypatch.setattr("slcli.asset_click.make_api_request", mock_request)
+        monkeypatch.setattr("slcli.asset_click.get_workspace_map", lambda: {})
+        monkeypatch.setattr("slcli.profiles.is_active_profile_readonly", lambda: False)
+
+        cli = make_cli()
+        result = runner.invoke(
+            cli,
+            ["asset", "create", "--model-name", "Invalid", "--format", "json"],
+        )
+        # Should exit with GENERAL_ERROR (1)
+        assert result.exit_code == 1
+        # Output should still be valid JSON
+        data = json.loads(result.output)
+        assert data["assets"] == []
+        assert len(data["failed"]) == 1
+
+    def test_create_asset_partial_success(self, monkeypatch: Any, runner: CliRunner) -> None:
+        """Test create with partial success (both assets and failed non-empty)."""
+        patch_keyring(monkeypatch)
+
+        def mock_request(
+            method: str,
+            url: str,
+            payload: Any = None,
+            **_: Any,
+        ) -> Any:
+            return MockResponse(
+                {
+                    "assets": [{"id": "new-1", "modelName": "PXI-4071"}],
+                    "failed": [
+                        {
+                            "asset": {"modelName": "Invalid"},
+                            "error": {"message": "Validation error"},
+                        }
+                    ],
+                }
+            )
+
+        monkeypatch.setattr("slcli.asset_click.make_api_request", mock_request)
+        monkeypatch.setattr("slcli.asset_click.get_workspace_map", lambda: {})
+        monkeypatch.setattr("slcli.profiles.is_active_profile_readonly", lambda: False)
+
+        cli = make_cli()
+        result = runner.invoke(
+            cli,
+            ["asset", "create", "--model-name", "PXI-4071"],
+        )
+        # For partial success, should show success but also warn and exit non-zero
+        assert result.exit_code == 1
+        assert "✓" in result.output
+        assert "Asset created" in result.output
+        assert "⚠" in result.output
+        assert "Warning" in result.output
+
     def test_create_asset_readonly_blocked(self, monkeypatch: Any, runner: CliRunner) -> None:
         """Test that create is blocked in readonly mode."""
         patch_keyring(monkeypatch)

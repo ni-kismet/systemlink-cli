@@ -421,8 +421,9 @@ def _handle_interactive_pagination(
 
     skip = 0
     shown_count = 0
-    # When using client-side filtering we fetch larger batches
-    fetch_size = 1000 if client_filter else take
+    # When using client-side filtering we fetch larger batches, but use
+    # conservative size (100) to avoid HTTP 500 errors from the Systems API
+    fetch_size = 100 if client_filter else take
 
     while True:
         page_items = _fetch_page(
@@ -829,7 +830,10 @@ def register_system_commands(cli: Any) -> None:
         type=int,
         default=100,
         show_default=True,
-        help="Maximum number of items to return",
+        help=(
+            "Number of items per page for table output; maximum number of items "
+            "to return for JSON"
+        ),
     )
     @click.option("--alias", "-a", help="Filter by system alias (contains match)")
     @click.option(

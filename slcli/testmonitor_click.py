@@ -527,6 +527,8 @@ def _query_counts_by_status(
     # Fall back to client-side for other fields
     if group_by and group_by != "status":
         # Fall back to fetching all results for non-status grouping
+        # Default max is 10,000 to prevent performance issues
+        max_items = 10000
         results = _query_all_results(
             filter_expr,
             substitutions,
@@ -534,8 +536,9 @@ def _query_counts_by_status(
             product_substitutions,
             None,
             False,
+            take=max_items,
         )
-        return _summarize_results(results, group_by)
+        return _summarize_results(results, group_by, max_items=max_items)
 
     # All possible status types from the API
     # Note: API uses "TIMEDOUT" (no underscore), not "TIMED_OUT" as documented
@@ -578,6 +581,7 @@ def _query_counts_by_status(
             "substitutions": combined_subs,
             "take": 0,  # Don't fetch any data
             "returnCount": True,  # Just get the count
+            "descending": True,  # Match request shape used by other query-results calls
         }
 
         if product_filter:
@@ -1131,6 +1135,7 @@ def register_testmonitor_commands(cli: Any) -> None:
                         product_subs,
                         order_by,
                         descending,
+                        take=take,
                     )
 
                     mock_resp: Any = FilteredResponse({"results": results})
