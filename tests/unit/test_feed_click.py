@@ -74,6 +74,7 @@ class MockResponse:
 def mock_workspace_helpers(monkeypatch: pytest.MonkeyPatch) -> None:
     """Prevent workspace lookups from hitting keyring or network in unit tests."""
     monkeypatch.setattr("slcli.feed_click.get_workspace_map", lambda: {})
+    # Note: slcli.workspace_utils.get_workspace_map is patched in conftest.py
     monkeypatch.setattr(
         "slcli.feed_click.get_workspace_id_with_fallback", lambda workspace: workspace
     )
