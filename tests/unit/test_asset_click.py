@@ -1190,7 +1190,9 @@ class TestCreateAsset:
         ) -> Any:
             if payload:
                 captured_payloads.append(payload)
-            return MockResponse([{"id": "new-asset-1", "modelName": "PXI-4071"}])
+            return MockResponse(
+                {"assets": [{"id": "new-asset-1", "modelName": "PXI-4071"}], "failed": []}
+            )
 
         monkeypatch.setattr("slcli.asset_click.make_api_request", mock_request)
         monkeypatch.setattr("slcli.asset_click.get_workspace_map", lambda: {})
@@ -1229,7 +1231,7 @@ class TestCreateAsset:
             payload: Any = None,
             **_: Any,
         ) -> Any:
-            return MockResponse([{"id": "new-1", "modelName": "DMM"}])
+            return MockResponse({"assets": [{"id": "new-1", "modelName": "DMM"}], "failed": []})
 
         monkeypatch.setattr("slcli.asset_click.make_api_request", mock_request)
         monkeypatch.setattr("slcli.asset_click.get_workspace_map", lambda: {})
@@ -1242,7 +1244,7 @@ class TestCreateAsset:
         )
         assert result.exit_code == 0
         data = json.loads(result.output)
-        assert data[0]["id"] == "new-1"
+        assert data["assets"][0]["id"] == "new-1"
 
     def test_create_asset_with_keywords_and_properties(
         self, monkeypatch: Any, runner: CliRunner
@@ -1260,7 +1262,7 @@ class TestCreateAsset:
         ) -> Any:
             if payload:
                 captured_payloads.append(payload)
-            return MockResponse([{"id": "new-2"}])
+            return MockResponse({"assets": [{"id": "new-2"}], "failed": []})
 
         monkeypatch.setattr("slcli.asset_click.make_api_request", mock_request)
         monkeypatch.setattr("slcli.asset_click.get_workspace_map", lambda: {})
