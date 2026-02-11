@@ -1,6 +1,14 @@
 # CHANGELOG
 
 
+## v0.31.5 (2026-02-11)
+
+### Bug Fixes
+
+- Lint fixes
+  ([`f553428`](https://github.com/ni-kismet/systemlink-cli/commit/f55342878b06eeb943459fc6f90c077939a59be3))
+
+
 ## v0.31.4 (2026-02-11)
 
 ### Bug Fixes
@@ -14,6 +22,11 @@
 
 This fixes slow unit test runs on macOS CI where network timeouts caused tests to take 70+ seconds
   instead of ~1 second.
+
+### Chores
+
+- **release**: 0.31.4
+  ([`6ccbc5a`](https://github.com/ni-kismet/systemlink-cli/commit/6ccbc5ab37bd2726f8fca07fb48d939c1c262481))
 
 
 ## v0.31.3 (2026-02-11)

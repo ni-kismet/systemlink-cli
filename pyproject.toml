@@ -1,6 +1,6 @@
 [tool.poetry]
 name = "slcli"
-version = "0.31.4"
+version = "0.31.5"
 description = "SystemLink Integrator CLI - cross-platform CLI for SystemLink workflows and templates."
 authors = ["Fred Visser <fred.visser@emerson.com>"]
 include = ["dff-editor/**/*"]
