@@ -349,6 +349,16 @@ class TestBuildSystemFilter:
         result = _build_system_filter(property_filters=("Location=Building 5",))
         assert result == 'properties.data.Location = "Building 5"'
 
+    def test_property_filter_missing_equals(self) -> None:
+        """Test property filter without '=' raises SystemExit."""
+        with pytest.raises(SystemExit):
+            _build_system_filter(property_filters=("InvalidProp",))
+
+    def test_property_filter_invalid_key(self) -> None:
+        """Test property filter with unsafe key raises SystemExit."""
+        with pytest.raises(SystemExit):
+            _build_system_filter(property_filters=('"; DROP TABLE--=bad',))
+
     def test_workspace_filter(self) -> None:
         """Test workspace filter."""
         result = _build_system_filter(workspace_id="ws-1")

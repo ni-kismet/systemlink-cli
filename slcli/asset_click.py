@@ -290,6 +290,7 @@ def _handle_asset_interactive_pagination(
         try:
             sys.stdout.flush()
         except Exception:
+            # stdout may be closed or invalid (e.g., when piped); ignore flush errors
             pass
 
         # Check if there are more results
@@ -338,6 +339,8 @@ def _warn_if_large_dataset(
                 err=True,
             )
     except Exception:
+        # Best-effort warning: if we cannot determine total count
+        # (e.g., network error), continue without the size warning.
         pass
 
 

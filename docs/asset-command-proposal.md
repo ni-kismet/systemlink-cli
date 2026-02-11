@@ -126,13 +126,15 @@ slcli asset
 └── location-history  # Get location/connection history for an asset
 ```
 
-**NOT creating:**
+**Implementation status (updated after initial proposal):**
 
-- ❌ `asset query` separate from `list` (consolidated into `list --filter`)
-- ❌ `asset find-systems` (AI agent can correlate `asset list` results)
-- ❌ `asset create` / `asset update` / `asset delete` (Phase 2, when needed)
-- ❌ `asset utilization` (Phase 2, lower priority)
-- ❌ `asset move-location` / `asset send-for-calibration` (Phase 2, mutation operations)
+- ❌ `asset query` separate from `list` (consolidated into `list --filter`; not planned)
+- ❌ `asset find-systems` (AI agent can correlate `asset list` results; not planned)
+- ✅ `asset create` / `asset update` / `asset delete` (implemented in `slcli/asset_click.py`;
+  originally targeted for Phase 2)
+- ❌ `asset utilization` (Phase 2, lower priority; not yet implemented)
+- ❌ `asset move-location` / `asset send-for-calibration` (Phase 2, mutation operations;
+  not yet implemented)
 
 ---
 

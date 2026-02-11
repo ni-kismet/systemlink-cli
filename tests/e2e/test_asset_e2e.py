@@ -271,8 +271,16 @@ class TestAssetLifecycleE2E:
             cli_helper.assert_success(result)
 
             create_data = cli_helper.get_json_output(result)
-            assert isinstance(create_data, dict)
-            asset_id = create_data.get("id", "")
+            # Handle both single-object and list responses from the create command
+            if isinstance(create_data, list):
+                assert create_data, "Create response list is empty"
+                asset_obj = create_data[0]
+            elif isinstance(create_data, dict):
+                asset_obj = create_data
+            else:
+                raise AssertionError(f"Unexpected create response type: {type(create_data)}")
+
+            asset_id = asset_obj.get("id", "")
             assert asset_id
 
             # Verify via get
@@ -343,7 +351,16 @@ class TestAssetLifecycleE2E:
             cli_helper.assert_success(result)
 
             create_data = cli_helper.get_json_output(result)
-            asset_id = create_data.get("id", "")
+            # Handle both single-object and list responses from the create command
+            if isinstance(create_data, list):
+                assert create_data, "Create response list is empty"
+                asset_obj = create_data[0]
+            elif isinstance(create_data, dict):
+                asset_obj = create_data
+            else:
+                raise AssertionError(f"Unexpected create response type: {type(create_data)}")
+
+            asset_id = asset_obj.get("id", "")
             assert asset_id
 
         finally:
@@ -406,5 +423,5 @@ class TestAssetHelpE2E:
         result = cli_runner(["asset", "create", "--help"])
         cli_helper.assert_success(result)
 
-        assert "--model" in result.stdout
+        assert "--model-name" in result.stdout
         assert "--serial-number" in result.stdout

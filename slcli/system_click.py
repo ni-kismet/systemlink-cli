@@ -7,6 +7,7 @@ Also provides job management and system metadata updates.
 """
 
 import json
+import re
 import shutil
 import sys
 from typing import Any, Dict, List, Optional, Tuple
@@ -196,10 +197,23 @@ def _build_system_filter(
             parts.append(f'keywords.data.Contains("{escaped}")')
     if property_filters:
         for prop in property_filters:
-            if "=" in prop:
-                key, val = prop.split("=", 1)
-                escaped_val = _escape_filter_value(val.strip())
-                parts.append(f'properties.data.{key.strip()} = "{escaped_val}"')
+            if "=" not in prop:
+                click.echo(
+                    f"✗ Invalid property filter '{prop}': expected KEY=VALUE format",
+                    err=True,
+                )
+                sys.exit(ExitCodes.INVALID_INPUT)
+            key, val = prop.split("=", 1)
+            key = key.strip()
+            if not re.match(r"^[A-Za-z0-9_.]+$", key):
+                click.echo(
+                    f"✗ Invalid property key '{key}': "
+                    "only alphanumeric characters, underscores, and dots are allowed",
+                    err=True,
+                )
+                sys.exit(ExitCodes.INVALID_INPUT)
+            escaped_val = _escape_filter_value(val.strip())
+            parts.append(f'properties.data.{key} = "{escaped_val}"')
     if workspace_id:
         escaped = _escape_filter_value(workspace_id)
         parts.append(f'workspace = "{escaped}"')
@@ -460,6 +474,7 @@ def _handle_interactive_pagination(
         try:
             sys.stdout.flush()
         except Exception:
+            # stdout may be closed or invalid (e.g., when piped); ignore flush errors
             pass
 
         # If the page was full, more may be available
@@ -1240,8 +1255,10 @@ def register_system_commands(cli: Any) -> None:
                 info_data = info_resp.json()
                 if isinstance(info_data, list) and info_data:
                     display_name = info_data[0].get("alias", system_id)
-            except Exception:
-                pass
+            except Exception:  # noqa: BLE001
+                # Best-effort only: if we cannot fetch system info, fall back to
+                # using the ID as the display name for the confirmation prompt.
+                display_name = system_id
 
             if not force:
                 if not click.confirm(f"Are you sure you want to remove system '{display_name}'?"):
