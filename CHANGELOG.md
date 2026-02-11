@@ -1,7 +1,20 @@
 # CHANGELOG
 
 
+## v0.31.1 (2026-02-11)
+
+### Bug Fixes
+
+- Test slowdowns
+  ([`18317fe`](https://github.com/ni-kismet/systemlink-cli/commit/18317fe168f6def4823261ecdeaf05e1722c756a))
+
+
 ## v0.31.0 (2026-02-11)
+
+### Chores
+
+- **release**: 0.31.0
+  ([`c1cff7c`](https://github.com/ni-kismet/systemlink-cli/commit/c1cff7c67134a79e83a8c7ef702119eeb8e2ef47))
 
 ### Features
 
