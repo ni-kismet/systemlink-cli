@@ -342,6 +342,8 @@ class TestAssetLifecycleE2E:
                     model,
                     "--serial-number",
                     serial,
+                    "--vendor-name",
+                    "E2E Test Vendor",
                     "--asset-type",
                     "DEVICE_UNDER_TEST",
                     "--property",

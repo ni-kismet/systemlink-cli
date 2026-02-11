@@ -301,7 +301,7 @@ def _query_all_items(
         List of item objects (up to ``take`` count).
     """
     all_items: List[Dict[str, Any]] = []
-    page_size = 1000  # API max per request
+    page_size = 100  # Use conservative batch size to avoid 500 errors
     skip = 0
 
     while True:
@@ -827,9 +827,9 @@ def register_system_commands(cli: Any) -> None:
         "--take",
         "-t",
         type=int,
-        default=25,
+        default=100,
         show_default=True,
-        help="Items per page (table output only)",
+        help="Maximum number of items to return",
     )
     @click.option("--alias", "-a", help="Filter by system alias (contains match)")
     @click.option(
@@ -974,6 +974,7 @@ def register_system_commands(cli: Any) -> None:
                     api_order_by,
                     _parse_systems_response,
                     projection=_LIST_PROJECTION,
+                    take=take,
                 )
                 if has_package:
                     systems = _filter_by_package(systems, has_package)

@@ -935,45 +935,32 @@ def test_list_products_with_summary_flag_table(monkeypatch: Any, runner: CliRunn
 
 
 def test_list_results_with_summary_flag_json(monkeypatch: Any, runner: CliRunner) -> None:
-    """Test result list with --summary flag in JSON format."""
+    """Test result list with --summary flag in JSON format using efficient count queries."""
     patch_keyring(monkeypatch)
 
     def mock_request(
         method: str,
         url: str,
         payload: Optional[Dict[str, Any]] = None,
+        json: Optional[Dict[str, Any]] = None,
         **_: Any,
     ) -> Any:
-        return MockResponse(
-            {
-                "results": [
-                    {
-                        "id": "res-1",
-                        "programName": "Calibration",
-                        "serialNumber": "abc-123",
-                        "status": {"statusType": "PASSED"},
-                        "startedAt": "2024-01-12T10:00:00.000Z",
-                        "totalTimeInSeconds": 12.3,
-                    },
-                    {
-                        "id": "res-2",
-                        "programName": "Diagnostics",
-                        "serialNumber": "abc-124",
-                        "status": {"statusType": "PASSED"},
-                        "startedAt": "2024-01-12T11:00:00.000Z",
-                        "totalTimeInSeconds": 8.5,
-                    },
-                    {
-                        "id": "res-3",
-                        "programName": "Calibration",
-                        "serialNumber": "abc-125",
-                        "status": {"statusType": "FAILED"},
-                        "startedAt": "2024-01-12T12:00:00.000Z",
-                        "totalTimeInSeconds": 3.2,
-                    },
-                ]
-            }
-        )
+        # The new implementation makes separate count queries per status
+        payload = payload or json
+        if payload and payload.get("returnCount"):
+            # Check which status type is being queried via substitutions
+            subs = payload.get("substitutions", [])
+            # First substitution could be from base filter, last one is the status
+            if subs and "PASSED" in subs:
+                return MockResponse({"totalCount": 2})
+            elif subs and "FAILED" in subs:
+                return MockResponse({"totalCount": 1})
+            else:
+                # Other status types have zero results
+                return MockResponse({"totalCount": 0})
+
+        # Fallback for non-count queries
+        return MockResponse({"results": []})
 
     monkeypatch.setattr("slcli.testmonitor_click.make_api_request", mock_request)
     monkeypatch.setattr("slcli.testmonitor_click.get_workspace_map", lambda: {})

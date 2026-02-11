@@ -1066,14 +1066,34 @@ def register_asset_commands(cli: Any) -> None:
             url = f"{_get_asset_base_url()}/assets"
             payload: Dict[str, Any] = {"assets": [asset_data]}
             resp = make_api_request("POST", url, payload=payload)
+            result_data = resp.json()
+
+            # Check if creation was successful
+            assets = result_data.get("assets", [])
+            failed = result_data.get("failed", [])
 
             if format_output.lower() == "json":
-                click.echo(json.dumps(resp.json(), indent=2))
+                click.echo(json.dumps(result_data, indent=2))
+                # Exit with error if asset creation failed
+                if failed and not assets:
+                    sys.exit(ExitCodes.GENERAL_ERROR)
             else:
-                format_success(
-                    "Asset created",
-                    {"Model": model_name, "Serial": serial_number or "N/A"},
-                )
+                if assets:
+                    format_success(
+                        "Asset created",
+                        {"Model": model_name, "Serial": serial_number or "N/A"},
+                    )
+                elif failed:
+                    # Asset creation failed
+                    error_info = failed[0] if failed else {}
+                    error_msg = error_info.get("error", {}).get("message", "Unknown error")
+                    click.echo(f"✗ Asset creation failed: {error_msg}", err=True)
+                    sys.exit(ExitCodes.GENERAL_ERROR)
+                else:
+                    format_success(
+                        "Asset created",
+                        {"Model": model_name, "Serial": serial_number or "N/A"},
+                    )
 
         except Exception as exc:  # noqa: BLE001
             handle_api_error(exc)

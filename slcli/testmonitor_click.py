@@ -453,7 +453,7 @@ def _query_all_results(
     url = f"{_get_testmonitor_base_url()}/query-results"
     all_results: List[Dict[str, Any]] = []
     continuation_token: Optional[str] = None
-    page_size = 100  # Fetch in larger batches for efficiency
+    page_size = 1000  # Use API's maximum batch size for efficiency
 
     while True:
         # Calculate how many items to request in this batch
@@ -497,6 +497,107 @@ def _query_all_results(
             break
 
     return all_results[:take] if take is not None else all_results
+
+
+def _query_counts_by_status(
+    filter_expr: Optional[str],
+    substitutions: List[Any],
+    product_filter: Optional[str],
+    product_substitutions: List[Any],
+    group_by: Optional[str] = None,
+) -> Dict[str, Any]:
+    """Query result counts by status using efficient count-only queries.
+
+    Instead of fetching all results and aggregating client-side, this makes
+    separate queries with returnCount=true and take=0 to get counts without
+    data transfer.
+
+    Args:
+        filter_expr: Optional Dynamic LINQ filter expression for results.
+        substitutions: Substitution values for the results filter.
+        product_filter: Optional Dynamic LINQ filter expression for products.
+        product_substitutions: Substitution values for the product filter.
+        group_by: Field to group by. None or "status" for status grouping (optimized).
+                  Other fields fall back to client-side aggregation.
+
+    Returns:
+        Dictionary with counts, e.g., {"total": 125, "groups": {"PASSED": 120, "FAILED": 5}}
+    """
+    # Only status grouping (None or explicit "status") is optimized
+    # Fall back to client-side for other fields
+    if group_by and group_by != "status":
+        # Fall back to fetching all results for non-status grouping
+        results = _query_all_results(
+            filter_expr,
+            substitutions,
+            product_filter,
+            product_substitutions,
+            None,
+            False,
+        )
+        return _summarize_results(results, group_by)
+
+    # All possible status types from the API
+    # Note: API uses "TIMEDOUT" (no underscore), not "TIMED_OUT" as documented
+    status_types = [
+        "PASSED",
+        "FAILED",
+        "RUNNING",
+        "WAITING",
+        "TERMINATED",
+        "ERRORED",
+        "DONE",
+        "LOOPING",
+        "SKIPPED",
+        "TIMEDOUT",
+        "CUSTOM",
+    ]
+
+    url = f"{_get_testmonitor_base_url()}/query-results"
+    counts: Dict[str, int] = {}
+
+    # Make a query for each status type to get counts
+    for status in status_types:
+        # Build filter combining base filter with status filter
+        # Use the same substitution approach as the working --status flag code
+        combined_filter_parts = []
+        combined_subs = list(substitutions) if substitutions else []
+
+        if filter_expr:
+            combined_filter_parts.append(filter_expr)
+
+        # Add status filter with substitution (same pattern as list_results --status flag)
+        status_index = len(combined_subs)
+        combined_filter_parts.append(f"status.statusType == @{status_index}")
+        combined_subs.append(status)
+
+        combined_filter = " && ".join(combined_filter_parts)
+
+        payload: Dict[str, Any] = {
+            "filter": combined_filter,
+            "substitutions": combined_subs,
+            "take": 0,  # Don't fetch any data
+            "returnCount": True,  # Just get the count
+        }
+
+        if product_filter:
+            payload["productFilter"] = product_filter
+            if product_substitutions:
+                payload["productSubstitutions"] = product_substitutions
+
+        try:
+            resp = make_api_request("POST", url, payload=payload)
+            result_data = resp.json()
+            count = result_data.get("totalCount", 0)
+            if count > 0:
+                counts[status] = count
+        except Exception as exc:
+            handle_api_error(exc)
+
+    # Return in same format as _summarize_results
+    total = sum(counts.values())
+    result = {"total": total, "groups": counts}
+    return result
 
 
 def _resolve_group_field(group_by: Optional[str]) -> Optional[str]:
@@ -1000,31 +1101,38 @@ def register_testmonitor_commands(cli: Any) -> None:
 
             # If JSON output, fetch all pages
             if format_output.lower() == "json":
-                # Check total count first to warn about large datasets
-                _warn_if_large_dataset(
-                    endpoint="query-results",
-                    filter_expr=filter_expr,
-                    substitutions=merged_subs,
-                    product_filter=product_filter_expr,
-                    product_substitutions=product_subs,
-                    order_by=order_by,
-                    descending=descending,
-                )
-                results = _query_all_results(
-                    filter_expr,
-                    merged_subs,
-                    product_filter_expr,
-                    product_subs,
-                    order_by,
-                    descending,
-                )
-
-                # Handle --summary flag for JSON output
+                # Handle --summary flag for JSON output using efficient count queries
                 if summary or group_by:
                     group_field = _resolve_group_field(group_by)
-                    summary_stats = _summarize_results(results, group_field, max_items=10000)
+                    # Use efficient count-only queries for status grouping
+                    summary_stats = _query_counts_by_status(
+                        filter_expr,
+                        merged_subs,
+                        product_filter_expr,
+                        product_subs,
+                        group_field,
+                    )
                     click.echo(json.dumps(summary_stats, indent=2))
                 else:
+                    # Check total count first to warn about large datasets
+                    _warn_if_large_dataset(
+                        endpoint="query-results",
+                        filter_expr=filter_expr,
+                        substitutions=merged_subs,
+                        product_filter=product_filter_expr,
+                        product_substitutions=product_subs,
+                        order_by=order_by,
+                        descending=descending,
+                    )
+                    results = _query_all_results(
+                        filter_expr,
+                        merged_subs,
+                        product_filter_expr,
+                        product_subs,
+                        order_by,
+                        descending,
+                    )
+
                     mock_resp: Any = FilteredResponse({"results": results})
                     UniversalResponseHandler.handle_list_response(
                         resp=mock_resp,

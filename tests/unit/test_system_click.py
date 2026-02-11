@@ -851,8 +851,8 @@ class TestListSystems:
             nonlocal call_count
             call_count += 1
             if call_count == 1:
-                # Return exactly take (25) items so pagination triggers
-                return MockResponse({"data": [SAMPLE_SYSTEM] * 25})
+                # Return exactly take (100) items so pagination triggers
+                return MockResponse({"data": [SAMPLE_SYSTEM] * 100})
             return MockResponse({"data": []})
 
         monkeypatch.setattr("slcli.system_click.make_api_request", mock_post)
@@ -861,7 +861,7 @@ class TestListSystems:
         cli = make_cli()
         result = runner.invoke(cli, ["system", "list", "-f", "table"], input="n\n")
         assert result.exit_code == 0
-        assert "Showing 25 systems" in result.output
+        assert "Showing 100 systems" in result.output
         assert "More results may be available" in result.output
 
 
