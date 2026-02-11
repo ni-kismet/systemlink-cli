@@ -49,6 +49,8 @@ jobs:
         run: poetry install
 
       - name: Run tests
+        env:
+          PYTHON_KEYRING_BACKEND: keyring.backends.null.Keyring
         run: poetry run pytest
 
       - name: Build PyInstaller binary
