@@ -1,7 +1,39 @@
 # CHANGELOG
 
 
+## v0.31.0 (2026-02-11)
+
+### Features
+
+- Add system and asset commands ([#62](https://github.com/ni-kismet/systemlink-cli/pull/62),
+  [`af15970`](https://github.com/ni-kismet/systemlink-cli/commit/af15970dbae8f8b88cd61c8426885c208376ecb0))
+
+* feat: add asset commands - phase 1 - 3
+
+* feat: add system commands
+
+* fix: address PR review feedback
+
+- Validate property filter keys against safe identifier pattern [A-Za-z0-9_.] - Reject property
+  filters without KEY=VALUE format with INVALID_INPUT exit code - Add explanatory comments to all
+  bare except clauses - Fix E2E tests to handle both list and dict responses from asset create - Fix
+  --model-name assertion in asset create help test - Update asset proposal doc to reflect
+  implemented create/update/delete commands - Add unit tests for property filter validation (missing
+  =, unsafe key)
+
+* fix: asset create payload and E2E response parsing
+
+- Add default location with assetPresence=UNKNOWN to create payload (required by POST
+  /niapm/v1/assets API) - Change model-number and vendor-number from str to int (API expects int32)
+  - Fix E2E tests to handle {"assets": [...], "failed": [...]} response wrapper from the create API
+
+
 ## v0.30.0 (2026-02-10)
+
+### Chores
+
+- **release**: 0.30.0
+  ([`a2eb2b1`](https://github.com/ni-kismet/systemlink-cli/commit/a2eb2b11a052242a8670ffa93006dfda99e52a84))
 
 ### Features
 
