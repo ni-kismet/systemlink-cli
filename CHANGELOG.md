@@ -1,12 +1,35 @@
 # CHANGELOG
 
 
+## v0.31.3 (2026-02-11)
+
+### Bug Fixes
+
+- Prevent network calls in unit tests causing macOS CI slowdown
+  ([`d63f82c`](https://github.com/ni-kismet/systemlink-cli/commit/d63f82cbcc759026942ae1fa52e6a12ca306fc89))
+
+Root cause: get_workspace_display_name() in workspace_utils.py calls get_workspace_map() which makes
+  real HTTP requests. Tests patched the function in module namespaces but workspace_utils imports it
+  directly from utils, bypassing those patches.
+
+On macOS CI, TCP connections to localhost:8000 timeout slowly (~75s) instead of failing immediately
+  like on Linux, causing 1+ hour test runs.
+
+Fix: Add autouse fixture in conftest.py to patch slcli.workspace_utils.get_workspace_map for all
+  unit tests.
+
+
 ## v0.31.2 (2026-02-11)
 
 ### Bug Fixes
 
 - Macos slow tests
   ([`5b25bab`](https://github.com/ni-kismet/systemlink-cli/commit/5b25bab201f215fa86d9d943bad20abd7a551b8d))
+
+### Chores
+
+- **release**: 0.31.2
+  ([`17d9222`](https://github.com/ni-kismet/systemlink-cli/commit/17d9222d8e9e6642667381bd7e62201c2a267e33))
 
 
 ## v0.31.1 (2026-02-11)
