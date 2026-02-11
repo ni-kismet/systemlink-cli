@@ -434,26 +434,13 @@ def test_dff_config_workspace_filtering(monkeypatch: Any, runner: CliRunner) -> 
 
         return R()
 
-    def mock_workspace_get(*a: Any, **kw: Any) -> Any:
-        class R:
-            def raise_for_status(self) -> None:
-                pass
-
-            def json(self) -> Any:
-                return {
-                    "workspaces": [
-                        {"id": "ws1", "name": "Workspace1"},
-                        {"id": "ws2", "name": "Workspace2"},
-                    ]
-                }
-
-        return R()
-
     monkeypatch.setattr(
         "slcli.dff_click.make_api_request", lambda method, url, *args, **kwargs: mock_get()
     )
+    # Provide workspace map for filtering and display
     monkeypatch.setattr(
-        "slcli.utils.make_api_request", lambda method, url, *args, **kwargs: mock_workspace_get()
+        "slcli.dff_click.get_workspace_map",
+        lambda: {"ws1": "Workspace1", "ws2": "Workspace2"},
     )
 
     cli = make_cli()

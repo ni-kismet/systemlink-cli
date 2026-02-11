@@ -128,6 +128,11 @@ def test_list_templates_with_workspace_filter(monkeypatch: Any, runner: CliRunne
 
     monkeypatch.setattr("requests.get", mock_get)
     monkeypatch.setattr("requests.post", mock_post)
+    # Provide workspace map for filtering
+    monkeypatch.setattr(
+        "slcli.templates_click.get_workspace_map",
+        lambda: {"ws1": "Workspace1", "ws2": "Workspace2"},
+    )
     cli = make_cli()
 
     # Test filtering by workspace name

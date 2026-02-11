@@ -66,18 +66,11 @@ def test_list_workflows_success(monkeypatch: Any, runner: CliRunner) -> None:
 
         return R()
 
-    def mock_get(*a: Any, **kw: Any) -> Any:
-        class R:
-            def raise_for_status(self) -> None:
-                pass
-
-            def json(self) -> Any:
-                return {"workspaces": [{"id": "ws456", "name": "Test Workspace"}]}
-
-        return R()
-
     monkeypatch.setattr("requests.post", mock_post)
-    monkeypatch.setattr("requests.get", mock_get)
+    # Provide workspace map so display name can be resolved
+    monkeypatch.setattr(
+        "slcli.workflows_click.get_workspace_map", lambda: {"ws456": "Test Workspace"}
+    )
 
     cli = make_cli()
     result = runner.invoke(cli, ["workflow", "list"])

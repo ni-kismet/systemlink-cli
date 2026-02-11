@@ -4,8 +4,10 @@ Forces the keyring null backend to prevent macOS Keychain access on CI runners.
 Without this, macOS GitHub Actions runners hang for minutes per keyring call
 because the Keychain is locked and no user session exists.
 
-Also patches workspace utilities to prevent real HTTP calls during tests.
+Also patches network utilities to prevent real HTTP calls during tests.
 """
+
+from typing import Any, Callable, Dict, Optional
 
 import keyring
 import pytest
@@ -17,15 +19,78 @@ from keyring.backends.null import Keyring as NullKeyring
 keyring.set_keyring(NullKeyring())
 
 
+class MockResponse:
+    """Mock HTTP response for preventing real network calls."""
+
+    def __init__(
+        self, json_data: Optional[Dict[str, Any]] = None, status_code: int = 200
+    ) -> None:
+        self._json_data = json_data or {}
+        self.status_code = status_code
+        self.text = ""
+
+    def json(self) -> Dict[str, Any]:
+        return self._json_data
+
+    def raise_for_status(self) -> None:
+        pass
+
+
 @pytest.fixture(autouse=True)
-def mock_workspace_utils_network(monkeypatch: pytest.MonkeyPatch) -> None:
-    """Prevent workspace_utils from making real HTTP calls.
+def mock_network_calls(monkeypatch: pytest.MonkeyPatch) -> None:
+    """Prevent real HTTP calls from slcli modules during unit tests.
 
-    The get_workspace_display_name() function in workspace_utils.py calls
-    get_workspace_map() when no workspace_map is provided. This makes real
-    HTTP requests that fail/timeout on CI runners without credentials.
+    Many CLI modules call get_workspace_map() and make_api_request() which
+    make real HTTP requests. On CI without credentials, these fail/timeout.
 
-    This fixture patches the source of get_workspace_map in workspace_utils
-    to prevent network calls in all unit tests.
+    This fixture patches:
+    1. slcli.utils.get_workspace_map - the source function
+    2. slcli.workspace_utils.get_workspace_map - directly imported copy
+    3. All *_click modules that import get_workspace_map
+    4. requests.get/post/put/delete as a fallback safety net
+
+    Individual tests can override with their own mocks.
     """
-    monkeypatch.setattr("slcli.workspace_utils.get_workspace_map", lambda: {})
+    empty_workspace_map: Callable[[], Dict[str, str]] = lambda: {}
+
+    # Patch the source function in utils
+    monkeypatch.setattr("slcli.utils.get_workspace_map", empty_workspace_map)
+
+    # Patch workspace_utils (imports from utils)
+    monkeypatch.setattr("slcli.workspace_utils.get_workspace_map", empty_workspace_map)
+
+    # Patch all click modules that import get_workspace_map
+    # These need to be patched because they bind the function at import time
+    modules_with_workspace_map = [
+        "slcli.asset_click",
+        "slcli.dff_click",
+        "slcli.example_click",
+        "slcli.feed_click",
+        "slcli.file_click",
+        "slcli.function_click",
+        "slcli.notebook_click",
+        "slcli.system_click",
+        "slcli.templates_click",
+        "slcli.testmonitor_click",
+        "slcli.webapp_click",
+        "slcli.workflows_click",
+    ]
+
+    for module in modules_with_workspace_map:
+        try:
+            monkeypatch.setattr(f"{module}.get_workspace_map", empty_workspace_map)
+        except AttributeError:
+            # Module might not have imported get_workspace_map
+            pass
+
+    # Safety net: patch requests module methods to return mock responses
+    # This catches any unpatched HTTP calls. Individual tests that need
+    # specific responses should override these with their own mocks.
+    def mock_requests_method(*args: Any, **kwargs: Any) -> MockResponse:
+        """Return empty mock response for any unpatched HTTP call."""
+        return MockResponse()
+
+    monkeypatch.setattr("requests.get", mock_requests_method)
+    monkeypatch.setattr("requests.post", mock_requests_method)
+    monkeypatch.setattr("requests.put", mock_requests_method)
+    monkeypatch.setattr("requests.delete", mock_requests_method)
