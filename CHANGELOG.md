@@ -1,6 +1,14 @@
 # CHANGELOG
 
 
+## v0.31.7 (2026-02-19)
+
+### Bug Fixes
+
+- Tag commands without specifying workspace and help formatting
+  ([`c4af1ce`](https://github.com/ni-kismet/systemlink-cli/commit/c4af1ce47b515649b5efd53e62f647818db39a8a))
+
+
 ## v0.31.6 (2026-02-11)
 
 ### Bug Fixes
@@ -17,6 +25,11 @@
 
 * fix: Resolve PR feedback - LINQ operators, asset failure handling, testmonitor improvements,
   system list docs
+
+### Chores
+
+- **release**: 0.31.6
+  ([`de1f5ef`](https://github.com/ni-kismet/systemlink-cli/commit/de1f5ef9d7801f4917775f16564e228be946dcf7))
 
 
 ## v0.31.5 (2026-02-11)
