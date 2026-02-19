@@ -649,8 +649,13 @@ def register_tag_commands(cli: Any) -> None:
                 tag_data = tag_resp.json()
                 tag_type = tag_data.get("type")
 
-            # Detect value type and convert
+            # Detect value type and convert (used for converted_value and as fallback type)
             converted_value, value_type = _detect_value_type(value)
+
+            # Always use the tag's registered type (or user-supplied --type) when available,
+            # so the API receives the correct type even if auto-detection disagrees.
+            if tag_type:
+                value_type = tag_type
 
             # API expects value as string
             api_value_str = value
@@ -674,11 +679,9 @@ def register_tag_commands(cli: Any) -> None:
                     sys.exit(ExitCodes.INVALID_INPUT)
 
                 converted_value = numeric_val
-                value_type = "U_INT64"
                 api_value_str = value
             elif tag_type == "DATE_TIME":
-                # For date-time tags, pass the value through as-is and set the type explicitly
-                value_type = "DATE_TIME"
+                # For date-time tags, pass the value through as-is
                 converted_value = value
                 api_value_str = value
             elif value_type == "BOOLEAN":
