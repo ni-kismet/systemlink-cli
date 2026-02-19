@@ -343,14 +343,15 @@ def register_tag_commands(cli: Any) -> None:
         try:
             ws_id = resolve_workspace_id(workspace)
             encoded_path = urllib.parse.quote(tag_path, safe="")
+            ws_path = f"{ws_id}/" if ws_id else ""
 
             # Get tag metadata
-            url = f"{get_base_url()}/nitag/v2/tags/{ws_id}/{encoded_path}"
+            url = f"{get_base_url()}/nitag/v2/tags/{ws_path}{encoded_path}"
             tag_resp = make_api_request("GET", url, payload=None)
             tag_data = tag_resp.json()
 
             # Get tag value with aggregates
-            value_url = f"{get_base_url()}/nitag/v2/tags/{ws_id}/{encoded_path}/values"
+            value_url = f"{get_base_url()}/nitag/v2/tags/{ws_path}{encoded_path}/values"
             value_resp = make_api_request("GET", value_url, payload=None)
 
             # Handle 204 No Content (tag has no value yet)
@@ -469,7 +470,8 @@ def register_tag_commands(cli: Any) -> None:
                 tag_payload["properties"] = properties_dict
 
             encoded_path = urllib.parse.quote(tag_path, safe="")
-            url = f"{get_base_url()}/nitag/v2/tags/{ws_id}/{encoded_path}"
+            ws_path = f"{ws_id}/" if ws_id else ""
+            url = f"{get_base_url()}/nitag/v2/tags/{ws_path}{encoded_path}"
             make_api_request("PUT", url, payload=tag_payload)
 
             format_success("Tag created", {"path": tag_path, "type": tag_type, "workspace": ws_id})
@@ -576,8 +578,9 @@ def register_tag_commands(cli: Any) -> None:
         try:
             ws_id = resolve_workspace_id(workspace)
             encoded_path = urllib.parse.quote(tag_path, safe="")
+            ws_path = f"{ws_id}/" if ws_id else ""
 
-            url = f"{get_base_url()}/nitag/v2/tags/{ws_id}/{encoded_path}"
+            url = f"{get_base_url()}/nitag/v2/tags/{ws_path}{encoded_path}"
             make_api_request("DELETE", url, payload=None)
 
             format_success("Tag deleted", {"path": tag_path, "workspace": ws_id})
@@ -596,20 +599,36 @@ def register_tag_commands(cli: Any) -> None:
         help="Workspace ID or name (defaults to default workspace)",
     )
     @click.option(
+        "--type",
+        "-t",
+        "data_type",
+        type=click.Choice(["DOUBLE", "INT", "STRING", "BOOLEAN", "U_INT64", "DATE_TIME"]),
+        default=None,
+        help="Override the value data type (auto-detected from the tag definition by default)",
+    )
+    @click.option(
         "--timestamp",
         type=str,
         default=None,
         help="Timestamp in ISO-8601 format (defaults to now)",
     )
     def set_tag_value(
-        tag_path: str, value: str, workspace: Optional[str], timestamp: Optional[str]
+        tag_path: str,
+        value: str,
+        workspace: Optional[str],
+        data_type: Optional[str],
+        timestamp: Optional[str],
     ) -> None:
         """Write a value to a tag.
 
         TAG_PATH is the path identifier of the tag.
         VALUE is the value to write.
 
-        Automatically detects value type:
+        If you receive a "Conflict" error, the inferred type does not match the
+        tag's registered data type. Use --type to specify the correct type explicitly.
+
+        \b
+        Auto-detected value type (when --type is not provided):
         - 'true' or 'false' (case-insensitive) -> BOOLEAN
         - Integer numbers -> INT
         - Decimal numbers -> DOUBLE
@@ -618,12 +637,17 @@ def register_tag_commands(cli: Any) -> None:
         try:
             ws_id = resolve_workspace_id(workspace)
             encoded_path = urllib.parse.quote(tag_path, safe="")
+            ws_path = f"{ws_id}/" if ws_id else ""
 
-            # Retrieve tag metadata to align value type with the tag definition
-            tag_meta_url = f"{get_base_url()}/nitag/v2/tags/{ws_id}/{encoded_path}"
-            tag_resp = make_api_request("GET", tag_meta_url, payload=None)
-            tag_data = tag_resp.json()
-            tag_type = tag_data.get("type")
+            if data_type:
+                # User explicitly specified the type — no need to fetch metadata
+                tag_type: Optional[str] = data_type
+            else:
+                # Retrieve tag metadata to align value type with the tag definition
+                tag_meta_url = f"{get_base_url()}/nitag/v2/tags/{ws_path}{encoded_path}"
+                tag_resp = make_api_request("GET", tag_meta_url, payload=None)
+                tag_data = tag_resp.json()
+                tag_type = tag_data.get("type")
 
             # Detect value type and convert
             converted_value, value_type = _detect_value_type(value)
@@ -672,7 +696,7 @@ def register_tag_commands(cli: Any) -> None:
             if timestamp:
                 value_payload["timestamp"] = timestamp
 
-            url = f"{get_base_url()}/nitag/v2/tags/{ws_id}/{encoded_path}/values/current"
+            url = f"{get_base_url()}/nitag/v2/tags/{ws_path}{encoded_path}/values/current"
             make_api_request("PUT", url, payload=value_payload)
 
             # make_api_request raises on HTTP error status codes, so if we reach here it succeeded
@@ -721,8 +745,9 @@ def register_tag_commands(cli: Any) -> None:
         try:
             ws_id = resolve_workspace_id(workspace)
             encoded_path = urllib.parse.quote(tag_path, safe="")
+            ws_path = f"{ws_id}/" if ws_id else ""
 
-            url = f"{get_base_url()}/nitag/v2/tags/{ws_id}/{encoded_path}/values"
+            url = f"{get_base_url()}/nitag/v2/tags/{ws_path}{encoded_path}/values"
             resp = make_api_request("GET", url, payload=None)
 
             # Handle 204 No Content (tag has no value yet)

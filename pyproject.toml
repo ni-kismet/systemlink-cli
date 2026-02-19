@@ -69,6 +69,15 @@ markers = [
 [tool.black]
 line-length = 100
 
+[tool.ni-python-styleguide]
+# D301 ("Use r""" if any backslashes in a docstring") is suppressed because
+# Click uses \b (backspace chr(8)) as a paragraph-formatting marker in docstrings
+# to prevent line-wrapping in --help output. This requires a regular """ string;
+# using r""" passes the literal two-char sequence \b which Click does not recognise.
+
+[tool.ni-python-styleguide.lint]
+extend_ignore = "D301"
+
 [tool.mypy]
 python_version = "3.13"
 files = "**/*.py"

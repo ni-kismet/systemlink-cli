@@ -542,14 +542,16 @@ def register_file_commands(cli: Any) -> None:
         descending: bool = True,
         workspace: Optional[str] = None,
     ) -> None:
-        r"""Search files with a query.
+        """Search files with a query.
 
         Filter syntax uses field:(value) format with wildcards:
+
         \b
           - name:("*test*")         Files with 'test' in the name
           - extension:("csv")       Files with .csv extension
           - workspaceId:("id")      Files in a specific workspace
           - id:("file-id")          Files with specific ID
+
         \b
         Combine filters with AND/OR:
           - name:("*test*") AND extension:("csv")
