@@ -1,12 +1,25 @@
 # CHANGELOG
 
 
+## v0.31.8 (2026-02-19)
+
+### Bug Fixes
+
+- Tag datatype detection
+  ([`f1f090a`](https://github.com/ni-kismet/systemlink-cli/commit/f1f090a3c8d8a11e0f3fac54f915500b48b249ba))
+
+
 ## v0.31.7 (2026-02-19)
 
 ### Bug Fixes
 
 - Tag commands without specifying workspace and help formatting
   ([`c4af1ce`](https://github.com/ni-kismet/systemlink-cli/commit/c4af1ce47b515649b5efd53e62f647818db39a8a))
+
+### Chores
+
+- **release**: 0.31.7
+  ([`275473e`](https://github.com/ni-kismet/systemlink-cli/commit/275473e673732052ff49772cdceae6981c596635))
 
 
 ## v0.31.6 (2026-02-11)
