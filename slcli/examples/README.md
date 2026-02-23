@@ -27,6 +27,21 @@ A complete example providing Jupyter notebooks for performing specification comp
 
 **Setup time:** ~3 minutes
 
+### exercise-5-1-parametric-insights
+
+Training data for **Exercise 5-1: Query and Visualize Parametric Test Data**.
+Provisions a six-week dataset of thermal cycle test results for the **Model ABC** battery
+pack product across three test stands, plus distractor products (Model XYZ, Model ABC Rev B)
+to populate the Products table realistically. Includes deliberate anomalies students will
+discover through visualization:
+
+- 18 test results (Model ABC) with 11 parametric measurements per result
+- TC-03 runs ~3–4 °C warmer than TC-01/TC-02 (calibration offset)
+- TC-01 Cycle 5: internal resistance spike → FAIL
+- TC-03 Cycle 4: cell temperature spike → FAIL
+
+**Setup time:** ~5 minutes
+
 ## Usage
 
 ```bash

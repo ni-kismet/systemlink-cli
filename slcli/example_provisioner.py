@@ -404,6 +404,17 @@ class ExampleProvisioner:
             return id_map.get(ref, obj)  # leave as-is if not yet defined
         return obj
 
+    @staticmethod
+    def _deduplicate_keywords(keywords: List[str]) -> List[str]:
+        """Return deduplicated keywords preserving insertion order."""
+        seen: set[str] = set()
+        result = []
+        for kw in keywords:
+            if kw not in seen:
+                result.append(kw)
+                seen.add(kw)
+        return result
+
     # --- Create methods (real API calls) ---
     def _create_location(self, props: Dict[str, Any]) -> str:
         """Create location via /nilocation/v1/locations API and return server ID."""
@@ -487,6 +498,9 @@ class ExampleProvisioner:
         for key in ["partNumber", "family", "properties"]:
             if key in props:
                 product_obj[key] = props[key]
+        # Also accept snake_case aliases from config.yaml
+        if "partNumber" not in product_obj and "part_number" in props:
+            product_obj["partNumber"] = props["part_number"]
 
         # Handle fileIds: resolve file references from id_map
         file_ids: List[str] = []
@@ -522,13 +536,7 @@ class ExampleProvisioner:
         if self.example_name:
             keywords.append(f"slcli-example:{self.example_name}")
         if keywords:
-            seen: set[str] = set()
-            dedup = []
-            for k in keywords:
-                if k not in seen:
-                    dedup.append(k)
-                    seen.add(k)
-            product_obj["keywords"] = dedup
+            product_obj["keywords"] = self._deduplicate_keywords(keywords)
 
         # Wrap in products array per API schema
         payload = {"products": [product_obj]}
@@ -720,20 +728,33 @@ class ExampleProvisioner:
             pass
         return ids
 
-    def _create_asset(self, props: Dict[str, Any]) -> str:
-        """Create asset via Asset Management API and return server ID.
+    def _build_asset_obj(
+        self,
+        props: Dict[str, Any],
+        default_name: str = "Unknown Asset",
+        asset_type: Optional[str] = None,
+    ) -> Dict[str, Any]:
+        """Build an AssetCreateModel dict from *props*, shared by asset and DUT creation.
 
-        Uses POST /niapm/v1/assets with request body:
-        { "assets": [{ name, assetType, busType, modelName, vendorName, serialNumber,
-                       workspace, keywords, properties, ... }] }
+        Handles field-map resolution (snake_case → camelCase), numeric coercion,
+        busType normalisation, defaults, description, system_id → location, and
+        keyword deduplication.
+
+        Args:
+            props: Resource properties from the config YAML.
+            default_name: Fallback name when props lacks ``name``.
+            asset_type: Explicit ``assetType`` value (e.g. ``"DEVICE_UNDER_TEST"``).
+                        When *None*, the field-map resolution decides.
         """
-        url = f"{get_base_url()}/niapm/v1/assets"
-        asset_obj = {
-            "name": props.get("name", "Unknown Asset"),
+        asset_obj: Dict[str, Any] = {
+            "name": props.get("name", default_name),
             "workspace": self.workspace_id or "",
         }
+        if asset_type is not None:
+            asset_obj["assetType"] = asset_type
+
         # Copy optional fields from AssetCreateModel schema, supporting snake_case inputs
-        field_map = {
+        field_map: Dict[str, List[str]] = {
             "assetType": ["assetType"],
             "busType": ["busType", "bus_type"],
             "modelName": ["modelName", "model_name", "model"],
@@ -746,6 +767,9 @@ class ExampleProvisioner:
             "fileIds": ["fileIds", "file_ids"],
         }
         for target, candidates in field_map.items():
+            # If the caller already set asset_type, skip the assetType field-map entry
+            if target == "assetType" and asset_type is not None:
+                continue
             val = None
             for cand in candidates:
                 if cand in props:
@@ -781,6 +805,10 @@ class ExampleProvisioner:
                 continue
             asset_obj[target] = val
 
+        # Pass description directly (no camelCase alias needed)
+        if "description" in props:
+            asset_obj["description"] = props["description"]
+
         # Provide defaults to satisfy identification when missing
         if "busType" not in asset_obj:
             asset_obj["busType"] = "ACCESSORY"
@@ -796,16 +824,26 @@ class ExampleProvisioner:
                 "minionId": props["system_id"],
                 "state": {"assetPresence": "UNKNOWN"},
             }
+        elif "location" not in asset_obj:
+            asset_obj["location"] = {"state": {"assetPresence": "UNKNOWN"}}
 
         # Tag resource with example name for cleanup
+        keywords: List[str] = []
+        if isinstance(props.get("keywords"), list):
+            keywords.extend([str(x) for x in props["keywords"]])
+        if isinstance(props.get("tags"), list):
+            keywords.extend([str(x) for x in props["tags"]])
+        keywords.append("slcli-provisioner")
         if self.example_name:
-            keywords = props.get("keywords", [])
-            if not isinstance(keywords, list):
-                keywords = []
             keywords.append(f"slcli-example:{self.example_name}")
-            asset_obj["keywords"] = keywords
+        if keywords:
+            asset_obj["keywords"] = self._deduplicate_keywords(keywords)
 
-        # Wrap in assets array per API schema
+        return asset_obj
+
+    def _post_asset(self, asset_obj: Dict[str, Any]) -> str:
+        """POST an asset to /niapm/v1/assets and return the server ID."""
+        url = f"{get_base_url()}/niapm/v1/assets"
         payload = {"assets": [asset_obj]}
         resp = make_api_request("POST", url, payload, handle_errors=False)
         data = resp.json()
@@ -827,6 +865,16 @@ class ExampleProvisioner:
                     if resource_id:
                         return str(resource_id)
         return ""
+
+    def _create_asset(self, props: Dict[str, Any]) -> str:
+        """Create asset via Asset Management API and return server ID.
+
+        Uses POST /niapm/v1/assets with request body:
+        { "assets": [{ name, assetType, busType, modelName, vendorName, serialNumber,
+                       workspace, keywords, properties, ... }] }
+        """
+        asset_obj = self._build_asset_obj(props, default_name="Unknown Asset")
+        return self._post_asset(asset_obj)
 
     def _get_asset_by_name(self, name: str) -> Optional[str]:
         """Find an asset by exact `name` within workspace. Returns ID or None.
@@ -878,103 +926,10 @@ class ExampleProvisioner:
         Uses POST /niapm/v1/assets with request body:
         { "assets": [{ name, assetType: "DEVICE_UNDER_TEST", ... }] }
         """
-        url = f"{get_base_url()}/niapm/v1/assets"
-        asset_obj = {
-            "name": props.get("name", "Unknown DUT"),
-            "assetType": "DEVICE_UNDER_TEST",
-            "workspace": self.workspace_id or "",
-        }
-        # Copy optional fields from AssetCreateModel schema, supporting snake_case inputs
-        field_map = {
-            "busType": ["busType", "bus_type"],
-            "modelName": ["modelName", "model_name", "model"],
-            "modelNumber": ["modelNumber", "model_number"],
-            "vendorName": ["vendorName", "vendor_name"],
-            "vendorNumber": ["vendorNumber", "vendor_number"],
-            "serialNumber": ["serialNumber", "serial_number"],
-            "partNumber": ["partNumber", "part_number"],
-            "properties": ["properties"],
-            "fileIds": ["fileIds", "file_ids"],
-        }
-        for target, candidates in field_map.items():
-            val = None
-            for cand in candidates:
-                if cand in props:
-                    val = props[cand]
-                    break
-            if val is None:
-                continue
-            # Special handling: skip invalid serial numbers (empty/whitespace/'0')
-            if target == "serialNumber" and isinstance(val, str):
-                trimmed = val.strip()
-                if trimmed == "" or trimmed == "0":
-                    continue
-            # Coerce numeric fields to integers when provided as strings
-            if target in ("modelNumber", "vendorNumber"):
-                if isinstance(val, str):
-                    num = val.strip()
-                    if num.isdigit():
-                        asset_obj[target] = int(num)
-                        continue
-                    # Skip non-numeric vendor/model numbers to avoid 400
-                    continue
-                elif isinstance(val, (int,)):
-                    asset_obj[target] = val
-                    continue
-                else:
-                    continue
-            # Normalize bus type values to OpenAPI enum
-            if target == "busType" and isinstance(val, str):
-                bt = val.strip().upper()
-                if bt == "ETHERNET":
-                    bt = "TCP_IP"
-                asset_obj[target] = bt
-                continue
-            asset_obj[target] = val
-
-        # Provide defaults to satisfy identification when missing
-        if "busType" not in asset_obj:
-            asset_obj["busType"] = "ACCESSORY"
-        if "modelName" not in asset_obj:
-            asset_obj["modelName"] = "Unknown"
-        if "vendorName" not in asset_obj:
-            asset_obj["vendorName"] = "Unknown"
-
-        # DUTs can be created without explicit location; if the service expects a location,
-        # provide a minimal presence state without binding to a system.
-        if "location" not in asset_obj:
-            asset_obj["location"] = {"state": {"assetPresence": "UNKNOWN"}}
-
-        # Tag resource with example name for cleanup
-        if self.example_name:
-            keywords = props.get("keywords", [])
-            if not isinstance(keywords, list):
-                keywords = []
-            keywords.append(f"slcli-example:{self.example_name}")
-            asset_obj["keywords"] = keywords
-
-        # Wrap in assets array per API schema
-        payload = {"assets": [asset_obj]}
-        resp = make_api_request("POST", url, payload, handle_errors=False)
-        data = resp.json()
-        # Response is { assets: [...], failed: [...], error: {...} }
-        # Check for successful creation first
-        assets = data.get("assets", [])
-        if assets and len(assets) > 0:
-            # Prefer 'id', fallback to 'assetIdentifier' if provided
-            aid = assets[0].get("id") or assets[0].get("assetIdentifier") or ""
-            return str(aid)
-        # Check for already exists error - extract ID from error response
-        if data.get("error") and data["error"].get("name") == "Skyline.OneOrMoreErrorsOccurred":
-            inner_errors = data["error"].get("innerErrors", [])
-            for err in inner_errors:
-                error_msg = err.get("message", "")
-                if "already exists" in error_msg.lower():
-                    # Extract asset ID from resourceId field
-                    resource_id = err.get("resourceId")
-                    if resource_id:
-                        return str(resource_id)
-        return ""
+        asset_obj = self._build_asset_obj(
+            props, default_name="Unknown DUT", asset_type="DEVICE_UNDER_TEST"
+        )
+        return self._post_asset(asset_obj)
 
     def _get_dut_by_name(self, name: str) -> Optional[str]:
         """Find a DUT by exact `name` within workspace. Returns ID or None.
@@ -1660,13 +1615,7 @@ class ExampleProvisioner:
             if self.example_name:
                 kw.append(f"slcli-example:{self.example_name}")
             if kw:
-                seen: set[str] = set()
-                dedup = []
-                for k in kw:
-                    if k not in seen:
-                        dedup.append(k)
-                        seen.add(k)
-                wi_obj["keywords"] = dedup
+                wi_obj["keywords"] = self._deduplicate_keywords(kw)
             payload = {"workItems": [wi_obj]}
             resp = make_api_request("POST", url, payload, handle_errors=False)
             resp.raise_for_status()
@@ -2041,13 +1990,7 @@ class ExampleProvisioner:
             if self.example_name:
                 kw.append(f"slcli-example:{self.example_name}")
             if kw:
-                seen: set[str] = set()
-                dedup = []
-                for k in kw:
-                    if k not in seen:
-                        dedup.append(k)
-                        seen.add(k)
-                result_obj["keywords"] = dedup
+                result_obj["keywords"] = self._deduplicate_keywords(kw)
 
             payload = {"results": [result_obj]}
             resp = make_api_request("POST", url, payload, handle_errors=False)
@@ -2056,10 +1999,149 @@ class ExampleProvisioner:
             results = data.get("results", [])
             if results:
                 rid = results[0].get("id")
-                return str(rid) if rid else None
+                if rid:
+                    # Create steps if specified in props
+                    steps_cfg = props.get("steps")
+                    if isinstance(steps_cfg, list) and steps_cfg:
+                        self._create_test_steps(str(rid), steps_cfg, result_obj.get("keywords", []))
+                    return str(rid)
             return None
         except Exception:
             return None
+
+    def _create_test_steps(
+        self,
+        result_id: str,
+        steps: List[Dict[str, Any]],
+        result_keywords: List[str],
+    ) -> None:
+        """Create test steps for an existing result via POST /nitestmonitor/v2/steps.
+
+        Each entry in `steps` may contain:
+          - name (str)
+          - step_type / stepType (str, default "NumericLimitTest")
+          - status (str: passed/failed/done/running/skipped)
+          - step_id / stepId (str, optional — server auto-generates if absent)
+          - parent_id / parentId (str, optional)
+          - started_at / startedAt (ISO-8601 str, optional)
+          - total_time_in_seconds / totalTimeInSeconds (float, optional)
+          - data (dict with optional keys: text, parameters)
+            - parameters is a list of dicts (each dict is a string key-value map)
+          - inputs (list of {name, value} dicts, optional)
+          - outputs (list of {name, value} dicts, optional)
+          - properties (dict of string key-value pairs, optional)
+          - children (list of nested step dicts, optional)
+        """
+        status_map = {
+            "PASSED": "PASSED",
+            "FAILED": "FAILED",
+            "DONE": "DONE",
+            "RUNNING": "RUNNING",
+            "SKIPPED": "SKIPPED",
+        }
+
+        def _build_step(step_cfg: Dict[str, Any]) -> Dict[str, Any]:
+            """Recursively build a TestStepRequestObject from config dict."""
+            step_obj: Dict[str, Any] = {
+                "resultId": result_id,
+            }
+            name = step_cfg.get("name")
+            if name:
+                step_obj["name"] = str(name)
+
+            # step_type accepts both snake_case and camelCase
+            step_type = step_cfg.get("step_type") or step_cfg.get("stepType") or "NumericLimitTest"
+            step_obj["stepType"] = str(step_type)
+
+            # dataModel (optional, defaults to TestStand for NumericLimitTest)
+            data_model = step_cfg.get("data_model") or step_cfg.get("dataModel")
+            if data_model:
+                step_obj["dataModel"] = str(data_model)
+
+            # status
+            raw_status = str(step_cfg.get("status", "passed")).upper()
+            if raw_status not in status_map:
+                click.echo(
+                    f"Warning: unrecognized step status '{step_cfg.get('status')}' "
+                    f"for step '{step_cfg.get('name')}', defaulting to PASSED",
+                    err=True,
+                )
+            status_type = status_map.get(raw_status, "PASSED")
+            step_obj["status"] = {"statusType": status_type, "statusName": status_type.capitalize()}
+
+            # optional ID fields
+            step_id = step_cfg.get("step_id") or step_cfg.get("stepId")
+            if step_id:
+                step_obj["stepId"] = str(step_id)
+            parent_id = step_cfg.get("parent_id") or step_cfg.get("parentId")
+            if parent_id:
+                step_obj["parentId"] = str(parent_id)
+
+            # timestamps / timing
+            started_at = step_cfg.get("started_at") or step_cfg.get("startedAt")
+            if started_at:
+                step_obj["startedAt"] = str(started_at)
+            tts = step_cfg.get("total_time_in_seconds") or step_cfg.get("totalTimeInSeconds")
+            if tts is not None:
+                step_obj["totalTimeInSeconds"] = float(tts)
+
+            # data block (text + parameters)
+            data_cfg = step_cfg.get("data")
+            if isinstance(data_cfg, dict):
+                data_obj: Dict[str, Any] = {}
+                if "text" in data_cfg:
+                    data_obj["text"] = str(data_cfg["text"])
+                params = data_cfg.get("parameters")
+                if isinstance(params, list):
+                    data_obj["parameters"] = [
+                        (
+                            {str(k): str(v) for k, v in p.items() if v is not None}
+                            if isinstance(p, dict)
+                            else {}
+                        )
+                        for p in params
+                    ]
+                if data_obj:
+                    step_obj["data"] = data_obj
+
+            # inputs / outputs (list of {name, value})
+            for field in ("inputs", "outputs"):
+                vals = step_cfg.get(field)
+                if isinstance(vals, list):
+                    step_obj[field] = vals
+
+            # properties (string key-value map)
+            step_props = step_cfg.get("properties")
+            if isinstance(step_props, dict):
+                step_obj["properties"] = {str(k): str(v) for k, v in step_props.items()}
+
+            # keywords: inherit from result so steps are cleaned up together
+            kw: List[str] = list(result_keywords)
+            extra_kw = step_cfg.get("keywords")
+            if isinstance(extra_kw, list):
+                kw.extend([str(k) for k in extra_kw])
+            if kw:
+                step_obj["keywords"] = self._deduplicate_keywords(kw)
+
+            # children (nested steps, recursive)
+            children_cfg = step_cfg.get("children")
+            if isinstance(children_cfg, list) and children_cfg:
+                step_obj["children"] = [_build_step(c) for c in children_cfg if isinstance(c, dict)]
+
+            return step_obj
+
+        try:
+            step_url = f"{get_base_url()}/nitestmonitor/v2/steps"
+            step_objs = [_build_step(s) for s in steps if isinstance(s, dict)]
+            if not step_objs:
+                return
+            payload: Dict[str, Any] = {"steps": step_objs, "updateResultTotalTime": True}
+            make_api_request("POST", step_url, payload, handle_errors=False)
+        except Exception as exc:
+            click.echo(
+                f"Warning: failed to create test steps for result {result_id}: {exc}",
+                err=True,
+            )
 
     def _get_test_result_by_name(self, name: str) -> Optional[str]:
         """Look up test results by programName via /nitestmonitor/v2/results.
@@ -2228,13 +2310,7 @@ class ExampleProvisioner:
             if self.example_name:
                 kw.append(f"slcli-example:{self.example_name}")
             if kw:
-                seen: set[str] = set()
-                dedup = []
-                for k in kw:
-                    if k not in seen:
-                        dedup.append(k)
-                        seen.add(k)
-                payload["keywords"] = dedup
+                payload["keywords"] = self._deduplicate_keywords(kw)
             if self.workspace_id:
                 payload["workspace"] = self.workspace_id
             resp = make_api_request("POST", url, payload, handle_errors=False)
@@ -2390,14 +2466,8 @@ class ExampleProvisioner:
             if self.example_name:
                 kw.append(f"slcli-example:{self.example_name}")
             if kw:
-                seen: set[str] = set()
-                dedup = []
-                for k in kw:
-                    if k not in seen:
-                        dedup.append(k)
-                        seen.add(k)
                 # Store tags as comma-separated string in a custom property
-                metadata["slcli-tags"] = ",".join(dedup)
+                metadata["slcli-tags"] = ",".join(self._deduplicate_keywords(kw))
 
             # Prepare multipart form data
             files = {
