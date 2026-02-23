@@ -1,0 +1,1589 @@
+---
+# SLE Example Configuration: Exercise 5-1 - Parametric Insights
+format_version: "1.0"
+name: "exercise-5-1-parametric-insights"
+title: "Exercise 5-1: Parametric Insights - Battery Pack Thermal Cycling"
+description: |
+  Training data for Exercise 5-1: Query and Visualize Parametric Test Data.
+
+  Provisions a realistic dataset of thermal cycle test results for the
+  Model ABC battery pack product, collected across three test stands over
+  six weeks. Includes distractor products (Model XYZ, Model ABC Rev B)
+  to populate the Products table and require students to locate the
+  correct product by part number.
+
+  Highlights built into the data for guided discovery:
+  - TC-03 runs consistently ~3-4 degrees C warmer than TC-01/TC-02
+    (indicating a potential calibration offset)
+  - TC-01 Run 5 (Feb 4): internal_resistance spikes to 21.4 mΩ (FAIL)
+    then recovers after maintenance
+  - TC-03 Run 4 (Jan 30): cell_temp_3 spikes to 44.8 °C (FAIL),
+    prompting stand recalibration
+  - Capacity and terminal voltage show a slow downward trend across
+    all stands, consistent with normal cell aging
+
+author: "NI"
+created_date: "2026-02-20"
+updated_date: "2026-02-20"
+tags:
+  - "training"
+  - "exercise-5-1"
+  - "test-insights"
+  - "parametric"
+  - "battery"
+
+estimated_setup_time_minutes: 5
+required_systemlink_version: "2024.1"
+target_workspace: null
+
+resources:
+
+  # ==========================================================================
+  # LOCATION
+  # ==========================================================================
+
+  - type: "location"
+    name: "Battery Testing Lab"
+    properties:
+      description: "Primary facility for battery pack qualification testing"
+      address: "1000 Electrochemical Drive"
+      city: "Austin"
+      state: "TX"
+      country: "USA"
+      building: "Test Hall B"
+    id_reference: "loc_batlab"
+    tags: ["exercise-5-1-parametric-insights"]
+
+  # ==========================================================================
+  # PRODUCTS
+  # ==========================================================================
+
+  # Primary product — the one students must locate and analyze
+  - type: "product"
+    name: "Model ABC"
+    properties:
+      description: "48 V lithium-ion battery pack for industrial automation"
+      family: "Battery Packs"
+      category: "Energy Storage"
+      manufacturer: "DemoPower Systems"
+      part_number: "BAT-MODEL-ABC-001"
+    id_reference: "prod_abc"
+    tags: ["exercise-5-1-parametric-insights"]
+
+  # Distractor product — ensures the Products table has multiple rows
+  - type: "product"
+    name: "Model XYZ"
+    properties:
+      description: "Supercapacitor bank module for power buffering"
+      family: "Capacitor Banks"
+      category: "Energy Storage"
+      manufacturer: "DemoPower Systems"
+      part_number: "POW-MODEL-XYZ-002"
+    id_reference: "prod_xyz"
+    tags: ["exercise-5-1-parametric-insights"]
+
+  # Distractor product — same family as Model ABC, different revision
+  - type: "product"
+    name: "Model ABC Rev B"
+    properties:
+      description: "Revised 48 V lithium-ion pack with reduced internal resistance"
+      family: "Battery Packs"
+      category: "Energy Storage"
+      manufacturer: "DemoPower Systems"
+      part_number: "BAT-MODEL-ABC-REV-B"
+    id_reference: "prod_abc_revb"
+    tags: ["exercise-5-1-parametric-insights"]
+
+  # ==========================================================================
+  # TEST SYSTEMS (thermal cycle test stands)
+  # ==========================================================================
+
+  - type: "system"
+    name: "Thermal Cycle Tester TC-01"
+    properties:
+      description: "Environmental chamber test stand, cell 1"
+      location_id: "${loc_batlab}"
+      serial_number: "TC-SN-20240301-001"
+      status: "operational"
+    id_reference: "sys_tc01"
+    tags: ["exercise-5-1-parametric-insights"]
+
+  - type: "system"
+    name: "Thermal Cycle Tester TC-02"
+    properties:
+      description: "Environmental chamber test stand, cell 2 — golden reference"
+      location_id: "${loc_batlab}"
+      serial_number: "TC-SN-20240301-002"
+      status: "operational"
+    id_reference: "sys_tc02"
+    tags: ["exercise-5-1-parametric-insights"]
+
+  - type: "system"
+    name: "Thermal Cycle Tester TC-03"
+    properties:
+      description: "Environmental chamber test stand, cell 3"
+      location_id: "${loc_batlab}"
+      serial_number: "TC-SN-20240301-003"
+      status: "operational"
+    id_reference: "sys_tc03"
+    tags: ["exercise-5-1-parametric-insights"]
+
+  # ==========================================================================
+  # DUTs
+  # ==========================================================================
+
+  - type: "dut"
+    name: "BAT-DUT-A01 (TC-01)"
+    properties:
+      description: "Model ABC unit under long-term thermal cycle test on TC-01"
+      system_id: "${sys_tc01}"
+      location_id: "${loc_batlab}"
+      part_number: "BAT-MODEL-ABC-001"
+      model_name: "Model ABC"
+      model_number: "BAT-MODEL-ABC-001"
+      vendor_name: "DemoPower Systems"
+      serial_number: "BAT-SN-A01-20250915"
+      bus_type: "CAN"
+    id_reference: "dut_a01"
+    tags: ["exercise-5-1-parametric-insights"]
+
+  - type: "dut"
+    name: "BAT-DUT-B01 (TC-02)"
+    properties:
+      description: "Model ABC unit under long-term thermal cycle test on TC-02"
+      system_id: "${sys_tc02}"
+      location_id: "${loc_batlab}"
+      part_number: "BAT-MODEL-ABC-001"
+      model_name: "Model ABC"
+      model_number: "BAT-MODEL-ABC-001"
+      vendor_name: "DemoPower Systems"
+      serial_number: "BAT-SN-B01-20250915"
+      bus_type: "CAN"
+    id_reference: "dut_b01"
+    tags: ["exercise-5-1-parametric-insights"]
+
+  - type: "dut"
+    name: "BAT-DUT-C01 (TC-03)"
+    properties:
+      description: "Model ABC unit under long-term thermal cycle test on TC-03"
+      system_id: "${sys_tc03}"
+      location_id: "${loc_batlab}"
+      part_number: "BAT-MODEL-ABC-001"
+      model_name: "Model ABC"
+      model_number: "BAT-MODEL-ABC-001"
+      vendor_name: "DemoPower Systems"
+      serial_number: "BAT-SN-C01-20250915"
+      bus_type: "CAN"
+    id_reference: "dut_c01"
+    tags: ["exercise-5-1-parametric-insights"]
+
+  - type: "dut"
+    name: "XYZ-DUT-001 (TC-01)"
+    properties:
+      description: "Model XYZ capacitor bank under acceptance test on TC-01"
+      system_id: "${sys_tc01}"
+      location_id: "${loc_batlab}"
+      part_number: "POW-MODEL-XYZ-002"
+      model_name: "Model XYZ"
+      model_number: "POW-MODEL-XYZ-002"
+      vendor_name: "DemoPower Systems"
+      serial_number: "XYZ-SN-001-20260110"
+      bus_type: "CAN"
+    id_reference: "dut_xyz01"
+    tags: ["exercise-5-1-parametric-insights"]
+
+  - type: "dut"
+    name: "ABC-REVB-DUT-001 (TC-02)"
+    properties:
+      description: "Model ABC Rev B prototype under qualification on TC-02"
+      system_id: "${sys_tc02}"
+      location_id: "${loc_batlab}"
+      part_number: "BAT-MODEL-ABC-REV-B"
+      model_name: "Model ABC Rev B"
+      model_number: "BAT-MODEL-ABC-REV-B"
+      vendor_name: "DemoPower Systems"
+      serial_number: "ABC-REVB-SN-001-20260112"
+      bus_type: "CAN"
+    id_reference: "dut_abc_revb01"
+    tags: ["exercise-5-1-parametric-insights"]
+
+  # ==========================================================================
+  # TEST RESULTS — MODEL ABC, TC-01 (6 weekly runs, Jan 6 – Feb 11 2026)
+  # Notable: Run 5 (Feb 4) FAILS on internal_resistance spike (21.4 mΩ > 20.0 mΩ spec)
+  # ==========================================================================
+
+  - type: "test_result"
+    name: "Model ABC TC-01 Cycle 1"
+    properties:
+      program_name: "Thermal Cycle Test"
+      part_number: "BAT-MODEL-ABC-001"
+      serial_number: "BAT-SN-A01-20250915"
+      system_id: "${sys_tc01}"
+      operator: "J. Santos"
+      start_time: "2026-01-06T08:00:00Z"
+      status: "passed"
+      measurements:
+        cycle_count: "1"
+        cell_temperature_1_c: "37.2"
+        cell_temperature_2_c: "36.8"
+        cell_temperature_3_c: "37.5"
+        cell_temperature_4_c: "37.1"
+        ambient_temperature_c: "22.5"
+        terminal_voltage_v: "3.85"
+        charge_current_a: "1.45"
+        capacity_ah: "51.8"
+        internal_resistance_mohm: "12.3"
+        state_of_charge_pct: "99.8"
+      steps:
+        - name: "Internal Resistance Check"
+          step_type: "NumericLimitTest"
+          status: "passed"
+          total_time_in_seconds: 3.2
+          data:
+            parameters:
+              - name: "Internal Resistance"
+                measurement: "12.3"
+                highLimit: "20.0"
+                units: "mOhm"
+                status: "Passed"
+                comparisonType: "LE"
+        - name: "Cell Temperature Check (Ch3)"
+          step_type: "NumericLimitTest"
+          status: "passed"
+          total_time_in_seconds: 1.8
+          data:
+            parameters:
+              - name: "Cell Temp 3"
+                measurement: "37.5"
+                highLimit: "42.0"
+                units: "degC"
+                status: "Passed"
+                comparisonType: "LE"
+        - name: "Capacity Check"
+          step_type: "NumericLimitTest"
+          status: "passed"
+          total_time_in_seconds: 5.1
+          data:
+            parameters:
+              - name: "Capacity"
+                measurement: "51.8"
+                lowLimit: "49.0"
+                units: "Ah"
+                status: "Passed"
+                comparisonType: "GE"
+    id_reference: "tr_abc_tc01_c1"
+    tags: ["exercise-5-1-parametric-insights", "tc01"]
+
+  - type: "test_result"
+    name: "Model ABC TC-01 Cycle 2"
+    properties:
+      program_name: "Thermal Cycle Test"
+      part_number: "BAT-MODEL-ABC-001"
+      serial_number: "BAT-SN-A01-20250915"
+      system_id: "${sys_tc01}"
+      operator: "J. Santos"
+      start_time: "2026-01-13T08:00:00Z"
+      status: "passed"
+      measurements:
+        cycle_count: "2"
+        cell_temperature_1_c: "37.5"
+        cell_temperature_2_c: "37.1"
+        cell_temperature_3_c: "37.8"
+        cell_temperature_4_c: "37.4"
+        ambient_temperature_c: "22.3"
+        terminal_voltage_v: "3.84"
+        charge_current_a: "1.44"
+        capacity_ah: "51.6"
+        internal_resistance_mohm: "12.8"
+        state_of_charge_pct: "99.7"
+      steps:
+        - name: "Internal Resistance Check"
+          step_type: "NumericLimitTest"
+          status: "passed"
+          total_time_in_seconds: 3.2
+          data:
+            parameters:
+              - name: "Internal Resistance"
+                measurement: "12.8"
+                highLimit: "20.0"
+                units: "mOhm"
+                status: "Passed"
+                comparisonType: "LE"
+        - name: "Cell Temperature Check (Ch3)"
+          step_type: "NumericLimitTest"
+          status: "passed"
+          total_time_in_seconds: 1.8
+          data:
+            parameters:
+              - name: "Cell Temp 3"
+                measurement: "37.8"
+                highLimit: "42.0"
+                units: "degC"
+                status: "Passed"
+                comparisonType: "LE"
+        - name: "Capacity Check"
+          step_type: "NumericLimitTest"
+          status: "passed"
+          total_time_in_seconds: 5.1
+          data:
+            parameters:
+              - name: "Capacity"
+                measurement: "51.6"
+                lowLimit: "49.0"
+                units: "Ah"
+                status: "Passed"
+                comparisonType: "GE"
+    id_reference: "tr_abc_tc01_c2"
+    tags: ["exercise-5-1-parametric-insights", "tc01"]
+
+  - type: "test_result"
+    name: "Model ABC TC-01 Cycle 3"
+    properties:
+      program_name: "Thermal Cycle Test"
+      part_number: "BAT-MODEL-ABC-001"
+      serial_number: "BAT-SN-A01-20250915"
+      system_id: "${sys_tc01}"
+      operator: "J. Santos"
+      start_time: "2026-01-20T08:00:00Z"
+      status: "passed"
+      measurements:
+        cycle_count: "3"
+        cell_temperature_1_c: "37.8"
+        cell_temperature_2_c: "37.4"
+        cell_temperature_3_c: "38.1"
+        cell_temperature_4_c: "37.7"
+        ambient_temperature_c: "22.8"
+        terminal_voltage_v: "3.83"
+        charge_current_a: "1.43"
+        capacity_ah: "51.4"
+        internal_resistance_mohm: "13.5"
+        state_of_charge_pct: "99.6"
+      steps:
+        - name: "Internal Resistance Check"
+          step_type: "NumericLimitTest"
+          status: "passed"
+          total_time_in_seconds: 3.2
+          data:
+            parameters:
+              - name: "Internal Resistance"
+                measurement: "13.5"
+                highLimit: "20.0"
+                units: "mOhm"
+                status: "Passed"
+                comparisonType: "LE"
+        - name: "Cell Temperature Check (Ch3)"
+          step_type: "NumericLimitTest"
+          status: "passed"
+          total_time_in_seconds: 1.8
+          data:
+            parameters:
+              - name: "Cell Temp 3"
+                measurement: "38.1"
+                highLimit: "42.0"
+                units: "degC"
+                status: "Passed"
+                comparisonType: "LE"
+        - name: "Capacity Check"
+          step_type: "NumericLimitTest"
+          status: "passed"
+          total_time_in_seconds: 5.1
+          data:
+            parameters:
+              - name: "Capacity"
+                measurement: "51.4"
+                lowLimit: "49.0"
+                units: "Ah"
+                status: "Passed"
+                comparisonType: "GE"
+    id_reference: "tr_abc_tc01_c3"
+    tags: ["exercise-5-1-parametric-insights", "tc01"]
+
+  - type: "test_result"
+    name: "Model ABC TC-01 Cycle 4"
+    properties:
+      program_name: "Thermal Cycle Test"
+      part_number: "BAT-MODEL-ABC-001"
+      serial_number: "BAT-SN-A01-20250915"
+      system_id: "${sys_tc01}"
+      operator: "J. Santos"
+      start_time: "2026-01-28T08:00:00Z"
+      status: "passed"
+      measurements:
+        cycle_count: "4"
+        cell_temperature_1_c: "38.1"
+        cell_temperature_2_c: "37.7"
+        cell_temperature_3_c: "38.4"
+        cell_temperature_4_c: "38.0"
+        ambient_temperature_c: "22.4"
+        terminal_voltage_v: "3.82"
+        charge_current_a: "1.43"
+        capacity_ah: "51.2"
+        internal_resistance_mohm: "14.2"
+        state_of_charge_pct: "99.5"
+      steps:
+        - name: "Internal Resistance Check"
+          step_type: "NumericLimitTest"
+          status: "passed"
+          total_time_in_seconds: 3.2
+          data:
+            parameters:
+              - name: "Internal Resistance"
+                measurement: "14.2"
+                highLimit: "20.0"
+                units: "mOhm"
+                status: "Passed"
+                comparisonType: "LE"
+        - name: "Cell Temperature Check (Ch3)"
+          step_type: "NumericLimitTest"
+          status: "passed"
+          total_time_in_seconds: 1.8
+          data:
+            parameters:
+              - name: "Cell Temp 3"
+                measurement: "38.4"
+                highLimit: "42.0"
+                units: "degC"
+                status: "Passed"
+                comparisonType: "LE"
+        - name: "Capacity Check"
+          step_type: "NumericLimitTest"
+          status: "passed"
+          total_time_in_seconds: 5.1
+          data:
+            parameters:
+              - name: "Capacity"
+                measurement: "51.2"
+                lowLimit: "49.0"
+                units: "Ah"
+                status: "Passed"
+                comparisonType: "GE"
+    id_reference: "tr_abc_tc01_c4"
+    tags: ["exercise-5-1-parametric-insights", "tc01"]
+
+  # TC-01 Cycle 5 — FAIL: internal_resistance spike (21.4 mΩ exceeds 20.0 mΩ spec)
+  - type: "test_result"
+    name: "Model ABC TC-01 Cycle 5"
+    properties:
+      program_name: "Thermal Cycle Test"
+      part_number: "BAT-MODEL-ABC-001"
+      serial_number: "BAT-SN-A01-20250915"
+      system_id: "${sys_tc01}"
+      operator: "J. Santos"
+      start_time: "2026-02-04T08:00:00Z"
+      status: "failed"
+      measurements:
+        cycle_count: "5"
+        cell_temperature_1_c: "38.3"
+        cell_temperature_2_c: "37.9"
+        cell_temperature_3_c: "38.6"
+        cell_temperature_4_c: "38.2"
+        ambient_temperature_c: "22.6"
+        terminal_voltage_v: "3.81"
+        charge_current_a: "1.42"
+        capacity_ah: "51.0"
+        internal_resistance_mohm: "21.4"
+        state_of_charge_pct: "99.4"
+      steps:
+        - name: "Internal Resistance Check"
+          step_type: "NumericLimitTest"
+          status: "failed"
+          total_time_in_seconds: 3.2
+          data:
+            parameters:
+              - name: "Internal Resistance"
+                measurement: "21.4"
+                highLimit: "20.0"
+                units: "mOhm"
+                status: "Failed"
+                comparisonType: "LE"
+        - name: "Cell Temperature Check (Ch3)"
+          step_type: "NumericLimitTest"
+          status: "passed"
+          total_time_in_seconds: 1.8
+          data:
+            parameters:
+              - name: "Cell Temp 3"
+                measurement: "38.6"
+                highLimit: "42.0"
+                units: "degC"
+                status: "Passed"
+                comparisonType: "LE"
+        - name: "Capacity Check"
+          step_type: "NumericLimitTest"
+          status: "passed"
+          total_time_in_seconds: 5.1
+          data:
+            parameters:
+              - name: "Capacity"
+                measurement: "51.0"
+                lowLimit: "49.0"
+                units: "Ah"
+                status: "Passed"
+                comparisonType: "GE"
+    id_reference: "tr_abc_tc01_c5"
+    tags: ["exercise-5-1-parametric-insights", "tc01"]
+
+  # TC-01 Cycle 6 — PASS after maintenance (resistance normalized)
+  - type: "test_result"
+    name: "Model ABC TC-01 Cycle 6"
+    properties:
+      program_name: "Thermal Cycle Test"
+      part_number: "BAT-MODEL-ABC-001"
+      serial_number: "BAT-SN-A01-20250915"
+      system_id: "${sys_tc01}"
+      operator: "J. Santos"
+      start_time: "2026-02-11T08:00:00Z"
+      status: "passed"
+      measurements:
+        cycle_count: "6"
+        cell_temperature_1_c: "38.6"
+        cell_temperature_2_c: "38.2"
+        cell_temperature_3_c: "38.9"
+        cell_temperature_4_c: "38.5"
+        ambient_temperature_c: "22.7"
+        terminal_voltage_v: "3.80"
+        charge_current_a: "1.42"
+        capacity_ah: "50.8"
+        internal_resistance_mohm: "15.8"
+        state_of_charge_pct: "99.3"
+      steps:
+        - name: "Internal Resistance Check"
+          step_type: "NumericLimitTest"
+          status: "passed"
+          total_time_in_seconds: 3.2
+          data:
+            parameters:
+              - name: "Internal Resistance"
+                measurement: "15.8"
+                highLimit: "20.0"
+                units: "mOhm"
+                status: "Passed"
+                comparisonType: "LE"
+        - name: "Cell Temperature Check (Ch3)"
+          step_type: "NumericLimitTest"
+          status: "passed"
+          total_time_in_seconds: 1.8
+          data:
+            parameters:
+              - name: "Cell Temp 3"
+                measurement: "38.9"
+                highLimit: "42.0"
+                units: "degC"
+                status: "Passed"
+                comparisonType: "LE"
+        - name: "Capacity Check"
+          step_type: "NumericLimitTest"
+          status: "passed"
+          total_time_in_seconds: 5.1
+          data:
+            parameters:
+              - name: "Capacity"
+                measurement: "50.8"
+                lowLimit: "49.0"
+                units: "Ah"
+                status: "Passed"
+                comparisonType: "GE"
+    id_reference: "tr_abc_tc01_c6"
+    tags: ["exercise-5-1-parametric-insights", "tc01"]
+
+  # ==========================================================================
+  # TEST RESULTS — MODEL ABC, TC-02 (6 weekly runs, Jan 7 – Feb 12 2026)
+  # Golden reference stand — all PASS, lowest temperatures and resistance
+  # ==========================================================================
+
+  - type: "test_result"
+    name: "Model ABC TC-02 Cycle 1"
+    properties:
+      program_name: "Thermal Cycle Test"
+      part_number: "BAT-MODEL-ABC-001"
+      serial_number: "BAT-SN-B01-20250915"
+      system_id: "${sys_tc02}"
+      operator: "M. Chen"
+      start_time: "2026-01-07T08:00:00Z"
+      status: "passed"
+      measurements:
+        cycle_count: "1"
+        cell_temperature_1_c: "36.5"
+        cell_temperature_2_c: "36.2"
+        cell_temperature_3_c: "36.8"
+        cell_temperature_4_c: "36.4"
+        ambient_temperature_c: "22.4"
+        terminal_voltage_v: "3.85"
+        charge_current_a: "1.46"
+        capacity_ah: "51.9"
+        internal_resistance_mohm: "11.8"
+        state_of_charge_pct: "99.9"
+      steps:
+        - name: "Internal Resistance Check"
+          step_type: "NumericLimitTest"
+          status: "passed"
+          total_time_in_seconds: 3.2
+          data:
+            parameters:
+              - name: "Internal Resistance"
+                measurement: "11.8"
+                highLimit: "20.0"
+                units: "mOhm"
+                status: "Passed"
+                comparisonType: "LE"
+        - name: "Cell Temperature Check (Ch3)"
+          step_type: "NumericLimitTest"
+          status: "passed"
+          total_time_in_seconds: 1.8
+          data:
+            parameters:
+              - name: "Cell Temp 3"
+                measurement: "36.8"
+                highLimit: "42.0"
+                units: "degC"
+                status: "Passed"
+                comparisonType: "LE"
+        - name: "Capacity Check"
+          step_type: "NumericLimitTest"
+          status: "passed"
+          total_time_in_seconds: 5.1
+          data:
+            parameters:
+              - name: "Capacity"
+                measurement: "51.9"
+                lowLimit: "49.0"
+                units: "Ah"
+                status: "Passed"
+                comparisonType: "GE"
+    id_reference: "tr_abc_tc02_c1"
+    tags: ["exercise-5-1-parametric-insights", "tc02"]
+
+  - type: "test_result"
+    name: "Model ABC TC-02 Cycle 2"
+    properties:
+      program_name: "Thermal Cycle Test"
+      part_number: "BAT-MODEL-ABC-001"
+      serial_number: "BAT-SN-B01-20250915"
+      system_id: "${sys_tc02}"
+      operator: "M. Chen"
+      start_time: "2026-01-14T08:00:00Z"
+      status: "passed"
+      measurements:
+        cycle_count: "2"
+        cell_temperature_1_c: "36.7"
+        cell_temperature_2_c: "36.4"
+        cell_temperature_3_c: "37.0"
+        cell_temperature_4_c: "36.6"
+        ambient_temperature_c: "22.5"
+        terminal_voltage_v: "3.84"
+        charge_current_a: "1.45"
+        capacity_ah: "51.8"
+        internal_resistance_mohm: "12.1"
+        state_of_charge_pct: "99.8"
+      steps:
+        - name: "Internal Resistance Check"
+          step_type: "NumericLimitTest"
+          status: "passed"
+          total_time_in_seconds: 3.2
+          data:
+            parameters:
+              - name: "Internal Resistance"
+                measurement: "12.1"
+                highLimit: "20.0"
+                units: "mOhm"
+                status: "Passed"
+                comparisonType: "LE"
+        - name: "Cell Temperature Check (Ch3)"
+          step_type: "NumericLimitTest"
+          status: "passed"
+          total_time_in_seconds: 1.8
+          data:
+            parameters:
+              - name: "Cell Temp 3"
+                measurement: "37.0"
+                highLimit: "42.0"
+                units: "degC"
+                status: "Passed"
+                comparisonType: "LE"
+        - name: "Capacity Check"
+          step_type: "NumericLimitTest"
+          status: "passed"
+          total_time_in_seconds: 5.1
+          data:
+            parameters:
+              - name: "Capacity"
+                measurement: "51.8"
+                lowLimit: "49.0"
+                units: "Ah"
+                status: "Passed"
+                comparisonType: "GE"
+    id_reference: "tr_abc_tc02_c2"
+    tags: ["exercise-5-1-parametric-insights", "tc02"]
+
+  - type: "test_result"
+    name: "Model ABC TC-02 Cycle 3"
+    properties:
+      program_name: "Thermal Cycle Test"
+      part_number: "BAT-MODEL-ABC-001"
+      serial_number: "BAT-SN-B01-20250915"
+      system_id: "${sys_tc02}"
+      operator: "M. Chen"
+      start_time: "2026-01-21T08:00:00Z"
+      status: "passed"
+      measurements:
+        cycle_count: "3"
+        cell_temperature_1_c: "36.9"
+        cell_temperature_2_c: "36.6"
+        cell_temperature_3_c: "37.2"
+        cell_temperature_4_c: "36.8"
+        ambient_temperature_c: "22.3"
+        terminal_voltage_v: "3.84"
+        charge_current_a: "1.45"
+        capacity_ah: "51.6"
+        internal_resistance_mohm: "12.4"
+        state_of_charge_pct: "99.7"
+      steps:
+        - name: "Internal Resistance Check"
+          step_type: "NumericLimitTest"
+          status: "passed"
+          total_time_in_seconds: 3.2
+          data:
+            parameters:
+              - name: "Internal Resistance"
+                measurement: "12.4"
+                highLimit: "20.0"
+                units: "mOhm"
+                status: "Passed"
+                comparisonType: "LE"
+        - name: "Cell Temperature Check (Ch3)"
+          step_type: "NumericLimitTest"
+          status: "passed"
+          total_time_in_seconds: 1.8
+          data:
+            parameters:
+              - name: "Cell Temp 3"
+                measurement: "37.2"
+                highLimit: "42.0"
+                units: "degC"
+                status: "Passed"
+                comparisonType: "LE"
+        - name: "Capacity Check"
+          step_type: "NumericLimitTest"
+          status: "passed"
+          total_time_in_seconds: 5.1
+          data:
+            parameters:
+              - name: "Capacity"
+                measurement: "51.6"
+                lowLimit: "49.0"
+                units: "Ah"
+                status: "Passed"
+                comparisonType: "GE"
+    id_reference: "tr_abc_tc02_c3"
+    tags: ["exercise-5-1-parametric-insights", "tc02"]
+
+  - type: "test_result"
+    name: "Model ABC TC-02 Cycle 4"
+    properties:
+      program_name: "Thermal Cycle Test"
+      part_number: "BAT-MODEL-ABC-001"
+      serial_number: "BAT-SN-B01-20250915"
+      system_id: "${sys_tc02}"
+      operator: "M. Chen"
+      start_time: "2026-01-29T08:00:00Z"
+      status: "passed"
+      measurements:
+        cycle_count: "4"
+        cell_temperature_1_c: "37.1"
+        cell_temperature_2_c: "36.8"
+        cell_temperature_3_c: "37.4"
+        cell_temperature_4_c: "37.0"
+        ambient_temperature_c: "22.6"
+        terminal_voltage_v: "3.83"
+        charge_current_a: "1.44"
+        capacity_ah: "51.4"
+        internal_resistance_mohm: "12.7"
+        state_of_charge_pct: "99.6"
+      steps:
+        - name: "Internal Resistance Check"
+          step_type: "NumericLimitTest"
+          status: "passed"
+          total_time_in_seconds: 3.2
+          data:
+            parameters:
+              - name: "Internal Resistance"
+                measurement: "12.7"
+                highLimit: "20.0"
+                units: "mOhm"
+                status: "Passed"
+                comparisonType: "LE"
+        - name: "Cell Temperature Check (Ch3)"
+          step_type: "NumericLimitTest"
+          status: "passed"
+          total_time_in_seconds: 1.8
+          data:
+            parameters:
+              - name: "Cell Temp 3"
+                measurement: "37.4"
+                highLimit: "42.0"
+                units: "degC"
+                status: "Passed"
+                comparisonType: "LE"
+        - name: "Capacity Check"
+          step_type: "NumericLimitTest"
+          status: "passed"
+          total_time_in_seconds: 5.1
+          data:
+            parameters:
+              - name: "Capacity"
+                measurement: "51.4"
+                lowLimit: "49.0"
+                units: "Ah"
+                status: "Passed"
+                comparisonType: "GE"
+    id_reference: "tr_abc_tc02_c4"
+    tags: ["exercise-5-1-parametric-insights", "tc02"]
+
+  - type: "test_result"
+    name: "Model ABC TC-02 Cycle 5"
+    properties:
+      program_name: "Thermal Cycle Test"
+      part_number: "BAT-MODEL-ABC-001"
+      serial_number: "BAT-SN-B01-20250915"
+      system_id: "${sys_tc02}"
+      operator: "M. Chen"
+      start_time: "2026-02-05T08:00:00Z"
+      status: "passed"
+      measurements:
+        cycle_count: "5"
+        cell_temperature_1_c: "37.3"
+        cell_temperature_2_c: "37.0"
+        cell_temperature_3_c: "37.6"
+        cell_temperature_4_c: "37.2"
+        ambient_temperature_c: "22.4"
+        terminal_voltage_v: "3.82"
+        charge_current_a: "1.44"
+        capacity_ah: "51.2"
+        internal_resistance_mohm: "13.0"
+        state_of_charge_pct: "99.5"
+      steps:
+        - name: "Internal Resistance Check"
+          step_type: "NumericLimitTest"
+          status: "passed"
+          total_time_in_seconds: 3.2
+          data:
+            parameters:
+              - name: "Internal Resistance"
+                measurement: "13.0"
+                highLimit: "20.0"
+                units: "mOhm"
+                status: "Passed"
+                comparisonType: "LE"
+        - name: "Cell Temperature Check (Ch3)"
+          step_type: "NumericLimitTest"
+          status: "passed"
+          total_time_in_seconds: 1.8
+          data:
+            parameters:
+              - name: "Cell Temp 3"
+                measurement: "37.6"
+                highLimit: "42.0"
+                units: "degC"
+                status: "Passed"
+                comparisonType: "LE"
+        - name: "Capacity Check"
+          step_type: "NumericLimitTest"
+          status: "passed"
+          total_time_in_seconds: 5.1
+          data:
+            parameters:
+              - name: "Capacity"
+                measurement: "51.2"
+                lowLimit: "49.0"
+                units: "Ah"
+                status: "Passed"
+                comparisonType: "GE"
+    id_reference: "tr_abc_tc02_c5"
+    tags: ["exercise-5-1-parametric-insights", "tc02"]
+
+  - type: "test_result"
+    name: "Model ABC TC-02 Cycle 6"
+    properties:
+      program_name: "Thermal Cycle Test"
+      part_number: "BAT-MODEL-ABC-001"
+      serial_number: "BAT-SN-B01-20250915"
+      system_id: "${sys_tc02}"
+      operator: "M. Chen"
+      start_time: "2026-02-12T08:00:00Z"
+      status: "passed"
+      measurements:
+        cycle_count: "6"
+        cell_temperature_1_c: "37.5"
+        cell_temperature_2_c: "37.2"
+        cell_temperature_3_c: "37.8"
+        cell_temperature_4_c: "37.4"
+        ambient_temperature_c: "22.5"
+        terminal_voltage_v: "3.81"
+        charge_current_a: "1.43"
+        capacity_ah: "51.0"
+        internal_resistance_mohm: "13.3"
+        state_of_charge_pct: "99.4"
+      steps:
+        - name: "Internal Resistance Check"
+          step_type: "NumericLimitTest"
+          status: "passed"
+          total_time_in_seconds: 3.2
+          data:
+            parameters:
+              - name: "Internal Resistance"
+                measurement: "13.3"
+                highLimit: "20.0"
+                units: "mOhm"
+                status: "Passed"
+                comparisonType: "LE"
+        - name: "Cell Temperature Check (Ch3)"
+          step_type: "NumericLimitTest"
+          status: "passed"
+          total_time_in_seconds: 1.8
+          data:
+            parameters:
+              - name: "Cell Temp 3"
+                measurement: "37.8"
+                highLimit: "42.0"
+                units: "degC"
+                status: "Passed"
+                comparisonType: "LE"
+        - name: "Capacity Check"
+          step_type: "NumericLimitTest"
+          status: "passed"
+          total_time_in_seconds: 5.1
+          data:
+            parameters:
+              - name: "Capacity"
+                measurement: "51.0"
+                lowLimit: "49.0"
+                units: "Ah"
+                status: "Passed"
+                comparisonType: "GE"
+    id_reference: "tr_abc_tc02_c6"
+    tags: ["exercise-5-1-parametric-insights", "tc02"]
+
+  # ==========================================================================
+  # TEST RESULTS — MODEL ABC, TC-03 (6 weekly runs, Jan 8 – Feb 13 2026)
+  # Notable: TC-03 runs ~3-4 °C warmer (calibration offset).
+  # Run 4 (Jan 30) FAILS: cell_temperature_3_c spikes to 44.8 °C (spec: max 42 °C)
+  # Stand recalibrated before Run 5.
+  # ==========================================================================
+
+  - type: "test_result"
+    name: "Model ABC TC-03 Cycle 1"
+    properties:
+      program_name: "Thermal Cycle Test"
+      part_number: "BAT-MODEL-ABC-001"
+      serial_number: "BAT-SN-C01-20250915"
+      system_id: "${sys_tc03}"
+      operator: "R. Okonkwo"
+      start_time: "2026-01-08T08:00:00Z"
+      status: "passed"
+      measurements:
+        cycle_count: "1"
+        cell_temperature_1_c: "40.1"
+        cell_temperature_2_c: "39.8"
+        cell_temperature_3_c: "40.4"
+        cell_temperature_4_c: "40.0"
+        ambient_temperature_c: "22.6"
+        terminal_voltage_v: "3.84"
+        charge_current_a: "1.44"
+        capacity_ah: "51.7"
+        internal_resistance_mohm: "12.5"
+        state_of_charge_pct: "99.7"
+      steps:
+        - name: "Internal Resistance Check"
+          step_type: "NumericLimitTest"
+          status: "passed"
+          total_time_in_seconds: 3.2
+          data:
+            parameters:
+              - name: "Internal Resistance"
+                measurement: "12.5"
+                highLimit: "20.0"
+                units: "mOhm"
+                status: "Passed"
+                comparisonType: "LE"
+        - name: "Cell Temperature Check (Ch3)"
+          step_type: "NumericLimitTest"
+          status: "passed"
+          total_time_in_seconds: 1.8
+          data:
+            parameters:
+              - name: "Cell Temp 3"
+                measurement: "40.4"
+                highLimit: "42.0"
+                units: "degC"
+                status: "Passed"
+                comparisonType: "LE"
+        - name: "Capacity Check"
+          step_type: "NumericLimitTest"
+          status: "passed"
+          total_time_in_seconds: 5.1
+          data:
+            parameters:
+              - name: "Capacity"
+                measurement: "51.7"
+                lowLimit: "49.0"
+                units: "Ah"
+                status: "Passed"
+                comparisonType: "GE"
+    id_reference: "tr_abc_tc03_c1"
+    tags: ["exercise-5-1-parametric-insights", "tc03"]
+
+  - type: "test_result"
+    name: "Model ABC TC-03 Cycle 2"
+    properties:
+      program_name: "Thermal Cycle Test"
+      part_number: "BAT-MODEL-ABC-001"
+      serial_number: "BAT-SN-C01-20250915"
+      system_id: "${sys_tc03}"
+      operator: "R. Okonkwo"
+      start_time: "2026-01-15T08:00:00Z"
+      status: "passed"
+      measurements:
+        cycle_count: "2"
+        cell_temperature_1_c: "40.3"
+        cell_temperature_2_c: "40.0"
+        cell_temperature_3_c: "40.6"
+        cell_temperature_4_c: "40.2"
+        ambient_temperature_c: "22.4"
+        terminal_voltage_v: "3.83"
+        charge_current_a: "1.44"
+        capacity_ah: "51.5"
+        internal_resistance_mohm: "12.9"
+        state_of_charge_pct: "99.6"
+      steps:
+        - name: "Internal Resistance Check"
+          step_type: "NumericLimitTest"
+          status: "passed"
+          total_time_in_seconds: 3.2
+          data:
+            parameters:
+              - name: "Internal Resistance"
+                measurement: "12.9"
+                highLimit: "20.0"
+                units: "mOhm"
+                status: "Passed"
+                comparisonType: "LE"
+        - name: "Cell Temperature Check (Ch3)"
+          step_type: "NumericLimitTest"
+          status: "passed"
+          total_time_in_seconds: 1.8
+          data:
+            parameters:
+              - name: "Cell Temp 3"
+                measurement: "40.6"
+                highLimit: "42.0"
+                units: "degC"
+                status: "Passed"
+                comparisonType: "LE"
+        - name: "Capacity Check"
+          step_type: "NumericLimitTest"
+          status: "passed"
+          total_time_in_seconds: 5.1
+          data:
+            parameters:
+              - name: "Capacity"
+                measurement: "51.5"
+                lowLimit: "49.0"
+                units: "Ah"
+                status: "Passed"
+                comparisonType: "GE"
+    id_reference: "tr_abc_tc03_c2"
+    tags: ["exercise-5-1-parametric-insights", "tc03"]
+
+  - type: "test_result"
+    name: "Model ABC TC-03 Cycle 3"
+    properties:
+      program_name: "Thermal Cycle Test"
+      part_number: "BAT-MODEL-ABC-001"
+      serial_number: "BAT-SN-C01-20250915"
+      system_id: "${sys_tc03}"
+      operator: "R. Okonkwo"
+      start_time: "2026-01-22T08:00:00Z"
+      status: "passed"
+      measurements:
+        cycle_count: "3"
+        cell_temperature_1_c: "40.5"
+        cell_temperature_2_c: "40.2"
+        cell_temperature_3_c: "40.9"
+        cell_temperature_4_c: "40.4"
+        ambient_temperature_c: "22.7"
+        terminal_voltage_v: "3.82"
+        charge_current_a: "1.43"
+        capacity_ah: "51.3"
+        internal_resistance_mohm: "13.4"
+        state_of_charge_pct: "99.5"
+      steps:
+        - name: "Internal Resistance Check"
+          step_type: "NumericLimitTest"
+          status: "passed"
+          total_time_in_seconds: 3.2
+          data:
+            parameters:
+              - name: "Internal Resistance"
+                measurement: "13.4"
+                highLimit: "20.0"
+                units: "mOhm"
+                status: "Passed"
+                comparisonType: "LE"
+        - name: "Cell Temperature Check (Ch3)"
+          step_type: "NumericLimitTest"
+          status: "passed"
+          total_time_in_seconds: 1.8
+          data:
+            parameters:
+              - name: "Cell Temp 3"
+                measurement: "40.9"
+                highLimit: "42.0"
+                units: "degC"
+                status: "Passed"
+                comparisonType: "LE"
+        - name: "Capacity Check"
+          step_type: "NumericLimitTest"
+          status: "passed"
+          total_time_in_seconds: 5.1
+          data:
+            parameters:
+              - name: "Capacity"
+                measurement: "51.3"
+                lowLimit: "49.0"
+                units: "Ah"
+                status: "Passed"
+                comparisonType: "GE"
+    id_reference: "tr_abc_tc03_c3"
+    tags: ["exercise-5-1-parametric-insights", "tc03"]
+
+  # TC-03 Cycle 4 — FAIL: cell_temperature_3_c spike (44.8 °C exceeds 42 °C spec)
+  - type: "test_result"
+    name: "Model ABC TC-03 Cycle 4"
+    properties:
+      program_name: "Thermal Cycle Test"
+      part_number: "BAT-MODEL-ABC-001"
+      serial_number: "BAT-SN-C01-20250915"
+      system_id: "${sys_tc03}"
+      operator: "R. Okonkwo"
+      start_time: "2026-01-30T08:00:00Z"
+      status: "failed"
+      measurements:
+        cycle_count: "4"
+        cell_temperature_1_c: "41.2"
+        cell_temperature_2_c: "40.9"
+        cell_temperature_3_c: "44.8"
+        cell_temperature_4_c: "41.0"
+        ambient_temperature_c: "22.5"
+        terminal_voltage_v: "3.80"
+        charge_current_a: "1.42"
+        capacity_ah: "51.0"
+        internal_resistance_mohm: "14.8"
+        state_of_charge_pct: "99.3"
+      steps:
+        - name: "Internal Resistance Check"
+          step_type: "NumericLimitTest"
+          status: "passed"
+          total_time_in_seconds: 3.2
+          data:
+            parameters:
+              - name: "Internal Resistance"
+                measurement: "14.8"
+                highLimit: "20.0"
+                units: "mOhm"
+                status: "Passed"
+                comparisonType: "LE"
+        - name: "Cell Temperature Check (Ch3)"
+          step_type: "NumericLimitTest"
+          status: "failed"
+          total_time_in_seconds: 1.8
+          data:
+            parameters:
+              - name: "Cell Temp 3"
+                measurement: "44.8"
+                highLimit: "42.0"
+                units: "degC"
+                status: "Failed"
+                comparisonType: "LE"
+        - name: "Capacity Check"
+          step_type: "NumericLimitTest"
+          status: "passed"
+          total_time_in_seconds: 5.1
+          data:
+            parameters:
+              - name: "Capacity"
+                measurement: "51.0"
+                lowLimit: "49.0"
+                units: "Ah"
+                status: "Passed"
+                comparisonType: "GE"
+    id_reference: "tr_abc_tc03_c4"
+    tags: ["exercise-5-1-parametric-insights", "tc03"]
+
+  # TC-03 Cycle 5 — PASS after stand recalibration
+  - type: "test_result"
+    name: "Model ABC TC-03 Cycle 5"
+    properties:
+      program_name: "Thermal Cycle Test"
+      part_number: "BAT-MODEL-ABC-001"
+      serial_number: "BAT-SN-C01-20250915"
+      system_id: "${sys_tc03}"
+      operator: "R. Okonkwo"
+      start_time: "2026-02-06T08:00:00Z"
+      status: "passed"
+      measurements:
+        cycle_count: "5"
+        cell_temperature_1_c: "40.7"
+        cell_temperature_2_c: "40.4"
+        cell_temperature_3_c: "41.0"
+        cell_temperature_4_c: "40.6"
+        ambient_temperature_c: "22.8"
+        terminal_voltage_v: "3.81"
+        charge_current_a: "1.43"
+        capacity_ah: "51.1"
+        internal_resistance_mohm: "13.8"
+        state_of_charge_pct: "99.4"
+      steps:
+        - name: "Internal Resistance Check"
+          step_type: "NumericLimitTest"
+          status: "passed"
+          total_time_in_seconds: 3.2
+          data:
+            parameters:
+              - name: "Internal Resistance"
+                measurement: "13.8"
+                highLimit: "20.0"
+                units: "mOhm"
+                status: "Passed"
+                comparisonType: "LE"
+        - name: "Cell Temperature Check (Ch3)"
+          step_type: "NumericLimitTest"
+          status: "passed"
+          total_time_in_seconds: 1.8
+          data:
+            parameters:
+              - name: "Cell Temp 3"
+                measurement: "41.0"
+                highLimit: "42.0"
+                units: "degC"
+                status: "Passed"
+                comparisonType: "LE"
+        - name: "Capacity Check"
+          step_type: "NumericLimitTest"
+          status: "passed"
+          total_time_in_seconds: 5.1
+          data:
+            parameters:
+              - name: "Capacity"
+                measurement: "51.1"
+                lowLimit: "49.0"
+                units: "Ah"
+                status: "Passed"
+                comparisonType: "GE"
+    id_reference: "tr_abc_tc03_c5"
+    tags: ["exercise-5-1-parametric-insights", "tc03"]
+
+  - type: "test_result"
+    name: "Model ABC TC-03 Cycle 6"
+    properties:
+      program_name: "Thermal Cycle Test"
+      part_number: "BAT-MODEL-ABC-001"
+      serial_number: "BAT-SN-C01-20250915"
+      system_id: "${sys_tc03}"
+      operator: "R. Okonkwo"
+      start_time: "2026-02-13T08:00:00Z"
+      status: "passed"
+      measurements:
+        cycle_count: "6"
+        cell_temperature_1_c: "40.9"
+        cell_temperature_2_c: "40.6"
+        cell_temperature_3_c: "41.2"
+        cell_temperature_4_c: "40.8"
+        ambient_temperature_c: "22.6"
+        terminal_voltage_v: "3.80"
+        charge_current_a: "1.42"
+        capacity_ah: "51.0"
+        internal_resistance_mohm: "14.1"
+        state_of_charge_pct: "99.3"
+      steps:
+        - name: "Internal Resistance Check"
+          step_type: "NumericLimitTest"
+          status: "passed"
+          total_time_in_seconds: 3.2
+          data:
+            parameters:
+              - name: "Internal Resistance"
+                measurement: "14.1"
+                highLimit: "20.0"
+                units: "mOhm"
+                status: "Passed"
+                comparisonType: "LE"
+        - name: "Cell Temperature Check (Ch3)"
+          step_type: "NumericLimitTest"
+          status: "passed"
+          total_time_in_seconds: 1.8
+          data:
+            parameters:
+              - name: "Cell Temp 3"
+                measurement: "41.2"
+                highLimit: "42.0"
+                units: "degC"
+                status: "Passed"
+                comparisonType: "LE"
+        - name: "Capacity Check"
+          step_type: "NumericLimitTest"
+          status: "passed"
+          total_time_in_seconds: 5.1
+          data:
+            parameters:
+              - name: "Capacity"
+                measurement: "51.0"
+                lowLimit: "49.0"
+                units: "Ah"
+                status: "Passed"
+                comparisonType: "GE"
+    id_reference: "tr_abc_tc03_c6"
+    tags: ["exercise-5-1-parametric-insights", "tc03"]
+
+  # ==========================================================================
+  # TEST RESULTS — MODEL XYZ (4 results — distractor product)
+  # Capacitor bank acceptance testing on TC-01 and TC-02
+  # ==========================================================================
+
+  - type: "test_result"
+    name: "Model XYZ TC-01 Acceptance Run 1"
+    properties:
+      program_name: "Capacitor Bank Acceptance Test"
+      part_number: "POW-MODEL-XYZ-002"
+      serial_number: "XYZ-SN-001-20260110"
+      system_id: "${sys_tc01}"
+      operator: "J. Santos"
+      start_time: "2026-01-09T10:00:00Z"
+      status: "passed"
+      measurements:
+        voltage_hold_time_s: "302.4"
+        leakage_current_ua: "18.2"
+        esr_mohm: "3.1"
+        max_voltage_v: "51.8"
+        capacitance_f: "125.4"
+    id_reference: "tr_xyz_tc01_r1"
+    tags: ["exercise-5-1-parametric-insights", "xyz"]
+
+  - type: "test_result"
+    name: "Model XYZ TC-02 Acceptance Run 2"
+    properties:
+      program_name: "Capacitor Bank Acceptance Test"
+      part_number: "POW-MODEL-XYZ-002"
+      serial_number: "XYZ-SN-001-20260110"
+      system_id: "${sys_tc02}"
+      operator: "M. Chen"
+      start_time: "2026-01-23T10:00:00Z"
+      status: "passed"
+      measurements:
+        voltage_hold_time_s: "305.1"
+        leakage_current_ua: "17.9"
+        esr_mohm: "3.0"
+        max_voltage_v: "51.9"
+        capacitance_f: "125.7"
+    id_reference: "tr_xyz_tc02_r2"
+    tags: ["exercise-5-1-parametric-insights", "xyz"]
+
+  - type: "test_result"
+    name: "Model XYZ TC-01 Acceptance Run 3"
+    properties:
+      program_name: "Capacitor Bank Acceptance Test"
+      part_number: "POW-MODEL-XYZ-002"
+      serial_number: "XYZ-SN-001-20260110"
+      system_id: "${sys_tc01}"
+      operator: "J. Santos"
+      start_time: "2026-02-03T10:00:00Z"
+      status: "passed"
+      measurements:
+        voltage_hold_time_s: "301.8"
+        leakage_current_ua: "18.5"
+        esr_mohm: "3.2"
+        max_voltage_v: "51.7"
+        capacitance_f: "124.9"
+    id_reference: "tr_xyz_tc01_r3"
+    tags: ["exercise-5-1-parametric-insights", "xyz"]
+
+  - type: "test_result"
+    name: "Model XYZ TC-02 Acceptance Run 4"
+    properties:
+      program_name: "Capacitor Bank Acceptance Test"
+      part_number: "POW-MODEL-XYZ-002"
+      serial_number: "XYZ-SN-001-20260110"
+      system_id: "${sys_tc02}"
+      operator: "M. Chen"
+      start_time: "2026-02-16T10:00:00Z"
+      status: "passed"
+      measurements:
+        voltage_hold_time_s: "303.6"
+        leakage_current_ua: "18.0"
+        esr_mohm: "3.1"
+        max_voltage_v: "51.8"
+        capacitance_f: "125.2"
+    id_reference: "tr_xyz_tc02_r4"
+    tags: ["exercise-5-1-parametric-insights", "xyz"]
+
+  # ==========================================================================
+  # TEST RESULTS — MODEL ABC REV B (3 results — distractor product)
+  # Prototype qualification on TC-02; improved design shows lower resistance
+  # ==========================================================================
+
+  - type: "test_result"
+    name: "Model ABC Rev B TC-02 Qual Run 1"
+    properties:
+      program_name: "Thermal Cycle Test"
+      part_number: "BAT-MODEL-ABC-REV-B"
+      serial_number: "ABC-REVB-SN-001-20260112"
+      system_id: "${sys_tc02}"
+      operator: "M. Chen"
+      start_time: "2026-01-12T09:00:00Z"
+      status: "passed"
+      measurements:
+        cycle_count: "1"
+        cell_temperature_1_c: "35.9"
+        cell_temperature_2_c: "35.6"
+        cell_temperature_3_c: "36.2"
+        cell_temperature_4_c: "35.8"
+        ambient_temperature_c: "22.5"
+        terminal_voltage_v: "3.86"
+        charge_current_a: "1.47"
+        capacity_ah: "52.4"
+        internal_resistance_mohm: "9.8"
+        state_of_charge_pct: "100.0"
+    id_reference: "tr_abc_revb_c1"
+    tags: ["exercise-5-1-parametric-insights", "revb"]
+
+  - type: "test_result"
+    name: "Model ABC Rev B TC-02 Qual Run 2"
+    properties:
+      program_name: "Thermal Cycle Test"
+      part_number: "BAT-MODEL-ABC-REV-B"
+      serial_number: "ABC-REVB-SN-001-20260112"
+      system_id: "${sys_tc02}"
+      operator: "M. Chen"
+      start_time: "2026-01-26T09:00:00Z"
+      status: "passed"
+      measurements:
+        cycle_count: "2"
+        cell_temperature_1_c: "36.1"
+        cell_temperature_2_c: "35.8"
+        cell_temperature_3_c: "36.4"
+        cell_temperature_4_c: "36.0"
+        ambient_temperature_c: "22.4"
+        terminal_voltage_v: "3.85"
+        charge_current_a: "1.47"
+        capacity_ah: "52.3"
+        internal_resistance_mohm: "10.1"
+        state_of_charge_pct: "100.0"
+    id_reference: "tr_abc_revb_c2"
+    tags: ["exercise-5-1-parametric-insights", "revb"]
+
+  - type: "test_result"
+    name: "Model ABC Rev B TC-02 Qual Run 3"
+    properties:
+      program_name: "Thermal Cycle Test"
+      part_number: "BAT-MODEL-ABC-REV-B"
+      serial_number: "ABC-REVB-SN-001-20260112"
+      system_id: "${sys_tc02}"
+      operator: "M. Chen"
+      start_time: "2026-02-09T09:00:00Z"
+      status: "passed"
+      measurements:
+        cycle_count: "3"
+        cell_temperature_1_c: "36.3"
+        cell_temperature_2_c: "36.0"
+        cell_temperature_3_c: "36.6"
+        cell_temperature_4_c: "36.2"
+        ambient_temperature_c: "22.6"
+        terminal_voltage_v: "3.85"
+        charge_current_a: "1.46"
+        capacity_ah: "52.2"
+        internal_resistance_mohm: "10.4"
+        state_of_charge_pct: "99.9"
+    id_reference: "tr_abc_revb_c3"
+    tags: ["exercise-5-1-parametric-insights", "revb"]
+
+  # ==========================================================================
+  # INCOMPLETE RESULTS — simulate interrupted or aborted runs (for realism)
+  # Students will see these in the results list; they have no measurement data.
+  # ==========================================================================
+
+  - type: "test_result"
+    name: "Model ABC TC-01 Aborted Run (connection lost)"
+    properties:
+      program_name: "Thermal Cycle Test"
+      part_number: "BAT-MODEL-ABC-001"
+      serial_number: "BAT-SN-A01-20250915"
+      system_id: "${sys_tc01}"
+      operator: "J. Santos"
+      start_time: "2026-02-15T08:00:00Z"
+      status: "failed"
+    id_reference: "tr_abc_tc01_aborted"
+    tags: ["exercise-5-1-parametric-insights", "tc01"]
+
+  - type: "test_result"
+    name: "Model ABC TC-03 Aborted Run (power outage)"
+    properties:
+      program_name: "Thermal Cycle Test"
+      part_number: "BAT-MODEL-ABC-001"
+      serial_number: "BAT-SN-C01-20250915"
+      system_id: "${sys_tc03}"
+      operator: "R. Okonkwo"
+      start_time: "2026-02-16T08:00:00Z"
+      status: "failed"
+    id_reference: "tr_abc_tc03_aborted"
+    tags: ["exercise-5-1-parametric-insights", "tc03"]
+
+  - type: "test_result"
+    name: "Model ABC TC-02 Aborted Run (operator cancelled)"
+    properties:
+      program_name: "Thermal Cycle Test"
+      part_number: "BAT-MODEL-ABC-001"
+      serial_number: "BAT-SN-B01-20250915"
+      system_id: "${sys_tc02}"
+      operator: "M. Chen"
+      start_time: "2026-02-17T08:00:00Z"
+      status: "skipped"
+    id_reference: "tr_abc_tc02_aborted"
+    tags: ["exercise-5-1-parametric-insights", "tc02"]
+
+cleanup:
+  order:
+    - "test_result"
+    - "dut"
+    - "system"
+    - "product"
+    - "location"
+  filter_tags: ["exercise-5-1-parametric-insights"]
+  require_confirmation: true
+
+validation:
+  require_workspace: true
+
+post_install:
+  instructions: |
+    ✓ Exercise 5-1 training data installed successfully!
+
+    Resources created:
+    - 1 location:              Battery Testing Lab
+    - 3 products:              Model ABC (primary), Model XYZ, Model ABC Rev B
+    - 3 test systems:          TC-01, TC-02, TC-03
+    - 5 DUTs:                  BAT-DUT-A01/B01/C01, XYZ-DUT-001, ABC-REVB-DUT-001
+    - 18 test results:         Model ABC (6 per stand, Jan 6 – Feb 13 2026)
+    -  4 test results:         Model XYZ (acceptance tests)
+    -  3 test results:         Model ABC Rev B (qualification)
+    -  3 incomplete results:   Aborted/skipped runs for realism
+
+    Data highlights for student discovery:
+    - TC-03 cell temperatures run ~3-4 °C warmer than TC-01/TC-02 (calibration offset)
+    - TC-01 Cycle 5 (Feb 4): internal_resistance_mohm = 21.4 → FAIL
+    - TC-03 Cycle 4 (Jan 30): cell_temperature_3_c = 44.8 → FAIL
+    - Capacity and voltage show a slow downward trend across all three stands
+
+    Next steps:
+    1. Open Test Insights > Products in the SystemLink web interface
+    2. Locate "Model ABC" (part number BAT-MODEL-ABC-001)
+    3. Follow the exercise steps in:
+       Exercise 5-1 - Searching and Retrieving Product Data for Insights.md
