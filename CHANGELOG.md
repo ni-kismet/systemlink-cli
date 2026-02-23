@@ -1,12 +1,25 @@
 # CHANGELOG
 
 
+## v0.31.9 (2026-02-23)
+
+### Bug Fixes
+
+- Add exercise 5-1 example ([#64](https://github.com/ni-kismet/systemlink-cli/pull/64),
+  [`f109ce8`](https://github.com/ni-kismet/systemlink-cli/commit/f109ce8df3975312626444f07c8c7acb76c60b8c))
+
+
 ## v0.31.8 (2026-02-19)
 
 ### Bug Fixes
 
 - Tag datatype detection
   ([`f1f090a`](https://github.com/ni-kismet/systemlink-cli/commit/f1f090a3c8d8a11e0f3fac54f915500b48b249ba))
+
+### Chores
+
+- **release**: 0.31.8
+  ([`c03881d`](https://github.com/ni-kismet/systemlink-cli/commit/c03881d794fd4318228a6030d2e375fbff9b9029))
 
 
 ## v0.31.7 (2026-02-19)

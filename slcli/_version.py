@@ -1,4 +1,4 @@
 """Version information for slcli."""
 
 # This file is auto-generated. Do not edit manually.
-__version__ = "0.31.8"
+__version__ = "0.31.9"
