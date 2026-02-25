@@ -9,6 +9,7 @@ import keyring
 import tomllib
 
 from .asset_click import register_asset_commands
+from .comment_click import register_comment_commands
 from .completion_click import register_completion_command
 from .config_click import register_config_commands
 from .dff_click import register_dff_commands
@@ -370,6 +371,7 @@ def info(format: str) -> None:
 
 register_completion_command(cli)
 register_asset_commands(cli)
+register_comment_commands(cli)
 register_dff_commands(cli)
 register_config_commands(cli)
 register_example_commands(cli)

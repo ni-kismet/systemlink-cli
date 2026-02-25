@@ -69,6 +69,7 @@ def mock_network_calls(monkeypatch: pytest.MonkeyPatch) -> None:
     # These need to be patched because they bind the function at import time
     modules_with_workspace_map = [
         "slcli.asset_click",
+        "slcli.comment_click",
         "slcli.dff_click",
         "slcli.example_click",
         "slcli.feed_click",
@@ -99,4 +100,5 @@ def mock_network_calls(monkeypatch: pytest.MonkeyPatch) -> None:
     monkeypatch.setattr("requests.get", mock_requests_method)
     monkeypatch.setattr("requests.post", mock_requests_method)
     monkeypatch.setattr("requests.put", mock_requests_method)
+    monkeypatch.setattr("requests.patch", mock_requests_method)
     monkeypatch.setattr("requests.delete", mock_requests_method)

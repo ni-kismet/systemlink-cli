@@ -54,6 +54,13 @@ openpyxl = "^3.1.5"
 [tool.pytest.ini_options]
 addopts = "--cov slcli --strict-markers --doctest-modules --ignore=tests/e2e"
 testpaths = ["tests/unit"]
+filterwarnings = [
+    # E2E tests invoke slcli as a subprocess so no in-process Python code runs;
+    # coverage collects nothing and emits this warning.  It is expected and safe
+    # to suppress it here — the warning is also harmless for regular unit runs
+    # because unit tests always produce coverage data.
+    "ignore:No data was collected:Warning",
+]
 markers = [
     "e2e: marks tests as end-to-end tests (not run by default)",
     "slow: marks tests as slow running",
@@ -63,7 +70,8 @@ markers = [
     "user: marks tests as user management related",
     "sls: marks tests as SystemLink Server specific",
     "sle: marks tests as SystemLink Enterprise specific",
-    "file: marks tests as file service related"
+    "file: marks tests as file service related",
+    "comment: marks tests as comment management related"
 ]
 
 [tool.black]

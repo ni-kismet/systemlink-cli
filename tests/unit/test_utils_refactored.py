@@ -1,5 +1,9 @@
 """Tests for refactored utility functions."""
 
+import json
+from typing import Any
+from unittest.mock import MagicMock, patch
+
 from slcli.utils import sanitize_filename, extract_error_type, parse_inner_errors
 
 
@@ -72,3 +76,52 @@ def test_parse_inner_errors_empty() -> None:
     """Test parsing empty inner errors list."""
     result = parse_inner_errors([])
     assert result == []
+
+
+class TestMakeApiRequestHttpMethods:
+    """Tests for make_api_request HTTP method dispatch."""
+
+    def _patch_keyring(self, monkeypatch: Any) -> None:
+        """Patch keyring to return a minimal config."""
+        import keyring
+
+        config = {"api_url": "http://localhost:8000", "api_key": "dummy-key", "platform": "SLE"}
+
+        monkeypatch.setattr(
+            keyring,
+            "get_password",
+            lambda *a, **kw: json.dumps(config),
+        )
+
+    def test_patch_method_dispatches_to_requests_patch(self, monkeypatch: Any) -> None:
+        """make_api_request with PATCH calls requests.patch."""
+        self._patch_keyring(monkeypatch)
+
+        mock_response = MagicMock()
+        mock_response.raise_for_status = MagicMock()
+
+        with patch("requests.patch", return_value=mock_response) as mock_patch:
+            from slcli.utils import make_api_request
+
+            result = make_api_request("PATCH", "http://localhost:8000/api/v1/resource/1")
+
+        mock_patch.assert_called_once()
+        call_kwargs = mock_patch.call_args
+        assert call_kwargs[0][0] == "http://localhost:8000/api/v1/resource/1"
+        assert result is mock_response
+
+    def test_patch_method_sends_payload(self, monkeypatch: Any) -> None:
+        """make_api_request with PATCH forwards the JSON payload."""
+        self._patch_keyring(monkeypatch)
+
+        mock_response = MagicMock()
+        mock_response.raise_for_status = MagicMock()
+        payload = {"message": "updated text"}
+
+        with patch("requests.patch", return_value=mock_response) as mock_patch:
+            from slcli.utils import make_api_request
+
+            make_api_request("PATCH", "http://localhost:8000/api/v1/resource/1", payload=payload)
+
+        _, call_kwargs = mock_patch.call_args
+        assert call_kwargs.get("json") == payload
