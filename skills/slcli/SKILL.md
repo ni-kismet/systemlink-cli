@@ -189,6 +189,61 @@ slcli tag create --path <PATH> --data-type <TYPE>
 slcli tag delete <TAG_PATH>
 ```
 
+### comment — Resource comments
+
+Attach, edit, and remove comments on any SystemLink resource. User IDs in responses
+are automatically resolved to display names.
+
+```bash
+# List comments for a resource (most recent 1000, ordered by creation time)
+slcli comment list --resource-type <TYPE> --resource-id <ID> [-f json]
+
+# Supported resource types
+#   testmonitor:Result   Test Monitor results
+#   niapm:Asset          Assets
+#   nisysmgmt:System     Systems
+#   workorder:workorder  Work Orders
+#   workitem:workitem    Work Items
+#   DataSpace            Data Spaces
+
+# Short aliases: -r for --resource-type, -i for --resource-id
+slcli comment list -r testmonitor:Result -i <RESULT_ID>
+slcli comment list -r niapm:Asset -i <ASSET_ID> -f json
+
+# Add a comment to a resource
+slcli comment add \
+  --resource-type <TYPE> \
+  --resource-id <ID> \
+  --workspace <WORKSPACE_NAME_OR_ID> \
+  --message "Comment text (supports Markdown)"
+
+# Optionally mention users in a comment.
+# Mentions require ALL of the following:
+#   1. A <user:USER_ID> tag embedded in the --message body for each mentioned user
+#   2. The same user ID(s) passed to --mention (one flag per user)
+#   3. --resource-name / -n   human-readable resource name (for the email)
+#   4. --resource-type / -r   resource type (auto-mapped to display name for email)
+#   5. --comment-url / -u     URL to the comment in the UI (for the email)
+slcli comment add -r testmonitor:Result -i <ID> -w default \
+  -n "Result #1234" \
+  -u "https://<server>/nitestmonitor/results/<ID>" \
+  -m "See findings: <user:f9d5c5c9-e098-4a82-8e55-fede326a4ec3>" \
+  --mention f9d5c5c9-e098-4a82-8e55-fede326a4ec3
+
+# Update an existing comment (replaces message and mention list entirely)
+# Same mention requirements apply
+slcli comment update <COMMENT_ID> --message "Revised text"
+slcli comment update <COMMENT_ID> \
+  -m "FYI: <user:f9d5c5c9-e098-4a82-8e55-fede326a4ec3>" \
+  -n "My Result" -r testmonitor:Result \
+  -u "https://<server>/nitestmonitor/results/<ID>" \
+  --mention f9d5c5c9-e098-4a82-8e55-fede326a4ec3
+
+# Delete one or more comments by ID (up to 1000 per call)
+slcli comment delete <COMMENT_ID>
+slcli comment delete <ID1> <ID2> <ID3>
+```
+
 ### workspace — Workspace management
 
 ```bash

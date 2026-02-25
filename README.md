@@ -367,6 +367,91 @@ slcli asset delete <asset-id>
 slcli asset delete <asset-id> --force
 ```
 
+## Comment Management
+
+Manage comments on any SystemLink resource via the Comments service. Comments
+support Markdown formatting and user @-mentions with email notifications.
+
+**Supported resource types:**
+
+| Resource Type         | Service              |
+| --------------------- | -------------------- |
+| `testmonitor:Result`  | Test Monitor results |
+| `niapm:Asset`         | Assets               |
+| `nisysmgmt:System`    | Systems              |
+| `workorder:workorder` | Work Orders          |
+| `workitem:workitem`   | Work Items           |
+| `DataSpace`           | Data Spaces          |
+
+### List Comments
+
+```bash
+# List comments on a Test Monitor result (table format)
+slcli comment list --resource-type testmonitor:Result --resource-id <result-id>
+
+# List comments on an asset
+slcli comment list -r niapm:Asset -i <asset-id>
+
+# JSON output (returns all comments, no pagination limit)
+slcli comment list -r testmonitor:Result -i <result-id> --format json
+```
+
+### Add a Comment
+
+```bash
+# Add a plain comment (workspace name or ID accepted)
+slcli comment add \
+  --resource-type testmonitor:Result \
+  --resource-id <result-id> \
+  --workspace "My Workspace" \
+  --message "Calibration looks good. Approved."
+
+# Mention a user
+# 1. Embed a <user:USER_ID> tag in the message body
+# 2. Pass the same user ID to --mention
+# 3. Also supply --resource-name (-n), --comment-url (-u) — required by the API
+#    for the notification email
+slcli comment add \
+  -r niapm:Asset \
+  -i <asset-id> \
+  -w default \
+  -n "My Asset Name" \
+  -u "https://<server>/niworkorder/work-orders/<id>" \
+  -m "Please review: <user:f9d5c5c9-e098-4a82-8e55-fede326a4ec3>" \
+  --mention f9d5c5c9-e098-4a82-8e55-fede326a4ec3
+
+# Multiple mentions — one --mention flag per user ID, one <user:USER_ID> tag per mention
+slcli comment add -r nisysmgmt:System -i <system-id> -w default \
+  --message "## Issue Found\n\nSystem offline since **Monday**. Needs attention."
+```
+
+### Update a Comment
+
+```bash
+# Update your own comment's message
+slcli comment update <comment-id> --message "Revised: calibration is out of spec."
+
+# Mention a user in an update
+# 1. Embed a <user:USER_ID> tag in the new message body
+# 2. Pass the same user ID to --mention
+# 3. Also supply --resource-name (-n), --resource-type (-r), --comment-url (-u)
+slcli comment update <comment-id> \
+  -m "Updated — see <user:f9d5c5c9-e098-4a82-8e55-fede326a4ec3>" \
+  -n "My Result" -r testmonitor:Result \
+  -u "https://<server>/nitestmonitor/results/<id>" \
+  --mention f9d5c5c9-e098-4a82-8e55-fede326a4ec3
+```
+
+### Delete Comments
+
+```bash
+# Delete a single comment
+slcli comment delete <comment-id>
+
+# Delete multiple comments at once (up to 1000)
+slcli comment delete <id1> <id2> <id3>
+```
+
 ## System Management
 
 Manage systems registered with the Systems Management service. Query, inspect,

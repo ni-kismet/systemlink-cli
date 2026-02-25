@@ -647,6 +647,8 @@ def make_api_request(
                 resp = requests.post(url, headers=default_headers, json=payload, verify=ssl_verify)
         elif method.upper() == "PUT":
             resp = requests.put(url, headers=default_headers, json=payload, verify=ssl_verify)
+        elif method.upper() == "PATCH":
+            resp = requests.patch(url, headers=default_headers, json=payload, verify=ssl_verify)
         elif method.upper() == "DELETE":
             resp = requests.delete(url, headers=default_headers, verify=ssl_verify)
         else:
