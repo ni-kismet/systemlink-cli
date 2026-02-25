@@ -1,12 +1,25 @@
 # CHANGELOG
 
 
+## v0.32.0 (2026-02-25)
+
+### Features
+
+- Add comment support ([#65](https://github.com/ni-kismet/systemlink-cli/pull/65),
+  [`0507b00`](https://github.com/ni-kismet/systemlink-cli/commit/0507b006096592a4d31b7aa4a361366ea9b958bd))
+
+
 ## v0.31.9 (2026-02-23)
 
 ### Bug Fixes
 
 - Add exercise 5-1 example ([#64](https://github.com/ni-kismet/systemlink-cli/pull/64),
   [`f109ce8`](https://github.com/ni-kismet/systemlink-cli/commit/f109ce8df3975312626444f07c8c7acb76c60b8c))
+
+### Chores
+
+- **release**: 0.31.9
+  ([`8ed0816`](https://github.com/ni-kismet/systemlink-cli/commit/8ed081616d412aa21d27eed20a8f2a3afdfae259))
 
 
 ## v0.31.8 (2026-02-19)
