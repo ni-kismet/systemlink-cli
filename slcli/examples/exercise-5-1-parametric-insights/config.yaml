@@ -133,7 +133,7 @@ resources:
   # ==========================================================================
 
   - type: "dut"
-    name: "BAT-DUT-A01 (TC-01)"
+    name: "BAT-DUT-A01"
     properties:
       description: "Model ABC unit under long-term thermal cycle test on TC-01"
       system_id: "${sys_tc01}"
@@ -148,7 +148,7 @@ resources:
     tags: ["exercise-5-1-parametric-insights"]
 
   - type: "dut"
-    name: "BAT-DUT-B01 (TC-02)"
+    name: "BAT-DUT-B01"
     properties:
       description: "Model ABC unit under long-term thermal cycle test on TC-02"
       system_id: "${sys_tc02}"
@@ -163,7 +163,7 @@ resources:
     tags: ["exercise-5-1-parametric-insights"]
 
   - type: "dut"
-    name: "BAT-DUT-C01 (TC-03)"
+    name: "BAT-DUT-C01"
     properties:
       description: "Model ABC unit under long-term thermal cycle test on TC-03"
       system_id: "${sys_tc03}"
@@ -178,7 +178,7 @@ resources:
     tags: ["exercise-5-1-parametric-insights"]
 
   - type: "dut"
-    name: "XYZ-DUT-001 (TC-01)"
+    name: "XYZ-DUT-001"
     properties:
       description: "Model XYZ capacitor bank under acceptance test on TC-01"
       system_id: "${sys_tc01}"
@@ -193,7 +193,7 @@ resources:
     tags: ["exercise-5-1-parametric-insights"]
 
   - type: "dut"
-    name: "ABC-REVB-DUT-001 (TC-02)"
+    name: "ABC-REVB-DUT-001"
     properties:
       description: "Model ABC Rev B prototype under qualification on TC-02"
       system_id: "${sys_tc02}"
