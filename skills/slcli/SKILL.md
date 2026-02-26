@@ -189,6 +189,155 @@ slcli tag create --path <PATH> --data-type <TYPE>
 slcli tag delete <TAG_PATH>
 ```
 
+### routine — Event-action and notebook routine management
+
+Two API versions are supported:
+- **v2** (default): General event-action routines — monitor tags, work-item changes, and more; trigger alarms, emails, or notebook executions.
+- **v1**: Notebook-execution routines with SCHEDULED or TRIGGERED types.
+
+```bash
+# List routines
+slcli routine list [OPTIONS]
+
+  --api-version [v1|v2]          API version (default: v2)
+  --enabled                      Show only enabled routines
+  --disabled                     Show only disabled routines
+  --workspace, -w TEXT           Filter by workspace name or ID
+  --filter TEXT                  Filter by routine name (case-insensitive substring)
+  --event-type TEXT              Filter by event type (v2 only, e.g. TAG, WORKITEMCHANGED)
+  --type [TRIGGERED|SCHEDULED]   Filter by routine type (v1 only)
+  --take, -t INTEGER             Items per page / max results (default: 25)
+  -f [table|json]                Output format (default: table)
+
+# Get a single routine by ID
+slcli routine get <ROUTINE_ID> [--api-version v1|v2] [-f json]
+
+# Create a v2 event-action routine
+# --event: JSON object with `type` and `triggers` array
+# --actions: JSON array of action objects
+slcli routine create \
+  --name "My Routine" \
+  --description "Description" \
+  --workspace <WORKSPACE_ID> \
+  --enabled \
+  --event   '<event-json>' \
+  --actions '<actions-json>'
+
+# Create a v1 notebook routine (SCHEDULED)
+slcli routine create --api-version v1 \
+  --name "Daily Notebook" \
+  --type SCHEDULED \
+  --notebook-id <NOTEBOOK_ID> \
+  --schedule '{"startTime":"2026-01-01T00:00:00Z","repeat":"DAY"}'
+
+# Create a v1 notebook routine (TRIGGERED by file)
+slcli routine create --api-version v1 \
+  --name "On Upload" \
+  --type TRIGGERED \
+  --notebook-id <NOTEBOOK_ID> \
+  --trigger '{"source":"FILES","events":["CREATED"],"filter":"extension=\".csv\""}'
+
+# Update a routine (only supplied fields are changed)
+slcli routine update <ROUTINE_ID> [--api-version v1|v2] \
+  [--name TEXT] [--description TEXT] [--workspace TEXT] \
+  [--enable|--disable] \
+  [--event '<event-json>'] [--actions '<actions-json>']   # v2
+  [--notebook-id TEXT] [--trigger JSON] [--schedule JSON]  # v1
+
+# Enable / disable a routine
+slcli routine enable  <ROUTINE_ID> [--api-version v1|v2]
+slcli routine disable <ROUTINE_ID> [--api-version v1|v2]
+
+# Delete a routine (prompts for confirmation unless -y)
+slcli routine delete <ROUTINE_ID> [--api-version v1|v2] [-y]
+```
+
+#### v2 event JSON structure
+
+```json
+{
+  "type": "TAG",
+  "triggers": [
+    {
+      "name": "<uuid>",
+      "configuration": {
+        "comparator": "GREATER_THAN",
+        "path": "my.tag.path.*",
+        "thresholds": ["10.2"],
+        "type": "DOUBLE"
+      }
+    }
+  ]
+}
+```
+
+Supported TAG comparators: `GREATER_THAN`, `LESS_THAN`, `EQUAL`, `NOT_EQUAL`.
+Tag data types: `DOUBLE`, `INT32`, `U_INT64`, `STRING`, `BOOLEAN`.
+
+#### v2 actions JSON structure
+
+```json
+[
+  {
+    "type": "ALARM",
+    "triggers": ["<same-uuid-as-event-trigger>"],
+    "configuration": {
+      "displayName": "Alarm display name",
+      "description": "Alarm description",
+      "severity": 4,
+      "condition": "Greater than: 10.2",
+      "dynamicRecipientList": ["user@example.com"]
+    }
+  },
+  {
+    "type": "ALARM",
+    "triggers": ["nisystemlink_no_triggers_breached"],
+    "configuration": null
+  }
+]
+```
+
+The second ALARM entry with trigger `nisystemlink_no_triggers_breached` is required by the API — it handles the alarm clear/reset state. Email notifications are delivered via `dynamicRecipientList` inside the ALARM action configuration. Severity levels: 1 (low) – 4 (critical).
+
+#### Full example: tag threshold monitor with alarm + email
+
+```bash
+slcli routine create \
+  --name "Fred Tag Monitor" \
+  --description "Alert when fred.test.* exceeds 10.2" \
+  --enabled \
+  --event '{
+    "type": "TAG",
+    "triggers": [{
+      "name": "a1b2c3d4-e5f6-7890-abcd-ef1234567890",
+      "configuration": {
+        "comparator": "GREATER_THAN",
+        "path": "fred.test.*",
+        "thresholds": ["10.2"],
+        "type": "DOUBLE"
+      }
+    }]
+  }' \
+  --actions '[
+    {
+      "type": "ALARM",
+      "triggers": ["a1b2c3d4-e5f6-7890-abcd-ef1234567890"],
+      "configuration": {
+        "displayName": "Fred Test Tag Alarm",
+        "description": "Tag fred.test.* exceeded 10.2",
+        "severity": 4,
+        "condition": "Greater than: 10.2",
+        "dynamicRecipientList": ["fred.visser@emerson.com"]
+      }
+    },
+    {
+      "type": "ALARM",
+      "triggers": ["nisystemlink_no_triggers_breached"],
+      "configuration": null
+    }
+  ]'
+```
+
 ### comment — Resource comments
 
 Attach, edit, and remove comments on any SystemLink resource. User IDs in responses
