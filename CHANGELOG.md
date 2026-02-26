@@ -1,7 +1,25 @@
 # CHANGELOG
 
 
+## v0.33.0 (2026-02-26)
+
+### Features
+
+- Add Exercise 7-1 example (Create and Schedule Test Plans)
+  ([#66](https://github.com/ni-kismet/systemlink-cli/pull/66),
+  [`98887d0`](https://github.com/ni-kismet/systemlink-cli/commit/98887d0bc00a0a5a579d1a5d052895b76a694a7f))
+
+* feat: add exercise 7-1 example
+
+* delete unnecessary docs
+
+
 ## v0.32.0 (2026-02-25)
+
+### Chores
+
+- **release**: 0.32.0
+  ([`3233d98`](https://github.com/ni-kismet/systemlink-cli/commit/3233d98945f2d8914b775899f6ae7ce44d8bdb2b))
 
 ### Features
 
