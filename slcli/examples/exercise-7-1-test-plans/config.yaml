@@ -1,0 +1,323 @@
+---
+# SLE Example Configuration: Exercise 7-1 - Create and Schedule Test Plans
+format_version: "1.0"
+name: "exercise-7-1-test-plans"
+title: "Exercise 7-1: Create and Schedule Test Plans"
+description: |
+  Training data for Exercise 7-1: Create and Schedule Test Plans.
+
+  Provisions the infrastructure required to complete the test plan scheduling
+  exercise using the SystemLink Scheduling Assistant. A battery pack product
+  (Model ABC), an environmental chamber system (Chamber B), a fixture slot
+  (Slot_01), and a DUT (BAT-DUT-C01) are created so students can:
+
+  1. Create a test plan (work item) named "Thermal Cycle Test" for Model ABC.
+  2. Use the Scheduling Assistant to assign Chamber B + Slot_01 + BAT-DUT-C01.
+  3. Drag the test plan onto the calendar timeline.
+  4. Review scheduled work across the Operations > Schedule view and
+     the Chamber B system Schedule tab.
+  5. Adjust the schedule from the DUT's Work Items tab.
+
+  A starter work order ("Battery Validation – Model ABC") and a blank test
+  plan work item are also included so the unguided / assess-your-skills steps
+  work without additional setup.
+
+author: "NI"
+created_date: "2026-02-25"
+updated_date: "2026-02-25"
+tags:
+  - "training"
+  - "exercise-7-1"
+  - "test-plans"
+  - "scheduling"
+  - "battery"
+
+estimated_setup_time_minutes: 3
+required_systemlink_version: "2024.1"
+target_workspace: null
+
+resources:
+
+  # ==========================================================================
+  # LOCATION
+  # ==========================================================================
+
+  - type: "location"
+    name: "Battery Testing Lab"
+    properties:
+      description: "Primary facility for battery pack qualification and thermal cycling"
+      address: "1000 Electrochemical Drive"
+      city: "Austin"
+      state: "TX"
+      country: "USA"
+      building: "Test Hall B"
+    id_reference: "loc_batlab"
+    tags: ["exercise-7-1-test-plans"]
+
+  # ==========================================================================
+  # PRODUCT
+  # ==========================================================================
+
+  - type: "product"
+    name: "Model ABC"
+    properties:
+      description: "48 V lithium-ion battery pack for industrial automation"
+      family: "Battery Packs"
+      category: "Energy Storage"
+      manufacturer: "DemoPower Systems"
+      part_number: "BAT-MODEL-ABC-001"
+    id_reference: "prod_abc"
+    tags: ["exercise-7-1-test-plans"]
+
+  # ==========================================================================
+  # TEST SYSTEM
+  # ==========================================================================
+
+  # Students select "Chamber B" in the Scheduling Assistant (step 3 of the
+  # "Schedule the Test Plan" section).
+  - type: "system"
+    name: "Chamber B"
+    properties:
+      description: "Environmental thermal chamber for battery pack cycling tests"
+      location_id: "${loc_batlab}"
+      serial_number: "CHB-SN-20240601-002"
+      status: "operational"
+    id_reference: "sys_chamber_b"
+    tags: ["exercise-7-1-test-plans"]
+
+  # ==========================================================================
+  # FIXTURE
+  # ==========================================================================
+
+  # Students select "Slot_01" as the fixture for Chamber B in the Scheduling
+  # Assistant and verify the Fixtures column shows Slot_01 afterwards
+  # (Verify Fixture Allocation section).
+  - type: "asset"
+    name: "Slot_01"
+    properties:
+      description: "Fixture slot 1 in Chamber B — primary DUT mounting position"
+      system_id: "${sys_chamber_b}"
+      location_id: "${loc_batlab}"
+      model_name: "Fixture Slot"
+      vendor_name: "DemoPower Systems"
+      serial_number: "SLOT-CHB-01"
+      assetType: "FIXTURE"
+    id_reference: "asset_slot01"
+    tags: ["exercise-7-1-test-plans"]
+
+  # ==========================================================================
+  # DUT — BAT-DUT-C01
+  # ==========================================================================
+
+  # Students select this DUT in the Scheduling Assistant (DUT section) and when
+  # browsing Systems Management > Assets > BAT-DUT-C01 > Work Items.
+  - type: "dut"
+    name: "BAT-DUT-C01"
+    properties:
+      description: "Model ABC battery pack under thermal validation in Chamber B"
+      system_id: "${sys_chamber_b}"
+      location_id: "${loc_batlab}"
+      part_number: "BAT-MODEL-ABC-001"
+      model_name: "Model ABC"
+      model_number: "BAT-MODEL-ABC-001"
+      vendor_name: "DemoPower Systems"
+      serial_number: "BAT-SN-C01-20250915"
+      bus_type: "CAN"
+    id_reference: "dut_c01"
+    tags: ["exercise-7-1-test-plans"]
+
+  # ==========================================================================
+  # WORKFLOW  (required by the test template / work item state machine)
+  # ==========================================================================
+
+  - type: "workflow"
+    name: "Battery Test Plan Workflow"
+    properties:
+      description: "Work item state machine for battery pack test plans"
+      actions:
+        - name: "START"
+          displayText: "Start Test"
+          executionAction:
+            type: "MANUAL"
+            action: "START"
+        - name: "END"
+          displayText: "End Test"
+          executionAction:
+            type: "MANUAL"
+            action: "END"
+      states:
+        - name: "NEW"
+          dashboardAvailable: false
+          defaultSubstate: "NEW"
+          substates:
+            - name: "NEW"
+              displayText: "New"
+              availableActions: []
+        - name: "DEFINED"
+          dashboardAvailable: false
+          defaultSubstate: "DEFINED"
+          substates:
+            - name: "DEFINED"
+              displayText: "Defined"
+              availableActions: []
+        - name: "REVIEWED"
+          dashboardAvailable: false
+          defaultSubstate: "REVIEWED"
+          substates:
+            - name: "REVIEWED"
+              displayText: "Reviewed"
+              availableActions: []
+        - name: "SCHEDULED"
+          dashboardAvailable: true
+          defaultSubstate: "SCHEDULED"
+          substates:
+            - name: "SCHEDULED"
+              displayText: "Scheduled"
+              availableActions:
+                - action: "START"
+                  nextState: "IN_PROGRESS"
+                  nextSubstate: "IN_PROGRESS"
+                  showInUI: true
+        - name: "IN_PROGRESS"
+          dashboardAvailable: true
+          defaultSubstate: "IN_PROGRESS"
+          substates:
+            - name: "IN_PROGRESS"
+              displayText: "In Progress"
+              availableActions:
+                - action: "END"
+                  nextState: "PENDING_APPROVAL"
+                  nextSubstate: "PENDING_APPROVAL"
+                  showInUI: true
+        - name: "PENDING_APPROVAL"
+          dashboardAvailable: true
+          defaultSubstate: "PENDING_APPROVAL"
+          substates:
+            - name: "PENDING_APPROVAL"
+              displayText: "Pending Approval"
+              availableActions: []
+        - name: "CLOSED"
+          dashboardAvailable: false
+          defaultSubstate: "CLOSED"
+          substates:
+            - name: "CLOSED"
+              displayText: "Closed"
+              availableActions: []
+        - name: "CANCELED"
+          dashboardAvailable: false
+          defaultSubstate: "CANCELED"
+          substates:
+            - name: "CANCELED"
+              displayText: "Canceled"
+              availableActions: []
+    id_reference: "wf_battery_testplan"
+    tags: ["exercise-7-1-test-plans"]
+
+  # ==========================================================================
+  # TEST TEMPLATE — "Blank Test Plan" base for the exercise
+  # ==========================================================================
+
+  # Students choose "Blank Test Plan" in the Create a Test Plan wizard (step 5
+  # of the Create a Test Plan section). This template is the selectable option.
+  - type: "testtemplate"
+    name: "Blank Test Plan"
+    properties:
+      description: "General-purpose blank test plan template for battery pack work items"
+      template_group: "Battery Packs"
+      type: "testplan"
+      workflow_id: "${wf_battery_testplan}"
+      product_families: ["Battery Packs"]
+      part_numbers: ["BAT-MODEL-ABC-001"]
+    id_reference: "tt_blank_testplan"
+    tags: ["exercise-7-1-test-plans"]
+
+  # ==========================================================================
+  # WORK ORDER — "Battery Validation – Model ABC"
+  # ==========================================================================
+
+  # The starting point for the guided exercise: Operations > Work Orders >
+  # "Battery Validation – Model ABC" > Work Items tab > Create test plan.
+  - type: "work_order"
+    name: "Battery Validation – Model ABC"
+    properties:
+      description: "R&D work order requesting thermal testing on new battery pack design"
+      work_order_type: "validation"
+      status: "new"
+      priority: "high"
+      scheduled_start: "2026-03-01T09:00:00Z"
+      scheduled_end: "2026-03-05T17:00:00Z"
+      reserved_systems:
+        - "${sys_chamber_b}"
+      reserved_assets:
+        - "${dut_c01}"
+    id_reference: "wo_battery_validation"
+    tags: ["exercise-7-1-test-plans"]
+
+  # ==========================================================================
+  # WORK ITEM — starter "Thermal Cycle Test" test plan
+  # ==========================================================================
+
+  # Students create this test plan from the work order's Work Items tab.
+  # After creation they open it in the Scheduling Assistant via the "..." menu.
+  - type: "work_item"
+    name: "Thermal Cycle Test"
+    properties:
+      description: "Temperature cycling sequence for battery pack validation"
+      work_item_type: "testplan"
+      test_template_id: "${tt_blank_testplan}"
+      work_order_id: "${wo_battery_validation}"
+      scheduled_dut: "${dut_c01}"
+      scheduled_system: "${sys_chamber_b}"
+      assigned_operator: ""
+      priority: "high"
+      expected_duration_minutes: 120
+      acceptance_criteria: "All thermal cycle measurements within specification limits"
+    id_reference: "wi_thermal_cycle"
+    tags: ["exercise-7-1-test-plans"]
+
+cleanup:
+  order:
+    - "work_item"
+    - "work_order"
+    - "testtemplate"
+    - "workflow"
+    - "dut"
+    - "asset"
+    - "system"
+    - "product"
+    - "location"
+  filter_tags: ["exercise-7-1-test-plans"]
+  require_confirmation: true
+
+validation:
+  require_workspace: true
+
+post_install:
+  instructions: |
+    ✓ Exercise 7-1 resources installed successfully!
+
+    Resources created:
+    - 1 location:      Battery Testing Lab
+    - 1 product:       Model ABC (Battery Packs)
+    - 1 system:        Chamber B
+    - 1 fixture:       Slot_01 (asset on Chamber B)
+    - 1 DUT:           BAT-DUT-C01
+    - 1 workflow:      Battery Test Plan Workflow
+    - 1 template:      Blank Test Plan
+    - 1 work order:    Battery Validation – Model ABC
+    - 1 work item:     Thermal Cycle Test
+
+    Ready for Exercise 7-1 — guided steps:
+    1. Navigate to Operations > Work Orders and open "Battery Validation – Model ABC".
+    2. In the Work Items tab, select Create test plan, select Blank Test Plan,
+       configure the name as "Thermal Cycle Test" and the DUT as "BAT-DUT-C01".
+    3. In the test plan details, open the "..." menu > Open in scheduling assistant.
+    4. Select "Chamber B" as the system and "Slot_01" as the fixture.
+    5. Select "BAT-DUT-C01" as the DUT.
+    6. Drag the test plan onto tomorrow morning at 9:00 AM and save.
+
+    Unguided / Assess Your Skills:
+    - Navigate to Operations > Work Orders, open "Battery Validation – Model ABC",
+      and create an additional test plan from it.
+    - Navigate to Assets, open "BAT-DUT-C01", and create a test plan
+      from the DUT's Work Items tab.
