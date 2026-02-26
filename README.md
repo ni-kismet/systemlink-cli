@@ -594,6 +594,91 @@ slcli system job cancel <job-id>
 slcli system job cancel <job-id> --system-id <system-id>
 ```
 
+## Routine Management
+
+Manage SystemLink Routines across two API versions:
+
+- **v2** (default): General event-action routines — any event type (e.g. `tag`, `alarm`) triggers any action (e.g. `alarm`, custom actions).
+- **v1**: Notebook-execution routines — a scheduled or file-triggered event runs a Jupyter notebook.
+
+Use `--api-version v1` or `--api-version v2` on any subcommand (default is `v2`).
+
+### List & Get
+
+```bash
+# List routines (v2 by default)
+slcli routine list --format table
+slcli routine list --format json --take 50
+
+# Filter by enabled status
+slcli routine list --enabled
+slcli routine list --disabled
+
+# Filter by event type (v2 only)
+slcli routine list --event-type tag
+
+# Filter by routine type (v1 only)
+slcli routine list --api-version v1 --type SCHEDULED
+
+# Get a specific routine (outputs JSON by default)
+slcli routine get <routine-id>
+slcli routine get <routine-id> --api-version v1
+```
+
+### Create
+
+```bash
+# Create a v2 routine (event-action)
+slcli routine create \
+  --name "Tag alarm" \
+  --event '{"type":"tag","triggers":[{"name":"cpu-high","configuration":{"path":"*.CPU","type":"DOUBLE","comparator":"GREATER_THAN","thresholds":["90"]}}]}' \
+  --actions '[{"type":"alarm","configuration":{"severity":1,"displayName":"High CPU"}}]' \
+  --enabled
+
+# Create a v1 scheduled notebook routine
+slcli routine create --api-version v1 \
+  --name "Daily report" \
+  --type SCHEDULED \
+  --notebook-id <notebook-id> \
+  --schedule '{"startTime":"2026-01-01T08:00:00Z","repeat":"DAY"}' \
+  --workspace <workspace-id>
+
+# Create a v1 file-triggered notebook routine
+slcli routine create --api-version v1 \
+  --name "Process CSV" \
+  --type TRIGGERED \
+  --notebook-id <notebook-id> \
+  --trigger '{"source":"FILES","events":["CREATED"],"filter":"extension = \".csv\""}'
+```
+
+### Update
+
+```bash
+# Rename a routine
+slcli routine update <routine-id> --name "New name"
+
+# Update v2 event definition
+slcli routine update <routine-id> \
+  --event '{"type":"tag","triggers":[...]}'
+
+# Update v1 notebook and schedule
+slcli routine update <routine-id> --api-version v1 \
+  --notebook-id <new-notebook-id> \
+  --schedule '{"startTime":"2026-06-01T00:00:00Z","repeat":"WEEK"}'
+```
+
+### Enable, Disable & Delete
+
+```bash
+# Enable / disable
+slcli routine enable <routine-id>
+slcli routine disable <routine-id> --api-version v1
+
+# Delete (prompts for confirmation unless --yes)
+slcli routine delete <routine-id> --yes
+slcli routine delete <routine-id> --api-version v1 --yes
+```
+
 ## Feed Management
 
 Manage NI Package Manager feeds for both SystemLink Enterprise (SLE) and SystemLink Server (SLS). Platform detection is automatic, and platform values are case-insensitive.
