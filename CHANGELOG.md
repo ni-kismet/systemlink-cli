@@ -1,7 +1,30 @@
 # CHANGELOG
 
 
+## v0.34.0 (2026-02-26)
+
+### Features
+
+- Add routine command group ([#67](https://github.com/ni-kismet/systemlink-cli/pull/67),
+  [`070faa0`](https://github.com/ni-kismet/systemlink-cli/commit/070faa0b736079c957fa153cdbca3d56d3cc4456))
+
+- Add slcli/routine_click.py with list, get, create, update, enable, disable, and delete subcommands
+  for both v1 (notebook scheduling) and v2 (tag-event / alarm-action) Routines APIs - Support
+  --format table/json, --take, --filter (name), --workspace, --enabled/--disabled filters, and
+  interactive pagination for list - Register routine commands in main.py - Add 35 unit tests
+  (tests/unit/test_routine_click.py) - Add E2E test suite (tests/e2e/test_routine_e2e.py) with
+  lifecycle, filter, error-handling, and v1 tests; register 'routine' marker in
+  tests/e2e/conftest.py - Fix webapp E2E cleanup: use try/finally so the webapp is always deleted
+  even when an assertion fails mid-test - Document all commands and options in README.md - Add
+  routine section with schemas and examples to skills/slcli/SKILL.md
+
+
 ## v0.33.0 (2026-02-26)
+
+### Chores
+
+- **release**: 0.33.0
+  ([`9d25c50`](https://github.com/ni-kismet/systemlink-cli/commit/9d25c502b5c8cdad83784ac0d069145ecdaf9214))
 
 ### Features
 
