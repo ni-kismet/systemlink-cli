@@ -115,6 +115,39 @@ slcli mcp serve
 
 See [docs/mcp-server.md](docs/mcp-server.md) for the full tool reference, manual configuration, and profile selection.
 
+## AI Agent Skills
+
+Install the bundled `slcli` agent skill so that Copilot, Claude, and Codex automatically know how to use the CLI when you ask about SystemLink resources.
+
+```bash
+# Interactive — prompts for client and scope
+slcli skill install
+
+# Install for a specific client
+slcli skill install --client copilot   # GitHub Copilot
+slcli skill install --client claude    # Claude Code (Anthropic)
+slcli skill install --client codex     # OpenAI Codex
+slcli skill install --client all       # All supported clients (default)
+
+# Choose where to install
+slcli skill install --scope personal   # ~/.{client}/skills/  (global, default)
+slcli skill install --scope project    # .{client-dir}/skills/ in current repo
+slcli skill install --scope both       # personal + project
+
+# Combine flags; --force skips overwrite prompts
+slcli skill install --client all --scope personal --force
+```
+
+The skill is compatible with the [Agent Skills open standard](https://agentskills.io/specification). Install locations by client:
+
+| Client    | Personal             | Project (repo)    |
+| --------- | -------------------- | ----------------- |
+| `copilot` | `~/.copilot/skills/` | `.github/skills/` |
+| `claude`  | `~/.claude/skills/`  | `.claude/skills/` |
+| `codex`   | `~/.agents/skills/`  | `.agents/skills/` |
+
+Once installed, the assistant loads the skill automatically when you ask about SystemLink test results, assets, systems, tags, and more.
+
 ## Quick Start
 
 1. **Login to SystemLink:**
