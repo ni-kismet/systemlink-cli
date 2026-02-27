@@ -26,6 +26,7 @@ from .platform import (
 from .policy_click import register_policy_commands
 from .profiles import set_profile_override
 from .routine_click import register_routine_commands
+from .skill_click import register_skill_commands
 from .ssl_trust import OS_TRUST_INJECTED, OS_TRUST_REASON
 from .system_click import register_system_commands
 from .tag_click import register_tag_commands
@@ -389,6 +390,7 @@ register_system_commands(cli)
 register_tag_commands(cli)
 register_testmonitor_commands(cli)
 register_webapp_commands(cli)
+register_skill_commands(cli)
 register_user_commands(cli)
 register_workflows_commands(cli)
 register_workspace_commands(cli)
