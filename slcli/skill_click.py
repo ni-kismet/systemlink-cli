@@ -67,10 +67,7 @@ def _find_bundled_skills_dir() -> Path:
     if getattr(sys, "frozen", False):
         candidates.append(Path(sys.executable).resolve().parent / "skills")
 
-    # pip/Poetry install: skills/ sits next to the slcli package in site-packages
-    candidates.append(Path(__file__).resolve().parent.parent / "skills")
-
-    # Development source tree
+    # Development/Poetry-install: skills/ sits next to the slcli package
     candidates.append(Path(__file__).resolve().parent.parent / "skills")
 
     for candidate in candidates:
@@ -137,7 +134,7 @@ def register_skill_commands(cli: Any) -> None:
         "-s",
         type=click.Choice(["personal", "project", "both"], case_sensitive=False),
         default=None,
-        help="personal (~/ global dirs), project (current repo), or both.",
+        help="personal (~/ home dirs), project (current repo), or both.",
     )
     @click.option(
         "--force",

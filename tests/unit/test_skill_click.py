@@ -292,3 +292,33 @@ def test_find_bundled_skills_dir_dev_tree() -> None:
     """_find_bundled_skills_dir locates the actual skills/slcli/SKILL.md."""
     skills_dir = _find_bundled_skills_dir()
     assert (skills_dir / "slcli" / "SKILL.md").exists()
+
+
+def test_personal_dir_returns_expanded_path() -> None:
+    """_personal_dir expands ~ and returns the correct path for each client."""
+    from slcli.skill_click import _personal_dir
+
+    copilot = _personal_dir("copilot")
+    assert copilot == Path.home() / ".copilot" / "skills"
+
+    claude = _personal_dir("claude")
+    assert claude == Path.home() / ".claude" / "skills"
+
+    codex = _personal_dir("codex")
+    assert codex == Path.home() / ".agents" / "skills"
+
+
+def test_install_oserror_exits_nonzero(
+    runner: CliRunner, fake_skills_dir: Path, tmp_path: Path
+) -> None:
+    """An OSError during copy reports an error and exits non-zero."""
+    dest_parent = tmp_path / "dest"
+    cli = make_cli()
+    with patch("slcli.skill_click._find_bundled_skills_dir", return_value=fake_skills_dir), patch(
+        "slcli.skill_click._resolve_destinations", return_value=[dest_parent]
+    ), patch("slcli.skill_click.shutil.copytree", side_effect=OSError("disk full")):
+        result = runner.invoke(
+            cli, ["skill", "install", "--client", "copilot", "--scope", "personal"]
+        )
+    assert result.exit_code != 0
+    assert "Failed to install" in result.output
