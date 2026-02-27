@@ -1,12 +1,30 @@
 # CHANGELOG
 
 
+## v0.36.0 (2026-02-27)
+
+### Features
+
+- Add slcli skill install command for AI agent skills
+  ([#69](https://github.com/ni-kismet/systemlink-cli/pull/69),
+  [`64618ef`](https://github.com/ni-kismet/systemlink-cli/commit/64618ef477ba4dc6d5587ade1f88a0e78ba1ab42))
+
+* feat: add skill install command
+
+* review feedback
+
+
 ## v0.35.1 (2026-02-27)
 
 ### Bug Fixes
 
 - Mcp dependencies
   ([`a51dd30`](https://github.com/ni-kismet/systemlink-cli/commit/a51dd30f7e72ce49d9a281798ca1f9e1c5016ec9))
+
+### Chores
+
+- **release**: 0.35.1
+  ([`fd6490a`](https://github.com/ni-kismet/systemlink-cli/commit/fd6490a6b5e62174510e234fdc7104acd114cc64))
 
 
 ## v0.35.0 (2026-02-27)
