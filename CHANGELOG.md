@@ -1,7 +1,23 @@
 # CHANGELOG
 
 
+## v0.35.0 (2026-02-27)
+
+### Features
+
+- Add MCP server for AI assistant integration
+  ([#68](https://github.com/ni-kismet/systemlink-cli/pull/68),
+  [`41cfc4a`](https://github.com/ni-kismet/systemlink-cli/commit/41cfc4a67feb1ab9d00bfccc3bd23bf5c8305b8d))
+
+* feat: add mcp server support
+
+
 ## v0.34.0 (2026-02-26)
+
+### Chores
+
+- **release**: 0.34.0
+  ([`9a19d1d`](https://github.com/ni-kismet/systemlink-cli/commit/9a19d1d9377169d218c7c4ce50d387d3f6b7d9ec))
 
 ### Features
 
