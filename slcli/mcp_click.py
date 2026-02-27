@@ -115,13 +115,27 @@ def _install_cursor(slcli_exe: str) -> None:
     click.echo("  Reload Cursor to activate the server.")
 
 
+def _install_codex(slcli_exe: str) -> None:
+    """Write / update .codex/mcp.json in the current directory."""
+    config_file = Path(".codex") / "mcp.json"
+    _merge_and_write_json(
+        config_file,
+        top_key="mcpServers",
+        server_name="slcli",
+        server_entry=_claude_server_entry(slcli_exe),
+    )
+    click.echo(f"✓ Codex MCP config written to {config_file}")
+    click.echo("  Reload Codex to activate the server.")
+
+
 _INSTALLERS: Dict[str, Any] = {
     "vscode": _install_vscode,
     "claude": _install_claude,
     "cursor": _install_cursor,
+    "codex": _install_codex,
 }
 
-_TARGET_CHOICES: List[str] = ["vscode", "claude", "cursor", "all"]
+_TARGET_CHOICES: List[str] = ["vscode", "claude", "cursor", "codex", "all"]
 
 
 def register_mcp_commands(cli: Any) -> None:
@@ -132,20 +146,53 @@ def register_mcp_commands(cli: Any) -> None:
         """MCP (Model Context Protocol) server integration for AI assistants."""
 
     @mcp.command(name="serve")
-    def serve() -> None:
-        """Start the stdio MCP server.
+    @click.option(
+        "--transport",
+        "-T",
+        type=click.Choice(["stdio", "sse"]),
+        default="stdio",
+        show_default=True,
+        help="Transport layer: 'stdio' for AI client integration, 'sse' for HTTP/SSE.",
+    )
+    @click.option(
+        "--port",
+        "-p",
+        default=8000,
+        show_default=True,
+        help="Port to bind to (SSE transport only).",
+    )
+    @click.option(
+        "--host",
+        default="127.0.0.1",
+        show_default=True,
+        help="Host to bind to (SSE transport only).",
+    )
+    def serve(transport: str, port: int, host: str) -> None:
+        """Start the MCP server.
 
-        AI clients (VS Code Copilot, Claude Desktop, Cursor) should be configured
-        to run this command as an MCP stdio server:
+        Defaults to stdio transport for direct AI client integration (VS Code
+        Copilot, Claude Desktop, Cursor).  Switch to SSE transport to serve
+        over HTTP — useful for the MCP Inspector, browser-based tooling, or
+        any client that prefers a persistent HTTP connection.
 
         \b
-            command: slcli
-            args: [mcp, serve]
+        Stdio (default — configure once with 'slcli mcp install'):
+            slcli mcp serve
 
-        Use 'slcli mcp install' to write that configuration automatically.
+        \b
+        SSE (HTTP server on http://127.0.0.1:8000/sse):
+            slcli mcp serve --transport sse
+            slcli mcp serve --transport sse --host 0.0.0.0 --port 9000
+
+        \b
+        Test with the MCP Inspector (SSE):
+            slcli mcp serve --transport sse
+            npx @modelcontextprotocol/inspector
+            # connect to http://127.0.0.1:8000/sse (transport: SSE)
         """
         try:
             from .mcp_server import main as run_mcp_server
+            from .mcp_server import server as mcp_server
         except ImportError:
             click.echo(
                 "✗ The 'mcp' package is not installed.\n"
@@ -155,7 +202,22 @@ def register_mcp_commands(cli: Any) -> None:
             )
             sys.exit(ExitCodes.GENERAL_ERROR)
 
-        run_mcp_server()
+        if transport == "stdio":
+            run_mcp_server()
+        else:
+            mcp_server.settings.host = host
+            mcp_server.settings.port = port
+
+            click.echo(f"✓ slcli MCP server starting in SSE mode on http://{host}:{port}/sse")
+            click.echo("  Open the Inspector:  npx @modelcontextprotocol/inspector")
+            click.echo(f"  Then connect to:     http://{host}:{port}/sse  (transport: SSE)")
+            click.echo("  Press Ctrl+C to stop.\n")
+
+            try:
+                mcp_server.run(transport="sse")
+            except KeyboardInterrupt:
+                click.echo("\nslcli MCP server stopped")
+                sys.exit(0)
 
     @mcp.command(name="install")
     @click.option(
@@ -168,6 +230,7 @@ def register_mcp_commands(cli: Any) -> None:
             "AI client to configure: vscode (.vscode/mcp.json), "
             "claude (Claude Desktop global config), "
             "cursor (.cursor/mcp.json), "
+            "codex (.codex/mcp.json), "
             "or all."
         ),
     )
@@ -191,7 +254,8 @@ def register_mcp_commands(cli: Any) -> None:
             slcli mcp install                      # VS Code (default)
             slcli mcp install --target claude      # Claude Desktop
             slcli mcp install --target cursor      # Cursor
-            slcli mcp install --target all         # all three
+            slcli mcp install --target codex       # OpenAI Codex CLI
+            slcli mcp install --target all         # all four
         """
         exe = slcli_exe or _slcli_exe()
 

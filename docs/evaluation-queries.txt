@@ -1,0 +1,178 @@
+# SLCLI + Agent Evaluation Queries
+# Using real resources from the configured SystemLink server
+# Generated: February 11, 2026 — Updated: February 24, 2026
+#
+# DATA NOTES (verified against server):
+#   BATT-x products:        ~150k results each, all from Jan 2022 – Feb 2023
+#   BAT-MODEL-ABC-001:      21 results, Jan 6 – Feb 17, 2026 (program: Thermal Cycle Test)
+#                           Operators: J. Santos, R. Okonkwo, M. Chen
+#                           SNs: BAT-SN-A01-20250915, BAT-SN-B01-20250915, BAT-SN-C01-20250915
+#   SCHLUMBERGER host:      23k results, program TS1004_REVA_Prod_042313.xls, from 2013
+#   My-Host:                ~2.4k results, admin/Madhan/Ranjgith, 2018–2024
+#   Systems with aliases:   PAtools_Generator_Perin, apm-pxi-2, formation-station-REAL, WinDev2302Eval
+
+## Test Results Queries
+
+### Query 1: Failed tests for specific product
+Show me all failed measurements on product BAT-MODEL-ABC-001 for the last month.
+
+### Query 2: Test data for specific time period
+Show me data of all units in June 2022 for test SOH_SCT_HPPC-0.
+
+### Query 3: Filter by product and test program
+Show me all the SOH_SCT_HPPC-4 data for BATT-8 in 2022.
+
+### Query 4: Serial number test execution count
+How many times did DUT SN abc-123-197826 execute the SOH_SCT_HPPC-4 test?
+
+### Query 5: Total tests for a serial number
+How many times has DUT SN abc-123-288523 been tested?
+
+### Query 6: Serial number history
+Show me the history of SN BAT-SN-A01-20250915.
+
+### Query 7: Recent test results for serial number
+Show me the most recent SOH_SCT_HPPC-2 test results for DUT SN abc-123-465974.
+
+### Query 8: Station failure count
+How many TS1004_REVA_Prod_042313.xls test failures have there been on Test Station SCHLUMBERGER?
+
+### Query 9: Station test breakdown
+Give me a breakdown on test status for station My-Host on March 29, 2024. How many units were run, how many passed, how many failed and what are the failures.
+
+### Query 10: Product type exploration
+Show me what type of test data exists for BATT-10.
+
+### Query 11: Serial number data types
+Show me what data exists for SN abc-123-390542? (This would give a table of types of test data that exists for this SN, not the data itself)
+
+### Query 12: Recent failures by product
+Which tests failed for product BAT-MODEL-ABC-001 in February 2026?
+
+### Query 13: Recent failures for specific product
+Which SOH_SCT_HPPC tests failed between April and September 2022 for part number BATT-14?
+
+### Query 14: Percentage calculations
+What percentage of BATT-7 units have failed the SOH_SCT_HPPC-7 test?
+
+### Query 15: Two recent test comparisons
+Show me all attribute differences between the two most recent test executions of DUT SN abc-123-197826.
+
+### Query 16: Failure correlation
+Is there any correlation of product failures for BATT family products with a specific operator?
+
+## Product and Family Queries
+
+### Query 17: Product family workload distribution
+How is test execution distributed across product families?
+
+### Query 18: Workload rebalancing
+Can we rebalance workload across product families based on test execution in 2022?
+
+### Query 19: Product family recent activity
+Show me the test execution breakdown by product family in June 2022.
+
+### Query 20: Battery product failures
+Show me all failed Thermal Cycle Tests for product BAT-MODEL-ABC-001 in the last 2 months.
+
+## Operator Performance Queries
+
+### Query 21: Operator failure rate
+Which operators have the highest failure rates?
+
+### Query 22: Operator specific failures
+Show me all failures for operator J. Santos in the last 3 months.
+
+### Query 23: Operator workload distribution
+How many tests has each operator performed in June 2022?
+
+## System and Asset Queries
+
+### Query 24: System with specific capabilities
+Find me a system that has a NI SLSC-12201.
+
+### Query 25: System comparison
+Compare systems apm-pxi-2 and formation-station-REAL.
+
+### Query 26: System capabilities summary
+Give me a summary of system WinDev2302Eval measurement capabilities.
+
+### Query 27: Connected systems
+Show me all connected systems.
+
+### Query 28: System fleet status
+What is the current status of our system fleet?
+
+### Query 29: Assets needing calibration
+Which assets are past their recommended calibration date?
+
+### Query 30: Asset calibration summary
+Get the fleet-wide calibration summary.
+
+### Query 31: Specific asset calibration
+What is the calibration status of asset with model NI SLSC-12101?
+
+### Query 32: Asset location history
+Show me the location history for asset with serial number 1C188CF.
+
+## Time-based Analysis Queries
+
+### Query 33: Test time distribution
+What is the test time distribution across stations for SOH_SCT_HPPC tests?
+
+### Query 34: Recent test volume
+How many tests were executed on February 16, 2026?
+
+### Query 35: Month-over-month comparison
+Compare test execution volume between June 2022 and July 2022.
+
+### Query 36: Peak testing times
+When are the peak testing hours for BATT products in 2022?
+
+## Advanced Filtering Queries
+
+### Query 37: Multiple filter combination
+Show me failed BATT-8 tests from operator xli in June 2022.
+
+### Query 38: Date range filtering
+Show me all test results between February 1 and February 17, 2026.
+
+### Query 39: Program name pattern
+Show me all test programs that start with "SOH_SCT_HPPC".
+
+### Query 40: Multiple status filtering
+Show me tests that are either FAILED or ERRORED for BATT products.
+
+## Summary and Aggregation Queries
+
+### Query 41: Overall test statistics
+What are the overall pass/fail statistics for all tests?
+
+### Query 42: Product family statistics
+Give me pass/fail statistics grouped by product family.
+
+### Query 43: Host performance
+Which test host has the highest throughput?
+
+### Query 44: Program execution summary
+Summarize test execution by program name.
+
+### Query 45: Daily summary
+Give me a summary of today's test execution.
+
+## Complex Workflow Queries
+
+### Query 46: End-to-end product analysis
+For product BATT-7, show me: total executions, pass rate, common failure modes, and operator distribution.
+
+### Query 47: Station utilization analysis
+For station SCHLUMBERGER, show me: total test volume, test programs run, and time utilization.
+
+### Query 48: Quality investigation
+Investigate why BATT-10 products have been failing SOH_SCT_HPPC-0 tests.
+
+### Query 49: Capacity planning
+Based on historical test execution rates for BATT products, what is our testing capacity?
+
+### Query 50: Operator training needs
+Which operators need additional training based on their failure rates?

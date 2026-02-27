@@ -92,6 +92,9 @@ tests/unit/__pycache__/
 
 # End of .gitignore
 
+# uv lock file (repo uses Poetry; uv.lock is unneeded)
+uv.lock
+
 # E2E test configuration
 tests/e2e/e2e_config.json
 .env

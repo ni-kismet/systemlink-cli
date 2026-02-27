@@ -93,6 +93,28 @@ slcli completion --shell powershell --install
 
 After installation, restart your shell or source the completion file. See [docs/shell-completion.md](docs/shell-completion.md) for detailed instructions and troubleshooting.
 
+## AI Integration (MCP)
+
+slcli includes a built-in [Model Context Protocol](https://modelcontextprotocol.io) server that lets AI assistants (VS Code Copilot Agent mode, Claude Desktop, Cursor, and others) query SystemLink directly as structured tools — workspaces, tags, systems, assets, test results, and routines.
+
+The server runs locally as a subprocess and reuses your existing `slcli` credentials automatically.
+
+```bash
+# Register with VS Code Copilot Agent mode (.vscode/mcp.json)
+slcli mcp install
+
+# Register with Claude Desktop
+slcli mcp install --target claude
+
+# Register everywhere at once
+slcli mcp install --target all
+
+# Start the MCP server directly (used internally by AI clients)
+slcli mcp serve
+```
+
+See [docs/mcp-server.md](docs/mcp-server.md) for the full tool reference, manual configuration, and profile selection.
+
 ## Quick Start
 
 1. **Login to SystemLink:**

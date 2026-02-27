@@ -31,7 +31,6 @@ watchdog = "^6.0.0"
 pyyaml = "^6.0.3"
 
 
-
 [tool.poetry.group.dev.dependencies]
 # Lint
 ni-python-styleguide = ">=0.4.3"
