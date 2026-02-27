@@ -172,35 +172,35 @@ so no `uv` or PyPI access is needed.
 
 ### Phase 2 — Get-by-ID and mutations
 
-| Tool                      | Type  | Description                                          |
-| ------------------------- | ----- | ---------------------------------------------------- |
-| `tag_set_value`           | write | Write a value to a tag by path (type auto-detected)  |
-| `system_get`              | read  | Full details of a single system by ID                |
-| `asset_get`               | read  | Full details of a single asset by ID                 |
-| `testmonitor_result_get`  | read  | Full test result object by ID                        |
-| `routine_get`             | read  | Full details of a single routine by ID               |
-| `routine_enable`          | write | Enable a routine by ID                               |
-| `routine_disable`         | write | Disable a routine by ID                              |
+| Tool                     | Type  | Description                                         |
+| ------------------------ | ----- | --------------------------------------------------- |
+| `tag_set_value`          | write | Write a value to a tag by path (type auto-detected) |
+| `system_get`             | read  | Full details of a single system by ID               |
+| `asset_get`              | read  | Full details of a single asset by ID                |
+| `testmonitor_result_get` | read  | Full test result object by ID                       |
+| `routine_get`            | read  | Full details of a single routine by ID              |
+| `routine_enable`         | write | Enable a routine by ID                              |
+| `routine_disable`        | write | Disable a routine by ID                             |
 
 ### Phase 3 — Broader coverage
 
-| Tool                          | Description                                                         |
-| ----------------------------- | ------------------------------------------------------------------- |
-| `user_list`                   | List users, optionally filtered by workspace or expression          |
-| `testmonitor_step_list`       | List test steps for a given result ID                               |
-| `file_list`                   | List uploaded files, optionally filtered by name or workspace       |
-| `asset_calibration_summary`   | Fleet-wide calibration counts (total, approaching, past due, etc.)  |
-| `testmonitor_result_summary`  | Pass/fail/error counts for test results (efficient, no data fetch)  |
-| `notebook_list`               | List Jupyter notebooks (SLS and SLE compatible)                     |
+| Tool                         | Description                                                        |
+| ---------------------------- | ------------------------------------------------------------------ |
+| `user_list`                  | List users, optionally filtered by workspace or expression         |
+| `testmonitor_step_list`      | List test steps for a given result ID                              |
+| `file_list`                  | List uploaded files, optionally filtered by name or workspace      |
+| `asset_calibration_summary`  | Fleet-wide calibration counts (total, approaching, past due, etc.) |
+| `testmonitor_result_summary` | Pass/fail/error counts for test results (efficient, no data fetch) |
+| `notebook_list`              | List Jupyter notebooks (SLS and SLE compatible)                    |
 
 ### Phase 4 — Alarms, tag history, and workspace mutations
 
-| Tool                | Type  | Description                                                   |
-| ------------------- | ----- | ------------------------------------------------------------- |
-| `alarm_list`        | read  | List active alarm instances, filter by severity or workspace  |
-| `tag_history`       | read  | Historical values for a tag, most recent first                |
-| `workspace_create`  | write | Create a new workspace by name                                |
-| `workspace_disable` | write | Disable an existing workspace (requires id + current name)    |
+| Tool                | Type  | Description                                                  |
+| ------------------- | ----- | ------------------------------------------------------------ |
+| `alarm_list`        | read  | List active alarm instances, filter by severity or workspace |
+| `tag_history`       | read  | Historical values for a tag, most recent first               |
+| `workspace_create`  | write | Create a new workspace by name                               |
+| `workspace_disable` | write | Disable an existing workspace (requires id + current name)   |
 
 All tools return JSON. Error responses are also JSON: `{"error": "<message>"}`.
 
@@ -551,35 +551,35 @@ set the env var in the client config. Example for VS Code:
 
 7 tools that complete the core read surface and add safe write operations:
 
-| Tool | Type | Description |
-| --- | --- | --- |
-| `tag_set_value` | write | Write a value to a tag by path |
-| `system_get` | read | Full details of one system |
-| `asset_get` | read | Full details of one asset |
-| `testmonitor_result_get` | read | Full result with step summary |
-| `routine_get` | read | Full details of one routine |
-| `routine_enable` | write | Enable a routine by ID |
-| `routine_disable` | write | Disable a routine by ID |
+| Tool                     | Type  | Description                    |
+| ------------------------ | ----- | ------------------------------ |
+| `tag_set_value`          | write | Write a value to a tag by path |
+| `system_get`             | read  | Full details of one system     |
+| `asset_get`              | read  | Full details of one asset      |
+| `testmonitor_result_get` | read  | Full result with step summary  |
+| `routine_get`            | read  | Full details of one routine    |
+| `routine_enable`         | write | Enable a routine by ID         |
+| `routine_disable`        | write | Disable a routine by ID        |
 
 ### Phase 3 — Broader coverage ✅ (complete)
 
 6 tools expanding coverage to users, files, notebooks, steps, and summary aggregations:
 
-| Tool | Description |
-| --- | --- |
-| `user_list` | List users (niuser/v1/users) |
-| `testmonitor_step_list` | List test steps for a result |
-| `file_list` | List uploaded files (nifile-manager) |
-| `asset_calibration_summary` | Aggregate counts by calibration status |
+| Tool                         | Description                              |
+| ---------------------------- | ---------------------------------------- |
+| `user_list`                  | List users (niuser/v1/users)             |
+| `testmonitor_step_list`      | List test steps for a result             |
+| `file_list`                  | List uploaded files (nifile-manager)     |
+| `asset_calibration_summary`  | Aggregate counts by calibration status   |
 | `testmonitor_result_summary` | Pass/fail counts per program / workspace |
-| `notebook_list` | List Jupyter notebooks |
+| `notebook_list`              | List Jupyter notebooks                   |
 
 ### Phase 4 — Alarms, tag history, workspace mutations, Codex CLI ✅ (complete)
 
-| Tool / Feature | Description |
-| --- | --- |
-| `alarm_list` | List active alarms (nialarm/v1), filter by severity |
-| `tag_history` | Historical tag values |
-| `workspace_create` | Create a workspace by name |
-| `workspace_disable` | Disable a workspace by ID + name |
-| `slcli mcp install --target codex` | OpenAI Codex CLI install target (.codex/mcp.json) |
+| Tool / Feature                     | Description                                         |
+| ---------------------------------- | --------------------------------------------------- |
+| `alarm_list`                       | List active alarms (nialarm/v1), filter by severity |
+| `tag_history`                      | Historical tag values                               |
+| `workspace_create`                 | Create a workspace by name                          |
+| `workspace_disable`                | Disable a workspace by ID + name                    |
+| `slcli mcp install --target codex` | OpenAI Codex CLI install target (.codex/mcp.json)   |
