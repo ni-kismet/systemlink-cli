@@ -8,9 +8,16 @@ include = ["dff-editor/**/*"]
 
 [tool.poetry.scripts]
 slcli = "slcli.__main__:cli"
+slcli-mcp = "slcli.mcp_server:main"
 build-pyinstaller = "scripts.build_pyinstaller:main"
 update-version = "scripts.update_version:main"
 lint = "scripts.lint:main"
+
+[tool.poetry.group.mcp]
+optional = true
+
+[tool.poetry.group.mcp.dependencies]
+mcp = ">=1.0"
 
 [tool.poetry.dependencies]
 python = ">=3.11.1,<3.14"
@@ -22,7 +29,6 @@ tabulate = "^0.9.0"
 truststore = ">=0.9,<0.11"
 watchdog = "^6.0.0"
 pyyaml = "^6.0.3"
-
 
 
 [tool.poetry.group.dev.dependencies]
@@ -50,6 +56,9 @@ pytest-xdist = "^3.8.0"
 
 # Excel file generation
 openpyxl = "^3.1.5"
+
+# MCP server (optional feature, also needed for type checking)
+mcp = ">=1.0"
 
 [tool.pytest.ini_options]
 addopts = "--cov slcli --strict-markers --doctest-modules --ignore=tests/e2e"
