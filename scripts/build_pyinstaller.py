@@ -64,6 +64,7 @@ def main():
         "--name=slcli",
         "--noconfirm",
         "--collect-submodules=shellingham",
+        "--collect-data=rfc3987_syntax",
         "--add-data",
         examples_data_arg,
         "--add-data",

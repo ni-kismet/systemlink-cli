@@ -56,6 +56,8 @@ Instead of terminal commands for file content:
 - `npm run build`, `make`, `cargo build` (builds)
 - `npm test`, `pytest`, `go test` (testing)
 - `git add`, `git commit`, `git push` (version control)
+- `gh pr create --title "..." --body-file /tmp/body.md` (GitHub CLI — write body content with the file tool first, then pass via `--body-file`)
+- `gh pr edit --body-file /tmp/body.md` (same rule — always `--body-file`, never `--body`)
 - `node script.js`, `python app.py` (running existing code)
 - `ls`, `cd`, `mkdir`, `pwd`, `rm` (filesystem navigation)
 - `curl`, `wget` (downloading, but not piping to files with content manipulation)
@@ -66,6 +68,7 @@ Instead of terminal commands for file content:
 - ANY file modification with content
 - ANY heredoc syntax (`<<`)
 - ANY multi-line string redirection
+- `gh pr create --body "..."` or `gh pr edit --body "..."` — shell quoting mangles multi-line content; always use `--body-file`
 
 ## Enforcement
 
