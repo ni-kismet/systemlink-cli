@@ -1,7 +1,20 @@
 # CHANGELOG
 
 
+## v0.35.1 (2026-02-27)
+
+### Bug Fixes
+
+- Mcp dependencies
+  ([`a51dd30`](https://github.com/ni-kismet/systemlink-cli/commit/a51dd30f7e72ce49d9a281798ca1f9e1c5016ec9))
+
+
 ## v0.35.0 (2026-02-27)
+
+### Chores
+
+- **release**: 0.35.0
+  ([`bb85ebe`](https://github.com/ni-kismet/systemlink-cli/commit/bb85ebecfc7d28afb51405524d08f8b86d0a63dc))
 
 ### Features
 
