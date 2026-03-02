@@ -89,6 +89,7 @@ Please review the PR systematically:
 **4. Repository Standards**
 - [ ] CLI standards met (--format, --help, exit codes)
 - [ ] README updated if needed
+- [ ] **`skills/slcli/SKILL.md` updated** — add any new commands, options, or changed command paths
 - [ ] Configuration properly managed
 - [ ] No hardcoded secrets or URLs
 - [ ] Cross-platform compatible

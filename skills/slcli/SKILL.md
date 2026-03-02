@@ -3,12 +3,12 @@ name: slcli
 description: >-
   Query and manage NI SystemLink resources using the slcli command-line interface.
   Covers test results, assets, systems, tags, feeds, files, notebooks,
-  routines, workflows, test plan templates, custom fields, web applications,
-  authorization policies, users, workspaces, and more.
+  routines, work items, work item templates, workflows, test plan templates,
+  custom fields, web applications, authorization policies, users, workspaces, and more.
   Use when the user asks about test data analysis, asset management, calibration status,
   system fleet health, operator performance, failure analysis, production metrics,
-  equipment utilization, or any SystemLink resource operations. Supports filtering,
-  aggregation, summary statistics, and JSON output for programmatic processing.
+  equipment utilization, work order tracking, or any SystemLink resource operations.
+  Supports filtering, aggregation, summary statistics, and JSON output for programmatic processing.
 compatibility: >-
   Requires slcli installed and authenticated (slcli login). Python 3.10+.
   Requires network access to a SystemLink server instance.
@@ -39,6 +39,12 @@ slcli asset list --calibration-status PAST_RECOMMENDED_DUE_DATE
 
 # list connected systems
 slcli system list --state CONNECTED
+
+# list work items
+slcli workitem list --format json --take 25
+
+# create a work item
+slcli workitem create --name "Battery Cycle Test" --type testplan --state NEW --part-number "P-001" --workspace Default
 ```
 
 ## Output formats
@@ -523,6 +529,10 @@ slcli customfield edit [--directory DIR]                 # Interactively edit + 
 
 ### template — Test plan template management
 
+> **Note:** Work item templates are managed separately via `slcli workitem template`.
+> The `slcli template` command manages test plan *configuration* templates used
+> when provisioning new test plan instances.
+
 ```bash
 slcli template init [--name TEXT] [--directory DIR]      # Scaffold a local template file
 slcli template list [-w WORKSPACE] [-t INT] [-f json]
@@ -532,18 +542,58 @@ slcli template import --file PATH [--workspace NAME]     # Import templates from
 slcli template delete <TEMPLATE_ID>
 ```
 
-### workflow — Workflow management
+### workitem — Work item, template, and workflow management
+
+Unified command group for managing work items, work item templates, and workflows.
 
 ```bash
-slcli workflow init [--name TEXT] [--directory DIR]      # Scaffold a local workflow file
-slcli workflow list [-w WORKSPACE] [-t INT] [-f json]
-slcli workflow get <WORKFLOW_ID> [-f json]
-slcli workflow export [-o FILE] [-w WORKSPACE]           # Export workflows to JSON
-slcli workflow import --file PATH [--workspace NAME]     # Import workflows from JSON
-slcli workflow update <WORKFLOW_ID> [OPTIONS]
-slcli workflow delete <WORKFLOW_ID>
-slcli workflow preview [--file PATH]                     # Validate/preview workflow locally
+# Work item commands
+slcli workitem list [-w WORKSPACE] [--filter TEXT] [--state TEXT] [-t INT] [-f json]
+slcli workitem get <WORK_ITEM_ID> [-f json]
+slcli workitem create --name TEXT --type TEXT --state TEXT --part-number TEXT [-w WORKSPACE]
+slcli workitem update <WORK_ITEM_ID> [--name TEXT] [--state TEXT] [--description TEXT] [--assigned-to TEXT]
+slcli workitem delete <WORK_ITEM_ID> [--yes]             # Prompts for confirmation without --yes
+slcli workitem execute <WORK_ITEM_ID> --action TEXT      # Execute an action on a work item
+slcli workitem schedule <WORK_ITEM_ID> [--start ISO8601] [--end ISO8601] [--duration SECONDS] [--assigned-to TEXT]
+
+# Work item template subgroup
+slcli workitem template list [-w WORKSPACE] [--filter TEXT] [-t INT] [-f json]
+slcli workitem template get <TEMPLATE_ID> [-f json]
+slcli workitem template create --name TEXT --type TEXT --template-group TEXT [-w WORKSPACE] [OPTIONS]
+slcli workitem template update <TEMPLATE_ID> [--name TEXT] [--description TEXT] [--summary TEXT]
+slcli workitem template delete <TEMPLATE_ID>... [--yes]
+
+# Workflow subgroup
+slcli workitem workflow list [-w WORKSPACE] [-t INT] [-f json]
+slcli workitem workflow get [--id WORKFLOW_ID] [--name NAME] [-f json]
+slcli workitem workflow init [--name TEXT] [--directory DIR]   # Scaffold a local workflow file
+slcli workitem workflow create --file PATH [-w WORKSPACE]      # Create from JSON file
+slcli workitem workflow import --file PATH [-w WORKSPACE]      # Import workflow from JSON
+slcli workitem workflow export [--id WORKFLOW_ID] [--name NAME] [-o FILE]  # Export to JSON
+slcli workitem workflow update --id WORKFLOW_ID --file PATH    # Update from JSON file
+slcli workitem workflow delete --id WORKFLOW_ID [--yes]
+slcli workitem workflow preview [--file PATH] [--id WORKFLOW_ID] [--html] [--no-open] [-o FILE]
 ```
+
+**Create work item options:**
+```bash
+slcli workitem create \
+  --name "Battery Cycle Test" \
+  --type testplan \
+  --state NEW \
+  --part-number "P-BAT-001" \
+  --description "Battery capacity test" \
+  --assigned-to <user-id> \
+  --workflow-id <workflow-id> \
+  --workspace Default \
+  --format json
+```
+
+### workflow — Workflow management
+
+> **Note:** The standalone `slcli workflow` command group has been replaced by
+> `slcli workitem workflow`. Use `slcli workitem workflow` for all workflow operations.
+> See the **workitem** section above.
 
 ### webapp — Web application management
 
