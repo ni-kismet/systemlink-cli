@@ -1110,3 +1110,367 @@ def test_summarize_products_empty_list() -> None:
     result = _summarize_products([])
     assert result["total"] == 0
     assert result["families"] == 0
+
+
+# --- Product create tests ---
+
+
+def test_create_product_basic(monkeypatch: Any, runner: CliRunner) -> None:
+    """Test creating a product with required part number."""
+    patch_keyring(monkeypatch)
+
+    captured: Dict[str, Any] = {}
+
+    def mock_request(
+        method: str, url: str, payload: Optional[Dict[str, Any]] = None, **_: Any
+    ) -> Any:
+        captured["method"] = method
+        captured["url"] = url
+        captured["payload"] = payload
+        return MockResponse(
+            {
+                "products": [
+                    {
+                        "id": "prod-new-1",
+                        "name": "cRIO-9030",
+                        "partNumber": "156502A-11L",
+                        "family": "cRIO",
+                        "workspace": "ws-1",
+                    }
+                ]
+            },
+            status_code=201,
+        )
+
+    monkeypatch.setattr("slcli.testmonitor_click.make_api_request", mock_request)
+    monkeypatch.setattr("slcli.testmonitor_click.get_workspace_map", lambda: {})
+    monkeypatch.setattr("slcli.profiles.is_active_profile_readonly", lambda: False)
+
+    cli = make_cli()
+    result = runner.invoke(
+        cli,
+        [
+            "testmonitor",
+            "product",
+            "create",
+            "--part-number",
+            "156502A-11L",
+            "--name",
+            "cRIO-9030",
+            "--family",
+            "cRIO",
+        ],
+    )
+
+    assert result.exit_code == 0, result.output
+    assert "Product created" in result.output
+    assert "prod-new-1" in result.output
+    assert captured["method"] == "POST"
+    assert "/products" in captured["url"]
+    assert captured["payload"]["products"][0]["partNumber"] == "156502A-11L"
+    assert captured["payload"]["products"][0]["name"] == "cRIO-9030"
+
+
+def test_create_product_json_output(monkeypatch: Any, runner: CliRunner) -> None:
+    """Test creating a product with JSON format output."""
+    patch_keyring(monkeypatch)
+
+    created_product = {
+        "id": "prod-new-2",
+        "name": "cRIO-9030",
+        "partNumber": "156502A-12L",
+        "workspace": "ws-1",
+    }
+
+    def mock_request(
+        method: str, url: str, payload: Optional[Dict[str, Any]] = None, **_: Any
+    ) -> Any:
+        return MockResponse({"products": [created_product]}, status_code=201)
+
+    monkeypatch.setattr("slcli.testmonitor_click.make_api_request", mock_request)
+    monkeypatch.setattr("slcli.testmonitor_click.get_workspace_map", lambda: {})
+    monkeypatch.setattr("slcli.profiles.is_active_profile_readonly", lambda: False)
+
+    cli = make_cli()
+    result = runner.invoke(
+        cli,
+        ["testmonitor", "product", "create", "--part-number", "156502A-12L", "--format", "json"],
+    )
+
+    assert result.exit_code == 0, result.output
+    output = json.loads(result.output)
+    assert output["id"] == "prod-new-2"
+    assert output["partNumber"] == "156502A-12L"
+
+
+def test_create_product_with_keywords_and_properties(monkeypatch: Any, runner: CliRunner) -> None:
+    """Test creating a product with keywords and properties."""
+    patch_keyring(monkeypatch)
+
+    captured: Dict[str, Any] = {}
+
+    def mock_request(
+        method: str, url: str, payload: Optional[Dict[str, Any]] = None, **_: Any
+    ) -> Any:
+        captured["payload"] = payload
+        return MockResponse(
+            {"products": [{"id": "prod-kwp", "partNumber": "PN-001"}]},
+            status_code=201,
+        )
+
+    monkeypatch.setattr("slcli.testmonitor_click.make_api_request", mock_request)
+    monkeypatch.setattr("slcli.testmonitor_click.get_workspace_map", lambda: {})
+    monkeypatch.setattr("slcli.profiles.is_active_profile_readonly", lambda: False)
+
+    cli = make_cli()
+    result = runner.invoke(
+        cli,
+        [
+            "testmonitor",
+            "product",
+            "create",
+            "--part-number",
+            "PN-001",
+            "--keyword",
+            "kw1",
+            "--keyword",
+            "kw2",
+            "--property",
+            "owner=team-a",
+            "--property",
+            "region=us",
+        ],
+    )
+
+    assert result.exit_code == 0, result.output
+    product_obj = captured["payload"]["products"][0]
+    assert product_obj["keywords"] == ["kw1", "kw2"]
+    assert product_obj["properties"] == {"owner": "team-a", "region": "us"}
+
+
+def test_create_product_invalid_property_format(monkeypatch: Any, runner: CliRunner) -> None:
+    """Test that an invalid property format exits with an error."""
+    patch_keyring(monkeypatch)
+    monkeypatch.setattr("slcli.profiles.is_active_profile_readonly", lambda: False)
+
+    cli = make_cli()
+    result = runner.invoke(
+        cli,
+        [
+            "testmonitor",
+            "product",
+            "create",
+            "--part-number",
+            "PN-001",
+            "--property",
+            "bad-format",
+        ],
+    )
+
+    assert result.exit_code != 0
+    assert "KEY=VALUE" in result.output
+
+
+def test_create_product_missing_part_number(monkeypatch: Any, runner: CliRunner) -> None:
+    """Test that missing --part-number causes a usage error."""
+    patch_keyring(monkeypatch)
+    monkeypatch.setattr("slcli.profiles.is_active_profile_readonly", lambda: False)
+
+    cli = make_cli()
+    result = runner.invoke(cli, ["testmonitor", "product", "create"])
+
+    assert result.exit_code != 0
+
+
+# --- Product update tests ---
+
+
+def test_update_product_basic(monkeypatch: Any, runner: CliRunner) -> None:
+    """Test updating a product name and family."""
+    patch_keyring(monkeypatch)
+
+    captured: Dict[str, Any] = {}
+
+    def mock_request(
+        method: str, url: str, payload: Optional[Dict[str, Any]] = None, **_: Any
+    ) -> Any:
+        captured["method"] = method
+        captured["url"] = url
+        captured["payload"] = payload
+        return MockResponse(
+            {
+                "products": [
+                    {
+                        "id": "prod-1",
+                        "name": "cRIO-Updated",
+                        "partNumber": "156502A-11L",
+                    }
+                ]
+            }
+        )
+
+    monkeypatch.setattr("slcli.testmonitor_click.make_api_request", mock_request)
+    monkeypatch.setattr("slcli.testmonitor_click.get_workspace_map", lambda: {})
+    monkeypatch.setattr("slcli.profiles.is_active_profile_readonly", lambda: False)
+
+    cli = make_cli()
+    result = runner.invoke(
+        cli,
+        [
+            "testmonitor",
+            "product",
+            "update",
+            "prod-1",
+            "--name",
+            "cRIO-Updated",
+            "--family",
+            "NewFamily",
+        ],
+    )
+
+    assert result.exit_code == 0, result.output
+    assert "Product updated" in result.output
+    assert "prod-1" in result.output
+    assert captured["method"] == "POST"
+    assert "/update-products" in captured["url"]
+    assert captured["payload"]["products"][0]["id"] == "prod-1"
+    assert captured["payload"]["products"][0]["name"] == "cRIO-Updated"
+    assert captured["payload"]["replace"] is False
+
+
+def test_update_product_with_replace_flag(monkeypatch: Any, runner: CliRunner) -> None:
+    """Test updating a product with --replace flag sets replace=True in payload."""
+    patch_keyring(monkeypatch)
+
+    captured: Dict[str, Any] = {}
+
+    def mock_request(
+        method: str, url: str, payload: Optional[Dict[str, Any]] = None, **_: Any
+    ) -> Any:
+        captured["payload"] = payload
+        return MockResponse({"products": [{"id": "prod-1", "name": "Updated", "partNumber": "PN"}]})
+
+    monkeypatch.setattr("slcli.testmonitor_click.make_api_request", mock_request)
+    monkeypatch.setattr("slcli.testmonitor_click.get_workspace_map", lambda: {})
+    monkeypatch.setattr("slcli.profiles.is_active_profile_readonly", lambda: False)
+
+    cli = make_cli()
+    result = runner.invoke(
+        cli,
+        ["testmonitor", "product", "update", "prod-1", "--name", "Updated", "--replace"],
+    )
+
+    assert result.exit_code == 0, result.output
+    assert captured["payload"]["replace"] is True
+
+
+def test_update_product_json_output(monkeypatch: Any, runner: CliRunner) -> None:
+    """Test update product JSON format output."""
+    patch_keyring(monkeypatch)
+
+    updated_product = {"id": "prod-1", "name": "Updated", "partNumber": "PN-002"}
+
+    def mock_request(
+        method: str, url: str, payload: Optional[Dict[str, Any]] = None, **_: Any
+    ) -> Any:
+        return MockResponse({"products": [updated_product]})
+
+    monkeypatch.setattr("slcli.testmonitor_click.make_api_request", mock_request)
+    monkeypatch.setattr("slcli.testmonitor_click.get_workspace_map", lambda: {})
+    monkeypatch.setattr("slcli.profiles.is_active_profile_readonly", lambda: False)
+
+    cli = make_cli()
+    result = runner.invoke(
+        cli,
+        ["testmonitor", "product", "update", "prod-1", "--name", "Updated", "--format", "json"],
+    )
+
+    assert result.exit_code == 0, result.output
+    output = json.loads(result.output)
+    assert output["id"] == "prod-1"
+    assert output["name"] == "Updated"
+
+
+# --- Product delete tests ---
+
+
+def test_delete_product_single(monkeypatch: Any, runner: CliRunner) -> None:
+    """Test deleting a single product (uses DELETE single endpoint)."""
+    patch_keyring(monkeypatch)
+
+    captured: Dict[str, Any] = {}
+
+    def mock_request(
+        method: str, url: str, payload: Optional[Dict[str, Any]] = None, **_: Any
+    ) -> Any:
+        captured["method"] = method
+        captured["url"] = url
+        return MockResponse({}, status_code=204)
+
+    monkeypatch.setattr("slcli.testmonitor_click.make_api_request", mock_request)
+    monkeypatch.setattr("slcli.profiles.is_active_profile_readonly", lambda: False)
+
+    cli = make_cli()
+    result = runner.invoke(cli, ["testmonitor", "product", "delete", "--yes", "prod-1"])
+
+    assert result.exit_code == 0, result.output
+    assert "deleted successfully" in result.output
+    assert captured["method"] == "DELETE"
+    assert "products/prod-1" in captured["url"]
+
+
+def test_delete_product_multiple(monkeypatch: Any, runner: CliRunner) -> None:
+    """Test deleting multiple products (uses bulk delete endpoint)."""
+    patch_keyring(monkeypatch)
+
+    captured: Dict[str, Any] = {}
+
+    def mock_request(
+        method: str, url: str, payload: Optional[Dict[str, Any]] = None, **_: Any
+    ) -> Any:
+        captured["method"] = method
+        captured["url"] = url
+        captured["payload"] = payload
+        return MockResponse({"ids": ["prod-1", "prod-2"], "failed": []})
+
+    monkeypatch.setattr("slcli.testmonitor_click.make_api_request", mock_request)
+    monkeypatch.setattr("slcli.profiles.is_active_profile_readonly", lambda: False)
+
+    cli = make_cli()
+    result = runner.invoke(cli, ["testmonitor", "product", "delete", "--yes", "prod-1", "prod-2"])
+
+    assert result.exit_code == 0, result.output
+    assert "Deleted" in result.output
+    assert captured["method"] == "POST"
+    assert "delete-products" in captured["url"]
+    assert set(captured["payload"]["ids"]) == {"prod-1", "prod-2"}
+
+
+def test_delete_product_confirmation_aborted(monkeypatch: Any, runner: CliRunner) -> None:
+    """Test that declining the confirmation prompt aborts deletion."""
+    patch_keyring(monkeypatch)
+    monkeypatch.setattr("slcli.profiles.is_active_profile_readonly", lambda: False)
+
+    cli = make_cli()
+    result = runner.invoke(cli, ["testmonitor", "product", "delete", "prod-1"], input="n\n")
+
+    assert result.exit_code == 0
+    assert "Aborted" in result.output
+
+
+def test_delete_product_multiple_partial_failure(monkeypatch: Any, runner: CliRunner) -> None:
+    """Test bulk delete with partial failure reports failures."""
+    patch_keyring(monkeypatch)
+
+    def mock_request(
+        method: str, url: str, payload: Optional[Dict[str, Any]] = None, **_: Any
+    ) -> Any:
+        return MockResponse({"ids": ["prod-1"], "failed": ["prod-2"]})
+
+    monkeypatch.setattr("slcli.testmonitor_click.make_api_request", mock_request)
+    monkeypatch.setattr("slcli.profiles.is_active_profile_readonly", lambda: False)
+
+    cli = make_cli()
+    result = runner.invoke(cli, ["testmonitor", "product", "delete", "--yes", "prod-1", "prod-2"])
+
+    assert result.exit_code != 0

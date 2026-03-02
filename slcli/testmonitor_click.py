@@ -9,7 +9,14 @@ import click
 
 from .cli_utils import validate_output_format
 from .universal_handlers import FilteredResponse, UniversalResponseHandler
-from .utils import get_base_url, get_workspace_map, handle_api_error, make_api_request
+from .utils import (
+    ExitCodes,
+    format_success,
+    get_base_url,
+    get_workspace_map,
+    handle_api_error,
+    make_api_request,
+)
 from .workspace_utils import get_workspace_display_name, resolve_workspace_filter
 
 
@@ -1271,6 +1278,295 @@ def register_testmonitor_commands(cli: Any) -> None:
                     for key, value in product["properties"].items():
                         click.echo(f"  {key}: {value}")
                 click.echo()
+        except Exception as exc:  # noqa: BLE001
+            handle_api_error(exc)
+
+    @product.command(name="create")
+    @click.option("--part-number", required=True, help="Part number of the product")
+    @click.option("--name", default=None, help="Name of the product")
+    @click.option("--family", default=None, help="Product family")
+    @click.option("--workspace", "-w", default=None, help="Workspace name or ID")
+    @click.option(
+        "--keyword",
+        "keywords",
+        multiple=True,
+        help="Keyword to associate with the product (repeatable)",
+    )
+    @click.option(
+        "--property",
+        "properties",
+        multiple=True,
+        metavar="KEY=VALUE",
+        help="Key-value property (repeatable, format: key=value)",
+    )
+    @click.option(
+        "--format",
+        "-f",
+        type=click.Choice(["table", "json"]),
+        default="table",
+        show_default=True,
+        help="Output format",
+    )
+    def create_product(
+        part_number: str,
+        name: Optional[str],
+        family: Optional[str],
+        workspace: Optional[str],
+        keywords: Tuple[str, ...],
+        properties: Tuple[str, ...],
+        format: str,
+    ) -> None:
+        """Create a new product in Test Monitor."""
+        from .utils import check_readonly_mode
+
+        check_readonly_mode("create a product")
+
+        try:
+            product_obj: Dict[str, Any] = {"partNumber": part_number}
+
+            if name is not None:
+                product_obj["name"] = name
+            if family is not None:
+                product_obj["family"] = family
+            if keywords:
+                product_obj["keywords"] = list(keywords)
+            if properties:
+                props: Dict[str, str] = {}
+                for prop in properties:
+                    if "=" not in prop:
+                        click.echo(
+                            f"✗ Invalid property format '{prop}': expected KEY=VALUE", err=True
+                        )
+                        sys.exit(ExitCodes.INVALID_INPUT)
+                    k, _, v = prop.partition("=")
+                    props[k.strip()] = v.strip()
+                product_obj["properties"] = props
+            if workspace is not None:
+                try:
+                    workspace_map = get_workspace_map()
+                except Exception:
+                    workspace_map = {}
+                ws_id = resolve_workspace_filter(workspace, workspace_map)
+                product_obj["workspace"] = ws_id
+
+            url = f"{_get_testmonitor_base_url()}/products"
+            payload: Dict[str, Any] = {"products": [product_obj]}
+            resp = make_api_request("POST", url, payload=payload)
+            resp.raise_for_status()
+            data = resp.json()
+
+            products = data.get("products", []) if isinstance(data, dict) else []
+            failed = data.get("failed", []) if isinstance(data, dict) else []
+
+            if failed:
+                click.echo(
+                    f"✗ Product creation partially failed: {len(failed)} item(s) failed.",
+                    err=True,
+                )
+                sys.exit(ExitCodes.GENERAL_ERROR)
+
+            if products:
+                created = products[0]
+                if format == "json":
+                    click.echo(json.dumps(created, indent=2))
+                else:
+                    format_success(
+                        "Product created",
+                        {
+                            "id": created.get("id", ""),
+                            "name": created.get("name", ""),
+                            "partNumber": created.get("partNumber", ""),
+                        },
+                    )
+            else:
+                click.echo("✗ Product creation failed: no product returned.", err=True)
+                sys.exit(ExitCodes.GENERAL_ERROR)
+
+        except SystemExit:
+            raise
+        except Exception as exc:  # noqa: BLE001
+            handle_api_error(exc)
+
+    @product.command(name="update")
+    @click.argument("product_id")
+    @click.option("--name", default=None, help="New name for the product")
+    @click.option("--family", default=None, help="New product family")
+    @click.option("--workspace", "-w", default=None, help="New workspace name or ID")
+    @click.option(
+        "--keyword",
+        "keywords",
+        multiple=True,
+        help="Keyword to set on the product (repeatable; replaces all if --replace)",
+    )
+    @click.option(
+        "--property",
+        "properties",
+        multiple=True,
+        metavar="KEY=VALUE",
+        help="Key-value property (repeatable, format: key=value; replaces all if --replace)",
+    )
+    @click.option(
+        "--replace",
+        is_flag=True,
+        default=False,
+        help="Replace existing fields instead of merging them",
+    )
+    @click.option(
+        "--format",
+        "-f",
+        type=click.Choice(["table", "json"]),
+        default="table",
+        show_default=True,
+        help="Output format",
+    )
+    def update_product(
+        product_id: str,
+        name: Optional[str],
+        family: Optional[str],
+        workspace: Optional[str],
+        keywords: Tuple[str, ...],
+        properties: Tuple[str, ...],
+        replace: bool,
+        format: str,
+    ) -> None:
+        """Update an existing product in Test Monitor.
+
+        Args:
+            product_id: The ID of the product to update.
+            name: New name for the product.
+            family: New product family.
+            workspace: New workspace name or ID.
+            keywords: Keywords to set on the product.
+            properties: Key-value properties in KEY=VALUE format.
+            replace: Replace existing fields instead of merging.
+            format: Output format (table or json).
+        """
+        from .utils import check_readonly_mode
+
+        check_readonly_mode("update a product")
+
+        try:
+            product_obj: Dict[str, Any] = {"id": product_id}
+
+            if name is not None:
+                product_obj["name"] = name
+            if family is not None:
+                product_obj["family"] = family
+            if keywords:
+                product_obj["keywords"] = list(keywords)
+            if properties:
+                props: Dict[str, str] = {}
+                for prop in properties:
+                    if "=" not in prop:
+                        click.echo(
+                            f"✗ Invalid property format '{prop}': expected KEY=VALUE", err=True
+                        )
+                        sys.exit(ExitCodes.INVALID_INPUT)
+                    k, _, v = prop.partition("=")
+                    props[k.strip()] = v.strip()
+                product_obj["properties"] = props
+            if workspace is not None:
+                try:
+                    workspace_map = get_workspace_map()
+                except Exception:
+                    workspace_map = {}
+                ws_id = resolve_workspace_filter(workspace, workspace_map)
+                product_obj["workspace"] = ws_id
+
+            url = f"{_get_testmonitor_base_url()}/update-products"
+            payload: Dict[str, Any] = {"products": [product_obj], "replace": replace}
+            resp = make_api_request("POST", url, payload=payload)
+            resp.raise_for_status()
+            data = resp.json()
+
+            products = data.get("products", []) if isinstance(data, dict) else []
+            failed = data.get("failed", []) if isinstance(data, dict) else []
+
+            if failed:
+                click.echo(
+                    f"✗ Product update partially failed: {len(failed)} item(s) failed.",
+                    err=True,
+                )
+                sys.exit(ExitCodes.GENERAL_ERROR)
+
+            if products:
+                updated = products[0]
+                if format == "json":
+                    click.echo(json.dumps(updated, indent=2))
+                else:
+                    format_success(
+                        "Product updated",
+                        {
+                            "id": updated.get("id", ""),
+                            "name": updated.get("name", ""),
+                            "partNumber": updated.get("partNumber", ""),
+                        },
+                    )
+            else:
+                click.echo("✗ Product update failed: no product returned.", err=True)
+                sys.exit(ExitCodes.GENERAL_ERROR)
+
+        except SystemExit:
+            raise
+        except Exception as exc:  # noqa: BLE001
+            handle_api_error(exc)
+
+    @product.command(name="delete")
+    @click.argument("product_ids", nargs=-1, required=True)
+    @click.option("--yes", "-y", is_flag=True, help="Skip confirmation prompt")
+    def delete_products(
+        product_ids: Tuple[str, ...],
+        yes: bool,
+    ) -> None:
+        """Delete one or more products by ID."""
+        from .utils import check_readonly_mode
+
+        check_readonly_mode("delete products")
+
+        ids_list = list(product_ids)
+        if not yes:
+            id_str = ", ".join(ids_list)
+            if not click.confirm(f"Delete product(s) {id_str}?"):
+                click.echo("Aborted.")
+                return
+
+        try:
+            if len(ids_list) == 1:
+                # Use single-delete endpoint for one product
+                url = f"{_get_testmonitor_base_url()}/products/{ids_list[0]}"
+                resp = make_api_request("DELETE", url)
+                if resp.status_code == 204 or resp.status_code == 200:
+                    click.echo("✓ Product deleted successfully.")
+                else:
+                    resp.raise_for_status()
+            else:
+                # Use bulk-delete endpoint for multiple products
+                url = f"{_get_testmonitor_base_url()}/delete-products"
+                payload: Dict[str, Any] = {"ids": ids_list}
+                resp = make_api_request("POST", url, payload=payload)
+
+                if resp.status_code == 204:
+                    click.echo(f"✓ {len(ids_list)} product(s) deleted successfully.")
+                    return
+
+                try:
+                    data = resp.json()
+                except Exception:
+                    data = {}
+
+                if resp.status_code == 200:
+                    deleted = data.get("ids", [])
+                    failed = data.get("failed", [])
+                    if deleted:
+                        click.echo(f"✓ Deleted {len(deleted)} product(s): {', '.join(deleted)}")
+                    if failed:
+                        click.echo(f"✗ Failed to delete: {', '.join(failed)}", err=True)
+                        sys.exit(ExitCodes.GENERAL_ERROR)
+                else:
+                    resp.raise_for_status()
+
+        except SystemExit:
+            raise
         except Exception as exc:  # noqa: BLE001
             handle_api_error(exc)
 
