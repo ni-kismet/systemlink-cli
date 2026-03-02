@@ -107,7 +107,7 @@ class TestFeatureGatingWorkflows:
         monkeypatch.setattr("slcli.platform.keyring.get_password", mock_get_password)
 
         runner = CliRunner()
-        result = runner.invoke(cli, ["workflow", "list"])
+        result = runner.invoke(cli, ["workitem", "workflow", "list"])
 
         assert result.exit_code == 2  # INVALID_INPUT
         assert "Workflows is not available on SystemLink Server" in result.output

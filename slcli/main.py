@@ -34,7 +34,7 @@ from .templates_click import register_templates_commands
 from .testmonitor_click import register_testmonitor_commands
 from .user_click import register_user_commands
 from .webapp_click import register_webapp_commands
-from .workflows_click import register_workflows_commands
+from .workitem_click import register_workitem_commands
 from .workspace_click import register_workspace_commands
 
 
@@ -392,5 +392,5 @@ register_testmonitor_commands(cli)
 register_webapp_commands(cli)
 register_skill_commands(cli)
 register_user_commands(cli)
-register_workflows_commands(cli)
+register_workitem_commands(cli)
 register_workspace_commands(cli)
