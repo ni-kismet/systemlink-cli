@@ -46,6 +46,7 @@ def main():
     entry_point = os.path.join(project_root, "slcli", "__main__.py")
     examples_dir = os.path.join(project_root, "slcli", "examples")
     editor_assets_dir = os.path.join(project_root, "dff-editor")
+    skills_dir = os.path.join(project_root, "skills")
 
     if not os.path.isdir(examples_dir):
         print(f"Examples directory not found at {examples_dir}")
@@ -55,8 +56,13 @@ def main():
         print(f"Editor assets directory not found at {editor_assets_dir}")
         sys.exit(1)
 
+    if not os.path.isdir(skills_dir):
+        print(f"Skills directory not found at {skills_dir}")
+        sys.exit(1)
+
     examples_data_arg = f"{examples_dir}{os.pathsep}slcli/examples"
     editor_data_arg = f"{editor_assets_dir}{os.pathsep}dff-editor"
+    skills_data_arg = f"{skills_dir}{os.pathsep}skills"
     cmd = [
         sys.executable,
         "-m",
@@ -69,6 +75,8 @@ def main():
         examples_data_arg,
         "--add-data",
         editor_data_arg,
+        "--add-data",
+        skills_data_arg,
         entry_point,
     ]
     print(f"Running: {' '.join(cmd)}")
