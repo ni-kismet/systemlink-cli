@@ -14,7 +14,8 @@ SystemLink CLI (`slcli`) is a cross-platform Python CLI for SystemLink integrato
 - **User Management**: Comprehensive user administration (list, get, create, update, delete) with Dynamic LINQ filtering, pagination, and support for service accounts
 - **Authorization Management**: Full auth policy and template management (list, get, create, update, delete, diff) with workspace scoping and template-based policy generation
 - **Feed Management**: Manage NI Package Manager feeds (list, get, create, delete, package list/upload/delete) with platform-aware behavior for SLE/SLS
-- **Workflows**: Full workflow management (list, export, import, delete, init, update) with comprehensive state and action definitions
+- **Work Items**: Full work item management (list, get, create, update, delete, execute, schedule) with template and workflow subgroups
+- **Workflows**: Full workflow management (list, export, import, delete, init, update) now at `workitem workflow` with comprehensive state and action definitions
 - **Workspace Management**: Essential workspace administration (list, info, disable) with comprehensive resource details
 - **Cross-Platform**: Windows, macOS, and Linux support with standalone binaries
 - **Professional CLI**: Consistent error handling, colored output, and comprehensive help system
@@ -173,8 +174,11 @@ Once installed, the assistant loads the skill automatically when you ask about S
    # View function executions
    slcli function execute list
 
+   # View work items
+   slcli workitem list
+
    # View workflows
-   slcli workflow list
+   slcli workitem workflow list
 
    # View notebooks
    slcli notebook manage list
@@ -228,8 +232,11 @@ Available samples:
    # Create a new template
    slcli template init --name "My Test Template" --template-group "Production"
 
+   # Create a new work item
+   slcli workitem create --name "Battery Cycle Test" --type testplan --state NEW --part-number "P-001"
+
    # Create a new workflow
-   slcli workflow init --name "My Workflow" --description "Custom workflow"
+   slcli workitem workflow init --name "My Workflow" --description "Custom workflow"
 
    # Launch custom fields web editor
    slcli customfield edit
@@ -240,7 +247,8 @@ Available samples:
    slcli --help
    slcli config --help
    slcli template --help
-   slcli workflow --help
+   slcli workitem --help
+   slcli workitem workflow --help
    slcli notebook --help
    slcli customfield --help
    slcli feed --help
@@ -1004,9 +1012,122 @@ The import command provides detailed error reporting for partial failures, inclu
 slcli template delete --id <template_id>
 ```
 
+## Work Item Management
+
+The `workitem` command group manages work items (test plans, work orders, etc.) via the niworkitem API.
+
+### List work items
+
+```bash
+# Table format (default, first 25 items with pagination)
+slcli workitem list
+
+# JSON format for programmatic use
+slcli workitem list --format json
+
+# Filter by state
+slcli workitem list --state NEW
+
+# Filter by workspace
+slcli workitem list --workspace "Production Workspace"
+
+# Apply custom LINQ filter
+slcli workitem list --filter "state == \"NEW\""
+```
+
+### Get a work item
+
+```bash
+# Table format (default)
+slcli workitem get <work_item_id>
+
+# JSON format
+slcli workitem get <work_item_id> --format json
+```
+
+### Create a work item
+
+```bash
+# Minimal creation
+slcli workitem create --name "Battery Cycle Test" --type testplan
+
+# Full creation with mandatory testplan fields
+slcli workitem create --name "Battery Test" --type testplan --state NEW \
+  --part-number "P-BAT-001" \
+  --description "Battery capacity test" --workspace "Production Workspace"
+
+# From a JSON file
+slcli workitem create --file workitem.json
+```
+
+### Update a work item
+
+```bash
+slcli workitem update <work_item_id> --state IN_PROGRESS
+slcli workitem update <work_item_id> --name "New Name" --assigned-to user@ni.com
+
+# From a JSON file
+slcli workitem update <work_item_id> --file updates.json
+```
+
+### Execute an action on a work item
+
+```bash
+slcli workitem execute <work_item_id> --action START
+slcli workitem execute <work_item_id> --action COMPLETE
+```
+
+### Schedule a work item
+
+```bash
+# Schedule with a start time
+slcli workitem schedule <work_item_id> --start 2026-03-01T09:00:00Z
+
+# Schedule with start and end times
+slcli workitem schedule <work_item_id> --start 2026-03-01T09:00:00Z --end 2026-03-01T17:00:00Z
+
+# Schedule by duration (seconds)
+slcli workitem schedule <work_item_id> --start 2026-03-01T09:00:00Z --duration 28800
+```
+
+### Delete work items
+
+```bash
+# With confirmation prompt
+slcli workitem delete <work_item_id>
+
+# Skip confirmation
+slcli workitem delete <work_item_id> --yes
+
+# Delete multiple
+slcli workitem delete <id1> <id2> <id3> --yes
+```
+
+### Work Item Template Management
+
+Manage reusable work item templates:
+
+```bash
+# List templates
+slcli workitem template list
+slcli workitem template list --format json
+
+# Get a template by ID
+slcli workitem template get <template_id>
+
+# Create a template
+slcli workitem template create --name "Battery Test Template" --type testplan --template-group "Functional"
+
+# Update a template
+slcli workitem template update <template_id> --name "Updated Template"
+
+# Delete a template
+slcli workitem template delete <template_id> --yes
+```
+
 ## Workflow Management
 
-The `workflow` command group allows you to manage workflows in SystemLink. All workflow commands use the beta feature flag automatically.
+The `workitem workflow` subgroup manages workflows in SystemLink via the niworkorder API. All workflow commands use the beta feature flag automatically.
 
 ### Create a workflow JSON skeleton
 
@@ -1014,13 +1135,13 @@ Create a new workflow JSON file with a complete state machine structure:
 
 ```bash
 # Interactive mode (prompts for required fields)
-slcli workflow init
+slcli workitem workflow init
 
 # Specify fields directly
-slcli workflow init --name "Battery Test Workflow" --description "Workflow for battery testing procedures"
+slcli workitem workflow init --name "Battery Test Workflow" --description "Workflow for battery testing procedures"
 
 # Custom output file
-slcli workflow init --name "My Workflow" --description "Custom workflow" --output custom-workflow.json
+slcli workitem workflow init --name "My Workflow" --description "Custom workflow" --output custom-workflow.json
 ```
 
 The `init` command creates a JSON file with:
@@ -1034,46 +1155,46 @@ The `init` command creates a JSON file with:
 
 ```bash
 # Table format (default)
-slcli workflow list
+slcli workitem workflow list
 
 # JSON format for programmatic use
-slcli workflow list --format json
+slcli workitem workflow list --format json
 
 # Filter by workspace
-slcli workflow list --workspace "Production Workspace"
+slcli workitem workflow list --workspace "Production Workspace"
 ```
 
 ### Get or export a workflow
 
 ```bash
 # Show details (table)
-slcli workflow get --id <workflow_id>
-slcli workflow get --name "Battery Test Workflow"
+slcli workitem workflow get --id <workflow_id>
+slcli workitem workflow get --name "Battery Test Workflow"
 
 # JSON details
-slcli workflow get --name "Battery Test Workflow" --format json
+slcli workitem workflow get --name "Battery Test Workflow" --format json
 
 # Export to JSON file (supports --id or --name)
-slcli workflow export --id <workflow_id> --output workflow.json
-slcli workflow export --name "Battery Test Workflow" --output workflow.json
+slcli workitem workflow export --id <workflow_id> --output workflow.json
+slcli workitem workflow export --name "Battery Test Workflow" --output workflow.json
 ```
 
 ### Import a workflow from JSON
 
 ```bash
-slcli workflow import --file workflow.json
+slcli workitem workflow import --file workflow.json
 ```
 
 ### Update an existing workflow
 
 ```bash
-slcli workflow update --id <workflow_id> --file updated-workflow.json
+slcli workitem workflow update --id <workflow_id> --file updated-workflow.json
 ```
 
 ### Delete a workflow
 
 ```bash
-slcli workflow delete --id <workflow_id>
+slcli workitem workflow delete --id <workflow_id>
 ```
 
 ### Preview a workflow (Mermaid diagram)
@@ -1082,22 +1203,22 @@ Generate a visual state diagram (Mermaid) for an existing workflow or a local JS
 
 ```bash
 # Preview remote workflow in browser (HTML)
-slcli workflow preview --id <workflow_id>
+slcli workitem workflow preview --id <workflow_id>
 
 # Save raw Mermaid source (.mmd) for a remote workflow
-slcli workflow preview --id <workflow_id> --format mmd --output workflow.mmd
+slcli workitem workflow preview --id <workflow_id> --format mmd --output workflow.mmd
 
 # Preview a local JSON file
-slcli workflow preview --file my-workflow.json
+slcli workitem workflow preview --file my-workflow.json
 
 # Read workflow JSON from stdin
-cat my-workflow.json | slcli workflow preview --file - --format mmd --output wf.mmd
+cat my-workflow.json | slcli workitem workflow preview --file - --format mmd --output wf.mmd
 
 # Disable emoji and legend (clean export)
-slcli workflow preview --id <workflow_id> --no-emoji --no-legend --format html --output wf.html
+slcli workitem workflow preview --id <workflow_id> --no-emoji --no-legend --format html --output wf.html
 
 # Generate HTML without opening a browser
-slcli workflow preview --id <workflow_id> --no-open --output wf.html
+slcli workitem workflow preview --id <workflow_id> --no-open --output wf.html
 ```
 
 Options:

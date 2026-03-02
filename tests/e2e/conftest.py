@@ -459,3 +459,4 @@ def pytest_configure(config: Any) -> None:
     config.addinivalue_line("markers", "testmonitor: mark test as test monitor related")
     config.addinivalue_line("markers", "comment: mark test as comment management related")
     config.addinivalue_line("markers", "routine: mark test as routine management related")
+    config.addinivalue_line("markers", "workitem: mark test as work item management related")

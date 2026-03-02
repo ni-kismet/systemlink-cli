@@ -107,10 +107,10 @@ def test_user_list_allowed_in_readonly_mode() -> None:
 
 def test_workflow_list_allowed_in_readonly_mode() -> None:
     """Test that workflow list command is allowed in readonly mode."""
-    from slcli import workflows_click
+    from slcli import workitem_click
 
     cli = make_cli()
-    workflows_click.register_workflows_commands(cli)
+    workitem_click.register_workitem_commands(cli)
     runner = CliRunner()
 
     def mock_get(*args: Any, **kwargs: Any) -> Any:
@@ -124,8 +124,8 @@ def test_workflow_list_allowed_in_readonly_mode() -> None:
         return MockResponse()
 
     with patch("slcli.profiles.is_active_profile_readonly", return_value=True):
-        with patch("slcli.workflows_click.make_api_request", side_effect=mock_get):
-            result = runner.invoke(cli, ["workflow", "list"])
+        with patch("slcli.workitem_click.make_api_request", side_effect=mock_get):
+            result = runner.invoke(cli, ["workitem", "workflow", "list"])
 
             # Should succeed (exit code 0) even in readonly mode
             assert result.exit_code == 0
@@ -185,6 +185,7 @@ def test_all_mutation_commands_have_readonly_guards() -> None:
         "tag_click.py",  # create, update, delete
         "user_click.py",  # create, update, delete
         "workflows_click.py",  # import, delete, update
+        "workitem_click.py",  # create, update, delete, execute, schedule, import, export
         "templates_click.py",  # import, delete
         "workspace_click.py",  # disable
         "notebook_click.py",  # create, update, delete
