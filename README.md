@@ -1060,6 +1060,28 @@ slcli workitem create --name "Battery Test" --type testplan --state NEW \
 slcli workitem create --file workitem.json
 ```
 
+### Create a work item from a template
+
+Pre-fills `name`, `type`, `description`, `workspace`, and `partNumber` from a work item
+template (by template ID). Any option you pass overrides the value from the template.
+
+```bash
+# Create using all values from the template
+slcli workitem create-from-template <template_id>
+
+# Override name and set an initial state
+slcli workitem create-from-template <template_id> --name "My Test Run" --state NEW
+
+# Override workspace and part number, output as JSON
+slcli workitem create-from-template <template_id> \
+  --workspace "Production Workspace" \
+  --part-number "P-BAT-001" \
+  --format json
+
+# Discover available templates
+slcli workitem template list
+```
+
 ### Update a work item
 
 ```bash
