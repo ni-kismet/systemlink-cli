@@ -1,7 +1,20 @@
 # CHANGELOG
 
 
+## v0.37.1 (2026-03-02)
+
+### Bug Fixes
+
+- Skills install
+  ([`cd9792f`](https://github.com/ni-kismet/systemlink-cli/commit/cd9792f2b3c446765e5865734bdd8404a6d1dd90))
+
+
 ## v0.37.0 (2026-03-02)
+
+### Chores
+
+- **release**: 0.37.0
+  ([`9c472b8`](https://github.com/ni-kismet/systemlink-cli/commit/9c472b829a761eb2ca1ea2644508dad3df941774))
 
 ### Features
 
