@@ -573,8 +573,26 @@ slcli system get <system-id> --include-packages
 # Get system with configured feeds
 slcli system get <system-id> --include-feeds
 
+# Include related resources from other services
+slcli system get <system-id> --include-assets      # Assets (niapm)
+slcli system get <system-id> --include-alarms      # Active alarms
+slcli system get <system-id> --include-jobs        # Recent jobs
+slcli system get <system-id> --include-results     # Test results
+slcli system get <system-id> --include-states      # System states
+slcli system get <system-id> --include-workitems   # Scheduled work items
+
+# Include all related resources at once
+slcli system get <system-id> --include-all
+
+# Limit rows per section (default: 10)
+slcli system get <system-id> --include-all -t 25
+
+# Adjust work-item time window (default: ±30 days)
+slcli system get <system-id> --include-workitems --workitem-days 90
+
 # JSON output
 slcli system get <system-id> -f json
+slcli system get <system-id> -f json --include-all
 ```
 
 ### System Summary

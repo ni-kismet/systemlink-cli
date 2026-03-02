@@ -14,6 +14,12 @@ from slcli.system_click import (
     _calculate_column_widths,
     _calculate_job_column_widths,
     _escape_filter_value,
+    _fetch_alarms_for_system,
+    _fetch_assets_for_system,
+    _fetch_recent_jobs_for_system,
+    _fetch_results_for_system,
+    _fetch_states_for_system,
+    _fetch_workitems_for_system,
     _filter_by_package,
     _get_system_grains,
     _get_system_state,
@@ -1656,3 +1662,488 @@ class TestJobCancel:
         cli = make_cli()
         result = runner.invoke(cli, ["system", "job", "cancel", "nonexistent"])
         assert result.exit_code != 0
+
+
+# ------------------------------------------------------------------
+# Related-resource fetch helper tests
+# ------------------------------------------------------------------
+
+
+class TestFetchAssetsForSystem:
+    """Tests for _fetch_assets_for_system."""
+
+    def test_returns_assets_and_total(self, monkeypatch: Any) -> None:
+        """Test normal response parsing."""
+        patch_keyring(monkeypatch)
+
+        def mock_post(*a: Any, **kw: Any) -> Any:
+            return MockResponse({"assets": [{"id": "a1", "name": "Asset1"}], "totalCount": 5})
+
+        monkeypatch.setattr("slcli.system_click.make_api_request", mock_post)
+        assets, total = _fetch_assets_for_system("minion-1", 10)
+        assert len(assets) == 1
+        assert assets[0]["id"] == "a1"
+        assert total == 5
+
+    def test_empty_response(self, monkeypatch: Any) -> None:
+        """Test empty asset list."""
+        patch_keyring(monkeypatch)
+
+        def mock_post(*a: Any, **kw: Any) -> Any:
+            return MockResponse({"assets": [], "totalCount": 0})
+
+        monkeypatch.setattr("slcli.system_click.make_api_request", mock_post)
+        assets, total = _fetch_assets_for_system("minion-1", 10)
+        assert assets == []
+        assert total == 0
+
+    def test_null_total_count(self, monkeypatch: Any) -> None:
+        """Test response where totalCount is null."""
+        patch_keyring(monkeypatch)
+
+        def mock_post(*a: Any, **kw: Any) -> Any:
+            return MockResponse({"assets": [{"id": "a1"}], "totalCount": None})
+
+        monkeypatch.setattr("slcli.system_click.make_api_request", mock_post)
+        assets, total = _fetch_assets_for_system("minion-1", 10)
+        assert total == 1  # Falls back to len(assets)
+
+
+class TestFetchAlarmsForSystem:
+    """Tests for _fetch_alarms_for_system."""
+
+    def test_returns_alarms_and_total(self, monkeypatch: Any) -> None:
+        """Test normal response parsing."""
+        patch_keyring(monkeypatch)
+
+        def mock_post(*a: Any, **kw: Any) -> Any:
+            return MockResponse(
+                {
+                    "alarmInstances": [{"id": "alarm-1", "severity": 3}],
+                    "totalCount": 2,
+                }
+            )
+
+        monkeypatch.setattr("slcli.system_click.make_api_request", mock_post)
+        alarms, total = _fetch_alarms_for_system("minion-1", 10)
+        assert len(alarms) == 1
+        assert total == 2
+
+    def test_empty_response(self, monkeypatch: Any) -> None:
+        """Test empty alarm list."""
+        patch_keyring(monkeypatch)
+
+        def mock_post(*a: Any, **kw: Any) -> Any:
+            return MockResponse({"alarmInstances": [], "totalCount": 0})
+
+        monkeypatch.setattr("slcli.system_click.make_api_request", mock_post)
+        alarms, total = _fetch_alarms_for_system("minion-1", 10)
+        assert alarms == []
+        assert total == 0
+
+
+class TestFetchRecentJobsForSystem:
+    """Tests for _fetch_recent_jobs_for_system."""
+
+    def test_returns_jobs_and_total(self, monkeypatch: Any) -> None:
+        """Test normal response parsing."""
+        patch_keyring(monkeypatch)
+
+        def mock_post(*a: Any, **kw: Any) -> Any:
+            return MockResponse(
+                {
+                    "jobs": [{"jid": "j1", "state": "succeeded"}],
+                    "totalCount": 10,
+                }
+            )
+
+        monkeypatch.setattr("slcli.system_click.make_api_request", mock_post)
+        jobs, total = _fetch_recent_jobs_for_system("minion-1", 5)
+        assert len(jobs) == 1
+        assert total == 10
+
+
+class TestFetchResultsForSystem:
+    """Tests for _fetch_results_for_system."""
+
+    def test_returns_results_and_total(self, monkeypatch: Any) -> None:
+        """Test normal response parsing."""
+        patch_keyring(monkeypatch)
+
+        def mock_post(*a: Any, **kw: Any) -> Any:
+            return MockResponse(
+                {
+                    "results": [{"id": "r1", "programName": "Test1"}],
+                    "totalCount": 3,
+                }
+            )
+
+        monkeypatch.setattr("slcli.system_click.make_api_request", mock_post)
+        results, total = _fetch_results_for_system("minion-1", 10)
+        assert len(results) == 1
+        assert total == 3
+
+
+class TestFetchStatesForSystem:
+    """Tests for _fetch_states_for_system."""
+
+    def test_returns_states_and_total(self, monkeypatch: Any) -> None:
+        """Test normal response parsing."""
+        patch_keyring(monkeypatch)
+
+        def mock_get(*a: Any, **kw: Any) -> Any:
+            return MockResponse(
+                {
+                    "states": [{"name": "running", "value": True}],
+                    "totalCount": 1,
+                }
+            )
+
+        monkeypatch.setattr("slcli.system_click.make_api_request", mock_get)
+        states, total = _fetch_states_for_system("minion-1", 10)
+        assert len(states) == 1
+        assert total == 1
+
+    def test_fallback_to_state_instances_key(self, monkeypatch: Any) -> None:
+        """Test fallback to stateInstances key."""
+        patch_keyring(monkeypatch)
+
+        def mock_get(*a: Any, **kw: Any) -> Any:
+            return MockResponse({"stateInstances": [{"name": "s1"}], "totalCount": 1})
+
+        monkeypatch.setattr("slcli.system_click.make_api_request", mock_get)
+        states, total = _fetch_states_for_system("minion-1", 10)
+        assert len(states) == 1
+
+    def test_null_total_count(self, monkeypatch: Any) -> None:
+        """Test response where totalCount is null."""
+        patch_keyring(monkeypatch)
+
+        def mock_get(*a: Any, **kw: Any) -> Any:
+            return MockResponse({"states": [{"name": "s1"}], "totalCount": None})
+
+        monkeypatch.setattr("slcli.system_click.make_api_request", mock_get)
+        states, total = _fetch_states_for_system("minion-1", 10)
+        assert total == 1
+
+
+class TestFetchWorkitemsForSystem:
+    """Tests for _fetch_workitems_for_system."""
+
+    def test_returns_workitems_and_total(self, monkeypatch: Any) -> None:
+        """Test normal response parsing."""
+        patch_keyring(monkeypatch)
+
+        def mock_post(*a: Any, **kw: Any) -> Any:
+            return MockResponse(
+                {
+                    "workItems": [{"id": "wi1", "name": "Plan A"}],
+                    "totalCount": 1,
+                }
+            )
+
+        monkeypatch.setattr("slcli.system_click.make_api_request", mock_post)
+        workitems, total = _fetch_workitems_for_system("minion-1", 10, 30)
+        assert len(workitems) == 1
+        assert total == 1
+
+    def test_empty_response(self, monkeypatch: Any) -> None:
+        """Test empty work item list."""
+        patch_keyring(monkeypatch)
+
+        def mock_post(*a: Any, **kw: Any) -> Any:
+            return MockResponse({"workItems": [], "totalCount": 0})
+
+        monkeypatch.setattr("slcli.system_click.make_api_request", mock_post)
+        workitems, total = _fetch_workitems_for_system("minion-1", 10, 30)
+        assert workitems == []
+        assert total == 0
+
+    def test_null_total_count(self, monkeypatch: Any) -> None:
+        """Test response where totalCount is null."""
+        patch_keyring(monkeypatch)
+
+        def mock_post(*a: Any, **kw: Any) -> Any:
+            return MockResponse({"workItems": [{"id": "wi1"}], "totalCount": None})
+
+        monkeypatch.setattr("slcli.system_click.make_api_request", mock_post)
+        workitems, total = _fetch_workitems_for_system("minion-1", 10, 30)
+        assert total == 1
+
+
+# ------------------------------------------------------------------
+# system get --include-* CLI integration tests
+# ------------------------------------------------------------------
+
+
+class TestGetSystemIncludeFlags:
+    """Tests for system get --include-* options."""
+
+    def _make_mock_api(self) -> Any:
+        """Create a mock that dispatches based on URL."""
+
+        def mock_request(method: str, url: str, **kw: Any) -> Any:
+            if "/nisysmgmt/v1/systems" in url and "query-jobs" not in url:
+                return MockResponse([SAMPLE_SYSTEM])
+            if "/niapm/v1/query-assets" in url:
+                return MockResponse({"assets": [{"id": "a1", "name": "DMM"}], "totalCount": 1})
+            if "/nialarm/v1/query-instances-with-filter" in url:
+                return MockResponse(
+                    {
+                        "alarmInstances": [{"id": "al1", "severity": 2}],
+                        "totalCount": 1,
+                    }
+                )
+            if "/nisysmgmt/v1/query-jobs" in url:
+                return MockResponse(
+                    {
+                        "jobs": [{"jid": "j1", "state": "succeeded", "createdTimestamp": ""}],
+                        "totalCount": 1,
+                    }
+                )
+            if "/nitestmonitor/v2/query-results" in url:
+                return MockResponse(
+                    {
+                        "results": [
+                            {
+                                "id": "r1",
+                                "programName": "P1",
+                                "status": {"statusType": "PASSED"},
+                            }
+                        ],
+                        "totalCount": 1,
+                    }
+                )
+            if "/nisystemsstate/v1/states" in url:
+                return MockResponse(
+                    {
+                        "states": [{"name": "CPU", "value": "OK"}],
+                        "totalCount": 1,
+                    }
+                )
+            if "/niworkitem/v1/query-workitems" in url:
+                return MockResponse(
+                    {
+                        "workItems": [{"id": "w1", "name": "Plan X"}],
+                        "totalCount": 1,
+                    }
+                )
+            # Fallback for workspace map
+            return MockResponse({"workspaces": []})
+
+        return mock_request
+
+    def test_include_assets_json(self, monkeypatch: Any, runner: CliRunner) -> None:
+        """Test --include-assets adds _assets key in JSON."""
+        patch_keyring(monkeypatch)
+        monkeypatch.setattr("slcli.system_click.make_api_request", self._make_mock_api())
+
+        cli = make_cli()
+        result = runner.invoke(
+            cli, ["system", "get", "minion-PXI-1234", "-f", "json", "--include-assets"]
+        )
+        assert result.exit_code == 0
+        data = json.loads(result.output)
+        assert "_assets" in data
+        assert data["_assets"]["totalCount"] == 1
+        assert data["_assets"]["items"][0]["id"] == "a1"
+
+    def test_include_alarms_json(self, monkeypatch: Any, runner: CliRunner) -> None:
+        """Test --include-alarms adds _alarms key in JSON."""
+        patch_keyring(monkeypatch)
+        monkeypatch.setattr("slcli.system_click.make_api_request", self._make_mock_api())
+
+        cli = make_cli()
+        result = runner.invoke(
+            cli, ["system", "get", "minion-PXI-1234", "-f", "json", "--include-alarms"]
+        )
+        assert result.exit_code == 0
+        data = json.loads(result.output)
+        assert "_alarms" in data
+        assert data["_alarms"]["totalCount"] == 1
+
+    def test_include_jobs_json(self, monkeypatch: Any, runner: CliRunner) -> None:
+        """Test --include-jobs adds _jobs key in JSON."""
+        patch_keyring(monkeypatch)
+        monkeypatch.setattr("slcli.system_click.make_api_request", self._make_mock_api())
+
+        cli = make_cli()
+        result = runner.invoke(
+            cli, ["system", "get", "minion-PXI-1234", "-f", "json", "--include-jobs"]
+        )
+        assert result.exit_code == 0
+        data = json.loads(result.output)
+        assert "_jobs" in data
+        assert data["_jobs"]["totalCount"] == 1
+
+    def test_include_results_json(self, monkeypatch: Any, runner: CliRunner) -> None:
+        """Test --include-results adds _results key in JSON."""
+        patch_keyring(monkeypatch)
+        monkeypatch.setattr("slcli.system_click.make_api_request", self._make_mock_api())
+
+        cli = make_cli()
+        result = runner.invoke(
+            cli, ["system", "get", "minion-PXI-1234", "-f", "json", "--include-results"]
+        )
+        assert result.exit_code == 0
+        data = json.loads(result.output)
+        assert "_results" in data
+        assert data["_results"]["totalCount"] == 1
+
+    def test_include_states_json(self, monkeypatch: Any, runner: CliRunner) -> None:
+        """Test --include-states adds _states key in JSON."""
+        patch_keyring(monkeypatch)
+        monkeypatch.setattr("slcli.system_click.make_api_request", self._make_mock_api())
+
+        cli = make_cli()
+        result = runner.invoke(
+            cli, ["system", "get", "minion-PXI-1234", "-f", "json", "--include-states"]
+        )
+        assert result.exit_code == 0
+        data = json.loads(result.output)
+        assert "_states" in data
+        assert data["_states"]["totalCount"] == 1
+
+    def test_include_workitems_json(self, monkeypatch: Any, runner: CliRunner) -> None:
+        """Test --include-workitems adds _workitems key in JSON."""
+        patch_keyring(monkeypatch)
+        monkeypatch.setattr("slcli.system_click.make_api_request", self._make_mock_api())
+
+        cli = make_cli()
+        result = runner.invoke(
+            cli, ["system", "get", "minion-PXI-1234", "-f", "json", "--include-workitems"]
+        )
+        assert result.exit_code == 0
+        data = json.loads(result.output)
+        assert "_workitems" in data
+        assert data["_workitems"]["totalCount"] == 1
+
+    def test_include_all_json(self, monkeypatch: Any, runner: CliRunner) -> None:
+        """Test --include-all adds all related resource keys in JSON."""
+        patch_keyring(monkeypatch)
+        monkeypatch.setattr("slcli.system_click.make_api_request", self._make_mock_api())
+
+        cli = make_cli()
+        result = runner.invoke(
+            cli, ["system", "get", "minion-PXI-1234", "-f", "json", "--include-all"]
+        )
+        assert result.exit_code == 0
+        data = json.loads(result.output)
+        # All sections present
+        for key in ("_assets", "_alarms", "_jobs", "_results", "_states", "_workitems"):
+            assert key in data, f"Missing key {key}"
+        # Packages & feeds should be included by --include-all
+        assert "packages" in data
+        assert "feeds" in data
+
+    def test_no_include_flags_no_related_keys(self, monkeypatch: Any, runner: CliRunner) -> None:
+        """Test that without --include-* flags, no related-resource keys appear."""
+        patch_keyring(monkeypatch)
+
+        def mock_get(*a: Any, **kw: Any) -> Any:
+            return MockResponse([SAMPLE_SYSTEM])
+
+        monkeypatch.setattr("slcli.system_click.make_api_request", mock_get)
+
+        cli = make_cli()
+        result = runner.invoke(cli, ["system", "get", "minion-PXI-1234", "-f", "json"])
+        assert result.exit_code == 0
+        data = json.loads(result.output)
+        for key in ("_assets", "_alarms", "_jobs", "_results", "_states", "_workitems"):
+            assert key not in data
+
+    def test_include_assets_table(self, monkeypatch: Any, runner: CliRunner) -> None:
+        """Test --include-assets renders a section in table mode."""
+        patch_keyring(monkeypatch)
+        monkeypatch.setattr("slcli.system_click.make_api_request", self._make_mock_api())
+        monkeypatch.setattr("slcli.system_click.get_workspace_map", lambda: {})
+
+        cli = make_cli()
+        result = runner.invoke(cli, ["system", "get", "minion-PXI-1234", "--include-assets"])
+        assert result.exit_code == 0
+        assert "Assets (1)" in result.output
+
+    def test_include_all_table(self, monkeypatch: Any, runner: CliRunner) -> None:
+        """Test --include-all renders all sections in table mode."""
+        patch_keyring(monkeypatch)
+        monkeypatch.setattr("slcli.system_click.make_api_request", self._make_mock_api())
+        monkeypatch.setattr("slcli.system_click.get_workspace_map", lambda: {})
+
+        cli = make_cli()
+        result = runner.invoke(cli, ["system", "get", "minion-PXI-1234", "--include-all"])
+        assert result.exit_code == 0
+        assert "Assets (1)" in result.output
+        assert "Active Alarms (1)" in result.output
+        assert "Recent Jobs (1)" in result.output
+        assert "Test Results (1)" in result.output
+        assert "States (1)" in result.output
+        assert "Scheduled Work Items" in result.output
+
+    def test_fetch_error_shows_warning_table(self, monkeypatch: Any, runner: CliRunner) -> None:
+        """Test that a fetch failure shows a ✗ warning in table mode."""
+        patch_keyring(monkeypatch)
+
+        call_count = 0
+
+        def mock_request(method: str, url: str, **kw: Any) -> Any:
+            nonlocal call_count
+            if "/nisysmgmt/v1/systems" in url and "query-jobs" not in url:
+                return MockResponse([SAMPLE_SYSTEM])
+            if "/niapm/v1/query-assets" in url:
+                raise Exception("Service unavailable")
+            return MockResponse({})
+
+        monkeypatch.setattr("slcli.system_click.make_api_request", mock_request)
+        monkeypatch.setattr("slcli.system_click.get_workspace_map", lambda: {})
+
+        cli = make_cli()
+        result = runner.invoke(cli, ["system", "get", "minion-PXI-1234", "--include-assets"])
+        assert result.exit_code == 0
+        assert "Failed to load assets" in result.output
+
+    def test_take_option(self, monkeypatch: Any, runner: CliRunner) -> None:
+        """Test --take option is passed through."""
+        patch_keyring(monkeypatch)
+        captured_payloads: List[Dict[str, Any]] = []
+
+        def mock_request(method: str, url: str, **kw: Any) -> Any:
+            if "/nisysmgmt/v1/systems" in url and "query-jobs" not in url:
+                return MockResponse([SAMPLE_SYSTEM])
+            if "/niapm/v1/query-assets" in url:
+                captured_payloads.append(kw.get("payload", kw.get("json", {})))
+                return MockResponse({"assets": [], "totalCount": 0})
+            return MockResponse({})
+
+        monkeypatch.setattr("slcli.system_click.make_api_request", mock_request)
+
+        cli = make_cli()
+        result = runner.invoke(
+            cli,
+            ["system", "get", "minion-PXI-1234", "-f", "json", "--include-assets", "-t", "5"],
+        )
+        assert result.exit_code == 0
+        assert len(captured_payloads) == 1
+        assert captured_payloads[0]["take"] == 5
+
+    def test_fetch_error_json(self, monkeypatch: Any, runner: CliRunner) -> None:
+        """Test fetch failure populates error field in JSON."""
+        patch_keyring(monkeypatch)
+
+        def mock_request(method: str, url: str, **kw: Any) -> Any:
+            if "/nisysmgmt/v1/systems" in url and "query-jobs" not in url:
+                return MockResponse([SAMPLE_SYSTEM])
+            if "/niapm/v1/query-assets" in url:
+                raise Exception("timeout")
+            return MockResponse({})
+
+        monkeypatch.setattr("slcli.system_click.make_api_request", mock_request)
+
+        cli = make_cli()
+        result = runner.invoke(
+            cli, ["system", "get", "minion-PXI-1234", "-f", "json", "--include-assets"]
+        )
+        assert result.exit_code == 0
+        data = json.loads(result.output)
+        assert "_assets" in data
+        assert data["_assets"]["error"] is not None
+        assert "timeout" in data["_assets"]["error"]
