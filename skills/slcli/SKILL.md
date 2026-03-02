@@ -111,6 +111,30 @@ slcli testmonitor product list [OPTIONS]
 
 # Get a single product
 slcli testmonitor product get <PRODUCT_ID> [-f json]
+
+# Create a product
+slcli testmonitor product create --part-number TEXT [OPTIONS]
+  --part-number TEXT         # Part number (required)
+  --name TEXT                # Product name
+  --family TEXT              # Product family
+  --workspace, -w TEXT       # Workspace name or ID
+  --keyword TEXT             # Keyword (repeatable)
+  --property KEY=VALUE       # Key-value property (repeatable)
+  -f [table|json]
+
+# Update a product
+slcli testmonitor product update <PRODUCT_ID> [OPTIONS]
+  --name TEXT                # New product name
+  --family TEXT              # New product family
+  --workspace, -w TEXT       # New workspace name or ID
+  --keyword TEXT             # Keyword (repeatable; replaces all if --replace)
+  --property KEY=VALUE       # Key-value property (repeatable; replaces all if --replace)
+  --replace                  # Replace fields instead of merging
+  -f [table|json]
+
+# Delete products
+slcli testmonitor product delete [--yes] <PRODUCT_ID>...
+  --yes, -y                  # Skip confirmation prompt
 ```
 
 ### asset — Asset and calibration management

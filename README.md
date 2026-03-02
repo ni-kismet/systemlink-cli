@@ -1982,6 +1982,60 @@ slcli testmonitor product get 02600cf8-c2bb-4ff9-a139-031e943fb0c0
 slcli testmonitor product get 02600cf8-c2bb-4ff9-a139-031e943fb0c0 --format json
 ```
 
+### Create a product
+
+```bash
+# Create a new product (part number is required)
+slcli testmonitor product create --part-number "156502A-11L" --name "cRIO-9030" --family "cRIO"
+
+# Create with keywords and properties
+slcli testmonitor product create \
+  --part-number "156502A-11L" \
+  --name "cRIO-9030" \
+  --family "cRIO" \
+  --keyword "embedded" \
+  --keyword "controller" \
+  --property "region=us" \
+  --property "owner=team-a"
+
+# Create in a specific workspace
+slcli testmonitor product create --part-number "PN-001" --workspace "Production"
+
+# Output created product as JSON
+slcli testmonitor product create --part-number "PN-001" --name "My Product" --format json
+```
+
+### Update a product
+
+```bash
+# Update a product's name and family
+slcli testmonitor product update 02600cf8-c2bb-4ff9-a139-031e943fb0c0 --name "cRIO-9030 Rev B" --family "cRIO Gen2"
+
+# Merge additional keywords into an existing product
+slcli testmonitor product update 02600cf8-c2bb-4ff9-a139-031e943fb0c0 --keyword "v2" --keyword "updated"
+
+# Replace all properties (instead of merging) using --replace
+slcli testmonitor product update 02600cf8-c2bb-4ff9-a139-031e943fb0c0 \
+  --property "owner=team-b" \
+  --replace
+
+# Output updated product as JSON
+slcli testmonitor product update 02600cf8-c2bb-4ff9-a139-031e943fb0c0 --name "Updated" --format json
+```
+
+### Delete a product
+
+```bash
+# Delete a single product (prompts for confirmation)
+slcli testmonitor product delete 02600cf8-c2bb-4ff9-a139-031e943fb0c0
+
+# Delete without confirmation prompt
+slcli testmonitor product delete --yes 02600cf8-c2bb-4ff9-a139-031e943fb0c0
+
+# Delete multiple products at once
+slcli testmonitor product delete --yes prod-id-1 prod-id-2 prod-id-3
+```
+
 ### Get result details with steps and measurements
 
 ```bash
