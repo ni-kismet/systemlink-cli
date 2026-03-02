@@ -1437,7 +1437,7 @@ def test_init_workflow_writes_file(monkeypatch: Any, runner: CliRunner, tmp_path
     import os
 
     assert os.path.exists(output_file)
-    with open(output_file) as fh:
+    with open(output_file, encoding="utf-8") as fh:
         data = json.load(fh)
     assert data["name"] == "My Workflow"
     assert "states" in data
@@ -1905,7 +1905,7 @@ def test_preview_workflow_html_to_file(monkeypatch: Any, runner: CliRunner, tmp_
     import os
 
     assert os.path.exists(output_file)
-    with open(output_file) as fh:
+    with open(output_file, encoding="utf-8") as fh:
         content = fh.read()
     assert "mermaid" in content.lower()
 
