@@ -740,6 +740,147 @@ def register_workitem_commands(cli: Any) -> None:
             handle_api_error(exc)
 
     # -----------------------------------------------------------------------
+    # workitem create-from-template
+    # -----------------------------------------------------------------------
+    @workitem.command(name="create-from-template")
+    @click.argument("template_id")
+    @click.option("--name", "-n", default=None, help="Work item name (overrides template)")
+    @click.option(
+        "--state",
+        "-s",
+        default=None,
+        help="Initial state (e.g. NEW, DEFINED)",
+    )
+    @click.option(
+        "--description",
+        "-d",
+        default=None,
+        help="Work item description (overrides template)",
+    )
+    @click.option("--assigned-to", default=None, help="User ID to assign the work item to")
+    @click.option(
+        "--workflow-id",
+        default=None,
+        help="ID of the workflow to associate with this work item",
+    )
+    @click.option(
+        "--workspace",
+        "-w",
+        default=None,
+        help="Workspace name or ID (overrides template workspace)",
+    )
+    @click.option(
+        "--part-number",
+        default=None,
+        help="Part number (overrides template's first part number)",
+    )
+    @click.option(
+        "--format",
+        "-f",
+        type=click.Choice(["table", "json"]),
+        default="table",
+        show_default=True,
+        help="Output format",
+    )
+    def create_workitem_from_template(
+        template_id: str,
+        name: Optional[str],
+        state: Optional[str],
+        description: Optional[str],
+        assigned_to: Optional[str],
+        workflow_id: Optional[str],
+        workspace: Optional[str],
+        part_number: Optional[str],
+        format: str,
+    ) -> None:
+        """Create a new work item pre-filled from a work item template."""
+        from .utils import check_readonly_mode
+
+        check_readonly_mode("create a work item from template")
+
+        try:
+            # Fetch template by ID
+            tmpl_url = _wi_url("/query-workitem-templates")
+            tmpl_payload = {
+                "filter": "id == @0",
+                "substitutions": [template_id],
+                "take": 1,
+            }
+            tmpl_resp = make_api_request("POST", tmpl_url, tmpl_payload)
+            tmpl_data = tmpl_resp.json()
+            templates = tmpl_data.get("workItemTemplates", [])
+
+            if not templates:
+                click.echo(f"✗ Template '{template_id}' not found.", err=True)
+                sys.exit(ExitCodes.NOT_FOUND)
+
+            tmpl = templates[0]
+
+            # Seed work item from template fields
+            wi_data: Dict[str, Any] = {}
+            if tmpl.get("name"):
+                wi_data["name"] = tmpl["name"]
+            if tmpl.get("type"):
+                wi_data["type"] = tmpl["type"]
+            if tmpl.get("description"):
+                wi_data["description"] = tmpl["description"]
+            if tmpl.get("workspace"):
+                wi_data["workspace"] = tmpl["workspace"]
+            template_part_numbers: List[str] = tmpl.get("partNumbers") or []
+            if template_part_numbers:
+                wi_data["partNumber"] = template_part_numbers[0]
+
+            # Apply CLI overrides
+            if name is not None:
+                wi_data["name"] = name
+            if state is not None:
+                wi_data["state"] = state
+            if description is not None:
+                wi_data["description"] = description
+            if assigned_to is not None:
+                wi_data["assignedTo"] = assigned_to
+            if workflow_id is not None:
+                wi_data["workflowId"] = workflow_id
+            if workspace is not None:
+                ws_id = get_workspace_id_with_fallback(workspace)
+                wi_data["workspace"] = ws_id
+            if part_number is not None:
+                wi_data["partNumber"] = part_number
+
+            # Create the work item
+            create_url = _wi_url("/workitems")
+            create_payload = {"workItems": [wi_data]}
+            resp = make_api_request("POST", create_url, create_payload, handle_errors=False)
+            data = resp.json()
+
+            if resp.status_code in (200, 201):
+                created = data.get("createdWorkItems", [])
+                if created:
+                    item = created[0]
+                    if format == "json":
+                        click.echo(json.dumps(item, indent=2))
+                    else:
+                        format_success(
+                            "Work item created from template",
+                            {"id": item.get("id", ""), "name": item.get("name", "")},
+                        )
+                else:
+                    failed = data.get("failedWorkItems", [])
+                    if failed:
+                        click.echo("✗ Failed to create work item from template.", err=True)
+                        display_api_errors("Work item creation failed", data, detailed=True)
+                        sys.exit(ExitCodes.GENERAL_ERROR)
+                    click.echo("✓ Work item created from template.")
+            else:
+                display_api_errors("Work item creation failed", data, detailed=True)
+                sys.exit(ExitCodes.GENERAL_ERROR)
+
+        except SystemExit:
+            raise
+        except Exception as exc:
+            handle_api_error(exc)
+
+    # -----------------------------------------------------------------------
     # workitem update
     # -----------------------------------------------------------------------
     @workitem.command(name="update")

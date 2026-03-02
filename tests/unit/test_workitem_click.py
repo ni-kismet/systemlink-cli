@@ -554,6 +554,228 @@ def test_create_workitem_readonly_mode(monkeypatch: Any, runner: CliRunner) -> N
 
 
 # ---------------------------------------------------------------------------
+# workitem create-from-template
+# ---------------------------------------------------------------------------
+
+
+def test_create_workitem_from_template_success(monkeypatch: Any, runner: CliRunner) -> None:
+    """Create from template pre-fills name/type/workspace from template and succeeds."""
+    patch_keyring(monkeypatch)
+
+    template = _make_template()
+    created = _make_workitem(name=template["name"], wi_type=template["type"])
+
+    call_count = {"n": 0}
+
+    def mock_post(*a: Any, **kw: Any) -> Any:
+        call_count["n"] += 1
+
+        class R:
+            status_code = 200
+
+            def raise_for_status(self) -> None:
+                pass
+
+            def json(self) -> Any:
+                # First call: template query; second call: workitem create
+                if call_count["n"] == 1:
+                    return {"workItemTemplates": [template]}
+                return {"createdWorkItems": [created]}
+
+        return R()
+
+    monkeypatch.setattr("requests.post", mock_post)
+
+    cli = make_cli()
+    result = runner.invoke(cli, ["workitem", "create-from-template", "2000"])
+    assert result.exit_code == 0
+    assert "created" in result.output.lower()
+
+
+def test_create_workitem_from_template_with_overrides(monkeypatch: Any, runner: CliRunner) -> None:
+    """CLI overrides replace template's name and state."""
+    patch_keyring(monkeypatch)
+
+    template = _make_template()
+    created = _make_workitem(name="Custom Name", state="DEFINED")
+
+    call_count = {"n": 0}
+
+    def mock_post(*a: Any, **kw: Any) -> Any:
+        call_count["n"] += 1
+
+        class R:
+            status_code = 201
+
+            def raise_for_status(self) -> None:
+                pass
+
+            def json(self) -> Any:
+                if call_count["n"] == 1:
+                    return {"workItemTemplates": [template]}
+                return {"createdWorkItems": [created]}
+
+        return R()
+
+    monkeypatch.setattr("requests.post", mock_post)
+
+    cli = make_cli()
+    result = runner.invoke(
+        cli,
+        [
+            "workitem",
+            "create-from-template",
+            "2000",
+            "--name",
+            "Custom Name",
+            "--state",
+            "DEFINED",
+        ],
+    )
+    assert result.exit_code == 0
+    assert "created" in result.output.lower()
+
+
+def test_create_workitem_from_template_not_found(monkeypatch: Any, runner: CliRunner) -> None:
+    """Missing template exits with NOT_FOUND."""
+    patch_keyring(monkeypatch)
+
+    def mock_post(*a: Any, **kw: Any) -> Any:
+        class R:
+            status_code = 200
+
+            def raise_for_status(self) -> None:
+                pass
+
+            def json(self) -> Any:
+                return {"workItemTemplates": []}
+
+        return R()
+
+    monkeypatch.setattr("requests.post", mock_post)
+
+    cli = make_cli()
+    result = runner.invoke(cli, ["workitem", "create-from-template", "nonexistent-id"])
+    assert result.exit_code == ExitCodes.NOT_FOUND
+
+
+def test_create_workitem_from_template_json_format(monkeypatch: Any, runner: CliRunner) -> None:
+    """--format json returns the created work item as JSON."""
+    patch_keyring(monkeypatch)
+
+    template = _make_template()
+    created = _make_workitem(name=template["name"], wi_type=template["type"])
+
+    call_count = {"n": 0}
+
+    def mock_post(*a: Any, **kw: Any) -> Any:
+        call_count["n"] += 1
+
+        class R:
+            status_code = 201
+
+            def raise_for_status(self) -> None:
+                pass
+
+            def json(self) -> Any:
+                if call_count["n"] == 1:
+                    return {"workItemTemplates": [template]}
+                return {"createdWorkItems": [created]}
+
+        return R()
+
+    monkeypatch.setattr("requests.post", mock_post)
+
+    cli = make_cli()
+    result = runner.invoke(cli, ["workitem", "create-from-template", "2000", "--format", "json"])
+    assert result.exit_code == 0
+    output = json.loads(result.output)
+    assert output["id"] == created["id"]
+
+
+def test_create_workitem_from_template_part_number_from_template(
+    monkeypatch: Any, runner: CliRunner
+) -> None:
+    """Part number is seeded from the template's partNumbers list."""
+    patch_keyring(monkeypatch)
+
+    template = {**_make_template(), "partNumbers": ["P-001", "P-002"]}
+    created = _make_workitem()
+    created["partNumber"] = "P-001"
+
+    call_count = {"n": 0}
+
+    def mock_post(*a: Any, **kw: Any) -> Any:
+        call_count["n"] += 1
+
+        class R:
+            status_code = 201
+
+            def raise_for_status(self) -> None:
+                pass
+
+            def json(self) -> Any:
+                if call_count["n"] == 1:
+                    return {"workItemTemplates": [template]}
+                return {"createdWorkItems": [created]}
+
+        return R()
+
+    monkeypatch.setattr("requests.post", mock_post)
+
+    cli = make_cli()
+    result = runner.invoke(cli, ["workitem", "create-from-template", "2000"])
+    assert result.exit_code == 0
+
+
+def test_create_workitem_from_template_readonly_mode(monkeypatch: Any, runner: CliRunner) -> None:
+    """create-from-template is blocked in readonly mode."""
+    patch_keyring(monkeypatch)
+
+    monkeypatch.setattr(
+        "slcli.utils.check_readonly_mode",
+        lambda *a, **kw: (_ for _ in ()).throw(SystemExit(ExitCodes.PERMISSION_DENIED)),
+    )
+
+    cli = make_cli()
+    result = runner.invoke(cli, ["workitem", "create-from-template", "2000"])
+    assert result.exit_code != 0
+
+
+def test_create_workitem_from_template_failed_items(monkeypatch: Any, runner: CliRunner) -> None:
+    """create-from-template exits GENERAL_ERROR when API reports failedWorkItems."""
+    patch_keyring(monkeypatch)
+
+    template = _make_template()
+    call_count = {"n": 0}
+
+    def mock_post(*a: Any, **kw: Any) -> Any:
+        call_count["n"] += 1
+
+        class R:
+            status_code = 200
+
+            def raise_for_status(self) -> None:
+                pass
+
+            def json(self) -> Any:
+                if call_count["n"] == 1:
+                    return {"workItemTemplates": [template]}
+                return {
+                    "createdWorkItems": [],
+                    "failedWorkItems": [{"error": {"message": "Validation failed"}}],
+                }
+
+        return R()
+
+    monkeypatch.setattr("requests.post", mock_post)
+
+    cli = make_cli()
+    result = runner.invoke(cli, ["workitem", "create-from-template", "2000"])
+    assert result.exit_code == ExitCodes.GENERAL_ERROR
+
+
+# ---------------------------------------------------------------------------
 # workitem update
 # ---------------------------------------------------------------------------
 

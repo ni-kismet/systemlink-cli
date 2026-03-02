@@ -551,6 +551,9 @@ Unified command group for managing work items, work item templates, and workflow
 slcli workitem list [-w WORKSPACE] [--filter TEXT] [--state TEXT] [-t INT] [-f json]
 slcli workitem get <WORK_ITEM_ID> [-f json]
 slcli workitem create --name TEXT --type TEXT --state TEXT --part-number TEXT [-w WORKSPACE]
+slcli workitem create-from-template <TEMPLATE_ID> [--name TEXT] [--state TEXT] [--description TEXT]
+                                    [--assigned-to TEXT] [--workflow-id TEXT] [-w WORKSPACE]
+                                    [--part-number TEXT] [-f json]
 slcli workitem update <WORK_ITEM_ID> [--name TEXT] [--state TEXT] [--description TEXT] [--assigned-to TEXT]
 slcli workitem delete <WORK_ITEM_ID> [--yes]             # Prompts for confirmation without --yes
 slcli workitem execute <WORK_ITEM_ID> --action TEXT      # Execute an action on a work item
