@@ -123,8 +123,8 @@ slcli testmonitor result list -f json --take 1000 | \
 # Step 1: List all connected systems
 slcli system list --state CONNECTED -f json --take 200
 
-# Step 2: Get assets for a specific system
-slcli asset list --filter 'ParentId = @0' --substitution "<SYSTEM_ID>" -f json
+# Step 2: Get assets for a specific system (new: single command)
+slcli system get <SYSTEM_ID> --include-assets -f json | jq '._assets.items'
 
 # Step 3: Generate a hardware report
 slcli system report --type HARDWARE -o hardware_report.csv
@@ -140,6 +140,52 @@ slcli system list --has-package "DAQmx" --state CONNECTED -f json
 slcli system list --state CONNECTED -f json --take 500 | \
   jq '[.[] | {alias, id, os: .grains.kernel}]'
 ```
+
+---
+
+## Recipe 4b: Full system health snapshot
+
+**Question:** What is the current health of a specific system — assets, alarms, recent jobs, test results, scheduled work?
+
+**Answer:** Use `--include-all` (or selective `--include-*` flags) to fetch all related
+resources in a single parallel call, mirroring the web UI system detail page.
+
+```bash
+# Full snapshot in table format
+slcli system get <SYSTEM_ID> --include-all
+
+# Limit each section to 5 rows / extend work-item window to 60 days
+slcli system get <SYSTEM_ID> --include-all -t 5 --workitem-days 60
+
+# Machine-readable JSON — all sections embedded
+slcli system get <SYSTEM_ID> --include-all -f json
+
+# Extract just the active alarms
+slcli system get <SYSTEM_ID> --include-alarms -f json | jq '._alarms.items'
+
+# Show systems that have active alarms
+slcli system list --state CONNECTED -f json --take 200 | \
+  jq -r '.[].id' | \
+  xargs -I{} sh -c \
+    'slcli system get {} --include-alarms -f json | jq -e "._alarms.totalCount > 0" > /dev/null && echo {}'
+```
+
+**JSON output shape** — each included section is nested under `_<section>`:
+
+```json
+{
+  "id": "...",
+  "_assets":    { "totalCount": 3, "items": [...], "error": null },
+  "_alarms":    { "totalCount": 1, "items": [...], "error": null },
+  "_jobs":      { "totalCount": 5, "items": [...], "error": null },
+  "_results":   { "totalCount": 12, "items": [...], "error": null },
+  "_states":    { "totalCount": 2, "items": [...], "error": null },
+  "_workitems": { "totalCount": 0, "items": [], "error": null }
+}
+```
+
+> If a service is unavailable, `"error"` contains the error message and the
+> other sections still render normally.
 
 ---
 
@@ -334,6 +380,84 @@ slcli testmonitor result list --status FAILED -f json --take 500 | \
 slcli testmonitor result list --status FAILED --part-number "BATT-8" -f json --take 200 | \
   jq '[.[].totalTimeInSeconds] | {min: min, max: max, avg: (add / length | round)}'
 ```
+
+---
+
+## Recipe 11: Create and schedule a work item on a specific fixture/slot and system
+
+**Question:** "Create a work item for final validation testing, and schedule it on the
+slot(s) belonging to Chamber B for all day tomorrow."
+
+**Concept:** In SystemLink, a _slot_ is an asset with `assetType = FIXTURE`. "Chamber B"
+is most likely a registered system (found via `slcli system list`) whose associated
+fixture assets (the test slots inside it) are of type FIXTURE. The work item template
+defines named resource requirement slots (e.g. "System Under Test", "Chamber") which are
+filled by assigning real asset IDs or system IDs at scheduling time.
+
+**Steps:**
+
+```bash
+# Step 1: Find Chamber B's system ID
+slcli system list --alias "Chamber B" -f json | jq -r '.[0].id'
+# → e.g. "chamber-b-minion-id"
+
+# Step 2: Find fixture/slot assets belonging to Chamber B
+#   Fixtures are assets with assetType = FIXTURE located on the Chamber B system
+slcli asset list --asset-type FIXTURE -f json | \
+  jq '[.[] | select(.location.minionId == "chamber-b-minion-id")]'
+# → e.g. [ { "id": "fixture-slot-1", "name": "Slot 1" }, ... ]
+
+# Step 3: Find a suitable work item template (if creating from template)
+slcli workitem template list -f json | \
+  jq '[.[] | select(.name | test("validation"; "i")) | {id, name}]'
+# → e.g. "template-abc"
+
+# Step 4: Create the work item
+slcli workitem create-from-template template-abc \
+  --name "Final Validation - Chamber B" \
+  --state NEW \
+  -f json | jq -r '.id'
+# → e.g. "wi-12345"
+# Or create from scratch:
+slcli workitem create \
+  --name "Final Validation - Chamber B" \
+  --type testplan \
+  --state NEW \
+  --part-number "P-FINAL-001" \
+  -f json | jq -r '.id'
+
+# Step 5: Schedule the work item — assign Chamber B system + fixture slots,
+#          and set tomorrow's date (00:00–23:59 UTC)
+slcli workitem schedule wi-12345 \
+  --start "2026-03-03T00:00:00Z" \
+  --end   "2026-03-03T23:59:59Z" \
+  --system "chamber-b-minion-id" \
+  --fixture "fixture-slot-1" \
+  --fixture "fixture-slot-2"
+```
+
+**Multi-slot shorthand with shell expansion:**
+
+```bash
+# Find all fixture IDs for Chamber B and schedule them all at once
+FIXTURE_FLAGS=$(
+  slcli asset list --asset-type FIXTURE -f json | \
+    jq -r '[.[] | select(.location.minionId == "chamber-b-minion-id") | "--fixture", .id] | .[]'
+)
+slcli workitem schedule wi-12345 \
+  --start "2026-03-03T00:00:00Z" \
+  --end   "2026-03-03T23:59:59Z" \
+  --system "chamber-b-minion-id" \
+  $FIXTURE_FLAGS
+```
+
+**Key facts:**
+
+- `--system` takes a system/minion ID (from `slcli system list`).
+- `--fixture` takes an _asset_ ID of type FIXTURE (from `slcli asset list --asset-type FIXTURE`).
+- `--dut` takes an _asset_ ID of type DEVICE_UNDER_TEST.
+- All three flags are repeatable for multi-resource scheduling.
+- Time and resource flags can be combined in a single `workitem schedule` call.
 
 ---
 

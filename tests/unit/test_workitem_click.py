@@ -3470,6 +3470,237 @@ def test_schedule_workitem_with_end_and_duration(monkeypatch: Any, runner: CliRu
     assert "scheduled" in result.output.lower()
 
 
+def test_schedule_workitem_with_system(monkeypatch: Any, runner: CliRunner) -> None:
+    """Schedule with --system sends resources.systems.selections in payload."""
+    patch_keyring(monkeypatch)
+
+    captured: List[Any] = []
+
+    def mock_post(*a: Any, **kw: Any) -> Any:
+        captured.append(kw.get("json") or (a[1] if len(a) > 1 else {}))
+
+        class R:
+            status_code = 200
+            text = '{"scheduledWorkItems": [{"id": "1000"}]}'
+
+            def raise_for_status(self) -> None:
+                pass
+
+            def json(self) -> Any:
+                return {"scheduledWorkItems": [{"id": "1000"}]}
+
+        return R()
+
+    monkeypatch.setattr("requests.post", mock_post)
+
+    cli = make_cli()
+    result = runner.invoke(
+        cli,
+        ["workitem", "schedule", "1000", "--system", "minion-abc"],
+    )
+    assert result.exit_code == 0
+    assert "scheduled" in result.output.lower()
+    assert len(captured) == 1
+    wi = captured[0]["workItems"][0]
+    assert wi["resources"]["systems"]["selections"] == [{"id": "minion-abc"}]
+
+
+def test_schedule_workitem_with_multiple_fixtures(monkeypatch: Any, runner: CliRunner) -> None:
+    """Schedule with multiple --fixture flags sends all fixture IDs in selections."""
+    patch_keyring(monkeypatch)
+
+    captured: List[Any] = []
+
+    def mock_post(*a: Any, **kw: Any) -> Any:
+        captured.append(kw.get("json") or (a[1] if len(a) > 1 else {}))
+
+        class R:
+            status_code = 200
+            text = '{"scheduledWorkItems": [{"id": "1000"}]}'
+
+            def raise_for_status(self) -> None:
+                pass
+
+            def json(self) -> Any:
+                return {"scheduledWorkItems": [{"id": "1000"}]}
+
+        return R()
+
+    monkeypatch.setattr("requests.post", mock_post)
+
+    cli = make_cli()
+    result = runner.invoke(
+        cli,
+        [
+            "workitem",
+            "schedule",
+            "1000",
+            "--fixture",
+            "asset-slot-1",
+            "--fixture",
+            "asset-slot-2",
+        ],
+    )
+    assert result.exit_code == 0
+    wi = captured[0]["workItems"][0]
+    fixtures = wi["resources"]["fixtures"]["selections"]
+    assert {"id": "asset-slot-1"} in fixtures
+    assert {"id": "asset-slot-2"} in fixtures
+
+
+def test_schedule_workitem_with_dut(monkeypatch: Any, runner: CliRunner) -> None:
+    """Schedule with --dut sends resources.duts.selections in payload."""
+    patch_keyring(monkeypatch)
+
+    captured: List[Any] = []
+
+    def mock_post(*a: Any, **kw: Any) -> Any:
+        captured.append(kw.get("json") or (a[1] if len(a) > 1 else {}))
+
+        class R:
+            status_code = 200
+            text = '{"scheduledWorkItems": [{"id": "1000"}]}'
+
+            def raise_for_status(self) -> None:
+                pass
+
+            def json(self) -> Any:
+                return {"scheduledWorkItems": [{"id": "1000"}]}
+
+        return R()
+
+    monkeypatch.setattr("requests.post", mock_post)
+
+    cli = make_cli()
+    result = runner.invoke(
+        cli,
+        ["workitem", "schedule", "1000", "--dut", "asset-dut-42"],
+    )
+    assert result.exit_code == 0
+    wi = captured[0]["workItems"][0]
+    assert wi["resources"]["duts"]["selections"] == [{"id": "asset-dut-42"}]
+
+
+def test_schedule_workitem_resources_and_time(monkeypatch: Any, runner: CliRunner) -> None:
+    """Schedule with both time and resource flags sends both in payload."""
+    patch_keyring(monkeypatch)
+
+    captured: List[Any] = []
+
+    def mock_post(*a: Any, **kw: Any) -> Any:
+        captured.append(kw.get("json") or (a[1] if len(a) > 1 else {}))
+
+        class R:
+            status_code = 200
+            text = '{"scheduledWorkItems": [{"id": "1000"}]}'
+
+            def raise_for_status(self) -> None:
+                pass
+
+            def json(self) -> Any:
+                return {"scheduledWorkItems": [{"id": "1000"}]}
+
+        return R()
+
+    monkeypatch.setattr("requests.post", mock_post)
+
+    cli = make_cli()
+    result = runner.invoke(
+        cli,
+        [
+            "workitem",
+            "schedule",
+            "1000",
+            "--start",
+            "2026-03-03T08:00:00Z",
+            "--end",
+            "2026-03-03T17:00:00Z",
+            "--system",
+            "minion-chamber-b",
+            "--fixture",
+            "asset-fixture-1",
+        ],
+    )
+    assert result.exit_code == 0
+    wi = captured[0]["workItems"][0]
+    assert wi["schedule"]["plannedStartDateTime"] == "2026-03-03T08:00:00Z"
+    assert wi["schedule"]["plannedEndDateTime"] == "2026-03-03T17:00:00Z"
+    assert wi["resources"]["systems"]["selections"] == [{"id": "minion-chamber-b"}]
+    assert wi["resources"]["fixtures"]["selections"] == [{"id": "asset-fixture-1"}]
+
+
+def test_schedule_workitem_only_resources_no_time(monkeypatch: Any, runner: CliRunner) -> None:
+    """Providing only resource flags (no time) is a valid invocation."""
+    patch_keyring(monkeypatch)
+
+    def mock_post(*a: Any, **kw: Any) -> Any:
+        class R:
+            status_code = 200
+            text = '{"scheduledWorkItems": [{"id": "1000"}]}'
+
+            def raise_for_status(self) -> None:
+                pass
+
+            def json(self) -> Any:
+                return {"scheduledWorkItems": [{"id": "1000"}]}
+
+        return R()
+
+    monkeypatch.setattr("requests.post", mock_post)
+
+    cli = make_cli()
+    result = runner.invoke(
+        cli,
+        ["workitem", "schedule", "1000", "--fixture", "asset-slot-99"],
+    )
+    assert result.exit_code == 0
+
+
+def test_schedule_workitem_all_resource_types(monkeypatch: Any, runner: CliRunner) -> None:
+    """Schedule with --system, --fixture, and --dut sends all resource types."""
+    patch_keyring(monkeypatch)
+
+    captured: List[Any] = []
+
+    def mock_post(*a: Any, **kw: Any) -> Any:
+        captured.append(kw.get("json") or (a[1] if len(a) > 1 else {}))
+
+        class R:
+            status_code = 200
+            text = '{"scheduledWorkItems": [{"id": "1000"}]}'
+
+            def raise_for_status(self) -> None:
+                pass
+
+            def json(self) -> Any:
+                return {"scheduledWorkItems": [{"id": "1000"}]}
+
+        return R()
+
+    monkeypatch.setattr("requests.post", mock_post)
+
+    cli = make_cli()
+    result = runner.invoke(
+        cli,
+        [
+            "workitem",
+            "schedule",
+            "1000",
+            "--system",
+            "sys-1",
+            "--fixture",
+            "fix-1",
+            "--dut",
+            "dut-1",
+        ],
+    )
+    assert result.exit_code == 0
+    wi = captured[0]["workItems"][0]
+    assert wi["resources"]["systems"]["selections"] == [{"id": "sys-1"}]
+    assert wi["resources"]["fixtures"]["selections"] == [{"id": "fix-1"}]
+    assert wi["resources"]["duts"]["selections"] == [{"id": "dut-1"}]
+
+
 def test_create_template_with_description_summary_workspace(
     monkeypatch: Any, runner: CliRunner
 ) -> None:
