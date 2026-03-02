@@ -704,15 +704,9 @@ def test_create_workitem_from_template_part_number_from_template(
     created["partNumber"] = "P-001"
 
     call_count = {"n": 0}
-    captured: Dict[str, Any] = {}
 
     def mock_post(*a: Any, **kw: Any) -> Any:
         call_count["n"] += 1
-        import json as _json
-
-        body = _json.loads(kw.get("data", "{}") or a[1] if len(a) > 1 else "{}")
-        if call_count["n"] == 2:
-            captured["payload"] = body
 
         class R:
             status_code = 201
@@ -732,6 +726,53 @@ def test_create_workitem_from_template_part_number_from_template(
     cli = make_cli()
     result = runner.invoke(cli, ["workitem", "create-from-template", "2000"])
     assert result.exit_code == 0
+
+
+def test_create_workitem_from_template_readonly_mode(monkeypatch: Any, runner: CliRunner) -> None:
+    """create-from-template is blocked in readonly mode."""
+    patch_keyring(monkeypatch)
+
+    monkeypatch.setattr(
+        "slcli.utils.check_readonly_mode",
+        lambda *a, **kw: (_ for _ in ()).throw(SystemExit(ExitCodes.PERMISSION_DENIED)),
+    )
+
+    cli = make_cli()
+    result = runner.invoke(cli, ["workitem", "create-from-template", "2000"])
+    assert result.exit_code != 0
+
+
+def test_create_workitem_from_template_failed_items(monkeypatch: Any, runner: CliRunner) -> None:
+    """create-from-template exits GENERAL_ERROR when API reports failedWorkItems."""
+    patch_keyring(monkeypatch)
+
+    template = _make_template()
+    call_count = {"n": 0}
+
+    def mock_post(*a: Any, **kw: Any) -> Any:
+        call_count["n"] += 1
+
+        class R:
+            status_code = 200
+
+            def raise_for_status(self) -> None:
+                pass
+
+            def json(self) -> Any:
+                if call_count["n"] == 1:
+                    return {"workItemTemplates": [template]}
+                return {
+                    "createdWorkItems": [],
+                    "failedWorkItems": [{"error": {"message": "Validation failed"}}],
+                }
+
+        return R()
+
+    monkeypatch.setattr("requests.post", mock_post)
+
+    cli = make_cli()
+    result = runner.invoke(cli, ["workitem", "create-from-template", "2000"])
+    assert result.exit_code == ExitCodes.GENERAL_ERROR
 
 
 # ---------------------------------------------------------------------------
