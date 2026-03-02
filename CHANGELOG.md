@@ -1,7 +1,21 @@
 # CHANGELOG
 
 
+## v0.37.0 (2026-03-02)
+
+### Features
+
+- Add workitem and reorganize workflow and template commands
+  ([#70](https://github.com/ni-kismet/systemlink-cli/pull/70),
+  [`f39b383`](https://github.com/ni-kismet/systemlink-cli/commit/f39b3838c0667a27c9c79c311ce5276b95519981))
+
+
 ## v0.36.0 (2026-02-27)
+
+### Chores
+
+- **release**: 0.36.0
+  ([`e297430`](https://github.com/ni-kismet/systemlink-cli/commit/e2974302ae746596f3d06d99bd7bf1ae51c7ce2d))
 
 ### Features
 
