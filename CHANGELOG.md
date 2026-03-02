@@ -1,7 +1,31 @@
 # CHANGELOG
 
 
+## v0.39.0 (2026-03-02)
+
+### Features
+
+- **testmonitor**: Add product create, update, and delete commands
+  ([#72](https://github.com/ni-kismet/systemlink-cli/pull/72),
+  [`8d048b9`](https://github.com/ni-kismet/systemlink-cli/commit/8d048b94045d567bdc9b2e75023c5c07cc12eff0))
+
+Add CRUD operations for Test Monitor products:
+
+- product create: Create products with part number, name, family, workspace, keywords, and
+  properties - product update: Update existing products with merge or replace mode - product delete:
+  Delete single or multiple products with confirmation
+
+Includes: - 12 new unit tests (944 total passing) - README documentation with usage examples -
+  SKILL.md updated with new command reference - Proper error handling with ExitCodes - Readonly mode
+  checking - JSON and table output formats
+
+
 ## v0.38.0 (2026-03-02)
+
+### Chores
+
+- **release**: 0.38.0
+  ([`f62ee6b`](https://github.com/ni-kismet/systemlink-cli/commit/f62ee6baa9e4d12d035b7797110a919df6fc5c2e))
 
 ### Features
 
