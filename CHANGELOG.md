@@ -1,12 +1,36 @@
 # CHANGELOG
 
 
+## v0.38.0 (2026-03-02)
+
+### Features
+
+- Add workitem create-from-template command
+  ([#71](https://github.com/ni-kismet/systemlink-cli/pull/71),
+  [`af99155`](https://github.com/ni-kismet/systemlink-cli/commit/af99155a0d1be778bb49c8cab43823b7e645a07c))
+
+* feat: add workitem create-from-template command
+
+- New command that fetches a work item template by ID and pre-fills name, type, description,
+  workspace, and partNumber from it - All fields can be overridden via CLI options: --name, --state,
+  --description, --assigned-to, --workflow-id, --workspace, --part-number - Supports --format table
+  (default) and json - 5 unit tests covering: happy path, field overrides, template not found, JSON
+  output, and partNumbers seeding - Updated README.md and SKILL.md with usage examples
+
+* review: add readonly-mode and failed-items tests; fix fragile part-number test
+
+
 ## v0.37.2 (2026-03-02)
 
 ### Bug Fixes
 
 - Workitem test failure
   ([`15fee1e`](https://github.com/ni-kismet/systemlink-cli/commit/15fee1e4e05948fe91d9ca5a975995403bd5ae1b))
+
+### Chores
+
+- **release**: 0.37.2
+  ([`43d0c30`](https://github.com/ni-kismet/systemlink-cli/commit/43d0c307f9c15a31aabf03ec2256e7e62ef61b20))
 
 
 ## v0.37.1 (2026-03-02)
