@@ -1,12 +1,25 @@
 # CHANGELOG
 
 
+## v0.37.2 (2026-03-02)
+
+### Bug Fixes
+
+- Workitem test failure
+  ([`15fee1e`](https://github.com/ni-kismet/systemlink-cli/commit/15fee1e4e05948fe91d9ca5a975995403bd5ae1b))
+
+
 ## v0.37.1 (2026-03-02)
 
 ### Bug Fixes
 
 - Skills install
   ([`cd9792f`](https://github.com/ni-kismet/systemlink-cli/commit/cd9792f2b3c446765e5865734bdd8404a6d1dd90))
+
+### Chores
+
+- **release**: 0.37.1
+  ([`db63ca3`](https://github.com/ni-kismet/systemlink-cli/commit/db63ca355189fd2f51b83af01c3c108dbf203d87))
 
 
 ## v0.37.0 (2026-03-02)
