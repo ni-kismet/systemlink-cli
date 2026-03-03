@@ -24,6 +24,7 @@ from .web_editor import launch_dff_editor
 from .workspace_utils import (
     WorkspaceFormatter,
     filter_by_workspace,
+    get_effective_workspace,
     resolve_workspace_filter,
 )
 
@@ -840,9 +841,11 @@ def register_dff_commands(cli: Any) -> None:
             # Try to resolve workspace name to ID
             try:
                 workspace_map = get_workspace_map()
-                workspace_id = resolve_workspace_filter(workspace or "", workspace_map)
+                workspace_id = resolve_workspace_filter(
+                    get_effective_workspace(workspace) or "", workspace_map
+                )
             except Exception:
-                workspace_id = workspace or ""
+                workspace_id = get_effective_workspace(workspace) or ""
 
             # Create template configuration
             safe_name = sanitize_filename(name or "config", "config")

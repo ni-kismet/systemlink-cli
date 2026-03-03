@@ -22,7 +22,11 @@ from .utils import (
     handle_api_error,
     make_api_request,
 )
-from .workspace_utils import get_workspace_display_name, resolve_workspace_filter
+from .workspace_utils import (
+    get_effective_workspace,
+    get_workspace_display_name,
+    resolve_workspace_filter,
+)
 
 
 def _get_asset_base_url() -> str:
@@ -565,6 +569,7 @@ def register_asset_commands(cli: Any) -> None:
             except Exception:
                 workspace_map = {}
 
+            workspace = get_effective_workspace(workspace)
             if workspace:
                 workspace_id = resolve_workspace_filter(workspace, workspace_map)
 
@@ -1049,6 +1054,7 @@ def register_asset_commands(cli: Any) -> None:
                 asset_data["hardwareVersion"] = hardware_version
 
             # Resolve workspace
+            workspace = get_effective_workspace(workspace)
             if workspace:
                 try:
                     ws_map = get_workspace_map()

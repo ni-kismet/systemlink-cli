@@ -20,7 +20,11 @@ from .utils import (
     make_api_request,
     sanitize_filename,
 )
-from .workspace_utils import get_workspace_display_name, resolve_workspace_filter
+from .workspace_utils import (
+    get_effective_workspace,
+    get_workspace_display_name,
+    resolve_workspace_filter,
+)
 
 
 def _escape_filter_value(value: str) -> str:
@@ -292,6 +296,7 @@ def register_templates_commands(cli: Any) -> None:
 
             # Resolve workspace filter to ID if specified
             workspace_id = None
+            workspace = get_effective_workspace(workspace)
             if workspace:
                 workspace_id = resolve_workspace_filter(workspace, workspace_map)
 

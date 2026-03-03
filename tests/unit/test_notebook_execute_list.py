@@ -3,12 +3,21 @@
 from __future__ import annotations
 
 from typing import Any, Dict, List, Optional
+from unittest.mock import patch
 
+import pytest
 from click.testing import CliRunner
 from pytest import MonkeyPatch
 
 from slcli.main import cli
 from .test_utils import patch_keyring
+
+
+@pytest.fixture(autouse=True)
+def _no_profile_workspace() -> Any:
+    """Prevent profile workspace default from interfering with tests."""
+    with patch("slcli.workspace_utils.get_default_workspace", return_value=None):
+        yield
 
 
 def _invoke(args: List[str]) -> Any:

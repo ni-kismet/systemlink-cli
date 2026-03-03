@@ -99,5 +99,5 @@ uv.lock
 tests/e2e/e2e_config.json
 .env
 
-# Playwright-cli session artefacts
+# Playwright test artifacts
 .playwright-cli/

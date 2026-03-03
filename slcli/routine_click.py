@@ -10,6 +10,7 @@ import sys
 from typing import Any, Dict, List, Optional
 
 import click
+import requests
 
 from .utils import (
     ExitCodes,
@@ -21,6 +22,7 @@ from .utils import (
 )
 from .workspace_utils import (
     filter_by_workspace,
+    get_effective_workspace,
     get_workspace_display_name,
     resolve_workspace_filter,
 )
@@ -247,6 +249,7 @@ def register_routine_commands(cli: Any) -> None:
                 workspace_map = {}
 
             # Client-side workspace filter (APIs don't support it as a query param)
+            workspace_filter = get_effective_workspace(workspace_filter)
             if workspace_filter:
                 resolved_ws = resolve_workspace_filter(workspace_filter, workspace_map)
                 routines = filter_by_workspace(routines, resolved_ws, workspace_map)
@@ -527,7 +530,7 @@ def register_routine_commands(cli: Any) -> None:
                 payload["actions"] = _parse_json_option(actions_json, "actions")
 
             url = _routine_base_url(api_version)
-            resp = make_api_request("POST", url, payload=payload)
+            resp = make_api_request("POST", url, payload=payload, handle_errors=False)
             result = resp.json()
 
             routine_id = result.get("id", "")
@@ -535,6 +538,19 @@ def register_routine_commands(cli: Any) -> None:
 
         except SystemExit:
             raise
+        except requests.exceptions.HTTPError as exc:
+            # Try to surface the API's own error message from the response body
+            api_msg: Optional[str] = None
+            try:
+                body = exc.response.json()
+                api_msg = body.get("error", {}).get("message")
+            except Exception:
+                pass
+            if api_msg:
+                click.echo(f"✗ Error: {api_msg}", err=True)
+                status_code = exc.response.status_code if exc.response is not None else 0
+                sys.exit(ExitCodes.INVALID_INPUT if status_code == 400 else ExitCodes.GENERAL_ERROR)
+            handle_api_error(exc)
         except Exception as exc:
             handle_api_error(exc)
 

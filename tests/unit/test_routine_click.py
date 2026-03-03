@@ -12,6 +12,13 @@ from slcli.routine_click import register_routine_commands
 from slcli.utils import ExitCodes
 
 
+@pytest.fixture(autouse=True)
+def _no_profile_workspace() -> Any:
+    """Prevent profile workspace default from interfering with tests."""
+    with patch("slcli.workspace_utils.get_default_workspace", return_value=None):
+        yield
+
+
 def make_cli() -> click.Group:
     """Create a test CLI with routine commands registered."""
 
@@ -601,6 +608,47 @@ def test_create_v2_invalid_event_json() -> None:
 
     assert result.exit_code == ExitCodes.INVALID_INPUT
     assert "Invalid JSON" in result.output
+
+
+@patch("slcli.routine_click.make_api_request")
+def test_create_v1_400_past_start_time_shows_api_message(mock_request: MagicMock) -> None:
+    """Test that a 400 error from the API surfaces the error.message from the response body."""
+    from requests.exceptions import HTTPError
+
+    error_body = {
+        "error": {
+            "name": "RoutineService",
+            "code": 400,
+            "message": "Schedule start time cannot be in the past.",
+        }
+    }
+    error_response: Any = MockResponse(json_data=error_body, status_code=400)
+    exc = HTTPError("400 Client Error: Bad Request")
+    exc.response = error_response  # type: ignore
+    mock_request.side_effect = exc
+
+    cli = make_cli()
+    runner = CliRunner()
+    result = runner.invoke(
+        cli,
+        [
+            "routine",
+            "create",
+            "--api-version",
+            "v1",
+            "--name",
+            "Old routine",
+            "--type",
+            "SCHEDULED",
+            "--notebook-id",
+            "nb-001",
+            "--schedule",
+            '{"startTime":"2020-01-01T00:00:00Z","repeat":"HOUR"}',
+        ],
+    )
+
+    assert result.exit_code == ExitCodes.INVALID_INPUT
+    assert "Schedule start time cannot be in the past." in result.output
 
 
 # =============================================================================

@@ -30,7 +30,11 @@ from .utils import (
     load_json_file,
     make_api_request,
 )
-from .workspace_utils import get_workspace_display_name, resolve_workspace_filter
+from .workspace_utils import (
+    get_effective_workspace,
+    get_workspace_display_name,
+    resolve_workspace_filter,
+)
 
 
 def load_env_file() -> Dict[str, str]:
@@ -393,6 +397,7 @@ def register_function_commands(cli: Any) -> None:
 
             # Resolve workspace filter to ID if specified
             workspace_id = None
+            workspace = get_effective_workspace(workspace)
             if workspace:
                 workspace_id = resolve_workspace_filter(workspace, workspace_map)
 
@@ -608,7 +613,9 @@ def register_function_commands(cli: Any) -> None:
 
         url = f"{get_unified_v2_base()}/functions"
         try:
-            workspace_id = get_workspace_id_with_fallback(workspace)
+            workspace_id = get_workspace_id_with_fallback(
+                get_effective_workspace(workspace) or workspace
+            )
 
             custom_properties: Dict[str, Any] = {}
             if properties:
@@ -1038,6 +1045,7 @@ def register_function_commands(cli: Any) -> None:
 
             # Resolve workspace filter to ID if specified
             workspace_id = None
+            workspace = get_effective_workspace(workspace)
             if workspace:
                 workspace_id = resolve_workspace_filter(workspace, workspace_map)
 

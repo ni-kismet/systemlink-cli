@@ -148,6 +148,11 @@ slcli asset list [OPTIONS]
   --serial-number TEXT       # Filter by serial number (exact)
   --bus-type CHOICE          # BUILT_IN_SYSTEM, PCI_PXI, USB, GPIB, VXI, SERIAL, TCP_IP, CRIO
   --asset-type CHOICE        # GENERIC, DEVICE_UNDER_TEST, FIXTURE, SYSTEM
+                             # FIXTURE assets are also called "slots" in scheduling context:
+                             #   a slot/fixture is a physical test station, chamber, rack, etc.
+                             #   that a work item is scheduled to run on.
+                             # DEVICE_UNDER_TEST (DUT) assets are the units being tested.
+                             # SYSTEM assets are registered SystemLink-managed systems.
   --calibration-status CHOICE # OK, APPROACHING_RECOMMENDED_DUE_DATE,
                               # PAST_RECOMMENDED_DUE_DATE, OUT_FOR_CALIBRATION
   --connected                # Only assets in connected systems
@@ -197,8 +202,27 @@ slcli system list [OPTIONS]
   --take, -t INTEGER         # Default 100
   -f [table|json]
 
-# Other system commands
+# Get detailed information about a single system
 slcli system get <SYSTEM_ID> [-f json]
+
+# Include related resources from other services (fetched in parallel):
+slcli system get <SYSTEM_ID> --include-assets       # Assets (niapm/v1)
+slcli system get <SYSTEM_ID> --include-alarms       # Active alarm instances
+slcli system get <SYSTEM_ID> --include-jobs         # Recent jobs
+slcli system get <SYSTEM_ID> --include-results      # Test results (nitestmonitor/v2)
+slcli system get <SYSTEM_ID> --include-states       # System state instances (nisystemsstate/v1)
+slcli system get <SYSTEM_ID> --include-workitems    # Scheduled test plan work items
+
+# Convenience shorthand: enables all sections including packages and feeds
+slcli system get <SYSTEM_ID> --include-all
+
+# Options that apply to --include-* sections:
+#   --take/-t INTEGER      Max rows per section (default: 10)
+#   --workitem-days INT    Time window ±days for work items query (default: 30)
+
+# JSON output embeds related resources under _assets, _alarms, _jobs, etc.
+slcli system get <SYSTEM_ID> --include-all -f json  | jq '._results.items'
+
 slcli system summary [-f json]                      # Fleet-wide statistics
 slcli system report --type [SOFTWARE|HARDWARE] -o FILE  # Generate CSV report
 slcli system update <SYSTEM_ID> [OPTIONS]            # Update system metadata
@@ -258,6 +282,9 @@ slcli routine create \
   --actions '<actions-json>'
 
 # Create a v1 notebook routine (SCHEDULED)
+# IMPORTANT: startTime must be in the future (UTC). The API rejects past start times.
+# Use ISO-8601 UTC format (e.g. 2026-03-03T09:00:00Z). Since the server operates in UTC,
+# verify the current UTC time first if in doubt: date -u
 slcli routine create --api-version v1 \
   --name "Daily Notebook" \
   --type SCHEDULED \
@@ -581,7 +608,19 @@ slcli workitem create-from-template <TEMPLATE_ID> [--name TEXT] [--state TEXT] [
 slcli workitem update <WORK_ITEM_ID> [--name TEXT] [--state TEXT] [--description TEXT] [--assigned-to TEXT]
 slcli workitem delete <WORK_ITEM_ID> [--yes]             # Prompts for confirmation without --yes
 slcli workitem execute <WORK_ITEM_ID> --action TEXT      # Execute an action on a work item
-slcli workitem schedule <WORK_ITEM_ID> [--start ISO8601] [--end ISO8601] [--duration SECONDS] [--assigned-to TEXT]
+
+# Schedule a work item: set planned time and/or assign resources.
+# Resources map to the work item's resource requirement slots defined in the template:
+#   --system SYSTEM_ID    Assign a system (by minion/system ID). Repeatable.
+#   --fixture ASSET_ID    Assign a fixture/slot (by asset ID, asset type FIXTURE). Repeatable.
+#   --dut ASSET_ID        Assign a DUT (by asset ID, asset type DEVICE_UNDER_TEST). Repeatable.
+# Use `slcli asset list --asset-type FIXTURE` to find fixture IDs.
+# Use `slcli system list` to find system IDs.
+# At least one option must be provided; time and resource options can be combined freely.
+slcli workitem schedule <WORK_ITEM_ID> \
+  [--start ISO8601] [--end ISO8601] [--duration SECONDS] \
+  [--assigned-to USER_ID] \
+  [--system SYSTEM_ID]... [--fixture ASSET_ID]... [--dut ASSET_ID]...
 
 # Work item template subgroup
 slcli workitem template list [-w WORKSPACE] [--filter TEXT] [-t INT] [-f json]

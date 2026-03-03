@@ -29,7 +29,11 @@ from .utils import (
     sanitize_filename,
     save_json_file,
 )
-from .workspace_utils import get_workspace_display_name, resolve_workspace_filter
+from .workspace_utils import (
+    get_effective_workspace,
+    get_workspace_display_name,
+    resolve_workspace_filter,
+)
 
 
 # ---------------------------------------------------------------------------
@@ -484,6 +488,7 @@ def register_workitem_commands(cli: Any) -> None:
         try:
             workspace_map = get_workspace_map()
             workspace_id = None
+            workspace = get_effective_workspace(workspace)
             if workspace:
                 workspace_id = resolve_workspace_filter(workspace, workspace_map)
 
@@ -700,6 +705,8 @@ def register_workitem_commands(cli: Any) -> None:
                 wi_data["assignedTo"] = assigned_to
             if workflow_id is not None:
                 wi_data["workflowId"] = workflow_id
+            if workspace is None:
+                workspace = get_effective_workspace(workspace)
             if workspace is not None:
                 ws_id = get_workspace_id_with_fallback(workspace)
                 wi_data["workspace"] = ws_id
@@ -841,6 +848,8 @@ def register_workitem_commands(cli: Any) -> None:
                 wi_data["assignedTo"] = assigned_to
             if workflow_id is not None:
                 wi_data["workflowId"] = workflow_id
+            if workspace is None:
+                workspace = get_effective_workspace(workspace)
             if workspace is not None:
                 ws_id = get_workspace_id_with_fallback(workspace)
                 wi_data["workspace"] = ws_id
@@ -1062,21 +1071,60 @@ def register_workitem_commands(cli: Any) -> None:
         help="Planned duration in seconds",
     )
     @click.option("--assigned-to", default=None, help="User ID to assign")
+    @click.option(
+        "--system",
+        "system_ids",
+        multiple=True,
+        metavar="SYSTEM_ID",
+        help="Assign a system resource by system ID (repeatable).",
+    )
+    @click.option(
+        "--fixture",
+        "fixture_ids",
+        multiple=True,
+        metavar="FIXTURE_ID",
+        help=(
+            "Assign a fixture/slot resource by asset ID (repeatable). "
+            "Use `slcli asset list --asset-type FIXTURE` to find IDs."
+        ),
+    )
+    @click.option(
+        "--dut",
+        "dut_ids",
+        multiple=True,
+        metavar="DUT_ID",
+        help=(
+            "Assign a DUT resource by asset ID (repeatable). "
+            "Use `slcli asset list --asset-type DEVICE_UNDER_TEST` to find IDs."
+        ),
+    )
     def schedule_workitem(
         work_item_id: str,
         start: Optional[str],
         end: Optional[str],
         duration: Optional[int],
         assigned_to: Optional[str],
+        system_ids: Tuple[str, ...],
+        fixture_ids: Tuple[str, ...],
+        dut_ids: Tuple[str, ...],
     ) -> None:
-        """Schedule a work item (set planned start/end time)."""
+        """Schedule a work item (set planned start/end time and/or assign resources).
+
+        Resources:
+          --system assigns a system (by system/minion ID).
+          --fixture assigns a fixture/slot (by asset ID; asset type FIXTURE).
+          --dut assigns a DUT (by asset ID; asset type DEVICE_UNDER_TEST).
+
+        Multiple --system/--fixture/--dut flags can be provided for multi-resource scheduling.
+        """
         from .utils import check_readonly_mode
 
         check_readonly_mode("schedule a work item")
 
-        if not any([start, end, duration, assigned_to]):
+        if not any([start, end, duration, assigned_to, system_ids, fixture_ids, dut_ids]):
             click.echo(
-                "✗ Provide at least one of --start, --end, --duration, or --assigned-to.",
+                "✗ Provide at least one of --start, --end, --duration, --assigned-to, "
+                "--system, --fixture, or --dut.",
                 err=True,
             )
             sys.exit(ExitCodes.INVALID_INPUT)
@@ -1095,6 +1143,16 @@ def register_workitem_commands(cli: Any) -> None:
                 wi_req["schedule"] = schedule
             if assigned_to:
                 wi_req["assignedTo"] = assigned_to
+
+            resources: Dict[str, Any] = {}
+            if system_ids:
+                resources["systems"] = {"selections": [{"id": sid} for sid in system_ids]}
+            if fixture_ids:
+                resources["fixtures"] = {"selections": [{"id": fid} for fid in fixture_ids]}
+            if dut_ids:
+                resources["duts"] = {"selections": [{"id": did} for did in dut_ids]}
+            if resources:
+                wi_req["resources"] = resources
 
             url = _wi_url("/schedule-workitems")
             payload = {"workItems": [wi_req]}
@@ -1164,6 +1222,7 @@ def register_workitem_commands(cli: Any) -> None:
         try:
             workspace_map = get_workspace_map()
             workspace_id = None
+            workspace = get_effective_workspace(workspace)
             if workspace:
                 workspace_id = resolve_workspace_filter(workspace, workspace_map)
 
@@ -1335,6 +1394,8 @@ def register_workitem_commands(cli: Any) -> None:
                 tmpl_data["description"] = description
             if summary is not None:
                 tmpl_data["summary"] = summary
+            if workspace is None:
+                workspace = get_effective_workspace(workspace)
             if workspace is not None:
                 ws_id = get_workspace_id_with_fallback(workspace)
                 tmpl_data["workspace"] = ws_id
@@ -1522,6 +1583,7 @@ def register_workitem_commands(cli: Any) -> None:
             output = f"{safe_name}-workflow.json"
 
         try:
+            workspace = get_effective_workspace(workspace) or workspace
             workspace_id = get_workspace_id_with_fallback(workspace)
         except Exception as exc:
             click.echo(f"✗ Error resolving workspace '{workspace}': {exc}", err=True)
@@ -1745,6 +1807,7 @@ def register_workitem_commands(cli: Any) -> None:
         try:
             workspace_map = get_workspace_map()
             workspace_id = None
+            workspace = get_effective_workspace(workspace)
             if workspace:
                 workspace_id = resolve_workspace_filter(workspace, workspace_map)
 
@@ -1940,11 +2003,20 @@ def register_workitem_commands(cli: Any) -> None:
                     click.echo(f"✗ Error resolving workspace '{workspace}': {exc}", err=True)
                     sys.exit(ExitCodes.NOT_FOUND)
             elif "workspace" not in filtered_data or not filtered_data["workspace"]:
-                click.echo(
-                    "✗ Workspace required. Use --workspace or include 'workspace' in JSON.",
-                    err=True,
-                )
-                sys.exit(ExitCodes.INVALID_INPUT)
+                workspace = get_effective_workspace(None)
+                if workspace:
+                    try:
+                        ws_id = get_workspace_id_with_fallback(workspace)
+                        filtered_data["workspace"] = ws_id
+                    except Exception as exc:
+                        click.echo(f"✗ Error resolving workspace '{workspace}': {exc}", err=True)
+                        sys.exit(ExitCodes.NOT_FOUND)
+                else:
+                    click.echo(
+                        "✗ Workspace required. Use --workspace or include 'workspace' in JSON.",
+                        err=True,
+                    )
+                    sys.exit(ExitCodes.INVALID_INPUT)
             elif filtered_data["workspace"] and not filtered_data["workspace"].startswith("//"):
                 try:
                     ws_id = get_workspace_id_with_fallback(filtered_data["workspace"])
@@ -2046,6 +2118,15 @@ def register_workitem_commands(cli: Any) -> None:
                 except Exception as exc:
                     click.echo(f"✗ Error resolving workspace '{workspace}': {exc}", err=True)
                     sys.exit(ExitCodes.NOT_FOUND)
+            elif "workspace" not in filtered_data or not filtered_data.get("workspace"):
+                workspace = get_effective_workspace(None)
+                if workspace:
+                    try:
+                        ws_id = get_workspace_id_with_fallback(workspace)
+                        filtered_data["workspace"] = ws_id
+                    except Exception as exc:
+                        click.echo(f"✗ Error resolving workspace '{workspace}': {exc}", err=True)
+                        sys.exit(ExitCodes.NOT_FOUND)
             elif (
                 "workspace" in filtered_data
                 and filtered_data["workspace"]

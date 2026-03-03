@@ -10,6 +10,7 @@ from .example_loader import ExampleLoader
 from .example_provisioner import ExampleProvisioner, ProvisioningAction, ProvisioningResult
 from .universal_handlers import UniversalResponseHandler, FilteredResponse
 from .utils import ExitCodes, format_success, get_workspace_map, handle_api_error, save_json_file
+from .workspace_utils import get_effective_workspace
 
 
 def _resolve_workspace_id(workspace: Optional[str]) -> Optional[str]:
@@ -265,7 +266,7 @@ def register_example_commands(cli: Any) -> None:
             loader = ExampleLoader()
             config = loader.load_config(example_name)
 
-            workspace_id = _resolve_workspace_id(workspace)
+            workspace_id = _resolve_workspace_id(get_effective_workspace(workspace))
             provisioner = ExampleProvisioner(
                 workspace_id=workspace_id,
                 example_name=example_name,
@@ -352,7 +353,7 @@ def register_example_commands(cli: Any) -> None:
             loader = ExampleLoader()
             config = loader.load_config(example_name)
 
-            workspace_id = _resolve_workspace_id(workspace)
+            workspace_id = _resolve_workspace_id(get_effective_workspace(workspace))
             provisioner = ExampleProvisioner(
                 workspace_id=workspace_id,
                 example_name=example_name,
