@@ -282,6 +282,9 @@ slcli routine create \
   --actions '<actions-json>'
 
 # Create a v1 notebook routine (SCHEDULED)
+# IMPORTANT: startTime must be in the future (UTC). The API rejects past start times.
+# Use ISO-8601 UTC format (e.g. 2026-03-03T09:00:00Z). Since the server operates in UTC,
+# verify the current UTC time first if in doubt: date -u
 slcli routine create --api-version v1 \
   --name "Daily Notebook" \
   --type SCHEDULED \
