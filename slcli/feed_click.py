@@ -24,7 +24,7 @@ from .utils import (
     handle_api_error,
     make_api_request,
 )
-from .workspace_utils import get_workspace_display_name, get_workspace_map
+from .workspace_utils import get_effective_workspace, get_workspace_display_name, get_workspace_map
 
 
 class JobPollingError(Exception):
@@ -472,6 +472,7 @@ def register_feed_commands(cli: Any) -> None:
 
         try:
             workspace_id = None
+            workspace = get_effective_workspace(workspace)
             if workspace:
                 workspace_id = get_workspace_id_with_fallback(workspace)
 
@@ -579,6 +580,7 @@ def register_feed_commands(cli: Any) -> None:
 
         try:
             workspace_id = None
+            workspace = get_effective_workspace(workspace)
             if workspace:
                 workspace_id = get_workspace_id_with_fallback(workspace)
 
@@ -676,6 +678,7 @@ def register_feed_commands(cli: Any) -> None:
         """Replicate a feed from an external URL."""
         try:
             workspace_id = None
+            workspace = get_effective_workspace(workspace)
             if workspace:
                 workspace_id = get_workspace_id_with_fallback(workspace)
 

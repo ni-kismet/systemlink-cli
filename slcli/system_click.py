@@ -25,7 +25,11 @@ from .utils import (
     handle_api_error,
     make_api_request,
 )
-from .workspace_utils import get_workspace_display_name, resolve_workspace_filter
+from .workspace_utils import (
+    get_effective_workspace,
+    get_workspace_display_name,
+    resolve_workspace_filter,
+)
 
 
 def _get_sysmgmt_base_url() -> str:
@@ -919,6 +923,7 @@ def register_system_commands(cli: Any) -> None:
             except Exception:
                 workspace_map = {}
 
+            workspace = get_effective_workspace(workspace)
             if workspace:
                 workspace_id = resolve_workspace_filter(workspace, workspace_map)
 

@@ -2992,6 +2992,7 @@ def test_workflow_import_without_workspace_in_file(
 ) -> None:
     """Import workflow from file that has no workspace → error (workspace required)."""
     patch_keyring(monkeypatch)
+    monkeypatch.setattr("slcli.workspace_utils.get_default_workspace", lambda: None)
 
     wf_data = {
         "name": "No Workspace WF",

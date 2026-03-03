@@ -29,7 +29,11 @@ from .utils import (
     sanitize_filename,
     save_json_file,
 )
-from .workspace_utils import get_workspace_display_name, resolve_workspace_filter
+from .workspace_utils import (
+    get_effective_workspace,
+    get_workspace_display_name,
+    resolve_workspace_filter,
+)
 
 
 # ---------------------------------------------------------------------------
@@ -484,6 +488,7 @@ def register_workitem_commands(cli: Any) -> None:
         try:
             workspace_map = get_workspace_map()
             workspace_id = None
+            workspace = get_effective_workspace(workspace)
             if workspace:
                 workspace_id = resolve_workspace_filter(workspace, workspace_map)
 
@@ -700,6 +705,8 @@ def register_workitem_commands(cli: Any) -> None:
                 wi_data["assignedTo"] = assigned_to
             if workflow_id is not None:
                 wi_data["workflowId"] = workflow_id
+            if workspace is None:
+                workspace = get_effective_workspace(workspace)
             if workspace is not None:
                 ws_id = get_workspace_id_with_fallback(workspace)
                 wi_data["workspace"] = ws_id
@@ -841,6 +848,8 @@ def register_workitem_commands(cli: Any) -> None:
                 wi_data["assignedTo"] = assigned_to
             if workflow_id is not None:
                 wi_data["workflowId"] = workflow_id
+            if workspace is None:
+                workspace = get_effective_workspace(workspace)
             if workspace is not None:
                 ws_id = get_workspace_id_with_fallback(workspace)
                 wi_data["workspace"] = ws_id
@@ -1213,6 +1222,7 @@ def register_workitem_commands(cli: Any) -> None:
         try:
             workspace_map = get_workspace_map()
             workspace_id = None
+            workspace = get_effective_workspace(workspace)
             if workspace:
                 workspace_id = resolve_workspace_filter(workspace, workspace_map)
 
@@ -1384,6 +1394,8 @@ def register_workitem_commands(cli: Any) -> None:
                 tmpl_data["description"] = description
             if summary is not None:
                 tmpl_data["summary"] = summary
+            if workspace is None:
+                workspace = get_effective_workspace(workspace)
             if workspace is not None:
                 ws_id = get_workspace_id_with_fallback(workspace)
                 tmpl_data["workspace"] = ws_id
@@ -1571,6 +1583,7 @@ def register_workitem_commands(cli: Any) -> None:
             output = f"{safe_name}-workflow.json"
 
         try:
+            workspace = get_effective_workspace(workspace) or workspace
             workspace_id = get_workspace_id_with_fallback(workspace)
         except Exception as exc:
             click.echo(f"✗ Error resolving workspace '{workspace}': {exc}", err=True)
@@ -1794,6 +1807,7 @@ def register_workitem_commands(cli: Any) -> None:
         try:
             workspace_map = get_workspace_map()
             workspace_id = None
+            workspace = get_effective_workspace(workspace)
             if workspace:
                 workspace_id = resolve_workspace_filter(workspace, workspace_map)
 
@@ -1989,11 +2003,20 @@ def register_workitem_commands(cli: Any) -> None:
                     click.echo(f"✗ Error resolving workspace '{workspace}': {exc}", err=True)
                     sys.exit(ExitCodes.NOT_FOUND)
             elif "workspace" not in filtered_data or not filtered_data["workspace"]:
-                click.echo(
-                    "✗ Workspace required. Use --workspace or include 'workspace' in JSON.",
-                    err=True,
-                )
-                sys.exit(ExitCodes.INVALID_INPUT)
+                workspace = get_effective_workspace(None)
+                if workspace:
+                    try:
+                        ws_id = get_workspace_id_with_fallback(workspace)
+                        filtered_data["workspace"] = ws_id
+                    except Exception as exc:
+                        click.echo(f"✗ Error resolving workspace '{workspace}': {exc}", err=True)
+                        sys.exit(ExitCodes.NOT_FOUND)
+                else:
+                    click.echo(
+                        "✗ Workspace required. Use --workspace or include 'workspace' in JSON.",
+                        err=True,
+                    )
+                    sys.exit(ExitCodes.INVALID_INPUT)
             elif filtered_data["workspace"] and not filtered_data["workspace"].startswith("//"):
                 try:
                     ws_id = get_workspace_id_with_fallback(filtered_data["workspace"])
@@ -2095,6 +2118,15 @@ def register_workitem_commands(cli: Any) -> None:
                 except Exception as exc:
                     click.echo(f"✗ Error resolving workspace '{workspace}': {exc}", err=True)
                     sys.exit(ExitCodes.NOT_FOUND)
+            elif "workspace" not in filtered_data or not filtered_data.get("workspace"):
+                workspace = get_effective_workspace(None)
+                if workspace:
+                    try:
+                        ws_id = get_workspace_id_with_fallback(workspace)
+                        filtered_data["workspace"] = ws_id
+                    except Exception as exc:
+                        click.echo(f"✗ Error resolving workspace '{workspace}': {exc}", err=True)
+                        sys.exit(ExitCodes.NOT_FOUND)
             elif (
                 "workspace" in filtered_data
                 and filtered_data["workspace"]

@@ -31,7 +31,7 @@ from .utils import (
     save_json_file,
     validate_workspace_access,
 )
-from .workspace_utils import get_workspace_display_name
+from .workspace_utils import get_effective_workspace, get_workspace_display_name
 
 
 # Predefined notebook interfaces - must be assigned exactly as shown
@@ -324,6 +324,7 @@ def _build_create_execution_payload(
         }
     else:
         # SLE uses notebookId and workspaceId
+        workspace = get_effective_workspace(workspace) or workspace
         ws_id = get_workspace_id_with_fallback(workspace)
         create_execution = {
             "workspaceId": ws_id,
@@ -827,6 +828,7 @@ def register_notebook_commands(cli: Any) -> None:
 
         try:
             ws_id = None
+            workspace = get_effective_workspace(workspace) or workspace
             if workspace:
                 ws_id = validate_workspace_access(workspace, warn_on_error=True)
 
@@ -971,7 +973,7 @@ def register_notebook_commands(cli: Any) -> None:
             click.echo("✗ Must provide either --id or --name.", err=True)
             sys.exit(ExitCodes.INVALID_INPUT)
 
-        ws_id = get_workspace_id_with_fallback(workspace)
+        ws_id = get_workspace_id_with_fallback(get_effective_workspace(workspace) or workspace)
 
         try:
             nb_name = notebook_name
@@ -1126,6 +1128,7 @@ def register_notebook_commands(cli: Any) -> None:
             )
             sys.exit(ExitCodes.INVALID_INPUT)
 
+        workspace = get_effective_workspace(workspace) or workspace
         ws_id = get_workspace_id_with_fallback(workspace)
 
         try:
@@ -1281,6 +1284,7 @@ def register_notebook_commands(cli: Any) -> None:
         try:
             workspace_map = get_workspace_map()
             workspace_guid = None
+            workspace = get_effective_workspace(workspace)
             if workspace:
                 workspace_guid = get_workspace_id_with_fallback(workspace)
 

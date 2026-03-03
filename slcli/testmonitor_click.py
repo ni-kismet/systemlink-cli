@@ -17,7 +17,11 @@ from .utils import (
     handle_api_error,
     make_api_request,
 )
-from .workspace_utils import get_workspace_display_name, resolve_workspace_filter
+from .workspace_utils import (
+    get_effective_workspace,
+    get_workspace_display_name,
+    resolve_workspace_filter,
+)
 
 
 def _get_testmonitor_base_url() -> str:
@@ -821,6 +825,7 @@ def register_testmonitor_commands(cli: Any) -> None:
             )
             _append_filter(filter_parts, filter_substitutions, "family.Contains(@{index})", family)
 
+            workspace = get_effective_workspace(workspace)
             if workspace:
                 workspace_id = resolve_workspace_filter(workspace, workspace_map)
                 _append_filter(
@@ -1073,6 +1078,7 @@ def register_testmonitor_commands(cli: Any) -> None:
             )
             _append_filter(filter_parts, filter_substitutions, "systemId == @{index}", system_id)
 
+            workspace = get_effective_workspace(workspace)
             if workspace:
                 workspace_map = get_workspace_map()
                 workspace_id = resolve_workspace_filter(workspace, workspace_map)
@@ -1341,6 +1347,8 @@ def register_testmonitor_commands(cli: Any) -> None:
                     k, _, v = prop.partition("=")
                     props[k.strip()] = v.strip()
                 product_obj["properties"] = props
+            if workspace is None:
+                workspace = get_effective_workspace(workspace)
             if workspace is not None:
                 try:
                     workspace_map = get_workspace_map()
