@@ -779,7 +779,9 @@ def _fetch_assets_for_system(system_id: str, take: int) -> Tuple[List[Dict[str, 
             "selfCalibration.date)"
         ),
     }
-    resp = make_api_request("POST", f"{_get_apm_base_url()}/query-assets", payload=payload)
+    resp = make_api_request(
+        "POST", f"{_get_apm_base_url()}/query-assets?returnCount=true", payload=payload
+    )
     data = resp.json()
     assets = data.get("assets", []) if isinstance(data, dict) else []
     total = (data.get("totalCount") or len(assets)) if isinstance(data, dict) else len(assets)
