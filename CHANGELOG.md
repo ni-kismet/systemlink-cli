@@ -1,7 +1,28 @@
 # CHANGELOG
 
 
+## v0.40.0 (2026-03-03)
+
+### Features
+
+- **workitem**: Add --system, --fixture, --dut resource flags to schedule command
+  ([#74](https://github.com/ni-kismet/systemlink-cli/pull/74),
+  [`5baa1d8`](https://github.com/ni-kismet/systemlink-cli/commit/5baa1d829dc6bf30ff64d84ad47d25a9d09eba75))
+
+- Add repeatable --system, --fixture, --dut options to `workitem schedule` - Build
+  resources.systems/fixtures/duts.selections payload from provided IDs - Update validation guard to
+  accept resource-only scheduling (no time required) - Add 6 unit tests covering all resource flag
+  combinations - Update README with resource scheduling examples - Update skill docs: asset type
+  notes (FIXTURE = slot), workitem schedule entry - Add Recipe 11 to analysis-recipes.md for
+  fixture/system scheduling workflow
+
+
 ## v0.39.0 (2026-03-02)
+
+### Chores
+
+- **release**: 0.39.0
+  ([`9520944`](https://github.com/ni-kismet/systemlink-cli/commit/9520944fb0a4fbebf1edc862a32b022af9467734))
 
 ### Features
 
