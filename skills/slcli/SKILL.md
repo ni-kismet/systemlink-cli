@@ -210,7 +210,6 @@ slcli system get <SYSTEM_ID> --include-assets       # Assets (niapm/v1)
 slcli system get <SYSTEM_ID> --include-alarms       # Active alarm instances
 slcli system get <SYSTEM_ID> --include-jobs         # Recent jobs
 slcli system get <SYSTEM_ID> --include-results      # Test results (nitestmonitor/v2)
-slcli system get <SYSTEM_ID> --include-states       # System state instances (nisystemsstate/v1)
 slcli system get <SYSTEM_ID> --include-workitems    # Scheduled test plan work items
 
 # Convenience shorthand: enables all sections including packages and feeds

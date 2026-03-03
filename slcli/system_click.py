@@ -6,6 +6,8 @@ connection state, OS, installed packages, keywords, and properties.
 Also provides job management and system metadata updates.
 """
 
+import concurrent.futures
+import datetime
 import json
 import re
 import shutil
@@ -35,6 +37,26 @@ from .workspace_utils import (
 def _get_sysmgmt_base_url() -> str:
     """Get the base URL for the Systems Management API."""
     return f"{get_base_url()}/nisysmgmt/v1"
+
+
+def _get_apm_base_url() -> str:
+    """Get the base URL for the Asset Performance Management API."""
+    return f"{get_base_url()}/niapm/v1"
+
+
+def _get_alarm_base_url() -> str:
+    """Get the base URL for the Alarm Management API."""
+    return f"{get_base_url()}/nialarm/v1"
+
+
+def _get_testmonitor_base_url() -> str:
+    """Get the base URL for the Test Monitor API."""
+    return f"{get_base_url()}/nitestmonitor/v2"
+
+
+def _get_workitem_base_url() -> str:
+    """Get the base URL for the Work Items API."""
+    return f"{get_base_url()}/niworkitem/v1"
 
 
 # Projection for list queries — only include fields needed for display.
@@ -729,6 +751,367 @@ def _format_feeds_table(system: Dict[str, Any]) -> None:
 
 
 # ------------------------------------------------------------------
+# Related-resource fetch helpers
+# ------------------------------------------------------------------
+
+
+def _fetch_assets_for_system(system_id: str, take: int) -> Tuple[List[Dict[str, Any]], int]:
+    """Fetch assets associated with a system.
+
+    Args:
+        system_id: System minion ID.
+        take: Maximum number of assets to return.
+
+    Returns:
+        Tuple of (list of assets, total count).
+    """
+    escaped = _escape_filter_value(system_id)
+    payload: Dict[str, Any] = {
+        "filter": f'location.minionId = "{escaped}"',
+        "take": take,
+        "returnCount": True,
+        "projection": (
+            "new(id,name,modelName,modelNumber,vendorName,vendorNumber,serialNumber,"
+            "workspace,properties,keywords,location.minionId,location.parent,"
+            "location.physicalLocation,location.state.assetPresence,"
+            "location.state.systemConnection,discoveryType,supportsSelfTest,"
+            "supportsSelfCalibration,supportsReset,supportsExternalCalibration,"
+            "scanCode,temperatureSensors.reading,externalCalibration.resolvedDueDate,"
+            "selfCalibration.date)"
+        ),
+    }
+    resp = make_api_request("POST", f"{_get_apm_base_url()}/query-assets", payload=payload)
+    data = resp.json()
+    assets = data.get("assets", []) if isinstance(data, dict) else []
+    total = (data.get("totalCount") or len(assets)) if isinstance(data, dict) else len(assets)
+    return assets, total
+
+
+def _fetch_alarms_for_system(system_id: str, take: int) -> Tuple[List[Dict[str, Any]], int]:
+    """Fetch active alarm instances for a system.
+
+    Args:
+        system_id: System minion ID.
+        take: Maximum number of alarm instances to return.
+
+    Returns:
+        Tuple of (list of alarm instances, total count).
+    """
+    escaped = _escape_filter_value(system_id)
+    payload: Dict[str, Any] = {
+        "filter": f'properties.minionId == "{escaped}"',
+        "take": take,
+    }
+    resp = make_api_request(
+        "POST",
+        f"{_get_alarm_base_url()}/query-instances-with-filter",
+        payload=payload,
+    )
+    data = resp.json()
+    alarms = data.get("alarmInstances", []) if isinstance(data, dict) else []
+    total = (data.get("totalCount") or len(alarms)) if isinstance(data, dict) else len(alarms)
+    return alarms, total
+
+
+def _fetch_recent_jobs_for_system(system_id: str, take: int) -> Tuple[List[Dict[str, Any]], int]:
+    """Fetch recent jobs for a system.
+
+    Args:
+        system_id: System minion ID.
+        take: Maximum number of jobs to return.
+
+    Returns:
+        Tuple of (list of jobs, total count).
+    """
+    escaped = _escape_filter_value(system_id)
+    payload: Dict[str, Any] = {
+        "filter": f'id = "{escaped}"',
+        "orderBy": "state descending, lastUpdatedTimestamp descending",
+        "take": take,
+    }
+    resp = make_api_request(
+        "POST",
+        f"{_get_sysmgmt_base_url()}/query-jobs",
+        payload=payload,
+    )
+    data = resp.json()
+    jobs_list = data.get("jobs", []) if isinstance(data, dict) else []
+    total = (data.get("totalCount") or len(jobs_list)) if isinstance(data, dict) else len(jobs_list)
+    return jobs_list, total
+
+
+def _fetch_results_for_system(system_id: str, take: int) -> Tuple[List[Dict[str, Any]], int]:
+    """Fetch recent test results for a system.
+
+    Args:
+        system_id: System minion ID.
+        take: Maximum number of results to return.
+
+    Returns:
+        Tuple of (list of results, total count).
+    """
+    escaped = _escape_filter_value(system_id)
+    payload: Dict[str, Any] = {
+        "productFilter": "",
+        "filter": f'(systemId == "{escaped}")',
+        "projection": [
+            "ID",
+            "PART_NUMBER",
+            "PROGRAM_NAME",
+            "PROPERTIES",
+            "SERIAL_NUMBER",
+            "STARTED_AT",
+            "STATUS",
+            "SYSTEM_ID",
+            "TOTAL_TIME_IN_SECONDS",
+            "WORKSPACE",
+        ],
+        "orderBy": "STARTED_AT",
+        "descending": True,
+        "orderByComparisonType": "DEFAULT",
+        "take": take,
+    }
+    resp = make_api_request(
+        "POST",
+        f"{_get_testmonitor_base_url()}/query-results",
+        payload=payload,
+    )
+    data = resp.json()
+    results = data.get("results", []) if isinstance(data, dict) else []
+    total = (data.get("totalCount") or len(results)) if isinstance(data, dict) else len(results)
+    return results, total
+
+
+def _fetch_workitems_for_system(
+    system_id: str, take: int, days: int
+) -> Tuple[List[Dict[str, Any]], int]:
+    """Fetch upcoming/recent work items (test plan instances) scheduled for a system.
+
+    Queries work items where the system is a scheduled resource within a window
+    of ``days`` days before/after today (i.e. a centred ±days window).
+
+    Args:
+        system_id: System minion ID.
+        take: Maximum number of work items to return.
+        days: Half-width of the time window in days (centre = now).
+
+    Returns:
+        Tuple of (list of work items, total count).
+    """
+    now = datetime.datetime.now(datetime.timezone.utc)
+    start = (now - datetime.timedelta(days=days)).strftime("%Y-%m-%dT%H:%M:%S.000Z")
+    end = (now + datetime.timedelta(days=days)).strftime("%Y-%m-%dT%H:%M:%S.000Z")
+    escaped = _escape_filter_value(system_id)
+    filter_expr = (
+        '((!(schedule.plannedStartDateTime = null || schedule.plannedStartDateTime = "") && '
+        '!(schedule.plannedEndDateTime = null || schedule.plannedEndDateTime = "") && '
+        f'DateTime(schedule.plannedStartDateTime) < DateTime.parse("{end}") && '
+        f'DateTime(schedule.plannedEndDateTime) > DateTime.parse("{start}")) && '
+        f'resources.systems.selections.Any(s => s.id == "{escaped}")) && type == "testplan"'
+    )
+    payload: Dict[str, Any] = {
+        "filter": filter_expr,
+        "orderBy": "UPDATED_AT",
+        "descending": True,
+        "take": take,
+    }
+    url = (
+        f"{_get_workitem_base_url()}/query-workitems"
+        "?ff-userdefinedworkflowsfortestplaninstances=true"
+    )
+    resp = make_api_request("POST", url, payload=payload)
+    data = resp.json()
+    if isinstance(data, dict):
+        workitems: List[Dict[str, Any]] = list(data.get("workItems") or data.get("workitems") or [])
+        total: int = int(data.get("totalCount") or len(workitems))
+    else:
+        workitems = []
+        total = 0
+    return workitems, total
+
+
+# ------------------------------------------------------------------
+# Related-resource format section helpers
+# ------------------------------------------------------------------
+
+
+def _format_assets_section(assets: List[Dict[str, Any]], total: int, take: int) -> None:
+    """Display an assets section in the system detail view.
+
+    Args:
+        assets: List of asset records.
+        total: Total count from the API (may exceed len(assets) if take < total).
+        take: Requested limit (used to build the "showing N of M" suffix).
+    """
+    showing = len(assets)
+    suffix = f" (showing {showing} of {total})" if total > showing else ""
+    click.echo(f"\n  Assets ({total}){suffix}:")
+
+    def fmt(item: Dict[str, Any]) -> List[str]:
+        return [
+            item.get("name", ""),
+            str(item.get("assetType", "")),
+            item.get("modelName", ""),
+            item.get("serialNumber", ""),
+            item.get("busType", ""),
+        ]
+
+    mock: Any = FilteredResponse({"assets": assets})
+    UniversalResponseHandler.handle_list_response(
+        resp=mock,
+        data_key="assets",
+        item_name="asset",
+        format_output="table",
+        formatter_func=fmt,
+        headers=["Name", "Type", "Model", "Serial", "Bus"],
+        column_widths=[30, 16, 24, 16, 12],
+        empty_message="  No assets.",
+        enable_pagination=False,
+    )
+
+
+def _format_alarms_section(alarms: List[Dict[str, Any]], total: int, take: int) -> None:
+    """Display an active alarms section in the system detail view.
+
+    Args:
+        alarms: List of alarm instance records.
+        total: Total count from the API.
+        take: Requested limit.
+    """
+    showing = len(alarms)
+    suffix = f" (showing {showing} of {total})" if total > showing else ""
+    click.echo(f"\n  Active Alarms ({total}){suffix}:")
+
+    def fmt(item: Dict[str, Any]) -> List[str]:
+        rule = item.get("alarmRule") or {}
+        return [
+            rule.get("displayName", item.get("channel", "")),
+            str(item.get("severity", "")),
+            item.get("channel", ""),
+            item.get("setAt", item.get("createdAt", "")),
+        ]
+
+    mock: Any = FilteredResponse({"alarms": alarms})
+    UniversalResponseHandler.handle_list_response(
+        resp=mock,
+        data_key="alarms",
+        item_name="alarm",
+        format_output="table",
+        formatter_func=fmt,
+        headers=["Name", "Severity", "Channel", "Set At"],
+        column_widths=[32, 10, 28, 28],
+        empty_message="  No active alarms.",
+        enable_pagination=False,
+    )
+
+
+def _format_jobs_section(jobs: List[Dict[str, Any]], total: int, take: int) -> None:
+    """Display a recent jobs section in the system detail view.
+
+    Args:
+        jobs: List of job records.
+        total: Total count from the API.
+        take: Requested limit.
+    """
+    showing = len(jobs)
+    suffix = f" (showing {showing} of {total})" if total > showing else ""
+    click.echo(f"\n  Recent Jobs ({total}){suffix}:")
+
+    def fmt(item: Dict[str, Any]) -> List[str]:
+        fields = _get_job_display_fields(item)
+        return [fields["jid"], fields["state"], fields["created"]]
+
+    mock: Any = FilteredResponse({"jobs": jobs})
+    UniversalResponseHandler.handle_list_response(
+        resp=mock,
+        data_key="jobs",
+        item_name="job",
+        format_output="table",
+        formatter_func=fmt,
+        headers=["Job ID", "State", "Created"],
+        column_widths=[36, 14, 28],
+        empty_message="  No jobs found.",
+        enable_pagination=False,
+    )
+
+
+def _format_results_section(results: List[Dict[str, Any]], total: int, take: int) -> None:
+    """Display a recent test results section in the system detail view.
+
+    Args:
+        results: List of test result records.
+        total: Total count from the API.
+        take: Requested limit.
+    """
+    showing = len(results)
+    suffix = f" (showing {showing} of {total})" if total > showing else ""
+    click.echo(f"\n  Test Results ({total}){suffix}:")
+
+    def fmt(item: Dict[str, Any]) -> List[str]:
+        status_obj = item.get("status") or {}
+        if isinstance(status_obj, dict):
+            status = status_obj.get("statusType", str(status_obj))
+        else:
+            status = str(status_obj)
+        return [
+            item.get("programName", ""),
+            status,
+            item.get("startedAt", item.get("startedWithApiAt", "")),
+        ]
+
+    mock: Any = FilteredResponse({"results": results})
+    UniversalResponseHandler.handle_list_response(
+        resp=mock,
+        data_key="results",
+        item_name="result",
+        format_output="table",
+        formatter_func=fmt,
+        headers=["Program", "Status", "Started"],
+        column_widths=[36, 12, 28],
+        empty_message="  No test results found.",
+        enable_pagination=False,
+    )
+
+
+def _format_workitems_section(
+    workitems: List[Dict[str, Any]], total: int, take: int, days: int
+) -> None:
+    """Display scheduled work items (test plans) for a system.
+
+    Args:
+        workitems: List of work item records.
+        total: Total count from the API.
+        take: Requested limit.
+        days: The time-window half-width used in the query (for display).
+    """
+    showing = len(workitems)
+    suffix = f" (showing {showing} of {total})" if total > showing else ""
+    click.echo(f"\n  Scheduled Work Items \u00b1{days}d ({total}){suffix}:")
+
+    def fmt(item: Dict[str, Any]) -> List[str]:
+        schedule = item.get("schedule") or {}
+        return [
+            item.get("name", ""),
+            item.get("state", ""),
+            schedule.get("plannedStartDateTime", ""),
+            schedule.get("plannedEndDateTime", ""),
+        ]
+
+    mock: Any = FilteredResponse({"workItems": workitems})
+    UniversalResponseHandler.handle_list_response(
+        resp=mock,
+        data_key="workItems",
+        item_name="work item",
+        format_output="table",
+        formatter_func=fmt,
+        headers=["Name", "State", "Planned Start", "Planned End"],
+        column_widths=[36, 14, 28, 28],
+        empty_message="  No work items scheduled.",
+        enable_pagination=False,
+    )
+
+
+# ------------------------------------------------------------------
 # Job helpers
 # ------------------------------------------------------------------
 
@@ -1039,19 +1422,86 @@ def register_system_commands(cli: Any) -> None:
     @click.option(
         "--include-feeds",
         is_flag=True,
-        help="Include configured feeds in output",
+        help="Include configured feeds from the system record",
+    )
+    @click.option(
+        "--include-assets",
+        is_flag=True,
+        help="Include assets associated with this system (niapm)",
+    )
+    @click.option(
+        "--include-alarms",
+        is_flag=True,
+        help="Include active alarm instances for this system",
+    )
+    @click.option(
+        "--include-jobs",
+        is_flag=True,
+        help="Include recent jobs dispatched to this system",
+    )
+    @click.option(
+        "--include-results",
+        is_flag=True,
+        help="Include recent test results for this system",
+    )
+    @click.option(
+        "--include-workitems",
+        is_flag=True,
+        help="Include scheduled work items (test plans) that reference this system",
+    )
+    @click.option(
+        "--include-all",
+        is_flag=True,
+        help="Include all related resources (packages, feeds, assets, alarms, jobs, results, work items)",
+    )
+    @click.option(
+        "--take",
+        "-t",
+        type=int,
+        default=10,
+        show_default=True,
+        help="Maximum rows to show per related-resource section",
+    )
+    @click.option(
+        "--workitem-days",
+        type=int,
+        default=30,
+        show_default=True,
+        help="Time-window half-width in days for --include-workitems (centre = today)",
     )
     def get_system(
         system_id: str,
         format: str,
         include_packages: bool,
         include_feeds: bool,
+        include_assets: bool,
+        include_alarms: bool,
+        include_jobs: bool,
+        include_results: bool,
+        include_workitems: bool,
+        include_all: bool,
+        take: int,
+        workitem_days: int,
     ) -> None:
         """Get detailed information about a specific system.
 
         SYSTEM_ID is the unique identifier (minion ID) of the system.
+
+        Use --include-* flags to pull in related resources from other services
+        in parallel.  --include-all enables every section at once.
         """
         format_output = validate_output_format(format)
+
+        # Resolve effective include flags
+        eff_packages = include_all or include_packages
+        eff_feeds = include_all or include_feeds
+        eff_assets = include_all or include_assets
+        eff_alarms = include_all or include_alarms
+        eff_jobs = include_all or include_jobs
+        eff_results = include_all or include_results
+        eff_workitems = include_all or include_workitems
+
+        any_related = eff_assets or eff_alarms or eff_jobs or eff_results or eff_workitems
 
         try:
             url = f"{_get_sysmgmt_base_url()}/systems?id={system_id}"
@@ -1067,13 +1517,100 @@ def register_system_commands(cli: Any) -> None:
                 click.echo(f"✗ System not found: {system_id}", err=True)
                 sys.exit(ExitCodes.NOT_FOUND)
 
+            # ---------------------------------------------------------------
+            # Fetch related resources in parallel
+            # ---------------------------------------------------------------
+            assets: List[Dict[str, Any]] = []
+            assets_total = 0
+            alarms: List[Dict[str, Any]] = []
+            alarms_total = 0
+            jobs_list: List[Dict[str, Any]] = []
+            jobs_total = 0
+            results: List[Dict[str, Any]] = []
+            results_total = 0
+            workitems: List[Dict[str, Any]] = []
+            workitems_total = 0
+            fetch_errors: Dict[str, str] = {}
+
+            if any_related:
+                task_map: Dict[str, Any] = {}
+                with concurrent.futures.ThreadPoolExecutor() as executor:
+                    if eff_assets:
+                        task_map["assets"] = executor.submit(
+                            _fetch_assets_for_system, system_id, take
+                        )
+                    if eff_alarms:
+                        task_map["alarms"] = executor.submit(
+                            _fetch_alarms_for_system, system_id, take
+                        )
+                    if eff_jobs:
+                        task_map["jobs"] = executor.submit(
+                            _fetch_recent_jobs_for_system, system_id, take
+                        )
+                    if eff_results:
+                        task_map["results"] = executor.submit(
+                            _fetch_results_for_system, system_id, take
+                        )
+                    if eff_workitems:
+                        task_map["workitems"] = executor.submit(
+                            _fetch_workitems_for_system, system_id, take, workitem_days
+                        )
+
+                for key, future in task_map.items():
+                    try:
+                        result_pair = future.result()
+                        if key == "assets":
+                            assets, assets_total = result_pair
+                        elif key == "alarms":
+                            alarms, alarms_total = result_pair
+                        elif key == "jobs":
+                            jobs_list, jobs_total = result_pair
+                        elif key == "results":
+                            results, results_total = result_pair
+                        elif key == "workitems":
+                            workitems, workitems_total = result_pair
+                    except Exception as exc:  # noqa: BLE001
+                        fetch_errors[key] = str(exc)
+
+            # ---------------------------------------------------------------
+            # Output
+            # ---------------------------------------------------------------
             if format_output.lower() == "json":
-                # Optionally strip packages/feeds for smaller output
                 output_data = dict(system_data)
-                if not include_packages:
+                if not eff_packages:
                     output_data.pop("packages", None)
-                if not include_feeds:
+                if not eff_feeds:
                     output_data.pop("feeds", None)
+                if eff_assets:
+                    output_data["_assets"] = {
+                        "totalCount": assets_total,
+                        "items": assets,
+                        "error": fetch_errors.get("assets"),
+                    }
+                if eff_alarms:
+                    output_data["_alarms"] = {
+                        "totalCount": alarms_total,
+                        "items": alarms,
+                        "error": fetch_errors.get("alarms"),
+                    }
+                if eff_jobs:
+                    output_data["_jobs"] = {
+                        "totalCount": jobs_total,
+                        "items": jobs_list,
+                        "error": fetch_errors.get("jobs"),
+                    }
+                if eff_results:
+                    output_data["_results"] = {
+                        "totalCount": results_total,
+                        "items": results,
+                        "error": fetch_errors.get("results"),
+                    }
+                if eff_workitems:
+                    output_data["_workitems"] = {
+                        "totalCount": workitems_total,
+                        "items": workitems,
+                        "error": fetch_errors.get("workitems"),
+                    }
                 click.echo(json.dumps(output_data, indent=2))
             else:
                 try:
@@ -1082,11 +1619,50 @@ def register_system_commands(cli: Any) -> None:
                     workspace_map = {}
                 _format_system_detail(system_data, workspace_map)
 
-                if include_packages:
+                if eff_packages:
                     _format_packages_table(system_data)
 
-                if include_feeds:
+                if eff_feeds:
                     _format_feeds_table(system_data)
+
+                if eff_assets:
+                    if "assets" in fetch_errors:
+                        click.echo(
+                            f"\n  ✗ Failed to load assets: {fetch_errors['assets']}", err=True
+                        )
+                    else:
+                        _format_assets_section(assets, assets_total, take)
+
+                if eff_alarms:
+                    if "alarms" in fetch_errors:
+                        click.echo(
+                            f"\n  ✗ Failed to load alarms: {fetch_errors['alarms']}", err=True
+                        )
+                    else:
+                        _format_alarms_section(alarms, alarms_total, take)
+
+                if eff_jobs:
+                    if "jobs" in fetch_errors:
+                        click.echo(f"\n  ✗ Failed to load jobs: {fetch_errors['jobs']}", err=True)
+                    else:
+                        _format_jobs_section(jobs_list, jobs_total, take)
+
+                if eff_results:
+                    if "results" in fetch_errors:
+                        click.echo(
+                            f"\n  ✗ Failed to load results: {fetch_errors['results']}", err=True
+                        )
+                    else:
+                        _format_results_section(results, results_total, take)
+
+                if eff_workitems:
+                    if "workitems" in fetch_errors:
+                        click.echo(
+                            f"\n  ✗ Failed to load work items: {fetch_errors['workitems']}",
+                            err=True,
+                        )
+                    else:
+                        _format_workitems_section(workitems, workitems_total, take, workitem_days)
 
                 click.echo()
 
