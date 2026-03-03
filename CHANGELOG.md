@@ -1,7 +1,25 @@
 # CHANGELOG
 
 
+## v0.40.1 (2026-03-03)
+
+### Bug Fixes
+
+- Clean up docs and routine error handling
+  ([`6efa385`](https://github.com/ni-kismet/systemlink-cli/commit/6efa385ea581ba182af88a79cb2e015fd653e373))
+
+### Documentation
+
+- Add playwright-cli skill
+  ([`6fe1aaa`](https://github.com/ni-kismet/systemlink-cli/commit/6fe1aaaa4a932b87f31ff63c16c1244527d627c5))
+
+
 ## v0.40.0 (2026-03-03)
+
+### Chores
+
+- **release**: 0.40.0
+  ([`6c9683d`](https://github.com/ni-kismet/systemlink-cli/commit/6c9683d5af5801974eafbeb1e476a9cce06ef699))
 
 ### Features
 
