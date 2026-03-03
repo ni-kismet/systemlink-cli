@@ -1,0 +1,44 @@
+{
+  "$schema": "https://docs.renovatebot.com/renovate-schema.json",
+  "extends": ["config:recommended"],
+  "commitMessagePrefix": "chore(deps):",
+  "schedule": ["before 7am on Monday"],
+  "prConcurrentLimit": 5,
+  "labels": ["dependencies"],
+  "packageRules": [
+    {
+      "description": "Group all GitHub Actions updates into one PR",
+      "matchManagers": ["github-actions"],
+      "groupName": "GitHub Actions",
+      "automerge": true,
+      "automergeType": "pr",
+      "platformAutomerge": true
+    },
+    {
+      "description": "Group all production Python dependency updates into one PR",
+      "matchManagers": ["poetry"],
+      "matchDepTypes": ["dependencies"],
+      "groupName": "Python runtime dependencies",
+      "automerge": false
+    },
+    {
+      "description": "Group all dev/test Python dependency updates into one PR",
+      "matchManagers": ["poetry"],
+      "matchDepTypes": ["dev-dependencies"],
+      "groupName": "Python dev dependencies",
+      "automerge": false
+    },
+    {
+      "description": "Keep setuptools pinned below 81 - required for pkg_resources used by flake8-import-order",
+      "matchManagers": ["poetry"],
+      "matchPackageNames": ["setuptools"],
+      "enabled": false
+    },
+    {
+      "description": "Keep truststore in its tested range - upper bound is intentional",
+      "matchManagers": ["poetry"],
+      "matchPackageNames": ["truststore"],
+      "enabled": false
+    }
+  ]
+}
