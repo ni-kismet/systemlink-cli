@@ -1,6 +1,46 @@
 # CHANGELOG
 
 
+## v0.41.0 (2026-03-03)
+
+### Features
+
+- **system**: Add --include-* flags to system get for related resources
+  ([#73](https://github.com/ni-kismet/systemlink-cli/pull/73),
+  [`073772d`](https://github.com/ni-kismet/systemlink-cli/commit/073772dc6f2fb7b015bcf0dca1527ff238eb4bf4))
+
+* feat(system): add --include-* flags to system get for related resources
+
+Extend `system get` to fetch and display related resources from multiple SystemLink services in
+  parallel:
+
+- --include-assets: Assets from niapm/v1 - --include-alarms: Active alarm instances from nialarm/v1
+  - --include-jobs: Recent jobs from nisysmgmt/v1 - --include-results: Test results from
+  nitestmonitor/v2 - --include-states: System states from nisystemsstate/v1 - --include-workitems:
+  Scheduled work items from niworkitem/v1 - --include-all: All of the above plus packages and feeds
+  - --take/-t: Limit rows per section (default: 10) - --workitem-days: Time window half-width for
+  work items (default: 30)
+
+Related resources are fetched concurrently via ThreadPoolExecutor. Per-section fetch errors are
+  handled gracefully (warning in table mode, error field in JSON mode).
+
+Also cleans up .gitignore to use glob pattern for .playwright-cli/ and updates README with new usage
+  examples.
+
+* fix(system): parameterize filter queries, clarify --include-states help, remove duplicate error
+  output
+
+* feat(system): remove --include-states option (nisystemsstate lacks per-system filtering)
+
+* docs(skill): remove --include-states from system get examples
+
+* fix(system): correct filter syntax for assets/jobs/alarms/results/workitems fetch helpers
+
+* fix(system): add returnCount=true to query-assets request
+
+* fix(system): move returnCount to request body for query-assets
+
+
 ## v0.40.2 (2026-03-03)
 
 ### Bug Fixes
@@ -30,6 +70,11 @@ Also add/update unit tests and autouse fixtures to prevent Also add/update unit 
   fixtures to prevent Also add/upssertions.
 
 * feat: add --workspace all sentinel to bypass profile default filter
+
+### Chores
+
+- **release**: 0.40.2
+  ([`545f7da`](https://github.com/ni-kismet/systemlink-cli/commit/545f7da3ac0f5281def3c9e763db51a2f1c9ad8c))
 
 
 ## v0.40.1 (2026-03-03)
