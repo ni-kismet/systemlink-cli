@@ -18,7 +18,6 @@ from slcli.system_click import (
     _fetch_assets_for_system,
     _fetch_recent_jobs_for_system,
     _fetch_results_for_system,
-    _fetch_states_for_system,
     _fetch_workitems_for_system,
     _filter_by_package,
     _get_system_grains,
@@ -1784,49 +1783,6 @@ class TestFetchResultsForSystem:
         assert total == 3
 
 
-class TestFetchStatesForSystem:
-    """Tests for _fetch_states_for_system."""
-
-    def test_returns_states_and_total(self, monkeypatch: Any) -> None:
-        """Test normal response parsing."""
-        patch_keyring(monkeypatch)
-
-        def mock_get(*a: Any, **kw: Any) -> Any:
-            return MockResponse(
-                {
-                    "states": [{"name": "running", "value": True}],
-                    "totalCount": 1,
-                }
-            )
-
-        monkeypatch.setattr("slcli.system_click.make_api_request", mock_get)
-        states, total = _fetch_states_for_system("minion-1", 10)
-        assert len(states) == 1
-        assert total == 1
-
-    def test_fallback_to_state_instances_key(self, monkeypatch: Any) -> None:
-        """Test fallback to stateInstances key."""
-        patch_keyring(monkeypatch)
-
-        def mock_get(*a: Any, **kw: Any) -> Any:
-            return MockResponse({"stateInstances": [{"name": "s1"}], "totalCount": 1})
-
-        monkeypatch.setattr("slcli.system_click.make_api_request", mock_get)
-        states, total = _fetch_states_for_system("minion-1", 10)
-        assert len(states) == 1
-
-    def test_null_total_count(self, monkeypatch: Any) -> None:
-        """Test response where totalCount is null."""
-        patch_keyring(monkeypatch)
-
-        def mock_get(*a: Any, **kw: Any) -> Any:
-            return MockResponse({"states": [{"name": "s1"}], "totalCount": None})
-
-        monkeypatch.setattr("slcli.system_click.make_api_request", mock_get)
-        states, total = _fetch_states_for_system("minion-1", 10)
-        assert total == 1
-
-
 class TestFetchWorkitemsForSystem:
     """Tests for _fetch_workitems_for_system."""
 
@@ -1914,13 +1870,6 @@ class TestGetSystemIncludeFlags:
                         "totalCount": 1,
                     }
                 )
-            if "/nisystemsstate/v1/states" in url:
-                return MockResponse(
-                    {
-                        "states": [{"name": "CPU", "value": "OK"}],
-                        "totalCount": 1,
-                    }
-                )
             if "/niworkitem/v1/query-workitems" in url:
                 return MockResponse(
                     {
@@ -1990,20 +1939,6 @@ class TestGetSystemIncludeFlags:
         assert "_results" in data
         assert data["_results"]["totalCount"] == 1
 
-    def test_include_states_json(self, monkeypatch: Any, runner: CliRunner) -> None:
-        """Test --include-states adds _states key in JSON."""
-        patch_keyring(monkeypatch)
-        monkeypatch.setattr("slcli.system_click.make_api_request", self._make_mock_api())
-
-        cli = make_cli()
-        result = runner.invoke(
-            cli, ["system", "get", "minion-PXI-1234", "-f", "json", "--include-states"]
-        )
-        assert result.exit_code == 0
-        data = json.loads(result.output)
-        assert "_states" in data
-        assert data["_states"]["totalCount"] == 1
-
     def test_include_workitems_json(self, monkeypatch: Any, runner: CliRunner) -> None:
         """Test --include-workitems adds _workitems key in JSON."""
         patch_keyring(monkeypatch)
@@ -2030,7 +1965,7 @@ class TestGetSystemIncludeFlags:
         assert result.exit_code == 0
         data = json.loads(result.output)
         # All sections present
-        for key in ("_assets", "_alarms", "_jobs", "_results", "_states", "_workitems"):
+        for key in ("_assets", "_alarms", "_jobs", "_results", "_workitems"):
             assert key in data, f"Missing key {key}"
         # Packages & feeds should be included by --include-all
         assert "packages" in data
@@ -2049,7 +1984,7 @@ class TestGetSystemIncludeFlags:
         result = runner.invoke(cli, ["system", "get", "minion-PXI-1234", "-f", "json"])
         assert result.exit_code == 0
         data = json.loads(result.output)
-        for key in ("_assets", "_alarms", "_jobs", "_results", "_states", "_workitems"):
+        for key in ("_assets", "_alarms", "_jobs", "_results", "_workitems"):
             assert key not in data
 
     def test_include_assets_table(self, monkeypatch: Any, runner: CliRunner) -> None:
@@ -2076,7 +2011,6 @@ class TestGetSystemIncludeFlags:
         assert "Active Alarms (1)" in result.output
         assert "Recent Jobs (1)" in result.output
         assert "Test Results (1)" in result.output
-        assert "States (1)" in result.output
         assert "Scheduled Work Items" in result.output
 
     def test_fetch_error_shows_warning_table(self, monkeypatch: Any, runner: CliRunner) -> None:

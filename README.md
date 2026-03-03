@@ -571,7 +571,6 @@ slcli system get <system-id> --include-assets      # Assets (niapm)
 slcli system get <system-id> --include-alarms      # Active alarms
 slcli system get <system-id> --include-jobs        # Recent jobs
 slcli system get <system-id> --include-results     # Test results
-slcli system get <system-id> --include-states      # System states
 slcli system get <system-id> --include-workitems   # Scheduled work items
 
 # Include all related resources at once

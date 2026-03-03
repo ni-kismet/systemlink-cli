@@ -54,11 +54,6 @@ def _get_testmonitor_base_url() -> str:
     return f"{get_base_url()}/nitestmonitor/v2"
 
 
-def _get_systemsstate_base_url() -> str:
-    """Get the base URL for the Systems State API."""
-    return f"{get_base_url()}/nisystemsstate/v1"
-
-
 def _get_workitem_base_url() -> str:
     """Get the base URL for the Work Items API."""
     return f"{get_base_url()}/niworkitem/v1"
@@ -886,29 +881,6 @@ def _fetch_results_for_system(system_id: str, take: int) -> Tuple[List[Dict[str,
     return results, total
 
 
-def _fetch_states_for_system(system_id: str, take: int) -> Tuple[List[Dict[str, Any]], int]:
-    """Fetch system state instances.
-
-    Args:
-        system_id: System minion ID.
-        take: Maximum number of states to return.
-
-    Returns:
-        Tuple of (list of states, total count).
-    """
-    # The nisystemsstate API does not support filtering by system ID — fetch all states.
-    url = f"{_get_systemsstate_base_url()}/states?take={take}"
-    resp = make_api_request("GET", url)
-    data = resp.json()
-    if isinstance(data, dict):
-        states: List[Dict[str, Any]] = list(data.get("states") or data.get("stateInstances") or [])
-        total: int = int(data.get("totalCount") or len(states))
-    else:
-        states = []
-        total = 0
-    return states, total
-
-
 def _fetch_workitems_for_system(
     system_id: str, take: int, days: int
 ) -> Tuple[List[Dict[str, Any]], int]:
@@ -1096,40 +1068,6 @@ def _format_results_section(results: List[Dict[str, Any]], total: int, take: int
         headers=["Program", "Status", "Started"],
         column_widths=[36, 12, 28],
         empty_message="  No test results found.",
-        enable_pagination=False,
-    )
-
-
-def _format_states_section(states: List[Dict[str, Any]], total: int, take: int) -> None:
-    """Display system state instances in the system detail view.
-
-    Args:
-        states: List of state records.
-        total: Total count from the API.
-        take: Requested limit.
-    """
-    showing = len(states)
-    suffix = f" (showing {showing} of {total})" if total > showing else ""
-    click.echo(f"\n  States ({total}){suffix}:")
-
-    def fmt(item: Dict[str, Any]) -> List[str]:
-        return [
-            item.get("name", ""),
-            str(item.get("value", "")),
-            str(item.get("valid", "")),
-            item.get("timestamp", item.get("lastUpdatedTimestamp", "")),
-        ]
-
-    mock: Any = FilteredResponse({"states": states})
-    UniversalResponseHandler.handle_list_response(
-        resp=mock,
-        data_key="states",
-        item_name="state",
-        format_output="table",
-        formatter_func=fmt,
-        headers=["State", "Value", "Valid", "Updated"],
-        column_widths=[30, 16, 8, 28],
-        empty_message="  No states found.",
         enable_pagination=False,
     )
 
@@ -1506,11 +1444,6 @@ def register_system_commands(cli: Any) -> None:
         help="Include recent test results for this system",
     )
     @click.option(
-        "--include-states",
-        is_flag=True,
-        help="Include system state instances (note: returns global state instances; nisystemsstate does not support per-system filtering)",
-    )
-    @click.option(
         "--include-workitems",
         is_flag=True,
         help="Include scheduled work items (test plans) that reference this system",
@@ -1518,7 +1451,7 @@ def register_system_commands(cli: Any) -> None:
     @click.option(
         "--include-all",
         is_flag=True,
-        help="Include all related resources (packages, feeds, assets, alarms, jobs, results, states, work items)",
+        help="Include all related resources (packages, feeds, assets, alarms, jobs, results, work items)",
     )
     @click.option(
         "--take",
@@ -1544,7 +1477,6 @@ def register_system_commands(cli: Any) -> None:
         include_alarms: bool,
         include_jobs: bool,
         include_results: bool,
-        include_states: bool,
         include_workitems: bool,
         include_all: bool,
         take: int,
@@ -1566,12 +1498,9 @@ def register_system_commands(cli: Any) -> None:
         eff_alarms = include_all or include_alarms
         eff_jobs = include_all or include_jobs
         eff_results = include_all or include_results
-        eff_states = include_all or include_states
         eff_workitems = include_all or include_workitems
 
-        any_related = (
-            eff_assets or eff_alarms or eff_jobs or eff_results or eff_states or eff_workitems
-        )
+        any_related = eff_assets or eff_alarms or eff_jobs or eff_results or eff_workitems
 
         try:
             url = f"{_get_sysmgmt_base_url()}/systems?id={system_id}"
@@ -1598,8 +1527,6 @@ def register_system_commands(cli: Any) -> None:
             jobs_total = 0
             results: List[Dict[str, Any]] = []
             results_total = 0
-            states: List[Dict[str, Any]] = []
-            states_total = 0
             workitems: List[Dict[str, Any]] = []
             workitems_total = 0
             fetch_errors: Dict[str, str] = {}
@@ -1623,10 +1550,6 @@ def register_system_commands(cli: Any) -> None:
                         task_map["results"] = executor.submit(
                             _fetch_results_for_system, system_id, take
                         )
-                    if eff_states:
-                        task_map["states"] = executor.submit(
-                            _fetch_states_for_system, system_id, take
-                        )
                     if eff_workitems:
                         task_map["workitems"] = executor.submit(
                             _fetch_workitems_for_system, system_id, take, workitem_days
@@ -1643,8 +1566,6 @@ def register_system_commands(cli: Any) -> None:
                             jobs_list, jobs_total = result_pair
                         elif key == "results":
                             results, results_total = result_pair
-                        elif key == "states":
-                            states, states_total = result_pair
                         elif key == "workitems":
                             workitems, workitems_total = result_pair
                     except Exception as exc:  # noqa: BLE001
@@ -1683,12 +1604,6 @@ def register_system_commands(cli: Any) -> None:
                         "items": results,
                         "error": fetch_errors.get("results"),
                     }
-                if eff_states:
-                    output_data["_states"] = {
-                        "totalCount": states_total,
-                        "items": states,
-                        "error": fetch_errors.get("states"),
-                    }
                 if eff_workitems:
                     output_data["_workitems"] = {
                         "totalCount": workitems_total,
@@ -1711,13 +1626,17 @@ def register_system_commands(cli: Any) -> None:
 
                 if eff_assets:
                     if "assets" in fetch_errors:
-                        click.echo(f"\n  ✗ Failed to load assets: {fetch_errors['assets']}", err=True)
+                        click.echo(
+                            f"\n  ✗ Failed to load assets: {fetch_errors['assets']}", err=True
+                        )
                     else:
                         _format_assets_section(assets, assets_total, take)
 
                 if eff_alarms:
                     if "alarms" in fetch_errors:
-                        click.echo(f"\n  ✗ Failed to load alarms: {fetch_errors['alarms']}", err=True)
+                        click.echo(
+                            f"\n  ✗ Failed to load alarms: {fetch_errors['alarms']}", err=True
+                        )
                     else:
                         _format_alarms_section(alarms, alarms_total, take)
 
@@ -1729,19 +1648,18 @@ def register_system_commands(cli: Any) -> None:
 
                 if eff_results:
                     if "results" in fetch_errors:
-                        click.echo(f"\n  ✗ Failed to load results: {fetch_errors['results']}", err=True)
+                        click.echo(
+                            f"\n  ✗ Failed to load results: {fetch_errors['results']}", err=True
+                        )
                     else:
                         _format_results_section(results, results_total, take)
 
-                if eff_states:
-                    if "states" in fetch_errors:
-                        click.echo(f"\n  ✗ Failed to load states: {fetch_errors['states']}", err=True)
-                    else:
-                        _format_states_section(states, states_total, take)
-
                 if eff_workitems:
                     if "workitems" in fetch_errors:
-                        click.echo(f"\n  ✗ Failed to load work items: {fetch_errors['workitems']}", err=True)
+                        click.echo(
+                            f"\n  ✗ Failed to load work items: {fetch_errors['workitems']}",
+                            err=True,
+                        )
                     else:
                         _format_workitems_section(workitems, workitems_total, take, workitem_days)
 
