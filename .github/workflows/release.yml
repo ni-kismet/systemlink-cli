@@ -160,8 +160,36 @@ jobs:
           path: |
             dist/scoop-slcli.json
 
+  sbom:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.inputs.tag || github.ref }}
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+
+      - name: Install Poetry
+        run: pip install poetry
+
+      - name: Install dependencies
+        run: poetry install
+
+      - name: Generate CycloneDX SBOM
+        run: poetry run cyclonedx-py poetry --output-format JSON -o sbom.cdx.json
+
+      - name: Upload SBOM artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: sbom
+          path: sbom.cdx.json
+
   release:
-    needs: [build, homebrew-build, scoop-build]
+    needs: [build, homebrew-build, scoop-build, sbom]
     runs-on: ubuntu-latest
     permissions:
       contents: write
@@ -179,6 +207,7 @@ jobs:
             slcli-macos/slcli-macos.tar.gz
             slcli-macos-15-intel/slcli-macos-15-intel.tar.gz
             slcli-windows/slcli.zip
+            sbom/sbom.cdx.json
           generate_release_notes: true
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
