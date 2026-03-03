@@ -1110,6 +1110,23 @@ slcli workitem schedule <work_item_id> --start 2026-03-01T09:00:00Z --end 2026-0
 
 # Schedule by duration (seconds)
 slcli workitem schedule <work_item_id> --start 2026-03-01T09:00:00Z --duration 28800
+
+# Assign a system resource
+slcli workitem schedule <work_item_id> --start 2026-03-01T09:00:00Z --system <system_id>
+
+# Assign fixture/slot assets (repeatable; a "slot" is a FIXTURE-type asset such as a chamber or rack)
+slcli workitem schedule <work_item_id> --start 2026-03-01T09:00:00Z \
+  --fixture <fixture_id_1> --fixture <fixture_id_2>
+
+# Assign a DUT (device under test) asset
+slcli workitem schedule <work_item_id> --start 2026-03-01T09:00:00Z --dut <dut_id>
+
+# Assign multiple resource types together
+slcli workitem schedule <work_item_id> --start 2026-03-01T09:00:00Z \
+  --system <system_id> --fixture <slot_id> --dut <dut_id>
+
+# Assign resources without specifying a time (resource-only scheduling)
+slcli workitem schedule <work_item_id> --fixture <slot_id>
 ```
 
 ### Delete work items

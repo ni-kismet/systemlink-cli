@@ -1062,21 +1062,60 @@ def register_workitem_commands(cli: Any) -> None:
         help="Planned duration in seconds",
     )
     @click.option("--assigned-to", default=None, help="User ID to assign")
+    @click.option(
+        "--system",
+        "system_ids",
+        multiple=True,
+        metavar="SYSTEM_ID",
+        help="Assign a system resource by system ID (repeatable).",
+    )
+    @click.option(
+        "--fixture",
+        "fixture_ids",
+        multiple=True,
+        metavar="FIXTURE_ID",
+        help=(
+            "Assign a fixture/slot resource by asset ID (repeatable). "
+            "Use `slcli asset list --asset-type FIXTURE` to find IDs."
+        ),
+    )
+    @click.option(
+        "--dut",
+        "dut_ids",
+        multiple=True,
+        metavar="DUT_ID",
+        help=(
+            "Assign a DUT resource by asset ID (repeatable). "
+            "Use `slcli asset list --asset-type DEVICE_UNDER_TEST` to find IDs."
+        ),
+    )
     def schedule_workitem(
         work_item_id: str,
         start: Optional[str],
         end: Optional[str],
         duration: Optional[int],
         assigned_to: Optional[str],
+        system_ids: Tuple[str, ...],
+        fixture_ids: Tuple[str, ...],
+        dut_ids: Tuple[str, ...],
     ) -> None:
-        """Schedule a work item (set planned start/end time)."""
+        """Schedule a work item (set planned start/end time and/or assign resources).
+
+        Resources:
+          --system assigns a system (by system/minion ID).
+          --fixture assigns a fixture/slot (by asset ID; asset type FIXTURE).
+          --dut assigns a DUT (by asset ID; asset type DEVICE_UNDER_TEST).
+
+        Multiple --system/--fixture/--dut flags can be provided for multi-resource scheduling.
+        """
         from .utils import check_readonly_mode
 
         check_readonly_mode("schedule a work item")
 
-        if not any([start, end, duration, assigned_to]):
+        if not any([start, end, duration, assigned_to, system_ids, fixture_ids, dut_ids]):
             click.echo(
-                "✗ Provide at least one of --start, --end, --duration, or --assigned-to.",
+                "✗ Provide at least one of --start, --end, --duration, --assigned-to, "
+                "--system, --fixture, or --dut.",
                 err=True,
             )
             sys.exit(ExitCodes.INVALID_INPUT)
@@ -1095,6 +1134,16 @@ def register_workitem_commands(cli: Any) -> None:
                 wi_req["schedule"] = schedule
             if assigned_to:
                 wi_req["assignedTo"] = assigned_to
+
+            resources: Dict[str, Any] = {}
+            if system_ids:
+                resources["systems"] = {"selections": [{"id": sid} for sid in system_ids]}
+            if fixture_ids:
+                resources["fixtures"] = {"selections": [{"id": fid} for fid in fixture_ids]}
+            if dut_ids:
+                resources["duts"] = {"selections": [{"id": did} for did in dut_ids]}
+            if resources:
+                wi_req["resources"] = resources
 
             url = _wi_url("/schedule-workitems")
             payload = {"workItems": [wi_req]}
