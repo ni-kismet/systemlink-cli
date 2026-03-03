@@ -1,7 +1,25 @@
 # CHANGELOG
 
 
+## v0.42.0 (2026-03-03)
+
+### Features
+
+- Add CycloneDX SBOM generation to CI and release pipeline
+  ([#76](https://github.com/ni-kismet/systemlink-cli/pull/76),
+  [`2fe2ffb`](https://github.com/ni-kismet/systemlink-cli/commit/2fe2ffbcd9e4e8efe49a28f1990e00004635f78b))
+
+- Add sbom job to release.yml that generates sbom.cdx.json using cyclonedx-py - Attach sbom.cdx.json
+  to GitHub releases alongside platform binaries - Add SBOM generation step to ci.yml for artifact
+  visibility on every build - cyclonedx-bom is already a dev dependency in pyproject.toml
+
+
 ## v0.41.0 (2026-03-03)
+
+### Chores
+
+- **release**: 0.41.0
+  ([`5625a0b`](https://github.com/ni-kismet/systemlink-cli/commit/5625a0b44303458b14e153f1b2c2579dff347864))
 
 ### Features
 
