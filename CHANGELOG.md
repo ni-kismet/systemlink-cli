@@ -1,12 +1,48 @@
 # CHANGELOG
 
 
+## v0.40.2 (2026-03-03)
+
+### Bug Fixes
+
+- Propagate profile workspace default to all command modules
+  ([#75](https://github.com/ni-kismet/systemlink-cli/pull/75),
+  [`d54b50a`](https://github.com/ni-kismet/systemlink-cli/commit/d54b50aeaede0c7d72d40ffa73f0bd9f633ec125))
+
+* fix: propagate profile workspace default to all command modules
+
+The config 'workspace' setting in profiles was stored but never applied across the majority of CLI
+  commands. Only ~11 of ~54 workspace-aware call sites used the profile fallback.
+
+Add get_effective_workspace() helper in workspace_utils.py that returns the explicit workspace value
+  or falls back to get_default_workspace() from the active profile. Apply this helper across all
+  workspace-aware commands in 14 click modules covering all four resolution paths:
+  resolve_workspace_filter, resolve_workspace_id, get_workspace_id_with_fallback, and
+  validate_workspace_access.
+
+Design decisions: - List/filter operations: profile default applied unconditionally - Create
+  operations: profile default applied when no workspace given - Update operations: profile default
+  NOT applied (would silently move resources to another workspace without explicit user intent) -
+  Import-from-file: profile default applied only when workspace is absent from both CLI flag and
+  JSON file
+
+Also add/update unit tests and autouse fixtures to prevent Also add/update unit tests and autouse
+  fixtures to prevent Also add/upssertions.
+
+* feat: add --workspace all sentinel to bypass profile default filter
+
+
 ## v0.40.1 (2026-03-03)
 
 ### Bug Fixes
 
 - Clean up docs and routine error handling
   ([`6efa385`](https://github.com/ni-kismet/systemlink-cli/commit/6efa385ea581ba182af88a79cb2e015fd653e373))
+
+### Chores
+
+- **release**: 0.40.1
+  ([`f4ade96`](https://github.com/ni-kismet/systemlink-cli/commit/f4ade960cb189d7cddadab57a55865f1914d0a7f))
 
 ### Documentation
 
