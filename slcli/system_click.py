@@ -771,7 +771,8 @@ def _fetch_assets_for_system(system_id: str, take: int) -> Tuple[List[Dict[str, 
         Tuple of (list of assets, total count).
     """
     payload: Dict[str, Any] = {
-        "filter": f'Location.MinionId = "{system_id}"',
+        "filter": "Location.MinionId = @0",
+        "substitutions": [system_id],
         "take": take,
         "projection": (
             "new(id,name,modelName,modelNumber,vendorName,vendorNumber,serialNumber,"
@@ -801,7 +802,8 @@ def _fetch_alarms_for_system(system_id: str, take: int) -> Tuple[List[Dict[str, 
         Tuple of (list of alarm instances, total count).
     """
     payload: Dict[str, Any] = {
-        "filter": f'properties.minionId == "{system_id}"',
+        "filter": "properties.minionId == @0",
+        "substitutions": [system_id],
         "take": take,
     }
     resp = make_api_request(
@@ -826,7 +828,8 @@ def _fetch_recent_jobs_for_system(system_id: str, take: int) -> Tuple[List[Dict[
         Tuple of (list of jobs, total count).
     """
     payload: Dict[str, Any] = {
-        "filter": f'(id == "{system_id}")',
+        "filter": "(id == @0)",
+        "substitutions": [system_id],
         "orderBy": "state descending, lastUpdatedTimestamp descending",
         "take": take,
     }
@@ -853,7 +856,8 @@ def _fetch_results_for_system(system_id: str, take: int) -> Tuple[List[Dict[str,
     """
     payload: Dict[str, Any] = {
         "productFilter": "",
-        "filter": f'(systemId == "{system_id}")',
+        "filter": "(systemId == @0)",
+        "substitutions": [system_id],
         "projection": [
             "ID",
             "PART_NUMBER",
@@ -925,14 +929,15 @@ def _fetch_workitems_for_system(
     start = (now - datetime.timedelta(days=days)).strftime("%Y-%m-%dT%H:%M:%S.000Z")
     end = (now + datetime.timedelta(days=days)).strftime("%Y-%m-%dT%H:%M:%S.000Z")
     filter_expr = (
-        f'((!(schedule.plannedStartDateTime = null || schedule.plannedStartDateTime = "") && '
-        f'!(schedule.plannedEndDateTime = null || schedule.plannedEndDateTime = "") && '
+        '((!(schedule.plannedStartDateTime = null || schedule.plannedStartDateTime = "") && '
+        '!(schedule.plannedEndDateTime = null || schedule.plannedEndDateTime = "") && '
         f'DateTime(schedule.plannedStartDateTime) < DateTime.parse("{end}") && '
         f'DateTime(schedule.plannedEndDateTime) > DateTime.parse("{start}")) && '
-        f'resources.systems.selections.Any(s => s.id == "{system_id}")) && type == "testplan"'
+        'resources.systems.selections.Any(s => s.id == @0)) && type == "testplan"'
     )
     payload: Dict[str, Any] = {
         "filter": filter_expr,
+        "substitutions": [system_id],
         "orderBy": "UPDATED_AT",
         "descending": True,
         "take": take,
@@ -1503,7 +1508,7 @@ def register_system_commands(cli: Any) -> None:
     @click.option(
         "--include-states",
         is_flag=True,
-        help="Include system state instances",
+        help="Include system state instances (note: returns global state instances; nisystemsstate does not support per-system filtering)",
     )
     @click.option(
         "--include-workitems",
@@ -1706,44 +1711,39 @@ def register_system_commands(cli: Any) -> None:
 
                 if eff_assets:
                     if "assets" in fetch_errors:
-                        click.echo(f"\n  ✗ Assets: {fetch_errors['assets']}", err=True)
+                        click.echo(f"\n  ✗ Failed to load assets: {fetch_errors['assets']}", err=True)
                     else:
                         _format_assets_section(assets, assets_total, take)
 
                 if eff_alarms:
                     if "alarms" in fetch_errors:
-                        click.echo(f"\n  ✗ Alarms: {fetch_errors['alarms']}", err=True)
+                        click.echo(f"\n  ✗ Failed to load alarms: {fetch_errors['alarms']}", err=True)
                     else:
                         _format_alarms_section(alarms, alarms_total, take)
 
                 if eff_jobs:
                     if "jobs" in fetch_errors:
-                        click.echo(f"\n  ✗ Jobs: {fetch_errors['jobs']}", err=True)
+                        click.echo(f"\n  ✗ Failed to load jobs: {fetch_errors['jobs']}", err=True)
                     else:
                         _format_jobs_section(jobs_list, jobs_total, take)
 
                 if eff_results:
                     if "results" in fetch_errors:
-                        click.echo(f"\n  ✗ Results: {fetch_errors['results']}", err=True)
+                        click.echo(f"\n  ✗ Failed to load results: {fetch_errors['results']}", err=True)
                     else:
                         _format_results_section(results, results_total, take)
 
                 if eff_states:
                     if "states" in fetch_errors:
-                        click.echo(f"\n  ✗ States: {fetch_errors['states']}", err=True)
+                        click.echo(f"\n  ✗ Failed to load states: {fetch_errors['states']}", err=True)
                     else:
                         _format_states_section(states, states_total, take)
 
                 if eff_workitems:
                     if "workitems" in fetch_errors:
-                        click.echo(f"\n  ✗ Work Items: {fetch_errors['workitems']}", err=True)
+                        click.echo(f"\n  ✗ Failed to load work items: {fetch_errors['workitems']}", err=True)
                     else:
                         _format_workitems_section(workitems, workitems_total, take, workitem_days)
-
-                if fetch_errors:
-                    click.echo()
-                    for section, err_msg in fetch_errors.items():
-                        click.echo(f"  ✗ Failed to load {section}: {err_msg}", err=True)
 
                 click.echo()
 
