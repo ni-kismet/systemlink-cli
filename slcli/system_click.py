@@ -765,9 +765,9 @@ def _fetch_assets_for_system(system_id: str, take: int) -> Tuple[List[Dict[str, 
     Returns:
         Tuple of (list of assets, total count).
     """
+    escaped = _escape_filter_value(system_id)
     payload: Dict[str, Any] = {
-        "filter": "Location.MinionId = @0",
-        "substitutions": [system_id],
+        "filter": f'location.minionId = "{escaped}"',
         "take": take,
         "projection": (
             "new(id,name,modelName,modelNumber,vendorName,vendorNumber,serialNumber,"
@@ -796,9 +796,9 @@ def _fetch_alarms_for_system(system_id: str, take: int) -> Tuple[List[Dict[str, 
     Returns:
         Tuple of (list of alarm instances, total count).
     """
+    escaped = _escape_filter_value(system_id)
     payload: Dict[str, Any] = {
-        "filter": "properties.minionId == @0",
-        "substitutions": [system_id],
+        "filter": f'properties.minionId == "{escaped}"',
         "take": take,
     }
     resp = make_api_request(
@@ -822,9 +822,9 @@ def _fetch_recent_jobs_for_system(system_id: str, take: int) -> Tuple[List[Dict[
     Returns:
         Tuple of (list of jobs, total count).
     """
+    escaped = _escape_filter_value(system_id)
     payload: Dict[str, Any] = {
-        "filter": "(id == @0)",
-        "substitutions": [system_id],
+        "filter": f'id = "{escaped}"',
         "orderBy": "state descending, lastUpdatedTimestamp descending",
         "take": take,
     }
@@ -849,10 +849,10 @@ def _fetch_results_for_system(system_id: str, take: int) -> Tuple[List[Dict[str,
     Returns:
         Tuple of (list of results, total count).
     """
+    escaped = _escape_filter_value(system_id)
     payload: Dict[str, Any] = {
         "productFilter": "",
-        "filter": "(systemId == @0)",
-        "substitutions": [system_id],
+        "filter": f'(systemId == "{escaped}")',
         "projection": [
             "ID",
             "PART_NUMBER",
@@ -900,16 +900,16 @@ def _fetch_workitems_for_system(
     now = datetime.datetime.now(datetime.timezone.utc)
     start = (now - datetime.timedelta(days=days)).strftime("%Y-%m-%dT%H:%M:%S.000Z")
     end = (now + datetime.timedelta(days=days)).strftime("%Y-%m-%dT%H:%M:%S.000Z")
+    escaped = _escape_filter_value(system_id)
     filter_expr = (
         '((!(schedule.plannedStartDateTime = null || schedule.plannedStartDateTime = "") && '
         '!(schedule.plannedEndDateTime = null || schedule.plannedEndDateTime = "") && '
         f'DateTime(schedule.plannedStartDateTime) < DateTime.parse("{end}") && '
         f'DateTime(schedule.plannedEndDateTime) > DateTime.parse("{start}")) && '
-        'resources.systems.selections.Any(s => s.id == @0)) && type == "testplan"'
+        f'resources.systems.selections.Any(s => s.id == "{escaped}")) && type == "testplan"'
     )
     payload: Dict[str, Any] = {
         "filter": filter_expr,
-        "substitutions": [system_id],
         "orderBy": "UPDATED_AT",
         "descending": True,
         "take": take,
