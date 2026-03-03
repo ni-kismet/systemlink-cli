@@ -28,7 +28,11 @@ from .utils import (
     sanitize_filename,
     save_json_file,
 )
-from .workspace_utils import get_workspace_display_name, resolve_workspace_filter
+from .workspace_utils import (
+    get_effective_workspace,
+    get_workspace_display_name,
+    resolve_workspace_filter,
+)
 
 """Workflow CLI commands.
 
@@ -140,6 +144,7 @@ def register_workflows_commands(cli: Any) -> None:
 
         # Resolve workspace name to ID
         try:
+            workspace = get_effective_workspace(workspace) or workspace
             workspace_id = get_workspace_id_with_fallback(workspace)
         except Exception as exc:
             click.echo(f"✗ Error resolving workspace '{workspace}': {exc}", err=True)
@@ -373,6 +378,7 @@ def register_workflows_commands(cli: Any) -> None:
 
             # Resolve workspace filter to ID if specified
             workspace_id = None
+            workspace = get_effective_workspace(workspace)
             if workspace:
                 workspace_id = resolve_workspace_filter(workspace, workspace_map)
 
@@ -593,12 +599,21 @@ def register_workflows_commands(cli: Any) -> None:
                     click.echo(f"✗ Error resolving workspace '{workspace}': {exc}", err=True)
                     sys.exit(ExitCodes.NOT_FOUND)
             elif "workspace" not in filtered_data or not filtered_data["workspace"]:
-                # No workspace specified and none in file - require one
-                click.echo(
-                    "✗ Workspace is required. Specify --workspace or include 'workspace' in the JSON file.",
-                    err=True,
-                )
-                sys.exit(ExitCodes.INVALID_INPUT)
+                # No workspace specified and none in file - try profile default
+                workspace = get_effective_workspace(None)
+                if workspace:
+                    try:
+                        workspace_id = get_workspace_id_with_fallback(workspace)
+                        filtered_data["workspace"] = workspace_id
+                    except Exception as exc:
+                        click.echo(f"✗ Error resolving workspace '{workspace}': {exc}", err=True)
+                        sys.exit(ExitCodes.NOT_FOUND)
+                else:
+                    click.echo(
+                        "✗ Workspace is required. Specify --workspace or include 'workspace' in the JSON file.",
+                        err=True,
+                    )
+                    sys.exit(ExitCodes.INVALID_INPUT)
             elif filtered_data["workspace"] and not filtered_data["workspace"].startswith("//"):
                 # Workspace in file - validate/resolve it if it looks like a name
                 try:
@@ -738,6 +753,16 @@ def register_workflows_commands(cli: Any) -> None:
                 except Exception as exc:
                     click.echo(f"✗ Error resolving workspace '{workspace}': {exc}", err=True)
                     sys.exit(ExitCodes.NOT_FOUND)
+            elif "workspace" not in filtered_data or not filtered_data.get("workspace"):
+                # No workspace specified and none in file - try profile default
+                workspace = get_effective_workspace(None)
+                if workspace:
+                    try:
+                        workspace_id = get_workspace_id_with_fallback(workspace)
+                        filtered_data["workspace"] = workspace_id
+                    except Exception as exc:
+                        click.echo(f"✗ Error resolving workspace '{workspace}': {exc}", err=True)
+                        sys.exit(ExitCodes.NOT_FOUND)
             elif (
                 "workspace" in filtered_data
                 and filtered_data["workspace"]

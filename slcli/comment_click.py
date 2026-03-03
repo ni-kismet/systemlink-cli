@@ -30,7 +30,7 @@ from .utils import (
     handle_api_error,
     make_api_request,
 )
-from .workspace_utils import resolve_workspace_filter
+from .workspace_utils import get_effective_workspace, resolve_workspace_filter
 
 # Human-readable display names for known resource types, used in mention notification emails.
 _RESOURCE_TYPE_NAMES: Dict[str, str] = {
@@ -390,6 +390,7 @@ def register_comment_commands(cli: Any) -> None:
 
         try:
             workspace_map = get_workspace_map()
+            workspace = get_effective_workspace(workspace) or workspace
             workspace_id = resolve_workspace_filter(workspace, workspace_map)
 
             comment_entry: Dict[str, Any] = {

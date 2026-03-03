@@ -2,7 +2,34 @@
 
 from typing import Dict, List, Any, Optional, Callable
 
+from .profiles import get_default_workspace
 from .utils import get_workspace_map
+
+# Sentinel value: pass --workspace all to bypass the profile default and show
+# resources from every workspace.
+WORKSPACE_ALL = "all"
+
+
+def get_effective_workspace(workspace: Optional[str]) -> Optional[str]:
+    """Return the effective workspace: explicit value or profile default.
+
+    Use this before any workspace guard to ensure the profile's default
+    workspace is applied when the user omits ``--workspace``.
+
+    Passing ``"all"`` as the workspace sentinel explicitly disables both the
+    profile default and any resulting filter, returning ``None`` so that
+    downstream code shows resources from all workspaces.
+
+    Args:
+        workspace: Explicitly provided workspace name/ID, ``"all"`` to
+            disable filtering, or None to fall back to the profile default.
+
+    Returns:
+        The workspace to use, or None if no filter should be applied.
+    """
+    if workspace and workspace.lower() == WORKSPACE_ALL:
+        return None
+    return workspace or get_default_workspace()
 
 
 def resolve_workspace_filter(workspace: str, workspace_map: Dict[str, str]) -> str:
@@ -39,6 +66,9 @@ def filter_by_workspace(
 ) -> List[Dict[str, Any]]:
     """Filter items by workspace name or ID.
 
+    Falls back to the active profile's default workspace when no explicit
+    workspace is provided.
+
     Args:
         items: List of items to filter
         workspace: Workspace name or ID to filter by
@@ -48,6 +78,8 @@ def filter_by_workspace(
     Returns:
         Filtered list of items
     """
+    if not workspace:
+        workspace = get_default_workspace() or ""
     if not workspace:
         return items
 
@@ -68,12 +100,16 @@ def filter_by_workspace(
 def resolve_workspace_id(workspace: Optional[str]) -> str:
     """Resolve workspace name to ID with error handling.
 
+    Falls back to the active profile's default workspace when none is provided.
+
     Args:
         workspace: Workspace name or ID to resolve
 
     Returns:
         Resolved workspace ID
     """
+    if not workspace:
+        workspace = get_default_workspace()
     if not workspace:
         return ""
 

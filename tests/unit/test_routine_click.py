@@ -12,6 +12,13 @@ from slcli.routine_click import register_routine_commands
 from slcli.utils import ExitCodes
 
 
+@pytest.fixture(autouse=True)
+def _no_profile_workspace() -> Any:
+    """Prevent profile workspace default from interfering with tests."""
+    with patch("slcli.workspace_utils.get_default_workspace", return_value=None):
+        yield
+
+
 def make_cli() -> click.Group:
     """Create a test CLI with routine commands registered."""
 

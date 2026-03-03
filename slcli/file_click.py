@@ -20,7 +20,7 @@ from .utils import (
     handle_api_error,
     make_api_request,
 )
-from .workspace_utils import resolve_workspace_filter
+from .workspace_utils import get_effective_workspace, resolve_workspace_filter
 
 
 def _get_file_service_url() -> str:
@@ -183,6 +183,7 @@ def register_file_commands(cli: Any) -> None:
         try:
             # Resolve workspace name to ID if needed
             workspace_id = None
+            workspace = get_effective_workspace(workspace)
             if workspace:
                 workspace_map = get_workspace_map()
                 workspace_id = resolve_workspace_filter(workspace, workspace_map)
@@ -332,6 +333,7 @@ def register_file_commands(cli: Any) -> None:
         url = f"{_get_file_service_url()}/upload-files"
 
         # Resolve workspace name to ID and build query string
+        workspace = get_effective_workspace(workspace)
         if workspace:
             workspace_map = get_workspace_map()
             workspace_id = resolve_workspace_filter(workspace, workspace_map)
@@ -575,6 +577,7 @@ def register_file_commands(cli: Any) -> None:
                 filter_parts.append(filter_query)
 
             # Resolve workspace name to ID if needed
+            workspace = get_effective_workspace(workspace)
             if workspace:
                 workspace_map = get_workspace_map()
                 workspace_id = resolve_workspace_filter(workspace, workspace_map)
@@ -767,6 +770,7 @@ def register_file_commands(cli: Any) -> None:
 
         # Resolve workspace name to ID if needed
         workspace_id: Optional[str] = None
+        workspace = get_effective_workspace(workspace)
         if workspace:
             workspace_map = get_workspace_map()
             workspace_id = resolve_workspace_filter(workspace, workspace_map)

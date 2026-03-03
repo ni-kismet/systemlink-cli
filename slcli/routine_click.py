@@ -22,6 +22,7 @@ from .utils import (
 )
 from .workspace_utils import (
     filter_by_workspace,
+    get_effective_workspace,
     get_workspace_display_name,
     resolve_workspace_filter,
 )
@@ -248,6 +249,7 @@ def register_routine_commands(cli: Any) -> None:
                 workspace_map = {}
 
             # Client-side workspace filter (APIs don't support it as a query param)
+            workspace_filter = get_effective_workspace(workspace_filter)
             if workspace_filter:
                 resolved_ws = resolve_workspace_filter(workspace_filter, workspace_map)
                 routines = filter_by_workspace(routines, resolved_ws, workspace_map)

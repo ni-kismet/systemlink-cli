@@ -29,7 +29,7 @@ from .utils import (
     handle_api_error,
     sanitize_filename,
 )
-from .workspace_utils import get_workspace_display_name
+from .workspace_utils import get_effective_workspace, get_workspace_display_name
 
 
 def _get_webapp_base_url() -> str:
@@ -347,6 +347,7 @@ def register_webapp_commands(cli: Any) -> None:
                 api_take = take if take != 25 else 1000
             # Use server-side query to only retrieve WebVI documents
             base_filter = 'type == "WebVI"'
+            workspace = get_effective_workspace(workspace) or workspace
             if workspace:
                 ws_id = get_workspace_id_with_fallback(workspace)
                 # add workspace constraint to filter
@@ -689,7 +690,9 @@ def register_webapp_commands(cli: Any) -> None:
                         if not name:
                             click.echo("✗ Must provide --id or --name to publish.", err=True)
                             sys.exit(ExitCodes.INVALID_INPUT)
-                        ws_id = get_workspace_id_with_fallback(workspace)
+                        ws_id = get_workspace_id_with_fallback(
+                            get_effective_workspace(workspace) or workspace
+                        )
                         payload = {
                             "name": name,
                             "type": "WebVI",
@@ -742,7 +745,9 @@ def register_webapp_commands(cli: Any) -> None:
                     if not name:
                         click.echo("✗ Must provide --id or --name to publish.", err=True)
                         sys.exit(ExitCodes.INVALID_INPUT)
-                    ws_id = get_workspace_id_with_fallback(workspace)
+                    ws_id = get_workspace_id_with_fallback(
+                        get_effective_workspace(workspace) or workspace
+                    )
                     payload = {
                         "name": name,
                         "type": "WebVI",
