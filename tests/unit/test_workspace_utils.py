@@ -3,7 +3,12 @@
 from typing import Any, Dict, List
 from unittest.mock import patch
 
-from slcli.workspace_utils import filter_by_workspace, resolve_workspace_id
+from slcli.workspace_utils import (
+    WORKSPACE_ALL,
+    filter_by_workspace,
+    get_effective_workspace,
+    resolve_workspace_id,
+)
 
 WORKSPACE_MAP: Dict[str, str] = {
     "ws-1": "Production",
@@ -121,3 +126,49 @@ def test_resolve_workspace_id_explicit_overrides_profile_default() -> None:
             result = resolve_workspace_id("Production")
     mock_default.assert_not_called()
     assert result == "ws-1"
+
+
+# ---------------------------------------------------------------------------
+# get_effective_workspace — sentinel "all"
+# ---------------------------------------------------------------------------
+
+
+def test_get_effective_workspace_explicit_value_returned() -> None:
+    """Explicit workspace is returned unchanged."""
+    with patch("slcli.workspace_utils.get_default_workspace", return_value="Production"):
+        result = get_effective_workspace("Development")
+    assert result == "Development"
+
+
+def test_get_effective_workspace_none_falls_back_to_profile() -> None:
+    """None falls back to the profile default."""
+    with patch("slcli.workspace_utils.get_default_workspace", return_value="Production"):
+        result = get_effective_workspace(None)
+    assert result == "Production"
+
+
+def test_get_effective_workspace_none_no_profile_returns_none() -> None:
+    """None with no profile default returns None (no filter)."""
+    with patch("slcli.workspace_utils.get_default_workspace", return_value=None):
+        result = get_effective_workspace(None)
+    assert result is None
+
+
+def test_get_effective_workspace_all_sentinel_returns_none() -> None:
+    """'all' sentinel bypasses profile default and returns None (no filter)."""
+    with patch("slcli.workspace_utils.get_default_workspace", return_value="Production"):
+        result = get_effective_workspace("all")
+    assert result is None
+
+
+def test_get_effective_workspace_all_sentinel_case_insensitive() -> None:
+    """Sentinel is matched case-insensitively (ALL, All, all)."""
+    with patch("slcli.workspace_utils.get_default_workspace", return_value="Production"):
+        assert get_effective_workspace("ALL") is None
+        assert get_effective_workspace("All") is None
+        assert get_effective_workspace("aLl") is None
+
+
+def test_get_effective_workspace_workspace_all_constant() -> None:
+    """WORKSPACE_ALL constant equals the expected sentinel string."""
+    assert WORKSPACE_ALL == "all"

@@ -5,6 +5,10 @@ from typing import Dict, List, Any, Optional, Callable
 from .profiles import get_default_workspace
 from .utils import get_workspace_map
 
+# Sentinel value: pass --workspace all to bypass the profile default and show
+# resources from every workspace.
+WORKSPACE_ALL = "all"
+
 
 def get_effective_workspace(workspace: Optional[str]) -> Optional[str]:
     """Return the effective workspace: explicit value or profile default.
@@ -12,12 +16,19 @@ def get_effective_workspace(workspace: Optional[str]) -> Optional[str]:
     Use this before any workspace guard to ensure the profile's default
     workspace is applied when the user omits ``--workspace``.
 
+    Passing ``"all"`` as the workspace sentinel explicitly disables both the
+    profile default and any resulting filter, returning ``None`` so that
+    downstream code shows resources from all workspaces.
+
     Args:
-        workspace: Explicitly provided workspace name/ID, or None.
+        workspace: Explicitly provided workspace name/ID, ``"all"`` to
+            disable filtering, or None to fall back to the profile default.
 
     Returns:
-        The workspace to use, or None if neither explicit nor default is set.
+        The workspace to use, or None if no filter should be applied.
     """
+    if workspace and workspace.lower() == WORKSPACE_ALL:
+        return None
     return workspace or get_default_workspace()
 
 
