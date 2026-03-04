@@ -96,7 +96,7 @@ line-length = 100
 extend_ignore = "D301"
 
 [tool.mypy]
-python_version = "3.14"
+python_version = "3.13"
 files = "**/*.py"
 disallow_untyped_defs = true
 warn_unused_configs = true
