@@ -39,6 +39,12 @@
       "matchManagers": ["poetry"],
       "matchPackageNames": ["truststore"],
       "enabled": false
+    },
+    {
+      "description": "Disable automatic Python version constraint updates - managed manually to preserve multi-version support (>=3.11)",
+      "matchManagers": ["poetry"],
+      "matchPackageNames": ["python"],
+      "enabled": false
     }
   ]
 }
