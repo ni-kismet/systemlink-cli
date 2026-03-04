@@ -562,21 +562,21 @@ test-randomorder = ["pytest-randomly"]
 
 [[package]]
 name = "cyclonedx-bom"
-version = "5.5.0"
+version = "7.2.2"
 description = "CycloneDX Software Bill of Materials (SBOM) generator for Python projects and environments"
 optional = false
-python-versions = "<4.0,>=3.8"
+python-versions = "<4.0,>=3.9"
 groups = ["dev"]
 files = [
-    {file = "cyclonedx_bom-5.5.0-py3-none-any.whl", hash = "sha256:9198daac6fa1a49549c4d4e227d4c4ccfc791e5d00c1adf11e0302ca39ee7af1"},
-    {file = "cyclonedx_bom-5.5.0.tar.gz", hash = "sha256:fcfb57b340ac5a6e4190133cf57b50f04c021cb0bf99a4351b4b55f666df686d"},
+    {file = "cyclonedx_bom-7.2.2-py3-none-any.whl", hash = "sha256:c3cfb62762090c73dbc6937a6da8847de99e949097bc32362a33c55a3a6e5589"},
+    {file = "cyclonedx_bom-7.2.2.tar.gz", hash = "sha256:dc7b994d41a83dc24caa511462dbf9fa6ede51b962f42533a58d0a8261d98e56"},
 ]
 
 [package.dependencies]
 chardet = ">=5.1,<6.0"
-cyclonedx-python-lib = {version = ">=8.0,<11", extras = ["validation"]}
+cyclonedx-python-lib = {version = ">=8.0,<12", extras = ["validation"]}
 packageurl-python = ">=0.11,<2"
-packaging = ">=22,<26"
+packaging = ">=22,<27"
 pip-requirements-parser = ">=32.0,<33.0"
 
 [[package]]
@@ -3137,4 +3137,4 @@ type = ["pytest-mypy"]
 [metadata]
 lock-version = "2.1"
 python-versions = ">=3.11.1,<3.14"
-content-hash = "70101b9553505bd81592d4aa68a22efd3dc00afa5b2ab044752b93561a208fde"
+content-hash = "6699673686613fea7e7ea167316242deb75bcdf15b8010f45e5a45b02ac0550f"
