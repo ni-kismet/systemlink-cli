@@ -32,13 +32,13 @@ jobs:
     runs-on: ${{ matrix.os }}
     steps:
       - name: Checkout code
-        uses: actions/checkout@v4
+        uses: actions/checkout@v6
         with:
           # Fetch the specific tag if triggered by workflow_dispatch
           ref: ${{ github.event.inputs.tag || github.ref }}
 
       - name: Set up Python
-        uses: actions/setup-python@v5
+        uses: actions/setup-python@v6
         with:
           python-version: '3.11'
 
@@ -75,7 +75,7 @@ jobs:
           Compress-Archive -Path slcli -DestinationPath slcli.zip
 
       - name: Upload platform artifacts
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: ${{ matrix.artifact_name }}
           path: dist/${{ matrix.artifact_name == 'slcli-windows' && 'slcli.zip' || format('{0}.tar.gz', matrix.artifact_name) }}
@@ -85,10 +85,10 @@ jobs:
     needs: build
     steps:
       - name: Checkout code
-        uses: actions/checkout@v4
+        uses: actions/checkout@v6
 
       - name: Set up Python
-        uses: actions/setup-python@v5
+        uses: actions/setup-python@v6
         with:
           python-version: '3.11'
 
@@ -99,19 +99,19 @@ jobs:
         run: poetry install
 
       - name: Download Linux artifact
-        uses: actions/download-artifact@v4
+        uses: actions/download-artifact@v8
         with:
           name: slcli-linux
           path: dist/
 
       - name: Download macOS artifact
-        uses: actions/download-artifact@v4
+        uses: actions/download-artifact@v8
         with:
           name: slcli-macos
           path: dist/
 
       - name: Download macOS 13 artifact
-        uses: actions/download-artifact@v4
+        uses: actions/download-artifact@v8
         with:
           name: slcli-macos-15-intel
           path: dist/
@@ -120,7 +120,7 @@ jobs:
         run: poetry run python scripts/build_homebrew.py
 
       - name: Upload Homebrew artifacts
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: homebrew-artifacts
           path: |
@@ -131,10 +131,10 @@ jobs:
     needs: build
     steps:
       - name: Checkout code
-        uses: actions/checkout@v4
+        uses: actions/checkout@v6
 
       - name: Set up Python
-        uses: actions/setup-python@v5
+        uses: actions/setup-python@v6
         with:
           python-version: '3.11'
 
@@ -145,7 +145,7 @@ jobs:
         run: poetry install
 
       - name: Download Windows artifact
-        uses: actions/download-artifact@v4
+        uses: actions/download-artifact@v8
         with:
           name: slcli-windows
           path: dist/
@@ -154,7 +154,7 @@ jobs:
         run: poetry run python scripts/build_scoop.py
 
       - name: Upload Scoop artifacts
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: scoop-artifacts
           path: |
@@ -164,12 +164,12 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - name: Checkout code
-        uses: actions/checkout@v4
+        uses: actions/checkout@v6
         with:
           ref: ${{ github.event.inputs.tag || github.ref }}
 
       - name: Set up Python
-        uses: actions/setup-python@v5
+        uses: actions/setup-python@v6
         with:
           python-version: '3.11'
 
@@ -183,7 +183,7 @@ jobs:
         run: poetry run cyclonedx-py poetry --output-format JSON -o sbom.cdx.json
 
       - name: Upload SBOM artifact
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: sbom
           path: sbom.cdx.json
@@ -195,7 +195,7 @@ jobs:
       contents: write
     steps:
       - name: Download all artifacts
-        uses: actions/download-artifact@v4
+        uses: actions/download-artifact@v8
 
       - name: Create Release
         uses: softprops/action-gh-release@v2
@@ -217,14 +217,14 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - name: Checkout homebrew tap
-        uses: actions/checkout@v4
+        uses: actions/checkout@v6
         with:
           repository: ni-kismet/homebrew-ni
           token: ${{ secrets.HOMEBREW_GITHUB_TOKEN }}
           path: homebrew-ni
 
       - name: Download Homebrew formula
-        uses: actions/download-artifact@v4
+        uses: actions/download-artifact@v8
         with:
           name: homebrew-artifacts
           path: formula/
@@ -244,14 +244,14 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - name: Checkout scoop bucket
-        uses: actions/checkout@v4
+        uses: actions/checkout@v6
         with:
           repository: ni-kismet/scoop-ni
           token: ${{ secrets.HOMEBREW_GITHUB_TOKEN }}
           path: scoop-ni
 
       - name: Download Scoop manifest
-        uses: actions/download-artifact@v4
+        uses: actions/download-artifact@v8
         with:
           name: scoop-artifacts
           path: manifest/
