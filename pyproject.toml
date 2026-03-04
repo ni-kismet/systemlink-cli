@@ -51,7 +51,7 @@ types-requests = "*"
 types-tabulate = "*"
 
 # Semantic Release
-python-semantic-release = "^9.0.0"
+python-semantic-release = "^10.0.0"
 pytest-xdist = "^3.8.0"
 
 # Excel file generation
