@@ -1561,18 +1561,18 @@ files = [
 
 [[package]]
 name = "ni-python-styleguide"
-version = "0.4.7"
+version = "0.4.9"
 description = "NI's internal and external Python linter rules and plugins"
 optional = false
 python-versions = "<4.0,>=3.7"
 groups = ["dev"]
 files = [
-    {file = "ni_python_styleguide-0.4.7-py3-none-any.whl", hash = "sha256:4b1ae36315a53d1ef0f996cf868cfca997e3a80b431808e46c632467eacd2d09"},
-    {file = "ni_python_styleguide-0.4.7.tar.gz", hash = "sha256:b510bb6974bdb907d0d10f14e985e90304d5f02590f5bafab333ebbaa663ef81"},
+    {file = "ni_python_styleguide-0.4.9-py3-none-any.whl", hash = "sha256:3a33735fbb52231bda00ec970d7c7aebe2b15aed2ccbd07da5c52b8e04730918"},
+    {file = "ni_python_styleguide-0.4.9.tar.gz", hash = "sha256:64a65da646fc8c2f0e68970e0a3190534add9380ee78782fa809fee5321f9e45"},
 ]
 
 [package.dependencies]
-black = ">=23.1"
+black = ">=23.1,<26.0"
 click = ">=7.1.2"
 flake8 = [
     {version = ">=5.0,<6.0", markers = "python_version >= \"3.7\" and python_version < \"3.12\""},
@@ -1588,6 +1588,7 @@ pycodestyle = [
     {version = ">=2.9,<3.0", markers = "python_version >= \"3.7\" and python_version < \"3.12\""},
     {version = ">=2.11,<3.0", markers = "python_version >= \"3.12\" and python_version < \"4.0\""},
 ]
+setuptools = "<82"
 toml = ">=0.10.1"
 
 [[package]]
