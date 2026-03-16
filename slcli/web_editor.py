@@ -186,6 +186,8 @@ class DFFWebEditor:
                     target_path = path_map[parsed.path]
                 elif parsed.path.startswith("/nidynamicformfields/v1/"):
                     target_path = parsed.path
+                elif parsed.path.startswith("/niuser/v1/workspaces"):
+                    target_path = parsed.path
                 else:
                     return False
 
