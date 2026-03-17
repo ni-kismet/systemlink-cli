@@ -6,6 +6,7 @@ import urllib.parse
 from typing import Any, Dict, List, Optional
 
 import click
+import questionary
 import requests
 
 from .platform import require_feature
@@ -825,9 +826,12 @@ def register_dff_commands(cli: Any) -> None:
                 workspace = click.prompt("Workspace name or ID")
 
             if not resource_type:
-                resource_type = click.prompt(
-                    "Resource type", type=click.Choice(VALID_RESOURCE_TYPES, case_sensitive=False)
-                )
+                resource_type = questionary.select(
+                    "Resource type?",
+                    choices=VALID_RESOURCE_TYPES,
+                ).ask()
+                if resource_type is None:
+                    raise click.Abort()
 
             # Validate resource type (resource_type is guaranteed to be str at this point)
             if resource_type:

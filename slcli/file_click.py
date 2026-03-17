@@ -9,6 +9,7 @@ from pathlib import Path
 from typing import Any, Dict, List, Optional
 
 import click
+import questionary
 
 from .cli_utils import validate_output_format
 from .universal_handlers import UniversalResponseHandler
@@ -431,7 +432,10 @@ def register_file_commands(cli: Any) -> None:
 
             # Check if file exists
             if output_path.exists() and not force:
-                if not click.confirm(f"File '{output_path}' already exists. Overwrite?"):
+                if not questionary.confirm(
+                    f"File '{output_path}' already exists. Overwrite?",
+                    default=False,
+                ).ask():
                     click.echo("Download cancelled.")
                     sys.exit(ExitCodes.SUCCESS)
 
@@ -487,7 +491,10 @@ def register_file_commands(cli: Any) -> None:
                 file_name = file_id
 
             if not force:
-                if not click.confirm(f"Are you sure you want to delete '{file_name}'?"):
+                if not questionary.confirm(
+                    f"Are you sure you want to delete '{file_name}'?",
+                    default=False,
+                ).ask():
                     click.echo("Delete cancelled.")
                     sys.exit(ExitCodes.SUCCESS)
 

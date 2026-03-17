@@ -15,6 +15,7 @@ import sys
 from typing import Any, Dict, List, Optional, Tuple
 
 import click
+import questionary
 
 from .cli_utils import validate_output_format
 from .universal_handlers import FilteredResponse, UniversalResponseHandler
@@ -508,7 +509,9 @@ def _handle_interactive_pagination(
         if not page_was_full:
             break
 
-        if not click.confirm("More results may be available. Show next set?", default=True):
+        if not questionary.confirm(
+            "More results may be available. Show next set?", default=True
+        ).ask():
             break
 
 
@@ -1847,7 +1850,10 @@ def register_system_commands(cli: Any) -> None:
                 display_name = system_id
 
             if not force:
-                if not click.confirm(f"Are you sure you want to remove system '{display_name}'?"):
+                if not questionary.confirm(
+                    f"Are you sure you want to remove system '{display_name}'?",
+                    default=False,
+                ).ask():
                     click.echo("Remove cancelled.")
                     sys.exit(ExitCodes.SUCCESS)
 

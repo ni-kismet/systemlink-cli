@@ -7,6 +7,7 @@ from pathlib import Path
 from typing import Any, Dict, List, Optional, Union
 
 import click
+import questionary
 import requests
 
 from .cli_utils import validate_output_format
@@ -266,10 +267,12 @@ def register_function_commands(cli: Any) -> None:
         try:
             # Prompt for language if not supplied
             if not language:
-                language = click.prompt(
-                    "Select language",
-                    type=click.Choice(["typescript", "python"]),  # type: ignore[arg-type]
-                )
+                language = questionary.select(
+                    "Select language?",
+                    choices=["typescript", "python"],
+                ).ask()
+                if language is None:
+                    raise click.Abort()
             if not language:
                 click.echo("✗ Language not specified.", err=True)
                 sys.exit(ExitCodes.INVALID_INPUT)

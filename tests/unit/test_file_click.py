@@ -3,6 +3,7 @@
 import builtins
 import json
 from typing import Any
+from unittest.mock import patch
 
 import click
 import pytest
@@ -491,7 +492,9 @@ def test_download_file_overwrite_cancelled(monkeypatch: Any, runner: CliRunner) 
         with open("existing-file.txt", "w") as f:
             f.write("existing content")
 
-        result = runner.invoke(cli, ["file", "download", "file123"], input="n\n")
+        with patch("slcli.file_click.questionary.confirm") as mock_confirm:
+            mock_confirm.return_value.ask.return_value = False
+            result = runner.invoke(cli, ["file", "download", "file123"])
         assert result.exit_code == 0
         assert "cancelled" in result.output.lower()
 
@@ -563,7 +566,9 @@ def test_delete_file_success(monkeypatch: Any, runner: CliRunner) -> None:
     monkeypatch.setattr("requests.delete", mock_delete)
     cli = make_cli()
 
-    result = runner.invoke(cli, ["file", "delete", "--id", "file123"], input="y\n")
+    with patch("slcli.file_click.questionary.confirm") as mock_confirm:
+        mock_confirm.return_value.ask.return_value = True
+        result = runner.invoke(cli, ["file", "delete", "--id", "file123"])
     assert result.exit_code == 0
     assert "deleted" in result.output.lower()
 
@@ -623,7 +628,9 @@ def test_delete_file_cancelled(monkeypatch: Any, runner: CliRunner) -> None:
     monkeypatch.setattr("requests.post", mock_post)
     cli = make_cli()
 
-    result = runner.invoke(cli, ["file", "delete", "--id", "file123"], input="n\n")
+    with patch("slcli.file_click.questionary.confirm") as mock_confirm:
+        mock_confirm.return_value.ask.return_value = False
+        result = runner.invoke(cli, ["file", "delete", "--id", "file123"])
     assert result.exit_code == 0
     assert "cancelled" in result.output.lower()
 

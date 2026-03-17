@@ -13,6 +13,7 @@ from pathlib import Path
 from typing import Any, Dict, List, Optional
 
 import click
+import questionary
 import requests
 
 from .cli_utils import validate_output_format
@@ -468,7 +469,7 @@ def register_webapp_commands(cli: Any) -> None:
                         break
 
                     # Ask the user if they want to fetch the next set
-                    if not click.confirm("Show next set of results?", default=True):
+                    if not questionary.confirm("Show next set of results?", default=True).ask():
                         break
 
                 # We've already displayed each page interactively above; avoid

@@ -6,6 +6,7 @@ from typing import Optional
 
 import click
 import keyring
+import questionary
 import tomllib
 
 from .asset_click import register_asset_commands
@@ -225,7 +226,10 @@ def logout(profile: Optional[str], remove_all: bool, force: bool) -> None:
 
     if remove_all:
         if not force:
-            if not click.confirm("Remove all profiles and legacy keyring entries?"):
+            if not questionary.confirm(
+                "Remove all profiles and legacy keyring entries?",
+                default=False,
+            ).ask():
                 click.echo("Aborted.")
                 return
 
@@ -242,7 +246,10 @@ def logout(profile: Optional[str], remove_all: bool, force: bool) -> None:
             return
 
         if not force:
-            if not click.confirm(f"Remove profile '{profile}'?"):
+            if not questionary.confirm(
+                f"Remove profile '{profile}'?",
+                default=False,
+            ).ask():
                 click.echo("Aborted.")
                 return
 
@@ -258,7 +265,10 @@ def logout(profile: Optional[str], remove_all: bool, force: bool) -> None:
 
         current = cfg.current_profile
         if not force:
-            if not click.confirm(f"Remove current profile '{current}'?"):
+            if not questionary.confirm(
+                f"Remove current profile '{current}'?",
+                default=False,
+            ).ask():
                 click.echo("Aborted.")
                 return
 

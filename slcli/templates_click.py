@@ -6,6 +6,7 @@ import sys
 from typing import Any, Dict, List, Optional
 
 import click
+import questionary
 
 from .cli_utils import validate_output_format
 from .platform import require_feature
@@ -232,7 +233,10 @@ def register_templates_commands(cli: Any) -> None:
         try:
             # Check if file already exists
             if os.path.exists(output):
-                if not click.confirm(f"File {output} already exists. Overwrite?"):
+                if not questionary.confirm(
+                    f"File {output} already exists. Overwrite?",
+                    default=False,
+                ).ask():
                     click.echo("Template initialization cancelled.")
                     return
 

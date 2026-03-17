@@ -2,6 +2,7 @@
 
 import json
 from typing import Any, Dict, List
+from unittest.mock import patch
 
 import click
 import pytest
@@ -864,10 +865,11 @@ class TestListSystems:
         monkeypatch.setattr("slcli.system_click.get_workspace_map", lambda: {})
 
         cli = make_cli()
-        result = runner.invoke(cli, ["system", "list", "-f", "table"], input="n\n")
+        with patch("slcli.system_click.questionary.confirm") as mock_confirm:
+            mock_confirm.return_value.ask.return_value = False
+            result = runner.invoke(cli, ["system", "list", "-f", "table"])
         assert result.exit_code == 0
         assert "Showing 100 systems" in result.output
-        assert "More results may be available" in result.output
 
 
 class TestGetSystem:
@@ -1262,7 +1264,9 @@ class TestRemoveSystem:
         monkeypatch.setattr("slcli.system_click.make_api_request", mock_request)
 
         cli = make_cli()
-        result = runner.invoke(cli, ["system", "remove", "minion-PXI-1234"], input="n\n")
+        with patch("slcli.system_click.questionary.confirm") as mock_confirm:
+            mock_confirm.return_value.ask.return_value = False
+            result = runner.invoke(cli, ["system", "remove", "minion-PXI-1234"])
         assert "cancelled" in result.output.lower()
 
     def test_remove_with_failed_ids(self, monkeypatch: Any, runner: CliRunner) -> None:
@@ -1471,10 +1475,11 @@ class TestJobList:
         monkeypatch.setattr("slcli.system_click.make_api_request", mock_post)
 
         cli = make_cli()
-        result = runner.invoke(cli, ["system", "job", "list", "-f", "table"], input="n\n")
+        with patch("slcli.system_click.questionary.confirm") as mock_confirm:
+            mock_confirm.return_value.ask.return_value = False
+            result = runner.invoke(cli, ["system", "job", "list", "-f", "table"])
         assert result.exit_code == 0
         assert "Showing 25 jobs" in result.output
-        assert "More results may be available" in result.output
 
 
 class TestCalculateJobColumnWidths:

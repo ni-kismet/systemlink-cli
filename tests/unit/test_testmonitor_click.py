@@ -2,6 +2,7 @@
 
 import json
 from typing import Any, Dict, List, Optional
+from unittest.mock import patch
 
 import click
 import pytest
@@ -1452,7 +1453,9 @@ def test_delete_product_confirmation_aborted(monkeypatch: Any, runner: CliRunner
     monkeypatch.setattr("slcli.profiles.is_active_profile_readonly", lambda: False)
 
     cli = make_cli()
-    result = runner.invoke(cli, ["testmonitor", "product", "delete", "prod-1"], input="n\n")
+    with patch("slcli.testmonitor_click.questionary.confirm") as mock_confirm:
+        mock_confirm.return_value.ask.return_value = False
+        result = runner.invoke(cli, ["testmonitor", "product", "delete", "prod-1"])
 
     assert result.exit_code == 0
     assert "Aborted" in result.output
