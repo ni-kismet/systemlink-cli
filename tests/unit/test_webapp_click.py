@@ -184,8 +184,6 @@ def test_webapp_list_paging_default(monkeypatch: MonkeyPatch) -> None:
         mock_confirm.return_value.ask.return_value = False
         result = runner.invoke(cli, ["webapp", "list"])
     assert result.exit_code == 0
-    # Should show the prompt to ask for next set
-    assert "Show next set of results?" not in result.output  # questionary doesn't print to stdout
     # Should contain first page item but not an item from the second page
     assert "App1" in result.output
     assert "App26" not in result.output
@@ -240,7 +238,6 @@ def test_webapp_list_paging_custom_take(monkeypatch: MonkeyPatch) -> None:
         mock_confirm.return_value.ask.side_effect = [True, False]
         result = runner.invoke(cli, ["webapp", "list", "--take", "10"])
     assert result.exit_code == 0
-    assert "Show next set of results?" not in result.output  # questionary doesn't print to stdout
     # First and second page items should be present, third page should not
     assert "App1" in result.output
     assert "App20" in result.output
