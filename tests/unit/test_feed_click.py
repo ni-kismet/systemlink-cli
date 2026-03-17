@@ -823,11 +823,12 @@ def test_feed_package_delete_confirmation_cancel(mock_delete: MagicMock) -> None
     """Test package delete prompts and cancels without --yes."""
     cli = make_cli()
     runner = CliRunner()
-    result = runner.invoke(
-        cli,
-        ["feed", "package", "delete", "--id", "pkg-1"],
-        input="n\n",
-    )
+    with patch("slcli.feed_click.questionary.confirm") as mock_confirm:
+        mock_confirm.return_value.ask.return_value = False
+        result = runner.invoke(
+            cli,
+            ["feed", "package", "delete", "--id", "pkg-1"],
+        )
 
     assert result.exit_code == 0
     assert "cancelled" in result.output.lower()
@@ -852,13 +853,14 @@ def test_feed_package_delete_error_handling(mock_delete: MagicMock, mock_handle:
     mock_handle.assert_called_once()
 
 
-@patch("slcli.feed_click.click.confirm", return_value=False)
 @patch("slcli.feed_click._delete_package")
-def test_feed_package_delete_prompt_cancel(mock_delete: MagicMock, mock_confirm: MagicMock) -> None:
+def test_feed_package_delete_prompt_cancel(mock_delete: MagicMock) -> None:
     """Test package delete cancellation when user declines confirmation."""
     cli = make_cli()
     runner = CliRunner()
-    result = runner.invoke(cli, ["feed", "package", "delete", "--id", "pkg-1"])
+    with patch("slcli.feed_click.questionary.confirm") as mock_confirm:
+        mock_confirm.return_value.ask.return_value = False
+        result = runner.invoke(cli, ["feed", "package", "delete", "--id", "pkg-1"])
 
     assert result.exit_code == 0
     assert "cancelled" in result.output.lower()

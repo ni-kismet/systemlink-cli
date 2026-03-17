@@ -6,10 +6,12 @@ from pathlib import Path
 from typing import Any, Dict, List, Optional, Tuple
 
 import click
+import questionary
 
 from .utils import ExitCodes
 
 SKILL_NAME = "slcli"
+SKILL_CHOICES = ["slcli", "systemlink-webapp"]
 
 # Mapping of client name → (personal skills dir, project subdir relative to repo root)
 # personal dir uses Path.home() so it's always resolved at call time via _personal_dir().
@@ -71,7 +73,9 @@ def _find_bundled_skills_dir() -> Path:
     candidates.append(Path(__file__).resolve().parent.parent / "skills")
 
     for candidate in candidates:
-        if candidate.exists() and (candidate / SKILL_NAME / "SKILL.md").exists():
+        if candidate.exists() and any(
+            (candidate / name / "SKILL.md").exists() for name in SKILL_CHOICES
+        ):
             return candidate
 
     raise FileNotFoundError(
@@ -123,6 +127,13 @@ def register_skill_commands(cli: Any) -> None:
 
     @skill.command(name="install")
     @click.option(
+        "--skill",
+        "-k",
+        type=click.Choice(SKILL_CHOICES + ["all"], case_sensitive=False),
+        default=None,
+        help="Skill to install (slcli, systemlink-webapp, or all).",
+    )
+    @click.option(
         "--client",
         "-c",
         type=click.Choice(CLIENT_CHOICES + ["all"], case_sensitive=False),
@@ -143,35 +154,52 @@ def register_skill_commands(cli: Any) -> None:
         default=False,
         help="Overwrite existing skill installation without prompting.",
     )
-    def install_skill(client: Optional[str], scope: Optional[str], force: bool) -> None:
-        """Install the slcli agent skill for AI coding assistants.
+    def install_skill(
+        skill: Optional[str], client: Optional[str], scope: Optional[str], force: bool
+    ) -> None:
+        """Install agent skills for AI coding assistants.
 
-        Copies the bundled slcli skill into the skills directory of one or more
-        AI clients. Supported clients and their skill locations:
+        Copies bundled skills into the skills directory of one or more AI clients.
+        Available skills: slcli, systemlink-webapp.
+        Supported clients and their skill locations:
 
         \b
           copilot  personal: ~/.copilot/skills/       project: .github/skills/
           claude   personal: ~/.claude/skills/         project: .claude/skills/
           codex    personal: ~/.agents/skills/         project: .agents/skills/
 
-        When --client and --scope are omitted you will be prompted interactively.
+        When options are omitted you will be prompted interactively.
         """
         # ── interactive prompts when options not supplied ─────────────────────
-        if client is None:
-            client = click.prompt(
-                "Install for which AI client",
-                type=click.Choice(CLIENT_CHOICES + ["all"], case_sensitive=False),
+        if skill is None:
+            skill = questionary.select(
+                "Which skill to install?",
+                choices=SKILL_CHOICES + ["all"],
                 default="all",
-            )
+            ).ask()
+            if skill is None:
+                raise click.Abort()
+
+        if client is None:
+            client = questionary.select(
+                "Install for which AI client?",
+                choices=CLIENT_CHOICES + ["all"],
+                default="all",
+            ).ask()
+            if client is None:
+                raise click.Abort()
 
         if scope is None:
-            scope = click.prompt(
-                "Install scope",
-                type=click.Choice(["personal", "project", "both"], case_sensitive=False),
+            scope = questionary.select(
+                "Install scope?",
+                choices=["personal", "project", "both"],
                 default="personal",
-            )
+            ).ask()
+            if scope is None:
+                raise click.Abort()
 
-        # ── resolve client list ───────────────────────────────────────────────
+        # ── resolve skill and client lists ────────────────────────────────────
+        skill_names: List[str] = SKILL_CHOICES if skill == "all" else [skill]
         clients: List[str] = CLIENT_CHOICES if client == "all" else [client]
 
         # ── locate source ─────────────────────────────────────────────────────
@@ -181,33 +209,42 @@ def register_skill_commands(cli: Any) -> None:
             click.echo(f"✗ {exc}", err=True)
             sys.exit(ExitCodes.GENERAL_ERROR)
 
-        source = skills_dir / SKILL_NAME
         destinations = _resolve_destinations(clients, scope)
 
         installed_any = False
         errors = 0
 
-        for dest_parent in destinations:
-            dest = dest_parent / SKILL_NAME
-
-            if dest.exists() and not force:
-                confirm = click.confirm(
-                    f"Skill already installed at {dest}. Overwrite?", default=False
+        for skill_name in skill_names:
+            source = skills_dir / skill_name
+            if not source.exists():
+                click.echo(
+                    f"✗ Skill '{skill_name}' not found in bundled skills directory.", err=True
                 )
-                if not confirm:
-                    click.echo(f"  Skipped {dest}")
-                    continue
-
-            try:
-                dest_parent.mkdir(parents=True, exist_ok=True)
-                if dest.exists():
-                    shutil.rmtree(dest)
-                shutil.copytree(source, dest)
-                click.echo(f"✓ Installed slcli skill → {dest}")
-                installed_any = True
-            except OSError as exc:
-                click.echo(f"✗ Failed to install to {dest}: {exc}", err=True)
                 errors += 1
+                continue
+
+            for dest_parent in destinations:
+                dest = dest_parent / skill_name
+
+                if dest.exists() and not force:
+                    confirm = questionary.confirm(
+                        f"Skill already installed at {dest}. Overwrite?",
+                        default=False,
+                    ).ask()
+                    if not confirm:
+                        click.echo(f"  Skipped {dest}")
+                        continue
+
+                try:
+                    dest_parent.mkdir(parents=True, exist_ok=True)
+                    if dest.exists():
+                        shutil.rmtree(dest)
+                    shutil.copytree(source, dest)
+                    click.echo(f"✓ Installed {skill_name} skill → {dest}")
+                    installed_any = True
+                except OSError as exc:
+                    click.echo(f"✗ Failed to install to {dest}: {exc}", err=True)
+                    errors += 1
 
         if not installed_any and errors == 0:
             click.echo("No skill locations were updated.")

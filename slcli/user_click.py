@@ -12,6 +12,7 @@ from typing import Any, Dict, List, Optional
 from uuid import uuid4
 
 import click
+import questionary
 
 from .cli_utils import paginate_list_output, validate_output_format
 from .utils import (
@@ -881,12 +882,13 @@ def register_user_commands(cli: click.Group) -> None:
 
         # If user_type wasn't specified via CLI, prompt for it first
         if user_type is None:
-            user_type = click.prompt(
-                "Account type",
-                type=click.Choice(["user", "service"]),
+            user_type = questionary.select(
+                "Account type?",
+                choices=["user", "service"],
                 default="user",
-                show_choices=True,
-            )
+            ).ask()
+            if user_type is None:
+                raise click.Abort()
 
         is_service_account = user_type == "service"
 

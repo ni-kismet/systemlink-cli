@@ -11,6 +11,7 @@ from pathlib import Path
 from typing import Any, Dict, List, Optional
 
 import click
+import questionary
 import requests
 
 from .cli_utils import validate_output_format
@@ -628,7 +629,10 @@ def register_feed_commands(cli: Any) -> None:
         check_readonly_mode("delete a feed")
 
         if not yes:
-            if not click.confirm(f"Are you sure you want to delete feed {feed_id}?"):
+            if not questionary.confirm(
+                f"Are you sure you want to delete feed {feed_id}?",
+                default=False,
+            ).ask():
                 click.echo("Cancelled.")
                 return
 
@@ -858,7 +862,10 @@ def register_feed_commands(cli: Any) -> None:
         check_readonly_mode("delete a package")
 
         if not yes:
-            if not click.confirm(f"Are you sure you want to delete package {package_id}?"):
+            if not questionary.confirm(
+                f"Are you sure you want to delete package {package_id}?",
+                default=False,
+            ).ask():
                 click.echo("Cancelled.")
                 return
 

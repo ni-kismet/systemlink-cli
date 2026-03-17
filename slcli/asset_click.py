@@ -10,6 +10,7 @@ import sys
 from typing import Any, Dict, List, Optional, Tuple
 
 import click
+import questionary
 
 from .cli_utils import validate_output_format
 from .universal_handlers import FilteredResponse, UniversalResponseHandler
@@ -301,7 +302,7 @@ def _handle_asset_interactive_pagination(
         if shown_count >= total_count:
             break
 
-        if not click.confirm("Show next set of results?", default=True):
+        if not questionary.confirm("Show next set of results?", default=True).ask():
             break
 
 
@@ -1235,7 +1236,10 @@ def register_asset_commands(cli: Any) -> None:
                 display_name = asset_id
 
             if not force:
-                if not click.confirm(f"Are you sure you want to delete asset '{display_name}'?"):
+                if not questionary.confirm(
+                    f"Are you sure you want to delete asset '{display_name}'?",
+                    default=False,
+                ).ask():
                     click.echo("Delete cancelled.")
                     sys.exit(ExitCodes.SUCCESS)
 

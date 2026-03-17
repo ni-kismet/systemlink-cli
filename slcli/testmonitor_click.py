@@ -6,6 +6,7 @@ import sys
 from typing import Any, Dict, Iterable, List, Optional, Tuple
 
 import click
+import questionary
 
 from .cli_utils import validate_output_format
 from .universal_handlers import FilteredResponse, UniversalResponseHandler
@@ -206,7 +207,7 @@ def _handle_interactive_pagination(
         if not cont:
             break
 
-        if not click.confirm("Show next set of results?", default=True):
+        if not questionary.confirm("Show next set of results?", default=True).ask():
             break
 
 
@@ -1534,7 +1535,10 @@ def register_testmonitor_commands(cli: Any) -> None:
         ids_list = list(product_ids)
         if not yes:
             id_str = ", ".join(ids_list)
-            if not click.confirm(f"Delete product(s) {id_str}?"):
+            if not questionary.confirm(
+                f"Delete product(s) {id_str}?",
+                default=False,
+            ).ask():
                 click.echo("Aborted.")
                 return
 
