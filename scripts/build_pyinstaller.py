@@ -46,7 +46,7 @@ def main():
     entry_point = os.path.join(project_root, "slcli", "__main__.py")
     examples_dir = os.path.join(project_root, "slcli", "examples")
     editor_assets_dir = os.path.join(project_root, "dff-editor")
-    skills_dir = os.path.join(project_root, "skills")
+    skills_dir = os.path.join(project_root, "slcli", "skills")
 
     if not os.path.isdir(examples_dir):
         print(f"Examples directory not found at {examples_dir}")
