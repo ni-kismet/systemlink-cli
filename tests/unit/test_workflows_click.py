@@ -4,9 +4,9 @@ from typing import Any
 import click
 import pytest
 from click.testing import CliRunner
-
 from slcli.utils import ExitCodes
 from slcli.workflows_click import register_workflows_commands
+
 from .test_utils import patch_keyring
 
 

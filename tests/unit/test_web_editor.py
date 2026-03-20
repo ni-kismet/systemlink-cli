@@ -4,7 +4,6 @@ import sys
 from pathlib import Path
 
 import pytest
-
 from slcli.web_editor import DFFWebEditor
 
 ESSENTIAL_FILES = ["index.html", "editor.js", "README.md"]

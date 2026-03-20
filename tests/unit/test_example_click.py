@@ -8,7 +8,6 @@ from typing import Any, Dict, Generator, List, Optional, Tuple
 import click
 import pytest
 from click.testing import CliRunner
-
 from slcli.example_click import register_example_commands
 from slcli.example_loader import ExampleLoader
 from slcli.example_provisioner import ProvisioningAction, ProvisioningResult

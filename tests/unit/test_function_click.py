@@ -8,8 +8,8 @@ from typing import Any, Dict, List
 import click
 import pytest
 from click.testing import CliRunner
-
 from slcli.function_click import register_function_commands
+
 from .test_utils import patch_keyring
 
 

@@ -4,7 +4,6 @@ import json
 from unittest.mock import MagicMock, patch
 
 import pytest
-
 from slcli.platform import (
     PLATFORM_SLE,
     PLATFORM_SLS,

@@ -8,7 +8,6 @@ from unittest.mock import patch
 import click
 import pytest
 from click.testing import CliRunner
-
 from slcli.file_click import register_file_commands
 from slcli.utils import ExitCodes
 

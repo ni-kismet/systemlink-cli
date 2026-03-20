@@ -6,7 +6,6 @@ from unittest.mock import MagicMock, patch
 
 import click
 from click.testing import CliRunner
-
 from slcli.comment_click import register_comment_commands
 
 

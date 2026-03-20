@@ -6,7 +6,6 @@ from unittest.mock import patch
 
 import keyring
 from click.testing import CliRunner
-
 from slcli.main import cli
 
 
