@@ -13,7 +13,7 @@
 <!-- ─── NAV ─── -->
 <nav>
   <div class="nav-inner">
-    <a href="/" class="nav-logo">
+    <a href="index.html" class="nav-logo">
       <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="4 17 10 11 4 5"/><line x1="12" y1="19" x2="20" y2="19"/></svg>
       <span>slcli</span>
     </a>
@@ -127,15 +127,13 @@ slcli skill install --client copilot --scope project</code></pre>
           <div class="step-num">2</div>
           <div class="step-body">
             <h3>Scaffold a Nimble Angular project</h3>
-            <p>Initialize a project with the Angular template — it sets up the Angular workspace, installs Nimble and SystemLink TypeScript clients, and includes a README with example prompts.</p>
+            <p>Initialize a project with the Angular template to generate AI-ready prompts and setup guidance. It does not create the Angular workspace for you; instead, it creates the files you use alongside <code>ng new</code>.</p>
             <pre><code>slcli webapp init --template angular --directory ./fleet-dashboard</code></pre>
             <p>The scaffolded project includes:</p>
             <ul>
-              <li>Angular 19 project configured for SystemLink deployment</li>
-              <li><code>@ni/nimble-angular</code> — NI's design system components</li>
-              <li><code>@ni/systemlink-clients-ts</code> — TypeScript clients for SystemLink APIs</li>
-              <li>Hash routing and CSP-safe configuration pre-applied</li>
-              <li>A <code>PROMPTS.md</code> with example prompts to give your AI assistant</li>
+              <li>A <code>PROMPTS.md</code> file with example prompts for your AI assistant</li>
+              <li>A <code>README.md</code> with the recommended Angular setup and deployment steps</li>
+              <li>A clean starting directory where you can run <code>ng new</code> and build the app with AI assistance</li>
             </ul>
           </div>
         </div>
@@ -162,12 +160,15 @@ slcli skill install --client copilot --scope project</code></pre>
           <div class="step-num">4</div>
           <div class="step-body">
             <h3>Build and publish</h3>
-            <pre><code># Build the Angular project
+            <pre><code># Create the Angular app and install the recommended packages
 cd fleet-dashboard
-ng build --configuration production
+ng new &lt;app-name&gt; --no-standalone
+cd &lt;app-name&gt;
+npm install @ni/nimble-angular @ni/systemlink-clients-ts
 
-# Publish to SystemLink
-slcli webapp publish dist/fleet-dashboard/browser/ \
+# Build and publish to SystemLink
+ng build --configuration production
+slcli webapp publish dist/&lt;app-name&gt;/browser/ \
   --name "Fleet Dashboard" \
   --workspace Production</code></pre>
           </div>
@@ -181,7 +182,7 @@ slcli webapp open --id &lt;webapp-id&gt;
 
 # Re-publish after changes (same --name updates in place)
 ng build --configuration production
-slcli webapp publish dist/fleet-dashboard/browser/ \
+slcli webapp publish dist/&lt;app-name&gt;/browser/ \
   --name "Fleet Dashboard" --workspace Production</code></pre>
           </div>
         </div>

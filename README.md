@@ -32,7 +32,7 @@ curl -fsSL https://github.com/ni-kismet/systemlink-cli/releases/latest/download/
 sudo mv slcli/slcli /usr/local/bin/
 
 # pip (Python 3.11+)
-pip install slcli
+pip install systemlink-cli
 ```
 
 ## Quick Start

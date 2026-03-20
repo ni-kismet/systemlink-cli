@@ -13,7 +13,7 @@
 <!-- ─── NAV ─── -->
 <nav>
   <div class="nav-inner">
-    <a href="/" class="nav-logo">
+    <a href="index.html" class="nav-logo">
       <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="4 17 10 11 4 5"/><line x1="12" y1="19" x2="20" y2="19"/></svg>
       <span>slcli</span>
     </a>
@@ -160,7 +160,7 @@ sudo mv slcli/slcli /usr/local/bin/</code></pre>
         <h3>pip (PyPI)</h3>
         <p class="install-note">Requires <a href="https://www.python.org" target="_blank" rel="noopener">Python 3.11+</a></p>
         <div class="code-block">
-          <pre><code>pip install slcli</code></pre>
+          <pre><code>pip install systemlink-cli</code></pre>
         </div>
       </div>
     </div>
@@ -186,13 +186,13 @@ sudo mv slcli/slcli /usr/local/bin/</code></pre>
       <div class="workflow-card">
         <div class="workflow-number">2</div>
         <h3>Build Nimble Angular WebApps</h3>
-        <p>Scaffold a project with the Angular template, then ask your AI to build it using <code>@ni/nimble-angular</code> and <code>@ni/systemlink-clients-ts</code>.</p>
+        <p>Generate AI-ready prompts and setup instructions with the Angular template, then create the Angular app and let your assistant build it using <code>@ni/nimble-angular</code> and <code>@ni/systemlink-clients-ts</code>.</p>
         <div class="code-block code-sm">
           <pre><code>slcli webapp init --template angular \
   --directory ./fleet-dashboard
-# AI builds it using the skill
-slcli webapp publish ./fleet-dashboard/dist \
-  --name "Fleet Dashboard" --workspace Prod</code></pre>
+cd fleet-dashboard
+ng new &lt;app-name&gt; --no-standalone
+# AI builds it using PROMPTS.md + the skill</code></pre>
         </div>
       </div>
       <div class="workflow-card">
