@@ -126,41 +126,45 @@
   <div class="container">
     <div class="section-eyebrow">INSTALL</div>
     <h2>Up and running in seconds</h2>
-    <div class="install-grid">
-      <div class="install-card">
-        <h3>macOS / Linux</h3>
-        <p class="install-note">Requires <a href="https://brew.sh" target="_blank" rel="noopener">Homebrew</a></p>
-        <div class="code-block">
-          <pre><code>brew tap ni-kismet/homebrew-ni
+    <div class="install-tabs">
+      <div class="install-tab-nav" role="tablist">
+        <button class="install-tab-btn active" data-tab="pip">🐍 pip — Cross-platform</button>
+        <button class="install-tab-btn" data-tab="brew">🍺 macOS / Linux</button>
+        <button class="install-tab-btn" data-tab="scoop">🪄 Windows</button>
+        <button class="install-tab-btn" data-tab="binary">📦 Standalone</button>
+      </div>
+      <div class="install-tab-content">
+        <div class="install-tab-pane active" data-pane="pip">
+          <p class="install-note">Works on macOS, Linux, and Windows. Requires <a href="https://www.python.org" target="_blank" rel="noopener">Python 3.11+</a></p>
+          <div class="code-block">
+            <pre><code>pip install systemlink-cli</code></pre>
+          </div>
+        </div>
+        <div class="install-tab-pane" data-pane="brew">
+          <p class="install-note">Requires <a href="https://brew.sh" target="_blank" rel="noopener">Homebrew</a></p>
+          <div class="code-block">
+            <pre><code>brew tap ni-kismet/homebrew-ni
 brew install slcli</code></pre>
+          </div>
         </div>
-      </div>
-      <div class="install-card">
-        <h3>Windows</h3>
-        <p class="install-note">Requires <a href="https://scoop.sh" target="_blank" rel="noopener">Scoop</a></p>
-        <div class="code-block">
-          <pre><code>scoop bucket add ni-kismet https://github.com/ni-kismet/scoop-ni
+        <div class="install-tab-pane" data-pane="scoop">
+          <p class="install-note">Requires <a href="https://scoop.sh" target="_blank" rel="noopener">Scoop</a></p>
+          <div class="code-block">
+            <pre><code>scoop bucket add ni-kismet https://github.com/ni-kismet/scoop-ni
 scoop install slcli</code></pre>
+          </div>
         </div>
-      </div>
-      <div class="install-card">
-        <h3>Standalone Binary</h3>
-        <p class="install-note">No package manager needed</p>
-        <div class="code-block">
-          <pre><code># macOS
+        <div class="install-tab-pane" data-pane="binary">
+          <p class="install-note">No package manager needed</p>
+          <div class="code-block">
+            <pre><code># macOS
 curl -fsSL https://github.com/ni-kismet/systemlink-cli/releases/latest/download/slcli-macos.tar.gz | tar xz
 sudo mv slcli/slcli /usr/local/bin/
 
 # Linux
 curl -fsSL https://github.com/ni-kismet/systemlink-cli/releases/latest/download/slcli-linux.tar.gz | tar xz
 sudo mv slcli/slcli /usr/local/bin/</code></pre>
-        </div>
-      </div>
-      <div class="install-card">
-        <h3>pip (PyPI)</h3>
-        <p class="install-note">Requires <a href="https://www.python.org" target="_blank" rel="noopener">Python 3.11+</a></p>
-        <div class="code-block">
-          <pre><code>pip install systemlink-cli</code></pre>
+          </div>
         </div>
       </div>
     </div>
@@ -179,31 +183,16 @@ sudo mv slcli/slcli /usr/local/bin/</code></pre>
         <div class="workflow-number">1</div>
         <h3>Install AI Skills</h3>
         <p>Install the <code>systemlink-webapp</code> skill to give your AI assistant full knowledge of Nimble Angular, SystemLink TypeScript clients, and deployment patterns.</p>
-        <div class="code-block code-sm">
-          <pre><code>slcli skill install --client all</code></pre>
-        </div>
       </div>
       <div class="workflow-card">
         <div class="workflow-number">2</div>
         <h3>Build Nimble Angular WebApps</h3>
         <p>Generate AI-ready prompts and setup instructions with the Angular template, then create the Angular app and let your assistant build it using <code>@ni/nimble-angular</code> and <code>@ni/systemlink-clients-ts</code>.</p>
-        <div class="code-block code-sm">
-          <pre><code>slcli webapp init --template angular \
-  --directory ./fleet-dashboard
-cd fleet-dashboard
-ng new &lt;app-name&gt; --no-standalone
-# AI builds it using PROMPTS.md + the skill</code></pre>
-        </div>
       </div>
       <div class="workflow-card">
         <div class="workflow-number">3</div>
         <h3>Provision Demo Environments</h3>
         <p>Install curated example datasets for training, demos, and evaluation — complete with systems, assets, and test data.</p>
-        <div class="code-block code-sm">
-          <pre><code>slcli example list
-slcli example install demo-complete-workflow \
-  --workspace Training</code></pre>
-        </div>
       </div>
     </div>
     <p class="install-next"><a href="workflows.html">Explore all workflows →</a></p>
@@ -239,6 +228,18 @@ slcli example install demo-complete-workflow \
     <div class="footer-copy">MIT License · ni-kismet</div>
   </div>
 </footer>
+
+<script>
+  document.querySelectorAll('.install-tab-btn').forEach(function(btn) {
+    btn.addEventListener('click', function() {
+      var tab = btn.dataset.tab;
+      document.querySelectorAll('.install-tab-btn').forEach(function(b) { b.classList.remove('active'); });
+      document.querySelectorAll('.install-tab-pane').forEach(function(p) { p.classList.remove('active'); });
+      btn.classList.add('active');
+      document.querySelector('.install-tab-pane[data-pane="' + tab + '"]').classList.add('active');
+    });
+  });
+</script>
 
 </body>
 </html>

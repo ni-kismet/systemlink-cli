@@ -276,28 +276,47 @@ nav {
 .feature-card h3 { font-size: 1rem; font-weight: 700; margin-bottom: .4rem; }
 .feature-card p { color: var(--text-muted); font-size: .88rem; line-height: 1.55; }
 
-/* ─── INSTALL GRID ─── */
-.install-grid {
-  display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(300px, 1fr));
-  gap: 1rem;
-  margin-bottom: 1.5rem;
-}
-.install-card {
+/* ─── INSTALL TABS ─── */
+.install-tabs {
   background: var(--bg-3);
   border: 1px solid var(--border);
   border-radius: var(--radius-lg);
+  overflow: hidden;
+  margin-bottom: 1.5rem;
+}
+.install-tab-nav {
+  display: flex;
+  border-bottom: 1px solid var(--border);
+  background: var(--bg-2);
+  overflow-x: auto;
+  scrollbar-width: none;
+}
+.install-tab-nav::-webkit-scrollbar { display: none; }
+.install-tab-btn {
+  flex: 1;
+  min-width: max-content;
+  padding: .8rem 1.5rem;
+  background: none;
+  border: none;
+  border-bottom: 2px solid transparent;
+  color: var(--text-muted);
+  font-size: .85rem;
+  font-weight: 500;
+  cursor: pointer;
+  transition: color .15s, border-color .15s;
+  white-space: nowrap;
+}
+.install-tab-btn:hover { color: var(--text); }
+.install-tab-btn.active { color: var(--accent); border-bottom-color: var(--accent); }
+.install-tab-content {
   padding: 1.5rem;
 }
-.install-card h3 {
-  font-size: .95rem;
-  font-weight: 700;
-  margin-bottom: .35rem;
-}
+.install-tab-pane { display: none; }
+.install-tab-pane.active { display: block; }
 .install-note {
   font-size: .8rem;
   color: var(--text-faint);
-  margin-bottom: .6rem;
+  margin-bottom: .75rem;
 }
 .install-note a { color: var(--accent); }
 .install-next {
