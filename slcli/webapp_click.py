@@ -244,6 +244,183 @@ def _pack_folder_to_nipkg(folder: Path, output: Optional[Path] = None) -> Path:
     return output
 
 
+# ── Template scaffolding helpers ──────────────────────────────────────────
+
+
+def _init_html_template(directory: Path, force: bool) -> None:
+    """Scaffold a minimal HTML webapp."""
+    directory.mkdir(parents=True, exist_ok=True)
+    target_folder = directory / "app"
+    target_folder.mkdir(parents=True, exist_ok=True)
+    index = target_folder / "index.html"
+    if index.exists() and not force:
+        click.echo("✗ app/index.html already exists. Use --force to overwrite.", err=True)
+        sys.exit(ExitCodes.INVALID_INPUT)
+
+    content = """<!doctype html>
+<html>
+  <head>
+    <meta charset="utf-8">
+    <title>Example WebApp</title>
+  </head>
+  <body>
+    <h1>Example WebApp</h1>
+    <p>Created with slcli webapp init</p>
+  </body>
+</html>
+"""
+    index.write_text(content, encoding="utf-8")
+    format_success("Created example index.html", {"Path": str(index)})
+
+
+_ANGULAR_PROMPTS_MD = """\
+# SystemLink WebApp — AI Prompts
+
+This project was scaffolded with `slcli webapp init --template angular`.
+
+The **systemlink-webapp** skill teaches your AI assistant how to build
+Nimble Angular applications for SystemLink. Install it first:
+
+```bash
+slcli skill install --client all
+```
+
+## Getting Started Prompts
+
+Copy-paste these into your AI assistant to build out the project:
+
+### 1. Create a basic dashboard layout
+
+> "Set up the AppModule with NimbleModule imports, a nimble-theme-provider
+> with automatic theme detection, and a nimble-anchor-tabs layout with
+> Overview and Settings tabs. Use hash routing."
+
+### 2. Add a systems overview page
+
+> "Create a SystemsComponent that uses the Systems Management TypeScript
+> client to fetch connected systems and display them in a nimble-table
+> with columns for alias, state, OS, and last-updated timestamp.
+> Add a nimble-spinner while loading."
+
+### 3. Add a test results page
+
+> "Create a TestResultsComponent that uses the Test Monitor TypeScript
+> client to list recent test results in a nimble-table. Add
+> nimble-select filters for status (Passed/Failed/Running) and
+> program name. Show a nimble-banner when there are failures."
+
+### 4. Add an asset calibration tracker
+
+> "Create a CalibrationComponent that uses the Asset Management
+> TypeScript client to show assets grouped by calibration status.
+> Use nimble-card components for each status category with counts.
+> Add a nimble-drawer that shows asset details when clicked."
+
+### 5. Build and deploy
+
+> "Build the project for production and deploy it to SystemLink
+> using slcli webapp publish."
+
+## Reference
+
+- [Nimble Angular components](https://nimble.ni.dev/)
+- [SystemLink TypeScript clients](https://www.npmjs.com/package/@ni/systemlink-clients-ts)
+- [slcli webapp commands](https://ni-kismet.github.io/systemlink-cli/commands.html#webapp)
+
+## Build & Deploy
+
+```bash
+ng build --configuration production
+slcli webapp publish dist/<project-name>/browser/ \\
+  --name "My Dashboard" --workspace Default
+```
+"""
+
+_ANGULAR_README_MD = """\
+# SystemLink WebApp
+
+A Nimble Angular web application for SystemLink, scaffolded with
+`slcli webapp init --template angular`.
+
+## Prerequisites
+
+- [Node.js](https://nodejs.org/) 18+ and npm
+- [Angular CLI](https://angular.dev/tools/cli) (`npm install -g @angular/cli`)
+- [slcli](https://ni-kismet.github.io/systemlink-cli/) with AI skills installed
+
+## Quick Start
+
+```bash
+# Install dependencies
+npm install
+
+# Start development server
+ng serve --open
+
+# Build for production
+ng build --configuration production
+```
+
+## Deploy to SystemLink
+
+```bash
+slcli webapp publish dist/<project-name>/browser/ \\
+  --name "My Dashboard" --workspace Default
+```
+
+## AI-Assisted Development
+
+See [PROMPTS.md](PROMPTS.md) for example prompts to give your AI assistant.
+Install the systemlink-webapp skill first:
+
+```bash
+slcli skill install --client all
+```
+
+Then ask your assistant to build features using the prompts in PROMPTS.md.
+"""
+
+
+def _init_angular_template(directory: Path, force: bool) -> None:
+    """Scaffold a Nimble Angular project with SystemLink TypeScript clients."""
+    directory.mkdir(parents=True, exist_ok=True)
+
+    prompts_file = directory / "PROMPTS.md"
+    readme_file = directory / "README.md"
+
+    # Check for existing files
+    existing = []
+    if prompts_file.exists() and not force:
+        existing.append("PROMPTS.md")
+    if readme_file.exists() and not force:
+        existing.append("README.md")
+    if existing:
+        click.echo(
+            f"✗ {', '.join(existing)} already exist(s). Use --force to overwrite.",
+            err=True,
+        )
+        sys.exit(ExitCodes.INVALID_INPUT)
+
+    prompts_file.write_text(_ANGULAR_PROMPTS_MD, encoding="utf-8")
+    readme_file.write_text(_ANGULAR_README_MD, encoding="utf-8")
+
+    format_success(
+        "Scaffolded Nimble Angular project",
+        {
+            "Directory": str(directory),
+            "Next steps": (
+                "1. cd " + str(directory) + "\n"
+                "   2. ng new <app-name> --no-standalone\n"
+                "   3. cd <app-name>\n"
+                "   4. npm install @ni/nimble-angular "
+                "@ni/systemlink-clients-ts\n"
+                "   5. Install AI skills: slcli skill install --client all\n"
+                "   6. Open PROMPTS.md and start building with AI"
+            ),
+        },
+    )
+
+
 def register_webapp_commands(cli: Any) -> None:
     """Register CLI commands for SystemLink webapps."""
 
@@ -258,35 +435,29 @@ def register_webapp_commands(cli: Any) -> None:
         type=click.Path(file_okay=False, dir_okay=True, path_type=Path),
         default=Path.cwd(),
         show_default="CWD",
-        help="Target directory to create example index.html",
+        help="Target directory to create the project in",
+    )
+    @click.option(
+        "--template",
+        "template",
+        type=click.Choice(["html", "angular"]),
+        default="html",
+        show_default=True,
+        help="Project template: html (simple page) or angular (Nimble Angular app)",
     )
     @click.option("--force", is_flag=True, help="Overwrite existing files")
-    def init_webapp(directory: Path, force: bool) -> None:
-        """Scaffold a sample webapp (index.html)."""
-        try:
-            directory.mkdir(parents=True, exist_ok=True)
-            # Create a subfolder named 'app' and put the example index.html inside it
-            target_folder = directory / "app"
-            target_folder.mkdir(parents=True, exist_ok=True)
-            index = target_folder / "index.html"
-            if index.exists() and not force:
-                click.echo("✗ app/index.html already exists. Use --force to overwrite.", err=True)
-                sys.exit(ExitCodes.INVALID_INPUT)
+    def init_webapp(directory: Path, template: str, force: bool) -> None:
+        """Scaffold a sample webapp project.
 
-            content = """<!doctype html>
-<html>
-  <head>
-    <meta charset="utf-8">
-    <title>Example WebApp</title>
-  </head>
-  <body>
-    <h1>Example WebApp</h1>
-    <p>Created with slcli webapp init</p>
-  </body>
-</html>
-"""
-            index.write_text(content, encoding="utf-8")
-            format_success("Created example index.html", {"Path": str(index)})
+        Use --template html (default) for a minimal index.html, or
+        --template angular for a Nimble Angular project with SystemLink
+        TypeScript clients, AI-ready prompts, and deployment configuration.
+        """
+        try:
+            if template == "angular":
+                _init_angular_template(directory, force)
+            else:
+                _init_html_template(directory, force)
         except SystemExit:
             raise
         except Exception as exc:

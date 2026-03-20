@@ -32,6 +32,57 @@ def test_webapp_init_creates_index(tmp_path: Path, monkeypatch: MonkeyPatch) -> 
     assert "Example WebApp" in content
 
 
+def test_webapp_init_angular_creates_prompts(tmp_path: Path, monkeypatch: MonkeyPatch) -> None:
+    runner = CliRunner()
+    patch_keyring(monkeypatch)
+
+    target = tmp_path / "ng_app"
+    result = runner.invoke(
+        cli, ["webapp", "init", "--template", "angular", "--directory", str(target)]
+    )
+    assert result.exit_code == 0
+    assert (target / "PROMPTS.md").exists()
+    assert (target / "README.md").exists()
+    prompts = (target / "PROMPTS.md").read_text(encoding="utf-8")
+    assert "systemlink-webapp" in prompts
+    assert "systemlink-clients-ts" in prompts
+    readme = (target / "README.md").read_text(encoding="utf-8")
+    assert "slcli webapp publish" in readme
+    assert "Nimble Angular" in readme
+
+
+def test_webapp_init_angular_no_overwrite(tmp_path: Path, monkeypatch: MonkeyPatch) -> None:
+    runner = CliRunner()
+    patch_keyring(monkeypatch)
+
+    target = tmp_path / "ng_app"
+    target.mkdir()
+    (target / "PROMPTS.md").write_text("existing")
+
+    result = runner.invoke(
+        cli, ["webapp", "init", "--template", "angular", "--directory", str(target)]
+    )
+    assert result.exit_code != 0
+    assert "already exist" in result.output
+
+
+def test_webapp_init_angular_force_overwrite(tmp_path: Path, monkeypatch: MonkeyPatch) -> None:
+    runner = CliRunner()
+    patch_keyring(monkeypatch)
+
+    target = tmp_path / "ng_app"
+    target.mkdir()
+    (target / "PROMPTS.md").write_text("old")
+    (target / "README.md").write_text("old")
+
+    result = runner.invoke(
+        cli,
+        ["webapp", "init", "--template", "angular", "--directory", str(target), "--force"],
+    )
+    assert result.exit_code == 0
+    assert "systemlink-webapp" in (target / "PROMPTS.md").read_text(encoding="utf-8")
+
+
 def test_webapp_pack_creates_nipkg(tmp_path: Path, monkeypatch: MonkeyPatch) -> None:
     runner = CliRunner()
     patch_keyring(monkeypatch)

@@ -69,8 +69,8 @@ def _find_bundled_skills_dir() -> Path:
     if getattr(sys, "frozen", False):
         candidates.append(Path(sys.executable).resolve().parent / "skills")
 
-    # Development/Poetry-install: skills/ sits next to the slcli package
-    candidates.append(Path(__file__).resolve().parent.parent / "skills")
+    # pip install / development: skills/ bundled inside the slcli package
+    candidates.append(Path(__file__).resolve().parent / "skills")
 
     for candidate in candidates:
         if candidate.exists() and any(

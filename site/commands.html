@@ -1,0 +1,567 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Command Reference — SystemLink CLI</title>
+  <meta name="description" content="Complete command reference for all slcli command groups." />
+  <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24'><text y='20' font-size='18'>⚡</text></svg>" />
+  <link rel="stylesheet" href="style.css" />
+</head>
+<body>
+
+<!-- ─── NAV ─── -->
+<nav>
+  <div class="nav-inner">
+    <a href="/" class="nav-logo">
+      <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="4 17 10 11 4 5"/><line x1="12" y1="19" x2="20" y2="19"/></svg>
+      <span>slcli</span>
+    </a>
+    <div class="nav-links">
+      <a href="getting-started.html">Get Started</a>
+      <a href="commands.html">Commands</a>
+      <a href="workflows.html">Workflows</a>
+      <a href="https://github.com/ni-kismet/systemlink-cli" class="btn btn-sm" target="_blank" rel="noopener">GitHub</a>
+    </div>
+  </div>
+</nav>
+
+<!-- ─── PAGE HERO ─── -->
+<section class="page-hero">
+  <div class="container">
+    <h1>Command Reference</h1>
+    <p>Complete documentation for every slcli command group, option, and output format.</p>
+  </div>
+</section>
+
+<!-- ─── DOCS ─── -->
+<div class="container">
+  <div class="docs-layout">
+
+    <!-- SIDEBAR -->
+    <aside class="docs-sidebar">
+      <div class="sidebar-group">
+        <div class="sidebar-label">Global</div>
+        <a href="#overview" class="sidebar-link">Overview</a>
+        <a href="#output-formats" class="sidebar-link">Output Formats</a>
+        <a href="#flag-conventions" class="sidebar-link">Flag Conventions</a>
+      </div>
+      <div class="sidebar-group">
+        <div class="sidebar-label">Commands</div>
+        <a href="#testmonitor" class="sidebar-link">testmonitor</a>
+        <a href="#asset" class="sidebar-link">asset</a>
+        <a href="#system" class="sidebar-link">system</a>
+        <a href="#workitem" class="sidebar-link">workitem</a>
+        <a href="#template" class="sidebar-link">template</a>
+        <a href="#notebook" class="sidebar-link">notebook</a>
+        <a href="#routine" class="sidebar-link">routine</a>
+        <a href="#feed" class="sidebar-link">feed</a>
+        <a href="#file" class="sidebar-link">file</a>
+        <a href="#tag" class="sidebar-link">tag</a>
+        <a href="#user" class="sidebar-link">user</a>
+        <a href="#auth" class="sidebar-link">auth</a>
+        <a href="#workspace" class="sidebar-link">workspace</a>
+        <a href="#webapp" class="sidebar-link">webapp</a>
+        <a href="#comment" class="sidebar-link">comment</a>
+        <a href="#customfield" class="sidebar-link">customfield</a>
+        <a href="#example" class="sidebar-link">example</a>
+      </div>
+    </aside>
+
+    <!-- CONTENT -->
+    <main class="docs-content">
+
+      <!-- ─── OVERVIEW ─── -->
+      <h1 id="overview">Command Groups</h1>
+      <p>slcli organizes commands into logical groups. Every list command supports <code>--format</code> and <code>--take</code> options.</p>
+
+      <div class="cmd-groups">
+        <div class="cmd-group"><h3>testmonitor</h3><p>Test results, products, steps, measurements</p><code>slcli testmonitor result list</code></div>
+        <div class="cmd-group"><h3>asset</h3><p>Hardware assets, calibration, fleet summary</p><code>slcli asset list</code></div>
+        <div class="cmd-group"><h3>system</h3><p>Managed systems, packages, jobs, reports</p><code>slcli system list</code></div>
+        <div class="cmd-group"><h3>workitem</h3><p>Work items, templates, workflows</p><code>slcli workitem list</code></div>
+        <div class="cmd-group"><h3>template</h3><p>Test plan templates</p><code>slcli template list</code></div>
+        <div class="cmd-group"><h3>notebook</h3><p>Jupyter notebooks, execution records</p><code>slcli notebook manage list</code></div>
+        <div class="cmd-group"><h3>routine</h3><p>Event-action routines (v1 &amp; v2)</p><code>slcli routine list</code></div>
+        <div class="cmd-group"><h3>feed</h3><p>NI Package Manager feeds &amp; packages</p><code>slcli feed list</code></div>
+        <div class="cmd-group"><h3>file</h3><p>File upload, download, query, watch</p><code>slcli file list</code></div>
+        <div class="cmd-group"><h3>tag</h3><p>Tags: create, read, set values</p><code>slcli tag list</code></div>
+        <div class="cmd-group"><h3>user</h3><p>User &amp; service account management</p><code>slcli user list</code></div>
+        <div class="cmd-group"><h3>auth</h3><p>Authorization policies &amp; templates</p><code>slcli auth policy list</code></div>
+        <div class="cmd-group"><h3>workspace</h3><p>Workspace listing, info, disable</p><code>slcli workspace list</code></div>
+        <div class="cmd-group"><h3>webapp</h3><p>Static web app lifecycle</p><code>slcli webapp list</code></div>
+        <div class="cmd-group"><h3>comment</h3><p>Comments on any resource</p><code>slcli comment list</code></div>
+        <div class="cmd-group"><h3>customfield</h3><p>Custom field configurations</p><code>slcli customfield list</code></div>
+        <div class="cmd-group"><h3>example</h3><p>Demo environment provisioning</p><code>slcli example list</code></div>
+      </div>
+
+      <!-- ─── OUTPUT FORMATS ─── -->
+      <h2 id="output-formats">Output Formats</h2>
+      <p>All list and get commands support <code>--format/-f</code> with <code>table</code> (default) or <code>json</code>.</p>
+      <ul>
+        <li><strong>Table</strong> — colored, paginated (25 rows per page by default), with box-drawing and truncation</li>
+        <li><strong>JSON</strong> — complete results without pagination, ideal for scripting and <code>jq</code> processing</li>
+      </ul>
+      <pre><code># Human-readable table
+slcli testmonitor result list
+
+# Machine-readable JSON
+slcli testmonitor result list --format json</code></pre>
+
+      <!-- ─── FLAG CONVENTIONS ─── -->
+      <h2 id="flag-conventions">Flag Conventions</h2>
+      <table>
+        <thead><tr><th>Flag</th><th>Description</th></tr></thead>
+        <tbody>
+          <tr><td><code>--format/-f</code></td><td>Output format: <code>table</code> or <code>json</code></td></tr>
+          <tr><td><code>--take/-t</code></td><td>Number of items to return (default: 25)</td></tr>
+          <tr><td><code>--output/-o</code></td><td>File path for export operations</td></tr>
+          <tr><td><code>--workspace/-w</code></td><td>Filter by workspace name or ID</td></tr>
+          <tr><td><code>--id/-i</code></td><td>Resource identifier</td></tr>
+          <tr><td><code>--file</code></td><td>Input file for import operations</td></tr>
+          <tr><td><code>--filter</code></td><td>Dynamic LINQ or API filter expression</td></tr>
+          <tr><td><code>--yes/-y</code></td><td>Skip confirmation prompts</td></tr>
+          <tr><td><code>--force</code></td><td>Force overwrite or skip confirmation</td></tr>
+        </tbody>
+      </table>
+
+      <!-- ─── TEST MONITOR ─── -->
+      <h2 id="testmonitor">testmonitor</h2>
+      <p>Query test results, products, steps, and measurements from the Test Monitor service.</p>
+
+      <h3>Results</h3>
+      <pre><code># List test results with filters
+slcli testmonitor result list --status passed --program-name "Calibration"
+
+# Filter by part number and serial number
+slcli testmonitor result list --part-number "cRIO-9030" --serial-number "abc-123"
+
+# Advanced filter with substitutions
+slcli testmonitor result list \
+  --filter '(operator == @0) && (totalTimeInSeconds < @1)' \
+  --substitution "user1" \
+  --substitution 30
+
+# Summary statistics grouped by status
+slcli testmonitor result list --summary --group-by status
+
+# Get result details with steps and measurements
+slcli testmonitor result get &lt;result-id&gt; --include-steps --include-measurements</code></pre>
+
+      <h3>Products</h3>
+      <pre><code># List products with filters
+slcli testmonitor product list --name "cRIO" --family "cRIO"
+
+# Create a product
+slcli testmonitor product create --part-number "156502A-11L" \
+  --name "cRIO-9030" --family "cRIO" \
+  --keyword "embedded" --property "region=us"
+
+# Update a product
+slcli testmonitor product update &lt;product-id&gt; --name "cRIO-9030 Rev B"
+
+# Delete products
+slcli testmonitor product delete --yes &lt;id1&gt; &lt;id2&gt;</code></pre>
+
+      <!-- ─── ASSET ─── -->
+      <h2 id="asset">asset</h2>
+      <p>Manage hardware assets with rich filtering, calibration tracking, and location history.</p>
+
+      <h3>List &amp; Filter</h3>
+      <pre><code># Filter by model, serial number, bus type
+slcli asset list --model "PXI-4071"
+slcli asset list --serial-number "01BB877A"
+slcli asset list --bus-type PCI_PXI
+
+# Show connected &amp; calibratable assets
+slcli asset list --connected --calibratable
+
+# Advanced filter
+slcli asset list --filter 'ModelName.Contains("PXI") and BusType = "PCI_PXI"'
+
+# Inline summary statistics
+slcli asset list --summary</code></pre>
+
+      <h3>Get Details</h3>
+      <pre><code># Detailed view with calibration history
+slcli asset get &lt;asset-id&gt; --include-calibration</code></pre>
+
+      <h3>Fleet Summary</h3>
+      <pre><code>slcli asset summary</code></pre>
+
+      <h3>Calibration &amp; Location History</h3>
+      <pre><code># Calibration history
+slcli asset calibration &lt;asset-id&gt; --take 10
+
+# Location history with date range
+slcli asset location-history &lt;asset-id&gt; \
+  --from "2025-12-01T00:00:00Z" \
+  --to "2025-12-02T00:00:00Z"</code></pre>
+
+      <h3>Create, Update, Delete</h3>
+      <pre><code>slcli asset create --model-name "PXI-4071" --serial-number "SN-123" --bus-type PCI_PXI
+slcli asset update &lt;asset-id&gt; --name "Updated Name"
+slcli asset delete &lt;asset-id&gt; --force</code></pre>
+
+      <!-- ─── SYSTEM ─── -->
+      <h2 id="system">system</h2>
+      <p>Manage registered systems, packages, jobs, and generate reports.</p>
+
+      <h3>List &amp; Filter</h3>
+      <pre><code>slcli system list --state CONNECTED --os "Windows"
+slcli system list --has-package "ni-daqmx"
+slcli system list --has-keyword "production"
+slcli system list --property "Location=Building 5"</code></pre>
+
+      <h3>Get System Details</h3>
+      <pre><code># Basic details
+slcli system get &lt;system-id&gt;
+
+# Include all related resources
+slcli system get &lt;system-id&gt; --include-all
+
+# Individual includes
+slcli system get &lt;system-id&gt; --include-packages --include-feeds
+slcli system get &lt;system-id&gt; --include-assets --include-alarms
+slcli system get &lt;system-id&gt; --include-jobs --include-results --include-workitems</code></pre>
+
+      <h3>Summary &amp; Reports</h3>
+      <pre><code>slcli system summary
+slcli system report --type SOFTWARE --output software_report.csv
+slcli system report --type HARDWARE --filter 'connected.data.state = "CONNECTED"' --output hw_report.csv</code></pre>
+
+      <h3>Job Management</h3>
+      <pre><code>slcli system job list --state FAILED
+slcli system job get &lt;job-id&gt;
+slcli system job summary
+slcli system job cancel &lt;job-id&gt;</code></pre>
+
+      <h3>Update &amp; Remove</h3>
+      <pre><code>slcli system update &lt;system-id&gt; --alias "New Name" --workspace "Production"
+slcli system remove &lt;system-id&gt; --force</code></pre>
+
+      <!-- ─── WORK ITEM ─── -->
+      <h2 id="workitem">workitem</h2>
+      <p>Full work item lifecycle — create, schedule, execute, and manage associated templates and workflows.</p>
+
+      <h3>CRUD</h3>
+      <pre><code># List and filter
+slcli workitem list --state NEW --workspace "Production"
+
+# Create
+slcli workitem create --name "Battery Cycle Test" --type testplan --state NEW \
+  --part-number "P-BAT-001"
+
+# Create from a template
+slcli workitem create-from-template &lt;template-id&gt; --name "My Test Run"
+
+# Update
+slcli workitem update &lt;id&gt; --state IN_PROGRESS
+
+# Delete
+slcli workitem delete &lt;id1&gt; &lt;id2&gt; --yes</code></pre>
+
+      <h3>Execute &amp; Schedule</h3>
+      <pre><code>slcli workitem execute &lt;id&gt; --action START
+slcli workitem schedule &lt;id&gt; --start 2026-03-01T09:00:00Z \
+  --system &lt;system-id&gt; --fixture &lt;slot-id&gt; --dut &lt;dut-id&gt;</code></pre>
+
+      <h3>Templates</h3>
+      <pre><code>slcli workitem template list
+slcli workitem template create --name "Battery Test" --type testplan --template-group "Functional"
+slcli workitem template update &lt;id&gt; --name "Updated Template"
+slcli workitem template delete &lt;id&gt; --yes</code></pre>
+
+      <h3>Workflows</h3>
+      <pre><code># List, get, export
+slcli workitem workflow list
+slcli workitem workflow get --name "Battery Test Workflow"
+slcli workitem workflow export --id &lt;id&gt; --output workflow.json
+
+# Create scaffold, import, update
+slcli workitem workflow init --name "My Workflow"
+slcli workitem workflow import --file workflow.json
+slcli workitem workflow update --id &lt;id&gt; --file updated.json
+
+# Visual preview (Mermaid diagram)
+slcli workitem workflow preview --id &lt;id&gt;
+slcli workitem workflow preview --file my-workflow.json --format mmd --output wf.mmd</code></pre>
+
+      <!-- ─── TEMPLATE ─── -->
+      <h2 id="template">template</h2>
+      <p>Manage test plan templates — scaffold, list, export, import, and delete.</p>
+      <pre><code># Create a template scaffold
+slcli template init --name "Battery Test Template" --template-group "Production Tests"
+
+# List and filter
+slcli template list --workspace "Production" --filter "battery"
+
+# Get / export
+slcli template get --name "My Template" --format json
+slcli template export --name "My Template" --output template.json
+
+# Import / delete
+slcli template import --file template.json
+slcli template delete --id &lt;template-id&gt;</code></pre>
+
+      <!-- ─── NOTEBOOK ─── -->
+      <h2 id="notebook">notebook</h2>
+      <p>Manage Jupyter notebooks — create, download, update, and assign interfaces. Execute records can be listed via the <code>execute</code> subgroup.</p>
+      <pre><code># Initialize a local notebook
+slcli notebook init --name MyLocalNotebook.ipynb
+
+# List remote notebooks
+slcli notebook manage list --workspace MyWorkspace
+
+# Download content
+slcli notebook manage download --name MyNotebook --output mynotebook.ipynb
+
+# Create from file
+slcli notebook manage create --file mynotebook.ipynb --workspace MyWorkspace --name MyNotebook
+
+# Assign an interface
+slcli notebook manage set-interface --id &lt;id&gt; --interface "File Analysis"
+
+# List execution records
+slcli notebook execute list --status succeeded --format json</code></pre>
+
+      <p>Available interfaces: Assets Grid, Data Table Analysis, Data Space Analysis, File Analysis, Periodic Execution, Resource Changed Routine, Specification Analysis, Systems Grid, Test Data Analysis, Test Data Extraction, Work Item Automations, Work Item Operations, Work Item Scheduler.</p>
+
+      <!-- ─── ROUTINE ─── -->
+      <h2 id="routine">routine</h2>
+      <p>Manage event-action routines across two API versions (v2 default, v1 for notebook execution).</p>
+      <pre><code># List routines
+slcli routine list --enabled --event-type tag
+
+# Create v2 event-action routine
+slcli routine create --name "Tag alarm" \
+  --event '{"type":"tag","triggers":[...]}' \
+  --actions '[{"type":"alarm","configuration":{...}}]' \
+  --enabled
+
+# Create v1 scheduled notebook routine
+slcli routine create --api-version v1 --name "Daily report" \
+  --type SCHEDULED --notebook-id &lt;id&gt; \
+  --schedule '{"startTime":"2026-01-01T08:00:00Z","repeat":"DAY"}'
+
+# Enable / disable / delete
+slcli routine enable &lt;id&gt;
+slcli routine disable &lt;id&gt;
+slcli routine delete &lt;id&gt; --yes</code></pre>
+
+      <!-- ─── FEED ─── -->
+      <h2 id="feed">feed</h2>
+      <p>Manage NI Package Manager feeds and packages for SLE and SLS.</p>
+      <pre><code># List feeds
+slcli feed list
+
+# Create a feed
+slcli feed create --name my-feed --platform windows --workspace Default
+
+# List packages in a feed
+slcli feed package list --feed-id &lt;feed-id&gt; --format json
+
+# Upload a package (wait for completion)
+slcli feed package upload --feed-id &lt;feed-id&gt; --file mypkg.nipkg --wait
+
+# Delete a feed
+slcli feed delete --id &lt;feed-id&gt; --yes</code></pre>
+
+      <!-- ─── FILE ─── -->
+      <h2 id="file">file</h2>
+      <p>Full file lifecycle — upload, download, query, update metadata, and watch directories.</p>
+      <pre><code># Upload
+slcli file upload /path/to/myfile.txt --workspace &lt;workspace-id&gt;
+
+# Download
+slcli file download &lt;file-id&gt; --output /path/to/save/file.txt
+
+# Query with filter
+slcli file query --filter 'name:("*report*") AND extension:("pdf")'
+
+# Watch folder for auto-upload
+slcli file watch /path/to/watch --pattern "*.csv" --recursive
+
+# Update metadata
+slcli file update-metadata &lt;file-id&gt; --name "new-name.txt"</code></pre>
+
+      <!-- ─── TAG ─── -->
+      <h2 id="tag">tag</h2>
+      <p>Create, read, update tags and manage their values. All operations are workspace-scoped.</p>
+      <pre><code># List and filter
+slcli tag list --workspace "Production" --keywords "sensor,temperature"
+
+# Create
+slcli tag create "sensor.temp" --type DOUBLE --keywords "lab" --collect-aggregates
+
+# Set / get values
+slcli tag set-value "sensor.temp" "42.5"
+slcli tag get-value "sensor.temp" --include-aggregates
+
+# View details with aggregates
+slcli tag get "sensor.temp" --include-aggregates
+
+# Update and delete
+slcli tag update "sensor.temp" --keywords "active" --properties "status=ok" --merge
+slcli tag delete "sensor.temp"</code></pre>
+      <p>Supported types: <code>DOUBLE</code>, <code>INT</code>, <code>STRING</code>, <code>BOOLEAN</code>, <code>U_INT64</code>, <code>DATE_TIME</code></p>
+
+      <!-- ─── USER ─── -->
+      <h2 id="user">user</h2>
+      <p>Comprehensive user management — list, create, update, and delete regular users and service accounts.</p>
+      <pre><code># List users with filter
+slcli user list --filter 'firstName.StartsWith("John")' --type user
+
+# Get user by email
+slcli user get --email "john.doe@example.com"
+
+# Create user
+slcli user create --first-name "Jane" --last-name "Smith" \
+  --email "jane@example.com" --policies "policy1,policy2"
+
+# Create service account
+slcli user create --type service --first-name "CI Bot"
+
+# Update and delete
+slcli user update --id &lt;user-id&gt; --email "new@example.com"
+slcli user delete --id &lt;user-id&gt;</code></pre>
+
+      <!-- ─── AUTH ─── -->
+      <h2 id="auth">auth</h2>
+      <p>Manage authorization policies and templates for workspace-based access control.</p>
+
+      <h3>Policies</h3>
+      <pre><code>slcli auth policy list --type custom
+slcli auth policy get &lt;policy-id&gt;
+slcli auth policy create &lt;template-id&gt; --name "my-policy" --workspace &lt;ws-id&gt;
+slcli auth policy update &lt;policy-id&gt; --name "new-name"
+slcli auth policy diff &lt;policy-id-1&gt; &lt;policy-id-2&gt;
+slcli auth policy delete &lt;policy-id&gt; --force</code></pre>
+
+      <h3>Templates</h3>
+      <pre><code>slcli auth template list
+slcli auth template get &lt;template-id&gt;
+slcli auth template delete &lt;template-id&gt;</code></pre>
+
+      <h3>User Integration</h3>
+      <pre><code># Create user with workspace-scoped policies
+slcli user create --type user --first-name Jane --last-name Doe \
+  --email jane@example.com \
+  --workspace-policies "DevWorkspace:template-dev,ProdWorkspace:template-prod"</code></pre>
+
+      <!-- ─── WORKSPACE ─── -->
+      <h2 id="workspace">workspace</h2>
+      <p>Workspace listing, details, and administration.</p>
+      <pre><code>slcli workspace list --filter "prod" --include-disabled
+slcli workspace info --name "Production" --format json
+slcli workspace disable --id &lt;workspace-id&gt;</code></pre>
+
+      <!-- ─── WEBAPP ─── -->
+      <h2 id="webapp">webapp</h2>
+      <p>Scaffold, pack, publish, and manage static web applications.</p>
+      <pre><code># Scaffold a simple HTML webapp
+slcli webapp init --directory ./my-example
+
+# Scaffold a Nimble Angular project (with AI prompts and README)
+slcli webapp init --template angular --directory ./fleet-dashboard
+
+# Pack into .nipkg
+slcli webapp pack ./my-example/app --output myapp.nipkg
+
+# Publish (folder or .nipkg)
+slcli webapp publish ./my-example/app --name MyApp --workspace Default
+
+# List, get, open, delete
+slcli webapp list --filter "MyApp"
+slcli webapp get --id &lt;id&gt;
+slcli webapp open --id &lt;id&gt;
+slcli webapp delete --id &lt;id&gt;</code></pre>
+
+      <!-- ─── COMMENT ─── -->
+      <h2 id="comment">comment</h2>
+      <p>Manage comments on any SystemLink resource. Supports Markdown and @-mentions with email notifications.</p>
+      <pre><code># List comments on a resource
+slcli comment list --resource-type testmonitor:Result --resource-id &lt;result-id&gt;
+
+# Add a comment
+slcli comment add -r testmonitor:Result -i &lt;result-id&gt; \
+  -w "My Workspace" --message "Calibration looks good."
+
+# Update / delete
+slcli comment update &lt;comment-id&gt; --message "Revised: out of spec."
+slcli comment delete &lt;id1&gt; &lt;id2&gt;</code></pre>
+      <p>Supported resource types: <code>testmonitor:Result</code>, <code>niapm:Asset</code>, <code>nisysmgmt:System</code>, <code>workorder:workorder</code>, <code>workitem:workitem</code>, <code>DataSpace</code></p>
+
+      <!-- ─── CUSTOM FIELDS ─── -->
+      <h2 id="customfield">customfield</h2>
+      <p>Manage custom field configurations, groups, and fields. Includes a web-based visual editor.</p>
+      <pre><code># List configurations
+slcli customfield list --workspace "Production"
+
+# Export / create / update
+slcli customfield export --id &lt;config-id&gt; --output config.json
+slcli customfield create --file config.json
+slcli customfield update --file config.json
+
+# Delete (recursive by default)
+slcli customfield delete --id &lt;config-id&gt;
+
+# Launch visual web editor
+slcli customfield edit --id &lt;config-id&gt;
+
+# Initialize a new configuration template
+slcli customfield init --name "My Config" --workspace "MyWorkspace" \
+  --resource-type workorder:workorder</code></pre>
+
+      <!-- ─── EXAMPLE ─── -->
+      <h2 id="example">example</h2>
+      <p>Provision complete demo environments for training and evaluation.</p>
+      <pre><code># Discover available examples
+slcli example list
+
+# Inspect an example
+slcli example info demo-complete-workflow
+
+# Install (with audit log)
+slcli example install demo-complete-workflow \
+  --workspace Training --audit-log install-log.json
+
+# Dry-run
+slcli example install demo-complete-workflow --workspace Training --dry-run
+
+# Delete provisioned resources
+slcli example delete demo-complete-workflow \
+  --workspace Training --audit-log delete-log.json</code></pre>
+
+      <p>Available examples:</p>
+      <ul>
+        <li><strong>demo-complete-workflow</strong> — end-to-end workflow with systems, assets, DUTs, plans, and results</li>
+        <li><strong>demo-test-plans</strong> — focused test-plan setup with reusable assets and templates</li>
+        <li><strong>exercise-5-1-parametric-insights</strong> — parametric test data for training exercises</li>
+        <li><strong>exercise-7-1-test-plans</strong> — test plan creation and scheduling exercises</li>
+        <li><strong>spec-compliance-notebooks</strong> — Jupyter notebooks for specification compliance analysis</li>
+      </ul>
+
+    </main>
+  </div>
+</div>
+
+<!-- ─── FOOTER ─── -->
+<footer>
+  <div class="container footer-inner">
+    <div class="footer-brand">
+      <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="4 17 10 11 4 5"/><line x1="12" y1="19" x2="20" y2="19"/></svg>
+      <span>SystemLink CLI</span>
+    </div>
+    <div class="footer-links">
+      <a href="https://github.com/ni-kismet/systemlink-cli">GitHub</a>
+      <a href="https://github.com/ni-kismet/systemlink-cli/blob/main/CONTRIBUTING.md">Contributing</a>
+      <a href="https://github.com/ni-kismet/systemlink-cli/issues">Issues</a>
+      <a href="https://github.com/ni-kismet/systemlink-cli/releases">Releases</a>
+    </div>
+    <div class="footer-copy">MIT License · ni-kismet</div>
+  </div>
+</footer>
+
+</body>
+</html>

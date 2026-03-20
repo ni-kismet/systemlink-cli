@@ -1,0 +1,244 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>SystemLink CLI — Cross-platform CLI for SystemLink integrators</title>
+  <meta name="description" content="Manage SystemLink resources, build AI-powered workflows, and provision demo environments — all from your terminal." />
+  <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24'><text y='20' font-size='18'>⚡</text></svg>" />
+  <link rel="stylesheet" href="style.css" />
+</head>
+<body>
+
+<!-- ─── NAV ─── -->
+<nav>
+  <div class="nav-inner">
+    <a href="/" class="nav-logo">
+      <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="4 17 10 11 4 5"/><line x1="12" y1="19" x2="20" y2="19"/></svg>
+      <span>slcli</span>
+    </a>
+    <div class="nav-links">
+      <a href="getting-started.html">Get Started</a>
+      <a href="commands.html">Commands</a>
+      <a href="workflows.html">Workflows</a>
+      <a href="https://github.com/ni-kismet/systemlink-cli" class="btn btn-sm" target="_blank" rel="noopener">GitHub</a>
+    </div>
+  </div>
+</nav>
+
+<!-- ─── HERO ─── -->
+<section class="hero">
+  <div class="hero-bg"></div>
+  <div class="container hero-content">
+    <div class="eyebrow">Open source · Python · Cross-platform</div>
+    <h1>The command-line interface<br/>for <span class="accent">SystemLink</span></h1>
+    <p class="hero-sub">Manage resources, automate workflows, and provision demo environments — all from your terminal. Built for integrators, optimized for AI agents.</p>
+    <div class="hero-actions">
+      <a href="getting-started.html" class="btn btn-primary">Get Started</a>
+      <a href="https://github.com/ni-kismet/systemlink-cli" class="btn btn-outline" target="_blank" rel="noopener">View on GitHub</a>
+    </div>
+    <div class="hero-meta">
+      <span class="meta-chip">🍺 Homebrew</span>
+      <span class="meta-chip">🪣 Scoop</span>
+      <span class="meta-chip">🐍 pip / Poetry</span>
+      <span class="meta-chip">📦 Standalone binary</span>
+    </div>
+    <div class="hero-terminal">
+      <div class="terminal-bar"><span class="dot red"></span><span class="dot yellow"></span><span class="dot green"></span><span class="terminal-title">terminal</span></div>
+      <pre><code><span class="prompt">$</span> slcli login --profile prod
+<span class="dim">✓ Logged in to https://systemlink.example.com (profile: prod)</span>
+
+<span class="prompt">$</span> slcli testmonitor result list --summary --group-by status
+<span class="dim">┌──────────┬───────┐
+│ Status   │ Count │
+├──────────┼───────┤
+│ PASSED   │  1842 │
+│ FAILED   │    47 │
+│ RUNNING  │    12 │
+│ ERRORED  │     3 │
+└──────────┴───────┘</span>
+
+<span class="prompt">$</span> slcli example install demo-complete-workflow -w Training
+<span class="dim">✓ Created 2 systems, 2 assets, 2 DUTs, 1 template, 1 product
+✓ Demo environment ready in workspace "Training"</span></code></pre>
+    </div>
+  </div>
+</section>
+
+<!-- ─── FEATURES ─── -->
+<section id="features" class="section">
+  <div class="container">
+    <div class="section-eyebrow">CAPABILITIES</div>
+    <h2>Everything you need to manage SystemLink</h2>
+    <p class="section-sub">A comprehensive CLI covering 20+ resource types with consistent patterns, AI integration, and professional output formatting.</p>
+    <div class="features-grid">
+      <div class="feature-card">
+        <div class="feature-icon">📊</div>
+        <h3>Test Monitor</h3>
+        <p>Query results, products, and steps with rich filtering, summary statistics, and group-by aggregations.</p>
+      </div>
+      <div class="feature-card">
+        <div class="feature-icon">🔧</div>
+        <h3>Asset Management</h3>
+        <p>Fleet summary, calibration history, location tracking, and full CRUD with bus-type and model filtering.</p>
+      </div>
+      <div class="feature-card">
+        <div class="feature-icon">🖥️</div>
+        <h3>Systems &amp; Jobs</h3>
+        <p>Monitor connected systems, manage packages & feeds, track jobs, and generate software/hardware reports.</p>
+      </div>
+      <div class="feature-card">
+        <div class="feature-icon">🤖</div>
+        <h3>AI Agent Skills</h3>
+        <p>Installable agent skills for Copilot, Claude, and Codex. Build Nimble Angular webapps with the systemlink-webapp skill.</p>
+      </div>
+      <div class="feature-card">
+        <div class="feature-icon">📦</div>
+        <h3>WebApp Lifecycle</h3>
+        <p>Scaffold, pack, publish, and manage static web applications deployed to SystemLink's WebApp service.</p>
+      </div>
+      <div class="feature-card">
+        <div class="feature-icon">🔐</div>
+        <h3>Auth &amp; Policies</h3>
+        <p>Create and manage authorization policies, templates, users, and service accounts with readonly safety mode.</p>
+      </div>
+      <div class="feature-card">
+        <div class="feature-icon">📋</div>
+        <h3>Work Items &amp; Workflows</h3>
+        <p>Full work item lifecycle — create, schedule, execute. Visual workflow preview with Mermaid diagrams.</p>
+      </div>
+      <div class="feature-card">
+        <div class="feature-icon">🏷️</div>
+        <h3>Tags &amp; Routines</h3>
+        <p>Create, read, and monitor tags. Configure event-action routines and scheduled notebook executions.</p>
+      </div>
+      <div class="feature-card">
+        <div class="feature-icon">📁</div>
+        <h3>Files &amp; Notebooks</h3>
+        <p>Upload, download, query files. Manage Jupyter notebooks with workspace filtering and interface assignment.</p>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ─── QUICK INSTALL ─── -->
+<section id="install" class="section section-alt">
+  <div class="container">
+    <div class="section-eyebrow">INSTALL</div>
+    <h2>Up and running in seconds</h2>
+    <div class="install-grid">
+      <div class="install-card">
+        <h3>macOS / Linux</h3>
+        <p class="install-note">Requires <a href="https://brew.sh" target="_blank" rel="noopener">Homebrew</a></p>
+        <div class="code-block">
+          <pre><code>brew tap ni-kismet/homebrew-ni
+brew install slcli</code></pre>
+        </div>
+      </div>
+      <div class="install-card">
+        <h3>Windows</h3>
+        <p class="install-note">Requires <a href="https://scoop.sh" target="_blank" rel="noopener">Scoop</a></p>
+        <div class="code-block">
+          <pre><code>scoop bucket add ni-kismet https://github.com/ni-kismet/scoop-ni
+scoop install slcli</code></pre>
+        </div>
+      </div>
+      <div class="install-card">
+        <h3>Standalone Binary</h3>
+        <p class="install-note">No package manager needed</p>
+        <div class="code-block">
+          <pre><code># macOS
+curl -fsSL https://github.com/ni-kismet/systemlink-cli/releases/latest/download/slcli-macos.tar.gz | tar xz
+sudo mv slcli/slcli /usr/local/bin/
+
+# Linux
+curl -fsSL https://github.com/ni-kismet/systemlink-cli/releases/latest/download/slcli-linux.tar.gz | tar xz
+sudo mv slcli/slcli /usr/local/bin/</code></pre>
+        </div>
+      </div>
+      <div class="install-card">
+        <h3>pip (PyPI)</h3>
+        <p class="install-note">Requires <a href="https://www.python.org" target="_blank" rel="noopener">Python 3.11+</a></p>
+        <div class="code-block">
+          <pre><code>pip install slcli</code></pre>
+        </div>
+      </div>
+    </div>
+    <p class="install-next"><a href="getting-started.html">Full setup guide →</a></p>
+  </div>
+</section>
+
+<!-- ─── WORKFLOWS HIGHLIGHT ─── -->
+<section id="workflows" class="section">
+  <div class="container">
+    <div class="section-eyebrow">WORKFLOWS</div>
+    <h2>Build with AI, deploy with confidence</h2>
+    <p class="section-sub">Combine the CLI with AI agent skills to build, test, and deploy SystemLink web applications and demo environments.</p>
+    <div class="workflow-grid">
+      <div class="workflow-card">
+        <div class="workflow-number">1</div>
+        <h3>Install AI Skills</h3>
+        <p>Install the <code>systemlink-webapp</code> skill to give your AI assistant full knowledge of Nimble Angular, SystemLink TypeScript clients, and deployment patterns.</p>
+        <div class="code-block code-sm">
+          <pre><code>slcli skill install --client all</code></pre>
+        </div>
+      </div>
+      <div class="workflow-card">
+        <div class="workflow-number">2</div>
+        <h3>Build Nimble Angular WebApps</h3>
+        <p>Scaffold a project with the Angular template, then ask your AI to build it using <code>@ni/nimble-angular</code> and <code>@ni/systemlink-clients-ts</code>.</p>
+        <div class="code-block code-sm">
+          <pre><code>slcli webapp init --template angular \
+  --directory ./fleet-dashboard
+# AI builds it using the skill
+slcli webapp publish ./fleet-dashboard/dist \
+  --name "Fleet Dashboard" --workspace Prod</code></pre>
+        </div>
+      </div>
+      <div class="workflow-card">
+        <div class="workflow-number">3</div>
+        <h3>Provision Demo Environments</h3>
+        <p>Install curated example datasets for training, demos, and evaluation — complete with systems, assets, and test data.</p>
+        <div class="code-block code-sm">
+          <pre><code>slcli example list
+slcli example install demo-complete-workflow \
+  --workspace Training</code></pre>
+        </div>
+      </div>
+    </div>
+    <p class="install-next"><a href="workflows.html">Explore all workflows →</a></p>
+  </div>
+</section>
+
+<!-- ─── CTA ─── -->
+<section class="cta">
+  <div class="container">
+    <h2>Ready to automate SystemLink?</h2>
+    <p>Install the CLI and start managing resources in minutes.</p>
+    <div class="hero-actions">
+      <a href="getting-started.html" class="btn btn-primary">Get Started</a>
+      <a href="commands.html" class="btn btn-outline">Command Reference</a>
+      <a href="https://github.com/ni-kismet/systemlink-cli" class="btn btn-outline" target="_blank" rel="noopener">Star on GitHub</a>
+    </div>
+  </div>
+</section>
+
+<!-- ─── FOOTER ─── -->
+<footer>
+  <div class="container footer-inner">
+    <div class="footer-brand">
+      <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="4 17 10 11 4 5"/><line x1="12" y1="19" x2="20" y2="19"/></svg>
+      <span>SystemLink CLI</span>
+    </div>
+    <div class="footer-links">
+      <a href="https://github.com/ni-kismet/systemlink-cli">GitHub</a>
+      <a href="https://github.com/ni-kismet/systemlink-cli/blob/main/CONTRIBUTING.md">Contributing</a>
+      <a href="https://github.com/ni-kismet/systemlink-cli/issues">Issues</a>
+      <a href="https://github.com/ni-kismet/systemlink-cli/releases">Releases</a>
+    </div>
+    <div class="footer-copy">MIT License · ni-kismet</div>
+  </div>
+</footer>
+
+</body>
+</html>

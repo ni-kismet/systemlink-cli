@@ -1,0 +1,411 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Workflows — SystemLink CLI</title>
+  <meta name="description" content="End-to-end workflows: build webapps with AI, provision demo environments, and automate SystemLink operations." />
+  <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24'><text y='20' font-size='18'>⚡</text></svg>" />
+  <link rel="stylesheet" href="style.css" />
+</head>
+<body>
+
+<!-- ─── NAV ─── -->
+<nav>
+  <div class="nav-inner">
+    <a href="/" class="nav-logo">
+      <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="4 17 10 11 4 5"/><line x1="12" y1="19" x2="20" y2="19"/></svg>
+      <span>slcli</span>
+    </a>
+    <div class="nav-links">
+      <a href="getting-started.html">Get Started</a>
+      <a href="commands.html">Commands</a>
+      <a href="workflows.html">Workflows</a>
+      <a href="https://github.com/ni-kismet/systemlink-cli" class="btn btn-sm" target="_blank" rel="noopener">GitHub</a>
+    </div>
+  </div>
+</nav>
+
+<!-- ─── PAGE HERO ─── -->
+<section class="page-hero">
+  <div class="container">
+    <h1>Workflows</h1>
+    <p>End-to-end guides for building webapps with AI, provisioning demo environments, and automating SystemLink operations.</p>
+  </div>
+</section>
+
+<!-- ─── DOCS ─── -->
+<div class="container">
+  <div class="docs-layout">
+
+    <!-- SIDEBAR -->
+    <aside class="docs-sidebar">
+      <div class="sidebar-group">
+        <div class="sidebar-label">AI &amp; Development</div>
+        <a href="#ai-skills" class="sidebar-link">Install AI Skills</a>
+        <a href="#build-webapp" class="sidebar-link">Build a WebApp with AI</a>
+        <a href="#mcp-workflow" class="sidebar-link">MCP + AI Assistants</a>
+      </div>
+      <div class="sidebar-group">
+        <div class="sidebar-label">Demo &amp; Training</div>
+        <a href="#demo-environments" class="sidebar-link">Provision Demo Environments</a>
+        <a href="#training-exercises" class="sidebar-link">Training Exercises</a>
+      </div>
+      <div class="sidebar-group">
+        <div class="sidebar-label">Operations</div>
+        <a href="#multi-profile" class="sidebar-link">Multi-Environment Ops</a>
+        <a href="#readonly-agents" class="sidebar-link">Readonly Mode for AI</a>
+        <a href="#file-watch" class="sidebar-link">Automated File Uploads</a>
+      </div>
+    </aside>
+
+    <!-- CONTENT -->
+    <main class="docs-content">
+
+      <!-- ═══════════════════════════════════════════════════════ -->
+      <h1 id="ai-skills">Install AI Skills</h1>
+      <p>Two bundled skills give your AI assistant deep knowledge of SystemLink — one for CLI operations, one for building web applications.</p>
+
+      <table>
+        <thead><tr><th>Skill</th><th>What it teaches</th></tr></thead>
+        <tbody>
+          <tr><td><strong>slcli</strong></td><td>How to query and manage every SystemLink resource type using CLI commands</td></tr>
+          <tr><td><strong>systemlink-webapp</strong></td><td>How to build Nimble Angular webapps with <code>@ni/nimble-angular</code>, <code>@ni/systemlink-clients-ts</code>, hash routing, CSP compliance, theme sync, and deployment via <code>slcli webapp publish</code></td></tr>
+        </tbody>
+      </table>
+
+      <div class="steps">
+        <div class="step">
+          <div class="step-num">1</div>
+          <div class="step-body">
+            <h3>Install the skills</h3>
+            <p>One command installs both skills for all supported AI clients.</p>
+            <pre><code># Install for all clients (Copilot, Claude, Codex)
+slcli skill install --client all --scope personal</code></pre>
+          </div>
+        </div>
+        <div class="step">
+          <div class="step-num">2</div>
+          <div class="step-body">
+            <h3>Ask your assistant about SystemLink</h3>
+            <p>The skills are loaded automatically. Try natural language queries:</p>
+            <pre><code>"Show me all failed test results from this week"
+"Which assets need calibration?"
+"Build me a fleet health dashboard for SystemLink"
+"Install the demo-complete-workflow example in the Training workspace"</code></pre>
+          </div>
+        </div>
+        <div class="step">
+          <div class="step-num">3</div>
+          <div class="step-body">
+            <h3>Project-scoped skills (optional)</h3>
+            <p>Install per-repo for team consistency — the skill files are committed alongside your code.</p>
+            <pre><code># Install into the current repo
+slcli skill install --client copilot --scope project</code></pre>
+          </div>
+        </div>
+      </div>
+
+      <div class="highlight-box">
+        <p><strong>Tip:</strong> The skills follow the <a href="https://agentskills.io/specification" target="_blank" rel="noopener">Agent Skills open standard</a>. They work with any AI client that supports skill discovery.</p>
+      </div>
+
+      <!-- ═══════════════════════════════════════════════════════ -->
+      <h2 id="build-webapp">Build a Nimble Angular WebApp with AI</h2>
+      <p>The <code>systemlink-webapp</code> skill teaches your AI assistant the complete NI design system — <code>@ni/nimble-angular</code> components, <code>@ni/systemlink-clients-ts</code> SDK, hash routing, CSP compliance, theme synchronization, and deployment. Scaffold a project, describe what you want, and let AI build it.</p>
+
+      <div class="steps">
+        <div class="step">
+          <div class="step-num">1</div>
+          <div class="step-body">
+            <h3>Install the skills</h3>
+            <p>Make sure both skills are installed so your assistant knows both the CLI and the webapp development patterns.</p>
+            <pre><code>slcli skill install --client all</code></pre>
+          </div>
+        </div>
+        <div class="step">
+          <div class="step-num">2</div>
+          <div class="step-body">
+            <h3>Scaffold a Nimble Angular project</h3>
+            <p>Initialize a project with the Angular template — it sets up the Angular workspace, installs Nimble and SystemLink TypeScript clients, and includes a README with example prompts.</p>
+            <pre><code>slcli webapp init --template angular --directory ./fleet-dashboard</code></pre>
+            <p>The scaffolded project includes:</p>
+            <ul>
+              <li>Angular 19 project configured for SystemLink deployment</li>
+              <li><code>@ni/nimble-angular</code> — NI's design system components</li>
+              <li><code>@ni/systemlink-clients-ts</code> — TypeScript clients for SystemLink APIs</li>
+              <li>Hash routing and CSP-safe configuration pre-applied</li>
+              <li>A <code>PROMPTS.md</code> with example prompts to give your AI assistant</li>
+            </ul>
+          </div>
+        </div>
+        <div class="step">
+          <div class="step-num">3</div>
+          <div class="step-body">
+            <h3>Describe your dashboard to AI</h3>
+            <p>With the skill installed, your AI assistant knows the full Nimble component library, SystemLink API patterns, and CSP requirements. Try prompts like:</p>
+            <pre><code>"Build a fleet health dashboard that shows:
+ - A nimble-table of connected vs disconnected systems
+ - Calibration status cards for all assets
+ - A nimble-anchor-tabs layout with Overview and Details tabs
+ Use the SystemLink Tag and Asset Management APIs."
+
+"Add a test results page with a nimble-table showing
+ recent failures, filterable by program name and status.
+ Use the Test Monitor TypeScript client."
+
+"Create an alarm dashboard with a nimble-banner for
+ critical alerts and a nimble-drawer for alarm details."</code></pre>
+          </div>
+        </div>
+        <div class="step">
+          <div class="step-num">4</div>
+          <div class="step-body">
+            <h3>Build and publish</h3>
+            <pre><code># Build the Angular project
+cd fleet-dashboard
+ng build --configuration production
+
+# Publish to SystemLink
+slcli webapp publish dist/fleet-dashboard/browser/ \
+  --name "Fleet Dashboard" \
+  --workspace Production</code></pre>
+          </div>
+        </div>
+        <div class="step">
+          <div class="step-num">5</div>
+          <div class="step-body">
+            <h3>Open and iterate</h3>
+            <pre><code># Open the deployed webapp
+slcli webapp open --id &lt;webapp-id&gt;
+
+# Re-publish after changes (same --name updates in place)
+ng build --configuration production
+slcli webapp publish dist/fleet-dashboard/browser/ \
+  --name "Fleet Dashboard" --workspace Production</code></pre>
+          </div>
+        </div>
+      </div>
+
+      <div class="highlight-box">
+        <p><strong>Key patterns the skill teaches:</strong> <code>nimble-theme-provider</code> with automatic theme detection, <code>APP_BASE_HREF</code> via DI (no <code>&lt;base&gt;</code> tag), <code>useHash: true</code> routing, <code>inlineCritical: false</code> for CSP, same-origin cookie authentication, and the full Nimble component library (tables, tabs, buttons, drawers, dialogs, spinners, banners).</p>
+      </div>
+
+      <!-- ═══════════════════════════════════════════════════════ -->
+      <h2 id="mcp-workflow">MCP + AI Assistants (experimental)</h2>
+      <div class="highlight-box">
+        <p><strong>Experimental:</strong> The MCP server is under active development. The tool interface may change between releases.</p>
+      </div>
+      <p>The built-in Model Context Protocol server exposes SystemLink as structured tools that AI assistants can call directly.</p>
+
+      <div class="steps">
+        <div class="step">
+          <div class="step-num">1</div>
+          <div class="step-body">
+            <h3>Register the MCP server</h3>
+            <pre><code># VS Code Copilot Agent mode
+slcli mcp install
+
+# Claude Desktop
+slcli mcp install --target claude
+
+# All supported clients
+slcli mcp install --target all</code></pre>
+          </div>
+        </div>
+        <div class="step">
+          <div class="step-num">2</div>
+          <div class="step-body">
+            <h3>Query SystemLink from AI</h3>
+            <p>The MCP server exposes tools for workspaces, tags, systems, assets, test results, and routines. Your AI assistant calls them as native tools:</p>
+            <pre><code>"What's the calibration status of all PXI assets?"
+"Show tag values for temperature sensors in the Lab workspace"
+"List recent failed test results and suggest root causes"</code></pre>
+          </div>
+        </div>
+      </div>
+
+      <!-- ═══════════════════════════════════════════════════════ -->
+      <h2 id="demo-environments">Provision Demo Environments</h2>
+      <p>Instantly provision complete SystemLink environments with realistic data for demonstrations, training classes, and evaluation.</p>
+
+      <h3>Available Examples</h3>
+      <table>
+        <thead><tr><th>Example</th><th>Contents</th><th>Time</th></tr></thead>
+        <tbody>
+          <tr>
+            <td><strong>demo-complete-workflow</strong></td>
+            <td>Systems, assets, DUTs, templates, products, results</td>
+            <td>~5 min</td>
+          </tr>
+          <tr>
+            <td><strong>demo-test-plans</strong></td>
+            <td>Locations, products, systems, assets, DUTs, test template</td>
+            <td>~5 min</td>
+          </tr>
+          <tr>
+            <td><strong>spec-compliance-notebooks</strong></td>
+            <td>3 Jupyter notebooks for spec compliance analysis</td>
+            <td>~3 min</td>
+          </tr>
+          <tr>
+            <td><strong>exercise-5-1-parametric-insights</strong></td>
+            <td>18 test results with parametric measurements, deliberate anomalies</td>
+            <td>~5 min</td>
+          </tr>
+          <tr>
+            <td><strong>exercise-7-1-test-plans</strong></td>
+            <td>Test plan creation and scheduling exercises</td>
+            <td>~5 min</td>
+          </tr>
+        </tbody>
+      </table>
+
+      <h3>Install an Example</h3>
+      <pre><code># Browse available examples
+slcli example list
+
+# Inspect what will be created
+slcli example info demo-complete-workflow
+
+# Dry-run (validate without creating)
+slcli example install demo-complete-workflow --workspace Training --dry-run
+
+# Install with audit log
+slcli example install demo-complete-workflow \
+  --workspace Training \
+  --audit-log install-log.json</code></pre>
+
+      <h3>Clean Up</h3>
+      <pre><code># Remove all resources from a previous install
+slcli example delete demo-complete-workflow \
+  --workspace Training \
+  --audit-log delete-log.json</code></pre>
+
+      <!-- ═══════════════════════════════════════════════════════ -->
+      <h2 id="training-exercises">Training Exercises</h2>
+      <p>The example datasets are designed for hands-on SystemLink training courses. Each exercise includes structured data with intentional patterns for students to discover.</p>
+
+      <h3>Exercise 5-1: Parametric Insights</h3>
+      <p>Students query and visualize 18 thermal cycle test results across three test stands to discover:</p>
+      <ul>
+        <li>TC-03 runs ~3–4 °C warmer than TC-01/TC-02 (calibration offset)</li>
+        <li>TC-01 Cycle 5: internal resistance spike → FAIL</li>
+        <li>TC-03 Cycle 4: cell temperature spike → FAIL</li>
+      </ul>
+      <pre><code># Install the exercise data
+slcli example install exercise-5-1-parametric-insights \
+  --workspace "Training Lab"
+
+# Query the data with the AI skill
+"Show me test results grouped by system for the Training Lab workspace.
+ Which test stand has consistently higher temperature readings?"</code></pre>
+
+      <h3>Exercise 7-1: Test Plans</h3>
+      <p>Students learn to create and schedule test plans using templates and workflows.</p>
+      <pre><code>slcli example install exercise-7-1-test-plans --workspace "Training Lab"</code></pre>
+
+      <!-- ═══════════════════════════════════════════════════════ -->
+      <h2 id="multi-profile">Multi-Environment Operations</h2>
+      <p>Manage multiple SystemLink environments from a single terminal session using named profiles.</p>
+
+      <pre><code># Set up profiles for each environment
+slcli login --profile dev --url "https://dev.example.com"
+slcli login --profile staging --url "https://staging.example.com"
+slcli login --profile prod --url "https://prod.example.com"
+
+# Compare test results across environments
+slcli -p dev testmonitor result list --summary --format json > dev-results.json
+slcli -p prod testmonitor result list --summary --format json > prod-results.json
+
+# Export templates from dev, import to staging
+slcli -p dev template export --name "Battery Test" --output battery-test.json
+slcli -p staging template import --file battery-test.json
+
+# Migrate workflows between environments
+slcli -p dev workitem workflow export --name "Production Flow" --output workflow.json
+slcli -p staging workitem workflow import --file workflow.json</code></pre>
+
+      <!-- ═══════════════════════════════════════════════════════ -->
+      <h2 id="readonly-agents">Readonly Mode for AI Agents</h2>
+      <p>Create a readonly profile to let AI assistants query SystemLink safely without any risk of modifying data.</p>
+
+      <pre><code># Create a readonly profile for AI agents
+slcli login --profile aiagent \
+  --url "https://prod.example.com" \
+  --api-key "your-api-key" \
+  --readonly
+
+# AI can query freely
+slcli -p aiagent testmonitor result list --summary
+slcli -p aiagent system list --state CONNECTED
+slcli -p aiagent asset list --calibratable --summary
+
+# But mutations are blocked
+slcli -p aiagent asset delete &lt;id&gt;
+# ✗ Cannot delete: profile is in readonly mode</code></pre>
+
+      <div class="highlight-box">
+        <p><strong>Best practice:</strong> Use readonly profiles with the MCP server so AI assistants can explore data without accidentally modifying production resources.</p>
+      </div>
+
+      <!-- ═══════════════════════════════════════════════════════ -->
+      <h2 id="file-watch">Automated File Uploads</h2>
+      <p>Monitor a directory and automatically upload new files to SystemLink as they appear.</p>
+
+      <pre><code># Watch for new CSV files and upload them
+slcli file watch /data/results --pattern "*.csv" --recursive
+
+# Upload to a specific workspace
+slcli file watch /data/results \
+  --workspace "Production" \
+  --pattern "*.csv" \
+  --recursive
+
+# Move files after upload (prevents re-upload)
+slcli file watch /data/inbox \
+  --move-to /data/uploaded \
+  --pattern "*.tdms"
+
+# Delete files after successful upload
+slcli file watch /data/inbox --delete-after-upload</code></pre>
+
+      <div class="highlight-box">
+        <p><strong>Note:</strong> The watch command requires the <code>watchdog</code> package. Install it with <code>pip install watchdog</code>.</p>
+      </div>
+
+    </main>
+  </div>
+</div>
+
+<!-- ─── CTA ─── -->
+<section class="cta">
+  <div class="container">
+    <h2>Ready to get started?</h2>
+    <p>Install the CLI and explore these workflows in your own SystemLink environment.</p>
+    <div class="hero-actions">
+      <a href="getting-started.html" class="btn btn-primary">Install slcli</a>
+      <a href="commands.html" class="btn btn-outline">Command Reference</a>
+    </div>
+  </div>
+</section>
+
+<!-- ─── FOOTER ─── -->
+<footer>
+  <div class="container footer-inner">
+    <div class="footer-brand">
+      <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="4 17 10 11 4 5"/><line x1="12" y1="19" x2="20" y2="19"/></svg>
+      <span>SystemLink CLI</span>
+    </div>
+    <div class="footer-links">
+      <a href="https://github.com/ni-kismet/systemlink-cli">GitHub</a>
+      <a href="https://github.com/ni-kismet/systemlink-cli/blob/main/CONTRIBUTING.md">Contributing</a>
+      <a href="https://github.com/ni-kismet/systemlink-cli/issues">Issues</a>
+      <a href="https://github.com/ni-kismet/systemlink-cli/releases">Releases</a>
+    </div>
+    <div class="footer-copy">MIT License · ni-kismet</div>
+  </div>
+</footer>
+
+</body>
+</html>

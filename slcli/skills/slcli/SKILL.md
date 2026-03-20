@@ -665,7 +665,7 @@ slcli workitem create \
 Scaffold, package, and publish custom web applications to SystemLink.
 
 ```bash
-slcli webapp init [--directory DIR]                      # Scaffold a sample index.html
+slcli webapp init [--template html|angular] [--directory DIR]  # Scaffold a new project
 slcli webapp pack [--directory DIR] [-o OUTPUT_FILE]     # Package webapp into a .zip
 slcli webapp list [-w WORKSPACE] [-t INT] [-f json]
 slcli webapp get <WEBAPP_ID> [-f json]
@@ -673,6 +673,10 @@ slcli webapp publish --file PATH [--workspace NAME]      # Upload and publish a 
 slcli webapp delete <WEBAPP_ID>
 slcli webapp open <WEBAPP_ID>                            # Open webapp URL in browser
 ```
+
+Templates:
+- `html` (default) — minimal index.html
+- `angular` — Nimble Angular project with PROMPTS.md (AI-ready prompts) and README.md
 
 ### example — Built-in example resource provisioning
 
