@@ -62,11 +62,11 @@ slcli webapp init --template angular --directory ./my-dashboard
 
 ## Documentation
 
-| Section | Description |
-|---------|-------------|
-| [Getting Started](https://ni-kismet.github.io/systemlink-cli/getting-started.html) | Installation, authentication, profiles, AI integration |
-| [Command Reference](https://ni-kismet.github.io/systemlink-cli/commands.html) | Complete docs for all command groups and options |
-| [Workflows](https://ni-kismet.github.io/systemlink-cli/workflows.html) | Building webapps with AI, demo provisioning, multi-env ops |
+| Section                                                                            | Description                                                |
+| ---------------------------------------------------------------------------------- | ---------------------------------------------------------- |
+| [Getting Started](https://ni-kismet.github.io/systemlink-cli/getting-started.html) | Installation, authentication, profiles, AI integration     |
+| [Command Reference](https://ni-kismet.github.io/systemlink-cli/commands.html)      | Complete docs for all command groups and options           |
+| [Workflows](https://ni-kismet.github.io/systemlink-cli/workflows.html)             | Building webapps with AI, demo provisioning, multi-env ops |
 
 ## Contributing
 
