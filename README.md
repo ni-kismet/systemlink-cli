@@ -33,6 +33,9 @@ sudo mv slcli/slcli /usr/local/bin/
 
 # pip (Python 3.11+)
 pip install systemlink-cli
+
+# Command name after install
+slcli --help
 ```
 
 ## Quick Start
