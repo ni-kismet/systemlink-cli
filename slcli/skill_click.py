@@ -13,12 +13,11 @@ from .utils import ExitCodes
 SKILL_NAME = "slcli"
 SKILL_CHOICES = ["slcli", "systemlink-webapp"]
 
-# Mapping of client name → (personal skills dir, project subdir relative to repo root)
+# Mapping of client name -> (personal skills dir, project subdir relative to repo root)
 # personal dir uses Path.home() so it's always resolved at call time via _personal_dir().
 _CLIENT_TABLE: Dict[str, Tuple[str, str]] = {
-    "copilot": ("~/.copilot/skills", ".github/skills"),
+    "agents": ("~/.agents/skills", ".agents/skills"),
     "claude": ("~/.claude/skills", ".claude/skills"),
-    "codex": ("~/.agents/skills", ".agents/skills"),
 }
 
 CLIENT_CHOICES = list(_CLIENT_TABLE.keys())
@@ -171,7 +170,7 @@ def register_skill_commands(cli: Any) -> None:
 
     @cli.group()
     def skill() -> None:
-        """Manage AI agent skills for Copilot, Claude, and Codex."""
+        """Manage AI agent skills for most agents and Claude."""
 
     @skill.command(name="install")
     @click.option(
@@ -184,9 +183,9 @@ def register_skill_commands(cli: Any) -> None:
     @click.option(
         "--client",
         "-c",
-        type=click.Choice(CLIENT_CHOICES + ["all"], case_sensitive=False),
+        type=click.Choice(CLIENT_CHOICES, case_sensitive=False),
         default=None,
-        help="AI client to install for (copilot, claude, codex, or all).",
+        help="AI client to install for (agents [most agents] or claude).",
     )
     @click.option(
         "--scope",
@@ -211,10 +210,10 @@ def register_skill_commands(cli: Any) -> None:
         Available skills: slcli, systemlink-webapp.
         Supported clients and their skill locations:
 
-        \b
-          copilot  personal: ~/.copilot/skills/       project: .github/skills/
-          claude   personal: ~/.claude/skills/         project: .claude/skills/
-          codex    personal: ~/.agents/skills/         project: .agents/skills/
+                    \b
+                agents   personal: ~/.agents/skills/         project: .agents/skills/
+                     (most agents)
+                claude   personal: ~/.claude/skills/         project: .claude/skills/
 
         When options are omitted you will be prompted interactively.
         """
@@ -231,8 +230,11 @@ def register_skill_commands(cli: Any) -> None:
         if client is None:
             client = questionary.select(
                 "Install for which AI client?",
-                choices=CLIENT_CHOICES + ["all"],
-                default="all",
+                choices=[
+                    questionary.Choice("most agents", value="agents"),
+                    questionary.Choice("claude", value="claude"),
+                ],
+                default="agents",
             ).ask()
             if client is None:
                 raise click.Abort()
@@ -248,7 +250,7 @@ def register_skill_commands(cli: Any) -> None:
 
         # ── resolve skill and client lists ────────────────────────────────────
         skill_names: List[str] = SKILL_CHOICES if skill == "all" else [skill]
-        clients: List[str] = CLIENT_CHOICES if client == "all" else [client]
+        clients: List[str] = [client]
 
         # ── locate source ─────────────────────────────────────────────────────
         try:

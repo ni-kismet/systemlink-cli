@@ -9,7 +9,7 @@ SystemLink CLI (`slcli`) is a cross-platform Python CLI for SystemLink integrato
 - **20+ resource types** — test results, assets, systems, work items, notebooks, feeds, tags, files, users, policies, webapps, and more
 - **Multi-platform** — supports SystemLink Enterprise (SLE) and SystemLink Server (SLS) with automatic detection
 - **Multi-profile** — manage dev, staging, and prod environments with named profiles
-- **AI agent skills** — installable skills for Copilot, Claude, and Codex — including a webapp skill for building Nimble Angular dashboards
+- **AI agent skills** — installable skills for most AI agents (Copilot, Codex, etc.) and Claude — including a webapp skill for building Nimble Angular dashboards
 - **Demo provisioning** — curated example datasets for training, demos, and evaluation
 - **WebApp lifecycle** — scaffold Nimble Angular projects, pack, publish, and manage web applications
 - **Professional CLI** — consistent error handling, colored table/JSON output, shell completion
@@ -49,15 +49,15 @@ slcli testmonitor result list --summary --group-by status
 slcli asset list --calibratable --summary
 slcli system list --state CONNECTED
 
-# Install AI skills (teaches your assistant SystemLink + Nimble Angular)
-slcli skill install --client all
+# Scaffold a Nimble Angular webapp (AI skills auto-installed)
+slcli webapp init --template angular --directory ./my-dashboard
+# Open the project and describe what you want — see PROMPTS.md for examples
+
+# Or install AI skills manually (use --client claude for Claude)
+slcli skill install
 
 # Provision a demo environment
 slcli example install demo-complete-workflow --workspace Training
-
-# Scaffold a Nimble Angular webapp and build with AI
-slcli webapp init --template angular --directory ./my-dashboard
-# See my-dashboard/PROMPTS.md for AI-ready example prompts
 ```
 
 ## Documentation
