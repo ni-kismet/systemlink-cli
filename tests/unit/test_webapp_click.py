@@ -83,6 +83,24 @@ def test_webapp_init_angular_force_overwrite(tmp_path: Path, monkeypatch: Monkey
     assert "systemlink-webapp" in (target / "PROMPTS.md").read_text(encoding="utf-8")
 
 
+def test_webapp_init_angular_installs_skills(tmp_path: Path, monkeypatch: MonkeyPatch) -> None:
+    """Webapp init --template angular should auto-install skills into the project."""
+    runner = CliRunner()
+    patch_keyring(monkeypatch)
+
+    target = tmp_path / "ng_skills"
+    result = runner.invoke(
+        cli, ["webapp", "init", "--template", "angular", "--directory", str(target)]
+    )
+    assert result.exit_code == 0
+
+    # Skills should be installed in the universal .agents/skills/ convention
+    skills_dir = target / ".agents" / "skills"
+    assert skills_dir.exists()
+    assert (skills_dir / "systemlink-webapp" / "SKILL.md").exists()
+    assert (skills_dir / "slcli" / "SKILL.md").exists()
+
+
 def test_webapp_pack_creates_nipkg(tmp_path: Path, monkeypatch: MonkeyPatch) -> None:
     runner = CliRunner()
     patch_keyring(monkeypatch)

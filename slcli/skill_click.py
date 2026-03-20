@@ -84,6 +84,54 @@ def _find_bundled_skills_dir() -> Path:
     )
 
 
+# Universal project-scoped skills directory (client-agnostic)
+PROJECT_SKILLS_SUBDIR = ".agents/skills"
+
+
+def install_skills_to_directory(
+    directory: Path,
+    skill_names: Optional[List[str]] = None,
+    subdir: str = PROJECT_SKILLS_SUBDIR,
+) -> int:
+    """Install bundled skills into a project directory.
+
+    Copies skill folders into a skills subdirectory within *directory*.
+    The default location (``.agents/skills/``) is the universal convention
+    recognized by multiple AI clients.
+
+    Args:
+        directory: Project root to install into.
+        skill_names: Skills to install.  Defaults to all available skills.
+        subdir: Relative subdirectory for skills.  Defaults to ``.agents/skills``.
+
+    Returns:
+        Number of skills successfully installed.
+    """
+    if skill_names is None:
+        skill_names = list(SKILL_CHOICES)
+
+    try:
+        skills_dir = _find_bundled_skills_dir()
+    except FileNotFoundError:
+        return 0
+
+    dest_parent = directory / subdir
+    installed = 0
+
+    for name in skill_names:
+        source = skills_dir / name
+        if not source.exists():
+            continue
+        dest = dest_parent / name
+        dest_parent.mkdir(parents=True, exist_ok=True)
+        if dest.exists():
+            shutil.rmtree(dest)
+        shutil.copytree(source, dest)
+        installed += 1
+
+    return installed
+
+
 def _resolve_destinations(clients: List[str], scope: str) -> List[Path]:
     """Build the list of destination skill parent directories.
 

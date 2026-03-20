@@ -12,6 +12,7 @@ from slcli.skill_click import (
     _find_bundled_skills_dir,
     _find_repo_root,
     _resolve_destinations,
+    install_skills_to_directory,
     register_skill_commands,
 )
 
@@ -443,3 +444,19 @@ def test_install_oserror_exits_nonzero(
         )
     assert result.exit_code != 0
     assert "Failed to install" in result.output
+
+
+def test_install_skills_to_directory(tmp_path: Path) -> None:
+    """Install_skills_to_directory copies skills into the project."""
+    count = install_skills_to_directory(tmp_path)
+    assert count == len(SKILL_CHOICES)
+    for name in SKILL_CHOICES:
+        assert (tmp_path / ".agents" / "skills" / name / "SKILL.md").exists()
+
+
+def test_install_skills_to_directory_specific_skill(tmp_path: Path) -> None:
+    """Install_skills_to_directory can install a single skill."""
+    count = install_skills_to_directory(tmp_path, skill_names=["slcli"])
+    assert count == 1
+    assert (tmp_path / ".agents" / "skills" / "slcli" / "SKILL.md").exists()
+    assert not (tmp_path / ".agents" / "skills" / "systemlink-webapp").exists()

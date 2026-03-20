@@ -112,69 +112,54 @@ slcli skill install --client copilot --scope project</code></pre>
 
       <!-- ═══════════════════════════════════════════════════════ -->
       <h2 id="build-webapp">Build a Nimble Angular WebApp with AI</h2>
-      <p>The <code>systemlink-webapp</code> skill teaches your AI assistant the complete NI design system — <code>@ni/nimble-angular</code> components, <code>@ni/systemlink-clients-ts</code> SDK, hash routing, CSP compliance, theme synchronization, and deployment. Scaffold a project, describe what you want, and let AI build it.</p>
+      <p>The <code>systemlink-webapp</code> skill teaches your AI assistant the complete NI design system — <code>@ni/nimble-angular</code> components, <code>@ni/systemlink-clients-ts</code> SDK, hash routing, CSP compliance, theme synchronization, and deployment. One command sets up everything your assistant needs.</p>
 
       <div class="steps">
         <div class="step">
           <div class="step-num">1</div>
           <div class="step-body">
-            <h3>Install the skills</h3>
-            <p>Make sure both skills are installed so your assistant knows both the CLI and the webapp development patterns.</p>
-            <pre><code>slcli skill install --client all</code></pre>
+            <h3>Scaffold the project</h3>
+            <p><code>webapp init</code> creates a project directory with AI prompts, a README, and automatically installs the AI skills into the project so your assistant can discover them.</p>
+            <pre><code>slcli webapp init --template angular --directory ./fleet-dashboard
+cd fleet-dashboard</code></pre>
+            <p>The scaffolded directory includes:</p>
+            <ul>
+              <li><code>PROMPTS.md</code> — ready-made prompts for building dashboards, test results pages, and more</li>
+              <li><code>README.md</code> — project overview and deployment instructions</li>
+              <li><code>.agents/skills/</code> — AI skills pre-installed so your AI assistant can discover them immediately</li>
+            </ul>
           </div>
         </div>
         <div class="step">
           <div class="step-num">2</div>
           <div class="step-body">
-            <h3>Scaffold a Nimble Angular project</h3>
-            <p>Initialize a project with the Angular template to generate AI-ready prompts and setup guidance. It does not create the Angular workspace for you; instead, it creates the files you use alongside <code>ng new</code>.</p>
-            <pre><code>slcli webapp init --template angular --directory ./fleet-dashboard</code></pre>
-            <p>The scaffolded project includes:</p>
-            <ul>
-              <li>A <code>PROMPTS.md</code> file with example prompts for your AI assistant</li>
-              <li>A <code>README.md</code> with the recommended Angular setup and deployment steps</li>
-              <li>A clean starting directory where you can run <code>ng new</code> and build the app with AI assistance</li>
-            </ul>
+            <h3>Describe your webapp to AI</h3>
+            <p>Open the project in your editor and describe what you need. Your AI assistant knows the full Nimble component library, SystemLink APIs, and deployment requirements — just describe your goals.</p>
+            <pre><code>"I need a web dashboard for monitoring our production test
+ systems. It should show which systems are online, recent test
+ results, and any assets due for calibration."
+
+"Create a page where I can browse recent test results,
+ filter by status and program name, and see a summary of
+ failure rates."
+
+"Build a dashboard with key metrics: first-pass yield,
+ test throughput per hour, and a trend chart of failures
+ over the last 30 days."</code></pre>
           </div>
         </div>
         <div class="step">
           <div class="step-num">3</div>
           <div class="step-body">
-            <h3>Describe your dashboard to AI</h3>
-            <p>With the skill installed, your AI assistant knows the full Nimble component library, SystemLink API patterns, and CSP requirements. Try prompts like:</p>
-            <pre><code>"Build a fleet health dashboard that shows:
- - A nimble-table of connected vs disconnected systems
- - Calibration status cards for all assets
- - A nimble-anchor-tabs layout with Overview and Details tabs
- Use the SystemLink Tag and Asset Management APIs."
-
-"Add a test results page with a nimble-table showing
- recent failures, filterable by program name and status.
- Use the Test Monitor TypeScript client."
-
-"Create an alarm dashboard with a nimble-banner for
- critical alerts and a nimble-drawer for alarm details."</code></pre>
-          </div>
-        </div>
-        <div class="step">
-          <div class="step-num">4</div>
-          <div class="step-body">
             <h3>Build and publish</h3>
-            <pre><code># Create the Angular app and install the recommended packages
-cd fleet-dashboard
-ng new &lt;app-name&gt; --no-standalone
-cd &lt;app-name&gt;
-npm install @ni/nimble-angular @ni/systemlink-clients-ts
-
-# Build and publish to SystemLink
-ng build --configuration production
+            <pre><code>ng build --configuration production
 slcli webapp publish dist/&lt;app-name&gt;/browser/ \
   --name "Fleet Dashboard" \
   --workspace Production</code></pre>
           </div>
         </div>
         <div class="step">
-          <div class="step-num">5</div>
+          <div class="step-num">4</div>
           <div class="step-body">
             <h3>Open and iterate</h3>
             <pre><code># Open the deployed webapp

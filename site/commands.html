@@ -459,11 +459,11 @@ slcli workspace disable --id &lt;workspace-id&gt;</code></pre>
       <!-- ─── WEBAPP ─── -->
       <h2 id="webapp">webapp</h2>
       <p>Scaffold, pack, publish, and manage static web applications.</p>
-      <pre><code># Scaffold a simple HTML webapp
-slcli webapp init --directory ./my-example
-
-# Scaffold a Nimble Angular project (with AI prompts and README)
+      <pre><code># Scaffold a Nimble Angular project (installs AI skills automatically)
 slcli webapp init --template angular --directory ./fleet-dashboard
+
+# Scaffold a simple HTML webapp
+slcli webapp init --directory ./my-example
 
 # Pack into .nipkg
 slcli webapp pack ./my-example/app --output myapp.nipkg
