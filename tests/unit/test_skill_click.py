@@ -12,6 +12,7 @@ from slcli.skill_click import (
     _find_bundled_skills_dir,
     _find_repo_root,
     _resolve_destinations,
+    install_skills_to_directory,
     register_skill_commands,
 )
 
@@ -65,9 +66,7 @@ def test_resolve_destinations_project_all(tmp_path: Path) -> None:
     """Project scope returns one project dir per client under repo_root."""
     with patch("slcli.skill_click._find_repo_root", return_value=tmp_path):
         dests = _resolve_destinations(CLIENT_CHOICES, "project")
-    assert len(dests) == len(CLIENT_CHOICES)
-    for dest in dests:
-        assert str(dest).startswith(str(tmp_path))
+    assert dests == [tmp_path / ".agents" / "skills", tmp_path / ".claude" / "skills"]
 
 
 def test_resolve_destinations_both(tmp_path: Path) -> None:
@@ -75,7 +74,7 @@ def test_resolve_destinations_both(tmp_path: Path) -> None:
     with patch(
         "slcli.skill_click._personal_dir", side_effect=lambda c: tmp_path / "home" / c
     ), patch("slcli.skill_click._find_repo_root", return_value=tmp_path / "repo"):
-        dests = _resolve_destinations(["copilot"], "both")
+        dests = _resolve_destinations(["agents"], "both")
     assert len(dests) == 2
 
 
@@ -83,7 +82,7 @@ def test_resolve_destinations_deduplicates(tmp_path: Path) -> None:
     """Duplicate paths are removed while preserving order."""
     same = tmp_path / "shared"
     with patch("slcli.skill_click._personal_dir", return_value=same):
-        dests = _resolve_destinations(["copilot", "claude"], "personal")
+        dests = _resolve_destinations(["agents", "claude"], "personal")
     assert dests == [same]
 
 
@@ -103,41 +102,41 @@ def test_install_prompts_when_no_options(
     runner: CliRunner, fake_skills_dir: Path, tmp_path: Path
 ) -> None:
     """Without any flags the command prompts for skill, client, and scope then installs."""
-    dest = tmp_path / "copilot-personal"
+    dest = tmp_path / "agents-personal"
     cli = make_cli()
     with patch("slcli.skill_click._find_bundled_skills_dir", return_value=fake_skills_dir), patch(
         "slcli.skill_click._resolve_destinations", return_value=[dest]
     ), patch("slcli.skill_click.questionary.select") as mock_select:
-        mock_select.return_value.ask.side_effect = ["slcli", "copilot", "personal"]
+        mock_select.return_value.ask.side_effect = ["slcli", "agents", "personal"]
         result = runner.invoke(cli, ["skill", "install"])
     assert result.exit_code == 0
     assert "✓ Installed slcli skill" in result.output
 
 
-def test_install_all_personal_flags(
+def test_install_agents_personal_flags(
     runner: CliRunner, fake_skills_dir: Path, tmp_path: Path
 ) -> None:
-    """--skill slcli --client all --scope personal copies slcli to all personal dirs."""
-    dests = [tmp_path / c for c in CLIENT_CHOICES]
+    """--skill slcli --client agents --scope personal installs to the agents dir."""
+    dest_parent = tmp_path / "agents-personal"
     cli = make_cli()
     with patch("slcli.skill_click._find_bundled_skills_dir", return_value=fake_skills_dir), patch(
-        "slcli.skill_click._resolve_destinations", return_value=dests
+        "slcli.skill_click._resolve_destinations", return_value=[dest_parent]
     ):
         result = runner.invoke(
             cli,
-            ["skill", "install", "--skill", "slcli", "--client", "all", "--scope", "personal"],
+            ["skill", "install", "--skill", "slcli", "--client", "agents", "--scope", "personal"],
         )
     assert result.exit_code == 0
-    assert result.output.count("✓ Installed") == len(CLIENT_CHOICES)
+    assert (dest_parent / "slcli" / "SKILL.md").exists()
 
 
 def test_install_single_client_project(
     runner: CliRunner, fake_skills_dir: Path, tmp_path: Path
 ) -> None:
-    """--skill slcli --client copilot --scope project installs into .github/skills/slcli."""
+    """--skill slcli --client agents --scope project installs into .agents/skills/slcli."""
     repo_root = tmp_path / "myrepo"
     repo_root.mkdir()
-    expected = repo_root / ".github" / "skills"
+    expected = repo_root / ".agents" / "skills"
 
     cli = make_cli()
     with patch("slcli.skill_click._find_bundled_skills_dir", return_value=fake_skills_dir), patch(
@@ -145,7 +144,7 @@ def test_install_single_client_project(
     ):
         result = runner.invoke(
             cli,
-            ["skill", "install", "--skill", "slcli", "--client", "copilot", "--scope", "project"],
+            ["skill", "install", "--skill", "slcli", "--client", "agents", "--scope", "project"],
         )
     assert result.exit_code == 0
     assert (expected / "slcli" / "SKILL.md").exists()
@@ -177,30 +176,14 @@ def test_install_claude_project(runner: CliRunner, fake_skills_dir: Path, tmp_pa
     assert (repo_root / ".claude" / "skills" / "slcli" / "SKILL.md").exists()
 
 
-def test_install_codex_project(runner: CliRunner, fake_skills_dir: Path, tmp_path: Path) -> None:
-    """--skill slcli --client codex --scope project installs into .agents/skills/slcli."""
-    repo_root = tmp_path / "myrepo"
-    repo_root.mkdir()
-
+def test_install_all_client_rejected(runner: CliRunner) -> None:
+    """--client all is rejected because only agents and claude are supported."""
     cli = make_cli()
-    with patch("slcli.skill_click._find_bundled_skills_dir", return_value=fake_skills_dir), patch(
-        "slcli.skill_click._find_repo_root", return_value=repo_root
-    ):
-        result = runner.invoke(
-            cli,
-            [
-                "skill",
-                "install",
-                "--skill",
-                "slcli",
-                "--client",
-                "codex",
-                "--scope",
-                "project",
-            ],
-        )
-    assert result.exit_code == 0
-    assert (repo_root / ".agents" / "skills" / "slcli" / "SKILL.md").exists()
+    result = runner.invoke(
+        cli,
+        ["skill", "install", "--skill", "slcli", "--client", "all", "--scope", "project"],
+    )
+    assert result.exit_code != 0
 
 
 def test_install_force_overwrites(runner: CliRunner, fake_skills_dir: Path, tmp_path: Path) -> None:
@@ -222,7 +205,7 @@ def test_install_force_overwrites(runner: CliRunner, fake_skills_dir: Path, tmp_
                 "--skill",
                 "slcli",
                 "--client",
-                "copilot",
+                "agents",
                 "--scope",
                 "personal",
                 "--force",
@@ -249,7 +232,7 @@ def test_install_prompt_overwrite_decline(
         mock_confirm.return_value.ask.return_value = False
         result = runner.invoke(
             cli,
-            ["skill", "install", "--skill", "slcli", "--client", "copilot", "--scope", "personal"],
+            ["skill", "install", "--skill", "slcli", "--client", "agents", "--scope", "personal"],
         )
     assert result.exit_code == 0
     assert "Skipped" in result.output
@@ -267,7 +250,7 @@ def test_install_references_copied(
     ):
         result = runner.invoke(
             cli,
-            ["skill", "install", "--skill", "slcli", "--client", "copilot", "--scope", "personal"],
+            ["skill", "install", "--skill", "slcli", "--client", "agents", "--scope", "personal"],
         )
     assert result.exit_code == 0
     assert (dest_parent / "slcli" / "references" / "filtering.md").exists()
@@ -282,7 +265,7 @@ def test_install_missing_source(runner: CliRunner) -> None:
     ):
         result = runner.invoke(
             cli,
-            ["skill", "install", "--skill", "slcli", "--client", "copilot", "--scope", "personal"],
+            ["skill", "install", "--skill", "slcli", "--client", "agents", "--scope", "personal"],
         )
     assert result.exit_code != 0
 
@@ -303,7 +286,7 @@ def test_install_all_skipped_exits_cleanly(
         mock_confirm.return_value.ask.return_value = False
         result = runner.invoke(
             cli,
-            ["skill", "install", "--skill", "slcli", "--client", "copilot", "--scope", "personal"],
+            ["skill", "install", "--skill", "slcli", "--client", "agents", "--scope", "personal"],
         )
     assert result.exit_code == 0
     assert "No skill locations were updated" in result.output
@@ -329,7 +312,7 @@ def test_install_webapp_skill_personal(
                 "--skill",
                 "systemlink-webapp",
                 "--client",
-                "copilot",
+                "agents",
                 "--scope",
                 "personal",
             ],
@@ -348,7 +331,7 @@ def test_install_all_skills(runner: CliRunner, fake_skills_dir: Path, tmp_path: 
     ):
         result = runner.invoke(
             cli,
-            ["skill", "install", "--skill", "all", "--client", "copilot", "--scope", "personal"],
+            ["skill", "install", "--skill", "all", "--client", "agents", "--scope", "personal"],
         )
     assert result.exit_code == 0
     assert result.output.count("\u2713 Installed") == len(SKILL_CHOICES)
@@ -359,7 +342,7 @@ def test_install_all_skills(runner: CliRunner, fake_skills_dir: Path, tmp_path: 
 def test_install_webapp_skill_project(
     runner: CliRunner, fake_skills_dir: Path, tmp_path: Path
 ) -> None:
-    """--skill systemlink-webapp --client copilot --scope project installs into .github/skills/."""
+    """--skill systemlink-webapp --client agents --scope project installs into .agents/skills/."""
     repo_root = tmp_path / "myrepo"
     repo_root.mkdir()
 
@@ -375,13 +358,13 @@ def test_install_webapp_skill_project(
                 "--skill",
                 "systemlink-webapp",
                 "--client",
-                "copilot",
+                "agents",
                 "--scope",
                 "project",
             ],
         )
     assert result.exit_code == 0
-    assert (repo_root / ".github" / "skills" / "systemlink-webapp" / "SKILL.md").exists()
+    assert (repo_root / ".agents" / "skills" / "systemlink-webapp" / "SKILL.md").exists()
 
 
 # ── helper functions ─────────────────────────────────────────────────────────
@@ -416,14 +399,11 @@ def test_personal_dir_returns_expanded_path() -> None:
     """_personal_dir expands ~ and returns the correct path for each client."""
     from slcli.skill_click import _personal_dir
 
-    copilot = _personal_dir("copilot")
-    assert copilot == Path.home() / ".copilot" / "skills"
+    agents = _personal_dir("agents")
+    assert agents == Path.home() / ".agents" / "skills"
 
     claude = _personal_dir("claude")
     assert claude == Path.home() / ".claude" / "skills"
-
-    codex = _personal_dir("codex")
-    assert codex == Path.home() / ".agents" / "skills"
 
 
 def test_install_oserror_exits_nonzero(
@@ -439,7 +419,23 @@ def test_install_oserror_exits_nonzero(
     ) as mock_select:
         mock_select.return_value.ask.return_value = "slcli"
         result = runner.invoke(
-            cli, ["skill", "install", "--client", "copilot", "--scope", "personal"]
+            cli, ["skill", "install", "--client", "agents", "--scope", "personal"]
         )
     assert result.exit_code != 0
     assert "Failed to install" in result.output
+
+
+def test_install_skills_to_directory(tmp_path: Path) -> None:
+    """Install_skills_to_directory copies skills into the project."""
+    count = install_skills_to_directory(tmp_path)
+    assert count == len(SKILL_CHOICES)
+    for name in SKILL_CHOICES:
+        assert (tmp_path / ".agents" / "skills" / name / "SKILL.md").exists()
+
+
+def test_install_skills_to_directory_specific_skill(tmp_path: Path) -> None:
+    """Install_skills_to_directory can install a single skill."""
+    count = install_skills_to_directory(tmp_path, skill_names=["slcli"])
+    assert count == 1
+    assert (tmp_path / ".agents" / "skills" / "slcli" / "SKILL.md").exists()
+    assert not (tmp_path / ".agents" / "skills" / "systemlink-webapp").exists()

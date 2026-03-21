@@ -676,7 +676,23 @@ slcli webapp open <WEBAPP_ID>                            # Open webapp URL in br
 
 Templates:
 - `html` (default) — minimal index.html
-- `angular` — Nimble Angular project with PROMPTS.md (AI-ready prompts) and README.md
+- `angular` — Nimble Angular project with `PROMPTS.md`, `README.md`, and bundled AI skills installed into `.agents/skills/`
+
+### skill — AI skill installation
+
+Install bundled skills for supported AI clients.
+
+```bash
+slcli skill install --skill [slcli|systemlink-webapp|all] --client [agents|claude] --scope [personal|project|both]
+```
+
+Client paths:
+- `agents` — personal: `~/.agents/skills/`, project: `.agents/skills/` (most agents)
+- `claude` — personal: `~/.claude/skills/`, project: `.claude/skills/`
+
+Notes:
+- `agents` is the default client in interactive mode.
+- `webapp init --template angular` installs project-scoped skills into `.agents/skills/` by default.
 
 ### example — Built-in example resource provisioning
 

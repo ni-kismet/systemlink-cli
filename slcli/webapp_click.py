@@ -17,6 +17,7 @@ import questionary
 import requests
 
 from .cli_utils import validate_output_format
+from .skill_click import install_skills_to_directory
 from .universal_handlers import UniversalResponseHandler
 from .utils import (
     ExitCodes,
@@ -277,63 +278,59 @@ _ANGULAR_PROMPTS_MD = """\
 # SystemLink WebApp — AI Prompts
 
 This project was scaffolded with `slcli webapp init --template angular`.
+The **systemlink-webapp** skill has been installed into this project so
+your AI assistant already knows how to build Nimble Angular apps for
+SystemLink — including component choices, API patterns, routing, theming,
+and deployment. Just describe what you want.
 
-The **systemlink-webapp** skill teaches your AI assistant how to build
-Nimble Angular applications for SystemLink. Install it first:
+## Getting Started
 
-```bash
-slcli skill install --client all
-```
+Open this project in your editor and describe your app:
 
-## Getting Started Prompts
+> "I need a web dashboard for monitoring our production test systems.
+> It should show which systems are online, recent test results, and
+> any assets due for calibration."
 
-Copy-paste these into your AI assistant to build out the project:
+Your AI assistant will create the Angular project, install the right
+packages, and build the pages for you.
 
-### 1. Create a basic dashboard layout
+## Example Prompts
 
-> "Set up the AppModule with NimbleModule imports, a nimble-theme-provider
-> with automatic theme detection, and a nimble-anchor-tabs layout with
-> Overview and Settings tabs. Use hash routing."
+Describe your goals — the skill handles the technical details.
 
-### 2. Add a systems overview page
+### Fleet monitoring
 
-> "Create a SystemsComponent that uses the Systems Management TypeScript
-> client to fetch connected systems and display them in a nimble-table
-> with columns for alias, state, OS, and last-updated timestamp.
-> Add a nimble-spinner while loading."
+> "Build a dashboard that shows all connected systems with their
+> status, operating system, and last check-in time. Highlight any
+> systems that have been offline for more than 24 hours."
 
-### 3. Add a test results page
+### Test results review
 
-> "Create a TestResultsComponent that uses the Test Monitor TypeScript
-> client to list recent test results in a nimble-table. Add
-> nimble-select filters for status (Passed/Failed/Running) and
-> program name. Show a nimble-banner when there are failures."
+> "Create a page where I can browse recent test results, filter by
+> status (passed, failed, running) and program name, and see a
+> summary of failure rates."
 
-### 4. Add an asset calibration tracker
+### Asset & calibration tracking
 
-> "Create a CalibrationComponent that uses the Asset Management
-> TypeScript client to show assets grouped by calibration status.
-> Use nimble-card components for each status category with counts.
-> Add a nimble-drawer that shows asset details when clicked."
+> "Show all tracked assets grouped by calibration status. I want to
+> see which assets are due soon, which are overdue, and be able to
+> click on an asset to see its full details."
 
-### 5. Build and deploy
+### Production KPIs
 
-> "Build the project for production and deploy it to SystemLink
-> using slcli webapp publish."
+> "Build a dashboard with key metrics: first-pass yield, test
+> throughput per hour, and a trend chart of failures over the last
+> 30 days."
+
+### Build and deploy
+
+> "Build the project for production and deploy it to SystemLink."
 
 ## Reference
 
 - [Nimble Angular components](https://nimble.ni.dev/)
 - [SystemLink TypeScript clients](https://www.npmjs.com/package/@ni/systemlink-clients-ts)
 - [slcli webapp commands](https://ni-kismet.github.io/systemlink-cli/commands.html#webapp)
-
-## Build & Deploy
-
-```bash
-ng build --configuration production
-slcli webapp publish dist/<project-name>/browser/ \\
-  --name "My Dashboard" --workspace Default
-```
 """
 
 _ANGULAR_README_MD = """\
@@ -345,39 +342,23 @@ A Nimble Angular web application for SystemLink, scaffolded with
 ## Prerequisites
 
 - [Node.js](https://nodejs.org/) 18+ and npm
-- [Angular CLI](https://angular.dev/tools/cli) (`npm install -g @angular/cli`)
-- [slcli](https://ni-kismet.github.io/systemlink-cli/) with AI skills installed
+- [slcli](https://ni-kismet.github.io/systemlink-cli/)
 
-## Quick Start
+## Getting Started
 
-```bash
-# Install dependencies
-npm install
+Open this directory in your editor and ask your AI assistant to create
+the project — see [PROMPTS.md](PROMPTS.md) for ready-made prompts.
 
-# Start development server
-ng serve --open
-
-# Build for production
-ng build --configuration production
-```
+The AI skills for SystemLink webapp development are already installed
+in this project directory.
 
 ## Deploy to SystemLink
 
 ```bash
+ng build --configuration production
 slcli webapp publish dist/<project-name>/browser/ \\
   --name "My Dashboard" --workspace Default
 ```
-
-## AI-Assisted Development
-
-See [PROMPTS.md](PROMPTS.md) for example prompts to give your AI assistant.
-Install the systemlink-webapp skill first:
-
-```bash
-slcli skill install --client all
-```
-
-Then ask your assistant to build features using the prompts in PROMPTS.md.
 """
 
 
@@ -404,18 +385,19 @@ def _init_angular_template(directory: Path, force: bool) -> None:
     prompts_file.write_text(_ANGULAR_PROMPTS_MD, encoding="utf-8")
     readme_file.write_text(_ANGULAR_README_MD, encoding="utf-8")
 
+    # Auto-install AI skills into the project directory
+    installed = install_skills_to_directory(directory)
+    skill_msg = f"{installed} skill(s) installed" if installed else "skills not found"
+
     format_success(
         "Scaffolded Nimble Angular project",
         {
             "Directory": str(directory),
+            "Skills": skill_msg,
             "Next steps": (
                 "1. cd " + str(directory) + "\n"
-                "   2. ng new <app-name> --no-standalone\n"
-                "   3. cd <app-name>\n"
-                "   4. npm install @ni/nimble-angular "
-                "@ni/systemlink-clients-ts\n"
-                "   5. Install AI skills: slcli skill install --client all\n"
-                "   6. Open PROMPTS.md and start building with AI"
+                "   2. Open in your editor and ask AI to create the app\n"
+                "   3. See PROMPTS.md for example prompts"
             ),
         },
     )
