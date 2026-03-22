@@ -6,7 +6,6 @@ from unittest.mock import patch
 
 import keyring
 from click.testing import CliRunner
-
 from slcli.main import cli
 
 
@@ -286,10 +285,9 @@ class TestPolicyDelete:
             with patch("slcli.policy_click._fetch_policy_details") as mock_fetch:
                 mock_fetch.return_value = {"id": "policy-1", "name": "MyPolicy"}
                 mock_request.return_value = mock_response({}, 204)
-
-                result = runner.invoke(
-                    cli_instance, ["auth", "policy", "delete", "policy-1"], input="y\n"
-                )
+                with patch("slcli.policy_click.questionary.confirm") as mock_confirm:
+                    mock_confirm.return_value.ask.return_value = True
+                    result = runner.invoke(cli_instance, ["auth", "policy", "delete", "policy-1"])
                 assert result.exit_code == 0
                 assert "Policy deleted" in result.output
 
@@ -536,12 +534,12 @@ class TestTemplateDelete:
             mock_fetch.return_value = {"id": "template-1", "name": "Template"}
             with patch("slcli.policy_click.make_api_request") as mock_request:
                 mock_request.return_value = mock_response({}, 204)
-
-                result = runner.invoke(
-                    cli_instance,
-                    ["auth", "template", "delete", "template-1"],
-                    input="y\n",
-                )
+                with patch("slcli.policy_click.questionary.confirm") as mock_confirm:
+                    mock_confirm.return_value.ask.return_value = True
+                    result = runner.invoke(
+                        cli_instance,
+                        ["auth", "template", "delete", "template-1"],
+                    )
 
                 assert result.exit_code == 0
                 assert "Policy template deleted" in result.output

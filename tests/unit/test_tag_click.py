@@ -7,7 +7,6 @@ from unittest.mock import MagicMock, patch
 import click
 import keyring
 from click.testing import CliRunner
-
 from slcli.tag_click import register_tag_commands
 
 
@@ -59,7 +58,9 @@ class TestTagList:
                 mock_request.return_value = mock_response(page1_data)
 
                 # Provide 'n' as input to the pagination prompt to stop after first page
-                result = runner.invoke(cli, ["tag", "list"], input="n\n")
+                with patch("slcli.tag_click.questionary.confirm") as mock_confirm:
+                    mock_confirm.return_value.ask.return_value = False
+                    result = runner.invoke(cli, ["tag", "list"])
                 assert result.exit_code == 0
                 assert "tag1" in result.output
                 assert "Showing 1 of 2 tags" in result.output

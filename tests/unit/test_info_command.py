@@ -5,7 +5,6 @@ from typing import Any
 from unittest.mock import patch
 
 from click.testing import CliRunner
-
 from slcli.main import cli
 from slcli.profiles import Profile
 

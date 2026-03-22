@@ -11,6 +11,7 @@ let undoStack = [];
 let redoStack = [];
 let isDirty = false;
 let editorSecret = null;  // Global variable for editor session secret
+let cachedWorkspaces = null;  // Cached workspace list [{id, name}, ...]
 
 const apiUrl = (path) => `${serverUrl}${path}`;
 
@@ -199,10 +200,15 @@ require(['vs/editor/editor.main'], async function () {
         document.getElementById('statusInfo').textContent = `Ln ${e.position.lineNumber}, Col ${e.position.column}`;
     });
     
-    // Auto-validate on content change
+    // Auto-validate and auto-sync tree on content change
+    let syncTimeout = null;
     editor.onDidChangeModelContent(() => {
         isDirty = true;
-        setTimeout(validateDocument, 500);
+        if (syncTimeout) clearTimeout(syncTimeout);
+        syncTimeout = setTimeout(() => {
+            validateDocument();
+            refreshTree();
+        }, 500);
     });
     
     // Keyboard shortcuts
@@ -232,6 +238,13 @@ require(['vs/editor/editor.main'], async function () {
     
     // Auto-save to local storage every 30 seconds
     setInterval(autoSave, 30000);
+    
+    // Pre-fetch workspaces for selector (always, regardless of how config is loaded)
+    fetchWorkspaces().then(() => {
+        if (cachedWorkspaces) {
+            showStatus(`Loaded ${cachedWorkspaces.length} workspace(s)`, 'success');
+        }
+    });
     
     // Load configuration file if specified in slcli-config.json
     try {
@@ -277,6 +290,113 @@ require(['vs/editor/editor.main'], async function () {
     validateDocument();
     refreshTree();
 });
+
+// --- Workspace lookup ---
+
+async function fetchWorkspaces() {
+    if (cachedWorkspaces) return cachedWorkspaces;
+    try {
+        const all = [];
+        let skip = 0;
+        let totalCount = null;
+        do {
+            const resp = await fetch(apiUrl(`/niuser/v1/workspaces?take=100&skip=${skip}`), {
+                headers: { 'X-Editor-Secret': editorSecret || '' }
+            });
+            if (!resp.ok) throw new Error(`HTTP ${resp.status}`);
+            const data = await resp.json();
+            const page = data.workspaces || [];
+            totalCount = data.totalCount ?? (skip + page.length);
+            all.push(...page);
+            skip += page.length;
+            if (page.length === 0) break;
+        } while (skip < totalCount);
+        cachedWorkspaces = all.map(ws => ({ id: ws.id, name: ws.name || ws.id }));
+        return cachedWorkspaces;
+    } catch (e) {
+        console.warn('Failed to fetch workspaces:', e);
+        return null;
+    }
+}
+
+function buildWorkspaceSelect(elementId, currentValue) {
+    const container = document.createElement('div');
+    container.className = 'form-group';
+    
+    const label = document.createElement('label');
+    label.textContent = 'Workspace *';
+    container.appendChild(label);
+    
+    if (!cachedWorkspaces || cachedWorkspaces.length === 0) {
+        // Fallback to text input if workspaces not loaded
+        const input = document.createElement('input');
+        input.type = 'text';
+        input.id = elementId;
+        input.placeholder = 'e.g., workspace-123';
+        input.value = currentValue || '';
+        container.appendChild(input);
+        const small = document.createElement('small');
+        small.textContent = 'Could not load workspaces. Enter workspace ID manually.';
+        container.appendChild(small);
+        return container;
+    }
+    
+    // Create filter input
+    const filterInput = document.createElement('input');
+    filterInput.type = 'text';
+    filterInput.placeholder = 'Type to filter workspaces...';
+    filterInput.style.marginBottom = '4px';
+    container.appendChild(filterInput);
+    
+    // Create select
+    const select = document.createElement('select');
+    select.id = elementId;
+    select.style.marginTop = '0';
+    container.appendChild(select);
+    
+    // Find display name for current value
+    const currentWs = cachedWorkspaces.find(ws => ws.id === currentValue);
+    const currentDisplay = currentWs ? `${currentWs.name}` : '';
+    
+    function populateOptions(filter) {
+        select.innerHTML = '';
+        
+        const emptyOpt = document.createElement('option');
+        emptyOpt.value = '';
+        emptyOpt.textContent = '— Select a workspace —';
+        select.appendChild(emptyOpt);
+        
+        const lowerFilter = (filter || '').toLowerCase();
+        cachedWorkspaces.forEach(ws => {
+            if (lowerFilter && !ws.name.toLowerCase().includes(lowerFilter) && !ws.id.toLowerCase().includes(lowerFilter)) {
+                return;
+            }
+            const opt = document.createElement('option');
+            opt.value = ws.id;
+            opt.textContent = `${ws.name}  (${ws.id.slice(0, 8)}…)`;
+            if (ws.id === currentValue) opt.selected = true;
+            select.appendChild(opt);
+        });
+    }
+    
+    populateOptions('');
+    
+    filterInput.addEventListener('input', () => {
+        populateOptions(filterInput.value);
+    });
+    
+    // If we have a current value, pre-fill the filter for context
+    if (currentDisplay) {
+        filterInput.value = currentDisplay;
+        populateOptions(currentDisplay);
+    }
+    
+    const small = document.createElement('small');
+    small.textContent = `${cachedWorkspaces.length} workspace(s) available`;
+    container.appendChild(small);
+    
+    return container;
+}
 
 function getDefaultConfig() {
     return JSON.stringify({
@@ -550,11 +670,17 @@ function resetEditor() {
 }
 
 function refreshTree() {
-    if (!validateDocument()) return;
-    
     const treeView = document.getElementById('treeView');
-    const config = currentConfig;
     
+    // Parse current editor content directly for auto-sync
+    try {
+        const content = editor.getValue();
+        currentConfig = JSON.parse(content);
+    } catch (e) {
+        return; // Invalid JSON, skip tree refresh
+    }
+    
+    const config = currentConfig;
     if (!config) return;
     
     let html = '<div class="tree-node" onclick="selectTreeNode(\'root\')"><span class="tree-icon">📄</span><span>Root Configuration</span></div>';
@@ -563,7 +689,7 @@ function refreshTree() {
     if (config.configurations && config.configurations.length > 0) {
         config.configurations.forEach((conf, i) => {
             const confLabel = conf.displayText || conf.name || conf.key || ('Configuration ' + (i + 1));
-            html += `<div class="tree-node indent-1" onclick="selectTreeNode('config-${i}')"><span class="tree-icon">⚙️</span><span>${confLabel}</span></div>`;
+            html += `<div class="tree-node indent-1" onclick="selectTreeNode('config-${i}')"><span class="tree-icon">⚙️</span><span>${confLabel}</span><button class="edit-btn" aria-label="Edit configuration: ${confLabel}" title="Edit configuration" onclick="event.stopPropagation(); showEditDialog('configuration', ${i})">✎</button></div>`;
             // Show views under each configuration
             if (conf.views && conf.views.length > 0) {
                 conf.views.forEach((view, vi) => {
@@ -810,10 +936,7 @@ function showAddDialog(type) {
                 <label>Help Text</label>
                 <input type="text" id="groupHelpText" placeholder="Optional help text">
             </div>
-            <div class="form-group">
-                <label>Workspace ID *</label>
-                <input type="text" id="groupWorkspace" placeholder="e.g., workspace-123" value="${workspace}">
-            </div>
+            <div id="groupWorkspaceContainer"></div>
             <div class="form-group">
                 <label>Field Keys (comma-separated)</label>
                 <input type="text" id="groupFieldKeys" placeholder="e.g., field1, field2">
@@ -828,6 +951,11 @@ function showAddDialog(type) {
                 <small>Add translations for different locales (e.g., en, fr, de)</small>
             </div>
         `;
+        // Hydrate workspace selector
+        setTimeout(() => {
+            const container = document.getElementById('groupWorkspaceContainer');
+            if (container) container.replaceWith(buildWorkspaceSelect('groupWorkspace', workspace));
+        }, 0);
     } else if (type === 'field') {
         const workspace = getCurrentWorkspace();
         const defaultKey = generateTempKey('NewField');
@@ -851,10 +979,7 @@ function showAddDialog(type) {
                 <label>Placeholder</label>
                 <input type="text" id="fieldPlaceholder" placeholder="Optional placeholder text">
             </div>
-            <div class="form-group">
-                <label>Workspace ID *</label>
-                <input type="text" id="fieldWorkspace" placeholder="e.g., workspace-123" value="${workspace}">
-            </div>
+            <div id="fieldWorkspaceContainer"></div>
             <div class="form-group">
                 <label>Field Type *</label>
                 <select id="fieldType" onchange="updateFieldTypeOptions()">
@@ -890,7 +1015,54 @@ function showAddDialog(type) {
             </div>
         `;
         // Initialize the field type options visibility
-        setTimeout(() => updateFieldTypeOptions(), 0);
+        setTimeout(() => {
+            updateFieldTypeOptions();
+            // Hydrate workspace selector
+            const container = document.getElementById('fieldWorkspaceContainer');
+            if (container) container.replaceWith(buildWorkspaceSelect('fieldWorkspace', workspace));
+        }, 0);
+    } else if (type === 'configuration') {
+        const workspace = getCurrentWorkspace();
+        const defaultKey = generateTempKey('NewConfig');
+        title.textContent = 'Add Configuration';
+        body.innerHTML = `
+            <div class="form-group">
+                <label>Name *</label>
+                <input type="text" id="configName" placeholder="e.g., Work Item Configuration">
+                <small>Display name for the configuration</small>
+            </div>
+            <div class="form-group">
+                <label>Key *</label>
+                <input type="text" id="configKey" placeholder="e.g., myConfiguration" value="${defaultKey}">
+                <small>Unique identifier</small>
+            </div>
+            <div id="configWorkspaceContainer"></div>
+            <div class="form-group">
+                <label>Resource Type *</label>
+                <select id="configResourceType">
+                    <option value="workitem:workitem">Work Item</option>
+                    <option value="workorder:workorder">Work Order</option>
+                    <option value="asset:asset">Asset</option>
+                    <option value="system:system">System</option>
+                    <option value="testmonitor:product">Test Monitor Product</option>
+                </select>
+            </div>
+            <div class="form-group">
+                <label>Display Rule</label>
+                <input type="text" id="configDisplayRule" placeholder='e.g., type == "testplan"'>
+                <small>Optional condition for when this configuration is displayed</small>
+            </div>
+            <div class="form-group">
+                <label>Group Keys (comma-separated)</label>
+                <input type="text" id="configGroupKeys" placeholder="e.g., group1, group2">
+                <small>Optional: Keys of groups to include</small>
+            </div>
+        `;
+        // Hydrate workspace selector
+        setTimeout(() => {
+            const container = document.getElementById('configWorkspaceContainer');
+            if (container) container.replaceWith(buildWorkspaceSelect('configWorkspace', workspace));
+        }, 0);
     }
     
     overlay.classList.add('active');
@@ -1019,7 +1191,7 @@ function showEditDialog(type, configIdx, viewIdx = null) {
         body.appendChild(createFormGroup('Key *', 'groupKey', 'text', group.key || '', 'e.g., basicInfo', 'Unique identifier (lowercase, no spaces)'));
         body.appendChild(createFormGroup('Display Text *', 'groupDisplayText', 'text', group.displayText || '', 'e.g., Basic Information', 'Text shown to users'));
         body.appendChild(createFormGroup('Help Text', 'groupHelpText', 'text', group.helpText || '', 'Optional help text'));
-        body.appendChild(createFormGroup('Workspace ID *', 'groupWorkspace', 'text', group.workspace || '', 'e.g., workspace-123'));
+        body.appendChild(buildWorkspaceSelect('groupWorkspace', group.workspace || ''));
         body.appendChild(createFormGroup('Field Keys (comma-separated)', 'groupFieldKeys', 'text', (group.fields || []).join(', '), 'e.g., field1, field2', 'Optional: Keys of fields to include'));
         
         // Add i18n section
@@ -1055,7 +1227,7 @@ function showEditDialog(type, configIdx, viewIdx = null) {
         body.appendChild(createFormGroup('Display Text *', 'fieldDisplayText', 'text', field.displayText || '', 'e.g., Device Identifier', 'Text shown to users'));
         body.appendChild(createFormGroup('Help Text', 'fieldHelpText', 'text', field.helpText || '', 'Optional help text'));
         body.appendChild(createFormGroup('Placeholder', 'fieldPlaceholder', 'text', field.placeHolder || '', 'Optional placeholder text'));
-        body.appendChild(createFormGroup('Workspace ID *', 'fieldWorkspace', 'text', field.workspace || '', 'e.g., workspace-123'));
+        body.appendChild(buildWorkspaceSelect('fieldWorkspace', field.workspace || ''));
         body.appendChild(createFormGroup('Field Type *', 'fieldType', 'select', field.fieldType || 'STRING', '', ''));
         body.appendChild(createCheckboxGroup('Required field', 'fieldRequired', field.required));
         
@@ -1105,6 +1277,50 @@ function showEditDialog(type, configIdx, viewIdx = null) {
         
         overlay.dataset.editType = 'field';
         overlay.dataset.fieldIdx = configIdx;
+    } else if (type === 'configuration') {
+        const conf = currentConfig.configurations?.[configIdx];
+        if (!conf) {
+            showStatus('Configuration not found', 'error');
+            return;
+        }
+        
+        title.textContent = 'Edit Configuration';
+        body.innerHTML = '';
+        
+        body.appendChild(createFormGroup('Name *', 'configName', 'text', conf.name || '', 'e.g., Work Item Configuration', 'Display name'));
+        body.appendChild(createFormGroup('Key *', 'configKey', 'text', conf.key || '', 'e.g., myConfiguration', 'Unique identifier'));
+        body.appendChild(buildWorkspaceSelect('configWorkspace', conf.workspace || ''));
+        
+        // Resource type select
+        const rtGroup = document.createElement('div');
+        rtGroup.className = 'form-group';
+        const rtLabel = document.createElement('label');
+        rtLabel.textContent = 'Resource Type *';
+        rtGroup.appendChild(rtLabel);
+        const rtSelect = document.createElement('select');
+        rtSelect.id = 'configResourceType';
+        const rtOptions = [
+            { value: 'workitem:workitem', label: 'Work Item' },
+            { value: 'workorder:workorder', label: 'Work Order' },
+            { value: 'asset:asset', label: 'Asset' },
+            { value: 'system:system', label: 'System' },
+            { value: 'testmonitor:product', label: 'Test Monitor Product' }
+        ];
+        rtOptions.forEach(opt => {
+            const option = document.createElement('option');
+            option.value = opt.value;
+            option.textContent = opt.label;
+            if (opt.value === (conf.resourceType || 'workitem:workitem')) option.selected = true;
+            rtSelect.appendChild(option);
+        });
+        rtGroup.appendChild(rtSelect);
+        body.appendChild(rtGroup);
+        
+        body.appendChild(createFormGroup('Display Rule', 'configDisplayRule', 'text', conf.displayRule || '', 'e.g., type == "testplan"', 'Optional condition for when this configuration is displayed'));
+        body.appendChild(createFormGroup('Group Keys (comma-separated)', 'configGroupKeys', 'text', (conf.groupKeys || []).join(', '), 'e.g., group1, group2', 'Optional: Keys of groups to include'));
+        
+        overlay.dataset.editType = 'configuration';
+        overlay.dataset.configIdx = configIdx;
     }
     
     overlay.classList.add('active');
@@ -1350,6 +1566,64 @@ function submitModal() {
                 }
                 currentConfig.fields.push(fieldData);
                 showStatus('Field added successfully', 'success');
+            }
+        } else if (modalType === 'configuration' || modalType === 'edit-configuration') {
+            const name = document.getElementById('configName').value.trim();
+            const key = document.getElementById('configKey').value.trim();
+            let workspace = document.getElementById('configWorkspace').value.trim();
+            if (!workspace) {
+                workspace = getCurrentWorkspace();
+            }
+            const resourceType = document.getElementById('configResourceType').value;
+            const displayRule = document.getElementById('configDisplayRule').value.trim();
+            const groupKeysStr = document.getElementById('configGroupKeys').value.trim();
+            
+            if (!name || !key || !workspace) {
+                showStatus('Please fill in all required fields', 'error');
+                return;
+            }
+            
+            const groupKeys = groupKeysStr ? groupKeysStr.split(',').map(k => k.trim()).filter(k => k) : [];
+            
+            const configData = {
+                name,
+                key,
+                workspace,
+                resourceType,
+                displayRule: displayRule || '',
+                groupKeys: groupKeys.length > 0 ? groupKeys : [],
+                views: [],
+                rules: [],
+                properties: {}
+            };
+            
+            if (isEdit) {
+                const configIdx = parseInt(overlay.dataset.configIdx);
+                if (configIdx >= 0 && configIdx < currentConfig.configurations.length) {
+                    const existing = currentConfig.configurations[configIdx];
+                    const originalKey = existing.key;
+                    if (key !== originalKey && currentConfig.configurations.some((c, i) => i !== configIdx && c.key === key)) {
+                        showStatus(`Configuration key '${key}' already exists`, 'error');
+                        return;
+                    }
+                    // Preserve existing views, id, and server metadata
+                    configData.views = existing.views || [];
+                    if (existing.id) configData.id = existing.id;
+                    if (existing.rules) configData.rules = existing.rules;
+                    if (existing.createdBy) configData.createdBy = existing.createdBy;
+                    if (existing.updatedBy) configData.updatedBy = existing.updatedBy;
+                    if (existing.createdAt) configData.createdAt = existing.createdAt;
+                    if (existing.updatedAt) configData.updatedAt = existing.updatedAt;
+                    currentConfig.configurations[configIdx] = configData;
+                    showStatus('Configuration updated successfully', 'success');
+                }
+            } else {
+                if (currentConfig.configurations.some(c => c.key === key)) {
+                    showStatus(`Configuration key '${key}' already exists`, 'error');
+                    return;
+                }
+                currentConfig.configurations.push(configData);
+                showStatus('Configuration added successfully', 'success');
             }
         }
         

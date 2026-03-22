@@ -5,12 +5,12 @@ import tempfile
 from typing import Any
 
 # Shared test utilities
+import slcli.utils as slutils
 from click.testing import CliRunner
 from pytest import MonkeyPatch
-
-import slcli.utils as slutils
 from slcli.main import cli
 from slcli.platform import PLATFORM_SLE, PLATFORM_SLS
+
 from .test_utils import patch_keyring
 
 

@@ -6,6 +6,7 @@ import sys
 from typing import Any, Optional
 
 import click
+import questionary
 
 from .platform import PLATFORM_SLE, PLATFORM_SLS, detect_platform
 from .profiles import ProfileConfig, Profile, check_config_file_permissions
@@ -380,7 +381,10 @@ def register_config_commands(cli: Any) -> None:
             sys.exit(ExitCodes.NOT_FOUND)
 
         if not force:
-            if not click.confirm(f"Delete profile '{name}'?"):
+            if not questionary.confirm(
+                f"Delete profile '{name}'?",
+                default=False,
+            ).ask():
                 click.echo("Aborted.")
                 sys.exit(ExitCodes.GENERAL_ERROR)
 
@@ -415,7 +419,10 @@ def register_config_commands(cli: Any) -> None:
         # Check if profile already exists
         cfg = ProfileConfig.load()
         if profile_name in cfg.profiles:
-            if not click.confirm(f"Profile '{profile_name}' already exists. Overwrite?"):
+            if not questionary.confirm(
+                f"Profile '{profile_name}' already exists. Overwrite?",
+                default=False,
+            ).ask():
                 click.echo("Aborted.")
                 sys.exit(ExitCodes.GENERAL_ERROR)
 

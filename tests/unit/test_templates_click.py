@@ -4,9 +4,9 @@ from typing import Any
 import click
 import pytest
 from click.testing import CliRunner
-
 from slcli.templates_click import register_templates_commands
 from slcli.utils import ExitCodes
+
 from .test_utils import patch_keyring
 
 

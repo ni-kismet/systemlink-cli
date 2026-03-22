@@ -10,6 +10,7 @@ import sys
 from typing import Any, Dict, List, Optional
 
 import click
+import questionary
 import requests
 
 from .utils import (
@@ -312,7 +313,7 @@ def register_routine_commands(cli: Any) -> None:
                 if not is_tty:
                     break
 
-                if not click.confirm("Show next page?", default=True):
+                if not questionary.confirm("Show next page?", default=True).ask():
                     break
 
         except Exception as exc:
@@ -748,7 +749,11 @@ def register_routine_commands(cli: Any) -> None:
         ROUTINE_ID is the unique identifier of the routine to delete.
         """
         if not yes:
-            click.confirm(f"Are you sure you want to delete routine '{routine_id}'?", abort=True)
+            if not questionary.confirm(
+                f"Are you sure you want to delete routine '{routine_id}'?",
+                default=False,
+            ).ask():
+                raise click.Abort()
 
         try:
             url = f"{_routine_base_url(api_version)}/{routine_id}"

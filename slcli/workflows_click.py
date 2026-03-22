@@ -9,6 +9,7 @@ from pathlib import Path
 from typing import Any, Dict, List, Optional, Union
 
 import click
+import questionary
 import requests
 
 from . import workflow_preview
@@ -318,7 +319,10 @@ def register_workflows_commands(cli: Any) -> None:
         try:
             # Check if file already exists
             if os.path.exists(output):
-                if not click.confirm(f"File {output} already exists. Overwrite?"):
+                if not questionary.confirm(
+                    f"File {output} already exists. Overwrite?",
+                    default=False,
+                ).ask():
                     click.echo("Workflow initialization cancelled.")
                     return
 

@@ -4,6 +4,7 @@ import sys
 from typing import Any, Dict, List, Optional
 
 import click
+import questionary
 
 from .cli_utils import validate_output_format
 from .policy_utils import (
@@ -208,7 +209,7 @@ def register_policy_commands(cli: Any) -> None:
 
                 if not is_tty:
                     break
-                if not click.confirm(f"Show next {take} policies?", default=True):
+                if not questionary.confirm(f"Show next {take} policies?", default=True).ask():
                     break
 
         except Exception as exc:
@@ -375,7 +376,10 @@ def register_policy_commands(cli: Any) -> None:
             if not force:
                 details = _fetch_policy_details(policy_id, handle_errors=False)
                 policy_name = details.get("name") if details else policy_id
-                if not click.confirm(f"Delete policy '{policy_name}'?", default=False):
+                if not questionary.confirm(
+                    f"Delete policy '{policy_name}'?",
+                    default=False,
+                ).ask():
                     click.echo("Deletion cancelled.")
                     return
 
@@ -618,7 +622,7 @@ def register_policy_commands(cli: Any) -> None:
 
                 if not is_tty:
                     break
-                if not click.confirm(f"Show next {take} templates?", default=True):
+                if not questionary.confirm(f"Show next {take} templates?", default=True).ask():
                     break
 
         except Exception as exc:
@@ -658,7 +662,10 @@ def register_policy_commands(cli: Any) -> None:
             if not force:
                 details = _fetch_template_details(template_id, handle_errors=False)
                 template_name = details.get("name") if details else template_id
-                if not click.confirm(f"Delete policy template '{template_name}'?", default=False):
+                if not questionary.confirm(
+                    f"Delete policy template '{template_name}'?",
+                    default=False,
+                ).ask():
                     click.echo("Deletion cancelled.")
                     return
 

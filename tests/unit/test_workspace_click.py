@@ -6,7 +6,6 @@ from typing import Any
 import click
 import pytest
 from click.testing import CliRunner
-
 from slcli.workspace_click import register_workspace_commands
 
 

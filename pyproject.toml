@@ -1,9 +1,10 @@
 [tool.poetry]
-name = "slcli"
-version = "1.0.1"
+name = "systemlink-cli"
+version = "1.4.0"
 description = "SystemLink Integrator CLI - cross-platform CLI for SystemLink workflows and templates."
 authors = ["Fred Visser <fred.visser@emerson.com>"]
-include = ["dff-editor/**/*"]
+packages = [{ include = "slcli" }]
+include = ["dff-editor/**/*", "slcli/skills/**/*"]
 
 
 [tool.poetry.scripts]
@@ -29,6 +30,7 @@ tabulate = "^0.10.0"
 truststore = ">=0.9,<0.11"
 watchdog = "^6.0.0"
 pyyaml = "^6.0.3"
+questionary = "^2.1.1"
 
 
 [tool.poetry.group.dev.dependencies]
@@ -111,7 +113,7 @@ version_variables = ["slcli/_version.py:__version__"]
 build_command = "python scripts/update_version.py"
 major_on_zero = false
 branch = "main"
-upload_to_pypi = false
+upload_to_pypi = true
 upload_to_release = true
 hvcs = "github"
 commit_message = "chore(release): {version}"

@@ -7,8 +7,8 @@ from unittest.mock import patch
 import pytest
 from click.testing import CliRunner
 from pytest import MonkeyPatch
-
 from slcli.main import cli
+
 from .test_utils import patch_keyring
 
 
@@ -30,6 +30,75 @@ def test_webapp_init_creates_index(tmp_path: Path, monkeypatch: MonkeyPatch) -> 
     assert idx.exists()
     content = idx.read_text(encoding="utf-8")
     assert "Example WebApp" in content
+
+
+def test_webapp_init_angular_creates_prompts(tmp_path: Path, monkeypatch: MonkeyPatch) -> None:
+    runner = CliRunner()
+    patch_keyring(monkeypatch)
+
+    target = tmp_path / "ng_app"
+    result = runner.invoke(
+        cli, ["webapp", "init", "--template", "angular", "--directory", str(target)]
+    )
+    assert result.exit_code == 0
+    assert (target / "PROMPTS.md").exists()
+    assert (target / "README.md").exists()
+    prompts = (target / "PROMPTS.md").read_text(encoding="utf-8")
+    assert "systemlink-webapp" in prompts
+    assert "systemlink-clients-ts" in prompts
+    readme = (target / "README.md").read_text(encoding="utf-8")
+    assert "slcli webapp publish" in readme
+    assert "Nimble Angular" in readme
+
+
+def test_webapp_init_angular_no_overwrite(tmp_path: Path, monkeypatch: MonkeyPatch) -> None:
+    runner = CliRunner()
+    patch_keyring(monkeypatch)
+
+    target = tmp_path / "ng_app"
+    target.mkdir()
+    (target / "PROMPTS.md").write_text("existing")
+
+    result = runner.invoke(
+        cli, ["webapp", "init", "--template", "angular", "--directory", str(target)]
+    )
+    assert result.exit_code != 0
+    assert "already exist" in result.output
+
+
+def test_webapp_init_angular_force_overwrite(tmp_path: Path, monkeypatch: MonkeyPatch) -> None:
+    runner = CliRunner()
+    patch_keyring(monkeypatch)
+
+    target = tmp_path / "ng_app"
+    target.mkdir()
+    (target / "PROMPTS.md").write_text("old")
+    (target / "README.md").write_text("old")
+
+    result = runner.invoke(
+        cli,
+        ["webapp", "init", "--template", "angular", "--directory", str(target), "--force"],
+    )
+    assert result.exit_code == 0
+    assert "systemlink-webapp" in (target / "PROMPTS.md").read_text(encoding="utf-8")
+
+
+def test_webapp_init_angular_installs_skills(tmp_path: Path, monkeypatch: MonkeyPatch) -> None:
+    """Webapp init --template angular should auto-install skills into the project."""
+    runner = CliRunner()
+    patch_keyring(monkeypatch)
+
+    target = tmp_path / "ng_skills"
+    result = runner.invoke(
+        cli, ["webapp", "init", "--template", "angular", "--directory", str(target)]
+    )
+    assert result.exit_code == 0
+
+    # Skills should be installed in the universal .agents/skills/ convention
+    skills_dir = target / ".agents" / "skills"
+    assert skills_dir.exists()
+    assert (skills_dir / "systemlink-webapp" / "SKILL.md").exists()
+    assert (skills_dir / "slcli" / "SKILL.md").exists()
 
 
 def test_webapp_pack_creates_nipkg(tmp_path: Path, monkeypatch: MonkeyPatch) -> None:
@@ -180,10 +249,10 @@ def test_webapp_list_paging_default(monkeypatch: MonkeyPatch) -> None:
     monkeypatch.setattr(slcli.utils, "get_workspace_map", lambda: {})
 
     # Simulate user answering 'n' to the "Show next set of results?" prompt
-    result = runner.invoke(cli, ["webapp", "list"], input="n\n")
+    with patch("slcli.webapp_click.questionary.confirm") as mock_confirm:
+        mock_confirm.return_value.ask.return_value = False
+        result = runner.invoke(cli, ["webapp", "list"])
     assert result.exit_code == 0
-    # Should show the prompt to ask for next set
-    assert "Show next set of results?" in result.output
     # Should contain first page item but not an item from the second page
     assert "App1" in result.output
     assert "App26" not in result.output
@@ -234,9 +303,10 @@ def test_webapp_list_paging_custom_take(monkeypatch: MonkeyPatch) -> None:
     monkeypatch.setattr(slcli.utils, "get_workspace_map", lambda: {})
 
     # Simulate user answering 'y' to fetch second page, then 'n' to stop before third
-    result = runner.invoke(cli, ["webapp", "list", "--take", "10"], input="y\nn\n")
+    with patch("slcli.webapp_click.questionary.confirm") as mock_confirm:
+        mock_confirm.return_value.ask.side_effect = [True, False]
+        result = runner.invoke(cli, ["webapp", "list", "--take", "10"])
     assert result.exit_code == 0
-    assert "Show next set of results?" in result.output
     # First and second page items should be present, third page should not
     assert "App1" in result.output
     assert "App20" in result.output

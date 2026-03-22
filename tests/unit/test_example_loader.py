@@ -6,7 +6,6 @@ from pathlib import Path
 from typing import Generator
 
 import pytest
-
 from slcli.example_loader import ExampleLoader
 
 

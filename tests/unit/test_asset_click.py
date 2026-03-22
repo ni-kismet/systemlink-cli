@@ -2,11 +2,11 @@
 
 import json
 from typing import Any, Dict, List, Optional
+from unittest.mock import patch
 
 import click
 import pytest
 from click.testing import CliRunner
-
 from slcli.asset_click import (
     _build_asset_filter,
     _escape_filter_value,
@@ -1579,7 +1579,9 @@ class TestDeleteAsset:
         monkeypatch.setattr("slcli.profiles.is_active_profile_readonly", lambda: False)
 
         cli = make_cli()
-        result = runner.invoke(cli, ["asset", "delete", "asset-1"], input="n\n")
+        with patch("slcli.asset_click.questionary.confirm") as mock_confirm:
+            mock_confirm.return_value.ask.return_value = False
+            result = runner.invoke(cli, ["asset", "delete", "asset-1"])
         assert "cancelled" in result.output.lower()
 
     def test_delete_asset_readonly_blocked(self, monkeypatch: Any, runner: CliRunner) -> None:

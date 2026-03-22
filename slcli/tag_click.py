@@ -11,6 +11,7 @@ import urllib.parse
 from typing import Any, Dict, List, Optional, Tuple
 
 import click
+import questionary
 
 from .cli_utils import validate_output_format
 from .universal_handlers import FilteredResponse, UniversalResponseHandler
@@ -287,7 +288,7 @@ def register_tag_commands(cli: Any) -> None:
                         break
 
                     # Ask if user wants more
-                    if click.confirm(f"Show next {take} results?", default=True):
+                    if questionary.confirm(f"Show next {take} results?", default=True).ask():
                         query_params["continuationToken"] = continuation_token
                         resp = make_api_request("POST", url, payload=query_params)
                         data = resp.json()

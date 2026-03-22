@@ -12,7 +12,6 @@ from unittest.mock import patch
 import click
 import pytest
 from click.testing import CliRunner
-
 from slcli.utils import ExitCodes
 
 

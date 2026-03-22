@@ -7,7 +7,6 @@ from unittest.mock import patch
 import click
 import pytest
 from click.testing import CliRunner
-
 from slcli.user_click import register_user_commands
 
 
@@ -992,15 +991,16 @@ class TestUserCreate:
         mock_requests(monkeypatch, "post", mock_user)
 
         cli = make_cli()
-        # Simulate user input for the prompts (including account type)
-        result = runner.invoke(
-            cli,
-            ["user", "create"],
-            input="user\nJohn\nDoe\njohn.doe@example.com\n",
-        )
+        # Mock questionary.select for account type, provide click.prompt inputs for remaining fields
+        with patch("slcli.user_click.questionary.select") as mock_select:
+            mock_select.return_value.ask.return_value = "user"
+            result = runner.invoke(
+                cli,
+                ["user", "create"],
+                input="John\nDoe\njohn.doe@example.com\n",
+            )
 
         assert result.exit_code == 0
-        assert "Account type" in result.output
         assert "User's first name:" in result.output
         assert "User's last name:" in result.output
         assert "User's email address:" in result.output
@@ -1037,11 +1037,13 @@ class TestUserCreate:
         patch_keyring(monkeypatch)
 
         cli = make_cli()
-        result = runner.invoke(
-            cli,
-            ["user", "create"],
-            input="user\nJohn\nDoe\ninvalid-email\n",
-        )
+        with patch("slcli.user_click.questionary.select") as mock_select:
+            mock_select.return_value.ask.return_value = "user"
+            result = runner.invoke(
+                cli,
+                ["user", "create"],
+                input="John\nDoe\ninvalid-email\n",
+            )
 
         assert result.exit_code == 2  # INVALID_INPUT
         assert "✗ Invalid email format." in result.output

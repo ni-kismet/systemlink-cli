@@ -4,6 +4,7 @@ import sys
 from typing import Any, Dict, List, Optional, Callable
 
 import click
+import questionary
 import requests
 
 from .utils import ExitCodes, handle_api_error
@@ -427,7 +428,7 @@ def paginate_list_output(
                 current_page += 1
                 continue
 
-            if not click.confirm("Show next 25 results?", default=True):
+            if not questionary.confirm("Show next 25 results?", default=True).ask():
                 break
 
             click.echo()  # Add blank line between pages

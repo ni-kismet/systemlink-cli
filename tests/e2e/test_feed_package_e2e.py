@@ -5,7 +5,6 @@ from pathlib import Path
 from typing import Any, Optional
 
 import pytest
-
 from slcli.webapp_click import _pack_folder_to_nipkg
 
 

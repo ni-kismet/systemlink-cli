@@ -7,7 +7,6 @@ from unittest.mock import MagicMock, patch
 import click
 import pytest
 from click.testing import CliRunner
-
 from slcli.routine_click import register_routine_commands
 from slcli.utils import ExitCodes
 
