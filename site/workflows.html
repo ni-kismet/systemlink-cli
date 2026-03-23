@@ -44,7 +44,6 @@
         <div class="sidebar-label">AI &amp; Development</div>
         <a href="#ai-skills" class="sidebar-link">Install AI Skills</a>
         <a href="#build-webapp" class="sidebar-link">Build a WebApp with AI</a>
-        <a href="#mcp-workflow" class="sidebar-link">MCP + AI Assistants</a>
       </div>
       <div class="sidebar-group">
         <div class="sidebar-label">Demo &amp; Training</div>
@@ -178,40 +177,6 @@ slcli webapp publish dist/&lt;app-name&gt;/browser/ \
       </div>
 
       <!-- ═══════════════════════════════════════════════════════ -->
-      <h2 id="mcp-workflow">MCP + AI Assistants (experimental)</h2>
-      <div class="highlight-box">
-        <p><strong>Experimental:</strong> The MCP server is under active development. The tool interface may change between releases.</p>
-      </div>
-      <p>The built-in Model Context Protocol server exposes SystemLink as structured tools that AI assistants can call directly.</p>
-
-      <div class="steps">
-        <div class="step">
-          <div class="step-num">1</div>
-          <div class="step-body">
-            <h3>Register the MCP server</h3>
-            <pre><code># VS Code Copilot Agent mode
-slcli mcp install
-
-# Claude Desktop
-slcli mcp install --target claude
-
-# All supported clients
-slcli mcp install --target all</code></pre>
-          </div>
-        </div>
-        <div class="step">
-          <div class="step-num">2</div>
-          <div class="step-body">
-            <h3>Query SystemLink from AI</h3>
-            <p>The MCP server exposes tools for workspaces, tags, systems, assets, test results, and routines. Your AI assistant calls them as native tools:</p>
-            <pre><code>"What's the calibration status of all PXI assets?"
-"Show tag values for temperature sensors in the Lab workspace"
-"List recent failed test results and suggest root causes"</code></pre>
-          </div>
-        </div>
-      </div>
-
-      <!-- ═══════════════════════════════════════════════════════ -->
       <h2 id="demo-environments">Provision Demo Environments</h2>
       <p>Instantly provision complete SystemLink environments with realistic data for demonstrations, training classes, and evaluation.</p>
 
@@ -332,7 +297,7 @@ slcli -p aiagent asset delete &lt;id&gt;
 # ✗ Cannot delete: profile is in readonly mode</code></pre>
 
       <div class="highlight-box">
-        <p><strong>Best practice:</strong> Use readonly profiles with the MCP server so AI assistants can explore data without accidentally modifying production resources.</p>
+        <p><strong>Best practice:</strong> Use readonly profiles with AI assistants so they can explore data without accidentally modifying production resources.</p>
       </div>
 
       <!-- ═══════════════════════════════════════════════════════ -->
