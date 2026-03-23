@@ -4,7 +4,11 @@ version = "1.4.0"
 description = "SystemLink Integrator CLI - cross-platform CLI for SystemLink workflows and templates."
 authors = ["Fred Visser <fred.visser@emerson.com>"]
 packages = [{ include = "slcli" }]
-include = ["dff-editor/**/*", "slcli/skills/**/*"]
+include = [
+    { path = "dff-editor/index.html", format = ["wheel", "sdist"] },
+    { path = "dff-editor/editor.js", format = ["wheel", "sdist"] },
+    "slcli/skills/**/*",
+]
 
 
 [tool.poetry.scripts]
