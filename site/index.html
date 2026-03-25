@@ -45,22 +45,36 @@
     </div>
     <div class="hero-terminal">
       <div class="terminal-bar"><span class="dot red"></span><span class="dot yellow"></span><span class="dot green"></span><span class="terminal-title">terminal</span></div>
-      <pre><code><span class="prompt">$</span> slcli login --profile prod
-<span class="dim">✓ Logged in to https://systemlink.example.com (profile: prod)</span>
+      <pre><code><span class="prompt">$</span> slcli login
+<span class="dim">  Server URL: https://myserver.example.com
+  API Key: ****
+✓ Profile 'default' saved successfully.</span>
 
-<span class="prompt">$</span> slcli testmonitor result list --summary --group-by status
-<span class="dim">┌──────────┬───────┐
-│ Status   │ Count │
-├──────────┼───────┤
-│ PASSED   │  1842 │
-│ FAILED   │    47 │
-│ RUNNING  │    12 │
-│ ERRORED  │     3 │
-└──────────┴───────┘</span>
+<span class="prompt">$</span> slcli info
+<span class="dim">┌─────────────────────────────────────────┐
+│          SystemLink CLI Info            │
+├─────────────────────────────────────────┤
+│  Status:    ✓ Connected                 │
+│  Platform:  SystemLink Enterprise       │
+├─────────────────────────────────────────┤
+│  ✓ Auth                  OK             │
+│  ✓ Test Monitor          OK             │
+│  ✓ Asset Management      OK             │
+│  ✓ Systems               OK             │
+│  ✓ Tag                   OK             │
+└─────────────────────────────────────────┘</span>
 
-<span class="prompt">$</span> slcli example install demo-complete-workflow -w Training
-<span class="dim">✓ Created 2 systems, 2 assets, 2 DUTs, 1 template, 1 product
-✓ Demo environment ready in workspace "Training"</span></code></pre>
+<span class="prompt">$</span> slcli system summary
+<span class="dim">┌────────────────────────┐
+│ System Fleet Summary   │
+├────────────────┬───────┤
+│ Connected      │  3019 │
+│ Disconnected   │   132 │
+│ Virtual        │    78 │
+│ Pending        │    73 │
+├────────────────┼───────┤
+│ Total          │  3302 │
+└────────────────┴───────┘</span></code></pre>
     </div>
   </div>
 </section>

@@ -1058,10 +1058,10 @@ class TestSystemSummary:
         cli = make_cli()
         result = runner.invoke(cli, ["system", "summary"])
         assert result.exit_code == 0
-        assert "Connected:" in result.output
-        assert "Disconnected:" in result.output
-        assert "Virtual:" in result.output
-        assert "Total:" in result.output
+        assert "Connected" in result.output
+        assert "Disconnected" in result.output
+        assert "Virtual" in result.output
+        assert "Total" in result.output
 
     def test_summary_api_error(self, monkeypatch: Any, runner: CliRunner) -> None:
         """Test summary handles API errors gracefully."""

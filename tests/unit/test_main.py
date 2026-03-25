@@ -60,7 +60,15 @@ def test_login_with_flags(monkeypatch: Any, tmp_path: Any) -> None:
     monkeypatch.setattr(
         "slcli.profiles.ProfileConfig.get_config_path", classmethod(lambda cls: config_file)
     )
-    monkeypatch.setattr("slcli.config_click.detect_platform", lambda *a, **kw: PLATFORM_SLE)
+    monkeypatch.setattr(
+        "slcli.config_click.check_service_status",
+        lambda *a, **kw: {
+            "server_reachable": True,
+            "auth_valid": True,
+            "services": {"Auth": "ok"},
+            "platform": PLATFORM_SLE,
+        },
+    )
     # Mock keyring to return None (no existing credentials)
     monkeypatch.setattr("slcli.main.keyring.get_password", lambda *a, **kw: None)
 
@@ -144,7 +152,7 @@ def test_info_json(monkeypatch: Any, tmp_path: Any) -> None:
         "features": {"templates": True},
     }
 
-    monkeypatch.setattr("slcli.main.get_platform_info", lambda: sample)
+    monkeypatch.setattr("slcli.main.get_platform_info", lambda **kw: sample)
     runner = CliRunner()
     result = runner.invoke(cli, ["info", "--format", "json"])
 
@@ -157,7 +165,15 @@ def test_login_prompts_migration_with_existing_keyring(monkeypatch: Any, tmp_pat
     monkeypatch.setattr(
         "slcli.profiles.ProfileConfig.get_config_path", classmethod(lambda cls: config_file)
     )
-    monkeypatch.setattr("slcli.config_click.detect_platform", lambda *a, **kw: PLATFORM_SLE)
+    monkeypatch.setattr(
+        "slcli.config_click.check_service_status",
+        lambda *a, **kw: {
+            "server_reachable": True,
+            "auth_valid": True,
+            "services": {"Auth": "ok"},
+            "platform": PLATFORM_SLE,
+        },
+    )
 
     # Mock keyring to return existing credentials
     def mock_get_password(service: str, key: str) -> Optional[str]:

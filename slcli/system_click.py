@@ -1715,14 +1715,17 @@ def register_system_commands(cli: Any) -> None:
                 }
                 click.echo(json.dumps(result, indent=2))
             else:
-                click.echo("\nSystem Fleet Summary")
-                click.echo("──────────────────────────────────────")
-                click.echo(f"  Connected:      {connected}")
-                click.echo(f"  Disconnected:   {disconnected}")
-                click.echo(f"  Virtual:        {virtual}")
-                click.echo(f"  Pending:        {pending}")
-                click.echo("  ─────────────────")
-                click.echo(f"  Total:          {total}")
+                click.echo()
+                click.echo("┌────────────────────────┐")
+                click.echo("│ System Fleet Summary   │")
+                click.echo("├────────────────┬───────┤")
+                click.echo(f"│ Connected      │ {connected:>5} │")
+                click.echo(f"│ Disconnected   │ {disconnected:>5} │")
+                click.echo(f"│ Virtual        │ {virtual:>5} │")
+                click.echo(f"│ Pending        │ {pending:>5} │")
+                click.echo("├────────────────┼───────┤")
+                click.echo(f"│ Total          │ {total:>5} │")
+                click.echo("└────────────────┴───────┘")
                 click.echo()
 
         except Exception as exc:  # noqa: BLE001

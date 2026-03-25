@@ -8,7 +8,7 @@ import json
 import os
 import sys
 from functools import lru_cache
-from typing import Any, Dict
+from typing import Any, Dict, List, Optional
 
 import click
 import keyring
@@ -21,6 +21,7 @@ from .utils import ExitCodes, get_ssl_verify
 PLATFORM_SLE = "SLE"  # SystemLink Enterprise (cloud)
 PLATFORM_SLS = "SLS"  # SystemLink Server (on-premises)
 PLATFORM_UNKNOWN = "unknown"
+PLATFORM_UNREACHABLE = "unreachable"  # Server could not be contacted
 
 # Feature matrix: maps features to platform availability
 PLATFORM_FEATURES: Dict[str, Dict[str, bool]] = {
@@ -80,64 +81,21 @@ def _get_keyring_config() -> Dict[str, Any]:
 def detect_platform(api_url: str, api_key: str) -> str:
     """Detect the SystemLink platform type by probing endpoints.
 
-    Detection strategy:
-    1. Try SLE-only endpoint (/niworkorder/v1/query-testplan-templates)
-       - If accessible -> SLE
-    2. Check URL pattern (*.systemlink.io, *.lifecyclesolutions.ni.com)
-       - If matches -> SLE
-    3. Default to SLS for on-premises/custom URLs
+    Uses check_service_status to probe services and determine:
+    - Platform type (SLE vs SLS)
+    - Server reachability
+    Falls back to URL pattern matching when probe is inconclusive.
 
     Args:
         api_url: The SystemLink API base URL
         api_key: The API key for authentication
 
     Returns:
-        Platform identifier (PLATFORM_SLE, PLATFORM_SLS, or PLATFORM_UNKNOWN)
+        Platform identifier (PLATFORM_SLE, PLATFORM_SLS, PLATFORM_UNREACHABLE,
+        or PLATFORM_UNKNOWN)
     """
-    headers = {
-        "x-ni-api-key": api_key,
-        "Content-Type": "application/json",
-        "User-Agent": "SystemLink-CLI/1.0 (cross-platform)",
-    }
-    ssl_verify = get_ssl_verify()
-
-    # Strategy 1: Probe SLE-only endpoint (Work Order service)
-    try:
-        # This endpoint only exists on SLE
-        workorder_url = f"{api_url}/niworkorder/v1/query-testplan-templates"
-        resp = requests.post(
-            workorder_url,
-            headers=headers,
-            json={"take": 1},
-            verify=ssl_verify,
-            timeout=10,
-        )
-        # If we get a 200 or 400 (bad request but endpoint exists), it's SLE
-        if resp.status_code in (200, 400):
-            return PLATFORM_SLE
-        # 404 means endpoint doesn't exist -> likely SLS
-        if resp.status_code == 404:
-            return PLATFORM_SLS
-    except requests.RequestException:
-        # Connection error - continue with other detection methods
-        pass
-
-    # Strategy 2: URL pattern matching
-    # SLE (cloud and hosted) service has specific URL patterns
-    api_url_lower = api_url.lower()
-    sle_patterns = [
-        "api.systemlink.io",  # SLE production
-        "-api.lifecyclesolutions.ni.com",  # SLE dev/demo with -api suffix
-        "dev-api.lifecyclesolutions",
-        "demo-api.lifecyclesolutions",
-    ]
-    for pattern in sle_patterns:
-        if pattern in api_url_lower:
-            return PLATFORM_SLE
-
-    # Strategy 3: Default to SLS for on-premises deployments
-    # This includes on-prem servers that may use *.systemlink.io subdomains
-    return PLATFORM_SLS
+    status = check_service_status(api_url, api_key)
+    return status["platform"]
 
 
 def _detect_platform_from_url(api_url: str) -> str:
@@ -274,11 +232,130 @@ def require_feature(feature_name: str) -> None:
     sys.exit(ExitCodes.INVALID_INPUT)
 
 
-def get_platform_info() -> Dict[str, Any]:
-    """Get detailed information about the current platform configuration.
+# Services to probe during health checks.
+# Each entry: (display_name, method, url_path)
+SERVICE_CHECKS: List[List[str]] = [
+    ["Auth", "GET", "/niauth/v1/policies"],
+    ["Test Monitor", "GET", "/nitestmonitor/v2/results?take=0"],
+    ["Asset Management", "POST", "/niapm/v1/query-assets"],
+    ["Systems", "POST", "/nisysmgmt/v1/query-systems"],
+    ["Tag", "GET", "/nitag/v2/tags?take=0"],
+    ["File", "POST", "/nifile/v1/service-groups/Default/search-files"],
+    ["Notebook", "POST", "/ninotebook/v1/notebook/query"],
+    ["Web Application", "POST", "/niapp/v1/webapps/query"],
+    ["Dynamic Form Fields", "GET", "/nidynamicformfields/v1/groups"],
+    ["Work Order", "POST", "/niworkorder/v1/query-testplan-templates"],
+]
+
+
+def check_service_status(api_url: str, api_key: str) -> Dict[str, Any]:
+    """Probe key SystemLink services and report their status.
+
+    Checks reachability, authorization, and availability of core services.
+
+    Args:
+        api_url: The SystemLink API base URL.
+        api_key: The API key for authentication.
 
     Returns:
-        Dictionary with platform info including URL, platform type, and features.
+        Dictionary with:
+        - server_reachable: bool - whether any service responded
+        - auth_valid: bool | None - whether the API key is authorized (None if unreachable)
+        - services: dict mapping service name to status string
+          ("ok", "unauthorized", "not_found", "error", "unreachable")
+        - platform: detected platform string (PLATFORM_SLE, PLATFORM_SLS,
+          PLATFORM_UNREACHABLE)
+    """
+    headers = {
+        "x-ni-api-key": api_key,
+        "Content-Type": "application/json",
+        "User-Agent": "SystemLink-CLI/1.0 (cross-platform)",
+    }
+    ssl_verify = get_ssl_verify()
+
+    services: Dict[str, str] = {}
+    any_responded = False
+    any_authorized = False
+    all_unauthorized = True
+
+    for display_name, method, url_path in SERVICE_CHECKS:
+        try:
+            full_url = f"{api_url}{url_path}"
+            if method == "POST":
+                resp = requests.post(
+                    full_url,
+                    headers=headers,
+                    json={"take": 1},
+                    verify=ssl_verify,
+                    timeout=10,
+                )
+            else:
+                resp = requests.get(
+                    full_url,
+                    headers=headers,
+                    verify=ssl_verify,
+                    timeout=10,
+                )
+            any_responded = True
+
+            if resp.status_code in (200, 400):
+                services[display_name] = "ok"
+                any_authorized = True
+                all_unauthorized = False
+            elif resp.status_code == 401:
+                services[display_name] = "unauthorized"
+            elif resp.status_code == 403:
+                services[display_name] = "unauthorized"
+            elif resp.status_code == 404:
+                services[display_name] = "not_found"
+                all_unauthorized = False
+            else:
+                services[display_name] = "error"
+                all_unauthorized = False
+        except requests.RequestException:
+            services[display_name] = "unreachable"
+
+    # Determine overall status
+    if not any_responded:
+        return {
+            "server_reachable": False,
+            "auth_valid": None,
+            "services": services,
+            "platform": PLATFORM_UNREACHABLE,
+        }
+
+    # Determine auth status: valid if any service accepted the key
+    # If all responding services returned 401/403, the key is invalid
+    auth_valid = any_authorized if any_responded else None
+    if all_unauthorized and any_responded:
+        auth_valid = False
+
+    # Determine platform from service responses
+    workorder_status = services.get("Work Order")
+    if workorder_status in ("ok",):
+        platform = PLATFORM_SLE
+    elif workorder_status == "not_found":
+        platform = PLATFORM_SLS
+    else:
+        # Fall back to URL pattern matching
+        platform = _detect_platform_from_url(api_url)
+
+    return {
+        "server_reachable": True,
+        "auth_valid": auth_valid,
+        "services": services,
+        "platform": platform,
+    }
+
+
+def get_platform_info(skip_health: bool = False) -> Dict[str, Any]:
+    """Get detailed information about the current platform configuration.
+
+    Args:
+        skip_health: If True, skip live service health checks.
+
+    Returns:
+        Dictionary with platform info including URL, platform type, and services.
     """
     from .utils import get_api_key, get_base_url, get_web_url
 
@@ -304,11 +381,24 @@ def get_platform_info() -> Dict[str, Any]:
 
     active_profile = get_active_profile()
     if active_profile and active_profile.platform:
-        platform = active_profile.platform
+        stored_platform = active_profile.platform
     else:
         # Fall back to keyring config
         cfg = _get_keyring_config()
-        platform = cfg.get("platform", PLATFORM_UNKNOWN)
+        stored_platform = cfg.get("platform", PLATFORM_UNKNOWN)
+
+    # Live service health check when logged in
+    server_reachable: Optional[bool] = None
+    auth_valid: Optional[bool] = None
+    services: Optional[Dict[str, str]] = None
+    platform = stored_platform
+
+    if not skip_health and logged_in and isinstance(api_url, str) and api_url != "Not configured":
+        status = check_service_status(api_url, api_key)
+        server_reachable = status["server_reachable"]
+        auth_valid = status["auth_valid"]
+        services = status["services"]
+        platform = status["platform"]
 
     info: Dict[str, Any] = {
         "api_url": api_url,
@@ -316,14 +406,12 @@ def get_platform_info() -> Dict[str, Any]:
         "platform": platform,
         "platform_display": _get_platform_display_name(platform),
         "logged_in": logged_in,
+        "server_reachable": server_reachable,
+        "auth_valid": auth_valid,
     }
 
-    # Add feature availability if platform is known
-    if platform in PLATFORM_FEATURES:
-        info["features"] = {}
-        for feature, available in PLATFORM_FEATURES[platform].items():
-            display_name = FEATURE_DISPLAY_NAMES.get(feature, feature)
-            info["features"][display_name] = available
+    if services is not None:
+        info["services"] = services
 
     return info
 
@@ -341,5 +429,6 @@ def _get_platform_display_name(platform: str) -> str:
         PLATFORM_SLE: "SystemLink Enterprise",
         PLATFORM_SLS: "SystemLink Server",
         PLATFORM_UNKNOWN: "Unknown",
+        PLATFORM_UNREACHABLE: "Unreachable (could not connect to server)",
     }
     return names.get(platform, platform)

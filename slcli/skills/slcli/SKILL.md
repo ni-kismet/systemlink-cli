@@ -468,7 +468,7 @@ Manage named connection profiles (dev, test, prod). Credentials are stored in
 ```bash
 slcli login [--profile NAME] [--url URL] [--api-key KEY] [--web-url URL] [--workspace NAME]
 slcli logout [--profile NAME] [--all] [--force]
-slcli info [-f json]                            # Show active profile and feature availability
+slcli info [-f json] [--skip-health]            # Show active profile and service health
 slcli completion [--shell SHELL] [--install]    # Generate or install shell tab completion
 
 slcli config list [-f json]                     # List all profiles

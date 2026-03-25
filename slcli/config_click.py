@@ -8,7 +8,11 @@ from typing import Any, Optional
 import click
 import questionary
 
-from .platform import PLATFORM_SLE, PLATFORM_SLS, detect_platform
+from .platform import (
+    PLATFORM_SLE,
+    PLATFORM_SLS,
+    check_service_status,
+)
 from .profiles import ProfileConfig, Profile, check_config_file_permissions
 from .table_utils import output_formatted_list
 from .utils import ExitCodes
@@ -83,16 +87,41 @@ def _add_profile_impl(
         click.echo("⚠️  Warning: Adding HTTPS protocol to web URL.")
         web_url = f"https://{web_url}"
 
-    # Detect platform type
-    click.echo("Detecting platform type...")
-    platform = detect_platform(url, api_key.strip())
+    # Detect platform type and check service status
+    click.echo("Checking server connectivity and services...")
+    status = check_service_status(url, api_key.strip())
+    platform = status["platform"]
 
-    if platform == PLATFORM_SLE:
-        click.echo("  Platform: SystemLink Enterprise (Cloud)")
-    elif platform == PLATFORM_SLS:
-        click.echo("  Platform: SystemLink Server (On-Premises)")
+    if not status["server_reachable"]:
+        click.echo("  ⚠️  Could not connect to server", err=True)
+        click.echo("      Verify the URL is correct and the server is reachable.", err=True)
+        click.echo(
+            "      Profile will be saved — run login again when the server is available.",
+            err=True,
+        )
     else:
-        click.echo("  Platform: Unknown (will attempt all features)")
+        if platform == PLATFORM_SLE:
+            click.echo("  Platform: SystemLink Enterprise (Cloud)")
+        elif platform == PLATFORM_SLS:
+            click.echo("  Platform: SystemLink Server (On-Premises)")
+        else:
+            click.echo("  Platform: Unknown (will attempt all features)")
+
+        # Report authorization status
+        if status["auth_valid"] is False:
+            click.echo("  ⚠️  API key: Unauthorized — check that the key is valid", err=True)
+        elif status["auth_valid"] is True:
+            click.echo("  API key:  ✓ Authorized")
+
+        # Report individual service status
+        services = status.get("services", {})
+        problem_services = [
+            name for name, svc_status in services.items() if svc_status == "unauthorized"
+        ]
+        if problem_services and status["auth_valid"] is not False:
+            # Only show per-service issues if overall auth isn't completely invalid
+            for svc_name in problem_services:
+                click.echo(f"  ⚠️  {svc_name}: unauthorized", err=True)
 
     # Get default workspace (optional)
     if workspace is None:

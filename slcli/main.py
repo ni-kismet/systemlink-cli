@@ -21,7 +21,6 @@ from .function_click import register_function_commands
 from .mcp_click import register_mcp_commands
 from .notebook_click import register_notebook_commands
 from .platform import (
-    PLATFORM_UNKNOWN,
     get_platform_info,
 )
 from .policy_click import register_policy_commands
@@ -295,11 +294,12 @@ def logout(profile: Optional[str], remove_all: bool, force: bool) -> None:
 
 @cli.command()
 @click.option("--format", "-f", type=click.Choice(["table", "json"]), default="table")
-def info(format: str) -> None:
+@click.option("--skip-health", is_flag=True, default=False, help="Skip live service health checks.")
+def info(format: str, skip_health: bool) -> None:
     """Show current configuration and detected platform."""
     from .profiles import ProfileConfig, get_active_profile
 
-    platform_info = get_platform_info()
+    platform_info = get_platform_info(skip_health=skip_health)
 
     # Add profile information
     cfg = ProfileConfig.load()
@@ -333,7 +333,14 @@ def info(format: str) -> None:
     click.echo("├" + "─" * content_width + "┤")
 
     # Connection status
-    status = "✓ Connected" if platform_info["logged_in"] else "✗ Not logged in"
+    if not platform_info["logged_in"]:
+        status = "✗ Not logged in"
+    elif platform_info.get("server_reachable") is False:
+        status = "✗ Server unreachable"
+    elif platform_info.get("auth_valid") is False:
+        status = "✗ API key unauthorized"
+    else:
+        status = "✓ Connected"
     click.echo(f"│  Status:    {status:<48}│")
 
     # Profile information
@@ -361,23 +368,24 @@ def info(format: str) -> None:
         workspace_display = truncate(workspace)
         click.echo(f"│  Workspace: {workspace_display:<48}│")
 
-    click.echo("├" + "─" * content_width + "┤")
-    click.echo("│" + "Feature Availability".center(content_width) + "│")
-    click.echo("├" + "─" * content_width + "┤")
+    # Service Health section (only when services were checked)
+    services = platform_info.get("services")
+    if services:
+        click.echo("├" + "─" * content_width + "┤")
+        click.echo("│" + "Service Health".center(content_width) + "│")
+        click.echo("├" + "─" * content_width + "┤")
 
-    features = platform_info.get("features", {})
-    if features:
-        for feature_name, available in features.items():
-            status_icon = "✓" if available else "✗"
-            status_text = "Available" if available else "Not available"
-            # Truncate feature name if needed
-            display_name = truncate(feature_name, 29)
-            click.echo(f"│  {status_icon} {display_name:<30} {status_text:<26}│")
-    else:
-        if platform_info["platform"] == PLATFORM_UNKNOWN:
-            click.echo("│  Run 'slcli login' to detect platform features.            │")
-        else:
-            click.echo("│  No feature information available.                          │")
+        status_display = {
+            "ok": ("✓", "OK"),
+            "unauthorized": ("✗", "Unauthorized"),
+            "not_found": ("—", "Not available"),
+            "error": ("✗", "Error"),
+            "unreachable": ("✗", "Unreachable"),
+        }
+        for svc_name, svc_status in services.items():
+            icon, text = status_display.get(svc_status, ("?", svc_status))
+            display_name = truncate(svc_name, 29)
+            click.echo(f"│  {icon} {display_name:<30} {text:<26}│")
 
     click.echo("└" + "─" * content_width + "┘\n")
 
