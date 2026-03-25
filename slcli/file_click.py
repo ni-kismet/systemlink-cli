@@ -10,9 +10,10 @@ from typing import Any, Dict, List, Optional
 
 import click
 import questionary
+import requests as requests_lib
 
 from .cli_utils import validate_output_format
-from .universal_handlers import UniversalResponseHandler
+from .universal_handlers import FilteredResponse, UniversalResponseHandler
 from .utils import (
     ExitCodes,
     format_success,
@@ -27,6 +28,120 @@ from .workspace_utils import get_effective_workspace, resolve_workspace_filter
 def _get_file_service_url() -> str:
     """Get the file service base URL."""
     return f"{get_base_url()}/nifile/v1/service-groups/Default"
+
+
+def _get_search_files_url() -> str:
+    """Get the search-files endpoint URL."""
+    return f"{_get_file_service_url()}/search-files"
+
+
+def _is_search_files_unavailable(exc: requests_lib.HTTPError) -> bool:
+    """Return whether the search-files endpoint is unavailable."""
+    return exc.response is not None and exc.response.status_code in (404, 501)
+
+
+def _exit_search_files_required() -> None:
+    """Exit with a user-facing message when search-files is unavailable."""
+    click.echo(
+        "✗ File query requires the search-files endpoint, but Elasticsearch is not available.",
+        err=True,
+    )
+    click.echo(
+        "  Use 'slcli file list' for automatic fallback to query-files-linq.",
+        err=True,
+    )
+    sys.exit(ExitCodes.INVALID_INPUT)
+
+
+def _search_files_with_fallback(
+    payload: Dict[str, Any],
+    workspace_id: Optional[str],
+    name_filter: Optional[str],
+    id_filter: Optional[str],
+) -> Any:
+    """Try search-files endpoint, fall back to query-files-linq if unavailable.
+
+    The search-files endpoint requires additional software (DataFinder) to be
+    installed. If it is not available (HTTP 404), we fall back to query-files-linq.
+
+    Args:
+        payload: The search-files request payload
+        workspace_id: Optional workspace ID filter
+        name_filter: Optional name filter string
+        id_filter: Optional comma-separated file IDs
+
+    Returns:
+        Response object (real or FilteredResponse)
+    """
+    try:
+        return make_api_request(
+            "POST", _get_search_files_url(), payload=payload, handle_errors=False
+        )
+    except requests_lib.HTTPError as exc:
+        if _is_search_files_unavailable(exc):
+            return _query_files_linq_fallback(
+                take=payload.get("take", 25),
+                workspace_id=workspace_id,
+                name_filter=name_filter,
+                id_filter=id_filter,
+            )
+        raise
+
+
+def _query_files_linq_fallback(
+    take: int,
+    workspace_id: Optional[str],
+    name_filter: Optional[str],
+    id_filter: Optional[str],
+) -> Any:
+    """List files using query-files-linq as a fallback when search-files is unavailable.
+
+    Args:
+        take: Maximum number of files to return
+        workspace_id: Optional workspace ID filter
+        name_filter: Optional name filter string (applied client-side)
+        id_filter: Optional comma-separated file IDs
+
+    Returns:
+        Response or FilteredResponse with availableFiles data
+    """
+    base_url = _get_file_service_url()
+    url = f"{base_url}/query-files-linq"
+
+    # Build LINQ-style filter
+    filter_parts: List[str] = []
+
+    if id_filter:
+        ids = [fid.strip() for fid in id_filter.split(",")]
+        id_conditions = [f'id = "{fid}"' for fid in ids]
+        filter_parts.append("(" + " or ".join(id_conditions) + ")")
+
+    linq_payload: Dict[str, Any] = {}
+
+    # Request more if we need to filter client-side by name
+    if name_filter:
+        linq_payload["take"] = max(take * 4, 1000)
+    else:
+        linq_payload["take"] = take
+
+    if filter_parts:
+        linq_payload["filter"] = " and ".join(filter_parts)
+
+    # Workspace filtering via query parameter
+    if workspace_id:
+        url += f"?workspace={workspace_id}"
+
+    resp = make_api_request("POST", url, payload=linq_payload)
+
+    # Client-side name filtering (query-files-linq doesn't support name wildcards)
+    if name_filter:
+        data = resp.json()
+        files = data.get("availableFiles", [])
+        needle = name_filter.lower()
+        filtered = [f for f in files if needle in _get_file_name(f).lower()][:take]
+        return FilteredResponse({"availableFiles": filtered})
+
+    return resp
 
 
 def _format_file_size(size_bytes: Optional[int]) -> str:
@@ -178,9 +293,6 @@ def register_file_commands(cli: Any) -> None:
         """
         format_output = validate_output_format(format)
 
-        # Use search-files endpoint for better performance
-        url = f"{_get_file_service_url()}/search-files"
-
         try:
             # Resolve workspace name to ID if needed
             workspace_id = None
@@ -189,7 +301,7 @@ def register_file_commands(cli: Any) -> None:
                 workspace_map = get_workspace_map()
                 workspace_id = resolve_workspace_filter(workspace, workspace_map)
 
-            # Build search filter
+            # Build search filter for search-files endpoint
             filter_parts = []
 
             if workspace_id:
@@ -221,7 +333,13 @@ def register_file_commands(cli: Any) -> None:
             if filter_parts:
                 payload["filter"] = " AND ".join(filter_parts)
 
-            resp = make_api_request("POST", url, payload=payload)
+            # Try search-files, fall back to query-files-linq if unavailable
+            resp = _search_files_with_fallback(
+                payload=payload,
+                workspace_id=workspace_id,
+                name_filter=name_filter,
+                id_filter=id_filter,
+            )
 
             def file_formatter(file_item: dict) -> list:
                 name = _get_file_name(file_item)
@@ -567,11 +685,8 @@ def register_file_commands(cli: Any) -> None:
         """
         format_output = validate_output_format(format)
 
-        # Use search-files endpoint for better performance
-        url = f"{_get_file_service_url()}/search-files"
-
         try:
-            # Build request body
+            # Build request body for search-files
             query_body: Dict[str, Any] = {
                 "take": take if format_output.lower() == "json" else (take if take != 25 else 1000),
                 "orderByDescending": descending,
@@ -584,6 +699,7 @@ def register_file_commands(cli: Any) -> None:
                 filter_parts.append(filter_query)
 
             # Resolve workspace name to ID if needed
+            workspace_id = None
             workspace = get_effective_workspace(workspace)
             if workspace:
                 workspace_map = get_workspace_map()
@@ -598,7 +714,12 @@ def register_file_commands(cli: Any) -> None:
             else:
                 query_body["orderBy"] = "updated"
 
-            resp = make_api_request("POST", url, payload=query_body)
+            resp = make_api_request(
+                "POST",
+                _get_search_files_url(),
+                payload=query_body,
+                handle_errors=False,
+            )
 
             def file_formatter(file_item: dict) -> list:
                 name = _get_file_name(file_item)
@@ -620,6 +741,10 @@ def register_file_commands(cli: Any) -> None:
                 page_size=take,
             )
 
+        except requests_lib.HTTPError as exc:
+            if _is_search_files_unavailable(exc):
+                _exit_search_files_required()
+            handle_api_error(exc)
         except Exception as exc:
             handle_api_error(exc)
 

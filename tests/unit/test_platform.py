@@ -261,6 +261,38 @@ class TestCheckServiceStatus:
         # Workorder was unauthorized, so platform falls back to URL matching -> SLE
         assert result["platform"] == PLATFORM_SLE
 
+    def test_reports_file_query_fallback_capability(self) -> None:
+        """Test file service health includes query-files-linq fallback details."""
+        mock_get, mock_post = self._mock_requests(
+            {
+                "/niauth/": 200,
+                "/nitestmonitor/": 200,
+                "/niapm/": 200,
+                "/nisysmgmt/": 200,
+                "/nitag/": 404,
+                "/nifile/": 404,
+                "/ninotebook/": 404,
+                "/niapp/": 404,
+                "/nidynamicformfields/": 404,
+                "/niworkorder/": 404,
+            }
+        )
+        with patch("slcli.platform.requests.get", mock_get), patch(
+            "slcli.platform.requests.post", mock_post
+        ), patch(
+            "slcli.platform.get_file_query_capability",
+            return_value={
+                "status": "fallback",
+                "file_query_endpoint": "query-files-linq",
+                "elasticsearch_available": False,
+            },
+        ):
+            result = check_service_status("https://my-server.local", "valid-key")
+
+        assert result["services"]["File"] == "fallback"
+        assert result["file_query_endpoint"] == "query-files-linq"
+        assert result["elasticsearch_available"] is False
+
 
 class TestDetectPlatformFromUrl:
     """Tests for _detect_platform_from_url function (URL pattern matching only)."""
@@ -507,6 +539,49 @@ class TestGetPlatformInfo:
             assert result["logged_in"] is True
             assert result["server_reachable"] is True
             assert "features" not in result
+
+    def test_get_platform_info_file_query_fallback(self) -> None:
+        """Test get_platform_info reports query-files-linq when search-files is unavailable."""
+        from slcli.profiles import Profile
+
+        profile = Profile(
+            name="test",
+            server="https://my-server.local",
+            api_key="test-key",
+            web_url="https://my-server.local",
+            platform="SLS",
+        )
+        mock_status = {
+            "server_reachable": True,
+            "auth_valid": True,
+            "services": {
+                "Auth": "ok",
+                "Test Monitor": "ok",
+                "File": "fallback",
+                "Work Order": "not_found",
+            },
+            "file_query_endpoint": "query-files-linq",
+            "elasticsearch_available": False,
+            "platform": PLATFORM_SLS,
+        }
+
+        with patch("slcli.profiles.get_active_profile") as mock_profile, patch(
+            "slcli.utils.get_base_url"
+        ) as mock_base_url, patch("slcli.utils.get_web_url") as mock_web_url, patch(
+            "slcli.utils.get_api_key"
+        ) as mock_api_key, patch(
+            "slcli.platform.check_service_status", return_value=mock_status
+        ):
+            mock_profile.return_value = profile
+            mock_base_url.return_value = "https://my-server.local"
+            mock_web_url.return_value = "https://my-server.local"
+            mock_api_key.return_value = "test-key"
+
+            result = get_platform_info()
+
+            assert result["services"]["File"] == "fallback"
+            assert result["file_query_endpoint"] == "query-files-linq"
+            assert result["elasticsearch_available"] is False
 
     def test_get_platform_info_not_logged_in(self) -> None:
         """Test getting platform info when not logged in."""

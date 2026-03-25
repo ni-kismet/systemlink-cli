@@ -292,3 +292,90 @@ class TestInfoCommand:
         assert "SystemLink Enterprise" in result.output
         assert "Service Health" not in result.output
         mock_check.assert_not_called()
+
+    def test_info_command_reports_file_query_fallback(self, monkeypatch: Any) -> None:
+        """Test info command shows query-files-linq when Elasticsearch is unavailable."""
+        test_profile = Profile(
+            name="test",
+            server="https://my-server.local",
+            api_key="test-key",
+            web_url="https://my-server.local",
+            platform="SLS",
+        )
+        mock_status = {
+            "server_reachable": True,
+            "auth_valid": True,
+            "services": {
+                "Auth": "ok",
+                "Test Monitor": "ok",
+                "File": "fallback",
+                "Work Order": "not_found",
+            },
+            "file_query_endpoint": "query-files-linq",
+            "elasticsearch_available": False,
+            "platform": "SLS",
+        }
+
+        with patch("slcli.profiles.get_active_profile") as mock_profile, patch(
+            "slcli.utils.get_base_url"
+        ) as mock_base_url, patch("slcli.utils.get_web_url") as mock_web_url, patch(
+            "slcli.utils.get_api_key"
+        ) as mock_api_key, patch(
+            "slcli.platform.check_service_status", return_value=mock_status
+        ):
+            mock_profile.return_value = test_profile
+            mock_base_url.return_value = "https://my-server.local"
+            mock_web_url.return_value = "https://my-server.local"
+            mock_api_key.return_value = "test-key"
+
+            runner = CliRunner()
+            result = runner.invoke(cli, ["info"])
+
+        assert result.exit_code == 0
+        assert "query-files-linq" in result.output
+        assert "Elasticsearch unavailable" in result.output
+        assert "Fallback (no Elasticsearch)" in result.output
+
+    def test_info_command_json_reports_file_query_fallback(self, monkeypatch: Any) -> None:
+        """Test info JSON includes file query capability details."""
+        test_profile = Profile(
+            name="test",
+            server="https://my-server.local",
+            api_key="test-key",
+            web_url="https://my-server.local",
+            platform="SLS",
+        )
+        mock_status = {
+            "server_reachable": True,
+            "auth_valid": True,
+            "services": {
+                "Auth": "ok",
+                "Test Monitor": "ok",
+                "File": "fallback",
+                "Work Order": "not_found",
+            },
+            "file_query_endpoint": "query-files-linq",
+            "elasticsearch_available": False,
+            "platform": "SLS",
+        }
+
+        with patch("slcli.profiles.get_active_profile") as mock_profile, patch(
+            "slcli.utils.get_base_url"
+        ) as mock_base_url, patch("slcli.utils.get_web_url") as mock_web_url, patch(
+            "slcli.utils.get_api_key"
+        ) as mock_api_key, patch(
+            "slcli.platform.check_service_status", return_value=mock_status
+        ):
+            mock_profile.return_value = test_profile
+            mock_base_url.return_value = "https://my-server.local"
+            mock_web_url.return_value = "https://my-server.local"
+            mock_api_key.return_value = "test-key"
+
+            runner = CliRunner()
+            result = runner.invoke(cli, ["info", "--format", "json"])
+
+        assert result.exit_code == 0
+        output = json.loads(result.output)
+        assert output["file_query_endpoint"] == "query-files-linq"
+        assert output["elasticsearch_available"] is False
+        assert output["services"]["File"] == "fallback"

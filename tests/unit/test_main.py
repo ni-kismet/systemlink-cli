@@ -96,6 +96,47 @@ def test_login_with_flags(monkeypatch: Any, tmp_path: Any) -> None:
     assert config_file.exists()
 
 
+def test_login_reports_file_query_fallback(monkeypatch: Any, tmp_path: Any) -> None:
+    """Ensure login explains file query fallback when Elasticsearch is unavailable."""
+    config_file = tmp_path / "config.json"
+    monkeypatch.setattr(
+        "slcli.profiles.ProfileConfig.get_config_path", classmethod(lambda cls: config_file)
+    )
+    monkeypatch.setattr(
+        "slcli.config_click.check_service_status",
+        lambda *a, **kw: {
+            "server_reachable": True,
+            "auth_valid": True,
+            "services": {"Auth": "ok", "File": "fallback"},
+            "file_query_endpoint": "query-files-linq",
+            "elasticsearch_available": False,
+            "platform": PLATFORM_SLE,
+        },
+    )
+    monkeypatch.setattr("slcli.main.keyring.get_password", lambda *a, **kw: None)
+
+    runner = CliRunner()
+    result = runner.invoke(
+        cli,
+        [
+            "login",
+            "--profile",
+            "test",
+            "--url",
+            "https://example.test",
+            "--api-key",
+            "abc123",
+            "--web-url",
+            "https://web.example.test",
+        ],
+        input="\n\n",
+    )
+
+    assert result.exit_code == 0, result.output
+    assert "query-files-linq (Elasticsearch unavailable)" in result.output
+    assert "file list' will fall back automatically" in result.output
+
+
 def test_logout_removes_credentials(monkeypatch: Any, tmp_path: Any) -> None:
     """Ensure logout deletes profile from config."""
     import json

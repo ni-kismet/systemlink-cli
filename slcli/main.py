@@ -368,6 +368,15 @@ def info(format: str, skip_health: bool) -> None:
         workspace_display = truncate(workspace)
         click.echo(f"│  Workspace: {workspace_display:<48}│")
 
+    file_query_endpoint = platform_info.get("file_query_endpoint")
+    if file_query_endpoint:
+        if platform_info.get("elasticsearch_available") is False:
+            file_query_display = f"{file_query_endpoint} (Elasticsearch unavailable)"
+        else:
+            file_query_display = str(file_query_endpoint)
+        file_query_display = truncate(file_query_display)
+        click.echo(f"│  File Query:{file_query_display:<48}│")
+
     # Service Health section (only when services were checked)
     services = platform_info.get("services")
     if services:
@@ -377,6 +386,7 @@ def info(format: str, skip_health: bool) -> None:
 
         status_display = {
             "ok": ("✓", "OK"),
+            "fallback": ("!", "Fallback (no Elasticsearch)"),
             "unauthorized": ("✗", "Unauthorized"),
             "not_found": ("—", "Not available"),
             "error": ("✗", "Error"),

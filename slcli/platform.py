@@ -56,6 +56,9 @@ FEATURE_DISPLAY_NAMES: Dict[str, str] = {
     "webapp": "Web Applications",
 }
 
+FILE_SEARCH_PATH = "/nifile/v1/service-groups/Default/search-files"
+FILE_QUERY_LINQ_PATH = "/nifile/v1/service-groups/Default/query-files-linq"
+
 
 def _get_keyring_config() -> Dict[str, Any]:
     """Attempt to read a single JSON config entry from keyring.
@@ -240,12 +243,93 @@ SERVICE_CHECKS: List[List[str]] = [
     ["Asset Management", "POST", "/niapm/v1/query-assets"],
     ["Systems", "POST", "/nisysmgmt/v1/query-systems"],
     ["Tag", "GET", "/nitag/v2/tags?take=0"],
-    ["File", "POST", "/nifile/v1/service-groups/Default/search-files"],
+    ["File", "POST", FILE_SEARCH_PATH],
     ["Notebook", "POST", "/ninotebook/v1/notebook/query"],
     ["Web Application", "POST", "/niapp/v1/webapps/query"],
     ["Dynamic Form Fields", "GET", "/nidynamicformfields/v1/groups"],
     ["Work Order", "POST", "/niworkorder/v1/query-testplan-templates"],
 ]
+
+
+def get_file_query_capability(api_url: str, api_key: str) -> Dict[str, Any]:
+    """Determine which file query endpoint is available for this server."""
+    headers = {
+        "x-ni-api-key": api_key,
+        "Content-Type": "application/json",
+        "User-Agent": "SystemLink-CLI/1.0 (cross-platform)",
+    }
+    ssl_verify = get_ssl_verify()
+
+    try:
+        search_resp = requests.post(
+            f"{api_url}{FILE_SEARCH_PATH}",
+            headers=headers,
+            json={"take": 1},
+            verify=ssl_verify,
+            timeout=10,
+        )
+        if search_resp.status_code in (200, 400):
+            return {
+                "status": "ok",
+                "file_query_endpoint": "search-files",
+                "elasticsearch_available": True,
+            }
+        if search_resp.status_code in (401, 403):
+            return {
+                "status": "unauthorized",
+                "file_query_endpoint": "search-files",
+                "elasticsearch_available": True,
+            }
+        if search_resp.status_code not in (404, 501):
+            return {
+                "status": "error" if search_resp.status_code >= 500 else "not_found",
+                "file_query_endpoint": None,
+                "elasticsearch_available": True,
+            }
+    except requests.RequestException:
+        return {
+            "status": "unreachable",
+            "file_query_endpoint": None,
+            "elasticsearch_available": None,
+        }
+
+    try:
+        fallback_resp = requests.post(
+            f"{api_url}{FILE_QUERY_LINQ_PATH}",
+            headers=headers,
+            json={"take": 1},
+            verify=ssl_verify,
+            timeout=10,
+        )
+        if fallback_resp.status_code in (200, 400):
+            return {
+                "status": "fallback",
+                "file_query_endpoint": "query-files-linq",
+                "elasticsearch_available": False,
+            }
+        if fallback_resp.status_code in (401, 403):
+            return {
+                "status": "unauthorized",
+                "file_query_endpoint": "query-files-linq",
+                "elasticsearch_available": False,
+            }
+        if fallback_resp.status_code in (404, 501):
+            return {
+                "status": "not_found",
+                "file_query_endpoint": None,
+                "elasticsearch_available": False,
+            }
+        return {
+            "status": "error",
+            "file_query_endpoint": None,
+            "elasticsearch_available": False,
+        }
+    except requests.RequestException:
+        return {
+            "status": "unreachable",
+            "file_query_endpoint": None,
+            "elasticsearch_available": False,
+        }
 
 
 def check_service_status(api_url: str, api_key: str) -> Dict[str, Any]:
@@ -263,6 +347,8 @@ def check_service_status(api_url: str, api_key: str) -> Dict[str, Any]:
         - auth_valid: bool | None - whether the API key is authorized (None if unreachable)
         - services: dict mapping service name to status string
           ("ok", "unauthorized", "not_found", "error", "unreachable")
+                - file_query_endpoint: selected file query endpoint, if available
+                - elasticsearch_available: bool | None - whether search-files is available
         - platform: detected platform string (PLATFORM_SLE, PLATFORM_SLS,
           PLATFORM_UNREACHABLE)
     """
@@ -321,6 +407,8 @@ def check_service_status(api_url: str, api_key: str) -> Dict[str, Any]:
             "server_reachable": False,
             "auth_valid": None,
             "services": services,
+            "file_query_endpoint": None,
+            "elasticsearch_available": None,
             "platform": PLATFORM_UNREACHABLE,
         }
 
@@ -340,10 +428,15 @@ def check_service_status(api_url: str, api_key: str) -> Dict[str, Any]:
         # Fall back to URL pattern matching
         platform = _detect_platform_from_url(api_url)
 
+    file_capability = get_file_query_capability(api_url, api_key)
+    services["File"] = file_capability["status"]
+
     return {
         "server_reachable": True,
         "auth_valid": auth_valid,
         "services": services,
+        "file_query_endpoint": file_capability["file_query_endpoint"],
+        "elasticsearch_available": file_capability["elasticsearch_available"],
         "platform": platform,
     }
 
@@ -392,6 +485,8 @@ def get_platform_info(skip_health: bool = False) -> Dict[str, Any]:
     auth_valid: Optional[bool] = None
     services: Optional[Dict[str, str]] = None
     platform = stored_platform
+    file_query_endpoint: Optional[str] = None
+    elasticsearch_available: Optional[bool] = None
 
     if not skip_health and logged_in and isinstance(api_url, str) and api_url != "Not configured":
         status = check_service_status(api_url, api_key)
@@ -399,6 +494,8 @@ def get_platform_info(skip_health: bool = False) -> Dict[str, Any]:
         auth_valid = status["auth_valid"]
         services = status["services"]
         platform = status["platform"]
+        file_query_endpoint = status.get("file_query_endpoint")
+        elasticsearch_available = status.get("elasticsearch_available")
 
     info: Dict[str, Any] = {
         "api_url": api_url,
@@ -409,6 +506,11 @@ def get_platform_info(skip_health: bool = False) -> Dict[str, Any]:
         "server_reachable": server_reachable,
         "auth_valid": auth_valid,
     }
+
+    if file_query_endpoint is not None:
+        info["file_query_endpoint"] = file_query_endpoint
+    if elasticsearch_available is not None:
+        info["elasticsearch_available"] = elasticsearch_available
 
     if services is not None:
         info["services"] = services

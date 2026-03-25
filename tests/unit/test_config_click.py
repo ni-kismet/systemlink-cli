@@ -278,3 +278,88 @@ class TestDeleteProfile:
 
         assert result.exit_code != 0
         assert "not found" in result.output.lower()
+
+
+class TestAddProfileTrailingSlash:
+    """Tests that trailing slashes are stripped from URLs during profile creation."""
+
+    def test_trailing_slash_stripped_from_url(self, tmp_path: Path, monkeypatch: Any) -> None:
+        """Test that trailing slashes are stripped from the API URL."""
+        config_file = tmp_path / "config.json"
+        monkeypatch.setattr(
+            "slcli.profiles.ProfileConfig.get_config_path", classmethod(lambda cls: config_file)
+        )
+        # Mock check_service_status to avoid network calls
+        monkeypatch.setattr(
+            "slcli.config_click.check_service_status",
+            lambda url, key: {
+                "server_reachable": False,
+                "platform": None,
+                "auth_valid": None,
+                "services": {},
+            },
+        )
+
+        from slcli.main import cli
+
+        runner = CliRunner()
+        result = runner.invoke(
+            cli,
+            [
+                "login",
+                "--profile",
+                "test-slash",
+                "--url",
+                "https://api.example.com/",
+                "--api-key",
+                "test-key",
+                "--web-url",
+                "https://web.example.com/",
+            ],
+        )
+
+        assert result.exit_code == 0
+        saved = json.loads(config_file.read_text())
+        profile = saved["profiles"]["test-slash"]
+        assert profile["server"] == "https://api.example.com"
+        assert profile.get("web-url", "") == "https://web.example.com"
+
+    def test_multiple_trailing_slashes_stripped(self, tmp_path: Path, monkeypatch: Any) -> None:
+        """Test that multiple trailing slashes are stripped."""
+        config_file = tmp_path / "config.json"
+        monkeypatch.setattr(
+            "slcli.profiles.ProfileConfig.get_config_path", classmethod(lambda cls: config_file)
+        )
+        monkeypatch.setattr(
+            "slcli.config_click.check_service_status",
+            lambda url, key: {
+                "server_reachable": False,
+                "platform": None,
+                "auth_valid": None,
+                "services": {},
+            },
+        )
+
+        from slcli.main import cli
+
+        runner = CliRunner()
+        result = runner.invoke(
+            cli,
+            [
+                "login",
+                "--profile",
+                "test-multi-slash",
+                "--url",
+                "https://api.example.com///",
+                "--api-key",
+                "test-key",
+                "--web-url",
+                "https://web.example.com///",
+            ],
+        )
+
+        assert result.exit_code == 0
+        saved = json.loads(config_file.read_text())
+        profile = saved["profiles"]["test-multi-slash"]
+        assert profile["server"] == "https://api.example.com"
+        assert profile.get("web-url", "") == "https://web.example.com"

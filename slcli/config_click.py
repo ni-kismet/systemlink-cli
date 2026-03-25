@@ -64,6 +64,7 @@ def _add_profile_impl(
     elif not url.startswith("https://"):
         click.echo("⚠️  Warning: Adding HTTPS protocol to URL.")
         url = f"https://{url}"
+    url = url.rstrip("/")
 
     # Get API key - either from flag or prompt
     if not api_key:
@@ -86,6 +87,7 @@ def _add_profile_impl(
     elif not web_url.startswith("https://"):
         click.echo("⚠️  Warning: Adding HTTPS protocol to web URL.")
         web_url = f"https://{web_url}"
+    web_url = web_url.rstrip("/")
 
     # Detect platform type and check service status
     click.echo("Checking server connectivity and services...")
@@ -112,6 +114,12 @@ def _add_profile_impl(
             click.echo("  ⚠️  API key: Unauthorized — check that the key is valid", err=True)
         elif status["auth_valid"] is True:
             click.echo("  API key:  ✓ Authorized")
+
+        if status.get("elasticsearch_available") is False:
+            click.echo("  File query: query-files-linq (Elasticsearch unavailable)")
+            click.echo(
+                "      'slcli file list' will fall back automatically; 'slcli file query' requires search-files."
+            )
 
         # Report individual service status
         services = status.get("services", {})
