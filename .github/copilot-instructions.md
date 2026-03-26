@@ -115,7 +115,7 @@ filtered_resp: Any = FilteredResponse({"workspaces": filtered_list})
 
 - Auth stored in keyring under `systemlink-cli` service
 - Base URL from `get_base_url()` in `utils.py`
-- OpenAPI specs at `https://dev-api.lifecyclesolutions.ni.com/ni*/swagger/`
+- OpenAPI specs at `https://demo-api.lifecyclesolutions.ni.com/ni*/swagger/`
 
 ## New CLI Command Requirements & Checklist
 

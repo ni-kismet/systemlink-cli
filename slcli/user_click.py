@@ -423,7 +423,7 @@ def _query_all_users(
     - Uses 'status = "active"' for filtering disabled users
 
     TODO: Follow this pattern for other API clients that support continuation tokens
-    Reference: https://dev-api.lifecyclesolutions.ni.com/niuser/swagger/v1/niuser.yaml
+    Reference: https://demo-api.lifecyclesolutions.ni.com/niuser/swagger/v1/niuser.yaml
 
     Args:
         filter_str: Filter expression for users

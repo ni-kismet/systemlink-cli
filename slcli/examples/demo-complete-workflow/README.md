@@ -303,9 +303,7 @@ slcli result list -w <workspace>
 
 ## Additional Resources
 
-- **SystemLink API Documentation**: https://dev-api.lifecyclesolutions.ni.com/
-- **Test Monitor Specs**: https://dev-api.lifecyclesolutions.ni.com/nitestmonitor/swagger/
-- **Work Item API**: https://dev-api.lifecyclesolutions.ni.com/niworkitem/swagger/
+- **SystemLink API Documentation**: https://demo-api.lifecyclesolutions.ni.com/niapis/
 - **systemlink-cli GitHub**: https://github.com/ni/systemlink-cli
 
 ## Contact & Support

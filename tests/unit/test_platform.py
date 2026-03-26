@@ -11,7 +11,6 @@ from slcli.platform import (
     PLATFORM_SLS,
     PLATFORM_UNKNOWN,
     PLATFORM_UNREACHABLE,
-    _detect_platform_from_url,
     check_service_status,
     clear_platform_cache,
     detect_platform,
@@ -236,8 +235,8 @@ class TestCheckServiceStatus:
         assert result["auth_valid"] is None
         assert result["platform"] == PLATFORM_UNREACHABLE
 
-    def test_url_fallback_sle_pattern(self) -> None:
-        """Test that URL fallback detects SLE when workorder status is unauthorized."""
+    def test_inconclusive_workorder_status_returns_unknown(self) -> None:
+        """Test that unauthorized workorder status no longer guesses the platform."""
         mock_get, mock_post = self._mock_requests(
             {
                 "/niauth/": 200,
@@ -255,11 +254,10 @@ class TestCheckServiceStatus:
         with patch("slcli.platform.requests.get", mock_get), patch(
             "slcli.platform.requests.post", mock_post
         ):
-            result = check_service_status("https://dev-api.lifecyclesolutions.ni.com", "key")
+            result = check_service_status("https://demo-api.lifecyclesolutions.ni.com", "key")
 
         assert result["server_reachable"] is True
-        # Workorder was unauthorized, so platform falls back to URL matching -> SLE
-        assert result["platform"] == PLATFORM_SLE
+        assert result["platform"] == PLATFORM_UNKNOWN
 
     def test_reports_file_query_fallback_capability(self) -> None:
         """Test file service health includes query-files-linq fallback details."""
@@ -292,49 +290,6 @@ class TestCheckServiceStatus:
         assert result["services"]["File"] == "fallback"
         assert result["file_query_endpoint"] == "query-files-linq"
         assert result["elasticsearch_available"] is False
-
-
-class TestDetectPlatformFromUrl:
-    """Tests for _detect_platform_from_url function (URL pattern matching only)."""
-
-    def test_sle_api_systemlink_io(self) -> None:
-        """Test api.systemlink.io is detected as SLE."""
-        assert _detect_platform_from_url("https://api.systemlink.io") == PLATFORM_SLE
-
-    def test_sle_dev_api_lifecyclesolutions(self) -> None:
-        """Test dev-api.lifecyclesolutions.ni.com is detected as SLE."""
-        assert (
-            _detect_platform_from_url("https://dev-api.lifecyclesolutions.ni.com") == PLATFORM_SLE
-        )
-
-    def test_sle_demo_api_lifecyclesolutions(self) -> None:
-        """Test demo-api.lifecyclesolutions.ni.com is detected as SLE."""
-        assert (
-            _detect_platform_from_url("https://demo-api.lifecyclesolutions.ni.com") == PLATFORM_SLE
-        )
-
-    def test_sls_base_systemlink_io(self) -> None:
-        """Test base.systemlink.io (on-prem subdomain) is detected as SLS."""
-        assert _detect_platform_from_url("https://base.systemlink.io") == PLATFORM_SLS
-
-    def test_sls_custom_systemlink_io_subdomain(self) -> None:
-        """Test custom systemlink.io subdomains are detected as SLS."""
-        assert _detect_platform_from_url("https://mycompany.systemlink.io") == PLATFORM_SLS
-
-    def test_sls_custom_domain(self) -> None:
-        """Test custom on-prem domains are detected as SLS."""
-        assert _detect_platform_from_url("https://my-server.company.local") == PLATFORM_SLS
-
-    def test_sls_localhost(self) -> None:
-        """Test localhost is detected as SLS."""
-        assert _detect_platform_from_url("http://localhost:8000") == PLATFORM_SLS
-
-    def test_case_insensitive(self) -> None:
-        """Test URL matching is case-insensitive."""
-        assert _detect_platform_from_url("https://API.SYSTEMLINK.IO") == PLATFORM_SLE
-        assert (
-            _detect_platform_from_url("https://Demo-API.LifecycleSolutions.NI.COM") == PLATFORM_SLE
-        )
 
 
 class TestGetPlatform:
@@ -377,6 +332,19 @@ class TestGetPlatform:
 
         with patch("slcli.platform.keyring.get_password") as mock_keyring:
             mock_keyring.return_value = json.dumps(config)
+
+            result = get_platform()
+
+            assert result == PLATFORM_UNKNOWN
+
+    def test_get_platform_unknown_when_only_api_url_env_is_set(self) -> None:
+        """Test that API URL alone does not trigger hostname-based platform guessing."""
+        with patch.dict(
+            "os.environ",
+            {"SYSTEMLINK_API_URL": "https://demo-api.lifecyclesolutions.ni.com"},
+            clear=True,
+        ), patch("slcli.platform.keyring.get_password") as mock_keyring:
+            mock_keyring.return_value = None
 
             result = get_platform()
 

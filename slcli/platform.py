@@ -87,7 +87,6 @@ def detect_platform(api_url: str, api_key: str) -> str:
     Uses check_service_status to probe services and determine:
     - Platform type (SLE vs SLS)
     - Server reachability
-    Falls back to URL pattern matching when probe is inconclusive.
 
     Args:
         api_url: The SystemLink API base URL
@@ -101,45 +100,6 @@ def detect_platform(api_url: str, api_key: str) -> str:
     return status["platform"]
 
 
-def _detect_platform_from_url(api_url: str) -> str:
-    """Detect platform from URL pattern without making network requests.
-
-    This is a lightweight detection for use when environment variables
-    are set and we need quick platform detection.
-
-    SLE (SystemLink Enterprise Cloud) URLs typically contain:
-    - api.systemlink.io (production)
-    - dev-api.lifecyclesolutions.ni.com (development)
-    - demo-api.lifecyclesolutions.ni.com (demo)
-
-    On-premises SystemLink Server (SLS) instances may use custom domains
-    or even *.systemlink.io subdomains (like base.systemlink.io).
-
-    Args:
-        api_url: The SystemLink API base URL
-
-    Returns:
-        Platform identifier: PLATFORM_SLE or PLATFORM_SLS.
-        Note: This function never returns PLATFORM_UNKNOWN - it defaults to SLS.
-    """
-    api_url_lower = api_url.lower()
-
-    # SLE cloud service has specific URL patterns
-    sle_patterns = [
-        "api.systemlink.io",  # SLE production
-        "-api.lifecyclesolutions.ni.com",  # SLE dev/demo with -api suffix
-        "dev-api.lifecyclesolutions",
-        "demo-api.lifecyclesolutions",
-    ]
-    for pattern in sle_patterns:
-        if pattern in api_url_lower:
-            return PLATFORM_SLE
-
-    # Default to SLS for on-premises/custom URLs
-    # This includes on-prem servers that may use *.systemlink.io subdomains
-    return PLATFORM_SLS
-
-
 @lru_cache(maxsize=1)
 def get_platform() -> str:
     """Get the current platform from stored configuration or environment.
@@ -147,8 +107,7 @@ def get_platform() -> str:
     Detection priority:
     1. SYSTEMLINK_PLATFORM environment variable (explicit, most reliable)
     2. Stored platform from keyring config (set during login via endpoint probing)
-    3. URL pattern matching (fallback, less reliable)
-    4. Return PLATFORM_UNKNOWN if all methods fail
+    3. Return PLATFORM_UNKNOWN if no explicit or stored platform is available
 
     Note: Results are cached for performance. Use clear_platform_cache() to reset.
 
@@ -168,12 +127,6 @@ def get_platform() -> str:
         platform = cfg.get("platform", "")
         if platform in (PLATFORM_SLE, PLATFORM_SLS):
             return platform
-
-    # Priority 3: URL pattern matching (fallback, less reliable)
-    # Only used when env vars are set but no explicit platform is provided
-    env_url = os.environ.get("SYSTEMLINK_API_URL")
-    if env_url:
-        return _detect_platform_from_url(env_url)
 
     return PLATFORM_UNKNOWN
 
@@ -349,8 +302,8 @@ def check_service_status(api_url: str, api_key: str) -> Dict[str, Any]:
           ("ok", "unauthorized", "not_found", "error", "unreachable")
                 - file_query_endpoint: selected file query endpoint, if available
                 - elasticsearch_available: bool | None - whether search-files is available
-        - platform: detected platform string (PLATFORM_SLE, PLATFORM_SLS,
-          PLATFORM_UNREACHABLE)
+                - platform: detected platform string (PLATFORM_SLE, PLATFORM_SLS,
+                    PLATFORM_UNREACHABLE, PLATFORM_UNKNOWN)
     """
     headers = {
         "x-ni-api-key": api_key,
@@ -425,8 +378,7 @@ def check_service_status(api_url: str, api_key: str) -> Dict[str, Any]:
     elif workorder_status == "not_found":
         platform = PLATFORM_SLS
     else:
-        # Fall back to URL pattern matching
-        platform = _detect_platform_from_url(api_url)
+        platform = PLATFORM_UNKNOWN
 
     file_capability = get_file_query_capability(api_url, api_key)
     services["File"] = file_capability["status"]
