@@ -128,6 +128,134 @@ class TestUserList:
         assert len(users_json) == 1
         assert users_json[0]["firstName"] == "John"
 
+    def test_list_users_json_format_paginates_to_requested_take(
+        self, runner: CliRunner, monkeypatch: Any
+    ) -> None:
+        """Test JSON output follows continuation tokens until the requested take is reached."""
+        patch_keyring(monkeypatch)
+        request_payloads = []
+
+        def mock_make_api_request(method: str, url: str, payload: Any = None, **kwargs: Any) -> Any:
+            request_payloads.append(payload)
+
+            class MockResponse:
+                def __init__(self, data: Any) -> None:
+                    self._data = data
+                    self.status_code = 200
+
+                def json(self) -> Any:
+                    return self._data
+
+                def raise_for_status(self) -> None:
+                    pass
+
+            if payload.get("continuationToken") == "page-2":
+                users = [
+                    {
+                        "id": f"user-{index}",
+                        "firstName": f"User{index}",
+                        "lastName": "Example",
+                        "email": f"user{index}@example.com",
+                        "status": "active",
+                    }
+                    for index in range(100, 150)
+                ]
+                return MockResponse({"users": users})
+
+            users = [
+                {
+                    "id": f"user-{index}",
+                    "firstName": f"User{index}",
+                    "lastName": "Example",
+                    "email": f"user{index}@example.com",
+                    "status": "active",
+                }
+                for index in range(100)
+            ]
+            return MockResponse({"users": users, "continuationToken": "page-2"})
+
+        monkeypatch.setattr("slcli.user_click.make_api_request", mock_make_api_request)
+
+        cli = make_cli()
+        result = runner.invoke(cli, ["user", "list", "--format", "json", "--take", "150"])
+
+        assert result.exit_code == 0
+        users_json = json.loads(result.output)
+        assert len(users_json) == 150
+        assert request_payloads[0]["take"] == 100
+        assert request_payloads[1]["take"] == 50
+        assert request_payloads[1]["continuationToken"] == "page-2"
+
+    def test_list_users_json_format_uses_higher_default_take(
+        self, runner: CliRunner, monkeypatch: Any
+    ) -> None:
+        """Test JSON output uses a larger default limit than table mode when --take is omitted."""
+        patch_keyring(monkeypatch)
+        request_payloads = []
+
+        def mock_make_api_request(method: str, url: str, payload: Any = None, **kwargs: Any) -> Any:
+            request_payloads.append(payload)
+
+            class MockResponse:
+                def __init__(self, data: Any) -> None:
+                    self._data = data
+                    self.status_code = 200
+
+                def json(self) -> Any:
+                    return self._data
+
+                def raise_for_status(self) -> None:
+                    pass
+
+            if payload.get("continuationToken") == "page-3":
+                users = [
+                    {
+                        "id": f"user-{index}",
+                        "firstName": f"User{index}",
+                        "lastName": "Example",
+                        "email": f"user{index}@example.com",
+                        "status": "active",
+                    }
+                    for index in range(200, 300)
+                ]
+                return MockResponse({"users": users})
+
+            if payload.get("continuationToken") == "page-2":
+                users = [
+                    {
+                        "id": f"user-{index}",
+                        "firstName": f"User{index}",
+                        "lastName": "Example",
+                        "email": f"user{index}@example.com",
+                        "status": "active",
+                    }
+                    for index in range(100, 200)
+                ]
+                return MockResponse({"users": users, "continuationToken": "page-3"})
+
+            users = [
+                {
+                    "id": f"user-{index}",
+                    "firstName": f"User{index}",
+                    "lastName": "Example",
+                    "email": f"user{index}@example.com",
+                    "status": "active",
+                }
+                for index in range(100)
+            ]
+            return MockResponse({"users": users, "continuationToken": "page-2"})
+
+        monkeypatch.setattr("slcli.user_click.make_api_request", mock_make_api_request)
+
+        cli = make_cli()
+        result = runner.invoke(cli, ["user", "list", "--format", "json"])
+
+        assert result.exit_code == 0
+        users_json = json.loads(result.output)
+        assert len(users_json) == 300
+        assert all(payload["take"] == 100 for payload in request_payloads)
+        assert len(request_payloads) == 3
+
     def test_list_users_with_filter(self, runner: CliRunner, monkeypatch: Any) -> None:
         """Test listing users with filter."""
         patch_keyring(monkeypatch)
