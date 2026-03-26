@@ -13,6 +13,7 @@ from uuid import uuid4
 
 import click
 import questionary
+from click.core import ParameterSource
 
 from .cli_utils import paginate_list_output, validate_output_format
 from .utils import (
@@ -23,6 +24,10 @@ from .utils import (
     make_api_request,
 )
 from .workspace_utils import get_workspace_display_name, resolve_workspace_id
+
+
+USER_QUERY_PAGE_SIZE = 100
+USER_JSON_DEFAULT_TAKE = 1000
 
 
 def _get_policy_details(policy_id: str) -> Optional[dict]:
@@ -412,6 +417,7 @@ def _query_all_users(
     sortby: str = "firstName",
     order: str = "asc",
     include_disabled: bool = False,
+    max_items: Optional[int] = None,
 ) -> list:
     """Query all users from the API with server-side pagination using continuation tokens.
 
@@ -430,6 +436,7 @@ def _query_all_users(
         sortby: Field to sort by
         order: Sort order ('asc' or 'desc')
         include_disabled: Whether to include disabled users
+        max_items: Maximum number of users to return. When omitted, fetches all pages.
 
     Returns:
         List of all users
@@ -437,7 +444,7 @@ def _query_all_users(
     url = f"{get_base_url()}/niuser/v1/users/query"
     all_users = []
     continuation_token = None
-    page_size = 100  # API maximum take limit is 100
+    remaining_items = max_items if max_items and max_items > 0 else None
 
     # Build the base filter - combine user filter with active status filter if needed
     combined_filter = filter_str
@@ -451,8 +458,13 @@ def _query_all_users(
             combined_filter = active_filter
 
     while True:
+        request_take = (
+            USER_QUERY_PAGE_SIZE
+            if remaining_items is None
+            else min(USER_QUERY_PAGE_SIZE, remaining_items)
+        )
         payload = {
-            "take": page_size,
+            "take": request_take,
             "sortby": sortby,
             "order": "ascending" if order == "asc" else "descending",
         }
@@ -471,6 +483,11 @@ def _query_all_users(
             break
 
         all_users.extend(users)
+
+        if remaining_items is not None:
+            remaining_items -= len(users)
+            if remaining_items <= 0:
+                return all_users[:max_items]
 
         # Check for continuation token to get next page
         continuation_token = data.get("continuationToken")
@@ -499,8 +516,10 @@ def register_user_commands(cli: click.Group) -> None:
         "-t",
         type=int,
         default=25,
-        show_default=True,
-        help="Maximum number of users to return",
+        help=(
+            "Table page size (default 25). JSON returns up to 1000 users by default; "
+            "use --take to override."
+        ),
     )
     @click.option(
         "--format",
@@ -573,59 +592,34 @@ def register_user_commands(cli: click.Group) -> None:
             if user_type != "all":
                 type_filter = f'type = "{user_type}"'
 
-            # For JSON format, we can respect the take parameter and use server-side pagination
-            # For table format, we fetch all users and do client-side pagination for better UX
-            if format_output.lower() == "json":
-                # Use server-side pagination for JSON output
-                url = f"{get_base_url()}/niuser/v1/users/query"
-
-                # Build the filter - combine search filter with active status filter if needed
-                combined_filter = search_filter
-                if not include_disabled:
-                    # Add active status filter to the query using correct Dynamic LINQ syntax
-                    # Note: User API uses 'status' field with values 'pending' or 'active'
-                    active_filter = 'status = "active"'
-                    if combined_filter:
-                        combined_filter = f"({combined_filter}) and {active_filter}"
-                    else:
-                        combined_filter = active_filter
-
-                # Add type filter
-                if type_filter:
-                    if combined_filter:
-                        combined_filter = f"({combined_filter}) and {type_filter}"
-                    else:
-                        combined_filter = type_filter
-
-                payload = {
-                    "take": take,
-                    "sortby": sortby,
-                    "order": "ascending" if order == "asc" else "descending",
-                }
-
+            combined_filter = search_filter
+            if type_filter:
                 if combined_filter:
-                    payload["filter"] = combined_filter
+                    combined_filter = f"({combined_filter}) and {type_filter}"
+                else:
+                    combined_filter = type_filter
 
-                resp = make_api_request("POST", url, payload=payload)
-                data = resp.json()
-                users = data.get("users", [])
+            if format_output.lower() == "json":
+                ctx = click.get_current_context()
+                take_source = ctx.get_parameter_source("take")
+                json_take = (
+                    USER_JSON_DEFAULT_TAKE if take_source == ParameterSource.DEFAULT else take
+                )
+
+                users = _query_all_users(
+                    filter_str=combined_filter,
+                    sortby=sortby,
+                    order=order,
+                    include_disabled=include_disabled,
+                    max_items=json_take,
+                )
 
                 click.echo(json.dumps(users, indent=2))
                 return
             else:
                 # For table format, fetch all users for proper client-side pagination
-                # Combine filters for table output
-                combined_filter_for_table = search_filter
-                if type_filter:
-                    if combined_filter_for_table:
-                        combined_filter_for_table = (
-                            f"({combined_filter_for_table}) and {type_filter}"
-                        )
-                    else:
-                        combined_filter_for_table = type_filter
-
                 all_users = _query_all_users(
-                    filter_str=combined_filter_for_table,
+                    filter_str=combined_filter,
                     sortby=sortby,
                     order=order,
                     include_disabled=include_disabled,
