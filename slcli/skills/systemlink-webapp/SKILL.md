@@ -58,22 +58,23 @@ npm install @ni/systemlink-clients-ts
 
 ### Available services (import paths)
 
-| Service | Import path | `baseUrl` (append to `window.location.origin`) |
-|---------|-------------|------------------------------------------------|
-| Feeds | `@ni/systemlink-clients-ts/feeds` | (none — spec paths already include `/nifeed/v1/`) |
-| Tags | `@ni/systemlink-clients-ts/tags` | `+ '/nitag'` |
-| User / Workspaces | `@ni/systemlink-clients-ts/user` | `+ '/niuser/v1'` |
-| Web Application | `@ni/systemlink-clients-ts/web-application` | `+ '/niapp/v1'` |
-| File Ingestion | `@ni/systemlink-clients-ts/file-ingestion` | `+ '/nifile'` |
-| Test Monitor | `@ni/systemlink-clients-ts/test-monitor` | `+ '/nitest'` |
-| Asset Management | `@ni/systemlink-clients-ts/asset-management` | `+ '/niapm'` |
-| Work Items | `@ni/systemlink-clients-ts/work-item` | `+ '/niworkorder'` |
-| Systems Management | `@ni/systemlink-clients-ts/systems-management` | `+ '/nisysmgmt'` |
-| Notebooks | `@ni/systemlink-clients-ts/notebook` | `+ '/ninotebook'` |
+| Service | Import path | Client `baseUrl` |
+|---------|-------------|------------------|
+| Feeds | `@ni/systemlink-clients-ts/feeds` | `window.location.origin` |
+| Tags | `@ni/systemlink-clients-ts/tags` | `window.location.origin + '/nitag'` |
+| User / Workspaces | `@ni/systemlink-clients-ts/user` | `window.location.origin + '/niuser/v1'` |
+| Web Application | `@ni/systemlink-clients-ts/web-application` | `window.location.origin + '/niapp/v1'` |
+| File Ingestion | `@ni/systemlink-clients-ts/file-ingestion` | `window.location.origin + '/nifile'` |
+| Test Monitor | `@ni/systemlink-clients-ts/test-monitor` | `window.location.origin + '/nitestmonitor'` |
+| Asset Management | `@ni/systemlink-clients-ts/asset-management` | `window.location.origin` |
+| Work Items | `@ni/systemlink-clients-ts/work-item` | `window.location.origin` |
+| Work Orders | `@ni/systemlink-clients-ts/work-order` | `window.location.origin` |
+| Systems Management | `@ni/systemlink-clients-ts/systems-management` | `window.location.origin` |
+| Notebooks | `@ni/systemlink-clients-ts/notebook` | `window.location.origin` |
 
 The client factory for each service lives at `@ni/systemlink-clients-ts/<service>/client`.
 
-> **Base URL gotcha:** Each generated client's path depends on its OpenAPI spec base. For **Feeds**, the spec base is `https://host/` and operation paths already include `/nifeed/v1/...`, so use `baseUrl: window.location.origin` with no suffix. For all other services the spec root matches the service prefix (`https://host/nitag`, `https://host/niuser/v1`, etc.), so set `baseUrl: window.location.origin + '/<prefix>'` as shown above.
+> **Base URL gotcha:** Verify the generated operation URLs, not just the service name. In the published `@ni/systemlink-clients-ts` package, `tags` uses `/v2/...` with `baseUrl: origin + '/nitag'`, `user` uses `/users` and `/workspaces` with `baseUrl: origin + '/niuser/v1'`, `web-application` uses `/webapps/...` with `baseUrl: origin + '/niapp/v1'`, `file-ingestion` uses `/v1/...` with `baseUrl: origin + '/nifile'`, and `test-monitor` uses `/v2/...` with `baseUrl: origin + '/nitestmonitor'`. Services like `feeds`, `asset-management`, `systems-management`, `work-item`, `work-order`, and `notebook` already include `/nifeed`, `/niapm`, `/nisysmgmt`, `/niworkitem`, `/niworkorder`, or `/ninotebook` in each operation path, so those clients should use `baseUrl: window.location.origin`.
 
 > **SDK type mismatch fallback:** If a generated SDK function causes `InputFieldValidationError`, verify the actual request body the server expects with a raw `curl` POST. Sometimes the generated types wrap the body in a `{ request: { ... } }` envelope that the server does not accept (or expect a flat body the type shows as nested). Use direct `fetch` with a manually constructed body as a reliable fallback when the SDK types are wrong.
 
@@ -390,10 +391,18 @@ const { data, error } = await buildClient().post<MyResponse, unknown>({
 Always compute the base URL from `window.location.origin` — never hardcode a hostname:
 
 ```typescript
-const BASE_URL = `${window.location.origin}/nitag`;    // Tags
-const BASE_URL = `${window.location.origin}/nitest`;   // Test Monitor
-const BASE_URL = `${window.location.origin}/niapm`;    // Asset Management
-const BASE_URL = `${window.location.origin}/nifile`;   // File Ingestion
+const tagsBaseUrl = `${window.location.origin}/nitag`;                // tags.js -> /v2/...
+const userBaseUrl = `${window.location.origin}/niuser/v1`;            // user.js -> /users, /workspaces
+const webAppBaseUrl = `${window.location.origin}/niapp/v1`;           // web-application.js -> /webapps/...
+const fileIngestionBaseUrl = `${window.location.origin}/nifile`;      // file-ingestion.js -> /v1/...
+const testMonitorBaseUrl = `${window.location.origin}/nitestmonitor`; // test-monitor.js -> /v2/...
+
+const feedsBaseUrl = window.location.origin;                          // feeds.js -> /nifeed/v1/...
+const assetBaseUrl = window.location.origin;                          // asset-management.js -> /niapm/v1/...
+const systemsBaseUrl = window.location.origin;                        // systems-management.js -> /nisysmgmt/v1/...
+const workItemBaseUrl = window.location.origin;                       // work-item.js -> /niworkitem/v1/...
+const workOrderBaseUrl = window.location.origin;                      // work-order.js -> /niworkorder/v1/...
+const notebookBaseUrl = window.location.origin;                       // notebook.js -> /ninotebook/v1/...
 ```
 
 ### Authentication
@@ -647,8 +656,8 @@ Save the returned webapp ID — you'll need it for every subsequent redeploy.
 | CSP `unsafe-inline` error | Beasties injects `onload` in style tags | `inlineCritical: false` in angular.json optimization |
 | App stays light inside dark SystemLink shell | Theme-aware aliases defined on `:root` or embedded app not watching host provider | Define color/shadow aliases on `nimble-theme-provider`; sync `currentTheme` from parent provider |
 | `theme="dark"` is set but colors still look light | Checked the attribute only, not the resolved tokens | Inspect `getComputedStyle(themeProvider).getPropertyValue('--ni-nimble-application-background-color')` in the hosted iframe |
-| CORS / status 0 | `basePath` points to different origin | Set `basePath = window.location.origin + '/service-prefix'` |
-| 404 on API calls | Missing service prefix in base URL | e.g., `/nitag` not just `window.location.origin`; Feeds service paths already include `/nifeed/v1/` so use origin alone |
+| CORS / status 0 | `baseUrl` points to the wrong origin or wrong service root | Match the generated client: for example `test-monitor` uses `${window.location.origin}/nitestmonitor`, while `work-item` uses `window.location.origin` |
+| 404 on API calls | Wrong `baseUrl` for the selected client | Only `tags`, `user`, `web-application`, `file-ingestion`, and `test-monitor` need a prefixed `baseUrl`. `feeds`, `asset-management`, `systems-management`, `work-item`, `work-order`, and `notebook` use bare origin because their operation URLs already include the service prefix |
 | `InputFieldValidationError` on API call | SDK-generated request body has wrong shape | Inspect raw API; the generated type may add or omit a `request: {}` wrapper. Use direct `fetch` with manually constructed body |
 | nimble-dialog does not open | `*ngIf` destroys element before `ViewChild` can resolve | Remove `*ngIf` from the dialog element; use `@ViewChild` + `ElementRef` and call `nativeElement.show()` / `nativeElement.close()` |
 | Icon module import fails | Icon sub-path `@ni/nimble-angular/icons/...` does not exist | Import icon modules from the main `@ni/nimble-angular` barrel only |
@@ -670,18 +679,22 @@ If the host and iframe are same-origin, Playwright or DevTools can inspect `ifra
 
 ---
 
-## Known SystemLink service prefixes
+## Known SystemLink client base URLs
 
-| Service | URL prefix |
-|---------|-----------|
-| Tag Historian | `/nitag/v2` |
-| Test Monitor | `/nitest` |
-| Asset Management | `/niapm` |
-| Systems Management | `/nisysmgmt` |
-| Work Orders | `/niworkorder` |
-| Feeds (Package Manager) | `/nifeed` |
-| Files | `/nifile` |
-| Notebooks | `/ninotebook` |
+| Service | Client `baseUrl` |
+|---------|------------------|
+| Tag Historian | `window.location.origin + '/nitaghistorian'` |
+| Tags | `window.location.origin + '/nitag'` |
+| User / Workspaces | `window.location.origin + '/niuser/v1'` |
+| Web Application | `window.location.origin + '/niapp/v1'` |
+| File Ingestion | `window.location.origin + '/nifile'` |
+| Test Monitor | `window.location.origin + '/nitestmonitor'` |
+| Asset Management | `window.location.origin` |
+| Systems Management | `window.location.origin` |
+| Work Items | `window.location.origin` |
+| Work Orders | `window.location.origin` |
+| Feeds (Package Manager) | `window.location.origin` |
+| Notebooks | `window.location.origin` |
 
 See `references/systemlink-services.md` for full API details.
 
