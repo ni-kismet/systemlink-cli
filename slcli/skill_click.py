@@ -183,9 +183,9 @@ def register_skill_commands(cli: Any) -> None:
     @click.option(
         "--client",
         "-c",
-        type=click.Choice(CLIENT_CHOICES, case_sensitive=False),
+        type=click.Choice(CLIENT_CHOICES + ["all"], case_sensitive=False),
         default=None,
-        help="AI client to install for (agents [most agents] or claude).",
+        help="AI client to install for (agents [most agents], claude, or all).",
     )
     @click.option(
         "--scope",
@@ -233,6 +233,7 @@ def register_skill_commands(cli: Any) -> None:
                 choices=[
                     questionary.Choice("most agents", value="agents"),
                     questionary.Choice("claude", value="claude"),
+                    questionary.Choice("all clients", value="all"),
                 ],
                 default="agents",
             ).ask()
@@ -250,7 +251,7 @@ def register_skill_commands(cli: Any) -> None:
 
         # ── resolve skill and client lists ────────────────────────────────────
         skill_names: List[str] = SKILL_CHOICES if skill == "all" else [skill]
-        clients: List[str] = [client]
+        clients: List[str] = CLIENT_CHOICES if client == "all" else [client]
 
         # ── locate source ─────────────────────────────────────────────────────
         try:
