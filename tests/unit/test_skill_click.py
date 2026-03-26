@@ -176,14 +176,23 @@ def test_install_claude_project(runner: CliRunner, fake_skills_dir: Path, tmp_pa
     assert (repo_root / ".claude" / "skills" / "slcli" / "SKILL.md").exists()
 
 
-def test_install_all_client_rejected(runner: CliRunner) -> None:
-    """--client all is rejected because only agents and claude are supported."""
+def test_install_all_client_installs_all(
+    runner: CliRunner, fake_skills_dir: Path, tmp_path: Path
+) -> None:
+    """--client all installs the skill for every supported client."""
+    dest_agents = tmp_path / "agents-personal"
+    dest_claude = tmp_path / "claude-personal"
     cli = make_cli()
-    result = runner.invoke(
-        cli,
-        ["skill", "install", "--skill", "slcli", "--client", "all", "--scope", "project"],
-    )
-    assert result.exit_code != 0
+    with patch("slcli.skill_click._find_bundled_skills_dir", return_value=fake_skills_dir), patch(
+        "slcli.skill_click._resolve_destinations", return_value=[dest_agents, dest_claude]
+    ):
+        result = runner.invoke(
+            cli,
+            ["skill", "install", "--skill", "slcli", "--client", "all", "--scope", "personal"],
+        )
+    assert result.exit_code == 0
+    assert (dest_agents / "slcli" / "SKILL.md").exists()
+    assert (dest_claude / "slcli" / "SKILL.md").exists()
 
 
 def test_install_force_overwrites(runner: CliRunner, fake_skills_dir: Path, tmp_path: Path) -> None:
