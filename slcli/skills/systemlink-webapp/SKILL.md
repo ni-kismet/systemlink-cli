@@ -30,14 +30,14 @@ Ask before generating any code:
 3. **Starting point** — Fresh Angular project, or do they have existing code?
 4. **Auth context** — Will the app run on the same SystemLink instance it calls (same-origin cookie auth), or does it need an API key for a remote server?
 
-You do NOT need to ask about Angular version or Nimble versions — always use the latest (Angular 19, @ni/nimble-angular latest).
+You do NOT need to ask about Angular version or Nimble versions — always use Angular 20 and the latest compatible `@ni/nimble-angular`.
 
 ---
 
 ## Step 2: Scaffold the Angular project
 
 ```bash
-npx -y @angular/cli@latest new <app-name> --routing --style=scss --skip-git --no-standalone
+npx -y @angular/cli@20 new <app-name> --routing --style=scss --skip-git --no-standalone
 cd <app-name>
 npm install @ni/nimble-angular
 ```
@@ -617,7 +617,7 @@ node_modules/.bin/ng build --configuration production --output-path dist/<app-na
 ```
 
 - Do **not** pass `--base-href` — that would re-introduce the `<base>` element
-- Output goes to `dist/<app-name>/browser/` (Angular 19)
+- Output goes to `dist/<app-name>/browser/` (Angular 20)
 
 If you hit budget errors, increase limits in `angular.json`:
 
