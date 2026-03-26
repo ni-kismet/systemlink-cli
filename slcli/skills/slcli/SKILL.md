@@ -683,12 +683,13 @@ Templates:
 Install bundled skills for supported AI clients.
 
 ```bash
-slcli skill install --skill [slcli|systemlink-webapp|all] --client [agents|claude] --scope [personal|project|both]
+slcli skill install --skill [slcli|systemlink-webapp|all] --client [agents|claude|all] --scope [personal|project|both]
 ```
 
 Client paths:
 - `agents` — personal: `~/.agents/skills/`, project: `.agents/skills/` (most agents)
 - `claude` — personal: `~/.claude/skills/`, project: `.claude/skills/`
+- `all` — install to both the `agents` and `claude` locations for the selected scope
 
 Notes:
 - `agents` is the default client in interactive mode.
