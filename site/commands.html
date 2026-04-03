@@ -458,18 +458,22 @@ slcli workspace disable --id &lt;workspace-id&gt;</code></pre>
 
       <!-- ─── WEBAPP ─── -->
       <h2 id="webapp">webapp</h2>
-      <p>Scaffold, pack, publish, and manage static web applications.</p>
-      <pre><code># Scaffold a Nimble Angular project (installs AI skills automatically)
-slcli webapp init --template angular --directory ./fleet-dashboard
+      <p>Scaffold, pack, publish, and manage SystemLink web applications.</p>
+      <pre><code># Scaffold the Angular starter (installs AI skills automatically)
+    slcli webapp init ./fleet-dashboard
 
-# Scaffold a simple HTML webapp
-slcli webapp init --directory ./my-example
+    # Create Plugin Manager manifest + packager config
+    slcli webapp manifest init ./fleet-dashboard \
+      --description "A dashboard for monitoring fleet health and calibration status." \
+      --section Dashboard \
+      --maintainer "Your Name &lt;you@example.com&gt;" \
+      --license MIT
 
-# Pack into .nipkg
-slcli webapp pack ./my-example/app --output myapp.nipkg
+    # Follow START_HERE.md to bootstrap Angular in place, then pack from config
+    slcli webapp pack --config ./fleet-dashboard/nipkg.config.json
 
-# Publish (folder or .nipkg)
-slcli webapp publish ./my-example/app --name MyApp --workspace Default
+    # Publish (folder or .nipkg)
+    slcli webapp publish ./dist/fleet-dashboard/browser --name MyApp --workspace Default
 
 # List, get, open, delete
 slcli webapp list --filter "MyApp"

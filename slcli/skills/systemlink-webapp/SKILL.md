@@ -19,6 +19,14 @@ SystemLink webapps are Angular Single-Page Applications built with the Nimble de
 connected to SystemLink REST APIs, and deployed via `slcli webapp publish`. This skill captures
 every gotcha learned from building and deploying real apps.
 
+If the user is starting from scratch, prefer `slcli webapp init <app-dir>` first.
+That command lays down the SystemLink starter layer (`.agents/skills/`, `PROMPTS.md`, and
+`START_HERE.md`) while Angular CLI remains responsible for generating the Angular workspace.
+
+When the user wants to package the app for Plugin Manager submission, prefer
+`slcli webapp manifest init <app-dir> ...` to generate `manifest.json` and `nipkg.config.json`
+with the current Plugin Manager field names, then use `slcli webapp pack --config ...`.
+
 ---
 
 ## Step 1: Understand what the user needs
@@ -34,15 +42,49 @@ You do NOT need to ask about Angular version or Nimble versions — always use A
 
 ---
 
-## Step 2: Scaffold the Angular project
+## Step 2: Bootstrap the Angular workspace
+
+When the project was created with `slcli webapp init`, generate Angular in the existing starter
+directory so the starter files and bundled skills remain at the project root.
 
 ```bash
-npx -y @angular/cli@20 new <app-name> --routing --style=scss --skip-git --no-standalone
-cd <app-name>
+npx -y @angular/cli@20 new <app-name> --directory . --routing --style=scss --skip-git --no-standalone --defaults --force
 npm install @ni/nimble-angular
 ```
 
-> Use `--no-standalone` to generate an NgModule-based app. SystemLink webapps work best with NgModule because it makes it easy to register all Nimble modules in one place.
+> Use `--no-standalone` to generate an NgModule-based app. SystemLink webapps work best with
+> NgModule because it makes it easy to register all Nimble modules in one place.
+
+If the user has not run `slcli webapp init` yet and they want a new SystemLink webapp, tell them
+to do that first unless they explicitly want a manual setup.
+
+### Starter shell expectations
+
+Before building feature-specific pages, establish a reusable shell that is aligned with other
+SystemLink apps:
+
+- Root `nimble-theme-provider` that mirrors the host shell theme
+- Responsive page header with title, summary text, and an action area
+- Shared loading, error, and empty states instead of one-off page-specific handling
+- Route-backed top-level navigation only when the app truly has multiple views
+- Reusable API helpers and service-layer code rather than fetch logic embedded in templates
+
+Use Nimble layout tokens and spacing rules consistently across the shell and feature pages:
+
+- Prefer Nimble spacing tokens over ad-hoc pixel values: `smallPadding` for tight inline gaps,
+  `mediumPadding` for default control spacing, `standardPadding` for section padding, and
+  `largePadding` between major content regions.
+- Stack controls vertically with a column layout, `mediumPadding` gap, and `standardPadding`
+  around the control group.
+- Use `mediumPadding` or `standardPadding` gaps for side-by-side controls; prefer CSS grid for
+  aligned multi-column layouts.
+- Inside accordion panels, keep a column layout with `mediumPadding` gaps and
+  `standardPadding` bottom padding.
+- Treat `controlHeight` (32px), `controlSlimHeight` (24px), and `labelHeight` (16px) as the
+  baseline sizing tokens for controls and labels.
+- Separate major sections with `largePadding` and subsections with `standardPadding`.
+
+See [references/layout-patterns.md](references/layout-patterns.md) for the detailed layout guide.
 
 ---
 
