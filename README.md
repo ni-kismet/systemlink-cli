@@ -58,7 +58,8 @@ slcli webapp manifest init ./my-dashboard \
 	--description "A dashboard for monitoring fleet health and calibration status." \
 	--section Dashboard \
 	--maintainer "Your Name <you@example.com>" \
-	--license MIT
+	--license MIT \
+	--icon-file ./icon.svg
 
 # Or install AI skills manually (use --client claude for Claude)
 slcli skill install

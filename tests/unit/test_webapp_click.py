@@ -4,7 +4,7 @@ import io
 import tarfile
 from json import dumps, loads
 from pathlib import Path
-from typing import Any, Dict
+from typing import Any, Dict, List
 from unittest.mock import patch
 
 import pytest
@@ -38,6 +38,56 @@ def _read_control_file(pkg_path: Path) -> str:
                     return control_member.read().decode("utf-8")
 
     raise AssertionError("control.tar.gz not found in package")
+
+
+def _read_data_member_names(pkg_path: Path) -> List[str]:
+    """Return the member names stored in the data archive of a .nipkg."""
+    with open(pkg_path, "rb") as package_file:
+        assert package_file.read(8) == b"!<arch>\n"
+
+        while True:
+            header = package_file.read(60)
+            if not header:
+                break
+            member_name = header[:16].decode("utf-8").strip()
+            member_size = int(header[48:58].decode("ascii").strip())
+            member_data = package_file.read(member_size)
+            if member_size % 2:
+                package_file.read(1)
+
+            if member_name == "data.tar.gz":
+                with tarfile.open(fileobj=io.BytesIO(member_data), mode="r:gz") as archive:
+                    return [member.name for member in archive.getmembers()]
+
+    raise AssertionError("data.tar.gz not found in package")
+
+
+def _read_data_member_payloads(pkg_path: Path, member_name: str) -> List[bytes]:
+    """Return all payloads for a given member name in the data archive of a .nipkg."""
+    with open(pkg_path, "rb") as package_file:
+        assert package_file.read(8) == b"!<arch>\n"
+
+        while True:
+            header = package_file.read(60)
+            if not header:
+                break
+            archive_member_name = header[:16].decode("utf-8").strip()
+            member_size = int(header[48:58].decode("ascii").strip())
+            member_data = package_file.read(member_size)
+            if member_size % 2:
+                package_file.read(1)
+
+            if archive_member_name == "data.tar.gz":
+                payloads: List[bytes] = []
+                with tarfile.open(fileobj=io.BytesIO(member_data), mode="r:gz") as archive:
+                    for archive_member in archive.getmembers():
+                        if archive_member.name == member_name:
+                            extracted = archive.extractfile(archive_member)
+                            assert extracted is not None
+                            payloads.append(extracted.read())
+                return payloads
+
+    raise AssertionError("data.tar.gz not found in package")
 
 
 @pytest.fixture(autouse=True)
@@ -142,6 +192,8 @@ def test_webapp_manifest_init_writes_manifest_and_pack_config(
     patch_keyring(monkeypatch)
 
     target = tmp_path / "my-dashboard"
+    icon_source = tmp_path / "shared-icon.svg"
+    icon_source.write_text("<svg></svg>", encoding="utf-8")
     result = runner.invoke(
         cli,
         [
@@ -157,6 +209,8 @@ def test_webapp_manifest_init_writes_manifest_and_pack_config(
             "Test User <test@example.com>",
             "--license",
             "MIT",
+            "--icon-file",
+            str(icon_source),
             "--homepage",
             "https://example.com/my-dashboard",
             "--tags",
@@ -179,13 +233,16 @@ def test_webapp_manifest_init_writes_manifest_and_pack_config(
     assert manifest["xbPlugin"] == "webapp"
     assert manifest["slPluginManagerTags"] == "dashboard,monitoring,assets"
     assert manifest["slPluginManagerMinServerVersion"] == "2024 Q4"
+    assert manifest["iconFile"] == "shared-icon.svg"
     assert manifest["nipkgFile"] == "my-dashboard_0.1.0_all.nipkg"
     assert "appStoreCategory" not in manifest
 
     assert config["package"] == "my-dashboard"
     assert config["buildDir"] == "dist/my-dashboard/browser"
     assert config["buildCommand"] == "npm run build"
+    assert config["iconFile"] == "shared-icon.svg"
     assert "nipkgFile" not in config
+    assert (target / "shared-icon.svg").exists()
 
 
 def test_webapp_manifest_init_defaults_build_dir_from_directory_not_package(
@@ -195,6 +252,8 @@ def test_webapp_manifest_init_defaults_build_dir_from_directory_not_package(
     patch_keyring(monkeypatch)
 
     target = tmp_path / "angular-app"
+    icon_source = tmp_path / "dashboard-icon.svg"
+    icon_source.write_text("<svg></svg>", encoding="utf-8")
     result = runner.invoke(
         cli,
         [
@@ -212,6 +271,8 @@ def test_webapp_manifest_init_defaults_build_dir_from_directory_not_package(
             "Test User <test@example.com>",
             "--license",
             "MIT",
+            "--icon-file",
+            str(icon_source),
         ],
     )
 
@@ -232,6 +293,8 @@ def test_webapp_manifest_init_rejects_invalid_metadata(
     patch_keyring(monkeypatch)
 
     target = tmp_path / "bad-dashboard"
+    icon_source = tmp_path / "bad-dashboard.svg"
+    icon_source.write_text("<svg></svg>", encoding="utf-8")
     result = runner.invoke(
         cli,
         [
@@ -249,6 +312,8 @@ def test_webapp_manifest_init_rejects_invalid_metadata(
             "not-an-email",
             "--license",
             "M",
+            "--icon-file",
+            str(icon_source),
         ],
     )
 
@@ -256,6 +321,44 @@ def test_webapp_manifest_init_rejects_invalid_metadata(
     assert "version must be strict semver" in result.output
     assert "description must be at least 20 characters" in result.output
     assert "maintainer must be in the format" in result.output
+    assert not (target / "bad-dashboard.svg").exists()
+
+
+def test_webapp_manifest_init_does_not_copy_icon_when_outputs_exist(
+    tmp_path: Path, monkeypatch: MonkeyPatch
+) -> None:
+    runner = CliRunner()
+    patch_keyring(monkeypatch)
+
+    target = tmp_path / "existing-manifest"
+    target.mkdir()
+    (target / "manifest.json").write_text("{}", encoding="utf-8")
+    icon_source = tmp_path / "existing-icon.svg"
+    icon_source.write_text("<svg></svg>", encoding="utf-8")
+
+    result = runner.invoke(
+        cli,
+        [
+            "webapp",
+            "manifest",
+            "init",
+            str(target),
+            "--description",
+            "A dashboard for monitoring fleet status and calibration trends.",
+            "--section",
+            "Dashboard",
+            "--maintainer",
+            "Test User <test@example.com>",
+            "--license",
+            "MIT",
+            "--icon-file",
+            str(icon_source),
+        ],
+    )
+
+    assert result.exit_code == ExitCodes.INVALID_INPUT
+    assert "manifest.json already exist" in result.output
+    assert not (target / "existing-icon.svg").exists()
 
 
 def test_webapp_manifest_init_rejects_schema_length_limits_and_unknown_fields(
@@ -267,6 +370,7 @@ def test_webapp_manifest_init_rejects_schema_length_limits_and_unknown_fields(
     target = tmp_path / "too-long"
     config_path = target / "invalid.json"
     target.mkdir()
+    (target / "icon.svg").write_text("<svg></svg>", encoding="utf-8")
     invalid_config = {
         "package": "p" * 101,
         "version": "1.2.3",
@@ -276,6 +380,7 @@ def test_webapp_manifest_init_rejects_schema_length_limits_and_unknown_fields(
         "maintainer": "Test User <test@example.com>",
         "license": "MIT",
         "xbPlugin": "webapp",
+        "iconFile": "icon.svg",
         "unexpected": "value",
     }
     config_path.write_text(
@@ -335,6 +440,7 @@ def test_webapp_pack_uses_plugin_manager_metadata_from_config(
     build_dir = project_dir / "dist" / "plugin-project" / "browser"
     build_dir.mkdir(parents=True)
     (build_dir / "index.html").write_text("hello", encoding="utf-8")
+    (project_dir / "icon.svg").write_text("<svg></svg>", encoding="utf-8")
 
     config_path = project_dir / "nipkg.config.json"
     config_path.write_text(
@@ -351,6 +457,7 @@ def test_webapp_pack_uses_plugin_manager_metadata_from_config(
   "xbPlugin": "webapp",
   "slPluginManagerTags": "monitoring,assets,webapp",
   "slPluginManagerMinServerVersion": "2024 Q4",
+    "iconFile": "icon.svg",
   "buildDir": "dist/plugin-project/browser",
   "buildCommand": "npm run build"
 }
@@ -383,6 +490,156 @@ def test_webapp_pack_uses_plugin_manager_metadata_from_config(
     assert "XB-SlPluginManagerLicense: MIT" in control_file
     assert "XB-SlPluginManagerTags: monitoring,assets,webapp" in control_file
     assert "XB-SlPluginManagerMinServerVersion: 2024 Q4" in control_file
+    assert "XB-SlPluginManagerIcon: icon.svg" in control_file
+
+    data_members = _read_data_member_names(output_path)
+    assert any(member.endswith("icon.svg") for member in data_members)
+
+
+def test_webapp_pack_replaces_existing_build_icon_without_duplicates(
+    tmp_path: Path, monkeypatch: MonkeyPatch
+) -> None:
+    runner = CliRunner()
+    patch_keyring(monkeypatch)
+
+    project_dir = tmp_path / "pack-icon-override"
+    build_dir = project_dir / "dist" / "pack-icon-override" / "browser"
+    build_dir.mkdir(parents=True)
+    (build_dir / "index.html").write_text("hello", encoding="utf-8")
+    (build_dir / "icon.svg").write_text("<svg>build</svg>", encoding="utf-8")
+
+    icon_source_dir = project_dir / "assets"
+    icon_source_dir.mkdir()
+    (icon_source_dir / "icon.svg").write_text("<svg>source</svg>", encoding="utf-8")
+
+    config_path = project_dir / "nipkg.config.json"
+    config_path.write_text(
+        dumps(
+            {
+                "package": "pack-icon-override",
+                "version": "1.2.3",
+                "displayName": "Pack Icon Override",
+                "description": "A plugin package should keep only one icon entry in the payload.",
+                "section": "Monitoring",
+                "maintainer": "Plugin Team <plugins@example.com>",
+                "license": "MIT",
+                "xbPlugin": "webapp",
+                "iconFile": "assets/icon.svg",
+                "buildDir": "dist/pack-icon-override/browser",
+                "buildCommand": "npm run build",
+            }
+        ),
+        encoding="utf-8",
+    )
+
+    output_path = tmp_path / "pack-icon-override_1.2.3_all.nipkg"
+    result = runner.invoke(
+        cli,
+        [
+            "webapp",
+            "pack",
+            "--config",
+            str(config_path),
+            "--output",
+            str(output_path),
+        ],
+    )
+
+    assert result.exit_code == 0
+    icon_payloads = _read_data_member_payloads(output_path, "./icon.svg")
+    assert len(icon_payloads) == 1
+    assert icon_payloads[0] == b"<svg>source</svg>"
+
+
+def test_webapp_pack_rejects_missing_icon_file(tmp_path: Path, monkeypatch: MonkeyPatch) -> None:
+    runner = CliRunner()
+    patch_keyring(monkeypatch)
+
+    project_dir = tmp_path / "missing-icon"
+    build_dir = project_dir / "dist" / "missing-icon" / "browser"
+    build_dir.mkdir(parents=True)
+    (build_dir / "index.html").write_text("hello", encoding="utf-8")
+
+    config_path = project_dir / "nipkg.config.json"
+    config_path.write_text(
+        dumps(
+            {
+                "package": "missing-icon",
+                "version": "1.2.3",
+                "displayName": "Missing Icon",
+                "description": "A plugin config without an icon should now be rejected.",
+                "section": "Monitoring",
+                "maintainer": "Plugin Team <plugins@example.com>",
+                "license": "MIT",
+                "xbPlugin": "webapp",
+                "buildDir": "dist/missing-icon/browser",
+                "buildCommand": "npm run build",
+            }
+        ),
+        encoding="utf-8",
+    )
+
+    result = runner.invoke(cli, ["webapp", "pack", "--config", str(config_path)])
+
+    assert result.exit_code == ExitCodes.INVALID_INPUT
+    assert "iconFile is required" in result.output
+
+
+def test_webapp_pack_accepts_legacy_appstore_keys(tmp_path: Path, monkeypatch: MonkeyPatch) -> None:
+    runner = CliRunner()
+    patch_keyring(monkeypatch)
+
+    project_dir = tmp_path / "legacy-plugin"
+    build_dir = project_dir / "dist" / "legacy-plugin" / "browser"
+    build_dir.mkdir(parents=True)
+    (build_dir / "index.html").write_text("hello", encoding="utf-8")
+    (project_dir / "legacy-icon.svg").write_text("<svg></svg>", encoding="utf-8")
+
+    config_path = project_dir / "legacy.json"
+    config_path.write_text(
+        dumps(
+            {
+                "package": "legacy-plugin",
+                "version": "1.2.3",
+                "displayName": "Legacy Plugin",
+                "description": "A legacy App Store config should normalize to Plugin Manager fields.",
+                "appStoreCategory": "Monitoring",
+                "appStoreAuthor": "Plugin Team <plugins@example.com>",
+                "appStoreRepo": "https://example.com/legacy-plugin",
+                "license": "MIT",
+                "appStoreType": "webapp",
+                "appStoreTags": "legacy,monitoring",
+                "appStoreMinServerVersion": "2024 Q4",
+                "iconFile": "legacy-icon.svg",
+                "buildDir": "dist/legacy-plugin/browser",
+                "buildCommand": "npm run build",
+            }
+        ),
+        encoding="utf-8",
+    )
+
+    output_path = tmp_path / "legacy-plugin_1.2.3_all.nipkg"
+    result = runner.invoke(
+        cli,
+        [
+            "webapp",
+            "pack",
+            "--config",
+            str(config_path),
+            "--output",
+            str(output_path),
+        ],
+    )
+
+    assert result.exit_code == 0
+    control_file = _read_control_file(output_path)
+    assert "Section: Monitoring" in control_file
+    assert "Maintainer: Plugin Team <plugins@example.com>" in control_file
+    assert "Homepage: https://example.com/legacy-plugin" in control_file
+    assert "XB-Plugin: webapp" in control_file
+    assert "XB-SlPluginManagerTags: legacy,monitoring" in control_file
+    assert "XB-SlPluginManagerMinServerVersion: 2024 Q4" in control_file
+    assert "XB-SlPluginManagerIcon: legacy-icon.svg" in control_file
 
 
 def test_webapp_list_shows_items(monkeypatch: MonkeyPatch) -> None:

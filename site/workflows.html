@@ -155,7 +155,8 @@ cd fleet-dashboard</code></pre>
   --description "A dashboard for monitoring fleet health and calibration status." \
   --section Dashboard \
   --maintainer "Your Name &lt;you@example.com&gt;" \
-  --license MIT
+              --license MIT \
+              --icon-file ./icon.svg
 
 ng build --configuration production
 slcli webapp pack --config nipkg.config.json

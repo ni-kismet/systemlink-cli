@@ -682,8 +682,9 @@ conventions described by the `systemlink-webapp` skill.
 
 `webapp manifest init` writes `manifest.json` and `nipkg.config.json` using the Plugin Manager
 field names (`section`, `maintainer`, `homepage`, `xbPlugin`, `slPluginManagerTags`,
-`slPluginManagerMinServerVersion`). `webapp pack --config ...` consumes that metadata and writes
-the matching control-file fields into the generated `.nipkg`.
+`slPluginManagerMinServerVersion`, `iconFile`). `webapp pack --config ...` consumes that
+metadata, carries the icon into the package, and writes the matching control-file fields into the
+generated `.nipkg`.
 
 ### skill — AI skill installation
 

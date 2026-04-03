@@ -6,6 +6,7 @@ management (list, get, delete, publish, open).
 
 import io
 import re
+import shutil
 import sys
 import tarfile
 import tempfile
@@ -40,6 +41,7 @@ _PACKAGE_PATTERN = re.compile(r"^[a-z0-9][a-z0-9._-]*$")
 _VERSION_PATTERN = re.compile(r"^(0|[1-9]\d*)\.(0|[1-9]\d*)\.(0|[1-9]\d*)$")
 _MAINTAINER_PATTERN = re.compile(r"^[^<>]+\s<[^<>@\s]+@[^<>@\s]+>$")
 _XB_PLUGIN_VALUES = ("webapp", "notebook", "dashboard", "routine", "bundle")
+_ALLOWED_ICON_EXTENSIONS = frozenset({".svg", ".png", ".jpg", ".jpeg", ".webp", ".gif", ".ico"})
 _MAX_PACKAGE_LENGTH = 100
 _MAX_DISPLAY_NAME_LENGTH = 200
 _MAX_DESCRIPTION_LENGTH = 5000
@@ -179,6 +181,62 @@ def _default_angular_build_dir(directory: Path) -> str:
     return f"dist/{_default_angular_project_name(directory)}/browser"
 
 
+def _resolve_local_path(path_value: str, base_dir: Optional[Path] = None) -> Path:
+    """Resolve a local path against a base directory or the current working directory."""
+    path = Path(path_value).expanduser()
+    if not path.is_absolute():
+        anchor = base_dir if base_dir is not None else Path.cwd()
+        path = anchor / path
+    return path.resolve()
+
+
+def _validate_icon_file_value(icon_file: str, base_dir: Optional[Path] = None) -> Optional[str]:
+    """Validate the icon asset referenced by Plugin Manager metadata."""
+    if not icon_file:
+        return "iconFile is required"
+
+    resolved_icon = _resolve_local_path(icon_file, base_dir)
+    if not resolved_icon.exists() or not resolved_icon.is_file():
+        return f"iconFile does not exist or is not a file: {icon_file}"
+    if resolved_icon.suffix.lower() not in _ALLOWED_ICON_EXTENSIONS:
+        allowed_extensions = ", ".join(sorted(ext.lstrip(".") for ext in _ALLOWED_ICON_EXTENSIONS))
+        return f"iconFile must be one of: {allowed_extensions}"
+    return None
+
+
+def _prepare_icon_file_for_directory(
+    icon_file: str, directory: Path, force: bool
+) -> tuple[Path, str]:
+    """Validate an icon asset and return its source path plus stored manifest filename."""
+    icon_error = _validate_icon_file_value(icon_file)
+    if icon_error:
+        click.echo(f"✗ {icon_error}", err=True)
+        sys.exit(ExitCodes.INVALID_INPUT)
+
+    source_icon = _resolve_local_path(icon_file)
+    target_icon = directory / source_icon.name
+
+    if target_icon.exists() and target_icon.resolve() != source_icon:
+        if not force:
+            click.echo(
+                f"✗ {target_icon.name} already exists in {directory}. Use --force to overwrite it.",
+                err=True,
+            )
+            sys.exit(ExitCodes.INVALID_INPUT)
+
+    return source_icon, target_icon.name
+
+
+def _copy_icon_file_to_directory(source_icon: Path, directory: Path) -> bool:
+    """Copy an icon asset into the manifest directory when it is not already there."""
+    target_icon = directory / source_icon.name
+    if target_icon.resolve() == source_icon:
+        return False
+
+    shutil.copy2(source_icon, target_icon)
+    return True
+
+
 def _normalize_plugin_manager_metadata(raw_metadata: Dict[str, Any]) -> Dict[str, Any]:
     """Normalize legacy App Store keys to Plugin Manager keys."""
     metadata = dict(raw_metadata)
@@ -191,7 +249,9 @@ def _normalize_plugin_manager_metadata(raw_metadata: Dict[str, Any]) -> Dict[str
 
 
 def _validate_plugin_manager_metadata(
-    raw_metadata: Dict[str, Any], require_build_dir: bool = False
+    raw_metadata: Dict[str, Any],
+    require_build_dir: bool = False,
+    base_dir: Optional[Path] = None,
 ) -> Dict[str, str]:
     """Validate and normalize Plugin Manager manifest metadata."""
     from urllib.parse import urlparse
@@ -250,6 +310,9 @@ def _validate_plugin_manager_metadata(
         errors.append("nipkgFile must end with .nipkg")
     if require_build_dir and not build_dir:
         errors.append("buildDir is required when packing from config without a folder argument")
+    icon_error = _validate_icon_file_value(icon_file, base_dir)
+    if icon_error:
+        errors.append(icon_error)
 
     if errors:
         click.echo("✗ Invalid plugin manager metadata:", err=True)
@@ -278,14 +341,16 @@ def _validate_plugin_manager_metadata(
         validated["buildDir"] = build_dir
     if build_command:
         validated["buildCommand"] = build_command
-    if icon_file:
-        validated["iconFile"] = icon_file
+    validated["iconFile"] = icon_file
 
     return validated
 
 
 def _pack_folder_to_nipkg(
-    folder: Path, output: Optional[Path] = None, metadata: Optional[Dict[str, str]] = None
+    folder: Path,
+    output: Optional[Path] = None,
+    metadata: Optional[Dict[str, str]] = None,
+    icon_source: Optional[Path] = None,
 ) -> Path:
     """Pack a folder into a .nipkg (ar) file and return the output path.
 
@@ -351,6 +416,8 @@ def _pack_folder_to_nipkg(
             control_fields["XB-SlPluginManagerMinServerVersion"] = metadata[
                 "slPluginManagerMinServerVersion"
             ]
+        if metadata.get("iconFile"):
+            control_fields["XB-SlPluginManagerIcon"] = Path(metadata["iconFile"]).name
     else:
         control_fields = {
             "Package": package_name,
@@ -374,10 +441,21 @@ def _pack_folder_to_nipkg(
 
     # Create data.tar.gz in-memory containing the folder contents at the root
     data_buf = io.BytesIO()
-    with tarfile.open(fileobj=data_buf, mode="w:gz") as dtf:
-        # tarfile.add will handle directories and files; preserve relative paths
-        dtf.add(str(folder), arcname=".")
-    data_bytes = data_buf.getvalue()
+    with tempfile.TemporaryDirectory() as temp_dir:
+        payload_folder = folder
+        if metadata is not None and icon_source is not None:
+            icon_name = Path(metadata["iconFile"]).name
+            folder_icon = folder.resolve() / icon_name
+            resolved_icon_source = icon_source.resolve()
+            if not folder_icon.exists() or folder_icon.resolve() != resolved_icon_source:
+                payload_folder = Path(temp_dir) / folder.name
+                shutil.copytree(folder, payload_folder)
+                shutil.copy2(resolved_icon_source, payload_folder / icon_name)
+
+        with tarfile.open(fileobj=data_buf, mode="w:gz") as dtf:
+            # tarfile.add will handle directories and files; preserve relative paths
+            dtf.add(str(payload_folder), arcname=".")
+        data_bytes = data_buf.getvalue()
 
     # debian-binary content
     debian_bin = b"2.0\n"
@@ -467,6 +545,7 @@ def _build_webapp_manifest_and_config(
     build_dir: str,
     build_command: str,
     icon_file: str,
+    icon_validation_base_dir: Path,
 ) -> tuple[Dict[str, str], Dict[str, str]]:
     """Build validated submission manifest and nipkg config payloads."""
     manifest = _validate_plugin_manager_metadata(
@@ -483,15 +562,15 @@ def _build_webapp_manifest_and_config(
             "slPluginManagerTags": tags,
             "slPluginManagerMinServerVersion": min_server_version,
             "nipkgFile": _default_nipkg_filename(package_name, version),
-        }
+            "iconFile": icon_file,
+        },
+        base_dir=icon_validation_base_dir,
     )
 
     pack_config = dict(manifest)
     pack_config.pop("nipkgFile", None)
     pack_config["buildDir"] = build_dir
     pack_config["buildCommand"] = build_command
-    if icon_file:
-        pack_config["iconFile"] = icon_file
 
     return manifest, pack_config
 
@@ -622,7 +701,8 @@ slcli webapp manifest init . \\
     --description "A dashboard for monitoring fleet health and calibration status." \\
     --section Dashboard \\
     --maintainer "Your Name <you@example.com>" \\
-    --license MIT
+    --license MIT \\
+    --icon-file ./icon.svg
 
 slcli webapp pack --config nipkg.config.json
 ```
@@ -730,7 +810,11 @@ def register_webapp_commands(cli: Any) -> None:
         show_default=True,
         help="Build command written to nipkg.config.json",
     )
-    @click.option("--icon-file", default="", help="Icon path written to nipkg.config.json")
+    @click.option(
+        "--icon-file",
+        required=True,
+        help="Path to the icon asset; copied into the manifest directory as iconFile",
+    )
     @click.option("--force", is_flag=True, help="Overwrite existing manifest files")
     def init_manifest(
         directory: Path,
@@ -772,6 +856,10 @@ def register_webapp_commands(cli: Any) -> None:
                 )
                 sys.exit(ExitCodes.INVALID_INPUT)
 
+            source_icon, manifest_icon_file = _prepare_icon_file_for_directory(
+                icon_file, directory, force
+            )
+
             manifest, pack_config = _build_webapp_manifest_and_config(
                 package_name=package_name,
                 version=version,
@@ -786,11 +874,19 @@ def register_webapp_commands(cli: Any) -> None:
                 min_server_version=min_server_version,
                 build_dir=build_dir,
                 build_command=build_command,
-                icon_file=icon_file,
+                icon_file=manifest_icon_file,
+                icon_validation_base_dir=source_icon.parent,
             )
 
-            save_json_file(manifest, str(manifest_path))
-            save_json_file(pack_config, str(config_path))
+            copied_icon = _copy_icon_file_to_directory(source_icon, directory)
+            try:
+                save_json_file(manifest, str(manifest_path))
+                save_json_file(pack_config, str(config_path))
+            except Exception:
+                if copied_icon:
+                    (directory / manifest_icon_file).unlink(missing_ok=True)
+                raise
+
             format_success(
                 "Created Plugin Manager manifest files",
                 {
@@ -841,7 +937,9 @@ def register_webapp_commands(cli: Any) -> None:
                     click.echo("✗ Config file must contain a JSON object.", err=True)
                     sys.exit(ExitCodes.INVALID_INPUT)
                 metadata = _validate_plugin_manager_metadata(
-                    raw_data, require_build_dir=resolved_folder is None
+                    raw_data,
+                    require_build_dir=resolved_folder is None,
+                    base_dir=config_path.parent,
                 )
 
                 if resolved_folder is None:
@@ -866,7 +964,11 @@ def register_webapp_commands(cli: Any) -> None:
                 sys.exit(ExitCodes.INVALID_INPUT)
 
             out = Path(output) if output else None
-            result = _pack_folder_to_nipkg(resolved_folder, out, metadata)
+            icon_source: Optional[Path] = None
+            if metadata is not None and config_path is not None:
+                icon_source = _resolve_local_path(metadata["iconFile"], config_path.parent)
+
+            result = _pack_folder_to_nipkg(resolved_folder, out, metadata, icon_source)
             format_success("Packed folder", {"Path": str(result)})
         except SystemExit:
             raise

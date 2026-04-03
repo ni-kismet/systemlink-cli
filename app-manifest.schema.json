@@ -12,7 +12,8 @@
     "section",
     "maintainer",
     "license",
-    "xbPlugin"
+    "xbPlugin",
+    "iconFile"
   ],
   "properties": {
     "package": {
@@ -71,6 +72,11 @@
     "slPluginManagerMinServerVersion": {
       "type": "string",
       "description": "Minimum SystemLink server version, e.g. '2024 Q4'."
+    },
+    "iconFile": {
+      "type": "string",
+      "minLength": 1,
+      "description": "Filename of the primary icon asset stored with the submission manifest and reused for package metadata."
     },
     "nipkgFile": {
       "type": "string",
