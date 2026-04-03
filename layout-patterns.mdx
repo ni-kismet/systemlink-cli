@@ -1,0 +1,70 @@
+import { Meta } from '@storybook/addon-docs/blocks';
+
+<Meta title="Ok/Layout Patterns" />
+
+# Layout Patterns
+
+Guidance for spacing between controls vertically and horizontally within Ok components.
+
+## Spacing Tokens
+
+Use nimble design tokens for consistent spacing between controls:
+
+| Token             | Value  | Usage                                                    |
+| ----------------- | ------ | -------------------------------------------------------- |
+| `smallPadding`    | 4px    | Tight spacing — icon margins, inline element gaps        |
+| `mediumPadding`   | 8px    | Default spacing — gap between stacked controls           |
+| `standardPadding` | 16px   | Standard spacing — section padding, content block margin |
+| `largePadding`    | 24px   | Generous spacing — between major layout sections         |
+
+## Control Heights
+
+| Token              | Value | Usage                                    |
+| ------------------ | ----- | ---------------------------------------- |
+| `controlHeight`    | 32px  | Standard height for all controls         |
+| `controlSlimHeight`| 24px  | Shorter controls (e.g. compact variants) |
+| `labelHeight`      | 16px  | Height of labels above controls          |
+
+## Vertical Stacking
+
+When stacking form controls vertically (e.g. text fields, number fields, checkboxes):
+
+- Use **`mediumPadding` (8px)** as the `gap` between controls in a flex column.
+- Use **`standardPadding` (16px)** for content padding around the group.
+- Labels on top of controls add `labelHeight` (16px) to the effective row height.
+
+```html
+&lt;div style="display: flex; flex-direction: column; gap: var(--ni-nimble-medium-padding);"&gt;
+    &lt;nimble-text-field&gt;Label 1&lt;/nimble-text-field&gt;
+    &lt;nimble-text-field&gt;Label 2&lt;/nimble-text-field&gt;
+&lt;/div&gt;
+```
+
+## Horizontal Layout
+
+When placing controls side by side:
+
+- Use **`mediumPadding` (8px)** or **`standardPadding` (16px)** as the `gap`.
+- Use CSS grid with equal columns for aligned layouts.
+
+```html
+&lt;div style="display: grid; grid-template-columns: 1fr 1fr; gap: var(--ni-nimble-medium-padding);"&gt;
+    &lt;nimble-checkbox&gt;Option A&lt;/nimble-checkbox&gt;
+    &lt;nimble-checkbox&gt;Option B&lt;/nimble-checkbox&gt;
+&lt;/div&gt;
+```
+
+## Accordion Content
+
+Inside accordion item content panels:
+
+- The content area uses `flex-direction: column` with **`mediumPadding` (8px) gap** between controls.
+- Content is indented by the icon width + padding to align with the header text.
+- Bottom padding uses **`standardPadding` (16px)** for breathing room before the next section.
+
+## Section Spacing
+
+Between major sections or groups of controls:
+
+- Use **`largePadding` (24px)** for separation between distinct content areas.
+- Use **`standardPadding` (16px)** for subsections within a group.

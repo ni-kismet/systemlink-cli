@@ -19,39 +19,43 @@ def _no_profile_workspace() -> Any:
         yield
 
 
-def test_webapp_init_creates_index(tmp_path: Path, monkeypatch: MonkeyPatch) -> None:
+def test_webapp_init_creates_starter_files(tmp_path: Path, monkeypatch: MonkeyPatch) -> None:
     runner = CliRunner()
     patch_keyring(monkeypatch)
 
     target = tmp_path / "webapp_skel"
-    result = runner.invoke(cli, ["webapp", "init", "--directory", str(target)])
+    result = runner.invoke(cli, ["webapp", "init", str(target)])
     assert result.exit_code == 0
-    idx = target / "app" / "index.html"
-    assert idx.exists()
-    content = idx.read_text(encoding="utf-8")
-    assert "Example WebApp" in content
+    assert (target / "PROMPTS.md").exists()
+    assert (target / "START_HERE.md").exists()
+    assert not (target / "README.md").exists()
+
+    prompts = (target / "PROMPTS.md").read_text(encoding="utf-8")
+    starter = (target / "START_HERE.md").read_text(encoding="utf-8")
+
+    assert "Bootstrap this directory into a maintainable Angular 20 SystemLink webapp" in prompts
+    assert "Angular CLI remains the source of truth" in starter
+    assert "@ni/nimble-angular" in starter
 
 
-def test_webapp_init_angular_creates_prompts(tmp_path: Path, monkeypatch: MonkeyPatch) -> None:
+def test_webapp_init_starter_creates_prompts(tmp_path: Path, monkeypatch: MonkeyPatch) -> None:
     runner = CliRunner()
     patch_keyring(monkeypatch)
 
     target = tmp_path / "ng_app"
-    result = runner.invoke(
-        cli, ["webapp", "init", "--template", "angular", "--directory", str(target)]
-    )
+    result = runner.invoke(cli, ["webapp", "init", str(target)])
     assert result.exit_code == 0
     assert (target / "PROMPTS.md").exists()
-    assert (target / "README.md").exists()
+    assert (target / "START_HERE.md").exists()
     prompts = (target / "PROMPTS.md").read_text(encoding="utf-8")
     assert "systemlink-webapp" in prompts
     assert "systemlink-clients-ts" in prompts
-    readme = (target / "README.md").read_text(encoding="utf-8")
-    assert "slcli webapp publish" in readme
-    assert "Nimble Angular" in readme
+    starter = (target / "START_HERE.md").read_text(encoding="utf-8")
+    assert "slcli webapp publish" in starter
+    assert "Angular CLI remains the source of truth" in starter
 
 
-def test_webapp_init_angular_no_overwrite(tmp_path: Path, monkeypatch: MonkeyPatch) -> None:
+def test_webapp_init_no_overwrite(tmp_path: Path, monkeypatch: MonkeyPatch) -> None:
     runner = CliRunner()
     patch_keyring(monkeypatch)
 
@@ -59,39 +63,41 @@ def test_webapp_init_angular_no_overwrite(tmp_path: Path, monkeypatch: MonkeyPat
     target.mkdir()
     (target / "PROMPTS.md").write_text("existing")
 
-    result = runner.invoke(
-        cli, ["webapp", "init", "--template", "angular", "--directory", str(target)]
-    )
+    result = runner.invoke(cli, ["webapp", "init", str(target)])
     assert result.exit_code != 0
     assert "already exist" in result.output
 
 
-def test_webapp_init_angular_force_overwrite(tmp_path: Path, monkeypatch: MonkeyPatch) -> None:
+def test_webapp_init_requires_directory(monkeypatch: MonkeyPatch) -> None:
+    runner = CliRunner()
+    patch_keyring(monkeypatch)
+
+    result = runner.invoke(cli, ["webapp", "init"])
+    assert result.exit_code != 0
+    assert "Missing argument 'DIRECTORY'" in result.output
+
+
+def test_webapp_init_force_overwrite(tmp_path: Path, monkeypatch: MonkeyPatch) -> None:
     runner = CliRunner()
     patch_keyring(monkeypatch)
 
     target = tmp_path / "ng_app"
     target.mkdir()
     (target / "PROMPTS.md").write_text("old")
-    (target / "README.md").write_text("old")
+    (target / "START_HERE.md").write_text("old")
 
-    result = runner.invoke(
-        cli,
-        ["webapp", "init", "--template", "angular", "--directory", str(target), "--force"],
-    )
+    result = runner.invoke(cli, ["webapp", "init", str(target), "--force"])
     assert result.exit_code == 0
     assert "systemlink-webapp" in (target / "PROMPTS.md").read_text(encoding="utf-8")
 
 
-def test_webapp_init_angular_installs_skills(tmp_path: Path, monkeypatch: MonkeyPatch) -> None:
-    """Webapp init --template angular should auto-install skills into the project."""
+def test_webapp_init_installs_skills(tmp_path: Path, monkeypatch: MonkeyPatch) -> None:
+    """Webapp init should auto-install skills into the project."""
     runner = CliRunner()
     patch_keyring(monkeypatch)
 
     target = tmp_path / "ng_skills"
-    result = runner.invoke(
-        cli, ["webapp", "init", "--template", "angular", "--directory", str(target)]
-    )
+    result = runner.invoke(cli, ["webapp", "init", str(target)])
     assert result.exit_code == 0
 
     # Skills should be installed in the universal .agents/skills/ convention

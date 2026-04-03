@@ -49,9 +49,9 @@ slcli testmonitor result list --summary --group-by status
 slcli asset list --calibratable --summary
 slcli system list --state CONNECTED
 
-# Scaffold a Nimble Angular webapp (AI skills auto-installed)
-slcli webapp init --template angular --directory ./my-dashboard
-# Open the project and describe what you want — see PROMPTS.md for examples
+# Scaffold the SystemLink Angular starter (AI skills auto-installed)
+slcli webapp init ./my-dashboard
+# Open the project and follow START_HERE.md or PROMPTS.md
 
 # Or install AI skills manually (use --client claude for Claude)
 slcli skill install
