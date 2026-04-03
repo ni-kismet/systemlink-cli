@@ -118,13 +118,13 @@ slcli skill install --client copilot --scope project</code></pre>
           <div class="step-num">1</div>
           <div class="step-body">
             <h3>Scaffold the project</h3>
-            <p><code>webapp init</code> creates a project directory with AI prompts, a README, and automatically installs the AI skills into the project so your assistant can discover them.</p>
-            <pre><code>slcli webapp init --template angular --directory ./fleet-dashboard
+            <p><code>webapp init</code> creates the Angular starter, adds the AI skills, and writes the starter files your assistant uses to bootstrap Angular in place.</p>
+            <pre><code>slcli webapp init ./fleet-dashboard
 cd fleet-dashboard</code></pre>
             <p>The scaffolded directory includes:</p>
             <ul>
               <li><code>PROMPTS.md</code> — ready-made prompts for building dashboards, test results pages, and more</li>
-              <li><code>README.md</code> — project overview and deployment instructions</li>
+              <li><code>START_HERE.md</code> — bootstrap and deployment guidance for the Angular workflow</li>
               <li><code>.agents/skills/</code> — AI skills pre-installed so your AI assistant can discover them immediately</li>
             </ul>
           </div>

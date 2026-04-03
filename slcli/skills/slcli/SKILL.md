@@ -665,7 +665,7 @@ slcli workitem create \
 Scaffold, package, and publish custom web applications to SystemLink.
 
 ```bash
-slcli webapp init [--template html|angular] [--directory DIR]  # Scaffold a new project
+slcli webapp init <DIRECTORY>                      # Scaffold the Angular starter
 slcli webapp pack [--directory DIR] [-o OUTPUT_FILE]     # Package webapp into a .zip
 slcli webapp list [-w WORKSPACE] [-t INT] [-f json]
 slcli webapp get <WEBAPP_ID> [-f json]
@@ -674,9 +674,10 @@ slcli webapp delete <WEBAPP_ID>
 slcli webapp open <WEBAPP_ID>                            # Open webapp URL in browser
 ```
 
-Templates:
-- `html` (default) — minimal index.html
-- `angular` — Nimble Angular project with `PROMPTS.md`, `README.md`, and bundled AI skills installed into `.agents/skills/`
+`webapp init` creates the SystemLink Angular starter, not a generic HTML app. The starter installs
+project-scoped skills into `.agents/skills/` and creates `PROMPTS.md` plus `START_HERE.md` so an
+AI assistant can bootstrap the Angular workspace in place with the same Nimble/SystemLink
+conventions described by the `systemlink-webapp` skill.
 
 ### skill — AI skill installation
 
@@ -693,7 +694,7 @@ Client paths:
 
 Notes:
 - `agents` is the default client in interactive mode.
-- `webapp init --template angular` installs project-scoped skills into `.agents/skills/` by default.
+- `webapp init` installs project-scoped skills into `.agents/skills/` by default.
 
 ### example — Built-in example resource provisioning
 
