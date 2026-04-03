@@ -80,6 +80,9 @@ Use Nimble layout tokens and spacing rules consistently across the shell and fea
   aligned multi-column layouts.
 - Inside accordion panels, keep a column layout with `mediumPadding` gaps and
   `standardPadding` bottom padding.
+- In dense side panels with tabs, use `15px 30px 30px 15px` on the tab container,
+  `20px 0 0 15px` on the active tab panel, let the panel own scrolling, and avoid forcing nested
+  content blocks to `height: 100%`.
 - Treat `controlHeight` (32px), `controlSlimHeight` (24px), and `labelHeight` (16px) as the
   baseline sizing tokens for controls and labels.
 - Separate major sections with `largePadding` and subsections with `standardPadding`.
@@ -379,6 +382,36 @@ If you want compile-time token values in SCSS, you can also import Nimble's toke
   color: $ni-nimble-body-font-color;
 }
 ```
+
+### Tabs in dense side panels
+
+When placing Nimble tabs inside a dense side panel or details pane, use the tab wrapper and panel
+as the layout primitives instead of forcing inner content blocks to fill the available height.
+
+```scss
+.details-tabs {
+  padding: 15px 30px 30px 15px;
+}
+
+.details-tab-panel {
+  padding: 20px 0 0 15px;
+  overflow: auto;
+}
+
+.details-tab-content {
+  display: flex;
+  flex-direction: column;
+  gap: var(--ni-nimble-medium-padding, 8px);
+}
+```
+
+- Use `padding: 15px 30px 30px 15px` on the tab control container.
+- Use `padding: 20px 0 0 15px` on the active tab panel content region.
+- Let the tab panel container handle scrolling.
+- Do not force nested form blocks or content stacks to `height: 100%`; that tends to stretch the
+  layout and creates inconsistent vertical spacing between controls.
+- Inside the active tab panel, keep stacked controls on an `8px` gap via
+  `var(--ni-nimble-medium-padding, 8px)` unless a tighter layout is explicitly needed.
 
 ### Why this pattern?
 
