@@ -151,7 +151,14 @@ cd fleet-dashboard</code></pre>
           <div class="step-num">3</div>
           <div class="step-body">
             <h3>Build and publish</h3>
-            <pre><code>ng build --configuration production
+            <pre><code>slcli webapp manifest init . \
+  --description "A dashboard for monitoring fleet health and calibration status." \
+  --section Dashboard \
+  --maintainer "Your Name &lt;you@example.com&gt;" \
+  --license MIT
+
+ng build --configuration production
+slcli webapp pack --config nipkg.config.json
 slcli webapp publish dist/&lt;app-name&gt;/browser/ \
   --name "Fleet Dashboard" \
   --workspace Production</code></pre>

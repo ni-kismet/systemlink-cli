@@ -5,6 +5,7 @@ management (list, get, delete, publish, open).
 """
 
 import io
+import re
 import sys
 import tarfile
 import tempfile
@@ -25,13 +26,48 @@ from .utils import (
     get_base_url,
     get_web_url,
     get_headers,
+    load_json_file,
     get_ssl_verify,
     get_workspace_id_with_fallback,
     get_workspace_map,
     handle_api_error,
     sanitize_filename,
+    save_json_file,
 )
 from .workspace_utils import get_effective_workspace, get_workspace_display_name
+
+_PACKAGE_PATTERN = re.compile(r"^[a-z0-9][a-z0-9._-]*$")
+_VERSION_PATTERN = re.compile(r"^(0|[1-9]\d*)\.(0|[1-9]\d*)\.(0|[1-9]\d*)$")
+_MAINTAINER_PATTERN = re.compile(r"^[^<>]+\s<[^<>@\s]+@[^<>@\s]+>$")
+_XB_PLUGIN_VALUES = ("webapp", "notebook", "dashboard", "routine", "bundle")
+_MAX_PACKAGE_LENGTH = 100
+_MAX_DISPLAY_NAME_LENGTH = 200
+_MAX_DESCRIPTION_LENGTH = 5000
+_ALLOWED_PLUGIN_MANAGER_KEYS = {
+    "buildCommand",
+    "buildDir",
+    "description",
+    "displayName",
+    "homepage",
+    "iconFile",
+    "license",
+    "maintainer",
+    "nipkgFile",
+    "package",
+    "section",
+    "slPluginManagerMinServerVersion",
+    "slPluginManagerTags",
+    "version",
+    "xbPlugin",
+}
+_LEGACY_MANIFEST_KEY_MAP = {
+    "appStoreCategory": "section",
+    "appStoreType": "xbPlugin",
+    "appStoreAuthor": "maintainer",
+    "appStoreRepo": "homepage",
+    "appStoreTags": "slPluginManagerTags",
+    "appStoreMinServerVersion": "slPluginManagerMinServerVersion",
+}
 
 
 def _get_webapp_base_url() -> str:
@@ -127,7 +163,130 @@ def _fetch_webapps_page(
     return items, cont, total
 
 
-def _pack_folder_to_nipkg(folder: Path, output: Optional[Path] = None) -> Path:
+def _default_nipkg_filename(package_name: str, version: str) -> str:
+    """Return the canonical Plugin Manager package filename."""
+    return f"{package_name}_{version}_all.nipkg"
+
+
+def _default_display_name(package_name: str) -> str:
+    """Return a display name derived from a package identifier."""
+    words = re.split(r"[._-]+", package_name)
+    return " ".join(word.capitalize() for word in words if word)
+
+
+def _default_angular_build_dir(directory: Path) -> str:
+    """Return the default Angular production output path for a starter directory."""
+    return f"dist/{_default_angular_project_name(directory)}/browser"
+
+
+def _normalize_plugin_manager_metadata(raw_metadata: Dict[str, Any]) -> Dict[str, Any]:
+    """Normalize legacy App Store keys to Plugin Manager keys."""
+    metadata = dict(raw_metadata)
+    for old_key, new_key in _LEGACY_MANIFEST_KEY_MAP.items():
+        if old_key in metadata and new_key not in metadata:
+            metadata[new_key] = metadata[old_key]
+    for old_key in _LEGACY_MANIFEST_KEY_MAP:
+        metadata.pop(old_key, None)
+    return metadata
+
+
+def _validate_plugin_manager_metadata(
+    raw_metadata: Dict[str, Any], require_build_dir: bool = False
+) -> Dict[str, str]:
+    """Validate and normalize Plugin Manager manifest metadata."""
+    from urllib.parse import urlparse
+
+    metadata = _normalize_plugin_manager_metadata(raw_metadata)
+    unexpected_keys = sorted(set(metadata) - _ALLOWED_PLUGIN_MANAGER_KEYS)
+
+    package_name = str(metadata.get("package", "")).strip()
+    version = str(metadata.get("version", "")).strip()
+    display_name = str(metadata.get("displayName", "")).strip()
+    description = str(metadata.get("description", "")).strip()
+    section = str(metadata.get("section", "")).strip()
+    maintainer = str(metadata.get("maintainer", "")).strip()
+    homepage = str(metadata.get("homepage", "")).strip()
+    license_name = str(metadata.get("license", "")).strip()
+    xb_plugin = str(metadata.get("xbPlugin", "")).strip()
+    tags = str(metadata.get("slPluginManagerTags", "")).strip()
+    min_server_version = str(metadata.get("slPluginManagerMinServerVersion", "")).strip()
+    nipkg_file = str(metadata.get("nipkgFile", "")).strip()
+    build_dir = str(metadata.get("buildDir", "")).strip()
+    build_command = str(metadata.get("buildCommand", "")).strip()
+    icon_file = str(metadata.get("iconFile", "")).strip()
+
+    errors: List[str] = []
+
+    if unexpected_keys:
+        errors.append("unexpected field(s): " + ", ".join(unexpected_keys))
+
+    if not package_name or not _PACKAGE_PATTERN.match(package_name) or len(package_name) < 3:
+        errors.append("package must match ^[a-z0-9][a-z0-9._-]*$ and be at least 3 characters")
+    elif len(package_name) > _MAX_PACKAGE_LENGTH:
+        errors.append(f"package must be at most {_MAX_PACKAGE_LENGTH} characters")
+    if not version or not _VERSION_PATTERN.match(version):
+        errors.append("version must be strict semver in MAJOR.MINOR.PATCH format")
+    if not display_name or len(display_name) < 3:
+        errors.append("displayName must be at least 3 characters")
+    elif len(display_name) > _MAX_DISPLAY_NAME_LENGTH:
+        errors.append(f"displayName must be at most {_MAX_DISPLAY_NAME_LENGTH} characters")
+    if not description or len(description) < 20:
+        errors.append("description must be at least 20 characters")
+    elif len(description) > _MAX_DESCRIPTION_LENGTH:
+        errors.append(f"description must be at most {_MAX_DESCRIPTION_LENGTH} characters")
+    if not section or len(section) < 2:
+        errors.append("section must be at least 2 characters")
+    if not maintainer or not _MAINTAINER_PATTERN.match(maintainer):
+        errors.append("maintainer must be in the format 'Name <email@example.com>'")
+    if homepage:
+        parsed_homepage = urlparse(homepage)
+        if not parsed_homepage.scheme or not parsed_homepage.netloc:
+            errors.append("homepage must be a valid absolute URI")
+    if not license_name or len(license_name) < 2:
+        errors.append("license must be at least 2 characters")
+    if xb_plugin not in _XB_PLUGIN_VALUES:
+        errors.append(f"xbPlugin must be one of: {', '.join(_XB_PLUGIN_VALUES)}")
+    if nipkg_file and not nipkg_file.endswith(".nipkg"):
+        errors.append("nipkgFile must end with .nipkg")
+    if require_build_dir and not build_dir:
+        errors.append("buildDir is required when packing from config without a folder argument")
+
+    if errors:
+        click.echo("✗ Invalid plugin manager metadata:", err=True)
+        for error in errors:
+            click.echo(f"  - {error}", err=True)
+        sys.exit(ExitCodes.INVALID_INPUT)
+
+    validated: Dict[str, str] = {
+        "package": package_name,
+        "version": version,
+        "displayName": display_name,
+        "description": description,
+        "section": section,
+        "maintainer": maintainer,
+        "license": license_name,
+        "xbPlugin": xb_plugin,
+        "nipkgFile": nipkg_file or _default_nipkg_filename(package_name, version),
+    }
+    if homepage:
+        validated["homepage"] = homepage
+    if tags:
+        validated["slPluginManagerTags"] = tags
+    if min_server_version:
+        validated["slPluginManagerMinServerVersion"] = min_server_version
+    if build_dir:
+        validated["buildDir"] = build_dir
+    if build_command:
+        validated["buildCommand"] = build_command
+    if icon_file:
+        validated["iconFile"] = icon_file
+
+    return validated
+
+
+def _pack_folder_to_nipkg(
+    folder: Path, output: Optional[Path] = None, metadata: Optional[Dict[str, str]] = None
+) -> Path:
     """Pack a folder into a .nipkg (ar) file and return the output path.
 
     The .nipkg produced by this helper uses a Debian-style ar layout with
@@ -140,8 +299,28 @@ def _pack_folder_to_nipkg(folder: Path, output: Optional[Path] = None) -> Path:
     if not folder.exists() or not folder.is_dir():
         raise click.ClickException(f"Folder not found: {folder}")
 
+    if metadata is not None:
+        package_name = metadata["package"]
+        version = metadata["version"]
+        architecture = "all"
+    else:
+        package_name = sanitize_filename(folder.name)
+        version = "1.0.0"
+        architecture = "all"
+        if "_" in folder.name:
+            first, rest = folder.name.split("_", 1)
+            package_name = sanitize_filename(first)
+            rest_parts = rest.split("_")
+            if rest_parts:
+                version = rest_parts[0]
+            if len(rest_parts) > 1:
+                architecture = "_".join(rest_parts[1:])
+
     if output is None:
-        output = folder.with_suffix(".nipkg")
+        if metadata is not None:
+            output = folder.parent / metadata["nipkgFile"]
+        else:
+            output = folder.with_suffix(".nipkg")
 
     # Ensure parent exists
     output.parent.mkdir(parents=True, exist_ok=True)
@@ -150,26 +329,36 @@ def _pack_folder_to_nipkg(folder: Path, output: Optional[Path] = None) -> Path:
     # - control.tar.gz (contains a control file with package metadata)
     # - data.tar.gz (contains the payload files)
 
-    # Derive package metadata from folder name where possible.
-    pkg_name = sanitize_filename(folder.name)
-    version = "1.0.0"
-    architecture = "all"
-    if "_" in folder.name:
-        first, rest = folder.name.split("_", 1)
-        pkg_name = sanitize_filename(first)
-        rest_parts = rest.split("_")
-        if rest_parts:
-            version = rest_parts[0]
-        if len(rest_parts) > 1:
-            architecture = "_".join(rest_parts[1:])
-
-    control_fields = {
-        "Package": pkg_name,
-        "Version": version,
-        "Architecture": architecture,
-        "Maintainer": "slcli <no-reply@example.com>",
-        "Description": f"Package created by slcli for {pkg_name}",
-    }
+    if metadata is not None:
+        control_fields = {
+            "Package": metadata["package"],
+            "Version": metadata["version"],
+            "Architecture": architecture,
+            "Description": metadata["description"],
+            "Section": metadata["section"],
+            "Maintainer": metadata["maintainer"],
+            "XB-DisplayName": metadata["displayName"],
+            "XB-DisplayVersion": metadata["version"],
+            "XB-Plugin": metadata["xbPlugin"],
+            "XB-UserVisible": "yes",
+            "XB-SlPluginManagerLicense": metadata["license"],
+        }
+        if metadata.get("homepage"):
+            control_fields["Homepage"] = metadata["homepage"]
+        if metadata.get("slPluginManagerTags"):
+            control_fields["XB-SlPluginManagerTags"] = metadata["slPluginManagerTags"]
+        if metadata.get("slPluginManagerMinServerVersion"):
+            control_fields["XB-SlPluginManagerMinServerVersion"] = metadata[
+                "slPluginManagerMinServerVersion"
+            ]
+    else:
+        control_fields = {
+            "Package": package_name,
+            "Version": version,
+            "Architecture": architecture,
+            "Maintainer": "slcli <no-reply@example.com>",
+            "Description": f"Package created by slcli for {package_name}",
+        }
 
     control_lines = [f"{k}: {v}" for k, v in control_fields.items()]
     control_content = ("\n".join(control_lines) + "\n").encode("utf-8")
@@ -263,6 +452,50 @@ def _build_angular_bootstrap_command(directory: Path) -> str:
     )
 
 
+def _build_webapp_manifest_and_config(
+    package_name: str,
+    version: str,
+    display_name: str,
+    description: str,
+    section: str,
+    maintainer: str,
+    homepage: str,
+    license_name: str,
+    xb_plugin: str,
+    tags: str,
+    min_server_version: str,
+    build_dir: str,
+    build_command: str,
+    icon_file: str,
+) -> tuple[Dict[str, str], Dict[str, str]]:
+    """Build validated submission manifest and nipkg config payloads."""
+    manifest = _validate_plugin_manager_metadata(
+        {
+            "package": package_name,
+            "version": version,
+            "displayName": display_name,
+            "description": description,
+            "section": section,
+            "maintainer": maintainer,
+            "homepage": homepage,
+            "license": license_name,
+            "xbPlugin": xb_plugin,
+            "slPluginManagerTags": tags,
+            "slPluginManagerMinServerVersion": min_server_version,
+            "nipkgFile": _default_nipkg_filename(package_name, version),
+        }
+    )
+
+    pack_config = dict(manifest)
+    pack_config.pop("nipkgFile", None)
+    pack_config["buildDir"] = build_dir
+    pack_config["buildCommand"] = build_command
+    if icon_file:
+        pack_config["iconFile"] = icon_file
+
+    return manifest, pack_config
+
+
 def _render_angular_prompts_md(directory: Path) -> str:
     """Render the prompt file for the Angular starter."""
     bootstrap_command = _build_angular_bootstrap_command(directory)
@@ -346,6 +579,7 @@ This directory was initialized with `slcli webapp init`.
 - bundled AI skills in `.agents/skills/`
 - ready-made prompts in [PROMPTS.md](PROMPTS.md)
 - deployment guidance for `slcli webapp publish`
+- Plugin Manager manifest scaffolding via `slcli webapp manifest init`
 
 Angular CLI remains the source of truth for the Angular workspace itself. That
 keeps the generated project aligned with current Angular defaults while the
@@ -379,6 +613,18 @@ not inside a nested subfolder.
 ng build --configuration production
 slcli webapp publish dist/<project-name>/browser/ \\
   --name "My Dashboard" --workspace Default
+```
+
+## Plugin Manager packaging metadata
+
+```bash
+slcli webapp manifest init . \\
+    --description "A dashboard for monitoring fleet health and calibration status." \\
+    --section Dashboard \\
+    --maintainer "Your Name <you@example.com>" \\
+    --license MIT
+
+slcli webapp pack --config nipkg.config.json
 ```
 """
 
@@ -446,8 +692,134 @@ def register_webapp_commands(cli: Any) -> None:
         except Exception as exc:
             handle_api_error(exc)
 
+    @webapp.group(name="manifest")
+    def webapp_manifest() -> None:
+        """Create Plugin Manager submission manifests and packaging config files."""
+
+    @webapp_manifest.command(name="init")
+    @click.argument(
+        "directory",
+        type=click.Path(file_okay=False, dir_okay=True, path_type=Path),
+    )
+    @click.option("--package", "package_name", default="", help="Package identifier")
+    @click.option("--version", default="0.1.0", show_default=True, help="Semantic version")
+    @click.option("--display-name", "display_name", default="", help="Human-readable name")
+    @click.option("--description", required=True, help="Plugin description")
+    @click.option("--section", required=True, help="Plugin Manager section/category")
+    @click.option("--maintainer", required=True, help="Maintainer in 'Name <email>' format")
+    @click.option("--homepage", default="", help="Project homepage or source repository URL")
+    @click.option("--license", "license_name", required=True, help="License identifier")
+    @click.option(
+        "--plugin-type",
+        "xb_plugin",
+        type=click.Choice(list(_XB_PLUGIN_VALUES)),
+        default="webapp",
+        show_default=True,
+        help="Plugin Manager top-level plugin type",
+    )
+    @click.option("--tags", default="", help="Comma-separated Plugin Manager search tags")
+    @click.option(
+        "--min-server-version",
+        default="",
+        help="Minimum supported SystemLink server version",
+    )
+    @click.option("--build-dir", default="", help="Build output directory for nipkg.config.json")
+    @click.option(
+        "--build-command",
+        default="npm run build",
+        show_default=True,
+        help="Build command written to nipkg.config.json",
+    )
+    @click.option("--icon-file", default="", help="Icon path written to nipkg.config.json")
+    @click.option("--force", is_flag=True, help="Overwrite existing manifest files")
+    def init_manifest(
+        directory: Path,
+        package_name: str,
+        version: str,
+        display_name: str,
+        description: str,
+        section: str,
+        maintainer: str,
+        homepage: str,
+        license_name: str,
+        xb_plugin: str,
+        tags: str,
+        min_server_version: str,
+        build_dir: str,
+        build_command: str,
+        icon_file: str,
+        force: bool,
+    ) -> None:
+        """Write manifest.json and nipkg.config.json using the Plugin Manager contract."""
+        try:
+            directory.mkdir(parents=True, exist_ok=True)
+
+            package_name = package_name or sanitize_filename(directory.name, "webapp")
+            display_name = display_name or _default_display_name(package_name)
+            build_dir = build_dir or _default_angular_build_dir(directory)
+
+            manifest_path = directory / "manifest.json"
+            config_path = directory / "nipkg.config.json"
+            existing = []
+            if manifest_path.exists() and not force:
+                existing.append("manifest.json")
+            if config_path.exists() and not force:
+                existing.append("nipkg.config.json")
+            if existing:
+                click.echo(
+                    f"✗ {', '.join(existing)} already exist(s). Use --force to overwrite.",
+                    err=True,
+                )
+                sys.exit(ExitCodes.INVALID_INPUT)
+
+            manifest, pack_config = _build_webapp_manifest_and_config(
+                package_name=package_name,
+                version=version,
+                display_name=display_name,
+                description=description,
+                section=section,
+                maintainer=maintainer,
+                homepage=homepage,
+                license_name=license_name,
+                xb_plugin=xb_plugin,
+                tags=tags,
+                min_server_version=min_server_version,
+                build_dir=build_dir,
+                build_command=build_command,
+                icon_file=icon_file,
+            )
+
+            save_json_file(manifest, str(manifest_path))
+            save_json_file(pack_config, str(config_path))
+            format_success(
+                "Created Plugin Manager manifest files",
+                {
+                    "Manifest": str(manifest_path),
+                    "Pack config": str(config_path),
+                    "nipkgFile": manifest["nipkgFile"],
+                },
+            )
+        except SystemExit:
+            raise
+        except Exception as exc:
+            handle_api_error(exc)
+
     @webapp.command(name="pack")
-    @click.argument("folder", type=click.Path(exists=True, file_okay=False, path_type=Path))
+    @click.argument(
+        "folder",
+        required=False,
+        type=click.Path(exists=True, file_okay=False, path_type=Path),
+    )
+    @click.option(
+        "--config",
+        "config_path",
+        type=click.Path(exists=True, file_okay=True, dir_okay=False, path_type=Path),
+        default=None,
+        help=(
+            "Path to nipkg.config.json or compatible metadata JSON. "
+            "If it does not include buildDir, also pass FOLDER."
+        ),
+    )
     @click.option(
         "--output",
         "output",
@@ -455,11 +827,46 @@ def register_webapp_commands(cli: Any) -> None:
         default=None,
         help="Output .nipkg file path",
     )
-    def pack_cmd(folder: Path, output: Optional[Path]) -> None:
+    def pack_cmd(
+        folder: Optional[Path], config_path: Optional[Path], output: Optional[Path]
+    ) -> None:
         """Pack a folder into a .nipkg."""
         try:
+            metadata: Optional[Dict[str, str]] = None
+            resolved_folder = folder
+
+            if config_path is not None:
+                raw_data = load_json_file(str(config_path))
+                if not isinstance(raw_data, dict):
+                    click.echo("✗ Config file must contain a JSON object.", err=True)
+                    sys.exit(ExitCodes.INVALID_INPUT)
+                metadata = _validate_plugin_manager_metadata(
+                    raw_data, require_build_dir=resolved_folder is None
+                )
+
+                if resolved_folder is None:
+                    build_dir = metadata.get("buildDir", "")
+                    base_dir = config_path.parent
+                    resolved_folder = Path(build_dir)
+                    if not resolved_folder.is_absolute():
+                        resolved_folder = base_dir / resolved_folder
+                    resolved_folder = resolved_folder.resolve()
+                    if not resolved_folder.exists() or not resolved_folder.is_dir():
+                        click.echo(
+                            f"✗ buildDir does not exist or is not a directory: {resolved_folder}",
+                            err=True,
+                        )
+                        sys.exit(ExitCodes.INVALID_INPUT)
+
+                if output is None and metadata.get("nipkgFile"):
+                    output = config_path.parent / metadata["nipkgFile"]
+
+            if resolved_folder is None:
+                click.echo("✗ Must provide a folder or --config with buildDir.", err=True)
+                sys.exit(ExitCodes.INVALID_INPUT)
+
             out = Path(output) if output else None
-            result = _pack_folder_to_nipkg(folder, out)
+            result = _pack_folder_to_nipkg(resolved_folder, out, metadata)
             format_success("Packed folder", {"Path": str(result)})
         except SystemExit:
             raise

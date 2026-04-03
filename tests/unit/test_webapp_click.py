@@ -1,5 +1,8 @@
 """Unit tests for slcli webapp commands."""
 
+import io
+import tarfile
+from json import dumps, loads
 from pathlib import Path
 from typing import Any, Dict
 from unittest.mock import patch
@@ -8,8 +11,33 @@ import pytest
 from click.testing import CliRunner
 from pytest import MonkeyPatch
 from slcli.main import cli
+from slcli.utils import ExitCodes
 
 from .test_utils import patch_keyring
+
+
+def _read_control_file(pkg_path: Path) -> str:
+    """Extract and decode the Debian control file from a .nipkg archive."""
+    with open(pkg_path, "rb") as package_file:
+        assert package_file.read(8) == b"!<arch>\n"
+
+        while True:
+            header = package_file.read(60)
+            if not header:
+                break
+            member_name = header[:16].decode("utf-8").strip()
+            member_size = int(header[48:58].decode("ascii").strip())
+            member_data = package_file.read(member_size)
+            if member_size % 2:
+                package_file.read(1)
+
+            if member_name == "control.tar.gz":
+                with tarfile.open(fileobj=io.BytesIO(member_data), mode="r:gz") as archive:
+                    control_member = archive.extractfile("control")
+                    assert control_member is not None
+                    return control_member.read().decode("utf-8")
+
+    raise AssertionError("control.tar.gz not found in package")
 
 
 @pytest.fixture(autouse=True)
@@ -107,6 +135,172 @@ def test_webapp_init_installs_skills(tmp_path: Path, monkeypatch: MonkeyPatch) -
     assert (skills_dir / "slcli" / "SKILL.md").exists()
 
 
+def test_webapp_manifest_init_writes_manifest_and_pack_config(
+    tmp_path: Path, monkeypatch: MonkeyPatch
+) -> None:
+    runner = CliRunner()
+    patch_keyring(monkeypatch)
+
+    target = tmp_path / "my-dashboard"
+    result = runner.invoke(
+        cli,
+        [
+            "webapp",
+            "manifest",
+            "init",
+            str(target),
+            "--description",
+            "A dashboard for monitoring fleet status and calibration trends.",
+            "--section",
+            "Dashboard",
+            "--maintainer",
+            "Test User <test@example.com>",
+            "--license",
+            "MIT",
+            "--homepage",
+            "https://example.com/my-dashboard",
+            "--tags",
+            "dashboard,monitoring,assets",
+            "--min-server-version",
+            "2024 Q4",
+        ],
+    )
+
+    assert result.exit_code == 0
+
+    manifest = loads((target / "manifest.json").read_text(encoding="utf-8"))
+    config = loads((target / "nipkg.config.json").read_text(encoding="utf-8"))
+
+    assert manifest["package"] == "my-dashboard"
+    assert manifest["version"] == "0.1.0"
+    assert manifest["displayName"] == "My Dashboard"
+    assert manifest["section"] == "Dashboard"
+    assert manifest["maintainer"] == "Test User <test@example.com>"
+    assert manifest["xbPlugin"] == "webapp"
+    assert manifest["slPluginManagerTags"] == "dashboard,monitoring,assets"
+    assert manifest["slPluginManagerMinServerVersion"] == "2024 Q4"
+    assert manifest["nipkgFile"] == "my-dashboard_0.1.0_all.nipkg"
+    assert "appStoreCategory" not in manifest
+
+    assert config["package"] == "my-dashboard"
+    assert config["buildDir"] == "dist/my-dashboard/browser"
+    assert config["buildCommand"] == "npm run build"
+    assert "nipkgFile" not in config
+
+
+def test_webapp_manifest_init_defaults_build_dir_from_directory_not_package(
+    tmp_path: Path, monkeypatch: MonkeyPatch
+) -> None:
+    runner = CliRunner()
+    patch_keyring(monkeypatch)
+
+    target = tmp_path / "angular-app"
+    result = runner.invoke(
+        cli,
+        [
+            "webapp",
+            "manifest",
+            "init",
+            str(target),
+            "--package",
+            "plugin-catalog-entry",
+            "--description",
+            "A dashboard for monitoring fleet status and calibration trends.",
+            "--section",
+            "Dashboard",
+            "--maintainer",
+            "Test User <test@example.com>",
+            "--license",
+            "MIT",
+        ],
+    )
+
+    assert result.exit_code == 0
+
+    manifest = loads((target / "manifest.json").read_text(encoding="utf-8"))
+    config = loads((target / "nipkg.config.json").read_text(encoding="utf-8"))
+
+    assert manifest["package"] == "plugin-catalog-entry"
+    assert config["package"] == "plugin-catalog-entry"
+    assert config["buildDir"] == "dist/angular-app/browser"
+
+
+def test_webapp_manifest_init_rejects_invalid_metadata(
+    tmp_path: Path, monkeypatch: MonkeyPatch
+) -> None:
+    runner = CliRunner()
+    patch_keyring(monkeypatch)
+
+    target = tmp_path / "bad-dashboard"
+    result = runner.invoke(
+        cli,
+        [
+            "webapp",
+            "manifest",
+            "init",
+            str(target),
+            "--version",
+            "1.0",
+            "--description",
+            "too short",
+            "--section",
+            "D",
+            "--maintainer",
+            "not-an-email",
+            "--license",
+            "M",
+        ],
+    )
+
+    assert result.exit_code == ExitCodes.INVALID_INPUT
+    assert "version must be strict semver" in result.output
+    assert "description must be at least 20 characters" in result.output
+    assert "maintainer must be in the format" in result.output
+
+
+def test_webapp_manifest_init_rejects_schema_length_limits_and_unknown_fields(
+    tmp_path: Path, monkeypatch: MonkeyPatch
+) -> None:
+    runner = CliRunner()
+    patch_keyring(monkeypatch)
+
+    target = tmp_path / "too-long"
+    config_path = target / "invalid.json"
+    target.mkdir()
+    invalid_config = {
+        "package": "p" * 101,
+        "version": "1.2.3",
+        "displayName": "D" * 201,
+        "description": "A" * 5001,
+        "section": "Dashboard",
+        "maintainer": "Test User <test@example.com>",
+        "license": "MIT",
+        "xbPlugin": "webapp",
+        "unexpected": "value",
+    }
+    config_path.write_text(
+        dumps(invalid_config),
+        encoding="utf-8",
+    )
+
+    result = runner.invoke(
+        cli,
+        [
+            "webapp",
+            "pack",
+            str(target),
+            "--config",
+            str(config_path),
+        ],
+    )
+
+    assert result.exit_code == ExitCodes.INVALID_INPUT
+    assert "package must be at most 100 characters" in result.output
+    assert "displayName must be at most 200 characters" in result.output
+    assert "description must be at most 5000 characters" in result.output
+    assert "unexpected field(s): unexpected" in result.output
+
+
 def test_webapp_pack_creates_nipkg(tmp_path: Path, monkeypatch: MonkeyPatch) -> None:
     runner = CliRunner()
     patch_keyring(monkeypatch)
@@ -129,6 +323,66 @@ def test_webapp_pack_creates_nipkg(tmp_path: Path, monkeypatch: MonkeyPatch) -> 
     assert b"debian-binary" in data
     assert b"control.tar.gz" in data
     assert b"data.tar.gz" in data
+
+
+def test_webapp_pack_uses_plugin_manager_metadata_from_config(
+    tmp_path: Path, monkeypatch: MonkeyPatch
+) -> None:
+    runner = CliRunner()
+    patch_keyring(monkeypatch)
+
+    project_dir = tmp_path / "plugin-project"
+    build_dir = project_dir / "dist" / "plugin-project" / "browser"
+    build_dir.mkdir(parents=True)
+    (build_dir / "index.html").write_text("hello", encoding="utf-8")
+
+    config_path = project_dir / "nipkg.config.json"
+    config_path.write_text(
+        """
+{
+  "package": "plugin-project",
+  "version": "1.2.3",
+  "displayName": "Plugin Project",
+  "description": "A plugin for monitoring assets and publishing fleet dashboards.",
+  "section": "Monitoring",
+  "maintainer": "Plugin Team <plugins@example.com>",
+  "homepage": "https://example.com/plugin-project",
+  "license": "MIT",
+  "xbPlugin": "webapp",
+  "slPluginManagerTags": "monitoring,assets,webapp",
+  "slPluginManagerMinServerVersion": "2024 Q4",
+  "buildDir": "dist/plugin-project/browser",
+  "buildCommand": "npm run build"
+}
+""".strip(),
+        encoding="utf-8",
+    )
+
+    output_path = tmp_path / "plugin-project_1.2.3_all.nipkg"
+    result = runner.invoke(
+        cli,
+        [
+            "webapp",
+            "pack",
+            "--config",
+            str(config_path),
+            "--output",
+            str(output_path),
+        ],
+    )
+
+    assert result.exit_code == 0
+    control_file = _read_control_file(output_path)
+    assert "Package: plugin-project" in control_file
+    assert "Version: 1.2.3" in control_file
+    assert "Section: Monitoring" in control_file
+    assert "Maintainer: Plugin Team <plugins@example.com>" in control_file
+    assert "Homepage: https://example.com/plugin-project" in control_file
+    assert "XB-DisplayName: Plugin Project" in control_file
+    assert "XB-Plugin: webapp" in control_file
+    assert "XB-SlPluginManagerLicense: MIT" in control_file
+    assert "XB-SlPluginManagerTags: monitoring,assets,webapp" in control_file
+    assert "XB-SlPluginManagerMinServerVersion: 2024 Q4" in control_file
 
 
 def test_webapp_list_shows_items(monkeypatch: MonkeyPatch) -> None:
