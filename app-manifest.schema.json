@@ -1,0 +1,82 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://github.com/ni-kismet/systemlink-plugin-manager/app-manifest.schema.json",
+  "title": "Plugin Manager for SystemLink Submission Manifest",
+  "description": "Schema for manifest.json files in submissions/ directories. Used by CI to validate app submissions.",
+  "type": "object",
+  "required": [
+    "package",
+    "version",
+    "displayName",
+    "description",
+    "section",
+    "maintainer",
+    "license",
+    "xbPlugin"
+  ],
+  "properties": {
+    "package": {
+      "type": "string",
+      "pattern": "^[a-z0-9][a-z0-9._-]*$",
+      "minLength": 3,
+      "maxLength": 100,
+      "description": "Unique package identifier (lowercase, hyphens/dots/underscores allowed). First-come-first-served."
+    },
+    "version": {
+      "type": "string",
+      "pattern": "^(0|[1-9]\\d*)\\.(0|[1-9]\\d*)\\.(0|[1-9]\\d*)$",
+      "description": "Semantic version (MAJOR.MINOR.PATCH). No pre-release or build metadata."
+    },
+    "displayName": {
+      "type": "string",
+      "minLength": 3,
+      "maxLength": 200,
+      "description": "Human-readable app name shown in the store UI."
+    },
+    "description": {
+      "type": "string",
+      "minLength": 20,
+      "maxLength": 5000,
+      "description": "Multi-line description of the app."
+    },
+    "section": {
+      "type": "string",
+      "minLength": 2,
+      "description": "Fine-grained category shown in the Plugin Manager catalog, such as Dashboard, Data Analysis, Integration, or Monitoring."
+    },
+    "maintainer": {
+      "type": "string",
+      "minLength": 3,
+      "description": "Maintainer name and email, e.g. 'Acme Corp <apps@acme.com>'. This is also used for the author display in the Plugin Manager UI."
+    },
+    "homepage": {
+      "type": "string",
+      "format": "uri",
+      "description": "Link to project homepage, documentation, or source repository."
+    },
+    "license": {
+      "type": "string",
+      "minLength": 2,
+      "description": "SPDX license identifier (e.g. MIT, Apache-2.0) or 'Proprietary'."
+    },
+    "xbPlugin": {
+      "type": "string",
+      "enum": ["webapp", "notebook", "dashboard", "routine", "bundle"],
+      "description": "Top-level plugin type used for Plugin Manager routing and filtering. This value is written to the XB-Plugin feed attribute."
+    },
+    "slPluginManagerTags": {
+      "type": "string",
+      "description": "Comma-separated search tags."
+    },
+    "slPluginManagerMinServerVersion": {
+      "type": "string",
+      "description": "Minimum SystemLink server version, e.g. '2024 Q4'."
+    },
+    "nipkgFile": {
+      "type": "string",
+      "pattern": "\\.nipkg$",
+      "description": "Filename of the .nipkg in this submission directory."
+    }
+  },
+  "additionalProperties": false
+}

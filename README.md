@@ -53,6 +53,13 @@ slcli system list --state CONNECTED
 slcli webapp init ./my-dashboard
 # Open the project and follow START_HERE.md or PROMPTS.md
 
+# Create Plugin Manager manifest + packaging config
+slcli webapp manifest init ./my-dashboard \
+	--description "A dashboard for monitoring fleet health and calibration status." \
+	--section Dashboard \
+	--maintainer "Your Name <you@example.com>" \
+	--license MIT
+
 # Or install AI skills manually (use --client claude for Claude)
 slcli skill install
 
