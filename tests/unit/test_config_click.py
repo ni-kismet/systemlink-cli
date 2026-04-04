@@ -201,12 +201,16 @@ class TestViewConfig:
     """Tests for the view command."""
 
     def test_view_config(self, tmp_path: Path, monkeypatch: Any) -> None:
-        """Test viewing the full config."""
+        """Test viewing the full config in table format."""
         config_file = tmp_path / "config.json"
         config_data: Dict[str, Any] = {
             "current-profile": "test",
             "profiles": {
-                "test": {"server": "https://test.com", "api-key": "secret"},
+                "test": {
+                    "server": "https://test.com",
+                    "api-key": "secret1234",
+                    "workspace": "Engineering",
+                },
             },
         }
         config_file.write_text(json.dumps(config_data))
@@ -220,10 +224,66 @@ class TestViewConfig:
         result = runner.invoke(cli, ["config", "view"])
 
         assert result.exit_code == 0
-        # Should show profile info
+        assert "slcli Configuration" in result.output
+        assert "SETTING" in result.output
+        assert "VALUE" in result.output
+        assert "Current Profile" in result.output
         assert "test" in result.output
-        # Note: view command doesn't mask API keys by default
-        # It shows profile name and server
+        assert "https://test.com" in result.output
+        assert "Engineering" in result.output
+        assert "****1234" in result.output
+        assert "secret1234" not in result.output
+
+    def test_view_config_show_secrets(self, tmp_path: Path, monkeypatch: Any) -> None:
+        """Test viewing the full config with secrets shown."""
+        config_file = tmp_path / "config.json"
+        config_data: Dict[str, Any] = {
+            "current-profile": "test",
+            "profiles": {
+                "test": {
+                    "server": "https://test.com",
+                    "api-key": "secret1234",
+                },
+            },
+        }
+        config_file.write_text(json.dumps(config_data))
+        config_file.chmod(0o600)
+        monkeypatch.setattr(
+            "slcli.profiles.ProfileConfig.get_config_path", classmethod(lambda cls: config_file)
+        )
+
+        cli = make_cli()
+        runner = CliRunner()
+        result = runner.invoke(cli, ["config", "view", "--show-secrets"])
+
+        assert result.exit_code == 0
+        assert "API Key" in result.output
+        assert "secret1234" in result.output
+
+    def test_view_config_without_current_profile(self, tmp_path: Path, monkeypatch: Any) -> None:
+        """Test viewing the config when no current profile is set."""
+        config_file = tmp_path / "config.json"
+        config_data: Dict[str, Any] = {
+            "profiles": {
+                "test": {
+                    "server": "https://test.com",
+                    "api-key": "secret1234",
+                },
+            },
+        }
+        config_file.write_text(json.dumps(config_data))
+        config_file.chmod(0o600)
+        monkeypatch.setattr(
+            "slcli.profiles.ProfileConfig.get_config_path", classmethod(lambda cls: config_file)
+        )
+
+        cli = make_cli()
+        runner = CliRunner()
+        result = runner.invoke(cli, ["config", "view"])
+
+        assert result.exit_code == 0
+        assert "Current Profile" in result.output
+        assert "(none)" in result.output
 
 
 class TestDeleteProfile:

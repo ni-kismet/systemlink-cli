@@ -18,6 +18,7 @@ import click
 import questionary
 
 from .cli_utils import validate_output_format
+from .rich_output import render_table
 from .universal_handlers import FilteredResponse, UniversalResponseHandler
 from .utils import (
     ExitCodes,
@@ -97,8 +98,7 @@ def _calculate_column_widths() -> List[int]:
     os_width = 10
     workspace_width = 16
 
-    # Account for table borders and padding for 6 columns.
-    # Row layout: "│ c1 │ c2 │ c3 │ c4 │ c5 │ c6 │" = 7 bars + 12 spaces = 19
+    # Account for column separators and cell padding for 6 columns.
     border_overhead = 19
 
     # Calculate remaining space for ID column
@@ -129,8 +129,7 @@ def _calculate_job_column_widths() -> List[int]:
     state_width = 14
     created_width = 24
 
-    # Account for table borders and padding for 4 columns.
-    # Row layout: "│ c1 │ c2 │ c3 │ c4 │" = 5 bars + 8 spaces = 13
+    # Account for column separators and cell padding for 4 columns.
     border_overhead = 13
 
     # Calculate remaining space for Target System column
@@ -1716,16 +1715,19 @@ def register_system_commands(cli: Any) -> None:
                 click.echo(json.dumps(result, indent=2))
             else:
                 click.echo()
-                click.echo("┌────────────────────────┐")
-                click.echo("│ System Fleet Summary   │")
-                click.echo("├────────────────┬───────┤")
-                click.echo(f"│ Connected      │ {connected:>5} │")
-                click.echo(f"│ Disconnected   │ {disconnected:>5} │")
-                click.echo(f"│ Virtual        │ {virtual:>5} │")
-                click.echo(f"│ Pending        │ {pending:>5} │")
-                click.echo("├────────────────┼───────┤")
-                click.echo(f"│ Total          │ {total:>5} │")
-                click.echo("└────────────────┴───────┘")
+                click.echo("System Fleet Summary:")
+                render_table(
+                    headers=["STATE", "COUNT"],
+                    column_widths=[16, 7],
+                    rows=[
+                        ["Connected", connected],
+                        ["Disconnected", disconnected],
+                        ["Virtual", virtual],
+                        ["Pending", pending],
+                        ["Total", total],
+                    ],
+                    show_total=False,
+                )
                 click.echo()
 
         except Exception as exc:  # noqa: BLE001

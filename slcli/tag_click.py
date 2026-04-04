@@ -69,10 +69,8 @@ def _calculate_column_widths() -> List[int]:
     value_width = 30
     last_updated_width = 20
 
-    # Account for table borders and padding for 4 columns.
-    # Row layout: "│ {col1} │ {col2} │ {col3} │ {col4} │"
-    # This is 5 vertical bars (│) and 8 spaces (2 per column) = 13 characters.
-    # Using 14 to account for terminal rendering variations.
+    # Account for column separators and cell padding for 4 columns.
+    # Using 14 to account for rendering overhead and terminal variations.
     border_overhead = 14
 
     # Calculate remaining space for path

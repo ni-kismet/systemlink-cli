@@ -2,9 +2,10 @@
 
 import json
 from pathlib import Path
+from types import ModuleType
 from typing import Optional
 
-import click
+import click as base_click
 import keyring
 import questionary
 import tomllib
@@ -25,6 +26,8 @@ from .platform import (
 )
 from .policy_click import register_policy_commands
 from .profiles import set_profile_override
+from .rich_output import install_rich_output
+from .rich_output import render_table
 from .routine_click import register_routine_commands
 from .skill_click import register_skill_commands
 from .ssl_trust import OS_TRUST_INJECTED, OS_TRUST_REASON
@@ -36,6 +39,14 @@ from .user_click import register_user_commands
 from .webapp_click import register_webapp_commands
 from .workitem_click import register_workitem_commands
 from .workspace_click import register_workspace_commands
+
+click: ModuleType
+try:
+    import rich_click as rich_click_module  # type: ignore[import-not-found]
+except ModuleNotFoundError:
+    click = base_click
+else:
+    click = rich_click_module
 
 
 def get_version() -> str:
@@ -83,8 +94,10 @@ def get_ascii_art() -> str:
     help="Use a specific profile for this command",
 )
 @click.pass_context
-def cli(ctx: click.Context, version: bool, profile: Optional[str]) -> None:
+def cli(ctx: base_click.Context, version: bool, profile: Optional[str]) -> None:
     """SystemLink CLI for managing SystemLink resources."""  # noqa: D403
+    install_rich_output()
+
     if version:
         click.echo(f"slcli version {get_version()}")
         ctx.exit()
@@ -314,13 +327,7 @@ def info(format: str, skip_health: bool) -> None:
         click.echo(json.dumps(platform_info, indent=2))
         return
 
-    # Table format using box-drawing characters for key-value display.
-    # Note: This uses a custom layout rather than table_utils because table_utils
-    # is designed for list-style output (multiple uniform rows), while this command
-    # displays a single record with key-value pairs and feature availability.
-    # All text fields are truncated to prevent formatting issues with long values.
     max_value_width = 45  # Maximum width for values before truncation
-    content_width = 61  # Total width inside the box
 
     def truncate(value: str, max_len: int = max_value_width) -> str:
         """Truncate a string with ellipsis if it exceeds max length."""
@@ -328,11 +335,6 @@ def info(format: str, skip_health: bool) -> None:
             return value[: max_len - 3] + "..."
         return value
 
-    click.echo("\n┌" + "─" * content_width + "┐")
-    click.echo("│" + "SystemLink CLI Info".center(content_width) + "│")
-    click.echo("├" + "─" * content_width + "┤")
-
-    # Connection status
     if not platform_info["logged_in"]:
         status = "✗ Not logged in"
     elif platform_info.get("server_reachable") is False:
@@ -341,32 +343,27 @@ def info(format: str, skip_health: bool) -> None:
         status = "✗ API key unauthorized"
     else:
         status = "✓ Connected"
-    click.echo(f"│  Status:    {status:<48}│")
 
-    # Profile information
     profile_display = platform_info.get("active_profile_name", "None")
     if platform_info.get("profile_count", 0) > 1:
         profile_display = f"{profile_display} (1 of {platform_info['profile_count']})"
     profile_display = truncate(profile_display)
-    click.echo(f"│  Profile:   {profile_display:<48}│")
-
-    # Platform
     platform_display = truncate(platform_info.get("platform_display", "Unknown"))
-    click.echo(f"│  Platform:  {platform_display:<48}│")
-
-    # API URL
     api_url = truncate(platform_info.get("api_url", "Not configured"))
-    click.echo(f"│  API URL:   {api_url:<48}│")
-
-    # Web URL
     web_url = truncate(platform_info.get("web_url", "Not configured"))
-    click.echo(f"│  Web URL:   {web_url:<48}│")
 
-    # Default workspace
+    info_rows = [
+        ["Status", status],
+        ["Profile", profile_display],
+        ["Platform", platform_display],
+        ["API URL", api_url],
+        ["Web URL", web_url],
+    ]
+
     workspace = platform_info.get("active_profile_workspace")
     if workspace:
         workspace_display = truncate(workspace)
-        click.echo(f"│  Workspace: {workspace_display:<48}│")
+        info_rows.append(["Workspace", workspace_display])
 
     file_query_endpoint = platform_info.get("file_query_endpoint")
     if file_query_endpoint:
@@ -375,15 +372,19 @@ def info(format: str, skip_health: bool) -> None:
         else:
             file_query_display = str(file_query_endpoint)
         file_query_display = truncate(file_query_display)
-        click.echo(f"│  File Query:{file_query_display:<48}│")
+        info_rows.append(["File Query", file_query_display])
 
-    # Service Health section (only when services were checked)
+    click.echo()
+    click.echo("SystemLink CLI Info:")
+    render_table(
+        headers=["SETTING", "VALUE"],
+        column_widths=[16, 48],
+        rows=info_rows,
+        show_total=False,
+    )
+
     services = platform_info.get("services")
     if services:
-        click.echo("├" + "─" * content_width + "┤")
-        click.echo("│" + "Service Health".center(content_width) + "│")
-        click.echo("├" + "─" * content_width + "┤")
-
         status_display = {
             "ok": ("✓", "OK"),
             "fallback": ("!", "Fallback (no Elasticsearch)"),
@@ -392,12 +393,20 @@ def info(format: str, skip_health: bool) -> None:
             "error": ("✗", "Error"),
             "unreachable": ("✗", "Unreachable"),
         }
+        service_rows = []
         for svc_name, svc_status in services.items():
             icon, text = status_display.get(svc_status, ("?", svc_status))
-            display_name = truncate(svc_name, 29)
-            click.echo(f"│  {icon} {display_name:<30} {text:<26}│")
+            service_rows.append([truncate(svc_name, 29), f"{icon} {text}"])
 
-    click.echo("└" + "─" * content_width + "┘\n")
+        click.echo()
+        click.echo("Service Health:")
+        render_table(
+            headers=["SERVICE", "STATUS"],
+            column_widths=[26, 32],
+            rows=service_rows,
+            show_total=False,
+        )
+        click.echo()
 
 
 register_completion_command(cli)

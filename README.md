@@ -68,6 +68,14 @@ slcli skill install
 slcli example install demo-complete-workflow --workspace Training
 ```
 
+## Color Output
+
+slcli auto-detects terminal color support for tables, status lines, and JSON output.
+
+- `SLCLI_COLOR=always` forces color when you want ANSI output even through wrappers or pseudo-terminals.
+- `SLCLI_COLOR=never` disables Rich color output explicitly.
+- `NO_COLOR=1` also disables color output and takes precedence over auto-detection.
+
 ## Documentation
 
 | Section                                                                            | Description                                                |

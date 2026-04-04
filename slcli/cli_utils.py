@@ -1,12 +1,13 @@
 """Common utility functions for all CLI commands."""
 
 import sys
-from typing import Any, Dict, List, Optional, Callable
+from typing import Any, Callable, Dict, List, Optional
 
 import click
 import questionary
 import requests
 
+from .rich_output import print_json, render_table
 from .utils import ExitCodes, handle_api_error
 
 
@@ -368,9 +369,7 @@ def paginate_list_output(
 
     # For JSON format, show all results at once (no pagination)
     if format_output.lower() == "json":
-        import json
-
-        click.echo(json.dumps(items, indent=2))
+        print_json(items)
         return
 
     # Table format with pagination
@@ -456,49 +455,14 @@ def _output_formatted_page(
     if not items:
         return
 
-    # Table format with box-drawing characters (without footer)
     if len(headers) != len(column_widths):
         raise ValueError("Headers and column_widths must have the same length")
 
-    # Top border
-    border_chars = ["┌"] + [("─" * (w + 2)) for w in column_widths]
-    border_line = border_chars[0] + border_chars[1]
-    for part in border_chars[2:]:
-        border_line += "┬" + part
-    border_line += "┐"
-    click.echo(border_line)
-
-    # Header row
-    header_parts = ["│"]
-    for header, width in zip(headers, column_widths):
-        header_parts.append(f" {header:<{width}} │")
-    click.echo("".join(header_parts))
-
-    # Middle border
-    border_chars = ["├"] + [("─" * (w + 2)) for w in column_widths]
-    border_line = border_chars[0] + border_chars[1]
-    for part in border_chars[2:]:
-        border_line += "┼" + part
-    border_line += "┤"
-    click.echo(border_line)
-
-    # Data rows
+    rows = []
     for item in items:
         row_data = row_formatter_func(item)
         if len(row_data) != len(column_widths):
             raise ValueError("Row data must match column count")
+        rows.append(row_data)
 
-        row_parts = ["│"]
-        for value, width in zip(row_data, column_widths):
-            # Truncate if necessary
-            str_value = str(value or "")[:width]
-            row_parts.append(f" {str_value:<{width}} │")
-        click.echo("".join(row_parts))
-
-    # Bottom border
-    border_chars = ["└"] + [("─" * (w + 2)) for w in column_widths]
-    border_line = border_chars[0] + border_chars[1]
-    for part in border_chars[2:]:
-        border_line += "┴" + part
-    border_line += "┘"
-    click.echo(border_line)
+    render_table(headers, column_widths, rows, show_total=False)

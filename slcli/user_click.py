@@ -16,6 +16,7 @@ import questionary
 from click.core import ParameterSource
 
 from .cli_utils import paginate_list_output, validate_output_format
+from .rich_output import render_table
 from .utils import (
     ExitCodes,
     format_success,
@@ -275,13 +276,6 @@ def _calculate_policy_column_widths() -> List[int]:
     return [actions_width, resources_width, workspace_width, description_width]
 
 
-def _truncate_cell(value: str, width: int) -> str:
-    """Truncate cell content to fit within the specified width."""
-    if len(value) > width:
-        return value[: max(0, width - 3)] + "..."
-    return value
-
-
 def _format_policy_table(policies: list) -> None:
     """Format and display policies in a table format.
 
@@ -354,34 +348,18 @@ def _format_policy_table(policies: list) -> None:
             column_widths = _calculate_policy_column_widths()
             headers = ["Actions", "Resources", "Workspace", "Description"]
 
-            def _border(left: str, junction: str, right: str) -> str:
-                parts = [left] + ["─" * (w + 2) for w in column_widths]
-                border_line = parts[0] + parts[1]
-                for segment in parts[2:]:
-                    border_line += junction + segment
-                return border_line + right
-
-            click.echo(_border("┌", "┬", "┐"))
-            header_parts = ["│"]
-            for header, width in zip(headers, column_widths):
-                header_parts.append(f" {header:<{width}} │")
-            click.echo("".join(header_parts))
-            click.echo(_border("├", "┼", "┤"))
-
+            rows = []
             for statement in statements:
-                row_data = [
-                    ", ".join(statement.get("actions", [])),
-                    ", ".join(statement.get("resource", [])),
-                    statement.get("workspace", ""),
-                    statement.get("description", "") or "",
-                ]
-                row_parts = ["│"]
-                for value, width in zip(row_data, column_widths):
-                    cell = _truncate_cell(str(value), width)
-                    row_parts.append(f" {cell:<{width}} │")
-                click.echo("".join(row_parts))
+                rows.append(
+                    [
+                        ", ".join(statement.get("actions", [])),
+                        ", ".join(statement.get("resource", [])),
+                        statement.get("workspace", ""),
+                        statement.get("description", "") or "",
+                    ]
+                )
 
-            click.echo(_border("└", "┴", "┘"))
+            render_table(headers, column_widths, rows, show_total=False)
         else:
             click.echo("  No statements defined for this policy.")
 

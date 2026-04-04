@@ -14,6 +14,7 @@ from .platform import (
     check_service_status,
 )
 from .profiles import ProfileConfig, Profile, check_config_file_permissions
+from .rich_output import render_table
 from .table_utils import output_formatted_list
 from .utils import ExitCodes
 
@@ -337,65 +338,42 @@ def register_config_commands(cli: Any) -> None:
             click.echo(json.dumps(data, indent=2))
             return
 
-        # Table format
-        click.echo("┌─────────────────────────────────────────────────────────────┐")
-        click.echo("│ slcli Configuration                                         │")
-        click.echo("├─────────────────────────────────────────────────────────────┤")
+        rows = [
+            ["Current Profile", cfg.current_profile or "(none)"],
+            ["Config File", str(ProfileConfig.get_config_path())],
+        ]
 
-        if cfg.current_profile:
-            click.echo(f"│ Current Profile: {cfg.current_profile:<42} │")
-        else:
-            click.echo("│ Current Profile: (none)                                     │")
-
-        config_path_str = str(ProfileConfig.get_config_path())
-        if len(config_path_str) > 46:
-            config_path_str = config_path_str[:43] + "..."
-        click.echo(f"│ Config File: {config_path_str:<46} │")
-
-        # Show current profile details
         if cfg.current_profile and cfg.current_profile in cfg.profiles:
             profile = cfg.profiles[cfg.current_profile]
-            click.echo("├─────────────────────────────────────────────────────────────┤")
+            rows.append(["Server", profile.server])
 
-            # Server
-            server_str = profile.server
-            if len(server_str) > 47:
-                server_str = server_str[:44] + "..."
-            click.echo(f"│ Server: {server_str:<51} │")
-
-            # Web URL
             if profile.web_url:
-                web_url_str = profile.web_url
-                if len(web_url_str) > 45:
-                    web_url_str = web_url_str[:42] + "..."
-                click.echo(f"│ Web URL: {web_url_str:<50} │")
+                rows.append(["Web URL", profile.web_url])
 
-            # Platform
             if profile.platform:
-                platform_str = profile.platform or "Unknown"
-                click.echo(f"│ Platform: {platform_str:<49} │")
+                rows.append(["Platform", profile.platform or "Unknown"])
 
-            # API Key (redacted)
             if show_secrets:
-                click.echo(f"│ API Key: {profile.api_key:<50} │")
+                api_key_display = profile.api_key
             else:
-                # Show only last 4 characters
-                key = profile.api_key
-                redacted_key = "****" + key[-4:] if len(key) >= 4 else "****"
-                click.echo(f"│ API Key: {redacted_key:<50} │")
+                api_key_display = (
+                    "****" + profile.api_key[-4:] if len(profile.api_key) >= 4 else "****"
+                )
+            rows.append(["API Key", api_key_display])
 
-            # Workspace
             if profile.workspace:
-                workspace_str = profile.workspace
-                if len(workspace_str) > 45:
-                    workspace_str = workspace_str[:42] + "..."
-                click.echo(f"│ Workspace: {workspace_str:<48} │")
+                rows.append(["Workspace", profile.workspace])
 
-            # Readonly
             if profile.readonly:
-                click.echo("│ Readonly: enabled                                           │")
+                rows.append(["Readonly", "enabled"])
 
-        click.echo("└─────────────────────────────────────────────────────────────┘")
+        click.echo("slcli Configuration:")
+        render_table(
+            headers=["SETTING", "VALUE"],
+            column_widths=[18, 70],
+            rows=rows,
+            show_total=False,
+        )
 
         # Check for permission warning
         warning = check_config_file_permissions()

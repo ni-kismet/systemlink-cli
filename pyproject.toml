@@ -35,6 +35,8 @@ truststore = ">=0.9,<0.11"
 watchdog = "^6.0.0"
 pyyaml = "^6.0.3"
 questionary = "^2.1.1"
+rich = ">=13.7,<15"
+rich-click = ">=1.8,<2"
 
 
 [tool.poetry.group.dev.dependencies]

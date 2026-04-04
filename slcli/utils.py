@@ -10,6 +10,8 @@ import click
 import keyring
 import requests
 
+from .rich_output import print_json
+
 
 class SystemLinkConfig:
     """Simple configuration class for SystemLink API connection."""
@@ -123,31 +125,19 @@ def output_list_data(
         return
 
     if output_format.lower() == "json":
-        click.echo(json.dumps(items, indent=2))
+        print_json(items)
     else:
-        from tabulate import tabulate
-        from click import style as cstyle
+        from .rich_output import render_table
 
-        def color_row(row: List[str]) -> List[str]:
-            """Color table rows with consistent styling."""
-            ws = str(row[0])
-            ws_short = ws[:15] + ("…" if len(ws) > 15 else "")
-            return [
-                cstyle(ws_short, fg="blue"),
-                cstyle(str(row[1]), fg="green"),
-                cstyle(str(row[2]), fg="blue"),
-            ]
+        rows = [table_data_func(item) for item in items]
+        column_widths = []
+        for index, header in enumerate(headers):
+            max_width = len(header)
+            for row in rows:
+                max_width = max(max_width, len(str(row[index] or "")))
+            column_widths.append(min(max_width, 40))
 
-        table = []
-        for item in items:
-            table.append(color_row(table_data_func(item)))
-
-        styled_headers = [
-            cstyle(headers[0], fg="blue", bold=True),
-            cstyle(headers[1], fg="green", bold=True),
-            cstyle(headers[2], fg="blue", bold=True),
-        ]
-        click.echo(tabulate(table, headers=styled_headers, tablefmt="github"))
+        render_table(headers, column_widths, rows, show_total=False)
 
 
 def output_formatted_list(
@@ -159,7 +149,7 @@ def output_formatted_list(
     empty_message: str = "No items found.",
     total_label: str = "item(s)",
 ) -> None:
-    """Handle JSON and table output with box-drawing characters for list commands.
+    """Handle JSON and table output with Rich-backed table rendering.
 
     Args:
         items: List of items to output
@@ -170,66 +160,17 @@ def output_formatted_list(
         empty_message: Message to display when no items are found
         total_label: Label for total count (e.g., "configuration(s)", "template(s)")
     """
-    if not items:
-        if output_format.lower() == "json":
-            click.echo("[]")
-        else:
-            click.echo(empty_message)
-        return
+    from .table_utils import output_formatted_list as output_formatted_list_rich
 
-    if output_format.lower() == "json":
-        click.echo(json.dumps(items, indent=2))
-        return
-
-    # Table format with box-drawing characters
-    if len(headers) != len(column_widths):
-        raise ValueError("Headers and column_widths must have the same length")
-
-    # Top border
-    border_chars = ["┌"] + [("─" * (w + 2)) for w in column_widths]
-    border_line = border_chars[0] + border_chars[1]
-    for part in border_chars[2:]:
-        border_line += "┬" + part
-    border_line += "┐"
-    click.echo(border_line)
-
-    # Header row
-    header_parts = ["│"]
-    for header, width in zip(headers, column_widths):
-        header_parts.append(f" {header:<{width}} │")
-    click.echo("".join(header_parts))
-
-    # Middle border
-    border_chars = ["├"] + [("─" * (w + 2)) for w in column_widths]
-    border_line = border_chars[0] + border_chars[1]
-    for part in border_chars[2:]:
-        border_line += "┼" + part
-    border_line += "┤"
-    click.echo(border_line)
-
-    # Data rows
-    for item in items:
-        row_data = row_formatter_func(item)
-        if len(row_data) != len(column_widths):
-            raise ValueError("Row data must match column count")
-
-        row_parts = ["│"]
-        for value, width in zip(row_data, column_widths):
-            # Truncate if necessary
-            str_value = str(value or "")[:width]
-            row_parts.append(f" {str_value:<{width}} │")
-        click.echo("".join(row_parts))
-
-    # Bottom border
-    border_chars = ["└"] + [("─" * (w + 2)) for w in column_widths]
-    border_line = border_chars[0] + border_chars[1]
-    for part in border_chars[2:]:
-        border_line += "┴" + part
-    border_line += "┘"
-    click.echo(border_line)
-
-    # Total count
-    click.echo(f"\nTotal: {len(items)} {total_label}")
+    output_formatted_list_rich(
+        items,
+        output_format,
+        headers,
+        column_widths,
+        row_formatter_func,
+        empty_message,
+        total_label,
+    )
 
 
 def resolve_workspace_filter(workspace: str, workspace_map: Dict[str, str]) -> str:

@@ -7,6 +7,7 @@ from typing import Any, Dict, Optional, Tuple
 import click
 
 from .cli_utils import validate_output_format
+from .rich_output import render_table
 from .utils import (
     ExitCodes,
     format_success,
@@ -360,62 +361,64 @@ def register_workspace_commands(cli: Any) -> None:
                 click.echo(json.dumps(workspace_info, indent=2))
                 return
 
-            # Table format
             click.echo(f"Workspace Information: {workspace_name}")
-            click.echo("=" * 50)
-            click.echo(f"ID: {workspace_id}")
-            click.echo(f"Name: {workspace_name}")
-            click.echo(f"Enabled: {'✓' if target_workspace.get('enabled', True) else '✗'}")
-            click.echo(f"Default: {'✓' if target_workspace.get('default', False) else '✗'}")
+            render_table(
+                headers=["SETTING", "VALUE"],
+                column_widths=[16, 48],
+                rows=[
+                    ["ID", workspace_id],
+                    ["Name", workspace_name],
+                    ["Enabled", "✓" if target_workspace.get("enabled", True) else "✗"],
+                    ["Default", "✓" if target_workspace.get("default", False) else "✗"],
+                ],
+                show_total=False,
+            )
 
-            # Templates section
             click.echo(f"\nTest Plan Templates ({len(templates)})")
             click.echo("-" * 30)
             if templates_error:
                 click.echo(f"✗ {templates_error}")
             elif templates:
-                click.echo("┌" + "─" * 42 + "┬" + "─" * 38 + "┐")
-                click.echo(f"│ {'Name':<40} │ {'ID':<36} │")
-                click.echo("├" + "─" * 42 + "┼" + "─" * 38 + "┤")
-                for template in templates:
-                    name = template.get("name", "")[:40]
-                    template_id = template.get("id", "")[:36]
-                    click.echo(f"│ {name:<40} │ {template_id:<36} │")
-                click.echo("└" + "─" * 42 + "┴" + "─" * 38 + "┘")
+                render_table(
+                    headers=["NAME", "ID"],
+                    column_widths=[40, 36],
+                    rows=[
+                        [template.get("name", ""), template.get("id", "")] for template in templates
+                    ],
+                    show_total=False,
+                )
             else:
                 click.echo("No test plan templates found.")
 
-            # Workflows section
             click.echo(f"\nWorkflows ({len(workflows)})")
             click.echo("-" * 30)
             if workflows_error:
                 click.echo(f"✗ {workflows_error}")
             elif workflows:
-                click.echo("┌" + "─" * 42 + "┬" + "─" * 38 + "┐")
-                click.echo(f"│ {'Name':<40} │ {'ID':<36} │")
-                click.echo("├" + "─" * 42 + "┼" + "─" * 38 + "┤")
-                for workflow in workflows:
-                    name = workflow.get("name", "")[:40]
-                    workflow_id = workflow.get("id", "")[:36]
-                    click.echo(f"│ {name:<40} │ {workflow_id:<36} │")
-                click.echo("└" + "─" * 42 + "┴" + "─" * 38 + "┘")
+                render_table(
+                    headers=["NAME", "ID"],
+                    column_widths=[40, 36],
+                    rows=[
+                        [workflow.get("name", ""), workflow.get("id", "")] for workflow in workflows
+                    ],
+                    show_total=False,
+                )
             else:
                 click.echo("No workflows found.")
 
-            # Notebooks section
             click.echo(f"\nNotebooks ({len(notebooks)})")
             click.echo("-" * 30)
             if notebooks_error:
                 click.echo(f"✗ {notebooks_error}")
             elif notebooks:
-                click.echo("┌" + "─" * 42 + "┬" + "─" * 38 + "┐")
-                click.echo(f"│ {'Name':<40} │ {'ID':<36} │")
-                click.echo("├" + "─" * 42 + "┼" + "─" * 38 + "┤")
-                for notebook in notebooks:
-                    name = notebook.get("name", "")[:40]
-                    notebook_id = notebook.get("id", "")[:36]
-                    click.echo(f"│ {name:<40} │ {notebook_id:<36} │")
-                click.echo("└" + "─" * 42 + "┴" + "─" * 38 + "┘")
+                render_table(
+                    headers=["NAME", "ID"],
+                    column_widths=[40, 36],
+                    rows=[
+                        [notebook.get("name", ""), notebook.get("id", "")] for notebook in notebooks
+                    ],
+                    show_total=False,
+                )
             else:
                 click.echo("No notebooks found.")
 

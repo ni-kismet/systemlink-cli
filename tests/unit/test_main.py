@@ -1,8 +1,11 @@
 """Test main CLI functionality."""
 
+import importlib
 import json
 from typing import Any, Optional
 
+import click
+import slcli
 from click.testing import CliRunner
 from slcli.main import cli, get_version
 from slcli.platform import PLATFORM_SLE
@@ -51,7 +54,37 @@ def test_no_command_shows_help() -> None:
 
     assert result.exit_code == 0
     assert "Usage:" in result.output
-    assert "Commands:" in result.output
+    assert "Commands:" in result.output or "╭─ Commands " in result.output
+
+
+def test_importing_package_does_not_patch_click_output(monkeypatch: Any) -> None:
+    """Importing slcli should not mutate Click output globally."""
+    original_echo = click.echo
+    original_secho = click.secho
+    original_utils_echo = click.utils.echo
+
+    monkeypatch.setattr(click, "echo", original_echo)
+    monkeypatch.setattr(click, "secho", original_secho)
+    monkeypatch.setattr(click.utils, "echo", original_utils_echo)
+
+    importlib.reload(slcli)
+
+    assert click.echo is original_echo
+    assert click.secho is original_secho
+    assert click.utils.echo is original_utils_echo
+
+
+def test_cli_installs_rich_output(monkeypatch: Any) -> None:
+    """The root CLI installs Rich output before executing commands."""
+    installed: list[bool] = []
+
+    monkeypatch.setattr("slcli.main.install_rich_output", lambda: installed.append(True))
+
+    runner = CliRunner()
+    result = runner.invoke(cli, ["--version"])
+
+    assert result.exit_code == 0
+    assert installed == [True]
 
 
 def test_login_with_flags(monkeypatch: Any, tmp_path: Any) -> None:
