@@ -54,7 +54,8 @@ def test_no_command_shows_help() -> None:
 
     assert result.exit_code == 0
     assert "Usage:" in result.output
-    assert "Commands:" in result.output or "╭─ Commands " in result.output
+    assert "login" in result.output
+    assert "workspace" in result.output
 
 
 def test_importing_package_does_not_patch_click_output(monkeypatch: Any) -> None:
