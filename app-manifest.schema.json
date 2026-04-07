@@ -2,87 +2,81 @@
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "$id": "https://github.com/ni-kismet/systemlink-plugin-manager/app-manifest.schema.json",
   "title": "Plugin Manager for SystemLink Submission Manifest",
-  "description": "Schema for manifest.json files in submissions/ directories. Used by CI to validate app submissions.",
+  "description": "Schema for thin manifest.json files in submissions/ directories. Package metadata is derived from the submitted .nipkg control file; the manifest binds the reviewed artifact to its hash and provenance.",
   "type": "object",
   "required": [
-    "package",
-    "version",
-    "displayName",
-    "description",
-    "section",
-    "maintainer",
-    "license",
-    "xbPlugin",
-    "iconFile"
+    "schemaVersion",
+    "nipkgFile",
+    "sha256"
   ],
   "properties": {
-    "package": {
-      "type": "string",
-      "pattern": "^[a-z0-9][a-z0-9._-]*$",
-      "minLength": 3,
-      "maxLength": 100,
-      "description": "Unique package identifier (lowercase, hyphens/dots/underscores allowed). First-come-first-served."
-    },
-    "version": {
-      "type": "string",
-      "pattern": "^(0|[1-9]\\d*)\\.(0|[1-9]\\d*)\\.(0|[1-9]\\d*)$",
-      "description": "Semantic version (MAJOR.MINOR.PATCH). No pre-release or build metadata."
-    },
-    "displayName": {
-      "type": "string",
-      "minLength": 3,
-      "maxLength": 200,
-      "description": "Human-readable app name shown in the store UI."
-    },
-    "description": {
-      "type": "string",
-      "minLength": 20,
-      "maxLength": 5000,
-      "description": "Multi-line description of the app."
-    },
-    "section": {
-      "type": "string",
-      "minLength": 2,
-      "description": "Fine-grained category shown in the Plugin Manager catalog, such as Dashboard, Data Analysis, Integration, or Monitoring."
-    },
-    "maintainer": {
-      "type": "string",
-      "minLength": 3,
-      "description": "Maintainer name and email, e.g. 'Acme Corp <apps@acme.com>'. This is also used for the author display in the Plugin Manager UI."
-    },
-    "homepage": {
-      "type": "string",
-      "format": "uri",
-      "description": "Link to project homepage, documentation, or source repository."
-    },
-    "license": {
-      "type": "string",
-      "minLength": 2,
-      "description": "SPDX license identifier (e.g. MIT, Apache-2.0) or 'Proprietary'."
-    },
-    "xbPlugin": {
-      "type": "string",
-      "enum": ["webapp", "notebook", "dashboard", "routine", "bundle"],
-      "description": "Top-level plugin type used for Plugin Manager routing and filtering. This value is written to the XB-Plugin feed attribute."
-    },
-    "slPluginManagerTags": {
-      "type": "string",
-      "description": "Comma-separated search tags."
-    },
-    "slPluginManagerMinServerVersion": {
-      "type": "string",
-      "description": "Minimum SystemLink server version, e.g. '2024 Q4'."
-    },
-    "iconFile": {
-      "type": "string",
-      "minLength": 1,
-      "description": "Filename of the primary icon asset stored with the submission manifest and reused for package metadata."
+    "schemaVersion": {
+      "type": "integer",
+      "const": 2,
+      "description": "Submission manifest schema version. Version 2 indicates the thin manifest contract where package metadata is read from the .nipkg itself."
     },
     "nipkgFile": {
       "type": "string",
-      "pattern": "\\.nipkg$",
-      "description": "Filename of the .nipkg in this submission directory."
+      "pattern": "^[A-Za-z0-9][A-Za-z0-9._+-]*\\.nipkg$",
+      "description": "Filename of the reviewed .nipkg artifact. It may be stored in this submission directory or resolved from sourceRepo/releaseTag during validation."
+    },
+    "sha256": {
+      "type": "string",
+      "pattern": "^[a-f0-9]{64}$",
+      "description": "SHA-256 hash of the exact .nipkg bytes reviewed in the submission."
+    },
+    "sourceRepo": {
+      "type": "string",
+      "pattern": "^[A-Za-z0-9._-]+/[A-Za-z0-9._-]+$",
+      "description": "Optional source repository in owner/name format for provenance and review context."
+    },
+    "releaseTag": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 200,
+      "description": "Optional release tag associated with the reviewed artifact. Used for provenance and remote artifact resolution when the .nipkg is not stored in the repository."
+    },
+    "sourceCommit": {
+      "type": "string",
+      "pattern": "^[0-9a-f]{40}$",
+      "description": "Optional source commit SHA for the build that produced the submitted .nipkg."
+    },
+    "screenshots": {
+      "type": "array",
+      "description": "Optional review and catalog screenshots stored alongside the manifest. These are not canonical package metadata.",
+      "maxItems": 3,
+      "items": {
+        "type": "string",
+        "minLength": 1
+      },
+      "uniqueItems": true
     }
   },
+  "allOf": [
+    {
+      "if": {
+        "required": [
+          "sourceRepo"
+        ]
+      },
+      "then": {
+        "required": [
+          "releaseTag"
+        ]
+      }
+    },
+    {
+      "if": {
+        "required": [
+          "releaseTag"
+        ]
+      },
+      "then": {
+        "required": [
+          "sourceRepo"
+        ]
+      }
+    }
+  ],
   "additionalProperties": false
 }

@@ -4,6 +4,7 @@ Provides local scaffolding (init), packing helpers (pack), and remote
 management (list, get, delete, publish, open).
 """
 
+import hashlib
 import io
 import re
 import shutil
@@ -45,6 +46,10 @@ _ALLOWED_ICON_EXTENSIONS = frozenset({".svg", ".png", ".jpg", ".jpeg", ".webp", 
 _MAX_PACKAGE_LENGTH = 100
 _MAX_DISPLAY_NAME_LENGTH = 200
 _MAX_DESCRIPTION_LENGTH = 5000
+_MAX_RELEASE_TAG_LENGTH = 200
+_MAX_SCREENSHOT_COUNT = 3
+_SOURCE_REPO_PATTERN = re.compile(r"^[A-Za-z0-9._-]+/[A-Za-z0-9._-]+$")
+_SOURCE_COMMIT_PATTERN = re.compile(r"^[0-9a-f]{40}$")
 _ALLOWED_PLUGIN_MANAGER_KEYS = {
     "buildCommand",
     "buildDir",
@@ -56,7 +61,11 @@ _ALLOWED_PLUGIN_MANAGER_KEYS = {
     "maintainer",
     "nipkgFile",
     "package",
+    "releaseTag",
     "section",
+    "screenshots",
+    "sourceCommit",
+    "sourceRepo",
     "slPluginManagerMinServerVersion",
     "slPluginManagerTags",
     "version",
@@ -237,6 +246,15 @@ def _copy_icon_file_to_directory(source_icon: Path, directory: Path) -> bool:
     return True
 
 
+def _compute_sha256(file_path: Path) -> str:
+    """Return the SHA-256 checksum for a file."""
+    sha256_hash = hashlib.sha256()
+    with open(file_path, "rb") as input_file:
+        for chunk in iter(lambda: input_file.read(1024 * 1024), b""):
+            sha256_hash.update(chunk)
+    return sha256_hash.hexdigest()
+
+
 def _normalize_plugin_manager_metadata(raw_metadata: Dict[str, Any]) -> Dict[str, Any]:
     """Normalize legacy App Store keys to Plugin Manager keys."""
     metadata = dict(raw_metadata)
@@ -252,8 +270,8 @@ def _validate_plugin_manager_metadata(
     raw_metadata: Dict[str, Any],
     require_build_dir: bool = False,
     base_dir: Optional[Path] = None,
-) -> Dict[str, str]:
-    """Validate and normalize Plugin Manager manifest metadata."""
+) -> Dict[str, Any]:
+    """Validate and normalize Plugin Manager packaging metadata."""
     from urllib.parse import urlparse
 
     metadata = _normalize_plugin_manager_metadata(raw_metadata)
@@ -274,8 +292,13 @@ def _validate_plugin_manager_metadata(
     build_dir = str(metadata.get("buildDir", "")).strip()
     build_command = str(metadata.get("buildCommand", "")).strip()
     icon_file = str(metadata.get("iconFile", "")).strip()
+    source_repo = str(metadata.get("sourceRepo", "")).strip()
+    release_tag = str(metadata.get("releaseTag", "")).strip()
+    source_commit = str(metadata.get("sourceCommit", "")).strip()
+    screenshots_raw = metadata.get("screenshots")
 
     errors: List[str] = []
+    screenshots: List[str] = []
 
     if unexpected_keys:
         errors.append("unexpected field(s): " + ", ".join(unexpected_keys))
@@ -308,6 +331,25 @@ def _validate_plugin_manager_metadata(
         errors.append(f"xbPlugin must be one of: {', '.join(_XB_PLUGIN_VALUES)}")
     if nipkg_file and not nipkg_file.endswith(".nipkg"):
         errors.append("nipkgFile must end with .nipkg")
+    if source_repo and not _SOURCE_REPO_PATTERN.match(source_repo):
+        errors.append("sourceRepo must be in owner/name format")
+    if release_tag and len(release_tag) > _MAX_RELEASE_TAG_LENGTH:
+        errors.append(f"releaseTag must be at most {_MAX_RELEASE_TAG_LENGTH} characters")
+    if source_commit and not _SOURCE_COMMIT_PATTERN.match(source_commit):
+        errors.append("sourceCommit must be a 40-character lowercase git SHA")
+    if bool(source_repo) != bool(release_tag):
+        errors.append("sourceRepo and releaseTag must be provided together")
+    if screenshots_raw not in (None, ""):
+        if not isinstance(screenshots_raw, list):
+            errors.append("screenshots must be an array of filenames")
+        else:
+            screenshots = [str(item).strip() for item in screenshots_raw]
+            if any(not item for item in screenshots):
+                errors.append("screenshots entries must be non-empty strings")
+            if len(screenshots) > _MAX_SCREENSHOT_COUNT:
+                errors.append(f"screenshots must contain at most {_MAX_SCREENSHOT_COUNT} items")
+            if len(set(screenshots)) != len(screenshots):
+                errors.append("screenshots entries must be unique")
     if require_build_dir and not build_dir:
         errors.append("buildDir is required when packing from config without a folder argument")
     icon_error = _validate_icon_file_value(icon_file, base_dir)
@@ -320,7 +362,7 @@ def _validate_plugin_manager_metadata(
             click.echo(f"  - {error}", err=True)
         sys.exit(ExitCodes.INVALID_INPUT)
 
-    validated: Dict[str, str] = {
+    validated: Dict[str, Any] = {
         "package": package_name,
         "version": version,
         "displayName": display_name,
@@ -342,6 +384,14 @@ def _validate_plugin_manager_metadata(
     if build_command:
         validated["buildCommand"] = build_command
     validated["iconFile"] = icon_file
+    if source_repo:
+        validated["sourceRepo"] = source_repo
+    if release_tag:
+        validated["releaseTag"] = release_tag
+    if source_commit:
+        validated["sourceCommit"] = source_commit
+    if screenshots:
+        validated["screenshots"] = screenshots
 
     return validated
 
@@ -349,7 +399,7 @@ def _validate_plugin_manager_metadata(
 def _pack_folder_to_nipkg(
     folder: Path,
     output: Optional[Path] = None,
-    metadata: Optional[Dict[str, str]] = None,
+    metadata: Optional[Dict[str, Any]] = None,
     icon_source: Optional[Path] = None,
 ) -> Path:
     """Pack a folder into a .nipkg (ar) file and return the output path.
@@ -530,7 +580,27 @@ def _build_angular_bootstrap_command(directory: Path) -> str:
     )
 
 
-def _build_webapp_manifest_and_config(
+def _build_submission_manifest(
+    nipkg_path: Path, metadata: Optional[Dict[str, Any]] = None
+) -> Dict[str, Any]:
+    """Build the thin submission manifest from a packaged artifact."""
+    manifest: Dict[str, Any] = {
+        "schemaVersion": 2,
+        "nipkgFile": nipkg_path.name,
+        "sha256": _compute_sha256(nipkg_path),
+    }
+    if metadata is not None:
+        for key in ("sourceRepo", "releaseTag", "sourceCommit"):
+            value = metadata.get(key)
+            if value:
+                manifest[key] = value
+        screenshots = metadata.get("screenshots")
+        if screenshots:
+            manifest["screenshots"] = screenshots
+    return manifest
+
+
+def _build_webapp_pack_config(
     package_name: str,
     version: str,
     display_name: str,
@@ -546,9 +616,12 @@ def _build_webapp_manifest_and_config(
     build_command: str,
     icon_file: str,
     icon_validation_base_dir: Path,
-) -> tuple[Dict[str, str], Dict[str, str]]:
-    """Build validated submission manifest and nipkg config payloads."""
-    manifest = _validate_plugin_manager_metadata(
+    source_repo: str,
+    release_tag: str,
+    source_commit: str,
+) -> Dict[str, Any]:
+    """Build validated nipkg.config.json payloads."""
+    pack_config = _validate_plugin_manager_metadata(
         {
             "package": package_name,
             "version": version,
@@ -561,18 +634,19 @@ def _build_webapp_manifest_and_config(
             "xbPlugin": xb_plugin,
             "slPluginManagerTags": tags,
             "slPluginManagerMinServerVersion": min_server_version,
-            "nipkgFile": _default_nipkg_filename(package_name, version),
             "iconFile": icon_file,
+            "sourceRepo": source_repo,
+            "releaseTag": release_tag,
+            "sourceCommit": source_commit,
         },
         base_dir=icon_validation_base_dir,
     )
 
-    pack_config = dict(manifest)
     pack_config.pop("nipkgFile", None)
     pack_config["buildDir"] = build_dir
     pack_config["buildCommand"] = build_command
 
-    return manifest, pack_config
+    return pack_config
 
 
 def _render_angular_prompts_md(directory: Path) -> str:
@@ -658,7 +732,7 @@ This directory was initialized with `slcli webapp init`.
 - bundled AI skills in `.agents/skills/`
 - ready-made prompts in [PROMPTS.md](PROMPTS.md)
 - deployment guidance for `slcli webapp publish`
-- Plugin Manager manifest scaffolding via `slcli webapp manifest init`
+- Plugin Manager packaging config scaffolding via `slcli webapp manifest init`
 
 Angular CLI remains the source of truth for the Angular workspace itself. That
 keeps the generated project aligned with current Angular defaults while the
@@ -774,7 +848,7 @@ def register_webapp_commands(cli: Any) -> None:
 
     @webapp.group(name="manifest")
     def webapp_manifest() -> None:
-        """Create Plugin Manager submission manifests and packaging config files."""
+        """Create Plugin Manager packaging config and submission manifest inputs."""
 
     @webapp_manifest.command(name="init")
     @click.argument(
@@ -811,11 +885,26 @@ def register_webapp_commands(cli: Any) -> None:
         help="Build command written to nipkg.config.json",
     )
     @click.option(
+        "--source-repo",
+        default="",
+        help="Optional provenance repository in owner/name format for the generated manifest",
+    )
+    @click.option(
+        "--release-tag",
+        default="",
+        help="Optional provenance release tag for the generated manifest",
+    )
+    @click.option(
+        "--source-commit",
+        default="",
+        help="Optional source commit SHA for the generated manifest",
+    )
+    @click.option(
         "--icon-file",
         required=True,
         help="Path to the icon asset; copied into the manifest directory as iconFile",
     )
-    @click.option("--force", is_flag=True, help="Overwrite existing manifest files")
+    @click.option("--force", is_flag=True, help="Overwrite existing packaging files")
     def init_manifest(
         directory: Path,
         package_name: str,
@@ -831,10 +920,13 @@ def register_webapp_commands(cli: Any) -> None:
         min_server_version: str,
         build_dir: str,
         build_command: str,
+        source_repo: str,
+        release_tag: str,
+        source_commit: str,
         icon_file: str,
         force: bool,
     ) -> None:
-        """Write manifest.json and nipkg.config.json using the Plugin Manager contract."""
+        """Write nipkg.config.json for Plugin Manager packaging."""
         try:
             directory.mkdir(parents=True, exist_ok=True)
 
@@ -842,11 +934,8 @@ def register_webapp_commands(cli: Any) -> None:
             display_name = display_name or _default_display_name(package_name)
             build_dir = build_dir or _default_angular_build_dir(directory)
 
-            manifest_path = directory / "manifest.json"
             config_path = directory / "nipkg.config.json"
             existing = []
-            if manifest_path.exists() and not force:
-                existing.append("manifest.json")
             if config_path.exists() and not force:
                 existing.append("nipkg.config.json")
             if existing:
@@ -860,7 +949,7 @@ def register_webapp_commands(cli: Any) -> None:
                 icon_file, directory, force
             )
 
-            manifest, pack_config = _build_webapp_manifest_and_config(
+            pack_config = _build_webapp_pack_config(
                 package_name=package_name,
                 version=version,
                 display_name=display_name,
@@ -876,11 +965,13 @@ def register_webapp_commands(cli: Any) -> None:
                 build_command=build_command,
                 icon_file=manifest_icon_file,
                 icon_validation_base_dir=source_icon.parent,
+                source_repo=source_repo,
+                release_tag=release_tag,
+                source_commit=source_commit,
             )
 
             copied_icon = _copy_icon_file_to_directory(source_icon, directory)
             try:
-                save_json_file(manifest, str(manifest_path))
                 save_json_file(pack_config, str(config_path))
             except Exception:
                 if copied_icon:
@@ -888,11 +979,10 @@ def register_webapp_commands(cli: Any) -> None:
                 raise
 
             format_success(
-                "Created Plugin Manager manifest files",
+                "Created Plugin Manager pack config",
                 {
-                    "Manifest": str(manifest_path),
                     "Pack config": str(config_path),
-                    "nipkgFile": manifest["nipkgFile"],
+                    "Next step": "Run slcli webapp pack --config nipkg.config.json to generate the .nipkg and manifest.json",
                 },
             )
         except SystemExit:
@@ -928,7 +1018,7 @@ def register_webapp_commands(cli: Any) -> None:
     ) -> None:
         """Pack a folder into a .nipkg."""
         try:
-            metadata: Optional[Dict[str, str]] = None
+            metadata: Optional[Dict[str, Any]] = None
             resolved_folder = folder
 
             if config_path is not None:
@@ -969,7 +1059,14 @@ def register_webapp_commands(cli: Any) -> None:
                 icon_source = _resolve_local_path(metadata["iconFile"], config_path.parent)
 
             result = _pack_folder_to_nipkg(resolved_folder, out, metadata, icon_source)
-            format_success("Packed folder", {"Path": str(result)})
+            success_data: Dict[str, str] = {"Path": str(result)}
+            if metadata is not None and config_path is not None:
+                manifest_path = config_path.parent / "manifest.json"
+                submission_manifest = _build_submission_manifest(result, metadata)
+                save_json_file(submission_manifest, str(manifest_path))
+                success_data["Manifest"] = str(manifest_path)
+
+            format_success("Packed folder", success_data)
         except SystemExit:
             raise
         except Exception as exc:

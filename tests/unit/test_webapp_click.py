@@ -2,6 +2,7 @@
 
 import io
 import tarfile
+from hashlib import sha256
 from json import dumps, loads
 from pathlib import Path
 from typing import Any, Dict, List
@@ -185,7 +186,7 @@ def test_webapp_init_installs_skills(tmp_path: Path, monkeypatch: MonkeyPatch) -
     assert (skills_dir / "slcli" / "SKILL.md").exists()
 
 
-def test_webapp_manifest_init_writes_manifest_and_pack_config(
+def test_webapp_manifest_init_writes_pack_config_only(
     tmp_path: Path, monkeypatch: MonkeyPatch
 ) -> None:
     runner = CliRunner()
@@ -222,26 +223,21 @@ def test_webapp_manifest_init_writes_manifest_and_pack_config(
 
     assert result.exit_code == 0
 
-    manifest = loads((target / "manifest.json").read_text(encoding="utf-8"))
     config = loads((target / "nipkg.config.json").read_text(encoding="utf-8"))
 
-    assert manifest["package"] == "my-dashboard"
-    assert manifest["version"] == "0.1.0"
-    assert manifest["displayName"] == "My Dashboard"
-    assert manifest["section"] == "Dashboard"
-    assert manifest["maintainer"] == "Test User <test@example.com>"
-    assert manifest["xbPlugin"] == "webapp"
-    assert manifest["slPluginManagerTags"] == "dashboard,monitoring,assets"
-    assert manifest["slPluginManagerMinServerVersion"] == "2024 Q4"
-    assert manifest["iconFile"] == "shared-icon.svg"
-    assert manifest["nipkgFile"] == "my-dashboard_0.1.0_all.nipkg"
-    assert "appStoreCategory" not in manifest
-
     assert config["package"] == "my-dashboard"
+    assert config["version"] == "0.1.0"
+    assert config["displayName"] == "My Dashboard"
+    assert config["section"] == "Dashboard"
+    assert config["maintainer"] == "Test User <test@example.com>"
+    assert config["xbPlugin"] == "webapp"
+    assert config["slPluginManagerTags"] == "dashboard,monitoring,assets"
+    assert config["slPluginManagerMinServerVersion"] == "2024 Q4"
     assert config["buildDir"] == "dist/my-dashboard/browser"
     assert config["buildCommand"] == "npm run build"
     assert config["iconFile"] == "shared-icon.svg"
     assert "nipkgFile" not in config
+    assert not (target / "manifest.json").exists()
     assert (target / "shared-icon.svg").exists()
 
 
@@ -278,10 +274,8 @@ def test_webapp_manifest_init_defaults_build_dir_from_directory_not_package(
 
     assert result.exit_code == 0
 
-    manifest = loads((target / "manifest.json").read_text(encoding="utf-8"))
     config = loads((target / "nipkg.config.json").read_text(encoding="utf-8"))
 
-    assert manifest["package"] == "plugin-catalog-entry"
     assert config["package"] == "plugin-catalog-entry"
     assert config["buildDir"] == "dist/angular-app/browser"
 
@@ -324,7 +318,7 @@ def test_webapp_manifest_init_rejects_invalid_metadata(
     assert not (target / "bad-dashboard.svg").exists()
 
 
-def test_webapp_manifest_init_does_not_copy_icon_when_outputs_exist(
+def test_webapp_manifest_init_does_not_copy_icon_when_config_exists(
     tmp_path: Path, monkeypatch: MonkeyPatch
 ) -> None:
     runner = CliRunner()
@@ -332,7 +326,7 @@ def test_webapp_manifest_init_does_not_copy_icon_when_outputs_exist(
 
     target = tmp_path / "existing-manifest"
     target.mkdir()
-    (target / "manifest.json").write_text("{}", encoding="utf-8")
+    (target / "nipkg.config.json").write_text("{}", encoding="utf-8")
     icon_source = tmp_path / "existing-icon.svg"
     icon_source.write_text("<svg></svg>", encoding="utf-8")
 
@@ -357,7 +351,7 @@ def test_webapp_manifest_init_does_not_copy_icon_when_outputs_exist(
     )
 
     assert result.exit_code == ExitCodes.INVALID_INPUT
-    assert "manifest.json already exist" in result.output
+    assert "nipkg.config.json already exist" in result.output
     assert not (target / "existing-icon.svg").exists()
 
 
@@ -479,7 +473,12 @@ def test_webapp_pack_uses_plugin_manager_metadata_from_config(
     )
 
     assert result.exit_code == 0
+    manifest_path = project_dir / "manifest.json"
+    manifest = loads(manifest_path.read_text(encoding="utf-8"))
     control_file = _read_control_file(output_path)
+    assert manifest["schemaVersion"] == 2
+    assert manifest["nipkgFile"] == "plugin-project_1.2.3_all.nipkg"
+    assert manifest["sha256"] == sha256(output_path.read_bytes()).hexdigest()
     assert "Package: plugin-project" in control_file
     assert "Version: 1.2.3" in control_file
     assert "Section: Monitoring" in control_file
@@ -549,6 +548,63 @@ def test_webapp_pack_replaces_existing_build_icon_without_duplicates(
     icon_payloads = _read_data_member_payloads(output_path, "./icon.svg")
     assert len(icon_payloads) == 1
     assert icon_payloads[0] == b"<svg>source</svg>"
+
+
+def test_webapp_pack_generates_manifest_with_provenance(
+    tmp_path: Path, monkeypatch: MonkeyPatch
+) -> None:
+    runner = CliRunner()
+    patch_keyring(monkeypatch)
+
+    project_dir = tmp_path / "provenance-plugin"
+    build_dir = project_dir / "dist" / "provenance-plugin" / "browser"
+    build_dir.mkdir(parents=True)
+    (build_dir / "index.html").write_text("hello", encoding="utf-8")
+    (project_dir / "icon.svg").write_text("<svg></svg>", encoding="utf-8")
+
+    config_path = project_dir / "nipkg.config.json"
+    config_path.write_text(
+        dumps(
+            {
+                "package": "provenance-plugin",
+                "version": "1.2.3",
+                "displayName": "Provenance Plugin",
+                "description": "A plugin package with provenance for reviewed release artifacts.",
+                "section": "Monitoring",
+                "maintainer": "Plugin Team <plugins@example.com>",
+                "license": "MIT",
+                "xbPlugin": "webapp",
+                "iconFile": "icon.svg",
+                "buildDir": "dist/provenance-plugin/browser",
+                "buildCommand": "npm run build",
+                "sourceRepo": "ni-kismet/systemlink-plugin-manager",
+                "releaseTag": "v1.2.3",
+                "sourceCommit": "0123456789abcdef0123456789abcdef01234567",
+                "screenshots": ["catalog.png"],
+            }
+        ),
+        encoding="utf-8",
+    )
+
+    output_path = tmp_path / "provenance-plugin_1.2.3_all.nipkg"
+    result = runner.invoke(
+        cli,
+        [
+            "webapp",
+            "pack",
+            "--config",
+            str(config_path),
+            "--output",
+            str(output_path),
+        ],
+    )
+
+    assert result.exit_code == 0
+    manifest = loads((project_dir / "manifest.json").read_text(encoding="utf-8"))
+    assert manifest["sourceRepo"] == "ni-kismet/systemlink-plugin-manager"
+    assert manifest["releaseTag"] == "v1.2.3"
+    assert manifest["sourceCommit"] == "0123456789abcdef0123456789abcdef01234567"
+    assert manifest["screenshots"] == ["catalog.png"]
 
 
 def test_webapp_pack_rejects_missing_icon_file(tmp_path: Path, monkeypatch: MonkeyPatch) -> None:
