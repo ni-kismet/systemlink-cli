@@ -51,6 +51,12 @@ def runner() -> Any:
     return CliRunner()
 
 
+@pytest.fixture(autouse=True)
+def patch_user_create_auth_probe(monkeypatch: Any) -> None:
+    """Avoid real /niauth/v1/auth requests unless a test overrides the probe."""
+    monkeypatch.setattr("slcli.user_click._try_get_current_auth_context", lambda: None)
+
+
 def mock_requests(
     monkeypatch: Any, method: str, response_json: Any, status_code: int = 200
 ) -> None:
@@ -799,6 +805,105 @@ class TestUserGet:
 class TestUserCreate:
     """Test user create command."""
 
+    def test_create_user_requires_admin_permissions(
+        self, runner: CliRunner, monkeypatch: Any
+    ) -> None:
+        """Fail fast when the caller lacks server-admin style auth coverage."""
+        patch_keyring(monkeypatch)
+        monkeypatch.setattr(
+            "slcli.user_click._try_get_current_auth_context",
+            lambda: {
+                "policies": [
+                    {
+                        "statements": [
+                            {
+                                "actions": ["niuser:Read", "niauth:Read"],
+                                "resource": ["*"],
+                                "workspace": "*",
+                            }
+                        ]
+                    }
+                ]
+            },
+        )
+
+        cli = make_cli()
+        result = runner.invoke(
+            cli,
+            [
+                "user",
+                "create",
+                "--type",
+                "service",
+                "--first-name",
+                "automation-bot",
+            ],
+        )
+
+        assert result.exit_code == 4  # PERMISSION_DENIED
+        assert "requires server admin permissions" in result.output
+
+    def test_create_user_with_admin_permissions(self, runner: CliRunner, monkeypatch: Any) -> None:
+        """Allow creation when effective auth includes wildcard user and auth access."""
+        patch_keyring(monkeypatch)
+        monkeypatch.setattr(
+            "slcli.user_click._try_get_current_auth_context",
+            lambda: {
+                "policies": [
+                    {
+                        "statements": [
+                            {
+                                "actions": ["niuser:*", "niauth:roles:write"],
+                                "resource": ["*"],
+                                "workspace": "*",
+                            }
+                        ]
+                    }
+                ]
+            },
+        )
+
+        captured_payload: dict[str, Any] = {}
+
+        def mock_make_api_request(method: str, url: str, payload: Any = None, **kwargs: Any) -> Any:
+            assert method == "POST"
+            captured_payload.update(payload or {})
+
+            class MockResponse:
+                def __init__(self) -> None:
+                    self.status_code = 200
+
+                def json(self) -> Any:
+                    return {"id": "new-user-id", "email": "john.doe@example.com"}
+
+                def raise_for_status(self) -> None:
+                    pass
+
+            return MockResponse()
+
+        monkeypatch.setattr("slcli.user_click.make_api_request", mock_make_api_request)
+
+        cli = make_cli()
+        result = runner.invoke(
+            cli,
+            [
+                "user",
+                "create",
+                "--type",
+                "user",
+                "--first-name",
+                "John",
+                "--last-name",
+                "Doe",
+                "--email",
+                "john.doe@example.com",
+            ],
+        )
+
+        assert result.exit_code == 0
+        assert captured_payload.get("email") == "john.doe@example.com"
+        assert "✓ User created" in result.output
+
     def test_create_user_success(self, runner: CliRunner, monkeypatch: Any) -> None:
         """Test creating a user successfully."""
         patch_keyring(monkeypatch)
@@ -1337,6 +1442,73 @@ class TestUserCreate:
 
 class TestUserUpdate:
     """Test user update command."""
+
+    def test_update_user_requires_admin_permissions(
+        self, runner: CliRunner, monkeypatch: Any
+    ) -> None:
+        """Fail fast when the caller lacks server-admin style auth coverage."""
+        patch_keyring(monkeypatch)
+        monkeypatch.setattr(
+            "slcli.user_click._try_get_current_auth_context",
+            lambda: {
+                "policies": [
+                    {
+                        "statements": [
+                            {
+                                "actions": ["niuser:Read", "niauth:Read"],
+                                "resource": ["*"],
+                                "workspace": "*",
+                            }
+                        ]
+                    }
+                ]
+            },
+        )
+
+        cli = make_cli()
+        result = runner.invoke(
+            cli,
+            ["user", "update", "--id", "user1", "--first-name", "Jane"],
+        )
+
+        assert result.exit_code == 4  # PERMISSION_DENIED
+        assert "requires server admin permissions" in result.output
+
+    def test_update_user_with_admin_permissions(self, runner: CliRunner, monkeypatch: Any) -> None:
+        """Allow update when effective auth includes wildcard user and auth access."""
+        patch_keyring(monkeypatch)
+        monkeypatch.setattr(
+            "slcli.user_click._try_get_current_auth_context",
+            lambda: {
+                "policies": [
+                    {
+                        "statements": [
+                            {
+                                "actions": ["niuser:*", "niauth:policy:write"],
+                                "resource": ["*"],
+                                "workspace": "*",
+                            }
+                        ]
+                    }
+                ]
+            },
+        )
+        mock_user = {
+            "id": "user1",
+            "firstName": "Jane",
+            "lastName": "Doe",
+            "email": "jane.doe@example.com",
+        }
+        mock_requests(monkeypatch, "put", mock_user)
+
+        cli = make_cli()
+        result = runner.invoke(
+            cli,
+            ["user", "update", "--id", "user1", "--first-name", "Jane"],
+        )
+
+        assert result.exit_code == 0
+        assert "✓ User updated" in result.output
 
     def test_update_user_success(self, runner: Any, monkeypatch: Any) -> None:
         """Test updating a user successfully."""

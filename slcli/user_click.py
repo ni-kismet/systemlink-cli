@@ -29,6 +29,120 @@ from .workspace_utils import get_workspace_display_name, resolve_workspace_id
 
 USER_QUERY_PAGE_SIZE = 100
 USER_JSON_DEFAULT_TAKE = 1000
+AUTH_WILDCARD_VALUES = {"*", "*/*", "*:*"}
+
+
+def _has_global_auth_scope(value: Any) -> bool:
+    """Return whether an auth scope value grants wildcard access."""
+    if isinstance(value, str):
+        return value.strip().lower() in AUTH_WILDCARD_VALUES
+    if isinstance(value, list):
+        return any(
+            isinstance(item, str) and item.strip().lower() in AUTH_WILDCARD_VALUES for item in value
+        )
+    return False
+
+
+def _action_grants_user_management(action: str) -> bool:
+    """Return whether an action implies user management access."""
+    normalized = action.strip().lower()
+    if normalized in AUTH_WILDCARD_VALUES:
+        return True
+
+    namespace, separator, verb = normalized.partition(":")
+    if not separator or namespace not in {"niuser", "user"}:
+        return False
+
+    if verb in {"*", "create", "write", "update", "manage", "admin"}:
+        return True
+
+    return "user" in verb
+
+
+def _action_grants_auth_management(action: str) -> bool:
+    """Return whether an action implies auth policy or role management access."""
+    normalized = action.strip().lower()
+    if normalized in AUTH_WILDCARD_VALUES:
+        return True
+
+    namespace, separator, verb = normalized.partition(":")
+    if not separator or namespace not in {"niauth", "auth"}:
+        return False
+
+    if verb in {"*", "create", "write", "update", "manage", "admin"}:
+        return True
+
+    return any(keyword in verb for keyword in ("policy", "policies", "role", "roles"))
+
+
+def _has_user_admin_access(auth_context: Dict[str, Any]) -> bool:
+    """Return whether the current caller appears to have server-admin style access."""
+    has_user_management = False
+    has_auth_management = False
+
+    for policy in auth_context.get("policies", []):
+        statements = policy.get("statements", [])
+        if not isinstance(statements, list):
+            continue
+
+        for statement in statements:
+            if not isinstance(statement, dict):
+                continue
+
+            if not _has_global_auth_scope(statement.get("workspace")):
+                continue
+            if not _has_global_auth_scope(statement.get("resource")):
+                continue
+
+            actions = statement.get("actions", [])
+            if not isinstance(actions, list):
+                continue
+
+            for action in actions:
+                if not isinstance(action, str):
+                    continue
+                if _action_grants_user_management(action):
+                    has_user_management = True
+                if _action_grants_auth_management(action):
+                    has_auth_management = True
+
+                if has_user_management and has_auth_management:
+                    return True
+
+    return False
+
+
+def _try_get_current_auth_context() -> Optional[Dict[str, Any]]:
+    """Fetch effective auth data for the current caller when available."""
+    url = f"{get_base_url()}/niauth/v1/auth"
+
+    try:
+        auth_response = make_api_request("GET", url, payload=None, handle_errors=False)
+        auth_context = auth_response.json()
+        return auth_context if isinstance(auth_context, dict) else None
+    except Exception as exc:
+        error_response = getattr(exc, "response", None)
+        if error_response is not None and error_response.status_code in {401, 403}:
+            handle_api_error(exc)
+        return None
+
+
+def _ensure_user_admin_access(operation: str) -> None:
+    """Fail fast when the caller clearly lacks admin access for user mutations."""
+    auth_context = _try_get_current_auth_context()
+    if auth_context is None:
+        return
+
+    if _has_user_admin_access(auth_context):
+        return
+
+    click.echo(
+        f"✗ User and service account {operation} requires server admin permissions. "
+        "The active API key does not appear to have wildcard user and auth policy access "
+        "across all workspaces.",
+        err=True,
+    )
+    sys.exit(ExitCodes.PERMISSION_DENIED)
 
 
 def _get_policy_details(policy_id: str) -> Optional[dict]:
@@ -851,6 +965,7 @@ def register_user_commands(cli: click.Group) -> None:
         from .utils import check_readonly_mode
 
         check_readonly_mode("create a user")
+        _ensure_user_admin_access("creation")
 
         # If user_type wasn't specified via CLI, prompt for it first
         if user_type is None:
@@ -1060,6 +1175,7 @@ def register_user_commands(cli: click.Group) -> None:
         from .utils import check_readonly_mode
 
         check_readonly_mode("update a user")
+        _ensure_user_admin_access("updates")
 
         # First, fetch the user to check if it's a service account
         get_url = f"{get_base_url()}/niuser/v1/users/{user_id}"
