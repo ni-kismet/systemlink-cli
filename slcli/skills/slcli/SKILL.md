@@ -666,7 +666,7 @@ Scaffold, package, and publish custom web applications to SystemLink.
 
 ```bash
 slcli webapp init <DIRECTORY>                      # Scaffold the Angular starter
-slcli webapp manifest init <DIRECTORY> [OPTIONS]  # Create manifest.json + nipkg.config.json
+slcli webapp manifest init <DIRECTORY> [OPTIONS]  # Create nipkg.config.json for packaging
 slcli webapp pack [FOLDER] [--config FILE] [-o OUTPUT_FILE]  # Package a webapp into a .nipkg
 slcli webapp list [-w WORKSPACE] [-t INT] [-f json]
 slcli webapp get <WEBAPP_ID> [-f json]
@@ -680,11 +680,12 @@ project-scoped skills into `.agents/skills/` and creates `PROMPTS.md` plus `STAR
 AI assistant can bootstrap the Angular workspace in place with the same Nimble/SystemLink
 conventions described by the `systemlink-webapp` skill.
 
-`webapp manifest init` writes `manifest.json` and `nipkg.config.json` using the Plugin Manager
-field names (`section`, `maintainer`, `homepage`, `xbPlugin`, `slPluginManagerTags`,
+`webapp manifest init` writes `nipkg.config.json` using the Plugin Manager field names
+(`section`, `maintainer`, `homepage`, `xbPlugin`, `slPluginManagerTags`,
 `slPluginManagerMinServerVersion`, `iconFile`). `webapp pack --config ...` consumes that
-metadata, carries the icon into the package, and writes the matching control-file fields into the
-generated `.nipkg`.
+metadata, carries the icon into the package, writes the matching control-file fields into the
+generated `.nipkg`, and emits a thin `manifest.json` with `schemaVersion`, `nipkgFile`,
+`sha256`, and any configured provenance fields.
 
 ### skill — AI skill installation
 

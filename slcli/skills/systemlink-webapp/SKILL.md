@@ -24,8 +24,9 @@ That command lays down the SystemLink starter layer (`.agents/skills/`, `PROMPTS
 `START_HERE.md`) while Angular CLI remains responsible for generating the Angular workspace.
 
 When the user wants to package the app for Plugin Manager submission, prefer
-`slcli webapp manifest init <app-dir> ...` to generate `manifest.json` and `nipkg.config.json`
-with the current Plugin Manager field names, then use `slcli webapp pack --config ...`.
+`slcli webapp manifest init <app-dir> ...` to generate `nipkg.config.json`
+with the current Plugin Manager field names, then use `slcli webapp pack --config ...`
+to build the `.nipkg` and generate the thin `manifest.json` with the artifact SHA-256.
 
 ---
 

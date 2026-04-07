@@ -53,13 +53,16 @@ slcli system list --state CONNECTED
 slcli webapp init ./my-dashboard
 # Open the project and follow START_HERE.md or PROMPTS.md
 
-# Create Plugin Manager manifest + packaging config
+# Create Plugin Manager packaging config
 slcli webapp manifest init ./my-dashboard \
 	--description "A dashboard for monitoring fleet health and calibration status." \
 	--section Dashboard \
 	--maintainer "Your Name <you@example.com>" \
 	--license MIT \
 	--icon-file ./icon.svg
+
+# Package the app and generate the thin submission manifest.json
+slcli webapp pack --config ./my-dashboard/nipkg.config.json
 
 # Or install AI skills manually (use --client claude for Claude)
 slcli skill install
