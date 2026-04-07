@@ -75,7 +75,7 @@ def handle_api_error(exc: Exception) -> None:
     if "not found" in error_msg:
         click.echo(f"✗ Resource not found: {exc}", err=True)
         sys.exit(ExitCodes.NOT_FOUND)
-    elif "permission" in error_msg or "unauthorized" in error_msg:
+    elif "permission" in error_msg or "unauthorized" in error_msg or "forbidden" in error_msg:
         click.echo(f"✗ Permission denied: {exc}", err=True)
         sys.exit(ExitCodes.PERMISSION_DENIED)
     elif "network" in error_msg or "connection" in error_msg:

@@ -4,7 +4,14 @@ import json
 from typing import Any
 from unittest.mock import MagicMock, patch
 
-from slcli.utils import sanitize_filename, extract_error_type, parse_inner_errors
+import pytest
+from slcli.utils import (
+    ExitCodes,
+    extract_error_type,
+    handle_api_error,
+    parse_inner_errors,
+    sanitize_filename,
+)
 
 
 def test_sanitize_filename() -> None:
@@ -76,6 +83,16 @@ def test_parse_inner_errors_empty() -> None:
     """Test parsing empty inner errors list."""
     result = parse_inner_errors([])
     assert result == []
+
+
+def test_handle_api_error_forbidden(capsys: Any) -> None:
+    """Forbidden errors should map to permission denied."""
+    with pytest.raises(SystemExit) as exc_info:
+        handle_api_error(Exception("403 Forbidden"))
+
+    captured = capsys.readouterr()
+    assert exc_info.value.code == ExitCodes.PERMISSION_DENIED
+    assert "Permission denied" in captured.err
 
 
 class TestMakeApiRequestHttpMethods:

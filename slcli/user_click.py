@@ -30,6 +30,8 @@ from .workspace_utils import get_workspace_display_name, resolve_workspace_id
 USER_QUERY_PAGE_SIZE = 100
 USER_JSON_DEFAULT_TAKE = 1000
 AUTH_WILDCARD_VALUES = {"*", "*/*", "*:*"}
+AUTH_MUTATING_VERBS = {"*", "create", "write", "update", "manage", "admin", "delete"}
+AUTH_ADMIN_RESOURCE_KEYWORDS = {"policy", "policies", "role", "roles"}
 
 
 def _has_global_auth_scope(value: Any) -> bool:
@@ -43,43 +45,31 @@ def _has_global_auth_scope(value: Any) -> bool:
     return False
 
 
-def _action_grants_user_management(action: str) -> bool:
-    """Return whether an action implies user management access."""
-    normalized = action.strip().lower()
-    if normalized in AUTH_WILDCARD_VALUES:
-        return True
-
-    namespace, separator, verb = normalized.partition(":")
-    if not separator or namespace not in {"niuser", "user"}:
-        return False
-
-    if verb in {"*", "create", "write", "update", "manage", "admin"}:
-        return True
-
-    return "user" in verb
-
-
 def _action_grants_auth_management(action: str) -> bool:
     """Return whether an action implies auth policy or role management access."""
     normalized = action.strip().lower()
     if normalized in AUTH_WILDCARD_VALUES:
         return True
 
-    namespace, separator, verb = normalized.partition(":")
-    if not separator or namespace not in {"niauth", "auth"}:
+    action_parts = [part.strip().lower() for part in normalized.split(":") if part.strip()]
+    if len(action_parts) < 2 or action_parts[0] not in {"niauth", "auth"}:
         return False
 
-    if verb in {"*", "create", "write", "update", "manage", "admin"}:
+    remainder = action_parts[1:]
+    if remainder == ["*"]:
         return True
 
-    return any(keyword in verb for keyword in ("policy", "policies", "role", "roles"))
+    if remainder[-1] not in AUTH_MUTATING_VERBS and "*" not in remainder:
+        return False
+
+    if len(remainder) == 1:
+        return True
+
+    return any(part in AUTH_ADMIN_RESOURCE_KEYWORDS for part in remainder[:-1])
 
 
 def _has_user_admin_access(auth_context: Dict[str, Any]) -> bool:
     """Return whether the current caller appears to have server-admin style access."""
-    has_user_management = False
-    has_auth_management = False
-
     for policy in auth_context.get("policies", []):
         statements = policy.get("statements", [])
         if not isinstance(statements, list):
@@ -99,14 +89,7 @@ def _has_user_admin_access(auth_context: Dict[str, Any]) -> bool:
                 continue
 
             for action in actions:
-                if not isinstance(action, str):
-                    continue
-                if _action_grants_user_management(action):
-                    has_user_management = True
-                if _action_grants_auth_management(action):
-                    has_auth_management = True
-
-                if has_user_management and has_auth_management:
+                if isinstance(action, str) and _action_grants_auth_management(action):
                     return True
 
     return False
@@ -138,7 +121,7 @@ def _ensure_user_admin_access(operation: str) -> None:
 
     click.echo(
         f"✗ User and service account {operation} requires server admin permissions. "
-        "The active API key does not appear to have wildcard user and auth policy access "
+        "The active API key does not appear to have wildcard auth role or policy access "
         "across all workspaces.",
         err=True,
     )

@@ -817,7 +817,7 @@ class TestUserCreate:
                     {
                         "statements": [
                             {
-                                "actions": ["niuser:Read", "niauth:Read"],
+                                "actions": ["niauth:roles:read", "niauth:policies:read"],
                                 "resource": ["*"],
                                 "workspace": "*",
                             }
@@ -844,7 +844,7 @@ class TestUserCreate:
         assert "requires server admin permissions" in result.output
 
     def test_create_user_with_admin_permissions(self, runner: CliRunner, monkeypatch: Any) -> None:
-        """Allow creation when effective auth includes wildcard user and auth access."""
+        """Allow creation when effective auth includes wildcard auth role access."""
         patch_keyring(monkeypatch)
         monkeypatch.setattr(
             "slcli.user_click._try_get_current_auth_context",
@@ -853,7 +853,7 @@ class TestUserCreate:
                     {
                         "statements": [
                             {
-                                "actions": ["niuser:*", "niauth:roles:write"],
+                                "actions": ["niauth:roles:write"],
                                 "resource": ["*"],
                                 "workspace": "*",
                             }
@@ -1455,7 +1455,7 @@ class TestUserUpdate:
                     {
                         "statements": [
                             {
-                                "actions": ["niuser:Read", "niauth:Read"],
+                                "actions": ["niauth:roles:read", "niauth:policies:read"],
                                 "resource": ["*"],
                                 "workspace": "*",
                             }
@@ -1475,7 +1475,7 @@ class TestUserUpdate:
         assert "requires server admin permissions" in result.output
 
     def test_update_user_with_admin_permissions(self, runner: CliRunner, monkeypatch: Any) -> None:
-        """Allow update when effective auth includes wildcard user and auth access."""
+        """Allow update when effective auth includes wildcard auth policy access."""
         patch_keyring(monkeypatch)
         monkeypatch.setattr(
             "slcli.user_click._try_get_current_auth_context",
@@ -1484,7 +1484,7 @@ class TestUserUpdate:
                     {
                         "statements": [
                             {
-                                "actions": ["niuser:*", "niauth:policy:write"],
+                                "actions": ["niauth:policy:write"],
                                 "resource": ["*"],
                                 "workspace": "*",
                             }
