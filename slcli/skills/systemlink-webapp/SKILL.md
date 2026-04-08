@@ -161,6 +161,9 @@ import { APP_BASE_HREF } from '@angular/common';
 // Most Nimble component modules are exported from the main `@ni/nimble-angular` barrel.
 // Icon modules (e.g. NimbleIconMagnifyingGlassModule) are ONLY in the main barrel —
 // sub-paths like `@ni/nimble-angular/icons/magnifying-glass` do NOT exist.
+// Do NOT add `@ni/nimble-components` or register raw custom elements just to make
+// Angular templates compile. If a Nimble element is unknown, import the missing
+// Angular module from `@ni/nimble-angular` instead.
 import {
   NimbleThemeProviderModule,
   NimbleButtonModule,
@@ -214,7 +217,24 @@ import { MyFeatureComponent } from './my-feature/my-feature.component';
 export class AppModule {}
 ```
 
+When using `@ni/nimble-angular`, prefer the Angular wrappers end-to-end:
+
+- Do **not** add `@ni/nimble-components` as a direct dependency just to register icons or other raw custom elements.
+- Do **not** use `CUSTOM_ELEMENTS_SCHEMA` as a workaround for unknown Nimble elements. In this codebase that is usually a sign that the corresponding Nimble Angular module import is missing, and `CUSTOM_ELEMENTS_SCHEMA` suppresses valuable template checking.
+- If Angular reports an unknown Nimble tag, fix the module imports first.
+
 For Nimble form controls (`nimble-text-field`, `nimble-select`, etc.), bind with Angular forms APIs (`[(ngModel)]`, `[formControl]`, or `formControlName`) and use `(ngModelChange)` for value-change reactions. Avoid native control bindings like `[value]`, `(input)`, or `(change)` on Nimble elements.
+
+For control labels, prefer Nimble's built-in label pattern by slotting text content inside the control instead of pairing the control with a separate HTML `<label>` element for the primary label:
+
+```html
+<nimble-select [(ngModel)]="selectedWorkspace">
+  Workspace
+  <nimble-list-option *ngFor="let ws of workspaces" [value]="ws.id">
+    {{ ws.name }}
+  </nimble-list-option>
+</nimble-select>
+```
 
 **Critical:** Provide `APP_BASE_HREF` via DI and **remove the `<base href="/">` tag from `index.html`**. SystemLink enforces a `base-uri 'self'` CSP directive; the `<base>` element violates it.
 
@@ -737,6 +757,8 @@ Save the returned webapp ID — you'll need it for every subsequent redeploy.
 | `InputFieldValidationError` on API call | SDK-generated request body has wrong shape | Inspect raw API; the generated type may add or omit a `request: {}` wrapper. Use direct `fetch` with manually constructed body |
 | nimble-dialog does not open | `*ngIf` destroys element before `ViewChild` can resolve | Remove `*ngIf` from the dialog element; use `@ViewChild` + `ElementRef` and call `nativeElement.show()` / `nativeElement.close()` |
 | Icon module import fails | Icon sub-path `@ni/nimble-angular/icons/...` does not exist | Import icon modules from the main `@ni/nimble-angular` barrel only |
+| Angular says a Nimble tag is unknown | Missing `@ni/nimble-angular` module import | Import the missing wrapper module instead of adding `CUSTOM_ELEMENTS_SCHEMA` or registering raw `@ni/nimble-components` elements |
+| Nimble form control label looks detached or duplicated | Used a separate HTML `<label>` for the primary control label | Slot the label text inside `nimble-text-field`, `nimble-select`, and similar controls |
 | Table rows empty despite correct response | `projection` flattens nested objects | Remove `projection` from query body |
 | `TableRecord` type error | Row type missing index signature | Add `[key: string]: FieldValue \| undefined` |
 | Button appearance invalid | Wrong value for `appearance` attr | Use `appearance="block" appearance-variant="accent"` |

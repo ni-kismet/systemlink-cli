@@ -1,5 +1,13 @@
 # Nimble Angular — Template & Usage Reference
 
+## Wrapper-first rule
+
+When building Angular apps with Nimble, use `@ni/nimble-angular` wrapper modules as the default integration path.
+
+- Import the needed Angular module for each Nimble control instead of registering raw custom elements from `@ni/nimble-components`.
+- Do not add `CUSTOM_ELEMENTS_SCHEMA` just to silence unknown Nimble elements in templates. That usually hides a missing module import and weakens Angular's template validation.
+- If a Nimble icon or control is unknown, first look for the matching module in `@ni/nimble-angular` and import it.
+
 ## nimble-theme-provider
 
 Wrap your entire app. Always place at the root component level.
@@ -176,6 +184,8 @@ import { NimbleTextFieldModule } from "@ni/nimble-angular";
 </nimble-text-field>
 ```
 
+Use the text inside the element as the control's primary label. Do not add a separate HTML `<label>` element for the basic Nimble control label unless you have a specific accessibility or layout need that cannot be expressed with Nimble's built-in labeling pattern.
+
 Import icon modules from the **main `@ni/nimble-angular` barrel** — icon-specific sub-paths do not exist:
 
 ```typescript
@@ -195,6 +205,7 @@ import { NimbleSelectModule, NimbleListOptionModule } from "@ni/nimble-angular";
 ```html
 <!-- Basic -->
 <nimble-select [(ngModel)]="selectedType" (ngModelChange)="onTypeChange()">
+  Type
   <nimble-list-option value="">All types</nimble-list-option>
   <nimble-list-option value="DOUBLE">Double</nimble-list-option>
   <nimble-list-option value="STRING">String</nimble-list-option>
@@ -203,11 +214,14 @@ import { NimbleSelectModule, NimbleListOptionModule } from "@ni/nimble-angular";
 
 <!-- With built-in filter (useful for long lists) -->
 <nimble-select filter-mode="standard" [(ngModel)]="selectedWorkspace">
+  Workspace
   <nimble-list-option *ngFor="let ws of workspaces" [value]="ws.id"
     >{{ ws.name }}</nimble-list-option
   >
 </nimble-select>
 ```
+
+Use the slotted text content as the select label instead of pairing the control with a separate HTML `<label>` for the primary label.
 
 > Use `filter-mode="standard"` to add a built-in text filter to the dropdown — no custom search logic needed for long option lists.
 
