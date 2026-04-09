@@ -171,6 +171,46 @@ def test_login_reports_file_query_fallback(monkeypatch: Any, tmp_path: Any) -> N
     assert "file list' will fall back automatically" in result.output
 
 
+def test_login_reports_sls_query_files(monkeypatch: Any, tmp_path: Any) -> None:
+    """Ensure login reports query-files when SLS uses the structured query route."""
+    config_file = tmp_path / "config.json"
+    monkeypatch.setattr(
+        "slcli.profiles.ProfileConfig.get_config_path", classmethod(lambda cls: config_file)
+    )
+    monkeypatch.setattr(
+        "slcli.config_click.check_service_status",
+        lambda *a, **kw: {
+            "server_reachable": True,
+            "auth_valid": True,
+            "services": {"Auth": "ok", "File": "ok"},
+            "file_query_endpoint": "query-files",
+            "elasticsearch_available": False,
+            "platform": "SLS",
+        },
+    )
+    monkeypatch.setattr("slcli.main.keyring.get_password", lambda *a, **kw: None)
+
+    runner = CliRunner()
+    result = runner.invoke(
+        cli,
+        [
+            "login",
+            "--profile",
+            "test",
+            "--url",
+            "https://example.test",
+            "--api-key",
+            "abc123",
+            "--web-url",
+            "https://web.example.test",
+        ],
+        input="\n\n",
+    )
+
+    assert result.exit_code == 0, result.output
+    assert "File query: query-files" in result.output
+
+
 def test_logout_removes_credentials(monkeypatch: Any, tmp_path: Any) -> None:
     """Ensure logout deletes profile from config."""
     import json

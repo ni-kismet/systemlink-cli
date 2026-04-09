@@ -359,6 +359,7 @@ class TestAddProfileTrailingSlash:
                 "services": {},
             },
         )
+        monkeypatch.setattr("slcli.main.keyring.get_password", lambda *a, **kw: None)
 
         from slcli.main import cli
 
@@ -376,6 +377,7 @@ class TestAddProfileTrailingSlash:
                 "--web-url",
                 "https://web.example.com/",
             ],
+            input="\n\n",
         )
 
         assert result.exit_code == 0
@@ -399,6 +401,7 @@ class TestAddProfileTrailingSlash:
                 "services": {},
             },
         )
+        monkeypatch.setattr("slcli.main.keyring.get_password", lambda *a, **kw: None)
 
         from slcli.main import cli
 
@@ -416,6 +419,7 @@ class TestAddProfileTrailingSlash:
                 "--web-url",
                 "https://web.example.com///",
             ],
+            input="\n\n",
         )
 
         assert result.exit_code == 0

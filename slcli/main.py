@@ -367,7 +367,10 @@ def info(format: str, skip_health: bool) -> None:
 
     file_query_endpoint = platform_info.get("file_query_endpoint")
     if file_query_endpoint:
-        if platform_info.get("elasticsearch_available") is False:
+        if (
+            file_query_endpoint == "query-files-linq"
+            and platform_info.get("elasticsearch_available") is False
+        ):
             file_query_display = f"{file_query_endpoint} (Elasticsearch unavailable)"
         else:
             file_query_display = str(file_query_endpoint)

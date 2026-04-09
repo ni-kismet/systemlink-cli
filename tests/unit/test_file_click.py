@@ -705,8 +705,93 @@ def test_query_files_empty_result(monkeypatch: Any, runner: CliRunner) -> None:
     assert "No files match" in result.output
 
 
-def test_query_files_requires_search_files(monkeypatch: Any, runner: CliRunner) -> None:
-    """Test querying files fails clearly when search-files is unavailable."""
+def test_query_files_falls_back_to_query_files(monkeypatch: Any, runner: CliRunner) -> None:
+    """Test querying files uses query-files with case-insensitive name matching."""
+    patch_keyring(monkeypatch)
+
+    import requests
+
+    call_urls: list[str] = []
+
+    def mock_post(*a: Any, **kw: Any) -> Any:
+        url = a[0] if a else ""
+        call_urls.append(url)
+        if "search-files" in url:
+            resp = requests.Response()
+            resp.status_code = 404
+            raise requests.HTTPError(response=resp)
+        return MockResponse(
+            {
+                "availableFiles": [
+                    {
+                        "id": "file1",
+                        "properties": {"Name": "Report.TXT"},
+                        "size64": 64,
+                        "created": "2024-01-15T10:30:00.000Z",
+                    },
+                    {
+                        "id": "file2",
+                        "properties": {"Name": "notes.csv"},
+                        "size64": 32,
+                        "created": "2024-01-14T10:30:00.000Z",
+                    },
+                ]
+            }
+        )
+
+    monkeypatch.setattr("requests.post", mock_post)
+    cli = make_cli()
+    result = runner.invoke(cli, ["file", "query", "--filter", 'name:("REPORT.TXT")'])
+    assert result.exit_code == 0
+    assert "Report.TXT" in result.output
+    assert "notes.csv" not in result.output
+    assert any("search-files" in url for url in call_urls)
+    assert any("query-files" in url for url in call_urls)
+
+
+def test_query_files_extension_filter_is_case_insensitive_on_sls(
+    monkeypatch: Any, runner: CliRunner
+) -> None:
+    """Test SLS query-files fallback applies extension filters case-insensitively."""
+    patch_keyring(monkeypatch)
+
+    import requests
+
+    def mock_post(*a: Any, **kw: Any) -> Any:
+        url = a[0] if a else ""
+        if "search-files" in url:
+            resp = requests.Response()
+            resp.status_code = 404
+            raise requests.HTTPError(response=resp)
+        return MockResponse(
+            {
+                "availableFiles": [
+                    {
+                        "id": "file1",
+                        "properties": {"Name": "summary.TXT"},
+                        "size64": 64,
+                        "created": "2024-01-15T10:30:00.000Z",
+                    },
+                    {
+                        "id": "file2",
+                        "properties": {"Name": "summary.csv"},
+                        "size64": 32,
+                        "created": "2024-01-14T10:30:00.000Z",
+                    },
+                ]
+            }
+        )
+
+    monkeypatch.setattr("requests.post", mock_post)
+    cli = make_cli()
+    result = runner.invoke(cli, ["file", "query", "--filter", 'extension:("txt")'])
+    assert result.exit_code == 0
+    assert "summary.TXT" in result.output
+    assert "summary.csv" not in result.output
+
+
+def test_query_files_reports_unsupported_sls_filter(monkeypatch: Any, runner: CliRunner) -> None:
+    """Test query-files reports unsupported filter syntax when search-files is unavailable."""
     patch_keyring(monkeypatch)
 
     import requests
@@ -721,10 +806,15 @@ def test_query_files_requires_search_files(monkeypatch: Any, runner: CliRunner) 
 
     monkeypatch.setattr("requests.post", mock_post)
     cli = make_cli()
-    result = runner.invoke(cli, ["file", "query", "--filter", 'name:("report")'])
+    result = runner.invoke(
+        cli,
+        ["file", "query", "--filter", 'name:("report") OR extension:("txt")'],
+    )
     assert result.exit_code == ExitCodes.INVALID_INPUT
-    assert "Elasticsearch is not available" in result.output
-    assert "file list" in result.output
+    assert (
+        "Only name, extension, id, and workspaceId filters joined by AND are supported"
+        in result.output
+    )
 
 
 # --- Test file update-metadata command ---
@@ -980,11 +1070,11 @@ def test_format_timestamp() -> None:
     assert _format_timestamp("2024-01-15T10:30:00.000Z") == "2024-01-15 10:30:00"
 
 
-# --- Test search-files to query-files-linq fallback ---
+# --- Test search-files fallback chain ---
 
 
 def test_list_files_fallback_on_404(monkeypatch: Any, runner: CliRunner) -> None:
-    """Test that file list falls back to query-files-linq when search-files returns 404."""
+    """Test that file list falls back to query-files when search-files returns 404."""
     patch_keyring(monkeypatch)
 
     import requests
@@ -1018,11 +1108,11 @@ def test_list_files_fallback_on_404(monkeypatch: Any, runner: CliRunner) -> None
     assert "fallback-file.txt" in result.output
     # Verify both endpoints were called
     assert any("search-files" in u for u in call_urls)
-    assert any("query-files-linq" in u for u in call_urls)
+    assert any("query-files" in u for u in call_urls)
 
 
 def test_list_files_fallback_on_501(monkeypatch: Any, runner: CliRunner) -> None:
-    """Test that file list falls back to query-files-linq when search-files returns 501."""
+    """Test that file list falls back to query-files when search-files returns 501."""
     patch_keyring(monkeypatch)
 
     import requests
@@ -1053,8 +1143,10 @@ def test_list_files_fallback_on_501(monkeypatch: Any, runner: CliRunner) -> None
     assert "fallback-file.txt" in result.output
 
 
-def test_list_files_fallback_with_name_filter(monkeypatch: Any, runner: CliRunner) -> None:
-    """Test fallback applies client-side name filtering."""
+def test_list_files_sls_fallback_filter_is_case_insensitive(
+    monkeypatch: Any, runner: CliRunner
+) -> None:
+    """Test SLS query-files fallback filters by name and extension case-insensitively."""
     patch_keyring(monkeypatch)
 
     import requests
@@ -1077,7 +1169,7 @@ def test_list_files_fallback_with_name_filter(monkeypatch: Any, runner: CliRunne
                     },
                     {
                         "id": "file2",
-                        "properties": {"Name": "data.txt"},
+                        "properties": {"Name": "summary.TXT"},
                         "size64": 200,
                         "created": "2024-01-16T10:30:00.000Z",
                     },
@@ -1087,10 +1179,55 @@ def test_list_files_fallback_with_name_filter(monkeypatch: Any, runner: CliRunne
 
     monkeypatch.setattr("requests.post", mock_post)
     cli = make_cli()
-    result = runner.invoke(cli, ["file", "list", "--filter", "report"])
+    result = runner.invoke(cli, ["file", "list", "--filter", "txt"])
     assert result.exit_code == 0
-    assert "report.csv" in result.output
-    assert "data.txt" not in result.output
+    assert "summary.TXT" in result.output
+    assert "report.csv" not in result.output
+
+
+def test_list_files_linq_fallback_filter_is_case_insensitive(
+    monkeypatch: Any, runner: CliRunner
+) -> None:
+    """Test query-files-linq fallback still applies case-insensitive filtering."""
+    patch_keyring(monkeypatch)
+
+    import requests
+
+    def mock_post(*a: Any, **kw: Any) -> Any:
+        url = a[0] if a else ""
+        if "search-files" in url:
+            resp = requests.Response()
+            resp.status_code = 404
+            raise requests.HTTPError(response=resp)
+        if "query-files?" in url:
+            resp = requests.Response()
+            resp.status_code = 404
+            raise requests.HTTPError(response=resp)
+        return MockResponse(
+            {
+                "availableFiles": [
+                    {
+                        "id": "file1",
+                        "properties": {"Name": "report.csv"},
+                        "size64": 100,
+                        "created": "2024-01-15T10:30:00.000Z",
+                    },
+                    {
+                        "id": "file2",
+                        "properties": {"Name": "summary.TXT"},
+                        "size64": 200,
+                        "created": "2024-01-16T10:30:00.000Z",
+                    },
+                ]
+            }
+        )
+
+    monkeypatch.setattr("requests.post", mock_post)
+    cli = make_cli()
+    result = runner.invoke(cli, ["file", "list", "--filter", "txt"])
+    assert result.exit_code == 0
+    assert "summary.TXT" in result.output
+    assert "report.csv" not in result.output
 
 
 def test_list_files_no_fallback_on_other_errors(monkeypatch: Any, runner: CliRunner) -> None:

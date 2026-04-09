@@ -57,6 +57,7 @@ FEATURE_DISPLAY_NAMES: Dict[str, str] = {
 }
 
 FILE_SEARCH_PATH = "/nifile/v1/service-groups/Default/search-files"
+FILE_QUERY_PATH = "/nifile/v1/service-groups/Default/query-files"
 FILE_QUERY_LINQ_PATH = "/nifile/v1/service-groups/Default/query-files-linq"
 
 
@@ -244,6 +245,39 @@ def get_file_query_capability(api_url: str, api_key: str) -> Dict[str, Any]:
             "status": "unreachable",
             "file_query_endpoint": None,
             "elasticsearch_available": None,
+        }
+
+    try:
+        query_resp = requests.post(
+            f"{api_url}{FILE_QUERY_PATH}",
+            headers=headers,
+            json={},
+            verify=ssl_verify,
+            timeout=10,
+        )
+        if query_resp.status_code in (200, 400):
+            return {
+                "status": "ok",
+                "file_query_endpoint": "query-files",
+                "elasticsearch_available": False,
+            }
+        if query_resp.status_code in (401, 403):
+            return {
+                "status": "unauthorized",
+                "file_query_endpoint": "query-files",
+                "elasticsearch_available": False,
+            }
+        if query_resp.status_code not in (404, 501):
+            return {
+                "status": "error" if query_resp.status_code >= 500 else "not_found",
+                "file_query_endpoint": None,
+                "elasticsearch_available": False,
+            }
+    except requests.RequestException:
+        return {
+            "status": "unreachable",
+            "file_query_endpoint": None,
+            "elasticsearch_available": False,
         }
 
     try:

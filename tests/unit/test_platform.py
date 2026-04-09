@@ -291,6 +291,38 @@ class TestCheckServiceStatus:
         assert result["file_query_endpoint"] == "query-files-linq"
         assert result["elasticsearch_available"] is False
 
+    def test_reports_sls_query_files_capability(self) -> None:
+        """Test file service health reports query-files for SLS servers."""
+        mock_get, mock_post = self._mock_requests(
+            {
+                "/niauth/": 200,
+                "/nitestmonitor/": 200,
+                "/niapm/": 200,
+                "/nisysmgmt/": 200,
+                "/nitag/": 404,
+                "/nifile/": 404,
+                "/ninotebook/": 404,
+                "/niapp/": 404,
+                "/nidynamicformfields/": 404,
+                "/niworkorder/": 404,
+            }
+        )
+        with patch("slcli.platform.requests.get", mock_get), patch(
+            "slcli.platform.requests.post", mock_post
+        ), patch(
+            "slcli.platform.get_file_query_capability",
+            return_value={
+                "status": "ok",
+                "file_query_endpoint": "query-files",
+                "elasticsearch_available": False,
+            },
+        ):
+            result = check_service_status("https://my-server.local", "valid-key")
+
+        assert result["services"]["File"] == "ok"
+        assert result["file_query_endpoint"] == "query-files"
+        assert result["elasticsearch_available"] is False
+
 
 class TestGetPlatform:
     """Tests for get_platform function."""
@@ -483,8 +515,11 @@ class TestGetPlatformInfo:
             "services": {
                 "Auth": "ok",
                 "Test Monitor": "ok",
+                "File": "ok",
                 "Work Order": "not_found",
             },
+            "file_query_endpoint": "query-files",
+            "elasticsearch_available": False,
             "platform": PLATFORM_SLS,
         }
 
@@ -506,6 +541,7 @@ class TestGetPlatformInfo:
             assert result["platform_display"] == "SystemLink Server"
             assert result["logged_in"] is True
             assert result["server_reachable"] is True
+            assert result["file_query_endpoint"] == "query-files"
             assert "features" not in result
 
     def test_get_platform_info_file_query_fallback(self) -> None:

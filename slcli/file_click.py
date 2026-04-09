@@ -1,12 +1,14 @@
 """CLI commands for managing SystemLink files."""
 
 import json
+import re
 import shutil
 import sys
 import threading
 import time
 from pathlib import Path
-from typing import Any, Dict, List, Optional
+from typing import Any, Dict, List, Optional, Tuple
+from urllib.parse import urlencode
 
 import click
 import questionary
@@ -35,37 +37,149 @@ def _get_search_files_url() -> str:
     return f"{_get_file_service_url()}/search-files"
 
 
-def _is_search_files_unavailable(exc: requests_lib.HTTPError) -> bool:
-    """Return whether the search-files endpoint is unavailable."""
+def _get_query_files_url() -> str:
+    """Get the query-files endpoint URL."""
+    return f"{_get_file_service_url()}/query-files"
+
+
+def _is_file_query_endpoint_unavailable(exc: requests_lib.HTTPError) -> bool:
+    """Return whether a file query endpoint is unavailable."""
     return exc.response is not None and exc.response.status_code in (404, 501)
 
 
 def _exit_search_files_required() -> None:
     """Exit with a user-facing message when search-files is unavailable."""
     click.echo(
-        "✗ File query requires the search-files endpoint, but Elasticsearch is not available.",
+        "✗ File query requires search-files syntax, but this server does not support it.",
         err=True,
     )
     click.echo(
-        "  Use 'slcli file list' for automatic fallback to query-files-linq.",
+        "  Use 'slcli file list' for automatic endpoint fallback, or use a simpler filter.",
         err=True,
     )
     sys.exit(ExitCodes.INVALID_INPUT)
 
 
-def _search_files_with_fallback(
-    payload: Dict[str, Any],
+def _build_query_files_url(take: int, workspace_id: Optional[str]) -> str:
+    """Build the query-files URL with supported query parameters."""
+    params: Dict[str, Any] = {"take": take}
+    if workspace_id:
+        params["workspace"] = workspace_id
+    return f"{_get_query_files_url()}?{urlencode(params)}"
+
+
+def _get_structured_query_take(take: int, has_client_side_filters: bool) -> int:
+    """Return the query-files page size to use for fallback filtering."""
+    if has_client_side_filters:
+        return max(take * 4, 1000)
+    return take
+
+
+def _get_file_extension(file_item: dict) -> str:
+    """Extract the file extension from file metadata without the leading dot."""
+    file_name = _get_file_name(file_item)
+    return Path(file_name).suffix.lstrip(".")
+
+
+def _filter_files_by_name_or_extension(
+    files: List[dict],
+    needle: str,
+    take: int,
+) -> List[dict]:
+    """Filter files by name or extension using case-insensitive contains matching."""
+    needle_lower = needle.lower()
+    extension_needle = needle_lower.lstrip(".")
+    filtered: List[dict] = []
+
+    for file_item in files:
+        file_name = _get_file_name(file_item).lower()
+        file_extension = _get_file_extension(file_item).lower()
+        if needle_lower in file_name or extension_needle in file_extension:
+            filtered.append(file_item)
+            if len(filtered) >= take:
+                break
+
+    return filtered
+
+
+def _build_structured_file_query(
+    workspace_id: Optional[str],
+    name_filter: Optional[str],
+    id_filter: Optional[str],
+) -> Dict[str, Any]:
+    """Build a query-files request body from high-level file filters.
+
+    Args:
+        workspace_id: Optional workspace ID filter (handled in URL)
+        name_filter: Optional file name substring filter
+        id_filter: Optional comma-separated file IDs
+
+    Returns:
+        Structured query-files request body
+    """
+    del workspace_id
+
+    payload: Dict[str, Any] = {}
+
+    if id_filter:
+        ids = [file_id.strip() for file_id in id_filter.split(",") if file_id.strip()]
+        if len(ids) == 1:
+            payload["idQuery"] = {"operation": "EQUAL", "value": ids[0]}
+        elif ids:
+            payload["idsQuery"] = {"operation": "EQUAL", "ids": ids}
+
+    del name_filter
+
+    return payload
+
+
+def _query_files_structured(
+    take: int,
     workspace_id: Optional[str],
     name_filter: Optional[str],
     id_filter: Optional[str],
 ) -> Any:
-    """Try search-files endpoint, fall back to query-files-linq if unavailable.
+    """Query files using the SLS query-files endpoint."""
+    has_client_side_filters = bool(name_filter)
+    url = _build_query_files_url(
+        take=_get_structured_query_take(take, has_client_side_filters),
+        workspace_id=workspace_id,
+    )
+    payload = _build_structured_file_query(
+        workspace_id=workspace_id,
+        name_filter=name_filter,
+        id_filter=id_filter,
+    )
+    resp = make_api_request("POST", url, payload=payload, handle_errors=False)
 
-    The search-files endpoint requires additional software (DataFinder) to be
-    installed. If it is not available (HTTP 404), we fall back to query-files-linq.
+    if not name_filter:
+        return resp
+
+    data = resp.json()
+    filtered = _filter_files_by_name_or_extension(
+        data.get("availableFiles", []),
+        name_filter,
+        take,
+    )
+    return FilteredResponse({"availableFiles": filtered})
+
+
+def _search_files_with_fallback(
+    payload: Dict[str, Any],
+    take: int,
+    workspace_id: Optional[str],
+    name_filter: Optional[str],
+    id_filter: Optional[str],
+) -> Any:
+    """Try search-files, then query-files, then query-files-linq.
+
+    The preferred search-files endpoint is available on SLE. On SLS, the file
+    service exposes query-files instead. Older systems may still require the
+    query-files-linq fallback.
 
     Args:
         payload: The search-files request payload
+        take: Maximum number of files to return for fallback endpoints
         workspace_id: Optional workspace ID filter
         name_filter: Optional name filter string
         id_filter: Optional comma-separated file IDs
@@ -78,13 +192,23 @@ def _search_files_with_fallback(
             "POST", _get_search_files_url(), payload=payload, handle_errors=False
         )
     except requests_lib.HTTPError as exc:
-        if _is_search_files_unavailable(exc):
-            return _query_files_linq_fallback(
-                take=payload.get("take", 25),
-                workspace_id=workspace_id,
-                name_filter=name_filter,
-                id_filter=id_filter,
-            )
+        if _is_file_query_endpoint_unavailable(exc):
+            try:
+                return _query_files_structured(
+                    take=take,
+                    workspace_id=workspace_id,
+                    name_filter=name_filter,
+                    id_filter=id_filter,
+                )
+            except requests_lib.HTTPError as structured_exc:
+                if _is_file_query_endpoint_unavailable(structured_exc):
+                    return _query_files_linq_fallback(
+                        take=take,
+                        workspace_id=workspace_id,
+                        name_filter=name_filter,
+                        id_filter=id_filter,
+                    )
+                raise
         raise
 
 
@@ -142,6 +266,152 @@ def _query_files_linq_fallback(
         return FilteredResponse({"availableFiles": filtered})
 
     return resp
+
+
+def _get_file_by_id_via_query_files(file_id: str) -> Optional[dict]:
+    """Get file metadata by ID using the query-files endpoint."""
+    url = _build_query_files_url(take=1, workspace_id=None)
+    payload = {"idQuery": {"operation": "EQUAL", "value": file_id}}
+    resp = make_api_request("POST", url, payload=payload, handle_errors=False)
+    data = resp.json()
+    files = data.get("availableFiles", [])
+    if files:
+        return files[0]
+    return None
+
+
+def _get_file_by_id_via_query_files_linq(file_id: str) -> Optional[dict]:
+    """Get file metadata by ID using the query-files-linq endpoint."""
+    url = f"{_get_file_service_url()}/query-files-linq"
+    payload = {
+        "filter": f'id = "{file_id}"',
+        "take": 1,
+    }
+    resp = make_api_request("POST", url, payload=payload)
+    data = resp.json()
+    files = data.get("availableFiles", [])
+    if files:
+        return files[0]
+    return None
+
+
+def _extract_search_filter_values(expression: str) -> List[str]:
+    """Extract quoted values from a search-files filter clause."""
+    return [value for value in re.findall(r'"([^"]*)"', expression) if value]
+
+
+def _parse_case_insensitive_filter_value(field_name: str, value: str) -> Tuple[str, str]:
+    """Parse a supported name or extension value into a client-side filter."""
+    if field_name == "extension":
+        if value.startswith("*") and value.endswith("*") and len(value) >= 2:
+            return ("contains", value[1:-1].lstrip("."))
+        if "*" in value:
+            raise ValueError(
+                "Only contains wildcards of the form '*value*' are supported on this server."
+            )
+        return ("equal", value.lstrip("."))
+
+    if value.startswith("*") and value.endswith("*") and len(value) >= 2:
+        return ("contains", value[1:-1])
+    if "*" in value:
+        raise ValueError(
+            "Only contains wildcards of the form '*value*' are supported on this server."
+        )
+    return ("equal", value)
+
+
+def _matches_case_insensitive_filter(
+    file_item: dict,
+    field_name: str,
+    operation: str,
+    value: str,
+) -> bool:
+    """Return whether a file matches a parsed case-insensitive client-side filter."""
+    candidate = (
+        _get_file_name(file_item) if field_name == "name" else _get_file_extension(file_item)
+    )
+    candidate_lower = candidate.lower()
+    value_lower = value.lower()
+
+    if operation == "contains":
+        return value_lower in candidate_lower
+    return candidate_lower == value_lower
+
+
+def _apply_case_insensitive_query_filters(
+    files: List[dict],
+    client_filters: List[Tuple[str, str, str]],
+    take: int,
+) -> List[dict]:
+    """Apply parsed name/extension filters to a query-files response."""
+    if not client_filters:
+        return files[:take]
+
+    filtered: List[dict] = []
+    for file_item in files:
+        if all(
+            _matches_case_insensitive_filter(file_item, field_name, operation, value)
+            for field_name, operation, value in client_filters
+        ):
+            filtered.append(file_item)
+            if len(filtered) >= take:
+                break
+
+    return filtered
+
+
+def _convert_search_filter_to_query_files(
+    filter_query: Optional[str],
+    workspace_id: Optional[str],
+) -> Tuple[Dict[str, Any], Optional[str], List[Tuple[str, str, str]]]:
+    """Convert supported search-files expressions to a query-files request body."""
+    payload: Dict[str, Any] = {}
+    resolved_workspace = workspace_id
+    client_filters: List[Tuple[str, str, str]] = []
+
+    if not filter_query:
+        return payload, resolved_workspace, client_filters
+
+    clauses = [part.strip() for part in re.split(r"\s+AND\s+", filter_query, flags=re.IGNORECASE)]
+
+    for clause in clauses:
+        match = re.match(r"^(name|extension|id|workspaceId):\((.+)\)$", clause)
+        if not match:
+            raise ValueError(
+                "Only name, extension, id, and workspaceId filters joined by AND are supported on this server."
+            )
+
+        field_name, expression = match.groups()
+        if re.search(r"\s+OR\s+", expression, flags=re.IGNORECASE):
+            raise ValueError(
+                "Only name, extension, id, and workspaceId filters joined by AND are supported on this server."
+            )
+        values = _extract_search_filter_values(expression)
+        if not values:
+            raise ValueError(f"Could not parse filter clause: {clause}")
+
+        if field_name == "workspaceId":
+            if len(values) != 1:
+                raise ValueError("workspaceId filters must specify exactly one workspace ID.")
+            if resolved_workspace and resolved_workspace != values[0]:
+                raise ValueError("Conflicting workspace filters were provided.")
+            resolved_workspace = values[0]
+            continue
+
+        if field_name == "id":
+            if len(values) == 1:
+                payload["idQuery"] = {"operation": "EQUAL", "value": values[0]}
+            else:
+                payload["idsQuery"] = {"operation": "EQUAL", "ids": values}
+            continue
+
+        if len(values) != 1:
+            raise ValueError(f"{field_name} filters support exactly one value on this server.")
+
+        operation, parsed_value = _parse_case_insensitive_filter_value(field_name, values[0])
+        client_filters.append((field_name, operation, parsed_value))
+
+    return payload, resolved_workspace, client_filters
 
 
 def _format_file_size(size_bytes: Optional[int]) -> str:
@@ -217,10 +487,7 @@ def _get_file_size(file_item: dict) -> Optional[int]:
 
 
 def _get_file_by_id(file_id: str) -> Optional[dict]:
-    """Get file metadata by ID using query-files-linq endpoint.
-
-    The API doesn't have a GET /files/{id} endpoint, so we use
-    query-files-linq with an ID filter instead.
+    """Get file metadata by ID using the best available query endpoint.
 
     Args:
         file_id: The file ID to look up
@@ -228,17 +495,12 @@ def _get_file_by_id(file_id: str) -> Optional[dict]:
     Returns:
         File metadata dictionary or None if not found
     """
-    url = f"{_get_file_service_url()}/query-files-linq"
-    payload = {
-        "filter": f'id = "{file_id}"',
-        "take": 1,
-    }
-    resp = make_api_request("POST", url, payload=payload)
-    data = resp.json()
-    files = data.get("availableFiles", [])
-    if files:
-        return files[0]
-    return None
+    try:
+        return _get_file_by_id_via_query_files(file_id)
+    except requests_lib.HTTPError as exc:
+        if _is_file_query_endpoint_unavailable(exc):
+            return _get_file_by_id_via_query_files_linq(file_id)
+        raise
 
 
 def register_file_commands(cli: Any) -> None:
@@ -336,6 +598,7 @@ def register_file_commands(cli: Any) -> None:
             # Try search-files, fall back to query-files-linq if unavailable
             resp = _search_files_with_fallback(
                 payload=payload,
+                take=api_take,
                 workspace_id=workspace_id,
                 name_filter=name_filter,
                 id_filter=id_filter,
@@ -687,8 +950,9 @@ def register_file_commands(cli: Any) -> None:
 
         try:
             # Build request body for search-files
+            api_take = take if format_output.lower() == "json" else (take if take != 25 else 1000)
             query_body: Dict[str, Any] = {
-                "take": take if format_output.lower() == "json" else (take if take != 25 else 1000),
+                "take": api_take,
                 "orderByDescending": descending,
             }
 
@@ -714,12 +978,43 @@ def register_file_commands(cli: Any) -> None:
             else:
                 query_body["orderBy"] = "updated"
 
-            resp = make_api_request(
-                "POST",
-                _get_search_files_url(),
-                payload=query_body,
-                handle_errors=False,
-            )
+            resp: Any
+            try:
+                resp = make_api_request(
+                    "POST",
+                    _get_search_files_url(),
+                    payload=query_body,
+                    handle_errors=False,
+                )
+            except requests_lib.HTTPError as exc:
+                if not _is_file_query_endpoint_unavailable(exc):
+                    raise
+
+                structured_query, structured_workspace, client_filters = (
+                    _convert_search_filter_to_query_files(
+                        filter_query=filter_query,
+                        workspace_id=workspace_id,
+                    )
+                )
+                structured_take = _get_structured_query_take(api_take, bool(client_filters))
+                structured_resp = make_api_request(
+                    "POST",
+                    _build_query_files_url(structured_take, structured_workspace),
+                    payload=structured_query,
+                )
+                if client_filters:
+                    structured_data = structured_resp.json()
+                    resp = FilteredResponse(
+                        {
+                            "availableFiles": _apply_case_insensitive_query_filters(
+                                structured_data.get("availableFiles", []),
+                                client_filters,
+                                api_take,
+                            )
+                        }
+                    )
+                else:
+                    resp = structured_resp
 
             def file_formatter(file_item: dict) -> list:
                 name = _get_file_name(file_item)
@@ -742,9 +1037,12 @@ def register_file_commands(cli: Any) -> None:
             )
 
         except requests_lib.HTTPError as exc:
-            if _is_search_files_unavailable(exc):
+            if _is_file_query_endpoint_unavailable(exc):
                 _exit_search_files_required()
             handle_api_error(exc)
+        except ValueError as exc:
+            click.echo(f"✗ {exc}", err=True)
+            sys.exit(ExitCodes.INVALID_INPUT)
         except Exception as exc:
             handle_api_error(exc)
 

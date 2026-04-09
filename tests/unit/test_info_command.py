@@ -65,9 +65,12 @@ class TestInfoCommand:
             "auth_valid": True,
             "services": {
                 "Auth": "ok",
+                "File": "ok",
                 "Test Monitor": "ok",
                 "Work Order": "not_found",
             },
+            "file_query_endpoint": "query-files",
+            "elasticsearch_available": False,
             "platform": "SLS",
         }
 
@@ -93,6 +96,8 @@ class TestInfoCommand:
         assert "Service Health" in result.output
         assert "Work Order" in result.output
         assert "Not available" in result.output
+        assert "query-files" in result.output
+        assert "Elasticsearch unavailable" not in result.output
 
     def test_info_command_json_format_sle(self, monkeypatch: Any) -> None:
         """Test info command with JSON format for SLE platform."""

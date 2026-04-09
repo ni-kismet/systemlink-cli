@@ -116,7 +116,9 @@ def _add_profile_impl(
         elif status["auth_valid"] is True:
             click.echo("  API key:  ✓ Authorized")
 
-        if status.get("elasticsearch_available") is False:
+        if status.get("file_query_endpoint") == "query-files":
+            click.echo("  File query: query-files")
+        elif status.get("elasticsearch_available") is False:
             click.echo("  File query: query-files-linq (Elasticsearch unavailable)")
             click.echo(
                 "      'slcli file list' will fall back automatically; 'slcli file query' requires search-files."
