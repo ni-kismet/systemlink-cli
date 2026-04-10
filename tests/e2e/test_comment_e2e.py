@@ -5,6 +5,8 @@ from typing import Any, Generator, Tuple
 
 import pytest
 
+pytestmark = pytest.mark.sle
+
 
 def _extract_comment_id(stdout: str) -> str:
     """Parse the comment ID emitted by 'comment add' / 'comment update' success output.

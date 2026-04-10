@@ -42,6 +42,7 @@ class TestNotebookE2E:
         notebooks = cli_helper.get_json_output(result)
         assert isinstance(notebooks, list)
 
+    @pytest.mark.sle
     def test_notebook_create_and_delete_cycle(
         self,
         cli_runner: Any,
@@ -133,6 +134,7 @@ class TestNotebookE2E:
             # Cleanup temp file
             Path(temp_file).unlink(missing_ok=True)
 
+    @pytest.mark.sle
     def test_notebook_download_by_id(
         self,
         cli_runner: Any,
@@ -219,6 +221,7 @@ class TestNotebookE2E:
         finally:
             Path(temp_file).unlink(missing_ok=True)
 
+    @pytest.mark.sle
     def test_notebook_download_by_name(
         self,
         cli_runner: Any,
@@ -311,7 +314,11 @@ class TestNotebookE2E:
         cli_helper.assert_success(result)
 
         # Should either show notebooks or "No notebooks found"
-        assert "Notebook" in result.stdout or "No notebooks found" in result.stdout
+        assert (
+            "Name" in result.stdout
+            or "Total:" in result.stdout
+            or "No notebooks found" in result.stdout
+        )
 
     def test_notebook_error_handling(self, cli_runner: Any, cli_helper: Any) -> None:
         """Test error handling for invalid operations."""
@@ -336,6 +343,7 @@ class TestNotebookE2E:
         )
         cli_helper.assert_failure(result)
 
+    @pytest.mark.sle
     def test_notebook_create_without_file(
         self, cli_runner: Any, cli_helper: Any, configured_workspace: Any
     ) -> None:

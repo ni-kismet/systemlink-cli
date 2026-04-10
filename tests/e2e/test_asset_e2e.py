@@ -96,6 +96,7 @@ class TestAssetListE2E:
         assets = cli_helper.get_json_output(result)
         assert isinstance(assets, list)
 
+    @pytest.mark.sle
     def test_list_connected_only(self, cli_runner: Any, cli_helper: Any) -> None:
         """Test listing only connected assets."""
         result = cli_runner(["asset", "list", "--format", "json", "--connected", "--take", "5"])

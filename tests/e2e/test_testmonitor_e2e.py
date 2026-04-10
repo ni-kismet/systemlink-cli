@@ -63,6 +63,7 @@ class TestProductListE2E:
         assert isinstance(filtered, list)
         assert len(filtered) > 0
 
+    @pytest.mark.sle
     def test_list_with_workspace_filter(
         self, cli_runner: Any, cli_helper: Any, configured_workspace: str
     ) -> None:
@@ -81,7 +82,6 @@ class TestProductListE2E:
             ]
         )
         cli_helper.assert_success(result)
-
         products = cli_helper.get_json_output(result)
         assert isinstance(products, list)
 

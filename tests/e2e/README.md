@@ -55,6 +55,36 @@ Edit `e2e_config.json` with your dev environment details:
 }
 ```
 
+The E2E harness also supports a multi-platform config with separate `sle` and
+`sls` sections:
+
+```json
+{
+   "sle": {
+      "base_url": "https://dev-api.lifecyclesolutions.ni.com",
+      "api_key": "your-sle-api-key",
+      "workspace": "Default",
+      "test_notebook_id": "<sle-notebook-id>"
+   },
+   "sls": {
+      "base_url": "https://your-sls-server",
+      "api_key": "your-sls-api-key",
+      "workspace": "Default",
+      "test_notebook_path": "_shared/reports/Throughput.ipynb"
+   },
+   "timeout": 30,
+   "cleanup": true
+}
+```
+
+Notes:
+
+- `test_notebook_path` is used by the SLS notebook execution tests.
+- Use `--e2e-platform sle|sls` or `SLCLI_E2E_PLATFORM=sle|sls` to choose which
+   platform the generic `cli_runner` and `configured_workspace` fixtures target.
+- In `auto` mode, the generic fixtures still prefer SLE when both `sle` and
+   `sls` are configured.
+
 **⚠️ Important:** Add `e2e_config.json` to `.gitignore` to avoid committing credentials.
 
 ### 3. API Key Setup
@@ -77,6 +107,12 @@ python tests/e2e/run_e2e.py
 
 # Or directly with pytest
 poetry run pytest tests/e2e/ -m e2e -v
+
+# Force generic tests to target SystemLink Server
+poetry run pytest tests/e2e/ -m e2e --e2e-platform sls -v
+
+# Force generic tests to target SystemLink Enterprise
+poetry run pytest tests/e2e/ -m e2e --e2e-platform sle -v
 ```
 
 ### Run Specific Test Categories
@@ -97,6 +133,38 @@ poetry run pytest tests/e2e/test_dff_e2e.py -m e2e -v
 # Tag tests only
 poetry run pytest tests/e2e/test_tag_e2e.py -m e2e -v
 ```
+
+### Run SLS-Supported E2E Tests
+
+The only tests that are explicitly marked and curated for SLS today are the
+supported SLS subset.
+
+```bash
+# Run the supported SLS subset
+poetry run pytest tests/e2e/ -m "e2e and not sle" --e2e-platform sls -v
+
+# Run the SLS notebook execution suite directly
+poetry run pytest tests/e2e/test_notebook_e2e.py -m "e2e and sls" --e2e-platform sls -v
+
+# Run the SLS notebook execution suite in parallel
+poetry run pytest tests/e2e/test_notebook_e2e.py -m "e2e and sls" --e2e-platform sls -n auto -v
+```
+
+If you want to run a specific generic suite against SLS, select SLS explicitly:
+
+```bash
+# Example: run file E2E tests against SLS
+poetry run pytest tests/e2e/test_file_e2e.py -m e2e --e2e-platform sls -v
+
+# Example: run workspace E2E tests against SLS
+poetry run pytest tests/e2e/test_workspace_e2e.py -m e2e --e2e-platform sls -v
+
+# Example: run the SLE-only subset against SLE
+poetry run pytest tests/e2e/ -m "e2e and sle" --e2e-platform sle -v
+```
+
+Tests marked `sle` are skipped automatically when targeting SLS, and tests
+marked `sls` are skipped automatically when targeting SLE.
 
 ### Run with Different Markers
 
@@ -200,6 +268,8 @@ The framework uses pytest markers to categorize tests:
 - `@pytest.mark.dff` - Custom Fields tests
 - `@pytest.mark.workspace` - Workspace-related tests
 - `@pytest.mark.user` - User management tests
+- `@pytest.mark.sls` - SystemLink Server-specific tests
+- `@pytest.mark.sle` - SystemLink Enterprise-specific tests
 
 ## Local Development Integration
 

@@ -217,6 +217,7 @@ class TestSystemSummaryE2E:
 
 @pytest.mark.e2e
 @pytest.mark.system
+@pytest.mark.sle
 class TestSystemJobE2E:
     """End-to-end tests for 'system job' commands."""
 

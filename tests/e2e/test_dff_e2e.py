@@ -7,6 +7,8 @@ from typing import Any
 
 import pytest
 
+pytestmark = pytest.mark.sle
+
 
 @pytest.mark.e2e
 @pytest.mark.dff

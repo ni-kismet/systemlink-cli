@@ -11,6 +11,55 @@ from typing import Any, Dict, Generator, List, Optional
 import pytest
 
 
+def _get_requested_platform(pytest_config: Optional[Any] = None) -> str:
+    """Return the requested E2E platform selection."""
+    if pytest_config is not None:
+        option_value = pytest_config.getoption("e2e_platform")
+        if option_value:
+            return str(option_value).lower()
+
+    env_value = os.getenv("SLCLI_E2E_PLATFORM", "auto").strip().lower()
+    if env_value not in {"auto", "sle", "sls"}:
+        raise pytest.UsageError("SLCLI_E2E_PLATFORM must be one of: auto, sle, sls")
+    return env_value
+
+
+def _resolve_active_platform(e2e_config: Dict[str, Any], requested_platform: str) -> Optional[str]:
+    """Resolve the active platform for generic fixtures."""
+    if requested_platform == "sle":
+        return "sle"
+    if requested_platform == "sls":
+        return "sls"
+
+    if "sle" in e2e_config or "sls" in e2e_config:
+        if e2e_config.get("sle", {}).get("base_url") and e2e_config.get("sle", {}).get("api_key"):
+            return "sle"
+        if e2e_config.get("sls", {}).get("base_url") and e2e_config.get("sls", {}).get("api_key"):
+            return "sls"
+        return None
+
+    base_url = e2e_config.get("base_url", "")
+    if base_url:
+        return "sle" if _is_sle_url(base_url) else "sls"
+    return None
+
+
+def _select_platform_config(
+    e2e_config: Dict[str, Any], requested_platform: str
+) -> Optional[Dict[str, Any]]:
+    """Select the platform config used by generic fixtures."""
+    active_platform = _resolve_active_platform(e2e_config, requested_platform)
+    if active_platform == "sle":
+        if "sle" in e2e_config:
+            return {**e2e_config["sle"], "platform": "SLE"}
+        return {**e2e_config, "platform": "SLE"}
+    if active_platform == "sls":
+        if "sls" in e2e_config:
+            return {**e2e_config["sls"], "platform": "SLS"}
+        return {**e2e_config, "platform": "SLS"}
+    return None
+
+
 def _load_config_file() -> Dict[str, Any]:
     """Load configuration from file if it exists."""
     config_file = Path("tests/e2e/e2e_config.json")
@@ -18,6 +67,17 @@ def _load_config_file() -> Dict[str, Any]:
         with open(config_file) as f:
             return json.load(f)
     return {}
+
+
+def pytest_addoption(parser: Any) -> None:
+    """Register E2E-specific pytest options."""
+    parser.addoption(
+        "--e2e-platform",
+        action="store",
+        default=None,
+        choices=["auto", "sle", "sls"],
+        help="Select which E2E platform generic fixtures should target.",
+    )
 
 
 @pytest.fixture(scope="session")
@@ -122,6 +182,12 @@ def require_sls(sls_available: bool) -> None:
         pytest.skip("SLS configuration not available")
 
 
+@pytest.fixture(scope="session")
+def selected_platform(pytestconfig: Any) -> str:
+    """Return the requested E2E platform selection for generic fixtures."""
+    return _get_requested_platform(pytestconfig)
+
+
 @pytest.fixture(scope="session", autouse=True)
 def setup_e2e_environment(e2e_config: Dict[str, Any]) -> Generator[None, None, None]:
     """Set up environment for E2E tests.
@@ -195,33 +261,18 @@ def _make_cli_runner(config: Dict[str, Any], timeout: int = 30) -> Any:
 
 
 @pytest.fixture
-def cli_runner(e2e_config: Dict[str, Any]) -> Any:
+def cli_runner(e2e_config: Dict[str, Any], selected_platform: str) -> Any:
     """CLI runner for executing slcli commands.
 
-    Prefer the SLE config when available, otherwise fall back to SLS, and
-    finally the bare environment. This keeps legacy single-config runs working
-    while enabling multi-platform configs to still have a sensible default
-    runner for tests that do not opt into a platform-specific fixture.
+    Generic tests target the selected platform from `--e2e-platform` or
+    `SLCLI_E2E_PLATFORM`. In `auto` mode, SLE remains the default when both
+    configs are present.
     """
     timeout = e2e_config.get("timeout", 30)
+    selected_config = _select_platform_config(e2e_config, selected_platform)
 
-    # Prefer SLE when configured
-    if (
-        "sle" in e2e_config
-        and e2e_config["sle"].get("base_url")
-        and e2e_config["sle"].get("api_key")
-    ):
-        config = {**e2e_config["sle"], "platform": "SLE"}
-        return _make_cli_runner(config, timeout)
-
-    # Fall back to SLS when configured
-    if (
-        "sls" in e2e_config
-        and e2e_config["sls"].get("base_url")
-        and e2e_config["sls"].get("api_key")
-    ):
-        config = {**e2e_config["sls"], "platform": "SLS"}
-        return _make_cli_runner(config, timeout)
+    if selected_config is not None:
+        return _make_cli_runner(selected_config, timeout)
 
     # Legacy / no config: use current environment
     return _make_cli_runner({})
@@ -246,16 +297,15 @@ def sls_cli_runner(sls_config: Dict[str, Any], e2e_config: Dict[str, Any]) -> An
 
 
 @pytest.fixture
-def configured_workspace(e2e_config: Dict[str, Any]) -> str:
+def configured_workspace(e2e_config: Dict[str, Any], selected_platform: str) -> str:
     """Return the configured workspace name for E2E tests.
 
-    Returns the workspace from 'sle' section if using multi-platform config,
-    otherwise from the top-level config. Defaults to 'Default' if not configured.
-    Note: For SLS-specific tests, use 'sls_workspace' fixture instead.
+    Generic tests use the workspace from the selected active platform.
+    For platform-specific tests, prefer `sle_workspace` or `sls_workspace`.
     """
-    # Support both new and legacy config formats
-    if "sle" in e2e_config:
-        return e2e_config["sle"].get("workspace", "Default")
+    selected_config = _select_platform_config(e2e_config, selected_platform)
+    if selected_config is not None:
+        return selected_config.get("workspace", "Default")
     return e2e_config.get("workspace", "Default")
 
 
@@ -460,3 +510,33 @@ def pytest_configure(config: Any) -> None:
     config.addinivalue_line("markers", "comment: mark test as comment management related")
     config.addinivalue_line("markers", "routine: mark test as routine management related")
     config.addinivalue_line("markers", "workitem: mark test as work item management related")
+
+
+def pytest_collection_modifyitems(config: Any, items: List[Any]) -> None:
+    """Skip platform-specific tests that do not match the selected target."""
+    file_config = _load_config_file()
+    requested_platform = _get_requested_platform(config)
+
+    if "sle" in file_config or "sls" in file_config:
+        resolved_config: Dict[str, Any] = {
+            "sle": file_config.get("sle", {}),
+            "sls": file_config.get("sls", {}),
+        }
+    else:
+        resolved_config = {
+            "base_url": os.getenv("SLCLI_E2E_BASE_URL") or file_config.get("base_url", ""),
+            "api_key": os.getenv("SLCLI_E2E_API_KEY") or file_config.get("api_key", ""),
+        }
+
+    active_platform = _resolve_active_platform(resolved_config, requested_platform)
+    if active_platform is None:
+        return
+
+    skip_sle = pytest.mark.skip(reason="requires SystemLink Enterprise")
+    skip_sls = pytest.mark.skip(reason="requires SystemLink Server")
+
+    for item in items:
+        if active_platform == "sle" and item.get_closest_marker("sls"):
+            item.add_marker(skip_sls)
+        if active_platform == "sls" and item.get_closest_marker("sle"):
+            item.add_marker(skip_sle)

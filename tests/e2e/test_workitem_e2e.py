@@ -5,6 +5,8 @@ from typing import Any, Optional
 
 import pytest
 
+pytestmark = pytest.mark.sle
+
 
 def _extract_id(stdout: str) -> Optional[str]:
     """Parse the ID from format_success output.

@@ -5,6 +5,8 @@ from typing import Any, Optional
 
 import pytest
 
+pytestmark = pytest.mark.sle
+
 
 def _extract_routine_id(stdout: str) -> Optional[str]:
     """Parse the routine ID emitted by 'routine create' / 'routine update' success output.
