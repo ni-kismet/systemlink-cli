@@ -17,6 +17,12 @@ SystemLink CLI (`slcli`) is a cross-platform Python CLI for SystemLink integrato
 ## Quick Install
 
 ```bash
+# pipx (recommended cross-platform Python install)
+pipx install systemlink-cli
+
+# Verify the CLI is on your PATH
+slcli --help
+
 # macOS / Linux (Homebrew — https://brew.sh)
 brew tap ni-kismet/homebrew-ni && brew install slcli
 
@@ -31,11 +37,8 @@ sudo mv slcli/slcli /usr/local/bin/
 curl -fsSL https://github.com/ni-kismet/systemlink-cli/releases/latest/download/slcli-linux.tar.gz | tar xz
 sudo mv slcli/slcli /usr/local/bin/
 
-# pip (Python 3.11+)
+# pip (fallback for virtualenvs, CI, or managed Python workflows)
 pip install systemlink-cli
-
-# Command name after install
-slcli --help
 ```
 
 ## Quick Start

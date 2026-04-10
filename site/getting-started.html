@@ -75,8 +75,21 @@
         <div class="step">
           <div class="step-num">1</div>
           <div class="step-body">
+            <h3>Cross-platform — pipx</h3>
+            <p>The recommended install method for most users. It keeps <code>slcli</code> isolated from your system Python and other Python tools. Requires <a href="https://pipx.pypa.io/" target="_blank" rel="noopener">pipx</a> and <a href="https://www.python.org" target="_blank" rel="noopener">Python 3.11+</a>.</p>
+            <pre><code>pipx install systemlink-cli
+
+# Verify the command is on your PATH
+slcli --help</code></pre>
+            <h4>Update</h4>
+            <pre><code>pipx upgrade systemlink-cli</code></pre>
+          </div>
+        </div>
+        <div class="step">
+          <div class="step-num">2</div>
+          <div class="step-body">
             <h3>macOS / Linux — Homebrew</h3>
-            <p>The recommended way to install on macOS and Linux. Requires <a href="https://brew.sh" target="_blank" rel="noopener">Homebrew</a>.</p>
+            <p>Install using <a href="https://brew.sh" target="_blank" rel="noopener">Homebrew</a>.</p>
             <pre><code># Add the NI developer tools tap
 brew tap ni-kismet/homebrew-ni
 
@@ -87,7 +100,7 @@ brew install slcli</code></pre>
           </div>
         </div>
         <div class="step">
-          <div class="step-num">2</div>
+          <div class="step-num">3</div>
           <div class="step-body">
             <h3>Windows — Scoop</h3>
             <p>Install using <a href="https://scoop.sh" target="_blank" rel="noopener">Scoop</a> package manager.</p>
@@ -101,7 +114,7 @@ scoop install slcli</code></pre>
           </div>
         </div>
         <div class="step">
-          <div class="step-num">3</div>
+          <div class="step-num">4</div>
           <div class="step-body">
             <h3>Standalone Binary (no package manager)</h3>
             <p>Download a pre-built binary from <a href="https://github.com/ni-kismet/systemlink-cli/releases/latest" target="_blank" rel="noopener">GitHub Releases</a> and add it to your PATH. No Python or package manager required.</p>
@@ -118,10 +131,10 @@ sudo mv slcli/slcli /usr/local/bin/
           </div>
         </div>
         <div class="step">
-          <div class="step-num">4</div>
+          <div class="step-num">5</div>
           <div class="step-body">
             <h3>pip (PyPI)</h3>
-            <p>Install as a Python package. Requires <a href="https://www.python.org" target="_blank" rel="noopener">Python 3.11+</a>.</p>
+            <p>Fallback for virtual environments, CI jobs, containers, or environments where you want <code>slcli</code> installed into an existing Python environment. Requires <a href="https://www.python.org" target="_blank" rel="noopener">Python 3.11+</a>.</p>
             <pre><code>pip install systemlink-cli
 
 # Command name after install
@@ -131,7 +144,7 @@ slcli --help</code></pre>
           </div>
         </div>
         <div class="step">
-          <div class="step-num">5</div>
+          <div class="step-num">6</div>
           <div class="step-body">
             <h3>From Source (development)</h3>
             <p>For contributors and development. Requires <a href="https://python-poetry.org" target="_blank" rel="noopener">Poetry</a>.</p>

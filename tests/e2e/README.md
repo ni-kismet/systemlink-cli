@@ -60,20 +60,20 @@ The E2E harness also supports a multi-platform config with separate `sle` and
 
 ```json
 {
-   "sle": {
-      "base_url": "https://dev-api.lifecyclesolutions.ni.com",
-      "api_key": "your-sle-api-key",
-      "workspace": "Default",
-      "test_notebook_id": "<sle-notebook-id>"
-   },
-   "sls": {
-      "base_url": "https://your-sls-server",
-      "api_key": "your-sls-api-key",
-      "workspace": "Default",
-      "test_notebook_path": "_shared/reports/Throughput.ipynb"
-   },
-   "timeout": 30,
-   "cleanup": true
+  "sle": {
+    "base_url": "https://dev-api.lifecyclesolutions.ni.com",
+    "api_key": "your-sle-api-key",
+    "workspace": "Default",
+    "test_notebook_id": "<sle-notebook-id>"
+  },
+  "sls": {
+    "base_url": "https://your-sls-server",
+    "api_key": "your-sls-api-key",
+    "workspace": "Default",
+    "test_notebook_path": "_shared/reports/Throughput.ipynb"
+  },
+  "timeout": 30,
+  "cleanup": true
 }
 ```
 
@@ -81,9 +81,9 @@ Notes:
 
 - `test_notebook_path` is used by the SLS notebook execution tests.
 - Use `--e2e-platform sle|sls` or `SLCLI_E2E_PLATFORM=sle|sls` to choose which
-   platform the generic `cli_runner` and `configured_workspace` fixtures target.
+  platform the generic `cli_runner` and `configured_workspace` fixtures target.
 - In `auto` mode, the generic fixtures still prefer SLE when both `sle` and
-   `sls` are configured.
+  `sls` are configured.
 
 **⚠️ Important:** Add `e2e_config.json` to `.gitignore` to avoid committing credentials.
 
