@@ -2636,13 +2636,41 @@ def register_system_commands(cli: Any) -> None:
             alias_a = sys_a.get("alias") or id_a
             alias_b = sys_b.get("alias") or id_b
 
-            # Fetch assets for both systems in parallel
+            # Fetch assets for both systems in parallel. The current helper
+            # supports a take limit, so explicitly guard against silently
+            # comparing truncated results when a system has more assets than
+            # the fetch cap.
+            asset_fetch_limit = 1000
             with concurrent.futures.ThreadPoolExecutor() as executor:
-                future_assets_a = executor.submit(_fetch_assets_for_system, id_a, 1000)
-                future_assets_b = executor.submit(_fetch_assets_for_system, id_b, 1000)
+                future_assets_a = executor.submit(
+                    _fetch_assets_for_system, id_a, asset_fetch_limit
+                )
+                future_assets_b = executor.submit(
+                    _fetch_assets_for_system, id_b, asset_fetch_limit
+                )
 
-            assets_a, _ = future_assets_a.result()
-            assets_b, _ = future_assets_b.result()
+            assets_a, total_assets_a = future_assets_a.result()
+            assets_b, total_assets_b = future_assets_b.result()
+
+            truncated_systems: List[str] = []
+            if total_assets_a > asset_fetch_limit:
+                truncated_systems.append(
+                    f"{alias_a} ({total_assets_a} assets, limit {asset_fetch_limit})"
+                )
+            if total_assets_b > asset_fetch_limit:
+                truncated_systems.append(
+                    f"{alias_b} ({total_assets_b} assets, limit {asset_fetch_limit})"
+                )
+
+            if truncated_systems:
+                click.echo(
+                    "✗ Error: system comparison would be incomplete because "
+                    "asset retrieval is limited to the first "
+                    f"{asset_fetch_limit} assets. Affected system(s): "
+                    + ", ".join(truncated_systems),
+                    err=True,
+                )
+                sys.exit(ExitCodes.GENERAL_ERROR)
 
             # Extract packages
             pkgs_a = _get_packages(sys_a)
