@@ -1180,6 +1180,349 @@ def _get_job_display_fields(job: Dict[str, Any]) -> Dict[str, str]:
 # ==================================================================
 
 
+def _resolve_system(identifier: str) -> Dict[str, Any]:
+    """Resolve a system by ID or alias.
+
+    First attempts a direct ID lookup. If that fails, queries by alias.
+
+    Args:
+        identifier: System minion ID or alias.
+
+    Returns:
+        System data dictionary.
+
+    Raises:
+        SystemExit: If the system cannot be found.
+    """
+    # Try direct ID lookup first
+    try:
+        url = f"{_get_sysmgmt_base_url()}/systems?id={identifier}"
+        resp = make_api_request("GET", url, handle_errors=False)
+        data = resp.json()
+        if isinstance(data, list) and data:
+            return data[0]
+        if isinstance(data, dict) and data.get("id"):
+            return data
+    except Exception:
+        pass
+
+    # Fall back to alias search
+    escaped = _escape_filter_value(identifier)
+    query_url = f"{_get_sysmgmt_base_url()}/query-systems"
+    payload: Dict[str, Any] = {
+        "filter": f'alias = "{escaped}"',
+        "take": 2,
+    }
+    try:
+        resp = make_api_request("POST", query_url, payload=payload)
+        data = resp.json()
+        systems = _parse_systems_response(data)
+        if len(systems) == 1:
+            return systems[0]
+        if len(systems) > 1:
+            click.echo(
+                f"✗ Multiple systems match alias '{identifier}'. Use the system ID instead.",
+                err=True,
+            )
+            sys.exit(ExitCodes.INVALID_INPUT)
+    except Exception:
+        pass
+
+    click.echo(f"✗ System not found: {identifier}", err=True)
+    sys.exit(ExitCodes.NOT_FOUND)
+
+
+def _get_packages(system: Dict[str, Any]) -> Dict[str, Dict[str, Any]]:
+    """Extract the packages dictionary from a system record.
+
+    Args:
+        system: System data dictionary.
+
+    Returns:
+        Mapping of package name to package info.
+    """
+    packages = system.get("packages")
+    if isinstance(packages, dict):
+        pkg_data = packages.get("data")
+        if isinstance(pkg_data, dict):
+            return pkg_data
+    return {}
+
+
+def _compare_packages(
+    pkgs_a: Dict[str, Dict[str, Any]],
+    pkgs_b: Dict[str, Dict[str, Any]],
+    alias_a: str,
+    alias_b: str,
+    format_output: str,
+) -> Dict[str, Any]:
+    """Compare software packages between two systems.
+
+    Args:
+        pkgs_a: Packages from system A.
+        pkgs_b: Packages from system B.
+        alias_a: Display name for system A.
+        alias_b: Display name for system B.
+        format_output: Output format (table or json).
+
+    Returns:
+        Comparison result dictionary for JSON output.
+    """
+    all_keys = sorted(set(pkgs_a.keys()) | set(pkgs_b.keys()))
+    only_a: List[str] = []
+    only_b: List[str] = []
+    version_diffs: List[Dict[str, str]] = []
+    matching: List[str] = []
+
+    for key in all_keys:
+        in_a = key in pkgs_a
+        in_b = key in pkgs_b
+        if in_a and not in_b:
+            only_a.append(key)
+        elif in_b and not in_a:
+            only_b.append(key)
+        else:
+            ver_a = pkgs_a[key].get("version") or pkgs_a[key].get("displayversion") or ""
+            ver_b = pkgs_b[key].get("version") or pkgs_b[key].get("displayversion") or ""
+            if ver_a != ver_b:
+                name = pkgs_a[key].get("displayname") or key
+                version_diffs.append({"package": name, "version_a": ver_a, "version_b": ver_b})
+            else:
+                matching.append(key)
+
+    result: Dict[str, Any] = {
+        f"only_{alias_a}": only_a,
+        f"only_{alias_b}": only_b,
+        "version_differences": version_diffs,
+        "matching_count": len(matching),
+    }
+
+    if format_output.lower() != "json":
+        click.echo("\n  Software Comparison")
+        click.echo("  " + "─" * 60)
+
+        if not only_a and not only_b and not version_diffs:
+            click.echo("  ✓ Software is identical across both systems.")
+        else:
+            if only_a:
+                click.echo(f"\n  Only on {alias_a}:")
+                for key in only_a:
+                    name = pkgs_a[key].get("displayname") or key
+                    ver = pkgs_a[key].get("displayversion") or pkgs_a[key].get("version") or ""
+                    click.echo(f"    + {name}  ({ver})" if ver else f"    + {name}")
+
+            if only_b:
+                click.echo(f"\n  Only on {alias_b}:")
+                for key in only_b:
+                    name = pkgs_b[key].get("displayname") or key
+                    ver = pkgs_b[key].get("displayversion") or pkgs_b[key].get("version") or ""
+                    click.echo(f"    + {name}  ({ver})" if ver else f"    + {name}")
+
+            if version_diffs:
+                click.echo("\n  Version Differences:")
+                for diff in version_diffs:
+                    ver_a = diff["version_a"]
+                    ver_b = diff["version_b"]
+                    # Determine which version is newer
+                    try:
+                        from packaging.version import Version
+
+                        newer_is_a = Version(ver_a) > Version(ver_b)
+                    except Exception:
+                        newer_is_a = ver_a > ver_b
+                    if newer_is_a:
+                        mark_a, mark_b = "+", "-"
+                    else:
+                        mark_a, mark_b = "-", "+"
+                    click.echo(f"    {diff['package']}:")
+                    click.echo(f"      {mark_a} {alias_a}: {ver_a}")
+                    click.echo(f"      {mark_b} {alias_b}: {ver_b}")
+
+        click.echo(
+            f"\n  Summary: {len(matching)} matching, "
+            f"{len(only_a)} only on {alias_a}, "
+            f"{len(only_b)} only on {alias_b}, "
+            f"{len(version_diffs)} version differences"
+        )
+
+    return result
+
+
+def _compare_assets(
+    assets_a: List[Dict[str, Any]],
+    assets_b: List[Dict[str, Any]],
+    alias_a: str,
+    alias_b: str,
+    format_output: str,
+) -> Dict[str, Any]:
+    """Compare assets connected to two systems.
+
+    Assets are considered equivalent if they share the same model and vendor.
+    A mismatch in the set of (model, vendor) pairs is reported at error level.
+    Matching assets in different slots are reported at warning level.
+
+    Args:
+        assets_a: Assets connected to system A.
+        assets_b: Assets connected to system B.
+        alias_a: Display name for system A.
+        alias_b: Display name for system B.
+        format_output: Output format (table or json).
+
+    Returns:
+        Comparison result dictionary for JSON output.
+    """
+
+    def _asset_identity(asset: Dict[str, Any]) -> Tuple[str, str]:
+        return (asset.get("modelName") or "", asset.get("vendorName") or "")
+
+    def _asset_slot(asset: Dict[str, Any]) -> str:
+        loc = asset.get("location")
+        if isinstance(loc, dict):
+            slot = loc.get("slotNumber")
+            if slot is not None:
+                return str(slot)
+        return ""
+
+    def _asset_label(asset: Dict[str, Any]) -> str:
+        model = asset.get("modelName") or ""
+        vendor = asset.get("vendorName") or ""
+        name = asset.get("name") or ""
+        parts = [p for p in [name, model, vendor] if p]
+        return " / ".join(parts) if parts else "(unknown)"
+
+    # Group assets by (model, vendor) identity
+    groups_a: Dict[Tuple[str, str], List[Dict[str, Any]]] = {}
+    for a in assets_a:
+        groups_a.setdefault(_asset_identity(a), []).append(a)
+
+    groups_b: Dict[Tuple[str, str], List[Dict[str, Any]]] = {}
+    for b in assets_b:
+        groups_b.setdefault(_asset_identity(b), []).append(b)
+
+    all_identities = sorted(set(groups_a.keys()) | set(groups_b.keys()))
+
+    only_a: List[Dict[str, Any]] = []
+    only_b: List[Dict[str, Any]] = []
+    count_mismatches: List[Dict[str, Any]] = []
+    slot_diffs: List[Dict[str, Any]] = []
+    matching: List[Dict[str, str]] = []
+
+    for identity in all_identities:
+        model, vendor = identity
+        in_a = groups_a.get(identity, [])
+        in_b = groups_b.get(identity, [])
+
+        count_a = len(in_a)
+        count_b = len(in_b)
+
+        if count_a and not count_b:
+            only_a.append({"model": model, "vendor": vendor, "count": count_a})
+        elif count_b and not count_a:
+            only_b.append({"model": model, "vendor": vendor, "count": count_b})
+        elif count_a != count_b:
+            count_mismatches.append(
+                {
+                    "model": model,
+                    "vendor": vendor,
+                    f"count_{alias_a}": count_a,
+                    f"count_{alias_b}": count_b,
+                }
+            )
+        else:
+            # Same count — compare slots pairwise (sorted by slot)
+            sorted_a = sorted(in_a, key=_asset_slot)
+            sorted_b = sorted(in_b, key=_asset_slot)
+            all_match = True
+            for a_item, b_item in zip(sorted_a, sorted_b):
+                slot_a = _asset_slot(a_item)
+                slot_b = _asset_slot(b_item)
+                if slot_a != slot_b:
+                    all_match = False
+                    slot_diffs.append(
+                        {
+                            "model": model,
+                            "vendor": vendor,
+                            "slot_a": slot_a,
+                            "slot_b": slot_b,
+                        }
+                    )
+            if all_match:
+                matching.append({"model": model, "vendor": vendor})
+
+    result: Dict[str, Any] = {
+        f"only_{alias_a}": only_a,
+        f"only_{alias_b}": only_b,
+        "count_mismatches": count_mismatches,
+        "slot_differences": slot_diffs,
+        "matching_count": len(matching),
+    }
+
+    if format_output.lower() != "json":
+        click.echo("\n  Asset Comparison")
+        click.echo("  " + "─" * 60)
+
+        has_diffs = only_a or only_b or count_mismatches or slot_diffs
+        if not has_diffs:
+            click.echo("  ✓ Assets are identical across both systems.")
+        else:
+            if only_a:
+                click.echo(f"\n  Only on {alias_a}:")
+                for item in only_a:
+                    label = (
+                        f"{item['model']} ({item['vendor']})"
+                        if item["vendor"]
+                        else item["model"] or "(unknown)"
+                    )
+                    suffix = f"  x{item['count']}" if item["count"] > 1 else ""
+                    click.echo(f"    + {label}{suffix}")
+
+            if only_b:
+                click.echo(f"\n  Only on {alias_b}:")
+                for item in only_b:
+                    label = (
+                        f"{item['model']} ({item['vendor']})"
+                        if item["vendor"]
+                        else item["model"] or "(unknown)"
+                    )
+                    suffix = f"  x{item['count']}" if item["count"] > 1 else ""
+                    click.echo(f"    + {label}{suffix}")
+
+            if count_mismatches:
+                click.echo("\n  Count Mismatches:")
+                for item in count_mismatches:
+                    label = (
+                        f"{item['model']} ({item['vendor']})"
+                        if item["vendor"]
+                        else item["model"] or "(unknown)"
+                    )
+                    click.echo(f"    {label}:")
+                    click.echo(f"      {alias_a}: {item[f'count_{alias_a}']} installed")
+                    click.echo(f"      {alias_b}: {item[f'count_{alias_b}']} installed")
+
+            if slot_diffs:
+                click.echo("\n  Slot Differences:")
+                for item in slot_diffs:
+                    label = (
+                        f"{item['model']} ({item['vendor']})"
+                        if item["vendor"]
+                        else item["model"] or "(unknown)"
+                    )
+                    click.echo(f"    {label}:")
+                    click.echo(f"      {alias_a}: slot {item['slot_a'] or '(none)'}")
+                    click.echo(f"      {alias_b}: slot {item['slot_b'] or '(none)'}")
+
+
+        click.echo(
+            f"\n  Summary: {len(matching)} matching, "
+            f"{len(only_a)} only on {alias_a}, "
+            f"{len(only_b)} only on {alias_b}, "
+            f"{len(count_mismatches)} count mismatches, "
+            f"{len(slot_diffs)} slot differences"
+        )
+
+    return result
+
+
 def register_system_commands(cli: Any) -> None:
     """Register the 'system' command group and its subcommands.
 
@@ -2217,5 +2560,72 @@ def register_system_commands(cli: Any) -> None:
 
             format_success("Job cancelled", {"Job ID": job_id})
 
+        except Exception as exc:  # noqa: BLE001
+            handle_api_error(exc)
+
+    @system.command(name="compare")
+    @click.argument("system_a")
+    @click.argument("system_b")
+    @click.option(
+        "--format",
+        "-f",
+        type=click.Choice(["table", "json"]),
+        default="table",
+        show_default=True,
+        help="Output format.",
+    )
+    def compare_systems(
+        system_a: str,
+        system_b: str,
+        format: str,
+    ) -> None:
+        """Compare two systems by software and connected assets.
+
+        SYSTEM_A and SYSTEM_B are system IDs or aliases. The command
+        fetches installed software and connected assets for each system,
+        then highlights differences in packages, versions, slot numbers,
+        models, and vendors.
+        """
+        format_output = validate_output_format(format)
+
+        try:
+            # Resolve both systems (by ID or alias)
+            sys_a = _resolve_system(system_a)
+            sys_b = _resolve_system(system_b)
+
+            id_a = sys_a.get("id", system_a)
+            id_b = sys_b.get("id", system_b)
+            alias_a = sys_a.get("alias") or id_a
+            alias_b = sys_b.get("alias") or id_b
+
+            # Fetch assets for both systems in parallel
+            with concurrent.futures.ThreadPoolExecutor() as executor:
+                future_assets_a = executor.submit(_fetch_assets_for_system, id_a, 1000)
+                future_assets_b = executor.submit(_fetch_assets_for_system, id_b, 1000)
+
+            assets_a, _ = future_assets_a.result()
+            assets_b, _ = future_assets_b.result()
+
+            # Extract packages
+            pkgs_a = _get_packages(sys_a)
+            pkgs_b = _get_packages(sys_b)
+
+            if format_output.lower() == "json":
+                output: Dict[str, Any] = {
+                    "system_a": {"id": id_a, "alias": alias_a},
+                    "system_b": {"id": id_b, "alias": alias_b},
+                    "software": _compare_packages(pkgs_a, pkgs_b, alias_a, alias_b, format_output),
+                    "assets": _compare_assets(assets_a, assets_b, alias_a, alias_b, format_output),
+                }
+                click.echo(json.dumps(output, indent=2))
+            else:
+                click.echo(f"\n  Comparing: {alias_a}  ↔  {alias_b}")
+                click.echo("  " + "═" * 60)
+                _compare_packages(pkgs_a, pkgs_b, alias_a, alias_b, format_output)
+                _compare_assets(assets_a, assets_b, alias_a, alias_b, format_output)
+                click.echo()
+
+        except SystemExit:
+            raise
         except Exception as exc:  # noqa: BLE001
             handle_api_error(exc)

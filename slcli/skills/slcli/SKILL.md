@@ -227,6 +227,15 @@ slcli system report --type [SOFTWARE|HARDWARE] -o FILE  # Generate CSV report
 slcli system update <SYSTEM_ID> [OPTIONS]            # Update system metadata
 slcli system remove <SYSTEM_ID>                      # Remove a system
 
+# Compare two systems (by ID or alias)
+slcli system compare <SYSTEM_A> <SYSTEM_B> [-f json]
+# Compares installed software (packages, versions) and connected assets
+# (model, vendor, slot number). Accepts system IDs or alias names.
+# Output sections:
+#   Software: packages unique to each system, version differences
+#   Assets:   assets unique to each system, count mismatches, slot differences
+# Assets are matched by (modelName, vendorName) identity.
+
 # System jobs
 slcli system job list [OPTIONS]
 slcli system job get <JOB_ID>
@@ -249,6 +258,7 @@ slcli tag delete <TAG_PATH>                         # Delete a tag
 ### routine — Event-action and notebook routine management
 
 Two API versions are supported:
+
 - **v2** (default): General event-action routines — monitor tags, work-item changes, and more; trigger alarms, emails, or notebook executions.
 - **v1**: Notebook-execution routines with SCHEDULED or TRIGGERED types.
 
@@ -580,7 +590,7 @@ slcli customfield edit [--directory DIR]                 # Interactively edit + 
 ### template — Test plan template management
 
 > **Note:** Work item templates are managed separately via `slcli workitem template`.
-> The `slcli template` command manages test plan *configuration* templates used
+> The `slcli template` command manages test plan _configuration_ templates used
 > when provisioning new test plan instances.
 
 ```bash
@@ -641,6 +651,7 @@ slcli workitem workflow preview [--file PATH] [--id WORKFLOW_ID] [--html] [--no-
 ```
 
 **Create work item options:**
+
 ```bash
 slcli workitem create \
   --name "Battery Cycle Test" \
@@ -696,11 +707,13 @@ slcli skill install --skill [slcli|systemlink-webapp|all] --client [agents|claud
 ```
 
 Client paths:
+
 - `agents` — personal: `~/.agents/skills/`, project: `.agents/skills/` (most agents)
 - `claude` — personal: `~/.claude/skills/`, project: `.claude/skills/`
 - `all` — install to both the `agents` and `claude` locations for the selected scope
 
 Notes:
+
 - `agents` is the default client in interactive mode.
 - `webapp init` installs project-scoped skills into `.agents/skills/` by default.
 
