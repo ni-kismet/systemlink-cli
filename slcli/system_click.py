@@ -1351,15 +1351,17 @@ def _compare_packages(
             if only_a:
                 click.echo(f"\n  Only on {alias_a}:")
                 for key in only_a:
-                    name = pkgs_a[key].get("displayname") or key
-                    ver = pkgs_a[key].get("displayversion") or pkgs_a[key].get("version") or ""
+                    pkg_a = _normalize_package_entry(pkgs_a[key], key)
+                    name = pkg_a.get("displayname") or key
+                    ver = pkg_a.get("displayversion") or pkg_a.get("version") or ""
                     click.echo(f"    + {name}  ({ver})" if ver else f"    + {name}")
 
             if only_b:
                 click.echo(f"\n  Only on {alias_b}:")
                 for key in only_b:
-                    name = pkgs_b[key].get("displayname") or key
-                    ver = pkgs_b[key].get("displayversion") or pkgs_b[key].get("version") or ""
+                    pkg_b = _normalize_package_entry(pkgs_b[key], key)
+                    name = pkg_b.get("displayname") or key
+                    ver = pkg_b.get("displayversion") or pkg_b.get("version") or ""
                     click.echo(f"    + {name}  ({ver})" if ver else f"    + {name}")
 
             if version_diffs:
