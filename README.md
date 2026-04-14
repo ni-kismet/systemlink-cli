@@ -52,6 +52,10 @@ slcli testmonitor result list --summary --group-by status
 slcli asset list --calibratable --summary
 slcli system list --state CONNECTED
 
+# Compare software and assets between two systems
+slcli system compare "PXI Controller A" "PXI Controller B"
+slcli system compare sys-id-1 sys-id-2 -f json
+
 # Scaffold the SystemLink Angular starter (AI skills auto-installed)
 slcli webapp init ./my-dashboard
 # Open the project and follow START_HERE.md or PROMPTS.md
