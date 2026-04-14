@@ -1287,6 +1287,36 @@ def _compare_packages(
     version_diffs: List[Dict[str, str]] = []
     matching: List[str] = []
 
+    def _normalize_package_entry(entry: Any, key: str) -> Dict[str, str]:
+        """Normalize a package entry to a dict shape for safe comparison."""
+        if isinstance(entry, dict):
+            displayname = entry.get("displayname") or key
+            version = entry.get("version") or ""
+            displayversion = entry.get("displayversion") or ""
+            return {
+                "displayname": str(displayname),
+                "version": str(version),
+                "displayversion": str(displayversion),
+            }
+
+        if isinstance(entry, str):
+            return {
+                "displayname": key,
+                "version": entry,
+                "displayversion": entry,
+            }
+
+        if entry is None:
+            normalized_value = ""
+        else:
+            normalized_value = str(entry)
+
+        return {
+            "displayname": key,
+            "version": normalized_value,
+            "displayversion": normalized_value,
+        }
+
     for key in all_keys:
         in_a = key in pkgs_a
         in_b = key in pkgs_b
@@ -1295,10 +1325,12 @@ def _compare_packages(
         elif in_b and not in_a:
             only_b.append(key)
         else:
-            ver_a = pkgs_a[key].get("version") or pkgs_a[key].get("displayversion") or ""
-            ver_b = pkgs_b[key].get("version") or pkgs_b[key].get("displayversion") or ""
+            pkg_a = _normalize_package_entry(pkgs_a[key], key)
+            pkg_b = _normalize_package_entry(pkgs_b[key], key)
+            ver_a = pkg_a.get("version") or pkg_a.get("displayversion") or ""
+            ver_b = pkg_b.get("version") or pkg_b.get("displayversion") or ""
             if ver_a != ver_b:
-                name = pkgs_a[key].get("displayname") or key
+                name = pkg_a.get("displayname") or pkg_b.get("displayname") or key
                 version_diffs.append({"package": name, "version_a": ver_a, "version_b": ver_b})
             else:
                 matching.append(key)
