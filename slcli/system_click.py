@@ -1445,6 +1445,15 @@ def _compare_assets(
     slot_diffs: List[Dict[str, Any]] = []
     matching: List[Dict[str, str]] = []
 
+    def _asset_slot_sort_key(asset: Dict[str, Any]) -> Tuple[int, int, str, str]:
+        """Build a deterministic sort key that compares numeric slot values numerically."""
+        slot = _asset_slot(asset).strip()
+        if slot.isdigit():
+            return (0, int(slot), "", "")
+
+        stable_fallback = json.dumps(asset, sort_keys=True, default=str)
+        return (1, sys.maxsize, slot, stable_fallback)
+
     for identity in all_identities:
         model, vendor = identity
         in_a = groups_a.get(identity, [])
@@ -1467,9 +1476,9 @@ def _compare_assets(
                 }
             )
         else:
-            # Same count — compare slots pairwise (sorted by slot)
-            sorted_a = sorted(in_a, key=_asset_slot)
-            sorted_b = sorted(in_b, key=_asset_slot)
+            # Same count — compare slots pairwise (sorted by numeric slot when possible)
+            sorted_a = sorted(in_a, key=_asset_slot_sort_key)
+            sorted_b = sorted(in_b, key=_asset_slot_sort_key)
             all_match = True
             for a_item, b_item in zip(sorted_a, sorted_b):
                 slot_a = _asset_slot(a_item)
