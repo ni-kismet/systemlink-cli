@@ -13,6 +13,7 @@ import re
 import shutil
 import sys
 from typing import Any, Dict, List, Optional, Tuple
+from urllib.parse import quote_plus
 
 import click
 import questionary
@@ -1198,7 +1199,8 @@ def _resolve_system(identifier: str) -> Dict[str, Any]:
 
     # Try direct ID lookup first
     try:
-        url = f"{_get_sysmgmt_base_url()}/systems?id={identifier}"
+        encoded_identifier = quote_plus(identifier)
+        url = f"{_get_sysmgmt_base_url()}/systems?id={encoded_identifier}"
         resp = make_api_request("GET", url, handle_errors=False)
         if resp.status_code != 404:
             resp.raise_for_status()
