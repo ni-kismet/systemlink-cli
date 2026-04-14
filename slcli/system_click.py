@@ -1202,13 +1202,12 @@ def _resolve_system(identifier: str) -> Dict[str, Any]:
         encoded_identifier = quote_plus(identifier)
         url = f"{_get_sysmgmt_base_url()}/systems?id={encoded_identifier}"
         resp = make_api_request("GET", url, handle_errors=False)
-        if resp.status_code != 404:
-            resp.raise_for_status()
-            data = resp.json()
-            if isinstance(data, list) and data:
-                return data[0]
-            if isinstance(data, dict) and data.get("id"):
-                return data
+        resp.raise_for_status()
+        data = resp.json()
+        if isinstance(data, list) and data:
+            return data[0]
+        if isinstance(data, dict) and data.get("id"):
+            return data
     except _requests.HTTPError as exc:
         if exc.response is not None and exc.response.status_code == 404:
             pass
