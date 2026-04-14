@@ -2511,7 +2511,7 @@ class TestCompareCommand:
         data = json.loads(result.output)
         assert data["software"]["version_differences"] == []
         assert data["assets"]["only_system_a"] == []
-        assert data["assets"]["only_system_a"] == []
+        assert data["assets"]["only_system_b"] == []
         assert data["assets"]["slot_differences"] == []
 
     def test_compare_auth_error_propagates(self, monkeypatch: Any, runner: CliRunner) -> None:
