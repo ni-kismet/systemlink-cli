@@ -78,7 +78,7 @@
       <div class="cmd-groups">
         <div class="cmd-group"><h3>testmonitor</h3><p>Test results, products, steps, measurements</p><code>slcli testmonitor result list</code></div>
         <div class="cmd-group"><h3>asset</h3><p>Hardware assets, calibration, fleet summary</p><code>slcli asset list</code></div>
-        <div class="cmd-group"><h3>system</h3><p>Managed systems, packages, jobs, reports</p><code>slcli system list</code></div>
+        <div class="cmd-group"><h3>system</h3><p>Managed systems, package comparison, jobs, reports</p><code>slcli system list</code></div>
         <div class="cmd-group"><h3>workitem</h3><p>Work items, templates, workflows</p><code>slcli workitem list</code></div>
         <div class="cmd-group"><h3>template</h3><p>Test plan templates</p><code>slcli template list</code></div>
         <div class="cmd-group"><h3>notebook</h3><p>Jupyter notebooks, execution records</p><code>slcli notebook manage list</code></div>
@@ -205,7 +205,7 @@ slcli asset delete &lt;asset-id&gt; --force</code></pre>
 
       <!-- ─── SYSTEM ─── -->
       <h2 id="system">system</h2>
-      <p>Manage registered systems, packages, jobs, and generate reports.</p>
+      <p>Manage registered systems, compare software and assets, inspect packages and jobs, and generate reports.</p>
 
       <h3>List &amp; Filter</h3>
       <pre><code>slcli system list --state CONNECTED --os "Windows"
@@ -224,6 +224,14 @@ slcli system get &lt;system-id&gt; --include-all
 slcli system get &lt;system-id&gt; --include-packages --include-feeds
 slcli system get &lt;system-id&gt; --include-assets --include-alarms
 slcli system get &lt;system-id&gt; --include-jobs --include-results --include-workitems</code></pre>
+
+      <h3>Compare Systems</h3>
+      <pre><code># Compare by alias
+slcli system compare "PXI Controller A" "PXI Controller B"
+
+# Compare by system ID with JSON output
+slcli system compare &lt;system-a&gt; &lt;system-b&gt; --format json</code></pre>
+      <p>Compares installed software and connected assets across two systems. Accepts system IDs or aliases and highlights package-only differences, version differences, asset count mismatches, and slot differences.</p>
 
       <h3>Summary &amp; Reports</h3>
       <pre><code>slcli system summary
