@@ -2414,7 +2414,7 @@ class TestCompareCommand:
         assert sw["version_differences"][0]["package"] == "NI-DAQmx"
 
         # Asset comparison — PXI-6255 same model/vendor, different slot → slot diff
-        # PXI-4130 only on B → only_System B
+        # PXI-4130 only on B → only_system_b
         assets = data["assets"]
         assert len(assets["only_system_b"]) == 1
         assert assets["only_system_b"][0]["model"] == "PXI-4130"
