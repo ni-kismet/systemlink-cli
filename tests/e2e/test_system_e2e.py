@@ -1,6 +1,7 @@
 """E2E tests for system commands against dev tier."""
 
-from typing import Any
+import json
+from typing import Any, List
 
 import pytest
 
@@ -300,3 +301,62 @@ class TestSystemHelpE2E:
         assert "list" in result.stdout
         assert "get" in result.stdout
         assert "summary" in result.stdout
+
+
+@pytest.mark.e2e
+@pytest.mark.system
+class TestSystemCompareE2E:
+    """End-to-end tests for 'system compare' command."""
+
+    @staticmethod
+    def _get_two_system_ids(cli_runner: Any, cli_helper: Any) -> List[str]:
+        """Fetch two real system IDs from the server."""
+        result = cli_runner(
+            ["system", "list", "--format", "json", "--state", "APPROVED", "--take", "2"]
+        )
+        cli_helper.assert_success(result)
+        systems = cli_helper.get_json_output(result)
+        assert len(systems) >= 2, "Need at least 2 APPROVED systems for compare E2E"
+        return [systems[0]["id"], systems[1]["id"]]
+
+    def test_compare_json(self, cli_runner: Any, cli_helper: Any) -> None:
+        """Test compare command with JSON output."""
+        ids = self._get_two_system_ids(cli_runner, cli_helper)
+
+        result = cli_runner(["system", "compare", ids[0], ids[1], "--format", "json"])
+        cli_helper.assert_success(result)
+
+        data = json.loads(result.stdout)
+        assert data["system_a"]["id"] == ids[0]
+        assert data["system_b"]["id"] == ids[1]
+
+        # Verify stable JSON field names
+        sw = data["software"]
+        assert "only_system_a" in sw
+        assert "only_system_b" in sw
+        assert "version_differences" in sw
+        assert "matching_count" in sw
+
+        assets = data["assets"]
+        assert "only_system_a" in assets
+        assert "only_system_b" in assets
+        assert "slot_differences" in assets
+        assert "matching_count" in assets
+
+    def test_compare_table(self, cli_runner: Any, cli_helper: Any) -> None:
+        """Test compare command with table output."""
+        ids = self._get_two_system_ids(cli_runner, cli_helper)
+
+        result = cli_runner(["system", "compare", ids[0], ids[1], "--format", "table"])
+        cli_helper.assert_success(result)
+
+        assert "Software Comparison" in result.stdout
+        assert "Asset Comparison" in result.stdout
+
+    def test_compare_not_found(self, cli_runner: Any, cli_helper: Any) -> None:
+        """Test compare exits with error for nonexistent system."""
+        result = cli_runner(
+            ["system", "compare", "nonexistent-e2e-12345", "also-nonexistent-e2e", "-f", "json"],
+            check=False,
+        )
+        cli_helper.assert_failure(result)

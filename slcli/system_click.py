@@ -1192,19 +1192,32 @@ def _resolve_system(identifier: str) -> Dict[str, Any]:
         System data dictionary.
 
     Raises:
-        SystemExit: If the system cannot be found.
+        SystemExit: If the system cannot be found or an API error occurs.
     """
+    import requests as _requests
+
     # Try direct ID lookup first
+    id_lookup_empty = False
     try:
         url = f"{_get_sysmgmt_base_url()}/systems?id={identifier}"
         resp = make_api_request("GET", url, handle_errors=False)
-        data = resp.json()
-        if isinstance(data, list) and data:
-            return data[0]
-        if isinstance(data, dict) and data.get("id"):
-            return data
-    except Exception:
-        pass
+        if resp.status_code == 404:
+            id_lookup_empty = True
+        else:
+            resp.raise_for_status()
+            data = resp.json()
+            if isinstance(data, list) and data:
+                return data[0]
+            if isinstance(data, dict) and data.get("id"):
+                return data
+            id_lookup_empty = True
+    except _requests.HTTPError as exc:
+        if exc.response is not None and exc.response.status_code == 404:
+            id_lookup_empty = True
+        else:
+            handle_api_error(exc)
+    except _requests.RequestException as exc:
+        handle_api_error(exc)
 
     # Fall back to alias search
     escaped = _escape_filter_value(identifier)
@@ -1225,8 +1238,10 @@ def _resolve_system(identifier: str) -> Dict[str, Any]:
                 err=True,
             )
             sys.exit(ExitCodes.INVALID_INPUT)
-    except Exception:
-        pass
+    except SystemExit:
+        raise
+    except Exception as exc:  # noqa: BLE001
+        handle_api_error(exc)
 
     click.echo(f"✗ System not found: {identifier}", err=True)
     sys.exit(ExitCodes.NOT_FOUND)
@@ -1291,8 +1306,8 @@ def _compare_packages(
                 matching.append(key)
 
     result: Dict[str, Any] = {
-        f"only_{alias_a}": only_a,
-        f"only_{alias_b}": only_b,
+        "only_system_a": only_a,
+        "only_system_b": only_b,
         "version_differences": version_diffs,
         "matching_count": len(matching),
     }
@@ -1358,8 +1373,9 @@ def _compare_assets(
     """Compare assets connected to two systems.
 
     Assets are considered equivalent if they share the same model and vendor.
-    A mismatch in the set of (model, vendor) pairs is reported at error level.
-    Matching assets in different slots are reported at warning level.
+    A mismatch in the set of (model, vendor) pairs is listed under only_system_a
+    or only_system_b.  Matching assets in different slots are listed under
+    slot_differences.
 
     Args:
         assets_a: Assets connected to system A.
@@ -1382,13 +1398,6 @@ def _compare_assets(
             if slot is not None:
                 return str(slot)
         return ""
-
-    def _asset_label(asset: Dict[str, Any]) -> str:
-        model = asset.get("modelName") or ""
-        vendor = asset.get("vendorName") or ""
-        name = asset.get("name") or ""
-        parts = [p for p in [name, model, vendor] if p]
-        return " / ".join(parts) if parts else "(unknown)"
 
     # Group assets by (model, vendor) identity
     groups_a: Dict[Tuple[str, str], List[Dict[str, Any]]] = {}
@@ -1424,8 +1433,8 @@ def _compare_assets(
                 {
                     "model": model,
                     "vendor": vendor,
-                    f"count_{alias_a}": count_a,
-                    f"count_{alias_b}": count_b,
+                    "count_system_a": count_a,
+                    "count_system_b": count_b,
                 }
             )
         else:
@@ -1450,8 +1459,8 @@ def _compare_assets(
                 matching.append({"model": model, "vendor": vendor})
 
     result: Dict[str, Any] = {
-        f"only_{alias_a}": only_a,
-        f"only_{alias_b}": only_b,
+        "only_system_a": only_a,
+        "only_system_b": only_b,
         "count_mismatches": count_mismatches,
         "slot_differences": slot_diffs,
         "matching_count": len(matching),
@@ -1496,8 +1505,8 @@ def _compare_assets(
                         else item["model"] or "(unknown)"
                     )
                     click.echo(f"    {label}:")
-                    click.echo(f"      {alias_a}: {item[f'count_{alias_a}']} installed")
-                    click.echo(f"      {alias_b}: {item[f'count_{alias_b}']} installed")
+                    click.echo(f"      {alias_a}: {item['count_system_a']} installed")
+                    click.echo(f"      {alias_b}: {item['count_system_b']} installed")
 
             if slot_diffs:
                 click.echo("\n  Slot Differences:")
@@ -1510,7 +1519,6 @@ def _compare_assets(
                     click.echo(f"    {label}:")
                     click.echo(f"      {alias_a}: slot {item['slot_a'] or '(none)'}")
                     click.echo(f"      {alias_b}: slot {item['slot_b'] or '(none)'}")
-
 
         click.echo(
             f"\n  Summary: {len(matching)} matching, "

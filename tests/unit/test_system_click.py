@@ -78,7 +78,11 @@ class MockResponse:
     def raise_for_status(self) -> None:
         """Raise on HTTP error status."""
         if self.status_code >= 400:
-            raise Exception(f"HTTP error {self.status_code}")
+            import requests
+
+            resp = requests.models.Response()
+            resp.status_code = self.status_code
+            raise requests.HTTPError(f"HTTP error {self.status_code}", response=resp)
 
 
 SAMPLE_SYSTEM: Dict[str, Any] = {
@@ -2127,8 +2131,8 @@ class TestComparePackages:
             "ni-daqmx": {"displayname": "NI-DAQmx", "version": "24.1.0"},
         }
         result = _compare_packages(pkgs, dict(pkgs), "A", "B", "json")
-        assert result["only_A"] == []
-        assert result["only_B"] == []
+        assert result["only_system_a"] == []
+        assert result["only_system_b"] == []
         assert result["version_differences"] == []
         assert result["matching_count"] == 1
 
@@ -2141,8 +2145,8 @@ class TestComparePackages:
             "ni-visa": {"displayname": "NI-VISA", "version": "24.1.0"},
         }
         result = _compare_packages(pkgs_a, pkgs_b, "A", "B", "json")
-        assert "ni-daqmx" in result["only_A"]
-        assert "ni-visa" in result["only_B"]
+        assert "ni-daqmx" in result["only_system_a"]
+        assert "ni-visa" in result["only_system_b"]
         assert result["matching_count"] == 0
 
     def test_version_difference(self) -> None:
@@ -2168,7 +2172,7 @@ class TestComparePackages:
             "ni-daqmx": {"displayname": "NI-DAQmx", "version": "23.8.0"},
         }
         result = _compare_packages(pkgs_a, pkgs_b, "SysA", "SysB", "table")
-        assert "only-a" in result["only_SysA"]
+        assert "only-a" in result["only_system_a"]
 
 
 class TestCompareAssets:
@@ -2185,8 +2189,8 @@ class TestCompareAssets:
             },
         ]
         result = _compare_assets(list(assets), list(assets), "A", "B", "json")
-        assert result["only_A"] == []
-        assert result["only_B"] == []
+        assert result["only_system_a"] == []
+        assert result["only_system_b"] == []
         assert result["slot_differences"] == []
         assert result["matching_count"] == 1
 
@@ -2199,10 +2203,10 @@ class TestCompareAssets:
             {"name": "Card B", "modelName": "PXI-4130", "vendorName": "NI"},
         ]
         result = _compare_assets(assets_a, assets_b, "A", "B", "json")
-        assert len(result["only_A"]) == 1
-        assert result["only_A"][0]["model"] == "PXI-6255"
-        assert len(result["only_B"]) == 1
-        assert result["only_B"][0]["model"] == "PXI-4130"
+        assert len(result["only_system_a"]) == 1
+        assert result["only_system_a"][0]["model"] == "PXI-6255"
+        assert len(result["only_system_b"]) == 1
+        assert result["only_system_b"][0]["model"] == "PXI-4130"
 
     def test_slot_difference(self) -> None:
         """Test same model/vendor in different slots produces slot difference."""
@@ -2223,8 +2227,8 @@ class TestCompareAssets:
             },
         ]
         result = _compare_assets(assets_a, assets_b, "A", "B", "json")
-        assert result["only_A"] == []
-        assert result["only_B"] == []
+        assert result["only_system_a"] == []
+        assert result["only_system_b"] == []
         assert len(result["slot_differences"]) == 1
         assert result["slot_differences"][0]["slot_a"] == "2"
         assert result["slot_differences"][0]["slot_b"] == "5"
@@ -2238,8 +2242,8 @@ class TestCompareAssets:
             {"name": "DAQ", "modelName": "PXI-6368", "vendorName": "NI Corp"},
         ]
         result = _compare_assets(assets_a, assets_b, "A", "B", "json")
-        assert len(result["only_A"]) == 1
-        assert len(result["only_B"]) == 1
+        assert len(result["only_system_a"]) == 1
+        assert len(result["only_system_b"]) == 1
         assert result["matching_count"] == 0
 
     def test_count_mismatch_is_error(self) -> None:
@@ -2273,8 +2277,8 @@ class TestCompareAssets:
     def test_empty_assets(self) -> None:
         """Test comparing empty asset lists."""
         result = _compare_assets([], [], "A", "B", "json")
-        assert result["only_A"] == []
-        assert result["only_B"] == []
+        assert result["only_system_a"] == []
+        assert result["only_system_b"] == []
         assert result["slot_differences"] == []
         assert result["matching_count"] == 0
 
@@ -2299,7 +2303,7 @@ class TestCompareAssets:
         ]
         # Call with table format to exercise output path
         result = _compare_assets(assets_a, assets_b, "SysA", "SysB", "table")
-        assert len(result["only_SysA"]) == 1
+        assert len(result["only_system_a"]) == 1
         assert len(result["slot_differences"]) == 1
 
 
@@ -2404,16 +2408,16 @@ class TestCompareCommand:
 
         # Software comparison
         sw = data["software"]
-        assert "ni-visa" in sw["only_System A"]
-        assert "ni-rfsa" in sw["only_System B"]
+        assert "ni-visa" in sw["only_system_a"]
+        assert "ni-rfsa" in sw["only_system_b"]
         assert len(sw["version_differences"]) == 1
         assert sw["version_differences"][0]["package"] == "NI-DAQmx"
 
         # Asset comparison — PXI-6255 same model/vendor, different slot → slot diff
         # PXI-4130 only on B → only_System B
         assets = data["assets"]
-        assert len(assets["only_System B"]) == 1
-        assert assets["only_System B"][0]["model"] == "PXI-4130"
+        assert len(assets["only_system_b"]) == 1
+        assert assets["only_system_b"][0]["model"] == "PXI-4130"
         assert len(assets["slot_differences"]) == 1
         assert assets["slot_differences"][0]["model"] == "PXI-6255"
         assert assets["slot_differences"][0]["slot_a"] == "2"
@@ -2506,6 +2510,23 @@ class TestCompareCommand:
         assert result.exit_code == 0
         data = json.loads(result.output)
         assert data["software"]["version_differences"] == []
-        assert data["assets"]["only_System A"] == []
-        assert data["assets"]["only_System A"] == []
+        assert data["assets"]["only_system_a"] == []
+        assert data["assets"]["only_system_a"] == []
         assert data["assets"]["slot_differences"] == []
+
+    def test_compare_auth_error_propagates(self, monkeypatch: Any, runner: CliRunner) -> None:
+        """Test that auth errors during resolve are not masked as 'not found'."""
+        patch_keyring(monkeypatch)
+
+        def mock_request(method: str, url: str, **kw: Any) -> Any:
+            if method == "GET" and "/systems?" in url:
+                return MockResponse({"error": "Unauthorized"}, status_code=401)
+            return MockResponse({})
+
+        monkeypatch.setattr("slcli.system_click.make_api_request", mock_request)
+
+        cli = make_cli()
+        result = runner.invoke(cli, ["system", "compare", "sys-aaa", "sys-bbb"])
+        assert result.exit_code != 0
+        # Should NOT say "System not found" — it's an auth error
+        assert "System not found" not in result.output
