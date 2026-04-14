@@ -776,6 +776,7 @@ def _fetch_assets_for_system(system_id: str, take: int) -> Tuple[List[Dict[str, 
         "projection": (
             "new(id,name,modelName,modelNumber,vendorName,vendorNumber,serialNumber,"
             "workspace,properties,keywords,location.minionId,location.parent,"
+            "location.slotNumber,"
             "location.physicalLocation,location.state.assetPresence,"
             "location.state.systemConnection,discoveryType,supportsSelfTest,"
             "supportsSelfCalibration,supportsReset,supportsExternalCalibration,"

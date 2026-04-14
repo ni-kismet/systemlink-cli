@@ -2094,6 +2094,30 @@ class TestGetSystemIncludeFlags:
         assert "timeout" in data["_assets"]["error"]
 
 
+class TestFetchAssetsProjection:
+    """Tests for _fetch_assets_for_system helper."""
+
+    def test_requests_slot_number_in_projection(self, monkeypatch: Any) -> None:
+        """Test asset projection includes slotNumber for compare workflows."""
+        patch_keyring(monkeypatch)
+
+        captured_payload: Dict[str, Any] = {}
+
+        def mock_request(method: str, url: str, **kw: Any) -> Any:
+            assert method == "POST"
+            assert "/niapm/v1/query-assets" in url
+            captured_payload.update(kw.get("payload", {}))
+            return MockResponse({"assets": [], "totalCount": 0})
+
+        monkeypatch.setattr("slcli.system_click.make_api_request", mock_request)
+
+        assets, total = _fetch_assets_for_system("minion-1", 10)
+
+        assert assets == []
+        assert total == 0
+        assert "location.slotNumber" in captured_payload["projection"]
+
+
 # =============================================================================
 # Compare helper tests
 # =============================================================================
