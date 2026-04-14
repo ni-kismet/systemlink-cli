@@ -2650,12 +2650,8 @@ def register_system_commands(cli: Any) -> None:
             # the fetch cap.
             asset_fetch_limit = 1000
             with concurrent.futures.ThreadPoolExecutor() as executor:
-                future_assets_a = executor.submit(
-                    _fetch_assets_for_system, id_a, asset_fetch_limit
-                )
-                future_assets_b = executor.submit(
-                    _fetch_assets_for_system, id_b, asset_fetch_limit
-                )
+                future_assets_a = executor.submit(_fetch_assets_for_system, id_a, asset_fetch_limit)
+                future_assets_b = executor.submit(_fetch_assets_for_system, id_b, asset_fetch_limit)
 
             assets_a, total_assets_a = future_assets_a.result()
             assets_b, total_assets_b = future_assets_b.result()
