@@ -16,27 +16,28 @@ Delete and re-create only if the server rejects the update.
 
 ## Available Interfaces
 
-| Interface | Use Case |
-|-----------|----------|
-| **Assets Grid** | Report that adds a column to the Assets management grid |
-| **Data Table Analysis** | Analysis of data table contents |
-| **Data Space Analysis** | Analysis of data space contents |
-| **File Analysis** | Analysis of uploaded files |
-| **Periodic Execution** | Scheduled recurring notebook (e.g. daily/hourly reports) |
-| **Resource Changed Routine** | Triggered when a resource changes (via v1 routines) |
-| **Specification Analysis** | Analysis against specifications/limits |
-| **Systems Grid** | Report that adds a column to the Systems management grid |
-| **Test Data Analysis** | Analysis of test monitor results |
-| **Test Data Extraction** | Extract and transform test data |
-| **Work Item Automations** | Notebooks that can be manually executed on selected work items, or triggered by work item lifecycle events. **Use this for any notebook that acts on work items** (e.g. close, update status, assign). |
-| **Work Item Operations** | Internal operations performed on work items by the system |
-| **Work Item Scheduler** | Scheduling logic for work items |
+| Interface                    | Use Case                                                                                                                                                                                               |
+| ---------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| **Assets Grid**              | Report that adds a column to the Assets management grid                                                                                                                                                |
+| **Data Table Analysis**      | Analysis of data table contents                                                                                                                                                                        |
+| **Data Space Analysis**      | Analysis of data space contents                                                                                                                                                                        |
+| **File Analysis**            | Analysis of uploaded files                                                                                                                                                                             |
+| **Periodic Execution**       | Scheduled recurring notebook (e.g. daily/hourly reports)                                                                                                                                               |
+| **Resource Changed Routine** | Triggered when a resource changes (via v1 routines)                                                                                                                                                    |
+| **Specification Analysis**   | Analysis against specifications/limits                                                                                                                                                                 |
+| **Systems Grid**             | Report that adds a column to the Systems management grid                                                                                                                                               |
+| **Test Data Analysis**       | Analysis of test monitor results                                                                                                                                                                       |
+| **Test Data Extraction**     | Extract and transform test data                                                                                                                                                                        |
+| **Work Item Automations**    | Notebooks that can be manually executed on selected work items, or triggered by work item lifecycle events. **Use this for any notebook that acts on work items** (e.g. close, update status, assign). |
+| **Work Item Operations**     | Internal operations performed on work items by the system                                                                                                                                              |
+| **Work Item Scheduler**      | Scheduling logic for work items                                                                                                                                                                        |
 
 ## Common Interface Patterns
 
 ### Systems Grid
 
 Parameters typically include:
+
 - `group_by` (string) — always support "System"
 - `systems_filter` (string) — filter expression for which systems
 - Domain-specific params (e.g. `package` for package version)
@@ -46,6 +47,7 @@ Output must be `data_frame` with `minion id` as the first column.
 ### Test Data Analysis
 
 Parameters typically include:
+
 - `group_by` (string)
 - `program_name` (string)
 - `status_filter` (string)
@@ -71,6 +73,7 @@ assign, etc.). The notebook appears in the work items UI and can be manually
 triggered on one or more selected work items.
 
 Parameters are injected by the work item system:
+
 - `work_item_ids` (string[]) — list of selected work item IDs. Default: `[]`
 - `workspace` (string) — workspace context (optional)
 
