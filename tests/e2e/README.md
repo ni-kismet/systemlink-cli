@@ -11,6 +11,7 @@ The E2E testing framework validates that CLI commands work correctly against non
 ```
 tests/e2e/
 ├── conftest.py                 # Shared fixtures and configuration
+├── test_mcp_e2e.py            # Local MCP SSE smoke test
 ├── test_notebook_e2e.py        # Notebook command tests
 ├── test_user_e2e.py           # User command tests
 ├── test_dff_e2e.py            # Custom Fields tests
@@ -114,6 +115,55 @@ poetry run pytest tests/e2e/ -m e2e --e2e-platform sls -v
 # Force generic tests to target SystemLink Enterprise
 poetry run pytest tests/e2e/ -m e2e --e2e-platform sle -v
 ```
+
+### Run The Local MCP SSE Smoke Test
+
+The MCP smoke test connects to a locally running SSE server and exercises the
+full MCP tool surface that is expected to work in local environments.
+
+Start the server in one terminal:
+
+```bash
+poetry run slcli mcp serve -T sse
+```
+
+Run the smoke test in another terminal:
+
+```bash
+poetry run pytest tests/e2e/test_mcp_e2e.py -m e2e -v
+```
+
+Optional overrides:
+
+```bash
+export SLCLI_MCP_E2E_SSE_URL="http://127.0.0.1:8000/sse"
+export SLCLI_MCP_E2E_TIMEOUT="5"
+export SLCLI_MCP_E2E_USER_ID="<known-user-id>"
+export SLCLI_MCP_E2E_TAG_PATH="<known-tag-path>"
+export SLCLI_MCP_E2E_SYSTEM_ID="<known-system-id>"
+export SLCLI_MCP_E2E_ASSET_ID="<known-asset-id>"
+export SLCLI_MCP_E2E_RESULT_ID="<known-result-id>"
+export SLCLI_MCP_E2E_ROUTINE_ID="<known-routine-id>"
+export SLCLI_MCP_E2E_FILE_ID="<known-file-id>"
+export SLCLI_MCP_E2E_NOTEBOOK_ID="<known-notebook-id-or-path>"
+export SLCLI_MCP_E2E_FEED_ID="<known-feed-id>"
+export SLCLI_MCP_E2E_WEBAPP_ID="<known-webapp-id>"
+export SLCLI_MCP_E2E_POLICY_ID="<known-policy-id>"
+export SLCLI_MCP_E2E_COMMENT_RESOURCE_TYPE="workitem:workitem"
+export SLCLI_MCP_E2E_COMMENT_RESOURCE_ID="<known-resource-id>"
+```
+
+Notes:
+
+- This is a smoke test for MCP server stability and invocation breadth, not a
+  guarantee that every local environment can return successful results for
+  every tool.
+- Some detail calls may legitimately return MCP-level errors in sparse,
+  partially provisioned, or permission-limited environments; the test still
+  verifies that those tools can be invoked without destabilizing the SSE
+  server.
+- The test skips only when the local SSE server is unreachable. Other failures
+  are treated as real regressions.
 
 ### Run Specific Test Categories
 
