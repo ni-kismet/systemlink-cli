@@ -11,7 +11,7 @@ import questionary
 from .utils import ExitCodes
 
 SKILL_NAME = "slcli"
-SKILL_CHOICES = ["slcli", "systemlink-webapp"]
+SKILL_CHOICES = ["slcli", "systemlink-webapp", "systemlink-notebook"]
 
 # Mapping of client name -> (personal skills dir, project subdir relative to repo root)
 # personal dir uses Path.home() so it's always resolved at call time via _personal_dir().
@@ -178,7 +178,7 @@ def register_skill_commands(cli: Any) -> None:
         "-k",
         type=click.Choice(SKILL_CHOICES + ["all"], case_sensitive=False),
         default=None,
-        help="Skill to install (slcli, systemlink-webapp, or all).",
+        help="Skill to install (slcli, systemlink-webapp, systemlink-notebook, or all).",
     )
     @click.option(
         "--client",
@@ -207,7 +207,7 @@ def register_skill_commands(cli: Any) -> None:
         """Install agent skills for AI coding assistants.
 
         Copies bundled skills into the skills directory of one or more AI clients.
-        Available skills: slcli, systemlink-webapp.
+        Available skills: slcli, systemlink-webapp, systemlink-notebook.
         Supported clients and their skill locations:
 
                     \b

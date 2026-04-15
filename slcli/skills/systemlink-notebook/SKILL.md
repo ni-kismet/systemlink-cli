@@ -287,14 +287,18 @@ slcli notebook manage create --file notebook.ipynb --name "My Notebook" --interf
 # Update content of an existing notebook
 slcli notebook manage update --id <NOTEBOOK_ID> --content notebook.ipynb
 
-# Delete and re-create (recommended when changing interface or if update fails)
+# Update interface or metadata in place when needed
+slcli notebook manage update --id <NOTEBOOK_ID> --interface "Systems Grid"
+
+# Delete and re-create only as a fallback if the server rejects the update
 slcli notebook manage delete --id <NOTEBOOK_ID> --yes
 slcli notebook manage create --file notebook.ipynb --name "My Notebook" --interface "Systems Grid" --workspace "<WORKSPACE_NAME>"
 ```
 
-**Important:** Always set `--interface` at creation time. The `update --interface`
-command may fail on some server configurations. If you need to change the interface,
-delete and re-create the notebook.
+**Important:** Prefer setting `--interface` at creation time, but use
+`slcli notebook manage update --interface ...` for in-place interface changes when
+you are updating an existing notebook. Delete and re-create only as a fallback if
+the server rejects the update.
 
 **Important:** Always determine the target workspace by running `slcli info` and
 reading the `Workspace` field from the active profile. Do not assume "Default" or

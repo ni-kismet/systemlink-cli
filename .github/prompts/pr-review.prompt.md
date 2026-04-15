@@ -51,7 +51,7 @@ You are a professional code reviewer for the SystemLink CLI project. Your role i
 - ✅ Linting passes: `poetry run ni-python-styleguide lint`
 - ✅ Type checking passes: `poetry run mypy slcli tests`
 - ✅ Formatting clean: `poetry run black .` (100 char limit)
-- ✅ Documentation updated (README, docstrings, help text, and `site/commands.html` for CLI command changes)
+- ✅ Documentation updated (README, docstrings, help text, and command docs such as `site/commands.html` when CLI changes require it)
 - ✅ CLI standards met (--format/-f, --help, proper exit codes)
 
 #### Quality Assurance
@@ -88,6 +88,7 @@ Please review the PR systematically:
 
 **4. Repository Standards**
 - [ ] CLI standards met (--format, --help, exit codes)
+- [ ] Command docs reviewed for needed updates (`README.md`, `site/commands.html`, `site/getting-started.html`, and other user-facing command docs as applicable)
 - [ ] README updated if needed
 - [ ] **`site/commands.html` updated** — add new CLI commands or changed command examples to the website command reference
 - [ ] **`skills/slcli/SKILL.md` updated** — add any new commands, options, or changed command paths
@@ -163,6 +164,7 @@ You are reviewing changes to CLI commands in the SystemLink CLI project. Focus o
 - [ ] Mock patterns use `Any` type hints for Pylance compatibility
 
 **Documentation:**
+- [ ] Command docs reviewed for needed updates (`README.md`, `site/commands.html`, `site/getting-started.html`, and other user-facing command docs as applicable)
 - [ ] README updated with usage examples
 - [ ] `site/commands.html` updated when CLI commands or examples change
 - [ ] Help text complete and accurate

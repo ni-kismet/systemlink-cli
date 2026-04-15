@@ -10,6 +10,10 @@ Set the interface during creation or update:
 slcli notebook manage update --id <ID> --interface "Systems Grid"
 ```
 
+Prefer `create --interface ...` when you are creating a new notebook. Use
+`update --interface ...` for in-place interface changes on an existing notebook.
+Delete and re-create only if the server rejects the update.
+
 ## Available Interfaces
 
 | Interface | Use Case |
