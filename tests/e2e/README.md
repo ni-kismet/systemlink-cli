@@ -137,7 +137,6 @@ Optional overrides:
 
 ```bash
 export SLCLI_MCP_E2E_URL="http://127.0.0.1:8000/mcp"
-export SLCLI_MCP_E2E_SSE_URL="http://127.0.0.1:8000/sse"
 export SLCLI_MCP_E2E_TIMEOUT="5"
 export SLCLI_MCP_E2E_USER_ID="<known-user-id>"
 export SLCLI_MCP_E2E_TAG_PATH="<known-tag-path>"

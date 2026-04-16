@@ -48,6 +48,7 @@
       </div>
       <div class="sidebar-group">
         <div class="sidebar-label">Commands</div>
+        <a href="#mcp" class="sidebar-link">mcp</a>
         <a href="#testmonitor" class="sidebar-link">testmonitor</a>
         <a href="#asset" class="sidebar-link">asset</a>
         <a href="#system" class="sidebar-link">system</a>
@@ -76,6 +77,7 @@
       <p>slcli organizes commands into logical groups. Every list command supports <code>--format</code> and <code>--take</code> options.</p>
 
       <div class="cmd-groups">
+        <div class="cmd-group"><h3>mcp</h3><p>Model Context Protocol server install and serve commands</p><code>slcli mcp install</code></div>
         <div class="cmd-group"><h3>testmonitor</h3><p>Test results, products, steps, measurements</p><code>slcli testmonitor result list</code></div>
         <div class="cmd-group"><h3>asset</h3><p>Hardware assets, calibration, fleet summary</p><code>slcli asset list</code></div>
         <div class="cmd-group"><h3>system</h3><p>Managed systems, package comparison, jobs, reports</p><code>slcli system list</code></div>
@@ -124,6 +126,36 @@ slcli testmonitor result list --format json</code></pre>
           <tr><td><code>--force</code></td><td>Force overwrite or skip confirmation</td></tr>
         </tbody>
       </table>
+
+      <!-- ─── MCP ─── -->
+      <h2 id="mcp">mcp</h2>
+      <p>Configure and run the experimental Model Context Protocol server for AI assistants.</p>
+
+      <h3>Install Client Configuration</h3>
+      <pre><code># Register with VS Code Copilot Agent mode in the current workspace
+    slcli mcp install
+
+    # Register with Claude Desktop
+    slcli mcp install --target claude
+
+    # Register with Cursor or Codex CLI
+    slcli mcp install --target cursor
+    slcli mcp install --target codex
+
+    # Write all supported configs at once
+    slcli mcp install --target all</code></pre>
+
+      <h3>Serve The MCP Endpoint</h3>
+      <pre><code># Default stdio transport for AI clients that spawn the server directly
+    slcli mcp serve
+
+    # Streamable HTTP transport for the MCP Inspector and browser tooling
+    slcli mcp serve --transport streamable-http
+
+    # Bind to a custom host and port
+    slcli mcp serve --transport streamable-http --host 0.0.0.0 --port 9000</code></pre>
+
+      <p>Streamable HTTP serves the MCP endpoint at <code>http://127.0.0.1:8000/mcp</code> by default.</p>
 
       <!-- ─── TEST MONITOR ─── -->
       <h2 id="testmonitor">testmonitor</h2>

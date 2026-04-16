@@ -15,6 +15,7 @@ import json
 import os
 from typing import Any, Dict, List, Optional, Tuple
 
+import httpx
 import pytest
 from mcp import ClientSession
 from mcp.client.streamable_http import streamable_http_client
@@ -198,269 +199,279 @@ async def _exercise_mcp_tools(mcp_url: str, timeout_seconds: int) -> None:
     state: Dict[str, Any] = {}
 
     try:
-        async with streamable_http_client(mcp_url) as (read_stream, write_stream, _):
-            async with ClientSession(read_stream, write_stream) as session:
-                await session.initialize()
+        async with httpx.AsyncClient(timeout=httpx.Timeout(timeout_seconds)) as http_client:
+            async with streamable_http_client(
+                mcp_url,
+                http_client=http_client,
+            ) as (read_stream, write_stream, _):
+                async with ClientSession(read_stream, write_stream) as session:
+                    await session.initialize()
 
-                tools: ListToolsResult = await session.list_tools()
-                tool_names = {tool.name for tool in tools.tools}
-                assert tool_names == EXPECTED_TOOL_NAMES
+                    tools: ListToolsResult = await session.list_tools()
+                    tool_names = {tool.name for tool in tools.tools}
+                    assert tool_names == EXPECTED_TOOL_NAMES
 
-                workspaces = _tool_result_json(
-                    await _call_tool(session, "query_workspaces", {"take": 5})
-                )
-                state["workspace_id"] = _first_id(workspaces)
+                    workspaces = _tool_result_json(
+                        await _call_tool(session, "query_workspaces", {"take": 5})
+                    )
+                    state["workspace_id"] = _first_id(workspaces)
 
-                users = _tool_result_json(await _call_tool(session, "query_users", {"take": 5}))
-                state["user_id"] = _first_id(users)
+                    users = _tool_result_json(await _call_tool(session, "query_users", {"take": 5}))
+                    state["user_id"] = _first_id(users)
 
-                tags = _tool_result_json(await _call_tool(session, "search_tags", {"take": 5}))
-                state["tag_path"] = _first_tag_path(tags)
+                    tags = _tool_result_json(await _call_tool(session, "search_tags", {"take": 5}))
+                    state["tag_path"] = _first_tag_path(tags)
 
-                systems = _tool_result_json(await _call_tool(session, "query_systems", {"take": 5}))
-                state["system_id"] = _first_id(systems)
+                    systems = _tool_result_json(
+                        await _call_tool(session, "query_systems", {"take": 5})
+                    )
+                    state["system_id"] = _first_id(systems)
 
-                assets = _tool_result_json(await _call_tool(session, "query_assets", {"take": 5}))
-                state["asset_id"] = _first_id(assets)
+                    assets = _tool_result_json(
+                        await _call_tool(session, "query_assets", {"take": 5})
+                    )
+                    state["asset_id"] = _first_id(assets)
 
-                await _call_tool(session, "query_alarms", {"take": 5}, allow_error=True)
+                    await _call_tool(session, "query_alarms", {"take": 5}, allow_error=True)
 
-                results = _tool_result_json(
-                    await _call_tool(session, "query_test_results", {"take": 5})
-                )
-                state["result_id"] = _first_id(results)
+                    results = _tool_result_json(
+                        await _call_tool(session, "query_test_results", {"take": 5})
+                    )
+                    state["result_id"] = _first_id(results)
 
-                routines = _tool_result_json(
-                    await _call_tool(session, "query_routines", {"take": 5})
-                )
-                state["routine_id"] = _first_id(routines)
+                    routines = _tool_result_json(
+                        await _call_tool(session, "query_routines", {"take": 5})
+                    )
+                    state["routine_id"] = _first_id(routines)
 
-                files = _tool_result_json(await _call_tool(session, "query_files", {"take": 5}))
-                state["file_id"] = _first_id(files)
+                    files = _tool_result_json(await _call_tool(session, "query_files", {"take": 5}))
+                    state["file_id"] = _first_id(files)
 
-                notebooks = _tool_result_json(
-                    await _call_tool(session, "query_notebooks", {"take": 5})
-                )
-                state["notebook_id"] = _first_id(notebooks)
+                    notebooks = _tool_result_json(
+                        await _call_tool(session, "query_notebooks", {"take": 5})
+                    )
+                    state["notebook_id"] = _first_id(notebooks)
 
-                workitems = _tool_result_json(
-                    await _call_tool(session, "query_workitems", {"take": 5})
-                )
-                state["workitem_id"] = _first_id(workitems)
+                    workitems = _tool_result_json(
+                        await _call_tool(session, "query_workitems", {"take": 5})
+                    )
+                    state["workitem_id"] = _first_id(workitems)
 
-                templates = _tool_result_json(
-                    await _call_tool(session, "query_workitem_templates", {"take": 5})
-                )
-                state["template_id"] = _first_id(templates)
+                    templates = _tool_result_json(
+                        await _call_tool(session, "query_workitem_templates", {"take": 5})
+                    )
+                    state["template_id"] = _first_id(templates)
 
-                workflows = _tool_result_json(
-                    await _call_tool(session, "query_workflows", {"take": 5})
-                )
-                state["workflow_id"] = _first_id(workflows)
+                    workflows = _tool_result_json(
+                        await _call_tool(session, "query_workflows", {"take": 5})
+                    )
+                    state["workflow_id"] = _first_id(workflows)
 
-                feeds = _tool_result_json(await _call_tool(session, "query_feeds", {}))
-                state["feed_id"] = _first_id(feeds)
+                    feeds = _tool_result_json(await _call_tool(session, "query_feeds", {}))
+                    state["feed_id"] = _first_id(feeds)
 
-                webapps = _tool_result_json(await _call_tool(session, "query_webapps", {"take": 5}))
-                state["webapp_id"] = _first_id(webapps)
+                    webapps = _tool_result_json(
+                        await _call_tool(session, "query_webapps", {"take": 5})
+                    )
+                    state["webapp_id"] = _first_id(webapps)
 
-                policy_result = await _call_tool(
-                    session,
-                    "query_policies",
-                    {"take": 5},
-                    allow_error=True,
-                )
-                if not policy_result.isError:
-                    policies = _tool_result_json(policy_result)
-                    state["policy_id"] = _first_id(policies)
+                    policy_result = await _call_tool(
+                        session,
+                        "query_policies",
+                        {"take": 5},
+                        allow_error=True,
+                    )
+                    if not policy_result.isError:
+                        policies = _tool_result_json(policy_result)
+                        state["policy_id"] = _first_id(policies)
 
-                comment_resource_type, comment_resource_id = _comment_target(state)
-                await _call_tool(
-                    session,
-                    "query_comments",
-                    {
-                        "resource_type": comment_resource_type,
-                        "resource_id": comment_resource_id,
-                    },
-                )
+                    comment_resource_type, comment_resource_id = _comment_target(state)
+                    await _call_tool(
+                        session,
+                        "query_comments",
+                        {
+                            "resource_type": comment_resource_type,
+                            "resource_id": comment_resource_id,
+                        },
+                    )
 
-                user_id, missing_user = _resource_value(
-                    state,
-                    "user_id",
-                    "SLCLI_MCP_E2E_USER_ID",
-                    MISSING_RESOURCE_SENTINEL,
-                )
-                await _call_tool(
-                    session,
-                    "get_user_by_id",
-                    {"user_id": user_id},
-                    allow_error=True,
-                )
+                    user_id, missing_user = _resource_value(
+                        state,
+                        "user_id",
+                        "SLCLI_MCP_E2E_USER_ID",
+                        MISSING_RESOURCE_SENTINEL,
+                    )
+                    await _call_tool(
+                        session,
+                        "get_user_by_id",
+                        {"user_id": user_id},
+                        allow_error=True,
+                    )
 
-                tag_path, missing_tag = _resource_value(
-                    state,
-                    "tag_path",
-                    "SLCLI_MCP_E2E_TAG_PATH",
-                    MISSING_TAG_PATH,
-                )
-                await _call_tool(session, "read_tag_values", {"paths": [tag_path]})
-                await _call_tool(
-                    session,
-                    "get_tag_by_path",
-                    {"path": tag_path},
-                    allow_error=True,
-                )
-                await _call_tool(
-                    session,
-                    "query_tag_history",
-                    {"path": tag_path, "take": 5},
-                    allow_error=True,
-                )
+                    tag_path, missing_tag = _resource_value(
+                        state,
+                        "tag_path",
+                        "SLCLI_MCP_E2E_TAG_PATH",
+                        MISSING_TAG_PATH,
+                    )
+                    await _call_tool(session, "read_tag_values", {"paths": [tag_path]})
+                    await _call_tool(
+                        session,
+                        "get_tag_by_path",
+                        {"path": tag_path},
+                        allow_error=True,
+                    )
+                    await _call_tool(
+                        session,
+                        "query_tag_history",
+                        {"path": tag_path, "take": 5},
+                        allow_error=True,
+                    )
 
-                system_id, missing_system = _resource_value(
-                    state,
-                    "system_id",
-                    "SLCLI_MCP_E2E_SYSTEM_ID",
-                    MISSING_RESOURCE_SENTINEL,
-                )
-                await _call_tool(
-                    session,
-                    "get_system_by_id",
-                    {"system_id": system_id},
-                    allow_error=True,
-                )
+                    system_id, missing_system = _resource_value(
+                        state,
+                        "system_id",
+                        "SLCLI_MCP_E2E_SYSTEM_ID",
+                        MISSING_RESOURCE_SENTINEL,
+                    )
+                    await _call_tool(
+                        session,
+                        "get_system_by_id",
+                        {"system_id": system_id},
+                        allow_error=True,
+                    )
 
-                asset_id, missing_asset = _resource_value(
-                    state,
-                    "asset_id",
-                    "SLCLI_MCP_E2E_ASSET_ID",
-                    MISSING_RESOURCE_SENTINEL,
-                )
-                await _call_tool(
-                    session,
-                    "get_asset_by_id",
-                    {"asset_id": asset_id},
-                    allow_error=True,
-                )
+                    asset_id, missing_asset = _resource_value(
+                        state,
+                        "asset_id",
+                        "SLCLI_MCP_E2E_ASSET_ID",
+                        MISSING_RESOURCE_SENTINEL,
+                    )
+                    await _call_tool(
+                        session,
+                        "get_asset_by_id",
+                        {"asset_id": asset_id},
+                        allow_error=True,
+                    )
 
-                result_id, missing_result = _resource_value(
-                    state,
-                    "result_id",
-                    "SLCLI_MCP_E2E_RESULT_ID",
-                    MISSING_RESOURCE_SENTINEL,
-                )
-                await _call_tool(
-                    session,
-                    "get_test_result_by_id",
-                    {"result_id": result_id},
-                    allow_error=True,
-                )
-                await _call_tool(
-                    session,
-                    "get_test_steps",
-                    {"result_id": result_id, "take": 5},
-                    allow_error=True,
-                )
+                    result_id, missing_result = _resource_value(
+                        state,
+                        "result_id",
+                        "SLCLI_MCP_E2E_RESULT_ID",
+                        MISSING_RESOURCE_SENTINEL,
+                    )
+                    await _call_tool(
+                        session,
+                        "get_test_result_by_id",
+                        {"result_id": result_id},
+                        allow_error=True,
+                    )
+                    await _call_tool(
+                        session,
+                        "get_test_steps",
+                        {"result_id": result_id, "take": 5},
+                        allow_error=True,
+                    )
 
-                routine_id, missing_routine = _resource_value(
-                    state,
-                    "routine_id",
-                    "SLCLI_MCP_E2E_ROUTINE_ID",
-                    MISSING_RESOURCE_SENTINEL,
-                )
-                await _call_tool(
-                    session,
-                    "get_routine_by_id",
-                    {"routine_id": routine_id},
-                    allow_error=True,
-                )
+                    routine_id, missing_routine = _resource_value(
+                        state,
+                        "routine_id",
+                        "SLCLI_MCP_E2E_ROUTINE_ID",
+                        MISSING_RESOURCE_SENTINEL,
+                    )
+                    await _call_tool(
+                        session,
+                        "get_routine_by_id",
+                        {"routine_id": routine_id},
+                        allow_error=True,
+                    )
 
-                file_id, missing_file = _resource_value(
-                    state,
-                    "file_id",
-                    "SLCLI_MCP_E2E_FILE_ID",
-                    MISSING_RESOURCE_SENTINEL,
-                )
-                await _call_tool(
-                    session,
-                    "get_file_by_id",
-                    {"file_id": file_id},
-                    allow_error=True,
-                )
+                    file_id, missing_file = _resource_value(
+                        state,
+                        "file_id",
+                        "SLCLI_MCP_E2E_FILE_ID",
+                        MISSING_RESOURCE_SENTINEL,
+                    )
+                    await _call_tool(
+                        session,
+                        "get_file_by_id",
+                        {"file_id": file_id},
+                        allow_error=True,
+                    )
 
-                notebook_id, missing_notebook = _resource_value(
-                    state,
-                    "notebook_id",
-                    "SLCLI_MCP_E2E_NOTEBOOK_ID",
-                    MISSING_RESOURCE_SENTINEL,
-                )
-                await _call_tool(
-                    session,
-                    "get_notebook_by_id",
-                    {"notebook_id": notebook_id},
-                    allow_error=True,
-                )
+                    notebook_id, missing_notebook = _resource_value(
+                        state,
+                        "notebook_id",
+                        "SLCLI_MCP_E2E_NOTEBOOK_ID",
+                        MISSING_RESOURCE_SENTINEL,
+                    )
+                    await _call_tool(
+                        session,
+                        "get_notebook_by_id",
+                        {"notebook_id": notebook_id},
+                        allow_error=True,
+                    )
 
-                await _call_tool(
-                    session,
-                    "query_workitems",
-                    {"take": 5, "workspace": state.get("workspace_id")},
-                )
-                await _call_tool(
-                    session,
-                    "query_workitem_templates",
-                    {"take": 5, "workspace": state.get("workspace_id")},
-                )
-                await _call_tool(
-                    session,
-                    "query_workflows",
-                    {"take": 5, "workspace": state.get("workspace_id")},
-                )
+                    await _call_tool(
+                        session,
+                        "query_workitems",
+                        {"take": 5, "workspace": state.get("workspace_id")},
+                    )
+                    await _call_tool(
+                        session,
+                        "query_workitem_templates",
+                        {"take": 5, "workspace": state.get("workspace_id")},
+                    )
+                    await _call_tool(
+                        session,
+                        "query_workflows",
+                        {"take": 5, "workspace": state.get("workspace_id")},
+                    )
 
-                feed_id, missing_feed = _resource_value(
-                    state,
-                    "feed_id",
-                    "SLCLI_MCP_E2E_FEED_ID",
-                    MISSING_RESOURCE_SENTINEL,
-                )
-                await _call_tool(
-                    session,
-                    "get_feed_by_id",
-                    {"feed_id": feed_id},
-                    allow_error=True,
-                )
-                await _call_tool(
-                    session,
-                    "query_feed_packages",
-                    {"feed_id": feed_id},
-                    allow_error=True,
-                )
+                    feed_id, missing_feed = _resource_value(
+                        state,
+                        "feed_id",
+                        "SLCLI_MCP_E2E_FEED_ID",
+                        MISSING_RESOURCE_SENTINEL,
+                    )
+                    await _call_tool(
+                        session,
+                        "get_feed_by_id",
+                        {"feed_id": feed_id},
+                        allow_error=True,
+                    )
+                    await _call_tool(
+                        session,
+                        "query_feed_packages",
+                        {"feed_id": feed_id},
+                        allow_error=True,
+                    )
 
-                webapp_id, missing_webapp = _resource_value(
-                    state,
-                    "webapp_id",
-                    "SLCLI_MCP_E2E_WEBAPP_ID",
-                    MISSING_RESOURCE_SENTINEL,
-                )
-                await _call_tool(
-                    session,
-                    "get_webapp_by_id",
-                    {"webapp_id": webapp_id},
-                    allow_error=True,
-                )
+                    webapp_id, missing_webapp = _resource_value(
+                        state,
+                        "webapp_id",
+                        "SLCLI_MCP_E2E_WEBAPP_ID",
+                        MISSING_RESOURCE_SENTINEL,
+                    )
+                    await _call_tool(
+                        session,
+                        "get_webapp_by_id",
+                        {"webapp_id": webapp_id},
+                        allow_error=True,
+                    )
 
-                policy_id, missing_policy = _resource_value(
-                    state,
-                    "policy_id",
-                    "SLCLI_MCP_E2E_POLICY_ID",
-                    MISSING_RESOURCE_SENTINEL,
-                )
-                await _call_tool(
-                    session,
-                    "get_policy_by_id",
-                    {"policy_id": policy_id},
-                    allow_error=True,
-                )
+                    policy_id, missing_policy = _resource_value(
+                        state,
+                        "policy_id",
+                        "SLCLI_MCP_E2E_POLICY_ID",
+                        MISSING_RESOURCE_SENTINEL,
+                    )
+                    await _call_tool(
+                        session,
+                        "get_policy_by_id",
+                        {"policy_id": policy_id},
+                        allow_error=True,
+                    )
     except Exception as exc:
         if _is_reachability_failure(exc):
             pytest.skip(f"Local MCP server is not reachable at {mcp_url}: {exc}")
@@ -474,6 +485,6 @@ class TestMcpStreamableHttpE2E:
 
     def test_exercise_all_tools(self) -> None:
         """Connect to the local streamable HTTP server and exercise the full MCP tool set."""
-        mcp_url = _env("SLCLI_MCP_E2E_URL") or _env("SLCLI_MCP_E2E_SSE_URL") or DEFAULT_MCP_URL
+        mcp_url = _env("SLCLI_MCP_E2E_URL", DEFAULT_MCP_URL) or DEFAULT_MCP_URL
         timeout_seconds = int(_env("SLCLI_MCP_E2E_TIMEOUT", str(DEFAULT_TIMEOUT_SECONDS)) or 5)
         asyncio.run(_exercise_mcp_tools(mcp_url, timeout_seconds))

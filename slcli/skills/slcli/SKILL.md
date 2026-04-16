@@ -45,6 +45,12 @@ slcli workitem list --format json --take 25
 
 # create a work item
 slcli workitem create --name "Battery Cycle Test" --type testplan --state NEW --part-number "P-001" --workspace Default
+
+# register the MCP server for VS Code Copilot Agent mode
+slcli mcp install
+
+# run the MCP server over streamable HTTP for local inspector testing
+slcli mcp serve --transport streamable-http
 ```
 
 ## Output formats
@@ -57,6 +63,22 @@ All list and get commands support `-f, --format` with `table` (default) or `json
 Always use `-f json` when you need to process, filter, or aggregate output programmatically.
 
 ## Commands
+
+### mcp - Model Context Protocol server
+
+Use this command group to register slcli as an MCP server for supported AI clients
+or to serve the MCP endpoint directly for local testing.
+
+```bash
+# Install config for a specific AI client
+slcli mcp install [--target vscode|claude|cursor|codex|all]
+
+# Start the default stdio transport
+slcli mcp serve
+
+# Start streamable HTTP for the MCP Inspector or browser tooling
+slcli mcp serve --transport streamable-http [--host 127.0.0.1] [--port 8000]
+```
 
 ### testmonitor — Test data analysis
 
