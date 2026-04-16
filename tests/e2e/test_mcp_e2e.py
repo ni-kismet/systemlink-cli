@@ -1,11 +1,11 @@
-"""E2E tests for the slcli MCP server over SSE.
+"""E2E tests for the slcli MCP server over streamable HTTP.
 
 These tests connect to a locally running MCP server started with:
 
-    poetry run slcli mcp serve --transport sse
+    poetry run slcli mcp serve --transport streamable-http
 
 Environment variables:
-- SLCLI_MCP_E2E_SSE_URL: SSE endpoint URL (default: http://127.0.0.1:8000/sse)
+- SLCLI_MCP_E2E_URL: MCP endpoint URL (default: http://127.0.0.1:8000/mcp)
 - SLCLI_MCP_E2E_TIMEOUT: transport timeout in seconds (default: 5)
 - SLCLI_MCP_E2E_<RESOURCE>: optional resource overrides for sparse environments
 """
@@ -17,10 +17,10 @@ from typing import Any, Dict, List, Optional, Tuple
 
 import pytest
 from mcp import ClientSession
-from mcp.client.sse import sse_client
+from mcp.client.streamable_http import streamable_http_client
 from mcp.types import CallToolResult, ListToolsResult, TextContent
 
-DEFAULT_SSE_URL = "http://127.0.0.1:8000/sse"
+DEFAULT_MCP_URL = "http://127.0.0.1:8000/mcp"
 DEFAULT_TIMEOUT_SECONDS = 5
 MISSING_RESOURCE_SENTINEL = "mcp-e2e-missing-resource"
 MISSING_TAG_PATH = "mcp.e2e.missing.tag"
@@ -159,7 +159,7 @@ def _comment_target(state: Dict[str, Any]) -> Tuple[str, str]:
 
 
 def _is_reachability_failure(exc: Exception) -> bool:
-    """Return True when an exception indicates the local SSE server is unreachable."""
+    """Return True when an exception indicates the local MCP server is unreachable."""
     if isinstance(exc, (OSError, TimeoutError)):
         return True
 
@@ -193,12 +193,12 @@ async def _call_tool(
     return result
 
 
-async def _exercise_mcp_tools(sse_url: str, timeout_seconds: int) -> None:
-    """Connect to the live SSE server and exercise the MCP tool surface."""
+async def _exercise_mcp_tools(mcp_url: str, timeout_seconds: int) -> None:
+    """Connect to the live streamable HTTP server and exercise the MCP tool surface."""
     state: Dict[str, Any] = {}
 
     try:
-        async with sse_client(sse_url, timeout=timeout_seconds) as (read_stream, write_stream):
+        async with streamable_http_client(mcp_url) as (read_stream, write_stream, _):
             async with ClientSession(read_stream, write_stream) as session:
                 await session.initialize()
 
@@ -463,17 +463,17 @@ async def _exercise_mcp_tools(sse_url: str, timeout_seconds: int) -> None:
                 )
     except Exception as exc:
         if _is_reachability_failure(exc):
-            pytest.skip(f"Local MCP SSE server is not reachable at {sse_url}: {exc}")
+            pytest.skip(f"Local MCP server is not reachable at {mcp_url}: {exc}")
         raise
 
 
 @pytest.mark.e2e
 @pytest.mark.slow
-class TestMcpSseE2E:
-    """End-to-end tests for a locally running slcli MCP SSE server."""
+class TestMcpStreamableHttpE2E:
+    """End-to-end tests for a locally running slcli MCP streamable HTTP server."""
 
     def test_exercise_all_tools(self) -> None:
-        """Connect to the local SSE server and exercise the full MCP tool set."""
-        sse_url = _env("SLCLI_MCP_E2E_SSE_URL", DEFAULT_SSE_URL) or DEFAULT_SSE_URL
+        """Connect to the local streamable HTTP server and exercise the full MCP tool set."""
+        mcp_url = _env("SLCLI_MCP_E2E_URL") or _env("SLCLI_MCP_E2E_SSE_URL") or DEFAULT_MCP_URL
         timeout_seconds = int(_env("SLCLI_MCP_E2E_TIMEOUT", str(DEFAULT_TIMEOUT_SECONDS)) or 5)
-        asyncio.run(_exercise_mcp_tools(sse_url, timeout_seconds))
+        asyncio.run(_exercise_mcp_tools(mcp_url, timeout_seconds))

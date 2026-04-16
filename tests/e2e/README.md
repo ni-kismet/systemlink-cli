@@ -11,7 +11,7 @@ The E2E testing framework validates that CLI commands work correctly against non
 ```
 tests/e2e/
 ├── conftest.py                 # Shared fixtures and configuration
-├── test_mcp_e2e.py            # Local MCP SSE smoke test
+├── test_mcp_e2e.py            # Local MCP streamable HTTP smoke test
 ├── test_notebook_e2e.py        # Notebook command tests
 ├── test_user_e2e.py           # User command tests
 ├── test_dff_e2e.py            # Custom Fields tests
@@ -116,15 +116,15 @@ poetry run pytest tests/e2e/ -m e2e --e2e-platform sls -v
 poetry run pytest tests/e2e/ -m e2e --e2e-platform sle -v
 ```
 
-### Run The Local MCP SSE Smoke Test
+### Run The Local MCP Streamable HTTP Smoke Test
 
-The MCP smoke test connects to a locally running SSE server and exercises the
+The MCP smoke test connects to a locally running streamable HTTP server and exercises the
 full MCP tool surface that is expected to work in local environments.
 
 Start the server in one terminal:
 
 ```bash
-poetry run slcli mcp serve -T sse
+poetry run slcli mcp serve -T streamable-http
 ```
 
 Run the smoke test in another terminal:
@@ -136,6 +136,7 @@ poetry run pytest tests/e2e/test_mcp_e2e.py -m e2e -v
 Optional overrides:
 
 ```bash
+export SLCLI_MCP_E2E_URL="http://127.0.0.1:8000/mcp"
 export SLCLI_MCP_E2E_SSE_URL="http://127.0.0.1:8000/sse"
 export SLCLI_MCP_E2E_TIMEOUT="5"
 export SLCLI_MCP_E2E_USER_ID="<known-user-id>"
@@ -160,9 +161,9 @@ Notes:
   every tool.
 - Some detail calls may legitimately return MCP-level errors in sparse,
   partially provisioned, or permission-limited environments; the test still
-  verifies that those tools can be invoked without destabilizing the SSE
+  verifies that those tools can be invoked without destabilizing the HTTP
   server.
-- The test skips only when the local SSE server is unreachable. Other failures
+- The test skips only when the local MCP endpoint is unreachable. Other failures
   are treated as real regressions.
 
 ### Run Specific Test Categories

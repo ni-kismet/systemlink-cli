@@ -151,12 +151,12 @@ def test_mcp_serve_import_error_shows_helpful_message(monkeypatch: Any, runner: 
 
 
 # ---------------------------------------------------------------------------
-# slcli mcp serve --transport sse
+# slcli mcp serve --transport streamable-http
 # ---------------------------------------------------------------------------
 
 
-def test_mcp_serve_sse_calls_server_run_sse(monkeypatch: Any, runner: CliRunner) -> None:
-    """Running serve --transport sse calls server.run(transport='sse') on success."""
+def test_mcp_serve_streamable_http_calls_server_run(monkeypatch: Any, runner: CliRunner) -> None:
+    """Running serve --transport streamable-http calls server.run with that transport."""
     import slcli.mcp_server as _mcp_server_module
 
     captured: list = []
@@ -175,13 +175,13 @@ def test_mcp_serve_sse_calls_server_run_sse(monkeypatch: Any, runner: CliRunner)
     monkeypatch.setattr(_mcp_server_module, "main", lambda: None)
 
     cli = make_cli()
-    result = runner.invoke(cli, ["mcp", "serve", "--transport", "sse"])
+    result = runner.invoke(cli, ["mcp", "serve", "--transport", "streamable-http"])
     assert result.exit_code == 0
-    assert captured == ["sse"]
+    assert captured == ["streamable-http"]
 
 
-def test_mcp_serve_sse_custom_port(monkeypatch: Any, runner: CliRunner) -> None:
-    """Running serve --transport sse applies --port and --host to server.settings."""
+def test_mcp_serve_streamable_http_custom_port(monkeypatch: Any, runner: CliRunner) -> None:
+    """Running serve --transport streamable-http applies --port and --host."""
     import slcli.mcp_server as _mcp_server_module
 
     class MockSettings:
@@ -195,14 +195,26 @@ def test_mcp_serve_sse_custom_port(monkeypatch: Any, runner: CliRunner) -> None:
 
     cli = make_cli()
     runner.invoke(
-        cli, ["mcp", "serve", "--transport", "sse", "--port", "9000", "--host", "0.0.0.0"]
+        cli,
+        [
+            "mcp",
+            "serve",
+            "--transport",
+            "streamable-http",
+            "--port",
+            "9000",
+            "--host",
+            "0.0.0.0",
+        ],
     )
     assert mock_settings.host == "0.0.0.0"
     assert mock_settings.port == 9000
 
 
-def test_mcp_serve_sse_shows_inspector_instructions(monkeypatch: Any, runner: CliRunner) -> None:
-    """Running serve --transport sse prints the Inspector URL and SSE endpoint."""
+def test_mcp_serve_streamable_http_shows_inspector_instructions(
+    monkeypatch: Any, runner: CliRunner
+) -> None:
+    """Running serve --transport streamable-http prints the Inspector URL and HTTP endpoint."""
     import slcli.mcp_server as _mcp_server_module
 
     class MockSettings:
@@ -214,19 +226,19 @@ def test_mcp_serve_sse_shows_inspector_instructions(monkeypatch: Any, runner: Cl
     monkeypatch.setattr(_mcp_server_module, "main", lambda: None)
 
     cli = make_cli()
-    result = runner.invoke(cli, ["mcp", "serve", "--transport", "sse"])
-    assert "127.0.0.1:8000/sse" in result.output
+    result = runner.invoke(cli, ["mcp", "serve", "--transport", "streamable-http"])
+    assert "127.0.0.1:8000/mcp" in result.output
     assert "inspector" in result.output.lower()
 
 
-def test_mcp_serve_sse_import_error_shows_helpful_message(
+def test_mcp_serve_streamable_http_import_error_shows_helpful_message(
     monkeypatch: Any, runner: CliRunner
 ) -> None:
-    """Running serve --transport sse exits non-zero when mcp_server is unavailable."""
+    """Running serve --transport streamable-http exits non-zero when unavailable."""
     monkeypatch.setitem(sys.modules, "slcli.mcp_server", None)  # type: ignore[arg-type]
 
     cli = make_cli()
-    result = runner.invoke(cli, ["mcp", "serve", "--transport", "sse"])
+    result = runner.invoke(cli, ["mcp", "serve", "--transport", "streamable-http"])
     assert result.exit_code != 0
     assert "mcp" in result.output.lower() or "mcp" in (result.stderr or "").lower()
 

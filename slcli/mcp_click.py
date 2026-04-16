@@ -149,29 +149,32 @@ def register_mcp_commands(cli: Any) -> None:
     @click.option(
         "--transport",
         "-T",
-        type=click.Choice(["stdio", "sse"]),
+        type=click.Choice(["stdio", "streamable-http"]),
         default="stdio",
         show_default=True,
-        help="Transport layer: 'stdio' for AI client integration, 'sse' for HTTP/SSE.",
+        help=(
+            "Transport layer: 'stdio' for AI client integration, "
+            "'streamable-http' for HTTP transport."
+        ),
     )
     @click.option(
         "--port",
         "-p",
         default=8000,
         show_default=True,
-        help="Port to bind to (SSE transport only).",
+        help="Port to bind to (streamable HTTP transport only).",
     )
     @click.option(
         "--host",
         default="127.0.0.1",
         show_default=True,
-        help="Host to bind to (SSE transport only).",
+        help="Host to bind to (streamable HTTP transport only).",
     )
     def serve(transport: str, port: int, host: str) -> None:
         """Start the MCP server.
 
         Defaults to stdio transport for direct AI client integration (VS Code
-        Copilot, Claude Desktop, Cursor).  Switch to SSE transport to serve
+        Copilot, Claude Desktop, Cursor).  Switch to streamable HTTP transport to serve
         over HTTP — useful for the MCP Inspector, browser-based tooling, or
         any client that prefers a persistent HTTP connection.
 
@@ -180,15 +183,15 @@ def register_mcp_commands(cli: Any) -> None:
             slcli mcp serve
 
         \b
-        SSE (HTTP server on http://127.0.0.1:8000/sse):
-            slcli mcp serve --transport sse
-            slcli mcp serve --transport sse --host 0.0.0.0 --port 9000
+        Streamable HTTP (HTTP server on http://127.0.0.1:8000/mcp):
+            slcli mcp serve --transport streamable-http
+            slcli mcp serve --transport streamable-http --host 0.0.0.0 --port 9000
 
         \b
-        Test with the MCP Inspector (SSE):
-            slcli mcp serve --transport sse
+        Test with the MCP Inspector (Streamable HTTP):
+            slcli mcp serve --transport streamable-http
             npx @modelcontextprotocol/inspector
-            # connect to http://127.0.0.1:8000/sse (transport: SSE)
+            # connect to http://127.0.0.1:8000/mcp (transport: Streamable HTTP)
         """
         try:
             from .mcp_server import main as run_mcp_server
@@ -208,13 +211,18 @@ def register_mcp_commands(cli: Any) -> None:
             mcp_server.settings.host = host
             mcp_server.settings.port = port
 
-            click.echo(f"✓ slcli MCP server starting in SSE mode on http://{host}:{port}/sse")
+            click.echo(
+                "✓ slcli MCP server starting in streamable HTTP mode on "
+                f"http://{host}:{port}/mcp"
+            )
             click.echo("  Open the Inspector:  npx @modelcontextprotocol/inspector")
-            click.echo(f"  Then connect to:     http://{host}:{port}/sse  (transport: SSE)")
+            click.echo(
+                f"  Then connect to:     http://{host}:{port}/mcp  " "(transport: Streamable HTTP)"
+            )
             click.echo("  Press Ctrl+C to stop.\n")
 
             try:
-                mcp_server.run(transport="sse")
+                mcp_server.run(transport="streamable-http")
             except KeyboardInterrupt:
                 click.echo("\nslcli MCP server stopped")
                 sys.exit(0)
