@@ -7,7 +7,7 @@ This project uses [Python Semantic Release](https://python-semantic-release.read
 1. **Conventional Commits**: Use conventional commit messages to automatically determine version bumps
 2. **Automated Releases**: On push to `main`, the semantic release workflow analyzes commits and creates releases
 3. **Version Management**: Automatically updates version in `pyproject.toml` and generates `_version.py`
-4. **Changelog**: Automatically generates and updates `CHANGELOG.md`
+4. **Changelog**: Automatically generates, updates, and commits `CHANGELOG.md` in the release chore
 
 ## Commit Message Format
 
@@ -66,8 +66,11 @@ BREAKING CHANGE: API endpoints have been restructured"
 ## Manual Commands
 
 ```bash
-# Dry run to see what would happen
-poetry run semantic-release version --noop
+# Print the next version without changing the repo
+poetry run semantic-release version --print
+
+# Local release test without pushing
+poetry run semantic-release version --no-push --no-vcs-release
 
 # Generate changelog only
 poetry run semantic-release changelog
@@ -84,8 +87,9 @@ poetry run update-version
 Semantic release configuration is in `pyproject.toml` under `[tool.semantic_release]`:
 
 - Version files: `pyproject.toml` and `slcli/_version.py`
+- Release assets committed in the release chore: `CHANGELOG.md`
 - Build command: Runs `update-version` script to sync version files
 - Branch: `main`
-- Upload to PyPI: Disabled
+- Upload to PyPI: Enabled
 - Upload to GitHub Releases: Enabled
 - Changelog: Generated in `CHANGELOG.md`
