@@ -4,17 +4,18 @@ description: >-
   Query and manage NI SystemLink resources using the slcli command-line interface.
   Covers test results, assets, systems, tags, feeds, files, notebooks,
   routines, work items, work item templates, workflows, test plan templates,
+  specifications, products, and spec-sheet ingestion workflows,
   custom fields, web applications, authorization policies, users, workspaces, and more.
   Use when the user asks about test data analysis, asset management, calibration status,
   system fleet health, operator performance, failure analysis, production metrics,
-  equipment utilization, work order tracking, or any SystemLink resource operations.
+  equipment utilization, work order tracking, specification management, or any SystemLink resource operations.
   Supports filtering, aggregation, summary statistics, and JSON output for programmatic processing.
 compatibility: >-
   Requires slcli installed and authenticated (slcli login). Python 3.10+.
   Requires network access to a SystemLink server instance.
 metadata:
   author: ni-kismet
-  version: "1.0"
+  version: "1.1"
 ---
 
 # SystemLink CLI (slcli)
@@ -55,6 +56,41 @@ All list and get commands support `-f, --format` with `table` (default) or `json
 - **JSON**: Returns all matching results as a JSON array — ideal for piping to `jq`.
 
 Always use `-f json` when you need to process, filter, or aggregate output programmatically.
+
+## Specification ingestion workflow
+
+Use this skill when the user wants to take a datasheet, CSV, or PDF from a design team and turn it into SystemLink specifications for an existing product.
+
+Follow this workflow:
+
+1. Resolve the target product first.
+
+- Use `slcli testmonitor product list --name "<name>" -f json` when the user gives a product name.
+- If multiple products match, stop and ask the user to disambiguate.
+- Fetch the exact product with `slcli testmonitor product get <product-id> -f json` before creating or importing specs.
+
+2. Default specification workspace to the product workspace.
+
+- If the user does not explicitly specify a workspace, use the product's `workspace` value.
+- Do not invent or silently change workspace values.
+
+3. Choose the ingestion path based on file type.
+
+- CSV: inspect headers and rows, map them into a create-compatible JSON payload, and prefer `slcli spec import --file ...` for multi-row uploads.
+- PDF: extract tables or text first, normalize them into structured JSON, then import. If the PDF is image-based or extraction is ambiguous, tell the user and ask for a CSV or reviewed intermediate file instead of guessing.
+
+4. Validate before upload.
+
+- Every spec needs at least `productId`, `specId`, and `type`.
+- Preserve limits, conditions, unit, keywords, and properties when present.
+- Never fabricate condition values, numeric limits, or missing spec identifiers.
+
+5. Prefer bulk import for agent-driven uploads.
+
+- Use `slcli spec import --file ...` for many specs.
+- Use `slcli spec create ...` only for one-off or interactive entry.
+
+Use `docs/examples/specifications/import-specs.json` as the canonical create-compatible payload shape.
 
 ## Commands
 
@@ -135,6 +171,25 @@ slcli testmonitor product update <PRODUCT_ID> [OPTIONS]
 # Delete products
 slcli testmonitor product delete [--yes] <PRODUCT_ID>...
   --yes, -y                  # Skip confirmation prompt
+```
+
+### spec — Specification management
+
+```bash
+# List specs for a product (accepts name, part number, or ID)
+slcli spec list --product <PRODUCT> -f json
+
+# Create a spec; when --workspace is omitted, the CLI inherits the product workspace
+slcli spec create --product <PRODUCT> --spec-id VSAT01 --type PARAMETRIC \
+  --name "Saturation voltage" --limit-min 1.2 --limit-max 1.8
+
+# Bulk import create-compatible specs from JSON
+slcli spec import --file docs/examples/specifications/import-specs.json
+
+# Export reusable create-compatible fields
+slcli spec export --product <PRODUCT> --include-limits --include-conditions \
+  --projection PRODUCT_ID --projection SPEC_ID --projection NAME --projection CATEGORY \
+  --projection TYPE --projection SYMBOL --projection BLOCK --projection UNIT --output specs.json
 ```
 
 ### asset — Asset and calibration management

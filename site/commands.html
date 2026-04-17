@@ -51,6 +51,7 @@
         <a href="#testmonitor" class="sidebar-link">testmonitor</a>
         <a href="#asset" class="sidebar-link">asset</a>
         <a href="#system" class="sidebar-link">system</a>
+        <a href="#spec" class="sidebar-link">spec</a>
         <a href="#workitem" class="sidebar-link">workitem</a>
         <a href="#template" class="sidebar-link">template</a>
         <a href="#notebook" class="sidebar-link">notebook</a>
@@ -79,6 +80,7 @@
         <div class="cmd-group"><h3>testmonitor</h3><p>Test results, products, steps, measurements</p><code>slcli testmonitor result list</code></div>
         <div class="cmd-group"><h3>asset</h3><p>Hardware assets, calibration, fleet summary</p><code>slcli asset list</code></div>
         <div class="cmd-group"><h3>system</h3><p>Managed systems, package comparison, jobs, reports</p><code>slcli system list</code></div>
+        <div class="cmd-group"><h3>spec</h3><p>Product specifications, limits, conditions, bulk import/export</p><code>slcli spec list</code></div>
         <div class="cmd-group"><h3>workitem</h3><p>Work items, templates, workflows</p><code>slcli workitem list</code></div>
         <div class="cmd-group"><h3>template</h3><p>Test plan templates</p><code>slcli template list</code></div>
         <div class="cmd-group"><h3>notebook</h3><p>Jupyter notebooks, execution records</p><code>slcli notebook manage list</code></div>
@@ -247,6 +249,54 @@ slcli system job cancel &lt;job-id&gt;</code></pre>
       <h3>Update &amp; Remove</h3>
       <pre><code>slcli system update &lt;system-id&gt; --alias "New Name" --workspace "Production"
 slcli system remove &lt;system-id&gt; --force</code></pre>
+
+      <!-- ─── SPEC ─── -->
+      <h2 id="spec">spec</h2>
+      <p>Manage SystemLink product specifications, including parametric limits, conditions, bulk import/export, and filtered query workflows.</p>
+
+      <h3>List &amp; Query</h3>
+      <pre><code># List specifications for a product (by name, part number, or ID)
+slcli spec list --product &lt;product&gt;
+
+# Query with Dynamic Linq and condition/limit helpers
+slcli spec query --product &lt;product&gt; \
+  --filter 'category.Contains("Electrical")' \
+  --include-limits --include-conditions \
+  --condition-name "Temperature" \
+  --limit-max-le 2.0
+
+# Continue a paged raw query
+slcli spec query --product &lt;product&gt; --continuation-token &lt;token&gt; --format json</code></pre>
+
+      <h3>Get</h3>
+      <pre><code>slcli spec get --id &lt;specification-id&gt;
+slcli spec get --id &lt;specification-id&gt; --format json</code></pre>
+
+      <h3>Create &amp; Update</h3>
+      <pre><code># Create from CLI flags
+slcli spec create --product &lt;product&gt; --spec-id VSAT01 --type PARAMETRIC \
+  --name "Saturation voltage" --limit-min 1.2 --limit-max 1.8 \
+  --condition '{"name":"Temperature","value":{"conditionType":"NUMERIC","discrete":[25,85],"unit":"C"}}'
+
+# Update a spec with optimistic versioning
+slcli spec update --id &lt;specification-id&gt; --version 0 --limit-typical 1.5
+
+# Create or update from JSON payload files
+slcli spec create --file spec.json
+slcli spec update --file spec-update.json</code></pre>
+      <p>When a spec payload omits <code>workspace</code>, the CLI inherits the workspace from the referenced product unless you state a workspace explicitly.</p>
+
+      <h3>Bulk Import &amp; Export</h3>
+      <pre><code># Export a filtered spec payload file
+slcli spec export --product &lt;product&gt; --include-conditions --output specs.json
+
+# Import one or more specs from JSON
+slcli spec import --file specs.json</code></pre>
+      <p>Repository examples: <code>docs/examples/specifications/import-specs.json</code> and <code>docs/examples/specifications/exported-specs.json</code>.</p>
+
+      <h3>Delete</h3>
+      <pre><code>slcli spec delete --id &lt;specification-id&gt; --force
+slcli spec delete --id &lt;id-1&gt; --id &lt;id-2&gt; --force</code></pre>
 
       <!-- ─── WORK ITEM ─── -->
       <h2 id="workitem">workitem</h2>

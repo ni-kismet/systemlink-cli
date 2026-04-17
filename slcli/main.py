@@ -30,6 +30,7 @@ from .rich_output import install_rich_output
 from .rich_output import render_table
 from .routine_click import register_routine_commands
 from .skill_click import register_skill_commands
+from .spec_click import register_spec_commands
 from .ssl_trust import OS_TRUST_INJECTED, OS_TRUST_REASON
 from .system_click import register_system_commands
 from .tag_click import register_tag_commands
@@ -427,6 +428,7 @@ register_notebook_commands(cli)
 register_policy_commands(cli)
 register_routine_commands(cli)
 register_system_commands(cli)
+register_spec_commands(cli)
 register_tag_commands(cli)
 register_testmonitor_commands(cli)
 register_webapp_commands(cli)

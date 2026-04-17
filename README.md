@@ -6,7 +6,7 @@ SystemLink CLI (`slcli`) is a cross-platform Python CLI for SystemLink integrato
 
 ## Features
 
-- **20+ resource types** — test results, assets, systems, work items, notebooks, feeds, tags, files, users, policies, webapps, and more
+- **20+ resource types** — test results, assets, systems, specifications, work items, notebooks, feeds, tags, files, users, policies, webapps, and more
 - **Multi-platform** — supports SystemLink Enterprise (SLE) and SystemLink Server (SLS) with automatic detection
 - **Multi-profile** — manage dev, staging, and prod environments with named profiles
 - **AI agent skills** — installable skills for most AI agents (Copilot, Codex, etc.) and Claude — including a webapp skill for building Nimble Angular dashboards
@@ -51,6 +51,15 @@ slcli login
 slcli testmonitor result list --summary --group-by status
 slcli asset list --calibratable --summary
 slcli system list --state CONNECTED
+slcli spec list --product <product> --workspace all
+
+# Create and update specification data with limits and conditions
+slcli spec create --product <product> --spec-id VSAT01 --type PARAMETRIC --limit-min 1.2 --limit-max 1.8 \
+	--condition '{"name":"Temperature","value":{"conditionType":"NUMERIC","discrete":[25,85],"unit":"C"}}'
+slcli spec update --id <spec-id> --version 0 --limit-typical 1.5
+
+# Bulk import create-compatible specs; omitted workspace inherits from the referenced product
+slcli spec import --file docs/examples/specifications/import-specs.json
 
 # Compare software and assets between two systems
 slcli system compare "PXI Controller A" "PXI Controller B"

@@ -116,12 +116,15 @@ def e2e_config() -> Dict[str, Any]:
     return config
 
 
-def _is_sle_url(base_url: str) -> bool:
+def _is_sle_url(base_url: Optional[str]) -> bool:
     """Check if a URL matches SLE (SystemLink Enterprise) patterns.
 
     Uses the same patterns as platform.py for consistency.
     Only specific URL patterns are SLE - not all systemlink.io subdomains.
     """
+    if not isinstance(base_url, str) or not base_url:
+        return False
+
     url_lower = base_url.lower()
     sle_patterns = [
         "api.systemlink.io",  # SLE production
