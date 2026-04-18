@@ -31,10 +31,10 @@
    /slcli-pr-review standard coverage  # With optional focus area
    ```
 3. **Use the `/slcli-pr-create` slash command** to publish the current changes as a concise pull request:
-  ```bash
-  /slcli-pr-create
-  /slcli-pr-create Add semantic release changelog asset
-  ```
+   ```bash
+   /slcli-pr-create
+   /slcli-pr-create title="Add semantic release changelog asset"
+   ```
 4. **Follow the checklist** provided by the slash command
 5. **Run the commands** listed in the review prompt
 6. **Provide detailed feedback** to the developer
@@ -55,7 +55,7 @@ In **Copilot Chat**, type:
 
 ```
 /slcli-pr-review [type] [focus]
-/slcli-pr-create [title] [base] [draft] [context]
+/slcli-pr-create [title="..."] [base=...] [draft=true|false] [context="..."]
 ```
 
 ### Arguments
@@ -73,7 +73,7 @@ In **Copilot Chat**, type:
 /slcli-pr-review e2e                # E2E testing-focused review
 /slcli-pr-review standard coverage  # Standard review with coverage focus
 /slcli-pr-create                    # Open a concise PR for current branch
-/slcli-pr-create Fix release changelog commit
+/slcli-pr-create title="Fix release changelog commit"
 ```
 
 ---
