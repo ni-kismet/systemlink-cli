@@ -226,16 +226,16 @@ SystemLink Systems Manager. A typical SLS for a Python test package covers:
 1. **Download and install Python** — use the official Windows installer with `/quiet`,
    `InstallAllUsers=1`, `PrependPath=1`. Pass `TargetDir` using a verified-safe pattern:
    ```yaml
-   install-python:
-     cmd.run:
-       - name: >-
-           "C:\Windows\Temp\python-3.12.9-amd64.exe"
-           /quiet InstallAllUsers=1 PrependPath=1
-       TargetDir=C:\PROGRA~1\Python312
-           Include_launcher=1
-       - shell: cmd
-       - unless: >-
-           "C:\Program Files\Python312\python.exe" --version
+    install-python:
+      cmd.run:
+        - name: >-
+            "C:\Windows\Temp\python-3.12.9-amd64.exe"
+            /quiet InstallAllUsers=1 PrependPath=1
+            TargetDir=C:\PROGRA~1\Python312
+            Include_launcher=1
+        - shell: cmd
+        - unless: >-
+            "C:\Program Files\Python312\python.exe" --version
    ```
    **Critical**: Do not quote the entire `TargetDir=...` pair. Prefer an unquoted
    key=value argument with a short path (for example,
