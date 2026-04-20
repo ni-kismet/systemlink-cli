@@ -337,6 +337,40 @@ Configure these environment variables for local E2E testing:
 - `SLCLI_E2E_TIMEOUT` - Request timeout in seconds (default: 30)
 - `SLCLI_E2E_CLEANUP` - Clean up test resources (default: true)
 
+## CI Configuration
+
+The GitHub Actions pipeline can run the E2E suite in two separate jobs:
+
+- `E2E (SLS)` runs `poetry run pytest tests/e2e/ -m "e2e and not sle" --e2e-platform sls -n auto --timeout=300`
+- `E2E (SLE)` runs `poetry run pytest tests/e2e/ -m "e2e and not sls" --e2e-platform sle -n auto --timeout=300`
+
+Configure the jobs with GitHub Actions secrets and repository variables.
+
+### Required GitHub Secrets
+
+- `SLCLI_E2E_SLS_API_KEY` - API key for the SystemLink Server (SLS) test user
+- `SLCLI_E2E_SLE_API_KEY` - API key for the SystemLink Enterprise (SLE) test user
+
+### Recommended GitHub Repository Variables
+
+- `SLCLI_E2E_SLS_BASE_URL` - Base URL for the SLS test environment
+- `SLCLI_E2E_SLS_WORKSPACE` - Workspace for the SLS test user (optional, defaults to `Default`)
+- `SLCLI_E2E_SLS_TEST_NOTEBOOK_PATH` - Notebook path used by SLS notebook execution tests (optional, enables more SLS coverage)
+- `SLCLI_E2E_SLE_BASE_URL` - Base URL for the SLE test environment
+- `SLCLI_E2E_SLE_WORKSPACE` - Workspace for the SLE test user (optional, defaults to `Default`)
+- `SLCLI_E2E_SLE_TEST_NOTEBOOK_ID` - Notebook ID used by SLE routine/notebook tests (optional, enables more SLE coverage)
+- `SLCLI_E2E_TIMEOUT` - Global E2E timeout in seconds (optional, defaults to `30`)
+- `SLCLI_E2E_CLEANUP` - Whether the suite should clean up created resources (optional, defaults to `true`)
+
+### API Key Scope Recommendations
+
+Create two separate test-user API keys, one per environment:
+
+- `SLCLI_E2E_SLS_API_KEY`: an SLS test user with access to the target workspace plus any SLS notebook execution resources referenced by `SLCLI_E2E_SLS_TEST_NOTEBOOK_PATH`
+- `SLCLI_E2E_SLE_API_KEY`: an SLE test user with access to the target workspace and the services covered by the SLE suite, including notebooks, routines, work items, comments, feeds, files, tags, users, workspaces, and test monitor resources
+
+The jobs are skipped automatically when the matching base URL variable or API key secret is not configured.
+
 ## Test Design Principles
 
 ### 1. Statefulness and Isolation
