@@ -20,6 +20,7 @@ import pytest
 from mcp import ClientSession
 from mcp.client.streamable_http import streamable_http_client
 from mcp.types import CallToolResult, ListToolsResult, TextContent
+from slcli.mcp_reachability import is_reachability_failure
 
 DEFAULT_MCP_URL = "http://127.0.0.1:8000/mcp"
 DEFAULT_TIMEOUT_SECONDS = 5
@@ -157,27 +158,6 @@ def _comment_target(state: Dict[str, Any]) -> Tuple[str, str]:
             return resource_type, resource_id
 
     return "workitem:workitem", MISSING_RESOURCE_SENTINEL
-
-
-def _is_reachability_failure(exc: Exception) -> bool:
-    """Return True when an exception indicates the local MCP server is unreachable."""
-    if isinstance(exc, (OSError, TimeoutError)):
-        return True
-
-    message = str(exc).lower()
-    return any(
-        token in message
-        for token in (
-            "connection refused",
-            "connect error",
-            "all connection attempts failed",
-            "timed out",
-            "timeout",
-            "name or service not known",
-            "nodename nor servname provided",
-            "server disconnected",
-        )
-    )
 
 
 async def _call_tool(
@@ -473,7 +453,7 @@ async def _exercise_mcp_tools(mcp_url: str, timeout_seconds: int) -> None:
                         allow_error=True,
                     )
     except Exception as exc:
-        if _is_reachability_failure(exc):
+        if is_reachability_failure(exc):
             pytest.skip(f"Local MCP server is not reachable at {mcp_url}: {exc}")
         raise
 
