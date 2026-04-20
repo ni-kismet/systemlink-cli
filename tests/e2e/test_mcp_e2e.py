@@ -13,7 +13,7 @@ Environment variables:
 import asyncio
 import json
 import os
-from typing import Any, Dict, List, Optional, Tuple
+from typing import Any, Dict, Iterator, List, Optional, Tuple
 
 import httpx
 import pytest
@@ -159,25 +159,68 @@ def _comment_target(state: Dict[str, Any]) -> Tuple[str, str]:
     return "workitem:workitem", MISSING_RESOURCE_SENTINEL
 
 
+def _iter_exceptions(exc: BaseException) -> Iterator[BaseException]:
+    """Yield an exception plus any nested causes, contexts, or exception-group members."""
+    stack: List[BaseException] = [exc]
+    seen: set[int] = set()
+
+    while stack:
+        current = stack.pop()
+        marker = id(current)
+        if marker in seen:
+            continue
+        seen.add(marker)
+        yield current
+
+        cause = getattr(current, "__cause__", None)
+        if isinstance(cause, BaseException):
+            stack.append(cause)
+
+        context = getattr(current, "__context__", None)
+        if isinstance(context, BaseException):
+            stack.append(context)
+
+        if isinstance(current, BaseExceptionGroup):
+            stack.extend(current.exceptions)
+
+
 def _is_reachability_failure(exc: Exception) -> bool:
     """Return True when an exception indicates the local MCP server is unreachable."""
-    if isinstance(exc, (OSError, TimeoutError)):
-        return True
+    for candidate in _iter_exceptions(exc):
+        if isinstance(candidate, (OSError, TimeoutError)):
+            return True
 
-    message = str(exc).lower()
-    return any(
-        token in message
-        for token in (
-            "connection refused",
-            "connect error",
-            "all connection attempts failed",
-            "timed out",
-            "timeout",
-            "name or service not known",
-            "nodename nor servname provided",
-            "server disconnected",
-        )
-    )
+        message = str(candidate).lower()
+        if any(
+            token in message
+            for token in (
+                "connection refused",
+                "connect error",
+                "all connection attempts failed",
+                "timed out",
+                "timeout",
+                "name or service not known",
+                "nodename nor servname provided",
+                "server disconnected",
+            )
+        ):
+            return True
+
+    return False
+
+
+def test_is_reachability_failure_detects_nested_exception_group() -> None:
+    """Nested connection failures should still be treated as an unreachable local server."""
+    exc = ExceptionGroup("task group failure", [OSError("Connection refused")])
+
+    assert _is_reachability_failure(exc) is True
+
+
+def test_is_reachability_failure_rejects_unrelated_exception_group() -> None:
+    """Unrelated exception groups should not be mistaken for local reachability failures."""
+    exc = ExceptionGroup("task group failure", [RuntimeError("boom")])
+
+    assert _is_reachability_failure(exc) is False
 
 
 async def _call_tool(
