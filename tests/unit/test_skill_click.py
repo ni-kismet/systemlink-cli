@@ -37,22 +37,25 @@ def runner() -> CliRunner:
 @pytest.fixture()
 def fake_skills_dir(tmp_path: Path) -> Path:
     """Return a temp skills/ directory containing minimal bundled skills."""
-    skill_dir = tmp_path / "skills" / "slcli"
-    skill_dir.mkdir(parents=True)
-    (skill_dir / "SKILL.md").write_text("---\nname: slcli\ndescription: test\n---\nContent\n")
-    refs = skill_dir / "references"
+    skill_names = [
+        "slcli",
+        "systemlink-webapp",
+        "systemlink-notebook",
+        "systemlink-python-test",
+        "systemlink-job-debugging",
+        "nipkg-file-package",
+    ]
+
+    for skill_name in skill_names:
+        skill_dir = tmp_path / "skills" / skill_name
+        skill_dir.mkdir(parents=True)
+        (skill_dir / "SKILL.md").write_text(
+            f"---\nname: {skill_name}\ndescription: test\n---\nContent\n"
+        )
+
+    refs = tmp_path / "skills" / "slcli" / "references"
     refs.mkdir()
     (refs / "filtering.md").write_text("# Filtering\n")
-    webapp_dir = tmp_path / "skills" / "systemlink-webapp"
-    webapp_dir.mkdir(parents=True)
-    (webapp_dir / "SKILL.md").write_text(
-        "---\nname: systemlink-webapp\ndescription: test\n---\nContent\n"
-    )
-    notebook_dir = tmp_path / "skills" / "systemlink-notebook"
-    notebook_dir.mkdir(parents=True)
-    (notebook_dir / "SKILL.md").write_text(
-        "---\nname: systemlink-notebook\ndescription: test\n---\nContent\n"
-    )
     return tmp_path / "skills"
 
 
@@ -349,9 +352,35 @@ def test_install_all_skills(runner: CliRunner, fake_skills_dir: Path, tmp_path: 
         )
     assert result.exit_code == 0
     assert result.output.count("\u2713 Installed") == len(SKILL_CHOICES)
-    assert (dest_parent / "slcli" / "SKILL.md").exists()
-    assert (dest_parent / "systemlink-webapp" / "SKILL.md").exists()
-    assert (dest_parent / "systemlink-notebook" / "SKILL.md").exists()
+    for skill_name in SKILL_CHOICES:
+        assert (dest_parent / skill_name / "SKILL.md").exists()
+
+
+def test_install_python_test_skill_personal(
+    runner: CliRunner, fake_skills_dir: Path, tmp_path: Path
+) -> None:
+    """--skill systemlink-python-test installs the python test skill."""
+    dest_parent = tmp_path / "dest"
+    cli = make_cli()
+    with patch("slcli.skill_click._find_bundled_skills_dir", return_value=fake_skills_dir), patch(
+        "slcli.skill_click._resolve_destinations", return_value=[dest_parent]
+    ):
+        result = runner.invoke(
+            cli,
+            [
+                "skill",
+                "install",
+                "--skill",
+                "systemlink-python-test",
+                "--client",
+                "agents",
+                "--scope",
+                "personal",
+            ],
+        )
+    assert result.exit_code == 0
+    assert "\u2713 Installed systemlink-python-test skill" in result.output
+    assert (dest_parent / "systemlink-python-test" / "SKILL.md").exists()
 
 
 def test_install_notebook_skill_personal(
