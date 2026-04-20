@@ -64,6 +64,8 @@ Follow these phases in order when creating a new test application.
 The configuration module handles three credential modes:
 
 ```python
+import os
+
 from nisystemlink.clients.core import HttpConfiguration
 
 def get_configuration(
@@ -174,9 +176,6 @@ Build the test runner that creates results and steps.
    - `CLOSED` requires a separate APPROVE action from a reviewer
    - Transitioning directly to `CLOSED` in code bypasses the approval gate
    - Use `UpdateWorkItemRequest(id=work_item_id, state="PENDING_APPROVAL")`
-   - `CLOSED` requires a separate APPROVE action from a reviewer
-   - Transitioning directly to `CLOSED` in code bypasses the approval gate
-   - Use `UpdateWorkItemRequest(id=work_item_id, state="PENDING_APPROVAL")`
 
 ### Phase 3a: Step Creation
 
@@ -270,20 +269,6 @@ This is a silent packaging defect; the test runs locally but fails when deployed
 a managed system with a different locale. Always specify `encoding="utf-8"` for every
 file write.
 
-**CRITICAL — always open log files with `encoding="utf-8"`:**
-
-```python
-with open(log_path, "w", encoding="utf-8") as f:
-    f.write(log_content)
-```
-
-Windows defaults to the system code page (e.g. cp1252). Any measurement unit that
-uses a non-ASCII character — such as Ω (ohm), µ (micro), ° (degree) — will raise
-`UnicodeEncodeError` at runtime if the file is opened without an explicit encoding.
-This is a silent packaging defect; the test runs locally but fails when deployed to
-a managed system with a different locale. Always specify `encoding="utf-8"` for every
-file write.
-
 ### Phase 4: Result and Step Schema
 
 **Required result fields (CreateResultRequest):**
@@ -361,7 +346,7 @@ from nisystemlink.clients.file import FileClient
 
 Package the test application as a `.nipkg` file package for distribution through
 SystemLink feeds. Refer to the **nipkg-file-package** skill
-(`{{SKILLS_DIR}}/nipkg-file-package/SKILL.md`) for:
+(`../nipkg-file-package/SKILL.md`) for:
 
 - Required package layout (`debian-binary`, `control/`, `data/`)
 - Valid Windows target root names (use `ProgramFiles`, not `Program Files`)
@@ -443,7 +428,7 @@ item is started, rather than requiring a manual run:
           "functions": ["cmd.run"],
           "arguments": [
             [
-              "set PYTHONUTF8=0 && \"C:\\Program Files\\NI\\<package-name>\\venv\\Scripts\\python.exe\" -X utf8 \"C:\\Program Files\\NI\\<package-name>\\main.py\" --work-item-id <id>",
+              "\"C:\\Program Files\\NI\\<package-name>\\venv\\Scripts\\python.exe\" -X utf8 \"C:\\Program Files\\NI\\<package-name>\\main.py\" --work-item-id <id>",
               { "__kwarg__": true, "shell": "cmd" }
             ]
           ],
@@ -523,9 +508,6 @@ Retry transient HTTP errors (429, 500, 502, 503) with exponential backoff, up to
 8. **Work item template uses `partNumbers` array** — not `partNumberFilter` string
 9. **Continue after step failure** — do not abort on first failed step
 10. **Three execution modes** — interactive (prompt), automated (headless), developer (explicit creds)
-11. **Always `encoding="utf-8"` on log file writes** — Windows code page (cp1252) cannot encode unit symbols like Ω, µ, °; omitting `encoding=` is a latent bug that surfaces only on deployed systems
-12. **Work item terminal state is `PENDING_APPROVAL`, not `CLOSED`** — the test code must NOT transition to `CLOSED`; that step belongs to a human reviewer via the APPROVE action in the workflow
-13. **Use `-X utf8` when invoking Python remotely via Salt `cmd.run`** — Salt's environment does not inherit the managed system's UTF-8 locale settings; pass `python.exe -X utf8 main.py` in the execution action job command
 11. **Always `encoding="utf-8"` on log file writes** — Windows code page (cp1252) cannot encode unit symbols like Ω, µ, °; omitting `encoding=` is a latent bug that surfaces only on deployed systems
 12. **Work item terminal state is `PENDING_APPROVAL`, not `CLOSED`** — the test code must NOT transition to `CLOSED`; that step belongs to a human reviewer via the APPROVE action in the workflow
 13. **Use `-X utf8` when invoking Python remotely via Salt `cmd.run`** — Salt's environment does not inherit the managed system's UTF-8 locale settings; pass `python.exe -X utf8 main.py` in the execution action job command
