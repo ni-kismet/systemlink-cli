@@ -70,6 +70,24 @@ def test_server_tool_names() -> None:
     assert names == expected
 
 
+def test_is_reachability_failure_detects_nested_exception_group() -> None:
+    """Nested connection failures should still be treated as unreachable local MCP servers."""
+    from slcli.mcp_reachability import is_reachability_failure
+
+    exc = ExceptionGroup("task group failure", [OSError("Connection refused")])
+
+    assert is_reachability_failure(exc) is True
+
+
+def test_is_reachability_failure_rejects_unrelated_exception_group() -> None:
+    """Unrelated exception groups should not be mistaken for local reachability failures."""
+    from slcli.mcp_reachability import is_reachability_failure
+
+    exc = ExceptionGroup("task group failure", [RuntimeError("boom")])
+
+    assert is_reachability_failure(exc) is False
+
+
 def test_query_workspaces_filters_client_side(monkeypatch: Any) -> None:
     """query_workspaces filters the fetched workspace list by name and enabled state."""
     from slcli.mcp_server import query_workspaces

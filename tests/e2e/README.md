@@ -323,9 +323,12 @@ The framework uses pytest markers to categorize tests:
 
 ## Local Development Integration
 
-### Manual Testing Only
+### Local-First, CI-Optional
 
-The E2E testing framework is designed for local development and manual testing. Tests are run locally against development SystemLink environments to validate CLI functionality before releases.
+The E2E testing framework is designed first for local development and manual debugging
+against real SystemLink environments. Selected E2E slices can also run in CI when
+dedicated SLS/SLE test environments, credentials, and stable seed data are available.
+If those CI prerequisites are not configured, the GitHub Actions E2E jobs are skipped.
 
 ### Environment Setup
 
