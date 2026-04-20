@@ -602,14 +602,14 @@ test-randomorder = ["pytest-randomly"]
 
 [[package]]
 name = "cyclonedx-bom"
-version = "7.2.2"
+version = "7.3.0"
 description = "CycloneDX Software Bill of Materials (SBOM) generator for Python projects and environments"
 optional = false
 python-versions = "<4.0,>=3.9"
 groups = ["dev"]
 files = [
-    {file = "cyclonedx_bom-7.2.2-py3-none-any.whl", hash = "sha256:c3cfb62762090c73dbc6937a6da8847de99e949097bc32362a33c55a3a6e5589"},
-    {file = "cyclonedx_bom-7.2.2.tar.gz", hash = "sha256:dc7b994d41a83dc24caa511462dbf9fa6ede51b962f42533a58d0a8261d98e56"},
+    {file = "cyclonedx_bom-7.3.0-py3-none-any.whl", hash = "sha256:73d7d76b3a28ebadc50eabf424cbcf128785a74b8a59ce7893da2e29cfaab585"},
+    {file = "cyclonedx_bom-7.3.0.tar.gz", hash = "sha256:d54080d65731980945de38e52009a5e5711f4a3c31377a3d13af96eaca5fcf3d"},
 ]
 
 [package.dependencies]
