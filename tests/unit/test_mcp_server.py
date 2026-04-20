@@ -88,6 +88,33 @@ def test_is_reachability_failure_rejects_unrelated_exception_group() -> None:
     assert is_reachability_failure(exc) is False
 
 
+def test_is_reachability_failure_detects_nested_cause_in_exception_group() -> None:
+    """Nested causes inside exception-group members should still be classified as unreachable."""
+    from slcli.mcp_reachability import is_reachability_failure
+
+    try:
+        raise RuntimeError("wrapper") from OSError("Connection refused")
+    except RuntimeError as exc:
+        grouped = ExceptionGroup("task group failure", [exc])
+
+    assert is_reachability_failure(grouped) is True
+
+
+def test_is_reachability_failure_detects_nested_context_in_exception_group() -> None:
+    """Nested contexts inside exception-group members should still be classified as unreachable."""
+    from slcli.mcp_reachability import is_reachability_failure
+
+    try:
+        raise TimeoutError("timed out")
+    except TimeoutError:
+        try:
+            raise RuntimeError("wrapper")
+        except RuntimeError as exc:
+            grouped = ExceptionGroup("task group failure", [exc])
+
+    assert is_reachability_failure(grouped) is True
+
+
 def test_query_workspaces_filters_client_side(monkeypatch: Any) -> None:
     """query_workspaces filters the fetched workspace list by name and enabled state."""
     from slcli.mcp_server import query_workspaces

@@ -13,7 +13,7 @@ Environment variables:
 import asyncio
 import json
 import os
-from typing import Any, Dict, Iterator, List, Optional, Tuple
+from typing import Any, Dict, List, Optional, Tuple
 
 import httpx
 import pytest
