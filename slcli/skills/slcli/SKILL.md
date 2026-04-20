@@ -4,18 +4,20 @@ description: >-
   Query and manage NI SystemLink resources using the slcli command-line interface.
   Covers test results, assets, systems, tags, feeds, files, notebooks,
   routines, work items, work item templates, workflows, test plan templates,
-  specifications, products, and spec-sheet ingestion workflows,
+  specifications, products, datasheet-to-specification ingestion (PDF and CSV),
   custom fields, web applications, authorization policies, users, workspaces, and more.
   Use when the user asks about test data analysis, asset management, calibration status,
   system fleet health, operator performance, failure analysis, production metrics,
-  equipment utilization, work order tracking, specification management, or any SystemLink resource operations.
+  equipment utilization, work order tracking, specification management,
+  importing datasheets, creating products from spec sheets,
+  or any SystemLink resource operations.
   Supports filtering, aggregation, summary statistics, and JSON output for programmatic processing.
 compatibility: >-
   Requires slcli installed and authenticated (slcli login). Python 3.10+.
   Requires network access to a SystemLink server instance.
 metadata:
   author: ni-kismet
-  version: "1.1"
+  version: "1.2"
 ---
 
 # SystemLink CLI (slcli)
@@ -57,40 +59,198 @@ All list and get commands support `-f, --format` with `table` (default) or `json
 
 Always use `-f json` when you need to process, filter, or aggregate output programmatically.
 
-## Specification ingestion workflow
+## Datasheet-to-specifications workflow
 
-Use this skill when the user wants to take a datasheet, CSV, or PDF from a design team and turn it into SystemLink specifications for an existing product.
+Use this workflow when the user wants to create a product and upload specifications
+from a datasheet (PDF, CSV, or structured text). This covers the full path from
+raw document to live SystemLink specs.
 
-Follow this workflow:
+### Step 1 — Clarify product identity and workspace
 
-1. Resolve the target product first.
+Before touching any data, ask the user:
 
-- Use `slcli testmonitor product list --name "<name>" -f json` when the user gives a product name.
-- If multiple products match, stop and ask the user to disambiguate.
-- Fetch the exact product with `slcli testmonitor product get <product-id> -f json` before creating or importing specs.
+1. **Product name and part number.** Extract a candidate from the datasheet title
+   page (e.g. "TPA3139D2 10-W Stereo … Class D Amplifier"). Propose a short
+   friendly name like "TPA3139D2 Stereo Audio Amplifier" and the raw part number
+   (e.g. "TPA3139D2") and **ask the user to confirm or adjust both values**.
+2. **Product family.** Suggest a family based on the datasheet application domain
+   (e.g. "Audio", "Power", "Sensor", "Semiconductor") but **always ask the user
+   to confirm** — do not silently infer the family.
+3. **Existing product check.** Search by name _and_ part number:
+   ```bash
+   slcli testmonitor product list --name "<candidate>" -f json
+   slcli testmonitor product list --part-number "<part>" -f json
+   ```
+   If a match exists, tell the user the product name, part number, workspace, and
+   ask whether to add specs to it or create a new product (possibly in a different
+   workspace).
+4. **Workspace.** Default to the user's profile workspace. If an existing product
+   was found, show which workspace it lives in and ask the user to confirm or
+   specify a different one by name. Never silently pick a workspace.
 
-2. Default specification workspace to the product workspace.
+### Step 2 — Create the product (if needed)
 
-- If the user does not explicitly specify a workspace, use the product's `workspace` value.
-- Do not invent or silently change workspace values.
+```bash
+slcli testmonitor product create \
+  --part-number "<PART>" \
+  --name "<FRIENDLY_NAME>" \
+  --family "<FAMILY>" \
+  --workspace "<WORKSPACE_NAME>" \
+  --keyword "<kw1>" --keyword "<kw2>" \
+  --property "manufacturer=<MFG>" \
+  --property "package=<PKG>" \
+  -f json
+```
 
-3. Choose the ingestion path based on file type.
+Populate product fields from the datasheet:
 
-- CSV: inspect headers and rows, map them into a create-compatible JSON payload, and prefer `slcli spec import --file ...` for multi-row uploads.
-- PDF: extract tables or text first, normalize them into structured JSON, then import. If the PDF is image-based or extraction is ambiguous, tell the user and ask for a CSV or reviewed intermediate file instead of guessing.
+| Product field | Where to find it on a datasheet                                 |
+| ------------- | --------------------------------------------------------------- |
+| `partNumber`  | Title, "Device Information" table, or orderable addendum        |
+| `name`        | Short form of the title (part number + concise description)     |
+| `family`      | Application domain (Audio, Power, Sensor, etc.)                 |
+| `keywords`    | From "Applications" or "Features" sections                      |
+| `properties`  | manufacturer, package type, body size from "Device Information" |
 
-4. Validate before upload.
+### Step 3 — Extract specification data
 
-- Every spec needs at least `productId`, `specId`, and `type`.
-- Preserve limits, conditions, unit, keywords, and properties when present.
-- Never fabricate condition values, numeric limits, or missing spec identifiers.
+#### PDF datasheets
 
-5. Prefer bulk import for agent-driven uploads.
+1. Install a PDF extraction library if needed (e.g. `pip install pymupdf`).
+2. Extract text from pages containing specification tables. Search for keywords:
+   "Absolute Maximum", "Recommended Operating", "Electrical Characteristics",
+   "Switching Characteristics", "Thermal Information".
+3. Write extracted text to `build/ai/<partnum>-specs-raw.txt` for review.
 
-- Use `slcli spec import --file ...` for many specs.
-- Use `slcli spec create ...` only for one-off or interactive entry.
+**Ask the user which sections to import.** Typical sections in semiconductor datasheets:
 
-Use `docs/examples/specifications/import-specs.json` as the canonical create-compatible payload shape.
+| Section                          | What it contains                       | Default include? |
+| -------------------------------- | -------------------------------------- | ---------------- |
+| Absolute Maximum Ratings         | Destructive limits — never exceed      | Yes              |
+| Recommended Operating Conditions | Safe operating ranges                  | Yes              |
+| Thermal Information              | Thermal resistances (RθJA, etc.)       | Yes              |
+| Electrical Characteristics       | Performance specs with test conditions | Yes              |
+| Switching Characteristics        | Timing, frequencies                    | Yes              |
+
+#### CSV files
+
+Inspect headers and rows. Common column mappings:
+
+| CSV column            | Spec field         |
+| --------------------- | ------------------ |
+| Spec Name / Parameter | `name`             |
+| Nominal Value         | `limit.typical`    |
+| Lower Limit / Min     | `limit.min`        |
+| Upper Limit / Max     | `limit.max`        |
+| Units                 | `unit`             |
+| Category              | `category`         |
+| Notes                 | `properties.notes` |
+
+If a cell contains a range like "-0.5 to +0.5", parse it into `min` and `max`.
+
+### Step 4 — Map datasheet rows to spec JSON
+
+#### Spec ID conventions
+
+Generate a short, unique `specId` from the datasheet symbol or parameter name:
+
+- Use the datasheet symbol when available (e.g. `VCC`, `PO`, `ICC`).
+- Prefix with a category abbreviation for disambiguation:
+  `AMR-` (Absolute Max), `ROC-` (Recommended Operating), `TH-` (Thermal),
+  `EC-` (Electrical Characteristics), `SW-` (Switching).
+- Append a disambiguator when the same parameter appears under different
+  conditions (e.g. `EC-PO-BTL-10-74` for output power BTL at 10% THD, 7.4V).
+- Keep specIds short but human-readable. Never fabricate numeric values.
+
+#### Limit mapping
+
+| Datasheet column | Spec field      |
+| ---------------- | --------------- |
+| MIN              | `limit.min`     |
+| TYP / NOM        | `limit.typical` |
+| MAX              | `limit.max`     |
+
+Only include limit fields that have actual values. Do not set missing limits to 0.
+
+#### Conditions
+
+**Ask the user** whether to include test conditions. Many electrical specs have
+conditions like "PVCC = 12 V, RL = 8 Ω, f = 1 kHz, 1SPW mode". When conditions
+are requested:
+
+- Use `conditionType: "NUMERIC"` for measurable quantities with units.
+- Use `conditionType: "STRING"` for modes, configurations, pin states.
+- Group related conditions on the same spec entry.
+- When a parameter row has multiple test condition variants (e.g. output power
+  at different voltages/loads), create a **separate spec entry per variant** with
+  the conditions and a unique specId suffix.
+
+Example condition mapping:
+
+```json
+{
+  "name": "PVCC",
+  "value": { "conditionType": "NUMERIC", "discrete": [12], "unit": "V" }
+}
+```
+
+```json
+{
+  "name": "Mode",
+  "value": { "conditionType": "STRING", "discrete": ["1SPW"] }
+}
+```
+
+#### Keywords and properties
+
+- Set `keywords` to `["datasheet", "<part-number-lowercase>"]` by default.
+- Set `properties.source` to the input filename.
+- Set `properties.notes` to any footnotes or clarifications from the datasheet.
+- Set `properties.manufacturer` on the product, not on each spec.
+
+### Step 5 — Build and import the JSON payload
+
+Write the import payload to `build/ai/<partnum>-specs.json`:
+
+```python
+import json
+
+specs = []
+# ... build spec dicts ...
+with open('build/ai/<partnum>-specs.json', 'w', encoding='utf-8') as f:
+    json.dump({'specs': specs}, f, indent=2)
+    f.write('\n')
+```
+
+Every spec must have at least: `productId`, `specId`, `type` (almost always `"PARAMETRIC"`).
+
+Validate before import:
+
+- No duplicate specIds.
+- All numeric limit values are actual numbers (not strings).
+- All condition values match their `conditionType`.
+- The `productId` matches the product created in Step 2.
+
+Import with:
+
+```bash
+slcli spec import --file build/ai/<partnum>-specs.json
+```
+
+Use `slcli spec create ...` only for one-off interactive entry.
+
+### Step 6 — Verify
+
+```bash
+slcli spec list --product <PART_NUMBER_OR_NAME> --take 100
+```
+
+The `--product` option accepts a product name, part number, or ID.
+
+### Reference payload shape
+
+Use `docs/examples/specifications/import-specs.json` as the canonical
+create-compatible payload template.
 
 ## Commands
 

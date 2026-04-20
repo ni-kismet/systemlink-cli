@@ -612,6 +612,10 @@ def test_list_specifications_table_output(monkeypatch: Any, runner: CliRunner) -
 
     monkeypatch.setattr("requests.post", mock_post)
     monkeypatch.setattr("slcli.spec_click.get_workspace_map", lambda: {"ws-1": "Production"})
+    monkeypatch.setattr(
+        "slcli.spec_click._build_product_name_map",
+        lambda ids: {pid: "Test Product" for pid in ids},
+    )
 
     cli = make_cli()
     result = runner.invoke(
@@ -631,6 +635,7 @@ def test_list_specifications_table_output(monkeypatch: Any, runner: CliRunner) -
     assert result.exit_code == 0
     assert "VSAT01" in result.output
     assert "Saturation voltage" in result.output
+    assert "Test Product" in result.output
 
 
 def test_list_specifications_invalid_take(monkeypatch: Any, runner: CliRunner) -> None:

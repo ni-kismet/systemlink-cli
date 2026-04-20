@@ -943,11 +943,33 @@ def _collect_specs(
     return collected_specs[:take]
 
 
+def _get_product_name(product_id: str) -> str:
+    """Fetch the display name for a single product ID."""
+    try:
+        resp = make_api_request("GET", f"{_get_testmonitor_base_url()}/products/{product_id}")
+        resp.raise_for_status()
+        data = resp.json()
+        return str(data.get("name") or data.get("partNumber") or product_id)
+    except Exception:
+        return product_id
+
+
+def _build_product_name_map(product_ids: List[str]) -> Dict[str, str]:
+    """Build a mapping of product IDs to display names."""
+    name_map: Dict[str, str] = {}
+    for pid in set(product_ids):
+        if pid and pid not in name_map:
+            name_map[pid] = _get_product_name(pid)
+    return name_map
+
+
 def _spec_formatter(specification: Dict[str, Any]) -> List[str]:
     """Format a specification row for table output."""
     workspace_map = _spec_formatter.workspace_map  # type: ignore[attr-defined]
+    product_map = _spec_formatter.product_map  # type: ignore[attr-defined]
+    product_id = str(specification.get("productId", ""))
     return [
-        str(specification.get("productId", "")),
+        product_map.get(product_id, product_id),
         str(specification.get("specId", "")),
         str(specification.get("name", "")),
         str(specification.get("type", "")),
@@ -1205,6 +1227,7 @@ def register_spec_commands(cli: Any) -> None:
             )
 
             _spec_formatter.workspace_map = get_workspace_map()  # type: ignore[attr-defined]
+            _spec_formatter.product_map = _build_product_name_map(resolved_product_ids)  # type: ignore[attr-defined]
             filtered_resp: Any = FilteredResponse({"specs": specs})
             UniversalResponseHandler.handle_list_response(
                 resp=filtered_resp,
@@ -1340,6 +1363,7 @@ def register_spec_commands(cli: Any) -> None:
                 return
 
             _spec_formatter.workspace_map = get_workspace_map()  # type: ignore[attr-defined]
+            _spec_formatter.product_map = _build_product_name_map(resolved_product_ids)  # type: ignore[attr-defined]
             filtered_resp: Any = FilteredResponse({"specs": specs})
             UniversalResponseHandler.handle_list_response(
                 resp=filtered_resp,
