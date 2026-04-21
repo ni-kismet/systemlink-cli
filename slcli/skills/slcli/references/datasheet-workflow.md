@@ -43,6 +43,12 @@ Before touching any data, ask the user:
    their product. Best for production test workflows where test results are
    filed per specific part number.
 
+   **Option C — Single variant only.** Create one product for a specific
+   variant the user selects (e.g. just "Si8233"). Import only the specs that
+   apply to that variant (shared specs + that variant's specific specs).
+   Variant-specific specs for other devices are skipped entirely. Best when
+   the user only cares about one part number from a multi-variant datasheet.
+
    Default to Option A unless the user requests otherwise.
 
 ## Step 2 — Create the product (if needed)
