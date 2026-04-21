@@ -801,6 +801,29 @@ def test_resolve_product_id_by_uuid(monkeypatch: Any) -> None:
     assert result == "c81ab7f0-0f90-4b2f-be2c-5cb2c65cc105"
 
 
+def test_resolve_product_id_uuid_404_falls_back(monkeypatch: Any) -> None:
+    """Test that a UUID-shaped identifier falls back to name search on 404."""
+    patch_keyring(monkeypatch)
+    fake_uuid = "aaaaaaaa-bbbb-cccc-dddd-eeeeeeeeeeee"
+
+    def mock_get(*a: Any, **kw: Any) -> Any:
+        return MockResponse({"error": "Not found"}, status_code=404)
+
+    def mock_post(*a: Any, **kw: Any) -> Any:
+        payload = kw.get("json", {})
+        if payload.get("filter") == "name == @0":
+            product = dict(SAMPLE_PRODUCT)
+            product["id"] = fake_uuid
+            return MockResponse({"products": [product]})
+        return MockResponse({"products": []})
+
+    monkeypatch.setattr("requests.get", mock_get)
+    monkeypatch.setattr("requests.post", mock_post)
+
+    result = _resolve_product_id(fake_uuid)
+    assert result == fake_uuid
+
+
 def test_resolve_product_id_by_name(monkeypatch: Any) -> None:
     """Test that a product name resolves via query-products."""
     patch_keyring(monkeypatch)

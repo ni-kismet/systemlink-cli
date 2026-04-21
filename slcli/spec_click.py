@@ -225,7 +225,9 @@ def _resolve_product_id(identifier: str) -> str:
     # 1. Direct ID lookup for UUID-shaped identifiers.
     if _UUID_RE.match(identifier):
         try:
-            resp = make_api_request("GET", f"{base}/products/{identifier}")
+            resp = make_api_request(
+                "GET", f"{base}/products/{identifier}", handle_errors=False
+            )
             resp.raise_for_status()
             return identifier
         except Exception:
