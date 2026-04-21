@@ -238,6 +238,24 @@ Generate a short, unique `specId` from the datasheet symbol or parameter name:
 
 Only include limit fields that have actual values. Do not set missing limits to 0.
 
+### Category and block
+
+- **`category`** — Set to the datasheet section name the spec was extracted from
+  (e.g. "Electrical Characteristics", "Absolute Maximum Ratings", "Switching
+  Characteristics"). This groups specs by their source section.
+- **`block`** — Set to the functional subsystem or circuit block of the product
+  that the spec belongs to. For simple single-function devices (e.g. a gate
+  driver, voltage regulator, or passive component), leave `block` empty or omit
+  it — there is only one logical block. For complex multi-function products
+  (e.g. a USB hub with power delivery, an SoC with RF + baseband, or a mixed-
+  signal IC with ADC + DAC sections), set `block` to the relevant subsystem
+  name (e.g. `"USB"`, `"Power"`, `"RF Front End"`, `"ADC"`, `"DAC"`).
+
+  Use the same block name consistently across all specs belonging to that
+  subsystem. Choose short, descriptive names that match how the datasheet
+  organizes its sections or how the product's functional blocks are described
+  in the block diagram.
+
 > **Limits as acceptance criteria.** The min/max values in a spec define the
 > pass/fail boundaries for automated test results. When a test measurement is
 > compared against these limits, it must fall within the range to pass.
