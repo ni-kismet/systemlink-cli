@@ -971,7 +971,9 @@ def _fetch_spec_page(
     limit_max_ge: Optional[float] = None,
     limit_max_le: Optional[float] = None,
 ) -> Tuple[List[Dict[str, Any]], Optional[str]]:
-    """Fetch one visual page of specs, accumulating across server pages if client-side filters reduce results.
+    """Fetch one visual page of specs, accumulating across server pages.
+
+    Accumulates across server pages if client-side filters reduce results.
 
     Returns:
         Tuple of (page_items up to *take*, next continuation_token or None).
