@@ -231,7 +231,10 @@ apply only to specific variants need a `"Device"` condition:
 ```json
 {
   "name": "Device",
-  "value": { "conditionType": "STRING", "discrete": ["Si8233", "Si8234", "Si8235", "Si8238"] }
+  "value": {
+    "conditionType": "STRING",
+    "discrete": ["Si8233", "Si8234", "Si8235", "Si8238"]
+  }
 }
 ```
 
