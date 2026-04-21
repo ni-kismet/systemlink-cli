@@ -27,6 +27,23 @@ Before touching any data, ask the user:
 4. **Workspace.** Default to the user's profile workspace. If an existing product
    was found, show which workspace it lives in and ask the user to confirm or
    specify a different one by name. Never silently pick a workspace.
+5. **Multi-variant detection.** Many datasheets cover multiple part numbers
+   (e.g. Si8230/1/2/3/4/5/7/8, SN54HC595/SN74HC595). Check the title page,
+   ordering guide, or device overview table for multiple variants. If found,
+   ask the user which approach to use:
+
+   **Option A — Single product (default).** Create one product using the
+   family part number (e.g. "Si823x"). Shared specs have no device condition.
+   Variant-specific specs get a STRING condition `"Device"` listing the
+   applicable variants. Best for cataloging/reference.
+
+   **Option B — One product per variant.** Create a separate product for each
+   variant (Si8230, Si8231, ...) with the same `family`. Shared specs are
+   duplicated across all products. Variant-specific specs appear only on
+   their product. Best for production test workflows where test results are
+   filed per specific part number.
+
+   Default to Option A unless the user requests otherwise.
 
 ## Step 2 — Create the product (if needed)
 
@@ -205,6 +222,24 @@ are requested:
 - When a parameter row has multiple test condition variants (e.g. output power
   at different voltages/loads), create a **separate spec entry per variant** with
   the conditions and a unique specId suffix.
+
+#### Device variant conditions (multi-variant datasheets)
+
+When using Option A (single product) for a multi-variant datasheet, specs that
+apply only to specific variants need a `"Device"` condition:
+
+```json
+{
+  "name": "Device",
+  "value": { "conditionType": "STRING", "discrete": ["Si8233", "Si8234", "Si8235", "Si8238"] }
+}
+```
+
+Specs that apply to **all** variants should omit the Device condition entirely.
+Do not add `"Device": ["all"]` or list every variant — absence means universal.
+
+When the datasheet writes a shorthand like "Si8230/1/2/7", expand it to the
+full part numbers in the discrete list: `["Si8230", "Si8231", "Si8232", "Si8237"]`.
 
 #### Table-header (default) conditions
 
