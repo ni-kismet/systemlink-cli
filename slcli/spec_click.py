@@ -225,11 +225,15 @@ def _resolve_product_id(identifier: str) -> str:
     # 1. Direct ID lookup for UUID-shaped identifiers.
     if _UUID_RE.match(identifier):
         try:
-            resp = make_api_request("GET", f"{base}/products/{identifier}")
+            resp = make_api_request("GET", f"{base}/products/{identifier}", handle_errors=False)
             resp.raise_for_status()
             return identifier
-        except Exception:
-            pass  # Fall through to name/partNumber search.
+        except Exception as exc:
+            response = getattr(exc, "response", None)
+            status_code = getattr(response, "status_code", None)
+            if status_code != 404:
+                handle_api_error(exc)
+            # Fall through to name/partNumber search on a direct-lookup 404.
 
     # 2. Search by exact name.
     matches = _query_products_by_field(base, "name", identifier)
