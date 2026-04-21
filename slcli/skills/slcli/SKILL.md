@@ -385,11 +385,16 @@ revision), ask the user whether to keep both or replace the old one.
 > The file-upload endpoint rejects workspace names — resolve IDs first with
 > `slcli workspace list -f json`.
 
+> **Always include the file extension** (e.g. `.pdf`, `.csv`) in the `-n` name.
+> SystemLink derives the file type from the Name property. If the name contains
+> a `.` but no proper extension (e.g. `"Rev 2.15"`), the service will
+> misidentify the file type.
+
 ```bash
 # Upload the file (use workspace ID, not name)
 slcli file upload "<LOCAL_PATH>" \
   -w "<WORKSPACE_ID>" \
-  -n "<PART_NUMBER> Datasheet (<DOC_ID>)"
+  -n "<PART_NUMBER> Datasheet (<DOC_ID>).pdf"
 ```
 
 Capture the file ID from the upload output, then attach it to the product
