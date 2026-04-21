@@ -3,7 +3,7 @@
 import json
 import re
 import sys
-from typing import Any, Callable, Dict, List, Optional, Tuple
+from typing import Any, Dict, List, Optional, Tuple
 
 import click
 import questionary
@@ -63,131 +63,6 @@ LIMIT_PROJECTION_FIELDS = ["LIMIT"]
 
 _SPEC_LIST_HEADERS = ["PRODUCT", "SPEC ID", "NAME", "TYPE", "LIMIT", "CONDITIONS", "WORKSPACE"]
 _SPEC_LIST_WIDTHS = [18, 18, 28, 12, 24, 22, 20]
-
-
-# ---------------------------------------------------------------------------
-# Shared option decorators
-# ---------------------------------------------------------------------------
-
-
-def _server_filter_options(func: Callable[..., Any]) -> Callable[..., Any]:
-    """Shared server-side filter options for list, query, and export."""
-    options = [
-        click.option(
-            "--product",
-            "product_ids",
-            multiple=True,
-            required=True,
-            help="Product name, part number, or ID. Repeat for multiple products.",
-        ),
-        click.option("--spec-id", help="Filter by exact specification ID"),
-        click.option("--name", help="Filter by specification name (contains match)"),
-        click.option("--category", help="Filter by category (contains match)"),
-        click.option(
-            "--type",
-            "spec_type",
-            type=click.Choice(SPEC_TYPES, case_sensitive=False),
-            help="Filter by specification type",
-        ),
-        click.option("--block", help="Filter by block name (contains match)"),
-        click.option("--symbol", help="Filter by symbol (contains match)"),
-        click.option("--unit", help="Filter by unit (contains match)"),
-        click.option(
-            "-w",
-            "--workspace",
-            "workspace_filter",
-            help="Filter by workspace name or ID. Use 'all' to disable the profile default.",
-        ),
-        click.option("--created-by", help="Filter by creator user ID"),
-        click.option("--updated-by", help="Filter by updater user ID"),
-        click.option("--filter", "custom_filter", help="Advanced Dynamic Linq filter"),
-    ]
-    for option in reversed(options):
-        func = option(func)
-    return func
-
-
-def _client_filter_options(func: Callable[..., Any]) -> Callable[..., Any]:
-    """Shared client-side condition/limit filter options."""
-    options = [
-        click.option(
-            "--condition-name",
-            help="Filter by condition name (contains match)",
-        ),
-        click.option(
-            "--condition-type",
-            type=click.Choice(CONDITION_TYPES, case_sensitive=False),
-            help="Filter by condition type",
-        ),
-        click.option(
-            "--condition-unit",
-            help="Filter by condition unit (contains match)",
-        ),
-        click.option(
-            "--condition-value",
-            help="Filter by discrete or range condition values",
-        ),
-        click.option("--limit-min-ge", type=float, help="Filter: limit.min >= value"),
-        click.option("--limit-min-le", type=float, help="Filter: limit.min <= value"),
-        click.option(
-            "--limit-typical-ge",
-            type=float,
-            help="Filter: limit.typical >= value",
-        ),
-        click.option(
-            "--limit-typical-le",
-            type=float,
-            help="Filter: limit.typical <= value",
-        ),
-        click.option("--limit-max-ge", type=float, help="Filter: limit.max >= value"),
-        click.option("--limit-max-le", type=float, help="Filter: limit.max <= value"),
-    ]
-    for option in reversed(options):
-        func = option(func)
-    return func
-
-
-def _sort_options(func: Callable[..., Any]) -> Callable[..., Any]:
-    """Shared sorting options."""
-    options = [
-        click.option(
-            "--order-by",
-            type=click.Choice(SPEC_ORDER_BY_FIELDS, case_sensitive=False),
-            default="ID",
-            show_default=True,
-            help="Field to sort by",
-        ),
-        click.option("--descending", is_flag=True, help="Sort results in descending order"),
-    ]
-    for option in reversed(options):
-        func = option(func)
-    return func
-
-
-def _projection_options(func: Callable[..., Any]) -> Callable[..., Any]:
-    """Shared projection options for query and export."""
-    options = [
-        click.option(
-            "--projection",
-            "projection_fields",
-            multiple=True,
-            type=click.Choice(SPEC_PROJECTION_FIELDS, case_sensitive=False),
-            help="Field to include in the returned payload. Repeatable.",
-        ),
-        click.option(
-            "--include-limits",
-            is_flag=True,
-            help="Convenience projection: include the LIMIT field.",
-        ),
-        click.option(
-            "--include-conditions",
-            is_flag=True,
-            help="Convenience projection: include all condition-related fields.",
-        ),
-    ]
-    for option in reversed(options):
-        func = option(func)
-    return func
 
 
 # ---------------------------------------------------------------------------
@@ -1288,9 +1163,56 @@ def register_spec_commands(cli: Any) -> None:
     # -- list ---------------------------------------------------------------
 
     @spec.command(name="list")
-    @_server_filter_options
-    @_client_filter_options
-    @_sort_options
+    @click.option(
+        "--product",
+        "product_ids",
+        multiple=True,
+        required=True,
+        help="Product name, part number, or ID. Repeat for multiple products.",
+    )
+    @click.option("--spec-id", help="Filter by exact specification ID")
+    @click.option("--name", help="Filter by specification name (contains match)")
+    @click.option("--category", help="Filter by category (contains match)")
+    @click.option(
+        "--type",
+        "spec_type",
+        type=click.Choice(SPEC_TYPES, case_sensitive=False),
+        help="Filter by specification type",
+    )
+    @click.option("--block", help="Filter by block name (contains match)")
+    @click.option("--symbol", help="Filter by symbol (contains match)")
+    @click.option("--unit", help="Filter by unit (contains match)")
+    @click.option(
+        "-w",
+        "--workspace",
+        "workspace_filter",
+        help="Filter by workspace name or ID. Use 'all' to disable the profile default.",
+    )
+    @click.option("--created-by", help="Filter by creator user ID")
+    @click.option("--updated-by", help="Filter by updater user ID")
+    @click.option("--filter", "custom_filter", help="Advanced Dynamic Linq filter")
+    @click.option("--condition-name", help="Filter by condition name (contains match)")
+    @click.option(
+        "--condition-type",
+        type=click.Choice(CONDITION_TYPES, case_sensitive=False),
+        help="Filter by condition type",
+    )
+    @click.option("--condition-unit", help="Filter by condition unit (contains match)")
+    @click.option("--condition-value", help="Filter by discrete or range condition values")
+    @click.option("--limit-min-ge", type=float, help="Filter: limit.min >= value")
+    @click.option("--limit-min-le", type=float, help="Filter: limit.min <= value")
+    @click.option("--limit-typical-ge", type=float, help="Filter: limit.typical >= value")
+    @click.option("--limit-typical-le", type=float, help="Filter: limit.typical <= value")
+    @click.option("--limit-max-ge", type=float, help="Filter: limit.max >= value")
+    @click.option("--limit-max-le", type=float, help="Filter: limit.max <= value")
+    @click.option(
+        "--order-by",
+        type=click.Choice(SPEC_ORDER_BY_FIELDS, case_sensitive=False),
+        default="ID",
+        show_default=True,
+        help="Field to sort by",
+    )
+    @click.option("--descending", is_flag=True, help="Sort results in descending order")
     @click.option(
         "-t",
         "--take",
@@ -1360,9 +1282,6 @@ def register_spec_commands(cli: Any) -> None:
         )
 
         try:
-            _spec_formatter.workspace_map = get_workspace_map()  # type: ignore[attr-defined]
-            _spec_formatter.product_map = _build_product_name_map(resolved_product_ids)  # type: ignore[attr-defined]
-
             if normalized_format == "json":
                 # JSON: collect all matching specs up to --take and dump at once
                 specs = _collect_specs(
@@ -1397,6 +1316,8 @@ def register_spec_commands(cli: Any) -> None:
             else:
                 # Table: interactive server-side pagination — fetch one page at
                 # a time and prompt the user before fetching the next.
+                _spec_formatter.workspace_map = get_workspace_map()  # type: ignore[attr-defined]
+                _spec_formatter.product_map = _build_product_name_map(resolved_product_ids)  # type: ignore[attr-defined]
                 _handle_spec_interactive_pagination(
                     product_ids=resolved_product_ids,
                     take=take,
@@ -1421,10 +1342,73 @@ def register_spec_commands(cli: Any) -> None:
     # -- query --------------------------------------------------------------
 
     @spec.command(name="query")
-    @_server_filter_options
-    @_client_filter_options
-    @_projection_options
-    @_sort_options
+    @click.option(
+        "--product",
+        "product_ids",
+        multiple=True,
+        required=True,
+        help="Product name, part number, or ID. Repeat for multiple products.",
+    )
+    @click.option("--spec-id", help="Filter by exact specification ID")
+    @click.option("--name", help="Filter by specification name (contains match)")
+    @click.option("--category", help="Filter by category (contains match)")
+    @click.option(
+        "--type",
+        "spec_type",
+        type=click.Choice(SPEC_TYPES, case_sensitive=False),
+        help="Filter by specification type",
+    )
+    @click.option("--block", help="Filter by block name (contains match)")
+    @click.option("--symbol", help="Filter by symbol (contains match)")
+    @click.option("--unit", help="Filter by unit (contains match)")
+    @click.option(
+        "-w",
+        "--workspace",
+        "workspace_filter",
+        help="Filter by workspace name or ID. Use 'all' to disable the profile default.",
+    )
+    @click.option("--created-by", help="Filter by creator user ID")
+    @click.option("--updated-by", help="Filter by updater user ID")
+    @click.option("--filter", "custom_filter", help="Advanced Dynamic Linq filter")
+    @click.option("--condition-name", help="Filter by condition name (contains match)")
+    @click.option(
+        "--condition-type",
+        type=click.Choice(CONDITION_TYPES, case_sensitive=False),
+        help="Filter by condition type",
+    )
+    @click.option("--condition-unit", help="Filter by condition unit (contains match)")
+    @click.option("--condition-value", help="Filter by discrete or range condition values")
+    @click.option("--limit-min-ge", type=float, help="Filter: limit.min >= value")
+    @click.option("--limit-min-le", type=float, help="Filter: limit.min <= value")
+    @click.option("--limit-typical-ge", type=float, help="Filter: limit.typical >= value")
+    @click.option("--limit-typical-le", type=float, help="Filter: limit.typical <= value")
+    @click.option("--limit-max-ge", type=float, help="Filter: limit.max >= value")
+    @click.option("--limit-max-le", type=float, help="Filter: limit.max <= value")
+    @click.option(
+        "--projection",
+        "projection_fields",
+        multiple=True,
+        type=click.Choice(SPEC_PROJECTION_FIELDS, case_sensitive=False),
+        help="Field to include in the returned payload. Repeatable.",
+    )
+    @click.option(
+        "--include-limits",
+        is_flag=True,
+        help="Convenience projection: include the LIMIT field.",
+    )
+    @click.option(
+        "--include-conditions",
+        is_flag=True,
+        help="Convenience projection: include all condition-related fields.",
+    )
+    @click.option(
+        "--order-by",
+        type=click.Choice(SPEC_ORDER_BY_FIELDS, case_sensitive=False),
+        default="ID",
+        show_default=True,
+        help="Field to sort by",
+    )
+    @click.option("--descending", is_flag=True, help="Sort results in descending order")
     @click.option("--continuation-token", help="Continuation token from a previous query")
     @click.option(
         "-t",
@@ -1593,10 +1577,73 @@ def register_spec_commands(cli: Any) -> None:
     # -- export -------------------------------------------------------------
 
     @spec.command(name="export")
-    @_server_filter_options
-    @_client_filter_options
-    @_projection_options
-    @_sort_options
+    @click.option(
+        "--product",
+        "product_ids",
+        multiple=True,
+        required=True,
+        help="Product name, part number, or ID. Repeat for multiple products.",
+    )
+    @click.option("--spec-id", help="Filter by exact specification ID")
+    @click.option("--name", help="Filter by specification name (contains match)")
+    @click.option("--category", help="Filter by category (contains match)")
+    @click.option(
+        "--type",
+        "spec_type",
+        type=click.Choice(SPEC_TYPES, case_sensitive=False),
+        help="Filter by specification type",
+    )
+    @click.option("--block", help="Filter by block name (contains match)")
+    @click.option("--symbol", help="Filter by symbol (contains match)")
+    @click.option("--unit", help="Filter by unit (contains match)")
+    @click.option(
+        "-w",
+        "--workspace",
+        "workspace_filter",
+        help="Filter by workspace name or ID. Use 'all' to disable the profile default.",
+    )
+    @click.option("--created-by", help="Filter by creator user ID")
+    @click.option("--updated-by", help="Filter by updater user ID")
+    @click.option("--filter", "custom_filter", help="Advanced Dynamic Linq filter")
+    @click.option("--condition-name", help="Filter by condition name (contains match)")
+    @click.option(
+        "--condition-type",
+        type=click.Choice(CONDITION_TYPES, case_sensitive=False),
+        help="Filter by condition type",
+    )
+    @click.option("--condition-unit", help="Filter by condition unit (contains match)")
+    @click.option("--condition-value", help="Filter by discrete or range condition values")
+    @click.option("--limit-min-ge", type=float, help="Filter: limit.min >= value")
+    @click.option("--limit-min-le", type=float, help="Filter: limit.min <= value")
+    @click.option("--limit-typical-ge", type=float, help="Filter: limit.typical >= value")
+    @click.option("--limit-typical-le", type=float, help="Filter: limit.typical <= value")
+    @click.option("--limit-max-ge", type=float, help="Filter: limit.max >= value")
+    @click.option("--limit-max-le", type=float, help="Filter: limit.max <= value")
+    @click.option(
+        "--projection",
+        "projection_fields",
+        multiple=True,
+        type=click.Choice(SPEC_PROJECTION_FIELDS, case_sensitive=False),
+        help="Field to include in the returned payload. Repeatable.",
+    )
+    @click.option(
+        "--include-limits",
+        is_flag=True,
+        help="Convenience projection: include the LIMIT field.",
+    )
+    @click.option(
+        "--include-conditions",
+        is_flag=True,
+        help="Convenience projection: include all condition-related fields.",
+    )
+    @click.option(
+        "--order-by",
+        type=click.Choice(SPEC_ORDER_BY_FIELDS, case_sensitive=False),
+        default="ID",
+        show_default=True,
+        help="Field to sort by",
+    )
+    @click.option("--descending", is_flag=True, help="Sort results in descending order")
     @click.option(
         "-t",
         "--take",
