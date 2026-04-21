@@ -415,14 +415,14 @@ def check_service_status(api_url: str, api_key: str) -> Dict[str, Any]:
         Dictionary with:
         - server_reachable: bool - whether any service responded
         - auth_valid: bool | None - whether the API key is authorized (None if unreachable)
-                - services: dict mapping service name to status string
-                    ("ok", "unauthorized", "not_found", "error", "unreachable")
-                - file_query_endpoint: selected file query endpoint, if available
-                - elasticsearch_available: bool | None - whether search-files is available
-                - system_query_endpoint: selected systems query endpoint, if available
-                - materialized_search_available: bool | None - whether search-systems is available
-                - platform: detected platform string (PLATFORM_SLE, PLATFORM_SLS,
-                    PLATFORM_UNREACHABLE, PLATFORM_UNKNOWN)
+        - services: dict mapping service name to status string
+          ("ok", "unauthorized", "not_found", "error", "unreachable")
+        - file_query_endpoint: selected file query endpoint, if available
+        - elasticsearch_available: bool | None - whether search-files is available
+        - system_query_endpoint: selected systems query endpoint, if available
+        - materialized_search_available: bool | None - whether search-systems is available
+        - platform: detected platform string (PLATFORM_SLE, PLATFORM_SLS,
+          PLATFORM_UNREACHABLE, PLATFORM_UNKNOWN)
     """
     headers = {
         "x-ni-api-key": api_key,

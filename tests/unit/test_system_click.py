@@ -9,6 +9,7 @@ import pytest
 from click.testing import CliRunner
 from slcli.system_click import (
     _LIST_PROJECTION,
+    _SLIM_LIST_PROJECTION,
     _build_job_filter,
     _build_system_filter,
     _calculate_column_widths,
@@ -968,6 +969,77 @@ class TestListSystems:
         assert "packages" in data[0]
         assert "keywords" in data[0]
         assert "osversion" in data[0]
+
+    def test_list_json_materialized_fallback_uses_slim_projection(
+        self, monkeypatch: Any, runner: CliRunner
+    ) -> None:
+        """Default JSON fallback keeps the slim schema on servers without search-systems."""
+        import requests
+
+        patch_keyring(monkeypatch)
+        captured_calls: List[Dict[str, Any]] = []
+        projected_system = {
+            "id": SAMPLE_SYSTEM["id"],
+            "alias": SAMPLE_SYSTEM["alias"],
+            "workspace": SAMPLE_SYSTEM["workspace"],
+            "connected": SAMPLE_SYSTEM["connected"]["data"]["state"],
+            "host": SAMPLE_SYSTEM["grains"]["data"]["host"],
+            "kernel": SAMPLE_SYSTEM["grains"]["data"]["kernel"],
+        }
+
+        def mock_post(method: str, url: str, **kw: Any) -> Any:
+            captured_calls.append({"method": method, "url": url, "payload": kw.get("payload", {})})
+            if "materialized/search-systems" in url:
+                response = requests.models.Response()
+                response.status_code = 404
+                raise requests.HTTPError("not found", response=response)
+            return MockResponse({"data": [projected_system], "count": 1})
+
+        monkeypatch.setattr("slcli.system_click.make_api_request", mock_post)
+        monkeypatch.setattr("slcli.system_click.get_workspace_map", lambda: {})
+
+        cli = make_cli()
+        result = runner.invoke(cli, ["system", "list", "-f", "json"])
+        assert result.exit_code == 0
+        assert "materialized/search-systems" in captured_calls[0]["url"]
+        assert captured_calls[1]["payload"]["projection"] == _SLIM_LIST_PROJECTION
+        data = json.loads(result.output)
+        assert list(data[0].keys()) == ["id", "alias", "workspace", "connected", "host", "kernel"]
+
+    def test_list_table_materialized_fallback_uses_slim_projection(
+        self, monkeypatch: Any, runner: CliRunner
+    ) -> None:
+        """Table fallback uses the slim legacy projection needed for rendering only."""
+        import requests
+
+        patch_keyring(monkeypatch)
+        captured_calls: List[Dict[str, Any]] = []
+        projected_system = {
+            "id": SAMPLE_SYSTEM["id"],
+            "alias": SAMPLE_SYSTEM["alias"],
+            "workspace": SAMPLE_SYSTEM["workspace"],
+            "connected": SAMPLE_SYSTEM["connected"]["data"]["state"],
+            "host": SAMPLE_SYSTEM["grains"]["data"]["host"],
+            "kernel": SAMPLE_SYSTEM["grains"]["data"]["kernel"],
+        }
+
+        def mock_post(method: str, url: str, **kw: Any) -> Any:
+            captured_calls.append({"method": method, "url": url, "payload": kw.get("payload", {})})
+            if "materialized/search-systems" in url:
+                response = requests.models.Response()
+                response.status_code = 404
+                raise requests.HTTPError("not found", response=response)
+            return MockResponse({"data": [projected_system], "count": 1})
+
+        monkeypatch.setattr("slcli.system_click.make_api_request", mock_post)
+        monkeypatch.setattr("slcli.system_click.get_workspace_map", lambda: {})
+
+        cli = make_cli()
+        result = runner.invoke(cli, ["system", "list", "-f", "table"])
+        assert result.exit_code == 0
+        assert "materialized/search-systems" in captured_calls[0]["url"]
+        assert captured_calls[1]["payload"]["projection"] == _SLIM_LIST_PROJECTION
+        assert "PXI Controller A" in result.output
 
     def test_list_fields_require_json_format(self, monkeypatch: Any, runner: CliRunner) -> None:
         """Extended JSON field selection options are rejected for table output."""

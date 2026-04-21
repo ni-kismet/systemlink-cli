@@ -180,18 +180,33 @@ def test_query_systems_normalizes_wrapped_response(monkeypatch: Any) -> None:
     """query_systems prefers search-systems and normalizes materialized responses."""
     from slcli.mcp_server import query_systems
 
-    seen_urls: list = []
+    seen_calls: list = []
     monkeypatch.setattr("slcli.utils.get_base_url", lambda: "https://test.host")
-    monkeypatch.setattr("slcli.system_click.get_base_url", lambda: "https://test.host")
+    monkeypatch.setattr("slcli.system_query_utils.get_base_url", lambda: "https://test.host")
 
     def mock_request(method: str, url: str, **kw: Any) -> Any:
-        seen_urls.append(url)
+        seen_calls.append({"url": url, "payload": kw.get("payload", {})})
         return make_mock_response({"systems": [{"id": "sys1", "alias": "PXI"}]})
 
     monkeypatch.setattr("slcli.utils.make_api_request", mock_request)
 
     assert json.loads(query_systems()) == [{"id": "sys1", "alias": "PXI"}]
-    assert seen_urls == ["https://test.host/nisysmgmt/v1/materialized/search-systems"]
+    assert seen_calls == [
+        {
+            "url": "https://test.host/nisysmgmt/v1/materialized/search-systems",
+            "payload": {
+                "take": 100,
+                "projection": [
+                    "id",
+                    "alias",
+                    "workspace",
+                    "connected",
+                    "advancedGrains.host",
+                    "advancedGrains.os",
+                ],
+            },
+        }
+    ]
 
 
 def test_query_systems_falls_back_to_query_systems(monkeypatch: Any) -> None:
@@ -202,7 +217,7 @@ def test_query_systems_falls_back_to_query_systems(monkeypatch: Any) -> None:
 
     seen_urls: list = []
     monkeypatch.setattr("slcli.utils.get_base_url", lambda: "https://test.host")
-    monkeypatch.setattr("slcli.system_click.get_base_url", lambda: "https://test.host")
+    monkeypatch.setattr("slcli.system_query_utils.get_base_url", lambda: "https://test.host")
 
     def mock_request(method: str, url: str, **kw: Any) -> Any:
         seen_urls.append(url)

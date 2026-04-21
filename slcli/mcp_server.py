@@ -273,36 +273,40 @@ def query_systems(
     """Query systems by alias, connection state, workspace, or raw filter."""
     import requests as requests_lib
 
-    from .system_click import (
-        _build_materialized_system_search_filter,
-        _get_system_query_url,
-        _get_system_search_url,
-        _is_system_search_endpoint_unavailable,
+    from .system_query_utils import (
+        MATERIALIZED_SYSTEM_MCP_PROJECTION,
+        build_materialized_system_search_filter,
+        get_system_query_url,
+        get_system_search_url,
+        is_system_search_endpoint_unavailable,
     )
     from .utils import make_api_request
 
     materialized_filter = None
     if filter is None:
-        materialized_filter = _build_materialized_system_search_filter(
+        materialized_filter = build_materialized_system_search_filter(
             alias=alias,
             state=state,
             workspace_id=workspace,
         )
 
     if filter is None:
-        search_payload: Dict[str, Any] = {"take": take}
+        search_payload: Dict[str, Any] = {
+            "take": take,
+            "projection": MATERIALIZED_SYSTEM_MCP_PROJECTION,
+        }
         if materialized_filter:
             search_payload["filter"] = materialized_filter
         try:
             data = make_api_request(
                 "POST",
-                _get_system_search_url(),
+                get_system_search_url(),
                 payload=search_payload,
                 handle_errors=False,
             ).json()
             return _dump(_normalize_systems(data))
         except requests_lib.HTTPError as exc:
-            if not _is_system_search_endpoint_unavailable(exc):
+            if not is_system_search_endpoint_unavailable(exc):
                 raise
 
     filter_parts: List[str] = []
@@ -321,7 +325,7 @@ def query_systems(
 
     data = make_api_request(
         "POST",
-        _get_system_query_url(),
+        get_system_query_url(),
         payload=query_payload,
         handle_errors=False,
     ).json()

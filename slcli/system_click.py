@@ -21,6 +21,20 @@ import requests as requests_lib
 
 from .cli_utils import validate_output_format
 from .rich_output import render_table
+from .system_query_utils import (
+    ALL_SYSTEM_JSON_FIELDS,
+    DEFAULT_SYSTEM_JSON_FIELDS,
+    DEFAULT_SYSTEM_LIST_PROJECTION,
+    EXTENDED_SYSTEM_JSON_FIELDS,
+    FULL_SYSTEM_LIST_PROJECTION,
+    MATERIALIZED_SYSTEM_LIST_PROJECTION,
+    build_materialized_system_search_filter as _build_materialized_system_search_filter,
+    build_system_projection as _build_system_projection,
+    get_system_query_url as _get_system_query_url,
+    get_system_search_url as _get_system_search_url,
+    is_system_search_endpoint_unavailable as _is_system_search_endpoint_unavailable,
+    quote_search_value as _quote_search_value,
+)
 from .universal_handlers import FilteredResponse, UniversalResponseHandler
 from .utils import (
     ExitCodes,
@@ -53,16 +67,6 @@ def _get_alarm_base_url() -> str:
     return f"{get_base_url()}/nialarm/v1"
 
 
-def _get_system_query_url() -> str:
-    """Get the query-systems endpoint URL."""
-    return f"{_get_sysmgmt_base_url()}/query-systems"
-
-
-def _get_system_search_url() -> str:
-    """Get the materialized search-systems endpoint URL."""
-    return f"{_get_sysmgmt_base_url()}/materialized/search-systems"
-
-
 def _get_testmonitor_base_url() -> str:
     """Get the base URL for the Test Monitor API."""
     return f"{get_base_url()}/nitestmonitor/v2"
@@ -76,60 +80,12 @@ def _get_workitem_base_url() -> str:
 # Projection for list queries — only include fields needed for display.
 # This dramatically reduces response payload size.
 # Uses the dot-path ``as`` alias syntax supported by the systems API.
-_DEFAULT_SYSTEM_JSON_FIELDS = (
-    "id",
-    "alias",
-    "workspace",
-    "connected",
-    "host",
-    "kernel",
-)
-
-_EXTENDED_SYSTEM_JSON_FIELDS = (
-    "osversion",
-    "cpuarch",
-    "deviceclass",
-    "keywords",
-    "packages",
-)
-
-_SYSTEM_JSON_PROJECTION_MAP = {
-    "id": "id",
-    "alias": "alias",
-    "workspace": "workspace",
-    "connected": "connected.data.state as connected",
-    "host": "grains.data.host as host",
-    "kernel": "grains.data.kernel as kernel",
-    "osversion": "grains.data.osversion as osversion",
-    "cpuarch": "grains.data.cpuarch as cpuarch",
-    "deviceclass": "grains.data.deviceclass as deviceclass",
-    "keywords": "keywords.data as keywords",
-    "packages": "packages.data as packages",
-}
-
-_ALL_SYSTEM_JSON_FIELDS = _DEFAULT_SYSTEM_JSON_FIELDS + _EXTENDED_SYSTEM_JSON_FIELDS
-
-
-def _build_system_projection(field_names: Tuple[str, ...]) -> str:
-    """Build a query-systems projection for the requested system list fields."""
-    ordered_fields = [
-        _SYSTEM_JSON_PROJECTION_MAP[field_name]
-        for field_name in _ALL_SYSTEM_JSON_FIELDS
-        if field_name in field_names
-    ]
-    return f"new({', '.join(ordered_fields)})"
-
-
-_LIST_PROJECTION = _build_system_projection(_ALL_SYSTEM_JSON_FIELDS)
-
-_MATERIALIZED_LIST_PROJECTION = [
-    "id",
-    "alias",
-    "workspace",
-    "connected",
-    "advancedGrains.host",
-    "advancedGrains.os",
-]
+_DEFAULT_SYSTEM_JSON_FIELDS = DEFAULT_SYSTEM_JSON_FIELDS
+_EXTENDED_SYSTEM_JSON_FIELDS = EXTENDED_SYSTEM_JSON_FIELDS
+_ALL_SYSTEM_JSON_FIELDS = ALL_SYSTEM_JSON_FIELDS
+_SLIM_LIST_PROJECTION = DEFAULT_SYSTEM_LIST_PROJECTION
+_LIST_PROJECTION = FULL_SYSTEM_LIST_PROJECTION
+_MATERIALIZED_LIST_PROJECTION = MATERIALIZED_SYSTEM_LIST_PROJECTION
 
 
 def _calculate_column_widths() -> List[int]:
@@ -207,19 +163,6 @@ def _escape_filter_value(value: str) -> str:
         Escaped value safe for embedding in filter expressions.
     """
     return value.replace('"', '\\"')
-
-
-def _escape_search_filter_value(value: str) -> str:
-    """Escape values for Lucene-style materialized systems search filters."""
-    return value.replace("\\", "\\\\").replace('"', '\\"')
-
-
-def _quote_search_value(value: str, contains: bool = False) -> str:
-    """Quote a materialized systems search value, optionally using wildcards."""
-    escaped = _escape_search_filter_value(value)
-    if contains:
-        escaped = f"*{escaped}*"
-    return f'"{escaped}"'
 
 
 def _parse_properties(properties: Tuple[str, ...]) -> Dict[str, str]:
@@ -315,55 +258,6 @@ def _build_system_filter(
         parts.append(custom_filter)
 
     return " and ".join(parts) if parts else None
-
-
-def _build_materialized_system_search_filter(
-    alias: Optional[str] = None,
-    state: Optional[str] = None,
-    os_filter: Optional[str] = None,
-    host: Optional[str] = None,
-    has_keyword: Optional[Tuple[str, ...]] = None,
-    property_filters: Optional[Tuple[str, ...]] = None,
-    workspace_id: Optional[str] = None,
-) -> Optional[str]:
-    """Build a materialized search-systems filter from convenience options."""
-    parts: List[str] = []
-
-    if alias:
-        parts.append(f"alias:{_quote_search_value(alias, contains=True)}")
-    if state:
-        parts.append(f"connected:{_quote_search_value(state)}")
-    if os_filter:
-        os_query = _quote_search_value(os_filter, contains=True)
-        parts.append(f"(advancedGrains.os:{os_query} OR minionDetails.osFullName:{os_query})")
-    if host:
-        host_query = _quote_search_value(host, contains=True)
-        parts.append(f"(advancedGrains.host:{host_query} OR minionDetails.localhost:{host_query})")
-    if has_keyword:
-        for keyword in has_keyword:
-            parts.append(f"keywords:{_quote_search_value(keyword)}")
-    if property_filters:
-        for prop in property_filters:
-            if "=" not in prop:
-                click.echo(
-                    f"✗ Invalid property filter '{prop}': expected KEY=VALUE format",
-                    err=True,
-                )
-                sys.exit(ExitCodes.INVALID_INPUT)
-            key, val = prop.split("=", 1)
-            key = key.strip()
-            if not re.match(r"^[A-Za-z0-9_.]+$", key):
-                click.echo(
-                    f"✗ Invalid property key '{key}': "
-                    "only alphanumeric characters, underscores, and dots are allowed",
-                    err=True,
-                )
-                sys.exit(ExitCodes.INVALID_INPUT)
-            parts.append(f"properties.{key}:{_quote_search_value(val.strip())}")
-    if workspace_id:
-        parts.append(f"workspace:{_quote_search_value(workspace_id)}")
-
-    return " AND ".join(parts) if parts else None
 
 
 def _prefer_materialized_system_search(
@@ -551,12 +445,6 @@ def _query_all_items(
     return all_items[:take] if take is not None else all_items
 
 
-def _is_system_search_endpoint_unavailable(exc: requests_lib.HTTPError) -> bool:
-    """Return whether the materialized systems search endpoint is unavailable."""
-    response = getattr(exc, "response", None)
-    return response is not None and response.status_code in (404, 501)
-
-
 def _get_materialized_search_order(
     order_by: Optional[str],
 ) -> Tuple[Optional[str], bool]:
@@ -644,7 +532,7 @@ def _query_materialized_systems_with_fallback(
                     batch_size,
                     skip,
                     response_parser=_parse_systems_response,
-                    projection=_LIST_PROJECTION,
+                    projection=_SLIM_LIST_PROJECTION,
                 )
         else:
             page_items = _fetch_page(
@@ -654,7 +542,7 @@ def _query_materialized_systems_with_fallback(
                 batch_size,
                 skip,
                 response_parser=_parse_systems_response,
-                projection=_LIST_PROJECTION,
+                projection=_SLIM_LIST_PROJECTION,
             )
 
         page_count = len(page_items)
@@ -857,7 +745,7 @@ def _handle_materialized_system_pagination_with_fallback(
                     take,
                     skip,
                     response_parser=_parse_systems_response,
-                    projection=_LIST_PROJECTION,
+                    projection=_SLIM_LIST_PROJECTION,
                 )
         else:
             page_items = _fetch_page(
@@ -867,7 +755,7 @@ def _handle_materialized_system_pagination_with_fallback(
                 take,
                 skip,
                 response_parser=_parse_systems_response,
-                projection=_LIST_PROJECTION,
+                projection=_SLIM_LIST_PROJECTION,
             )
 
         if not page_items:
