@@ -177,16 +177,48 @@ def test_read_tag_values_reads_each_path(monkeypatch: Any) -> None:
 
 
 def test_query_systems_normalizes_wrapped_response(monkeypatch: Any) -> None:
-    """query_systems normalizes systems API wrappers into flat system records."""
+    """query_systems prefers search-systems and normalizes materialized responses."""
     from slcli.mcp_server import query_systems
 
+    seen_urls: list = []
     monkeypatch.setattr("slcli.utils.get_base_url", lambda: "https://test.host")
-    monkeypatch.setattr(
-        "slcli.utils.make_api_request",
-        lambda *a, **kw: make_mock_response([{"data": {"id": "sys1", "alias": "PXI"}}]),
-    )
+    monkeypatch.setattr("slcli.system_click.get_base_url", lambda: "https://test.host")
+
+    def mock_request(method: str, url: str, **kw: Any) -> Any:
+        seen_urls.append(url)
+        return make_mock_response({"systems": [{"id": "sys1", "alias": "PXI"}]})
+
+    monkeypatch.setattr("slcli.utils.make_api_request", mock_request)
 
     assert json.loads(query_systems()) == [{"id": "sys1", "alias": "PXI"}]
+    assert seen_urls == ["https://test.host/nisysmgmt/v1/materialized/search-systems"]
+
+
+def test_query_systems_falls_back_to_query_systems(monkeypatch: Any) -> None:
+    """query_systems falls back to query-systems when search-systems is unavailable."""
+    import requests
+
+    from slcli.mcp_server import query_systems
+
+    seen_urls: list = []
+    monkeypatch.setattr("slcli.utils.get_base_url", lambda: "https://test.host")
+    monkeypatch.setattr("slcli.system_click.get_base_url", lambda: "https://test.host")
+
+    def mock_request(method: str, url: str, **kw: Any) -> Any:
+        seen_urls.append(url)
+        if "materialized/search-systems" in url:
+            response = requests.models.Response()
+            response.status_code = 404
+            raise requests.HTTPError("not found", response=response)
+        return make_mock_response([{"data": {"id": "sys1", "alias": "PXI"}}])
+
+    monkeypatch.setattr("slcli.utils.make_api_request", mock_request)
+
+    assert json.loads(query_systems(alias="PXI")) == [{"id": "sys1", "alias": "PXI"}]
+    assert seen_urls == [
+        "https://test.host/nisysmgmt/v1/materialized/search-systems",
+        "https://test.host/nisysmgmt/v1/query-systems",
+    ]
 
 
 def test_query_test_results_combines_structured_and_raw_filters(monkeypatch: Any) -> None:

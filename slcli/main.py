@@ -365,6 +365,11 @@ def info(format: str, skip_health: bool) -> None:
         workspace_display = truncate(workspace)
         info_rows.append(["Workspace", workspace_display])
 
+    system_query_endpoint = platform_info.get("system_query_endpoint")
+    if system_query_endpoint:
+        system_query_display = truncate(str(system_query_endpoint))
+        info_rows.append(["System Query", system_query_display])
+
     file_query_endpoint = platform_info.get("file_query_endpoint")
     if file_query_endpoint:
         if (

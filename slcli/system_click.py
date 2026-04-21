@@ -17,6 +17,7 @@ from urllib.parse import quote_plus
 
 import click
 import questionary
+import requests as requests_lib
 
 from .cli_utils import validate_output_format
 from .rich_output import render_table
@@ -52,6 +53,16 @@ def _get_alarm_base_url() -> str:
     return f"{get_base_url()}/nialarm/v1"
 
 
+def _get_system_query_url() -> str:
+    """Get the query-systems endpoint URL."""
+    return f"{_get_sysmgmt_base_url()}/query-systems"
+
+
+def _get_system_search_url() -> str:
+    """Get the materialized search-systems endpoint URL."""
+    return f"{_get_sysmgmt_base_url()}/materialized/search-systems"
+
+
 def _get_testmonitor_base_url() -> str:
     """Get the base URL for the Test Monitor API."""
     return f"{get_base_url()}/nitestmonitor/v2"
@@ -65,17 +76,60 @@ def _get_workitem_base_url() -> str:
 # Projection for list queries — only include fields needed for display.
 # This dramatically reduces response payload size.
 # Uses the dot-path ``as`` alias syntax supported by the systems API.
-_LIST_PROJECTION = (
-    "new(id, alias, workspace, "
-    "connected.data.state as connected, "
-    "grains.data.kernel as kernel, "
-    "grains.data.osversion as osversion, "
-    "grains.data.host as host, "
-    "grains.data.cpuarch as cpuarch, "
-    "grains.data.deviceclass as deviceclass, "
-    "keywords.data as keywords, "
-    "packages.data as packages)"
+_DEFAULT_SYSTEM_JSON_FIELDS = (
+    "id",
+    "alias",
+    "workspace",
+    "connected",
+    "host",
+    "kernel",
 )
+
+_EXTENDED_SYSTEM_JSON_FIELDS = (
+    "osversion",
+    "cpuarch",
+    "deviceclass",
+    "keywords",
+    "packages",
+)
+
+_SYSTEM_JSON_PROJECTION_MAP = {
+    "id": "id",
+    "alias": "alias",
+    "workspace": "workspace",
+    "connected": "connected.data.state as connected",
+    "host": "grains.data.host as host",
+    "kernel": "grains.data.kernel as kernel",
+    "osversion": "grains.data.osversion as osversion",
+    "cpuarch": "grains.data.cpuarch as cpuarch",
+    "deviceclass": "grains.data.deviceclass as deviceclass",
+    "keywords": "keywords.data as keywords",
+    "packages": "packages.data as packages",
+}
+
+_ALL_SYSTEM_JSON_FIELDS = _DEFAULT_SYSTEM_JSON_FIELDS + _EXTENDED_SYSTEM_JSON_FIELDS
+
+
+def _build_system_projection(field_names: Tuple[str, ...]) -> str:
+    """Build a query-systems projection for the requested system list fields."""
+    ordered_fields = [
+        _SYSTEM_JSON_PROJECTION_MAP[field_name]
+        for field_name in _ALL_SYSTEM_JSON_FIELDS
+        if field_name in field_names
+    ]
+    return f"new({', '.join(ordered_fields)})"
+
+
+_LIST_PROJECTION = _build_system_projection(_ALL_SYSTEM_JSON_FIELDS)
+
+_MATERIALIZED_LIST_PROJECTION = [
+    "id",
+    "alias",
+    "workspace",
+    "connected",
+    "advancedGrains.host",
+    "advancedGrains.os",
+]
 
 
 def _calculate_column_widths() -> List[int]:
@@ -153,6 +207,19 @@ def _escape_filter_value(value: str) -> str:
         Escaped value safe for embedding in filter expressions.
     """
     return value.replace('"', '\\"')
+
+
+def _escape_search_filter_value(value: str) -> str:
+    """Escape values for Lucene-style materialized systems search filters."""
+    return value.replace("\\", "\\\\").replace('"', '\\"')
+
+
+def _quote_search_value(value: str, contains: bool = False) -> str:
+    """Quote a materialized systems search value, optionally using wildcards."""
+    escaped = _escape_search_filter_value(value)
+    if contains:
+        escaped = f"*{escaped}*"
+    return f'"{escaped}"'
 
 
 def _parse_properties(properties: Tuple[str, ...]) -> Dict[str, str]:
@@ -250,6 +317,82 @@ def _build_system_filter(
     return " and ".join(parts) if parts else None
 
 
+def _build_materialized_system_search_filter(
+    alias: Optional[str] = None,
+    state: Optional[str] = None,
+    os_filter: Optional[str] = None,
+    host: Optional[str] = None,
+    has_keyword: Optional[Tuple[str, ...]] = None,
+    property_filters: Optional[Tuple[str, ...]] = None,
+    workspace_id: Optional[str] = None,
+) -> Optional[str]:
+    """Build a materialized search-systems filter from convenience options."""
+    parts: List[str] = []
+
+    if alias:
+        parts.append(f"alias:{_quote_search_value(alias, contains=True)}")
+    if state:
+        parts.append(f"connected:{_quote_search_value(state)}")
+    if os_filter:
+        os_query = _quote_search_value(os_filter, contains=True)
+        parts.append(f"(advancedGrains.os:{os_query} OR minionDetails.osFullName:{os_query})")
+    if host:
+        host_query = _quote_search_value(host, contains=True)
+        parts.append(f"(advancedGrains.host:{host_query} OR minionDetails.localhost:{host_query})")
+    if has_keyword:
+        for keyword in has_keyword:
+            parts.append(f"keywords:{_quote_search_value(keyword)}")
+    if property_filters:
+        for prop in property_filters:
+            if "=" not in prop:
+                click.echo(
+                    f"✗ Invalid property filter '{prop}': expected KEY=VALUE format",
+                    err=True,
+                )
+                sys.exit(ExitCodes.INVALID_INPUT)
+            key, val = prop.split("=", 1)
+            key = key.strip()
+            if not re.match(r"^[A-Za-z0-9_.]+$", key):
+                click.echo(
+                    f"✗ Invalid property key '{key}': "
+                    "only alphanumeric characters, underscores, and dots are allowed",
+                    err=True,
+                )
+                sys.exit(ExitCodes.INVALID_INPUT)
+            parts.append(f"properties.{key}:{_quote_search_value(val.strip())}")
+    if workspace_id:
+        parts.append(f"workspace:{_quote_search_value(workspace_id)}")
+
+    return " AND ".join(parts) if parts else None
+
+
+def _prefer_materialized_system_search(
+    filter_query: Optional[str],
+    has_package: Optional[str],
+    include_fields: Tuple[str, ...],
+    all_fields: bool,
+) -> bool:
+    """Return whether system list can safely use materialized search-systems."""
+    return filter_query is None and has_package is None and not include_fields and not all_fields
+
+
+def _resolve_system_json_projection(
+    include_fields: Tuple[str, ...],
+    all_fields: bool,
+) -> Optional[str]:
+    """Return the query-systems projection for an explicit extended JSON schema request."""
+    normalized_fields = tuple(field_name.lower() for field_name in include_fields)
+    if all_fields:
+        return _LIST_PROJECTION
+    if not normalized_fields:
+        return None
+
+    requested_fields = _DEFAULT_SYSTEM_JSON_FIELDS + tuple(
+        field_name for field_name in _EXTENDED_SYSTEM_JSON_FIELDS if field_name in normalized_fields
+    )
+    return _build_system_projection(requested_fields)
+
+
 def _parse_systems_response(data: Any) -> List[Dict[str, Any]]:
     """Parse the systems query API response into a flat list.
 
@@ -281,6 +424,43 @@ def _parse_systems_response(data: Any) -> List[Dict[str, Any]]:
             items.append(inner)
 
     return items
+
+
+def _flatten_materialized_system(item: Dict[str, Any]) -> Dict[str, Any]:
+    """Flatten a materialized search result into the list projection shape."""
+    advanced_grains = item.get("advancedGrains")
+    host = ""
+    kernel = ""
+    if isinstance(advanced_grains, dict):
+        host = str(advanced_grains.get("host") or "")
+        kernel = str(advanced_grains.get("os") or "")
+
+    flattened: Dict[str, Any] = {
+        "id": item.get("id", ""),
+        "alias": item.get("alias", ""),
+        "workspace": item.get("workspace", ""),
+        "connected": item.get("connected") or "UNKNOWN",
+        "host": host,
+        "kernel": kernel,
+    }
+    if "packages" in item:
+        flattened["packages"] = item.get("packages")
+    return flattened
+
+
+def _parse_materialized_search_systems_response(data: Any) -> List[Dict[str, Any]]:
+    """Parse search-systems response into the system list projection shape."""
+    if not isinstance(data, dict):
+        return []
+
+    if "systems" not in data:
+        return _parse_systems_response(data)
+
+    systems = data.get("systems", [])
+    if not isinstance(systems, list):
+        return []
+
+    return [_flatten_materialized_system(item) for item in systems if isinstance(item, dict)]
 
 
 def _parse_simple_response(data: Any) -> List[Dict[str, Any]]:
@@ -363,6 +543,127 @@ def _query_all_items(
         skip += page_count
 
         # Stop if we got fewer than requested (last page)
+        if page_count < batch_size:
+            break
+        if take is not None and len(all_items) >= take:
+            break
+
+    return all_items[:take] if take is not None else all_items
+
+
+def _is_system_search_endpoint_unavailable(exc: requests_lib.HTTPError) -> bool:
+    """Return whether the materialized systems search endpoint is unavailable."""
+    response = getattr(exc, "response", None)
+    return response is not None and response.status_code in (404, 501)
+
+
+def _get_materialized_search_order(
+    order_by: Optional[str],
+) -> Tuple[Optional[str], bool]:
+    """Map CLI order-by values to materialized systems search order fields."""
+    if not order_by:
+        return None, False
+
+    order_mapping: Dict[str, Tuple[str, bool]] = {
+        "ALIAS": ("ALIAS", False),
+        "CREATED_AT": ("CREATED_TIMESTAMP", True),
+        "UPDATED_AT": ("LAST_UPDATED_TIMESTAMP", True),
+    }
+    return order_mapping.get(order_by.upper(), (None, False))
+
+
+def _fetch_materialized_system_page(
+    filter_expr: Optional[str],
+    order_by: Optional[str],
+    descending: bool,
+    take: int,
+    skip: int,
+) -> List[Dict[str, Any]]:
+    """Fetch a single page from materialized search-systems."""
+    payload: Dict[str, Any] = {
+        "skip": skip,
+        "take": take,
+        "projection": _MATERIALIZED_LIST_PROJECTION,
+    }
+
+    if filter_expr:
+        payload["filter"] = filter_expr
+    if order_by:
+        payload["orderBy"] = order_by
+        payload["descending"] = descending
+
+    resp = make_api_request(
+        "POST",
+        _get_system_search_url(),
+        payload=payload,
+        handle_errors=False,
+    )
+    return _parse_materialized_search_systems_response(resp.json())
+
+
+def _query_materialized_systems_with_fallback(
+    search_filter_expr: Optional[str],
+    search_order_by: Optional[str],
+    search_descending: bool,
+    fallback_filter_expr: Optional[str],
+    fallback_order_by: Optional[str],
+    take: Optional[int] = 10000,
+) -> List[Dict[str, Any]]:
+    """Query systems using search-systems when available, otherwise query-systems."""
+    all_items: List[Dict[str, Any]] = []
+    page_size = 100
+    skip = 0
+    use_materialized_search = True
+
+    while True:
+        if take is not None:
+            remaining = take - len(all_items)
+            if remaining <= 0:
+                break
+            batch_size = min(page_size, remaining)
+        else:
+            batch_size = page_size
+
+        if use_materialized_search:
+            try:
+                page_items = _fetch_materialized_system_page(
+                    search_filter_expr,
+                    search_order_by,
+                    search_descending,
+                    batch_size,
+                    skip,
+                )
+            except requests_lib.HTTPError as exc:
+                if not _is_system_search_endpoint_unavailable(exc):
+                    raise
+                use_materialized_search = False
+                page_items = _fetch_page(
+                    _get_system_query_url(),
+                    fallback_filter_expr,
+                    fallback_order_by,
+                    batch_size,
+                    skip,
+                    response_parser=_parse_systems_response,
+                    projection=_LIST_PROJECTION,
+                )
+        else:
+            page_items = _fetch_page(
+                _get_system_query_url(),
+                fallback_filter_expr,
+                fallback_order_by,
+                batch_size,
+                skip,
+                response_parser=_parse_systems_response,
+                projection=_LIST_PROJECTION,
+            )
+
+        page_count = len(page_items)
+        if page_count == 0:
+            break
+
+        all_items.extend(page_items)
+        skip += page_count
+
         if page_count < batch_size:
             break
         if take is not None and len(all_items) >= take:
@@ -507,6 +808,92 @@ def _handle_interactive_pagination(
 
         # If the page was full, more may be available
         if not page_was_full:
+            break
+
+        if not questionary.confirm(
+            "More results may be available. Show next set?", default=True
+        ).ask():
+            break
+
+
+def _handle_materialized_system_pagination_with_fallback(
+    search_filter_expr: Optional[str],
+    search_order_by: Optional[str],
+    search_descending: bool,
+    fallback_filter_expr: Optional[str],
+    fallback_order_by: Optional[str],
+    take: int,
+    formatter_func: Any,
+    headers: List[str],
+    column_widths: List[int],
+    empty_message: str,
+    item_label: str,
+) -> None:
+    """Paginate systems using search-systems when available, with query-systems fallback."""
+    from .table_utils import output_formatted_list
+
+    skip = 0
+    shown_count = 0
+    use_materialized_search = True
+
+    while True:
+        if use_materialized_search:
+            try:
+                page_items = _fetch_materialized_system_page(
+                    search_filter_expr,
+                    search_order_by,
+                    search_descending,
+                    take,
+                    skip,
+                )
+            except requests_lib.HTTPError as exc:
+                if not _is_system_search_endpoint_unavailable(exc):
+                    raise
+                use_materialized_search = False
+                page_items = _fetch_page(
+                    _get_system_query_url(),
+                    fallback_filter_expr,
+                    fallback_order_by,
+                    take,
+                    skip,
+                    response_parser=_parse_systems_response,
+                    projection=_LIST_PROJECTION,
+                )
+        else:
+            page_items = _fetch_page(
+                _get_system_query_url(),
+                fallback_filter_expr,
+                fallback_order_by,
+                take,
+                skip,
+                response_parser=_parse_systems_response,
+                projection=_LIST_PROJECTION,
+            )
+
+        if not page_items:
+            if shown_count == 0:
+                click.echo(empty_message)
+            break
+
+        shown_count += len(page_items)
+        skip += len(page_items)
+
+        output_formatted_list(
+            items=page_items,
+            output_format="table",
+            headers=headers,
+            row_formatter_func=formatter_func,
+            column_widths=column_widths,
+        )
+
+        click.echo(f"\nShowing {shown_count} {item_label}")
+
+        try:
+            sys.stdout.flush()
+        except Exception:
+            pass
+
+        if len(page_items) < take:
             break
 
         if not questionary.confirm(
@@ -1196,8 +1583,6 @@ def _resolve_system(identifier: str) -> Dict[str, Any]:
     Raises:
         SystemExit: If the system cannot be found or an API error occurs.
     """
-    import requests as _requests
-
     # Try direct ID lookup first
     try:
         encoded_identifier = quote_plus(identifier)
@@ -1209,25 +1594,45 @@ def _resolve_system(identifier: str) -> Dict[str, Any]:
             return data[0]
         if isinstance(data, dict) and data.get("id"):
             return data
-    except _requests.HTTPError as exc:
+    except requests_lib.HTTPError as exc:
         if exc.response is not None and exc.response.status_code == 404:
             pass
         else:
             handle_api_error(exc)
-    except _requests.RequestException as exc:
+    except requests_lib.RequestException as exc:
         handle_api_error(exc)
 
     # Fall back to alias search
-    escaped = _escape_filter_value(identifier)
-    query_url = f"{_get_sysmgmt_base_url()}/query-systems"
-    payload: Dict[str, Any] = {
-        "filter": f'alias = "{escaped}"',
-        "take": 2,
-    }
     try:
-        resp = make_api_request("POST", query_url, payload=payload)
-        data = resp.json()
-        systems = _parse_systems_response(data)
+        systems: List[Dict[str, Any]]
+        try:
+            systems = _fetch_materialized_system_page(
+                f"alias:{_quote_search_value(identifier)}",
+                None,
+                False,
+                2,
+                0,
+            )
+            systems = [system for system in systems if system.get("id")]
+            if len(systems) == 1:
+                return _resolve_system(str(systems[0]["id"]))
+            if len(systems) > 1:
+                click.echo(
+                    f"✗ Multiple systems match alias '{identifier}'. Use the system ID instead.",
+                    err=True,
+                )
+                sys.exit(ExitCodes.INVALID_INPUT)
+        except requests_lib.HTTPError as exc:
+            if not _is_system_search_endpoint_unavailable(exc):
+                raise
+        escaped = _escape_filter_value(identifier)
+        payload: Dict[str, Any] = {
+            "filter": f'alias = "{escaped}"',
+            "take": 2,
+        }
+        resp = make_api_request("POST", _get_system_query_url(), payload=payload)
+        systems = _parse_systems_response(resp.json())
+
         if len(systems) == 1:
             return systems[0]
         if len(systems) > 1:
@@ -1665,6 +2070,23 @@ def register_system_commands(cli: Any) -> None:
         ),
         help="Order by field",
     )
+    @click.option(
+        "--field",
+        "include_fields",
+        multiple=True,
+        type=click.Choice(list(_EXTENDED_SYSTEM_JSON_FIELDS), case_sensitive=False),
+        help=(
+            "Add extended fields to JSON output. " "Forces the legacy query path for the request."
+        ),
+    )
+    @click.option(
+        "--all-fields",
+        is_flag=True,
+        help=(
+            "Return the full legacy system list JSON schema. "
+            "Forces the legacy query path for the request."
+        ),
+    )
     def list_systems(
         format: str,
         take: int,
@@ -1678,6 +2100,8 @@ def register_system_commands(cli: Any) -> None:
         workspace: Optional[str],
         filter_query: Optional[str],
         order_by: Optional[str],
+        include_fields: Tuple[str, ...],
+        all_fields: bool,
     ) -> None:
         """List and query systems with optional filtering.
 
@@ -1687,10 +2111,24 @@ def register_system_commands(cli: Any) -> None:
 
         Use --has-package for client-side package filtering (contains match).
 
+        JSON output uses a slim schema by default for performance. Use
+        --field to add specific extended fields, or --all-fields to
+        request the full legacy list schema.
+
         For advanced queries use --filter with the Systems Management filter
         syntax: connected.data.state = "CONNECTED" and grains.data.kernel = "Windows"
         """
         format_output = validate_output_format(format)
+
+        if all_fields and include_fields:
+            click.echo("✗ Use either --field or --all-fields, not both.", err=True)
+            sys.exit(ExitCodes.INVALID_INPUT)
+        if format_output.lower() != "json" and (include_fields or all_fields):
+            click.echo(
+                "✗ --field and --all-fields are only supported with --format json.",
+                err=True,
+            )
+            sys.exit(ExitCodes.INVALID_INPUT)
 
         try:
             # Resolve workspace if provided
@@ -1750,18 +2188,52 @@ def register_system_commands(cli: Any) -> None:
 
             headers = ["Alias", "Host", "State", "OS", "Workspace", "ID"]
             column_widths = _calculate_column_widths()
+            explicit_json_projection = _resolve_system_json_projection(include_fields, all_fields)
 
-            query_url = f"{_get_sysmgmt_base_url()}/query-systems"
+            query_url = _get_system_query_url()
+            use_materialized_search = _prefer_materialized_system_search(
+                filter_query,
+                has_package,
+                include_fields,
+                all_fields,
+            )
+            materialized_filter_expr = None
+            materialized_order_by = None
+            materialized_descending = False
+
+            if use_materialized_search:
+                materialized_filter_expr = _build_materialized_system_search_filter(
+                    alias=alias,
+                    state=state,
+                    os_filter=os_filter,
+                    host=host,
+                    has_keyword=has_keyword if has_keyword else None,
+                    property_filters=property_filters if property_filters else None,
+                    workspace_id=workspace_id,
+                )
+                materialized_order_by, materialized_descending = _get_materialized_search_order(
+                    order_by
+                )
 
             if format_output.lower() == "json":
-                systems = _query_all_items(
-                    query_url,
-                    filter_expr,
-                    api_order_by,
-                    _parse_systems_response,
-                    projection=_LIST_PROJECTION,
-                    take=take,
-                )
+                if use_materialized_search:
+                    systems = _query_materialized_systems_with_fallback(
+                        materialized_filter_expr,
+                        materialized_order_by,
+                        materialized_descending,
+                        filter_expr,
+                        api_order_by,
+                        take=take,
+                    )
+                else:
+                    systems = _query_all_items(
+                        query_url,
+                        filter_expr,
+                        api_order_by,
+                        _parse_systems_response,
+                        projection=explicit_json_projection or _LIST_PROJECTION,
+                        take=take,
+                    )
                 if has_package:
                     systems = _filter_by_package(systems, has_package)
                 mock_resp: Any = FilteredResponse({"systems": systems})
@@ -1781,20 +2253,35 @@ def register_system_commands(cli: Any) -> None:
                 pkg_filter = (
                     (lambda items: _filter_by_package(items, has_package)) if has_package else None
                 )
-                _handle_interactive_pagination(
-                    url=query_url,
-                    filter_expr=filter_expr,
-                    order_by=api_order_by,
-                    take=take,
-                    formatter_func=system_formatter,
-                    headers=headers,
-                    column_widths=column_widths,
-                    empty_message="No systems found.",
-                    item_label="systems",
-                    response_parser=_parse_systems_response,
-                    client_filter=pkg_filter,
-                    projection=_LIST_PROJECTION,
-                )
+                if use_materialized_search:
+                    _handle_materialized_system_pagination_with_fallback(
+                        search_filter_expr=materialized_filter_expr,
+                        search_order_by=materialized_order_by,
+                        search_descending=materialized_descending,
+                        fallback_filter_expr=filter_expr,
+                        fallback_order_by=api_order_by,
+                        take=take,
+                        formatter_func=system_formatter,
+                        headers=headers,
+                        column_widths=column_widths,
+                        empty_message="No systems found.",
+                        item_label="systems",
+                    )
+                else:
+                    _handle_interactive_pagination(
+                        url=query_url,
+                        filter_expr=filter_expr,
+                        order_by=api_order_by,
+                        take=take,
+                        formatter_func=system_formatter,
+                        headers=headers,
+                        column_widths=column_widths,
+                        empty_message="No systems found.",
+                        item_label="systems",
+                        response_parser=_parse_systems_response,
+                        client_filter=pkg_filter,
+                        projection=_LIST_PROJECTION,
+                    )
         except Exception as exc:  # noqa: BLE001
             handle_api_error(exc)
 

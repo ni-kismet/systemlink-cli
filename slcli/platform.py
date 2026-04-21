@@ -59,6 +59,8 @@ FEATURE_DISPLAY_NAMES: Dict[str, str] = {
 FILE_SEARCH_PATH = "/nifile/v1/service-groups/Default/search-files"
 FILE_QUERY_PATH = "/nifile/v1/service-groups/Default/query-files"
 FILE_QUERY_LINQ_PATH = "/nifile/v1/service-groups/Default/query-files-linq"
+SYSTEM_SEARCH_PATH = "/nisysmgmt/v1/materialized/search-systems"
+SYSTEM_QUERY_PATH = "/nisysmgmt/v1/query-systems"
 
 
 def _get_keyring_config() -> Dict[str, Any]:
@@ -195,7 +197,7 @@ SERVICE_CHECKS: List[List[str]] = [
     ["Auth", "GET", "/niauth/v1/policies"],
     ["Test Monitor", "GET", "/nitestmonitor/v2/results?take=0"],
     ["Asset Management", "POST", "/niapm/v1/query-assets"],
-    ["Systems", "POST", "/nisysmgmt/v1/query-systems"],
+    ["Systems", "POST", SYSTEM_QUERY_PATH],
     ["Tag", "GET", "/nitag/v2/tags?take=0"],
     ["File", "POST", FILE_SEARCH_PATH],
     ["Notebook", "POST", "/ninotebook/v1/notebook/query"],
@@ -319,6 +321,87 @@ def get_file_query_capability(api_url: str, api_key: str) -> Dict[str, Any]:
         }
 
 
+def get_system_query_capability(api_url: str, api_key: str) -> Dict[str, Any]:
+    """Determine which systems query endpoint is available for this server."""
+    headers = {
+        "x-ni-api-key": api_key,
+        "Content-Type": "application/json",
+        "User-Agent": "SystemLink-CLI/1.0 (cross-platform)",
+    }
+    ssl_verify = get_ssl_verify()
+
+    try:
+        search_resp = requests.post(
+            f"{api_url}{SYSTEM_SEARCH_PATH}",
+            headers=headers,
+            json={"take": 1, "projection": ["id"]},
+            verify=ssl_verify,
+            timeout=10,
+        )
+        if search_resp.status_code in (200, 400):
+            return {
+                "status": "ok",
+                "system_query_endpoint": "search-systems",
+                "materialized_search_available": True,
+            }
+        if search_resp.status_code in (401, 403):
+            return {
+                "status": "unauthorized",
+                "system_query_endpoint": "search-systems",
+                "materialized_search_available": True,
+            }
+        if search_resp.status_code not in (404, 501):
+            return {
+                "status": "error" if search_resp.status_code >= 500 else "not_found",
+                "system_query_endpoint": None,
+                "materialized_search_available": True,
+            }
+    except requests.RequestException:
+        return {
+            "status": "unreachable",
+            "system_query_endpoint": None,
+            "materialized_search_available": None,
+        }
+
+    try:
+        query_resp = requests.post(
+            f"{api_url}{SYSTEM_QUERY_PATH}",
+            headers=headers,
+            json={"take": 1, "projection": "new(id)"},
+            verify=ssl_verify,
+            timeout=10,
+        )
+        if query_resp.status_code in (200, 400):
+            return {
+                "status": "ok",
+                "system_query_endpoint": "query-systems",
+                "materialized_search_available": False,
+            }
+        if query_resp.status_code in (401, 403):
+            return {
+                "status": "unauthorized",
+                "system_query_endpoint": "query-systems",
+                "materialized_search_available": False,
+            }
+        if query_resp.status_code in (404, 501):
+            return {
+                "status": "not_found",
+                "system_query_endpoint": None,
+                "materialized_search_available": False,
+            }
+        return {
+            "status": "error",
+            "system_query_endpoint": None,
+            "materialized_search_available": False,
+        }
+    except requests.RequestException:
+        return {
+            "status": "unreachable",
+            "system_query_endpoint": None,
+            "materialized_search_available": False,
+        }
+
+
 def check_service_status(api_url: str, api_key: str) -> Dict[str, Any]:
     """Probe key SystemLink services and report their status.
 
@@ -332,10 +415,12 @@ def check_service_status(api_url: str, api_key: str) -> Dict[str, Any]:
         Dictionary with:
         - server_reachable: bool - whether any service responded
         - auth_valid: bool | None - whether the API key is authorized (None if unreachable)
-        - services: dict mapping service name to status string
-          ("ok", "unauthorized", "not_found", "error", "unreachable")
+                - services: dict mapping service name to status string
+                    ("ok", "unauthorized", "not_found", "error", "unreachable")
                 - file_query_endpoint: selected file query endpoint, if available
                 - elasticsearch_available: bool | None - whether search-files is available
+                - system_query_endpoint: selected systems query endpoint, if available
+                - materialized_search_available: bool | None - whether search-systems is available
                 - platform: detected platform string (PLATFORM_SLE, PLATFORM_SLS,
                     PLATFORM_UNREACHABLE, PLATFORM_UNKNOWN)
     """
@@ -396,6 +481,8 @@ def check_service_status(api_url: str, api_key: str) -> Dict[str, Any]:
             "services": services,
             "file_query_endpoint": None,
             "elasticsearch_available": None,
+            "system_query_endpoint": None,
+            "materialized_search_available": None,
             "platform": PLATFORM_UNREACHABLE,
         }
 
@@ -416,6 +503,8 @@ def check_service_status(api_url: str, api_key: str) -> Dict[str, Any]:
 
     file_capability = get_file_query_capability(api_url, api_key)
     services["File"] = file_capability["status"]
+    system_capability = get_system_query_capability(api_url, api_key)
+    services["Systems"] = system_capability["status"]
 
     return {
         "server_reachable": True,
@@ -423,6 +512,8 @@ def check_service_status(api_url: str, api_key: str) -> Dict[str, Any]:
         "services": services,
         "file_query_endpoint": file_capability["file_query_endpoint"],
         "elasticsearch_available": file_capability["elasticsearch_available"],
+        "system_query_endpoint": system_capability["system_query_endpoint"],
+        "materialized_search_available": system_capability["materialized_search_available"],
         "platform": platform,
     }
 
@@ -473,6 +564,8 @@ def get_platform_info(skip_health: bool = False) -> Dict[str, Any]:
     platform = stored_platform
     file_query_endpoint: Optional[str] = None
     elasticsearch_available: Optional[bool] = None
+    system_query_endpoint: Optional[str] = None
+    materialized_search_available: Optional[bool] = None
 
     if not skip_health and logged_in and isinstance(api_url, str) and api_url != "Not configured":
         status = check_service_status(api_url, api_key)
@@ -482,6 +575,8 @@ def get_platform_info(skip_health: bool = False) -> Dict[str, Any]:
         platform = status["platform"]
         file_query_endpoint = status.get("file_query_endpoint")
         elasticsearch_available = status.get("elasticsearch_available")
+        system_query_endpoint = status.get("system_query_endpoint")
+        materialized_search_available = status.get("materialized_search_available")
 
     info: Dict[str, Any] = {
         "api_url": api_url,
@@ -497,6 +592,10 @@ def get_platform_info(skip_health: bool = False) -> Dict[str, Any]:
         info["file_query_endpoint"] = file_query_endpoint
     if elasticsearch_available is not None:
         info["elasticsearch_available"] = elasticsearch_available
+    if system_query_endpoint is not None:
+        info["system_query_endpoint"] = system_query_endpoint
+    if materialized_search_available is not None:
+        info["materialized_search_available"] = materialized_search_available
 
     if services is not None:
         info["services"] = services
