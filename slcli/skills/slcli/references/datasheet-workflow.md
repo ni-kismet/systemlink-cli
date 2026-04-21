@@ -4,6 +4,14 @@ Use this workflow when the user wants to create a product and upload specificati
 from a datasheet (PDF, CSV, or structured text). This covers the full path from
 raw document to live SystemLink specs.
 
+> **Validation-first mindset.** SystemLink specifications are designed primarily
+> for **pre-production validation and verification** — defining what parameters
+> a test lab must confirm before a product enters production. Think of each spec
+> as a test requirement: it tells the lab what to measure, under what conditions,
+> and what limits determine pass or fail. Not every datasheet parameter needs a
+> spec — focus on parameters that are testable, measurable, and relevant to the
+> user's acceptance criteria.
+
 ## Step 1 — Clarify product identity and workspace
 
 Before touching any data, ask the user:
@@ -111,6 +119,25 @@ that match typical patterns and present the discovered sections to the user:
 > TYP, NOM, VALUE, UNIT, or LIMIT columns — that is a specification table
 > regardless of its name.
 
+#### Testability filter
+
+After identifying sections, help the user decide which parameters to import
+by considering testability:
+
+- **Include** parameters the lab can measure with standard equipment (voltages,
+  currents, timing, power, temperature thresholds, accuracy tolerances).
+- **Include** absolute maximum ratings when they define damage thresholds the
+  lab needs to verify operating margin against.
+- **Consider skipping** informational-only parameters that no test will check
+  (package dimensions, pin descriptions, ordering codes, thermal resistance
+  values that are fab-dependent and not testable by the customer).
+- **Ask the user** if you're unsure whether a section is relevant to their
+  validation plan. Some users want comprehensive cataloging; others want only
+  the parameters their test station will actually measure.
+
+When in doubt, include the parameter — it's easier to delete unused specs later
+than to re-extract them from the datasheet.
+
 ### Flat / key-value datasheets
 
 Some datasheets (especially for batteries, connectors, and simple passives)
@@ -211,12 +238,32 @@ Generate a short, unique `specId` from the datasheet symbol or parameter name:
 
 Only include limit fields that have actual values. Do not set missing limits to 0.
 
+> **Limits as acceptance criteria.** The min/max values in a spec define the
+> pass/fail boundaries for automated test results. When a test measurement is
+> compared against these limits, it must fall within the range to pass.
+> Datasheet limits are a starting point — some users apply **guard-banding**
+> (tighter limits than the datasheet) to build in manufacturing margin. If the
+> user mentions guard bands or tighter tolerances, adjust the limits accordingly
+> and note the original datasheet values in `properties.notes`.
+>
+> Every PARAMETRIC spec should have at least one limit bound (min, max, or
+> typical) so that test results can be automatically evaluated. A spec with no
+> limits cannot drive pass/fail decisions — flag these to the user.
+
 Some tables use a single VALUE column instead of MIN/TYP/MAX (e.g. ESD Ratings).
 When a value is prefixed with ± (e.g. "±1000"), convert it to `limit.min = -1000`
 and `limit.max = 1000`. When a section uses VALUE alone without ±, treat it as
 `limit.typical` unless context (like ESD ratings) implies it is a threshold.
 
 ### Conditions
+
+> **Conditions as test setup instructions.** Each condition on a spec tells the
+> test lab exactly how to configure the equipment before measuring. A supply
+> voltage condition means "set the power supply to this value"; a load condition
+> means "connect this load impedance"; a temperature condition means "set the
+> chamber to this temperature." Complete, accurate conditions are essential —
+> without them, the lab cannot reproduce the measurement that the spec's limits
+> are defined against.
 
 **Ask the user** whether to include test conditions. Many electrical specs have
 conditions like "PVCC = 12 V, RL = 8 Ω, f = 1 kHz, 1SPW mode". When conditions
@@ -357,6 +404,12 @@ Validate before import:
 - All numeric limit values are actual numbers (not strings).
 - All condition values match their `conditionType`.
 - The `productId` matches the product created in Step 2.
+- Every PARAMETRIC spec has at least one limit bound (min, max, or typical).
+  Specs with no limits cannot drive automated pass/fail — flag them to the user.
+- Traceability: `properties.source` should reference the datasheet filename.
+  For detailed traceability, include the section name or page number in
+  `properties.notes` (e.g. "Table 3, p.12") so specs can be audited back to
+  their source.
 
 Import with:
 
