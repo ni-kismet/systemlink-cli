@@ -278,7 +278,34 @@ with open('build/ai/<partnum>-specs.json', 'w', encoding='utf-8') as f:
     f.write('\n')
 ```
 
-Every spec must have at least: `productId`, `specId`, `type` (almost always `"PARAMETRIC"`).
+Every spec must have at least: `productId`, `specId`, `type`.
+
+### Choosing `type`: PARAMETRIC vs FUNCTIONAL
+
+Use **PARAMETRIC** when the spec has numeric limits (min/typ/max) that a test
+system can measure and automatically compare against bounds. Use **FUNCTIONAL**
+when the spec describes a pass/fail behavior, capability, classification, or
+qualitative characteristic that isn't a single numeric range.
+
+**Decision rule:** If you can express the value as a number with a unit and
+compare a measured result against min/typ/max bounds → PARAMETRIC. If the
+pass/fail determination requires logic, enumeration, or human judgment →
+FUNCTIONAL.
+
+| Indicator                                      | Type       |
+| ---------------------------------------------- | ---------- |
+| Row has numeric Min/Typ/Max columns filled     | PARAMETRIC |
+| Value with a measurable unit (V, A, Ω, ns, °C) | PARAMETRIC |
+| ESD classification/rating (e.g. HBM ±2000 V)   | FUNCTIONAL |
+| Regulatory compliance (UL, CSA, VDE)           | FUNCTIONAL |
+| Insulation/safety rating or certification      | FUNCTIONAL |
+| Truth table, pin behavior, logic description   | FUNCTIONAL |
+| Package type, pin count, form factor           | FUNCTIONAL |
+| Feature presence (e.g. "shutdown mode")        | FUNCTIONAL |
+
+Most specs from Electrical Characteristics and Absolute Maximum Ratings tables
+are PARAMETRIC. Specs from Regulatory, Insulation, Safety, and ESD Rating
+tables are typically FUNCTIONAL.
 
 Validate before import:
 
