@@ -56,7 +56,9 @@ class MockResponse:
     def raise_for_status(self) -> None:
         """Raise on HTTP error status."""
         if self.status_code >= 400:
-            raise Exception(f"HTTP error {self.status_code}")
+            exc = Exception(f"HTTP error {self.status_code}")
+            exc.response = self  # type: ignore[attr-defined]
+            raise exc
 
 
 SAMPLE_SPEC: Dict[str, Any] = {
