@@ -92,6 +92,7 @@ def _server_filter_options(func: Callable[..., Any]) -> Callable[..., Any]:
         click.option("--symbol", help="Filter by symbol (contains match)"),
         click.option("--unit", help="Filter by unit (contains match)"),
         click.option(
+            "-w",
             "--workspace",
             "workspace_filter",
             help="Filter by workspace name or ID. Use 'all' to disable the profile default.",
@@ -1146,6 +1147,7 @@ def register_spec_commands(cli: Any) -> None:
     @_client_filter_options
     @_sort_options
     @click.option(
+        "-t",
         "--take",
         "take",
         type=int,
@@ -1154,6 +1156,7 @@ def register_spec_commands(cli: Any) -> None:
         help="Items per page for table output, or max items for JSON output",
     )
     @click.option(
+        "-f",
         "--format",
         "format_output",
         type=click.Choice(["table", "json"]),
@@ -1256,6 +1259,7 @@ def register_spec_commands(cli: Any) -> None:
     @_sort_options
     @click.option("--continuation-token", help="Continuation token from a previous query")
     @click.option(
+        "-t",
         "--take",
         "take",
         type=int,
@@ -1264,6 +1268,7 @@ def register_spec_commands(cli: Any) -> None:
         help="Maximum number of specifications to request in this query",
     )
     @click.option(
+        "-f",
         "--format",
         "format_output",
         type=click.Choice(["table", "json"]),
@@ -1392,6 +1397,7 @@ def register_spec_commands(cli: Any) -> None:
     @spec.command(name="get")
     @click.option("--id", "specification_id", required=True, help="Specification ID to retrieve")
     @click.option(
+        "-f",
         "--format",
         "format_output",
         type=click.Choice(["table", "json"]),
@@ -1424,6 +1430,7 @@ def register_spec_commands(cli: Any) -> None:
     @_projection_options
     @_sort_options
     @click.option(
+        "-t",
         "--take",
         type=int,
         default=1000,
@@ -1579,6 +1586,7 @@ def register_spec_commands(cli: Any) -> None:
     @click.option("--block", help="Block name for the specification")
     @click.option("--unit", help="Unit for the specification")
     @click.option(
+        "-w",
         "--workspace",
         help="Workspace name or ID. Defaults to the active profile workspace when available.",
     )
@@ -1683,6 +1691,7 @@ def register_spec_commands(cli: Any) -> None:
     @click.option("--block", help="Update block")
     @click.option("--unit", help="Update unit")
     @click.option(
+        "-w",
         "--workspace",
         help="Update workspace name or ID. Defaults to the active profile workspace.",
     )
