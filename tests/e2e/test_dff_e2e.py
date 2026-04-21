@@ -1,6 +1,7 @@
 """E2E tests for DFF (Dynamic Form Fields) commands against dev tier."""
 
 import json
+import re
 import tempfile
 from pathlib import Path
 from typing import Any
@@ -244,9 +245,7 @@ class TestDFFE2E:
 
         # Should fail with validation error
         assert result.returncode != 0
-        assert (
-            "Invalid resource type" in result.stderr
-            or "Invalid resource type" in result.stdout
-            or "Invalid value for '--resource-type'" in result.stderr
-            or "Invalid value for '--resource-type'" in result.stdout
-        )
+        combined_output = re.sub(r"\x1b\[[0-9;]*m", "", f"{result.stdout}\n{result.stderr}")
+        assert "--resource-type" in combined_output
+        assert "invalid:resourcetype" in combined_output
+        assert "Invalid value" in combined_output

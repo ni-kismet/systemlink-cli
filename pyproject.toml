@@ -1,6 +1,6 @@
 [tool.poetry]
 name = "systemlink-cli"
-version = "1.8.1"
+version = "1.9.3"
 description = "SystemLink Integrator CLI - cross-platform CLI for SystemLink workflows and templates."
 authors = ["Fred Visser <fred.visser@emerson.com>"]
 packages = [{ include = "slcli" }]
@@ -117,6 +117,7 @@ warn_unreachable = true
 [tool.semantic_release]
 version_toml = ["pyproject.toml:tool.poetry.version"]
 version_variables = ["slcli/_version.py:__version__"]
+assets = ["CHANGELOG.md"]
 build_command = "python scripts/update_version.py"
 major_on_zero = false
 branch = "main"
