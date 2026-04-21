@@ -308,7 +308,11 @@ def _normalize_spec_type(spec_type: Optional[str]) -> Optional[str]:
 
 def _validate_spec_required_fields(spec_data: Dict[str, Any], fields: List[str]) -> None:
     """Validate that required fields are present and non-empty."""
-    missing_fields = [field for field in fields if not spec_data.get(field)]
+    missing_fields = [
+        field
+        for field in fields
+        if field not in spec_data or spec_data[field] is None or spec_data[field] == ""
+    ]
     if missing_fields:
         click.echo(
             f"\u2717 Missing required fields for specification: {', '.join(missing_fields)}",

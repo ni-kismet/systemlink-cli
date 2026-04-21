@@ -150,6 +150,13 @@ If a cell contains a range like "-0.5 to +0.5", parse it into `min` and `max`.
 
 ### Step 4 — Map datasheet rows to spec JSON
 
+#### Symbol field
+
+The first column in most datasheet spec tables is the **symbol** (e.g. `PO`,
+`IO`, `VCC`, `ICC`, `THD+N`). Always map this to the spec `symbol` field.
+This is distinct from `specId` — the symbol is the short engineering notation
+shown on the datasheet, while specId is a unique identifier you generate.
+
 #### Spec ID conventions
 
 Generate a short, unique `specId` from the datasheet symbol or parameter name:
@@ -162,13 +169,17 @@ Generate a short, unique `specId` from the datasheet symbol or parameter name:
   conditions (e.g. `EC-PO-BTL-10-74` for output power BTL at 10% THD, 7.4V).
 - Keep specIds short but human-readable. Never fabricate numeric values.
 
-#### Limit mapping
+#### Field mapping
 
-| Datasheet column | Spec field      |
-| ---------------- | --------------- |
-| MIN              | `limit.min`     |
-| TYP / NOM        | `limit.typical` |
-| MAX              | `limit.max`     |
+| Datasheet column       | Spec field      |
+| ---------------------- | --------------- |
+| Symbol (first column)  | `symbol`        |
+| Parameter (second col) | `name`          |
+| MIN                    | `limit.min`     |
+| TYP / NOM              | `limit.typical` |
+| MAX                    | `limit.max`     |
+| UNIT                   | `unit`          |
+| Test Conditions        | `conditions`    |
 
 Only include limit fields that have actual values. Do not set missing limits to 0.
 
@@ -184,6 +195,43 @@ are requested:
 - When a parameter row has multiple test condition variants (e.g. output power
   at different voltages/loads), create a **separate spec entry per variant** with
   the conditions and a unique specId suffix.
+
+##### Table-header (default) conditions
+
+Most datasheet sections list **default conditions outside the table** in a
+preamble line, for example:
+
+> _T<sub>A</sub> = 25°C, AVCC = PVCC = 12 V, RL = 8 Ω, Gain = 20 dB,
+> ferrite beads used, unless otherwise noted._
+
+These are **baseline conditions that apply to every spec row in that section**.
+Parse them and attach them to each spec as conditions, following these rules:
+
+1. **Apply to all rows** — every spec in the section inherits the table-header
+   conditions unless the row's own TEST CONDITIONS column explicitly overrides
+   a value.
+2. **Row overrides header** — if a row specifies `RL = 4 Ω`, drop the
+   `RL = 8 Ω` header condition for that spec and use the row value instead.
+3. **Merge, don't duplicate** — if the same condition name appears in both the
+   header and the row, keep only the row value.
+4. **Qualitative notes** — phrases like "ferrite beads used" or "unless otherwise
+   noted" become a `STRING` condition (e.g. `"Output filter": "ferrite beads"`)
+   or go into `properties.notes` if they aren't a measurable quantity.
+
+Example: The Electrical Characteristics table header says
+`TA = 25°C, AVCC = PVCC = 12 V, RL = 8 Ω, Gain = 20 dB`. A row for output
+power with TEST CONDITIONS "PVCC = 7.4 V, RL = 8 Ω, f = 1 kHz, 1SPW mode"
+should produce conditions:
+
+- `TA = 25°C` (from header — not overridden)
+- `PVCC = 7.4 V` (row overrides `PVCC = 12 V` from header)
+- `AVCC = 12 V` (from header — row only overrides PVCC)
+- `RL = 8 Ω` (present in both — same value, keep one)
+- `Gain = 20 dB` (from header — not overridden)
+- `f = 1 kHz` (from row — new condition)
+- `Mode = 1SPW` (from row — new condition)
+
+##### Per-row condition examples
 
 Example condition mapping:
 

@@ -10,6 +10,7 @@ from slcli.spec_click import (
     _build_limit,
     _build_spec_filter,
     _resolve_product_id,
+    _validate_spec_required_fields,
     register_spec_commands,
 )
 
@@ -822,3 +823,17 @@ def test_resolve_product_id_ambiguous(monkeypatch: Any) -> None:
     with pytest.raises(SystemExit) as exc_info:
         _resolve_product_id("Stereo Audio Amplifier")
     assert exc_info.value.code == 2  # ExitCodes.INVALID_INPUT
+
+
+def test_validate_spec_required_fields_version_zero() -> None:
+    """Test that version=0 is treated as a valid (present) value."""
+    # Should NOT raise for version=0 (falsy but valid)
+    spec_data: Dict[str, Any] = {"id": "123", "version": 0}
+    _validate_spec_required_fields(spec_data, ["id", "version"])
+
+
+def test_validate_spec_required_fields_missing() -> None:
+    """Test that truly missing fields are caught."""
+    spec_data: Dict[str, Any] = {"id": "123"}
+    with pytest.raises(SystemExit):
+        _validate_spec_required_fields(spec_data, ["id", "version"])
