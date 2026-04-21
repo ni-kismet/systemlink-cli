@@ -6,6 +6,7 @@ import sys
 from typing import Any, Callable, Dict, List, Optional, Tuple
 
 import click
+import questionary
 
 from .cli_utils import confirm_bulk_operation, validate_output_format
 from .rich_output import render_table
@@ -948,6 +949,144 @@ def _collect_specs(
     return collected_specs[:take]
 
 
+def _fetch_spec_page(
+    product_ids: List[str],
+    take: int,
+    filter_expr: Optional[str],
+    order_by: str,
+    descending: bool,
+    continuation_token: Optional[str],
+    condition_name: Optional[str] = None,
+    condition_type: Optional[str] = None,
+    condition_unit: Optional[str] = None,
+    condition_value: Optional[str] = None,
+    limit_min_ge: Optional[float] = None,
+    limit_min_le: Optional[float] = None,
+    limit_typical_ge: Optional[float] = None,
+    limit_typical_le: Optional[float] = None,
+    limit_max_ge: Optional[float] = None,
+    limit_max_le: Optional[float] = None,
+) -> Tuple[List[Dict[str, Any]], Optional[str]]:
+    """Fetch one visual page of specs, accumulating across server pages if client-side filters reduce results.
+
+    Returns:
+        Tuple of (page_items up to *take*, next continuation_token or None).
+    """
+    collected: List[Dict[str, Any]] = []
+    token = continuation_token
+
+    while len(collected) < take:
+        remaining = max(take - len(collected), 1)
+        page = _query_specs_once(
+            product_ids=product_ids,
+            take=remaining,
+            continuation_token=token,
+            filter_expr=filter_expr,
+            order_by=order_by,
+            descending=descending,
+        )
+        specs = page.get("specs", [])
+        if not isinstance(specs, list) or not specs:
+            token = None
+            break
+
+        filtered = _apply_client_side_filters(
+            specs,
+            condition_name,
+            condition_type,
+            condition_unit,
+            condition_value,
+            limit_min_ge,
+            limit_min_le,
+            limit_typical_ge,
+            limit_typical_le,
+            limit_max_ge,
+            limit_max_le,
+        )
+        collected.extend(filtered)
+
+        token = page.get("continuationToken")
+        if not token:
+            break
+
+    return collected[:take], token
+
+
+def _handle_spec_interactive_pagination(
+    product_ids: List[str],
+    take: int,
+    filter_expr: Optional[str],
+    order_by: str,
+    descending: bool,
+    format_output: str,
+    condition_name: Optional[str] = None,
+    condition_type: Optional[str] = None,
+    condition_unit: Optional[str] = None,
+    condition_value: Optional[str] = None,
+    limit_min_ge: Optional[float] = None,
+    limit_min_le: Optional[float] = None,
+    limit_typical_ge: Optional[float] = None,
+    limit_typical_le: Optional[float] = None,
+    limit_max_ge: Optional[float] = None,
+    limit_max_le: Optional[float] = None,
+) -> None:
+    """Interactively paginate spec list results with server-side fetching."""
+    cont: Optional[str] = None
+    shown_count = 0
+
+    while True:
+        page_items, cont = _fetch_spec_page(
+            product_ids=product_ids,
+            take=take,
+            filter_expr=filter_expr,
+            order_by=order_by,
+            descending=descending,
+            continuation_token=cont,
+            condition_name=condition_name,
+            condition_type=condition_type,
+            condition_unit=condition_unit,
+            condition_value=condition_value,
+            limit_min_ge=limit_min_ge,
+            limit_min_le=limit_min_le,
+            limit_typical_ge=limit_typical_ge,
+            limit_typical_le=limit_typical_le,
+            limit_max_ge=limit_max_ge,
+            limit_max_le=limit_max_le,
+        )
+
+        if not page_items:
+            if shown_count == 0:
+                click.echo("No specifications found.")
+            break
+
+        shown_count += len(page_items)
+
+        mock_resp: Any = FilteredResponse({"specs": page_items})
+        UniversalResponseHandler.handle_list_response(
+            resp=mock_resp,
+            data_key="specs",
+            item_name="specification",
+            format_output=format_output,
+            formatter_func=_spec_formatter,
+            headers=_SPEC_LIST_HEADERS,
+            column_widths=_SPEC_LIST_WIDTHS,
+            enable_pagination=False,
+            page_size=take,
+            shown_count=shown_count,
+        )
+
+        try:
+            sys.stdout.flush()
+        except Exception:
+            pass
+
+        if not cont:
+            break
+
+        if not questionary.confirm("Show next set of results?", default=True).ask():
+            break
+
+
 def _get_product_name(product_id: str) -> str:
     """Fetch the display name for a single product ID."""
     try:
@@ -1215,38 +1354,61 @@ def register_spec_commands(cli: Any) -> None:
         )
 
         try:
-            specs = _collect_specs(
-                product_ids=resolved_product_ids,
-                take=take,
-                filter_expr=filter_expr,
-                order_by=order_by.upper(),
-                descending=descending,
-                condition_name=condition_name,
-                condition_type=condition_type,
-                condition_unit=condition_unit,
-                condition_value=condition_value,
-                limit_min_ge=limit_min_ge,
-                limit_min_le=limit_min_le,
-                limit_typical_ge=limit_typical_ge,
-                limit_typical_le=limit_typical_le,
-                limit_max_ge=limit_max_ge,
-                limit_max_le=limit_max_le,
-            )
-
             _spec_formatter.workspace_map = get_workspace_map()  # type: ignore[attr-defined]
             _spec_formatter.product_map = _build_product_name_map(resolved_product_ids)  # type: ignore[attr-defined]
-            filtered_resp: Any = FilteredResponse({"specs": specs})
-            UniversalResponseHandler.handle_list_response(
-                resp=filtered_resp,
-                data_key="specs",
-                item_name="specification",
-                format_output=normalized_format,
-                formatter_func=_spec_formatter,
-                headers=_SPEC_LIST_HEADERS,
-                column_widths=_SPEC_LIST_WIDTHS,
-                enable_pagination=True,
-                page_size=take,
-            )
+
+            if normalized_format == "json":
+                # JSON: collect all matching specs up to --take and dump at once
+                specs = _collect_specs(
+                    product_ids=resolved_product_ids,
+                    take=take,
+                    filter_expr=filter_expr,
+                    order_by=order_by.upper(),
+                    descending=descending,
+                    condition_name=condition_name,
+                    condition_type=condition_type,
+                    condition_unit=condition_unit,
+                    condition_value=condition_value,
+                    limit_min_ge=limit_min_ge,
+                    limit_min_le=limit_min_le,
+                    limit_typical_ge=limit_typical_ge,
+                    limit_typical_le=limit_typical_le,
+                    limit_max_ge=limit_max_ge,
+                    limit_max_le=limit_max_le,
+                )
+                filtered_resp: Any = FilteredResponse({"specs": specs})
+                UniversalResponseHandler.handle_list_response(
+                    resp=filtered_resp,
+                    data_key="specs",
+                    item_name="specification",
+                    format_output=normalized_format,
+                    formatter_func=_spec_formatter,
+                    headers=_SPEC_LIST_HEADERS,
+                    column_widths=_SPEC_LIST_WIDTHS,
+                    enable_pagination=False,
+                    page_size=take,
+                )
+            else:
+                # Table: interactive server-side pagination — fetch one page at
+                # a time and prompt the user before fetching the next.
+                _handle_spec_interactive_pagination(
+                    product_ids=resolved_product_ids,
+                    take=take,
+                    filter_expr=filter_expr,
+                    order_by=order_by.upper(),
+                    descending=descending,
+                    format_output=normalized_format,
+                    condition_name=condition_name,
+                    condition_type=condition_type,
+                    condition_unit=condition_unit,
+                    condition_value=condition_value,
+                    limit_min_ge=limit_min_ge,
+                    limit_min_le=limit_min_le,
+                    limit_typical_ge=limit_typical_ge,
+                    limit_typical_le=limit_typical_le,
+                    limit_max_ge=limit_max_ge,
+                    limit_max_le=limit_max_le,
+                )
         except Exception as exc:
             handle_api_error(exc)
 

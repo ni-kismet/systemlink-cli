@@ -639,6 +639,47 @@ def test_list_specifications_table_output(monkeypatch: Any, runner: CliRunner) -
     assert "Test Product" in result.output
 
 
+def test_list_specifications_table_interactive_pagination(
+    monkeypatch: Any, runner: CliRunner
+) -> None:
+    """Test table output fetches pages from the server and prompts for more."""
+    patch_keyring(monkeypatch)
+    monkeypatch.setattr("slcli.spec_click._resolve_product_id", lambda x: x)
+
+    call_count = 0
+
+    def mock_post(*a: Any, **kw: Any) -> Any:
+        nonlocal call_count
+        call_count += 1
+        payload = kw.get("json", {})
+        token = payload.get("continuationToken")
+        if token is None:
+            return MockResponse({"specs": [SAMPLE_SPEC], "continuationToken": "page-2"})
+        return MockResponse({"specs": [SAMPLE_SPEC], "continuationToken": None})
+
+    monkeypatch.setattr("requests.post", mock_post)
+    monkeypatch.setattr("slcli.spec_click.get_workspace_map", lambda: {"ws-1": "Production"})
+    monkeypatch.setattr(
+        "slcli.spec_click._build_product_name_map",
+        lambda ids: {pid: "Test Product" for pid in ids},
+    )
+    # Simulate the user pressing "yes" then the second page has no continuation
+    monkeypatch.setattr(
+        "slcli.spec_click.questionary.confirm",
+        lambda *a, **kw: type("Q", (), {"ask": staticmethod(lambda: True)})(),
+    )
+
+    cli = make_cli()
+    result = runner.invoke(
+        cli,
+        ["spec", "list", "--product", "product-1", "--format", "table", "--take", "1"],
+    )
+
+    assert result.exit_code == 0
+    assert call_count == 2, "Should have fetched two server pages"
+    assert "VSAT01" in result.output
+
+
 def test_list_specifications_invalid_take(monkeypatch: Any, runner: CliRunner) -> None:
     """Test that --take 0 exits with an error."""
     patch_keyring(monkeypatch)
