@@ -17,7 +17,7 @@ compatibility: >-
   Requires network access to a SystemLink server instance.
 metadata:
   author: ni-kismet
-  version: "1.2"
+  version: "1.5"
 ---
 
 # SystemLink CLI (slcli)
@@ -70,12 +70,13 @@ raw document to live SystemLink specs.
 Before touching any data, ask the user:
 
 1. **Product name and part number.** Extract a candidate from the datasheet title
-   page (e.g. "TPA3139D2 10-W Stereo … Class D Amplifier"). Propose a short
-   friendly name like "TPA3139D2 Stereo Audio Amplifier" and the raw part number
-   (e.g. "TPA3139D2") and **ask the user to confirm or adjust both values**.
+   page or cover. Propose a short friendly name (part number + concise
+   description) and the raw part number, then **ask the user to confirm or
+   adjust both values**.
 2. **Product family.** Suggest a family based on the datasheet application domain
-   (e.g. "Audio", "Power", "Sensor", "Semiconductor") but **always ask the user
-   to confirm** — do not silently infer the family.
+   (e.g. "Audio", "Power", "Sensor", "Semiconductor", "Passive", "Connector",
+   "Test Equipment", "Module") but **always ask the user to confirm** — do not
+   silently infer the family.
 3. **Existing product check.** Search by name _and_ part number:
    ```bash
    slcli testmonitor product list --name "<candidate>" -f json
@@ -104,33 +105,75 @@ slcli testmonitor product create \
 
 Populate product fields from the datasheet:
 
-| Product field | Where to find it on a datasheet                                 |
-| ------------- | --------------------------------------------------------------- |
-| `partNumber`  | Title, "Device Information" table, or orderable addendum        |
-| `name`        | Short form of the title (part number + concise description)     |
-| `family`      | Application domain (Audio, Power, Sensor, etc.)                 |
-| `keywords`    | From "Applications" or "Features" sections                      |
-| `properties`  | manufacturer, package type, body size from "Device Information" |
+| Product field | Where to find it on a datasheet                                   |
+| ------------- | ----------------------------------------------------------------- |
+| `partNumber`  | Title page, ordering info, or device summary table                |
+| `name`        | Short form of the title (part number + concise description)       |
+| `family`      | Application domain (Audio, Power, Sensor, Passive, Module, etc.)  |
+| `keywords`    | From "Applications", "Features", or "Description" sections        |
+| `properties`  | manufacturer, package type, form factor from device summary table |
 
 ### Step 3 — Extract specification data
 
 #### PDF datasheets
 
 1. Install a PDF extraction library if needed (e.g. `pip install pymupdf`).
-2. Extract text from pages containing specification tables. Search for keywords:
-   "Absolute Maximum", "Recommended Operating", "Electrical Characteristics",
-   "Switching Characteristics", "Thermal Information".
-3. Write extracted text to `build/ai/<partnum>-specs-raw.txt` for review.
+2. Scan the table of contents or page headings to identify all specification
+   sections. Do **not** hard-code a fixed list — different product domains use
+   different section names.
+3. Extract text from pages containing specification tables. Write extracted
+   text to `build/ai/<partnum>-specs-raw.txt` for review.
 
-**Ask the user which sections to import.** Typical sections in semiconductor datasheets:
+**Ask the user which sections to import.**
 
-| Section                          | What it contains                       | Default include? |
-| -------------------------------- | -------------------------------------- | ---------------- |
-| Absolute Maximum Ratings         | Destructive limits — never exceed      | Yes              |
-| Recommended Operating Conditions | Safe operating ranges                  | Yes              |
-| Thermal Information              | Thermal resistances (RθJA, etc.)       | Yes              |
-| Electrical Characteristics       | Performance specs with test conditions | Yes              |
-| Switching Characteristics        | Timing, frequencies                    | Yes              |
+Common section names vary by product domain. Search the document for headings
+that match typical patterns and present the discovered sections to the user:
+
+| Domain            | Common section names                                         |
+| ----------------- | ------------------------------------------------------------ |
+| Semiconductor ICs | Absolute Maximum Ratings, ESD Ratings, Recommended Operating |
+|                   | Conditions, Thermal Information, Electrical Characteristics, |
+|                   | Switching Characteristics, DC/AC Characteristics             |
+| Passive (C, R, L) | Ratings, Electrical Characteristics, Temperature Derating,   |
+|                   | Environmental Characteristics                                |
+| Sensors           | Performance Specifications, Accuracy, Sensitivity,           |
+|                   | Operating Conditions, Environmental Specifications           |
+| Power supplies    | Input Characteristics, Output Characteristics, Protection,   |
+|                   | Efficiency, Derating                                         |
+| Connectors        | Electrical Ratings, Mechanical Specifications,               |
+|                   | Environmental Specifications                                 |
+| Test equipment    | Accuracy Specifications, Measurement Ranges,                 |
+|                   | Environmental Operating Conditions                           |
+
+> **Guideline:** Scan for any heading followed by a table containing MIN, MAX,
+> TYP, NOM, VALUE, UNIT, or LIMIT columns — that is a specification table
+> regardless of its name.
+
+#### Flat / key-value datasheets
+
+Some datasheets (especially for batteries, connectors, and simple passives)
+present specs as a **key-value list** rather than a table with columns:
+
+```
+Nominal voltage      3V
+Nominal capacity     225mAh
+Diameter(Max.)       20.0mm
+```
+
+When the datasheet has no MIN/TYP/MAX table structure:
+
+- Treat each key-value pair as one spec row.
+- Parse the unit from the value string (e.g. "225mAh" → value=225, unit="mAh").
+- Check for **qualifiers in the label** that indicate which limit field to use:
+  - `(Max.)` or `(max)` → `limit.max`
+  - `(Min.)` or `(min)` → `limit.min`
+  - `(Typ.)`, `(typ)`, `(Nom.)`, `Nominal` → `limit.typical`
+  - `Approx.` / `approximately` → `limit.typical` (add "Approx." to `properties.notes`)
+- If no qualifier is present, default to `limit.typical` for single values.
+- **Footnotes** (e.g. "*1 Without tabs", "*2 Consult manufacturer at 70°C+")
+  go into `properties.notes`. Do not discard them — they contain important
+  measurement conditions and caveats.
+- Ranges like "-30°C to +85°C" should be split into `limit.min` and `limit.max`.
 
 #### CSV files
 
@@ -152,19 +195,42 @@ If a cell contains a range like "-0.5 to +0.5", parse it into `min` and `max`.
 
 #### Symbol field
 
-The first column in most datasheet spec tables is the **symbol** (e.g. `PO`,
-`IO`, `VCC`, `ICC`, `THD+N`). Always map this to the spec `symbol` field.
-This is distinct from `specId` — the symbol is the short engineering notation
-shown on the datasheet, while specId is a unique identifier you generate.
+Many datasheet spec tables have a **symbol** column (often the first column)
+containing short engineering notation like `PO`, `IO`, `VCC`, `ICC`, `THD+N`,
+`RθJA`, or `ESR`. When present, always map it to the spec `symbol` field.
+This is distinct from `specId` — the symbol is the notation from the datasheet,
+while specId is a unique identifier you generate.
+
+Not all datasheets have symbols. Passive component datasheets, sensor spec
+tables, and test equipment manuals often omit them. When no symbol column
+exists, leave `symbol` null and rely on `specId` and `name`.
 
 #### Spec ID conventions
 
 Generate a short, unique `specId` from the datasheet symbol or parameter name:
 
-- Use the datasheet symbol when available (e.g. `VCC`, `PO`, `ICC`).
-- Prefix with a category abbreviation for disambiguation:
-  `AMR-` (Absolute Max), `ROC-` (Recommended Operating), `TH-` (Thermal),
-  `EC-` (Electrical Characteristics), `SW-` (Switching).
+- Use the datasheet symbol when available (e.g. `VCC`, `PO`, `ICC`, `ESR`).
+- Prefix with a short category abbreviation derived from the section name for
+  disambiguation. Choose a 2-4 character prefix that makes sense for the
+  product domain. Examples:
+
+  | Section type               | Prefix examples |
+  | -------------------------- | --------------- |
+  | Absolute Maximum Ratings   | `AMR-`          |
+  | ESD Ratings                | `ESD-`          |
+  | Recommended Operating      | `ROC-`          |
+  | Thermal Information        | `TH-`           |
+  | Electrical Characteristics | `EC-`           |
+  | Switching Characteristics  | `SW-`           |
+  | Input Characteristics      | `IN-`           |
+  | Output Characteristics     | `OUT-`          |
+  | Accuracy Specifications    | `ACC-`          |
+  | Environmental Specs        | `ENV-`          |
+  | Dimensions / Mechanical    | `DIM-`          |
+
+  When a datasheet has only one section (e.g. "Specifications"), omit the
+  prefix entirely and use short descriptive IDs like `VNOM`, `CNOM`, `TEMP-OP`.
+
 - Append a disambiguator when the same parameter appears under different
   conditions (e.g. `EC-PO-BTL-10-74` for output power BTL at 10% THD, 7.4V).
 - Keep specIds short but human-readable. Never fabricate numeric values.
@@ -182,6 +248,11 @@ Generate a short, unique `specId` from the datasheet symbol or parameter name:
 | Test Conditions        | `conditions`    |
 
 Only include limit fields that have actual values. Do not set missing limits to 0.
+
+Some tables use a single VALUE column instead of MIN/TYP/MAX (e.g. ESD Ratings).
+When a value is prefixed with ± (e.g. "±1000"), convert it to `limit.min = -1000`
+and `limit.max = 1000`. When a section uses VALUE alone without ±, treat it as
+`limit.typical` unless context (like ESD ratings) implies it is a threshold.
 
 #### Conditions
 
@@ -201,10 +272,10 @@ are requested:
 Most datasheet sections list **default conditions outside the table** in a
 preamble line, for example:
 
-> _T<sub>A</sub> = 25°C, AVCC = PVCC = 12 V, RL = 8 Ω, Gain = 20 dB,
-> ferrite beads used, unless otherwise noted._
+> _T<sub>A</sub> = 25°C, V<sub>CC</sub> = 5 V, unless otherwise noted._
 
-These are **baseline conditions that apply to every spec row in that section**.
+The exact parameters vary by product type (voltage, temperature, load,
+frequency, humidity, etc.) but the pattern is the same across all domains.
 Parse them and attach them to each spec as conditions, following these rules:
 
 1. **Apply to all rows** — every spec in the section inherits the table-header
@@ -218,34 +289,32 @@ Parse them and attach them to each spec as conditions, following these rules:
    noted" become a `STRING` condition (e.g. `"Output filter": "ferrite beads"`)
    or go into `properties.notes` if they aren't a measurable quantity.
 
-Example: The Electrical Characteristics table header says
-`TA = 25°C, AVCC = PVCC = 12 V, RL = 8 Ω, Gain = 20 dB`. A row for output
-power with TEST CONDITIONS "PVCC = 7.4 V, RL = 8 Ω, f = 1 kHz, 1SPW mode"
-should produce conditions:
+Example: A table header says `TA = 25°C, VCC = 5 V, RL = 10 kΩ`. A row in
+that table has TEST CONDITIONS "VCC = 3.3 V, CL = 50 pF". The merged
+conditions for that spec should be:
 
 - `TA = 25°C` (from header — not overridden)
-- `PVCC = 7.4 V` (row overrides `PVCC = 12 V` from header)
-- `AVCC = 12 V` (from header — row only overrides PVCC)
-- `RL = 8 Ω` (present in both — same value, keep one)
-- `Gain = 20 dB` (from header — not overridden)
-- `f = 1 kHz` (from row — new condition)
-- `Mode = 1SPW` (from row — new condition)
+- `VCC = 3.3 V` (row overrides `VCC = 5 V` from header)
+- `RL = 10 kΩ` (from header — not overridden)
+- `CL = 50 pF` (from row — new condition)
 
 ##### Per-row condition examples
 
-Example condition mapping:
+Numeric condition (measurable quantity with a unit):
 
 ```json
 {
-  "name": "PVCC",
-  "value": { "conditionType": "NUMERIC", "discrete": [12], "unit": "V" }
+  "name": "VCC",
+  "value": { "conditionType": "NUMERIC", "discrete": [5], "unit": "V" }
 }
 ```
+
+String condition (mode, configuration, or qualitative setting):
 
 ```json
 {
   "name": "Mode",
-  "value": { "conditionType": "STRING", "discrete": ["1SPW"] }
+  "value": { "conditionType": "STRING", "discrete": ["Normal"] }
 }
 ```
 
@@ -287,7 +356,57 @@ slcli spec import --file build/ai/<partnum>-specs.json
 
 Use `slcli spec create ...` only for one-off interactive entry.
 
-### Step 6 — Verify
+### Step 6 — Upload source file and attach to product
+
+Upload the original datasheet (PDF, CSV, etc.) to SystemLink and link it to
+the product so users can trace specs back to the source document.
+
+#### Check for existing file
+
+Before uploading, check whether the product already has a file with the same
+name to avoid duplicates. Retrieve the product's current `fileIds`, then query
+each file's metadata:
+
+```bash
+# Get product details including fileIds
+slcli testmonitor product list --part-number "<PART>" --format json
+
+# For each fileId, check the file name
+slcli file get <FILE_ID> --format json
+```
+
+If a file with the same name already exists on the product, **skip the upload**
+and tell the user. If a file with a different name exists (e.g. an older
+revision), ask the user whether to keep both or replace the old one.
+
+#### Upload and attach
+
+```bash
+# Upload the file
+slcli file upload "<LOCAL_PATH>" \
+  -w "<WORKSPACE_NAME>" \
+  -n "<PART_NUMBER> Datasheet (<DOC_ID>)"
+```
+
+Capture the file ID from the upload output, then attach it to the product
+using the update-products API:
+
+```python
+from slcli.utils import make_api_request, get_base_url
+
+resp = make_api_request(
+    "POST",
+    f"{get_base_url()}/nitestmonitor/v2/update-products",
+    payload={
+        "products": [{"id": "<PRODUCT_ID>", "fileIds": ["<FILE_ID>"]}],
+        "replace": False,
+    },
+)
+```
+
+This preserves any existing `fileIds` on the product while adding the new one.
+
+### Step 7 — Verify
 
 ```bash
 slcli spec list --product <PART_NUMBER_OR_NAME> --take 100
