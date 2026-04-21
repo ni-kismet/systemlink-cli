@@ -11,7 +11,7 @@ The E2E testing framework validates that CLI commands work correctly against non
 ```
 tests/e2e/
 ├── conftest.py                 # Shared fixtures and configuration
-├── test_mcp_e2e.py            # Local MCP SSE smoke test
+├── test_mcp_e2e.py            # Local MCP streamable HTTP smoke test
 ├── test_notebook_e2e.py        # Notebook command tests
 ├── test_spec_e2e.py            # Specification command tests
 ├── test_user_e2e.py           # User command tests
@@ -117,15 +117,15 @@ poetry run pytest tests/e2e/ -m e2e --e2e-platform sls -v
 poetry run pytest tests/e2e/ -m e2e --e2e-platform sle -v
 ```
 
-### Run The Local MCP SSE Smoke Test
+### Run The Local MCP Streamable HTTP Smoke Test
 
-The MCP smoke test connects to a locally running SSE server and exercises the
+The MCP smoke test connects to a locally running streamable HTTP server and exercises the
 full MCP tool surface that is expected to work in local environments.
 
 Start the server in one terminal:
 
 ```bash
-poetry run slcli mcp serve -T sse
+poetry run slcli mcp serve -T streamable-http
 ```
 
 Run the smoke test in another terminal:
@@ -137,7 +137,7 @@ poetry run pytest tests/e2e/test_mcp_e2e.py -m e2e -v
 Optional overrides:
 
 ```bash
-export SLCLI_MCP_E2E_SSE_URL="http://127.0.0.1:8000/sse"
+export SLCLI_MCP_E2E_URL="http://127.0.0.1:8000/mcp"
 export SLCLI_MCP_E2E_TIMEOUT="5"
 export SLCLI_MCP_E2E_USER_ID="<known-user-id>"
 export SLCLI_MCP_E2E_TAG_PATH="<known-tag-path>"
@@ -161,9 +161,9 @@ Notes:
   every tool.
 - Some detail calls may legitimately return MCP-level errors in sparse,
   partially provisioned, or permission-limited environments; the test still
-  verifies that those tools can be invoked without destabilizing the SSE
+  verifies that those tools can be invoked without destabilizing the HTTP
   server.
-- The test skips only when the local SSE server is unreachable. Other failures
+- The test skips only when the local MCP endpoint is unreachable. Other failures
   are treated as real regressions.
 
 ### Run Specific Test Categories
@@ -327,9 +327,12 @@ The framework uses pytest markers to categorize tests:
 
 ## Local Development Integration
 
-### Manual Testing Only
+### Local-First, CI-Optional
 
-The E2E testing framework is designed for local development and manual testing. Tests are run locally against development SystemLink environments to validate CLI functionality before releases.
+The E2E testing framework is designed first for local development and manual debugging
+against real SystemLink environments. Selected E2E slices can also run in CI when
+dedicated SLS/SLE test environments, credentials, and stable seed data are available.
+If those CI prerequisites are not configured, the GitHub Actions E2E jobs are skipped.
 
 ### Environment Setup
 
@@ -340,6 +343,40 @@ Configure these environment variables for local E2E testing:
 - `SLCLI_E2E_WORKSPACE` - Target workspace (default: "Default")
 - `SLCLI_E2E_TIMEOUT` - Request timeout in seconds (default: 30)
 - `SLCLI_E2E_CLEANUP` - Clean up test resources (default: true)
+
+## CI Configuration
+
+The GitHub Actions pipeline can run the E2E suite in two separate jobs:
+
+- `E2E (SLS)` runs `poetry run pytest tests/e2e/ -m "e2e and not sle" --e2e-platform sls -n auto --timeout=300`
+- `E2E (SLE)` runs `poetry run pytest tests/e2e/ -m "e2e and not sls" --e2e-platform sle -n auto --timeout=300`
+
+Configure the jobs with GitHub Actions secrets and repository variables.
+
+### Required GitHub Secrets
+
+- `SLCLI_E2E_SLS_API_KEY` - API key for the SystemLink Server (SLS) test user
+- `SLCLI_E2E_SLE_API_KEY` - API key for the SystemLink Enterprise (SLE) test user
+
+### Recommended GitHub Repository Variables
+
+- `SLCLI_E2E_SLS_BASE_URL` - Base URL for the SLS test environment
+- `SLCLI_E2E_SLS_WORKSPACE` - Workspace for the SLS test user (optional, defaults to `Default`)
+- `SLCLI_E2E_SLS_TEST_NOTEBOOK_PATH` - Notebook path used by SLS notebook execution tests (optional, enables more SLS coverage)
+- `SLCLI_E2E_SLE_BASE_URL` - Base URL for the SLE test environment
+- `SLCLI_E2E_SLE_WORKSPACE` - Workspace for the SLE test user (optional, defaults to `Default`)
+- `SLCLI_E2E_SLE_TEST_NOTEBOOK_ID` - Notebook ID used by SLE routine/notebook tests (optional, enables more SLE coverage)
+- `SLCLI_E2E_TIMEOUT` - Global E2E timeout in seconds (optional, defaults to `30`)
+- `SLCLI_E2E_CLEANUP` - Whether the suite should clean up created resources (optional, defaults to `true`)
+
+### API Key Scope Recommendations
+
+Create two separate test-user API keys, one per environment:
+
+- `SLCLI_E2E_SLS_API_KEY`: an SLS test user with access to the target workspace plus any SLS notebook execution resources referenced by `SLCLI_E2E_SLS_TEST_NOTEBOOK_PATH`
+- `SLCLI_E2E_SLE_API_KEY`: an SLE test user with access to the target workspace and the services covered by the SLE suite, including notebooks, routines, work items, comments, feeds, files, tags, users, workspaces, and test monitor resources
+
+The jobs are skipped automatically when the matching base URL variable or API key secret is not configured.
 
 ## Test Design Principles
 

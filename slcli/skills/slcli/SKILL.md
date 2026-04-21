@@ -51,6 +51,12 @@ slcli workitem list -f json -t 25
 
 # create a work item
 slcli workitem create --name "Battery Cycle Test" --type testplan --state NEW --part-number "P-001" -w Default
+
+# register the MCP server for VS Code Copilot Agent mode
+slcli mcp install
+
+# run the MCP server over streamable HTTP for local inspector testing
+slcli mcp serve --transport streamable-http
 ```
 
 ## Output formats
@@ -98,7 +104,6 @@ Consult these for detailed guidance. Load only what you need for the current tas
 | `workspace`   | Workspaces              | `list`, `get`                                        |
 | `skill`       | AI skill installation   | `install`                                            |
 | `example`     | Demo provisioning       | `list`, `install`, `delete`                          |
-
 ## Key rules
 
 1. **Always use `-f json`** when piping output to `jq` or doing programmatic analysis.

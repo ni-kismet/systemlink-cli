@@ -5,6 +5,7 @@ on:
     branches: [ main ]
   pull_request:
     branches: [ main ]
+    types: [opened, synchronize, reopened, ready_for_review]
 
 jobs:
   build-test-lint:
@@ -41,3 +42,157 @@ jobs:
         with:
           name: slcli-binary
           path: dist/slcli/
+
+  e2e-sls:
+    name: E2E (SLS)
+    runs-on: ubuntu-latest
+    needs: build-test-lint
+    timeout-minutes: 45
+    steps:
+      - name: Check SLS E2E configuration
+        id: sls-config
+        env:
+          SLCLI_E2E_SLS_BASE_URL: ${{ vars.SLCLI_E2E_SLS_BASE_URL }}
+          SLCLI_E2E_SLS_API_KEY: ${{ secrets.SLCLI_E2E_SLS_API_KEY }}
+        run: |
+          if [ -n "$SLCLI_E2E_SLS_BASE_URL" ] && [ -n "$SLCLI_E2E_SLS_API_KEY" ]; then
+            echo "enabled=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "enabled=false" >> "$GITHUB_OUTPUT"
+            echo "Skipping SLS E2E job because SLCLI_E2E_SLS_BASE_URL or SLCLI_E2E_SLS_API_KEY is not configured."
+          fi
+
+      - name: Checkout code
+        if: ${{ steps.sls-config.outputs.enabled == 'true' }}
+        uses: actions/checkout@v6
+
+      - name: Set up Python
+        if: ${{ steps.sls-config.outputs.enabled == 'true' }}
+        uses: actions/setup-python@v6
+        with:
+          python-version: '3.13'
+
+      - name: Install Poetry
+        if: ${{ steps.sls-config.outputs.enabled == 'true' }}
+        run: pip install poetry
+
+      - name: Install dependencies
+        if: ${{ steps.sls-config.outputs.enabled == 'true' }}
+        run: poetry install
+
+      - name: Write SLS E2E config
+        if: ${{ steps.sls-config.outputs.enabled == 'true' }}
+        env:
+          SLCLI_E2E_SLS_BASE_URL: ${{ vars.SLCLI_E2E_SLS_BASE_URL }}
+          SLCLI_E2E_SLS_API_KEY: ${{ secrets.SLCLI_E2E_SLS_API_KEY }}
+          SLCLI_E2E_SLS_WORKSPACE: ${{ vars.SLCLI_E2E_SLS_WORKSPACE }}
+          SLCLI_E2E_SLS_TEST_NOTEBOOK_PATH: ${{ vars.SLCLI_E2E_SLS_TEST_NOTEBOOK_PATH }}
+          SLCLI_E2E_TIMEOUT: ${{ vars.SLCLI_E2E_TIMEOUT }}
+          SLCLI_E2E_CLEANUP: ${{ vars.SLCLI_E2E_CLEANUP }}
+        run: |
+          python - <<'PY'
+          import json
+          import os
+          from pathlib import Path
+
+          config = {
+              "sls": {
+                  "base_url": os.environ["SLCLI_E2E_SLS_BASE_URL"],
+                  "api_key": os.environ["SLCLI_E2E_SLS_API_KEY"],
+                  "workspace": os.environ.get("SLCLI_E2E_SLS_WORKSPACE") or "Default",
+                  "platform": "SLS",
+              },
+              "timeout": int(os.environ.get("SLCLI_E2E_TIMEOUT") or "30"),
+              "cleanup": (os.environ.get("SLCLI_E2E_CLEANUP") or "true").lower() == "true",
+          }
+
+          test_notebook_path = os.environ.get("SLCLI_E2E_SLS_TEST_NOTEBOOK_PATH")
+          if test_notebook_path:
+              config["sls"]["test_notebook_path"] = test_notebook_path
+
+          Path("tests/e2e/e2e_config.json").write_text(
+              json.dumps(config, indent=2) + "\n",
+              encoding="utf-8",
+          )
+          PY
+
+      - name: Run SLS E2E tests
+        if: ${{ steps.sls-config.outputs.enabled == 'true' }}
+        run: poetry run pytest tests/e2e/ -m "e2e and not sle" --e2e-platform sls -n auto --timeout=300
+
+  e2e-sle:
+    name: E2E (SLE)
+    runs-on: ubuntu-latest
+    needs: build-test-lint
+    timeout-minutes: 45
+    steps:
+      - name: Check SLE E2E configuration
+        id: sle-config
+        env:
+          SLCLI_E2E_SLE_BASE_URL: ${{ vars.SLCLI_E2E_SLE_BASE_URL }}
+          SLCLI_E2E_SLE_API_KEY: ${{ secrets.SLCLI_E2E_SLE_API_KEY }}
+        run: |
+          if [ -n "$SLCLI_E2E_SLE_BASE_URL" ] && [ -n "$SLCLI_E2E_SLE_API_KEY" ]; then
+            echo "enabled=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "enabled=false" >> "$GITHUB_OUTPUT"
+            echo "Skipping SLE E2E job because SLCLI_E2E_SLE_BASE_URL or SLCLI_E2E_SLE_API_KEY is not configured."
+          fi
+
+      - name: Checkout code
+        if: ${{ steps.sle-config.outputs.enabled == 'true' }}
+        uses: actions/checkout@v6
+
+      - name: Set up Python
+        if: ${{ steps.sle-config.outputs.enabled == 'true' }}
+        uses: actions/setup-python@v6
+        with:
+          python-version: '3.13'
+
+      - name: Install Poetry
+        if: ${{ steps.sle-config.outputs.enabled == 'true' }}
+        run: pip install poetry
+
+      - name: Install dependencies
+        if: ${{ steps.sle-config.outputs.enabled == 'true' }}
+        run: poetry install
+
+      - name: Write SLE E2E config
+        if: ${{ steps.sle-config.outputs.enabled == 'true' }}
+        env:
+          SLCLI_E2E_SLE_BASE_URL: ${{ vars.SLCLI_E2E_SLE_BASE_URL }}
+          SLCLI_E2E_SLE_API_KEY: ${{ secrets.SLCLI_E2E_SLE_API_KEY }}
+          SLCLI_E2E_SLE_WORKSPACE: ${{ vars.SLCLI_E2E_SLE_WORKSPACE }}
+          SLCLI_E2E_SLE_TEST_NOTEBOOK_ID: ${{ vars.SLCLI_E2E_SLE_TEST_NOTEBOOK_ID }}
+          SLCLI_E2E_TIMEOUT: ${{ vars.SLCLI_E2E_TIMEOUT }}
+          SLCLI_E2E_CLEANUP: ${{ vars.SLCLI_E2E_CLEANUP }}
+        run: |
+          python - <<'PY'
+          import json
+          import os
+          from pathlib import Path
+
+          config = {
+              "sle": {
+                  "base_url": os.environ["SLCLI_E2E_SLE_BASE_URL"],
+                  "api_key": os.environ["SLCLI_E2E_SLE_API_KEY"],
+                  "workspace": os.environ.get("SLCLI_E2E_SLE_WORKSPACE") or "Default",
+                  "platform": "SLE",
+              },
+              "timeout": int(os.environ.get("SLCLI_E2E_TIMEOUT") or "30"),
+              "cleanup": (os.environ.get("SLCLI_E2E_CLEANUP") or "true").lower() == "true",
+          }
+
+          test_notebook_id = os.environ.get("SLCLI_E2E_SLE_TEST_NOTEBOOK_ID")
+          if test_notebook_id:
+              config["sle"]["test_notebook_id"] = test_notebook_id
+
+          Path("tests/e2e/e2e_config.json").write_text(
+              json.dumps(config, indent=2) + "\n",
+              encoding="utf-8",
+          )
+          PY
+
+      - name: Run SLE E2E tests
+        if: ${{ steps.sle-config.outputs.enabled == 'true' }}
+        run: poetry run pytest tests/e2e/ -m "e2e and not sls" --e2e-platform sle -n auto --timeout=300

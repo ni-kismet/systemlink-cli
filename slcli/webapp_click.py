@@ -85,6 +85,70 @@ def _get_webapp_base_url() -> str:
     return f"{get_base_url()}/niapp/v1"
 
 
+def _build_published_webapp_url(
+    webapp_id: str,
+    webapp_name: str = "",
+    workspace_id: str = "",
+    workspace_name_hint: str = "",
+    properties: Optional[Dict[str, Any]] = None,
+) -> str:
+    """Return the best available published URL for a webapp.
+
+    Prefers the friendly SystemLink web UI URL and falls back to any explicit
+    URL-like property returned by the service, then the raw content endpoint.
+    """
+    from urllib.parse import quote
+
+    resolved_name = webapp_name
+    resolved_workspace_id = workspace_id
+    resolved_properties = properties or {}
+
+    if webapp_id and (not resolved_name or not resolved_workspace_id):
+        try:
+            resp = requests.get(
+                f"{_get_webapp_base_url()}/webapps/{webapp_id}",
+                headers=get_headers("application/json"),
+                verify=get_ssl_verify(),
+            )
+            resp.raise_for_status()
+            data = resp.json()
+            resolved_name = resolved_name or str(data.get("name", ""))
+            resolved_workspace_id = resolved_workspace_id or str(data.get("workspace", ""))
+            maybe_properties = data.get("properties", {})
+            if not resolved_properties and isinstance(maybe_properties, dict):
+                resolved_properties = maybe_properties
+        except Exception:
+            pass
+
+    workspace_name = workspace_name_hint.strip()
+    if resolved_workspace_id:
+        try:
+            workspace_map = get_workspace_map()
+        except Exception:
+            workspace_map = {}
+
+        mapped_workspace_name = str(workspace_map.get(resolved_workspace_id, "") or "").strip()
+        if mapped_workspace_name:
+            workspace_name = mapped_workspace_name
+
+    if resolved_name and workspace_name:
+        web_base = get_web_url().rstrip("/")
+        return f"{web_base}/webapps/app/{quote(workspace_name)}/{quote(resolved_name)}"
+
+    fallback_url = (
+        resolved_properties.get("embedLocation")
+        or resolved_properties.get("url")
+        or resolved_properties.get("interface")
+    )
+    if fallback_url:
+        return str(fallback_url)
+
+    if webapp_id:
+        return f"{_get_webapp_base_url()}/webapps/{webapp_id}/content"
+
+    return ""
+
+
 def _query_webapps_http(filter_str: str, max_items: int = 1000) -> List[Dict[str, Any]]:
     """Query webapps using continuation token pagination.
 
@@ -1343,7 +1407,6 @@ def register_webapp_commands(cli: Any) -> None:
     def open_webapp(webapp_id: str) -> None:
         """Open a webapp in the browser."""
         import webbrowser
-        from urllib.parse import quote
 
         try:
             base = _get_webapp_base_url()
@@ -1354,44 +1417,16 @@ def register_webapp_commands(cli: Any) -> None:
             )
             resp.raise_for_status()
             data = resp.json()
-            # Try to construct the public webapps URL which looks like:
-            # https://<host>/webapps/app/<WorkspaceName>/<Name>
-            name = data.get("name")
-            workspace_id = data.get("workspace")
-
-            # Resolve workspace display name
-            try:
-                workspace_map = get_workspace_map()
-            except Exception:
-                workspace_map = {}
-
-            workspace_name = get_workspace_display_name(workspace_id or "", workspace_map)
-
-            # If we have both a workspace name and webapp name, build the friendly URL
-            if workspace_name and name:
-                # Prefer explicit web UI URL, otherwise derive from API URL
-                web_base = get_web_url()
-                # Ensure no trailing slash on base
-                web_base = web_base.rstrip("/")
-
-                app_path = f"/webapps/app/{quote(workspace_name)}/{quote(name)}"
-                app_url = f"{web_base}{app_path}"
+            app_url = _build_published_webapp_url(
+                webapp_id,
+                webapp_name=str(data.get("name", "")),
+                workspace_id=str(data.get("workspace", "")),
+                properties=data.get("properties", {}),
+            )
+            if app_url:
                 webbrowser.open(app_url)
                 click.echo(f"✓ Opening: {app_url}")
                 return
-
-            # Fallback: try any embed/url/interface property
-            props = data.get("properties", {}) or {}
-            url = props.get("embedLocation") or props.get("url") or props.get("interface")
-            if url:
-                webbrowser.open(url)
-                click.echo(f"✓ Opening: {url}")
-                return
-
-            # Last-resort fallback: open content endpoint (may require auth)
-            content_url = f"{base}/webapps/{webapp_id}/content"
-            webbrowser.open(content_url)
-            click.echo("✓ Opening content endpoint (may require authentication in browser)")
         except Exception as exc:
             handle_api_error(exc)
 
@@ -1444,6 +1479,7 @@ def register_webapp_commands(cli: Any) -> None:
                     suggested = tmp_dir / (sanitize_filename(source.name) + ".nipkg")
                     packaged = _pack_folder_to_nipkg(source, suggested)
                     tmp_file = packaged
+                    created_workspace_id = ""
 
                     # If no webapp id provided create webapp metadata using name
                     base = _get_webapp_base_url()
@@ -1454,6 +1490,7 @@ def register_webapp_commands(cli: Any) -> None:
                         ws_id = get_workspace_id_with_fallback(
                             get_effective_workspace(workspace) or workspace
                         )
+                        created_workspace_id = ws_id
                         payload = {
                             "name": name,
                             "type": "WebVI",
@@ -1485,9 +1522,24 @@ def register_webapp_commands(cli: Any) -> None:
                         url, headers=upload_headers, data=data, verify=get_ssl_verify()
                     )
                     if resp.status_code in (200, 201, 204):
+                        workspace_name_hint = (
+                            get_effective_workspace(workspace) or workspace
+                            if created_workspace_id
+                            else ""
+                        )
+                        published_url = _build_published_webapp_url(
+                            webapp_id,
+                            webapp_name=name,
+                            workspace_id=created_workspace_id,
+                            workspace_name_hint=workspace_name_hint,
+                        )
                         format_success(
                             "Published webapp content",
-                            {"Webapp ID": webapp_id, "Source": str(packaged)},
+                            {
+                                "Webapp ID": webapp_id,
+                                "Source": str(packaged),
+                                "Published URL": published_url,
+                            },
                         )
                     else:
                         # Try to show body message
@@ -1499,6 +1551,7 @@ def register_webapp_commands(cli: Any) -> None:
                         sys.exit(ExitCodes.GENERAL_ERROR)
             else:
                 packaged = source
+                created_workspace_id = ""
 
                 # If no webapp id provided create webapp metadata using name
                 base = _get_webapp_base_url()
@@ -1509,6 +1562,7 @@ def register_webapp_commands(cli: Any) -> None:
                     ws_id = get_workspace_id_with_fallback(
                         get_effective_workspace(workspace) or workspace
                     )
+                    created_workspace_id = ws_id
                     payload = {
                         "name": name,
                         "type": "WebVI",
@@ -1538,9 +1592,24 @@ def register_webapp_commands(cli: Any) -> None:
                 url = f"{base}/webapps/{webapp_id}/content"
                 resp = requests.put(url, headers=upload_headers, data=data, verify=get_ssl_verify())
                 if resp.status_code in (200, 201, 204):
+                    workspace_name_hint = (
+                        (get_effective_workspace(workspace) or workspace)
+                        if created_workspace_id
+                        else ""
+                    )
+                    published_url = _build_published_webapp_url(
+                        webapp_id,
+                        webapp_name=name,
+                        workspace_id=created_workspace_id,
+                        workspace_name_hint=workspace_name_hint,
+                    )
                     format_success(
                         "Published webapp content",
-                        {"Webapp ID": webapp_id, "Source": str(packaged)},
+                        {
+                            "Webapp ID": webapp_id,
+                            "Source": str(packaged),
+                            "Published URL": published_url,
+                        },
                     )
                 else:
                     # Try to show body message

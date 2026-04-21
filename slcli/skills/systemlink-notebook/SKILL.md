@@ -178,6 +178,20 @@ base_url = config.server_uri.rstrip("/")
 headers = {"x-ni-api-key": config.api_keys[0]}
 ```
 
+## Client and API References
+
+- Prefer the official Python client libraries when they cover the target service:
+  https://github.com/ni/nisystemlink-clients-python
+- If a SystemLink service does not have a Python client yet, call the REST API
+  directly and use the hosted OpenAPI docs to discover endpoints and schemas:
+  https://demo-api.lifecyclesolutions.ni.com/niapis/
+- For notebook patterns and end-to-end examples, check the SystemLink Enterprise
+  examples repository:
+  https://github.com/ni/systemlink-enterprise-examples/
+
+When using direct HTTP, prefer the OpenAPI docs first to confirm the service base
+path, request body shape, and response schema before writing notebook code.
+
 ## Systems Query Pattern
 
 The `SystemsApi` uses a projection/filter pattern for querying:

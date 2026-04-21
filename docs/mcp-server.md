@@ -131,26 +131,26 @@ If you prefer to edit config files by hand, add the following entry.
 After editing the config file, restart (or reload) the AI client to pick up
 the new server.
 
-## SSE transport
+## Streamable HTTP transport
 
-Pass `--transport sse` to run the server over HTTP/SSE instead of stdio.
+Pass `--transport streamable-http` to run the server over HTTP instead of stdio.
 This is useful for browser-based tooling, the
 [MCP Inspector](https://github.com/modelcontextprotocol/inspector), or any
 client that prefers a persistent HTTP connection over process spawning.
 
 ```bash
-# Start the server (default: http://127.0.0.1:8000/sse)
-slcli mcp serve --transport sse
+# Start the server (default: http://127.0.0.1:8000/mcp)
+slcli mcp serve --transport streamable-http
 
 # Custom host/port
-slcli mcp serve --transport sse --host 0.0.0.0 --port 9000
+slcli mcp serve --transport streamable-http --host 0.0.0.0 --port 9000
 
 # In a second terminal, launch the inspector UI
 npx @modelcontextprotocol/inspector
 ```
 
 Then open the inspector in your browser and connect to
-`http://127.0.0.1:8000/sse` (SSE transport). You can browse all available
+`http://127.0.0.1:8000/mcp` (Streamable HTTP transport). You can browse all available
 tools, call them with custom arguments, and inspect the JSON responses.
 
 The server uses your existing Poetry / venv Python environment,
