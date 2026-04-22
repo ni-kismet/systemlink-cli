@@ -9,6 +9,8 @@ import requests as requests_lib
 
 from .utils import ExitCodes, get_base_url
 
+_SYSTEM_PROPERTY_KEY_RE = re.compile(r"^[A-Za-z0-9_.]+$")
+
 DEFAULT_SYSTEM_JSON_FIELDS = (
     "id",
     "alias",
@@ -51,14 +53,7 @@ MATERIALIZED_SYSTEM_LIST_PROJECTION = [
     "advancedGrains.os",
 ]
 
-MATERIALIZED_SYSTEM_MCP_PROJECTION = [
-    "id",
-    "alias",
-    "workspace",
-    "connected",
-    "advancedGrains.host",
-    "advancedGrains.os",
-]
+MATERIALIZED_SYSTEM_MCP_PROJECTION = MATERIALIZED_SYSTEM_LIST_PROJECTION
 
 
 def get_sysmgmt_base_url() -> str:
@@ -103,6 +98,28 @@ def quote_search_value(value: str, contains: bool = False) -> str:
     return f'"{escaped}"'
 
 
+def parse_system_property_filter(prop: str) -> Tuple[str, str]:
+    """Parse and validate a system property filter in KEY=VALUE format."""
+    if "=" not in prop:
+        click.echo(
+            f"✗ Invalid property filter '{prop}': expected KEY=VALUE format",
+            err=True,
+        )
+        sys.exit(ExitCodes.INVALID_INPUT)
+
+    key, value = prop.split("=", 1)
+    key = key.strip()
+    if not _SYSTEM_PROPERTY_KEY_RE.match(key):
+        click.echo(
+            f"✗ Invalid property key '{key}': "
+            "only alphanumeric characters, underscores, and dots are allowed",
+            err=True,
+        )
+        sys.exit(ExitCodes.INVALID_INPUT)
+
+    return key, value.strip()
+
+
 def build_materialized_system_search_filter(
     alias: Optional[str] = None,
     state: Optional[str] = None,
@@ -130,22 +147,8 @@ def build_materialized_system_search_filter(
             parts.append(f"keywords:{quote_search_value(keyword)}")
     if property_filters:
         for prop in property_filters:
-            if "=" not in prop:
-                click.echo(
-                    f"✗ Invalid property filter '{prop}': expected KEY=VALUE format",
-                    err=True,
-                )
-                sys.exit(ExitCodes.INVALID_INPUT)
-            key, val = prop.split("=", 1)
-            key = key.strip()
-            if not re.match(r"^[A-Za-z0-9_.]+$", key):
-                click.echo(
-                    f"✗ Invalid property key '{key}': "
-                    "only alphanumeric characters, underscores, and dots are allowed",
-                    err=True,
-                )
-                sys.exit(ExitCodes.INVALID_INPUT)
-            parts.append(f"properties.{key}:{quote_search_value(val.strip())}")
+            key, value = parse_system_property_filter(prop)
+            parts.append(f"properties.{key}:{quote_search_value(value)}")
     if workspace_id:
         parts.append(f"workspace:{quote_search_value(workspace_id)}")
 

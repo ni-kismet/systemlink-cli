@@ -220,12 +220,13 @@ slcli system list [OPTIONS]
   --filter TEXT              # Systems Management filter expression
 
 # JSON schema selection
-  --field CHOICE             # Add extended JSON fields (repeatable, forces legacy query path)
-  --all-fields               # Restore the full legacy JSON schema
+  --field CHOICE             # JSON-only; add extended JSON fields (repeatable, use with -f json, forces legacy query path)
+  --all-fields               # JSON-only; restore the full legacy JSON schema (use with -f json)
 
 # Performance note
   # `slcli system list -f json` returns a slim schema by default:
   # id, alias, workspace, connected, host, kernel
+  # `--field` and `--all-fields` are JSON-only and should be used with `-f json`.
   # Use `--field packages` or `--all-fields` when you need the extended legacy schema.
                              # e.g., 'connected.data.state = "CONNECTED"'
 

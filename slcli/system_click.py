@@ -9,7 +9,6 @@ Also provides job management and system metadata updates.
 import concurrent.futures
 import datetime
 import json
-import re
 import shutil
 import sys
 from typing import Any, Dict, List, Optional, Tuple
@@ -22,7 +21,6 @@ import requests as requests_lib
 from .cli_utils import validate_output_format
 from .rich_output import render_table
 from .system_query_utils import (
-    ALL_SYSTEM_JSON_FIELDS,
     DEFAULT_SYSTEM_JSON_FIELDS,
     DEFAULT_SYSTEM_LIST_PROJECTION,
     EXTENDED_SYSTEM_JSON_FIELDS,
@@ -33,6 +31,7 @@ from .system_query_utils import (
     get_system_query_url as _get_system_query_url,
     get_system_search_url as _get_system_search_url,
     is_system_search_endpoint_unavailable as _is_system_search_endpoint_unavailable,
+    parse_system_property_filter as _parse_system_property_filter,
     quote_search_value as _quote_search_value,
 )
 from .universal_handlers import FilteredResponse, UniversalResponseHandler
@@ -82,7 +81,6 @@ def _get_workitem_base_url() -> str:
 # Uses the dot-path ``as`` alias syntax supported by the systems API.
 _DEFAULT_SYSTEM_JSON_FIELDS = DEFAULT_SYSTEM_JSON_FIELDS
 _EXTENDED_SYSTEM_JSON_FIELDS = EXTENDED_SYSTEM_JSON_FIELDS
-_ALL_SYSTEM_JSON_FIELDS = ALL_SYSTEM_JSON_FIELDS
 _SLIM_LIST_PROJECTION = DEFAULT_SYSTEM_LIST_PROJECTION
 _LIST_PROJECTION = FULL_SYSTEM_LIST_PROJECTION
 _MATERIALIZED_LIST_PROJECTION = MATERIALIZED_SYSTEM_LIST_PROJECTION
@@ -234,22 +232,8 @@ def _build_system_filter(
             parts.append(f'keywords.data.Contains("{escaped}")')
     if property_filters:
         for prop in property_filters:
-            if "=" not in prop:
-                click.echo(
-                    f"✗ Invalid property filter '{prop}': expected KEY=VALUE format",
-                    err=True,
-                )
-                sys.exit(ExitCodes.INVALID_INPUT)
-            key, val = prop.split("=", 1)
-            key = key.strip()
-            if not re.match(r"^[A-Za-z0-9_.]+$", key):
-                click.echo(
-                    f"✗ Invalid property key '{key}': "
-                    "only alphanumeric characters, underscores, and dots are allowed",
-                    err=True,
-                )
-                sys.exit(ExitCodes.INVALID_INPUT)
-            escaped_val = _escape_filter_value(val.strip())
+            key, value = _parse_system_property_filter(prop)
+            escaped_val = _escape_filter_value(value)
             parts.append(f'properties.data.{key} = "{escaped_val}"')
     if workspace_id:
         escaped = _escape_filter_value(workspace_id)

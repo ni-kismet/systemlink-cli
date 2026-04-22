@@ -31,6 +31,7 @@ from slcli.system_click import (
     _query_all_items,
     register_system_commands,
 )
+from slcli.system_query_utils import build_materialized_system_search_filter
 from slcli.utils import ExitCodes
 
 
@@ -372,6 +373,11 @@ class TestBuildSystemFilter:
         """Test property filter with unsafe key raises SystemExit."""
         with pytest.raises(SystemExit):
             _build_system_filter(property_filters=('"; DROP TABLE--=bad',))
+
+    def test_materialized_property_filter_invalid_key(self) -> None:
+        """Test materialized property filter shares the same key validation."""
+        with pytest.raises(SystemExit):
+            build_materialized_system_search_filter(property_filters=('"; DROP TABLE--=bad',))
 
     def test_workspace_filter(self) -> None:
         """Test workspace filter."""
