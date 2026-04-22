@@ -1,0 +1,1 @@
+Switch the repository from python-semantic-release to a Towncrier-based release flow that requires PR news fragments, computes the next version from fragment types, and rebuilds `CHANGELOG.md` during release automation.
