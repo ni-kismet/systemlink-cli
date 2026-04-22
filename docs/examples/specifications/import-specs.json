@@ -1,7 +1,7 @@
 {
   "specs": [
     {
-      "productId": "demo-product-usb-hub",
+      "productId": "<PRODUCT_ID>",
       "specId": "VSAT01",
       "name": "Saturation voltage",
       "category": "Electrical characteristics",
@@ -45,10 +45,10 @@
         "owner": "qa",
         "datasheetRevision": "A"
       },
-      "workspace": "production-workspace"
+      "workspace": "<WORKSPACE_ID>"
     },
     {
-      "productId": "demo-product-usb-hub",
+      "productId": "<PRODUCT_ID>",
       "specId": "FUNC_RESET_01",
       "name": "Responds after bus reset",
       "category": "Functional requirements",
@@ -77,7 +77,7 @@
       "properties": {
         "owner": "validation"
       },
-      "workspace": "production-workspace"
+      "workspace": "<WORKSPACE_ID>"
     }
   ]
 }
