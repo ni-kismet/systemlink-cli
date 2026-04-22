@@ -1,5 +1,6 @@
 """Unit tests for the Towncrier release helper script."""
 
+import subprocess
 from pathlib import Path
 from typing import Any
 
@@ -88,6 +89,36 @@ def test_apply_release_updates_version_files_and_builds_changelog(
     assert calls[0][1] == tmp_path
     assert calls[0][2] is True
     assert calls[0][0][1:] == ["-m", "towncrier", "build", "--yes", "--version", "1.9.4"]
+
+
+def test_apply_release_does_not_update_version_files_when_build_fails(
+    tmp_path: Path, monkeypatch: Any
+) -> None:
+    """A failed Towncrier build leaves version files unchanged."""
+    (tmp_path / "newsfragments").mkdir()
+    (tmp_path / "newsfragments" / "123.patch.md").write_text("Fix a bug.\n")
+    (tmp_path / "slcli").mkdir()
+    (tmp_path / "pyproject.toml").write_text(
+        "[tool.poetry]\n" 'name = "systemlink-cli"\n' 'version = "1.9.3"\n',
+        encoding="utf-8",
+    )
+    (tmp_path / "slcli" / "_version.py").write_text(
+        '__version__ = "1.9.3"\n',
+        encoding="utf-8",
+    )
+
+    def mock_run(command: list[str], cwd: Path, check: bool) -> None:
+        raise subprocess.CalledProcessError(1, command)
+
+    monkeypatch.setattr("scripts.towncrier_release.subprocess.run", mock_run)
+
+    with pytest.raises(subprocess.CalledProcessError):
+        apply_release(tmp_path)
+
+    assert 'version = "1.9.3"' in (tmp_path / "pyproject.toml").read_text(encoding="utf-8")
+    assert '__version__ = "1.9.3"' in (tmp_path / "slcli" / "_version.py").read_text(
+        encoding="utf-8"
+    )
 
 
 def test_apply_release_returns_none_without_fragments(tmp_path: Path) -> None:

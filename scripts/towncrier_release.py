@@ -148,9 +148,9 @@ def apply_release(project_root: Path, version: Optional[str] = None) -> Optional
     pyproject_path = project_root / "pyproject.toml"
     version_file_path = project_root / "slcli" / "_version.py"
 
+    build_changelog(project_root, next_version)
     write_poetry_version(pyproject_path, next_version)
     write_version_file(version_file_path, next_version)
-    build_changelog(project_root, next_version)
     return next_version
 
 

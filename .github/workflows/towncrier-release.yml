@@ -52,6 +52,10 @@ jobs:
             echo "released=false" >> "$GITHUB_OUTPUT"
           fi
 
+      - name: Validate Towncrier fragments
+        if: ${{ steps.version.outputs.released == 'true' }}
+        run: poetry run towncrier check
+
       - name: Build release from Towncrier fragments
         if: ${{ steps.version.outputs.released == 'true' }}
         run: |
