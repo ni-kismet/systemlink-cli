@@ -2,6 +2,13 @@
 
 <!-- towncrier release notes start -->
 
+## v1.10.0 (2026-04-22)
+
+### Features
+
+- Add `slcli spec` commands for listing, querying, creating, updating, deleting, importing, and exporting SystemLink specifications, and restructure the bundled `slcli` skill into a compact entry point with on-demand reference docs for commands, datasheet workflows, and troubleshooting. (#120)
+
+
 ## v1.9.4 (2026-04-22)
 
 ### Bug Fixes
