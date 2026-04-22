@@ -13,6 +13,7 @@ tests/e2e/
 ├── conftest.py                 # Shared fixtures and configuration
 ├── test_mcp_e2e.py            # Local MCP streamable HTTP smoke test
 ├── test_notebook_e2e.py        # Notebook command tests
+├── test_spec_e2e.py            # Specification command tests
 ├── test_user_e2e.py           # User command tests
 ├── test_dff_e2e.py            # Custom Fields tests
 ├── test_workspace_e2e.py      # Workspace command tests
@@ -182,6 +183,9 @@ poetry run pytest tests/e2e/test_dff_e2e.py -m e2e -v
 
 # Tag tests only
 poetry run pytest tests/e2e/test_tag_e2e.py -m e2e -v
+
+# Specification tests only
+poetry run pytest tests/e2e/test_spec_e2e.py -m e2e -v
 ```
 
 ### Run SLS-Supported E2E Tests

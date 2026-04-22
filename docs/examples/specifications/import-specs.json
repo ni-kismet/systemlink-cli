@@ -1,0 +1,83 @@
+{
+  "specs": [
+    {
+      "productId": "<PRODUCT_ID>",
+      "specId": "VSAT01",
+      "name": "Saturation voltage",
+      "category": "Electrical characteristics",
+      "type": "PARAMETRIC",
+      "symbol": "VSat",
+      "block": "USB",
+      "limit": {
+        "min": 1.2,
+        "typical": 1.5,
+        "max": 1.8
+      },
+      "unit": "V",
+      "conditions": [
+        {
+          "name": "Temperature",
+          "value": {
+            "conditionType": "NUMERIC",
+            "discrete": [
+              25,
+              85
+            ],
+            "unit": "C"
+          }
+        },
+        {
+          "name": "Mode",
+          "value": {
+            "conditionType": "STRING",
+            "discrete": [
+              "Host",
+              "Device"
+            ]
+          }
+        }
+      ],
+      "keywords": [
+        "datasheet",
+        "usb"
+      ],
+      "properties": {
+        "owner": "qa",
+        "datasheetRevision": "A"
+      },
+      "workspace": "<WORKSPACE_ID>"
+    },
+    {
+      "productId": "<PRODUCT_ID>",
+      "specId": "FUNC_RESET_01",
+      "name": "Responds after bus reset",
+      "category": "Functional requirements",
+      "type": "FUNCTIONAL",
+      "block": "USB",
+      "conditions": [
+        {
+          "name": "SupplyVoltage",
+          "value": {
+            "conditionType": "NUMERIC",
+            "range": [
+              {
+                "min": 4.75,
+                "max": 5.25,
+                "step": 0.25
+              }
+            ],
+            "unit": "V"
+          }
+        }
+      ],
+      "keywords": [
+        "functional",
+        "reset"
+      ],
+      "properties": {
+        "owner": "validation"
+      },
+      "workspace": "<WORKSPACE_ID>"
+    }
+  ]
+}
