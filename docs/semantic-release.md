@@ -1,95 +1,82 @@
-# Semantic Release Setup
+# Towncrier Release Setup
 
-This project uses [Python Semantic Release](https://python-semantic-release.readthedocs.io/) for automated version management and releases.
+This project uses [Towncrier](https://towncrier.readthedocs.io/) plus a small release helper script for changelog-driven version management and releases.
 
 ## How It Works
 
-1. **Conventional Commits**: Use conventional commit messages to automatically determine version bumps
-2. **Automated Releases**: On push to `main`, the semantic release workflow analyzes commits and creates releases
-3. **Version Management**: Automatically updates version in `pyproject.toml` and generates `_version.py`
-4. **Changelog**: Automatically generates, updates, and commits `CHANGELOG.md` in the release chore
+1. **Towncrier Fragments**: Every pull request adds a fragment in `newsfragments/`
+2. **Automated Releases**: On push to `main`, the release workflow inspects fragments and computes the next version
+3. **Version Management**: The release helper updates `pyproject.toml` and generates `slcli/_version.py`
+4. **Changelog**: Towncrier composes and prepends the new release notes to `CHANGELOG.md`
 
-## Commit Message Format
+## Fragment Format
 
-Use conventional commit format:
+Use a Towncrier fragment named after the PR or issue number:
 
 ```
-<type>[optional scope]: <description>
-
-[optional body]
-
-[optional footer(s)]
+poetry run towncrier create 123.patch.md --content "Prefer the new systems search endpoint with fallback."
 ```
 
-### Types
+Fragment types map to version bumps as follows:
 
-- `feat`: A new feature (triggers minor version bump)
-- `fix`: A bug fix (triggers patch version bump)
-- `docs`: Documentation only changes
-- `style`: Changes that do not affect the meaning of the code
-- `refactor`: A code change that neither fixes a bug nor adds a feature
-- `perf`: A code change that improves performance (triggers patch version bump)
-- `test`: Adding missing tests or correcting existing tests
-- `build`: Changes that affect the build system or external dependencies
-- `ci`: Changes to CI configuration files and scripts
-- `chore`: Other changes that don't modify src or test files
+- `major`: Breaking changes, triggers a major version bump
+- `minor`: New features, triggers a minor version bump
+- `patch`: Fixes and shipped behavior changes, triggers a patch version bump
+- `doc`: Documentation changes, triggers a patch version bump
+- `misc`: Other shipped changes, triggers a patch version bump
 
 ### Examples
 
 ```bash
-# Patch release (0.3.1 -> 0.3.2)
-git commit -m "fix: handle permission errors gracefully in workspace info"
+# Patch release (1.9.3 -> 1.9.4)
+poetry run towncrier create 123.patch.md --content "Handle permission errors gracefully in workspace info."
 
-# Minor release (0.3.1 -> 0.4.0)
-git commit -m "feat: add new version command"
+# Minor release (1.9.3 -> 1.10.0)
+poetry run towncrier create 124.minor.md --content "Add a new version command."
 
-# Major release (0.3.1 -> 1.0.0) - requires BREAKING CHANGE footer
-git commit -m "feat: redesign API structure
-
-BREAKING CHANGE: API endpoints have been restructured"
+# Major release (1.9.3 -> 2.0.0)
+poetry run towncrier create 125.major.md --content "Redesign the public API surface for system queries."
 ```
 
 ## Workflows
 
-### Semantic Release Workflow
+### Towncrier Release Workflow
 
 - **File**: `.github/workflows/semantic-release.yml`
 - **Trigger**: Push to `main` branch
-- **Actions**: Analyzes commits, bumps version, creates tags, generates changelog
+- **Actions**: Checks `newsfragments/`, computes the next version, updates version files, builds `CHANGELOG.md`, commits, and tags the release
 
 ### Release Build Workflow
 
 - **File**: `.github/workflows/release.yml`
-- **Trigger**: New tags created by semantic release
+- **Trigger**: New tags created by the Towncrier release workflow
 - **Actions**: Builds binaries for all platforms, creates GitHub releases
 
 ## Manual Commands
 
 ```bash
+# Check that the branch includes a fragment
+poetry run towncrier check
+
 # Print the next version without changing the repo
-poetry run semantic-release version --print
+poetry run python scripts/towncrier_release.py --next-version
 
-# Local release test without pushing
-poetry run semantic-release version --no-push --no-vcs-release
+# Preview rendered release notes without writing files
+poetry run towncrier build --draft --version 1.10.0
 
-# Generate changelog only
-poetry run semantic-release changelog
+# Apply the release locally (updates versions and CHANGELOG.md)
+poetry run python scripts/towncrier_release.py --apply
 
-# Manual version bump (for testing)
-poetry run semantic-release version
-
-# Update version file manually
+# Update version file manually from pyproject.toml
 poetry run update-version
 ```
 
 ## Configuration
 
-Semantic release configuration is in `pyproject.toml` under `[tool.semantic_release]`:
+Towncrier configuration is in `pyproject.toml` under `[tool.towncrier]`:
 
-- Version files: `pyproject.toml` and `slcli/_version.py`
-- Release assets committed in the release chore: `CHANGELOG.md`
-- Build command: Runs `update-version` script to sync version files
+- Fragment directory: `newsfragments/`
+- Release files updated automatically: `pyproject.toml`, `slcli/_version.py`, and `CHANGELOG.md`
+- Release helper: `scripts/towncrier_release.py`
 - Branch: `main`
-- Upload to PyPI: Enabled
-- Upload to GitHub Releases: Enabled
 - Changelog: Generated in `CHANGELOG.md`

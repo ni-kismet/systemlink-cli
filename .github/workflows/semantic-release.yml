@@ -1,4 +1,4 @@
-name: Semantic Release
+name: Towncrier Release
 
 on:
   push:
@@ -8,20 +8,13 @@ on:
 
 permissions:
   contents: write
-  issues: write
-  pull-requests: write
   id-token: write
 
 jobs:
-  semantic-release:
+  towncrier-release:
     runs-on: ubuntu-latest
     concurrency: release
     if: github.repository == 'ni-kismet/systemlink-cli'
-    
-    outputs:
-      released: ${{ steps.release.outputs.released }}
-      version: ${{ steps.release.outputs.version }}
-      tag: ${{ steps.release.outputs.tag }}
 
     steps:
       - name: Checkout code
@@ -29,6 +22,7 @@ jobs:
         with:
           fetch-depth: 0
           token: ${{ secrets.HOMEBREW_GITHUB_TOKEN }}
+          ref: ${{ github.ref_name }}
 
       - name: Set up Python
         uses: actions/setup-python@v6
@@ -44,10 +38,29 @@ jobs:
       - name: Run tests
         run: poetry run pytest
 
-      - name: Python Semantic Release
-        id: release
-        uses: python-semantic-release/python-semantic-release@v10.5.3
-        with:
-          github_token: ${{ secrets.HOMEBREW_GITHUB_TOKEN }}
-          git_committer_name: "github-actions[bot]"
-          git_committer_email: "github-actions[bot]@users.noreply.github.com"
+      - name: Determine next release version
+        id: version
+        shell: bash
+        run: |
+          version=$(poetry run python scripts/towncrier_release.py --next-version)
+          echo "version=$version" >> "$GITHUB_OUTPUT"
+          if [ -n "$version" ]; then
+            echo "released=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "released=false" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Build release from Towncrier fragments
+        if: ${{ steps.version.outputs.released == 'true' }}
+        run: |
+          poetry run python scripts/towncrier_release.py --apply --version "${{ steps.version.outputs.version }}"
+
+      - name: Commit release metadata and tag
+        if: ${{ steps.version.outputs.released == 'true' }}
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git add -A pyproject.toml slcli/_version.py CHANGELOG.md newsfragments
+          git commit -m "chore(release): v${{ steps.version.outputs.version }}"
+          git tag "v${{ steps.version.outputs.version }}"
+          git push origin HEAD:${{ github.ref_name }} --follow-tags

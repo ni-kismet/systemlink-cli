@@ -16,6 +16,7 @@ slcli = "slcli.__main__:cli"
 slcli-mcp = "slcli.mcp_server:main"
 build-pyinstaller = "scripts.build_pyinstaller:main"
 update-version = "scripts.update_version:main"
+release-from-changes = "scripts.towncrier_release:main"
 lint = "scripts.lint:main"
 
 [tool.poetry.group.mcp]
@@ -59,8 +60,8 @@ pyinstaller = "^6.14.2"
 types-requests = "*"
 types-tabulate = "*"
 
-# Semantic Release
-python-semantic-release = "^10.0.0"
+# Changelog and release management
+towncrier = "^25.8.0"
 pytest-xdist = "^3.8.0"
 
 # Excel file generation
@@ -114,35 +115,40 @@ check_untyped_defs = true
 warn_redundant_casts = true
 warn_unreachable = true
 
-[tool.semantic_release]
-version_toml = ["pyproject.toml:tool.poetry.version"]
-version_variables = ["slcli/_version.py:__version__"]
-assets = ["CHANGELOG.md"]
-build_command = "python scripts/update_version.py"
-major_on_zero = false
-branch = "main"
-upload_to_pypi = true
-upload_to_release = true
-hvcs = "github"
-commit_message = "chore(release): {version}"
-tag_format = "v{version}"
+[tool.towncrier]
+package = "slcli"
+package_dir = "."
+directory = "newsfragments"
+filename = "CHANGELOG.md"
+template = "towncrier:default.md"
+start_string = "<!-- towncrier release notes start -->\n"
+title_format = "## v{version} ({project_date})"
+ignore = ["README.md"]
 
-[tool.semantic_release.commit_parser_options]
-allowed_tags = ["build", "chore", "ci", "docs", "feat", "fix", "perf", "style", "refactor", "test"]
-minor_tags = ["feat"]
-patch_tags = ["fix", "perf"]
+[[tool.towncrier.type]]
+directory = "major"
+name = "Breaking Changes"
+showcontent = true
 
-[tool.semantic_release.changelog]
-template_dir = "templates"
-exclude_commit_patterns = []
+[[tool.towncrier.type]]
+directory = "minor"
+name = "Features"
+showcontent = true
 
-[tool.semantic_release.changelog.default_templates]
-changelog_file = "CHANGELOG.md"
+[[tool.towncrier.type]]
+directory = "patch"
+name = "Bug Fixes"
+showcontent = true
 
-[tool.semantic_release.branches.main]
-match = "(main|master)"
-prerelease_token = "rc"
-prerelease = false
+[[tool.towncrier.type]]
+directory = "doc"
+name = "Documentation"
+showcontent = true
+
+[[tool.towncrier.type]]
+directory = "misc"
+name = "Other Changes"
+showcontent = true
 
 [build-system]
 requires = ["poetry-core>=1.0.0"]
