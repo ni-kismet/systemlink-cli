@@ -19,26 +19,6 @@ slcli file upload "file.pdf" -w "d503640b-db60-41c7-9b97-4ce2e53851f3"
 As a general rule, **prefer workspace IDs over names** in scripted or automated
 workflows to avoid ambiguity.
 
-## Python scripting with slcli internals
-
-When writing helper scripts that call SystemLink APIs, always use
-`make_api_request` from `slcli.utils` instead of raw `requests.post/get`.
-`make_api_request` handles authentication, SSL trust, and error formatting:
-
-```python
-from slcli.utils import make_api_request, get_base_url
-
-resp = make_api_request(
-    "POST",
-    f"{get_base_url()}/nitestmonitor/v2/update-products",
-    payload={...},
-)
-data = resp.json()
-```
-
-Do **not** use `requests` directly — it will fail with `ConnectionResetError`
-on servers that use self-signed or enterprise SSL certificates.
-
 ## Windows terminal encoding
 
 On Windows, set `PYTHONUTF8=1` before running slcli to avoid `charmap` codec

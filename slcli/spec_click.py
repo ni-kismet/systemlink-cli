@@ -656,18 +656,124 @@ def _report_mutation_result(
     sys.exit(ExitCodes.GENERAL_ERROR)
 
 
+def _extract_failure_messages(error_data: Any) -> List[str]:
+    """Flatten error and nested inner-error messages for display."""
+    messages: List[str] = []
+
+    def visit(candidate: Any) -> None:
+        if isinstance(candidate, dict):
+            message = candidate.get("message")
+            if isinstance(message, str) and message and message not in messages:
+                messages.append(message)
+            for key in ("innerErrors", "innererrors", "errors", "details"):
+                nested = candidate.get(key)
+                if isinstance(nested, list):
+                    for item in nested:
+                        visit(item)
+                elif isinstance(nested, dict):
+                    visit(nested)
+        elif isinstance(candidate, list):
+            for item in candidate:
+                visit(item)
+        elif candidate is not None:
+            text = str(candidate).strip()
+            if text and text not in messages:
+                messages.append(text)
+
+    visit(error_data)
+    return messages
+
+
+def _index_global_failure_messages(error_data: Any) -> Dict[str, List[str]]:
+    """Map top-level inner errors to a failed spec identifier when possible."""
+    indexed_messages: Dict[str, List[str]] = {}
+
+    if not isinstance(error_data, dict):
+        return indexed_messages
+
+    inner_errors = error_data.get("innerErrors") or error_data.get("innererrors")
+    if not isinstance(inner_errors, list):
+        return indexed_messages
+
+    for inner_error in inner_errors:
+        if not isinstance(inner_error, dict):
+            continue
+        resource_id = inner_error.get("resourceId")
+        if not isinstance(resource_id, str) or not resource_id:
+            continue
+        messages = _extract_failure_messages(inner_error)
+        if messages:
+            indexed_messages[resource_id] = messages
+
+    return indexed_messages
+
+
+def _report_failed_specs(
+    failed_specs: List[Dict[str, Any]],
+    overall_error: Optional[Dict[str, Any]] = None,
+    err: bool = True,
+) -> None:
+    """Render per-spec failure details, including nested inner errors."""
+    if not failed_specs:
+        return
+
+    global_messages = _index_global_failure_messages(overall_error)
+
+    click.echo("! Failure details:", err=err)
+    for failure in failed_specs:
+        identifier = str(
+            failure.get("specId") or failure.get("id") or failure.get("name") or "Unknown spec"
+        )
+        error_messages = _extract_failure_messages(
+            failure.get("error")
+            or failure.get("errors")
+            or failure.get("innerErrors")
+            or failure.get("innererrors")
+            or failure
+        )
+        if not error_messages:
+            error_messages = global_messages.get(identifier, [])
+        if error_messages:
+            click.echo(f"  - {identifier}: {error_messages[0]}", err=err)
+            for inner_message in error_messages[1:]:
+                click.echo(f"    inner: {inner_message}", err=err)
+        else:
+            click.echo(f"  - {identifier}: Unknown error", err=err)
+
+
 def _report_bulk_create_result(data: Dict[str, Any]) -> None:
     """Report a bulk create-specifications response."""
     created_specs = data.get("createdSpecs", []) if isinstance(data, dict) else []
     failed_specs = data.get("failedSpecs", []) if isinstance(data, dict) else []
-    format_success(
-        "Specification import completed",
-        {"created": len(created_specs), "failed": len(failed_specs)},
+    overall_error = (
+        data.get("error")
+        if isinstance(data, dict) and isinstance(data.get("error"), dict)
+        else None
     )
+
+    created_count = len(created_specs)
+    failed_count = len(failed_specs)
+
+    if created_count == 0 and failed_count > 0:
+        click.echo("✗ Specification import failed", err=True)
+        click.echo(f"  created: {created_count}", err=True)
+        click.echo(f"  {click.style('failed', fg='red')}: {failed_count}", err=True)
+        _report_failed_specs(failed_specs, overall_error=overall_error, err=True)
+        click.echo(
+            "! No specifications were created. Inspect the source payload and failure details to resolve.",
+            err=True,
+        )
+        sys.exit(ExitCodes.GENERAL_ERROR)
+
+    click.echo("✓ Specification import completed")
+    click.echo(f"  created: {created_count}")
+    click.echo(f"  {click.style('failed', fg='red')}: {failed_count}")
+
     if failed_specs:
+        _report_failed_specs(failed_specs, overall_error=overall_error, err=True)
         click.echo(
             "! Some specifications failed to import. "
-            "Inspect the source payload and server response."
+            "Inspect the source payload and failure details to resolve."
         )
 
 

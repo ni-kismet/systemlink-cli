@@ -556,6 +556,133 @@ def test_import_specifications_builds_bulk_payload(monkeypatch: Any, runner: Cli
     assert "Specification import completed" in result.output
 
 
+def test_import_specifications_all_failures_report_error(
+    monkeypatch: Any, runner: CliRunner
+) -> None:
+    """Test importing specifications reports an error when all items fail."""
+    patch_keyring(monkeypatch)
+
+    def mock_post(*a: Any, **kw: Any) -> Any:
+        return MockResponse(
+            {
+                "createdSpecs": [],
+                "failedSpecs": [
+                    {"specId": "VSAT01"},
+                    {"specId": "VSAT02"},
+                ],
+                "error": {
+                    "message": "One or more errors occurred.",
+                    "innerErrors": [
+                        {"resourceId": "VSAT01", "message": "duplicate"},
+                        {"resourceId": "VSAT02", "message": "invalid workspace"},
+                    ],
+                },
+            },
+            status_code=201,
+        )
+
+    monkeypatch.setattr("requests.post", mock_post)
+    monkeypatch.setattr("slcli.spec_click._get_product_workspace", lambda product_id: "ws-product")
+
+    cli = make_cli()
+    with runner.isolated_filesystem():
+        with open("import-specs.json", "w", encoding="utf-8") as handle:
+            json.dump(
+                {
+                    "specs": [
+                        {
+                            "productId": "product-1",
+                            "specId": "VSAT01",
+                            "type": "PARAMETRIC",
+                        },
+                        {
+                            "productId": "product-1",
+                            "specId": "VSAT02",
+                            "type": "FUNCTIONAL",
+                        },
+                    ]
+                },
+                handle,
+            )
+
+        result = runner.invoke(cli, ["spec", "import", "--file", "import-specs.json"])
+
+    assert result.exit_code != 0
+    assert "Specification import failed" in result.output
+    assert "Specification import completed" not in result.output
+    assert "created: 0" in result.output
+    assert "failed" in result.output
+    assert "VSAT01: duplicate" in result.output
+    assert "VSAT02: invalid workspace" in result.output
+
+
+def test_import_specifications_partial_failures_show_inner_errors(
+    monkeypatch: Any, runner: CliRunner
+) -> None:
+    """Test importing specifications shows nested inner errors for failed items."""
+    patch_keyring(monkeypatch)
+
+    def mock_post(*a: Any, **kw: Any) -> Any:
+        return MockResponse(
+            {
+                "createdSpecs": [
+                    {"id": "spec-1", "specId": "VSAT01", "productId": "product-1"},
+                ],
+                "failedSpecs": [
+                    {
+                        "specId": "VSAT02",
+                    }
+                ],
+                "error": {
+                    "message": "One or more errors occurred.",
+                    "innerErrors": [
+                        {
+                            "resourceId": "VSAT02",
+                            "message": "invalid specification payload",
+                            "innerErrors": [
+                                {"message": "workspace does not exist"},
+                                {"message": "condition value is invalid"},
+                            ],
+                        }
+                    ],
+                },
+            },
+            status_code=201,
+        )
+
+    monkeypatch.setattr("requests.post", mock_post)
+    monkeypatch.setattr("slcli.spec_click._get_product_workspace", lambda product_id: "ws-product")
+
+    cli = make_cli()
+    with runner.isolated_filesystem():
+        with open("import-specs.json", "w", encoding="utf-8") as handle:
+            json.dump(
+                {
+                    "specs": [
+                        {
+                            "productId": "product-1",
+                            "specId": "VSAT01",
+                            "type": "PARAMETRIC",
+                        },
+                        {
+                            "productId": "product-1",
+                            "specId": "VSAT02",
+                            "type": "FUNCTIONAL",
+                        },
+                    ]
+                },
+                handle,
+            )
+
+        result = runner.invoke(cli, ["spec", "import", "--file", "import-specs.json"])
+
+    assert result.exit_code == 0
+    assert "Specification import completed" in result.output
+    assert "VSAT02: invalid specification payload" in result.output
+    assert "inner: workspace does not exist" in result.output
+    assert "inner: condition value is invalid" in result.output
+
+
 def test_import_specifications_preserves_workspace_in_payload(
     monkeypatch: Any, runner: CliRunner
 ) -> None:
