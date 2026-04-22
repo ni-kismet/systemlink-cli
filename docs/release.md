@@ -42,7 +42,7 @@ poetry run towncrier create 125.major.md --content "Redesign the public API surf
 
 ### Towncrier Release Workflow
 
-- **File**: `.github/workflows/semantic-release.yml`
+- **File**: `.github/workflows/towncrier-release.yml`
 - **Trigger**: Push to `main` branch
 - **Actions**: Checks `newsfragments/`, computes the next version, updates version files, builds `CHANGELOG.md`, commits, and tags the release
 

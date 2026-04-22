@@ -168,6 +168,7 @@ filtered_resp: Any = FilteredResponse({"workspaces": filtered_list})
 
 8. **Pull Request Requirements**:  
    - All code must pass CI (lint, test, build) before merging.  
+   - Every pull request must include a Towncrier change fragment in `newsfragments/`.  
    - All new features must be documented in `README.md`.  
    - All code must be reviewed by at least one other developer.  
    - All new CLI commands must include JSON output support via `--format/-f` option.  

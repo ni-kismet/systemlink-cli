@@ -3,12 +3,14 @@
 from pathlib import Path
 from typing import Any
 
+import pytest
 from scripts.towncrier_release import (
     apply_release,
     bump_version,
     determine_version_bump,
     get_fragment_type,
     get_next_version,
+    main,
     replace_poetry_version,
 )
 
@@ -97,3 +99,47 @@ def test_apply_release_returns_none_without_fragments(tmp_path: Path) -> None:
     )
 
     assert apply_release(tmp_path) is None
+
+
+def test_replace_poetry_version_raises_when_section_missing() -> None:
+    """A ValueError is raised when pyproject.toml has no tool.poetry version field."""
+    pyproject_text = "[tool.other]\n" 'name = "something"\n'
+    with pytest.raises(ValueError, match="Could not find tool.poetry.version"):
+        replace_poetry_version(pyproject_text, "2.0.0")
+
+
+def test_bump_version_raises_for_unsupported_bump_type() -> None:
+    """An unsupported bump type should raise ValueError."""
+    with pytest.raises(ValueError, match="Unsupported bump type"):
+        bump_version("1.0.0", "prerelease")
+
+
+def test_get_fragment_type_returns_none_for_bare_name() -> None:
+    """A fragment with no type suffix returns None."""
+    assert get_fragment_type(Path("README.md")) is None
+
+
+def test_main_next_version_prints_version(tmp_path: Path, capsys: Any) -> None:
+    """The --next-version CLI flag prints the computed version."""
+    (tmp_path / "newsfragments").mkdir()
+    (tmp_path / "newsfragments" / "42.minor.md").write_text("New feature.\n")
+    (tmp_path / "pyproject.toml").write_text(
+        "[tool.poetry]\n" 'name = "systemlink-cli"\n' 'version = "1.9.3"\n',
+        encoding="utf-8",
+    )
+    main(["--next-version", "--project-root", str(tmp_path)])
+    assert capsys.readouterr().out.strip() == "1.10.0"
+
+
+def test_main_apply_prints_version(tmp_path: Path, monkeypatch: Any, capsys: Any) -> None:
+    """The --apply CLI flag prints the applied version."""
+    (tmp_path / "newsfragments").mkdir()
+    (tmp_path / "newsfragments" / "42.patch.md").write_text("Fix.\n")
+    (tmp_path / "slcli").mkdir()
+    (tmp_path / "pyproject.toml").write_text(
+        "[tool.poetry]\n" 'name = "systemlink-cli"\n' 'version = "1.9.3"\n',
+        encoding="utf-8",
+    )
+    monkeypatch.setattr("scripts.towncrier_release.subprocess.run", lambda *a, **kw: None)
+    main(["--apply", "--project-root", str(tmp_path)])
+    assert capsys.readouterr().out.strip() == "1.9.4"

@@ -14,7 +14,9 @@ jobs:
   towncrier-release:
     runs-on: ubuntu-latest
     concurrency: release
-    if: github.repository == 'ni-kismet/systemlink-cli'
+    if: >
+      github.repository == 'ni-kismet/systemlink-cli'
+      && !startsWith(github.event.head_commit.message, 'chore(release):')
 
     steps:
       - name: Checkout code
