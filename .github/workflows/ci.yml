@@ -13,6 +13,8 @@ jobs:
     steps:
       - name: Checkout code
         uses: actions/checkout@v6
+        with:
+          fetch-depth: 0
 
       - name: Set up Python
         uses: actions/setup-python@v6
@@ -24,6 +26,10 @@ jobs:
 
       - name: Install dependencies
         run: poetry install
+
+      - name: Require Towncrier news fragment
+        if: ${{ github.event_name == 'pull_request' }}
+        run: poetry run towncrier check --compare-with origin/${{ github.base_ref }}
 
       - name: Lint with ni-python-styleguide
         run: poetry run ni-python-styleguide lint
