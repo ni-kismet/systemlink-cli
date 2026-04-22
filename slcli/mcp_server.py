@@ -278,7 +278,6 @@ def query_systems(
         build_materialized_system_search_filter,
         get_system_query_url,
         get_system_search_url,
-        is_system_search_endpoint_unavailable,
     )
     from .utils import make_api_request
 
@@ -305,9 +304,8 @@ def query_systems(
                 handle_errors=False,
             ).json()
             return _dump(_normalize_systems(data))
-        except requests_lib.HTTPError as exc:
-            if not is_system_search_endpoint_unavailable(exc):
-                raise
+        except requests_lib.RequestException:
+            pass
 
     filter_parts: List[str] = []
     if alias:

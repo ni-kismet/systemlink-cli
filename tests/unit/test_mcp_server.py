@@ -115,6 +115,15 @@ def test_is_reachability_failure_detects_nested_context_in_exception_group() -> 
     assert is_reachability_failure(grouped) is True
 
 
+def test_is_reachability_failure_detects_http_status_from_non_mcp_endpoint() -> None:
+    """HTTP status failures from a non-usable local /mcp endpoint should be skipped."""
+    from slcli.mcp_reachability import is_reachability_failure
+
+    exc = RuntimeError("Server error '500 Server error' for url 'http://127.0.0.1:8000/mcp'")
+
+    assert is_reachability_failure(exc) is True
+
+
 def test_query_workspaces_filters_client_side(monkeypatch: Any) -> None:
     """query_workspaces filters the fetched workspace list by name and enabled state."""
     from slcli.mcp_server import query_workspaces
@@ -225,6 +234,33 @@ def test_query_systems_falls_back_to_query_systems(monkeypatch: Any) -> None:
             response = requests.models.Response()
             response.status_code = 404
             raise requests.HTTPError("not found", response=response)
+        return make_mock_response([{"data": {"id": "sys1", "alias": "PXI"}}])
+
+    monkeypatch.setattr("slcli.utils.make_api_request", mock_request)
+
+    assert json.loads(query_systems(alias="PXI")) == [{"id": "sys1", "alias": "PXI"}]
+    assert seen_urls == [
+        "https://test.host/nisysmgmt/v1/materialized/search-systems",
+        "https://test.host/nisysmgmt/v1/query-systems",
+    ]
+
+
+def test_query_systems_falls_back_to_query_systems_on_search_error(monkeypatch: Any) -> None:
+    """query_systems falls back when search-systems returns a server error."""
+    import requests
+
+    from slcli.mcp_server import query_systems
+
+    seen_urls: list = []
+    monkeypatch.setattr("slcli.utils.get_base_url", lambda: "https://test.host")
+    monkeypatch.setattr("slcli.system_query_utils.get_base_url", lambda: "https://test.host")
+
+    def mock_request(method: str, url: str, **kw: Any) -> Any:
+        seen_urls.append(url)
+        if "materialized/search-systems" in url:
+            response = requests.models.Response()
+            response.status_code = 500
+            raise requests.HTTPError("server error", response=response)
         return make_mock_response([{"data": {"id": "sys1", "alias": "PXI"}}])
 
     monkeypatch.setattr("slcli.utils.make_api_request", mock_request)

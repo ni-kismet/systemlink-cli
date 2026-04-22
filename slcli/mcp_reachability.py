@@ -35,6 +35,17 @@ def is_reachability_failure(exc: BaseException) -> bool:
             return True
 
         message = str(candidate).lower()
+        if "/mcp" in message and any(
+            token in message
+            for token in (
+                "server error",
+                "not found",
+                "method not allowed",
+                "bad request",
+            )
+        ):
+            return True
+
         if any(
             token in message
             for token in (
