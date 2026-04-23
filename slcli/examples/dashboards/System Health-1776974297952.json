@@ -1,0 +1,1186 @@
+{
+  "annotations": {
+    "list": [
+      {
+        "builtIn": 1,
+        "enable": true,
+        "hide": true,
+        "iconColor": "rgba(0, 211, 255, 1)",
+        "name": "Annotations & Alerts",
+        "type": "dashboard"
+      }
+    ]
+  },
+  "editable": false,
+  "fiscalYearStartMonth": 0,
+  "graphTooltip": 0,
+  "id": 1026647,
+  "links": [
+    {
+      "asDropdown": true,
+      "icon": "external link",
+      "includeVars": false,
+      "keepTime": false,
+      "tags": [
+        "Default Dashboard",
+        "Health Dashboard"
+      ],
+      "targetBlank": true,
+      "title": "Health dashboards",
+      "tooltip": "",
+      "type": "dashboards",
+      "url": ""
+    }
+  ],
+  "liveNow": false,
+  "panels": [
+    {
+      "datasource": {
+        "default": false,
+        "type": "ni-slsystem-datasource",
+        "uid": "ni-slsystem-datasource"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "color": {
+            "mode": "thresholds"
+          },
+          "fieldMinMax": false,
+          "mappings": [],
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "green"
+              }
+            ]
+          }
+        },
+        "overrides": [
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "View system details"
+            },
+            "properties": [
+              {
+                "id": "links",
+                "value": [
+                  {
+                    "targetBlank": true,
+                    "title": "View system details",
+                    "url": "../../systems/${__data.fields[\"id\"]}"
+                  }
+                ]
+              },
+              {
+                "id": "color",
+                "value": {
+                  "fixedColor": "#009921",
+                  "mode": "fixed"
+                }
+              }
+            ]
+          }
+        ]
+      },
+      "gridPos": {
+        "h": 3,
+        "w": 5,
+        "x": 0,
+        "y": 0
+      },
+      "id": 5,
+      "options": {
+        "colorMode": "value",
+        "graphMode": "area",
+        "justifyMode": "auto",
+        "orientation": "vertical",
+        "percentChangeColorMode": "standard",
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": "/^View system details$/",
+          "values": false
+        },
+        "showPercentChange": false,
+        "text": {
+          "valueSize": 30
+        },
+        "textMode": "value",
+        "wideLayout": true
+      },
+      "pluginVersion": "11.6.5",
+      "targets": [
+        {
+          "datasource": {
+            "type": "ni-slsystem-datasource",
+            "uid": "ni-slsystem-datasource"
+          },
+          "queryKind": "Properties",
+          "refId": "System Name",
+          "systemName": "$system",
+          "workspace": ""
+        }
+      ],
+      "title": "System Name",
+      "transformations": [
+        {
+          "id": "organize",
+          "options": {
+            "excludeByName": {
+              "connection status": true,
+              "id": false,
+              "ip address": true,
+              "locked status": true,
+              "model": true,
+              "operating system": true,
+              "scan code": true,
+              "system start time": true,
+              "vendor": true,
+              "workspace": true
+            },
+            "includeByName": {},
+            "indexByName": {},
+            "renameByName": {
+              "alias": "View system details"
+            }
+          }
+        }
+      ],
+      "type": "stat"
+    },
+    {
+      "datasource": {
+        "default": false,
+        "type": "datasource",
+        "uid": "-- Dashboard --"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "color": {
+            "mode": "thresholds"
+          },
+          "mappings": [],
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "green"
+              }
+            ]
+          }
+        },
+        "overrides": [
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "View system details"
+            },
+            "properties": [
+              {
+                "id": "links",
+                "value": [
+                  {
+                    "targetBlank": true,
+                    "title": "View system details",
+                    "url": "../../systems/${__data.fields[\"id\"]}"
+                  }
+                ]
+              },
+              {
+                "id": "mappings",
+                "value": [
+                  {
+                    "options": {
+                      "CONNECTED": {
+                        "color": "#009921",
+                        "index": 0,
+                        "text": "Connected"
+                      },
+                      "DISCONNECTED": {
+                        "color": "#c4000c",
+                        "index": 1,
+                        "text": "Disconnected"
+                      },
+                      "VIRTUAL": {
+                        "color": "#009921",
+                        "index": 2,
+                        "text": "Virtual"
+                      }
+                    },
+                    "type": "value"
+                  }
+                ]
+              }
+            ]
+          }
+        ]
+      },
+      "gridPos": {
+        "h": 3,
+        "w": 4,
+        "x": 5,
+        "y": 0
+      },
+      "id": 6,
+      "options": {
+        "colorMode": "value",
+        "graphMode": "area",
+        "justifyMode": "auto",
+        "orientation": "auto",
+        "percentChangeColorMode": "standard",
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": "/^View system details$/",
+          "values": false
+        },
+        "showPercentChange": false,
+        "text": {
+          "valueSize": 30
+        },
+        "textMode": "value",
+        "wideLayout": true
+      },
+      "pluginVersion": "11.6.5",
+      "targets": [
+        {
+          "datasource": {
+            "type": "datasource",
+            "uid": "-- Dashboard --"
+          },
+          "panelId": 5,
+          "refId": "Connection Status"
+        }
+      ],
+      "title": "Connection Status",
+      "transformations": [
+        {
+          "id": "organize",
+          "options": {
+            "excludeByName": {
+              "alias": true,
+              "ip address": true,
+              "locked status": true,
+              "model": true,
+              "operating system": true,
+              "scan code": true,
+              "system start time": true,
+              "vendor": true,
+              "workspace": true
+            },
+            "includeByName": {},
+            "indexByName": {},
+            "renameByName": {
+              "connection status": "View system details"
+            }
+          }
+        }
+      ],
+      "type": "stat"
+    },
+    {
+      "datasource": {
+        "default": false,
+        "type": "datasource",
+        "uid": "-- Dashboard --"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "color": {
+            "mode": "fixed"
+          },
+          "mappings": [],
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "green"
+              }
+            ]
+          }
+        },
+        "overrides": [
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "View system details"
+            },
+            "properties": [
+              {
+                "id": "links",
+                "value": [
+                  {
+                    "targetBlank": true,
+                    "title": "View system details",
+                    "url": "../../systems/${__data.fields[\"id\"]}"
+                  }
+                ]
+              },
+              {
+                "id": "mappings",
+                "value": [
+                  {
+                    "options": {
+                      "false": {
+                        "color": "#009921",
+                        "index": 1,
+                        "text": "Unlocked"
+                      },
+                      "true": {
+                        "color": "#c4000c",
+                        "index": 0,
+                        "text": "Locked"
+                      }
+                    },
+                    "type": "value"
+                  }
+                ]
+              }
+            ]
+          }
+        ]
+      },
+      "gridPos": {
+        "h": 3,
+        "w": 4,
+        "x": 9,
+        "y": 0
+      },
+      "id": 11,
+      "options": {
+        "colorMode": "value",
+        "graphMode": "area",
+        "justifyMode": "auto",
+        "orientation": "auto",
+        "percentChangeColorMode": "standard",
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": "/^View system details$/",
+          "values": false
+        },
+        "showPercentChange": false,
+        "text": {
+          "valueSize": 30
+        },
+        "textMode": "value",
+        "wideLayout": true
+      },
+      "pluginVersion": "11.6.5",
+      "targets": [
+        {
+          "datasource": {
+            "type": "datasource",
+            "uid": "-- Dashboard --"
+          },
+          "panelId": 5,
+          "refId": "Locked Status",
+          "withTransforms": false
+        }
+      ],
+      "title": "Locked Status",
+      "transformations": [
+        {
+          "id": "organize",
+          "options": {
+            "excludeByName": {
+              "alias": true,
+              "connection status": true,
+              "id": false,
+              "ip address": true,
+              "locked status": false,
+              "model": true,
+              "operating system": true,
+              "scan code": true,
+              "system start time": true,
+              "vendor": true,
+              "workspace": true
+            },
+            "includeByName": {},
+            "indexByName": {},
+            "renameByName": {
+              "alias": "",
+              "connection status": "",
+              "locked status": "View system details",
+              "model": "",
+              "system start time": "",
+              "workspace": ""
+            }
+          }
+        }
+      ],
+      "type": "stat"
+    },
+    {
+      "datasource": {
+        "default": false,
+        "type": "datasource",
+        "uid": "-- Dashboard --"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "color": {
+            "mode": "thresholds"
+          },
+          "mappings": [],
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "#009921"
+              },
+              {
+                "color": "#c4000c",
+                "value": 80
+              }
+            ]
+          }
+        },
+        "overrides": [
+          {
+            "matcher": {
+              "id": "byFrameRefID",
+              "options": "CPU Usage"
+            },
+            "properties": [
+              {
+                "id": "displayName",
+                "value": "CPU"
+              },
+              {
+                "id": "links",
+                "value": [
+                  {
+                    "targetBlank": true,
+                    "title": "View health details",
+                    "url": "../../systems/${system:value}/tags"
+                  }
+                ]
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byFrameRefID",
+              "options": "Disk Usage"
+            },
+            "properties": [
+              {
+                "id": "displayName",
+                "value": "DISK"
+              },
+              {
+                "id": "links",
+                "value": [
+                  {
+                    "targetBlank": true,
+                    "title": "View health details",
+                    "url": "../../systems/${system:value}/tags"
+                  }
+                ]
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byFrameRefID",
+              "options": "Memory Usage"
+            },
+            "properties": [
+              {
+                "id": "displayName",
+                "value": "MEMORY"
+              },
+              {
+                "id": "links",
+                "value": [
+                  {
+                    "targetBlank": true,
+                    "title": "View health details",
+                    "url": "../../systems/${system:value}/tags"
+                  }
+                ]
+              }
+            ]
+          }
+        ]
+      },
+      "gridPos": {
+        "h": 3,
+        "w": 11,
+        "x": 13,
+        "y": 0
+      },
+      "id": 12,
+      "options": {
+        "colorMode": "value",
+        "graphMode": "none",
+        "justifyMode": "auto",
+        "orientation": "auto",
+        "percentChangeColorMode": "inverted",
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": "",
+          "values": false
+        },
+        "showPercentChange": true,
+        "textMode": "auto",
+        "wideLayout": true
+      },
+      "pluginVersion": "11.6.5",
+      "targets": [
+        {
+          "datasource": {
+            "type": "datasource",
+            "uid": "-- Dashboard --"
+          },
+          "panelId": 9,
+          "refId": "System Health"
+        }
+      ],
+      "title": "System Health",
+      "type": "stat"
+    },
+    {
+      "datasource": {
+        "default": false,
+        "type": "ni-slalarms-datasource",
+        "uid": "ni-slalarms-datasource"
+      },
+      "description": "Displays the 1,000 most recently updated alarms",
+      "fieldConfig": {
+        "defaults": {
+          "color": {
+            "mode": "thresholds"
+          },
+          "custom": {
+            "align": "left",
+            "cellOptions": {
+              "type": "auto"
+            },
+            "filterable": true,
+            "inspect": false
+          },
+          "mappings": [],
+          "noValue": "-",
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "green"
+              }
+            ]
+          }
+        },
+        "overrides": [
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "Alarm"
+            },
+            "properties": [
+              {
+                "id": "links",
+                "value": [
+                  {
+                    "targetBlank": true,
+                    "title": "View alarm details",
+                    "url": "../../alarms/${__data.fields[\"Instance ID\"]}"
+                  }
+                ]
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "Severity"
+            },
+            "properties": [
+              {
+                "id": "mappings",
+                "value": [
+                  {
+                    "options": {
+                      "Clear": {
+                        "color": "#804ad9",
+                        "index": 4,
+                        "text": "Cleared, Not Acknowledged"
+                      },
+                      "High (3)": {
+                        "color": "#ff4b00",
+                        "index": 1
+                      },
+                      "Low (1)": {
+                        "color": "#009b65",
+                        "index": 3
+                      },
+                      "Moderate (2)": {
+                        "color": "#ff8126",
+                        "index": 2
+                      }
+                    },
+                    "type": "value"
+                  },
+                  {
+                    "options": {
+                      "pattern": "^.*Critical.*",
+                      "result": {
+                        "color": "#c4000c",
+                        "index": 0
+                      }
+                    },
+                    "type": "regex"
+                  }
+                ]
+              },
+              {
+                "id": "custom.cellOptions",
+                "value": {
+                  "mode": "basic",
+                  "type": "color-background"
+                }
+              },
+              {
+                "id": "custom.width",
+                "value": 205
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "Instance ID"
+            },
+            "properties": [
+              {
+                "id": "custom.hidden",
+                "value": true
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "First occurrence"
+            },
+            "properties": [
+              {
+                "id": "custom.width",
+                "value": 159
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "Acknowledged by"
+            },
+            "properties": [
+              {
+                "id": "custom.width",
+                "value": 182
+              }
+            ]
+          }
+        ]
+      },
+      "gridPos": {
+        "h": 9,
+        "w": 13,
+        "x": 0,
+        "y": 3
+      },
+      "id": 4,
+      "options": {
+        "cellHeight": "sm",
+        "footer": {
+          "countRows": true,
+          "fields": "",
+          "reducer": [
+            "count"
+          ],
+          "show": true
+        },
+        "showHeader": true,
+        "sortBy": []
+      },
+      "pluginVersion": "11.6.5",
+      "targets": [
+        {
+          "datasource": {
+            "type": "ni-slalarms-datasource",
+            "uid": "ni-slalarms-datasource"
+          },
+          "descending": true,
+          "filter": "(workspace = \"$workspace\" && active = \"true\" && properties[\"minionId\"] = \"$system\")",
+          "hide": false,
+          "outputType": "Properties",
+          "properties": [
+            "displayName",
+            "currentSeverityLevel",
+            "instanceId",
+            "occurredAt",
+            "acknowledgedBy"
+          ],
+          "queryType": "List Alarms",
+          "refId": "Alarm Details",
+          "take": 1000,
+          "transitionInclusionOption": "NONE"
+        }
+      ],
+      "title": "Active Alarms",
+      "transformations": [
+        {
+          "id": "organize",
+          "options": {
+            "excludeByName": {
+              "Acknowledged": true,
+              "Alarm ID": true,
+              "GroupPath": true,
+              "Instance ID": false,
+              "Properties": true,
+              "Property 1": true,
+              "Source": false,
+              "State": true,
+              "Workspace": false,
+              "displayName": true,
+              "hyperlink": true,
+              "myProperty": true,
+              "rackNumber": true,
+              "routine_id": true,
+              "routine_link": true,
+              "source_link": true,
+              "system": true,
+              "tagProp1": true,
+              "units": true
+            },
+            "includeByName": {},
+            "indexByName": {
+              "Acknowledged by": 3,
+              "Alarm name": 0,
+              "Current severity": 4,
+              "First occurrence": 2,
+              "Instance ID": 7,
+              "Properties": 6,
+              "Source": 1,
+              "minionId": 5
+            },
+            "renameByName": {
+              "Alarm name": "Alarm",
+              "Current severity": "Severity",
+              "Instance ID": "",
+              "Properties": "",
+              "Source": "System",
+              "Workspace": "",
+              "minionId": ""
+            }
+          }
+        }
+      ],
+      "type": "table"
+    },
+    {
+      "datasource": {
+        "default": false,
+        "type": "ni-sltag-datasource",
+        "uid": "ni-sltag-datasource"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "color": {
+            "mode": "palette-classic"
+          },
+          "custom": {
+            "axisBorderShow": false,
+            "axisCenteredZero": false,
+            "axisColorMode": "text",
+            "axisLabel": "",
+            "axisPlacement": "auto",
+            "barAlignment": 0,
+            "barWidthFactor": 0.6,
+            "drawStyle": "line",
+            "fillOpacity": 27,
+            "gradientMode": "none",
+            "hideFrom": {
+              "legend": false,
+              "tooltip": false,
+              "viz": false
+            },
+            "insertNulls": false,
+            "lineInterpolation": "linear",
+            "lineWidth": 1,
+            "pointSize": 5,
+            "scaleDistribution": {
+              "type": "linear"
+            },
+            "showPoints": "auto",
+            "spanNulls": false,
+            "stacking": {
+              "group": "A",
+              "mode": "none"
+            },
+            "thresholdsStyle": {
+              "mode": "off"
+            }
+          },
+          "mappings": [],
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "green"
+              }
+            ]
+          }
+        },
+        "overrides": []
+      },
+      "gridPos": {
+        "h": 9,
+        "w": 11,
+        "x": 13,
+        "y": 3
+      },
+      "id": 9,
+      "options": {
+        "legend": {
+          "calcs": [],
+          "displayMode": "list",
+          "placement": "bottom",
+          "showLegend": true
+        },
+        "tooltip": {
+          "hideZeros": false,
+          "mode": "single",
+          "sort": "none"
+        }
+      },
+      "targets": [
+        {
+          "datasource": {
+            "type": "ni-sltag-datasource",
+            "uid": "ni-sltag-datasource"
+          },
+          "path": "${system}.Health.CPU.MeanUsePercentage",
+          "properties": false,
+          "refId": "CPU Usage",
+          "type": "History",
+          "workspace": "$workspace"
+        },
+        {
+          "datasource": {
+            "type": "ni-sltag-datasource",
+            "uid": "ni-sltag-datasource"
+          },
+          "hide": false,
+          "path": "${system}.Health.Disk.UsePercentage",
+          "properties": false,
+          "refId": "Disk Usage",
+          "type": "History",
+          "workspace": "$workspace"
+        },
+        {
+          "datasource": {
+            "type": "ni-sltag-datasource",
+            "uid": "ni-sltag-datasource"
+          },
+          "hide": false,
+          "path": "${system}.Health.Memory.UsePercentage",
+          "properties": false,
+          "refId": "Memory Usage",
+          "type": "History",
+          "workspace": "$workspace"
+        }
+      ],
+      "title": "Health History | From ${__from:date:DD MMM yyyy HH:mm} till ${__to:date:DD MMM yyyy HH:mm}",
+      "type": "timeseries"
+    },
+    {
+      "datasource": {
+        "default": false,
+        "type": "ni-slasset-datasource",
+        "uid": "ni-slasset-datasource"
+      },
+      "description": "Displays the top 1,000 assets",
+      "fieldConfig": {
+        "defaults": {
+          "color": {
+            "mode": "thresholds"
+          },
+          "custom": {
+            "align": "left",
+            "cellOptions": {
+              "type": "auto"
+            },
+            "filterable": true,
+            "inspect": false
+          },
+          "mappings": [],
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "green"
+              },
+              {
+                "color": "red",
+                "value": 80
+              }
+            ]
+          }
+        },
+        "overrides": [
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "id"
+            },
+            "properties": [
+              {
+                "id": "custom.hidden",
+                "value": true
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "Calibration Status"
+            },
+            "properties": [
+              {
+                "id": "mappings",
+                "value": [
+                  {
+                    "options": {
+                      "APPROACHING_RECOMMENDED_DUE_DATE": {
+                        "color": "#ff4b00",
+                        "index": 2,
+                        "text": "Calibration due soon"
+                      },
+                      "OK": {
+                        "color": "#009921",
+                        "index": 1,
+                        "text": "Calibrated"
+                      },
+                      "OUT_FOR_CALIBRATION": {
+                        "color": "#ff8126",
+                        "index": 3,
+                        "text": "Out for calibration"
+                      },
+                      "PAST_RECOMMENDED_DUE_DATE": {
+                        "color": "#c4000c",
+                        "index": 0,
+                        "text": "Past Calibration"
+                      }
+                    },
+                    "type": "value"
+                  }
+                ]
+              },
+              {
+                "id": "custom.cellOptions",
+                "value": {
+                  "mode": "basic",
+                  "type": "color-background"
+                }
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "Name"
+            },
+            "properties": [
+              {
+                "id": "links",
+                "value": [
+                  {
+                    "targetBlank": true,
+                    "title": "View asset details",
+                    "url": "../assets/${__data.fields.id}"
+                  }
+                ]
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "Calibration Due Date"
+            },
+            "properties": [
+              {
+                "id": "unit",
+                "value": "dateTimeAsLocal"
+              },
+              {
+                "id": "custom.minWidth",
+                "value": 185
+              }
+            ]
+          }
+        ]
+      },
+      "gridPos": {
+        "h": 9,
+        "w": 24,
+        "x": 0,
+        "y": 12
+      },
+      "id": 13,
+      "options": {
+        "cellHeight": "sm",
+        "footer": {
+          "countRows": true,
+          "fields": "",
+          "reducer": [
+            "count"
+          ],
+          "show": true
+        },
+        "showHeader": true,
+        "sortBy": []
+      },
+      "pluginVersion": "11.6.5",
+      "targets": [
+        {
+          "datasource": {
+            "type": "ni-slasset-datasource",
+            "uid": "ni-slasset-datasource"
+          },
+          "filter": "(Workspace = \"$workspace\" && Location = \"$system\" && AssetType != \"FIXTURE\" && AssetType != \"DEVICE_UNDER_TEST\")",
+          "outputType": "Properties",
+          "properties": [
+            "VendorName",
+            "AssetName",
+            "AssetIdentifier",
+            "SerialNumber",
+            "AssetType",
+            "FirmwareVersion",
+            "ExternalCalibration.ResolvedDuedate",
+            "CalibrationStatus",
+            "ModelName",
+            "Location"
+          ],
+          "refId": "Instruments",
+          "take": 1000,
+          "type": "List Assets"
+        }
+      ],
+      "title": "Instruments",
+      "transformations": [
+        {
+          "id": "organize",
+          "options": {
+            "excludeByName": {},
+            "includeByName": {},
+            "indexByName": {
+              "asset type": 5,
+              "calibration due date": 7,
+              "calibration status": 8,
+              "firmware version": 4,
+              "id": 9,
+              "location": 6,
+              "model name": 2,
+              "name": 0,
+              "serial number": 1,
+              "vendor name": 3
+            },
+            "renameByName": {
+              "asset type": "Type",
+              "calibration due date": "Calibration Due Date",
+              "calibration status": "Calibration Status",
+              "firmware version": "Firmware",
+              "location": "Location",
+              "model name": "Model Name",
+              "name": "Name",
+              "serial number": "Serial Number",
+              "vendor name": "Vendor"
+            }
+          }
+        }
+      ],
+      "type": "table"
+    }
+  ],
+  "schemaVersion": 41,
+  "tags": [
+    "Default Dashboard",
+    "Health Dashboard"
+  ],
+  "templating": {
+    "list": [
+      {
+        "allValue": "",
+        "current": {
+          "selected": false,
+          "text": "PM Demos",
+          "value": "07f93ff9-7d8c-4732-b91e-2d16c5ecc5d8"
+        },
+        "datasource": {
+          "type": "ni-slworkspace-datasource",
+          "uid": "ni-slworkspace-datasource"
+        },
+        "definition": "",
+        "hide": 0,
+        "includeAll": false,
+        "label": "Workspace",
+        "multi": false,
+        "name": "workspace",
+        "options": [],
+        "query": "",
+        "refresh": 1,
+        "regex": "",
+        "skipUrlSync": false,
+        "sort": 1,
+        "type": "query"
+      },
+      {
+        "current": {
+          "selected": false,
+          "text": "Josh's PXI",
+          "value": "NI_PXIe-8880--SN-031062CE--MAC-00-80-2F-16-5C-C1"
+        },
+        "datasource": {
+          "type": "ni-slsystem-datasource",
+          "uid": "ni-slsystem-datasource"
+        },
+        "definition": "",
+        "hide": 0,
+        "includeAll": false,
+        "label": "System",
+        "multi": false,
+        "name": "system",
+        "options": [],
+        "query": {
+          "workspace": "$workspace"
+        },
+        "refresh": 1,
+        "regex": "",
+        "skipUrlSync": false,
+        "sort": 1,
+        "type": "query"
+      }
+    ]
+  },
+  "time": {
+    "from": "now-7d",
+    "to": "now"
+  },
+  "timepicker": {},
+  "timezone": "",
+  "title": "System Health",
+  "uid": "system-health",
+  "version": 1,
+  "weekStart": ""
+}

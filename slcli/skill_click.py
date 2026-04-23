@@ -15,6 +15,7 @@ _FALLBACK_SKILL_CHOICES = [
     "nipkg-file-package",
     "slcli",
     "systemlink-job-debugging",
+    "systemlink-dashboard",
     "systemlink-notebook",
     "systemlink-python-test",
     "systemlink-webapp",

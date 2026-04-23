@@ -671,12 +671,22 @@ metadata, carries the icon into the package, writes the matching control-file fi
 generated `.nipkg`, and emits a thin `manifest.json` with `schemaVersion`, `nipkgFile`,
 `sha256`, and any configured provenance fields.
 
+## dashboard — Dashboard management
+
+List, export, and import SystemLink-hosted Grafana dashboards.
+
+```bash
+slcli dashboard list [-f table|json] [--filter TEXT] [-t INT]
+slcli dashboard export <UID> [-o FILE] [--dashboard-only]
+slcli dashboard import -i FILE [--overwrite]
+```
+
 ## skill — AI skill installation
 
 Install bundled skills for supported AI clients.
 
 ```bash
-slcli skill install --skill [slcli|systemlink-webapp|systemlink-notebook|all] --client [agents|claude|all] --scope [personal|project|both]
+slcli skill install --skill [slcli|systemlink-webapp|systemlink-dashboard|systemlink-notebook|all] --client [agents|claude|all] --scope [personal|project|both]
 ```
 
 Client paths:

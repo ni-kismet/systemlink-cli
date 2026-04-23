@@ -39,6 +39,7 @@ def fake_skills_dir(tmp_path: Path) -> Path:
     """Return a temp skills/ directory containing minimal bundled skills."""
     skill_names = [
         "slcli",
+        "systemlink-dashboard",
         "systemlink-webapp",
         "systemlink-notebook",
         "systemlink-python-test",
@@ -337,6 +338,33 @@ def test_install_webapp_skill_personal(
     assert result.exit_code == 0
     assert "\u2713 Installed systemlink-webapp skill" in result.output
     assert (dest_parent / "systemlink-webapp" / "SKILL.md").exists()
+
+
+def test_install_dashboard_skill_personal(
+    runner: CliRunner, fake_skills_dir: Path, tmp_path: Path
+) -> None:
+    """--skill systemlink-dashboard installs the dashboard skill."""
+    dest_parent = tmp_path / "dest"
+    cli = make_cli()
+    with patch("slcli.skill_click._find_bundled_skills_dir", return_value=fake_skills_dir), patch(
+        "slcli.skill_click._resolve_destinations", return_value=[dest_parent]
+    ):
+        result = runner.invoke(
+            cli,
+            [
+                "skill",
+                "install",
+                "--skill",
+                "systemlink-dashboard",
+                "--client",
+                "agents",
+                "--scope",
+                "personal",
+            ],
+        )
+    assert result.exit_code == 0
+    assert "\u2713 Installed systemlink-dashboard skill" in result.output
+    assert (dest_parent / "systemlink-dashboard" / "SKILL.md").exists()
 
 
 def test_install_all_skills(runner: CliRunner, fake_skills_dir: Path, tmp_path: Path) -> None:

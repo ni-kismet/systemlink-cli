@@ -14,6 +14,7 @@ from .asset_click import register_asset_commands
 from .comment_click import register_comment_commands
 from .completion_click import register_completion_command
 from .config_click import register_config_commands
+from .dashboard_click import register_dashboard_commands
 from .dff_click import register_dff_commands
 from .example_click import register_example_commands
 from .feed_click import register_feed_commands
@@ -423,6 +424,7 @@ register_asset_commands(cli)
 register_comment_commands(cli)
 register_dff_commands(cli)
 register_config_commands(cli)
+register_dashboard_commands(cli)
 register_example_commands(cli)
 register_feed_commands(cli)
 register_file_commands(cli)

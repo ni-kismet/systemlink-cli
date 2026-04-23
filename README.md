@@ -69,6 +69,10 @@ slcli system compare sys-id-1 sys-id-2 -f json
 slcli webapp init ./my-dashboard
 # Open the project and follow START_HERE.md or PROMPTS.md
 
+# List and export a hosted dashboard by UID
+slcli dashboard list -f table
+slcli dashboard export system-health -o system-health.json
+
 # Create Plugin Manager packaging config
 slcli webapp manifest init ./my-dashboard \
 	--description "A dashboard for monitoring fleet health and calibration status." \

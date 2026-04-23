@@ -1,0 +1,4077 @@
+{
+  "annotations": {
+    "list": [
+      {
+        "builtIn": 1,
+        "enable": true,
+        "hide": true,
+        "iconColor": "rgba(0, 211, 255, 1)",
+        "name": "Annotations & Alerts",
+        "type": "dashboard"
+      }
+    ]
+  },
+  "editable": false,
+  "fiscalYearStartMonth": 0,
+  "graphTooltip": 0,
+  "id": 1026646,
+  "links": [],
+  "liveNow": false,
+  "panels": [
+    {
+      "collapsed": false,
+      "gridPos": {
+        "h": 1,
+        "w": 24,
+        "x": 0,
+        "y": 0
+      },
+      "id": 28,
+      "panels": [],
+      "title": "Product Summary",
+      "type": "row"
+    },
+    {
+      "datasource": {
+        "type": "ni-slproducts-datasource",
+        "uid": "ni-slproducts-datasource"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "color": {
+            "fixedColor": "green",
+            "mode": "fixed"
+          },
+          "links": [
+            {
+              "targetBlank": true,
+              "title": "View Product Details",
+              "url": "../testinsights/products/product/${__data.fields[\"Product ID\"]}"
+            }
+          ],
+          "mappings": [],
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "green"
+              }
+            ]
+          }
+        },
+        "overrides": []
+      },
+      "gridPos": {
+        "h": 3,
+        "w": 5,
+        "x": 0,
+        "y": 1
+      },
+      "id": 5,
+      "options": {
+        "colorMode": "value",
+        "graphMode": "none",
+        "justifyMode": "auto",
+        "orientation": "auto",
+        "percentChangeColorMode": "standard",
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": "/^Product name$/",
+          "values": true
+        },
+        "showPercentChange": false,
+        "textMode": "auto",
+        "wideLayout": true
+      },
+      "pluginVersion": "11.6.5",
+      "targets": [
+        {
+          "datasource": {
+            "type": "ni-slproducts-datasource",
+            "uid": "ni-slproducts-datasource"
+          },
+          "descending": true,
+          "orderBy": "UPDATED_AT",
+          "properties": [
+            "name",
+            "family",
+            "partNumber",
+            "id"
+          ],
+          "queryBy": "PartNumber = \"$product\"",
+          "recordCount": 1,
+          "refId": "Product details"
+        }
+      ],
+      "title": "Name",
+      "transformations": [
+        {
+          "id": "organize",
+          "options": {
+            "excludeByName": {
+              "Family": true,
+              "Part number": true,
+              "Product ID": false,
+              "Product name": false
+            },
+            "includeByName": {},
+            "indexByName": {},
+            "renameByName": {}
+          }
+        }
+      ],
+      "type": "stat"
+    },
+    {
+      "datasource": {
+        "type": "datasource",
+        "uid": "-- Dashboard --"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "color": {
+            "fixedColor": "green",
+            "mode": "fixed"
+          },
+          "links": [
+            {
+              "targetBlank": true,
+              "title": "View Product Details",
+              "url": "../testinsights/products/product/${__data.fields[\"Product ID\"]}"
+            }
+          ],
+          "mappings": [],
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "green"
+              }
+            ]
+          }
+        },
+        "overrides": []
+      },
+      "gridPos": {
+        "h": 3,
+        "w": 5,
+        "x": 5,
+        "y": 1
+      },
+      "id": 4,
+      "options": {
+        "colorMode": "value",
+        "graphMode": "none",
+        "justifyMode": "auto",
+        "orientation": "auto",
+        "percentChangeColorMode": "standard",
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": "/^Part number$/",
+          "values": true
+        },
+        "showPercentChange": false,
+        "textMode": "auto",
+        "wideLayout": true
+      },
+      "pluginVersion": "11.6.5",
+      "targets": [
+        {
+          "datasource": {
+            "type": "datasource",
+            "uid": "-- Dashboard --"
+          },
+          "panelId": 5,
+          "refId": "A"
+        }
+      ],
+      "title": "Part number",
+      "transformations": [
+        {
+          "id": "organize",
+          "options": {
+            "excludeByName": {
+              "Family": true,
+              "Product name": true
+            },
+            "includeByName": {},
+            "indexByName": {},
+            "renameByName": {}
+          }
+        }
+      ],
+      "type": "stat"
+    },
+    {
+      "datasource": {
+        "type": "datasource",
+        "uid": "-- Dashboard --"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "color": {
+            "fixedColor": "green",
+            "mode": "fixed"
+          },
+          "links": [],
+          "mappings": [],
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "green"
+              }
+            ]
+          }
+        },
+        "overrides": []
+      },
+      "gridPos": {
+        "h": 3,
+        "w": 5,
+        "x": 10,
+        "y": 1
+      },
+      "id": 6,
+      "options": {
+        "colorMode": "value",
+        "graphMode": "none",
+        "justifyMode": "auto",
+        "orientation": "auto",
+        "percentChangeColorMode": "standard",
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": "/^Family$/",
+          "values": true
+        },
+        "showPercentChange": false,
+        "textMode": "auto",
+        "wideLayout": true
+      },
+      "pluginVersion": "11.6.5",
+      "targets": [
+        {
+          "datasource": {
+            "type": "datasource",
+            "uid": "-- Dashboard --"
+          },
+          "panelId": 5,
+          "refId": "A"
+        }
+      ],
+      "title": "Family name",
+      "transformations": [
+        {
+          "id": "organize",
+          "options": {
+            "excludeByName": {
+              "Family": false,
+              "Part number": true,
+              "Product ID": true,
+              "Product name": true
+            },
+            "includeByName": {},
+            "indexByName": {},
+            "renameByName": {}
+          }
+        }
+      ],
+      "type": "stat"
+    },
+    {
+      "datasource": {
+        "type": "datasource",
+        "uid": "-- Dashboard --"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "color": {
+            "fixedColor": "blue",
+            "mode": "fixed"
+          },
+          "fieldMinMax": false,
+          "mappings": [],
+          "noValue": "0",
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "green"
+              }
+            ]
+          }
+        },
+        "overrides": []
+      },
+      "gridPos": {
+        "h": 3,
+        "w": 2,
+        "x": 15,
+        "y": 1
+      },
+      "id": 8,
+      "options": {
+        "colorMode": "value",
+        "graphMode": "none",
+        "justifyMode": "auto",
+        "orientation": "auto",
+        "percentChangeColorMode": "standard",
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": "/^Number of Test Plans$/",
+          "values": true
+        },
+        "showPercentChange": false,
+        "textMode": "auto",
+        "wideLayout": true
+      },
+      "pluginVersion": "11.6.5",
+      "targets": [
+        {
+          "datasource": {
+            "type": "datasource",
+            "uid": "-- Dashboard --"
+          },
+          "panelId": 11,
+          "refId": "A"
+        }
+      ],
+      "title": "Test Plans",
+      "transformations": [
+        {
+          "id": "concatenate",
+          "options": {
+            "frameNameLabel": "frame",
+            "frameNameMode": "drop"
+          }
+        },
+        {
+          "id": "calculateField",
+          "options": {
+            "alias": "Number of Test Plans",
+            "mode": "reduceRow",
+            "reduce": {
+              "include": [
+                "New",
+                "Defined",
+                "Reviewed",
+                "Scheduled",
+                "In Progress",
+                "Pending Approval",
+                "Closed",
+                "Canceled"
+              ],
+              "reducer": "sum"
+            },
+            "replaceFields": true
+          }
+        }
+      ],
+      "type": "stat"
+    },
+    {
+      "datasource": {
+        "type": "datasource",
+        "uid": "-- Dashboard --"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "color": {
+            "fixedColor": "blue",
+            "mode": "fixed"
+          },
+          "mappings": [],
+          "noValue": "0",
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "green"
+              }
+            ]
+          }
+        },
+        "overrides": []
+      },
+      "gridPos": {
+        "h": 3,
+        "w": 2,
+        "x": 17,
+        "y": 1
+      },
+      "id": 9,
+      "options": {
+        "colorMode": "value",
+        "graphMode": "none",
+        "justifyMode": "auto",
+        "orientation": "auto",
+        "percentChangeColorMode": "standard",
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": "/^Number of Test Results$/",
+          "values": true
+        },
+        "showPercentChange": false,
+        "textMode": "auto",
+        "wideLayout": true
+      },
+      "pluginVersion": "11.6.5",
+      "targets": [
+        {
+          "datasource": {
+            "type": "datasource",
+            "uid": "-- Dashboard --"
+          },
+          "panelId": 12,
+          "refId": "A"
+        }
+      ],
+      "title": "Test Results",
+      "transformations": [
+        {
+          "id": "concatenate",
+          "options": {
+            "frameNameLabel": "frame",
+            "frameNameMode": "drop"
+          }
+        },
+        {
+          "id": "calculateField",
+          "options": {
+            "alias": "Number of Test Results",
+            "mode": "reduceRow",
+            "reduce": {
+              "include": [
+                "Passed",
+                "Failed",
+                "Done",
+                "Errored",
+                "Custom",
+                "Looping",
+                "Running",
+                "Skipped",
+                "Terminated",
+                "Timed Out",
+                "Waiting"
+              ],
+              "reducer": "sum"
+            },
+            "replaceFields": true
+          }
+        }
+      ],
+      "type": "stat"
+    },
+    {
+      "datasource": {
+        "type": "ni-slasset-datasource",
+        "uid": "ni-slasset-datasource"
+      },
+      "description": "Displays a maximum of 1,000 DUTs",
+      "fieldConfig": {
+        "defaults": {
+          "color": {
+            "fixedColor": "blue",
+            "mode": "fixed"
+          },
+          "mappings": [],
+          "noValue": "0",
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "green"
+              }
+            ]
+          }
+        },
+        "overrides": []
+      },
+      "gridPos": {
+        "h": 3,
+        "w": 2,
+        "x": 19,
+        "y": 1
+      },
+      "id": 7,
+      "options": {
+        "colorMode": "value",
+        "graphMode": "none",
+        "justifyMode": "auto",
+        "orientation": "auto",
+        "percentChangeColorMode": "standard",
+        "reduceOptions": {
+          "calcs": [
+            "count"
+          ],
+          "fields": "/^Number of DUTs$/",
+          "values": true
+        },
+        "showPercentChange": false,
+        "textMode": "auto",
+        "wideLayout": true
+      },
+      "pluginVersion": "11.6.5",
+      "targets": [
+        {
+          "datasource": {
+            "type": "ni-slasset-datasource",
+            "uid": "ni-slasset-datasource"
+          },
+          "filter": "(AssetType = \"DEVICE_UNDER_TEST\" && PartNumber = \"$product\")",
+          "groupBy": [],
+          "refId": "Number of DUTs",
+          "type": "List Assets"
+        }
+      ],
+      "title": "DUTs",
+      "transformations": [
+        {
+          "id": "organize",
+          "options": {
+            "excludeByName": {
+              "asset type": true,
+              "bus type": true,
+              "calibration due date": true,
+              "calibration status": true,
+              "is NI asset": true,
+              "is system controller": true,
+              "last updated timestamp": true,
+              "location": true,
+              "minionId": true,
+              "model name": true,
+              "name": true,
+              "parent name": true,
+              "part number": true,
+              "serial number": true,
+              "workspace": true
+            },
+            "includeByName": {},
+            "indexByName": {},
+            "renameByName": {}
+          }
+        },
+        {
+          "id": "reduce",
+          "options": {
+            "includeTimeField": false,
+            "mode": "reduceFields",
+            "reducers": [
+              "count"
+            ]
+          }
+        },
+        {
+          "id": "organize",
+          "options": {
+            "excludeByName": {},
+            "includeByName": {},
+            "indexByName": {},
+            "renameByName": {
+              "id": "Number of DUTs"
+            }
+          }
+        }
+      ],
+      "type": "stat"
+    },
+    {
+      "datasource": {
+        "type": "datasource",
+        "uid": "-- Dashboard --"
+      },
+      "description": "Displays this count based on the most recent 1,000 Test Plans",
+      "fieldConfig": {
+        "defaults": {
+          "color": {
+            "fixedColor": "blue",
+            "mode": "fixed"
+          },
+          "fieldMinMax": false,
+          "mappings": [],
+          "noValue": "0",
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "green"
+              }
+            ]
+          }
+        },
+        "overrides": []
+      },
+      "gridPos": {
+        "h": 3,
+        "w": 3,
+        "x": 21,
+        "y": 1
+      },
+      "id": 10,
+      "options": {
+        "colorMode": "value",
+        "graphMode": "none",
+        "justifyMode": "auto",
+        "orientation": "auto",
+        "percentChangeColorMode": "standard",
+        "reduceOptions": {
+          "calcs": [
+            "distinctCount"
+          ],
+          "fields": "/^Number of DUTs being tested$/",
+          "values": true
+        },
+        "showPercentChange": false,
+        "textMode": "auto",
+        "wideLayout": true
+      },
+      "pluginVersion": "11.6.5",
+      "targets": [
+        {
+          "datasource": {
+            "type": "datasource",
+            "uid": "-- Dashboard --"
+          },
+          "panelId": 19,
+          "refId": "A"
+        }
+      ],
+      "title": "DUTs being tested",
+      "transformations": [
+        {
+          "id": "filterByValue",
+          "options": {
+            "filters": [
+              {
+                "config": {
+                  "id": "isNotNull",
+                  "options": {}
+                },
+                "fieldName": "DUT serial number"
+              },
+              {
+                "config": {
+                  "id": "notEqual",
+                  "options": {
+                    "value": ""
+                  }
+                },
+                "fieldName": "DUT serial number"
+              }
+            ],
+            "match": "all",
+            "type": "include"
+          }
+        },
+        {
+          "id": "reduce",
+          "options": {
+            "includeTimeField": false,
+            "mode": "reduceFields",
+            "reducers": [
+              "distinctCount"
+            ]
+          }
+        },
+        {
+          "id": "organize",
+          "options": {
+            "excludeByName": {
+              "Name": true,
+              "Test plan template": true
+            },
+            "includeByName": {},
+            "indexByName": {},
+            "renameByName": {
+              "DUT serial number": "Number of DUTs being tested"
+            }
+          }
+        }
+      ],
+      "type": "stat"
+    },
+    {
+      "datasource": {
+        "type": "ni-sltestresults-datasource",
+        "uid": "ni-sltestresults-datasource"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "color": {
+            "mode": "palette-classic"
+          },
+          "custom": {
+            "hideFrom": {
+              "legend": false,
+              "tooltip": false,
+              "viz": false
+            }
+          },
+          "mappings": []
+        },
+        "overrides": [
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "Passed"
+            },
+            "properties": [
+              {
+                "id": "color",
+                "value": {
+                  "fixedColor": "#009921",
+                  "mode": "fixed"
+                }
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "Failed"
+            },
+            "properties": [
+              {
+                "id": "color",
+                "value": {
+                  "fixedColor": "#C4000C",
+                  "mode": "fixed"
+                }
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "Done"
+            },
+            "properties": [
+              {
+                "id": "color",
+                "value": {
+                  "fixedColor": "#009B65",
+                  "mode": "fixed"
+                }
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "Errored"
+            },
+            "properties": [
+              {
+                "id": "color",
+                "value": {
+                  "fixedColor": "#C4000CD9",
+                  "mode": "fixed"
+                }
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "Custom"
+            },
+            "properties": [
+              {
+                "id": "color",
+                "value": {
+                  "fixedColor": "#8E78B7",
+                  "mode": "fixed"
+                }
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "Looping"
+            },
+            "properties": [
+              {
+                "id": "color",
+                "value": {
+                  "fixedColor": "#00A1D499",
+                  "mode": "fixed"
+                }
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "Running"
+            },
+            "properties": [
+              {
+                "id": "color",
+                "value": {
+                  "fixedColor": "#00A1D4",
+                  "mode": "fixed"
+                }
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "Skipped"
+            },
+            "properties": [
+              {
+                "id": "color",
+                "value": {
+                  "fixedColor": "#00A1D499",
+                  "mode": "fixed"
+                }
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "Terminated"
+            },
+            "properties": [
+              {
+                "id": "color",
+                "value": {
+                  "fixedColor": "#FF4663",
+                  "mode": "fixed"
+                }
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "Timed Out"
+            },
+            "properties": [
+              {
+                "id": "color",
+                "value": {
+                  "fixedColor": "#161617BF",
+                  "mode": "fixed"
+                }
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "Waiting"
+            },
+            "properties": [
+              {
+                "id": "color",
+                "value": {
+                  "fixedColor": "#818386",
+                  "mode": "fixed"
+                }
+              }
+            ]
+          }
+        ]
+      },
+      "gridPos": {
+        "h": 14,
+        "w": 8,
+        "x": 0,
+        "y": 4
+      },
+      "id": 12,
+      "options": {
+        "displayLabels": [
+          "percent"
+        ],
+        "legend": {
+          "displayMode": "table",
+          "placement": "bottom",
+          "showLegend": true,
+          "values": [
+            "percent",
+            "value"
+          ]
+        },
+        "pieType": "donut",
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": "/.*/",
+          "values": true
+        },
+        "tooltip": {
+          "hideZeros": false,
+          "mode": "single",
+          "sort": "none"
+        }
+      },
+      "pluginVersion": "10.2.3",
+      "targets": [
+        {
+          "datasource": {
+            "type": "ni-sltestresults-datasource",
+            "uid": "ni-sltestresults-datasource"
+          },
+          "descending": true,
+          "orderBy": "STARTED_AT",
+          "outputType": "Total Count",
+          "properties": [],
+          "queryBy": "(Status.statusType = \"Passed\" && PartNumber = \"$product\")",
+          "queryType": "Results",
+          "recordCount": 1000,
+          "refId": "Passed",
+          "useTimeRange": false
+        },
+        {
+          "datasource": {
+            "type": "ni-sltestresults-datasource",
+            "uid": "ni-sltestresults-datasource"
+          },
+          "descending": true,
+          "hide": false,
+          "orderBy": "STARTED_AT",
+          "outputType": "Total Count",
+          "properties": [],
+          "queryBy": "(Status.statusType = \"Failed\" && PartNumber = \"$product\")",
+          "queryType": "Results",
+          "recordCount": 1000,
+          "refId": "Failed",
+          "useTimeRange": false
+        },
+        {
+          "datasource": {
+            "type": "ni-sltestresults-datasource",
+            "uid": "ni-sltestresults-datasource"
+          },
+          "descending": true,
+          "hide": false,
+          "orderBy": "STARTED_AT",
+          "outputType": "Total Count",
+          "properties": [],
+          "queryBy": "(Status.statusType = \"Done\" && PartNumber = \"$product\")",
+          "queryType": "Results",
+          "recordCount": 1000,
+          "refId": "Done",
+          "useTimeRange": false
+        },
+        {
+          "datasource": {
+            "type": "ni-sltestresults-datasource",
+            "uid": "ni-sltestresults-datasource"
+          },
+          "descending": true,
+          "hide": false,
+          "orderBy": "STARTED_AT",
+          "outputType": "Total Count",
+          "properties": [],
+          "queryBy": "(Status.statusType = \"Errored\" && PartNumber = \"$product\")",
+          "queryType": "Results",
+          "recordCount": 1000,
+          "refId": "Errored",
+          "useTimeRange": false
+        },
+        {
+          "datasource": {
+            "type": "ni-sltestresults-datasource",
+            "uid": "ni-sltestresults-datasource"
+          },
+          "descending": true,
+          "hide": false,
+          "orderBy": "STARTED_AT",
+          "outputType": "Total Count",
+          "properties": [],
+          "queryBy": "(Status.statusType = \"Custom\" && PartNumber = \"$product\")",
+          "queryType": "Results",
+          "recordCount": 1000,
+          "refId": "Custom",
+          "useTimeRange": false
+        },
+        {
+          "datasource": {
+            "type": "ni-sltestresults-datasource",
+            "uid": "ni-sltestresults-datasource"
+          },
+          "descending": true,
+          "hide": false,
+          "orderBy": "STARTED_AT",
+          "outputType": "Total Count",
+          "properties": [],
+          "queryBy": "(Status.statusType = \"Looping\" && PartNumber = \"$product\")",
+          "queryType": "Results",
+          "recordCount": 1000,
+          "refId": "Looping",
+          "useTimeRange": false
+        },
+        {
+          "datasource": {
+            "type": "ni-sltestresults-datasource",
+            "uid": "ni-sltestresults-datasource"
+          },
+          "descending": true,
+          "hide": false,
+          "orderBy": "STARTED_AT",
+          "outputType": "Total Count",
+          "properties": [],
+          "queryBy": "(Status.statusType = \"Running\" && PartNumber = \"$product\")",
+          "queryType": "Results",
+          "recordCount": 1000,
+          "refId": "Running",
+          "useTimeRange": false
+        },
+        {
+          "datasource": {
+            "type": "ni-sltestresults-datasource",
+            "uid": "ni-sltestresults-datasource"
+          },
+          "descending": true,
+          "hide": false,
+          "orderBy": "STARTED_AT",
+          "outputType": "Total Count",
+          "properties": [],
+          "queryBy": "(Status.statusType = \"Skipped\" && PartNumber = \"$product\")",
+          "queryType": "Results",
+          "recordCount": 1000,
+          "refId": "Skipped",
+          "useTimeRange": false
+        },
+        {
+          "datasource": {
+            "type": "ni-sltestresults-datasource",
+            "uid": "ni-sltestresults-datasource"
+          },
+          "descending": true,
+          "hide": false,
+          "orderBy": "STARTED_AT",
+          "outputType": "Total Count",
+          "properties": [],
+          "queryBy": "(Status.statusType = \"Terminated\" && PartNumber = \"$product\")",
+          "queryType": "Results",
+          "recordCount": 1000,
+          "refId": "Terminated",
+          "useTimeRange": false
+        },
+        {
+          "datasource": {
+            "type": "ni-sltestresults-datasource",
+            "uid": "ni-sltestresults-datasource"
+          },
+          "descending": true,
+          "hide": false,
+          "orderBy": "STARTED_AT",
+          "outputType": "Total Count",
+          "properties": [],
+          "queryBy": "(Status.statusType = \"Timedout\" && PartNumber = \"$product\")",
+          "queryType": "Results",
+          "recordCount": 1000,
+          "refId": "Timed Out",
+          "useTimeRange": false
+        },
+        {
+          "datasource": {
+            "type": "ni-sltestresults-datasource",
+            "uid": "ni-sltestresults-datasource"
+          },
+          "descending": true,
+          "hide": false,
+          "orderBy": "STARTED_AT",
+          "outputType": "Total Count",
+          "properties": [],
+          "queryBy": "(Status.statusType = \"Waiting\" && PartNumber = \"$product\")",
+          "queryType": "Results",
+          "recordCount": 1000,
+          "refId": "Waiting",
+          "useTimeRange": false
+        }
+      ],
+      "title": "Summary of Test Results",
+      "type": "piechart"
+    },
+    {
+      "datasource": {
+        "type": "ni-sltestplans-datasource",
+        "uid": "ni-sltestplans-datasource"
+      },
+      "description": "",
+      "fieldConfig": {
+        "defaults": {
+          "color": {
+            "mode": "palette-classic"
+          },
+          "custom": {
+            "hideFrom": {
+              "legend": false,
+              "tooltip": false,
+              "viz": false
+            }
+          },
+          "fieldMinMax": false,
+          "links": [
+            {
+              "targetBlank": true,
+              "title": "View Full Summary of Test Plans",
+              "url": "./d/lab-test-overview/lab-test-overview?${workspace:queryparam}&${product:queryparam}"
+            }
+          ],
+          "mappings": []
+        },
+        "overrides": [
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "New"
+            },
+            "properties": [
+              {
+                "id": "color",
+                "value": {
+                  "fixedColor": "#818386",
+                  "mode": "fixed"
+                }
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "Defined"
+            },
+            "properties": [
+              {
+                "id": "color",
+                "value": {
+                  "fixedColor": "#161617BF",
+                  "mode": "fixed"
+                }
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "Reviewed"
+            },
+            "properties": [
+              {
+                "id": "color",
+                "value": {
+                  "fixedColor": "#804AD9",
+                  "mode": "fixed"
+                }
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "Scheduled"
+            },
+            "properties": [
+              {
+                "id": "color",
+                "value": {
+                  "fixedColor": "#009B65",
+                  "mode": "fixed"
+                }
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "In Progress"
+            },
+            "properties": [
+              {
+                "id": "color",
+                "value": {
+                  "fixedColor": "#00A1D4",
+                  "mode": "fixed"
+                }
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "Pending Approval"
+            },
+            "properties": [
+              {
+                "id": "color",
+                "value": {
+                  "fixedColor": "#FF8126",
+                  "mode": "fixed"
+                }
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "Closed"
+            },
+            "properties": [
+              {
+                "id": "color",
+                "value": {
+                  "fixedColor": "#009921",
+                  "mode": "fixed"
+                }
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "Canceled"
+            },
+            "properties": [
+              {
+                "id": "color",
+                "value": {
+                  "fixedColor": "#C4000C",
+                  "mode": "fixed"
+                }
+              }
+            ]
+          }
+        ]
+      },
+      "gridPos": {
+        "h": 14,
+        "w": 7,
+        "x": 8,
+        "y": 4
+      },
+      "id": 11,
+      "options": {
+        "displayLabels": [
+          "percent"
+        ],
+        "legend": {
+          "displayMode": "table",
+          "placement": "bottom",
+          "showLegend": true,
+          "values": [
+            "percent",
+            "value"
+          ]
+        },
+        "pieType": "donut",
+        "reduceOptions": {
+          "calcs": [
+            "count"
+          ],
+          "fields": "/.*/",
+          "values": true
+        },
+        "tooltip": {
+          "hideZeros": false,
+          "mode": "single",
+          "sort": "none"
+        }
+      },
+      "pluginVersion": "10.2.3",
+      "targets": [
+        {
+          "datasource": {
+            "type": "ni-sltestplans-datasource",
+            "uid": "ni-sltestplans-datasource"
+          },
+          "descending": true,
+          "orderBy": "UPDATED_AT",
+          "outputType": "Total Count",
+          "properties": [],
+          "queryBy": "(partNumber = \"$product\" && state = \"New\")",
+          "recordCount": 1000,
+          "refId": "New"
+        },
+        {
+          "datasource": {
+            "type": "ni-sltestplans-datasource",
+            "uid": "ni-sltestplans-datasource"
+          },
+          "descending": true,
+          "hide": false,
+          "orderBy": "UPDATED_AT",
+          "outputType": "Total Count",
+          "properties": [],
+          "queryBy": "(partNumber = \"$product\" && state = \"Defined\")",
+          "recordCount": 1000,
+          "refId": "Defined"
+        },
+        {
+          "datasource": {
+            "type": "ni-sltestplans-datasource",
+            "uid": "ni-sltestplans-datasource"
+          },
+          "descending": true,
+          "hide": false,
+          "orderBy": "UPDATED_AT",
+          "outputType": "Total Count",
+          "properties": [],
+          "queryBy": "(partNumber = \"$product\" && state = \"Reviewed\")",
+          "recordCount": 1000,
+          "refId": "Reviewed"
+        },
+        {
+          "datasource": {
+            "type": "ni-sltestplans-datasource",
+            "uid": "ni-sltestplans-datasource"
+          },
+          "descending": true,
+          "hide": false,
+          "orderBy": "UPDATED_AT",
+          "outputType": "Total Count",
+          "properties": [],
+          "queryBy": "(partNumber = \"$product\" && state = \"Scheduled\")",
+          "recordCount": 1000,
+          "refId": "Scheduled"
+        },
+        {
+          "datasource": {
+            "type": "ni-sltestplans-datasource",
+            "uid": "ni-sltestplans-datasource"
+          },
+          "descending": true,
+          "hide": false,
+          "orderBy": "UPDATED_AT",
+          "outputType": "Total Count",
+          "properties": [],
+          "queryBy": "(partNumber = \"$product\" && state = \"InProgress\")",
+          "recordCount": 1000,
+          "refId": "In Progress"
+        },
+        {
+          "datasource": {
+            "type": "ni-sltestplans-datasource",
+            "uid": "ni-sltestplans-datasource"
+          },
+          "descending": true,
+          "hide": false,
+          "orderBy": "UPDATED_AT",
+          "outputType": "Total Count",
+          "properties": [],
+          "queryBy": "(partNumber = \"$product\" && state = \"PendingApproval\")",
+          "recordCount": 1000,
+          "refId": "Pending Approval"
+        },
+        {
+          "datasource": {
+            "type": "ni-sltestplans-datasource",
+            "uid": "ni-sltestplans-datasource"
+          },
+          "descending": true,
+          "hide": false,
+          "orderBy": "UPDATED_AT",
+          "outputType": "Total Count",
+          "properties": [],
+          "queryBy": "(partNumber = \"$product\" && state = \"Closed\")",
+          "recordCount": 1000,
+          "refId": "Closed"
+        },
+        {
+          "datasource": {
+            "type": "ni-sltestplans-datasource",
+            "uid": "ni-sltestplans-datasource"
+          },
+          "descending": true,
+          "hide": false,
+          "orderBy": "UPDATED_AT",
+          "outputType": "Total Count",
+          "properties": [],
+          "queryBy": "(partNumber = \"$product\" && state = \"Canceled\")",
+          "recordCount": 1000,
+          "refId": "Canceled"
+        }
+      ],
+      "title": "Summary of Test Plans",
+      "type": "piechart"
+    },
+    {
+      "datasource": {
+        "type": "ni-sltestplans-datasource",
+        "uid": "ni-sltestplans-datasource"
+      },
+      "description": "Displays summary for the most recent 1,000 Test Plans",
+      "fieldConfig": {
+        "defaults": {
+          "color": {
+            "mode": "palette-classic"
+          },
+          "custom": {
+            "axisBorderShow": false,
+            "axisCenteredZero": false,
+            "axisColorMode": "text",
+            "axisLabel": "",
+            "axisPlacement": "auto",
+            "fillOpacity": 80,
+            "gradientMode": "none",
+            "hideFrom": {
+              "legend": false,
+              "tooltip": false,
+              "viz": false
+            },
+            "lineWidth": 1,
+            "scaleDistribution": {
+              "type": "linear"
+            },
+            "thresholdsStyle": {
+              "mode": "off"
+            }
+          },
+          "fieldMinMax": false,
+          "mappings": [],
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "green"
+              }
+            ]
+          }
+        },
+        "overrides": [
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "DUT serial number\\Template name"
+            },
+            "properties": [
+              {
+                "id": "custom.axisLabel",
+                "value": "DUT Serial Number"
+              }
+            ]
+          }
+        ]
+      },
+      "gridPos": {
+        "h": 14,
+        "w": 9,
+        "x": 15,
+        "y": 4
+      },
+      "id": 19,
+      "options": {
+        "barRadius": 0,
+        "barWidth": 0.97,
+        "fullHighlight": false,
+        "groupWidth": 0.7,
+        "legend": {
+          "calcs": [
+            "sum"
+          ],
+          "displayMode": "table",
+          "placement": "bottom",
+          "showLegend": true
+        },
+        "orientation": "horizontal",
+        "showValue": "never",
+        "stacking": "normal",
+        "tooltip": {
+          "hideZeros": false,
+          "mode": "single",
+          "sort": "none"
+        },
+        "xField": "DUT serial number\\Template name",
+        "xTickLabelRotation": 0,
+        "xTickLabelSpacing": 0
+      },
+      "pluginVersion": "10.2.3",
+      "targets": [
+        {
+          "datasource": {
+            "type": "ni-sltestplans-datasource",
+            "uid": "ni-sltestplans-datasource"
+          },
+          "descending": true,
+          "hide": false,
+          "orderBy": "UPDATED_AT",
+          "outputType": "Properties",
+          "properties": [
+            "NAME",
+            "TEMPLATE",
+            "DUT_SERIAL_NUMBER"
+          ],
+          "queryBy": "partNumber = \"$product\"",
+          "recordCount": 1000,
+          "refId": "Test plans"
+        }
+      ],
+      "title": "Test Plan Assignments by DUT",
+      "transformations": [
+        {
+          "id": "groupBy",
+          "options": {
+            "fields": {
+              "DUT": {
+                "aggregations": [],
+                "operation": "groupby"
+              },
+              "DUT serial number": {
+                "aggregations": [],
+                "operation": "groupby"
+              },
+              "Name": {
+                "aggregations": [
+                  "count"
+                ],
+                "operation": "aggregate"
+              },
+              "Template name": {
+                "aggregations": [],
+                "operation": "groupby"
+              },
+              "Test plan name": {
+                "aggregations": [
+                  "count"
+                ],
+                "operation": "aggregate"
+              },
+              "Test plan template": {
+                "aggregations": [],
+                "operation": "groupby"
+              }
+            }
+          }
+        },
+        {
+          "id": "filterByValue",
+          "options": {
+            "filters": [
+              {
+                "config": {
+                  "id": "isNotNull",
+                  "options": {}
+                },
+                "fieldName": "DUT serial number"
+              },
+              {
+                "config": {
+                  "id": "notEqual",
+                  "options": {
+                    "value": ""
+                  }
+                },
+                "fieldName": "DUT serial number"
+              },
+              {
+                "config": {
+                  "id": "isNotNull",
+                  "options": {}
+                },
+                "fieldName": "Template name"
+              },
+              {
+                "config": {
+                  "id": "notEqual",
+                  "options": {
+                    "value": ""
+                  }
+                },
+                "fieldName": "Template name"
+              }
+            ],
+            "match": "all",
+            "type": "include"
+          }
+        },
+        {
+          "id": "sortBy",
+          "options": {
+            "fields": {},
+            "sort": [
+              {
+                "desc": false,
+                "field": "Template name"
+              }
+            ]
+          }
+        },
+        {
+          "id": "sortBy",
+          "options": {
+            "fields": {},
+            "sort": [
+              {
+                "desc": true,
+                "field": "Test plan name (count)"
+              }
+            ]
+          }
+        },
+        {
+          "id": "groupingToMatrix",
+          "options": {
+            "columnField": "Template name",
+            "emptyValue": "empty",
+            "rowField": "DUT serial number",
+            "valueField": "Test plan name (count)"
+          }
+        }
+      ],
+      "type": "barchart"
+    },
+    {
+      "collapsed": false,
+      "gridPos": {
+        "h": 1,
+        "w": 24,
+        "x": 0,
+        "y": 18
+      },
+      "id": 35,
+      "panels": [],
+      "title": "Test Result Failures (${__from:date:DD MMM yyyy} - ${__to:date:DD MMM yyyy})",
+      "type": "row"
+    },
+    {
+      "datasource": {
+        "type": "ni-sltestresults-datasource",
+        "uid": "ni-sltestresults-datasource"
+      },
+      "description": "Displays the top 25 Test Programs of the most recent 1,000 Test Result failures",
+      "fieldConfig": {
+        "defaults": {
+          "color": {
+            "fixedColor": "red",
+            "mode": "fixed"
+          },
+          "custom": {
+            "axisBorderShow": false,
+            "axisCenteredZero": false,
+            "axisColorMode": "text",
+            "axisLabel": "",
+            "axisPlacement": "auto",
+            "fillOpacity": 80,
+            "gradientMode": "none",
+            "hideFrom": {
+              "legend": false,
+              "tooltip": false,
+              "viz": false
+            },
+            "lineWidth": 1,
+            "scaleDistribution": {
+              "type": "linear"
+            },
+            "thresholdsStyle": {
+              "mode": "off"
+            }
+          },
+          "links": [
+            {
+              "title": "View Step Failures in ${__data.fields[\"Test program name\"]}",
+              "url": "/d/${__dashboard.uid}/${__dashboard.url}?${__url_time_range}&${workspace:queryparam}&${product:queryparam}&${hostName:queryparam}&${dut:queryparam}&${testProgramDutFilter:queryparam}&${testProgramSystemFilter:queryparam}&var-testProgram=${__data.fields[\"Test program name\"]}"
+            }
+          ],
+          "mappings": [],
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "green"
+              }
+            ]
+          }
+        },
+        "overrides": [
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "Errored"
+            },
+            "properties": [
+              {
+                "id": "color",
+                "value": {
+                  "fixedColor": "#C4000CD9",
+                  "mode": "fixed"
+                }
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "Failed"
+            },
+            "properties": [
+              {
+                "id": "color",
+                "value": {
+                  "fixedColor": "#C4000C",
+                  "mode": "fixed"
+                }
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "Timed Out"
+            },
+            "properties": [
+              {
+                "id": "color",
+                "value": {
+                  "fixedColor": "#161617BF",
+                  "mode": "fixed"
+                }
+              }
+            ]
+          }
+        ]
+      },
+      "gridPos": {
+        "h": 17,
+        "w": 12,
+        "x": 0,
+        "y": 19
+      },
+      "id": 36,
+      "options": {
+        "barRadius": 0,
+        "barWidth": 0.97,
+        "fullHighlight": false,
+        "groupWidth": 0.7,
+        "legend": {
+          "calcs": [
+            "sum"
+          ],
+          "displayMode": "table",
+          "placement": "right",
+          "showLegend": true
+        },
+        "orientation": "horizontal",
+        "showValue": "never",
+        "stacking": "normal",
+        "tooltip": {
+          "hideZeros": false,
+          "mode": "single",
+          "sort": "none"
+        },
+        "xField": "Test program name",
+        "xTickLabelRotation": 0,
+        "xTickLabelSpacing": 0
+      },
+      "pluginVersion": "10.2.3",
+      "targets": [
+        {
+          "datasource": {
+            "type": "ni-sltestresults-datasource",
+            "uid": "ni-sltestresults-datasource"
+          },
+          "descending": true,
+          "orderBy": "UPDATED_AT",
+          "outputType": "Data",
+          "properties": [
+            "programName",
+            "status",
+            "id"
+          ],
+          "queryBy": "PartNumber = \"$product\" && (Status.statusType = \"Failed\" || Status.statusType = \"Errored\" || Status.statusType = \"Timedout\")",
+          "queryType": "Results",
+          "recordCount": 1000,
+          "refId": "Test Result failures by Test Program",
+          "useTimeRange": true,
+          "useTimeRangeFor": "startedAt"
+        }
+      ],
+      "title": "Test Result Failures by Test Program",
+      "transformations": [
+        {
+          "id": "filterByValue",
+          "options": {
+            "filters": [
+              {
+                "config": {
+                  "id": "isNotNull",
+                  "options": {}
+                },
+                "fieldName": "Test program name"
+              },
+              {
+                "config": {
+                  "id": "notEqual",
+                  "options": {
+                    "value": ""
+                  }
+                },
+                "fieldName": "Test program name"
+              }
+            ],
+            "match": "all",
+            "type": "include"
+          }
+        },
+        {
+          "id": "sortBy",
+          "options": {
+            "fields": {},
+            "sort": [
+              {
+                "field": "Status"
+              }
+            ]
+          }
+        },
+        {
+          "id": "groupBy",
+          "options": {
+            "fields": {
+              "Result ID": {
+                "aggregations": [
+                  "count"
+                ],
+                "operation": "aggregate"
+              },
+              "Status": {
+                "aggregations": [],
+                "operation": "groupby"
+              },
+              "Test program name": {
+                "aggregations": [],
+                "operation": "groupby"
+              }
+            }
+          }
+        },
+        {
+          "id": "groupingToMatrix",
+          "options": {
+            "columnField": "Status",
+            "emptyValue": "empty",
+            "rowField": "Test program name",
+            "valueField": "Result ID (count)"
+          }
+        },
+        {
+          "id": "calculateField",
+          "options": {
+            "mode": "reduceRow",
+            "reduce": {
+              "include": [
+                "FAILED",
+                "ERRORED",
+                "TIMED_OUT"
+              ],
+              "reducer": "sum"
+            }
+          }
+        },
+        {
+          "id": "sortBy",
+          "options": {
+            "fields": {},
+            "sort": [
+              {
+                "desc": true,
+                "field": "Total"
+              }
+            ]
+          }
+        },
+        {
+          "id": "organize",
+          "options": {
+            "excludeByName": {
+              "Total": true
+            },
+            "includeByName": {},
+            "indexByName": {},
+            "renameByName": {
+              "ERRORED": "Errored",
+              "FAILED": "Failed",
+              "TIMED_OUT": "Timed Out",
+              "Test program name\\Status": "Test program name",
+              "Total": ""
+            }
+          }
+        },
+        {
+          "id": "limit",
+          "options": {
+            "limitField": 25
+          }
+        }
+      ],
+      "type": "barchart"
+    },
+    {
+      "datasource": {
+        "type": "ni-sltestresults-datasource",
+        "uid": "ni-sltestresults-datasource"
+      },
+      "description": "Displays the top 25 Steps of the most recent 1,000 Step failures",
+      "fieldConfig": {
+        "defaults": {
+          "color": {
+            "fixedColor": "red",
+            "mode": "fixed"
+          },
+          "custom": {
+            "axisBorderShow": false,
+            "axisCenteredZero": false,
+            "axisColorMode": "text",
+            "axisLabel": "",
+            "axisPlacement": "auto",
+            "fillOpacity": 80,
+            "gradientMode": "none",
+            "hideFrom": {
+              "legend": false,
+              "tooltip": false,
+              "viz": false
+            },
+            "lineWidth": 1,
+            "scaleDistribution": {
+              "type": "linear"
+            },
+            "thresholdsStyle": {
+              "mode": "off"
+            }
+          },
+          "links": [
+            {
+              "targetBlank": true,
+              "title": "Visualize in Data Spaces",
+              "url": "../testinsights/dataspaces/dataspace/untitled?partNumbers=${product}&testProgramName=${testProgram}&stepName=${__data.fields[\"Step name\"]}&autoSelect=true"
+            }
+          ],
+          "mappings": [],
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "green"
+              }
+            ]
+          }
+        },
+        "overrides": [
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "Errored"
+            },
+            "properties": [
+              {
+                "id": "color",
+                "value": {
+                  "fixedColor": "#C4000CD9",
+                  "mode": "fixed"
+                }
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "Failed"
+            },
+            "properties": [
+              {
+                "id": "color",
+                "value": {
+                  "fixedColor": "#C4000C",
+                  "mode": "fixed"
+                }
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "Timed Out"
+            },
+            "properties": [
+              {
+                "id": "color",
+                "value": {
+                  "fixedColor": "#161617BF",
+                  "mode": "fixed"
+                }
+              }
+            ]
+          }
+        ]
+      },
+      "gridPos": {
+        "h": 17,
+        "w": 12,
+        "x": 12,
+        "y": 19
+      },
+      "id": 24,
+      "options": {
+        "barRadius": 0,
+        "barWidth": 0.97,
+        "fullHighlight": false,
+        "groupWidth": 0.7,
+        "legend": {
+          "calcs": [
+            "sum"
+          ],
+          "displayMode": "table",
+          "placement": "right",
+          "showLegend": true
+        },
+        "orientation": "horizontal",
+        "showValue": "never",
+        "stacking": "normal",
+        "tooltip": {
+          "hideZeros": false,
+          "mode": "single",
+          "sort": "none"
+        },
+        "xField": "Step name",
+        "xTickLabelRotation": 0,
+        "xTickLabelSpacing": 0
+      },
+      "pluginVersion": "10.2.3",
+      "targets": [
+        {
+          "datasource": {
+            "type": "ni-sltestresults-datasource",
+            "uid": "ni-sltestresults-datasource"
+          },
+          "descending": true,
+          "orderBy": "STARTED_AT",
+          "outputType": "Data",
+          "partNumberQuery": [
+            "$product"
+          ],
+          "properties": [
+            "name",
+            "status",
+            "resultId"
+          ],
+          "queryBy": "PartNumber = \"$product\"",
+          "queryType": "Steps",
+          "recordCount": 1000,
+          "refId": "Step failures filtered by System and Test Program",
+          "resultsQuery": "(PartNumber = \"$product\" && ProgramName = \"$testProgram\")",
+          "stepsQuery": "hasChildren = \"False\" && (status.statusType = \"Failed\" || status.statusType = \"Timedout\" || status.statusType = \"Errored\")",
+          "useTimeRange": true,
+          "useTimeRangeFor": "startedAt"
+        }
+      ],
+      "title": "Step Failures in ${testProgram}",
+      "transformations": [
+        {
+          "id": "filterByValue",
+          "options": {
+            "filters": [
+              {
+                "config": {
+                  "id": "isNotNull",
+                  "options": {}
+                },
+                "fieldName": "Step name"
+              },
+              {
+                "config": {
+                  "id": "notEqual",
+                  "options": {
+                    "value": ""
+                  }
+                },
+                "fieldName": "Step name"
+              }
+            ],
+            "match": "all",
+            "type": "include"
+          }
+        },
+        {
+          "id": "sortBy",
+          "options": {
+            "fields": {},
+            "sort": [
+              {
+                "field": "Status"
+              }
+            ]
+          }
+        },
+        {
+          "id": "groupBy",
+          "options": {
+            "fields": {
+              "Result ID": {
+                "aggregations": [
+                  "count"
+                ],
+                "operation": "aggregate"
+              },
+              "Status": {
+                "aggregations": [],
+                "operation": "groupby"
+              },
+              "Step name": {
+                "aggregations": [],
+                "operation": "groupby"
+              }
+            }
+          }
+        },
+        {
+          "id": "groupingToMatrix",
+          "options": {
+            "columnField": "Status",
+            "emptyValue": "empty",
+            "rowField": "Step name",
+            "valueField": "Result ID (count)"
+          }
+        },
+        {
+          "id": "calculateField",
+          "options": {
+            "mode": "reduceRow",
+            "reduce": {
+              "include": [
+                "ERRORED",
+                "FAILED",
+                "TIMED_OUT"
+              ],
+              "reducer": "sum"
+            }
+          }
+        },
+        {
+          "id": "sortBy",
+          "options": {
+            "fields": {},
+            "sort": [
+              {
+                "desc": true,
+                "field": "Total"
+              }
+            ]
+          }
+        },
+        {
+          "id": "organize",
+          "options": {
+            "excludeByName": {
+              "Total": true
+            },
+            "includeByName": {},
+            "indexByName": {},
+            "renameByName": {
+              "ERRORED": "Errored",
+              "FAILED": "Failed",
+              "Step name\\Status": "Step name",
+              "TIMED_OUT": "Timed Out"
+            }
+          }
+        },
+        {
+          "id": "limit",
+          "options": {
+            "limitField": 25
+          }
+        }
+      ],
+      "type": "barchart"
+    },
+    {
+      "collapsed": false,
+      "gridPos": {
+        "h": 1,
+        "w": 24,
+        "x": 0,
+        "y": 36
+      },
+      "id": 29,
+      "panels": [],
+      "title": "Test Result Failures by System (${__from:date:DD MMM yyyy} - ${__to:date:DD MMM yyyy})",
+      "type": "row"
+    },
+    {
+      "datasource": {
+        "type": "ni-sltestresults-datasource",
+        "uid": "ni-sltestresults-datasource"
+      },
+      "description": "Displays the top 25 Systems of the most recent 1,000 Test Result failures",
+      "fieldConfig": {
+        "defaults": {
+          "color": {
+            "fixedColor": "red",
+            "mode": "fixed"
+          },
+          "custom": {
+            "axisBorderShow": false,
+            "axisCenteredZero": false,
+            "axisColorMode": "text",
+            "axisLabel": "",
+            "axisPlacement": "auto",
+            "fillOpacity": 80,
+            "gradientMode": "none",
+            "hideFrom": {
+              "legend": false,
+              "tooltip": false,
+              "viz": false
+            },
+            "lineWidth": 1,
+            "scaleDistribution": {
+              "type": "linear"
+            },
+            "thresholdsStyle": {
+              "mode": "off"
+            }
+          },
+          "links": [
+            {
+              "title": "View Test Failures in ${__data.fields[\"Host name\"]}",
+              "url": "/d/${__dashboard.uid}/${__dashboard.url}?${__url_time_range}&${workspace:queryparam}&${product:queryparam}&${dut:queryparam}&${testProgram:queryparam}&${testProgramDutFilter:queryparam}&${testProgramSystemFilter:queryparam}&var-hostName=${__data.fields[\"Host name\"]}"
+            }
+          ],
+          "mappings": [],
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "green"
+              }
+            ]
+          }
+        },
+        "overrides": [
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "Errored"
+            },
+            "properties": [
+              {
+                "id": "color",
+                "value": {
+                  "fixedColor": "#C4000CD9",
+                  "mode": "fixed"
+                }
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "Failed"
+            },
+            "properties": [
+              {
+                "id": "color",
+                "value": {
+                  "fixedColor": "#C4000C",
+                  "mode": "fixed"
+                }
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "Timed Out"
+            },
+            "properties": [
+              {
+                "id": "color",
+                "value": {
+                  "fixedColor": "#161617BF",
+                  "mode": "fixed"
+                }
+              }
+            ]
+          }
+        ]
+      },
+      "gridPos": {
+        "h": 17,
+        "w": 8,
+        "x": 0,
+        "y": 37
+      },
+      "id": 34,
+      "options": {
+        "barRadius": 0,
+        "barWidth": 0.97,
+        "fullHighlight": false,
+        "groupWidth": 0.7,
+        "legend": {
+          "calcs": [
+            "sum"
+          ],
+          "displayMode": "table",
+          "placement": "bottom",
+          "showLegend": true
+        },
+        "orientation": "horizontal",
+        "showValue": "never",
+        "stacking": "normal",
+        "tooltip": {
+          "mode": "single",
+          "sort": "none"
+        },
+        "xField": "Host name",
+        "xTickLabelRotation": 0,
+        "xTickLabelSpacing": 0
+      },
+      "pluginVersion": "10.2.3",
+      "targets": [
+        {
+          "datasource": {
+            "type": "ni-sltestresults-datasource",
+            "uid": "ni-sltestresults-datasource"
+          },
+          "descending": true,
+          "orderBy": "UPDATED_AT",
+          "outputType": "Data",
+          "properties": [
+            "status",
+            "hostName",
+            "serialNumber",
+            "id"
+          ],
+          "queryBy": "PartNumber = \"$product\" && (Status.statusType = \"Failed\" || Status.statusType = \"Errored\" || Status.statusType = \"Timedout\")",
+          "queryType": "Results",
+          "recordCount": 1000,
+          "refId": "Test Result Failures",
+          "useTimeRange": true,
+          "useTimeRangeFor": "startedAt"
+        }
+      ],
+      "title": "Test Result Failures by System",
+      "transformations": [
+        {
+          "id": "filterByValue",
+          "options": {
+            "filters": [
+              {
+                "config": {
+                  "id": "isNotNull",
+                  "options": {}
+                },
+                "fieldName": "Host name"
+              },
+              {
+                "config": {
+                  "id": "notEqual",
+                  "options": {
+                    "value": ""
+                  }
+                },
+                "fieldName": "Host name"
+              },
+              {
+                "config": {
+                  "id": "isNotNull",
+                  "options": {}
+                },
+                "fieldName": "Status"
+              },
+              {
+                "config": {
+                  "id": "notEqual",
+                  "options": {
+                    "value": ""
+                  }
+                },
+                "fieldName": "Status"
+              }
+            ],
+            "match": "all",
+            "type": "include"
+          }
+        },
+        {
+          "id": "sortBy",
+          "options": {
+            "fields": {},
+            "sort": [
+              {
+                "field": "Status"
+              }
+            ]
+          }
+        },
+        {
+          "id": "groupBy",
+          "options": {
+            "fields": {
+              "Host name": {
+                "aggregations": [],
+                "operation": "groupby"
+              },
+              "Result ID": {
+                "aggregations": [
+                  "count"
+                ],
+                "operation": "aggregate"
+              },
+              "Status": {
+                "aggregations": [],
+                "operation": "groupby"
+              }
+            }
+          }
+        },
+        {
+          "id": "groupingToMatrix",
+          "options": {
+            "columnField": "Status",
+            "emptyValue": "empty",
+            "rowField": "Host name",
+            "valueField": "Result ID (count)"
+          }
+        },
+        {
+          "id": "calculateField",
+          "options": {
+            "mode": "reduceRow",
+            "reduce": {
+              "include": [
+                "ERRORED",
+                "FAILED",
+                "TIMED_OUT"
+              ],
+              "reducer": "sum"
+            }
+          }
+        },
+        {
+          "id": "sortBy",
+          "options": {
+            "fields": {},
+            "sort": [
+              {
+                "desc": true,
+                "field": "Total"
+              }
+            ]
+          }
+        },
+        {
+          "id": "organize",
+          "options": {
+            "excludeByName": {
+              "Total": true
+            },
+            "includeByName": {},
+            "indexByName": {},
+            "renameByName": {
+              "ERRORED": "Errored",
+              "FAILED": "Failed",
+              "Host name\\Status": "Host name",
+              "TIMED_OUT": "Timed Out"
+            }
+          }
+        },
+        {
+          "id": "limit",
+          "options": {
+            "limitField": 25
+          }
+        }
+      ],
+      "type": "barchart"
+    },
+    {
+      "datasource": {
+        "type": "ni-sltestresults-datasource",
+        "uid": "ni-sltestresults-datasource"
+      },
+      "description": "Displays the top 25 Test Programs of the most recent 1,000 Test Result failures",
+      "fieldConfig": {
+        "defaults": {
+          "color": {
+            "fixedColor": "red",
+            "mode": "fixed"
+          },
+          "custom": {
+            "axisBorderShow": false,
+            "axisCenteredZero": false,
+            "axisColorMode": "text",
+            "axisLabel": "",
+            "axisPlacement": "auto",
+            "fillOpacity": 80,
+            "gradientMode": "none",
+            "hideFrom": {
+              "legend": false,
+              "tooltip": false,
+              "viz": false
+            },
+            "lineWidth": 1,
+            "scaleDistribution": {
+              "type": "linear"
+            },
+            "thresholdsStyle": {
+              "mode": "off"
+            }
+          },
+          "links": [
+            {
+              "title": "View Step Failures in $hostName and ${__data.fields[\"Test program name\"]}",
+              "url": "/d/${__dashboard.uid}/${__dashboard.url}?${__url_time_range}&${workspace:queryparam}&${product:queryparam}&${hostName:queryparam}&${dut:queryparam}&${testProgram:queryparam}&${testProgramDutFilter:queryparam}&var-testProgramSystemFilter=${__data.fields[\"Test program name\"]}"
+            }
+          ],
+          "mappings": [],
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "green"
+              }
+            ]
+          }
+        },
+        "overrides": [
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "Errored"
+            },
+            "properties": [
+              {
+                "id": "color",
+                "value": {
+                  "fixedColor": "#C4000CD9",
+                  "mode": "fixed"
+                }
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "Failed"
+            },
+            "properties": [
+              {
+                "id": "color",
+                "value": {
+                  "fixedColor": "#C4000C",
+                  "mode": "fixed"
+                }
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "Timed Out"
+            },
+            "properties": [
+              {
+                "id": "color",
+                "value": {
+                  "fixedColor": "#161617BF",
+                  "mode": "fixed"
+                }
+              }
+            ]
+          }
+        ]
+      },
+      "gridPos": {
+        "h": 17,
+        "w": 8,
+        "x": 8,
+        "y": 37
+      },
+      "id": 14,
+      "options": {
+        "barRadius": 0,
+        "barWidth": 0.97,
+        "fullHighlight": false,
+        "groupWidth": 0.7,
+        "legend": {
+          "calcs": [
+            "sum"
+          ],
+          "displayMode": "table",
+          "placement": "bottom",
+          "showLegend": true
+        },
+        "orientation": "horizontal",
+        "showValue": "never",
+        "stacking": "normal",
+        "tooltip": {
+          "mode": "single",
+          "sort": "none"
+        },
+        "xField": "Test program name",
+        "xTickLabelRotation": 0,
+        "xTickLabelSpacing": 0
+      },
+      "pluginVersion": "10.2.3",
+      "targets": [
+        {
+          "datasource": {
+            "type": "ni-sltestresults-datasource",
+            "uid": "ni-sltestresults-datasource"
+          },
+          "descending": true,
+          "orderBy": "UPDATED_AT",
+          "outputType": "Data",
+          "properties": [
+            "programName",
+            "status",
+            "id"
+          ],
+          "queryBy": "(PartNumber = \"$product\" && HostName = \"$hostName\") && (Status.statusType = \"Failed\" || Status.statusType = \"Errored\" || Status.statusType = \"Timedout\")",
+          "queryType": "Results",
+          "recordCount": 1000,
+          "refId": "Test Result failures by Test Program in System",
+          "useTimeRange": true,
+          "useTimeRangeFor": "startedAt"
+        }
+      ],
+      "title": "Test Result Failures by Test Program in $hostName",
+      "transformations": [
+        {
+          "id": "filterByValue",
+          "options": {
+            "filters": [
+              {
+                "config": {
+                  "id": "isNotNull",
+                  "options": {}
+                },
+                "fieldName": "Test program name"
+              },
+              {
+                "config": {
+                  "id": "notEqual",
+                  "options": {
+                    "value": ""
+                  }
+                },
+                "fieldName": "Test program name"
+              }
+            ],
+            "match": "all",
+            "type": "include"
+          }
+        },
+        {
+          "id": "sortBy",
+          "options": {
+            "fields": {},
+            "sort": [
+              {
+                "field": "Status"
+              }
+            ]
+          }
+        },
+        {
+          "id": "groupBy",
+          "options": {
+            "fields": {
+              "Result ID": {
+                "aggregations": [
+                  "count"
+                ],
+                "operation": "aggregate"
+              },
+              "Status": {
+                "aggregations": [],
+                "operation": "groupby"
+              },
+              "Test program name": {
+                "aggregations": [],
+                "operation": "groupby"
+              }
+            }
+          }
+        },
+        {
+          "id": "groupingToMatrix",
+          "options": {
+            "columnField": "Status",
+            "emptyValue": "empty",
+            "rowField": "Test program name",
+            "valueField": "Result ID (count)"
+          }
+        },
+        {
+          "id": "calculateField",
+          "options": {
+            "mode": "reduceRow",
+            "reduce": {
+              "include": [
+                "FAILED",
+                "ERRORED",
+                "TIMED_OUT"
+              ],
+              "reducer": "sum"
+            }
+          }
+        },
+        {
+          "id": "sortBy",
+          "options": {
+            "fields": {},
+            "sort": [
+              {
+                "desc": true,
+                "field": "Total"
+              }
+            ]
+          }
+        },
+        {
+          "id": "organize",
+          "options": {
+            "excludeByName": {
+              "Total": true
+            },
+            "includeByName": {},
+            "indexByName": {},
+            "renameByName": {
+              "ERRORED": "Errored",
+              "FAILED": "Failed",
+              "TIMED_OUT": "Timed Out",
+              "Test program name\\Status": "Test program name",
+              "Total": ""
+            }
+          }
+        },
+        {
+          "id": "limit",
+          "options": {
+            "limitField": 25
+          }
+        }
+      ],
+      "type": "barchart"
+    },
+    {
+      "datasource": {
+        "type": "ni-sltestresults-datasource",
+        "uid": "ni-sltestresults-datasource"
+      },
+      "description": "Displays the top 25 Steps of the most recent 1,000 Step failures",
+      "fieldConfig": {
+        "defaults": {
+          "color": {
+            "fixedColor": "red",
+            "mode": "fixed"
+          },
+          "custom": {
+            "axisBorderShow": false,
+            "axisCenteredZero": false,
+            "axisColorMode": "text",
+            "axisLabel": "",
+            "axisPlacement": "auto",
+            "fillOpacity": 80,
+            "gradientMode": "none",
+            "hideFrom": {
+              "legend": false,
+              "tooltip": false,
+              "viz": false
+            },
+            "lineWidth": 1,
+            "scaleDistribution": {
+              "type": "linear"
+            },
+            "thresholdsStyle": {
+              "mode": "off"
+            }
+          },
+          "links": [
+            {
+              "targetBlank": true,
+              "title": "Visualize in Data Spaces",
+              "url": "../testinsights/dataspaces/dataspace/untitled?partNumbers=${product}&testProgramName=${testProgramSystemFilter}&stepName=${__data.fields[\"Step name\"]}&autoSelect=true"
+            }
+          ],
+          "mappings": [],
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "green"
+              }
+            ]
+          }
+        },
+        "overrides": [
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "Errored"
+            },
+            "properties": [
+              {
+                "id": "color",
+                "value": {
+                  "fixedColor": "#C4000CD9",
+                  "mode": "fixed"
+                }
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "Failed"
+            },
+            "properties": [
+              {
+                "id": "color",
+                "value": {
+                  "fixedColor": "#C4000C",
+                  "mode": "fixed"
+                }
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "Timed Out"
+            },
+            "properties": [
+              {
+                "id": "color",
+                "value": {
+                  "fixedColor": "#161617BF",
+                  "mode": "fixed"
+                }
+              }
+            ]
+          }
+        ]
+      },
+      "gridPos": {
+        "h": 17,
+        "w": 8,
+        "x": 16,
+        "y": 37
+      },
+      "id": 37,
+      "options": {
+        "barRadius": 0,
+        "barWidth": 0.97,
+        "fullHighlight": false,
+        "groupWidth": 0.7,
+        "legend": {
+          "calcs": [
+            "sum"
+          ],
+          "displayMode": "table",
+          "placement": "bottom",
+          "showLegend": true
+        },
+        "orientation": "horizontal",
+        "showValue": "never",
+        "stacking": "normal",
+        "tooltip": {
+          "mode": "single",
+          "sort": "none"
+        },
+        "xField": "Step name",
+        "xTickLabelRotation": 0,
+        "xTickLabelSpacing": 0
+      },
+      "pluginVersion": "10.2.3",
+      "targets": [
+        {
+          "datasource": {
+            "type": "ni-sltestresults-datasource",
+            "uid": "ni-sltestresults-datasource"
+          },
+          "descending": true,
+          "orderBy": "STARTED_AT",
+          "outputType": "Data",
+          "partNumberQuery": [
+            "$product"
+          ],
+          "properties": [
+            "name",
+            "status",
+            "resultId"
+          ],
+          "queryBy": "PartNumber = \"$product\"",
+          "queryType": "Steps",
+          "recordCount": 1000,
+          "refId": "Step failures filtered by System and Test Program",
+          "resultsQuery": "(PartNumber = \"$product\" && ProgramName = \"$testProgramSystemFilter\" && HostName = \"$hostName\")",
+          "stepsQuery": "hasChildren = \"False\" && (status.statusType = \"Failed\" || status.statusType = \"Timedout\" || status.statusType = \"Errored\")",
+          "useTimeRange": true,
+          "useTimeRangeFor": "startedAt"
+        }
+      ],
+      "title": "Step Failures in ${hostName} and ${testProgramSystemFilter}",
+      "transformations": [
+        {
+          "id": "filterByValue",
+          "options": {
+            "filters": [
+              {
+                "config": {
+                  "id": "isNotNull",
+                  "options": {}
+                },
+                "fieldName": "Step name"
+              },
+              {
+                "config": {
+                  "id": "notEqual",
+                  "options": {
+                    "value": ""
+                  }
+                },
+                "fieldName": "Step name"
+              }
+            ],
+            "match": "all",
+            "type": "include"
+          }
+        },
+        {
+          "id": "sortBy",
+          "options": {
+            "fields": {},
+            "sort": [
+              {
+                "field": "Status"
+              }
+            ]
+          }
+        },
+        {
+          "id": "groupBy",
+          "options": {
+            "fields": {
+              "Result ID": {
+                "aggregations": [
+                  "count"
+                ],
+                "operation": "aggregate"
+              },
+              "Status": {
+                "aggregations": [],
+                "operation": "groupby"
+              },
+              "Step name": {
+                "aggregations": [],
+                "operation": "groupby"
+              }
+            }
+          }
+        },
+        {
+          "id": "groupingToMatrix",
+          "options": {
+            "columnField": "Status",
+            "emptyValue": "empty",
+            "rowField": "Step name",
+            "valueField": "Result ID (count)"
+          }
+        },
+        {
+          "id": "calculateField",
+          "options": {
+            "mode": "reduceRow",
+            "reduce": {
+              "include": [
+                "ERRORED",
+                "FAILED",
+                "TIMED_OUT"
+              ],
+              "reducer": "sum"
+            }
+          }
+        },
+        {
+          "id": "sortBy",
+          "options": {
+            "fields": {},
+            "sort": [
+              {
+                "desc": true,
+                "field": "Total"
+              }
+            ]
+          }
+        },
+        {
+          "id": "organize",
+          "options": {
+            "excludeByName": {
+              "Total": true
+            },
+            "includeByName": {},
+            "indexByName": {},
+            "renameByName": {
+              "ERRORED": "Errored",
+              "FAILED": "Failed",
+              "Step name\\Status": "Step name",
+              "TIMED_OUT": "Timed Out"
+            }
+          }
+        },
+        {
+          "id": "limit",
+          "options": {
+            "limitField": 25
+          }
+        }
+      ],
+      "type": "barchart"
+    },
+    {
+      "collapsed": false,
+      "gridPos": {
+        "h": 1,
+        "w": 24,
+        "x": 0,
+        "y": 54
+      },
+      "id": 30,
+      "panels": [],
+      "title": "Test Result Failures by DUT (${__from:date:DD MMM yyyy} - ${__to:date:DD MMM yyyy})",
+      "type": "row"
+    },
+    {
+      "datasource": {
+        "type": "datasource",
+        "uid": "-- Dashboard --"
+      },
+      "description": "Displays the top 25 DUTs of the most recent 1,000 Test Result failures",
+      "fieldConfig": {
+        "defaults": {
+          "color": {
+            "fixedColor": "red",
+            "mode": "fixed"
+          },
+          "custom": {
+            "axisBorderShow": false,
+            "axisCenteredZero": false,
+            "axisColorMode": "text",
+            "axisLabel": "",
+            "axisPlacement": "auto",
+            "fillOpacity": 80,
+            "gradientMode": "none",
+            "hideFrom": {
+              "legend": false,
+              "tooltip": false,
+              "viz": false
+            },
+            "lineWidth": 1,
+            "scaleDistribution": {
+              "type": "linear"
+            },
+            "thresholdsStyle": {
+              "mode": "off"
+            }
+          },
+          "links": [
+            {
+              "title": "View Test Failures in ${__data.fields[\"Serial number\"]}",
+              "url": "/d/${__dashboard.uid}/${__dashboard.url}?${__url_time_range}&${workspace:queryparam}&${product:queryparam}&${hostName:queryparam}&${testProgram:queryparam}&${testProgramSystemFilter:queryparam}&${testProgramDutFilter:queryparam}&var-dut=${__data.fields[\"Serial number\"]}"
+            }
+          ],
+          "mappings": [],
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "green"
+              }
+            ]
+          }
+        },
+        "overrides": [
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "Errored"
+            },
+            "properties": [
+              {
+                "id": "color",
+                "value": {
+                  "fixedColor": "#C4000CD9",
+                  "mode": "fixed"
+                }
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "Failed"
+            },
+            "properties": [
+              {
+                "id": "color",
+                "value": {
+                  "fixedColor": "#C4000C",
+                  "mode": "fixed"
+                }
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "Timed Out"
+            },
+            "properties": [
+              {
+                "id": "color",
+                "value": {
+                  "fixedColor": "#161617BF",
+                  "mode": "fixed"
+                }
+              }
+            ]
+          }
+        ]
+      },
+      "gridPos": {
+        "h": 17,
+        "w": 8,
+        "x": 0,
+        "y": 55
+      },
+      "id": 33,
+      "options": {
+        "barRadius": 0,
+        "barWidth": 0.97,
+        "fullHighlight": false,
+        "groupWidth": 0.7,
+        "legend": {
+          "calcs": [
+            "sum"
+          ],
+          "displayMode": "table",
+          "placement": "bottom",
+          "showLegend": true
+        },
+        "orientation": "horizontal",
+        "showValue": "never",
+        "stacking": "normal",
+        "tooltip": {
+          "mode": "single",
+          "sort": "none"
+        },
+        "xField": "Serial number",
+        "xTickLabelRotation": 0,
+        "xTickLabelSpacing": 0
+      },
+      "pluginVersion": "10.2.3",
+      "targets": [
+        {
+          "datasource": {
+            "type": "datasource",
+            "uid": "-- Dashboard --"
+          },
+          "panelId": 34,
+          "refId": "A"
+        }
+      ],
+      "title": "Test Result Failures by DUT Serial Number",
+      "transformations": [
+        {
+          "id": "filterByValue",
+          "options": {
+            "filters": [
+              {
+                "config": {
+                  "id": "isNotNull",
+                  "options": {}
+                },
+                "fieldName": "Serial number"
+              },
+              {
+                "config": {
+                  "id": "notEqual",
+                  "options": {
+                    "value": ""
+                  }
+                },
+                "fieldName": "Serial number"
+              },
+              {
+                "config": {
+                  "id": "isNotNull",
+                  "options": {}
+                },
+                "fieldName": "Status"
+              },
+              {
+                "config": {
+                  "id": "notEqual",
+                  "options": {
+                    "value": ""
+                  }
+                },
+                "fieldName": "Status"
+              }
+            ],
+            "match": "all",
+            "type": "include"
+          }
+        },
+        {
+          "id": "sortBy",
+          "options": {
+            "fields": {},
+            "sort": [
+              {
+                "field": "Status"
+              }
+            ]
+          }
+        },
+        {
+          "id": "groupBy",
+          "options": {
+            "fields": {
+              "Result ID": {
+                "aggregations": [
+                  "count"
+                ],
+                "operation": "aggregate"
+              },
+              "Serial number": {
+                "aggregations": [],
+                "operation": "groupby"
+              },
+              "Status": {
+                "aggregations": [],
+                "operation": "groupby"
+              }
+            }
+          }
+        },
+        {
+          "id": "groupingToMatrix",
+          "options": {
+            "columnField": "Status",
+            "emptyValue": "empty",
+            "rowField": "Serial number",
+            "valueField": "Result ID (count)"
+          }
+        },
+        {
+          "id": "calculateField",
+          "options": {
+            "mode": "reduceRow",
+            "reduce": {
+              "include": [
+                "ERRORED",
+                "FAILED",
+                "TIMED_OUT"
+              ],
+              "reducer": "sum"
+            }
+          }
+        },
+        {
+          "id": "sortBy",
+          "options": {
+            "fields": {},
+            "sort": [
+              {
+                "desc": true,
+                "field": "Total"
+              }
+            ]
+          }
+        },
+        {
+          "id": "organize",
+          "options": {
+            "excludeByName": {
+              "Total": true
+            },
+            "includeByName": {},
+            "indexByName": {},
+            "renameByName": {
+              "ERRORED": "Errored",
+              "FAILED": "Failed",
+              "Serial number\\Status": "Serial number",
+              "TIMED_OUT": "Timed Out"
+            }
+          }
+        },
+        {
+          "id": "limit",
+          "options": {
+            "limitField": 25
+          }
+        }
+      ],
+      "type": "barchart"
+    },
+    {
+      "datasource": {
+        "type": "ni-sltestresults-datasource",
+        "uid": "ni-sltestresults-datasource"
+      },
+      "description": "Displays the top 25 Test Programs of the most recent 1,000 Test Result failures",
+      "fieldConfig": {
+        "defaults": {
+          "color": {
+            "fixedColor": "red",
+            "mode": "fixed"
+          },
+          "custom": {
+            "axisBorderShow": false,
+            "axisCenteredZero": false,
+            "axisColorMode": "text",
+            "axisLabel": "",
+            "axisPlacement": "auto",
+            "fillOpacity": 80,
+            "gradientMode": "none",
+            "hideFrom": {
+              "legend": false,
+              "tooltip": false,
+              "viz": false
+            },
+            "lineWidth": 1,
+            "scaleDistribution": {
+              "type": "linear"
+            },
+            "thresholdsStyle": {
+              "mode": "off"
+            }
+          },
+          "links": [
+            {
+              "title": "View Step Failures in $dut and ${__data.fields[\"Test program name\"]}",
+              "url": "/d/${__dashboard.uid}/${__dashboard.url}?${__url_time_range}&${workspace:queryparam}&${product:queryparam}&${hostName:queryparam}&${dut:queryparam}&${testProgram:queryparam}&${testProgramSystemFilter:queryparam}&var-testProgramDutFilter=${__data.fields[\"Test program name\"]}"
+            }
+          ],
+          "mappings": [],
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "green"
+              }
+            ]
+          }
+        },
+        "overrides": [
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "Errored"
+            },
+            "properties": [
+              {
+                "id": "color",
+                "value": {
+                  "fixedColor": "#C4000CD9",
+                  "mode": "fixed"
+                }
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "Failed"
+            },
+            "properties": [
+              {
+                "id": "color",
+                "value": {
+                  "fixedColor": "#C4000C",
+                  "mode": "fixed"
+                }
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "Timed Out"
+            },
+            "properties": [
+              {
+                "id": "color",
+                "value": {
+                  "fixedColor": "#161617BF",
+                  "mode": "fixed"
+                }
+              }
+            ]
+          }
+        ]
+      },
+      "gridPos": {
+        "h": 17,
+        "w": 8,
+        "x": 8,
+        "y": 55
+      },
+      "id": 26,
+      "options": {
+        "barRadius": 0,
+        "barWidth": 0.97,
+        "fullHighlight": false,
+        "groupWidth": 0.7,
+        "legend": {
+          "calcs": [
+            "sum"
+          ],
+          "displayMode": "table",
+          "placement": "bottom",
+          "showLegend": true
+        },
+        "orientation": "horizontal",
+        "showValue": "never",
+        "stacking": "normal",
+        "tooltip": {
+          "mode": "single",
+          "sort": "none"
+        },
+        "xField": "Test program name",
+        "xTickLabelRotation": 0,
+        "xTickLabelSpacing": 0
+      },
+      "pluginVersion": "10.2.3",
+      "targets": [
+        {
+          "datasource": {
+            "type": "ni-sltestresults-datasource",
+            "uid": "ni-sltestresults-datasource"
+          },
+          "descending": true,
+          "orderBy": "UPDATED_AT",
+          "outputType": "Data",
+          "properties": [
+            "programName",
+            "status",
+            "id"
+          ],
+          "queryBy": "(PartNumber = \"$product\" && SerialNumber = \"$dut\") && (Status.statusType = \"Errored\" || Status.statusType = \"Failed\" || Status.statusType = \"Timedout\")",
+          "queryType": "Results",
+          "recordCount": 1000,
+          "refId": "Test Result failures by Test Program in DUT",
+          "useTimeRange": true,
+          "useTimeRangeFor": "startedAt"
+        }
+      ],
+      "title": "Test Result Failures by Test Program in $dut",
+      "transformations": [
+        {
+          "id": "filterByValue",
+          "options": {
+            "filters": [
+              {
+                "config": {
+                  "id": "isNotNull",
+                  "options": {}
+                },
+                "fieldName": "Test program name"
+              },
+              {
+                "config": {
+                  "id": "notEqual",
+                  "options": {
+                    "value": ""
+                  }
+                },
+                "fieldName": "Test program name"
+              }
+            ],
+            "match": "all",
+            "type": "include"
+          }
+        },
+        {
+          "id": "sortBy",
+          "options": {
+            "fields": {},
+            "sort": [
+              {
+                "field": "Status"
+              }
+            ]
+          }
+        },
+        {
+          "id": "groupBy",
+          "options": {
+            "fields": {
+              "Result ID": {
+                "aggregations": [
+                  "count"
+                ],
+                "operation": "aggregate"
+              },
+              "Status": {
+                "aggregations": [],
+                "operation": "groupby"
+              },
+              "Test program name": {
+                "aggregations": [],
+                "operation": "groupby"
+              }
+            }
+          }
+        },
+        {
+          "id": "groupingToMatrix",
+          "options": {
+            "columnField": "Status",
+            "emptyValue": "empty",
+            "rowField": "Test program name",
+            "valueField": "Result ID (count)"
+          }
+        },
+        {
+          "id": "calculateField",
+          "options": {
+            "mode": "reduceRow",
+            "reduce": {
+              "include": [
+                "ERRORED",
+                "FAILED",
+                "TIMED_OUT"
+              ],
+              "reducer": "sum"
+            }
+          }
+        },
+        {
+          "id": "sortBy",
+          "options": {
+            "fields": {},
+            "sort": [
+              {
+                "desc": true,
+                "field": "Total"
+              }
+            ]
+          }
+        },
+        {
+          "id": "organize",
+          "options": {
+            "excludeByName": {
+              "Total": true
+            },
+            "includeByName": {},
+            "indexByName": {},
+            "renameByName": {
+              "ERRORED": "Errored",
+              "FAILED": "Failed",
+              "TIMED_OUT": "Timed Out",
+              "Test program name\\Status": "Test program name"
+            }
+          }
+        },
+        {
+          "id": "limit",
+          "options": {
+            "limitField": 25
+          }
+        }
+      ],
+      "type": "barchart"
+    },
+    {
+      "datasource": {
+        "type": "ni-sltestresults-datasource",
+        "uid": "ni-sltestresults-datasource"
+      },
+      "description": "Displays the top 25 Steps of the most recent 1,000 Step failures",
+      "fieldConfig": {
+        "defaults": {
+          "color": {
+            "fixedColor": "red",
+            "mode": "fixed"
+          },
+          "custom": {
+            "axisBorderShow": false,
+            "axisCenteredZero": false,
+            "axisColorMode": "text",
+            "axisLabel": "",
+            "axisPlacement": "auto",
+            "fillOpacity": 80,
+            "gradientMode": "none",
+            "hideFrom": {
+              "legend": false,
+              "tooltip": false,
+              "viz": false
+            },
+            "lineWidth": 1,
+            "scaleDistribution": {
+              "type": "linear"
+            },
+            "thresholdsStyle": {
+              "mode": "off"
+            }
+          },
+          "links": [
+            {
+              "targetBlank": true,
+              "title": "Visualize in Data Spaces",
+              "url": "../testinsights/dataspaces/dataspace/untitled?partNumbers=${product}&testProgramName=${testProgramDutFilter}&stepName=${__data.fields[\"Step name\"]}&autoSelect=true"
+            }
+          ],
+          "mappings": [],
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "green"
+              }
+            ]
+          }
+        },
+        "overrides": [
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "Errored"
+            },
+            "properties": [
+              {
+                "id": "color",
+                "value": {
+                  "fixedColor": "#C4000CD9",
+                  "mode": "fixed"
+                }
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "Failed"
+            },
+            "properties": [
+              {
+                "id": "color",
+                "value": {
+                  "fixedColor": "#C4000C",
+                  "mode": "fixed"
+                }
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "Timed Out"
+            },
+            "properties": [
+              {
+                "id": "color",
+                "value": {
+                  "fixedColor": "#161617BF",
+                  "mode": "fixed"
+                }
+              }
+            ]
+          }
+        ]
+      },
+      "gridPos": {
+        "h": 17,
+        "w": 8,
+        "x": 16,
+        "y": 55
+      },
+      "id": 27,
+      "options": {
+        "barRadius": 0,
+        "barWidth": 0.97,
+        "fullHighlight": false,
+        "groupWidth": 0.7,
+        "legend": {
+          "calcs": [
+            "sum"
+          ],
+          "displayMode": "table",
+          "placement": "bottom",
+          "showLegend": true
+        },
+        "orientation": "horizontal",
+        "showValue": "never",
+        "stacking": "normal",
+        "tooltip": {
+          "mode": "single",
+          "sort": "none"
+        },
+        "xField": "Step name",
+        "xTickLabelRotation": 0,
+        "xTickLabelSpacing": 0
+      },
+      "pluginVersion": "10.2.3",
+      "targets": [
+        {
+          "datasource": {
+            "type": "ni-sltestresults-datasource",
+            "uid": "ni-sltestresults-datasource"
+          },
+          "descending": true,
+          "orderBy": "STARTED_AT",
+          "outputType": "Data",
+          "partNumberQuery": [
+            "$product"
+          ],
+          "properties": [
+            "name",
+            "status",
+            "resultId"
+          ],
+          "queryBy": "PartNumber = \"$product\"",
+          "queryType": "Steps",
+          "recordCount": 1000,
+          "refId": "Step failures filtered by DUT and Test Program",
+          "resultsQuery": "(PartNumber = \"$product\" && ProgramName = \"$testProgramDutFilter\" && SerialNumber = \"$dut\")",
+          "stepsQuery": "hasChildren = \"False\" && (status.statusType = \"Errored\" || status.statusType = \"Failed\" || status.statusType = \"Timedout\")",
+          "useTimeRange": true,
+          "useTimeRangeFor": "startedAt"
+        }
+      ],
+      "title": "Step Failures in ${dut} and ${testProgramDutFilter}",
+      "transformations": [
+        {
+          "id": "filterByValue",
+          "options": {
+            "filters": [
+              {
+                "config": {
+                  "id": "isNotNull",
+                  "options": {}
+                },
+                "fieldName": "Step name"
+              },
+              {
+                "config": {
+                  "id": "notEqual",
+                  "options": {
+                    "value": ""
+                  }
+                },
+                "fieldName": "Step name"
+              }
+            ],
+            "match": "all",
+            "type": "include"
+          }
+        },
+        {
+          "id": "sortBy",
+          "options": {
+            "fields": {},
+            "sort": [
+              {
+                "field": "Status"
+              }
+            ]
+          }
+        },
+        {
+          "id": "groupBy",
+          "options": {
+            "fields": {
+              "Result ID": {
+                "aggregations": [
+                  "count"
+                ],
+                "operation": "aggregate"
+              },
+              "Status": {
+                "aggregations": [],
+                "operation": "groupby"
+              },
+              "Step name": {
+                "aggregations": [],
+                "operation": "groupby"
+              }
+            }
+          }
+        },
+        {
+          "id": "groupingToMatrix",
+          "options": {
+            "columnField": "Status",
+            "emptyValue": "empty",
+            "rowField": "Step name",
+            "valueField": "Result ID (count)"
+          }
+        },
+        {
+          "id": "calculateField",
+          "options": {
+            "mode": "reduceRow",
+            "reduce": {
+              "include": [
+                "ERRORED",
+                "FAILED",
+                "TIMED_OUT"
+              ],
+              "reducer": "sum"
+            }
+          }
+        },
+        {
+          "id": "sortBy",
+          "options": {
+            "fields": {},
+            "sort": [
+              {
+                "desc": true,
+                "field": "Total"
+              }
+            ]
+          }
+        },
+        {
+          "id": "organize",
+          "options": {
+            "excludeByName": {
+              "Total": true
+            },
+            "includeByName": {},
+            "indexByName": {},
+            "renameByName": {
+              "ERRORED": "Errored",
+              "FAILED": "Failed",
+              "Status\\Status": "",
+              "Step name\\Status": "Step name",
+              "TIMED_OUT": "Timed Out",
+              "Total": ""
+            }
+          }
+        },
+        {
+          "id": "limit",
+          "options": {
+            "limitField": 25
+          }
+        }
+      ],
+      "type": "barchart"
+    }
+  ],
+  "refresh": "",
+  "schemaVersion": 41,
+  "tags": [],
+  "templating": {
+    "list": [
+      {
+        "current": {
+          "selected": true,
+          "text": [
+            "All"
+          ],
+          "value": [
+            "$__all"
+          ]
+        },
+        "datasource": {
+          "type": "ni-slworkspace-datasource",
+          "uid": "ni-slworkspace-datasource"
+        },
+        "definition": "",
+        "hide": 0,
+        "includeAll": true,
+        "label": "Workspace",
+        "multi": true,
+        "name": "workspace",
+        "options": [],
+        "query": "",
+        "refresh": 1,
+        "regex": "",
+        "skipUrlSync": false,
+        "sort": 0,
+        "type": "query"
+      },
+      {
+        "current": {
+          "selected": false,
+          "text": "CWUU 18650 (B0CG1KL3RC)",
+          "value": "B0CG1KL3RC"
+        },
+        "datasource": {
+          "type": "ni-slproducts-datasource",
+          "uid": "ni-slproducts-datasource"
+        },
+        "definition": "",
+        "hide": 0,
+        "includeAll": false,
+        "label": "Product",
+        "multi": false,
+        "name": "product",
+        "options": [],
+        "query": {
+          "queryBy": "Workspace = \"$workspace\""
+        },
+        "refresh": 1,
+        "regex": "",
+        "skipUrlSync": false,
+        "sort": 0,
+        "type": "query"
+      },
+      {
+        "current": {
+          "selected": false,
+          "text": "",
+          "value": ""
+        },
+        "hide": 2,
+        "label": "DUT",
+        "name": "dut",
+        "options": [
+          {
+            "selected": true,
+            "text": "",
+            "value": ""
+          }
+        ],
+        "query": "",
+        "skipUrlSync": false,
+        "type": "textbox"
+      },
+      {
+        "current": {
+          "selected": false,
+          "text": "",
+          "value": ""
+        },
+        "hide": 2,
+        "label": "System",
+        "name": "hostName",
+        "options": [
+          {
+            "selected": true,
+            "text": "",
+            "value": ""
+          }
+        ],
+        "query": "",
+        "skipUrlSync": false,
+        "type": "textbox"
+      },
+      {
+        "current": {
+          "selected": false,
+          "text": "ACIR Test.seq",
+          "value": "ACIR Test.seq"
+        },
+        "datasource": {
+          "type": "ni-sltestresults-datasource",
+          "uid": "ni-sltestresults-datasource"
+        },
+        "definition": "",
+        "hide": 2,
+        "includeAll": false,
+        "multi": false,
+        "name": "testProgram",
+        "options": [],
+        "query": {
+          "properties": "PROGRAM_NAME",
+          "queryBy": "PartNumber = \"$product\" && (Status.statusType = \"Failed\" || Status.statusType = \"Errored\" || Status.statusType = \"Timedout\")",
+          "queryType": "Results",
+          "resultsTake": 1000,
+          "stepsTake": 1000
+        },
+        "refresh": 1,
+        "regex": "",
+        "skipUrlSync": false,
+        "sort": 0,
+        "type": "query"
+      },
+      {
+        "current": {
+          "isNone": true,
+          "selected": false,
+          "text": "None",
+          "value": ""
+        },
+        "datasource": {
+          "type": "ni-sltestresults-datasource",
+          "uid": "ni-sltestresults-datasource"
+        },
+        "definition": "",
+        "hide": 2,
+        "includeAll": false,
+        "multi": false,
+        "name": "testProgramSystemFilter",
+        "options": [],
+        "query": {
+          "properties": "PROGRAM_NAME",
+          "queryBy": "(PartNumber = \"$product\" && HostName = \"$hostName\") && (Status.statusType = \"Failed\" || Status.statusType = \"Errored\" || Status.statusType = \"Timedout\")",
+          "queryType": "Results",
+          "resultsTake": 1000,
+          "stepsTake": 1000
+        },
+        "refresh": 1,
+        "regex": "",
+        "skipUrlSync": false,
+        "sort": 0,
+        "type": "query"
+      },
+      {
+        "current": {
+          "isNone": true,
+          "selected": false,
+          "text": "None",
+          "value": ""
+        },
+        "datasource": {
+          "type": "ni-sltestresults-datasource",
+          "uid": "ni-sltestresults-datasource"
+        },
+        "definition": "",
+        "hide": 2,
+        "includeAll": false,
+        "multi": false,
+        "name": "testProgramDutFilter",
+        "options": [],
+        "query": {
+          "properties": "PROGRAM_NAME",
+          "queryBy": "(PartNumber = \"$product\" && SerialNumber = \"$dut\") && (Status.statusType = \"Failed\" || Status.statusType = \"Errored\" || Status.statusType = \"Timedout\")",
+          "queryType": "Results",
+          "resultsTake": 1000,
+          "stepsTake": 1000
+        },
+        "refresh": 1,
+        "regex": "",
+        "skipUrlSync": false,
+        "sort": 0,
+        "type": "query"
+      }
+    ]
+  },
+  "time": {
+    "from": "now-90d",
+    "to": "now"
+  },
+  "timepicker": {},
+  "timezone": "",
+  "title": "Product Summary",
+  "uid": "product-summary",
+  "version": 1,
+  "weekStart": ""
+}

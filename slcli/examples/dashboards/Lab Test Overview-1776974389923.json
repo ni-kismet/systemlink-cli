@@ -1,0 +1,2876 @@
+{
+  "annotations": {
+    "list": [
+      {
+        "builtIn": 1,
+        "enable": true,
+        "hide": true,
+        "iconColor": "rgba(0, 211, 255, 1)",
+        "name": "Annotations & Alerts",
+        "type": "dashboard"
+      }
+    ]
+  },
+  "editable": false,
+  "fiscalYearStartMonth": 0,
+  "graphTooltip": 0,
+  "id": 1026641,
+  "links": [],
+  "liveNow": false,
+  "panels": [
+    {
+      "datasource": {
+        "type": "ni-sltestplans-datasource",
+        "uid": "ni-sltestplans-datasource"
+      },
+      "description": "",
+      "fieldConfig": {
+        "defaults": {
+          "color": {
+            "mode": "fixed"
+          },
+          "fieldMinMax": false,
+          "mappings": [],
+          "noValue": "0",
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "green"
+              }
+            ]
+          }
+        },
+        "overrides": [
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "New"
+            },
+            "properties": [
+              {
+                "id": "color",
+                "value": {
+                  "fixedColor": "#818386",
+                  "mode": "fixed"
+                }
+              },
+              {
+                "id": "links",
+                "value": [
+                  {
+                    "title": "View \"New\" Test Plans",
+                    "url": "/d/${__dashboard.uid}/${__dashboard.url}?var-testPlanTableState=New&var-testPlanTableSelectedTile=New&var-testPlanTableFields=State%20Test%20plan%20ID&var-testPlanTableFields=State%20System%20ID&var-testPlanTableFields=State%20Product%20ID&var-testPlanTableFields=State%20DUT%20ID&var-testPlanTableFields=State%20Test%20plan%20name&var-testPlanTableFields=State%20State&var-testPlanTableFields=State%20Assigned%20to&var-testPlanTableFields=State%20System%20name&var-testPlanTableFields=State%20DUT%20serial%20number&var-testPlanTableFields=State%20Product%20name&var-testPlanTableFields=State%20Workspace&var-testPlanTableFields=State%20Planned%20start%20date%2ftime&var-testPlanTableFields=State%20Estimated%20end%20date%2ftime&${workspace:queryparam}&${product:queryparam}&${__url_time_range}"
+                  }
+                ]
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "Defined"
+            },
+            "properties": [
+              {
+                "id": "color",
+                "value": {
+                  "fixedColor": "#161617BF",
+                  "mode": "fixed"
+                }
+              },
+              {
+                "id": "links",
+                "value": [
+                  {
+                    "title": "View \"Defined\" Test Plans",
+                    "url": "/d/${__dashboard.uid}/${__dashboard.url}?var-testPlanTableState=Defined&var-testPlanTableSelectedTile=Defined&var-testPlanTableFields=State%20Test%20plan%20ID&var-testPlanTableFields=State%20System%20ID&var-testPlanTableFields=State%20Product%20ID&var-testPlanTableFields=State%20DUT%20ID&var-testPlanTableFields=State%20Test%20plan%20name&var-testPlanTableFields=State%20State&var-testPlanTableFields=State%20Assigned%20to&var-testPlanTableFields=State%20System%20name&var-testPlanTableFields=State%20DUT%20serial%20number&var-testPlanTableFields=State%20Product%20name&var-testPlanTableFields=State%20Workspace&var-testPlanTableFields=State%20Planned%20start%20date%2ftime&var-testPlanTableFields=State%20Estimated%20end%20date%2ftime&${workspace:queryparam}&${product:queryparam}&${__url_time_range}"
+                  }
+                ]
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "Scheduled"
+            },
+            "properties": [
+              {
+                "id": "color",
+                "value": {
+                  "fixedColor": "#009B65",
+                  "mode": "fixed"
+                }
+              },
+              {
+                "id": "links",
+                "value": [
+                  {
+                    "title": "View \"Scheduled\" Test Plans",
+                    "url": "/d/${__dashboard.uid}/${__dashboard.url}?var-testPlanTableState=Scheduled&var-testPlanTableSelectedTile=Scheduled&var-testPlanTableFields=State%20Test%20plan%20ID&var-testPlanTableFields=State%20System%20ID&var-testPlanTableFields=State%20Product%20ID&var-testPlanTableFields=State%20DUT%20ID&var-testPlanTableFields=State%20Test%20plan%20name&var-testPlanTableFields=State%20State&var-testPlanTableFields=State%20Assigned%20to&var-testPlanTableFields=State%20System%20name&var-testPlanTableFields=State%20DUT%20serial%20number&var-testPlanTableFields=State%20Product%20name&var-testPlanTableFields=State%20Workspace&var-testPlanTableFields=State%20Planned%20start%20date%2ftime&var-testPlanTableFields=State%20Estimated%20end%20date%2ftime&${workspace:queryparam}&${product:queryparam}&${__url_time_range}"
+                  }
+                ]
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "In Progress"
+            },
+            "properties": [
+              {
+                "id": "color",
+                "value": {
+                  "fixedColor": "#00A1D4",
+                  "mode": "fixed"
+                }
+              },
+              {
+                "id": "links",
+                "value": [
+                  {
+                    "title": "View \"In Progress\" Test Plans",
+                    "url": "/d/${__dashboard.uid}/${__dashboard.url}?var-testPlanTableState=InProgress&var-testPlanTableSelectedTile=In%20Progress&var-testPlanTableFields=State%20Test%20plan%20ID&var-testPlanTableFields=State%20System%20ID&var-testPlanTableFields=State%20Product%20ID&var-testPlanTableFields=State%20DUT%20ID&var-testPlanTableFields=State%20Test%20plan%20name&var-testPlanTableFields=State%20State&var-testPlanTableFields=State%20Assigned%20to&var-testPlanTableFields=State%20System%20name&var-testPlanTableFields=State%20DUT%20serial%20number&var-testPlanTableFields=State%20Product%20name&var-testPlanTableFields=State%20Workspace&var-testPlanTableFields=State%20Planned%20start%20date%2ftime&var-testPlanTableFields=State%20Estimated%20end%20date%2ftime&${workspace:queryparam}&${product:queryparam}&${__url_time_range}"
+                  }
+                ]
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "Pending Approval"
+            },
+            "properties": [
+              {
+                "id": "color",
+                "value": {
+                  "fixedColor": "#FF8126",
+                  "mode": "fixed"
+                }
+              },
+              {
+                "id": "links",
+                "value": [
+                  {
+                    "title": "View \"Pending Approval\" Test Plans",
+                    "url": "/d/${__dashboard.uid}/${__dashboard.url}?var-testPlanTableState=PendingApproval&var-testPlanTableSelectedTile=Pending%20Approval&var-testPlanTableFields=State%20Test%20plan%20ID&var-testPlanTableFields=State%20System%20ID&var-testPlanTableFields=State%20Product%20ID&var-testPlanTableFields=State%20DUT%20ID&var-testPlanTableFields=State%20Test%20plan%20name&var-testPlanTableFields=State%20State&var-testPlanTableFields=State%20Assigned%20to&var-testPlanTableFields=State%20System%20name&var-testPlanTableFields=State%20DUT%20serial%20number&var-testPlanTableFields=State%20Product%20name&var-testPlanTableFields=State%20Workspace&var-testPlanTableFields=State%20Planned%20start%20date%2ftime&var-testPlanTableFields=State%20Estimated%20end%20date%2ftime&${workspace:queryparam}&${product:queryparam}&${__url_time_range}"
+                  }
+                ]
+              }
+            ]
+          }
+        ]
+      },
+      "gridPos": {
+        "h": 5,
+        "w": 13,
+        "x": 0,
+        "y": 0
+      },
+      "id": 1,
+      "options": {
+        "colorMode": "background_solid",
+        "graphMode": "none",
+        "justifyMode": "center",
+        "orientation": "auto",
+        "percentChangeColorMode": "standard",
+        "reduceOptions": {
+          "calcs": [
+            "count"
+          ],
+          "fields": "/.*/",
+          "values": true
+        },
+        "showPercentChange": false,
+        "textMode": "auto",
+        "wideLayout": true
+      },
+      "pluginVersion": "11.6.5",
+      "targets": [
+        {
+          "datasource": {
+            "type": "ni-sltestplans-datasource",
+            "uid": "ni-sltestplans-datasource"
+          },
+          "descending": true,
+          "orderBy": "UPDATED_AT",
+          "outputType": "Total Count",
+          "properties": [],
+          "queryBy": "(state = \"New\" && workspace = \"$workspace\" && partNumber = \"$product\")",
+          "recordCount": 1000,
+          "refId": "New"
+        },
+        {
+          "datasource": {
+            "type": "ni-sltestplans-datasource",
+            "uid": "ni-sltestplans-datasource"
+          },
+          "descending": true,
+          "hide": false,
+          "orderBy": "UPDATED_AT",
+          "outputType": "Total Count",
+          "properties": [],
+          "queryBy": "(state = \"Defined\" && workspace = \"$workspace\" && partNumber = \"$product\")",
+          "recordCount": 1000,
+          "refId": "Defined"
+        },
+        {
+          "datasource": {
+            "type": "ni-sltestplans-datasource",
+            "uid": "ni-sltestplans-datasource"
+          },
+          "descending": true,
+          "hide": false,
+          "orderBy": "UPDATED_AT",
+          "outputType": "Total Count",
+          "properties": [],
+          "queryBy": "(state = \"Scheduled\" && workspace = \"$workspace\" && partNumber = \"$product\")",
+          "recordCount": 1000,
+          "refId": "Scheduled"
+        },
+        {
+          "datasource": {
+            "type": "ni-sltestplans-datasource",
+            "uid": "ni-sltestplans-datasource"
+          },
+          "descending": true,
+          "hide": false,
+          "orderBy": "UPDATED_AT",
+          "outputType": "Total Count",
+          "properties": [],
+          "queryBy": "(state = \"InProgress\" && workspace = \"$workspace\" && partNumber = \"$product\")",
+          "recordCount": 1000,
+          "refId": "In Progress"
+        },
+        {
+          "datasource": {
+            "type": "ni-sltestplans-datasource",
+            "uid": "ni-sltestplans-datasource"
+          },
+          "descending": true,
+          "hide": false,
+          "orderBy": "UPDATED_AT",
+          "outputType": "Total Count",
+          "properties": [],
+          "queryBy": "(state = \"PendingApproval\" && workspace = \"$workspace\" && partNumber = \"$product\")",
+          "recordCount": 1000,
+          "refId": "Pending Approval"
+        }
+      ],
+      "title": "Summary",
+      "type": "stat"
+    },
+    {
+      "datasource": {
+        "type": "ni-sltestplans-datasource",
+        "uid": "ni-sltestplans-datasource"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "color": {
+            "fixedColor": "light-yellow",
+            "mode": "fixed"
+          },
+          "mappings": [],
+          "noValue": "0",
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "green"
+              }
+            ]
+          }
+        },
+        "overrides": [
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "Due to start"
+            },
+            "properties": [
+              {
+                "id": "links",
+                "value": [
+                  {
+                    "title": "View Test Plans due to Start",
+                    "url": "/d/${__dashboard.uid}/${__dashboard.url}?${testPlanTableState:queryparam}&var-testPlanTableSelectedTile=Due%20to%20start&var-testPlanTableFields=Due%20to%20start%20Test%20plan%20ID&var-testPlanTableFields=Due%20to%20start%20System%20ID&var-testPlanTableFields=Due%20to%20start%20Product%20ID&var-testPlanTableFields=Due%20to%20start%20DUT%20ID&var-testPlanTableFields=Due%20to%20start%20Test%20plan%20name&var-testPlanTableFields=Due%20to%20start%20State&var-testPlanTableFields=Due%20to%20start%20Assigned%20to&var-testPlanTableFields=Due%20to%20start%20System%20name&var-testPlanTableFields=Due%20to%20start%20DUT%20serial%20number&var-testPlanTableFields=Due%20to%20start%20Product%20name&var-testPlanTableFields=Due%20to%20start%20Workspace&var-testPlanTableFields=Due%20to%20start%20Planned%20start%20date%2ftime&var-testPlanTableFields=Due%20to%20start%20Estimated%20end%20date%2ftime&${workspace:queryparam}&${product:queryparam}&${__url_time_range}"
+                  }
+                ]
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "Past due start"
+            },
+            "properties": [
+              {
+                "id": "links",
+                "value": [
+                  {
+                    "title": "View Test Plans Past due Start",
+                    "url": "/d/${__dashboard.uid}/${__dashboard.url}?${testPlanTableState:queryparam}&var-testPlanTableSelectedTile=Past%20due%20start&var-testPlanTableFields=Past%20due%20start%20Test%20plan%20ID&var-testPlanTableFields=Past%20due%20start%20System%20ID&var-testPlanTableFields=Past%20due%20start%20Product%20ID&var-testPlanTableFields=Past%20due%20start%20DUT%20ID&var-testPlanTableFields=Past%20due%20start%20Test%20plan%20name&var-testPlanTableFields=Past%20due%20start%20State&var-testPlanTableFields=Past%20due%20start%20Assigned%20to&var-testPlanTableFields=Past%20due%20start%20System%20name&var-testPlanTableFields=Past%20due%20start%20DUT%20serial%20number&var-testPlanTableFields=Past%20due%20start%20Product%20name&var-testPlanTableFields=Past%20due%20start%20Workspace&var-testPlanTableFields=Past%20due%20start%20Planned%20start%20date%2ftime&var-testPlanTableFields=Past%20due%20start%20Estimated%20end%20date%2ftime&${workspace:queryparam}&${product:queryparam}&${__url_time_range}"
+                  }
+                ]
+              },
+              {
+                "id": "color",
+                "value": {
+                  "fixedColor": "red",
+                  "mode": "fixed"
+                }
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "Due completion"
+            },
+            "properties": [
+              {
+                "id": "links",
+                "value": [
+                  {
+                    "title": "View Test Plans due Completion",
+                    "url": "/d/${__dashboard.uid}/${__dashboard.url}?${testPlanTableState:queryparam}&var-testPlanTableSelectedTile=Due%20completion&var-testPlanTableFields=Due%20completion%20Test%20plan%20ID&var-testPlanTableFields=Due%20completion%20System%20ID&var-testPlanTableFields=Due%20completion%20Product%20ID&var-testPlanTableFields=Due%20completion%20DUT%20ID&var-testPlanTableFields=Due%20completion%20Test%20plan%20name&var-testPlanTableFields=Due%20completion%20State&var-testPlanTableFields=Due%20completion%20Assigned%20to&var-testPlanTableFields=Due%20completion%20System%20name&var-testPlanTableFields=Due%20completion%20DUT%20serial%20number&var-testPlanTableFields=Due%20completion%20Product%20name&var-testPlanTableFields=Due%20completion%20Workspace&var-testPlanTableFields=Due%20completion%20Planned%20start%20date%2ftime&var-testPlanTableFields=Due%20completion%20Estimated%20end%20date%2ftime&${workspace:queryparam}&${product:queryparam}&${__url_time_range}"
+                  }
+                ]
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "Past due completion"
+            },
+            "properties": [
+              {
+                "id": "color",
+                "value": {
+                  "fixedColor": "red",
+                  "mode": "fixed"
+                }
+              },
+              {
+                "id": "links",
+                "value": [
+                  {
+                    "title": "View Test Plans Past due Completion",
+                    "url": "/d/${__dashboard.uid}/${__dashboard.url}?${testPlanTableState:queryparam}&var-testPlanTableSelectedTile=Past%20due%20completion&var-testPlanTableFields=Past%20due%20completion%20Test%20plan%20ID&var-testPlanTableFields=Past%20due%20completion%20System%20ID&var-testPlanTableFields=Past%20due%20completion%20Product%20ID&var-testPlanTableFields=Past%20due%20completion%20DUT%20ID&var-testPlanTableFields=Past%20due%20completion%20Test%20plan%20name&var-testPlanTableFields=Past%20due%20completion%20State&var-testPlanTableFields=Past%20due%20completion%20Assigned%20to&var-testPlanTableFields=Past%20due%20completion%20System%20name&var-testPlanTableFields=Past%20due%20completion%20DUT%20serial%20number&var-testPlanTableFields=Past%20due%20completion%20Product%20name&var-testPlanTableFields=Past%20due%20completion%20Workspace&var-testPlanTableFields=Past%20due%20completion%20Planned%20start%20date%2ftime&var-testPlanTableFields=Past%20due%20completion%20Estimated%20end%20date%2ftime&${workspace:queryparam}&${product:queryparam}&${__url_time_range}"
+                  }
+                ]
+              }
+            ]
+          }
+        ]
+      },
+      "gridPos": {
+        "h": 5,
+        "w": 11,
+        "x": 13,
+        "y": 0
+      },
+      "id": 2,
+      "options": {
+        "colorMode": "background_solid",
+        "graphMode": "none",
+        "justifyMode": "center",
+        "orientation": "auto",
+        "percentChangeColorMode": "standard",
+        "reduceOptions": {
+          "calcs": [
+            "count"
+          ],
+          "fields": "/.*/",
+          "values": true
+        },
+        "showPercentChange": false,
+        "textMode": "auto",
+        "wideLayout": true
+      },
+      "pluginVersion": "11.6.5",
+      "targets": [
+        {
+          "datasource": {
+            "type": "ni-sltestplans-datasource",
+            "uid": "ni-sltestplans-datasource"
+          },
+          "descending": true,
+          "hide": false,
+          "orderBy": "UPDATED_AT",
+          "outputType": "Total Count",
+          "properties": [],
+          "queryBy": "(plannedStartDateTime > \"${__from:date}\" && plannedStartDateTime < \"${__to:date}\" && workspace = \"$workspace\" && partNumber = \"$product\" && state != \"Closed\" && state != \"Canceled\")",
+          "recordCount": 1000,
+          "refId": "Due to start"
+        },
+        {
+          "datasource": {
+            "type": "ni-sltestplans-datasource",
+            "uid": "ni-sltestplans-datasource"
+          },
+          "descending": true,
+          "hide": false,
+          "orderBy": "UPDATED_AT",
+          "outputType": "Total Count",
+          "properties": [],
+          "queryBy": "(plannedStartDateTime < \"${__from:date}\" && workspace = \"$workspace\" && partNumber = \"$product\" && state != \"Closed\" && state != \"Canceled\")",
+          "recordCount": 1000,
+          "refId": "Past due start"
+        },
+        {
+          "datasource": {
+            "type": "ni-sltestplans-datasource",
+            "uid": "ni-sltestplans-datasource"
+          },
+          "descending": true,
+          "hide": false,
+          "orderBy": "UPDATED_AT",
+          "outputType": "Total Count",
+          "properties": [],
+          "queryBy": "(estimatedEndDateTime > \"${__from:date}\" && estimatedEndDateTime < \"${__to:date}\" && workspace = \"$workspace\" && partNumber = \"$product\" && state != \"Closed\" && state != \"Canceled\")",
+          "recordCount": 1000,
+          "refId": "Due completion"
+        },
+        {
+          "datasource": {
+            "type": "ni-sltestplans-datasource",
+            "uid": "ni-sltestplans-datasource"
+          },
+          "descending": true,
+          "hide": false,
+          "orderBy": "UPDATED_AT",
+          "outputType": "Total Count",
+          "properties": [],
+          "queryBy": "(estimatedEndDateTime < \"${__from:date}\" && workspace = \"$workspace\" && partNumber = \"$product\" && state != \"Closed\" && state != \"Canceled\")",
+          "recordCount": 1000,
+          "refId": "Past due completion"
+        }
+      ],
+      "title": "Summary of Test Plans due from ${__from:date:DD MMM yyyy} till ${__to:date:DD MMM yyyy}",
+      "type": "stat"
+    },
+    {
+      "datasource": {
+        "type": "ni-sltestplans-datasource",
+        "uid": "ni-sltestplans-datasource"
+      },
+      "description": "Displays the most recent 1,000 Test Plans",
+      "fieldConfig": {
+        "defaults": {
+          "color": {
+            "fixedColor": "light-yellow",
+            "mode": "fixed"
+          },
+          "custom": {
+            "align": "auto",
+            "cellOptions": {
+              "type": "auto"
+            },
+            "filterable": true,
+            "inspect": false
+          },
+          "mappings": [],
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "green"
+              }
+            ]
+          }
+        },
+        "overrides": [
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "Test plan ID"
+            },
+            "properties": [
+              {
+                "id": "custom.hidden",
+                "value": true
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "Test plan name"
+            },
+            "properties": [
+              {
+                "id": "links",
+                "value": [
+                  {
+                    "targetBlank": true,
+                    "title": "View Test Plan Details",
+                    "url": "../labmanagement/testplans/testplan/${__data.fields[\"Test plan ID\"]}"
+                  }
+                ]
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "State"
+            },
+            "properties": [
+              {
+                "id": "mappings",
+                "value": [
+                  {
+                    "options": {
+                      "CANCELED": {
+                        "index": 7,
+                        "text": "Canceled"
+                      },
+                      "CLOSED": {
+                        "index": 6,
+                        "text": "Closed"
+                      },
+                      "DEFINED": {
+                        "index": 1,
+                        "text": "Defined"
+                      },
+                      "IN_PROGRESS": {
+                        "index": 4,
+                        "text": "In Progress"
+                      },
+                      "NEW": {
+                        "index": 0,
+                        "text": "New"
+                      },
+                      "PENDING_APPROVAL": {
+                        "index": 5,
+                        "text": "Pending Approval"
+                      },
+                      "REVIEWED": {
+                        "index": 2,
+                        "text": "Reviewed"
+                      },
+                      "SCHEDULED": {
+                        "index": 3,
+                        "text": "Scheduled"
+                      }
+                    },
+                    "type": "value"
+                  }
+                ]
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "System ID"
+            },
+            "properties": [
+              {
+                "id": "custom.hidden",
+                "value": true
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "System name"
+            },
+            "properties": [
+              {
+                "id": "links",
+                "value": [
+                  {
+                    "targetBlank": true,
+                    "title": "View System Details",
+                    "url": "../systems/${__data.fields[\"System ID\"]}"
+                  }
+                ]
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "Product ID"
+            },
+            "properties": [
+              {
+                "id": "custom.hidden",
+                "value": true
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "DUT ID"
+            },
+            "properties": [
+              {
+                "id": "custom.hidden",
+                "value": true
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "Product name"
+            },
+            "properties": [
+              {
+                "id": "links",
+                "value": [
+                  {
+                    "targetBlank": true,
+                    "title": "View Product Details",
+                    "url": "../testinsights/products/product/${__data.fields[\"Product ID\"]}"
+                  }
+                ]
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "DUT serial number"
+            },
+            "properties": [
+              {
+                "id": "links",
+                "value": [
+                  {
+                    "targetBlank": true,
+                    "title": "View DUT Details",
+                    "url": "../assets/${__data.fields[\"DUT ID\"]}"
+                  }
+                ]
+              }
+            ]
+          }
+        ]
+      },
+      "gridPos": {
+        "h": 9,
+        "w": 24,
+        "x": 0,
+        "y": 5
+      },
+      "id": 3,
+      "options": {
+        "cellHeight": "sm",
+        "footer": {
+          "countRows": true,
+          "fields": "",
+          "reducer": [
+            "count"
+          ],
+          "show": true
+        },
+        "frameIndex": 1,
+        "showHeader": true,
+        "sortBy": []
+      },
+      "pluginVersion": "11.6.5",
+      "targets": [
+        {
+          "datasource": {
+            "type": "ni-sltestplans-datasource",
+            "uid": "ni-sltestplans-datasource"
+          },
+          "descending": true,
+          "hide": false,
+          "orderBy": "UPDATED_AT",
+          "outputType": "Properties",
+          "properties": [
+            "NAME",
+            "ID",
+            "SYSTEM_ID",
+            "STATE",
+            "ASSIGNED_TO",
+            "SYSTEM_NAME",
+            "DUT_SERIAL_NUMBER",
+            "PRODUCT_ID",
+            "PRODUCT_NAME",
+            "WORKSPACE",
+            "PLANNED_START_DATE_TIME",
+            "ESTIMATED_END_DATE_TIME",
+            "DUT_ID"
+          ],
+          "queryBy": "(plannedStartDateTime < \"${__from:date}\" && workspace = \"$workspace\" && partNumber = \"$product\" && state != \"Closed\" && state != \"Canceled\")",
+          "recordCount": 1000,
+          "refId": "Past due start"
+        },
+        {
+          "datasource": {
+            "type": "ni-sltestplans-datasource",
+            "uid": "ni-sltestplans-datasource"
+          },
+          "descending": true,
+          "hide": false,
+          "orderBy": "UPDATED_AT",
+          "outputType": "Properties",
+          "properties": [
+            "NAME",
+            "ID",
+            "SYSTEM_ID",
+            "STATE",
+            "ASSIGNED_TO",
+            "SYSTEM_NAME",
+            "DUT_SERIAL_NUMBER",
+            "PRODUCT_ID",
+            "PRODUCT_NAME",
+            "WORKSPACE",
+            "PLANNED_START_DATE_TIME",
+            "ESTIMATED_END_DATE_TIME",
+            "DUT_ID"
+          ],
+          "queryBy": "(plannedStartDateTime > \"${__from:date}\" && plannedStartDateTime < \"${__to:date}\" && workspace = \"$workspace\" && partNumber = \"$product\" && state != \"Closed\" && state != \"Canceled\")",
+          "recordCount": 1000,
+          "refId": "Due to start"
+        },
+        {
+          "datasource": {
+            "type": "ni-sltestplans-datasource",
+            "uid": "ni-sltestplans-datasource"
+          },
+          "descending": true,
+          "hide": false,
+          "orderBy": "UPDATED_AT",
+          "outputType": "Properties",
+          "properties": [
+            "NAME",
+            "ID",
+            "SYSTEM_ID",
+            "STATE",
+            "ASSIGNED_TO",
+            "SYSTEM_NAME",
+            "DUT_SERIAL_NUMBER",
+            "PRODUCT_ID",
+            "PRODUCT_NAME",
+            "WORKSPACE",
+            "PLANNED_START_DATE_TIME",
+            "ESTIMATED_END_DATE_TIME",
+            "DUT_ID"
+          ],
+          "queryBy": "(estimatedEndDateTime > \"${__from:date}\" && estimatedEndDateTime < \"${__to:date}\" && workspace = \"$workspace\" && partNumber = \"$product\" && state != \"Closed\" && state != \"Canceled\")",
+          "recordCount": 1000,
+          "refId": "Due completion"
+        },
+        {
+          "datasource": {
+            "type": "ni-sltestplans-datasource",
+            "uid": "ni-sltestplans-datasource"
+          },
+          "descending": true,
+          "hide": false,
+          "orderBy": "UPDATED_AT",
+          "outputType": "Properties",
+          "properties": [
+            "NAME",
+            "ID",
+            "SYSTEM_ID",
+            "STATE",
+            "ASSIGNED_TO",
+            "SYSTEM_NAME",
+            "DUT_SERIAL_NUMBER",
+            "PRODUCT_ID",
+            "PRODUCT_NAME",
+            "WORKSPACE",
+            "PLANNED_START_DATE_TIME",
+            "ESTIMATED_END_DATE_TIME",
+            "DUT_ID"
+          ],
+          "queryBy": "(estimatedEndDateTime < \"${__from:date}\" && workspace = \"$workspace\" && partNumber = \"$product\" && state != \"Closed\" && state != \"Canceled\")",
+          "recordCount": 1000,
+          "refId": "Past due completion"
+        },
+        {
+          "datasource": {
+            "type": "ni-sltestplans-datasource",
+            "uid": "ni-sltestplans-datasource"
+          },
+          "descending": true,
+          "hide": false,
+          "orderBy": "UPDATED_AT",
+          "outputType": "Properties",
+          "properties": [
+            "NAME",
+            "ID",
+            "SYSTEM_ID",
+            "STATE",
+            "ASSIGNED_TO",
+            "SYSTEM_NAME",
+            "DUT_SERIAL_NUMBER",
+            "PRODUCT_ID",
+            "PRODUCT_NAME",
+            "WORKSPACE",
+            "PLANNED_START_DATE_TIME",
+            "ESTIMATED_END_DATE_TIME",
+            "DUT_ID"
+          ],
+          "queryBy": "(state = \"$testPlanTableState\" && workspace = \"$workspace\" && partNumber = \"$product\")",
+          "recordCount": 1000,
+          "refId": "State"
+        }
+      ],
+      "title": "Test Plans | ${testPlanTableSelectedTile} (Click a summary to view the corresponding Test Plans)",
+      "transformations": [
+        {
+          "id": "filterFieldsByName",
+          "options": {
+            "byVariable": true,
+            "include": {
+              "variable": "$testPlanTableFields"
+            }
+          }
+        },
+        {
+          "id": "convertFieldType",
+          "options": {
+            "conversions": [
+              {
+                "destinationType": "time",
+                "targetField": "Planned start date/time"
+              },
+              {
+                "destinationType": "time",
+                "targetField": "Estimated end date/time"
+              }
+            ],
+            "fields": {}
+          }
+        }
+      ],
+      "type": "table"
+    },
+    {
+      "datasource": {
+        "type": "ni-sltestplans-datasource",
+        "uid": "ni-sltestplans-datasource"
+      },
+      "description": "Displays the most recent 1,000 Test Plans",
+      "fieldConfig": {
+        "defaults": {
+          "color": {
+            "fixedColor": "#808080",
+            "mode": "thresholds"
+          },
+          "custom": {
+            "axisBorderShow": false,
+            "axisCenteredZero": false,
+            "axisColorMode": "text",
+            "axisLabel": "",
+            "axisPlacement": "auto",
+            "fillOpacity": 80,
+            "gradientMode": "none",
+            "hideFrom": {
+              "legend": false,
+              "tooltip": false,
+              "viz": false
+            },
+            "lineWidth": 1,
+            "scaleDistribution": {
+              "type": "linear"
+            },
+            "thresholdsStyle": {
+              "mode": "off"
+            }
+          },
+          "links": [
+            {
+              "targetBlank": true,
+              "title": "View System Details",
+              "url": "../systems/${__data.fields[\"System ID\"]}"
+            }
+          ],
+          "mappings": [],
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "green"
+              }
+            ]
+          }
+        },
+        "overrides": [
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "NEW"
+            },
+            "properties": [
+              {
+                "id": "color",
+                "value": {
+                  "fixedColor": "#818386",
+                  "mode": "fixed"
+                }
+              },
+              {
+                "id": "displayName",
+                "value": "New"
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "DEFINED"
+            },
+            "properties": [
+              {
+                "id": "color",
+                "value": {
+                  "fixedColor": "#161617BF",
+                  "mode": "fixed"
+                }
+              },
+              {
+                "id": "displayName",
+                "value": "Defined"
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "REVIEWED"
+            },
+            "properties": [
+              {
+                "id": "color",
+                "value": {
+                  "fixedColor": "#804AD9",
+                  "mode": "fixed"
+                }
+              },
+              {
+                "id": "displayName",
+                "value": "Reviewed"
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "SCHEDULED"
+            },
+            "properties": [
+              {
+                "id": "color",
+                "value": {
+                  "fixedColor": "#009B65",
+                  "mode": "fixed"
+                }
+              },
+              {
+                "id": "displayName",
+                "value": "Scheduled"
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "IN_PROGRESS"
+            },
+            "properties": [
+              {
+                "id": "color",
+                "value": {
+                  "fixedColor": "#00A1D4",
+                  "mode": "fixed"
+                }
+              },
+              {
+                "id": "displayName",
+                "value": "In Progress"
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "PENDING_APPROVAL"
+            },
+            "properties": [
+              {
+                "id": "color",
+                "value": {
+                  "fixedColor": "#FF8126",
+                  "mode": "fixed"
+                }
+              },
+              {
+                "id": "displayName",
+                "value": "Pending Approval"
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "CLOSED"
+            },
+            "properties": [
+              {
+                "id": "color",
+                "value": {
+                  "fixedColor": "#009921",
+                  "mode": "fixed"
+                }
+              },
+              {
+                "id": "displayName",
+                "value": "Closed"
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "CANCELED"
+            },
+            "properties": [
+              {
+                "id": "color",
+                "value": {
+                  "fixedColor": "#C4000C",
+                  "mode": "fixed"
+                }
+              },
+              {
+                "id": "displayName",
+                "value": "Canceled"
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "System ID"
+            },
+            "properties": [
+              {
+                "id": "custom.hideFrom",
+                "value": {
+                  "legend": true,
+                  "tooltip": true,
+                  "viz": true
+                }
+              }
+            ]
+          }
+        ]
+      },
+      "gridPos": {
+        "h": 17,
+        "w": 12,
+        "x": 0,
+        "y": 14
+      },
+      "id": 6,
+      "options": {
+        "barRadius": 0,
+        "barWidth": 0.97,
+        "fullHighlight": false,
+        "groupWidth": 0.7,
+        "legend": {
+          "calcs": [
+            "sum"
+          ],
+          "displayMode": "table",
+          "placement": "right",
+          "showLegend": true
+        },
+        "orientation": "horizontal",
+        "showValue": "never",
+        "stacking": "normal",
+        "tooltip": {
+          "hideZeros": false,
+          "mode": "single",
+          "sort": "none"
+        },
+        "xField": "System name",
+        "xTickLabelRotation": 0,
+        "xTickLabelSpacing": 0
+      },
+      "pluginVersion": "10.2.3",
+      "targets": [
+        {
+          "datasource": {
+            "type": "ni-sltestplans-datasource",
+            "uid": "ni-sltestplans-datasource"
+          },
+          "descending": true,
+          "orderBy": "UPDATED_AT",
+          "outputType": "Properties",
+          "properties": [
+            "SYSTEM_NAME",
+            "ASSIGNED_TO",
+            "ID",
+            "STATE",
+            "SYSTEM_ID"
+          ],
+          "queryBy": "(workspace = \"$workspace\" && partNumber = \"$product\" && plannedStartDateTime < \"${__to:date}\" && estimatedEndDateTime > \"${__from:date}\" && state != \"Canceled\" && state != \"Closed\")",
+          "recordCount": 1000,
+          "refId": "Test plans"
+        }
+      ],
+      "title": "Test Plans Assigned to Systems | Due from ${__from:date:DD MMM yyyy} till ${__to:date:DD MMM yyyy}",
+      "transformations": [
+        {
+          "id": "groupBy",
+          "options": {
+            "fields": {
+              "State": {
+                "aggregations": [],
+                "operation": "groupby"
+              },
+              "System ID": {
+                "aggregations": [
+                  "last"
+                ],
+                "operation": "aggregate"
+              },
+              "System name": {
+                "aggregations": [],
+                "operation": "groupby"
+              },
+              "Test plan ID": {
+                "aggregations": [
+                  "count"
+                ],
+                "operation": "aggregate"
+              },
+              "Test plan name": {
+                "aggregations": [],
+                "operation": "groupby"
+              }
+            }
+          }
+        },
+        {
+          "id": "calculateField",
+          "options": {
+            "alias": "System name, System ID",
+            "mode": "reduceRow",
+            "reduce": {
+              "include": [
+                "System name",
+                "System ID (last)"
+              ],
+              "reducer": "allValues"
+            }
+          }
+        },
+        {
+          "id": "filterByValue",
+          "options": {
+            "filters": [
+              {
+                "config": {
+                  "id": "isNotNull",
+                  "options": {}
+                },
+                "fieldName": "System name, System ID"
+              },
+              {
+                "config": {
+                  "id": "notEqual",
+                  "options": {
+                    "value": ""
+                  }
+                },
+                "fieldName": "System name, System ID"
+              },
+              {
+                "config": {
+                  "id": "isNotNull",
+                  "options": {}
+                },
+                "fieldName": "State"
+              },
+              {
+                "config": {
+                  "id": "notEqual",
+                  "options": {
+                    "value": ""
+                  }
+                },
+                "fieldName": "State"
+              }
+            ],
+            "match": "all",
+            "type": "include"
+          }
+        },
+        {
+          "id": "sortBy",
+          "options": {
+            "fields": {},
+            "sort": [
+              {
+                "field": "State"
+              }
+            ]
+          }
+        },
+        {
+          "id": "groupingToMatrix",
+          "options": {
+            "columnField": "State",
+            "emptyValue": "empty",
+            "rowField": "System name, System ID",
+            "valueField": "Test plan ID (count)"
+          }
+        },
+        {
+          "id": "groupBy",
+          "options": {
+            "fields": {
+              "CANCELED": {
+                "aggregations": [],
+                "operation": "groupby"
+              },
+              "CLOSED": {
+                "aggregations": [],
+                "operation": "groupby"
+              },
+              "DEFINED": {
+                "aggregations": [],
+                "operation": "groupby"
+              },
+              "IN_PROGRESS": {
+                "aggregations": [],
+                "operation": "groupby"
+              },
+              "NEW": {
+                "aggregations": [],
+                "operation": "groupby"
+              },
+              "PENDING_APPROVAL": {
+                "aggregations": [
+                  "last"
+                ],
+                "operation": "groupby"
+              },
+              "REVIEWED": {
+                "aggregations": [],
+                "operation": "groupby"
+              },
+              "SCHEDULED": {
+                "aggregations": [
+                  "last"
+                ],
+                "operation": "groupby"
+              },
+              "System name, System ID\\State": {
+                "aggregations": [],
+                "operation": "groupby"
+              }
+            }
+          }
+        },
+        {
+          "id": "extractFields",
+          "options": {
+            "format": "auto",
+            "source": "System name, System ID\\State"
+          }
+        },
+        {
+          "id": "convertFieldType",
+          "options": {
+            "conversions": [
+              {
+                "destinationType": "number",
+                "targetField": "NEW"
+              },
+              {
+                "destinationType": "number",
+                "targetField": "DEFINED"
+              },
+              {
+                "destinationType": "number",
+                "targetField": "REVIEWED"
+              },
+              {
+                "destinationType": "number",
+                "targetField": "SCHEDULED"
+              },
+              {
+                "destinationType": "number",
+                "targetField": "IN_PROGRESS"
+              },
+              {
+                "destinationType": "number",
+                "targetField": "PENDING_APPROVAL"
+              },
+              {
+                "destinationType": "number",
+                "targetField": "CLOSED"
+              },
+              {
+                "destinationType": "number",
+                "targetField": "CANCELED"
+              }
+            ],
+            "fields": {}
+          }
+        },
+        {
+          "id": "calculateField",
+          "options": {
+            "alias": "Total number of Test Plans",
+            "mode": "reduceRow",
+            "reduce": {
+              "include": [
+                "IN_PROGRESS",
+                "PENDING_APPROVAL",
+                "CLOSED",
+                "SCHEDULED",
+                "NEW",
+                "CANCELED",
+                "DEFINED",
+                "REVIEWED"
+              ],
+              "reducer": "sum"
+            }
+          }
+        },
+        {
+          "id": "sortBy",
+          "options": {
+            "fields": {},
+            "sort": [
+              {
+                "desc": true,
+                "field": "Total number of Test Plans"
+              }
+            ]
+          }
+        },
+        {
+          "id": "organize",
+          "options": {
+            "excludeByName": {
+              "System name, System ID\\State": true,
+              "Total number of Test Plans": true
+            },
+            "includeByName": {},
+            "indexByName": {},
+            "renameByName": {
+              "0": "System name",
+              "1": "System ID"
+            }
+          }
+        },
+        {
+          "id": "filterByValue",
+          "options": {
+            "filters": [
+              {
+                "config": {
+                  "id": "isNotNull",
+                  "options": {}
+                },
+                "fieldName": "System name"
+              },
+              {
+                "config": {
+                  "id": "notEqual",
+                  "options": {
+                    "value": ","
+                  }
+                },
+                "fieldName": "System name"
+              },
+              {
+                "config": {
+                  "id": "notEqual",
+                  "options": {
+                    "value": ""
+                  }
+                },
+                "fieldName": "System name"
+              }
+            ],
+            "match": "all",
+            "type": "include"
+          }
+        }
+      ],
+      "type": "barchart"
+    },
+    {
+      "datasource": {
+        "type": "datasource",
+        "uid": "-- Dashboard --"
+      },
+      "description": "Displays the most recent 1,000 Test Plans",
+      "fieldConfig": {
+        "defaults": {
+          "color": {
+            "fixedColor": "#808080",
+            "mode": "thresholds"
+          },
+          "custom": {
+            "axisBorderShow": false,
+            "axisCenteredZero": false,
+            "axisColorMode": "text",
+            "axisLabel": "",
+            "axisPlacement": "auto",
+            "fillOpacity": 80,
+            "gradientMode": "none",
+            "hideFrom": {
+              "legend": false,
+              "tooltip": false,
+              "viz": false
+            },
+            "lineWidth": 1,
+            "scaleDistribution": {
+              "type": "linear"
+            },
+            "thresholdsStyle": {
+              "mode": "off"
+            }
+          },
+          "mappings": [],
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "green"
+              }
+            ]
+          }
+        },
+        "overrides": [
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "NEW"
+            },
+            "properties": [
+              {
+                "id": "color",
+                "value": {
+                  "fixedColor": "#818386",
+                  "mode": "fixed"
+                }
+              },
+              {
+                "id": "displayName",
+                "value": "New"
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "DEFINED"
+            },
+            "properties": [
+              {
+                "id": "color",
+                "value": {
+                  "fixedColor": "#161617BF",
+                  "mode": "fixed"
+                }
+              },
+              {
+                "id": "displayName",
+                "value": "Defined"
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "REVIEWED"
+            },
+            "properties": [
+              {
+                "id": "color",
+                "value": {
+                  "fixedColor": "#804AD9",
+                  "mode": "fixed"
+                }
+              },
+              {
+                "id": "displayName",
+                "value": "Reviewed"
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "SCHEDULED"
+            },
+            "properties": [
+              {
+                "id": "color",
+                "value": {
+                  "fixedColor": "#009B65",
+                  "mode": "fixed"
+                }
+              },
+              {
+                "id": "displayName",
+                "value": "Scheduled"
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "IN_PROGRESS"
+            },
+            "properties": [
+              {
+                "id": "color",
+                "value": {
+                  "fixedColor": "#00A1D4",
+                  "mode": "fixed"
+                }
+              },
+              {
+                "id": "displayName",
+                "value": "In Progress"
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "PENDING_APPROVAL"
+            },
+            "properties": [
+              {
+                "id": "color",
+                "value": {
+                  "fixedColor": "#FF8126",
+                  "mode": "fixed"
+                }
+              },
+              {
+                "id": "displayName",
+                "value": "Pending Approval"
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "CLOSED"
+            },
+            "properties": [
+              {
+                "id": "color",
+                "value": {
+                  "fixedColor": "#009921",
+                  "mode": "fixed"
+                }
+              },
+              {
+                "id": "displayName",
+                "value": "Closed"
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "CANCELED"
+            },
+            "properties": [
+              {
+                "id": "color",
+                "value": {
+                  "fixedColor": "#C4000C",
+                  "mode": "fixed"
+                }
+              },
+              {
+                "id": "displayName",
+                "value": "Canceled"
+              }
+            ]
+          }
+        ]
+      },
+      "gridPos": {
+        "h": 17,
+        "w": 12,
+        "x": 12,
+        "y": 14
+      },
+      "id": 7,
+      "options": {
+        "barRadius": 0,
+        "barWidth": 0.97,
+        "fullHighlight": false,
+        "groupWidth": 0.7,
+        "legend": {
+          "calcs": [
+            "sum"
+          ],
+          "displayMode": "table",
+          "placement": "right",
+          "showLegend": true
+        },
+        "orientation": "horizontal",
+        "showValue": "never",
+        "stacking": "normal",
+        "tooltip": {
+          "hideZeros": false,
+          "mode": "single",
+          "sort": "none"
+        },
+        "xTickLabelRotation": 0,
+        "xTickLabelSpacing": 0
+      },
+      "pluginVersion": "10.2.3",
+      "targets": [
+        {
+          "datasource": {
+            "type": "datasource",
+            "uid": "-- Dashboard --"
+          },
+          "panelId": 6,
+          "refId": "A"
+        }
+      ],
+      "title": "Test Plans Assigned to Users | Due from ${__from:date:DD MMM yyyy} till ${__to:date:DD MMM yyyy}",
+      "transformations": [
+        {
+          "id": "groupBy",
+          "options": {
+            "fields": {
+              "Assigned to": {
+                "aggregations": [],
+                "operation": "groupby"
+              },
+              "State": {
+                "aggregations": [],
+                "operation": "groupby"
+              },
+              "System name": {
+                "aggregations": []
+              },
+              "Test plan ID": {
+                "aggregations": [
+                  "count"
+                ],
+                "operation": "aggregate"
+              },
+              "Test plan name": {
+                "aggregations": [],
+                "operation": "groupby"
+              }
+            }
+          }
+        },
+        {
+          "id": "filterByValue",
+          "options": {
+            "filters": [
+              {
+                "config": {
+                  "id": "isNotNull",
+                  "options": {}
+                },
+                "fieldName": "Assigned to"
+              },
+              {
+                "config": {
+                  "id": "notEqual",
+                  "options": {
+                    "value": ""
+                  }
+                },
+                "fieldName": "Assigned to"
+              },
+              {
+                "config": {
+                  "id": "isNotNull",
+                  "options": {}
+                },
+                "fieldName": "State"
+              },
+              {
+                "config": {
+                  "id": "notEqual",
+                  "options": {
+                    "value": ""
+                  }
+                },
+                "fieldName": "State"
+              }
+            ],
+            "match": "all",
+            "type": "include"
+          }
+        },
+        {
+          "id": "sortBy",
+          "options": {
+            "fields": {},
+            "sort": [
+              {
+                "field": "State"
+              }
+            ]
+          }
+        },
+        {
+          "id": "groupingToMatrix",
+          "options": {
+            "columnField": "State",
+            "emptyValue": "empty",
+            "rowField": "Assigned to",
+            "valueField": "Test plan ID (count)"
+          }
+        },
+        {
+          "id": "convertFieldType",
+          "options": {
+            "conversions": [
+              {
+                "destinationType": "number",
+                "targetField": "NEW"
+              },
+              {
+                "destinationType": "number",
+                "targetField": "DEFINED"
+              },
+              {
+                "destinationType": "number",
+                "targetField": "REVIEWED"
+              },
+              {
+                "destinationType": "number",
+                "targetField": "SCHEDULED"
+              },
+              {
+                "destinationType": "number",
+                "targetField": "IN_PROGRESS"
+              },
+              {
+                "destinationType": "number",
+                "targetField": "PENDING_APPROVAL"
+              },
+              {
+                "destinationType": "number",
+                "targetField": "CLOSED"
+              },
+              {
+                "destinationType": "number",
+                "targetField": "CANCELED"
+              }
+            ],
+            "fields": {}
+          }
+        },
+        {
+          "id": "calculateField",
+          "options": {
+            "alias": "Total number of Test Plans",
+            "mode": "reduceRow",
+            "reduce": {
+              "include": [
+                "NEW",
+                "SCHEDULED",
+                "PENDING_APPROVAL",
+                "IN_PROGRESS",
+                "DEFINED",
+                "CANCELED",
+                "REVIEWED",
+                "CLOSED"
+              ],
+              "reducer": "sum"
+            }
+          }
+        },
+        {
+          "id": "sortBy",
+          "options": {
+            "fields": {},
+            "sort": [
+              {
+                "desc": true,
+                "field": "Total number of Test Plans"
+              }
+            ]
+          }
+        },
+        {
+          "id": "organize",
+          "options": {
+            "excludeByName": {
+              "Total number of Test Plans": true
+            },
+            "includeByName": {},
+            "indexByName": {},
+            "renameByName": {}
+          }
+        }
+      ],
+      "type": "barchart"
+    },
+    {
+      "datasource": {
+        "type": "ni-sltestplans-datasource",
+        "uid": "ni-sltestplans-datasource"
+      },
+      "description": "Displays the most recent 1,000 Test Plans",
+      "fieldConfig": {
+        "defaults": {
+          "color": {
+            "mode": "thresholds"
+          },
+          "custom": {
+            "align": "auto",
+            "cellOptions": {
+              "type": "auto"
+            },
+            "filterable": true,
+            "inspect": false
+          },
+          "mappings": [],
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "green"
+              }
+            ]
+          }
+        },
+        "overrides": [
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "State"
+            },
+            "properties": [
+              {
+                "id": "mappings",
+                "value": [
+                  {
+                    "options": {
+                      "CANCELED": {
+                        "index": 7,
+                        "text": "Canceled"
+                      },
+                      "CLOSED": {
+                        "index": 6,
+                        "text": "Closed"
+                      },
+                      "DEFINED": {
+                        "index": 1,
+                        "text": "Defined"
+                      },
+                      "IN_PROGRESS": {
+                        "index": 4,
+                        "text": "In Progress"
+                      },
+                      "NEW": {
+                        "index": 0,
+                        "text": "New"
+                      },
+                      "PENDING_APPROVAL": {
+                        "index": 5,
+                        "text": "Pending Approval"
+                      },
+                      "REVIEWED": {
+                        "index": 2,
+                        "text": "Reviewed"
+                      },
+                      "SCHEDULED": {
+                        "index": 3,
+                        "text": "Scheduled"
+                      }
+                    },
+                    "type": "value"
+                  }
+                ]
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "Test plan ID"
+            },
+            "properties": [
+              {
+                "id": "custom.hidden",
+                "value": true
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "Test plan name"
+            },
+            "properties": [
+              {
+                "id": "links",
+                "value": [
+                  {
+                    "targetBlank": true,
+                    "title": "View Test Plan Details",
+                    "url": "../labmanagement/testplans/testplan/${__data.fields[\"Test plan ID\"]}"
+                  },
+                  {
+                    "targetBlank": true,
+                    "title": "View DUT Details",
+                    "url": "../assets/${__data.fields[\"DUT ID\"]}"
+                  }
+                ]
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "Product ID"
+            },
+            "properties": [
+              {
+                "id": "custom.hidden",
+                "value": true
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "Product name"
+            },
+            "properties": [
+              {
+                "id": "links",
+                "value": [
+                  {
+                    "targetBlank": true,
+                    "title": "View Product Details",
+                    "url": "../testinsights/products/product/${__data.fields[\"Product ID\"]}"
+                  }
+                ]
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "DUT ID"
+            },
+            "properties": [
+              {
+                "id": "custom.hidden",
+                "value": true
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "Planned start date/time"
+            },
+            "properties": [
+              {
+                "id": "unit",
+                "value": "dateTimeAsIso"
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "Estimated end date/time"
+            },
+            "properties": [
+              {
+                "id": "unit",
+                "value": "dateTimeAsIso"
+              }
+            ]
+          }
+        ]
+      },
+      "gridPos": {
+        "h": 8,
+        "w": 12,
+        "x": 0,
+        "y": 31
+      },
+      "id": 5,
+      "options": {
+        "cellHeight": "sm",
+        "footer": {
+          "countRows": true,
+          "fields": "",
+          "reducer": [
+            "count"
+          ],
+          "show": true
+        },
+        "showHeader": true,
+        "sortBy": []
+      },
+      "pluginVersion": "10.2.3",
+      "targets": [
+        {
+          "datasource": {
+            "type": "ni-sltestplans-datasource",
+            "uid": "ni-sltestplans-datasource"
+          },
+          "descending": true,
+          "orderBy": "UPDATED_AT",
+          "outputType": "Properties",
+          "properties": [
+            "NAME",
+            "STATE",
+            "PRODUCT_ID",
+            "PRODUCT_NAME",
+            "PLANNED_START_DATE_TIME",
+            "ESTIMATED_END_DATE_TIME",
+            "ID",
+            "DUT_ID"
+          ],
+          "queryBy": "(assignedTo = \"${__user.login}\" && workspace = \"$workspace\" && partNumber = \"$product\" && state != \"Closed\" && state != \"Canceled\" && plannedStartDateTime < \"${__to:date}\" && estimatedEndDateTime > \"${__from:date}\")",
+          "recordCount": 1000,
+          "refId": "Assigned to me"
+        }
+      ],
+      "title": "Test Plans | Assigned to Me | Due from ${__from:date:DD MMM yyyy} till ${__to:date:DD MMM yyyy}",
+      "type": "table"
+    },
+    {
+      "datasource": {
+        "type": "ni-sltestplans-datasource",
+        "uid": "ni-sltestplans-datasource"
+      },
+      "description": "Displays the most recent 1,000 Test Plans",
+      "fieldConfig": {
+        "defaults": {
+          "color": {
+            "mode": "thresholds"
+          },
+          "custom": {
+            "align": "auto",
+            "cellOptions": {
+              "type": "auto"
+            },
+            "filterable": true,
+            "inspect": false
+          },
+          "mappings": [],
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "green"
+              }
+            ]
+          }
+        },
+        "overrides": [
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "State"
+            },
+            "properties": [
+              {
+                "id": "mappings",
+                "value": [
+                  {
+                    "options": {
+                      "CANCELED": {
+                        "index": 7,
+                        "text": "Canceled"
+                      },
+                      "CLOSED": {
+                        "index": 6,
+                        "text": "Closed"
+                      },
+                      "DEFINED": {
+                        "index": 1,
+                        "text": "Defined"
+                      },
+                      "IN_PROGRESS": {
+                        "index": 4,
+                        "text": "In Progress"
+                      },
+                      "NEW": {
+                        "index": 0,
+                        "text": "New"
+                      },
+                      "PENDING_APPROVAL": {
+                        "index": 5,
+                        "text": "Pending Approval"
+                      },
+                      "REVIEWED": {
+                        "index": 2,
+                        "text": "Reviewed"
+                      },
+                      "SCHEDULED": {
+                        "index": 3,
+                        "text": "Scheduled"
+                      }
+                    },
+                    "type": "value"
+                  }
+                ]
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "Test plan ID"
+            },
+            "properties": [
+              {
+                "id": "custom.hidden",
+                "value": true
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "Test plan name"
+            },
+            "properties": [
+              {
+                "id": "links",
+                "value": [
+                  {
+                    "targetBlank": true,
+                    "title": "View Test Plan Details",
+                    "url": "../labmanagement/testplans/testplan/${__data.fields[\"Test plan ID\"]}"
+                  },
+                  {
+                    "targetBlank": true,
+                    "title": "View DUT Details",
+                    "url": "../assets/${__data.fields[\"DUT ID\"]}"
+                  }
+                ]
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "Product ID"
+            },
+            "properties": [
+              {
+                "id": "custom.hidden",
+                "value": true
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "Product name"
+            },
+            "properties": [
+              {
+                "id": "links",
+                "value": [
+                  {
+                    "targetBlank": true,
+                    "title": "View Product Details",
+                    "url": "../testinsights/products/product/${__data.fields[\"Product ID\"]}"
+                  }
+                ]
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "DUT ID"
+            },
+            "properties": [
+              {
+                "id": "custom.hidden",
+                "value": true
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "Planned start date/time"
+            },
+            "properties": [
+              {
+                "id": "unit",
+                "value": "dateTimeAsIso"
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "Estimated end date/time"
+            },
+            "properties": [
+              {
+                "id": "unit",
+                "value": "dateTimeAsIso"
+              }
+            ]
+          }
+        ]
+      },
+      "gridPos": {
+        "h": 8,
+        "w": 12,
+        "x": 12,
+        "y": 31
+      },
+      "id": 4,
+      "options": {
+        "cellHeight": "sm",
+        "footer": {
+          "countRows": true,
+          "fields": "",
+          "reducer": [
+            "count"
+          ],
+          "show": true
+        },
+        "showHeader": true,
+        "sortBy": []
+      },
+      "pluginVersion": "10.2.3",
+      "targets": [
+        {
+          "datasource": {
+            "type": "ni-sltestplans-datasource",
+            "uid": "ni-sltestplans-datasource"
+          },
+          "descending": true,
+          "orderBy": "UPDATED_AT",
+          "outputType": "Properties",
+          "properties": [
+            "NAME",
+            "STATE",
+            "PRODUCT_ID",
+            "PRODUCT_NAME",
+            "PLANNED_START_DATE_TIME",
+            "ESTIMATED_END_DATE_TIME",
+            "ID",
+            "DUT_ID"
+          ],
+          "queryBy": "(createdBy = \"${__user.login}\" && workspace = \"$workspace\" && partNumber = \"$product\" && state != \"Canceled\" && state != \"Closed\" && plannedStartDateTime < \"${__to:date}\" && estimatedEndDateTime > \"${__from:date}\")",
+          "recordCount": 1000,
+          "refId": "Created by me"
+        }
+      ],
+      "title": "Test Plans | Created by Me | Due from ${__from:date:DD MMM yyyy} till ${__to:date:DD MMM yyyy}",
+      "type": "table"
+    }
+  ],
+  "refresh": "",
+  "schemaVersion": 41,
+  "tags": [],
+  "templating": {
+    "list": [
+      {
+        "current": {
+          "selected": true,
+          "text": [
+            "All"
+          ],
+          "value": [
+            "$__all"
+          ]
+        },
+        "datasource": {
+          "type": "ni-slworkspace-datasource",
+          "uid": "ni-slworkspace-datasource"
+        },
+        "definition": "",
+        "hide": 0,
+        "includeAll": true,
+        "label": "Workspace",
+        "multi": true,
+        "name": "workspace",
+        "options": [],
+        "query": "",
+        "refresh": 1,
+        "regex": "",
+        "skipUrlSync": false,
+        "sort": 0,
+        "type": "query"
+      },
+      {
+        "current": {
+          "selected": true,
+          "text": [
+            "All"
+          ],
+          "value": [
+            "$__all"
+          ]
+        },
+        "datasource": {
+          "type": "ni-slproducts-datasource",
+          "uid": "ni-slproducts-datasource"
+        },
+        "definition": "",
+        "hide": 0,
+        "includeAll": true,
+        "label": "Product",
+        "multi": true,
+        "name": "product",
+        "options": [],
+        "query": {
+          "queryBy": "(Workspace = \"$workspace\" && !(PartNumber.Contains(\";\")))"
+        },
+        "refresh": 1,
+        "regex": "",
+        "skipUrlSync": false,
+        "sort": 0,
+        "type": "query"
+      },
+      {
+        "current": {
+          "selected": false,
+          "text": "New",
+          "value": "New"
+        },
+        "hide": 2,
+        "includeAll": false,
+        "multi": false,
+        "name": "testPlanTableSelectedTile",
+        "options": [
+          {
+            "selected": false,
+            "text": "Due to start",
+            "value": "Due to start"
+          },
+          {
+            "selected": false,
+            "text": "Past due start",
+            "value": "Past due start"
+          },
+          {
+            "selected": false,
+            "text": "Due completion",
+            "value": "Due completion"
+          },
+          {
+            "selected": false,
+            "text": "Past due completion",
+            "value": "Past due completion"
+          },
+          {
+            "selected": true,
+            "text": "New",
+            "value": "New"
+          },
+          {
+            "selected": false,
+            "text": "Defined",
+            "value": "Defined"
+          },
+          {
+            "selected": false,
+            "text": "Reviewed",
+            "value": "Reviewed"
+          },
+          {
+            "selected": false,
+            "text": "Scheduled",
+            "value": "Scheduled"
+          },
+          {
+            "selected": false,
+            "text": "In Progress",
+            "value": "In Progress"
+          },
+          {
+            "selected": false,
+            "text": "Pending Approval",
+            "value": "Pending Approval"
+          },
+          {
+            "selected": false,
+            "text": "Closed",
+            "value": "Closed"
+          },
+          {
+            "selected": false,
+            "text": "Canceled",
+            "value": "Canceled"
+          }
+        ],
+        "query": "Due to start, Past due start, Due completion, Past due completion, New, Defined, Reviewed, Scheduled, In Progress, Pending Approval, Closed, Canceled",
+        "queryValue": "",
+        "skipUrlSync": false,
+        "type": "custom"
+      },
+      {
+        "current": {
+          "selected": false,
+          "text": "New",
+          "value": "New"
+        },
+        "hide": 2,
+        "includeAll": false,
+        "multi": false,
+        "name": "testPlanTableState",
+        "options": [
+          {
+            "selected": true,
+            "text": "New",
+            "value": "New"
+          },
+          {
+            "selected": false,
+            "text": "Defined",
+            "value": "Defined"
+          },
+          {
+            "selected": false,
+            "text": "Reviewed",
+            "value": "Reviewed"
+          },
+          {
+            "selected": false,
+            "text": "Scheduled",
+            "value": "Scheduled"
+          },
+          {
+            "selected": false,
+            "text": "InProgress",
+            "value": "InProgress"
+          },
+          {
+            "selected": false,
+            "text": "PendingApproval",
+            "value": "PendingApproval"
+          },
+          {
+            "selected": false,
+            "text": "Closed",
+            "value": "Closed"
+          },
+          {
+            "selected": false,
+            "text": "Canceled",
+            "value": "Canceled"
+          }
+        ],
+        "query": "New, Defined, Reviewed, Scheduled, InProgress, PendingApproval, Closed, Canceled",
+        "queryValue": "",
+        "skipUrlSync": false,
+        "type": "custom"
+      },
+      {
+        "current": {
+          "selected": true,
+          "text": [
+            "State Test plan ID",
+            "State System ID",
+            "State Product ID",
+            "State DUT ID",
+            "State Test plan name",
+            "State State",
+            "State Assigned to",
+            "State System name",
+            "State DUT serial number",
+            "State Product name",
+            "State Workspace",
+            "State Planned start date/time",
+            "State Estimated end date/time"
+          ],
+          "value": [
+            "State Test plan ID",
+            "State System ID",
+            "State Product ID",
+            "State DUT ID",
+            "State Test plan name",
+            "State State",
+            "State Assigned to",
+            "State System name",
+            "State DUT serial number",
+            "State Product name",
+            "State Workspace",
+            "State Planned start date/time",
+            "State Estimated end date/time"
+          ]
+        },
+        "hide": 2,
+        "includeAll": false,
+        "multi": true,
+        "name": "testPlanTableFields",
+        "options": [
+          {
+            "selected": true,
+            "text": "State Test plan ID",
+            "value": "State Test plan ID"
+          },
+          {
+            "selected": true,
+            "text": "State System ID",
+            "value": "State System ID"
+          },
+          {
+            "selected": true,
+            "text": "State Product ID",
+            "value": "State Product ID"
+          },
+          {
+            "selected": true,
+            "text": "State DUT ID",
+            "value": "State DUT ID"
+          },
+          {
+            "selected": true,
+            "text": "State Test plan name",
+            "value": "State Test plan name"
+          },
+          {
+            "selected": true,
+            "text": "State State",
+            "value": "State State"
+          },
+          {
+            "selected": true,
+            "text": "State Assigned to",
+            "value": "State Assigned to"
+          },
+          {
+            "selected": true,
+            "text": "State System name",
+            "value": "State System name"
+          },
+          {
+            "selected": true,
+            "text": "State DUT serial number",
+            "value": "State DUT serial number"
+          },
+          {
+            "selected": true,
+            "text": "State Product name",
+            "value": "State Product name"
+          },
+          {
+            "selected": true,
+            "text": "State Workspace",
+            "value": "State Workspace"
+          },
+          {
+            "selected": true,
+            "text": "State Planned start date/time",
+            "value": "State Planned start date/time"
+          },
+          {
+            "selected": true,
+            "text": "State Estimated end date/time",
+            "value": "State Estimated end date/time"
+          },
+          {
+            "selected": false,
+            "text": "Due to start Test plan ID",
+            "value": "Due to start Test plan ID"
+          },
+          {
+            "selected": false,
+            "text": "Due to start System ID",
+            "value": "Due to start System ID"
+          },
+          {
+            "selected": false,
+            "text": "Due to start Product ID",
+            "value": "Due to start Product ID"
+          },
+          {
+            "selected": false,
+            "text": "Due to start DUT ID",
+            "value": "Due to start DUT ID"
+          },
+          {
+            "selected": false,
+            "text": "Due to start Test plan name",
+            "value": "Due to start Test plan name"
+          },
+          {
+            "selected": false,
+            "text": "Due to start State",
+            "value": "Due to start State"
+          },
+          {
+            "selected": false,
+            "text": "Due to start Assigned to",
+            "value": "Due to start Assigned to"
+          },
+          {
+            "selected": false,
+            "text": "Due to start System name",
+            "value": "Due to start System name"
+          },
+          {
+            "selected": false,
+            "text": "Due to start DUT serial number",
+            "value": "Due to start DUT serial number"
+          },
+          {
+            "selected": false,
+            "text": "Due to start Product name",
+            "value": "Due to start Product name"
+          },
+          {
+            "selected": false,
+            "text": "Due to start Workspace",
+            "value": "Due to start Workspace"
+          },
+          {
+            "selected": false,
+            "text": "Due to start Planned start date/time",
+            "value": "Due to start Planned start date/time"
+          },
+          {
+            "selected": false,
+            "text": "Due to start Estimated end date/time",
+            "value": "Due to start Estimated end date/time"
+          },
+          {
+            "selected": false,
+            "text": "Past due start Test plan ID",
+            "value": "Past due start Test plan ID"
+          },
+          {
+            "selected": false,
+            "text": "Past due start System ID",
+            "value": "Past due start System ID"
+          },
+          {
+            "selected": false,
+            "text": "Past due start Product ID",
+            "value": "Past due start Product ID"
+          },
+          {
+            "selected": false,
+            "text": "Past due start DUT ID",
+            "value": "Past due start DUT ID"
+          },
+          {
+            "selected": false,
+            "text": "Past due start Test plan name",
+            "value": "Past due start Test plan name"
+          },
+          {
+            "selected": false,
+            "text": "Past due start State",
+            "value": "Past due start State"
+          },
+          {
+            "selected": false,
+            "text": "Past due start Assigned to",
+            "value": "Past due start Assigned to"
+          },
+          {
+            "selected": false,
+            "text": "Past due start System name",
+            "value": "Past due start System name"
+          },
+          {
+            "selected": false,
+            "text": "Past due start DUT serial number",
+            "value": "Past due start DUT serial number"
+          },
+          {
+            "selected": false,
+            "text": "Past due start Product name",
+            "value": "Past due start Product name"
+          },
+          {
+            "selected": false,
+            "text": "Past due start Workspace",
+            "value": "Past due start Workspace"
+          },
+          {
+            "selected": false,
+            "text": "Past due start Planned start date/time",
+            "value": "Past due start Planned start date/time"
+          },
+          {
+            "selected": false,
+            "text": "Past due start Estimated end date/time",
+            "value": "Past due start Estimated end date/time"
+          },
+          {
+            "selected": false,
+            "text": "Due completion Test plan ID",
+            "value": "Due completion Test plan ID"
+          },
+          {
+            "selected": false,
+            "text": "Due completion System ID",
+            "value": "Due completion System ID"
+          },
+          {
+            "selected": false,
+            "text": "Due completion Product ID",
+            "value": "Due completion Product ID"
+          },
+          {
+            "selected": false,
+            "text": "Due completion DUT ID",
+            "value": "Due completion DUT ID"
+          },
+          {
+            "selected": false,
+            "text": "Due completion Test plan name",
+            "value": "Due completion Test plan name"
+          },
+          {
+            "selected": false,
+            "text": "Due completion State",
+            "value": "Due completion State"
+          },
+          {
+            "selected": false,
+            "text": "Due completion Assigned to",
+            "value": "Due completion Assigned to"
+          },
+          {
+            "selected": false,
+            "text": "Due completion System name",
+            "value": "Due completion System name"
+          },
+          {
+            "selected": false,
+            "text": "Due completion DUT serial number",
+            "value": "Due completion DUT serial number"
+          },
+          {
+            "selected": false,
+            "text": "Due completion Product name",
+            "value": "Due completion Product name"
+          },
+          {
+            "selected": false,
+            "text": "Due completion Workspace",
+            "value": "Due completion Workspace"
+          },
+          {
+            "selected": false,
+            "text": "Due completion Planned start date/time",
+            "value": "Due completion Planned start date/time"
+          },
+          {
+            "selected": false,
+            "text": "Due completion Estimated end date/time",
+            "value": "Due completion Estimated end date/time"
+          },
+          {
+            "selected": false,
+            "text": "Past due completion Test plan ID",
+            "value": "Past due completion Test plan ID"
+          },
+          {
+            "selected": false,
+            "text": "Past due completion System ID",
+            "value": "Past due completion System ID"
+          },
+          {
+            "selected": false,
+            "text": "Past due completion Product ID",
+            "value": "Past due completion Product ID"
+          },
+          {
+            "selected": false,
+            "text": "Past due completion DUT ID",
+            "value": "Past due completion DUT ID"
+          },
+          {
+            "selected": false,
+            "text": "Past due completion Test plan name",
+            "value": "Past due completion Test plan name"
+          },
+          {
+            "selected": false,
+            "text": "Past due completion State",
+            "value": "Past due completion State"
+          },
+          {
+            "selected": false,
+            "text": "Past due completion Assigned to",
+            "value": "Past due completion Assigned to"
+          },
+          {
+            "selected": false,
+            "text": "Past due completion System name",
+            "value": "Past due completion System name"
+          },
+          {
+            "selected": false,
+            "text": "Past due completion DUT serial number",
+            "value": "Past due completion DUT serial number"
+          },
+          {
+            "selected": false,
+            "text": "Past due completion Product name",
+            "value": "Past due completion Product name"
+          },
+          {
+            "selected": false,
+            "text": "Past due completion Workspace",
+            "value": "Past due completion Workspace"
+          },
+          {
+            "selected": false,
+            "text": "Past due completion Planned start date/time",
+            "value": "Past due completion Planned start date/time"
+          },
+          {
+            "selected": false,
+            "text": "Past due completion Estimated end date/time",
+            "value": "Past due completion Estimated end date/time"
+          }
+        ],
+        "query": "State Test plan ID,State System ID,State Product ID,State DUT ID,State Test plan name,State State,State Assigned to,State System name,State DUT serial number,State Product name,State Workspace,State Planned start date/time,State Estimated end date/time,Due to start Test plan ID,Due to start System ID,Due to start Product ID,Due to start DUT ID,Due to start Test plan name,Due to start State,Due to start Assigned to,Due to start System name,Due to start DUT serial number,Due to start Product name,Due to start Workspace,Due to start Planned start date/time,Due to start Estimated end date/time,Past due start Test plan ID,Past due start System ID,Past due start Product ID,Past due start DUT ID,Past due start Test plan name,Past due start State,Past due start Assigned to,Past due start System name,Past due start DUT serial number,Past due start Product name,Past due start Workspace,Past due start Planned start date/time,Past due start Estimated end date/time,Due completion Test plan ID,Due completion System ID,Due completion Product ID,Due completion DUT ID,Due completion Test plan name,Due completion State,Due completion Assigned to,Due completion System name,Due completion DUT serial number,Due completion Product name,Due completion Workspace,Due completion Planned start date/time,Due completion Estimated end date/time,Past due completion Test plan ID,Past due completion System ID,Past due completion Product ID,Past due completion DUT ID,Past due completion Test plan name,Past due completion State,Past due completion Assigned to,Past due completion System name,Past due completion DUT serial number,Past due completion Product name,Past due completion Workspace,Past due completion Planned start date/time,Past due completion Estimated end date/time",
+        "queryValue": "",
+        "skipUrlSync": false,
+        "type": "custom"
+      }
+    ]
+  },
+  "time": {
+    "from": "now",
+    "to": "now+30d"
+  },
+  "timepicker": {},
+  "timezone": "",
+  "title": "Lab Test Overview",
+  "uid": "lab-test-overview",
+  "version": 1,
+  "weekStart": ""
+}
