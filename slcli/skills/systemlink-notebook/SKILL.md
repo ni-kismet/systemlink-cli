@@ -71,7 +71,8 @@ in the cell's `.metadata` field for SystemLink to recognize the parameters and o
 
 - `papermill.parameters` keys **must** match the variable names in the code cell
 - `systemlink.parameters[].id` **must** match the variable names in the code cell
-- `systemlink.outputs[].id` **must** match the key used in the result dict passed to `sb.glue`
+- `systemlink.outputs[].id` **must** match the `id` field in each output object in the
+  `result` list passed to `sb.glue('result', result)`
 - `tags: ["parameters"]` is **required** — this is how papermill identifies the cell
 - `systemlink.version` must be `2` for most notebooks, or `1` for **Work Item Automations**
 - Supported parameter types: `string`, `integer`, `float`, `boolean`, `string[]`
