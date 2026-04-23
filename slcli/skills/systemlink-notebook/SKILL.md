@@ -208,7 +208,6 @@ from nisystemlink.clients.assetmanagement import AssetManagementClient
 
 # Direct HTTP (when no typed client exists)
 import requests
-from nisystemlink.clients.core import HttpConfigurationManager
 config = HttpConfigurationManager.get_configuration()
 base_url = config.server_uri.rstrip("/")
 headers = {"x-ni-api-key": config.api_keys[0]}
