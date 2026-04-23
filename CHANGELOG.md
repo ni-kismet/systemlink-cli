@@ -1,5 +1,27 @@
 # CHANGELOG
 
+<!-- towncrier release notes start -->
+
+## v1.11.0 (2026-04-23)
+
+### Features
+
+- Prefer the materialized `search-systems` endpoint for system queries with automatic fallback to `query-systems`, and add JSON field selection options for `slcli system list`. (#121)
+
+
+## v1.10.0 (2026-04-22)
+
+### Features
+
+- Add `slcli spec` commands for listing, querying, creating, updating, deleting, importing, and exporting SystemLink specifications, and restructure the bundled `slcli` skill into a compact entry point with on-demand reference docs for commands, datasheet workflows, and troubleshooting. (#120)
+
+
+## v1.9.4 (2026-04-22)
+
+### Bug Fixes
+
+- Switch the repository from python-semantic-release to a Towncrier-based release flow that requires PR news fragments, computes the next version from fragment types, and rebuilds `CHANGELOG.md` during release automation.
+
 
 ## v0.42.0 (2026-03-03)
 

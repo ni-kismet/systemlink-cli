@@ -329,7 +329,10 @@ def get_web_url() -> str:
             return str(maybe).rstrip("/")
 
     # 4) Legacy keyring entry fallback
-    url = keyring.get_password("systemlink-cli", "SYSTEMLINK_WEB_URL")
+    try:
+        url = keyring.get_password("systemlink-cli", "SYSTEMLINK_WEB_URL")
+    except Exception:
+        url = None
     if url:
         return url.rstrip("/")
 

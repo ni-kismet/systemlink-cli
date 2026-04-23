@@ -154,7 +154,6 @@ For Systems Grid notebooks, validate that:
 - The first value in each row is the system ID string.
 - For single-column grid reports, use exactly two columns: `minion id` and the report value column.
 - If the notebook is intended to populate one grid column, avoid extra columns unless explicitly required.
-
 ### Systems Grid reports
 
 When the notebook is used as a Systems Grid column, the `data_frame` output
@@ -186,7 +185,6 @@ result = [{
 }]
 sb.glue('result', result)
 ```
-
 ## Common Imports
 
 ```python
@@ -213,6 +211,19 @@ base_url = config.server_uri.rstrip("/")
 headers = {"x-ni-api-key": config.api_keys[0]}
 ```
 
+## Client and API References
+
+- Prefer the official Python client libraries when they cover the target service:
+  https://github.com/ni/nisystemlink-clients-python
+- If a SystemLink service does not have a Python client yet, call the REST API
+  directly and use the hosted OpenAPI docs to discover endpoints and schemas:
+  https://demo-api.lifecyclesolutions.ni.com/niapis/
+- For notebook patterns and end-to-end examples, check the SystemLink Enterprise
+  examples repository:
+  https://github.com/ni/systemlink-enterprise-examples/
+
+When using direct HTTP, prefer the OpenAPI docs first to confirm the service base
+path, request body shape, and response schema before writing notebook code.
 ## Systems Query Pattern
 
 The `SystemsApi` uses a projection/filter pattern for querying:
@@ -246,7 +257,6 @@ systems = getattr(data, 'data', None)
 if systems is None:
   systems = data.get('data', data) if isinstance(data, dict) else data
 ```
-
 ### Common filter expressions
 
 | Filter | Description |
@@ -377,7 +387,6 @@ Validation steps:
 - Systems Grid format mismatch: ensure first column is `minion id` and output is a valid `data_frame` payload.
 - Runtime loop errors (`asyncio.run() cannot be called from a running event loop`): replace `asyncio.run(...)` with top-level `await`.
 - Result appears unchanged after update: rerun with `--no-cache` and re-check returned execution JSON.
-
 ## Example
 
 See [notebook-patterns.md](./references/notebook-patterns.md) for a complete

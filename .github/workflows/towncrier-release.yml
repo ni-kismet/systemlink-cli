@@ -1,0 +1,73 @@
+name: Towncrier Release
+
+on:
+  push:
+    branches:
+      - main
+  workflow_dispatch:
+
+permissions:
+  contents: write
+  id-token: write
+
+jobs:
+  towncrier-release:
+    runs-on: ubuntu-latest
+    concurrency: release
+    if: >
+      github.repository == 'ni-kismet/systemlink-cli'
+      && !startsWith(github.event.head_commit.message, 'chore(release):')
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v6
+        with:
+          fetch-depth: 0
+          token: ${{ secrets.HOMEBREW_GITHUB_TOKEN }}
+          ref: ${{ github.ref_name }}
+
+      - name: Set up Python
+        uses: actions/setup-python@v6
+        with:
+          python-version: '3.13'
+
+      - name: Install Poetry
+        run: pip install poetry
+
+      - name: Install dependencies
+        run: poetry install
+
+      - name: Run tests
+        run: poetry run pytest
+
+      - name: Determine next release version
+        id: version
+        shell: bash
+        run: |
+          version=$(poetry run python scripts/towncrier_release.py --next-version)
+          echo "version=$version" >> "$GITHUB_OUTPUT"
+          if [ -n "$version" ]; then
+            echo "released=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "released=false" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Validate Towncrier fragments
+        if: ${{ steps.version.outputs.released == 'true' }}
+        run: poetry run towncrier check
+
+      - name: Build release from Towncrier fragments
+        if: ${{ steps.version.outputs.released == 'true' }}
+        run: |
+          poetry run python scripts/towncrier_release.py --apply --version "${{ steps.version.outputs.version }}"
+
+      - name: Commit release metadata and tag
+        if: ${{ steps.version.outputs.released == 'true' }}
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git add -A pyproject.toml slcli/_version.py CHANGELOG.md newsfragments
+          git commit -m "chore(release): v${{ steps.version.outputs.version }}"
+          git tag -a "v${{ steps.version.outputs.version }}" -m "v${{ steps.version.outputs.version }}"
+          git push origin HEAD:${{ github.ref_name }}
+          git push origin "refs/tags/v${{ steps.version.outputs.version }}"

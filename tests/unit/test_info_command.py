@@ -71,6 +71,8 @@ class TestInfoCommand:
             },
             "file_query_endpoint": "query-files",
             "elasticsearch_available": False,
+            "system_query_endpoint": "query-systems",
+            "materialized_search_available": False,
             "platform": "SLS",
         }
 
@@ -96,6 +98,8 @@ class TestInfoCommand:
         assert "Service Health" in result.output
         assert "Work Order" in result.output
         assert "Not available" in result.output
+        assert "System Query" in result.output
+        assert "query-systems" in result.output
         assert "query-files" in result.output
         assert "Elasticsearch unavailable" not in result.output
 
@@ -153,6 +157,8 @@ class TestInfoCommand:
                 "Test Monitor": "ok",
                 "Work Order": "not_found",
             },
+            "system_query_endpoint": "query-systems",
+            "materialized_search_available": False,
             "platform": "SLS",
         }
 
@@ -175,6 +181,7 @@ class TestInfoCommand:
         output = json.loads(result.output)
         assert output["platform"] == "SLS"
         assert output["logged_in"] is True
+        assert output["system_query_endpoint"] == "query-systems"
         assert "features" not in output
 
     def test_info_command_not_logged_in(self, monkeypatch: Any) -> None:

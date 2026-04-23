@@ -11,7 +11,14 @@ import questionary
 from .utils import ExitCodes
 
 SKILL_NAME = "slcli"
-SKILL_CHOICES = ["slcli", "systemlink-webapp", "systemlink-notebook"]
+_FALLBACK_SKILL_CHOICES = [
+    "nipkg-file-package",
+    "slcli",
+    "systemlink-job-debugging",
+    "systemlink-notebook",
+    "systemlink-python-test",
+    "systemlink-webapp",
+]
 
 # Mapping of client name -> (personal skills dir, project subdir relative to repo root)
 # personal dir uses Path.home() so it's always resolved at call time via _personal_dir().
@@ -21,6 +28,45 @@ _CLIENT_TABLE: Dict[str, Tuple[str, str]] = {
 }
 
 CLIENT_CHOICES = list(_CLIENT_TABLE.keys())
+
+
+def _skills_dir_candidates() -> List[Path]:
+    """Return candidate bundled skills directories for source and frozen layouts."""
+    candidates: List[Path] = []
+
+    meipass = getattr(sys, "_MEIPASS", None)
+    if meipass:
+        candidates.append(Path(meipass) / "skills")
+
+    if getattr(sys, "frozen", False):
+        candidates.append(Path(sys.executable).resolve().parent / "skills")
+
+    candidates.append(Path(__file__).resolve().parent / "skills")
+    return candidates
+
+
+def _skill_names_in_directory(directory: Path) -> List[str]:
+    """Return sorted bundled skill names for a skills directory."""
+    if not directory.exists():
+        return []
+
+    return sorted(
+        child.name
+        for child in directory.iterdir()
+        if child.is_dir() and (child / "SKILL.md").exists()
+    )
+
+
+def _discover_skill_choices() -> List[str]:
+    """Discover bundled skills from the current installation layout."""
+    for candidate in _skills_dir_candidates():
+        names = _skill_names_in_directory(candidate)
+        if names:
+            return names
+    return list(_FALLBACK_SKILL_CHOICES)
+
+
+SKILL_CHOICES = _discover_skill_choices()
 
 
 def _personal_dir(client: str) -> Path:
@@ -57,24 +103,8 @@ def _find_bundled_skills_dir() -> Path:
     Raises:
         FileNotFoundError: If the skills directory cannot be found.
     """
-    candidates: List[Path] = []
-
-    # PyInstaller onefile mode
-    meipass = getattr(sys, "_MEIPASS", None)
-    if meipass:
-        candidates.append(Path(meipass) / "skills")
-
-    # PyInstaller onedir / frozen executable
-    if getattr(sys, "frozen", False):
-        candidates.append(Path(sys.executable).resolve().parent / "skills")
-
-    # pip install / development: skills/ bundled inside the slcli package
-    candidates.append(Path(__file__).resolve().parent / "skills")
-
-    for candidate in candidates:
-        if candidate.exists() and any(
-            (candidate / name / "SKILL.md").exists() for name in SKILL_CHOICES
-        ):
+    for candidate in _skills_dir_candidates():
+        if _skill_names_in_directory(candidate):
             return candidate
 
     raise FileNotFoundError(
@@ -178,7 +208,7 @@ def register_skill_commands(cli: Any) -> None:
         "-k",
         type=click.Choice(SKILL_CHOICES + ["all"], case_sensitive=False),
         default=None,
-        help="Skill to install (slcli, systemlink-webapp, systemlink-notebook, or all).",
+        help=f"Skill to install ({', '.join(SKILL_CHOICES)}, or all).",
     )
     @click.option(
         "--client",
@@ -207,7 +237,7 @@ def register_skill_commands(cli: Any) -> None:
         """Install agent skills for AI coding assistants.
 
         Copies bundled skills into the skills directory of one or more AI clients.
-        Available skills: slcli, systemlink-webapp, systemlink-notebook.
+        Available skills are shown in `--help` and prompted interactively.
         Supported clients and their skill locations:
 
                     \b

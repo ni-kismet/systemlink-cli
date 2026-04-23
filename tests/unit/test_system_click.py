@@ -9,6 +9,7 @@ import pytest
 from click.testing import CliRunner
 from slcli.system_click import (
     _LIST_PROJECTION,
+    _SLIM_LIST_PROJECTION,
     _build_job_filter,
     _build_system_filter,
     _calculate_column_widths,
@@ -30,6 +31,8 @@ from slcli.system_click import (
     _query_all_items,
     register_system_commands,
 )
+from slcli.system_query_utils import build_materialized_system_search_filter
+from slcli.utils import ExitCodes
 
 
 def patch_keyring(monkeypatch: Any) -> None:
@@ -371,6 +374,11 @@ class TestBuildSystemFilter:
         with pytest.raises(SystemExit):
             _build_system_filter(property_filters=('"; DROP TABLE--=bad',))
 
+    def test_materialized_property_filter_invalid_key(self) -> None:
+        """Test materialized property filter shares the same key validation."""
+        with pytest.raises(SystemExit):
+            build_materialized_system_search_filter(property_filters=('"; DROP TABLE--=bad',))
+
     def test_workspace_filter(self) -> None:
         """Test workspace filter."""
         result = _build_system_filter(workspace_id="ws-1")
@@ -564,6 +572,46 @@ class TestQueryAllItems:
 class TestListSystems:
     """Tests for 'system list' command."""
 
+    def test_list_json_default_schema_is_slim(self, monkeypatch: Any, runner: CliRunner) -> None:
+        """Default JSON output uses the slim schema from search-systems."""
+        patch_keyring(monkeypatch)
+
+        def mock_post(*a: Any, **kw: Any) -> Any:
+            return MockResponse(
+                {
+                    "systems": [
+                        {
+                            "id": "minion-PXI-1234",
+                            "alias": "PXI Controller A",
+                            "workspace": "ws-1",
+                            "connected": "CONNECTED",
+                            "advancedGrains": {
+                                "host": "DESKTOP-PXI1234",
+                                "os": "Windows",
+                            },
+                        }
+                    ]
+                }
+            )
+
+        monkeypatch.setattr("slcli.system_click.make_api_request", mock_post)
+        monkeypatch.setattr("slcli.system_click.get_workspace_map", lambda: {})
+
+        cli = make_cli()
+        result = runner.invoke(cli, ["system", "list", "-f", "json"])
+        assert result.exit_code == 0
+        data = json.loads(result.output)
+        assert data == [
+            {
+                "id": "minion-PXI-1234",
+                "alias": "PXI Controller A",
+                "workspace": "ws-1",
+                "connected": "CONNECTED",
+                "host": "DESKTOP-PXI1234",
+                "kernel": "Windows",
+            }
+        ]
+
     def test_list_json(self, monkeypatch: Any, runner: CliRunner) -> None:
         """Test listing systems in JSON format."""
         patch_keyring(monkeypatch)
@@ -623,7 +671,7 @@ class TestListSystems:
         cli = make_cli()
         result = runner.invoke(cli, ["system", "list", "--alias", "PXI"])
         assert result.exit_code == 0
-        assert 'alias.Contains("PXI")' in captured_payloads[0].get("filter", "")
+        assert 'alias:"*PXI*"' in captured_payloads[0].get("filter", "")
 
     def test_list_with_state_filter(self, monkeypatch: Any, runner: CliRunner) -> None:
         """Test listing with state filter."""
@@ -640,7 +688,7 @@ class TestListSystems:
         cli = make_cli()
         result = runner.invoke(cli, ["system", "list", "-f", "json", "--state", "CONNECTED"])
         assert result.exit_code == 0
-        assert 'connected.data.state = "CONNECTED"' in captured_payloads[0].get("filter", "")
+        assert 'connected:"CONNECTED"' in captured_payloads[0].get("filter", "")
 
     def test_list_with_os_filter(self, monkeypatch: Any, runner: CliRunner) -> None:
         """Test listing with OS filter."""
@@ -657,7 +705,10 @@ class TestListSystems:
         cli = make_cli()
         result = runner.invoke(cli, ["system", "list", "-f", "json", "--os", "Windows"])
         assert result.exit_code == 0
-        assert 'grains.data.kernel.Contains("Windows")' in captured_payloads[0].get("filter", "")
+        assert (
+            '(advancedGrains.os:"*Windows*" OR minionDetails.osFullName:"*Windows*")'
+            in captured_payloads[0].get("filter", "")
+        )
 
     def test_list_with_host_filter(self, monkeypatch: Any, runner: CliRunner) -> None:
         """Test listing with host filter."""
@@ -674,7 +725,10 @@ class TestListSystems:
         cli = make_cli()
         result = runner.invoke(cli, ["system", "list", "-f", "json", "--host", "PXI"])
         assert result.exit_code == 0
-        assert 'grains.data.host.Contains("PXI")' in captured_payloads[0].get("filter", "")
+        assert (
+            '(advancedGrains.host:"*PXI*" OR minionDetails.localhost:"*PXI*")'
+            in captured_payloads[0].get("filter", "")
+        )
 
     def test_list_with_has_package(self, monkeypatch: Any, runner: CliRunner) -> None:
         """Test listing with package filter (client-side)."""
@@ -708,7 +762,7 @@ class TestListSystems:
         cli = make_cli()
         result = runner.invoke(cli, ["system", "list", "-f", "json", "--workspace", "ws-1"])
         assert result.exit_code == 0
-        assert 'workspace = "ws-1"' in captured_payloads[0].get("filter", "")
+        assert 'workspace:"ws-1"' in captured_payloads[0].get("filter", "")
 
     def test_list_empty_json(self, monkeypatch: Any, runner: CliRunner) -> None:
         """Test listing when no systems found (JSON)."""
@@ -770,7 +824,7 @@ class TestListSystems:
         cli = make_cli()
         result = runner.invoke(cli, ["system", "list", "-f", "json", "--has-keyword", "production"])
         assert result.exit_code == 0
-        assert 'keywords.data.Contains("production")' in captured_payloads[0].get("filter", "")
+        assert 'keywords:"production"' in captured_payloads[0].get("filter", "")
 
     def test_list_with_property_filter(self, monkeypatch: Any, runner: CliRunner) -> None:
         """Test listing with property filter."""
@@ -797,7 +851,7 @@ class TestListSystems:
             ],
         )
         assert result.exit_code == 0
-        assert 'properties.data.Location = "Building 5"' in captured_payloads[0].get("filter", "")
+        assert 'properties.Location:"Building 5"' in captured_payloads[0].get("filter", "")
 
     def test_list_with_custom_filter(self, monkeypatch: Any, runner: CliRunner) -> None:
         """Test listing with custom filter."""
@@ -852,6 +906,155 @@ class TestListSystems:
         assert result.exit_code == 0
         assert "projection" in captured_payloads[0]
         assert "id" in captured_payloads[0]["projection"]
+
+    def test_list_json_with_extended_field_uses_query_projection(
+        self, monkeypatch: Any, runner: CliRunner
+    ) -> None:
+        """Requesting an extended JSON field forces the legacy query projection path."""
+        patch_keyring(monkeypatch)
+        captured_calls: List[Dict[str, Any]] = []
+        projected_system = {
+            "id": SAMPLE_SYSTEM["id"],
+            "alias": SAMPLE_SYSTEM["alias"],
+            "workspace": SAMPLE_SYSTEM["workspace"],
+            "connected": SAMPLE_SYSTEM["connected"]["data"]["state"],
+            "host": SAMPLE_SYSTEM["grains"]["data"]["host"],
+            "kernel": SAMPLE_SYSTEM["grains"]["data"]["kernel"],
+            "packages": SAMPLE_SYSTEM["packages"]["data"],
+        }
+
+        def mock_post(method: str, url: str, **kw: Any) -> Any:
+            captured_calls.append({"method": method, "url": url, "payload": kw.get("payload", {})})
+            return MockResponse({"data": [projected_system], "count": 1})
+
+        monkeypatch.setattr("slcli.system_click.make_api_request", mock_post)
+        monkeypatch.setattr("slcli.system_click.get_workspace_map", lambda: {})
+
+        cli = make_cli()
+        result = runner.invoke(cli, ["system", "list", "-f", "json", "--field", "packages"])
+        assert result.exit_code == 0
+        assert "query-systems" in captured_calls[0]["url"]
+        assert "packages.data as packages" in captured_calls[0]["payload"]["projection"]
+        data = json.loads(result.output)
+        assert "packages" in data[0]
+        assert "osversion" not in data[0]
+
+    def test_list_json_with_all_fields_uses_legacy_projection(
+        self, monkeypatch: Any, runner: CliRunner
+    ) -> None:
+        """Requesting all JSON fields restores the full legacy list schema."""
+        patch_keyring(monkeypatch)
+        captured_calls: List[Dict[str, Any]] = []
+        projected_system = {
+            "id": SAMPLE_SYSTEM["id"],
+            "alias": SAMPLE_SYSTEM["alias"],
+            "workspace": SAMPLE_SYSTEM["workspace"],
+            "connected": SAMPLE_SYSTEM["connected"]["data"]["state"],
+            "host": SAMPLE_SYSTEM["grains"]["data"]["host"],
+            "kernel": SAMPLE_SYSTEM["grains"]["data"]["kernel"],
+            "osversion": SAMPLE_SYSTEM["grains"]["data"]["osversion"],
+            "cpuarch": SAMPLE_SYSTEM["grains"]["data"]["cpuarch"],
+            "deviceclass": SAMPLE_SYSTEM["grains"]["data"]["deviceclass"],
+            "keywords": SAMPLE_SYSTEM["keywords"]["data"],
+            "packages": SAMPLE_SYSTEM["packages"]["data"],
+        }
+
+        def mock_post(method: str, url: str, **kw: Any) -> Any:
+            captured_calls.append({"method": method, "url": url, "payload": kw.get("payload", {})})
+            return MockResponse({"data": [projected_system], "count": 1})
+
+        monkeypatch.setattr("slcli.system_click.make_api_request", mock_post)
+        monkeypatch.setattr("slcli.system_click.get_workspace_map", lambda: {})
+
+        cli = make_cli()
+        result = runner.invoke(cli, ["system", "list", "-f", "json", "--all-fields"])
+        assert result.exit_code == 0
+        assert "query-systems" in captured_calls[0]["url"]
+        assert captured_calls[0]["payload"]["projection"] == _LIST_PROJECTION
+        data = json.loads(result.output)
+        assert "packages" in data[0]
+        assert "keywords" in data[0]
+        assert "osversion" in data[0]
+
+    def test_list_json_materialized_fallback_uses_slim_projection(
+        self, monkeypatch: Any, runner: CliRunner
+    ) -> None:
+        """Default JSON fallback keeps the slim schema on servers without search-systems."""
+        import requests
+
+        patch_keyring(monkeypatch)
+        captured_calls: List[Dict[str, Any]] = []
+        projected_system = {
+            "id": SAMPLE_SYSTEM["id"],
+            "alias": SAMPLE_SYSTEM["alias"],
+            "workspace": SAMPLE_SYSTEM["workspace"],
+            "connected": SAMPLE_SYSTEM["connected"]["data"]["state"],
+            "host": SAMPLE_SYSTEM["grains"]["data"]["host"],
+            "kernel": SAMPLE_SYSTEM["grains"]["data"]["kernel"],
+        }
+
+        def mock_post(method: str, url: str, **kw: Any) -> Any:
+            captured_calls.append({"method": method, "url": url, "payload": kw.get("payload", {})})
+            if "materialized/search-systems" in url:
+                response = requests.models.Response()
+                response.status_code = 404
+                raise requests.HTTPError("not found", response=response)
+            return MockResponse({"data": [projected_system], "count": 1})
+
+        monkeypatch.setattr("slcli.system_click.make_api_request", mock_post)
+        monkeypatch.setattr("slcli.system_click.get_workspace_map", lambda: {})
+
+        cli = make_cli()
+        result = runner.invoke(cli, ["system", "list", "-f", "json"])
+        assert result.exit_code == 0
+        assert "materialized/search-systems" in captured_calls[0]["url"]
+        assert captured_calls[1]["payload"]["projection"] == _SLIM_LIST_PROJECTION
+        data = json.loads(result.output)
+        assert list(data[0].keys()) == ["id", "alias", "workspace", "connected", "host", "kernel"]
+
+    def test_list_table_materialized_fallback_uses_slim_projection(
+        self, monkeypatch: Any, runner: CliRunner
+    ) -> None:
+        """Table fallback uses the slim legacy projection needed for rendering only."""
+        import requests
+
+        patch_keyring(monkeypatch)
+        captured_calls: List[Dict[str, Any]] = []
+        projected_system = {
+            "id": SAMPLE_SYSTEM["id"],
+            "alias": SAMPLE_SYSTEM["alias"],
+            "workspace": SAMPLE_SYSTEM["workspace"],
+            "connected": SAMPLE_SYSTEM["connected"]["data"]["state"],
+            "host": SAMPLE_SYSTEM["grains"]["data"]["host"],
+            "kernel": SAMPLE_SYSTEM["grains"]["data"]["kernel"],
+        }
+
+        def mock_post(method: str, url: str, **kw: Any) -> Any:
+            captured_calls.append({"method": method, "url": url, "payload": kw.get("payload", {})})
+            if "materialized/search-systems" in url:
+                response = requests.models.Response()
+                response.status_code = 404
+                raise requests.HTTPError("not found", response=response)
+            return MockResponse({"data": [projected_system], "count": 1})
+
+        monkeypatch.setattr("slcli.system_click.make_api_request", mock_post)
+        monkeypatch.setattr("slcli.system_click.get_workspace_map", lambda: {})
+
+        cli = make_cli()
+        result = runner.invoke(cli, ["system", "list", "-f", "table"])
+        assert result.exit_code == 0
+        assert "materialized/search-systems" in captured_calls[0]["url"]
+        assert captured_calls[1]["payload"]["projection"] == _SLIM_LIST_PROJECTION
+        assert "PXI Controller A" in result.output
+
+    def test_list_fields_require_json_format(self, monkeypatch: Any, runner: CliRunner) -> None:
+        """Extended JSON field selection options are rejected for table output."""
+        patch_keyring(monkeypatch)
+
+        cli = make_cli()
+        result = runner.invoke(cli, ["system", "list", "--field", "packages"])
+        assert result.exit_code == ExitCodes.INVALID_INPUT
+        assert "only supported with --format json" in result.output
 
     def test_list_table_pagination_prompt(self, monkeypatch: Any, runner: CliRunner) -> None:
         """Test that table pagination shows more-available prompt when page is full."""

@@ -1,4 +1,4 @@
-"""Unit tests for slcli.mcp_server FastMCP tool functions."""
+"""Unit tests for the query-oriented slcli MCP server."""
 
 import asyncio
 import json
@@ -8,13 +8,8 @@ from unittest.mock import MagicMock
 import pytest
 
 
-# ---------------------------------------------------------------------------
-# Helpers
-# ---------------------------------------------------------------------------
-
-
 def make_mock_response(json_data: Any, status_code: int = 200) -> Any:
-    """Return a minimal mock requests response."""
+    """Return a minimal mock response object."""
     resp = MagicMock()
     resp.status_code = status_code
     resp.json.return_value = json_data
@@ -22,13 +17,8 @@ def make_mock_response(json_data: Any, status_code: int = 200) -> Any:
     return resp
 
 
-# ---------------------------------------------------------------------------
-# server instance
-# ---------------------------------------------------------------------------
-
-
 def test_server_is_fastmcp_instance() -> None:
-    """The module-level 'server' is a FastMCP instance."""
+    """The module-level server is a FastMCP instance."""
     from mcp.server.fastmcp import FastMCP  # type: ignore[import-untyped]
 
     from slcli.mcp_server import server
@@ -36,124 +26,125 @@ def test_server_is_fastmcp_instance() -> None:
     assert isinstance(server, FastMCP)
 
 
-def test_server_has_twenty_four_tools() -> None:
-    """The server registers exactly 24 tools (7 Phase 1 + 7 Phase 2 + 6 Phase 3 + 4 Phase 4)."""
-    from slcli.mcp_server import server
-
-    tools = asyncio.run(server.list_tools())
-    assert len(tools) == 24
-
-
 def test_server_tool_names() -> None:
-    """Tool names match the expected set."""
+    """The server registers the canonical query-oriented MCP tools."""
     from slcli.mcp_server import server
 
     tools = asyncio.run(server.list_tools())
-    names = {t.name for t in tools}
+    names = {tool.name for tool in tools}
     expected = {
-        # Phase 1
-        "workspace_list",
-        "tag_list",
-        "tag_get",
-        "system_list",
-        "asset_list",
-        "testmonitor_result_list",
-        "routine_list",
-        # Phase 2
-        "tag_set_value",
-        "system_get",
-        "asset_get",
-        "testmonitor_result_get",
-        "routine_get",
-        "routine_enable",
-        "routine_disable",
-        # Phase 3
-        "user_list",
-        "testmonitor_step_list",
-        "file_list",
-        "asset_calibration_summary",
-        "testmonitor_result_summary",
-        "notebook_list",
-        # Phase 4
-        "alarm_list",
-        "tag_history",
-        "workspace_create",
-        "workspace_disable",
+        "query_workspaces",
+        "query_users",
+        "get_user_by_id",
+        "search_tags",
+        "read_tag_values",
+        "get_tag_by_path",
+        "query_tag_history",
+        "query_systems",
+        "get_system_by_id",
+        "query_assets",
+        "get_asset_by_id",
+        "query_alarms",
+        "query_test_results",
+        "get_test_result_by_id",
+        "get_test_steps",
+        "query_routines",
+        "get_routine_by_id",
+        "query_files",
+        "get_file_by_id",
+        "query_notebooks",
+        "get_notebook_by_id",
+        "query_workitems",
+        "query_workitem_templates",
+        "query_workflows",
+        "query_feeds",
+        "get_feed_by_id",
+        "query_feed_packages",
+        "query_webapps",
+        "get_webapp_by_id",
+        "query_policies",
+        "get_policy_by_id",
+        "query_comments",
     }
+
     assert names == expected
 
 
-# ---------------------------------------------------------------------------
-# workspace_list
-# ---------------------------------------------------------------------------
+def test_is_reachability_failure_detects_nested_exception_group() -> None:
+    """Nested connection failures should still be treated as unreachable local MCP servers."""
+    from slcli.mcp_reachability import is_reachability_failure
+
+    exc = ExceptionGroup("task group failure", [OSError("Connection refused")])
+
+    assert is_reachability_failure(exc) is True
 
 
-def test_workspace_list_success(monkeypatch: Any) -> None:
-    """workspace_list returns the workspaces array as JSON on success."""
-    from slcli.mcp_server import workspace_list
+def test_is_reachability_failure_rejects_unrelated_exception_group() -> None:
+    """Unrelated exception groups should not be mistaken for local reachability failures."""
+    from slcli.mcp_reachability import is_reachability_failure
 
-    workspaces = [{"id": "ws1", "name": "Default", "enabled": True}]
+    exc = ExceptionGroup("task group failure", [RuntimeError("boom")])
+
+    assert is_reachability_failure(exc) is False
+
+
+def test_is_reachability_failure_detects_nested_cause_in_exception_group() -> None:
+    """Nested causes inside exception-group members should still be classified as unreachable."""
+    from slcli.mcp_reachability import is_reachability_failure
+
+    try:
+        raise RuntimeError("wrapper") from OSError("Connection refused")
+    except RuntimeError as exc:
+        grouped = ExceptionGroup("task group failure", [exc])
+
+    assert is_reachability_failure(grouped) is True
+
+
+def test_is_reachability_failure_detects_nested_context_in_exception_group() -> None:
+    """Nested contexts inside exception-group members should still be classified as unreachable."""
+    from slcli.mcp_reachability import is_reachability_failure
+
+    try:
+        raise TimeoutError("timed out")
+    except TimeoutError:
+        try:
+            raise RuntimeError("wrapper")
+        except RuntimeError as exc:
+            grouped = ExceptionGroup("task group failure", [exc])
+
+    assert is_reachability_failure(grouped) is True
+
+
+def test_is_reachability_failure_detects_http_status_from_non_mcp_endpoint() -> None:
+    """HTTP status failures from a non-usable local /mcp endpoint should be skipped."""
+    from slcli.mcp_reachability import is_reachability_failure
+
+    exc = RuntimeError("Server error '500 Server error' for url 'http://127.0.0.1:8000/mcp'")
+
+    assert is_reachability_failure(exc) is True
+
+
+def test_query_workspaces_filters_client_side(monkeypatch: Any) -> None:
+    """query_workspaces filters the fetched workspace list by name and enabled state."""
+    from slcli.mcp_server import query_workspaces
+
+    workspaces = [
+        {"id": "ws1", "name": "Default", "enabled": True},
+        {"id": "ws2", "name": "Archive", "enabled": False},
+    ]
     monkeypatch.setattr("slcli.utils.get_base_url", lambda: "https://test.host")
     monkeypatch.setattr(
         "slcli.utils.make_api_request",
-        lambda method, url, **kw: make_mock_response({"workspaces": workspaces}),
+        lambda *a, **kw: make_mock_response({"workspaces": workspaces}),
     )
 
-    assert json.loads(workspace_list()) == workspaces
+    result = json.loads(query_workspaces(name="def", enabled=True))
+    assert result == [{"id": "ws1", "name": "Default", "enabled": True}]
 
 
-def test_workspace_list_custom_take(monkeypatch: Any) -> None:
-    """workspace_list forwards the take parameter in the URL."""
-    from slcli.mcp_server import workspace_list
-
-    captured_url: list = []
-    monkeypatch.setattr("slcli.utils.get_base_url", lambda: "https://test.host")
-
-    def mock_request(method: str, url: str, **kw: Any) -> Any:
-        captured_url.append(url)
-        return make_mock_response({"workspaces": []})
-
-    monkeypatch.setattr("slcli.utils.make_api_request", mock_request)
-    workspace_list(take=10)
-    assert "take=10" in captured_url[0]
-
-
-def test_workspace_list_api_error(monkeypatch: Any) -> None:
-    """workspace_list propagates exceptions (FastMCP converts them to error responses)."""
-    from slcli.mcp_server import workspace_list
-
-    monkeypatch.setattr("slcli.utils.get_base_url", lambda: "https://test.host")
-    monkeypatch.setattr(
-        "slcli.utils.make_api_request",
-        lambda *a, **kw: (_ for _ in ()).throw(RuntimeError("500 Server Error")),
-    )
-
-    with pytest.raises(RuntimeError, match="500"):
-        workspace_list()
-
-
-# ---------------------------------------------------------------------------
-# tag_list
-# ---------------------------------------------------------------------------
-
-
-def test_tag_list_success(monkeypatch: Any) -> None:
-    """tag_list returns tagsWithValues as JSON on success."""
-    from slcli.mcp_server import tag_list
-
-    tags = [{"tag": {"path": "sensor.temp"}, "current": {"value": {"value": "22"}}}]
-    monkeypatch.setattr("slcli.utils.get_base_url", lambda: "https://test.host")
-    monkeypatch.setattr(
-        "slcli.utils.make_api_request",
-        lambda *a, **kw: make_mock_response({"tagsWithValues": tags}),
-    )
-
-    assert json.loads(tag_list()) == tags
-
-
-def test_tag_list_builds_filter(monkeypatch: Any) -> None:
-    """tag_list includes path and workspace in the POST payload filter."""
-    from slcli.mcp_server import tag_list
+def test_search_tags_builds_expected_filter(monkeypatch: Any) -> None:
+    """search_tags combines workspace, path, and keyword filters in the payload."""
+    from slcli.mcp_server import search_tags
 
     captured_payload: list = []
     monkeypatch.setattr("slcli.utils.get_base_url", lambda: "https://test.host")
@@ -163,1298 +154,367 @@ def test_tag_list_builds_filter(monkeypatch: Any) -> None:
         return make_mock_response({"tagsWithValues": []})
 
     monkeypatch.setattr("slcli.utils.make_api_request", mock_request)
-    tag_list(path="sensor.*", workspace="ws1")
 
-    sent = captured_payload[0]
-    assert 'path = "sensor.*"' in sent["filter"]
-    assert 'workspace = "ws1"' in sent["filter"]
+    search_tags(path="temp", workspace="ws1", keywords=["critical", "sensor"])
 
-
-# ---------------------------------------------------------------------------
-# tag_get
-# ---------------------------------------------------------------------------
+    filter_str = captured_payload[0]["filter"]
+    assert 'workspace = "ws1"' in filter_str
+    assert 'path = "*temp*"' in filter_str
+    assert 'keywords.Contains("critical")' in filter_str
+    assert 'keywords.Contains("sensor")' in filter_str
 
 
-def test_tag_get_success(monkeypatch: Any) -> None:
-    """tag_get returns tag metadata merged with currentValue."""
-    from slcli.mcp_server import tag_get
+def test_read_tag_values_reads_each_path(monkeypatch: Any) -> None:
+    """read_tag_values performs one current-value read per requested path."""
+    from slcli.mcp_server import read_tag_values
 
-    call_order: list = []
+    seen_urls: list = []
     monkeypatch.setattr("slcli.utils.get_base_url", lambda: "https://test.host")
 
     def mock_request(method: str, url: str, **kw: Any) -> Any:
-        call_order.append(url)
-        if "values/current" in url:
-            return make_mock_response({"value": {"value": "42"}})
-        return make_mock_response({"path": "sensor.temp", "type": "DOUBLE"})
+        seen_urls.append(url)
+        return make_mock_response({"value": {"value": "42"}})
 
     monkeypatch.setattr("slcli.utils.make_api_request", mock_request)
 
-    result = tag_get(path="sensor.temp")
-    payload = json.loads(result)
-    assert payload["path"] == "sensor.temp"
-    assert payload["currentValue"] is not None
-    assert len(call_order) == 2
+    result = json.loads(read_tag_values(paths=["tag.one", "tag.two"]))
+
+    assert len(result) == 2
+    assert result[0]["path"] == "tag.one"
+    assert result[1]["path"] == "tag.two"
+    assert all("values/current" in url for url in seen_urls)
 
 
-def test_tag_get_empty_path_raises(monkeypatch: Any) -> None:
-    """tag_get raises ValueError when path is empty."""
-    from slcli.mcp_server import tag_get
+def test_query_systems_normalizes_wrapped_response(monkeypatch: Any) -> None:
+    """query_systems prefers search-systems and normalizes materialized responses."""
+    from slcli.mcp_server import query_systems
 
-    with pytest.raises(ValueError, match="path"):
-        tag_get(path="")
-
-
-def test_tag_get_current_value_failure(monkeypatch: Any) -> None:
-    """tag_get sets currentValue to None when the value endpoint fails."""
-    from slcli.mcp_server import tag_get
-
+    seen_calls: list = []
     monkeypatch.setattr("slcli.utils.get_base_url", lambda: "https://test.host")
+    monkeypatch.setattr("slcli.system_query_utils.get_base_url", lambda: "https://test.host")
 
     def mock_request(method: str, url: str, **kw: Any) -> Any:
-        if "values/current" in url:
-            raise RuntimeError("404 Not Found")
-        return make_mock_response({"path": "sensor.temp", "type": "DOUBLE"})
+        seen_calls.append({"url": url, "payload": kw.get("payload", {})})
+        return make_mock_response({"systems": [{"id": "sys1", "alias": "PXI"}]})
 
     monkeypatch.setattr("slcli.utils.make_api_request", mock_request)
 
-    assert json.loads(tag_get(path="sensor.temp"))["currentValue"] is None
+    assert json.loads(query_systems()) == [{"id": "sys1", "alias": "PXI"}]
+    assert seen_calls == [
+        {
+            "url": "https://test.host/nisysmgmt/v1/materialized/search-systems",
+            "payload": {
+                "take": 100,
+                "projection": [
+                    "id",
+                    "alias",
+                    "workspace",
+                    "connected",
+                    "advancedGrains.host",
+                    "advancedGrains.os",
+                ],
+            },
+        }
+    ]
 
 
-# ---------------------------------------------------------------------------
-# system_list
-# ---------------------------------------------------------------------------
+def test_query_systems_falls_back_to_query_systems(monkeypatch: Any) -> None:
+    """query_systems falls back to query-systems when search-systems is unavailable."""
+    import requests
 
+    from slcli.mcp_server import query_systems
 
-def test_system_list_success(monkeypatch: Any) -> None:
-    """system_list normalises a dict-with-data-key response."""
-    from slcli.mcp_server import system_list
-
-    systems = [{"id": "sys1", "alias": "TestSystem"}]
+    seen_urls: list = []
     monkeypatch.setattr("slcli.utils.get_base_url", lambda: "https://test.host")
-    monkeypatch.setattr(
-        "slcli.utils.make_api_request",
-        lambda *a, **kw: make_mock_response({"data": systems}),
-    )
+    monkeypatch.setattr("slcli.system_query_utils.get_base_url", lambda: "https://test.host")
 
-    assert json.loads(system_list()) == systems
-
-
-def test_system_list_list_response(monkeypatch: Any) -> None:
-    """system_list normalises a list-of-wrapping-dicts response."""
-    from slcli.mcp_server import system_list
-
-    raw_list = [{"data": {"id": "sys1", "alias": "TestSystem"}}]
-    monkeypatch.setattr("slcli.utils.get_base_url", lambda: "https://test.host")
-    monkeypatch.setattr(
-        "slcli.utils.make_api_request",
-        lambda *a, **kw: make_mock_response(raw_list),
-    )
-
-    assert json.loads(system_list()) == [{"id": "sys1", "alias": "TestSystem"}]
-
-
-def test_system_list_state_filter(monkeypatch: Any) -> None:
-    """system_list appends a filter when state is supplied."""
-    from slcli.mcp_server import system_list
-
-    captured: list = []
-    monkeypatch.setattr("slcli.utils.get_base_url", lambda: "https://test.host")
-
-    def mock_request(method: str, url: str, payload: Any = None, **kw: Any) -> Any:
-        captured.append(payload or {})
-        return make_mock_response({"data": []})
+    def mock_request(method: str, url: str, **kw: Any) -> Any:
+        seen_urls.append(url)
+        if "materialized/search-systems" in url:
+            response = requests.models.Response()
+            response.status_code = 404
+            raise requests.HTTPError("not found", response=response)
+        return make_mock_response([{"data": {"id": "sys1", "alias": "PXI"}}])
 
     monkeypatch.setattr("slcli.utils.make_api_request", mock_request)
-    system_list(state="CONNECTED")
 
-    assert "CONNECTED" in captured[0].get("filter", "")
-
-
-# ---------------------------------------------------------------------------
-# asset_list
-# ---------------------------------------------------------------------------
+    assert json.loads(query_systems(alias="PXI")) == [{"id": "sys1", "alias": "PXI"}]
+    assert seen_urls == [
+        "https://test.host/nisysmgmt/v1/materialized/search-systems",
+        "https://test.host/nisysmgmt/v1/query-systems",
+    ]
 
 
-def test_asset_list_success(monkeypatch: Any) -> None:
-    """asset_list returns assets array as JSON from the response."""
-    from slcli.mcp_server import asset_list
+def test_query_systems_falls_back_to_query_systems_on_search_error(monkeypatch: Any) -> None:
+    """query_systems falls back when search-systems returns a server error."""
+    import requests
 
-    assets = [{"id": "a1", "name": "DMM"}]
+    from slcli.mcp_server import query_systems
+
+    seen_urls: list = []
     monkeypatch.setattr("slcli.utils.get_base_url", lambda: "https://test.host")
-    monkeypatch.setattr(
-        "slcli.utils.make_api_request",
-        lambda *a, **kw: make_mock_response({"assets": assets}),
-    )
+    monkeypatch.setattr("slcli.system_query_utils.get_base_url", lambda: "https://test.host")
 
-    assert json.loads(asset_list()) == assets
-
-
-def test_asset_list_calibration_filter(monkeypatch: Any) -> None:
-    """asset_list includes CalibrationStatus in the POST payload filter."""
-    from slcli.mcp_server import asset_list
-
-    captured: list = []
-    monkeypatch.setattr("slcli.utils.get_base_url", lambda: "https://test.host")
-
-    def mock_request(method: str, url: str, payload: Any = None, **kw: Any) -> Any:
-        captured.append(payload or {})
-        return make_mock_response({"assets": []})
+    def mock_request(method: str, url: str, **kw: Any) -> Any:
+        seen_urls.append(url)
+        if "materialized/search-systems" in url:
+            response = requests.models.Response()
+            response.status_code = 500
+            raise requests.HTTPError("server error", response=response)
+        return make_mock_response([{"data": {"id": "sys1", "alias": "PXI"}}])
 
     monkeypatch.setattr("slcli.utils.make_api_request", mock_request)
-    asset_list(calibration_status="PAST_RECOMMENDED_DUE_DATE")
 
-    assert "PAST_RECOMMENDED_DUE_DATE" in captured[0].get("filter", "")
-
-
-# ---------------------------------------------------------------------------
-# testmonitor_result_list
-# ---------------------------------------------------------------------------
+    assert json.loads(query_systems(alias="PXI")) == [{"id": "sys1", "alias": "PXI"}]
+    assert seen_urls == [
+        "https://test.host/nisysmgmt/v1/materialized/search-systems",
+        "https://test.host/nisysmgmt/v1/query-systems",
+    ]
 
 
-def test_testmonitor_result_list_success(monkeypatch: Any) -> None:
-    """testmonitor_result_list returns results array as JSON on success."""
-    from slcli.mcp_server import testmonitor_result_list
+def test_query_test_results_combines_structured_and_raw_filters(monkeypatch: Any) -> None:
+    """query_test_results preserves substitution offsets when appending a raw filter."""
+    from slcli.mcp_server import query_test_results
 
-    results = [{"id": "r1", "status": "PASSED"}]
-    monkeypatch.setattr("slcli.utils.get_base_url", lambda: "https://test.host")
-    monkeypatch.setattr(
-        "slcli.utils.make_api_request",
-        lambda *a, **kw: make_mock_response({"results": results}),
-    )
-
-    assert json.loads(testmonitor_result_list()) == results
-
-
-def test_testmonitor_result_list_status_filter(monkeypatch: Any) -> None:
-    """testmonitor_result_list uppercases the status filter."""
-    from slcli.mcp_server import testmonitor_result_list
-
-    captured: list = []
+    captured_payload: list = []
     monkeypatch.setattr("slcli.utils.get_base_url", lambda: "https://test.host")
 
     def mock_request(method: str, url: str, payload: Any = None, **kw: Any) -> Any:
-        captured.append(payload or {})
+        captured_payload.append(payload)
         return make_mock_response({"results": []})
 
     monkeypatch.setattr("slcli.utils.make_api_request", mock_request)
-    testmonitor_result_list(status="FAILED")
 
-    assert 'Status = "FAILED"' in captured[0].get("filter", "")
-
-
-def test_testmonitor_result_list_multiple_filters(monkeypatch: Any) -> None:
-    """All convenience filters are ANDed together in the payload."""
-    from slcli.mcp_server import testmonitor_result_list
-
-    captured: list = []
-    monkeypatch.setattr("slcli.utils.get_base_url", lambda: "https://test.host")
-
-    def mock_request(method: str, url: str, payload: Any = None, **kw: Any) -> Any:
-        captured.append(payload or {})
-        return make_mock_response({"results": []})
-
-    monkeypatch.setattr("slcli.utils.make_api_request", mock_request)
-    testmonitor_result_list(status="PASSED", program_name="Battery Test", serial_number="SN-001")
-
-    f = captured[0].get("filter", "")
-    assert "PASSED" in f
-    assert "Battery Test" in f
-    assert "SN-001" in f
-    assert "&&" in f
-
-
-def test_testmonitor_result_list_raw_filter(monkeypatch: Any) -> None:
-    """A raw filter expression is included in the payload."""
-    from slcli.mcp_server import testmonitor_result_list
-
-    captured: list = []
-    monkeypatch.setattr("slcli.utils.get_base_url", lambda: "https://test.host")
-
-    def mock_request(method: str, url: str, payload: Any = None, **kw: Any) -> Any:
-        captured.append(payload or {})
-        return make_mock_response({"results": []})
-
-    monkeypatch.setattr("slcli.utils.make_api_request", mock_request)
-    raw = 'StartedAt > "2026-01-01T00:00:00Z"'
-    testmonitor_result_list(filter=raw)
-
-    assert raw in captured[0].get("filter", "")
-
-
-# ---------------------------------------------------------------------------
-# routine_list
-# ---------------------------------------------------------------------------
-
-
-def test_routine_list_success(monkeypatch: Any) -> None:
-    """routine_list returns routines array as JSON on success."""
-    from slcli.mcp_server import routine_list
-
-    routines = [{"id": "rt1", "name": "Alarm Handler"}]
-    monkeypatch.setattr("slcli.utils.get_base_url", lambda: "https://test.host")
-    monkeypatch.setattr(
-        "slcli.utils.make_api_request",
-        lambda *a, **kw: make_mock_response({"routines": routines}),
+    query_test_results(
+        status="FAILED",
+        program_name="Battery",
+        filter="startedAt > @0",
+        substitutions=["2026-01-01T00:00:00Z"],
     )
 
-    assert json.loads(routine_list()) == routines
+    payload = captured_payload[0]
+    assert "status.statusType == @0" in payload["filter"]
+    assert "programName.Contains(@1)" in payload["filter"]
+    assert "startedAt > @2" in payload["filter"]
+    assert payload["substitutions"] == [
+        "FAILED",
+        "Battery",
+        "2026-01-01T00:00:00Z",
+    ]
 
 
-def test_routine_list_enabled_true(monkeypatch: Any) -> None:
-    """routine_list appends Enabled=true to the URL when enabled=True."""
-    from slcli.mcp_server import routine_list
+def test_get_test_steps_includes_continuation_token(monkeypatch: Any) -> None:
+    """get_test_steps forwards continuationToken and returns it in the result."""
+    from slcli.mcp_server import get_test_steps
 
-    captured_url: list = []
-    monkeypatch.setattr("slcli.utils.get_base_url", lambda: "https://test.host")
-
-    def mock_request(method: str, url: str, **kw: Any) -> Any:
-        captured_url.append(url)
-        return make_mock_response({"routines": []})
-
-    monkeypatch.setattr("slcli.utils.make_api_request", mock_request)
-    routine_list(enabled=True)
-
-    assert "Enabled=true" in captured_url[0]
-
-
-def test_routine_list_enabled_false(monkeypatch: Any) -> None:
-    """routine_list appends Enabled=false to the URL when enabled=False."""
-    from slcli.mcp_server import routine_list
-
-    captured_url: list = []
-    monkeypatch.setattr("slcli.utils.get_base_url", lambda: "https://test.host")
-
-    def mock_request(method: str, url: str, **kw: Any) -> Any:
-        captured_url.append(url)
-        return make_mock_response({"routines": []})
-
-    monkeypatch.setattr("slcli.utils.make_api_request", mock_request)
-    routine_list(enabled=False)
-
-    assert "Enabled=false" in captured_url[0]
-
-
-def test_routine_list_v1(monkeypatch: Any) -> None:
-    """routine_list uses v1 path when api_version='v1'."""
-    from slcli.mcp_server import routine_list
-
-    captured_url: list = []
-    monkeypatch.setattr("slcli.utils.get_base_url", lambda: "https://test.host")
-
-    def mock_request(method: str, url: str, **kw: Any) -> Any:
-        captured_url.append(url)
-        return make_mock_response({"routines": []})
-
-    monkeypatch.setattr("slcli.utils.make_api_request", mock_request)
-    routine_list(api_version="v1")
-
-    assert "/niroutine/v1/routines" in captured_url[0]
-
-
-# ---------------------------------------------------------------------------
-# tag_set_value
-# ---------------------------------------------------------------------------
-
-
-def test_tag_set_value_explicit_type(monkeypatch: Any) -> None:
-    """tag_set_value uses the supplied data_type without fetching metadata."""
-    from slcli.mcp_server import tag_set_value
-
-    calls: list = []
+    captured_payload: list = []
     monkeypatch.setattr("slcli.utils.get_base_url", lambda: "https://test.host")
 
     def mock_request(method: str, url: str, payload: Any = None, **kw: Any) -> Any:
-        calls.append((method, url, payload))
-        return make_mock_response({})
+        captured_payload.append(payload)
+        return make_mock_response({"steps": [{"id": "s1"}], "continuationToken": "next"})
 
     monkeypatch.setattr("slcli.utils.make_api_request", mock_request)
-    result = tag_set_value(path="sensor.temp", value="42.5", data_type="DOUBLE")
 
-    # Only 1 call — the PUT; no metadata fetch
-    assert len(calls) == 1
-    method, url, payload = calls[0]
-    assert method == "PUT"
-    assert "values/current" in url
-    assert payload["value"]["value"] == "42.5"
-    assert payload["value"]["type"] == "DOUBLE"
-    assert json.loads(result)["type"] == "DOUBLE"
+    result = json.loads(get_test_steps(result_id="res1", continuation_token="token-1"))
+
+    assert captured_payload[0]["continuationToken"] == "token-1"
+    assert result["continuationToken"] == "next"
+    assert result["steps"] == [{"id": "s1"}]
 
 
-def test_tag_set_value_auto_detects_type(monkeypatch: Any) -> None:
-    """tag_set_value fetches tag metadata to resolve type when none is supplied."""
-    from slcli.mcp_server import tag_set_value
-
-    calls: list = []
-    monkeypatch.setattr("slcli.utils.get_base_url", lambda: "https://test.host")
-
-    def mock_request(method: str, url: str, payload: Any = None, **kw: Any) -> Any:
-        calls.append((method, url, payload))
-        if method == "GET":
-            return make_mock_response({"path": "sensor.temp", "type": "INT"})
-        return make_mock_response({})
-
-    monkeypatch.setattr("slcli.utils.make_api_request", mock_request)
-    result = tag_set_value(path="sensor.temp", value="7")
-
-    # GET for metadata, then PUT
-    methods = [c[0] for c in calls]
-    assert methods == ["GET", "PUT"]
-    assert json.loads(result)["type"] == "INT"
-
-
-def test_tag_set_value_boolean_normalised(monkeypatch: Any) -> None:
-    """tag_set_value normalises boolean values to lowercase strings."""
-    from slcli.mcp_server import tag_set_value
+def test_query_files_uses_fallback_helper(monkeypatch: Any) -> None:
+    """query_files delegates to the CLI fallback helper and returns availableFiles."""
+    from slcli.mcp_server import query_files
 
     captured: list = []
-    monkeypatch.setattr("slcli.utils.get_base_url", lambda: "https://test.host")
 
-    def mock_request(method: str, url: str, payload: Any = None, **kw: Any) -> Any:
-        captured.append((method, payload))
-        return make_mock_response({})
+    def mock_search_files_with_fallback(**kwargs: Any) -> Any:
+        captured.append(kwargs)
+        return make_mock_response({"availableFiles": [{"id": "file1"}]})
 
-    monkeypatch.setattr("slcli.utils.make_api_request", mock_request)
-    tag_set_value(path="flag", value="True", data_type="BOOLEAN")
-
-    put_payload = next(p for m, p in captured if m == "PUT")
-    assert put_payload["value"]["value"] == "true"
-
-
-def test_tag_set_value_empty_path_raises(monkeypatch: Any) -> None:
-    """tag_set_value raises ValueError for empty path."""
-    from slcli.mcp_server import tag_set_value
-
-    with pytest.raises(ValueError, match="path"):
-        tag_set_value(path="", value="1")
-
-
-# ---------------------------------------------------------------------------
-# system_get
-# ---------------------------------------------------------------------------
-
-
-def test_system_get_success(monkeypatch: Any) -> None:
-    """system_get returns the first system's data dict."""
-    from slcli.mcp_server import system_get
-
-    system_data = {"id": "sys-1", "alias": "TestRig"}
-    monkeypatch.setattr("slcli.utils.get_base_url", lambda: "https://test.host")
     monkeypatch.setattr(
-        "slcli.utils.make_api_request",
-        lambda *a, **kw: make_mock_response([{"data": system_data}]),
+        "slcli.file_click._search_files_with_fallback", mock_search_files_with_fallback
     )
 
-    assert json.loads(system_get("sys-1")) == system_data
+    result = json.loads(query_files(workspace="ws1", name_filter="report", take=10))
+
+    assert result == [{"id": "file1"}]
+    assert captured[0]["workspace_id"] == "ws1"
+    assert captured[0]["name_filter"] == "report"
+    assert captured[0]["take"] == 10
 
 
-def test_system_get_not_found_raises(monkeypatch: Any) -> None:
-    """system_get raises ValueError when the API returns an empty list."""
-    from slcli.mcp_server import system_get
+def test_query_notebooks_delegates_to_notebook_helper(monkeypatch: Any) -> None:
+    """query_notebooks reuses the platform-specific notebook query helper."""
+    from slcli.mcp_server import query_notebooks
 
-    monkeypatch.setattr("slcli.utils.get_base_url", lambda: "https://test.host")
+    captured: list = []
+
+    def mock_query_notebooks_http(filter_str: Any = None, take: int = 1000) -> Any:
+        captured.append({"filter_str": filter_str, "take": take})
+        return [{"id": "nb1"}, {"id": "nb2"}]
+
+    monkeypatch.setattr("slcli.notebook_click._query_notebooks_http", mock_query_notebooks_http)
+
+    result = json.loads(query_notebooks(filter='name.Contains("analysis")', take=1))
+
+    assert result == [{"id": "nb1"}]
+    assert captured[0] == {"filter_str": 'name.Contains("analysis")', "take": 1}
+
+
+def test_get_notebook_by_id_delegates_to_notebook_helper(monkeypatch: Any) -> None:
+    """get_notebook_by_id reuses the notebook detail helper."""
+    from slcli.mcp_server import get_notebook_by_id
+
     monkeypatch.setattr(
-        "slcli.utils.make_api_request",
-        lambda *a, **kw: make_mock_response([]),
+        "slcli.notebook_click._get_notebook_http",
+        lambda notebook_id: {"id": notebook_id, "name": "analysis.ipynb"},
+    )
+
+    result = json.loads(get_notebook_by_id("nb1"))
+
+    assert result == {"id": "nb1", "name": "analysis.ipynb"}
+
+
+def test_query_workitems_delegates_to_workitem_helper(monkeypatch: Any) -> None:
+    """query_workitems reuses the work item pagination helper."""
+    from slcli.mcp_server import query_workitems
+
+    captured: list = []
+
+    def mock_query_all_workitems(**kwargs: Any) -> Any:
+        captured.append(kwargs)
+        return [{"id": "wi1"}]
+
+    monkeypatch.setattr("slcli.workitem_click._query_all_workitems", mock_query_all_workitems)
+
+    result = json.loads(query_workitems(filter="state == @0", substitutions=["OPEN"], take=5))
+
+    assert result == [{"id": "wi1"}]
+    assert captured[0] == {
+        "filter_expr": "state == @0",
+        "substitutions": ["OPEN"],
+        "workspace_filter": None,
+        "max_items": 5,
+    }
+
+
+def test_query_policies_builds_expected_url(monkeypatch: Any) -> None:
+    """query_policies forwards the CLI policy filters as query parameters."""
+    from slcli.mcp_server import query_policies
+
+    captured_urls: list = []
+    monkeypatch.setattr("slcli.utils.get_base_url", lambda: "https://test.host")
+
+    def mock_request(method: str, url: str, **kw: Any) -> Any:
+        captured_urls.append(url)
+        return make_mock_response({"policies": []})
+
+    monkeypatch.setattr("slcli.utils.make_api_request", mock_request)
+
+    query_policies(policy_type="custom", builtin=True, name="admin", take=10, skip=2)
+
+    url = captured_urls[0]
+    assert "type=custom" in url
+    assert "builtIn=true" in url
+    assert "name=%2Aadmin%2A" in url
+    assert "take=10" in url
+    assert "skip=2" in url
+
+
+def test_query_feeds_builds_expected_url(monkeypatch: Any) -> None:
+    """query_feeds forwards platform and workspace filters as query params."""
+    from slcli.mcp_server import query_feeds
+
+    captured_urls: list = []
+    monkeypatch.setattr("slcli.feed_click._get_feed_base_url", lambda: "https://test.host/nipm/v1")
+    monkeypatch.setattr("slcli.feed_click._normalize_platform", lambda platform: platform.upper())
+
+    def mock_request(method: str, url: str, **kw: Any) -> Any:
+        captured_urls.append(url)
+        return make_mock_response({"feeds": []})
+
+    monkeypatch.setattr("slcli.utils.make_api_request", mock_request)
+
+    query_feeds(platform="windows", workspace="ws1")
+
+    url = captured_urls[0]
+    assert "platform=WINDOWS" in url
+    assert "workspace=ws1" in url
+
+
+def test_query_webapps_delegates_to_webapp_helper(monkeypatch: Any) -> None:
+    """query_webapps reuses the continuation-token webapp helper."""
+    from slcli.mcp_server import query_webapps
+
+    captured: list = []
+
+    def mock_query_webapps_http(filter_str: str, max_items: int = 1000) -> Any:
+        captured.append({"filter_str": filter_str, "max_items": max_items})
+        return [{"id": "webapp1"}]
+
+    monkeypatch.setattr("slcli.webapp_click._query_webapps_http", mock_query_webapps_http)
+
+    result = json.loads(query_webapps(filter='name.Contains("dashboard")', take=7))
+
+    assert result == [{"id": "webapp1"}]
+    assert captured[0] == {"filter_str": 'name.Contains("dashboard")', "max_items": 7}
+
+
+def test_get_webapp_by_id_builds_expected_url(monkeypatch: Any) -> None:
+    """get_webapp_by_id fetches the webapp detail endpoint by ID."""
+    from slcli.mcp_server import get_webapp_by_id
+
+    captured_urls: list = []
+
+    def mock_get_webapp_base_url() -> str:
+        return "https://test.host/niapp/v1"
+
+    monkeypatch.setattr("slcli.webapp_click._get_webapp_base_url", mock_get_webapp_base_url)
+
+    def mock_request(method: str, url: str, **kw: Any) -> Any:
+        captured_urls.append(url)
+        return make_mock_response({"id": "app1"})
+
+    monkeypatch.setattr("slcli.utils.make_api_request", mock_request)
+
+    result = json.loads(get_webapp_by_id("app1"))
+
+    assert result == {"id": "app1"}
+    assert captured_urls[0].endswith("/webapps/app1")
+
+
+def test_query_comments_uses_pascal_case_query_params(monkeypatch: Any) -> None:
+    """query_comments uses the comment service's required PascalCase query params."""
+    from slcli.mcp_server import query_comments
+
+    monkeypatch.setattr(
+        "slcli.comment_click._get_comment_base_url", lambda: "https://test.host/nicomments/v1"
+    )
+    captured_urls: list = []
+
+    def mock_request(method: str, url: str, **kw: Any) -> Any:
+        captured_urls.append(url)
+        return make_mock_response({"comments": [{"id": "c1"}]})
+
+    monkeypatch.setattr("slcli.utils.make_api_request", mock_request)
+
+    result = json.loads(query_comments(resource_type="workitem:workitem", resource_id="wi1"))
+
+    assert result == [{"id": "c1"}]
+    assert "ResourceType=workitem%3Aworkitem" in captured_urls[0]
+    assert "ResourceId=wi1" in captured_urls[0]
+
+
+def test_get_file_by_id_raises_when_not_found(monkeypatch: Any) -> None:
+    """get_file_by_id raises a ValueError when neither file lookup path finds a file."""
+    from slcli.mcp_server import get_file_by_id
+
+    monkeypatch.setattr("slcli.file_click._get_file_by_id_via_query_files", lambda file_id: None)
+    monkeypatch.setattr(
+        "slcli.file_click._get_file_by_id_via_query_files_linq", lambda file_id: None
     )
 
     with pytest.raises(ValueError, match="not found"):
-        system_get("missing-id")
-
-
-def test_system_get_empty_id_raises(monkeypatch: Any) -> None:
-    """system_get raises ValueError for empty system_id."""
-    from slcli.mcp_server import system_get
-
-    with pytest.raises(ValueError, match="system_id"):
-        system_get("")
-
-
-# ---------------------------------------------------------------------------
-# asset_get
-# ---------------------------------------------------------------------------
-
-
-def test_asset_get_success(monkeypatch: Any) -> None:
-    """asset_get returns the asset JSON from GET /niapm/v1/assets/{id}."""
-    from slcli.mcp_server import asset_get
-
-    asset_data = {"id": "a1", "name": "DMM", "modelName": "NI-DMM"}
-    captured_url: list = []
-    monkeypatch.setattr("slcli.utils.get_base_url", lambda: "https://test.host")
-
-    def mock_request(method: str, url: str, **kw: Any) -> Any:
-        captured_url.append(url)
-        return make_mock_response(asset_data)
-
-    monkeypatch.setattr("slcli.utils.make_api_request", mock_request)
-    result = asset_get("a1")
-
-    assert json.loads(result) == asset_data
-    assert "/niapm/v1/assets/a1" in captured_url[0]
-
-
-def test_asset_get_empty_id_raises(monkeypatch: Any) -> None:
-    """asset_get raises ValueError for empty asset_id."""
-    from slcli.mcp_server import asset_get
-
-    with pytest.raises(ValueError, match="asset_id"):
-        asset_get("")
-
-
-# ---------------------------------------------------------------------------
-# testmonitor_result_get
-# ---------------------------------------------------------------------------
-
-
-def test_testmonitor_result_get_success(monkeypatch: Any) -> None:
-    """testmonitor_result_get returns full result JSON from GET /nitestmonitor/v2/results/{id}."""
-    from slcli.mcp_server import testmonitor_result_get
-
-    result_data = {"id": "r1", "status": "PASSED", "programName": "BatteryTest"}
-    captured_url: list = []
-    monkeypatch.setattr("slcli.utils.get_base_url", lambda: "https://test.host")
-
-    def mock_request(method: str, url: str, **kw: Any) -> Any:
-        captured_url.append(url)
-        return make_mock_response(result_data)
-
-    monkeypatch.setattr("slcli.utils.make_api_request", mock_request)
-    result = testmonitor_result_get("r1")
-
-    assert json.loads(result) == result_data
-    assert "/nitestmonitor/v2/results/r1" in captured_url[0]
-
-
-def test_testmonitor_result_get_empty_id_raises(monkeypatch: Any) -> None:
-    """testmonitor_result_get raises ValueError for empty result_id."""
-    from slcli.mcp_server import testmonitor_result_get
-
-    with pytest.raises(ValueError, match="result_id"):
-        testmonitor_result_get("")
-
-
-# ---------------------------------------------------------------------------
-# routine_get
-# ---------------------------------------------------------------------------
-
-
-def test_routine_get_success(monkeypatch: Any) -> None:
-    """routine_get returns full routine JSON from GET /niroutine/v2/routines/{id}."""
-    from slcli.mcp_server import routine_get
-
-    routine_data = {"id": "rt1", "name": "Alarm Handler", "enabled": True}
-    captured_url: list = []
-    monkeypatch.setattr("slcli.utils.get_base_url", lambda: "https://test.host")
-
-    def mock_request(method: str, url: str, **kw: Any) -> Any:
-        captured_url.append(url)
-        return make_mock_response(routine_data)
-
-    monkeypatch.setattr("slcli.utils.make_api_request", mock_request)
-    result = routine_get("rt1")
-
-    assert json.loads(result) == routine_data
-    assert "/niroutine/v2/routines/rt1" in captured_url[0]
-
-
-def test_routine_get_v1(monkeypatch: Any) -> None:
-    """routine_get uses v1 path when api_version='v1'."""
-    from slcli.mcp_server import routine_get
-
-    captured_url: list = []
-    monkeypatch.setattr("slcli.utils.get_base_url", lambda: "https://test.host")
-
-    def mock_request(method: str, url: str, **kw: Any) -> Any:
-        captured_url.append(url)
-        return make_mock_response({"id": "rt1"})
-
-    monkeypatch.setattr("slcli.utils.make_api_request", mock_request)
-    routine_get("rt1", api_version="v1")
-
-    assert "/niroutine/v1/routines/rt1" in captured_url[0]
-
-
-def test_routine_get_empty_id_raises(monkeypatch: Any) -> None:
-    """routine_get raises ValueError for empty routine_id."""
-    from slcli.mcp_server import routine_get
-
-    with pytest.raises(ValueError, match="routine_id"):
-        routine_get("")
-
-
-# ---------------------------------------------------------------------------
-# routine_enable
-# ---------------------------------------------------------------------------
-
-
-def test_routine_enable_sends_patch(monkeypatch: Any) -> None:
-    """routine_enable sends PATCH with enabled=True and returns confirmation."""
-    from slcli.mcp_server import routine_enable
-
-    calls: list = []
-    monkeypatch.setattr("slcli.utils.get_base_url", lambda: "https://test.host")
-
-    def mock_request(method: str, url: str, payload: Any = None, **kw: Any) -> Any:
-        calls.append((method, url, payload))
-        return make_mock_response({})
-
-    monkeypatch.setattr("slcli.utils.make_api_request", mock_request)
-    result = routine_enable("rt1")
-
-    assert len(calls) == 1
-    method, url, payload = calls[0]
-    assert method == "PATCH"
-    assert "/niroutine/v2/routines/rt1" in url
-    assert payload == {"enabled": True}
-    assert json.loads(result) == {"id": "rt1", "enabled": True}
-
-
-def test_routine_enable_empty_id_raises(monkeypatch: Any) -> None:
-    """routine_enable raises ValueError for empty routine_id."""
-    from slcli.mcp_server import routine_enable
-
-    with pytest.raises(ValueError, match="routine_id"):
-        routine_enable("")
-
-
-# ---------------------------------------------------------------------------
-# routine_disable
-# ---------------------------------------------------------------------------
-
-
-def test_routine_disable_sends_patch(monkeypatch: Any) -> None:
-    """routine_disable sends PATCH with enabled=False and returns confirmation."""
-    from slcli.mcp_server import routine_disable
-
-    calls: list = []
-    monkeypatch.setattr("slcli.utils.get_base_url", lambda: "https://test.host")
-
-    def mock_request(method: str, url: str, payload: Any = None, **kw: Any) -> Any:
-        calls.append((method, url, payload))
-        return make_mock_response({})
-
-    monkeypatch.setattr("slcli.utils.make_api_request", mock_request)
-    result = routine_disable("rt1")
-
-    assert len(calls) == 1
-    method, url, payload = calls[0]
-    assert method == "PATCH"
-    assert "/niroutine/v2/routines/rt1" in url
-    assert payload == {"enabled": False}
-    assert json.loads(result) == {"id": "rt1", "enabled": False}
-
-
-def test_routine_disable_empty_id_raises(monkeypatch: Any) -> None:
-    """routine_disable raises ValueError for empty routine_id."""
-    from slcli.mcp_server import routine_disable
-
-    with pytest.raises(ValueError, match="routine_id"):
-        routine_disable("")
-
-
-# ---------------------------------------------------------------------------
-# _detect_tag_type helper
-# ---------------------------------------------------------------------------
-
-
-def test_detect_tag_type_boolean() -> None:
-    """_detect_tag_type returns BOOLEAN for true/false strings."""
-    from slcli.mcp_server import _detect_tag_type
-
-    assert _detect_tag_type("true") == "BOOLEAN"
-    assert _detect_tag_type("false") == "BOOLEAN"
-    assert _detect_tag_type("True") == "BOOLEAN"
-    assert _detect_tag_type("FALSE") == "BOOLEAN"
-
-
-def test_detect_tag_type_int() -> None:
-    """_detect_tag_type returns INT for integer strings."""
-    from slcli.mcp_server import _detect_tag_type
-
-    assert _detect_tag_type("42") == "INT"
-    assert _detect_tag_type("-7") == "INT"
-
-
-def test_detect_tag_type_double() -> None:
-    """_detect_tag_type returns DOUBLE for decimal strings."""
-    from slcli.mcp_server import _detect_tag_type
-
-    assert _detect_tag_type("3.14") == "DOUBLE"
-    assert _detect_tag_type("0.0") == "DOUBLE"
-
-
-def test_detect_tag_type_string() -> None:
-    """_detect_tag_type returns STRING for non-numeric, non-boolean values."""
-    from slcli.mcp_server import _detect_tag_type
-
-    assert _detect_tag_type("hello") == "STRING"
-    assert _detect_tag_type("") == "STRING"
-
-
-# ---------------------------------------------------------------------------
-# user_list
-# ---------------------------------------------------------------------------
-
-
-def test_user_list_success(monkeypatch: Any) -> None:
-    """user_list returns users array as JSON on success."""
-    from slcli.mcp_server import user_list
-
-    users = [{"id": "u1", "firstName": "Alice", "status": "active"}]
-    monkeypatch.setattr("slcli.utils.get_base_url", lambda: "https://test.host")
-    monkeypatch.setattr(
-        "slcli.utils.make_api_request",
-        lambda *a, **kw: make_mock_response({"users": users}),
-    )
-
-    assert json.loads(user_list()) == users
-
-
-def test_user_list_active_filter_default(monkeypatch: Any) -> None:
-    """user_list filters to active users by default."""
-    from slcli.mcp_server import user_list
-
-    captured: list = []
-    monkeypatch.setattr("slcli.utils.get_base_url", lambda: "https://test.host")
-
-    def mock_request(method: str, url: str, payload: Any = None, **kw: Any) -> Any:
-        captured.append(payload or {})
-        return make_mock_response({"users": []})
-
-    monkeypatch.setattr("slcli.utils.make_api_request", mock_request)
-    user_list()
-
-    assert 'status = "active"' in captured[0].get("filter", "")
-
-
-def test_user_list_include_disabled_omits_filter(monkeypatch: Any) -> None:
-    """user_list omits active filter when include_disabled=True."""
-    from slcli.mcp_server import user_list
-
-    captured: list = []
-    monkeypatch.setattr("slcli.utils.get_base_url", lambda: "https://test.host")
-
-    def mock_request(method: str, url: str, payload: Any = None, **kw: Any) -> Any:
-        captured.append(payload or {})
-        return make_mock_response({"users": []})
-
-    monkeypatch.setattr("slcli.utils.make_api_request", mock_request)
-    user_list(include_disabled=True)
-
-    assert "status" not in captured[0].get("filter", "")
-
-
-def test_user_list_raw_filter(monkeypatch: Any) -> None:
-    """user_list ANDs a raw filter with the default active filter."""
-    from slcli.mcp_server import user_list
-
-    captured: list = []
-    monkeypatch.setattr("slcli.utils.get_base_url", lambda: "https://test.host")
-
-    def mock_request(method: str, url: str, payload: Any = None, **kw: Any) -> Any:
-        captured.append(payload or {})
-        return make_mock_response({"users": []})
-
-    monkeypatch.setattr("slcli.utils.make_api_request", mock_request)
-    user_list(filter='email.Contains("ni.com")')
-
-    f = captured[0].get("filter", "")
-    assert 'status = "active"' in f
-    assert 'email.Contains("ni.com")' in f
-
-
-# ---------------------------------------------------------------------------
-# testmonitor_step_list
-# ---------------------------------------------------------------------------
-
-
-def test_testmonitor_step_list_success(monkeypatch: Any) -> None:
-    """testmonitor_step_list returns steps array for a given result_id."""
-    from slcli.mcp_server import testmonitor_step_list
-
-    steps = [{"name": "Initialize", "status": {"statusType": "PASSED"}}]
-    captured: list = []
-    monkeypatch.setattr("slcli.utils.get_base_url", lambda: "https://test.host")
-
-    def mock_request(method: str, url: str, payload: Any = None, **kw: Any) -> Any:
-        captured.append((method, url, payload))
-        return make_mock_response({"steps": steps})
-
-    monkeypatch.setattr("slcli.utils.make_api_request", mock_request)
-    result = testmonitor_step_list("r1")
-
-    assert json.loads(result) == steps
-    method, url, payload = captured[0]
-    assert method == "POST"
-    assert "query-steps" in url
-    assert payload["substitutions"] == ["r1"]
-    assert "resultId" in payload["filter"]
-
-
-def test_testmonitor_step_list_empty_id_raises(monkeypatch: Any) -> None:
-    """testmonitor_step_list raises ValueError for empty result_id."""
-    from slcli.mcp_server import testmonitor_step_list
-
-    with pytest.raises(ValueError, match="result_id"):
-        testmonitor_step_list("")
-
-
-# ---------------------------------------------------------------------------
-# file_list
-# ---------------------------------------------------------------------------
-
-
-def test_file_list_success(monkeypatch: Any) -> None:
-    """file_list returns files array from the search-files endpoint."""
-    from slcli.mcp_server import file_list
-
-    files = [{"id": "f1", "properties": {"Name": "data.csv"}}]
-    captured_url: list = []
-    monkeypatch.setattr("slcli.utils.get_base_url", lambda: "https://test.host")
-
-    def mock_request(method: str, url: str, **kw: Any) -> Any:
-        captured_url.append(url)
-        return make_mock_response({"files": files})
-
-    monkeypatch.setattr("slcli.utils.make_api_request", mock_request)
-    result = file_list()
-
-    assert json.loads(result) == files
-    assert "search-files" in captured_url[0]
-
-
-def test_file_list_name_filter(monkeypatch: Any) -> None:
-    """file_list includes name filter in POST payload."""
-    from slcli.mcp_server import file_list
-
-    captured: list = []
-    monkeypatch.setattr("slcli.utils.get_base_url", lambda: "https://test.host")
-
-    def mock_request(method: str, url: str, payload: Any = None, **kw: Any) -> Any:
-        captured.append(payload or {})
-        return make_mock_response({"files": []})
-
-    monkeypatch.setattr("slcli.utils.make_api_request", mock_request)
-    file_list(name_filter=".csv")
-
-    assert ".csv" in captured[0].get("filter", "")
-
-
-def test_file_list_workspace_filter(monkeypatch: Any) -> None:
-    """file_list adds workspaceId filter when workspace is provided."""
-    from slcli.mcp_server import file_list
-
-    captured: list = []
-    monkeypatch.setattr("slcli.utils.get_base_url", lambda: "https://test.host")
-
-    def mock_request(method: str, url: str, payload: Any = None, **kw: Any) -> Any:
-        captured.append(payload or {})
-        return make_mock_response({"files": []})
-
-    monkeypatch.setattr("slcli.utils.make_api_request", mock_request)
-    file_list(workspace="ws-99")
-
-    assert "ws-99" in captured[0].get("filter", "")
-
-
-# ---------------------------------------------------------------------------
-# asset_calibration_summary
-# ---------------------------------------------------------------------------
-
-
-def test_asset_calibration_summary_success(monkeypatch: Any) -> None:
-    """asset_calibration_summary returns the asset-summary JSON."""
-    from slcli.mcp_server import asset_calibration_summary
-
-    summary = {
-        "total": 42,
-        "approachingRecommendedDueDate": 5,
-        "pastRecommendedDueDate": 2,
-        "outForCalibration": 1,
-    }
-    captured_url: list = []
-    monkeypatch.setattr("slcli.utils.get_base_url", lambda: "https://test.host")
-
-    def mock_request(method: str, url: str, **kw: Any) -> Any:
-        captured_url.append(url)
-        return make_mock_response(summary)
-
-    monkeypatch.setattr("slcli.utils.make_api_request", mock_request)
-    result = asset_calibration_summary()
-
-    assert json.loads(result) == summary
-    assert "/niapm/v1/asset-summary" in captured_url[0]
-
-
-# ---------------------------------------------------------------------------
-# testmonitor_result_summary
-# ---------------------------------------------------------------------------
-
-
-def test_testmonitor_result_summary_success(monkeypatch: Any) -> None:
-    """testmonitor_result_summary returns total and byStatus counts."""
-    from slcli.mcp_server import testmonitor_result_summary
-
-    call_count = 0
-
-    def mock_request(method: str, url: str, payload: Any = None, **kw: Any) -> Any:
-        nonlocal call_count
-        call_count += 1
-        # Total query has no status filter; status queries have substitutions
-        subs = (payload or {}).get("substitutions", [])
-        if not subs:
-            return make_mock_response({"totalCount": 100})
-        # Return predictable counts per status
-        status = subs[-1]
-        count_map = {
-            "PASSED": 80,
-            "FAILED": 15,
-            "RUNNING": 3,
-            "ERRORED": 2,
-            "TERMINATED": 0,
-            "TIMEDOUT": 0,
-        }
-        return make_mock_response({"totalCount": count_map.get(status, 0)})
-
-    monkeypatch.setattr("slcli.utils.get_base_url", lambda: "https://test.host")
-    monkeypatch.setattr("slcli.utils.make_api_request", mock_request)
-
-    result = json.loads(testmonitor_result_summary())
-
-    assert result["total"] == 100
-    assert result["byStatus"]["PASSED"] == 80
-    assert result["byStatus"]["FAILED"] == 15
-    # Should have made 7 POST requests (1 total + 6 per-status)
-    assert call_count == 7
-
-
-def test_testmonitor_result_summary_program_name_filter(monkeypatch: Any) -> None:
-    """testmonitor_result_summary passes program_name to all sub-queries."""
-    from slcli.mcp_server import testmonitor_result_summary
-
-    captured: list = []
-
-    def mock_request(method: str, url: str, payload: Any = None, **kw: Any) -> Any:
-        captured.append(payload or {})
-        return make_mock_response({"totalCount": 0})
-
-    monkeypatch.setattr("slcli.utils.get_base_url", lambda: "https://test.host")
-    monkeypatch.setattr("slcli.utils.make_api_request", mock_request)
-
-    testmonitor_result_summary(program_name="BatteryTest")
-
-    # All payloads should include ProgramName filter
-    for p in captured:
-        assert "ProgramName" in p.get("filter", "")
-
-
-# ---------------------------------------------------------------------------
-# notebook_list
-# ---------------------------------------------------------------------------
-
-
-def test_notebook_list_sle_success(monkeypatch: Any) -> None:
-    """notebook_list returns notebooks array from SLE query endpoint."""
-    from slcli.mcp_server import notebook_list
-
-    notebooks = [{"id": "nb1", "name": "Analysis"}]
-    captured_url: list = []
-    monkeypatch.setattr("slcli.utils.get_base_url", lambda: "https://test.host")
-    monkeypatch.setattr("slcli.platform.get_platform", lambda: "SLE")
-
-    def mock_request(method: str, url: str, **kw: Any) -> Any:
-        captured_url.append(url)
-        return make_mock_response({"notebooks": notebooks})
-
-    monkeypatch.setattr("slcli.utils.make_api_request", mock_request)
-    result = notebook_list()
-
-    assert json.loads(result) == notebooks
-    assert "/ninotebook/v1/notebook/query" in captured_url[0]
-
-
-def test_notebook_list_sls_success(monkeypatch: Any) -> None:
-    """notebook_list uses /ninbexec/v2/query-notebooks on SLS platform."""
-    from slcli.mcp_server import notebook_list
-
-    captured_url: list = []
-    monkeypatch.setattr("slcli.utils.get_base_url", lambda: "https://test.host")
-    monkeypatch.setattr("slcli.platform.get_platform", lambda: "SLS")
-
-    def mock_request(method: str, url: str, **kw: Any) -> Any:
-        captured_url.append(url)
-        return make_mock_response({"notebooks": []})
-
-    monkeypatch.setattr("slcli.utils.make_api_request", mock_request)
-    notebook_list()
-
-    assert "/ninbexec/v2/query-notebooks" in captured_url[0]
-
-
-def test_notebook_list_workspace_filter(monkeypatch: Any) -> None:
-    """notebook_list adds workspace filter to the POST payload."""
-    from slcli.mcp_server import notebook_list
-
-    captured: list = []
-    monkeypatch.setattr("slcli.utils.get_base_url", lambda: "https://test.host")
-    monkeypatch.setattr("slcli.platform.get_platform", lambda: "SLE")
-
-    def mock_request(method: str, url: str, payload: Any = None, **kw: Any) -> Any:
-        captured.append(payload or {})
-        return make_mock_response({"notebooks": []})
-
-    monkeypatch.setattr("slcli.utils.make_api_request", mock_request)
-    notebook_list(workspace="ws-1")
-
-    assert "ws-1" in captured[0].get("filter", "")
-
-
-# ---------------------------------------------------------------------------
-# alarm_list
-# ---------------------------------------------------------------------------
-
-
-def test_alarm_list_success(monkeypatch: Any) -> None:
-    """alarm_list returns alarmInstances array from GET /nialarm/v1/active-instances."""
-    from slcli.mcp_server import alarm_list
-
-    alarms = [{"instanceId": "a1", "message": "CPU overtemp", "severity": "HIGH"}]
-    captured_url: list = []
-    monkeypatch.setattr("slcli.utils.get_base_url", lambda: "https://test.host")
-
-    def mock_request(method: str, url: str, **kw: Any) -> Any:
-        captured_url.append(url)
-        return make_mock_response({"alarmInstances": alarms})
-
-    monkeypatch.setattr("slcli.utils.make_api_request", mock_request)
-    result = alarm_list()
-
-    assert json.loads(result) == alarms
-    assert "/nialarm/v1/active-instances" in captured_url[0]
-
-
-def test_alarm_list_severity_filter(monkeypatch: Any) -> None:
-    """alarm_list appends severity query param when provided."""
-    from slcli.mcp_server import alarm_list
-
-    captured_url: list = []
-    monkeypatch.setattr("slcli.utils.get_base_url", lambda: "https://test.host")
-
-    def mock_request(method: str, url: str, **kw: Any) -> Any:
-        captured_url.append(url)
-        return make_mock_response({"alarmInstances": []})
-
-    monkeypatch.setattr("slcli.utils.make_api_request", mock_request)
-    alarm_list(severity="CRITICAL")
-
-    assert "severity=CRITICAL" in captured_url[0]
-
-
-def test_alarm_list_flat_list_response(monkeypatch: Any) -> None:
-    """alarm_list handles a flat list response (no wrapper dict)."""
-    from slcli.mcp_server import alarm_list
-
-    alarms = [{"instanceId": "a1"}]
-    monkeypatch.setattr("slcli.utils.get_base_url", lambda: "https://test.host")
-    monkeypatch.setattr(
-        "slcli.utils.make_api_request",
-        lambda *a, **kw: make_mock_response(alarms),
-    )
-
-    assert json.loads(alarm_list()) == alarms
-
-
-# ---------------------------------------------------------------------------
-# tag_history
-# ---------------------------------------------------------------------------
-
-
-def test_tag_history_success(monkeypatch: Any) -> None:
-    """tag_history returns values array from GET /nitag/v2/tags/{path}/values/history."""
-    from slcli.mcp_server import tag_history
-
-    history = [
-        {"value": {"value": "22.5"}, "timestamp": "2026-01-01T00:00:00Z"},
-        {"value": {"value": "22.3"}, "timestamp": "2026-01-01T00:01:00Z"},
-    ]
-    captured_url: list = []
-    monkeypatch.setattr("slcli.utils.get_base_url", lambda: "https://test.host")
-
-    def mock_request(method: str, url: str, **kw: Any) -> Any:
-        captured_url.append(url)
-        return make_mock_response({"values": history})
-
-    monkeypatch.setattr("slcli.utils.make_api_request", mock_request)
-    result = tag_history("sensor.temp")
-
-    assert json.loads(result) == history
-    assert "/nitag/v2/tags/sensor.temp/values/history" in captured_url[0]
-    assert "take=25" in captured_url[0]
-
-
-def test_tag_history_custom_take(monkeypatch: Any) -> None:
-    """tag_history forwards the take parameter in the URL."""
-    from slcli.mcp_server import tag_history
-
-    captured_url: list = []
-    monkeypatch.setattr("slcli.utils.get_base_url", lambda: "https://test.host")
-
-    def mock_request(method: str, url: str, **kw: Any) -> Any:
-        captured_url.append(url)
-        return make_mock_response({"values": []})
-
-    monkeypatch.setattr("slcli.utils.make_api_request", mock_request)
-    tag_history("sensor.temp", take=50)
-
-    assert "take=50" in captured_url[0]
-
-
-def test_tag_history_empty_path_raises(monkeypatch: Any) -> None:
-    """tag_history raises ValueError for empty path."""
-    from slcli.mcp_server import tag_history
-
-    with pytest.raises(ValueError, match="path"):
-        tag_history("")
-
-
-def test_tag_history_path_is_url_encoded(monkeypatch: Any) -> None:
-    """tag_history URL-encodes special characters in the path."""
-    from slcli.mcp_server import tag_history
-
-    captured_url: list = []
-    monkeypatch.setattr("slcli.utils.get_base_url", lambda: "https://test.host")
-
-    def mock_request(method: str, url: str, **kw: Any) -> Any:
-        captured_url.append(url)
-        return make_mock_response({"values": []})
-
-    monkeypatch.setattr("slcli.utils.make_api_request", mock_request)
-    tag_history("machine/line1/temperature")
-
-    assert (
-        "%2F" in captured_url[0]
-        or "/" not in captured_url[0].split("/history")[0].split("tags/")[1]
-    )
-
-
-# ---------------------------------------------------------------------------
-# workspace_create
-# ---------------------------------------------------------------------------
-
-
-def test_workspace_create_success(monkeypatch: Any) -> None:
-    """workspace_create POSTs to /niuser/v1/workspaces and returns the created object."""
-    from slcli.mcp_server import workspace_create
-
-    created = {"id": "ws-new", "name": "My Workspace", "enabled": True}
-    calls: list = []
-    monkeypatch.setattr("slcli.utils.get_base_url", lambda: "https://test.host")
-
-    def mock_request(method: str, url: str, payload: Any = None, **kw: Any) -> Any:
-        calls.append((method, url, payload))
-        return make_mock_response(created)
-
-    monkeypatch.setattr("slcli.utils.make_api_request", mock_request)
-    result = workspace_create("My Workspace")
-
-    assert json.loads(result) == created
-    method, url, payload = calls[0]
-    assert method == "POST"
-    assert "/niuser/v1/workspaces" in url
-    assert payload["name"] == "My Workspace"
-    assert payload["enabled"] is True
-
-
-def test_workspace_create_empty_name_raises(monkeypatch: Any) -> None:
-    """workspace_create raises ValueError for empty name."""
-    from slcli.mcp_server import workspace_create
-
-    with pytest.raises(ValueError, match="name"):
-        workspace_create("")
-
-
-# ---------------------------------------------------------------------------
-# workspace_disable
-# ---------------------------------------------------------------------------
-
-
-def test_workspace_disable_success(monkeypatch: Any) -> None:
-    """workspace_disable sends PUT with enabled=False and returns confirmation."""
-    from slcli.mcp_server import workspace_disable
-
-    calls: list = []
-    monkeypatch.setattr("slcli.utils.get_base_url", lambda: "https://test.host")
-
-    def mock_request(method: str, url: str, payload: Any = None, **kw: Any) -> Any:
-        calls.append((method, url, payload))
-        return make_mock_response({})
-
-    monkeypatch.setattr("slcli.utils.make_api_request", mock_request)
-    result = workspace_disable("ws-1", "Production")
-
-    assert len(calls) == 1
-    method, url, payload = calls[0]
-    assert method == "PUT"
-    assert "/niuser/v1/workspaces/ws-1" in url
-    assert payload == {"name": "Production", "enabled": False}
-    assert json.loads(result) == {"id": "ws-1", "name": "Production", "enabled": False}
-
-
-def test_workspace_disable_empty_id_raises(monkeypatch: Any) -> None:
-    """workspace_disable raises ValueError for empty workspace_id."""
-    from slcli.mcp_server import workspace_disable
-
-    with pytest.raises(ValueError, match="workspace_id"):
-        workspace_disable("", "Production")
-
-
-def test_workspace_disable_empty_name_raises(monkeypatch: Any) -> None:
-    """workspace_disable raises ValueError for empty workspace_name."""
-    from slcli.mcp_server import workspace_disable
-
-    with pytest.raises(ValueError, match="workspace_name"):
-        workspace_disable("ws-1", "")
-
-
-# ---------------------------------------------------------------------------
-# asset_list — model filter (new)
-# ---------------------------------------------------------------------------
-
-
-def test_asset_list_model_filter(monkeypatch: Any) -> None:
-    """asset_list includes ModelName.Contains filter when model is supplied."""
-    from slcli.mcp_server import asset_list
-
-    captured: list = []
-    monkeypatch.setattr("slcli.utils.get_base_url", lambda: "https://test.host")
-
-    def mock_request(method: str, url: str, payload: Any = None, **kw: Any) -> Any:
-        captured.append(payload or {})
-        return make_mock_response({"assets": []})
-
-    monkeypatch.setattr("slcli.utils.make_api_request", mock_request)
-    asset_list(model="SLSC-12101")
-
-    assert "ModelName.Contains" in captured[0].get("filter", "")
-    assert "SLSC-12101" in captured[0].get("filter", "")
-
-
-# ---------------------------------------------------------------------------
-# testmonitor_result_list — host_name filter, skip, and default take (new)
-# ---------------------------------------------------------------------------
-
-
-def test_testmonitor_result_list_host_name_filter(monkeypatch: Any) -> None:
-    """testmonitor_result_list adds HostName.Contains filter when host_name is supplied."""
-    from slcli.mcp_server import testmonitor_result_list
-
-    captured: list = []
-    monkeypatch.setattr("slcli.utils.get_base_url", lambda: "https://test.host")
-
-    def mock_request(method: str, url: str, payload: Any = None, **kw: Any) -> Any:
-        captured.append(payload or {})
-        return make_mock_response({"results": []})
-
-    monkeypatch.setattr("slcli.utils.make_api_request", mock_request)
-    testmonitor_result_list(host_name="SCHLUMBERGER")
-
-    f = captured[0].get("filter", "")
-    assert "HostName.Contains" in f
-    assert "SCHLUMBERGER" in f
-
-
-def test_testmonitor_result_list_skip_forwarded(monkeypatch: Any) -> None:
-    """testmonitor_result_list passes skip to the API payload."""
-    from slcli.mcp_server import testmonitor_result_list
-
-    captured: list = []
-    monkeypatch.setattr("slcli.utils.get_base_url", lambda: "https://test.host")
-
-    def mock_request(method: str, url: str, payload: Any = None, **kw: Any) -> Any:
-        captured.append(payload or {})
-        return make_mock_response({"results": []})
-
-    monkeypatch.setattr("slcli.utils.make_api_request", mock_request)
-    testmonitor_result_list(skip=100)
-
-    assert captured[0].get("skip") == 100
-
-
-def test_testmonitor_result_list_default_take_is_100(monkeypatch: Any) -> None:
-    """testmonitor_result_list uses take=100 by default."""
-    from slcli.mcp_server import testmonitor_result_list
-
-    captured: list = []
-    monkeypatch.setattr("slcli.utils.get_base_url", lambda: "https://test.host")
-
-    def mock_request(method: str, url: str, payload: Any = None, **kw: Any) -> Any:
-        captured.append(payload or {})
-        return make_mock_response({"results": []})
-
-    monkeypatch.setattr("slcli.utils.make_api_request", mock_request)
-    testmonitor_result_list()
-
-    assert captured[0].get("take") == 100
-
-
-# ---------------------------------------------------------------------------
-# testmonitor_result_summary — serial_number, part_number, host_name (new)
-# ---------------------------------------------------------------------------
-
-
-def test_testmonitor_result_summary_serial_number_filter(monkeypatch: Any) -> None:
-    """testmonitor_result_summary passes serial_number filter to all sub-queries."""
-    from slcli.mcp_server import testmonitor_result_summary
-
-    captured: list = []
-
-    def mock_request(method: str, url: str, payload: Any = None, **kw: Any) -> Any:
-        captured.append(payload or {})
-        return make_mock_response({"totalCount": 0})
-
-    monkeypatch.setattr("slcli.utils.get_base_url", lambda: "https://test.host")
-    monkeypatch.setattr("slcli.utils.make_api_request", mock_request)
-
-    testmonitor_result_summary(serial_number="SN-001")
-
-    for p in captured:
-        assert "SerialNumber" in p.get("filter", "")
-
-
-def test_testmonitor_result_summary_part_number_filter(monkeypatch: Any) -> None:
-    """testmonitor_result_summary passes part_number filter to all sub-queries."""
-    from slcli.mcp_server import testmonitor_result_summary
-
-    captured: list = []
-
-    def mock_request(method: str, url: str, payload: Any = None, **kw: Any) -> Any:
-        captured.append(payload or {})
-        return make_mock_response({"totalCount": 0})
-
-    monkeypatch.setattr("slcli.utils.get_base_url", lambda: "https://test.host")
-    monkeypatch.setattr("slcli.utils.make_api_request", mock_request)
-
-    testmonitor_result_summary(part_number="BATT-8")
-
-    for p in captured:
-        assert "PartNumber" in p.get("filter", "")
-
-
-def test_testmonitor_result_summary_host_name_filter(monkeypatch: Any) -> None:
-    """testmonitor_result_summary passes host_name filter to all sub-queries."""
-    from slcli.mcp_server import testmonitor_result_summary
-
-    captured: list = []
-
-    def mock_request(method: str, url: str, payload: Any = None, **kw: Any) -> Any:
-        captured.append(payload or {})
-        return make_mock_response({"totalCount": 0})
-
-    monkeypatch.setattr("slcli.utils.get_base_url", lambda: "https://test.host")
-    monkeypatch.setattr("slcli.utils.make_api_request", mock_request)
-
-    testmonitor_result_summary(host_name="My-Host")
-
-    for p in captured:
-        assert "HostName" in p.get("filter", "")
+        get_file_by_id("missing")

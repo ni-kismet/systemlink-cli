@@ -918,6 +918,7 @@ def test_webapp_get_shows_metadata(monkeypatch: MonkeyPatch) -> None:
 def test_webapp_publish_creates_and_uploads(tmp_path: Path, monkeypatch: MonkeyPatch) -> None:
     runner = CliRunner()
     patch_keyring(monkeypatch)
+    import slcli.webapp_click
 
     # create a source folder to publish
     folder = tmp_path / "site"
@@ -958,12 +959,116 @@ def test_webapp_publish_creates_and_uploads(tmp_path: Path, monkeypatch: MonkeyP
 
     monkeypatch.setattr(requests, "post", mock_post)
     monkeypatch.setattr(requests, "put", mock_put)
+    monkeypatch.setattr(slcli.webapp_click, "get_workspace_id_with_fallback", lambda _: "ws1")
+    monkeypatch.setattr(slcli.webapp_click, "get_workspace_map", lambda: {"ws1": "Default"})
+    monkeypatch.setattr(slcli.webapp_click, "get_web_url", lambda: "https://web.example.test")
 
     result = runner.invoke(
         cli, ["webapp", "publish", str(folder), "--name", "NewApp", "--workspace", "Default"]
     )
     assert result.exit_code == 0
     assert "Published webapp content" in result.output or "Created webapp metadata" in result.output
+    assert "Published URL" in result.output
+    assert "https://web.example.test/webapps/app/Default/NewApp" in result.output
+
+
+def test_webapp_publish_existing_id_includes_published_url(
+    tmp_path: Path, monkeypatch: MonkeyPatch
+) -> None:
+    runner = CliRunner()
+    patch_keyring(monkeypatch)
+    import slcli.webapp_click
+
+    package = tmp_path / "app.nipkg"
+    package.write_bytes(b"test")
+
+    import requests
+
+    class MockGetResp:
+        def json(self) -> Dict[str, Any]:
+            return {
+                "id": "existing-id",
+                "name": "Existing App",
+                "workspace": "ws1",
+                "properties": {},
+                "type": "WebVI",
+            }
+
+        def raise_for_status(self) -> None:
+            return None
+
+    class MockPutResp:
+        text = ""
+
+        @property
+        def status_code(self) -> int:
+            return 204
+
+        def raise_for_status(self) -> None:
+            return None
+
+    monkeypatch.setattr(requests, "get", lambda *a, **k: MockGetResp())
+    monkeypatch.setattr(requests, "put", lambda *a, **k: MockPutResp())
+    monkeypatch.setattr(slcli.webapp_click, "get_workspace_map", lambda: {"ws1": "Default"})
+    monkeypatch.setattr(slcli.webapp_click, "get_web_url", lambda: "https://web.example.test")
+
+    result = runner.invoke(cli, ["webapp", "publish", str(package), "--id", "existing-id"])
+
+    assert result.exit_code == 0
+    assert "Published URL" in result.output
+    assert "https://web.example.test/webapps/app/Default/Existing%20App" in result.output
+
+
+def test_webapp_publish_existing_id_without_workspace_mapping_uses_content_url(
+    tmp_path: Path, monkeypatch: MonkeyPatch
+) -> None:
+    runner = CliRunner()
+    patch_keyring(monkeypatch)
+    import slcli.webapp_click
+
+    package = tmp_path / "app.nipkg"
+    package.write_bytes(b"test")
+
+    import requests
+
+    class MockGetResp:
+        def json(self) -> Dict[str, Any]:
+            return {
+                "id": "existing-id",
+                "name": "Existing App",
+                "workspace": "ws1",
+                "properties": {},
+                "type": "WebVI",
+            }
+
+        def raise_for_status(self) -> None:
+            return None
+
+    class MockPutResp:
+        text = ""
+
+        @property
+        def status_code(self) -> int:
+            return 204
+
+        def raise_for_status(self) -> None:
+            return None
+
+    monkeypatch.setattr(requests, "get", lambda *a, **k: MockGetResp())
+    monkeypatch.setattr(requests, "put", lambda *a, **k: MockPutResp())
+    monkeypatch.setattr(slcli.webapp_click, "get_workspace_map", lambda: {})
+    monkeypatch.setattr(
+        slcli.webapp_click,
+        "_get_webapp_base_url",
+        lambda: "https://api.example.test/niapp/v1",
+    )
+
+    result = runner.invoke(cli, ["webapp", "publish", str(package), "--id", "existing-id"])
+
+    assert result.exit_code == 0
+    assert "Published URL" in result.output
+    assert "https://api.example.test/niapp/v1/webapps/existing-id/content" in result.output
+    assert "/webapps/app/Default/Existing%20App" not in result.output
 
 
 def test_webapp_open_uses_workspace_url(monkeypatch: MonkeyPatch) -> None:

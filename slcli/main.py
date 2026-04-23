@@ -30,6 +30,7 @@ from .rich_output import install_rich_output
 from .rich_output import render_table
 from .routine_click import register_routine_commands
 from .skill_click import register_skill_commands
+from .spec_click import register_spec_commands
 from .ssl_trust import OS_TRUST_INJECTED, OS_TRUST_REASON
 from .system_click import register_system_commands
 from .tag_click import register_tag_commands
@@ -365,6 +366,11 @@ def info(format: str, skip_health: bool) -> None:
         workspace_display = truncate(workspace)
         info_rows.append(["Workspace", workspace_display])
 
+    system_query_endpoint = platform_info.get("system_query_endpoint")
+    if system_query_endpoint:
+        system_query_display = truncate(str(system_query_endpoint))
+        info_rows.append(["System Query", system_query_display])
+
     file_query_endpoint = platform_info.get("file_query_endpoint")
     if file_query_endpoint:
         if (
@@ -427,6 +433,7 @@ register_notebook_commands(cli)
 register_policy_commands(cli)
 register_routine_commands(cli)
 register_system_commands(cli)
+register_spec_commands(cli)
 register_tag_commands(cli)
 register_testmonitor_commands(cli)
 register_webapp_commands(cli)

@@ -60,6 +60,22 @@ poetry run pytest --cov
 poetry run pytest tests/e2e/ -n auto
 ```
 
+### Changelog Fragments
+
+- Every pull request must include at least one Towncrier change fragment in `newsfragments/`
+- CI enforces this with `poetry run towncrier check`
+- Use the fragment type to communicate the release bump intent:
+   - `major` for breaking changes
+   - `minor` for new features
+   - `patch` for fixes and behavior changes
+   - `doc` for documentation-only changes (still releases as a patch)
+   - `misc` for other shipped changes (also releases as a patch)
+
+```bash
+# Create a fragment named after the PR or issue number
+poetry run towncrier create 123.patch.md --content "Prefer the new systems search endpoint with fallback."
+```
+
 ### CLI Standards
 
 - All CLI commands must provide clear help text and validation
@@ -182,21 +198,16 @@ This will:
 
 ### Creating a Release
 
-1. **Update the version** in `pyproject.toml`:
+1. **Merge pull requests with Towncrier fragments** into `main`.
 
-   ```toml
-   [tool.poetry]
-   version = "0.2.0"  # Update to new version
-   ```
+2. **The automated Towncrier release workflow** will:
+   - Determine the next version from the fragment types in `newsfragments/`
+   - Update `pyproject.toml` and `slcli/_version.py`
+   - Build and prepend the new section in `CHANGELOG.md`
+   - Commit the release metadata back to `main`
+   - Create and push the `vX.Y.Z` git tag
 
-2. **Create and push a git tag:**
-
-   ```bash
-   git tag v0.2.0
-   git push origin v0.2.0
-   ```
-
-3. **Automated release workflow** will:
+3. **The tag-triggered release workflow** will:
    - Run all tests and linting
    - Build PyInstaller binaries for all platforms
    - Generate Homebrew formula and Scoop manifest
@@ -231,6 +242,7 @@ brew upgrade slcli
 ## Pull Request Requirements
 
 - All code must pass CI (lint, test, build) before merging
+- All pull requests must include at least one Towncrier fragment in `newsfragments/`
 - All new features must be documented in `README.md`
 - All code must be reviewed by at least one other developer
 - All new CLI commands must include JSON output support via `--format/-f` option

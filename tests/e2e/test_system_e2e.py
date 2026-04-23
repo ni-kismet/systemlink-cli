@@ -72,7 +72,7 @@ class TestSystemListE2E:
         assert isinstance(systems, list)
         for sys_item in systems:
             alias = sys_item.get("alias", "")
-            assert "Win" in alias
+            assert "win" in alias.lower()
 
     def test_list_with_workspace_filter(
         self, cli_runner: Any, cli_helper: Any, configured_workspace: str
