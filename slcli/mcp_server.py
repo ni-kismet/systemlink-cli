@@ -271,7 +271,41 @@ def query_systems(
     take: int = 100,
 ) -> str:
     """Query systems by alias, connection state, workspace, or raw filter."""
-    from .utils import get_base_url
+    import requests as requests_lib
+
+    from .system_query_utils import (
+        MATERIALIZED_SYSTEM_MCP_PROJECTION,
+        build_materialized_system_search_filter,
+        get_system_query_url,
+        get_system_search_url,
+    )
+    from .utils import make_api_request
+
+    materialized_filter = None
+    if filter is None:
+        materialized_filter = build_materialized_system_search_filter(
+            alias=alias,
+            state=state,
+            workspace_id=workspace,
+        )
+
+    if filter is None:
+        search_payload: Dict[str, Any] = {
+            "take": take,
+            "projection": MATERIALIZED_SYSTEM_MCP_PROJECTION,
+        }
+        if materialized_filter:
+            search_payload["filter"] = materialized_filter
+        try:
+            data = make_api_request(
+                "POST",
+                get_system_search_url(),
+                payload=search_payload,
+                handle_errors=False,
+            ).json()
+            return _dump(_normalize_systems(data))
+        except requests_lib.RequestException:
+            pass
 
     filter_parts: List[str] = []
     if alias:
@@ -283,11 +317,16 @@ def query_systems(
     if filter:
         filter_parts.append(filter)
 
-    payload: Dict[str, Any] = {"take": take}
+    query_payload: Dict[str, Any] = {"take": take}
     if filter_parts:
-        payload["filter"] = " and ".join(filter_parts)
+        query_payload["filter"] = " and ".join(filter_parts)
 
-    data = _post_json(f"{get_base_url()}/nisysmgmt/v1/query-systems", payload)
+    data = make_api_request(
+        "POST",
+        get_system_query_url(),
+        payload=query_payload,
+        handle_errors=False,
+    ).json()
     return _dump(_normalize_systems(data))
 
 

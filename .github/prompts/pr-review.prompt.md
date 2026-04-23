@@ -51,6 +51,7 @@ You are a professional code reviewer for the SystemLink CLI project. Your role i
 - ✅ Linting passes: `poetry run ni-python-styleguide lint`
 - ✅ Type checking passes: `poetry run mypy slcli tests`
 - ✅ Formatting clean: `poetry run black .` (100 char limit)
+- ✅ Towncrier requirements met: relevant PRs include committed fragment files in `newsfragments/` and `poetry run towncrier check --compare-with origin/${{ github.base_ref }}` passes
 - ✅ Documentation updated (README, docstrings, help text, and command docs such as `site/commands.html` when CLI changes require it)
 - ✅ CLI standards met (--format/-f, --help, proper exit codes)
 - ✅ New bundled skills under `slcli/skills/` are installable via `slcli skill install`
@@ -78,6 +79,7 @@ Please review the PR systematically:
 - [ ] Linting passes: `poetry run ni-python-styleguide lint`
 - [ ] Type checking passes: `poetry run mypy slcli tests`
 - [ ] Formatting clean: `poetry run black .`
+- [ ] Towncrier check passes: `poetry run towncrier check --compare-with origin/main`
 - [ ] No unused imports or debug code
 - [ ] Docstrings complete (Google format)
 
@@ -90,6 +92,7 @@ Please review the PR systematically:
 
 **4. Repository Standards**
 - [ ] CLI standards met (--format, --help, exit codes)
+- [ ] Required Towncrier fragment(s) exist in `newsfragments/` with the correct type (`major`, `minor`, `patch`, `doc`, `misc`) and match the user-visible scope of the PR
 - [ ] Command docs reviewed for needed updates (`README.md`, `site/commands.html`, `site/getting-started.html`, and other user-facing command docs as applicable)
 - [ ] README updated if needed
 - [ ] **`site/commands.html` updated** — add new CLI commands or changed command examples to the website command reference
@@ -111,6 +114,7 @@ Please review the PR systematically:
 Approve when:
 - ✅ All tests pass (unit + E2E)
 - ✅ Linting, type checking, formatting all pass
+- ✅ Towncrier fragment requirements are satisfied and the fragment check passes
 - ✅ ≥80% coverage for new code
 - ✅ No code duplication
 - ✅ Architecture patterns followed
@@ -122,9 +126,11 @@ Approve when:
 
 ```bash
 # Quick validation
+poetry run towncrier check --compare-with origin/main && \
 poetry run pytest tests/unit -q && poetry run pytest tests/e2e/ -n auto --timeout=300
 
 # Full validation
+poetry run towncrier check --compare-with origin/main && \
 poetry run ni-python-styleguide lint && \
 poetry run black . && \
 poetry run mypy slcli tests && \
@@ -168,6 +174,7 @@ You are reviewing changes to CLI commands in the SystemLink CLI project. Focus o
 - [ ] Mock patterns use `Any` type hints for Pylance compatibility
 
 **Documentation:**
+- [ ] Required Towncrier fragment(s) exist and match the CLI/documentation impact of the PR
 - [ ] Command docs reviewed for needed updates (`README.md`, `site/commands.html`, `site/getting-started.html`, and other user-facing command docs as applicable)
 - [ ] README updated with usage examples
 - [ ] `site/commands.html` updated when CLI commands or examples change
@@ -178,6 +185,7 @@ You are reviewing changes to CLI commands in the SystemLink CLI project. Focus o
 ### Key Commands
 
 ```bash
+poetry run towncrier check --compare-with origin/main
 poetry run pytest tests/unit/test_*_click.py -v
 poetry run ni-python-styleguide lint
 poetry run mypy slcli tests
@@ -213,6 +221,7 @@ You are reviewing API integration changes in the SystemLink CLI project. Focus o
 
 ### Testing
 
+- [ ] Towncrier fragment(s) exist for shipped API changes and the compare check passes
 - [ ] API responses properly mocked in tests
 - [ ] Tests cover both success and failure paths
 - [ ] Exact-match verification tested
@@ -231,6 +240,7 @@ You are reviewing API integration changes in the SystemLink CLI project. Focus o
 ### Key Commands
 
 ```bash
+poetry run towncrier check --compare-with origin/main
 poetry run pytest tests/unit -q
 poetry run pytest tests/e2e/ -n auto --timeout=300
 poetry run mypy slcli tests
@@ -263,6 +273,7 @@ You are reviewing refactoring and code reuse improvements in the SystemLink CLI 
 
 ### Testing
 
+- [ ] Towncrier fragment(s) updated if the refactor changes shipped behavior, CLI output, or user-visible docs
 - [ ] Refactored code has same/better test coverage
 - [ ] All existing tests still pass
 - [ ] New test coverage for improved error paths
@@ -279,6 +290,7 @@ You are reviewing refactoring and code reuse improvements in the SystemLink CLI 
 ### Key Commands
 
 ```bash
+poetry run towncrier check --compare-with origin/main
 poetry run ni-python-styleguide lint
 poetry run mypy slcli tests
 poetry run pytest tests/unit -q
@@ -323,6 +335,7 @@ You are reviewing end-to-end tests for the SystemLink CLI project. Focus on test
 
 ### Documentation
 
+- [ ] Towncrier fragment(s) updated when E2E changes correspond to shipped user-visible workflow behavior
 - [ ] Location and purpose documented in `tests/e2e/README.md`
 - [ ] Setup instructions provided (API endpoints, credentials, etc.)
 - [ ] Environment requirements documented
@@ -339,6 +352,7 @@ You are reviewing end-to-end tests for the SystemLink CLI project. Focus on test
 ### Key Commands
 
 ```bash
+poetry run towncrier check --compare-with origin/main
 poetry run pytest tests/e2e/ -n auto --timeout=300
 poetry run pytest tests/e2e/ -v  # Without parallelization (debugging)
 poetry run pytest tests/e2e/test_*.py -v
@@ -352,6 +366,7 @@ poetry run pytest tests/e2e/test_*.py -v
 
 ```bash
 # Pre-submission validation
+poetry run towncrier check --compare-with origin/main && \
 poetry run ni-python-styleguide lint && \
 poetry run black . && \
 poetry run mypy slcli tests && \

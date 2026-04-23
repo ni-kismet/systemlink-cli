@@ -21,52 +21,114 @@ compatibility: >-
 metadata:
   author: ni-kismet
   version: "2.0"
----
+#   --system SYSTEM_ID    Assign a system (by minion/system ID). Repeatable.
+#   --fixture ASSET_ID    Assign a fixture/slot (by asset ID, asset type FIXTURE). Repeatable.
+#   --dut ASSET_ID        Assign a DUT (by asset ID, asset type DEVICE_UNDER_TEST). Repeatable.
+# Use `slcli asset list --asset-type FIXTURE` to find fixture IDs.
+# Use `slcli system list` to find system IDs.
+# At least one option must be provided; time and resource options can be combined freely.
+slcli workitem schedule <WORK_ITEM_ID> \
+  [--start ISO8601] [--end ISO8601] [--duration SECONDS] \
+  [--assigned-to USER_ID] \
+  [--system SYSTEM_ID]... [--fixture ASSET_ID]... [--dut ASSET_ID]...
 
-# SystemLink CLI (slcli)
+# Work item template subgroup
+slcli workitem template list [-w WORKSPACE] [--filter TEXT] [-t INT] [-f json]
+slcli workitem template get <TEMPLATE_ID> [-f json]
+slcli workitem template create --name TEXT --type TEXT --template-group TEXT [-w WORKSPACE] [OPTIONS]
+slcli workitem template update <TEMPLATE_ID> [--name TEXT] [--description TEXT] [--summary TEXT]
+slcli workitem template delete <TEMPLATE_ID>... [--yes]
 
-## Quick start
-
-```bash
-# check current connection
-slcli info
-
-# list test results (table output, paginated)
-slcli testmonitor result list --take 25
-
-# list test results (JSON output, all results)
-slcli testmonitor result list --take 100 -f json
-
-# summarize test results by status
-slcli testmonitor result list --summary --group-by status -f json
-
-# list assets needing calibration
-slcli asset list --calibration-status PAST_RECOMMENDED_DUE_DATE
-
-# list connected systems
-slcli system list --state CONNECTED
-
-# list work items
-slcli workitem list -f json -t 25
-
-# create a work item
-slcli workitem create --name "Battery Cycle Test" --type testplan --state NEW --part-number "P-001" -w Default
-
-# register the MCP server for VS Code Copilot Agent mode
-slcli mcp install
-
-# run the MCP server over streamable HTTP for local inspector testing
-slcli mcp serve --transport streamable-http
+# Workflow subgroup
+slcli workitem workflow list [-w WORKSPACE] [-t INT] [-f json]
+slcli workitem workflow get [--id WORKFLOW_ID] [--name NAME] [-f json]
+slcli workitem workflow init [--name TEXT] [--directory DIR]   # Scaffold a local workflow file
+slcli workitem workflow create --file PATH [-w WORKSPACE]      # Create from JSON file
+slcli workitem workflow import --file PATH [-w WORKSPACE]      # Import workflow from JSON
+slcli workitem workflow export [--id WORKFLOW_ID] [--name NAME] [-o FILE]  # Export to JSON
+slcli workitem workflow update --id WORKFLOW_ID --file PATH    # Update from JSON file
+slcli workitem workflow delete --id WORKFLOW_ID [--yes]
+slcli workitem workflow preview [--file PATH] [--id WORKFLOW_ID] [--html] [--no-open] [-o FILE]
 ```
 
-## Output formats
+**Create work item options:**
 
-All list and get commands support `-f, --format` with `table` (default) or `json`.
+```bash
+slcli workitem create \
+  --name "Battery Cycle Test" \
+  --type testplan \
+  --state NEW \
+  --part-number "P-BAT-001" \
+  --description "Battery capacity test" \
+  --assigned-to <user-id> \
+  --workflow-id <workflow-id> \
+  --workspace Default \
+  --format json
+```
 
-- **Table**: Paginated (default 25 rows), human-readable with box-drawing.
-- **JSON**: Returns all matching results as a JSON array — ideal for piping to `jq`.
+### workflow — Workflow management
 
-Always use `-f json` when you need to process, filter, or aggregate output programmatically.
+> **Note:** The standalone `slcli workflow` command group has been replaced by
+> `slcli workitem workflow`. Use `slcli workitem workflow` for all workflow operations.
+> See the **workitem** section above.
+
+### webapp — Web application management
+
+Scaffold, package, and publish custom web applications to SystemLink.
+
+```bash
+slcli webapp init <DIRECTORY>                      # Scaffold the Angular starter
+slcli webapp manifest init <DIRECTORY> [OPTIONS]  # Create nipkg.config.json for packaging
+slcli webapp pack [FOLDER] [--config FILE] [-o OUTPUT_FILE]  # Package a webapp into a .nipkg
+slcli webapp list [-w WORKSPACE] [-t INT] [-f json]
+slcli webapp get <WEBAPP_ID> [-f json]
+slcli webapp publish PATH [--workspace NAME]             # Upload and publish a webapp
+slcli webapp delete <WEBAPP_ID>
+slcli webapp open <WEBAPP_ID>                            # Open webapp URL in browser
+```
+
+`webapp init` creates the SystemLink Angular starter, not a generic HTML app. The starter installs
+project-scoped skills into `.agents/skills/` and creates `PROMPTS.md` plus `START_HERE.md` so an
+AI assistant can bootstrap the Angular workspace in place with the same Nimble/SystemLink
+conventions described by the `systemlink-webapp` skill.
+
+`webapp manifest init` writes `nipkg.config.json` using the Plugin Manager field names
+(`section`, `maintainer`, `homepage`, `xbPlugin`, `slPluginManagerTags`,
+`slPluginManagerMinServerVersion`, `iconFile`). `webapp pack --config ...` consumes that
+metadata, carries the icon into the package, writes the matching control-file fields into the
+generated `.nipkg`, and emits a thin `manifest.json` with `schemaVersion`, `nipkgFile`,
+`sha256`, and any configured provenance fields.
+
+### skill — AI skill installation
+
+Install bundled skills for supported AI clients.
+
+```bash
+slcli skill install --skill [slcli|systemlink-webapp|systemlink-notebook|all] --client [agents|claude|all] --scope [personal|project|both]
+```
+
+Client paths:
+
+- `agents` — personal: `~/.agents/skills/`, project: `.agents/skills/` (most agents)
+- `claude` — personal: `~/.claude/skills/`, project: `.claude/skills/`
+- `all` — install to both the `agents` and `claude` locations for the selected scope
+
+Notes:
+
+- `agents` is the default client in interactive mode.
+- `webapp init` installs project-scoped skills into `.agents/skills/` by default.
+
+### example — Built-in example resource provisioning
+
+Install pre-built demo configurations (systems, assets, DUTs, templates, etc.)
+for training, testing, or evaluation.
+
+```bash
+slcli example list [-f json]                             # List available examples
+slcli example info <EXAMPLE_ID>                          # Show example details
+slcli example install <EXAMPLE_ID> [--workspace NAME]    # Provision example resources
+slcli example delete <EXAMPLE_ID> [--workspace NAME]     # Remove provisioned resources
+```
 
 ## Reference docs
 

@@ -245,7 +245,10 @@ slcli asset delete &lt;asset-id&gt; --force</code></pre>
       <pre><code>slcli system list --state CONNECTED --os "Windows"
 slcli system list --has-package "ni-daqmx"
 slcli system list --has-keyword "production"
-slcli system list --property "Location=Building 5"</code></pre>
+    slcli system list --property "Location=Building 5"
+    slcli system list -f json --field packages
+    slcli system list -f json --all-fields</code></pre>
+      <p><code>slcli system list -f json</code> uses a slim schema by default for faster responses. Add repeatable <code>--field</code> options for specific extended fields, or use <code>--all-fields</code> to restore the full legacy JSON schema.</p>
 
       <h3>Get System Details</h3>
       <pre><code># Basic details
