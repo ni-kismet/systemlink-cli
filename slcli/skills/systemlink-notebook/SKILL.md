@@ -244,7 +244,7 @@ query_result = api.get_systems_by_query(query=query)
 data = await query_result
 systems = getattr(data, 'data', None)
 if systems is None:
-  systems = data.get('data', data) if isinstance(data, dict) else data
+    systems = data.get('data', data) if isinstance(data, dict) else data
 ```
 
 ### Common filter expressions
