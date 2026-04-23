@@ -140,6 +140,21 @@ result = [{
 sb.glue('result', result)
 ```
 
+### Output validation guardrails
+
+- Ensure `result` is a list of output objects, not a dict.
+- Ensure each output object has: `display_name`, `id`, `type`, and `data`.
+- Ensure `type` is one of the supported output types and matches metadata.
+- Ensure output `id` exactly matches `systemlink.outputs[].id`.
+- For `data_frame`, ensure `data.columns` and `data.values` are present and aligned.
+
+For Systems Grid notebooks, validate that:
+
+- The first column is exactly `minion id`.
+- The first value in each row is the system ID string.
+- For single-column grid reports, use exactly two columns: `minion id` and the report value column.
+- If the notebook is intended to populate one grid column, avoid extra columns unless explicitly required.
+
 ### Systems Grid reports
 
 When the notebook is used as a Systems Grid column, the `data_frame` output
@@ -150,6 +165,26 @@ df_dict = {
     'columns': ['minion id', 'your column name'],
     'values': df.reset_index().values.tolist()  # index = system IDs
 }
+```
+
+Common Systems Grid pattern for one metric per system:
+
+```python
+metric_by_system = {item['id']: item['metric_value'] for item in data.data}
+df = pd.DataFrame.from_dict(metric_by_system, orient='index', columns=['metric'])
+
+df_dict = {
+  'columns': ['minion id', 'metric'],
+  'values': df.reset_index().values.tolist()
+}
+
+result = [{
+  'display_name': 'Metric',
+  'id': 'metric_output',
+  'type': 'data_frame',
+  'data': df_dict
+}]
+sb.glue('result', result)
 ```
 
 ## Common Imports
@@ -194,6 +229,22 @@ filter = '!string.IsNullOrEmpty(id) && packages.data.keys.Contains("ni-daqmx")'
 query = QuerySystemsRequest(skip=0, projection=projection, filter=filter)
 query_result = api.get_systems_by_query(query=query)
 data = await query_result
+```
+
+### Async and response handling guardrails
+
+- In notebook cells, prefer top-level `await` over `asyncio.run(...)`.
+- Do not call `asyncio.run(...)` inside notebook execution cells; kernels may already have an active event loop.
+- `get_systems_by_query` can return typed response objects (for example `QuerySystemsResponse`). Prefer `data.data` (or `getattr(data, 'data', ...)`) over assuming a plain dict/list.
+
+Safe extraction pattern:
+
+```python
+query_result = api.get_systems_by_query(query=query)
+data = await query_result
+systems = getattr(data, 'data', None)
+if systems is None:
+  systems = data.get('data', data) if isinstance(data, dict) else data
 ```
 
 ### Common filter expressions
@@ -303,6 +354,29 @@ the server rejects the update.
 **Important:** Always determine the target workspace by running `slcli info` and
 reading the `Workspace` field from the active profile. Do not assume "Default" or
 prompt the user unless `slcli info` shows no workspace configured.
+
+## Execution Validation Checklist
+
+After create/update, always validate with a fresh (non-cached) execution before concluding success:
+
+```bash
+slcli notebook execute sync -n <NOTEBOOK_ID> -w "<WORKSPACE_NAME>" --no-cache -f json
+```
+
+Validation steps:
+
+1. Confirm `status` is `SUCCEEDED` and `errorCode` is `NO_ERROR`.
+2. Confirm output `id` and `type` match parameters-cell metadata.
+3. Confirm `data.columns` and `data.values` shape matches the target interface.
+4. If output still looks old, check `cachedResult`; rerun with `--no-cache`.
+
+## Known Failure Modes and Fixes
+
+- `ValueError: No kernel name found in notebook`: restore notebook-level `metadata.kernelspec`.
+- Notebook output not shown in SystemLink UI: restore parameters-cell `systemlink` metadata and `tags: ["parameters"]`.
+- Systems Grid format mismatch: ensure first column is `minion id` and output is a valid `data_frame` payload.
+- Runtime loop errors (`asyncio.run() cannot be called from a running event loop`): replace `asyncio.run(...)` with top-level `await`.
+- Result appears unchanged after update: rerun with `--no-cache` and re-check returned execution JSON.
 
 ## Example
 
