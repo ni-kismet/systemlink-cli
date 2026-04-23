@@ -2,6 +2,13 @@
 
 <!-- towncrier release notes start -->
 
+## v1.11.0 (2026-04-23)
+
+### Features
+
+- Prefer the materialized `search-systems` endpoint for system queries with automatic fallback to `query-systems`, and add JSON field selection options for `slcli system list`. (#121)
+
+
 ## v1.10.0 (2026-04-22)
 
 ### Features
