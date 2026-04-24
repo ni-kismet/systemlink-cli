@@ -327,11 +327,13 @@ SystemLink Systems Manager. A typical SLS for a Python test package covers:
 Use an incrementing build counter stored in `package/build_number.txt` alongside a base
 version in `package/version.txt`. This produces short, valid Debian version strings
 (`major.minor.patch.build`) that NI Package Manager and SystemLink accept reliably.
+For example, pin `my-package` as `1.0.1.42`, not a timestamp-based value.
 
 **Why not timestamps?** A timestamp-based suffix like `1.0.0.20260420083348` exceeds the
 length that SystemLink's `pkg.installed` Salt state can resolve correctly. The feed lookup
 fails silently and the state reports the package as not found. Always use a short numeric
-build counter instead.
+build counter instead, and keep all package version examples in the
+`major.minor.patch.build` format.
 
 ### File layout
 
