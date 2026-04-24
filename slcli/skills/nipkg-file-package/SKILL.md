@@ -238,7 +238,7 @@ SystemLink Systems Manager. A typical SLS for a Python test package covers:
            Include_launcher=1
        - shell: cmd
        - unless: >-
-           "C:\Program Files\Python312\python.exe" --version
+           powershell -Command "$r64 = Get-ChildItem 'HKLM:\SOFTWARE\Python\PythonCore' -ErrorAction SilentlyContinue; if ($r64) { exit 0 }; $r32 = Get-ChildItem 'HKLM:\SOFTWARE\WOW6432Node\Python\PythonCore' -ErrorAction SilentlyContinue; if ($r32) { exit 0 }; if (Test-Path 'C:\Program Files\Python312\python.exe') { exit 0 }; exit 1"
    ```
    **Critical**: In SystemLink/Salt `cmd.run` contexts, keep `TargetDir` as a single
    quoted argument (for example `"TargetDir=C:\Program Files\Python312"`) and verify
@@ -356,8 +356,11 @@ result to `control` during the build.
 ### Build script snippet
 
 ```bat
-set VERSION_FILE=%PROJECT_DIR%package\version.txt
-set BUILD_NUMBER_FILE=%PROJECT_DIR%package\build_number.txt
+set SCRIPT_DIR=%~dp0
+set CONTROL_DIR=%SCRIPT_DIR%build\nipkg\control
+set DEPLOY_SLS=%SCRIPT_DIR%deploy\install.sls
+set VERSION_FILE=%SCRIPT_DIR%package\version.txt
+set BUILD_NUMBER_FILE=%SCRIPT_DIR%package\build_number.txt
 set BASE_VERSION=
 set NEXT_BUILD=
 
