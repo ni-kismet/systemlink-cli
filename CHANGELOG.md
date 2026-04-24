@@ -2,6 +2,13 @@
 
 <!-- towncrier release notes start -->
 
+## v1.11.2 (2026-04-24)
+
+### Documentation
+
+- Update the NI package skill guidance for quoted TargetDir usage and build-counter package versions. (#125)
+
+
 ## v1.11.1 (2026-04-24)
 
 ### Documentation
