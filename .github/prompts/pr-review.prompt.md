@@ -55,7 +55,6 @@ You are a professional code reviewer for the SystemLink CLI project. Your role i
 - ✅ Documentation updated (README, docstrings, help text, and command docs such as `site/commands.html` when CLI changes require it)
 - ✅ CLI standards met (--format/-f, --help, proper exit codes)
 - ✅ New bundled skills under `slcli/skills/` are installable via `slcli skill install`
-- ✅ Commits use semantic commit subjects with allowed tags: `build`, `chore`, `ci`, `docs`, `feat`, `fix`, `perf`, `style`, `refactor`, `test`
 
 #### Quality Assurance
 - ✅ Full test suite passes locally
@@ -98,7 +97,6 @@ Please review the PR systematically:
 - [ ] **`site/commands.html` updated** — add new CLI commands or changed command examples to the website command reference
 - [ ] **`skills/slcli/SKILL.md` updated** — add any new commands, options, or changed command paths
 - [ ] **`slcli/skill_click.py` updated** — new bundled skills under `slcli/skills/` are exposed and installable via `slcli skill install`
-- [ ] Commit history uses semantic commit subjects with allowed tags (`build|chore|ci|docs|feat|fix|perf|style|refactor|test`) or is squashed before merge
 - [ ] Configuration properly managed
 - [ ] No hardcoded secrets or URLs
 - [ ] Cross-platform compatible

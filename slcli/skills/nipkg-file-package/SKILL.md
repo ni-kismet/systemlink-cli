@@ -231,18 +231,18 @@ SystemLink Systems Manager. A typical SLS for a Python test package covers:
      cmd.run:
        - name: >-
            "C:\Windows\Temp\python-3.12.9-amd64.exe"
-            /quiet
-            InstallAllUsers=1
-            PrependPath=1
-            "TargetDir=C:\Program Files\Python312"
-            Include_launcher=1
+           /quiet
+           InstallAllUsers=1
+           PrependPath=1
+           "TargetDir=C:\Program Files\Python312"
+           Include_launcher=1
        - shell: cmd
        - unless: >-
            "C:\Program Files\Python312\python.exe" --version
    ```
-         **Critical**: In SystemLink/Salt `cmd.run` contexts, keep `TargetDir` as a single
-         quoted argument (for example `"TargetDir=C:\Program Files\Python312"`) and verify
-         install path checks.
+   **Critical**: In SystemLink/Salt `cmd.run` contexts, keep `TargetDir` as a single
+   quoted argument (for example `"TargetDir=C:\Program Files\Python312"`) and verify
+   install path checks.
 
 2. **Add Python to PATH** — `win_path.exists` for both the install dir and `Scripts\`.
 
@@ -349,9 +349,9 @@ package/
 └── preuninstall.bat
 ```
 
-If your build script stamps versions through `control.template`, treat it as a
-temporary staging artifact copied from `package/control`; the packaged output
-should still contain `control/control`.
+If your build script stamps versions through `control.template`, keep
+`control.template` in source control as the input template and write the stamped
+result to `control` during the build.
 
 ### Build script snippet
 
@@ -388,8 +388,6 @@ powershell -NoProfile -Command ^
 2. On the next build: reads `1`, produces `1.0.1.1`, writes `2` back, and so on.
 3. To bump major/minor/patch: edit `version.txt` and reset `build_number.txt` to `0`.
 4. Commit both files so the counter is shared across machines / CI runs.
-
-
 
 ## Complete Working SLS Example
 
