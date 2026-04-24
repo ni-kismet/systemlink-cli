@@ -1,7 +1,7 @@
 """Unit tests for system CLI commands."""
 
 import json
-from typing import Any, Dict, List
+from typing import Any, Dict, List, Optional
 from unittest.mock import patch
 
 import click
@@ -1610,6 +1610,31 @@ class TestJobList:
         assert result.exit_code == 0
         data = json.loads(result.output)
         assert len(data) == 1
+
+    def test_list_json_respects_take_limit(self, monkeypatch: Any, runner: CliRunner) -> None:
+        """Test JSON job listing passes the requested take limit to the query helper."""
+        patch_keyring(monkeypatch)
+        captured_take: List[Optional[int]] = []
+
+        def mock_query_all_items(
+            url: str,
+            filter_expr: Optional[str],
+            order_by: Optional[str],
+            response_parser: Any,
+            projection: Optional[str] = None,
+            take: Optional[int] = 10000,
+        ) -> List[Dict[str, Any]]:
+            del url, filter_expr, order_by, response_parser, projection
+            captured_take.append(take)
+            return [SAMPLE_JOB]
+
+        monkeypatch.setattr("slcli.system_click._query_all_items", mock_query_all_items)
+
+        cli = make_cli()
+        result = runner.invoke(cli, ["system", "job", "list", "-f", "json", "--take", "5"])
+
+        assert result.exit_code == 0
+        assert captured_take == [5]
 
     def test_list_with_state_filter(self, monkeypatch: Any, runner: CliRunner) -> None:
         """Test listing jobs with state filter."""
