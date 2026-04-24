@@ -2,6 +2,13 @@
 
 <!-- towncrier release notes start -->
 
+## v1.11.3 (2026-04-24)
+
+### Other Changes
+
+- Resolved the current security findings by upgrading vulnerable direct and transitive Python dependencies, replacing the stale external lint wrapper with a repo-local styleguide command, and hardening the web editor proxy against unsafe upstream URLs. (resolve-dependabot-security-alerts)
+
+
 ## v1.11.2 (2026-04-24)
 
 ### Documentation
