@@ -5,8 +5,9 @@ from pathlib import Path
 from typing import Any, Dict
 
 import keyring
-import slcli.utils as utils
 from pytest import MonkeyPatch
+
+import slcli.utils as utils
 
 
 def patch_combined_keyring(monkeypatch: MonkeyPatch, combined: Dict[str, Any]) -> None:

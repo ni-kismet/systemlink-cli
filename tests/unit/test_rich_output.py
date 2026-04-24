@@ -2,13 +2,13 @@
 
 import json
 from io import StringIO
-from typing import Any
-from typing import cast
+from typing import Any, cast
 
 import click
 from rich.json import JSON
 from rich.table import Table
 from rich.text import Text
+
 from slcli import rich_output
 from slcli.rich_output import (
     _rich_echo,

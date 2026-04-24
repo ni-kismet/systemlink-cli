@@ -6,6 +6,7 @@ from unittest.mock import MagicMock, patch
 import click
 import pytest
 from click.testing import CliRunner
+
 from slcli.feed_click import PackageUploadError, register_feed_commands
 from slcli.utils import ExitCodes
 

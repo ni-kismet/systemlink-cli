@@ -7,6 +7,7 @@ from unittest.mock import patch
 import click
 import pytest
 from click.testing import CliRunner
+
 from slcli.asset_click import (
     _build_asset_filter,
     _escape_filter_value,

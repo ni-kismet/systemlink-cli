@@ -6,6 +6,7 @@ from typing import Any, Dict, List
 import click
 import pytest
 from click.testing import CliRunner
+
 from slcli.utils import ExitCodes
 from slcli.workitem_click import (
     _fetch_workitems_page,
@@ -13,7 +14,6 @@ from slcli.workitem_click import (
     _query_all_workitems,
     register_workitem_commands,
 )
-
 from .test_utils import patch_keyring
 
 

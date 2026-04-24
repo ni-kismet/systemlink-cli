@@ -4,7 +4,13 @@ import sys
 from pathlib import Path
 
 import pytest
-from slcli.web_editor import DFFWebEditor, _build_proxy_url, _validated_proxy_origin
+
+from slcli.web_editor import (
+    DFFWebEditor,
+    _build_proxy_url,
+    _validated_proxy_origin,
+    _validated_proxy_path,
+)
 
 ESSENTIAL_FILES = ["index.html", "editor.js", "README.md"]
 
@@ -99,4 +105,27 @@ def test_build_proxy_url_uses_validated_origin() -> None:
     assert (
         url
         == "https://systemlink.example.test/nidynamicformfields/v1/configurations?take=25&skip=0"
+    )
+
+
+@pytest.mark.parametrize(
+    "request_path",
+    [
+        "/nidynamicformfields/v1/../niauth/v1/tokens",
+        "/nidynamicformfields/v1/%2e%2e/niauth/v1/tokens",
+        "/nidynamicformfields/v1/%2E%2E/niauth/v1/tokens",
+        "/nidynamicformfields/v1/%2e%2e%2fniuser/v1/workspaces",
+    ],
+)
+def test_validated_proxy_path_rejects_dot_segment_bypass(request_path: str) -> None:
+    """Proxy path validation should reject raw and encoded dot-segment bypass attempts."""
+    with pytest.raises(ValueError, match="dot-segments"):
+        _validated_proxy_path(request_path)
+
+
+def test_validated_proxy_path_accepts_allowlisted_path() -> None:
+    """Proxy path validation should preserve simple absolute allowlisted paths."""
+    assert (
+        _validated_proxy_path("/nidynamicformfields/v1/configurations")
+        == "/nidynamicformfields/v1/configurations"
     )

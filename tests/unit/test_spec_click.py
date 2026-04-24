@@ -6,6 +6,7 @@ from typing import Any, Dict, List, Optional
 import click
 import pytest
 from click.testing import CliRunner
+
 from slcli.spec_click import (
     _build_limit,
     _build_spec_filter,

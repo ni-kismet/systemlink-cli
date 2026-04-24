@@ -5,6 +5,7 @@ from typing import Any
 from unittest.mock import MagicMock, patch
 
 import pytest
+
 from slcli.utils import (
     ExitCodes,
     extract_error_type,

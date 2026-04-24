@@ -11,9 +11,9 @@ from unittest.mock import patch
 import pytest
 from click.testing import CliRunner
 from pytest import MonkeyPatch
+
 from slcli.main import cli
 from slcli.utils import ExitCodes
-
 from .test_utils import patch_keyring
 
 
@@ -1077,6 +1077,7 @@ def test_webapp_open_uses_workspace_url(monkeypatch: MonkeyPatch) -> None:
     patch_keyring(monkeypatch)
 
     import requests
+
     import slcli.webapp_click
 
     class MockResp:

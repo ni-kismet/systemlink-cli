@@ -4,9 +4,9 @@ from typing import Any
 import click
 import pytest
 from click.testing import CliRunner
+
 from slcli.utils import ExitCodes
 from slcli.workflows_click import register_workflows_commands
-
 from .test_utils import patch_keyring
 
 
@@ -708,7 +708,7 @@ def test_generate_mermaid_hidden_action_marker() -> None:
 
 
 def test_generate_html_contains_external_legend() -> None:
-    from slcli.workflow_preview import generate_mermaid_diagram, generate_html_with_mermaid
+    from slcli.workflow_preview import generate_html_with_mermaid, generate_mermaid_diagram
 
     wf = _sample_workflow_for_mermaid()
     mermaid = generate_mermaid_diagram(wf)

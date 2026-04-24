@@ -7,6 +7,7 @@ from unittest.mock import patch
 import click
 import pytest
 from click.testing import CliRunner
+
 from slcli.system_click import (
     _LIST_PROJECTION,
     _SLIM_LIST_PROJECTION,

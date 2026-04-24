@@ -5,6 +5,7 @@ from typing import Any
 
 import pytest
 from click.testing import CliRunner
+
 from slcli.main import cli
 from slcli.platform import clear_platform_cache
 

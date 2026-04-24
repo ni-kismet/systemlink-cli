@@ -49,6 +49,16 @@ def _build_proxy_url(
     return urllib.parse.urlunsplit((origin_scheme, origin_netloc, target_path, query, ""))
 
 
+def _validated_proxy_path(request_path: str) -> str:
+    """Return a decoded absolute proxy path without dot-segments."""
+    decoded_path = urllib.parse.unquote(request_path)
+    if not decoded_path.startswith("/"):
+        raise ValueError("Editor proxy requires an absolute request path")
+    if any(segment in {".", ".."} for segment in decoded_path.split("/")):
+        raise ValueError("Editor proxy rejects paths containing dot-segments")
+    return decoded_path
+
+
 class DFFWebEditor:
     """Web-based editor for custom fields configurations."""
 
@@ -182,9 +192,14 @@ class DFFWebEditor:
 
             def _proxy_request(self, method: str) -> bool:
                 parsed = urllib.parse.urlparse(self.path)
+                try:
+                    request_path = _validated_proxy_path(parsed.path)
+                except ValueError as exc:
+                    self.send_error(400, str(exc))
+                    return True
 
                 # Serve slcli-config.json from temp directory
-                if parsed.path == "/slcli-config.json" and method == "GET":
+                if request_path == "/slcli-config.json" and method == "GET":
                     config_file = temp_path / "slcli-config.json"
                     if config_file.exists():
                         self.send_response(200)
@@ -197,7 +212,7 @@ class DFFWebEditor:
                         return True
 
                 # Serve config.json (the DFF configuration) from temp directory
-                if parsed.path == "/config.json" and method == "GET":
+                if request_path == "/config.json" and method == "GET":
                     config_file = temp_path / "config.json"
                     if config_file.exists():
                         self.send_response(200)
@@ -215,12 +230,12 @@ class DFFWebEditor:
                     "/api/dff/update-configurations": "/nidynamicformfields/v1/update-configurations",
                 }
 
-                if parsed.path in path_map:
-                    target_path = path_map[parsed.path]
-                elif parsed.path.startswith("/nidynamicformfields/v1/"):
-                    target_path = parsed.path
-                elif parsed.path.startswith("/niuser/v1/workspaces"):
-                    target_path = parsed.path
+                if request_path in path_map:
+                    target_path = path_map[request_path]
+                elif request_path.startswith("/nidynamicformfields/v1/"):
+                    target_path = request_path
+                elif request_path.startswith("/niuser/v1/workspaces"):
+                    target_path = request_path
                 else:
                     return False
 

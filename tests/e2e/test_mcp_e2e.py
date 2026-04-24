@@ -20,6 +20,7 @@ import pytest
 from mcp import ClientSession
 from mcp.client.streamable_http import streamable_http_client
 from mcp.types import CallToolResult, ListToolsResult, TextContent
+
 from slcli.mcp_reachability import is_reachability_failure
 
 DEFAULT_MCP_URL = "http://127.0.0.1:8000/mcp"

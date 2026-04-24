@@ -4,13 +4,13 @@ import os
 import tempfile
 from typing import Any
 
-# Shared test utilities
-import slcli.utils as slutils
 from click.testing import CliRunner
 from pytest import MonkeyPatch
+
+# Shared test utilities
+import slcli.utils as slutils
 from slcli.main import cli
 from slcli.platform import PLATFORM_SLE, PLATFORM_SLS
-
 from .test_utils import patch_keyring
 
 
@@ -23,8 +23,9 @@ def test_notebook_list(monkeypatch: MonkeyPatch) -> None:
     ]
 
     # Patch _query_notebooks_http to return mock notebooks
-    import slcli.notebook_click
     from typing import Any
+
+    import slcli.notebook_click
 
     class MockResponse:
         def __init__(self, data: dict[str, Any]):
@@ -149,8 +150,9 @@ def test_notebook_upload(monkeypatch: MonkeyPatch) -> None:
     patch_keyring(monkeypatch)
 
     # Patch _create_notebook_http to return a mock result
-    import slcli.notebook_click
     from typing import Any
+
+    import slcli.notebook_click
 
     class MockResponse:
         def __init__(self, data: dict[str, Any]):

@@ -93,7 +93,6 @@ def _build_parser() -> argparse.ArgumentParser:
     lint_parser.set_defaults(handler=_run_lint)
 
     fix_parser = subparsers.add_parser("fix")
-    fix_parser.add_argument("--extend-ignore")
     fix_parser.add_argument("paths", nargs="*")
     fix_parser.set_defaults(handler=_run_fix)
 
