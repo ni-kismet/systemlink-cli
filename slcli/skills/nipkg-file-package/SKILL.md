@@ -224,23 +224,21 @@ dependencies, create a Salt state file (`deploy/install.sls`) and apply it throu
 SystemLink Systems Manager. A typical SLS for a Python test package covers:
 
 1. **Download and install Python** — use the official Windows installer with `/quiet`,
-   `InstallAllUsers=1`, `PrependPath=1`. Pass `TargetDir` using a verified-safe pattern:
+   `InstallAllUsers=1`, `PrependPath=1`. Quote `TargetDir` carefully:
    ```yaml
-    install-python:
-      cmd.run:
-        - name: >-
-            "C:\Windows\Temp\python-3.12.9-amd64.exe"
-            /quiet InstallAllUsers=1 PrependPath=1
-            TargetDir=C:\PROGRA~1\Python312
-            Include_launcher=1
-        - shell: cmd
-        - unless: >-
-            "C:\Program Files\Python312\python.exe" --version
+   install-python:
+     cmd.run:
+       - name: >-
+           "C:\Windows\Temp\python-3.12.9-amd64.exe"
+           /quiet InstallAllUsers=1 PrependPath=1
+           "TargetDir=C:\Program Files\Python312"
+           Include_launcher=1
+       - shell: cmd
+       - unless: >-
+           "C:\Program Files\Python312\python.exe" --version
    ```
-   **Critical**: Do not quote the entire `TargetDir=...` pair. Prefer an unquoted
-   key=value argument with a short path (for example,
-   `TargetDir=C:\PROGRA~1\Python312`). If you must use a path with spaces, quote only
-   the value portion (`TargetDir="C:\Program Files\Python312"`).
+   **Critical**: Use `"TargetDir=C:\Program Files\Python312"` (quotes around the
+   entire key=value pair). If only the path is quoted (`TargetDir="C:\Program Files\..."`)      the installer may truncate at the space.
 
 2. **Add Python to PATH** — `win_path.exists` for both the install dir and `Scripts\`.
 
@@ -326,26 +324,64 @@ SystemLink Systems Manager. A typical SLS for a Python test package covers:
 
 ## Auto-Versioning Build Script Pattern
 
-Stamp a datetime-based version into the package on every build so each nipkg uploaded
-to a feed has a unique, sortable version string:
+Use an incrementing build counter stored in `package/build_number.txt` alongside a base
+version in `package/version.txt`. This produces short, valid Debian version strings
+(`major.minor.patch.build`) that NI Package Manager and SystemLink accept reliably.
+
+**Why not timestamps?** A timestamp-based suffix like `1.0.0.20260420083348` exceeds the
+length that SystemLink's `pkg.installed` Salt state can resolve correctly. The feed lookup
+fails silently and the state reports the package as not found. Always use a short numeric
+build counter instead.
+
+### File layout
+
+```text
+package/
+├── version.txt        # base version, e.g. "1.0.1"  (edit when bumping major/minor/patch)
+├── build_number.txt   # next build number to use, e.g. "0"  (auto-incremented by build script)
+├── control
+├── instructions
+├── postinstall.bat
+└── preuninstall.bat
+```
+
+### Build script snippet
 
 ```bat
-REM Generate version: 1.0.0.yyyyMMddHHmmss
-for /f "usebackq delims=" %%V in (`powershell -NoProfile -Command "Get-Date -Format '1.0.0.yyyyMMddHHmmss'"`) do set PACKAGE_VERSION=%%V
+set VERSION_FILE=%PROJECT_DIR%package\version.txt
+set BUILD_NUMBER_FILE=%PROJECT_DIR%package\build_number.txt
+set BASE_VERSION=
+set NEXT_BUILD=
+
+set /p BASE_VERSION=<"%VERSION_FILE%"
+set /p NEXT_BUILD=<"%BUILD_NUMBER_FILE%"
+if "%BASE_VERSION%"=="" (
+    echo Failed to read package\version.txt.
+    exit /b 1
+)
+if "%NEXT_BUILD%"=="" set NEXT_BUILD=0
+set PACKAGE_VERSION=%BASE_VERSION%.%NEXT_BUILD%
+set /a WRITE_BUILD=%NEXT_BUILD%+1
+echo %WRITE_BUILD%>"%BUILD_NUMBER_FILE%"
+echo Version for this build: %PACKAGE_VERSION%
 
 REM Stamp version into control file
 powershell -NoProfile -Command ^
-  "(Get-Content -Raw '%CONTROL_DIR%\control') -replace '(?m)^Version:\s*.*$','Version: %PACKAGE_VERSION%' ^
-  | Set-Content -Encoding ASCII '%CONTROL_DIR%\control'"
+  "$p='%CONTROL_DIR%\control.template'; $o='%CONTROL_DIR%\control'; (Get-Content -Raw $p) -replace '(?m)^Version:\s*.*$','Version: %PACKAGE_VERSION%' | Set-Content -Encoding ASCII $o"
 
 REM Stamp version into deploy\install.sls (keeps SLS in sync with feed)
 powershell -NoProfile -Command ^
-  "(Get-Content -Raw '%DEPLOY_SLS%') -replace '(?m)^\s*-\s*my-package:\s*.*$','      - my-package: %PACKAGE_VERSION%' ^
-  | Set-Content -Encoding ASCII '%DEPLOY_SLS%'"
+  "$p='%DEPLOY_SLS%'; (Get-Content -Raw $p) -replace '(?m)^\s*-\s*my-package:\s*.*$','      - my-package: %PACKAGE_VERSION%' | Set-Content -Encoding ASCII $p"
 ```
 
-This ensures the package version in the feed, the control file, and the SLS are always
-consistent without manual edits.
+### Workflow
+
+1. On the first build: `version.txt` = `1.0.1`, `build_number.txt` = `0` → produces `1.0.1.0`, writes `1` back.
+2. On the next build: reads `1`, produces `1.0.1.1`, writes `2` back, and so on.
+3. To bump major/minor/patch: edit `version.txt` and reset `build_number.txt` to `0`.
+4. Commit both files so the counter is shared across machines / CI runs.
+
+
 
 ## Complete Working SLS Example
 
