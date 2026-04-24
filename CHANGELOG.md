@@ -2,6 +2,13 @@
 
 <!-- towncrier release notes start -->
 
+## v1.11.1 (2026-04-24)
+
+### Documentation
+
+- Improve notebook skill guidance with validation guardrails, Systems Grid output patterns, and notebook execution troubleshooting. (#123)
+
+
 ## v1.11.0 (2026-04-23)
 
 ### Features
