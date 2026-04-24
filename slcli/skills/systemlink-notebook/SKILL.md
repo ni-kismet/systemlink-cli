@@ -155,6 +155,7 @@ For Systems Grid notebooks, validate that:
 - The first value in each row is the system ID string.
 - For single-column grid reports, use exactly two columns: `minion id` and the report value column.
 - If the notebook is intended to populate one grid column, avoid extra columns unless explicitly required.
+
 ### Systems Grid reports
 
 When the notebook is used as a Systems Grid column, the `data_frame` output
@@ -186,6 +187,7 @@ result = [{
 }]
 sb.glue('result', result)
 ```
+
 ## Common Imports
 
 ```python
@@ -257,6 +259,7 @@ systems = getattr(data, 'data', None)
 if systems is None:
     systems = data.get('data', data) if isinstance(data, dict) else data
 ```
+
 ### Common filter expressions
 
 | Filter | Description |
@@ -387,6 +390,7 @@ Validation steps:
 - Systems Grid format mismatch: ensure first column is `minion id` and output is a valid `data_frame` payload.
 - Runtime loop errors (`asyncio.run() cannot be called from a running event loop`): replace `asyncio.run(...)` with top-level `await`.
 - Result appears unchanged after update: rerun with `--no-cache` and re-check returned execution JSON.
+
 ## Example
 
 See [notebook-patterns.md](./references/notebook-patterns.md) for a complete
