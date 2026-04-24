@@ -224,22 +224,22 @@ dependencies, create a Salt state file (`deploy/install.sls`) and apply it throu
 SystemLink Systems Manager. A typical SLS for a Python test package covers:
 
 1. **Download and install Python** — use the official Windows installer with `/quiet`,
-   `InstallAllUsers=1`, `PrependPath=1`. Quote `TargetDir` carefully:
+   `InstallAllUsers=1`, `PrependPath=1`. Use the 8.3 short path for `TargetDir`:
    ```yaml
    install-python:
      cmd.run:
        - name: >-
            "C:\Windows\Temp\python-3.12.9-amd64.exe"
            /quiet InstallAllUsers=1 PrependPath=1
-           "TargetDir=C:\Program Files\Python312"
+           TargetDir=C:\PROGRA~1\Python312
            Include_launcher=1
        - shell: cmd
        - unless: >-
-           "C:\Program Files\Python312\python.exe" --version
+           powershell -Command "Test-Path 'C:\Program Files\Python312\python.exe'"
    ```
-   **Critical**: Use `"TargetDir=C:\Program Files\Python312"` (quotes around the
-   entire key=value pair). If only the path is quoted
-   (`TargetDir="C:\Program Files\..."`), the installer may truncate at the space.
+   **Critical**: Use the 8.3 short path `TargetDir=C:\PROGRA~1\Python312` — quoting
+   `Program Files` inside `cmd.run` with nested Salt string interpolation truncates at
+   the space even with outer quotes.
 
 2. **Add Python to PATH** — `win_path.exists` for both the install dir and `Scripts\`.
 
