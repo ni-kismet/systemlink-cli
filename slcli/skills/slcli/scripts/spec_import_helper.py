@@ -141,6 +141,15 @@ def _validate_conditions(conditions: Any, prefix: str, errors: list[str]) -> Non
 
 
 def validate_payload(payload: Any) -> list[str]:
+    """Validate a spec import payload and return any discovered errors.
+
+    Args:
+        payload: Parsed JSON payload to validate.
+
+    Returns:
+        A list of human-readable validation errors. The list is empty when the
+        payload is valid.
+    """
     errors: list[str] = []
     if not isinstance(payload, dict):
         return ["payload root must be an object"]
@@ -227,6 +236,11 @@ def _handle_validate(args: argparse.Namespace) -> int:
 
 
 def build_parser() -> argparse.ArgumentParser:
+    """Build the command-line parser for the helper script.
+
+    Returns:
+        Configured argument parser with `init` and `validate` subcommands.
+    """
     parser = argparse.ArgumentParser(description=__doc__)
     subparsers = parser.add_subparsers(dest="command", required=True)
 
@@ -249,6 +263,11 @@ def build_parser() -> argparse.ArgumentParser:
 
 
 def main() -> int:
+    """Run the CLI entrypoint.
+
+    Returns:
+        Process exit code from the selected subcommand handler.
+    """
     parser = build_parser()
     args = parser.parse_args()
     return int(args.handler(args))
