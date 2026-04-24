@@ -8,7 +8,6 @@ import sys
 from pathlib import Path
 from typing import Sequence
 
-
 REPO_ROOT = Path(__file__).resolve().parent.parent
 FLAKE8_CONFIG = REPO_ROOT / ".flake8"
 PYPROJECT = REPO_ROOT / "pyproject.toml"

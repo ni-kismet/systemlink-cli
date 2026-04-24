@@ -3,9 +3,8 @@
 import os
 import subprocess
 import sys
-from pathlib import Path
-
 import tomllib
+from pathlib import Path
 
 # This script is intended to be run as a Poetry script:
 # > poetry run build-pyinstaller

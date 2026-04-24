@@ -20,7 +20,6 @@ from rich.table import Table
 from rich.text import Text
 from rich.theme import Theme
 
-
 _THEME = Theme(
     {
         "brand": "bold cyan",

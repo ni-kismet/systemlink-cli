@@ -2231,10 +2231,7 @@ class TestGetSystemIncludeFlags:
         """Test that a fetch failure shows a ✗ warning in table mode."""
         patch_keyring(monkeypatch)
 
-        call_count = 0
-
         def mock_request(method: str, url: str, **kw: Any) -> Any:
-            nonlocal call_count
             if "/nisysmgmt/v1/systems" in url and "query-jobs" not in url:
                 return MockResponse([SAMPLE_SYSTEM])
             if "/niapm/v1/query-assets" in url:
