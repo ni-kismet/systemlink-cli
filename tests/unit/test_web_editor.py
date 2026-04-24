@@ -4,7 +4,7 @@ import sys
 from pathlib import Path
 
 import pytest
-from slcli.web_editor import DFFWebEditor
+from slcli.web_editor import DFFWebEditor, _build_proxy_url, _validated_proxy_origin
 
 ESSENTIAL_FILES = ["index.html", "editor.js", "README.md"]
 
@@ -68,3 +68,35 @@ def test_source_from_site_packages(tmp_path: Path, monkeypatch: pytest.MonkeyPat
 
     # Verify it resolved to the site-packages location
     assert editor._editor_dir == site_root / "dff-editor"
+
+
+@pytest.mark.parametrize(
+    ("api_base", "message"),
+    [
+        ("ftp://example.test", r"HTTP\(S\)"),
+        ("https://user:pass@example.test", "embedded credentials"),
+        ("https://example.test/nested", "without path"),
+        ("https://example.test?query=1", "without path"),
+    ],
+)
+def test_validated_proxy_origin_rejects_unsafe_base_urls(api_base: str, message: str) -> None:
+    """Proxy origin validation should reject malformed or overly broad base URLs."""
+    with pytest.raises(ValueError, match=message):
+        _validated_proxy_origin(api_base)
+
+
+def test_build_proxy_url_uses_validated_origin() -> None:
+    """Proxy URLs should be rebuilt from the validated origin and allowlisted path."""
+    scheme, netloc = _validated_proxy_origin("https://systemlink.example.test")
+
+    url = _build_proxy_url(
+        origin_scheme=scheme,
+        origin_netloc=netloc,
+        target_path="/nidynamicformfields/v1/configurations",
+        query="take=25&skip=0",
+    )
+
+    assert (
+        url
+        == "https://systemlink.example.test/nidynamicformfields/v1/configurations?take=25&skip=0"
+    )

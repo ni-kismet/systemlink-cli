@@ -17,6 +17,38 @@ import requests
 from .utils import ExitCodes, get_base_url, get_headers, get_ssl_verify
 
 
+def _validated_proxy_origin(api_base: str) -> tuple[str, str]:
+    """Return a validated scheme and netloc for proxy requests.
+
+    Args:
+        api_base: Configured SystemLink base URL.
+
+    Returns:
+        Tuple of scheme and network location.
+
+    Raises:
+        ValueError: If the configured base URL is not a plain HTTP(S) origin.
+    """
+    parsed = urllib.parse.urlsplit(api_base)
+    if parsed.scheme not in {"http", "https"}:
+        raise ValueError("Editor proxy requires an HTTP(S) SystemLink base URL")
+    if not parsed.netloc or parsed.username or parsed.password:
+        raise ValueError("Editor proxy requires a base URL without embedded credentials")
+    if parsed.path not in {"", "/"} or parsed.query or parsed.fragment:
+        raise ValueError("Editor proxy requires a base URL without path, query, or fragment")
+    return parsed.scheme, parsed.netloc
+
+
+def _build_proxy_url(
+    origin_scheme: str,
+    origin_netloc: str,
+    target_path: str,
+    query: str = "",
+) -> str:
+    """Build a proxy URL from a validated origin and allowlisted path."""
+    return urllib.parse.urlunsplit((origin_scheme, origin_netloc, target_path, query, ""))
+
+
 class DFFWebEditor:
     """Web-based editor for custom fields configurations."""
 
@@ -132,6 +164,7 @@ class DFFWebEditor:
         editor_dir = self._editor_dir  # Capture for closure
         temp_path = self._temp_path  # Capture for closure
         api_base = get_base_url().rstrip("/")
+        api_scheme, api_netloc = _validated_proxy_origin(api_base)
         default_headers = get_headers()
         ssl_verify = get_ssl_verify()
         secret = self._secret
@@ -197,9 +230,12 @@ class DFFWebEditor:
                     self.send_error(403, "Forbidden: Missing or invalid editor secret")
                     return True
 
-                target_url = f"{api_base}{target_path}"
-                if parsed.query:
-                    target_url = f"{target_url}?{parsed.query}"
+                target_url = _build_proxy_url(
+                    origin_scheme=api_scheme,
+                    origin_netloc=api_netloc,
+                    target_path=target_path,
+                    query=parsed.query,
+                )
 
                 headers = dict(default_headers)
                 data = None
