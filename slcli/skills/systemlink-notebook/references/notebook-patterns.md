@@ -22,6 +22,7 @@ Import Python modules for executing the notebook.
 
 **Cell 2 — Imports (code)**
 ```python
+import re
 import pandas as pd
 import scrapbook as sb
 
@@ -99,8 +100,32 @@ The cell metadata must include:
 ```python
 api = SystemsApi()
 
-projection = f'new(id, packages.data["{package}"].displayversion, packages.data["{package}"].version)'
-filter = (systems_filter or "!string.IsNullOrEmpty(id)") + f' && packages.data.keys.Contains("{package}")'
+def _escape_filter_value(value: str) -> str:
+    """Escape backslashes first, then quotes, for safe quoted filter literals."""
+    return value.replace("\\", "\\\\").replace('"', '\\"')
+
+def _validate_package_name(value: str) -> str:
+    normalized = value.strip()
+    if not re.fullmatch(r"[A-Za-z0-9](?:[A-Za-z0-9._-]*[A-Za-z0-9])?", normalized):
+        raise ValueError("package must only contain letters, numbers, dot, dash, or underscore")
+    return normalized
+
+def _validate_filter_fragment(value: str) -> str:
+    normalized = value.strip()
+    if not normalized:
+        return "!string.IsNullOrEmpty(id)"
+    if not re.fullmatch(r'[A-Za-z0-9_ ."\-()\[\],:&|=!<>]*', normalized):
+        raise ValueError("systems_filter contains unsupported characters")
+    return normalized
+
+safe_package = _escape_filter_value(_validate_package_name(package))
+base_filter = _validate_filter_fragment(systems_filter)
+
+projection = (
+    f'new(id, packages.data["{safe_package}"].displayversion, '
+    f'packages.data["{safe_package}"].version)'
+)
+filter = base_filter + f' && packages.data.keys.Contains("{safe_package}")'
 
 query_sys_request = QuerySystemsRequest(skip=0, projection=projection, filter=filter)
 query_result = api.get_systems_by_query(query=query_sys_request)

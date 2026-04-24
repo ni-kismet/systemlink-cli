@@ -308,7 +308,7 @@ slcli info --format json</code></pre>
 
       <!-- ─── SKILLS ─── -->
       <h2 id="skills">AI Agent Skills</h2>
-      <p>Install bundled agent skills so that Copilot, Claude, and Codex automatically know how to use the CLI, build SystemLink webapps, and create SystemLink notebooks.</p>
+      <p>Install bundled agent skills so that supported AI clients automatically know how to use the CLI, build SystemLink webapps, and create SystemLink notebooks.</p>
 
       <p>Three skills are available:</p>
       <ul>
@@ -321,9 +321,9 @@ slcli info --format json</code></pre>
 slcli skill install
 
 # Install for a specific client
-slcli skill install --client copilot
+# agents = most agent environments (including Copilot/Codex)
+slcli skill install --client agents
 slcli skill install --client claude
-slcli skill install --client codex
 slcli skill install --client all
 
 # Choose where to install
@@ -336,9 +336,8 @@ slcli skill install --scope both</code></pre>
           <tr><th>Client</th><th>Personal</th><th>Project (repo)</th></tr>
         </thead>
         <tbody>
-          <tr><td>copilot</td><td><code>~/.copilot/skills/</code></td><td><code>.github/skills/</code></td></tr>
+          <tr><td>agents (most agents, including Copilot/Codex)</td><td><code>~/.agents/skills/</code></td><td><code>.agents/skills/</code></td></tr>
           <tr><td>claude</td><td><code>~/.claude/skills/</code></td><td><code>.claude/skills/</code></td></tr>
-          <tr><td>codex</td><td><code>~/.agents/skills/</code></td><td><code>.agents/skills/</code></td></tr>
         </tbody>
       </table>
 
