@@ -238,7 +238,8 @@ SystemLink Systems Manager. A typical SLS for a Python test package covers:
            "C:\Program Files\Python312\python.exe" --version
    ```
    **Critical**: Use `"TargetDir=C:\Program Files\Python312"` (quotes around the
-   entire key=value pair). If only the path is quoted (`TargetDir="C:\Program Files\..."`)      the installer may truncate at the space.
+   entire key=value pair). If only the path is quoted
+   (`TargetDir="C:\Program Files\..."`), the installer may truncate at the space.
 
 2. **Add Python to PATH** — `win_path.exists` for both the install dir and `Scripts\`.
 
