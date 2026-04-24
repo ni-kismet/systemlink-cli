@@ -8,6 +8,7 @@ from typing import Any
 import click
 import pytest
 from click.testing import CliRunner
+
 from slcli.mcp_click import (
     _claude_server_entry,
     _merge_and_write_json,
@@ -15,7 +16,6 @@ from slcli.mcp_click import (
     _vscode_server_entry,
     register_mcp_commands,
 )
-
 
 # ---------------------------------------------------------------------------
 # Fixtures / helpers

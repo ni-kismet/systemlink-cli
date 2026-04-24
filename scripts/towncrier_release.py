@@ -5,10 +5,10 @@ from __future__ import annotations
 import argparse
 import subprocess
 import sys
+import tomllib
 from pathlib import Path
 from typing import Iterable, Optional, Sequence
 
-import tomllib
 from packaging.version import Version
 
 PATCH_BUMP_TYPES = {"patch", "doc", "misc"}

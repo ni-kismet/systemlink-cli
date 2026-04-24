@@ -26,7 +26,6 @@ from .utils import (
 )
 from .workspace_utils import get_workspace_display_name, resolve_workspace_id
 
-
 USER_QUERY_PAGE_SIZE = 100
 USER_JSON_DEFAULT_TAKE = 1000
 AUTH_WILDCARD_VALUES = {"*", "*/*", "*:*"}

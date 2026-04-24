@@ -1,6 +1,7 @@
 """slcli entry points."""
 
 import json
+import tomllib
 from pathlib import Path
 from types import ModuleType
 from typing import Optional
@@ -8,7 +9,6 @@ from typing import Optional
 import click as base_click
 import keyring
 import questionary
-import tomllib
 
 from .asset_click import register_asset_commands
 from .comment_click import register_comment_commands
@@ -21,13 +21,10 @@ from .file_click import register_file_commands
 from .function_click import register_function_commands
 from .mcp_click import register_mcp_commands
 from .notebook_click import register_notebook_commands
-from .platform import (
-    get_platform_info,
-)
+from .platform import get_platform_info
 from .policy_click import register_policy_commands
 from .profiles import set_profile_override
-from .rich_output import install_rich_output
-from .rich_output import render_table
+from .rich_output import install_rich_output, render_table
 from .routine_click import register_routine_commands
 from .skill_click import register_skill_commands
 from .spec_click import register_spec_commands

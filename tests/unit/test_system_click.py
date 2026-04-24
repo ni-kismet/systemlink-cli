@@ -1,12 +1,13 @@
 """Unit tests for system CLI commands."""
 
 import json
-from typing import Any, Dict, List
+from typing import Any, Dict, List, Optional
 from unittest.mock import patch
 
 import click
 import pytest
 from click.testing import CliRunner
+
 from slcli.system_click import (
     _LIST_PROJECTION,
     _SLIM_LIST_PROJECTION,
@@ -1610,6 +1611,31 @@ class TestJobList:
         data = json.loads(result.output)
         assert len(data) == 1
 
+    def test_list_json_respects_take_limit(self, monkeypatch: Any, runner: CliRunner) -> None:
+        """Test JSON job listing passes the requested take limit to the query helper."""
+        patch_keyring(monkeypatch)
+        captured_take: List[Optional[int]] = []
+
+        def mock_query_all_items(
+            url: str,
+            filter_expr: Optional[str],
+            order_by: Optional[str],
+            response_parser: Any,
+            projection: Optional[str] = None,
+            take: Optional[int] = 10000,
+        ) -> List[Dict[str, Any]]:
+            del url, filter_expr, order_by, response_parser, projection
+            captured_take.append(take)
+            return [SAMPLE_JOB]
+
+        monkeypatch.setattr("slcli.system_click._query_all_items", mock_query_all_items)
+
+        cli = make_cli()
+        result = runner.invoke(cli, ["system", "job", "list", "-f", "json", "--take", "5"])
+
+        assert result.exit_code == 0
+        assert captured_take == [5]
+
     def test_list_with_state_filter(self, monkeypatch: Any, runner: CliRunner) -> None:
         """Test listing jobs with state filter."""
         patch_keyring(monkeypatch)
@@ -2231,10 +2257,7 @@ class TestGetSystemIncludeFlags:
         """Test that a fetch failure shows a ✗ warning in table mode."""
         patch_keyring(monkeypatch)
 
-        call_count = 0
-
         def mock_request(method: str, url: str, **kw: Any) -> Any:
-            nonlocal call_count
             if "/nisysmgmt/v1/systems" in url and "query-jobs" not in url:
                 return MockResponse([SAMPLE_SYSTEM])
             if "/niapm/v1/query-assets" in url:

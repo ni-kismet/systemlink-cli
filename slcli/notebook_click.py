@@ -33,7 +33,6 @@ from .utils import (
 )
 from .workspace_utils import get_effective_workspace, get_workspace_display_name
 
-
 # Predefined notebook interfaces - must be assigned exactly as shown
 PREDEFINED_NOTEBOOK_INTERFACES = [
     "Assets Grid",

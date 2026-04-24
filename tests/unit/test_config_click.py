@@ -6,6 +6,7 @@ from typing import Any, Dict
 
 import click
 from click.testing import CliRunner
+
 from slcli.config_click import register_config_commands
 
 

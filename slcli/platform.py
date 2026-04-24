@@ -16,7 +16,6 @@ import requests
 
 from .utils import ExitCodes, get_ssl_verify
 
-
 # Platform identifiers
 PLATFORM_SLE = "SLE"  # SystemLink Enterprise (cloud)
 PLATFORM_SLS = "SLS"  # SystemLink Server (on-premises)

@@ -8,8 +8,8 @@ from typing import Any, Dict, List
 import click
 import pytest
 from click.testing import CliRunner
-from slcli.function_click import register_function_commands
 
+from slcli.function_click import register_function_commands
 from .test_utils import patch_keyring
 
 
@@ -333,8 +333,8 @@ def test_function_init_typescript(monkeypatch: Any, runner: CliRunner, tmp_path:
     patch_keyring(monkeypatch)
 
     # Build an in-memory tar.gz with expected subfolder structure
-    import tarfile
     import io
+    import tarfile
     import time
 
     tar_bytes = io.BytesIO()
@@ -378,8 +378,8 @@ def test_function_init_non_empty_no_force(
     """Init aborts if target non-empty and no --force."""
     patch_keyring(monkeypatch)
     # Prepare tarball
-    import tarfile
     import io
+    import tarfile
     import time
 
     tar_bytes = io.BytesIO()

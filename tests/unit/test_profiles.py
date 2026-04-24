@@ -379,6 +379,7 @@ class TestPermissions:
         Note: This test is skipped on Windows where Unix permissions don't apply.
         """
         import platform
+
         import pytest
 
         if platform.system() == "Windows":

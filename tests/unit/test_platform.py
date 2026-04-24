@@ -6,7 +6,9 @@ from unittest.mock import MagicMock, patch
 
 import pytest
 import requests as req_module
+
 from slcli.platform import (
+    PLATFORM_FEATURES,
     PLATFORM_SLE,
     PLATFORM_SLS,
     PLATFORM_UNKNOWN,
@@ -18,7 +20,6 @@ from slcli.platform import (
     get_platform_info,
     has_feature,
     require_feature,
-    PLATFORM_FEATURES,
 )
 
 

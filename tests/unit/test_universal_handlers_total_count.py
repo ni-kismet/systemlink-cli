@@ -1,6 +1,6 @@
 from typing import Any
 
-from slcli.universal_handlers import UniversalResponseHandler, FilteredResponse
+from slcli.universal_handlers import FilteredResponse, UniversalResponseHandler
 
 
 def test_handle_list_response_shows_total_count(capsys: Any) -> None:

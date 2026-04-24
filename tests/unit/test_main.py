@@ -5,8 +5,9 @@ import json
 from typing import Any, Optional
 
 import click
-import slcli
 from click.testing import CliRunner
+
+import slcli
 from slcli.main import cli, get_version
 from slcli.platform import PLATFORM_SLE
 

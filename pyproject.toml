@@ -14,6 +14,7 @@ include = [
 [tool.poetry.scripts]
 slcli = "slcli.__main__:cli"
 slcli-mcp = "slcli.mcp_server:main"
+ni-python-styleguide = "scripts.styleguide:main"
 build-pyinstaller = "scripts.build_pyinstaller:main"
 update-version = "scripts.update_version:main"
 release-from-changes = "scripts.towncrier_release:main"
@@ -39,13 +40,25 @@ questionary = "^2.1.1"
 packaging = ">=21.0"
 rich = ">=13.7,<15"
 rich-click = ">=1.8,<2"
+cryptography = ">=46.0.7"
+pygments = ">=2.20.0"
 
 
 [tool.poetry.group.dev.dependencies]
 # Lint
-ni-python-styleguide = ">=0.4.3"
 cyclonedx-bom = "^7.0.0"
 setuptools = "<81"  # pin to retain pkg_resources used by flake8-import-order
+black = ">=26.3.1"
+flake8 = ">=7.3.0"
+flake8-black = ">=0.4.0"
+flake8-docstrings = ">=1.7.0"
+flake8-import-order = ">=0.19.2"
+isort = ">=6.0.1,<9"
+pep8-naming = ">=0.15.1"
+lxml = ">=6.1.0"
+pyjwt = ">=2.12.0"
+python-dotenv = ">=1.2.2"
+python-multipart = ">=0.0.26"
 
 # Type checking
 mypy = ">=1.0"
@@ -95,15 +108,6 @@ markers = [
 
 [tool.black]
 line-length = 100
-
-[tool.ni-python-styleguide]
-# D301 ("Use r""" if any backslashes in a docstring") is suppressed because
-# Click uses \b (backspace chr(8)) as a paragraph-formatting marker in docstrings
-# to prevent line-wrapping in --help output. This requires a regular """ string;
-# using r""" passes the literal two-char sequence \b which Click does not recognise.
-
-[tool.ni-python-styleguide.lint]
-extend_ignore = "D301"
 
 [tool.mypy]
 python_version = "3.13"

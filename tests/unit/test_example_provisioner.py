@@ -1,10 +1,7 @@
 from typing import Any, Dict
-from unittest.mock import patch, MagicMock
+from unittest.mock import MagicMock, patch
 
-from slcli.example_provisioner import (
-    ExampleProvisioner,
-    ProvisioningAction,
-)
+from slcli.example_provisioner import ExampleProvisioner, ProvisioningAction
 
 
 def make_min_config() -> Dict[str, Any]:
