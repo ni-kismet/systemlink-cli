@@ -382,10 +382,10 @@ powershell -NoProfile -Command ^
 1. On the first build: `version.txt` = `1.0.1`, `build_number.txt` = `0` → produces `1.0.1.0`, writes `1` back.
 2. On the next build: reads `1`, produces `1.0.1.1`, writes `2` back, and so on.
 3. To bump major/minor/patch: edit `version.txt` and reset `build_number.txt` to `0`.
-4. Commit both files so the counter is shared across machines / CI runs.
+4. For local, serialized builds, keep `build_number.txt` as a machine-local file and do not rely on committing it to coordinate versions across developers or CI jobs.
+5. For CI or any shared build environment, use a unique pipeline-provided run/build number as the 4th version segment, or store the counter in external artifact/storage that supports atomic increment, so parallel jobs cannot publish duplicate package versions.
 
-
-
+This example is appropriate for local/manual packaging. In CI, avoid committing `build_number.txt` because it can create merge conflicts and still allow duplicate versions when multiple jobs read the same value before either writes it back.
 ## Complete Working SLS Example
 
 The following SLS is the verified working pattern for deploying a Python test package
