@@ -8,7 +8,7 @@ from scripts import build_homebrew, build_scoop
 
 
 def test_render_formula_installs_binary_contents(tmp_path: Path, monkeypatch: Any) -> None:
-    """The Homebrew formula should install the extracted binary contents, not the directory."""
+    """The Homebrew formula should install the staged archive contents into libexec."""
     output_path = tmp_path / "homebrew-slcli.rb"
     monkeypatch.setattr(build_homebrew, "DIST_FORMULA", output_path)
 
@@ -28,7 +28,7 @@ def test_render_formula_installs_binary_contents(tmp_path: Path, monkeypatch: An
         'url "https://github.com/ni-kismet/systemlink-cli/releases/download/v1.2.3/slcli-macos-15-intel.tar.gz"'
         in rendered
     )
-    assert 'libexec.install Dir["slcli/*"]' in rendered
+    assert 'libexec.install Dir["*"]' in rendered
     assert 'bin.install_symlink libexec/"slcli"' in rendered
 
 
