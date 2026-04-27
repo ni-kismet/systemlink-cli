@@ -22,7 +22,7 @@ class Slcli < Formula
   end
 
   def install
-    libexec.install Dir["*"]
+    libexec.install Dir["slcli/*"]
     bin.install_symlink libexec/"slcli"
   end
 
