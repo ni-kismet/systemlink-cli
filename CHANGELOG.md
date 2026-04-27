@@ -2,6 +2,13 @@
 
 <!-- towncrier release notes start -->
 
+## v1.11.5 (2026-04-27)
+
+### Bug Fixes
+
+- Fix the Homebrew formula to install the staged slcli archive contents correctly. (#134)
+
+
 ## v1.11.4 (2026-04-27)
 
 ### Bug Fixes
