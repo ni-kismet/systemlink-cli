@@ -2,6 +2,13 @@
 
 <!-- towncrier release notes start -->
 
+## v1.11.4 (2026-04-27)
+
+### Bug Fixes
+
+- Fix Homebrew and Scoop release packaging and rerun behavior. (#133)
+
+
 ## v1.11.3 (2026-04-24)
 
 ### Other Changes
