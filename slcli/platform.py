@@ -61,6 +61,37 @@ FILE_QUERY_LINQ_PATH = "/nifile/v1/service-groups/Default/query-files-linq"
 SYSTEM_SEARCH_PATH = "/nisysmgmt/v1/materialized/search-systems"
 SYSTEM_QUERY_PATH = "/nisysmgmt/v1/query-systems"
 
+SLE_ONLY_SERVICE_NAMES = (
+    "Dynamic Form Fields",
+    "Comments",
+    "Notebook",
+    "Routine v2",
+)
+
+
+def _detect_platform_from_services(services: Dict[str, str]) -> str:
+    """Infer the platform from SLE-only service probes.
+
+    Args:
+        services: Mapping of service display name to probe status.
+
+    Returns:
+        PLATFORM_SLE when any SLE-only service is reachable or explicitly
+        unauthorized, PLATFORM_SLS when all SLE-only services are missing,
+        otherwise PLATFORM_UNKNOWN.
+    """
+    sle_statuses = [services.get(name) for name in SLE_ONLY_SERVICE_NAMES if name in services]
+    if not sle_statuses:
+        return PLATFORM_UNKNOWN
+
+    if any(status in ("ok", "unauthorized") for status in sle_statuses):
+        return PLATFORM_SLE
+
+    if all(status == "not_found" for status in sle_statuses):
+        return PLATFORM_SLS
+
+    return PLATFORM_UNKNOWN
+
 
 def _get_keyring_config() -> Dict[str, Any]:
     """Attempt to read a single JSON config entry from keyring.
@@ -199,7 +230,14 @@ SERVICE_CHECKS: List[List[str]] = [
     ["Systems", "POST", SYSTEM_QUERY_PATH],
     ["Tag", "GET", "/nitag/v2/tags?take=0"],
     ["File", "POST", FILE_SEARCH_PATH],
+    ["DataFrame", "POST", "/nidataframe/v1/query-tables"],
     ["Notebook", "POST", "/ninotebook/v1/notebook/query"],
+    [
+        "Comments",
+        "GET",
+        "/nicomments/v1/comments?resourceType=testmonitor%3AResult&resourceId=health-check",
+    ],
+    ["Routine v2", "GET", "/niroutine/v2/routines?take=1"],
     ["Web Application", "POST", "/niapp/v1/webapps/query"],
     ["Dynamic Form Fields", "GET", "/nidynamicformfields/v1/groups"],
     ["Work Order", "POST", "/niworkorder/v1/query-testplan-templates"],
@@ -491,14 +529,8 @@ def check_service_status(api_url: str, api_key: str) -> Dict[str, Any]:
     if all_unauthorized and any_responded:
         auth_valid = False
 
-    # Determine platform from service responses
-    workorder_status = services.get("Work Order")
-    if workorder_status in ("ok",):
-        platform = PLATFORM_SLE
-    elif workorder_status == "not_found":
-        platform = PLATFORM_SLS
-    else:
-        platform = PLATFORM_UNKNOWN
+    # Determine platform from multiple SLE-only service responses.
+    platform = _detect_platform_from_services(services)
 
     file_capability = get_file_query_capability(api_url, api_key)
     services["File"] = file_capability["status"]
