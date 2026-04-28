@@ -241,6 +241,22 @@ def test_dataframe_query_request_preserves_file_take(monkeypatch: Any, runner: C
     assert captured_payloads[0]["take"] == 250
 
 
+def test_dataframe_query_rejects_invalid_filter_operation(
+    monkeypatch: Any, runner: CliRunner
+) -> None:
+    """Test invalid row filter operations exit with invalid input."""
+    patch_keyring(monkeypatch)
+
+    cli = make_cli()
+    result = runner.invoke(
+        cli,
+        ["dataframe", "query", "tbl-1", "--where", "State,INVALID,FAIL", "--format", "json"],
+    )
+
+    assert result.exit_code == 2
+    assert "Unsupported filter operation 'INVALID'" in result.output
+
+
 def test_dataframe_export_writes_csv(monkeypatch: Any, runner: CliRunner) -> None:
     """Test CSV export to an output file."""
     patch_keyring(monkeypatch)
@@ -551,3 +567,57 @@ def test_dataframe_update_many_posts_definition(monkeypatch: Any, runner: CliRun
 
         assert result.exit_code == 0
         assert captured_payloads[0] == {"tables": [{"id": "tbl-1", "properties": {"team": "qa"}}]}
+
+
+def test_dataframe_update_many_partial_success_exits_with_error(
+    monkeypatch: Any, runner: CliRunner
+) -> None:
+    """Test batch update partial success reports failures and exits nonzero."""
+    patch_keyring(monkeypatch)
+
+    def mock_request(method: str, url: str, **_: Any) -> Any:
+        return MockResponse(
+            {
+                "modifiedTableIds": ["tbl-1"],
+                "failedModifications": [{"tableId": "tbl-2"}],
+                "error": {"message": "metadata revision conflict"},
+            }
+        )
+
+    monkeypatch.setattr("slcli.dataframe_click.make_api_request", mock_request)
+
+    cli = make_cli()
+    with runner.isolated_filesystem():
+        with open("modify.json", "w", encoding="utf-8") as modify_file:
+            json.dump({"tables": [{"id": "tbl-1"}, {"id": "tbl-2"}]}, modify_file)
+
+        result = runner.invoke(cli, ["dataframe", "update-many", "--definition", "modify.json"])
+
+    assert result.exit_code == 1
+    assert "Failed modifications: 1" in result.output
+    assert "metadata revision conflict" in result.output
+
+
+def test_dataframe_delete_partial_success_exits_with_error(
+    monkeypatch: Any, runner: CliRunner
+) -> None:
+    """Test batch delete partial success reports failed IDs and exits nonzero."""
+    patch_keyring(monkeypatch)
+
+    def mock_request(method: str, url: str, **_: Any) -> Any:
+        return MockResponse(
+            {
+                "deletedTableIds": ["tbl-1"],
+                "failedTableIds": ["tbl-2"],
+                "error": {"message": "table is locked"},
+            }
+        )
+
+    monkeypatch.setattr("slcli.dataframe_click.make_api_request", mock_request)
+
+    cli = make_cli()
+    result = runner.invoke(cli, ["dataframe", "delete", "tbl-1", "tbl-2", "--yes"])
+
+    assert result.exit_code == 1
+    assert "Failed to delete: tbl-2" in result.output
+    assert "table is locked" in result.output

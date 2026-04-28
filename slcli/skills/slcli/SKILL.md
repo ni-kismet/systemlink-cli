@@ -3,18 +3,20 @@ name: slcli
 description: >-
   Query and manage NI SystemLink resources using the slcli command-line interface.
   Covers test results, assets, systems, tags, feeds, files, notebooks,
+  dataframe tables,
   routines, work items, work item templates, workflows, test plan templates,
   specifications, products, datasheet-to-specification ingestion (PDF and CSV),
   custom fields, web applications, authorization policies, users, workspaces, and more.
   Use when the user asks about test data analysis, asset management, calibration status,
   system fleet health, operator performance, failure analysis, production metrics,
-  equipment utilization, work order tracking, specification management,
+  equipment utilization, dataframe schema inspection, row export or append workflows,
+  work order tracking, specification management,
   importing datasheets, creating products from spec sheets,
   or any SystemLink resource operations.
   Supports filtering, aggregation, summary statistics, and JSON output for programmatic processing.
 argument-hint: >-
-  Describe what you want to do: query test results, import a datasheet,
-  list assets, manage work items, etc.
+  Describe what you want to do: query test results, inspect a dataframe schema,
+  export table rows, import a datasheet, list assets, manage work items, etc.
 compatibility: >-
   Requires slcli installed and authenticated (slcli login). Python 3.10+.
   Requires network access to a SystemLink server instance.
@@ -150,6 +152,7 @@ Consult these for detailed guidance. Load only what you need for the current tas
 | `spec`        | Specifications          | `list`, `query`, `get`, `create`, `import`, `export` |
 | `asset`       | Assets & calibration    | `list`, `get`, `summary`, `calibration`              |
 | `system`      | System fleet            | `list`, `get`, `compare`, `summary`, `job`           |
+| `dataframe`   | DataFrame tables        | `list`, `schema`, `query`, `export`, `append`        |
 | `tag`         | Tag read/write          | `list`, `get-value`, `set-value`, `create`           |
 | `routine`     | Event-action routines   | `list`, `create`, `enable/disable` (v1 + v2)         |
 | `comment`     | Resource comments       | `list`, `add`, `update`, `delete`                    |
