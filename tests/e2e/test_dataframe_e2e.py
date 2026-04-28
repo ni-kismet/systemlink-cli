@@ -216,7 +216,7 @@ class TestDataframeE2E:
                 ["dataframe", "append", table_id, "--input", str(append_path)]
             )
             cli_helper.assert_success(append_result)
-            assert "Dataframe rows appended" in append_result.stdout
+            assert "DataFrame rows appended" in append_result.stdout
 
             queried = _wait_for_query_rows(cli_runner, cli_helper, table_id)
             assert queried.get("totalRowCount", 0) >= 2

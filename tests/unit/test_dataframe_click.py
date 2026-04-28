@@ -150,6 +150,71 @@ def test_dataframe_schema_table_output(monkeypatch: Any, runner: CliRunner) -> N
     assert "Voltage" in result.output
 
 
+def test_dataframe_get_json_output(monkeypatch: Any, runner: CliRunner) -> None:
+    """Test get command JSON output."""
+    patch_keyring(monkeypatch)
+    calls: List[Dict[str, str]] = []
+
+    def mock_request(method: str, url: str, **_: Any) -> Any:
+        calls.append({"method": method, "url": url})
+        return MockResponse(
+            {
+                "id": "tbl-1",
+                "name": "Voltage Log",
+                "workspace": "ws-1",
+                "rowCount": 42,
+                "columns": [{"name": "Time", "dataType": "TIMESTAMP", "columnType": "INDEX"}],
+            }
+        )
+
+    monkeypatch.setattr("slcli.dataframe_click.make_api_request", mock_request)
+    monkeypatch.setattr("slcli.dataframe_click.get_base_url", lambda: "https://test.com")
+
+    cli = make_cli()
+    result = runner.invoke(cli, ["dataframe", "get", "tbl-1", "--format", "json"])
+
+    assert result.exit_code == 0
+    assert calls == [{"method": "GET", "url": "https://test.com/nidataframe/v1/tables/tbl-1"}]
+    output = json.loads(result.output)
+    assert output["id"] == "tbl-1"
+    assert output["columns"][0]["name"] == "Time"
+
+
+def test_dataframe_get_table_output_includes_schema_preview(
+    monkeypatch: Any, runner: CliRunner
+) -> None:
+    """Test get command table output includes a schema preview."""
+    patch_keyring(monkeypatch)
+
+    def mock_request(method: str, url: str, **_: Any) -> Any:
+        return MockResponse(
+            {
+                "id": "tbl-1",
+                "name": "Voltage Log",
+                "workspace": "ws-1",
+                "rowCount": 42,
+                "supportsAppend": True,
+                "columns": [
+                    {"name": "Time", "dataType": "TIMESTAMP", "columnType": "INDEX"},
+                    {"name": "Voltage", "dataType": "FLOAT64", "columnType": "NORMAL"},
+                ],
+            }
+        )
+
+    monkeypatch.setattr("slcli.dataframe_click.make_api_request", mock_request)
+    monkeypatch.setattr("slcli.dataframe_click.get_workspace_map", lambda: {"ws-1": "Dev"})
+
+    cli = make_cli()
+    result = runner.invoke(cli, ["dataframe", "get", "tbl-1"])
+
+    assert result.exit_code == 0
+    assert "DataFrame Table" in result.output
+    assert "Voltage Log" in result.output
+    assert "Schema" in result.output
+    assert "Time" in result.output
+    assert "Voltage" in result.output
+
+
 def test_dataframe_query_builds_payload(monkeypatch: Any, runner: CliRunner) -> None:
     """Test query payload construction from shorthand flags."""
     patch_keyring(monkeypatch)
@@ -404,10 +469,10 @@ def test_dataframe_append_arrow_uses_binary_request(monkeypatch: Any, runner: Cl
     patch_keyring(monkeypatch)
     captured_request: Dict[str, Any] = {}
 
-    def mock_post(url: str, headers: Dict[str, str], data: bytes, verify: bool) -> Any:
+    def mock_post(url: str, headers: Dict[str, str], data: Any, verify: bool) -> Any:
         captured_request["url"] = url
         captured_request["headers"] = headers
-        captured_request["data"] = data
+        captured_request["data"] = data.read()
         captured_request["verify"] = verify
         return MockResponse(status_code=204, text_data="")
 
@@ -436,6 +501,22 @@ def test_dataframe_append_arrow_uses_binary_request(monkeypatch: Any, runner: Cl
         assert captured_request["url"].endswith("/tables/tbl-1/data?endOfData=true")
         assert captured_request["headers"]["Content-Type"] == "application/vnd.apache.arrow.stream"
         assert captured_request["data"] == b"arrow-data"
+
+
+def test_dataframe_append_uses_click_path_validation(monkeypatch: Any, runner: CliRunner) -> None:
+    """Test append rejects missing input paths before issuing any request."""
+    patch_keyring(monkeypatch)
+
+    def fail_request(*args: Any, **kwargs: Any) -> Any:
+        raise AssertionError("append should not issue a request for an invalid input path")
+
+    monkeypatch.setattr("slcli.dataframe_click.make_api_request", fail_request)
+
+    cli = make_cli()
+    result = runner.invoke(cli, ["dataframe", "append", "tbl-1", "--input", "missing.json"])
+
+    assert result.exit_code == 2
+    assert "does not exist" in result.output
 
 
 def test_dataframe_decimate_builds_payload(monkeypatch: Any, runner: CliRunner) -> None:

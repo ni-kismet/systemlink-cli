@@ -629,7 +629,7 @@ def _post_arrow_append(table_id: str, input_path: str, end_of_data: bool) -> req
             response = requests_lib.post(
                 url,
                 headers=get_headers("application/vnd.apache.arrow.stream"),
-                data=arrow_file.read(),
+                data=arrow_file,
                 verify=get_ssl_verify(),
             )
         response.raise_for_status()
@@ -649,7 +649,12 @@ def register_dataframe_commands(cli: Any) -> None:
 
     @dataframe.command(name="list")
     @click.option("--name", help="Filter tables by name using contains matching")
-    @click.option("--workspace", "workspace_name", "-w", help="Workspace name or ID")
+    @click.option(
+        "--workspace",
+        "workspace_name",
+        "-w",
+        help="Workspace name or ID. Use 'all' to disable workspace filtering.",
+    )
     @click.option("--test-result-id", help="Filter by associated test result ID")
     @click.option(
         "--supports-append/--no-supports-append",
@@ -958,7 +963,7 @@ def register_dataframe_commands(cli: Any) -> None:
             if output:
                 with open(output, "w", encoding="utf-8") as output_file:
                     output_file.write(csv_text)
-                format_success("Dataframe table exported", {"id": table_id, "output": output})
+                format_success("DataFrame table exported", {"id": table_id, "output": output})
                 return
 
             click.echo(csv_text, nl=not csv_text.endswith("\n"))
@@ -967,7 +972,14 @@ def register_dataframe_commands(cli: Any) -> None:
 
     @dataframe.command(name="append")
     @click.argument("table_id")
-    @click.option("--input", "input_path", "-i", required=True, help="Input file path")
+    @click.option(
+        "--input",
+        "input_path",
+        "-i",
+        required=True,
+        type=click.Path(exists=True, dir_okay=False, readable=True),
+        help="Input file path",
+    )
     @click.option(
         "--input-format",
         type=click.Choice(["json", "arrow"]),
@@ -986,7 +998,7 @@ def register_dataframe_commands(cli: Any) -> None:
             if input_format == "arrow":
                 _post_arrow_append(table_id, input_path, end_of_data)
                 format_success(
-                    "Dataframe rows appended",
+                    "DataFrame rows appended",
                     {"id": table_id, "input": input_path, "format": input_format},
                 )
                 return
@@ -1003,7 +1015,7 @@ def register_dataframe_commands(cli: Any) -> None:
             frame = payload.get("frame", {}) if isinstance(payload.get("frame"), dict) else {}
             rows_appended = len(frame.get("data", []) or [])
             format_success(
-                "Dataframe rows appended",
+                "DataFrame rows appended",
                 {
                     "id": table_id,
                     "rows": rows_appended,
@@ -1057,7 +1069,7 @@ def register_dataframe_commands(cli: Any) -> None:
                 return
 
             format_success(
-                "Dataframe table created",
+                "DataFrame table created",
                 {"id": created.get("id", ""), "name": payload.get("name", "")},
             )
         except Exception as exc:
@@ -1114,7 +1126,7 @@ def register_dataframe_commands(cli: Any) -> None:
             make_api_request(
                 "PATCH", f"{_get_dataframe_base_url()}/tables/{table_id}", payload=payload
             )
-            format_success("Dataframe table updated", {"id": table_id})
+            format_success("DataFrame table updated", {"id": table_id})
         except Exception as exc:
             handle_api_error(exc)
 
@@ -1137,13 +1149,13 @@ def register_dataframe_commands(cli: Any) -> None:
                 "POST", f"{_get_dataframe_base_url()}/modify-tables", payload=payload
             )
             if response.status_code == 204:
-                format_success("Dataframe tables updated")
+                format_success("DataFrame tables updated")
                 return
 
             data = response.json() if response.text.strip() else {}
             modified_ids = data.get("modifiedTableIds", []) or []
             format_success(
-                "Dataframe tables updated with partial success", {"updated": len(modified_ids)}
+                "DataFrame tables updated with partial success", {"updated": len(modified_ids)}
             )
             if data.get("failedModifications"):
                 error_value = data.get("error")
@@ -1170,21 +1182,21 @@ def register_dataframe_commands(cli: Any) -> None:
         try:
             if len(ids) == 1:
                 make_api_request("DELETE", f"{_get_dataframe_base_url()}/tables/{ids[0]}")
-                format_success("Dataframe table deleted", {"id": ids[0]})
+                format_success("DataFrame table deleted", {"id": ids[0]})
                 return
 
             response = make_api_request(
                 "POST", f"{_get_dataframe_base_url()}/delete-tables", payload={"ids": ids}
             )
             if response.status_code == 204:
-                format_success("Dataframe tables deleted", {"count": len(ids)})
+                format_success("DataFrame tables deleted", {"count": len(ids)})
                 return
 
             data = response.json() if response.text.strip() else {}
             deleted_ids = data.get("deletedTableIds", []) or []
             failed_ids = data.get("failedTableIds", []) or []
             format_success(
-                "Dataframe tables deleted with partial success", {"deleted": len(deleted_ids)}
+                "DataFrame tables deleted with partial success", {"deleted": len(deleted_ids)}
             )
             if failed_ids:
                 error_value = data.get("error")
