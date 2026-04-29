@@ -218,6 +218,8 @@ slcli system job cancel <JOB_ID>
 
 ## dataframe — DataFrame tables and row access
 
+> **Requires:** DataFrame service (SLE only). Check `slcli info` for availability.
+
 ```bash
 # List tables with metadata filters
 slcli dataframe list [OPTIONS]
@@ -454,6 +456,8 @@ slcli routine create \
 
 ## comment — Resource comments
 
+> **Requires:** Comments service (SLE only). Check `slcli info` for availability.
+
 Attach, edit, and remove comments on any SystemLink resource. User IDs in responses
 are automatically resolved to display names.
 
@@ -633,6 +637,8 @@ slcli customfield edit [--directory DIR]                 # Interactively edit + 
 
 ## template — Test plan template management
 
+> **Requires:** Work Order service (SLE only). Check `slcli info` for availability.
+
 > **Note:** Work item templates are managed separately via `slcli workitem template`.
 > The `slcli template` command manages test plan _configuration_ templates used
 > when provisioning new test plan instances.
@@ -647,6 +653,10 @@ slcli template delete <TEMPLATE_ID>
 ```
 
 ## workitem — Work item, template, and workflow management
+
+> **Partially gated:** The `workitem template` and `workitem workflow` subgroups require the
+> Work Order service (SLE only). Core work item commands (`list`, `create`, `get`) are available
+> on both platforms. Check `slcli info` for service availability.
 
 Unified command group for managing work items, work item templates, and workflows.
 

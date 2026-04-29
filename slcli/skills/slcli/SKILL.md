@@ -144,6 +144,42 @@ Consult these for detailed guidance. Load only what you need for the current tas
 | Analysis recipes            | [analysis-recipes.md](./references/analysis-recipes.md)     | Multi-step analysis: yield, calibration, operator performance |
 | Troubleshooting             | [troubleshooting.md](./references/troubleshooting.md)       | Workspace ID issues, SSL errors, encoding, PowerShell quoting |
 
+## Platform availability
+
+Not all command groups are available on every SystemLink server. Some services exist only on
+SystemLink Enterprise (SLE) or require a specific microservice to be deployed.
+
+**Check what's available on your server:**
+
+```bash
+slcli info                # Shows platform type and service health
+slcli info -f json        # Machine-readable; check .services for per-service status
+```
+
+| Command group                | Required service     | SLE | SLS | Notes                                   |
+| ---------------------------- | -------------------- | --- | --- | --------------------------------------- |
+| `dataframe`                  | DataFrame            | ✓   | ✗   | Table row storage                       |
+| `comment`                    | Comments             | ✓   | ✗   | Resource annotations                    |
+| `template`                   | Work Order           | ✓   | ✗   | Test plan configuration templates       |
+| `workitem template`          | Work Order           | ✓   | ✗   | Work item template CRUD                 |
+| `workitem workflow`          | Work Order           | ✓   | ✗   | Workflow lifecycle                       |
+| `customfield`                | Dynamic Form Fields  | ✓   | ✗   | Custom metadata fields                  |
+| `notebook`                   | Notebook             | ✓   | ✗   | Jupyter execution                       |
+| `routine` (v2)               | Routine v2           | ✓   | ✗   | Event-action routines                   |
+| `testmonitor`, `asset`, etc. | Core services        | ✓   | ✓   | Available on both platforms             |
+
+When a gated command is run on a server that lacks the required service, the CLI exits with
+code 2 and a message like:
+
+```
+✗ Error: DataFrames is not available on SystemLink Server.
+  This feature requires the DataFrame service.
+```
+
+Service probe results are cached for 5 minutes across CLI invocations. Running `slcli info`
+force-refreshes and persists the latest snapshot. Set `SLCLI_SERVICE_PROBE_CACHE_TTL_SECONDS=0`
+to disable caching for debugging.
+
 ## Command groups at a glance
 
 | Group         | Purpose                 | Key subcommands                                      |
@@ -169,6 +205,7 @@ Consult these for detailed guidance. Load only what you need for the current tas
 | `workspace`   | Workspaces              | `list`, `get`                                        |
 | `skill`       | AI skill installation   | `install`                                            |
 | `example`     | Demo provisioning       | `list`, `install`, `delete`                          |
+
 ## Key rules
 
 1. **Always use `-f json`** when piping output to `jq` or doing programmatic analysis.
