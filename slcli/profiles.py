@@ -28,6 +28,8 @@ from typing import Any, Dict, List, Optional
 
 import click
 
+SERVICE_PROBE_CACHE_SETTING = "service-probe-cache"
+
 
 @dataclass
 class Profile:
@@ -261,6 +263,29 @@ def get_active_profile_name() -> Optional[str]:
     """Get the name of the currently active profile."""
     profile = get_active_profile()
     return profile.name if profile else None
+
+
+def get_service_probe_cache() -> Dict[str, Dict[str, Any]]:
+    """Get the persisted service probe cache from config settings."""
+    config = ProfileConfig.load()
+    cache = config.settings.get(SERVICE_PROBE_CACHE_SETTING, {})
+    return cache if isinstance(cache, dict) else {}
+
+
+def get_service_probe_cache_entry(cache_key: str) -> Optional[Dict[str, Any]]:
+    """Get a specific persisted service probe cache entry."""
+    entry = get_service_probe_cache().get(cache_key)
+    return entry if isinstance(entry, dict) else None
+
+
+def save_service_probe_cache_entry(cache_key: str, entry: Dict[str, Any]) -> None:
+    """Save a persisted service probe cache entry."""
+    config = ProfileConfig.load()
+    cache = config.settings.get(SERVICE_PROBE_CACHE_SETTING, {})
+    normalized_cache = cache.copy() if isinstance(cache, dict) else {}
+    normalized_cache[cache_key] = entry
+    config.settings[SERVICE_PROBE_CACHE_SETTING] = normalized_cache
+    config.save()
 
 
 def get_default_workspace() -> Optional[str]:

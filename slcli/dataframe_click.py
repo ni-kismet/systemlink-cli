@@ -10,6 +10,7 @@ import requests as requests_lib
 from click.core import ParameterSource
 
 from .cli_utils import confirm_bulk_operation, validate_output_format
+from .platform import require_feature
 from .rich_output import render_table
 from .utils import (
     ExitCodes,
@@ -643,9 +644,11 @@ def register_dataframe_commands(cli: Any) -> None:
     """Register the dataframe command group and subcommands."""
 
     @cli.group()
-    def dataframe() -> None:
+    @click.pass_context
+    def dataframe(ctx: click.Context) -> None:
         """Manage SystemLink DataFrame tables and row data."""
-        pass
+        if ctx.invoked_subcommand is not None:
+            require_feature("dataframe_service")
 
     @dataframe.command(name="list")
     @click.option("--name", help="Filter tables by name using contains matching")
@@ -791,7 +794,11 @@ def register_dataframe_commands(cli: Any) -> None:
     )
     @click.option("--take", "-t", type=int, default=100, show_default=True, help="Rows per page")
     @click.option("--continuation-token", help="Continuation token for paged reads")
-    @click.option("--request", type=click.Path(exists=True), help="Path to raw query JSON")
+    @click.option(
+        "--request",
+        type=click.Path(exists=True, dir_okay=False, readable=True),
+        help="Path to raw query JSON",
+    )
     @click.option(
         "--format",
         "-f",
@@ -863,7 +870,11 @@ def register_dataframe_commands(cli: Any) -> None:
         type=click.Choice(DECIMATION_DISTRIBUTION_CHOICES),
         help="Distribution for interval bucketing",
     )
-    @click.option("--request", type=click.Path(exists=True), help="Path to raw decimation JSON")
+    @click.option(
+        "--request",
+        type=click.Path(exists=True, dir_okay=False, readable=True),
+        help="Path to raw decimation JSON",
+    )
     @click.option(
         "--format",
         "-f",
@@ -930,8 +941,17 @@ def register_dataframe_commands(cli: Any) -> None:
         help="Sort clause in the form column[:asc|desc]. Repeat for multiple clauses.",
     )
     @click.option("--take", type=int, help="Limit the number of exported rows")
-    @click.option("--request", type=click.Path(exists=True), help="Path to raw export JSON")
-    @click.option("--output", "-o", help="Output CSV file path")
+    @click.option(
+        "--request",
+        type=click.Path(exists=True, dir_okay=False, readable=True),
+        help="Path to raw export JSON",
+    )
+    @click.option(
+        "--output",
+        "-o",
+        type=click.Path(dir_okay=False, writable=True),
+        help="Output CSV file path",
+    )
     def export_table_data(
         table_id: str,
         columns: Optional[str],
@@ -1027,7 +1047,10 @@ def register_dataframe_commands(cli: Any) -> None:
 
     @dataframe.command(name="create")
     @click.option(
-        "--definition", type=click.Path(exists=True), required=True, help="Create request JSON"
+        "--definition",
+        type=click.Path(exists=True, dir_okay=False, readable=True),
+        required=True,
+        help="Create request JSON",
     )
     @click.option("--name", help="Override the table name in the definition file")
     @click.option("--workspace", "workspace_name", "-w", help="Workspace name or ID")
@@ -1133,7 +1156,7 @@ def register_dataframe_commands(cli: Any) -> None:
     @dataframe.command(name="update-many")
     @click.option(
         "--definition",
-        type=click.Path(exists=True),
+        type=click.Path(exists=True, dir_okay=False, readable=True),
         required=True,
         help="Modify-tables request JSON",
     )

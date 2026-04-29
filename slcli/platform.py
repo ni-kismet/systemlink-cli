@@ -7,14 +7,17 @@ This module provides utilities to detect and manage the target platform
 import json
 import os
 import sys
+import time
 from functools import lru_cache
-from typing import Any, Dict, List, Optional
+from typing import Any, Dict, List, Optional, Tuple
 
 import click
 import keyring
 import requests
 
 from .utils import ExitCodes, get_ssl_verify
+
+DEFAULT_SERVICE_PROBE_CACHE_TTL_SECONDS = 300
 
 # Platform identifiers
 PLATFORM_SLE = "SLE"  # SystemLink Enterprise (cloud)
@@ -26,6 +29,8 @@ PLATFORM_UNREACHABLE = "unreachable"  # Server could not be contacted
 PLATFORM_FEATURES: Dict[str, Dict[str, bool]] = {
     PLATFORM_SLE: {
         "service_accounts": True,
+        "comments_service": True,
+        "dataframe_service": True,
         "workorder_service": True,
         "dynamic_form_fields": True,
         "function_execution": True,
@@ -35,6 +40,8 @@ PLATFORM_FEATURES: Dict[str, Dict[str, bool]] = {
     },
     PLATFORM_SLS: {
         "service_accounts": False,
+        "comments_service": False,
+        "dataframe_service": False,
         "workorder_service": False,
         "dynamic_form_fields": False,
         "function_execution": False,
@@ -47,12 +54,30 @@ PLATFORM_FEATURES: Dict[str, Dict[str, bool]] = {
 # Human-readable feature names for error messages
 FEATURE_DISPLAY_NAMES: Dict[str, str] = {
     "service_accounts": "Service Accounts",
+    "comments_service": "Comments",
+    "dataframe_service": "DataFrames",
     "workorder_service": "Work Order Service",
     "dynamic_form_fields": "Dynamic Form Fields",
     "function_execution": "Function Execution",
     "templates": "Test Plan Templates",
     "workflows": "Workflows",
     "webapp": "Web Applications",
+}
+
+FEATURE_SERVICE_DEPENDENCIES: Dict[str, str] = {
+    "comments_service": "Comments",
+    "dataframe_service": "DataFrame",
+    "workorder_service": "Work Order",
+    "templates": "Work Order",
+    "workflows": "Work Order",
+}
+
+FEATURE_REQUIREMENT_MESSAGES: Dict[str, str] = {
+    "comments_service": "  This feature requires the Comments service.",
+    "dataframe_service": "  This feature requires the DataFrame service.",
+    "workorder_service": "  This feature requires the Work Order service.",
+    "templates": "  This feature requires the Work Order service.",
+    "workflows": "  This feature requires the Work Order service.",
 }
 
 FILE_SEARCH_PATH = "/nifile/v1/service-groups/Default/search-files"
@@ -171,6 +196,192 @@ def clear_platform_cache() -> None:
     to ensure the next get_platform() call re-detects the platform.
     """
     get_platform.cache_clear()
+    _get_cached_service_status.cache_clear()
+
+
+def _probe_service_status(api_url: str, api_key: str, method: str, url_path: str) -> str:
+    """Probe a single service endpoint and return its normalized status."""
+    headers = {
+        "x-ni-api-key": api_key,
+        "Content-Type": "application/json",
+        "User-Agent": "SystemLink-CLI/1.0 (cross-platform)",
+    }
+    ssl_verify = get_ssl_verify()
+
+    try:
+        full_url = f"{api_url}{url_path}"
+        if method == "POST":
+            response = requests.post(
+                full_url,
+                headers=headers,
+                json={"take": 1},
+                verify=ssl_verify,
+                timeout=10,
+            )
+        else:
+            response = requests.get(
+                full_url,
+                headers=headers,
+                verify=ssl_verify,
+                timeout=10,
+            )
+    except requests.RequestException:
+        return "unreachable"
+
+    if response.status_code in (200, 400):
+        return "ok"
+    if response.status_code in (401, 403):
+        return "unauthorized"
+    if response.status_code in (404, 501):
+        return "not_found"
+    return "error"
+
+
+@lru_cache(maxsize=None)
+def _get_cached_service_status(service_name: str, api_url: str, api_key: str) -> str:
+    """Probe and cache a service status for a specific server and credential pair."""
+    service_check = next((entry for entry in SERVICE_CHECKS if entry[0] == service_name), None)
+    if service_check is None:
+        return "error"
+
+    return _probe_service_status(api_url, api_key, service_check[1], service_check[2])
+
+
+def _get_current_api_context() -> Optional[Tuple[Optional[str], str, str]]:
+    """Resolve the current profile name, API URL, and key for service probing."""
+    api_url = os.environ.get("SYSTEMLINK_API_URL")
+    api_key = os.environ.get("SYSTEMLINK_API_KEY")
+    if api_url and api_key:
+        return None, api_url, api_key
+
+    cfg = _get_keyring_config()
+    config_api_url = cfg.get("api_url") if cfg else None
+    config_api_key = cfg.get("api_key") if cfg else None
+    if config_api_url and config_api_key:
+        return None, str(config_api_url), str(config_api_key)
+
+    try:
+        from .profiles import get_active_profile_name
+        from .utils import get_api_key, get_base_url
+
+        return get_active_profile_name(), get_base_url(), get_api_key()
+    except Exception:
+        return None
+
+
+def _get_service_probe_cache_ttl_seconds() -> int:
+    """Return the persisted probe cache TTL in seconds."""
+    raw_value = os.environ.get("SLCLI_SERVICE_PROBE_CACHE_TTL_SECONDS")
+    if not raw_value:
+        return DEFAULT_SERVICE_PROBE_CACHE_TTL_SECONDS
+
+    try:
+        ttl_seconds = int(raw_value)
+    except ValueError:
+        return DEFAULT_SERVICE_PROBE_CACHE_TTL_SECONDS
+
+    return max(ttl_seconds, 0)
+
+
+def _build_service_probe_cache_key(profile_name: Optional[str], api_url: str, api_key: str) -> str:
+    """Build a stable cache key for persisted service probe snapshots."""
+    import hashlib
+
+    identity = profile_name or api_url.rstrip("/")
+    api_key_fingerprint = hashlib.sha256(api_key.encode("utf-8")).hexdigest()[:16]
+    return f"{identity}|{api_url.rstrip('/')}|{api_key_fingerprint}"
+
+
+def _load_cached_service_status_snapshot(
+    api_context: Tuple[Optional[str], str, str], max_age_seconds: Optional[int] = None
+) -> Optional[Dict[str, Any]]:
+    """Load a fresh persisted service probe snapshot when available."""
+    from .profiles import get_service_probe_cache_entry
+
+    ttl_seconds = (
+        _get_service_probe_cache_ttl_seconds() if max_age_seconds is None else max_age_seconds
+    )
+    if ttl_seconds <= 0:
+        return None
+
+    profile_name, api_url, api_key = api_context
+    cache_key = _build_service_probe_cache_key(profile_name, api_url, api_key)
+    entry = get_service_probe_cache_entry(cache_key)
+    if entry is None:
+        return None
+
+    cached_at = entry.get("cached_at")
+    status = entry.get("status")
+    if not isinstance(cached_at, (int, float)) or not isinstance(status, dict):
+        return None
+    if entry.get("server") != api_url:
+        return None
+    if time.time() - float(cached_at) > ttl_seconds:
+        return None
+    return status
+
+
+def _save_service_status_snapshot(
+    api_context: Tuple[Optional[str], str, str], status: Dict[str, Any]
+) -> None:
+    """Persist a service probe snapshot for reuse across CLI invocations."""
+    from .profiles import save_service_probe_cache_entry
+
+    profile_name, api_url, api_key = api_context
+    cache_key = _build_service_probe_cache_key(profile_name, api_url, api_key)
+    save_service_probe_cache_entry(
+        cache_key,
+        {
+            "profile": profile_name,
+            "server": api_url,
+            "cached_at": time.time(),
+            "status": status,
+        },
+    )
+
+
+def _get_service_status_snapshot(force_refresh: bool = False) -> Optional[Dict[str, Any]]:
+    """Get a cached or live service probe snapshot for the active connection."""
+    api_context = _get_current_api_context()
+    if api_context is None:
+        return None
+
+    if not force_refresh:
+        cached_status = _load_cached_service_status_snapshot(api_context)
+        if cached_status is not None:
+            return cached_status
+
+    _, api_url, api_key = api_context
+    status = check_service_status(api_url, api_key)
+    _save_service_status_snapshot(api_context, status)
+    return status
+
+
+def _get_service_status(service_name: str) -> Optional[str]:
+    """Probe a service endpoint on demand when a feature depends on it."""
+    status_snapshot = _get_service_status_snapshot(force_refresh=False)
+    if status_snapshot is None:
+        return None
+
+    services = status_snapshot.get("services")
+    if not isinstance(services, dict):
+        return None
+    service_status = services.get(service_name)
+    return service_status if isinstance(service_status, str) else None
+
+
+def _get_runtime_platform() -> str:
+    """Resolve the best available platform identifier for user-facing feature messages."""
+    platform = get_platform()
+    if platform != PLATFORM_UNKNOWN:
+        return platform
+
+    status_snapshot = _get_service_status_snapshot(force_refresh=False)
+    if status_snapshot is None:
+        return platform
+
+    detected_platform = status_snapshot.get("platform", PLATFORM_UNKNOWN)
+    return detected_platform if isinstance(detected_platform, str) else PLATFORM_UNKNOWN
 
 
 def has_feature(feature_name: str) -> bool:
@@ -184,6 +395,14 @@ def has_feature(feature_name: str) -> bool:
         Returns True if platform is unknown (graceful degradation).
     """
     platform = get_platform()
+    service_dependency = FEATURE_SERVICE_DEPENDENCIES.get(feature_name)
+
+    if service_dependency is not None:
+        service_status = _get_service_status(service_dependency)
+        if service_status in ("ok", "unauthorized"):
+            return True
+        if service_status == "not_found":
+            return False
 
     # If platform is unknown, allow all features (fail later if actually unavailable)
     if platform == PLATFORM_UNKNOWN:
@@ -206,16 +425,18 @@ def require_feature(feature_name: str) -> None:
     if has_feature(feature_name):
         return
 
-    platform = get_platform()
+    platform = _get_runtime_platform()
     feature_display = FEATURE_DISPLAY_NAMES.get(feature_name, feature_name)
-    platform_display = "SystemLink Server" if platform == PLATFORM_SLS else platform
+    platform_display = _get_platform_display_name(platform)
 
     click.echo(
         f"✗ Error: {feature_display} is not available on {platform_display}.",
         err=True,
     )
     click.echo(
-        "  This feature requires SystemLink Enterprise (SLE).",
+        FEATURE_REQUIREMENT_MESSAGES.get(
+            feature_name, "  This feature requires SystemLink Enterprise (SLE)."
+        ),
         err=True,
     )
     sys.exit(ExitCodes.INVALID_INPUT)
@@ -599,15 +820,16 @@ def get_platform_info(skip_health: bool = False) -> Dict[str, Any]:
     materialized_search_available: Optional[bool] = None
 
     if not skip_health and logged_in and isinstance(api_url, str) and api_url != "Not configured":
-        status = check_service_status(api_url, api_key)
-        server_reachable = status["server_reachable"]
-        auth_valid = status["auth_valid"]
-        services = status["services"]
-        platform = status["platform"]
-        file_query_endpoint = status.get("file_query_endpoint")
-        elasticsearch_available = status.get("elasticsearch_available")
-        system_query_endpoint = status.get("system_query_endpoint")
-        materialized_search_available = status.get("materialized_search_available")
+        status = _get_service_status_snapshot(force_refresh=True)
+        if status is not None:
+            server_reachable = status["server_reachable"]
+            auth_valid = status["auth_valid"]
+            services = status["services"]
+            platform = status["platform"]
+            file_query_endpoint = status.get("file_query_endpoint")
+            elasticsearch_available = status.get("elasticsearch_available")
+            system_query_endpoint = status.get("system_query_endpoint")
+            materialized_search_available = status.get("materialized_search_available")
 
     info: Dict[str, Any] = {
         "api_url": api_url,

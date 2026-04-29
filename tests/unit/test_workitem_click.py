@@ -33,6 +33,12 @@ def runner() -> CliRunner:
     return CliRunner()
 
 
+@pytest.fixture(autouse=True)
+def allow_workorder_service(monkeypatch: Any) -> None:
+    """Keep workitem command tests focused on command behavior, not feature probing."""
+    monkeypatch.setattr("slcli.platform._get_service_status", lambda _service: "ok")
+
+
 # ---------------------------------------------------------------------------
 # Helpers
 # ---------------------------------------------------------------------------

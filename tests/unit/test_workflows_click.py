@@ -26,6 +26,12 @@ def runner() -> CliRunner:
     return CliRunner()
 
 
+@pytest.fixture(autouse=True)
+def allow_workorder_service(monkeypatch: Any) -> None:
+    """Keep workflow command tests focused on workflow behavior, not feature probing."""
+    monkeypatch.setattr("slcli.platform._get_service_status", lambda _service: "ok")
+
+
 def mock_requests(
     monkeypatch: Any, method: str, response_json: Any, status_code: int = 200
 ) -> None:

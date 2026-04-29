@@ -1182,8 +1182,11 @@ def register_workitem_commands(cli: Any) -> None:
     # =======================================================================
 
     @workitem.group(name="template")
-    def template_group() -> None:
+    @click.pass_context
+    def template_group(ctx: click.Context) -> None:
         """Manage work item templates."""
+        if ctx.invoked_subcommand is not None:
+            require_feature("templates")
 
     @template_group.command(name="list")
     @click.option(
