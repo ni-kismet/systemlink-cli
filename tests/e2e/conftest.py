@@ -513,6 +513,7 @@ def pytest_configure(config: Any) -> None:
     config.addinivalue_line("markers", "comment: mark test as comment management related")
     config.addinivalue_line("markers", "routine: mark test as routine management related")
     config.addinivalue_line("markers", "workitem: mark test as work item management related")
+    config.addinivalue_line("markers", "dataframe: mark test as dataframe related")
 
 
 def pytest_collection_modifyitems(config: Any, items: List[Any]) -> None:

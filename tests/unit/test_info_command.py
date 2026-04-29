@@ -66,6 +66,7 @@ class TestInfoCommand:
             "auth_valid": True,
             "services": {
                 "Auth": "ok",
+                "DataFrame": "not_found",
                 "File": "ok",
                 "Test Monitor": "ok",
                 "Work Order": "not_found",
@@ -97,6 +98,7 @@ class TestInfoCommand:
         assert "Connected" in result.output
         assert "SystemLink Server" in result.output
         assert "Service Health" in result.output
+        assert "DataFrame" in result.output
         assert "Work Order" in result.output
         assert "Not available" in result.output
         assert "System Query" in result.output

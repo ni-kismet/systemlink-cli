@@ -80,6 +80,7 @@ class TestFeatureGatingTemplates:
             return ""
 
         monkeypatch.setattr("slcli.platform.keyring.get_password", mock_get_password)
+        monkeypatch.setattr("slcli.platform._get_service_status", lambda _service: "not_found")
 
         runner = CliRunner()
         result = runner.invoke(cli, ["template", "list"])
@@ -105,12 +106,123 @@ class TestFeatureGatingWorkflows:
             return ""
 
         monkeypatch.setattr("slcli.platform.keyring.get_password", mock_get_password)
+        monkeypatch.setattr("slcli.platform._get_service_status", lambda _service: "not_found")
 
         runner = CliRunner()
         result = runner.invoke(cli, ["workitem", "workflow", "list"])
 
         assert result.exit_code == 2  # INVALID_INPUT
         assert "Workflows is not available on SystemLink Server" in result.output
+
+
+class TestFeatureGatingWorkitemTemplates:
+    """Tests for feature gating on workitem template commands."""
+
+    def test_workitem_template_command_blocked_on_sls(self, monkeypatch: Any) -> None:
+        """Test that workitem template commands are blocked on SLS platform."""
+        config = {
+            "api_url": "https://my-server.local",
+            "api_key": "test-key",
+            "platform": "SLS",
+        }
+
+        def mock_get_password(service: str, key: str) -> str:
+            if key == "SYSTEMLINK_CONFIG":
+                return json.dumps(config)
+            return ""
+
+        monkeypatch.setattr("slcli.platform.keyring.get_password", mock_get_password)
+        monkeypatch.setattr("slcli.platform._get_service_status", lambda _service: "not_found")
+
+        runner = CliRunner()
+        result = runner.invoke(cli, ["workitem", "template", "list"])
+
+        assert result.exit_code == 2
+        assert "Test Plan Templates is not available on SystemLink Server" in result.output
+
+
+class TestFeatureGatingComments:
+    """Tests for feature gating on comment commands."""
+
+    def test_comment_command_blocked_on_sls(self, monkeypatch: Any) -> None:
+        """Test that comment commands are blocked on SLS platform."""
+        config = {
+            "api_url": "https://my-server.local",
+            "api_key": "test-key",
+            "platform": "SLS",
+        }
+
+        def mock_get_password(service: str, key: str) -> str:
+            if key == "SYSTEMLINK_CONFIG":
+                return json.dumps(config)
+            return ""
+
+        monkeypatch.setattr("slcli.platform.keyring.get_password", mock_get_password)
+        monkeypatch.setattr("slcli.platform._get_service_status", lambda _service: "not_found")
+
+        runner = CliRunner()
+        result = runner.invoke(cli, ["comment", "list"])
+
+        assert result.exit_code == 2
+        assert "Comments is not available on SystemLink Server" in result.output
+        assert "requires the Comments service" in result.output
+
+
+class TestFeatureGatingDataFrame:
+    """Tests for feature gating on dataframe commands."""
+
+    def test_dataframe_command_blocked_on_sls(self, monkeypatch: Any) -> None:
+        """Test that dataframe commands are blocked on SLS platform."""
+        config = {
+            "api_url": "https://my-server.local",
+            "api_key": "test-key",
+            "platform": "SLS",
+        }
+
+        def mock_get_password(service: str, key: str) -> str:
+            if key == "SYSTEMLINK_CONFIG":
+                return json.dumps(config)
+            return ""
+
+        monkeypatch.setattr("slcli.platform.keyring.get_password", mock_get_password)
+        monkeypatch.setattr("slcli.platform._get_service_status", lambda _service: "not_found")
+
+        runner = CliRunner()
+        result = runner.invoke(cli, ["dataframe", "list"])
+
+        assert result.exit_code == 2
+        assert "DataFrames is not available on SystemLink Server" in result.output
+        assert "requires the DataFrame service" in result.output
+
+
+class TestFeatureGatingRuntimePlatformDisplay:
+    """Tests for live platform display in feature gating messages."""
+
+    def test_template_command_uses_runtime_platform_display(self, monkeypatch: Any) -> None:
+        """Test unavailable feature messages avoid 'unknown' when SLS is detectable."""
+        config = {
+            "api_url": "https://my-server.local",
+            "api_key": "test-key",
+        }
+
+        def mock_get_password(service: str, key: str) -> str:
+            if key == "SYSTEMLINK_CONFIG":
+                return json.dumps(config)
+            return ""
+
+        monkeypatch.setattr("slcli.platform.keyring.get_password", mock_get_password)
+        monkeypatch.setattr("slcli.platform._get_service_status", lambda _service: "not_found")
+        monkeypatch.setattr(
+            "slcli.platform.check_service_status",
+            lambda api_url, api_key: {"platform": "SLS"},
+        )
+
+        runner = CliRunner()
+        result = runner.invoke(cli, ["template", "list"])
+
+        assert result.exit_code == 2
+        assert "SystemLink Server" in result.output
+        assert "unknown" not in result.output.lower()
 
 
 class TestFeatureGatingFunctions:

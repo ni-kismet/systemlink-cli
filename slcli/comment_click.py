@@ -20,6 +20,7 @@ from urllib.parse import urlencode
 import click
 
 from .cli_utils import validate_output_format
+from .platform import require_feature
 from .universal_handlers import FilteredResponse, UniversalResponseHandler
 from .utils import (
     ExitCodes,
@@ -185,14 +186,16 @@ def register_comment_commands(cli: Any) -> None:
     """Register the 'comment' command group and its subcommands."""
 
     @cli.group()
-    def comment() -> None:
+    @click.pass_context
+    def comment(ctx: click.Context) -> None:
         """Manage comments on SystemLink resources.
 
         Comments can be attached to any resource identified by a resource type
         and resource ID. Known resource types: testmonitor:Result, niapm:Asset,
         nisysmgmt:System, workorder:workorder, workitem:workitem, DataSpace.
         """
-        pass
+        if ctx.invoked_subcommand is not None:
+            require_feature("comments_service")
 
     # ─────────────────────────────────────────────────────────────
     # comment list

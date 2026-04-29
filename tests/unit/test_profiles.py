@@ -10,6 +10,8 @@ from slcli.profiles import (
     check_config_file_permissions,
     get_active_profile,
     get_default_workspace,
+    get_service_probe_cache_entry,
+    save_service_probe_cache_entry,
     set_profile_override,
 )
 
@@ -197,6 +199,27 @@ class TestProfileConfig:
         saved = json.loads(config_file.read_text())
         assert saved["current-profile"] == "test"
         assert "test" in saved["profiles"]
+
+    def test_service_probe_cache_entry_round_trip(self, tmp_path: Path, monkeypatch: Any) -> None:
+        """Test persisted service probe cache entries survive save/load."""
+        config_file = tmp_path / "config.json"
+        monkeypatch.setattr(
+            "slcli.profiles.ProfileConfig.get_config_path", classmethod(lambda cls: config_file)
+        )
+
+        save_service_probe_cache_entry(
+            "cache-key",
+            {"server": "https://example.com", "cached_at": 123.0, "status": {"platform": "SLS"}},
+        )
+
+        entry = get_service_probe_cache_entry("cache-key")
+        assert entry is not None
+        assert entry["server"] == "https://example.com"
+        assert entry["status"]["platform"] == "SLS"
+
+        saved = json.loads(config_file.read_text())
+        assert "service-probe-cache" in saved
+        assert "cache-key" in saved["service-probe-cache"]
 
     def test_add_profile(self) -> None:
         """Test adding a profile."""

@@ -52,6 +52,7 @@
         <a href="#testmonitor" class="sidebar-link">testmonitor</a>
         <a href="#asset" class="sidebar-link">asset</a>
         <a href="#system" class="sidebar-link">system</a>
+        <a href="#dataframe" class="sidebar-link">dataframe</a>
         <a href="#spec" class="sidebar-link">spec</a>
         <a href="#workitem" class="sidebar-link">workitem</a>
         <a href="#template" class="sidebar-link">template</a>
@@ -82,6 +83,7 @@
         <div class="cmd-group"><h3>testmonitor</h3><p>Test results, products, steps, measurements</p><code>slcli testmonitor result list</code></div>
         <div class="cmd-group"><h3>asset</h3><p>Hardware assets, calibration, fleet summary</p><code>slcli asset list</code></div>
         <div class="cmd-group"><h3>system</h3><p>Managed systems, package comparison, jobs, reports</p><code>slcli system list</code></div>
+        <div class="cmd-group"><h3>dataframe</h3><p>DataFrame tables, schema inspection, row queries, CSV export</p><code>slcli dataframe schema &lt;table-id&gt;</code></div>
         <div class="cmd-group"><h3>spec</h3><p>Product specifications, limits, conditions, bulk import/export</p><code>slcli spec list</code></div>
         <div class="cmd-group"><h3>workitem</h3><p>Work items, templates, workflows</p><code>slcli workitem list</code></div>
         <div class="cmd-group"><h3>template</h3><p>Test plan templates</p><code>slcli template list</code></div>
@@ -284,6 +286,81 @@ slcli system job cancel &lt;job-id&gt;</code></pre>
       <h3>Update &amp; Remove</h3>
       <pre><code>slcli system update &lt;system-id&gt; --alias "New Name" --workspace "Production"
 slcli system remove &lt;system-id&gt; --force</code></pre>
+
+      <!-- ─── DATAFRAME ─── -->
+      <h2 id="dataframe">dataframe</h2>
+      <p>Inspect DataFrame table shape, query and decimate row data, export CSV, append rows, and manage table metadata.</p>
+
+      <h3>Discover Tables</h3>
+      <pre><code># List tables across all workspaces
+    slcli dataframe list --workspace all
+
+    # Filter by name, associated test result, or append capability
+    slcli dataframe list --name "Battery" --supports-append
+    slcli dataframe list --test-result-id &lt;result-id&gt; --format json
+
+    # Apply advanced table filters with substitutions
+    slcli dataframe list \
+      --filter '(name.Contains(@0)) &amp;&amp; (supportsAppend == @1)' \
+      --substitution "Battery" \
+      --substitution true</code></pre>
+
+      <h3>Inspect Metadata &amp; Schema</h3>
+      <pre><code># Summary plus schema preview
+    slcli dataframe get &lt;table-id&gt;
+
+    # Schema only
+    slcli dataframe schema &lt;table-id&gt;
+    slcli dataframe schema &lt;table-id&gt; --properties --format json</code></pre>
+
+      <h3>Query &amp; Decimate Row Data</h3>
+      <pre><code># Query selected columns with filters and sorting
+    slcli dataframe query &lt;table-id&gt; \
+      --columns Time,Voltage,State \
+      --where State,EQUALS,FAIL \
+      --order-by Time:desc
+
+    # Resume a paged read from a continuation token
+    slcli dataframe query &lt;table-id&gt; --continuation-token &lt;token&gt; --format json
+
+    # Use a raw request payload for advanced queries
+    slcli dataframe query &lt;table-id&gt; --request query.json --format json
+
+    # Decimate large time-series tables for plotting
+    slcli dataframe decimate &lt;table-id&gt; \
+      --x-column Time \
+      --y-column Voltage \
+      --y-column Current \
+      --method MAX_MIN \
+      --intervals 500</code></pre>
+
+      <h3>Export &amp; Append</h3>
+      <pre><code># Export CSV inline or to a file
+    slcli dataframe export &lt;table-id&gt; --where Cycle,GREATER_THAN,3
+    slcli dataframe export &lt;table-id&gt; --output rows.csv
+
+    # Append JSON frame payloads
+    slcli dataframe append &lt;table-id&gt; --input append.json
+
+    # Append Arrow stream payloads and mark the table complete
+    slcli dataframe append &lt;table-id&gt; --input rows.arrow --input-format arrow --end-of-data</code></pre>
+
+      <h3>Create, Update, &amp; Delete</h3>
+      <pre><code># Create from a definition file
+    slcli dataframe create --definition table.json --workspace Production
+
+    # Update metadata and column properties
+    slcli dataframe update &lt;table-id&gt; \
+      --property owner=qa \
+      --column-property Voltage:units=V \
+      --metadata-revision 2
+
+    # Batch metadata updates from a raw request payload
+    slcli dataframe update-many --definition modify-tables.json
+
+    # Delete one or more tables
+    slcli dataframe delete &lt;table-id&gt; --yes
+    slcli dataframe delete &lt;id-1&gt; &lt;id-2&gt; --yes</code></pre>
 
       <!-- ─── SPEC ─── -->
       <h2 id="spec">spec</h2>

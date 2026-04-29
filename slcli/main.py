@@ -14,6 +14,7 @@ from .asset_click import register_asset_commands
 from .comment_click import register_comment_commands
 from .completion_click import register_completion_command
 from .config_click import register_config_commands
+from .dataframe_click import register_dataframe_commands
 from .dff_click import register_dff_commands
 from .example_click import register_example_commands
 from .feed_click import register_feed_commands
@@ -418,6 +419,7 @@ def info(format: str, skip_health: bool) -> None:
 register_completion_command(cli)
 register_asset_commands(cli)
 register_comment_commands(cli)
+register_dataframe_commands(cli)
 register_dff_commands(cli)
 register_config_commands(cli)
 register_example_commands(cli)

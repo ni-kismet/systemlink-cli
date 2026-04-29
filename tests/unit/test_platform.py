@@ -1,6 +1,7 @@
 """Unit tests for slcli.platform module."""
 
 import json
+import time
 from typing import Any
 from unittest.mock import MagicMock, patch
 
@@ -24,9 +25,11 @@ from slcli.platform import (
 
 
 @pytest.fixture(autouse=True)
-def clear_cache() -> None:
-    """Clear the platform cache before each test."""
+def clear_cache(tmp_path: Any, monkeypatch: Any) -> None:
+    """Clear platform caches and isolate persisted config before each test."""
     clear_platform_cache()
+    monkeypatch.setenv("SLCLI_CONFIG", str(tmp_path / "config.json"))
+    monkeypatch.delenv("SLCLI_SERVICE_PROBE_CACHE_TTL_SECONDS", raising=False)
 
 
 class TestDetectPlatform:
@@ -114,7 +117,10 @@ class TestCheckServiceStatus:
                 "/nisysmgmt/": 200,
                 "/nitag/": 200,
                 "/nifile/": 200,
+                "/nidataframe/": 200,
                 "/ninotebook/": 200,
+                "/nicomments/": 200,
+                "/niroutine/v2/": 200,
                 "/niapp/": 200,
                 "/nidynamicformfields/": 200,
                 "/niworkorder/": 200,
@@ -129,6 +135,9 @@ class TestCheckServiceStatus:
         assert result["auth_valid"] is True
         assert result["platform"] == PLATFORM_SLE
         assert result["services"]["Auth"] == "ok"
+        assert result["services"]["Comments"] == "ok"
+        assert result["services"]["DataFrame"] == "ok"
+        assert result["services"]["Routine v2"] == "ok"
         assert result["services"]["Test Monitor"] == "ok"
         assert result["services"]["Work Order"] == "ok"
 
@@ -142,7 +151,10 @@ class TestCheckServiceStatus:
                 "/nisysmgmt/": 200,
                 "/nitag/": 200,
                 "/nifile/": 200,
+                "/nidataframe/": 404,
                 "/ninotebook/": 404,
+                "/nicomments/": 404,
+                "/niroutine/v2/": 404,
                 "/niapp/": 200,
                 "/nidynamicformfields/": 404,
                 "/niworkorder/": 404,
@@ -156,6 +168,9 @@ class TestCheckServiceStatus:
         assert result["server_reachable"] is True
         assert result["auth_valid"] is True
         assert result["platform"] == PLATFORM_SLS
+        assert result["services"]["Comments"] == "not_found"
+        assert result["services"]["DataFrame"] == "not_found"
+        assert result["services"]["Routine v2"] == "not_found"
         assert result["services"]["Work Order"] == "not_found"
 
     def test_all_services_unauthorized(self) -> None:
@@ -168,7 +183,10 @@ class TestCheckServiceStatus:
                 "/nisysmgmt/": 401,
                 "/nitag/": 401,
                 "/nifile/": 401,
+                "/nidataframe/": 401,
                 "/ninotebook/": 401,
+                "/nicomments/": 401,
+                "/niroutine/v2/": 401,
                 "/niapp/": 401,
                 "/nidynamicformfields/": 401,
                 "/niworkorder/": 401,
@@ -181,7 +199,9 @@ class TestCheckServiceStatus:
 
         assert result["server_reachable"] is True
         assert result["auth_valid"] is False
+        assert result["platform"] == PLATFORM_SLE
         assert result["services"]["Auth"] == "unauthorized"
+        assert result["services"]["Comments"] == "unauthorized"
         assert result["services"]["Test Monitor"] == "unauthorized"
 
     def test_partial_unauthorized(self) -> None:
@@ -194,7 +214,10 @@ class TestCheckServiceStatus:
                 "/nisysmgmt/": 200,
                 "/nitag/": 200,
                 "/nifile/": 200,
+                "/nidataframe/": 404,
                 "/ninotebook/": 200,
+                "/nicomments/": 404,
+                "/niroutine/v2/": 401,
                 "/niapp/": 200,
                 "/nidynamicformfields/": 200,
                 "/niworkorder/": 200,
@@ -221,7 +244,10 @@ class TestCheckServiceStatus:
                 "/nisysmgmt/": conn_err,
                 "/nitag/": conn_err,
                 "/nifile/": conn_err,
+                "/nidataframe/": conn_err,
                 "/ninotebook/": conn_err,
+                "/nicomments/": conn_err,
+                "/niroutine/v2/": conn_err,
                 "/niapp/": conn_err,
                 "/nidynamicformfields/": conn_err,
                 "/niworkorder/": conn_err,
@@ -236,8 +262,8 @@ class TestCheckServiceStatus:
         assert result["auth_valid"] is None
         assert result["platform"] == PLATFORM_UNREACHABLE
 
-    def test_inconclusive_workorder_status_returns_unknown(self) -> None:
-        """Test that unauthorized workorder status no longer guesses the platform."""
+    def test_infer_sle_when_any_sle_only_service_is_available(self) -> None:
+        """Test that a reachable SLE-only service is enough to infer SLE."""
         mock_get, mock_post = self._mock_requests(
             {
                 "/niauth/": 200,
@@ -246,16 +272,83 @@ class TestCheckServiceStatus:
                 "/nisysmgmt/": 200,
                 "/nitag/": 200,
                 "/nifile/": 200,
+                "/nidataframe/": 404,
                 "/ninotebook/": 200,
+                "/nicomments/": 404,
+                "/niroutine/v2/": 404,
                 "/niapp/": 200,
-                "/nidynamicformfields/": 200,
+                "/nidynamicformfields/": 401,
                 "/niworkorder/": 401,
             }
         )
         with patch("slcli.platform.requests.get", mock_get), patch(
             "slcli.platform.requests.post", mock_post
         ):
-            result = check_service_status("https://demo-api.lifecyclesolutions.ni.com", "key")
+            result = check_service_status("https://my-server.example.com", "key")
+
+        assert result["server_reachable"] is True
+        assert result["platform"] == PLATFORM_SLE
+
+    def test_inconclusive_sle_only_probes_return_unknown(self) -> None:
+        """Test that mixed inconclusive SLE-only probes do not guess a platform."""
+        mock_get, mock_post = self._mock_requests(
+            {
+                "/niauth/": 200,
+                "/nitestmonitor/": 200,
+                "/niapm/": 200,
+                "/nisysmgmt/": 200,
+                "/nitag/": 200,
+                "/nifile/": 200,
+                "/nidataframe/": 404,
+                "/ninotebook/": 404,
+                "/nicomments/": 404,
+                "/niroutine/v2/": 404,
+                "/niapp/": 200,
+                "/nidynamicformfields/": "bad gateway",
+                "/niworkorder/": 401,
+            }
+        )
+
+        # Map the synthetic error token to an HTTP 502 response.
+        def side_effect_post(url: str, **kwargs: Any) -> MagicMock:
+            if "/nidynamicformfields/" in url:
+                return _make_mock_response(502)
+            for pattern, result in {
+                "/niauth/": 200,
+                "/nitestmonitor/": 200,
+                "/niapm/": 200,
+                "/nisysmgmt/": 200,
+                "/nitag/": 200,
+                "/nifile/": 200,
+                "/nidataframe/": 404,
+                "/ninotebook/": 404,
+                "/niapp/": 200,
+                "/niworkorder/": 401,
+            }.items():
+                if pattern in url:
+                    return _make_mock_response(result)
+            return _make_mock_response(200)
+
+        def side_effect_get(url: str, **kwargs: Any) -> MagicMock:
+            for pattern, result in {
+                "/niauth/": 200,
+                "/nitestmonitor/": 200,
+                "/nitag/": 200,
+                "/nicomments/": 404,
+                "/niroutine/v2/": 404,
+                "/nidynamicformfields/": 502,
+            }.items():
+                if pattern in url:
+                    return _make_mock_response(result)
+            return _make_mock_response(200)
+
+        mock_get.side_effect = side_effect_get
+        mock_post.side_effect = side_effect_post
+
+        with patch("slcli.platform.requests.get", mock_get), patch(
+            "slcli.platform.requests.post", mock_post
+        ):
+            result = check_service_status("https://my-lab.example.com", "key")
 
         assert result["server_reachable"] is True
         assert result["platform"] == PLATFORM_UNKNOWN
@@ -270,6 +363,7 @@ class TestCheckServiceStatus:
                 "/nisysmgmt/": 200,
                 "/nitag/": 404,
                 "/nifile/": 404,
+                "/nidataframe/": 404,
                 "/ninotebook/": 404,
                 "/niapp/": 404,
                 "/nidynamicformfields/": 404,
@@ -302,6 +396,7 @@ class TestCheckServiceStatus:
                 "/nisysmgmt/": 200,
                 "/nitag/": 404,
                 "/nifile/": 404,
+                "/nidataframe/": 404,
                 "/ninotebook/": 404,
                 "/niapp/": 404,
                 "/nidynamicformfields/": 404,
@@ -334,6 +429,7 @@ class TestCheckServiceStatus:
                 "/nisysmgmt/": 200,
                 "/nitag/": 404,
                 "/nifile/": 404,
+                "/nidataframe/": 404,
                 "/ninotebook/": 404,
                 "/niapp/": 404,
                 "/nidynamicformfields/": 404,
@@ -468,6 +564,120 @@ class TestHasFeature:
 
             assert result is True
 
+    def test_has_feature_templates_uses_workorder_service_probe(self) -> None:
+        """Test templates/workflows follow the Work Order service capability."""
+        config = {"platform": "SLS"}
+
+        with patch("slcli.platform.keyring.get_password") as mock_keyring, patch(
+            "slcli.platform._get_service_status", return_value="ok"
+        ):
+            mock_keyring.return_value = json.dumps(config)
+
+            assert has_feature("templates") is True
+            assert has_feature("workflows") is True
+
+    def test_has_feature_workorder_not_found_overrides_sle_platform(self) -> None:
+        """Test Work Order-backed features are disabled when the service is missing."""
+        config = {"platform": "SLE"}
+
+        with patch("slcli.platform.keyring.get_password") as mock_keyring, patch(
+            "slcli.platform._get_service_status", return_value="not_found"
+        ):
+            mock_keyring.return_value = json.dumps(config)
+
+            assert has_feature("workorder_service") is False
+            assert has_feature("templates") is False
+            assert has_feature("workflows") is False
+
+    def test_has_feature_uses_persisted_service_probe_cache(
+        self, tmp_path: Any, monkeypatch: Any
+    ) -> None:
+        """Test service-backed features reuse a fresh persisted probe snapshot."""
+        from slcli.profiles import save_service_probe_cache_entry
+
+        config_file = tmp_path / "config.json"
+        config_file.write_text(
+            json.dumps(
+                {
+                    "current-profile": "sls",
+                    "profiles": {
+                        "sls": {
+                            "server": "https://my-server.local",
+                            "api-key": "test-key",
+                            "platform": "SLS",
+                        }
+                    },
+                }
+            )
+        )
+
+        save_service_probe_cache_entry(
+            "cache-key",
+            {
+                "server": "https://my-server.local",
+                "cached_at": time.time(),
+                "status": {
+                    "platform": PLATFORM_SLS,
+                    "services": {"Work Order": "ok"},
+                },
+            },
+        )
+
+        with patch(
+            "slcli.platform._build_service_probe_cache_key", return_value="cache-key"
+        ), patch("slcli.platform.check_service_status") as mock_check:
+            assert has_feature("templates") is True
+            mock_check.assert_not_called()
+
+    def test_has_feature_refreshes_stale_service_probe_cache(
+        self, tmp_path: Any, monkeypatch: Any
+    ) -> None:
+        """Test stale persisted probe snapshots are refreshed before feature checks."""
+        from slcli.profiles import save_service_probe_cache_entry
+
+        config_file = tmp_path / "config.json"
+        config_file.write_text(
+            json.dumps(
+                {
+                    "current-profile": "sls",
+                    "profiles": {
+                        "sls": {
+                            "server": "https://my-server.local",
+                            "api-key": "test-key",
+                            "platform": "SLS",
+                        }
+                    },
+                }
+            )
+        )
+
+        save_service_probe_cache_entry(
+            "cache-key",
+            {
+                "server": "https://my-server.local",
+                "cached_at": 0.0,
+                "status": {
+                    "platform": PLATFORM_SLS,
+                    "services": {"Work Order": "not_found"},
+                },
+            },
+        )
+        monkeypatch.setenv("SLCLI_SERVICE_PROBE_CACHE_TTL_SECONDS", "60")
+
+        with patch(
+            "slcli.platform._build_service_probe_cache_key", return_value="cache-key"
+        ), patch(
+            "slcli.platform.check_service_status",
+            return_value={
+                "platform": PLATFORM_SLS,
+                "server_reachable": True,
+                "auth_valid": True,
+                "services": {"Work Order": "ok"},
+            },
+        ) as mock_check:
+            assert has_feature("templates") is True
+            mock_check.assert_called_once()
+
 
 class TestRequireFeature:
     """Tests for require_feature function."""
@@ -493,6 +703,24 @@ class TestRequireFeature:
                 require_feature("dynamic_form_fields")
 
             assert exc_info.value.code == 2  # INVALID_INPUT
+
+    def test_require_feature_templates_reports_workorder_requirement(self, capsys: Any) -> None:
+        """Test Work Order-backed features mention the service-specific requirement."""
+        config = {"platform": "SLS"}
+
+        with patch("slcli.platform.keyring.get_password") as mock_keyring, patch(
+            "slcli.platform._get_service_status", return_value="not_found"
+        ):
+            mock_keyring.return_value = json.dumps(config)
+
+            with pytest.raises(SystemExit) as exc_info:
+                require_feature("templates")
+
+            assert exc_info.value.code == 2
+
+        captured = capsys.readouterr()
+        assert "Test Plan Templates" in captured.err
+        assert "requires the Work Order service" in captured.err
 
 
 class TestGetPlatformInfo:
@@ -726,6 +954,47 @@ class TestGetPlatformInfo:
             assert result["auth_valid"] is False
             assert result["server_reachable"] is True
             assert result["services"]["Auth"] == "unauthorized"
+
+    def test_get_platform_info_persists_service_probe_snapshot(self, tmp_path: Any) -> None:
+        """Test info refreshes and persists the live service snapshot."""
+        config_file = tmp_path / "config.json"
+        config_file.write_text(
+            json.dumps(
+                {
+                    "current-profile": "sls",
+                    "profiles": {
+                        "sls": {
+                            "server": "https://my-server.local",
+                            "api-key": "test-key",
+                            "platform": "SLS",
+                        }
+                    },
+                }
+            )
+        )
+
+        mock_status = {
+            "server_reachable": True,
+            "auth_valid": True,
+            "services": {"Auth": "ok", "Work Order": "not_found"},
+            "platform": PLATFORM_SLS,
+            "file_query_endpoint": "query-files",
+            "elasticsearch_available": False,
+            "system_query_endpoint": "query-systems",
+            "materialized_search_available": False,
+        }
+
+        with patch("slcli.platform.check_service_status", return_value=mock_status):
+            result = get_platform_info()
+
+        assert result["platform"] == PLATFORM_SLS
+
+        saved = json.loads(config_file.read_text())
+        cache_entries = saved.get("service-probe-cache", {})
+        assert len(cache_entries) == 1
+        cached_entry = next(iter(cache_entries.values()))
+        assert cached_entry["server"] == "https://my-server.local"
+        assert cached_entry["status"]["services"]["Work Order"] == "not_found"
 
 
 class TestPlatformFeatureMatrix:
