@@ -216,6 +216,79 @@ slcli system job summary [-f json]
 slcli system job cancel <JOB_ID>
 ```
 
+## dataframe — DataFrame tables and row access
+
+> **Requires:** DataFrame service (SLE only). Check `slcli info` for availability.
+
+```bash
+# List tables with metadata filters
+slcli dataframe list [OPTIONS]
+
+  --name TEXT                # Filter by table name (contains)
+  --workspace, -w TEXT       # Filter by workspace name or ID
+  --test-result-id TEXT      # Filter by associated test result ID
+  --supports-append / --no-supports-append
+  --filter TEXT              # Dynamic LINQ table filter
+  --substitution TEXT        # Parameterized value for --filter (repeatable)
+  --order-by CHOICE          # CREATED_AT, METADATA_MODIFIED_AT, NAME,
+                             # NUMBER_OF_ROWS, ROWS_MODIFIED_AT
+  --descending / --ascending
+  --take, -t INTEGER         # Default 25
+  -f [table|json]
+
+# Inspect a single table and its schema
+slcli dataframe get <TABLE_ID> [-f json]
+slcli dataframe schema <TABLE_ID> [--properties] [-f json]
+
+# Query row data
+slcli dataframe query <TABLE_ID> [OPTIONS]
+  --columns TEXT             # Comma-separated column list
+  --where TEXT               # column,operation,value (repeatable)
+  --order-by TEXT            # column[:asc|desc] (repeatable)
+  --take, -t INTEGER         # Default 100
+  --continuation-token TEXT  # Resume a paged read
+  --request FILE             # Raw query-data request JSON
+  -f [table|json]
+
+# Query decimated rows for plotting or large series
+slcli dataframe decimate <TABLE_ID> [OPTIONS]
+  --columns TEXT
+  --where TEXT
+  --x-column TEXT
+  --y-column TEXT            # Repeatable
+  --intervals INTEGER        # Default 1000
+  --method [LOSSY|MAX_MIN|ENTRY_EXIT]
+  --distribution [EQUAL_FREQUENCY|EQUAL_WIDTH]
+  --request FILE
+  -f [table|json]
+
+# Export or append rows
+slcli dataframe export <TABLE_ID> [OPTIONS]
+  --columns TEXT
+  --where TEXT
+  --order-by TEXT
+  --take INTEGER
+  --request FILE
+  --output, -o FILE          # Write CSV to a file
+
+slcli dataframe append <TABLE_ID> --input FILE [--input-format json|arrow] [--end-of-data]
+
+# Manage table metadata
+slcli dataframe create --definition FILE [--name TEXT] [--workspace TEXT] [-f json]
+slcli dataframe update <TABLE_ID> [OPTIONS]
+  --name TEXT
+  --workspace, -w TEXT
+  --test-result-id TEXT
+  --property KEY=VALUE                # Repeatable
+  --remove-property KEY               # Repeatable
+  --column-property COLUMN:KEY=VALUE  # Repeatable
+  --remove-column-property COLUMN:KEY # Repeatable
+  --metadata-revision INTEGER
+
+slcli dataframe update-many --definition FILE
+slcli dataframe delete <TABLE_ID>... [--yes]
+```
+
 ## tag — Tag operations
 
 ```bash
@@ -382,6 +455,8 @@ slcli routine create \
 ```
 
 ## comment — Resource comments
+
+> **Requires:** Comments service (SLE only). Check `slcli info` for availability.
 
 Attach, edit, and remove comments on any SystemLink resource. User IDs in responses
 are automatically resolved to display names.
@@ -562,6 +637,8 @@ slcli customfield edit [--directory DIR]                 # Interactively edit + 
 
 ## template — Test plan template management
 
+> **Requires:** Work Order service (SLE only). Check `slcli info` for availability.
+
 > **Note:** Work item templates are managed separately via `slcli workitem template`.
 > The `slcli template` command manages test plan _configuration_ templates used
 > when provisioning new test plan instances.
@@ -576,6 +653,10 @@ slcli template delete <TEMPLATE_ID>
 ```
 
 ## workitem — Work item, template, and workflow management
+
+> **Partially gated:** The `workitem template` and `workitem workflow` subgroups require the
+> Work Order service (SLE only). Core work item commands (`list`, `create`, `get`) are available
+> on both platforms. Check `slcli info` for service availability.
 
 Unified command group for managing work items, work item templates, and workflows.
 

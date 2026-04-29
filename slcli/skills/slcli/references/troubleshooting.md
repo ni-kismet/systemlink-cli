@@ -43,3 +43,33 @@ PowerShell mangles inline Python f-strings that contain dictionary key access
 File uploads to SystemLink can take 30+ seconds for multi-MB PDFs. If the
 command appears to hang, give it time — the upload is still in progress.
 Set a generous timeout (60–120 s) when automating uploads.
+
+## Feature not available on this server
+
+If a command exits with code 2 and a message like:
+
+```
+✗ Error: DataFrames is not available on SystemLink Server.
+  This feature requires the DataFrame service.
+```
+
+The connected server does not have the required microservice deployed.
+This is expected for features that only exist on SystemLink Enterprise (SLE).
+
+**Diagnose:**
+
+```bash
+# Check which services are reachable
+slcli info -f json | jq '.services'
+
+# Force a fresh probe (bypasses 5-minute cache)
+slcli info
+```
+
+**Gated command groups:** `dataframe`, `comment`, `template`,
+`workitem template`, `workitem workflow`, `customfield`, `notebook`, `routine` (v2).
+
+**Workaround:** If you believe the service should be available, verify the
+server URL is correct (`slcli config view`) and that the service is installed
+and running on the target server. Set `SLCLI_SERVICE_PROBE_CACHE_TTL_SECONDS=0`
+to disable probe caching for debugging stale results.

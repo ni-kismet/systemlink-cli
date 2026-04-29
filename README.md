@@ -7,6 +7,7 @@ SystemLink CLI (`slcli`) is a cross-platform Python CLI for SystemLink integrato
 ## Features
 
 - **20+ resource types** — test results, assets, systems, specifications, work items, notebooks, feeds, tags, files, users, policies, webapps, and more
+- **DataFrame tables** — inspect schema, query rows, export CSV, append data, and manage DataFrame table metadata
 - **Multi-platform** — supports SystemLink Enterprise (SLE) and SystemLink Server (SLS) with automatic detection
 - **Multi-profile** — manage dev, staging, and prod environments with named profiles
 - **AI agent skills** — installable skills for most AI agents (Copilot, Codex, etc.) and Claude — including a webapp skill for building Nimble Angular dashboards
@@ -65,6 +66,11 @@ slcli spec import --file docs/examples/specifications/import-specs.json
 slcli system compare "PXI Controller A" "PXI Controller B"
 slcli system compare sys-id-1 sys-id-2 -f json
 
+# Inspect DataFrame table shape and query rows
+slcli dataframe schema <table-id>
+slcli dataframe query <table-id> --columns Time,Voltage --where Voltage,GREATER_THAN,4.8 -f json
+slcli dataframe export <table-id> --output rows.csv
+
 # Scaffold the SystemLink Angular starter (AI skills auto-installed)
 slcli webapp init ./my-dashboard
 # Open the project and follow START_HERE.md or PROMPTS.md
@@ -94,6 +100,30 @@ slcli auto-detects terminal color support for tables, status lines, and JSON out
 - `SLCLI_COLOR=always` forces color when you want ANSI output even through wrappers or pseudo-terminals.
 - `SLCLI_COLOR=never` disables Rich color output explicitly.
 - `NO_COLOR=1` also disables color output and takes precedence over auto-detection.
+
+## DataFrames
+
+The `dataframe` command group manages tables hosted by the SystemLink DataFrame service.
+
+```bash
+# Discover tables and inspect schema
+slcli dataframe list --workspace all
+slcli dataframe get <table-id>
+slcli dataframe schema <table-id>
+
+# Query or decimate row data
+slcli dataframe query <table-id> --where State,EQUALS,FAIL --order-by Time:desc
+slcli dataframe decimate <table-id> --x-column Time --y-column Voltage --method MAX_MIN
+
+# Export and append data
+slcli dataframe export <table-id> --output rows.csv
+slcli dataframe append <table-id> --input append.json
+
+# Manage table metadata
+slcli dataframe create --definition table.json
+slcli dataframe update <table-id> --property owner=qa --column-property Voltage:units=V
+slcli dataframe delete <table-id>
+```
 
 ## Documentation
 

@@ -11,7 +11,7 @@ from typing import Sequence
 REPO_ROOT = Path(__file__).resolve().parent.parent
 FLAKE8_CONFIG = REPO_ROOT / ".flake8"
 PYPROJECT = REPO_ROOT / "pyproject.toml"
-DEFAULT_EXCLUDE = "__pycache__,.git,.venv"
+DEFAULT_EXCLUDE = "__pycache__,.git,.venv,build"
 
 
 def _run(cmd: Sequence[str]) -> int:
