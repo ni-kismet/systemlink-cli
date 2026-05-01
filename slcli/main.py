@@ -30,6 +30,7 @@ from .routine_click import register_routine_commands
 from .skill_click import register_skill_commands
 from .spec_click import register_spec_commands
 from .ssl_trust import OS_TRUST_INJECTED, OS_TRUST_REASON
+from .state_click import register_state_commands
 from .system_click import register_system_commands
 from .tag_click import register_tag_commands
 from .templates_click import register_templates_commands
@@ -431,6 +432,7 @@ register_templates_commands(cli)
 register_notebook_commands(cli)
 register_policy_commands(cli)
 register_routine_commands(cli)
+register_state_commands(cli)
 register_system_commands(cli)
 register_spec_commands(cli)
 register_tag_commands(cli)

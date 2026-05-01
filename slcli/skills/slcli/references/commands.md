@@ -216,6 +216,56 @@ slcli system job summary [-f json]
 slcli system job cancel <JOB_ID>
 ```
 
+## state — Software state management
+
+```bash
+# List saved states
+slcli state list [OPTIONS]
+
+  --workspace, -w TEXT       # Filter by workspace name or ID
+  --architecture CHOICE      # ARM, X64, X86, ANY
+  --distribution CHOICE      # NI_LINUXRT, NI_LINUXRT_NXG, WINDOWS, ANY
+  --take, -t INTEGER         # Default 25
+  -f [table|json]
+
+# Get state details
+slcli state get <STATE_ID> [-f json]
+
+# Create or update a package/feed-defined state
+slcli state create --name TEXT --distribution CHOICE --architecture CHOICE [OPTIONS]
+  --workspace, -w TEXT
+  --property KEY=VALUE       # Repeatable custom property
+  --feed JSON_OR_@FILE       # Repeatable feed object
+  --package JSON_OR_@FILE    # Repeatable package object
+  --system-image JSON_OR_@FILE
+  --request FILE             # Raw JSON request override
+  -f [table|json]
+
+slcli state update <STATE_ID> [OPTIONS]
+  --name TEXT
+  --description TEXT
+  --distribution CHOICE
+  --architecture CHOICE
+  --workspace, -w TEXT
+  --property KEY=VALUE       # Replaces properties when provided
+  --request FILE             # Raw JSON patch override
+  -f [table|json]
+
+# Destructive operations
+slcli state delete <STATE_ID> [--yes]
+slcli state revert <STATE_ID> <VERSION> [--yes]
+
+# SLS file workflows
+slcli state import --name TEXT --distribution CHOICE --architecture CHOICE --file PATH [OPTIONS]
+slcli state replace-content <STATE_ID> --file PATH [--change-description TEXT] [-f json]
+slcli state export <STATE_ID> [--version VERSION] [--inline | --output FILE]
+slcli state capture <SYSTEM_ID> [--inline | --output FILE]
+
+# Version history
+slcli state history <STATE_ID> [-t INT] [-f json]
+slcli state version <STATE_ID> <VERSION> [-f json]
+```
+
 ## dataframe — DataFrame tables and row access
 
 > **Requires:** DataFrame service (SLE only). Check `slcli info` for availability.
