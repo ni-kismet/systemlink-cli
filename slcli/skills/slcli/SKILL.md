@@ -162,6 +162,8 @@ Consult these for detailed guidance. Load only what you need for the current tas
 | --------------------------- | ----------------------------------------------------------- | ------------------------------------------------------------- |
 | CLI command reference       | [commands.md](./references/commands.md)                     | Looking up command syntax, options, or examples               |
 | Datasheet-to-specs workflow | [datasheet-workflow.md](./references/datasheet-workflow.md) | Importing specs from PDF, CSV, or structured text             |
+| Minimal spec import payload | [import-specs.min.json](./references/import-specs.min.json) | Need a bundled create-compatible starter payload or conditions |
+| Spec import helper          | [spec_import_helper.py](./scripts/spec_import_helper.py)    | Scaffold or validate a datasheet spec import payload          |
 | Filtering guide             | [filtering.md](./references/filtering.md)                   | Advanced LINQ expressions, parameterized queries              |
 | Analysis recipes            | [analysis-recipes.md](./references/analysis-recipes.md)     | Multi-step analysis: yield, calibration, operator performance |
 | Troubleshooting             | [troubleshooting.md](./references/troubleshooting.md)       | Workspace ID issues, SSL errors, encoding, PowerShell quoting |
@@ -241,3 +243,4 @@ to disable caching for debugging.
 8. **Exit codes**: 0 = success, 1 = general error, 2 = invalid input, 3 = not found, 4 = permission denied, 5 = network error.
 9. **Prefer workspace IDs** (UUIDs) over names in scripted workflows — some endpoints reject names.
 10. **Use `make_api_request`** from `slcli.utils` for helper scripts — handles auth, SSL, and errors.
+11. **For datasheet imports, default to autonomy** — if the user already named the product or only one enabled workspace exists, proceed with best-effort defaults and report assumptions after the import plan; only stop for real forks like conflicting existing products, ambiguous part identity, or multi-variant strategy choices.

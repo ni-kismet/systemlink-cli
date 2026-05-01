@@ -12,33 +12,54 @@ raw document to live SystemLink specs.
 > spec — focus on parameters that are testable, measurable, and relevant to the
 > user's acceptance criteria.
 
+## Default operating mode
+
+Run this flow autonomously by default. Use best-effort assumptions, then report
+them back to the user with the generated payload or import summary.
+
+- If the user already named the target product or part number, use it as the
+  working target unless the datasheet clearly conflicts.
+- If `slcli workspace list -f json` shows exactly one enabled workspace, use it
+  automatically.
+- Infer the product family from the datasheet domain unless multiple families
+  are equally plausible.
+- Include explicit datasheet conditions by default when they can be extracted
+  reliably from headers, rows, or footnotes.
+- Stop and ask only for real forks: conflicting existing products, multiple
+  plausible enabled workspaces, ambiguous product identity, or a multi-variant
+  datasheet where the user did not already narrow to one variant.
+
 ## Step 1 — Clarify product identity and workspace
 
-Before touching any data, ask the user:
+Before touching any data, resolve the product target and workspace. Ask only
+when the checks below expose a real ambiguity.
 
 1. **Product name and part number.** Extract a candidate from the datasheet title
    page or cover. Propose a short friendly name (part number + concise
-   description) and the raw part number, then **ask the user to confirm or
-   adjust both values**.
+  description) and the raw part number. If the user already provided one,
+  proceed with that value. Otherwise proceed with the best-effort candidate
+  and report it afterward unless the datasheet presents conflicting identities.
 2. **Product family.** Suggest a family based on the datasheet application domain
-   (e.g. "Audio", "Power", "Sensor", "Semiconductor", "Passive", "Connector",
-   "Test Equipment", "Module") but **always ask the user to confirm** — do not
-   silently infer the family.
+  (e.g. "Audio", "Power", "Sensor", "Semiconductor", "Passive", "Connector",
+  "Test Equipment", "Module"). Proceed with the best-fit family and report the
+  assumption unless multiple families are equally plausible.
 3. **Existing product check.** Search by name _and_ part number:
    ```bash
    slcli testmonitor product list --name "<candidate>" -f json
    slcli testmonitor product list --part-number "<part>" -f json
    ```
-   If a match exists, tell the user the product name, part number, workspace, and
-   ask whether to add specs to it or create a new product (possibly in a different
-   workspace).
+  If one clear existing product matches, reuse it and inherit its workspace.
+  If multiple conflicting matches exist, stop and ask whether to add specs to
+  an existing product or create a new product.
 4. **Workspace.** Default to the user's profile workspace. If an existing product
-   was found, show which workspace it lives in and ask the user to confirm or
-   specify a different one by name. Never silently pick a workspace.
+  was found, inherit that workspace. Otherwise, if only one enabled workspace
+  exists, use it automatically. If several enabled workspaces remain plausible,
+  show the candidates and ask the user to choose.
 5. **Multi-variant detection.** Many datasheets cover multiple part numbers
    (e.g. Si8230/1/2/3/4/5/7/8, SN54HC595/SN74HC595). Check the title page,
-   ordering guide, or device overview table for multiple variants. If found,
-   ask the user which approach to use:
+  ordering guide, or device overview table for multiple variants. If the user
+  already named one specific variant, use Option C automatically. Otherwise,
+  stop here and ask which approach to use:
 
    **Option A — Single product (default).** Create one product using the
    family part number (e.g. "Si823x"). Shared specs have no device condition.
@@ -94,7 +115,12 @@ Populate product fields from the datasheet:
 3. Extract text from pages containing specification tables. Write extracted
    text to `build/ai/<partnum>-specs-raw.txt` for review.
 
-**Ask the user which sections to import.**
+**Select sections autonomously by default.**
+
+Import the sections that contain measurable parameters, thresholds, or other
+validation-relevant limits. Ask the user to choose sections only when the
+datasheet exposes multiple equally plausible section sets or the user asked for
+an intentionally narrow subset.
 
 Common section names vary by product domain. Search the document for headings
 that match typical patterns and present the discovered sections to the user:
@@ -118,6 +144,15 @@ that match typical patterns and present the discovered sections to the user:
 > **Guideline:** Scan for any heading followed by a table containing MIN, MAX,
 > TYP, NOM, VALUE, UNIT, or LIMIT columns — that is a specification table
 > regardless of its name.
+
+Autonomous selection defaults:
+
+- Include sections with numeric limits, ratings, timing, accuracy, or operating
+  thresholds.
+- Skip obviously non-testable catalog content like ordering tables, pin lists,
+  package drawings, and marketing summaries unless the user asked for full
+  catalog coverage.
+- When only one sensible import set exists, proceed without stopping.
 
 #### Testability filter
 
@@ -283,9 +318,10 @@ and `limit.max = 1000`. When a section uses VALUE alone without ±, treat it as
 > without them, the lab cannot reproduce the measurement that the spec's limits
 > are defined against.
 
-**Ask the user** whether to include test conditions. Many electrical specs have
-conditions like "PVCC = 12 V, RL = 8 Ω, f = 1 kHz, 1SPW mode". When conditions
-are requested:
+Include test conditions by default. Many electrical specs have conditions like
+"PVCC = 12 V, RL = 8 Ω, f = 1 kHz, 1SPW mode". Ask before omitting conditions
+only if the user explicitly wants a minimal payload or the source text is too
+ambiguous to map reliably. When conditions are present:
 
 - Use `conditionType: "NUMERIC"` for measurable quantities with units.
 - Use `conditionType: "STRING"` for modes, configurations, pin states.
@@ -375,7 +411,30 @@ String condition (mode, configuration, or qualitative setting):
 
 ## Step 5 — Build and import the JSON payload
 
-Write the import payload to `build/ai/<partnum>-specs.json`:
+Use the bundled helper to create a starter payload when you want a clean,
+create-compatible skeleton from inside this repository:
+
+```bash
+python slcli/skills/slcli/scripts/spec_import_helper.py init \
+  --output build/ai/<partnum>-specs.json \
+  --product-id "<PRODUCT_ID>" \
+  --workspace "<WORKSPACE_ID>" \
+  --source "<DATASHEET_FILENAME>"
+```
+
+The helper copies the bundled [import-specs.min.json](./import-specs.min.json)
+example and substitutes the placeholders. If you need to recover the field
+shape from live data instead of the bundled example, export it from an existing
+product with both limits and conditions included:
+
+```bash
+slcli spec export --product <PRODUCT> --include-limits --include-conditions \
+  --projection PRODUCT_ID --projection SPEC_ID --projection NAME --projection CATEGORY \
+  --projection TYPE --projection SYMBOL --projection BLOCK --projection UNIT \
+  --output build/ai/<partnum>-exported-specs.json
+```
+
+You can also write the payload directly to `build/ai/<partnum>-specs.json`:
 
 ```python
 import json
@@ -416,18 +475,28 @@ Most specs from Electrical Characteristics and Absolute Maximum Ratings tables
 are PARAMETRIC. Specs from Regulatory, Insulation, Safety, and ESD Rating
 tables are typically FUNCTIONAL.
 
-Validate before import:
+### Executable validation recipe
 
-- No duplicate specIds.
-- All numeric limit values are actual numbers (not strings).
-- All condition values match their `conditionType`.
-- The `productId` matches the product created in Step 2.
-- Every PARAMETRIC spec has at least one limit bound (min, max, or typical).
-  Specs with no limits cannot drive automated pass/fail — flag them to the user.
-- Traceability: `properties.source` should reference the datasheet filename.
-  For detailed traceability, include the section name or page number in
-  `properties.notes` (e.g. "Table 3, p.12") so specs can be audited back to
-  their source.
+Run these checks before import:
+
+```bash
+python slcli/skills/slcli/scripts/spec_import_helper.py validate \
+  build/ai/<partnum>-specs.json
+```
+
+That helper asserts all of the pre-import invariants that commonly break bulk
+loads:
+
+- no duplicate `(productId, workspace, specId)` tuples
+- required fields present: `productId`, `specId`, `type`
+- all limit values are numeric
+- all condition objects use a valid `conditionType`
+- every `PARAMETRIC` spec has at least one limit bound
+
+Keep traceability in the payload as well:
+
+- set `properties.source` to the datasheet filename
+- include section names or page numbers in `properties.notes` when useful
 
 Import with:
 
@@ -436,6 +505,14 @@ slcli spec import --file build/ai/<partnum>-specs.json
 ```
 
 Use `slcli spec create ...` only for one-off interactive entry.
+
+After import, verify the created count matches the payload count:
+
+```bash
+slcli spec list --product "<PRODUCT>" --take 1000 -f json > build/ai/<partnum>-specs-live.json
+
+python -c 'import json, pathlib, sys; payload = json.loads(pathlib.Path("build/ai/<partnum>-specs.json").read_text(encoding="utf-8")); live = json.loads(pathlib.Path("build/ai/<partnum>-specs-live.json").read_text(encoding="utf-8")); payload_count = len(payload.get("specs", [])); live_count = len(live.get("specs", [])); print(f"payload={payload_count} live={live_count}"); sys.exit(0 if payload_count == live_count else 1)'
+```
 
 ## Step 6 — Upload source file and attach to product
 
@@ -496,6 +573,17 @@ resp = make_api_request(
 
 This preserves any existing `fileIds` on the product while adding the new one.
 
+Verify the attachment landed on the product by checking `fileIds`:
+
+```bash
+slcli testmonitor product list --part-number "<PART>" -f json > build/ai/<partnum>-product.json
+
+python -c 'import json, pathlib, sys; data = json.loads(pathlib.Path("build/ai/<partnum>-product.json").read_text(encoding="utf-8")); products = data.get("products", []); file_ids = products[0].get("fileIds", []) if products else []; print({"fileIds": file_ids}); sys.exit(0 if file_ids else 1)'
+```
+
+If you need to confirm the exact attached file, run `slcli file get <FILE_ID> -f json`
+for each returned ID and compare the file name to the uploaded datasheet.
+
 ## Step 7 — Verify
 
 ```bash
@@ -506,5 +594,7 @@ The `--product` option accepts a product name, part number, or ID.
 
 ## Reference payload shape
 
-Use `docs/examples/specifications/import-specs.json` as the canonical
-create-compatible payload template.
+Use the bundled [import-specs.min.json](./import-specs.min.json) as the default
+create-compatible starter payload. If the bundled example is not specific
+enough, use `slcli spec export --include-limits --include-conditions` against a
+known-good product as the schema-discovery fallback.
