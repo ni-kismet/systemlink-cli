@@ -2,6 +2,13 @@
 
 <!-- towncrier release notes start -->
 
+## v1.12.0 (2026-04-29)
+
+### Features
+
+- Add a new `slcli dataframe` command group for DataFrame table discovery, schema inspection, row query and decimation, CSV export, append, and metadata lifecycle operations. (#134)
+
+
 ## v1.11.5 (2026-04-27)
 
 ### Bug Fixes
