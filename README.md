@@ -53,13 +53,6 @@ slcli testmonitor result list --summary --group-by status
 slcli asset list --calibratable --summary
 slcli system list --state CONNECTED
 slcli spec list --product <product> --workspace all
-slcli state list --workspace all --format json
-
-# Inspect and export saved software states
-slcli state get <state-id>
-slcli state history <state-id>
-slcli state export <state-id> --output saved-state.sls
-
 
 # Scaffold the SystemLink Angular starter (AI skills auto-installed)
 slcli webapp init ./my-dashboard
@@ -90,32 +83,6 @@ slcli auto-detects terminal color support for tables, status lines, and JSON out
 - `SLCLI_COLOR=always` forces color when you want ANSI output even through wrappers or pseudo-terminals.
 - `SLCLI_COLOR=never` disables Rich color output explicitly.
 - `NO_COLOR=1` also disables color output and takes precedence over auto-detection.
-
-## States
-
-The `state` command group manages software states stored by the SystemLink Systems State service.
-
-```bash
-# Discover saved states
-slcli state list --workspace all
-slcli state get <state-id>
-slcli state version <state-id> <version>
-
-# Create or update package/feed states
-slcli state create --name "DAQmx 19.5" --distribution WINDOWS --architecture X64 \
-	--package '{"name":"ni-daqmx","version":"19.5.0.49152-0+f0"}'
-slcli state update <state-id> --description "Validated for production"
-
-# Import, export, or capture .sls content
-slcli state import --name "Golden Image" --distribution NI_LINUXRT --architecture ARM --file golden.sls
-slcli state replace-content <state-id> --file updated.sls --change-description "Refresh package set"
-slcli state export <state-id> --output saved-state.sls
-slcli state capture <system-id> --output captured-state.sls
-
-# Inspect history and revert
-slcli state history <state-id>
-slcli state revert <state-id> <version> --yes
-```
 
 ## Documentation
 
