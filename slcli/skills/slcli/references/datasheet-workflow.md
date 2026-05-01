@@ -487,7 +487,7 @@ python slcli/skills/slcli/scripts/spec_import_helper.py validate \
 That helper asserts all of the pre-import invariants that commonly break bulk
 loads:
 
-- no duplicate `specId` values
+- no duplicate `(productId, workspace, specId)` tuples
 - required fields present: `productId`, `specId`, `type`
 - all limit values are numeric
 - all condition objects use a valid `conditionType`
@@ -509,7 +509,7 @@ Use `slcli spec create ...` only for one-off interactive entry.
 After import, verify the created count matches the payload count:
 
 ```bash
-slcli spec list --product "<PRODUCT>" -f json > build/ai/<partnum>-specs-live.json
+slcli spec list --product "<PRODUCT>" --take 1000 -f json > build/ai/<partnum>-specs-live.json
 
 python -c 'import json, pathlib, sys; payload = json.loads(pathlib.Path("build/ai/<partnum>-specs.json").read_text(encoding="utf-8")); live = json.loads(pathlib.Path("build/ai/<partnum>-specs-live.json").read_text(encoding="utf-8")); payload_count = len(payload.get("specs", [])); live_count = len(live.get("specs", [])); print(f"payload={payload_count} live={live_count}"); sys.exit(0 if payload_count == live_count else 1)'
 ```

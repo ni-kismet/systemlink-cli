@@ -140,6 +140,20 @@ def _validate_conditions(conditions: Any, prefix: str, errors: list[str]) -> Non
                             )
 
 
+def _normalize_optional_string(value: Any) -> str:
+    if not isinstance(value, str):
+        return ""
+    return value.strip()
+
+
+def _spec_identity(spec: dict[str, Any]) -> tuple[str, str, str]:
+    return (
+        _normalize_optional_string(spec.get("productId")),
+        _normalize_optional_string(spec.get("workspace")),
+        _normalize_optional_string(spec.get("specId")),
+    )
+
+
 def validate_payload(payload: Any) -> list[str]:
     """Validate a spec import payload and return any discovered errors.
 
@@ -158,7 +172,7 @@ def validate_payload(payload: Any) -> list[str]:
     if not isinstance(specs, list):
         return ["payload.specs must be a list"]
 
-    seen_spec_ids: dict[str, int] = {}
+    seen_specs: dict[tuple[str, str, str], int] = {}
     for index, spec in enumerate(specs):
         spec_prefix = f"specs[{index}]"
         if not isinstance(spec, dict):
@@ -170,14 +184,18 @@ def validate_payload(payload: Any) -> list[str]:
             if not isinstance(value, str) or not value.strip():
                 errors.append(f"{spec_prefix}.{field_name} is required")
 
-        spec_id = spec.get("specId")
-        if isinstance(spec_id, str) and spec_id.strip():
-            if spec_id in seen_spec_ids:
+        spec_identity = _spec_identity(spec)
+        if spec_identity[2]:
+            if spec_identity in seen_specs:
+                product_id, workspace, spec_id = spec_identity
+                workspace_display = workspace or "<omitted>"
                 errors.append(
-                    f"duplicate specId {spec_id!r} at specs[{seen_spec_ids[spec_id]}] and {spec_prefix}"
+                    "duplicate spec for "
+                    f"productId {product_id!r}, workspace {workspace_display!r}, "
+                    f"specId {spec_id!r} at specs[{seen_specs[spec_identity]}] and {spec_prefix}"
                 )
             else:
-                seen_spec_ids[spec_id] = index
+                seen_specs[spec_identity] = index
 
         spec_type = spec.get("type")
         if isinstance(spec_type, str) and spec_type not in VALID_SPEC_TYPES:
