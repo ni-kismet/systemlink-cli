@@ -210,7 +210,7 @@ to disable caching for debugging.
 | `spec`        | Specifications          | `list`, `query`, `get`, `create`, `import`, `export` |
 | `asset`       | Assets & calibration    | `list`, `get`, `summary`, `calibration`              |
 | `system`      | System fleet            | `list`, `get`, `compare`, `summary`, `job`           |
-| `state`       | Software states         | `list`, `get`, `create`, `import`, `export`, `history` |
+| `state`       | Software states         | `list`, `get`, `create`, `update`, `delete`, `import`, `replace-content`, `export`, `capture`, `history`, `version`, `revert` |
 | `dataframe`   | DataFrame tables        | `list`, `schema`, `query`, `export`, `append`        |
 | `tag`         | Tag read/write          | `list`, `get-value`, `set-value`, `create`           |
 | `routine`     | Event-action routines   | `list`, `create`, `enable/disable` (v1 + v2)         |

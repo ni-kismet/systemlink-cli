@@ -49,10 +49,15 @@ class MockResponse:
     ) -> None:
         """Initialize a mock response payload for requests-based tests."""
         self._json_data = json_data
-        self.status_code = status_code
+        self._status_code = status_code
         self.content = content
         self.headers = headers or {}
         self._chunks = chunks or ([content] if content else [])
+
+    @property
+    def status_code(self) -> int:
+        """Expose an integer status code like requests.Response."""
+        return self._status_code
 
     @property
     def text(self) -> str:
@@ -310,6 +315,26 @@ def test_create_state_preserves_request_workspace(monkeypatch: Any, runner: CliR
     assert captured["json"]["workspace"] == "ws-2"
 
 
+def test_update_state_without_fields_rejects_noop(monkeypatch: Any, runner: CliRunner) -> None:
+    """Update should reject empty payloads instead of injecting the profile default workspace."""
+    patch_keyring(monkeypatch)
+    patch_called = False
+
+    def mock_patch(url: str, *args: Any, **kwargs: Any) -> MockResponse:
+        del url, args, kwargs
+        nonlocal patch_called
+        patch_called = True
+        return MockResponse({"id": "state-1"})
+
+    monkeypatch.setattr("requests.patch", mock_patch)
+
+    result = runner.invoke(make_cli(), ["state", "update", "state-1"])
+
+    assert result.exit_code == ExitCodes.INVALID_INPUT
+    assert "No update fields provided" in result.output
+    assert patch_called is False
+
+
 def test_export_state_streams_to_file(monkeypatch: Any, runner: CliRunner) -> None:
     """Export should request a streamed POST response and write iterated chunks."""
     patch_keyring(monkeypatch)
@@ -330,6 +355,27 @@ def test_export_state_streams_to_file(monkeypatch: Any, runner: CliRunner) -> No
         assert result.exit_code == 0
         assert captured["stream"] is True
         assert Path("saved-state.sls").read_text(encoding="utf-8") == "state: exported\n"
+
+
+def test_export_state_sanitizes_server_filename(monkeypatch: Any, runner: CliRunner) -> None:
+    """Export should strip path traversal and sanitize server-provided filenames."""
+    patch_keyring(monkeypatch)
+
+    def mock_post(url: str, *args: Any, **kwargs: Any) -> MockResponse:
+        del url, args, kwargs
+        return MockResponse(
+            content=b"state: exported\n",
+            headers={"Content-Disposition": 'attachment; filename="../Bad State!!.sls"'},
+        )
+
+    monkeypatch.setattr("requests.post", mock_post)
+
+    with runner.isolated_filesystem():
+        result = runner.invoke(make_cli(), ["state", "export", "state-1"])
+
+        assert result.exit_code == 0
+        assert Path("bad-state.sls").read_text(encoding="utf-8") == "state: exported\n"
+        assert not Path("..", "Bad State!!.sls").exists()
 
 
 def test_capture_state_streams_to_file(monkeypatch: Any, runner: CliRunner) -> None:

@@ -4,7 +4,7 @@ import json
 import re
 import sys
 from pathlib import Path
-from typing import Any, Dict, List, Optional, Sequence, Tuple
+from typing import Any, Dict, Iterable, List, Optional, Sequence, Tuple, cast
 from urllib.parse import unquote
 
 import click
@@ -219,6 +219,7 @@ def _build_state_payload(
     packages: Sequence[str] = (),
     system_image: Optional[str] = None,
     require_core_fields: bool = False,
+    apply_default_workspace: bool = True,
 ) -> Dict[str, Any]:
     """Build a state request payload from CLI options."""
     payload = _load_request_payload(request_file, "--request")
@@ -239,7 +240,7 @@ def _build_state_payload(
             payload["workspace"] = workspace_id
     elif request_workspace:
         payload["workspace"] = _resolve_workspace_id(str(request_workspace), apply_default=False)
-    else:
+    elif apply_default_workspace:
         workspace_id = _resolve_workspace_id(workspace, apply_default=True)
         if workspace_id is not None:
             payload["workspace"] = workspace_id
@@ -435,7 +436,12 @@ def _get_download_filename(resp: requests.Response, fallback: str) -> str:
     header_value = headers.get("Content-Disposition", "") if isinstance(headers, dict) else ""
     match = re.search(r"filename\*?=(?:UTF-8''|\")?([^\";]+)", header_value)
     if match:
-        return unquote(match.group(1)).strip()
+        server_filename = re.split(r"[\\/]+", unquote(match.group(1)).strip())[-1]
+        extension = (
+            ".sls" if Path(server_filename).suffix.lower() == ".sls" else Path(fallback).suffix
+        )
+        safe_stem = sanitize_filename(Path(server_filename).stem, Path(fallback).stem)
+        return f"{safe_stem}{extension}"
     return fallback
 
 
@@ -444,7 +450,7 @@ def _write_binary_response(resp: requests.Response, output_path: Path) -> None:
     with output_path.open("wb") as output_file:
         iter_content = getattr(resp, "iter_content", None)
         if callable(iter_content):
-            for chunk in iter_content(chunk_size=8192):
+            for chunk in cast(Iterable[bytes], iter_content(chunk_size=8192)):
                 if chunk:
                     output_file.write(chunk)
             return
@@ -726,6 +732,7 @@ def register_state_commands(cli: Any) -> None:
             architecture=architecture,
             workspace=workspace_name,
             property_values=property_values,
+            apply_default_workspace=False,
         )
         if not payload:
             click.echo("✗ No update fields provided. Specify at least one option.", err=True)
