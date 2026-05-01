@@ -52,6 +52,7 @@
         <a href="#testmonitor" class="sidebar-link">testmonitor</a>
         <a href="#asset" class="sidebar-link">asset</a>
         <a href="#system" class="sidebar-link">system</a>
+        <a href="#state" class="sidebar-link">state</a>
         <a href="#dataframe" class="sidebar-link">dataframe</a>
         <a href="#spec" class="sidebar-link">spec</a>
         <a href="#workitem" class="sidebar-link">workitem</a>
@@ -83,6 +84,7 @@
         <div class="cmd-group"><h3>testmonitor</h3><p>Test results, products, steps, measurements</p><code>slcli testmonitor result list</code></div>
         <div class="cmd-group"><h3>asset</h3><p>Hardware assets, calibration, fleet summary</p><code>slcli asset list</code></div>
         <div class="cmd-group"><h3>system</h3><p>Managed systems, package comparison, jobs, reports</p><code>slcli system list</code></div>
+        <div class="cmd-group"><h3>state</h3><p>Saved software states, .sls import/export, history, versioning</p><code>slcli state list</code></div>
         <div class="cmd-group"><h3>dataframe</h3><p>DataFrame tables, schema inspection, row queries, CSV export</p><code>slcli dataframe schema &lt;table-id&gt;</code></div>
         <div class="cmd-group"><h3>spec</h3><p>Product specifications, limits, conditions, bulk import/export</p><code>slcli spec list</code></div>
         <div class="cmd-group"><h3>workitem</h3><p>Work items, templates, workflows</p><code>slcli workitem list</code></div>
@@ -286,6 +288,65 @@ slcli system job cancel &lt;job-id&gt;</code></pre>
       <h3>Update &amp; Remove</h3>
       <pre><code>slcli system update &lt;system-id&gt; --alias "New Name" --workspace "Production"
 slcli system remove &lt;system-id&gt; --force</code></pre>
+
+      <!-- ─── STATE ─── -->
+      <h2 id="state">state</h2>
+      <p>Manage saved software states, including package and feed definitions, imported <code>.sls</code> files, export workflows, and version history.</p>
+
+      <h3>List &amp; Inspect</h3>
+      <pre><code># List saved states
+    slcli state list [OPTIONS]
+
+      --workspace, -w TEXT       # Filter by workspace name or ID
+      --architecture CHOICE      # ARM, X64, X86, ANY
+      --distribution CHOICE      # NI_LINUXRT, NI_LINUXRT_NXG, WINDOWS, ANY
+      --take, -t INTEGER         # Default 25
+      --format, -f [table|json]  # Output format
+
+    # Get state details or historical versions
+    slcli state get &lt;STATE_ID&gt; [-f table|json]
+    slcli state history &lt;STATE_ID&gt; [-t INT] [-f table|json]
+    slcli state version &lt;STATE_ID&gt; &lt;VERSION&gt; [-f table|json]</code></pre>
+
+      <h3>Create &amp; Update</h3>
+      <pre><code># Create a package/feed-defined state
+    slcli state create --name TEXT --distribution CHOICE --architecture CHOICE [OPTIONS]
+      --workspace, -w TEXT       # Workspace name or ID
+      --property KEY=VALUE       # Repeatable custom property
+      --feed JSON_OR_@FILE       # Repeatable feed object
+      --package JSON_OR_@FILE    # Repeatable package object
+      --system-image JSON_OR_@FILE
+      --request FILE             # Raw JSON request override
+
+    # Update state metadata or JSON-defined content
+    slcli state update &lt;STATE_ID&gt; [OPTIONS]
+      --name TEXT
+      --description TEXT
+      --distribution CHOICE
+      --architecture CHOICE
+      --workspace, -w TEXT
+      --property KEY=VALUE       # Replaces properties when provided
+      --request FILE             # Raw JSON patch override</code></pre>
+
+      <h3>Import, Replace, Export, Capture</h3>
+      <pre><code># Import a state from an .sls file
+    slcli state import --name TEXT --distribution CHOICE --architecture CHOICE --file PATH [OPTIONS]
+
+    # Replace the content of an existing state with a new .sls file
+    slcli state replace-content &lt;STATE_ID&gt; --file PATH [--change-description TEXT]
+
+    # Export a saved state as .sls
+    slcli state export &lt;STATE_ID&gt; [--version VERSION] [--inline | --output FILE]
+
+    # Capture a system's state as .sls
+    slcli state capture &lt;SYSTEM_ID&gt; [--inline | --output FILE]</code></pre>
+
+      <h3>Delete &amp; Revert</h3>
+      <pre><code># Delete a state
+    slcli state delete &lt;STATE_ID&gt; [--yes]
+
+    # Revert to a specific historical version
+    slcli state revert &lt;STATE_ID&gt; &lt;VERSION&gt; [--yes]</code></pre>
 
       <!-- ─── DATAFRAME ─── -->
       <h2 id="dataframe">dataframe</h2>

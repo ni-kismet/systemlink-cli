@@ -2,7 +2,7 @@
 name: slcli
 description: >-
   Query and manage NI SystemLink resources using the slcli command-line interface.
-  Covers test results, assets, systems, tags, feeds, files, notebooks,
+  Covers test results, assets, systems, software states, tags, feeds, files, notebooks,
   dataframe tables,
   routines, work items, work item templates, workflows, test plan templates,
   specifications, products, datasheet-to-specification ingestion (PDF and CSV),
@@ -10,13 +10,14 @@ description: >-
   Use when the user asks about test data analysis, asset management, calibration status,
   system fleet health, operator performance, failure analysis, production metrics,
   equipment utilization, dataframe schema inspection, row export or append workflows,
+  software state lifecycle management,
   work order tracking, specification management,
   importing datasheets, creating products from spec sheets,
   or any SystemLink resource operations.
   Supports filtering, aggregation, summary statistics, and JSON output for programmatic processing.
 argument-hint: >-
   Describe what you want to do: query test results, inspect a dataframe schema,
-  export table rows, import a datasheet, list assets, manage work items, etc.
+  export table rows, import a datasheet, manage saved software states, list assets, manage work items, etc.
 compatibility: >-
   Requires slcli installed and authenticated (slcli login). Python 3.10+.
   Requires network access to a SystemLink server instance.
@@ -87,6 +88,27 @@ slcli webapp get <WEBAPP_ID> [-f json]
 slcli webapp publish PATH [--workspace NAME]             # Upload and publish a webapp
 slcli webapp delete <WEBAPP_ID>
 slcli webapp open <WEBAPP_ID>                            # Open webapp URL in browser
+```
+
+### state — Software state management
+
+Create, inspect, import, export, and revert saved software states managed by the SystemLink Systems State service.
+
+```bash
+slcli state list [-w WORKSPACE] [--architecture CHOICE] [--distribution CHOICE] [-t INT] [-f json]
+slcli state get <STATE_ID> [-f json]
+slcli state create --name TEXT --distribution CHOICE --architecture CHOICE [OPTIONS]
+slcli state update <STATE_ID> [OPTIONS]
+slcli state delete <STATE_ID> [--yes]
+
+slcli state import --name TEXT --distribution CHOICE --architecture CHOICE --file PATH [OPTIONS]
+slcli state replace-content <STATE_ID> --file PATH [--change-description TEXT] [-f json]
+slcli state export <STATE_ID> [--version VERSION] [--inline | --output FILE]
+slcli state capture <SYSTEM_ID> [--inline | --output FILE]
+
+slcli state history <STATE_ID> [-t INT] [-f json]
+slcli state version <STATE_ID> <VERSION> [-f json]
+slcli state revert <STATE_ID> <VERSION> [--yes]
 ```
 
 `webapp init` creates the SystemLink Angular starter, not a generic HTML app. The starter installs
@@ -188,6 +210,7 @@ to disable caching for debugging.
 | `spec`        | Specifications          | `list`, `query`, `get`, `create`, `import`, `export` |
 | `asset`       | Assets & calibration    | `list`, `get`, `summary`, `calibration`              |
 | `system`      | System fleet            | `list`, `get`, `compare`, `summary`, `job`           |
+| `state`       | Software states         | `list`, `get`, `create`, `update`, `delete`, `import`, `replace-content`, `export`, `capture`, `history`, `version`, `revert` |
 | `dataframe`   | DataFrame tables        | `list`, `schema`, `query`, `export`, `append`        |
 | `tag`         | Tag read/write          | `list`, `get-value`, `set-value`, `create`           |
 | `routine`     | Event-action routines   | `list`, `create`, `enable/disable` (v1 + v2)         |

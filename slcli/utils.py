@@ -585,10 +585,21 @@ def make_api_request(
             if files:
                 # Multipart file upload
                 resp = requests.post(
-                    url, headers=default_headers, files=files, data=data, verify=ssl_verify
+                    url,
+                    headers=default_headers,
+                    files=files,
+                    data=data,
+                    verify=ssl_verify,
+                    stream=stream,
                 )
             else:
-                resp = requests.post(url, headers=default_headers, json=payload, verify=ssl_verify)
+                resp = requests.post(
+                    url,
+                    headers=default_headers,
+                    json=payload,
+                    verify=ssl_verify,
+                    stream=stream,
+                )
         elif method.upper() == "PUT":
             resp = requests.put(url, headers=default_headers, json=payload, verify=ssl_verify)
         elif method.upper() == "PATCH":
