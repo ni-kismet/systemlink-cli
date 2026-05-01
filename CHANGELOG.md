@@ -2,6 +2,13 @@
 
 <!-- towncrier release notes start -->
 
+## v1.13.0 (2026-05-01)
+
+### Features
+
+- Add a new `state` command group for listing, inspecting, creating, importing, exporting, capturing, and reverting SystemLink software states. (#136)
+
+
 ## v1.12.0 (2026-04-29)
 
 ### Features
