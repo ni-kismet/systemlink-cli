@@ -2,6 +2,13 @@
 
 <!-- towncrier release notes start -->
 
+## v1.13.1 (2026-05-04)
+
+### Other Changes
+
+- Refresh locked dependency versions in poetry.lock. (#137)
+
+
 ## v1.13.0 (2026-05-01)
 
 ### Features
