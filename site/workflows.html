@@ -84,7 +84,7 @@
             <h3>Install the skills</h3>
             <p>One command installs every bundled skill for the supported AI clients.</p>
             <pre><code># Install for all supported clients (most agents + Claude)
-slcli skill install --client all --scope personal</code></pre>
+slcli skill install --skill all --client all --scope personal</code></pre>
           </div>
         </div>
         <div class="step">
@@ -106,13 +106,13 @@ slcli skill install --client all --scope personal</code></pre>
             <h3>Project-scoped skills (optional)</h3>
             <p>Install per-repo for team consistency — the skill files are committed alongside your code.</p>
             <pre><code># Install into the current repo
-slcli skill install --client all --scope project</code></pre>
+slcli skill install --skill all --client all --scope project</code></pre>
           </div>
         </div>
       </div>
 
       <div class="highlight-box">
-        <p><strong>Tip:</strong> The skills follow the <a href="https://agentskills.io/specification" target="_blank" rel="noopener">Agent Skills open standard</a>. Most clients discover them from <code>.agents/skills/</code>; Claude also supports <code>.claude/skills/</code>.</p>
+        <p><strong>Tip:</strong> The skills follow the <a href="https://agentskills.io/specification" target="_blank" rel="noopener">Agent Skills open standard</a>. Personal installs go under <code>~/.agents/skills/</code> or <code>~/.claude/skills/</code>; project installs go under <code>.agents/skills/</code> or <code>.claude/skills/</code>.</p>
       </div>
 
       <!-- ═══════════════════════════════════════════════════════ -->
