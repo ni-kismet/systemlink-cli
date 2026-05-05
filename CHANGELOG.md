@@ -2,6 +2,13 @@
 
 <!-- towncrier release notes start -->
 
+## v1.13.2 (2026-05-05)
+
+### Documentation
+
+- Update website to include info about new skills (#139)
+
+
 ## v1.13.1 (2026-05-04)
 
 ### Other Changes
