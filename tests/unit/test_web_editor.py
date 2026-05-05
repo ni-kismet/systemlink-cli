@@ -8,8 +8,10 @@ import pytest
 from slcli.web_editor import (
     DFFWebEditor,
     _build_proxy_url,
+    _resolve_proxy_target,
     _validated_proxy_origin,
     _validated_proxy_path,
+    _validated_proxy_query_params,
 )
 
 ESSENTIAL_FILES = ["index.html", "editor.js", "README.md"]
@@ -129,3 +131,45 @@ def test_validated_proxy_path_accepts_allowlisted_path() -> None:
         _validated_proxy_path("/nidynamicformfields/v1/configurations")
         == "/nidynamicformfields/v1/configurations"
     )
+
+
+def test_validated_proxy_query_params_parse_pairs() -> None:
+    """Proxy query validation should parse key-value pairs."""
+    assert _validated_proxy_query_params("take=25&skip=0") == {"take": ["25"], "skip": ["0"]}
+
+
+def test_validated_proxy_query_params_reject_malformed_query() -> None:
+    """Proxy query validation should reject malformed key-value input."""
+    with pytest.raises(ValueError, match="invalid query string"):
+        _validated_proxy_query_params("take=25&broken")
+
+
+def test_resolve_proxy_target_for_workspaces() -> None:
+    """Workspace proxying should resolve to a fixed path with validated params."""
+    assert _resolve_proxy_target("GET", "/niuser/v1/workspaces", "take=100&skip=0") == (
+        "/niuser/v1/workspaces",
+        {"take": "100", "skip": "0"},
+    )
+
+
+def test_resolve_proxy_target_for_resolved_configuration() -> None:
+    """Resolved configuration proxying should keep only the allowed ID parameter."""
+    assert _resolve_proxy_target(
+        "GET",
+        "/nidynamicformfields/v1/resolved-configuration",
+        "configurationId=cfg-123",
+    ) == (
+        "/nidynamicformfields/v1/resolved-configuration",
+        {"configurationId": "cfg-123"},
+    )
+
+
+def test_resolve_proxy_target_rejects_unsupported_route() -> None:
+    """Unsupported proxy routes should not resolve."""
+    assert _resolve_proxy_target("GET", "/nidynamicformfields/v1/anything-else", "") is None
+
+
+def test_resolve_proxy_target_rejects_unsupported_workspace_query_param() -> None:
+    """Workspace proxying should reject unexpected query parameters."""
+    with pytest.raises(ValueError, match="unsupported workspace query parameters"):
+        _resolve_proxy_target("GET", "/niuser/v1/workspaces", "admin=true")

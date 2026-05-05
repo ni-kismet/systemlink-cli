@@ -6,6 +6,7 @@ All commands use Click for robust CLI interfaces and error handling.
 
 import datetime
 import json
+import re
 import sys
 import time
 import urllib.parse
@@ -49,6 +50,29 @@ PREDEFINED_NOTEBOOK_INTERFACES = [
     "Work Item Operations",
     "Work Item Scheduler",
 ]
+
+
+def _get_safe_notebook_download_name(notebook_name: str, suffix: str) -> str:
+    """Build a local filename from remote notebook metadata without honoring path segments."""
+    name_segment = notebook_name.replace("\\", "/").split("/")[-1].strip()
+    if name_segment in {"", ".", ".."}:
+        name_segment = "notebook"
+
+    stem = name_segment[:-6] if name_segment.lower().endswith(".ipynb") else name_segment
+    safe_stem = re.sub(r"[^A-Za-z0-9._ -]+", "_", stem).strip(" ._") or "notebook"
+    normalized_suffix = suffix if suffix.startswith(".") else f".{suffix}"
+
+    return f"{safe_stem}{normalized_suffix}"
+
+
+def _get_safe_notebook_download_path(notebook_name: str, suffix: str) -> Path:
+    """Build a safe local output path for remote-derived notebook filenames."""
+    safe_filename = _get_safe_notebook_download_name(notebook_name, suffix)
+    working_directory = Path.cwd().resolve()
+    output_path = (working_directory / safe_filename).resolve()
+    if output_path.parent != working_directory:
+        raise ValueError("Notebook download path must stay within the current working directory")
+    return output_path
 
 
 def _normalize_sls_notebook(notebook: Dict[str, Any]) -> None:
@@ -529,9 +553,10 @@ def _download_notebook_content_and_metadata(
     if download_type in ("content", "both"):
         try:
             content = _get_notebook_content_http(notebook_id)
-            output_path = output or (
-                notebook_name if notebook_name.endswith(".ipynb") else f"{notebook_name}.ipynb"
-            )
+            if output:
+                output_path = Path(output)
+            else:
+                output_path = _get_safe_notebook_download_path(notebook_name, ".ipynb")
             with open(output_path, "wb") as f:
                 f.write(content)
             click.echo(f"Notebook content downloaded to {output_path}")
@@ -543,14 +568,17 @@ def _download_notebook_content_and_metadata(
     if download_type in ("metadata", "both"):
         try:
             meta = _get_notebook_http(notebook_id)
-            meta_path = (output or notebook_name.replace(".ipynb", "")) + ".json"
+            if output:
+                meta_path = Path(f"{output}.json")
+            else:
+                meta_path = _get_safe_notebook_download_path(notebook_name, ".json")
 
             def _json_default(obj: Any) -> str:
                 if isinstance(obj, (datetime.datetime, datetime.date)):
                     return obj.isoformat()
                 return str(obj)
 
-            save_json_file(meta, meta_path, _json_default)
+            save_json_file(meta, str(meta_path), _json_default)
             click.echo(f"Notebook metadata downloaded to {meta_path}")
         except Exception as exc:
             click.echo(f"Failed to download notebook metadata: {exc}")
