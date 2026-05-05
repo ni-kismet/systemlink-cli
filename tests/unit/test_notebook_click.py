@@ -157,6 +157,10 @@ def test_safe_notebook_download_name_strips_remote_path_segments() -> None:
         slcli.notebook_click._get_safe_notebook_download_name("nested/remote.ipynb", ".json")
         == "remote.json"
     )
+    assert (
+        slcli.notebook_click._get_safe_notebook_download_name("CON", ".ipynb") == "CON_file.ipynb"
+    )
+    assert slcli.notebook_click._get_safe_notebook_download_name("nul", ".json") == "nul_file.json"
 
 
 def test_download_notebook_uses_sanitized_default_names(

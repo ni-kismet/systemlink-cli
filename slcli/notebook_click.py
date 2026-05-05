@@ -51,6 +51,31 @@ PREDEFINED_NOTEBOOK_INTERFACES = [
     "Work Item Scheduler",
 ]
 
+WINDOWS_RESERVED_FILENAMES = {
+    "CON",
+    "PRN",
+    "AUX",
+    "NUL",
+    "COM1",
+    "COM2",
+    "COM3",
+    "COM4",
+    "COM5",
+    "COM6",
+    "COM7",
+    "COM8",
+    "COM9",
+    "LPT1",
+    "LPT2",
+    "LPT3",
+    "LPT4",
+    "LPT5",
+    "LPT6",
+    "LPT7",
+    "LPT8",
+    "LPT9",
+}
+
 
 def _get_safe_notebook_download_name(notebook_name: str, suffix: str) -> str:
     """Build a local filename from remote notebook metadata without honoring path segments."""
@@ -60,6 +85,8 @@ def _get_safe_notebook_download_name(notebook_name: str, suffix: str) -> str:
 
     stem = name_segment[:-6] if name_segment.lower().endswith(".ipynb") else name_segment
     safe_stem = re.sub(r"[^A-Za-z0-9._ -]+", "_", stem).strip(" ._") or "notebook"
+    if safe_stem.upper() in WINDOWS_RESERVED_FILENAMES:
+        safe_stem = f"{safe_stem}_file"
     normalized_suffix = suffix if suffix.startswith(".") else f".{suffix}"
 
     return f"{safe_stem}{normalized_suffix}"

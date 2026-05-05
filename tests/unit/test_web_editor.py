@@ -160,6 +160,16 @@ def test_resolve_proxy_target_for_resolved_configuration() -> None:
     )
 
 
+def test_resolve_proxy_target_rejects_blank_configuration_id() -> None:
+    """Resolved configuration proxying should reject blank identifiers."""
+    with pytest.raises(ValueError, match="non-empty query parameter"):
+        _resolve_proxy_target(
+            "GET",
+            "/nidynamicformfields/v1/resolved-configuration",
+            "configurationId=",
+        )
+
+
 def test_resolve_proxy_target_rejects_unsupported_route() -> None:
     """Unsupported proxy routes should not resolve."""
     assert _resolve_proxy_target("GET", "/nidynamicformfields/v1/anything-else", "") is None

@@ -111,6 +111,8 @@ def _validated_integer_query_value(
 def _validated_identifier_query_value(query_params: dict[str, list[str]], name: str) -> str:
     """Return a single identifier-like query value safe for proxy forwarding."""
     value = _validated_single_query_value(query_params, name)
+    if not value.strip():
+        raise ValueError(f"Editor proxy requires a non-empty query parameter: {name}")
     if len(value) > 256:
         raise ValueError(f"Editor proxy rejected oversized query parameter: {name}")
     if any(ord(character) < 32 for character in value):
