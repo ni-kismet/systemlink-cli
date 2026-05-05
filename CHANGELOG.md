@@ -2,6 +2,13 @@
 
 <!-- towncrier release notes start -->
 
+## v1.13.4 (2026-05-05)
+
+### Bug Fixes
+
+- Harden custom field editor proxying and notebook download path handling. (#141)
+
+
 ## v1.13.3 (2026-05-05)
 
 ### Bug Fixes
