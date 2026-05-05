@@ -2,6 +2,7 @@
 
 import os
 import tempfile
+from pathlib import Path
 from typing import Any
 
 from click.testing import CliRunner
@@ -143,6 +144,49 @@ def test_notebook_download_by_id(monkeypatch: MonkeyPatch) -> None:
         with open(tmp.name, "rb") as f:
             assert f.read() == content
         os.unlink(tmp.name)
+
+
+def test_safe_notebook_download_name_strips_remote_path_segments() -> None:
+    import slcli.notebook_click
+
+    assert (
+        slcli.notebook_click._get_safe_notebook_download_name("../../etc/passwd", ".ipynb")
+        == "passwd.ipynb"
+    )
+    assert (
+        slcli.notebook_click._get_safe_notebook_download_name("nested/remote.ipynb", ".json")
+        == "remote.json"
+    )
+    assert (
+        slcli.notebook_click._get_safe_notebook_download_name("CON", ".ipynb") == "CON_file.ipynb"
+    )
+    assert slcli.notebook_click._get_safe_notebook_download_name("nul", ".json") == "nul_file.json"
+
+
+def test_download_notebook_uses_sanitized_default_names(
+    monkeypatch: MonkeyPatch, tmp_path: Path
+) -> None:
+    import slcli.notebook_click
+
+    monkeypatch.chdir(tmp_path)
+    monkeypatch.setattr(
+        slcli.notebook_click, "_get_notebook_content_http", lambda notebook_id: b"nb"
+    )
+    monkeypatch.setattr(
+        slcli.notebook_click,
+        "_get_notebook_http",
+        lambda notebook_id: {"id": notebook_id, "name": "remote"},
+    )
+
+    slcli.notebook_click._download_notebook_content_and_metadata(
+        notebook_id="nb-1",
+        notebook_name="../../sneaky/notebook.ipynb",
+        output=None,
+        download_type="both",
+    )
+
+    assert (tmp_path / "notebook.ipynb").read_bytes() == b"nb"
+    assert (tmp_path / "notebook.json").exists()
 
 
 def test_notebook_upload(monkeypatch: MonkeyPatch) -> None:

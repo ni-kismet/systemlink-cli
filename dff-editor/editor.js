@@ -651,9 +651,7 @@ function downloadConfiguration() {
         const a = document.createElement('a');
         a.href = url;
         a.download = 'dff-configuration.json';
-        document.body.appendChild(a);
         a.click();
-        document.body.removeChild(a);
         URL.revokeObjectURL(url);
         showStatus('Configuration downloaded', 'success');
     } catch (e) {
@@ -682,53 +680,130 @@ function refreshTree() {
     
     const config = currentConfig;
     if (!config) return;
-    
-    let html = '<div class="tree-node" onclick="selectTreeNode(\'root\')"><span class="tree-icon">📄</span><span>Root Configuration</span></div>';
-    
-    // Configurations
+
+    treeView.replaceChildren();
+    treeView.appendChild(createTreeNode({
+        nodeId: 'root',
+        icon: '📄',
+        label: 'Root Configuration'
+    }));
+
     if (config.configurations && config.configurations.length > 0) {
         config.configurations.forEach((conf, i) => {
             const confLabel = conf.displayText || conf.name || conf.key || ('Configuration ' + (i + 1));
-            html += `<div class="tree-node indent-1" onclick="selectTreeNode('config-${i}')"><span class="tree-icon">⚙️</span><span>${confLabel}</span><button class="edit-btn" aria-label="Edit configuration: ${confLabel}" title="Edit configuration" onclick="event.stopPropagation(); showEditDialog('configuration', ${i})">✎</button></div>`;
-            // Show views under each configuration
+            treeView.appendChild(createTreeNode({
+                nodeId: `config-${i}`,
+                icon: '⚙️',
+                label: confLabel,
+                indent: 1,
+                editLabel: `Edit configuration: ${confLabel}`,
+                editTitle: 'Edit configuration',
+                onEdit: () => showEditDialog('configuration', i)
+            }));
+
             if (conf.views && conf.views.length > 0) {
                 conf.views.forEach((view, vi) => {
-                    html += `<div class="tree-node indent-2" onclick="selectTreeNode('config-${i}-view-${vi}')"><span class="tree-icon">👁️</span><span>${view.displayText || view.key}</span><button class="edit-btn" aria-label="Edit view: ${view.displayText || view.key}" title="Edit view" onclick="event.stopPropagation(); showEditDialog('view', ${i}, ${vi})">✎</button></div>`;
+                    const viewLabel = view.displayText || view.key;
+                    treeView.appendChild(createTreeNode({
+                        nodeId: `config-${i}-view-${vi}`,
+                        icon: '👁️',
+                        label: viewLabel,
+                        indent: 2,
+                        editLabel: `Edit view: ${viewLabel}`,
+                        editTitle: 'Edit view',
+                        onEdit: () => showEditDialog('view', i, vi)
+                    }));
                 });
             }
         });
     }
-    
-    // Groups
+
     if (config.groups && config.groups.length > 0) {
-        html += '<div class="tree-node indent-1"><span class="tree-icon">📁</span><span>Groups (' + config.groups.length + ')</span></div>';
+        treeView.appendChild(createTreeSummaryNode('📁', `Groups (${config.groups.length})`, 1));
         config.groups.forEach((group, i) => {
             const groupLabel = group.displayText || group.key;
-            html += `<div class="tree-node indent-2" onclick="selectTreeNode('group-${i}')"><span class="tree-icon">📦</span><span>${groupLabel}</span><button class="edit-btn" aria-label="Edit group: ${groupLabel}" title="Edit group" onclick="event.stopPropagation(); showEditDialog('group', ${i})">✎</button></div>`;
+            treeView.appendChild(createTreeNode({
+                nodeId: `group-${i}`,
+                icon: '📦',
+                label: groupLabel,
+                indent: 2,
+                editLabel: `Edit group: ${groupLabel}`,
+                editTitle: 'Edit group',
+                onEdit: () => showEditDialog('group', i)
+            }));
         });
     }
-    
-    // Fields
+
     if (config.fields && config.fields.length > 0) {
-        html += '<div class="tree-node indent-1"><span class="tree-icon">📁</span><span>Fields (' + config.fields.length + ')</span></div>';
+        treeView.appendChild(createTreeSummaryNode('📁', `Fields (${config.fields.length})`, 1));
         config.fields.forEach((field, i) => {
             const icon = field.required ? '🏷️' : '🔖';
             const fieldLabel = field.displayText || field.key;
-            html += `<div class="tree-node indent-2" onclick="selectTreeNode('field-${i}')"><span class="tree-icon">${icon}</span><span>${fieldLabel}</span><button class="edit-btn" aria-label="Edit field: ${fieldLabel}" title="Edit field" onclick="event.stopPropagation(); showEditDialog('field', ${i})">✎</button></div>`;
+            treeView.appendChild(createTreeNode({
+                nodeId: `field-${i}`,
+                icon,
+                label: fieldLabel,
+                indent: 2,
+                editLabel: `Edit field: ${fieldLabel}`,
+                editTitle: 'Edit field',
+                onEdit: () => showEditDialog('field', i)
+            }));
         });
     }
-    
-    treeView.innerHTML = html;
 }
 
-function selectTreeNode(nodeId) {
+function createTreeSummaryNode(icon, label, indent = 0) {
+    const node = document.createElement('div');
+    node.className = 'tree-node';
+    if (indent > 0) {
+        node.classList.add(`indent-${indent}`);
+    }
+
+    const iconElement = document.createElement('span');
+    iconElement.className = 'tree-icon';
+    iconElement.textContent = icon;
+    node.appendChild(iconElement);
+
+    const labelElement = document.createElement('span');
+    labelElement.textContent = label;
+    node.appendChild(labelElement);
+
+    return node;
+}
+
+function createTreeNode({ nodeId, icon, label, indent = 0, editLabel = '', editTitle = '', onEdit = null }) {
+    const node = createTreeSummaryNode(icon, label, indent);
+    node.dataset.nodeId = nodeId;
+    node.addEventListener('click', () => selectTreeNode(nodeId, node));
+
+    if (onEdit) {
+        const editButton = document.createElement('button');
+        editButton.className = 'edit-btn';
+        editButton.type = 'button';
+        editButton.textContent = '✎';
+        editButton.setAttribute('aria-label', editLabel);
+        editButton.title = editTitle;
+        editButton.addEventListener('click', (event) => {
+            event.stopPropagation();
+            onEdit();
+        });
+        node.appendChild(editButton);
+    }
+
+    return node;
+}
+
+function selectTreeNode(nodeId, nodeElement = null) {
     selectedTreeNode = nodeId;
     
     // Update visual selection
     document.querySelectorAll('.tree-node').forEach(node => {
         node.classList.remove('selected');
     });
-    event.currentTarget.classList.add('selected');
+    const activeNode = nodeElement || document.querySelector(`[data-node-id="${nodeId}"]`);
+    if (activeNode) {
+        activeNode.classList.add('selected');
+    }
     
     // Highlight corresponding JSON in editor
     selectNodeInEditor(nodeId);
