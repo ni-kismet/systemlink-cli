@@ -11,6 +11,8 @@ import slcli
 from slcli.main import cli, get_version
 from slcli.platform import PLATFORM_SLE
 
+VALID_API_KEY = "4LpbauiNA-UI9IhjqZoS4UeikZtExLK9Q_Q77d1bJd"
+
 
 def test_version_flag() -> None:
     """Test that --version flag works correctly."""
@@ -117,7 +119,7 @@ def test_login_with_flags(monkeypatch: Any, tmp_path: Any) -> None:
             "--url",
             "https://example.test",
             "--api-key",
-            "abc123",
+            VALID_API_KEY,
             "--web-url",
             "https://web.example.test",
         ],
@@ -126,9 +128,50 @@ def test_login_with_flags(monkeypatch: Any, tmp_path: Any) -> None:
 
     assert result.exit_code == 0, result.output
     assert "Profile 'test' saved successfully" in result.output
+    assert "Connection: ✓ Verified" in result.output
     assert "Platform: SystemLink Enterprise" in result.output
     # Verify config was written
     assert config_file.exists()
+
+
+def test_login_rejects_unauthorized_api_key(monkeypatch: Any, tmp_path: Any) -> None:
+    """Ensure login fails when the server rejects the API key."""
+    config_file = tmp_path / "config.json"
+    monkeypatch.setattr(
+        "slcli.profiles.ProfileConfig.get_config_path", classmethod(lambda cls: config_file)
+    )
+    monkeypatch.setattr(
+        "slcli.config_click.check_service_status",
+        lambda *a, **kw: {
+            "server_reachable": True,
+            "auth_valid": False,
+            "services": {"Auth": "unauthorized"},
+            "platform": PLATFORM_SLE,
+        },
+    )
+    monkeypatch.setattr("slcli.main.keyring.get_password", lambda *a, **kw: None)
+
+    runner = CliRunner()
+    result = runner.invoke(
+        cli,
+        [
+            "login",
+            "--profile",
+            "test",
+            "--url",
+            "https://example.test",
+            "--api-key",
+            VALID_API_KEY,
+            "--web-url",
+            "https://web.example.test",
+        ],
+        input="\n\n",
+    )
+
+    assert result.exit_code != 0
+    assert "API key validation failed" in result.output
+    assert "Profile was not saved" in result.output
+    assert not config_file.exists()
 
 
 def test_login_reports_file_query_fallback(monkeypatch: Any, tmp_path: Any) -> None:
@@ -160,7 +203,7 @@ def test_login_reports_file_query_fallback(monkeypatch: Any, tmp_path: Any) -> N
             "--url",
             "https://example.test",
             "--api-key",
-            "abc123",
+            VALID_API_KEY,
             "--web-url",
             "https://web.example.test",
         ],
@@ -201,7 +244,7 @@ def test_login_reports_sls_query_files(monkeypatch: Any, tmp_path: Any) -> None:
             "--url",
             "https://example.test",
             "--api-key",
-            "abc123",
+            VALID_API_KEY,
             "--web-url",
             "https://web.example.test",
         ],

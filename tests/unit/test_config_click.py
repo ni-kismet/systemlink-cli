@@ -8,6 +8,9 @@ import click
 from click.testing import CliRunner
 
 from slcli.config_click import register_config_commands
+from slcli.utils import ExitCodes
+
+VALID_API_KEY = "4LpbauiNA-UI9IhjqZoS4UeikZtExLK9Q_Q77d1bJd"
 
 
 def make_cli() -> click.Group:
@@ -354,10 +357,10 @@ class TestAddProfileTrailingSlash:
         monkeypatch.setattr(
             "slcli.config_click.check_service_status",
             lambda url, key: {
-                "server_reachable": False,
-                "platform": None,
-                "auth_valid": None,
-                "services": {},
+                "server_reachable": True,
+                "platform": "unknown",
+                "auth_valid": True,
+                "services": {"Auth": "ok"},
             },
         )
         monkeypatch.setattr("slcli.main.keyring.get_password", lambda *a, **kw: None)
@@ -374,7 +377,7 @@ class TestAddProfileTrailingSlash:
                 "--url",
                 "https://api.example.com/",
                 "--api-key",
-                "test-key",
+                VALID_API_KEY,
                 "--web-url",
                 "https://web.example.com/",
             ],
@@ -396,10 +399,10 @@ class TestAddProfileTrailingSlash:
         monkeypatch.setattr(
             "slcli.config_click.check_service_status",
             lambda url, key: {
-                "server_reachable": False,
-                "platform": None,
-                "auth_valid": None,
-                "services": {},
+                "server_reachable": True,
+                "platform": "unknown",
+                "auth_valid": True,
+                "services": {"Auth": "ok"},
             },
         )
         monkeypatch.setattr("slcli.main.keyring.get_password", lambda *a, **kw: None)
@@ -416,7 +419,7 @@ class TestAddProfileTrailingSlash:
                 "--url",
                 "https://api.example.com///",
                 "--api-key",
-                "test-key",
+                VALID_API_KEY,
                 "--web-url",
                 "https://web.example.com///",
             ],
@@ -428,3 +431,77 @@ class TestAddProfileTrailingSlash:
         profile = saved["profiles"]["test-multi-slash"]
         assert profile["server"] == "https://api.example.com"
         assert profile.get("web-url", "") == "https://web.example.com"
+
+    def test_config_add_rejects_unreachable_server(self, tmp_path: Path, monkeypatch: Any) -> None:
+        """Test that config add fails instead of saving an unreachable server."""
+        config_file = tmp_path / "config.json"
+        monkeypatch.setattr(
+            "slcli.profiles.ProfileConfig.get_config_path", classmethod(lambda cls: config_file)
+        )
+        monkeypatch.setattr(
+            "slcli.config_click.check_service_status",
+            lambda url, key: {
+                "server_reachable": False,
+                "platform": "unreachable",
+                "auth_valid": None,
+                "services": {},
+            },
+        )
+
+        cli = make_cli()
+        runner = CliRunner()
+        result = runner.invoke(
+            cli,
+            [
+                "config",
+                "add",
+                "--profile",
+                "offline",
+                "--url",
+                "https://offline.example.com",
+                "--api-key",
+                VALID_API_KEY,
+                "--web-url",
+                "https://web.example.com",
+            ],
+            input="\n",
+        )
+
+        assert result.exit_code == ExitCodes.NETWORK_ERROR
+        assert "Profile was not saved" in result.output
+        assert not config_file.exists()
+
+    def test_config_add_rejects_malformed_api_key(self, tmp_path: Path, monkeypatch: Any) -> None:
+        """Test that config add rejects API keys that do not match the expected format."""
+        config_file = tmp_path / "config.json"
+        monkeypatch.setattr(
+            "slcli.profiles.ProfileConfig.get_config_path", classmethod(lambda cls: config_file)
+        )
+
+        def fail_if_called(*args: Any, **kwargs: Any) -> Any:
+            raise AssertionError("check_service_status should not run for malformed API keys")
+
+        monkeypatch.setattr("slcli.config_click.check_service_status", fail_if_called)
+
+        cli = make_cli()
+        runner = CliRunner()
+        result = runner.invoke(
+            cli,
+            [
+                "config",
+                "add",
+                "--profile",
+                "bad-key",
+                "--url",
+                "https://example.test",
+                "--api-key",
+                "abc123",
+                "--web-url",
+                "https://web.example.test",
+            ],
+            input="\n",
+        )
+
+        assert result.exit_code == ExitCodes.INVALID_INPUT
+        assert "API key must match the expected SystemLink format" in result.output
+        assert not config_file.exists()

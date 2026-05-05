@@ -2,8 +2,10 @@
 
 import getpass
 import json
+import re
 import sys
 from typing import Any, Optional
+from urllib.parse import urlparse
 
 import click
 import questionary
@@ -17,6 +19,70 @@ from .profiles import ProfileConfig, Profile, check_config_file_permissions
 from .rich_output import render_table
 from .table_utils import output_formatted_list
 from .utils import ExitCodes
+
+EXAMPLE_API_KEY = "4LpbauiNA-UI9IhjqZoS4UeikZtExLK9Q_Q77d1bJd"
+API_KEY_LENGTH = len(EXAMPLE_API_KEY)
+API_KEY_PATTERN = re.compile(rf"^[A-Za-z0-9_-]{{{API_KEY_LENGTH}}}$")
+
+
+def _exit_with_validation_error(message: str, exit_code: int = ExitCodes.INVALID_INPUT) -> None:
+    """Exit the command with a consistent validation message."""
+    click.echo(f"✗ {message}", err=True)
+    sys.exit(exit_code)
+
+
+def _normalize_profile_name(profile: str) -> str:
+    """Normalize and validate a profile name."""
+    normalized = profile.strip()
+    if not normalized:
+        _exit_with_validation_error("Profile name cannot be empty.")
+    return normalized
+
+
+def _normalize_base_url(raw_url: str, label: str) -> str:
+    """Normalize and validate a SystemLink base URL."""
+    normalized = raw_url.strip()
+    if not normalized:
+        _exit_with_validation_error(f"{label} cannot be empty.")
+
+    if normalized.startswith("http://"):
+        click.echo("⚠️  Warning: Converting HTTP to HTTPS for security.")
+        normalized = normalized.replace("http://", "https://", 1)
+    elif "://" not in normalized:
+        click.echo(f"⚠️  Warning: Adding HTTPS protocol to {label.lower()}.")
+        normalized = f"https://{normalized}"
+
+    parsed = urlparse(normalized)
+    if parsed.scheme != "https":
+        _exit_with_validation_error(f"{label} must use HTTPS.")
+    if not parsed.hostname:
+        _exit_with_validation_error(f"{label} must include a valid host name.")
+    if parsed.path and parsed.path.strip("/"):
+        _exit_with_validation_error(
+            f"{label} must be a base URL without a path, query string, or fragment."
+        )
+    if parsed.params or parsed.query or parsed.fragment:
+        _exit_with_validation_error(
+            f"{label} must be a base URL without a path, query string, or fragment."
+        )
+
+    return normalized.rstrip("/")
+
+
+def _normalize_api_key(api_key: str) -> str:
+    """Normalize and validate an API key before probing the server."""
+    normalized = api_key.strip()
+    if not normalized:
+        _exit_with_validation_error("API key cannot be empty.")
+    if any(character.isspace() for character in normalized):
+        _exit_with_validation_error("API key must not contain spaces or line breaks.")
+    if not API_KEY_PATTERN.fullmatch(normalized):
+        _exit_with_validation_error(
+            f"API key must match the expected SystemLink format: {API_KEY_LENGTH} "
+            "URL-safe characters "
+            f"like {EXAMPLE_API_KEY}."
+        )
+    return normalized
 
 
 def _add_profile_impl(
@@ -46,93 +112,78 @@ def _add_profile_impl(
     if not profile:
         profile = click.prompt("Profile name", default="default")
     assert isinstance(profile, str)
+    profile = _normalize_profile_name(profile)
 
     # Get URL - either from flag or prompt
     if not url:
         click.echo("Example: https://api.my-systemlink.com")
         url = click.prompt("Enter your SystemLink API URL")
-    # Ensure url is a string now
     assert isinstance(url, str)
-    if not url.strip():
-        click.echo("SystemLink URL cannot be empty.")
-        raise click.ClickException("SystemLink URL cannot be empty.")
-
-    # Ensure URL uses HTTPS
-    url = url.strip()
-    if url.startswith("http://"):
-        click.echo("⚠️  Warning: Converting HTTP to HTTPS for security.")
-        url = url.replace("http://", "https://", 1)
-    elif not url.startswith("https://"):
-        click.echo("⚠️  Warning: Adding HTTPS protocol to URL.")
-        url = f"https://{url}"
-    url = url.rstrip("/")
+    url = _normalize_base_url(url, "SystemLink API URL")
 
     # Get API key - either from flag or prompt
     if not api_key:
         api_key = getpass.getpass("Enter your SystemLink API key: ")
-    # Ensure api_key is a string now
     assert isinstance(api_key, str)
-    if not api_key.strip():
-        click.echo("API key cannot be empty.")
-        raise click.ClickException("API key cannot be empty.")
+    api_key = _normalize_api_key(api_key)
 
     # Normalize and validate web_url (prompt if not provided)
     if not web_url:
         click.echo("Example: https://my-systemlink.com")
         web_url = click.prompt("Enter your SystemLink Web UI URL")
     assert isinstance(web_url, str)
-    web_url = web_url.strip()
-    if web_url.startswith("http://"):
-        click.echo("⚠️  Warning: Converting HTTP to HTTPS for security.")
-        web_url = web_url.replace("http://", "https://", 1)
-    elif not web_url.startswith("https://"):
-        click.echo("⚠️  Warning: Adding HTTPS protocol to web URL.")
-        web_url = f"https://{web_url}"
-    web_url = web_url.rstrip("/")
+    web_url = _normalize_base_url(web_url, "SystemLink Web UI URL")
 
     # Detect platform type and check service status
     click.echo("Checking server connectivity and services...")
-    status = check_service_status(url, api_key.strip())
+    status = check_service_status(url, api_key)
     platform = status["platform"]
 
     if not status["server_reachable"]:
-        click.echo("  ⚠️  Could not connect to server", err=True)
-        click.echo("      Verify the URL is correct and the server is reachable.", err=True)
-        click.echo(
-            "      Profile will be saved — run login again when the server is available.",
-            err=True,
+        _exit_with_validation_error(
+            "Could not connect to the SystemLink server. Verify the URL and network access. "
+            "Profile was not saved.",
+            ExitCodes.NETWORK_ERROR,
         )
+
+    if status["auth_valid"] is False:
+        _exit_with_validation_error(
+            "API key validation failed. The server responded, but the key was not authorized. "
+            "Profile was not saved.",
+            ExitCodes.PERMISSION_DENIED,
+        )
+
+    if status["auth_valid"] is not True:
+        _exit_with_validation_error(
+            "Connected to the server, but could not verify the API key against SystemLink "
+            "services. Profile was not saved.",
+            ExitCodes.GENERAL_ERROR,
+        )
+
+    click.echo("  Connection: ✓ Verified")
+    if platform == PLATFORM_SLE:
+        click.echo("  Platform: SystemLink Enterprise (Cloud)")
+    elif platform == PLATFORM_SLS:
+        click.echo("  Platform: SystemLink Server (On-Premises)")
     else:
-        if platform == PLATFORM_SLE:
-            click.echo("  Platform: SystemLink Enterprise (Cloud)")
-        elif platform == PLATFORM_SLS:
-            click.echo("  Platform: SystemLink Server (On-Premises)")
-        else:
-            click.echo("  Platform: Unknown (will attempt all features)")
+        click.echo("  Platform: Unknown (will attempt all features)")
 
-        # Report authorization status
-        if status["auth_valid"] is False:
-            click.echo("  ⚠️  API key: Unauthorized — check that the key is valid", err=True)
-        elif status["auth_valid"] is True:
-            click.echo("  API key:  ✓ Authorized")
+    click.echo("  API key:  ✓ Authorized")
 
-        if status.get("file_query_endpoint") == "query-files":
-            click.echo("  File query: query-files")
-        elif status.get("elasticsearch_available") is False:
-            click.echo("  File query: query-files-linq (Elasticsearch unavailable)")
-            click.echo(
-                "      'slcli file list' will fall back automatically; 'slcli file query' requires search-files."
-            )
+    if status.get("file_query_endpoint") == "query-files":
+        click.echo("  File query: query-files")
+    elif status.get("elasticsearch_available") is False:
+        click.echo("  File query: query-files-linq (Elasticsearch unavailable)")
+        click.echo(
+            "      'slcli file list' will fall back automatically; 'slcli file query' requires search-files."
+        )
 
-        # Report individual service status
-        services = status.get("services", {})
-        problem_services = [
-            name for name, svc_status in services.items() if svc_status == "unauthorized"
-        ]
-        if problem_services and status["auth_valid"] is not False:
-            # Only show per-service issues if overall auth isn't completely invalid
-            for svc_name in problem_services:
-                click.echo(f"  ⚠️  {svc_name}: unauthorized", err=True)
+    services = status.get("services", {})
+    problem_services = [
+        name for name, svc_status in services.items() if svc_status == "unauthorized"
+    ]
+    for svc_name in problem_services:
+        click.echo(f"  ⚠️  {svc_name}: unauthorized", err=True)
 
     # Get default workspace (optional)
     if workspace is None:
@@ -145,7 +196,7 @@ def _add_profile_impl(
     new_profile = Profile(
         name=profile,
         server=url,
-        api_key=api_key.strip(),
+        api_key=api_key,
         web_url=web_url,
         platform=platform,
         workspace=workspace,
