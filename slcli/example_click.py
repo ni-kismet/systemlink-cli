@@ -121,7 +121,7 @@ def register_example_commands(cli: Any) -> None:
 
     @cli.group()
     def example() -> None:
-        """Manage example resource configurations.
+        """Browse and provision example SystemLink resource configurations.
 
         Examples help you quickly set up demo systems for training,
         testing, or evaluation. Each example includes systems, assets,

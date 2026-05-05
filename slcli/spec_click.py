@@ -1263,7 +1263,7 @@ def register_spec_commands(cli: Any) -> None:
 
     @cli.group(name="spec")
     def spec() -> None:
-        """Manage specifications."""
+        """Manage SystemLink specifications."""
         pass
 
     # -- list ---------------------------------------------------------------

@@ -431,7 +431,7 @@ def register_workitem_commands(cli: Any) -> None:
 
     @cli.group()
     def workitem() -> None:
-        """Manage work items, templates, and workflows."""
+        """Manage SystemLink work items, templates, and workflows."""
 
     # -----------------------------------------------------------------------
     # workitem list

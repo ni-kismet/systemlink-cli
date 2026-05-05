@@ -312,7 +312,7 @@ def register_dff_commands(cli: Any) -> None:
     @cli.group(name="customfield")
     @click.pass_context
     def dff(ctx: click.Context) -> None:
-        """Manage custom field (DFF) configurations."""
+        """Manage SystemLink custom field configurations."""
         # Check for platform feature availability
         # Only check if a subcommand is being invoked (not just --help)
         if ctx.invoked_subcommand is not None:

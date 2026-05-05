@@ -188,7 +188,7 @@ def register_comment_commands(cli: Any) -> None:
     @cli.group()
     @click.pass_context
     def comment(ctx: click.Context) -> None:
-        """Manage comments on SystemLink resources.
+        """Manage SystemLink comments.
 
         Comments can be attached to any resource identified by a resource type
         and resource ID. Known resource types: testmonitor:Result, niapm:Asset,

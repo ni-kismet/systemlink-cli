@@ -225,7 +225,7 @@ def register_config_commands(cli: Any) -> None:
 
     @cli.group()
     def config() -> None:
-        """Manage slcli configuration and profiles.
+        """Manage slcli settings and profiles.
 
         Profiles allow you to configure multiple SystemLink environments
         (dev, test, prod) and switch between them easily.

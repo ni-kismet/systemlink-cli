@@ -735,7 +735,7 @@ def register_testmonitor_commands(cli: Any) -> None:
 
     @cli.group()
     def testmonitor() -> None:
-        """Commands for test monitor products and results."""
+        """Manage SystemLink Test Monitor products and results."""
 
     @testmonitor.group()
     def product() -> None:

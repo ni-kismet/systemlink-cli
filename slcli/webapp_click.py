@@ -893,7 +893,7 @@ def register_webapp_commands(cli: Any) -> None:
 
     @cli.group()
     def webapp() -> None:  # pragma: no cover - Click wiring
-        """Manage web applications (init/pack locally, publish/CRUD remotely)."""
+        """Build, publish, and manage SystemLink web applications."""
 
     @webapp.command(name="init")
     @click.argument(

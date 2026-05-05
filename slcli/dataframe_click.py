@@ -646,7 +646,7 @@ def register_dataframe_commands(cli: Any) -> None:
     @cli.group()
     @click.pass_context
     def dataframe(ctx: click.Context) -> None:
-        """Manage SystemLink DataFrame tables and row data."""
+        """Manage SystemLink DataFrame tables and rows."""
         if ctx.invoked_subcommand is not None:
             require_feature("dataframe_service")
 

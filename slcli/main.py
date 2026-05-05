@@ -49,6 +49,55 @@ else:
     click = rich_click_module
 
 
+def _configure_rich_click_command_groups() -> None:
+    """Configure top-level help command groups when rich-click is available."""
+    rich_click_config = getattr(click, "rich_click", None)
+    if rich_click_config is None:
+        return
+
+    # Keep the command-name/help split consistent across top-level panels so
+    # descriptions start at the same column in every group.
+    rich_click_config.STYLE_COMMANDS_TABLE_EXPAND = True
+    rich_click_config.STYLE_COMMANDS_TABLE_COLUMN_WIDTH_RATIO = (1, 5)
+
+    rich_click_config.COMMAND_GROUPS = {
+        "slcli": [
+            {
+                "name": "Configure",
+                "commands": ["config", "login", "logout", "info", "completion"],
+            },
+            {
+                "name": "Administer",
+                "commands": ["auth", "user", "workspace"],
+            },
+            {
+                "name": "Operate",
+                "commands": [
+                    "asset",
+                    "system",
+                    "state",
+                    "tag",
+                    "file",
+                    "feed",
+                    "comment",
+                    "dataframe",
+                ],
+            },
+            {
+                "name": "Build & Automate",
+                "commands": ["notebook", "routine", "webapp", "customfield", "skill", "mcp"],
+            },
+            {
+                "name": "Validate & Plan",
+                "commands": ["testmonitor", "template", "spec", "workitem", "example"],
+            },
+        ]
+    }
+
+
+_configure_rich_click_command_groups()
+
+
 def get_version() -> str:
     """Get version from _version.py (built binary) or pyproject.toml (development)."""
     try:
@@ -193,7 +242,7 @@ def login(
     set_current: bool,
     readonly: bool,
 ) -> None:
-    """Save SystemLink credentials to a profile.
+    """Create or update a SystemLink profile with credentials.
 
     This is an alias for 'slcli config add'. Use that command
     for the same functionality and more configuration options.
@@ -225,7 +274,7 @@ def login(
 @click.option("--all", "remove_all", is_flag=True, help="Remove all profiles")
 @click.option("--force", "-f", is_flag=True, help="Skip confirmation prompt")
 def logout(profile: Optional[str], remove_all: bool, force: bool) -> None:
-    """Remove stored SystemLink credentials.
+    """Remove stored SystemLink profiles and credentials.
 
     By default, removes the current profile. Use --profile to remove a specific
     profile, or --all to remove all profiles.
@@ -309,7 +358,7 @@ def logout(profile: Optional[str], remove_all: bool, force: bool) -> None:
 @click.option("--format", "-f", type=click.Choice(["table", "json"]), default="table")
 @click.option("--skip-health", is_flag=True, default=False, help="Skip live service health checks.")
 def info(format: str, skip_health: bool) -> None:
-    """Show current configuration and detected platform."""
+    """Show the active profile, configuration, and platform status."""
     from .profiles import ProfileConfig, get_active_profile
 
     platform_info = get_platform_info(skip_health=skip_health)

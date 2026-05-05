@@ -508,7 +508,7 @@ def register_file_commands(cli: Any) -> None:
 
     @cli.group()
     def file() -> None:
-        """Manage files in SystemLink File Service."""
+        """Manage SystemLink files."""
         pass
 
     @file.command(name="list")

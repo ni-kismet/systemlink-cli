@@ -629,7 +629,7 @@ def register_notebook_commands(cli: Any) -> None:
 
     @cli.group()
     def notebook() -> None:  # pragma: no cover - Click wiring
-        """Manage notebooks (init locally, manage remotely, run)."""
+        """Create, run, and manage SystemLink notebooks."""
         pass
 
     # ------------------------------------------------------------------
