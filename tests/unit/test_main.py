@@ -174,6 +174,86 @@ def test_login_rejects_unauthorized_api_key(monkeypatch: Any, tmp_path: Any) -> 
     assert not config_file.exists()
 
 
+def test_login_rejects_inconclusive_profile_verification(monkeypatch: Any, tmp_path: Any) -> None:
+    """Ensure login reports inconclusive verification for non-auth probe failures."""
+    config_file = tmp_path / "config.json"
+    monkeypatch.setattr(
+        "slcli.profiles.ProfileConfig.get_config_path", classmethod(lambda cls: config_file)
+    )
+    monkeypatch.setattr(
+        "slcli.config_click.check_service_status",
+        lambda *a, **kw: {
+            "server_reachable": True,
+            "auth_valid": False,
+            "services": {"Auth": "unauthorized", "Comments": "not_found"},
+            "platform": PLATFORM_SLE,
+        },
+    )
+    monkeypatch.setattr("slcli.main.keyring.get_password", lambda *a, **kw: None)
+
+    runner = CliRunner()
+    result = runner.invoke(
+        cli,
+        [
+            "login",
+            "--profile",
+            "test",
+            "--url",
+            "https://example.test",
+            "--api-key",
+            VALID_API_KEY,
+            "--web-url",
+            "https://web.example.test",
+        ],
+        input="\n\n",
+    )
+
+    assert result.exit_code == 1
+    assert "profile verification was inconclusive" in result.output
+    assert "Profile was not saved" in result.output
+    assert not config_file.exists()
+
+
+def test_login_rejects_unknown_auth_verification_state(monkeypatch: Any, tmp_path: Any) -> None:
+    """Ensure login covers the fallback branch when auth verification returns None."""
+    config_file = tmp_path / "config.json"
+    monkeypatch.setattr(
+        "slcli.profiles.ProfileConfig.get_config_path", classmethod(lambda cls: config_file)
+    )
+    monkeypatch.setattr(
+        "slcli.config_click.check_service_status",
+        lambda *a, **kw: {
+            "server_reachable": True,
+            "auth_valid": None,
+            "services": {"Auth": "error"},
+            "platform": PLATFORM_SLE,
+        },
+    )
+    monkeypatch.setattr("slcli.main.keyring.get_password", lambda *a, **kw: None)
+
+    runner = CliRunner()
+    result = runner.invoke(
+        cli,
+        [
+            "login",
+            "--profile",
+            "test",
+            "--url",
+            "https://example.test",
+            "--api-key",
+            VALID_API_KEY,
+            "--web-url",
+            "https://web.example.test",
+        ],
+        input="\n\n",
+    )
+
+    assert result.exit_code == 1
+    assert "profile verification was inconclusive" in result.output
+    assert "Profile was not saved" in result.output
+    assert not config_file.exists()
+
+
 def test_login_reports_file_query_fallback(monkeypatch: Any, tmp_path: Any) -> None:
     """Ensure login explains file query fallback when Elasticsearch is unavailable."""
     config_file = tmp_path / "config.json"

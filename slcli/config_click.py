@@ -20,8 +20,7 @@ from .rich_output import render_table
 from .table_utils import output_formatted_list
 from .utils import ExitCodes
 
-EXAMPLE_API_KEY = "4LpbauiNA-UI9IhjqZoS4UeikZtExLK9Q_Q77d1bJd"
-API_KEY_LENGTH = len(EXAMPLE_API_KEY)
+API_KEY_LENGTH = 42
 API_KEY_PATTERN = re.compile(rf"^[A-Za-z0-9_-]{{{API_KEY_LENGTH}}}$")
 
 
@@ -45,16 +44,13 @@ def _normalize_base_url(raw_url: str, label: str) -> str:
     if not normalized:
         _exit_with_validation_error(f"{label} cannot be empty.")
 
-    if normalized.startswith("http://"):
-        click.echo("⚠️  Warning: Converting HTTP to HTTPS for security.")
-        normalized = normalized.replace("http://", "https://", 1)
-    elif "://" not in normalized:
+    if "://" not in normalized:
         click.echo(f"⚠️  Warning: Adding HTTPS protocol to {label.lower()}.")
         normalized = f"https://{normalized}"
 
     parsed = urlparse(normalized)
-    if parsed.scheme != "https":
-        _exit_with_validation_error(f"{label} must use HTTPS.")
+    if parsed.scheme not in ("http", "https"):
+        _exit_with_validation_error(f"{label} must use HTTP or HTTPS.")
     if not parsed.hostname:
         _exit_with_validation_error(f"{label} must include a valid host name.")
     if parsed.path and parsed.path.strip("/"):
@@ -78,11 +74,15 @@ def _normalize_api_key(api_key: str) -> str:
         _exit_with_validation_error("API key must not contain spaces or line breaks.")
     if not API_KEY_PATTERN.fullmatch(normalized):
         _exit_with_validation_error(
-            f"API key must match the expected SystemLink format: {API_KEY_LENGTH} "
-            "URL-safe characters "
-            f"like {EXAMPLE_API_KEY}."
+            f"API key must be a {API_KEY_LENGTH}-character URL-safe token containing only "
+            "letters, digits, '-' and '_'."
         )
     return normalized
+
+
+def _all_service_probes_unauthorized(services: dict[str, str]) -> bool:
+    """Return True only when every recorded service probe failed with authorization."""
+    return bool(services) and all(status == "unauthorized" for status in services.values())
 
 
 def _add_profile_impl(
@@ -138,6 +138,7 @@ def _add_profile_impl(
     click.echo("Checking server connectivity and services...")
     status = check_service_status(url, api_key)
     platform = status["platform"]
+    services = status.get("services", {})
 
     if not status["server_reachable"]:
         _exit_with_validation_error(
@@ -146,7 +147,7 @@ def _add_profile_impl(
             ExitCodes.NETWORK_ERROR,
         )
 
-    if status["auth_valid"] is False:
+    if status["auth_valid"] is False and _all_service_probes_unauthorized(services):
         _exit_with_validation_error(
             "API key validation failed. The server responded, but the key was not authorized. "
             "Profile was not saved.",
@@ -155,8 +156,8 @@ def _add_profile_impl(
 
     if status["auth_valid"] is not True:
         _exit_with_validation_error(
-            "Connected to the server, but could not verify the API key against SystemLink "
-            "services. Profile was not saved.",
+            "Connected to the server, but profile verification was inconclusive. Check the "
+            "API URL, API key, and service availability. Profile was not saved.",
             ExitCodes.GENERAL_ERROR,
         )
 
@@ -178,7 +179,6 @@ def _add_profile_impl(
             "      'slcli file list' will fall back automatically; 'slcli file query' requires search-files."
         )
 
-    services = status.get("services", {})
     problem_services = [
         name for name, svc_status in services.items() if svc_status == "unauthorized"
     ]
