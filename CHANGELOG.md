@@ -2,6 +2,13 @@
 
 <!-- towncrier release notes start -->
 
+## v1.13.3 (2026-05-05)
+
+### Bug Fixes
+
+- Harden login and config validation to reject malformed SystemLink URLs and API keys, and fail without saving unreachable or unauthorized profiles. (#140)
+
+
 ## v1.13.2 (2026-05-05)
 
 ### Documentation
