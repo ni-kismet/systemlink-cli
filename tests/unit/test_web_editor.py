@@ -101,13 +101,9 @@ def test_build_proxy_url_uses_validated_origin() -> None:
         origin_scheme=scheme,
         origin_netloc=netloc,
         target_path="/nidynamicformfields/v1/configurations",
-        query="take=25&skip=0",
     )
 
-    assert (
-        url
-        == "https://systemlink.example.test/nidynamicformfields/v1/configurations?take=25&skip=0"
-    )
+    assert url == "https://systemlink.example.test/nidynamicformfields/v1/configurations"
 
 
 @pytest.mark.parametrize(

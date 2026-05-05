@@ -43,10 +43,9 @@ def _build_proxy_url(
     origin_scheme: str,
     origin_netloc: str,
     target_path: str,
-    query: str = "",
 ) -> str:
     """Build a proxy URL from a validated origin and allowlisted path."""
-    return urllib.parse.urlunsplit((origin_scheme, origin_netloc, target_path, query, ""))
+    return urllib.parse.urlunsplit((origin_scheme, origin_netloc, target_path, "", ""))
 
 
 def _validated_proxy_path(request_path: str) -> str:
