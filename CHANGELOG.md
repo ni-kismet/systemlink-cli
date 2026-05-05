@@ -2,6 +2,13 @@
 
 <!-- towncrier release notes start -->
 
+## v1.13.5 (2026-05-05)
+
+### Other Changes
+
+- Improve top-level slcli help grouping, description consistency, and panel alignment. (#142)
+
+
 ## v1.13.4 (2026-05-05)
 
 ### Bug Fixes
