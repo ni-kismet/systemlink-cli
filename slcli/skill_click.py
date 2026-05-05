@@ -200,7 +200,7 @@ def register_skill_commands(cli: Any) -> None:
 
     @cli.group()
     def skill() -> None:
-        """Manage AI agent skills for most agents and Claude."""
+        """Install and manage AI assistant skills."""
 
     @skill.command(name="install")
     @click.option(

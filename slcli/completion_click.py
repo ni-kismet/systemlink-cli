@@ -386,7 +386,7 @@ def register_completion_command(cli: Any) -> None:
         help="Install completion script to shell config file",
     )
     def completion(shell: Optional[str], install: bool) -> None:
-        """Generate and optionally install shell completion scripts.
+        """Generate shell completion scripts and optionally install them.
 
         Examples:
             # Generate bash completion script

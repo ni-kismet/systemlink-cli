@@ -325,7 +325,7 @@ def test_example_group_help(runner: CliRunner) -> None:
     result = runner.invoke(cli, ["example", "--help"])
 
     assert result.exit_code == 0
-    assert "example resource configurations" in result.output.lower()
+    assert "example systemlink resource configurations" in result.output.lower()
 
 
 def test_install_example_resolves_workspace_and_outputs_table(

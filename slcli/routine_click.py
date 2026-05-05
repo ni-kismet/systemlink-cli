@@ -127,7 +127,7 @@ def register_routine_commands(cli: Any) -> None:
 
     @cli.group()
     def routine() -> None:
-        """Manage SystemLink routines (v1: notebook scheduling, v2: event-action)."""
+        """Manage SystemLink routines."""
         pass
 
     # ------------------------------------------------------------------
