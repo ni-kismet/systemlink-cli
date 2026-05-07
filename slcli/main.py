@@ -64,7 +64,7 @@ def _configure_rich_click_command_groups() -> None:
         "slcli": [
             {
                 "name": "Configure",
-                "commands": ["config", "login", "logout", "info", "completion"],
+                "commands": ["config", "login", "logout", "info", "completion", "example"],
             },
             {
                 "name": "Administer",
@@ -89,7 +89,7 @@ def _configure_rich_click_command_groups() -> None:
             },
             {
                 "name": "Validate & Plan",
-                "commands": ["testmonitor", "template", "spec", "workitem", "example"],
+                "commands": ["testmonitor", "template", "spec", "workitem"],
             },
         ]
     }

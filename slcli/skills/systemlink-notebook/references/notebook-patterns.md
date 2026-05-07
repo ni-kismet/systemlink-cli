@@ -2,6 +2,10 @@
 
 Annotated examples of common SystemLink notebook patterns.
 
+⚠️ **Important:** The Python client mixes Pythonic `snake_case` method names with `camelCase` request-model field names.
+See the main skill documentation for details on this quirk and other client ergonomics issues. Always verify the
+request model constructor signature before using — intuitive Python names will **not** work.
+
 ---
 
 ## Pattern 1: Systems Grid Column Report
@@ -182,6 +186,10 @@ sb.glue('result', result)
 ## Pattern 2: Test Data Analysis
 
 Query test results and return a summary. Uses `nisystemlink.clients.testmonitor`.
+
+**⚠️ API Quirk:** Request models in the TestMonitor client use camelCase field names.
+Constructor calls like `CreateResultRequest(programName="...", fileIds=[...])` are required.
+Using intuitive Python `snake_case` names will fail.
 
 **Parameters cell metadata:**
 ```json
