@@ -63,7 +63,7 @@ if response.created:
 
 ### Limited service coverage
 
-The Python client covers **~52% of available SystemLink services**. The most important gaps for notebooks:
+The Python client does **not cover all SystemLink services**. The most important gaps for notebooks (see the [client repo](https://github.com/ni/nisystemlink-clients-python) for the current full list):
 
 - ❌ **Notebook Execution** — no Python client for execution lifecycle management
 - ❌ **Routines v1/v2** — no Python client for scheduling/triggering
@@ -76,10 +76,15 @@ For these services, use REST calls directly via the `requests` library or System
 
 ### Public import paths
 
-Always import from the public top-level modules, not private `_module` paths:
+This skill uses two distinct Python SDK namespaces — be careful not to mix them:
+
+- **`nisystemlink.clients.*`** — the typed Python client (`nisystemlink-clients` package). Use public top-level imports.
+- **`systemlink.clients.nisysmgmt.*`** — a separate OpenAPI-generated SDK used only for Systems queries.
+
+For `nisystemlink.clients`, always import from the public top-level modules, not private `_module` paths:
 
 ```python
-# ✅ CORRECT: Public paths
+# ✅ CORRECT: Public paths (nisystemlink-clients)
 from nisystemlink.clients.file import FileClient
 from nisystemlink.clients.testmonitor import TestMonitorClient
 from nisystemlink.clients.testmonitor.models import CreateResultRequest, CreateStepRequest
@@ -87,6 +92,10 @@ from nisystemlink.clients.testmonitor.models import CreateResultRequest, CreateS
 # ❌ WRONG: Private module paths (may change or be removed)
 from nisystemlink.clients.testmonitor._test_monitor_client import TestMonitorClient
 from nisystemlink.clients.testmonitor.models._create_result_request import CreateResultRequest
+
+# Separate SDK — used only for Systems queries:
+from systemlink.clients.nisysmgmt.api.systems_api import SystemsApi
+from systemlink.clients.nisysmgmt.models.query_systems_request import QuerySystemsRequest
 ```
 
 ## Notebook Structure
@@ -280,7 +289,7 @@ from nisystemlink.clients.assetmanagement import AssetManagementClient
 import requests
 config = HttpConfigurationManager.get_configuration()
 base_url = config.server_uri.rstrip("/")
-headers = {"x-ni-api-key": config.api_keys[0]}
+headers = {"x-ni-api-key": config.api_keys["x-ni-api-key"]}
 ```
 
 ### Available Python client services

@@ -82,7 +82,7 @@ slcli routine create --api-version v1 \
   --schedule '{"startTime":"2026-01-01T00:00:00Z","repeat":"DAY"}'
 ```
 
-Or trigger via REST using `HttpConfigurationManager` and `requests`:
+Or create a scheduled routine via REST using `HttpConfigurationManager` and `requests`:
 
 ```python
 import requests
@@ -90,13 +90,14 @@ from nisystemlink.clients.core import HttpConfigurationManager
 
 config = HttpConfigurationManager.get_configuration()
 base_url = config.server_uri.rstrip("/")
-headers = {"x-ni-api-key": config.api_keys[0]}
+api_key = config.api_keys["x-ni-api-key"]
+headers = {"x-ni-api-key": api_key}
 
 payload = {
     "name": "Daily Report",
     "type": "SCHEDULED",
     "notebookId": "<NOTEBOOK_ID>",
-    "schedule": {"startTime":"2026-01-01T00:00:00Z", "repeat":"DAY"}
+    "schedule": {"startTime": "<START_TIME_ISO8601>", "repeat": "DAY"}
 }
 
 resp = requests.post(f"{base_url}/niapis/v1/routines", json=payload, headers=headers)
@@ -132,7 +133,8 @@ from nisystemlink.clients.core import HttpConfigurationManager
 
 config = HttpConfigurationManager.get_configuration()
 base_url = config.server_uri.rstrip("/")
-headers = {"x-ni-api-key": config.api_keys[0]}
+api_key = config.api_keys["x-ni-api-key"]
+headers = {"x-ni-api-key": api_key}
 
 # Example: Add a comment to a work item (Comments service not available in Python)
 comment_payload = {
