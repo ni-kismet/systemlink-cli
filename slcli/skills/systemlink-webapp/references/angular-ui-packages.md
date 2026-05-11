@@ -25,52 +25,52 @@ Use Nimble as the default foundation, then pull in Spright and OK Angular when t
 Use this as a starting point when a SystemLink webapp needs components from all three packages. Trim the imports down to only the modules the feature actually uses.
 
 ```typescript
-import { NgModule } from '@angular/core';
-import { BrowserModule } from '@angular/platform-browser';
-import { FormsModule } from '@angular/forms';
-import { APP_BASE_HREF } from '@angular/common';
+import { NgModule } from "@angular/core";
+import { BrowserModule } from "@angular/platform-browser";
+import { FormsModule } from "@angular/forms";
+import { APP_BASE_HREF } from "@angular/common";
 
 import {
-	NimbleThemeProviderModule,
-	NimbleButtonModule,
-	NimbleBannerModule,
-	NimbleDrawerModule,
-	NimbleTableModule,
-	NimbleTableColumnTextModule,
-} from '@ni/nimble-angular';
-import { NimbleLabelProviderCoreModule } from '@ni/nimble-angular/label-provider/core';
+  NimbleThemeProviderModule,
+  NimbleButtonModule,
+  NimbleBannerModule,
+  NimbleDrawerModule,
+  NimbleTableModule,
+  NimbleTableColumnTextModule,
+} from "@ni/nimble-angular";
+import { NimbleLabelProviderCoreModule } from "@ni/nimble-angular/label-provider/core";
 
-import { SprightChatConversationModule } from '@ni/spright-angular/chat/conversation';
-import { SprightChatInputModule } from '@ni/spright-angular/chat/input';
-import { SprightChatMessageInboundModule } from '@ni/spright-angular/chat/message/inbound';
-import { SprightChatMessageOutboundModule } from '@ni/spright-angular/chat/message/outbound';
+import { SprightChatConversationModule } from "@ni/spright-angular/chat/conversation";
+import { SprightChatInputModule } from "@ni/spright-angular/chat/input";
+import { SprightChatMessageInboundModule } from "@ni/spright-angular/chat/message/inbound";
+import { SprightChatMessageOutboundModule } from "@ni/spright-angular/chat/message/outbound";
 
-import { OkFvAccordionItemModule } from '@ni/ok-angular/fv/accordion-item';
-import { OkFvSearchInputModule } from '@ni/ok-angular/fv/search-input';
+import { OkFvAccordionItemModule } from "@ni/ok-angular/fv/accordion-item";
+import { OkFvSearchInputModule } from "@ni/ok-angular/fv/search-input";
 
-import { AppComponent } from './app.component';
+import { AppComponent } from "./app.component";
 
 @NgModule({
-	declarations: [AppComponent],
-	imports: [
-		BrowserModule,
-		FormsModule,
-		NimbleThemeProviderModule,
-		NimbleLabelProviderCoreModule,
-		NimbleButtonModule,
-		NimbleBannerModule,
-		NimbleDrawerModule,
-		NimbleTableModule,
-		NimbleTableColumnTextModule,
-		SprightChatConversationModule,
-		SprightChatInputModule,
-		SprightChatMessageInboundModule,
-		SprightChatMessageOutboundModule,
-		OkFvAccordionItemModule,
-		OkFvSearchInputModule,
-	],
-	providers: [{ provide: APP_BASE_HREF, useValue: '/' }],
-	bootstrap: [AppComponent],
+  declarations: [AppComponent],
+  imports: [
+    BrowserModule,
+    FormsModule,
+    NimbleThemeProviderModule,
+    NimbleLabelProviderCoreModule,
+    NimbleButtonModule,
+    NimbleBannerModule,
+    NimbleDrawerModule,
+    NimbleTableModule,
+    NimbleTableColumnTextModule,
+    SprightChatConversationModule,
+    SprightChatInputModule,
+    SprightChatMessageInboundModule,
+    SprightChatMessageOutboundModule,
+    OkFvAccordionItemModule,
+    OkFvSearchInputModule,
+  ],
+  providers: [{ provide: APP_BASE_HREF, useValue: "/" }],
+  bootstrap: [AppComponent],
 })
 export class AppModule {}
 ```
@@ -128,18 +128,18 @@ Published Spright icon directives currently include:
 
 Published Angular wrappers in `@ni/ok-angular@2.4.0` currently include:
 
-| Tag                           | Angular symbol                   | Import path                               | Use                                          |
-| ----------------------------- | -------------------------------- | ----------------------------------------- | -------------------------------------------- |
-| `ok-ex-button`                | `OkExButtonModule`               | `@ni/ok-angular/ex/button`                | OK button primitive                          |
-| `ok-fv-accordion-item`        | `OkFvAccordionItemModule`        | `@ni/ok-angular/fv/accordion-item`        | OK accordion item for grouped content        |
-| `ok-fv-card`                  | `OkFvCardModule`                 | `@ni/ok-angular/fv/card`                  | OK card surface with title and description   |
-| `ok-fv-chip-selector`         | `OkFvChipSelectorModule`         | `@ni/ok-angular/fv/chip-selector`         | Multi-value chip selector control            |
-| `ok-fv-context-help`          | `OkFvContextHelpModule`          | `@ni/ok-angular/fv/context-help`          | Inline context-help or severity help content |
-| `ok-fv-search-input`          | `OkFvSearchInputModule`          | `@ni/ok-angular/fv/search-input`          | OK search input control                      |
-| `ok-fv-split-button`          | `OkFvSplitButtonModule`          | `@ni/ok-angular/fv/split-button`          | Split button with primary and menu actions   |
-| `ok-fv-split-button-anchor`   | `OkFvSplitButtonAnchorModule`    | `@ni/ok-angular/fv/split-button-anchor`   | Anchor-style split button                    |
-| `ok-fv-summary-panel`         | `OkFvSummaryPanelModule`         | `@ni/ok-angular/fv/summary-panel`         | Summary panel container                      |
-| `ok-fv-summary-panel-tile`    | `OkFvSummaryPanelTileModule`     | `@ni/ok-angular/fv/summary-panel-tile`    | Summary panel metric or status tile          |
+| Tag                         | Angular symbol                | Import path                             | Use                                          |
+| --------------------------- | ----------------------------- | --------------------------------------- | -------------------------------------------- |
+| `ok-ex-button`              | `OkExButtonModule`            | `@ni/ok-angular/ex/button`              | OK button primitive                          |
+| `ok-fv-accordion-item`      | `OkFvAccordionItemModule`     | `@ni/ok-angular/fv/accordion-item`      | OK accordion item for grouped content        |
+| `ok-fv-card`                | `OkFvCardModule`              | `@ni/ok-angular/fv/card`                | OK card surface with title and description   |
+| `ok-fv-chip-selector`       | `OkFvChipSelectorModule`      | `@ni/ok-angular/fv/chip-selector`       | Multi-value chip selector control            |
+| `ok-fv-context-help`        | `OkFvContextHelpModule`       | `@ni/ok-angular/fv/context-help`        | Inline context-help or severity help content |
+| `ok-fv-search-input`        | `OkFvSearchInputModule`       | `@ni/ok-angular/fv/search-input`        | OK search input control                      |
+| `ok-fv-split-button`        | `OkFvSplitButtonModule`       | `@ni/ok-angular/fv/split-button`        | Split button with primary and menu actions   |
+| `ok-fv-split-button-anchor` | `OkFvSplitButtonAnchorModule` | `@ni/ok-angular/fv/split-button-anchor` | Anchor-style split button                    |
+| `ok-fv-summary-panel`       | `OkFvSummaryPanelModule`      | `@ni/ok-angular/fv/summary-panel`       | Summary panel container                      |
+| `ok-fv-summary-panel-tile`  | `OkFvSummaryPanelTileModule`  | `@ni/ok-angular/fv/summary-panel-tile`  | Summary panel metric or status tile          |
 
 ## Selection guidance
 
