@@ -10,6 +10,32 @@ When building Angular apps with Nimble, use `@ni/nimble-angular` wrapper modules
 - Do not add `CUSTOM_ELEMENTS_SCHEMA` just to silence unknown Nimble elements in templates. That usually hides a missing module import and weakens Angular's template validation.
 - If a Nimble icon or control is unknown, first look for the matching module in `@ni/nimble-angular` and import it.
 
+## Fonts
+
+Nimble requires the Source Sans Pro font family. Without this import, all Nimble components render with fallback system fonts (Arial) and the UI will not match the SystemLink design system.
+
+Import the fonts **once** in the root `src/styles.scss`:
+
+```scss
+@use '@ni/nimble-angular/styles/fonts' as *;
+```
+
+This registers `@font-face` declarations for Source Sans Pro (Regular, Light, SemiBold) and Source Code Pro, loading `.woff2` files bundled in `@ni/nimble-tokens`.
+
+To use Nimble design tokens (colors, font sizes, spacing) in component SCSS files, also import:
+
+```scss
+@use '@ni/nimble-angular/styles/tokens' as *;
+
+.my-element {
+  font-family: $ni-nimble-body-font-family;
+  font-size: $ni-nimble-body-font-size;
+  color: $ni-nimble-body-font-color;
+}
+```
+
+Do not duplicate the fonts import in component SCSS — it belongs only in the global `styles.scss`.
+
 ## nimble-theme-provider
 
 Wrap your entire app. Always place at the root component level.
