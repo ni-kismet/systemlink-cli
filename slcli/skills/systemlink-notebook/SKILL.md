@@ -289,7 +289,11 @@ from nisystemlink.clients.assetmanagement import AssetManagementClient
 import requests
 config = HttpConfigurationManager.get_configuration()
 base_url = config.server_uri.rstrip("/")
-headers = {"x-ni-api-key": config.api_keys["x-ni-api-key"]}
+api_keys = getattr(config, "api_keys", {})
+api_key = api_keys.get("x-ni-api-key") if isinstance(api_keys, dict) else None
+if not api_key:
+  raise RuntimeError("Configure an x-ni-api-key before using REST fallbacks.")
+headers = {"x-ni-api-key": api_key}
 ```
 
 ### Available Python client services

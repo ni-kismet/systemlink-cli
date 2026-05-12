@@ -16,14 +16,17 @@ Delete and re-create only if the server rejects the update.
 
 ## Service Availability Note
 
-The Python client covers ~52% of SystemLink services. Key gaps that affect automation interfaces:
+The Python client does not cover every SystemLink service. Key gaps that affect
+automation interfaces (see the `nisystemlink-clients` repository for the current
+service list):
 
 - ❌ **Notebook Execution** — No Python client for checking execution status or logs
 - ❌ **Routines v1/v2** — No Python client for scheduling; use REST directly or `slcli routine` in scheduled shells
 - ❌ **Comments** — No Python client for adding resource annotations
 - ❌ **User** — No Python client for querying users/workspaces (use REST directly)
 
-For these services in notebooks, call the REST API directly via `requests` library and SystemLink's OpenAPI docs.
+For these services in notebooks, call the REST API directly via the `requests`
+library and the service-specific SystemLink OpenAPI docs.
 
 ## Available Interfaces
 
@@ -90,7 +93,10 @@ from nisystemlink.clients.core import HttpConfigurationManager
 
 config = HttpConfigurationManager.get_configuration()
 base_url = config.server_uri.rstrip("/")
-api_key = config.api_keys["x-ni-api-key"]
+api_keys = getattr(config, "api_keys", {})
+api_key = api_keys.get("x-ni-api-key") if isinstance(api_keys, dict) else None
+if not api_key:
+    raise RuntimeError("Configure an x-ni-api-key before using REST fallbacks.")
 headers = {"x-ni-api-key": api_key}
 
 payload = {
@@ -100,7 +106,7 @@ payload = {
     "schedule": {"startTime": "<START_TIME_ISO8601>", "repeat": "DAY"}
 }
 
-resp = requests.post(f"{base_url}/niapis/v1/routines", json=payload, headers=headers)
+resp = requests.post(f"{base_url}/niroutine/v1/routines", json=payload, headers=headers)
 resp.raise_for_status()
 ```
 
@@ -133,7 +139,10 @@ from nisystemlink.clients.core import HttpConfigurationManager
 
 config = HttpConfigurationManager.get_configuration()
 base_url = config.server_uri.rstrip("/")
-api_key = config.api_keys["x-ni-api-key"]
+api_keys = getattr(config, "api_keys", {})
+api_key = api_keys.get("x-ni-api-key") if isinstance(api_keys, dict) else None
+if not api_key:
+    raise RuntimeError("Configure an x-ni-api-key before using REST fallbacks.")
 headers = {"x-ni-api-key": api_key}
 
 # Example: Add a comment to a work item (Comments service not available in Python)
@@ -144,7 +153,7 @@ comment_payload = {
 }
 
 resp = requests.post(
-    f"{base_url}/niapis/v1/comments",
+    f"{base_url}/nicomments/v1/comments",
     json=comment_payload,
     headers=headers
 )
@@ -154,10 +163,10 @@ comment = resp.json()
 
 Common missing services you might need:
 
-- **Comments** — `/niapis/v1/comments`
-- **Routines v1/v2** — `/niapis/v1/routines` or `/niapis/v2/routines`
-- **User** — `/niapis/v1/users`
-- **Systems State** — `/niapis/v1/systems-state`
-- **Tag Historian** — `/niapis/v1/tag-historian`
+- **Comments** — `/nicomments/v1/comments`
+- **Routines v1/v2** — `/niroutine/v1/routines` or `/niroutine/v2/routines`
+- **User** — `/niuser/v1/users` or `/niuser/v1/users/query`
+- **Systems State** — `/nisystemsstate/v1/states`
+- **Tag Historian** — check the service-specific OpenAPI docs instead of assuming `/niapis/...`
 
 Always check the OpenAPI docs to confirm the correct endpoint path and request schema before implementing REST calls.
