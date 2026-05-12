@@ -2,6 +2,14 @@
 
 <!-- towncrier release notes start -->
 
+## v1.13.7 (2026-05-12)
+
+### Documentation
+
+- Document Grafana notebook output restrictions, restore the Data Table Analysis interface in
+  the notebook skill reference, and clarify Data Space Analysis vector descriptors. (#148)
+
+
 ## v1.13.6 (2026-05-12)
 
 ### Documentation
