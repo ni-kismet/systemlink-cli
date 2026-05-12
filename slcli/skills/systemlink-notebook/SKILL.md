@@ -155,6 +155,9 @@ in the cell's `.metadata` field for SystemLink to recognize the parameters and o
 - `systemlink.version` must be `2` for most notebooks, or `1` for **Work Item Automations**
 - Supported parameter types: `string`, `integer`, `float`, `boolean`, `string[]`
 - Supported output types: `data_frame`, `scalar`, `string`, `string[]`
+- **Grafana restriction:** Notebooks intended for use in Grafana dashboards can only
+  output `data_frame` and `scalar` types. The `string` and `string[]` output types
+  are not supported by the Grafana plugin.
 
 ### Work Item Automations pattern
 

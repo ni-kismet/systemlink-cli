@@ -30,21 +30,32 @@ library and the service-specific SystemLink OpenAPI docs.
 
 ## Available Interfaces
 
-| Interface                    | Use Case                                                                                                                                                                                               |
-| ---------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
-| **Assets Grid**              | Report that adds a column to the Assets management grid                                                                                                                                                |
-| **Data Table Analysis**      | Analysis of data table contents                                                                                                                                                                        |
-| **Data Space Analysis**      | Analysis of data space contents                                                                                                                                                                        |
-| **File Analysis**            | Analysis of uploaded files                                                                                                                                                                             |
-| **Periodic Execution**       | Scheduled recurring notebook (e.g. daily/hourly reports)                                                                                                                                               |
-| **Resource Changed Routine** | Triggered when a resource changes (via v1 routines)                                                                                                                                                    |
-| **Specification Analysis**   | Analysis against specifications/limits                                                                                                                                                                 |
-| **Systems Grid**             | Report that adds a column to the Systems management grid                                                                                                                                               |
-| **Test Data Analysis**       | Analysis of test monitor results                                                                                                                                                                       |
-| **Test Data Extraction**     | Extract and transform test data                                                                                                                                                                        |
-| **Work Item Automations**    | Notebooks that can be manually executed on selected work items, or triggered by work item lifecycle events. **Use this for any notebook that acts on work items** (e.g. close, update status, assign). |
-| **Work Item Operations**     | Internal operations performed on work items by the system                                                                                                                                              |
-| **Work Item Scheduler**      | Scheduling logic for work items                                                                                                                                                                        |
+Reference: [Publishing a Jupyter Notebook (NI Docs)](https://www.ni.com/docs/en-US/bundle/systemlink-enterprise/page/publishing-a-jupyter-notebook.html)
+
+> **Note:** SystemLink Enterprise does not strictly enforce these interfaces. The specified
+> parameters pass to the notebook at execution time even if you do not implement the
+> required notebook metadata.
+
+| Interface                    | Use Case                                                                                                                                                                                               | Required Inputs | Required Outputs |
+| ---------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ | --------------- | ---------------- |
+| **Assets Grid**              | Not currently in use                                                                                                                                                                                   | — | — |
+| **Data Space Analysis**      | Analyze parametric data in a data space and calculate statistics                                                                                                                                       | `trace_data`: Dict[string, string] (artifact reference, e.g. `{'artifact_id': '...'}`)  `analysis_options`: string[]  `workspace_id`: string | List of analysis options: `[{display_name, id, type: scalar/vector}]` |
+| **File Analysis**            | Analyze a file or create a routine with a file change trigger                                                                                                                                          | `file_ids`: string[] | No output required |
+| **Periodic Execution**       | Scheduled recurring notebook (e.g. daily/hourly reports)                                                                                                                                               | No input required | No output required |
+| **Resource Changed Routine** | Triggered when a resource changes (via v1 routines)                                                                                                                                                    | `context`: dict containing `routine_id`, `correlation_id`, `triggered_at`, `resource_type`, `before` (snapshot before change), `after` (snapshot after change) | No output required |
+| **Specification Analysis**   | Analyze chosen specifications                                                                                                                                                                          | `spec_ids`: string[]  `product_id`: string | No output required |
+| **Systems Grid**             | Report that adds a column to the Systems management grid                                                                                                                                               | No input required | `data_frame` with `minion id` as first column. Example: `[{type:"data_frame", data:{values:[["minion-id-1", 3], ["minion-id-2", 0]]}}]` |
+| **Test Data Analysis**       | Analyze chosen test results                                                                                                                                                                            | `result_ids`: string[] | No output required |
+| **Test Data Extraction**     | Extract parametric data from files (BDC, STDF) and transform into test results, steps, and measurements                                                                                                | `file_id`: string  `part_number`: string  `notebook_id`: string | No output required |
+| **Work Item Automations**    | Perform automated actions on one or more work items for customer-specific use cases. Notebooks appear in the work items UI and can be manually triggered on selected items.                             | `work_item_ids`: string[] | No output required |
+| **Work Item Operations**     | Invoked by the system through the action of a work item execution                                                                                                                                      | `workItemId`: string  `systemId`: string  (may also receive user-defined parameters) | No output required |
+| **Work Item Scheduler**      | Schedule work items using a custom algorithm                                                                                                                                                           | `work_item_ids`: string[] | No output required |
+
+### Grafana Compatibility
+
+Notebooks whose outputs are consumed by the SystemLink Grafana plugin can only use
+`data_frame` and `scalar` output types. The `string` and `string[]` types are not
+supported by Grafana.
 
 ## Common Interface Patterns
 
