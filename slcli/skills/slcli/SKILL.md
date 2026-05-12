@@ -24,6 +24,16 @@ compatibility: >-
 metadata:
   author: ni-kismet
   version: "2.0"
+---
+
+## Command style
+
+Prefer long option names in generated commands and examples. Use `--format json`,
+`--take 25`, `--workspace Default`, and `--output path.json` instead of `-f json`,
+`-t 25`, `-w Default`, or `-o path.json`.
+
+Only mention short aliases when explicitly documenting that they exist.
+
 #   --system SYSTEM_ID    Assign a system (by minion/system ID). Repeatable.
 #   --fixture ASSET_ID    Assign a fixture/slot (by asset ID, asset type FIXTURE). Repeatable.
 #   --dut ASSET_ID        Assign a DUT (by asset ID, asset type DEVICE_UNDER_TEST). Repeatable.
@@ -36,22 +46,22 @@ slcli workitem schedule <WORK_ITEM_ID> \
   [--system SYSTEM_ID]... [--fixture ASSET_ID]... [--dut ASSET_ID]...
 
 # Work item template subgroup
-slcli workitem template list [-w WORKSPACE] [--filter TEXT] [-t INT] [-f json]
-slcli workitem template get <TEMPLATE_ID> [-f json]
-slcli workitem template create --name TEXT --type TEXT --template-group TEXT [-w WORKSPACE] [OPTIONS]
+slcli workitem template list [--workspace WORKSPACE] [--filter TEXT] [--take INT] [--format json]
+slcli workitem template get <TEMPLATE_ID> [--format json]
+slcli workitem template create --name TEXT --type TEXT --template-group TEXT [--workspace WORKSPACE] [OPTIONS]
 slcli workitem template update <TEMPLATE_ID> [--name TEXT] [--description TEXT] [--summary TEXT]
 slcli workitem template delete <TEMPLATE_ID>... [--yes]
 
 # Workflow subgroup
-slcli workitem workflow list [-w WORKSPACE] [-t INT] [-f json]
-slcli workitem workflow get [--id WORKFLOW_ID] [--name NAME] [-f json]
+slcli workitem workflow list [--workspace WORKSPACE] [--take INT] [--format json]
+slcli workitem workflow get [--id WORKFLOW_ID] [--name NAME] [--format json]
 slcli workitem workflow init [--name TEXT] [--directory DIR]   # Scaffold a local workflow file
-slcli workitem workflow create --file PATH [-w WORKSPACE]      # Create from JSON file
-slcli workitem workflow import --file PATH [-w WORKSPACE]      # Import workflow from JSON
-slcli workitem workflow export [--id WORKFLOW_ID] [--name NAME] [-o FILE]  # Export to JSON
+slcli workitem workflow create --file PATH [--workspace WORKSPACE]      # Create from JSON file
+slcli workitem workflow import --file PATH [--workspace WORKSPACE]      # Import workflow from JSON
+slcli workitem workflow export [--id WORKFLOW_ID] [--name NAME] [--output FILE]  # Export to JSON
 slcli workitem workflow update --id WORKFLOW_ID --file PATH    # Update from JSON file
 slcli workitem workflow delete --id WORKFLOW_ID [--yes]
-slcli workitem workflow preview [--file PATH] [--id WORKFLOW_ID] [--html] [--no-open] [-o FILE]
+slcli workitem workflow preview [--file PATH] [--id WORKFLOW_ID] [--html] [--no-open] [--output FILE]
 ```
 
 **Create work item options:**
@@ -82,9 +92,9 @@ Scaffold, package, and publish custom web applications to SystemLink.
 ```bash
 slcli webapp init <DIRECTORY>                      # Scaffold the Angular starter
 slcli webapp manifest init <DIRECTORY> [OPTIONS]  # Create nipkg.config.json for packaging
-slcli webapp pack [FOLDER] [--config FILE] [-o OUTPUT_FILE]  # Package a webapp into a .nipkg
-slcli webapp list [-w WORKSPACE] [-t INT] [-f json]
-slcli webapp get <WEBAPP_ID> [-f json]
+slcli webapp pack [FOLDER] [--config FILE] [--output OUTPUT_FILE]  # Package a webapp into a .nipkg
+slcli webapp list [--workspace WORKSPACE] [--take INT] [--format json]
+slcli webapp get <WEBAPP_ID> [--format json]
 slcli webapp publish PATH [--workspace NAME]             # Upload and publish a webapp
 slcli webapp delete <WEBAPP_ID>
 slcli webapp open <WEBAPP_ID>                            # Open webapp URL in browser
@@ -95,19 +105,19 @@ slcli webapp open <WEBAPP_ID>                            # Open webapp URL in br
 Create, inspect, import, export, and revert saved software states managed by the SystemLink Systems State service.
 
 ```bash
-slcli state list [-w WORKSPACE] [--architecture CHOICE] [--distribution CHOICE] [-t INT] [-f json]
-slcli state get <STATE_ID> [-f json]
+slcli state list [--workspace WORKSPACE] [--architecture CHOICE] [--distribution CHOICE] [--take INT] [--format json]
+slcli state get <STATE_ID> [--format json]
 slcli state create --name TEXT --distribution CHOICE --architecture CHOICE [OPTIONS]
 slcli state update <STATE_ID> [OPTIONS]
 slcli state delete <STATE_ID> [--yes]
 
 slcli state import --name TEXT --distribution CHOICE --architecture CHOICE --file PATH [OPTIONS]
-slcli state replace-content <STATE_ID> --file PATH [--change-description TEXT] [-f json]
+slcli state replace-content <STATE_ID> --file PATH [--change-description TEXT] [--format json]
 slcli state export <STATE_ID> [--version VERSION] [--inline | --output FILE]
 slcli state capture <SYSTEM_ID> [--inline | --output FILE]
 
-slcli state history <STATE_ID> [-t INT] [-f json]
-slcli state version <STATE_ID> <VERSION> [-f json]
+slcli state history <STATE_ID> [--take INT] [--format json]
+slcli state version <STATE_ID> <VERSION> [--format json]
 slcli state revert <STATE_ID> <VERSION> [--yes]
 ```
 
@@ -148,7 +158,7 @@ Install pre-built demo configurations (systems, assets, DUTs, templates, etc.)
 for training, testing, or evaluation.
 
 ```bash
-slcli example list [-f json]                             # List available examples
+slcli example list [--format json]                       # List available examples
 slcli example info <EXAMPLE_ID>                          # Show example details
 slcli example install <EXAMPLE_ID> [--workspace NAME]    # Provision example resources
 slcli example delete <EXAMPLE_ID> [--workspace NAME]     # Remove provisioned resources
@@ -175,7 +185,7 @@ SystemLink Enterprise (SLE) or require a specific microservice to be deployed.
 
 ```bash
 slcli info                # Shows platform type and service health
-slcli info -f json        # Machine-readable; check .services for per-service status
+slcli info --format json # Machine-readable; check .services for per-service status
 ```
 
 | Command group                | Required service     | SLE | SLS | Notes                                   |
@@ -231,7 +241,7 @@ to disable caching for debugging.
 
 ## Key rules
 
-1. **Always use `-f json`** when piping output to `jq` or doing programmatic analysis.
+1. **Always use `--format json`** when piping output to `jq` or doing programmatic analysis.
 2. **Use `--summary --group-by`** for aggregation instead of fetching all records and counting.
 3. **Use convenience filters first** (e.g., `--status FAILED`), fall back to `--filter` for complex queries.
 4. **Parameterize `--filter` queries** — use `--substitution` instead of string interpolation.

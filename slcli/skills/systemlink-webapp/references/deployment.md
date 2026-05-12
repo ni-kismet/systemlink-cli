@@ -33,12 +33,13 @@ tail -f /tmp/ng-build.log
 ## First deploy (no existing webapp)
 
 ```bash
-slcli webapp publish dist/<app-name>/browser/ -w <workspace-name>
+slcli webapp publish dist/<app-name>/browser/ --workspace <workspace-name>
 ```
 
 The command prints the new webapp ID. **Save it** — you need it for every future redeploy and for `slcli webapp open`.
 
 Example output:
+
 ```
 Created webapp: 3727d9ac-86e1-4d6e-820e-d2630c1b28e9
 ```
@@ -48,7 +49,7 @@ Created webapp: 3727d9ac-86e1-4d6e-820e-d2630c1b28e9
 ## Redeploy (update existing webapp)
 
 ```bash
-slcli webapp publish dist/<app-name>/browser/ -w <workspace-name> -i <webapp-id>
+slcli webapp publish dist/<app-name>/browser/ --workspace <workspace-name> --id <webapp-id>
 ```
 
 ---
@@ -56,7 +57,7 @@ slcli webapp publish dist/<app-name>/browser/ -w <workspace-name> -i <webapp-id>
 ## Open in browser
 
 ```bash
-slcli webapp open -i <webapp-id>
+slcli webapp open --id <webapp-id>
 ```
 
 ---
@@ -64,7 +65,7 @@ slcli webapp open -i <webapp-id>
 ## List webapps
 
 ```bash
-slcli webapp list -w <workspace-name>
+slcli webapp list --workspace <workspace-name>
 ```
 
 ---
@@ -72,7 +73,7 @@ slcli webapp list -w <workspace-name>
 ## Delete a webapp
 
 ```bash
-slcli webapp delete -i <webapp-id>
+slcli webapp delete --id <webapp-id>
 ```
 
 ---
@@ -116,6 +117,7 @@ Before publishing, verify:
 ### "Budget exceeded" build error
 
 Increase error limits in `angular.json`:
+
 ```json
 "budgets": [
   { "type": "initial", "maximumWarning": "1MB", "maximumError": "2MB" }

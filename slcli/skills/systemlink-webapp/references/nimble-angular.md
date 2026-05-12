@@ -1,5 +1,7 @@
 # Nimble Angular — Template & Usage Reference
 
+If you need a quick inventory across `@ni/nimble-angular`, `@ni/spright-angular`, and `@ni/ok-angular` before picking components, read [angular-ui-packages.md](./angular-ui-packages.md) first. This file stays focused on Nimble-specific usage patterns once you already know you need Nimble components.
+
 ## Wrapper-first rule
 
 When building Angular apps with Nimble, use `@ni/nimble-angular` wrapper modules as the default integration path.

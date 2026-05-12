@@ -20,6 +20,84 @@ argument-hint: 'Describe the notebook purpose and what data it should report on'
 - Creating a test data analysis notebook
 - Deploying a notebook to SystemLink via `slcli`
 
+## Important: Python Client Quirks
+
+The `nisystemlink-clients` Python package has a few ergonomics quirks to be aware of:
+
+### API naming inconsistency
+
+Client methods use Python `snake_case`, but request model fields use `camelCase`. This requires careful attention:
+
+```python
+# ❌ WRONG: Using Python snake_case (very intuitive but incorrect)
+CreateResultRequest(program_name="My Test", file_ids=[file_id])
+
+# ✅ CORRECT: Must use camelCase field names from the request model
+CreateResultRequest(programName="My Test", fileIds=[file_id])
+
+# Methods stay snake_case:
+client.create_results(request)  # This is correct
+client.create_steps(...)         # This is correct
+```
+
+Always check the request model constructor signature, not what "feels" Pythonic.
+
+### Partial-success responses
+
+Operations like `create_results()` and `create_steps()` return partial-success wrapper types
+(e.g., `CreateStepsPartialSuccess`) even when successful. These contain both success and failure data:
+
+```python
+from nisystemlink.clients.testmonitor import TestMonitorClient
+from nisystemlink.clients.testmonitor.models import CreateStepRequest
+
+client = TestMonitorClient()
+response = client.create_steps([CreateStepRequest(...)])
+
+# Success and failures are both in the response
+if response.failed:
+    print(f"Failed to create {len(response.failed)} steps")
+if response.created:
+    print(f"Successfully created {len(response.created)} steps")
+```
+
+### Limited service coverage
+
+The Python client does **not cover all SystemLink services**. The most important gaps for notebooks (see the [client repo](https://github.com/ni/nisystemlink-clients-python) for the current full list):
+
+- ❌ **Notebook Execution** — no Python client for execution lifecycle management
+- ❌ **Routines v1/v2** — no Python client for scheduling/triggering
+- ❌ **Systems State** — no Python client for system health queries
+- ❌ **Comments** — no Python client for resource annotations
+- ❌ **User Data** — no Python client for key-value stores
+- ❌ **Tag Historian** — no Python client for time-series history
+
+For these services, use REST calls directly via the `requests` library or SystemLink's OpenAPI SDKs.
+
+### Public import paths
+
+This skill uses two distinct Python SDK namespaces — be careful not to mix them:
+
+- **`nisystemlink.clients.*`** — the typed Python client (`nisystemlink-clients` package). Use public top-level imports.
+- **`systemlink.clients.nisysmgmt.*`** — a separate OpenAPI-generated SDK used only for Systems queries.
+
+For `nisystemlink.clients`, always import from the public top-level modules, not private `_module` paths:
+
+```python
+# ✅ CORRECT: Public paths (nisystemlink-clients)
+from nisystemlink.clients.file import FileClient
+from nisystemlink.clients.testmonitor import TestMonitorClient
+from nisystemlink.clients.testmonitor.models import CreateResultRequest, CreateStepRequest
+
+# ❌ WRONG: Private module paths (may change or be removed)
+from nisystemlink.clients.testmonitor._test_monitor_client import TestMonitorClient
+from nisystemlink.clients.testmonitor.models._create_result_request import CreateResultRequest
+
+# Separate SDK — used only for Systems queries:
+from systemlink.clients.nisysmgmt.api.systems_api import SystemsApi
+from systemlink.clients.nisysmgmt.models.query_systems_request import QuerySystemsRequest
+```
+
 ## Notebook Structure
 
 Every SystemLink notebook follows this cell pattern:
@@ -199,33 +277,59 @@ import scrapbook as sb
 from systemlink.clients.nisysmgmt.api.systems_api import SystemsApi
 from systemlink.clients.nisysmgmt.models.query_systems_request import QuerySystemsRequest
 
-# Test results
+# Test results (remember: camelCase field names in request models)
 from nisystemlink.clients.testmonitor import TestMonitorClient
+from nisystemlink.clients.testmonitor.models import CreateResultRequest, CreateStepRequest
 from nisystemlink.clients.core import HttpConfigurationManager
 
 # Assets
 from nisystemlink.clients.assetmanagement import AssetManagementClient
 
-# Direct HTTP (when no typed client exists)
+# Direct HTTP (when no typed client exists or for missing services)
 import requests
 config = HttpConfigurationManager.get_configuration()
 base_url = config.server_uri.rstrip("/")
-headers = {"x-ni-api-key": config.api_keys[0]}
+api_keys = getattr(config, "api_keys", {})
+api_key = api_keys.get("x-ni-api-key") if isinstance(api_keys, dict) else None
+if not api_key:
+  raise RuntimeError("Configure an x-ni-api-key before using REST fallbacks.")
+headers = {"x-ni-api-key": api_key}
 ```
+
+### Available Python client services
+
+The Python client covers these **15 main services**:
+- `alarm`, `artifact`, `assetmanagement`, `dataframe`, `feeds`, `file`, `notebook`,
+  `notification`, `product`, `spec`, `systems`, `tag`, `test_plan`, `testmonitor`, `work_item`
+
+### Missing services (use REST directly)
+
+If you need these services, call the REST API directly using `requests` and the OpenAPI docs:
+- **Notebook Execution** — execution lifecycle (use OpenAPI directly)
+- **Routines v1/v2** — scheduling/triggering (use OpenAPI directly)
+- **Systems State** — system health/connection status (use OpenAPI directly)
+- **Comments** — resource annotations (use OpenAPI directly)
+- **User Data** — key-value stores (use OpenAPI directly)
+- **Tag Historian** — time-series history (use OpenAPI directly)
+- **Auth**, **User**, and others — see full list in service-gaps documentation
 
 ## Client and API References
 
-- Prefer the official Python client libraries when they cover the target service:
+- **Python client repository** — full source and examples:
   https://github.com/ni/nisystemlink-clients-python
-- If a SystemLink service does not have a Python client yet, call the REST API
-  directly and use the hosted OpenAPI docs to discover endpoints and schemas:
+- **SystemLink OpenAPI docs** — for all services, including those without Python clients:
   https://demo-api.lifecyclesolutions.ni.com/niapis/
-- For notebook patterns and end-to-end examples, check the SystemLink Enterprise
-  examples repository:
+- **SystemLink Enterprise examples** — end-to-end patterns:
   https://github.com/ni/systemlink-enterprise-examples/
 
-When using direct HTTP, prefer the OpenAPI docs first to confirm the service base
-path, request body shape, and response schema before writing notebook code.
+When using the Python client:
+- Always check the request model constructor signature for camelCase field names (they won't match Python snake_case)
+- Expect `create_*` operations to return partial-success wrapper types; inspect `.created` and `.failed` attributes
+- Use public import paths from top-level modules, not private `_module` paths
+
+When a service lacks a Python client, use OpenAPI docs to discover the endpoint path,
+request body shape, and response schema before writing HTTP calls.
+
 ## Systems Query Pattern
 
 The `SystemsApi` uses a projection/filter pattern for querying:

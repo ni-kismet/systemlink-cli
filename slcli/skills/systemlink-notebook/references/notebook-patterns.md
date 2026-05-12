@@ -2,6 +2,10 @@
 
 Annotated examples of common SystemLink notebook patterns.
 
+⚠️ **Important:** The Python client mixes Pythonic `snake_case` method names with `camelCase` request-model field names.
+See the main skill documentation for details on this quirk and other client ergonomics issues. Always verify the
+request model constructor signature before using — intuitive Python names will **not** work.
+
 ---
 
 ## Pattern 1: Systems Grid Column Report
@@ -12,15 +16,19 @@ a `data_frame` output that the Systems Grid can display as a column.
 ### Full annotated example (Package Version)
 
 **Cell 1 — Imports description (markdown)**
+
 ```markdown
 ### Imports
+
 Import Python modules for executing the notebook.
- - Pandas is used for building and handling dataframes.
- - Scrapbook is used for recording data for the Notebook Execution Service.
- - SystemsApi is an NI provided package for communicating with the SystemLink Systems service.
+
+- Pandas is used for building and handling dataframes.
+- Scrapbook is used for recording data for the Notebook Execution Service.
+- SystemsApi is an NI provided package for communicating with the SystemLink Systems service.
 ```
 
 **Cell 2 — Imports (code)**
+
 ```python
 import re
 import pandas as pd
@@ -31,18 +39,21 @@ from systemlink.clients.nisysmgmt.models.query_systems_request import QuerySyste
 ```
 
 **Cell 3 — Parameters description (markdown)**
+
 ```markdown
 ### Parameters
- - `group_by`: The property by which data is grouped. For the data to appear
-   as a column in the Systems Grid, we must support 'System' here.
- - `package`: The Package Name of the software to display the version of.
- - `systems_filter`: A filter specifying which systems to query.
-   An empty filter matches all systems.
+
+- `group_by`: The property by which data is grouped. For the data to appear
+  as a column in the Systems Grid, we must support 'System' here.
+- `package`: The Package Name of the software to display the version of.
+- `systems_filter`: A filter specifying which systems to query.
+  An empty filter matches all systems.
 ```
 
 **Cell 4 — Parameters (code, with metadata)**
 
 The code cell declares variables with defaults:
+
 ```python
 group_by = "System"
 package = "ni-daqmx"
@@ -50,6 +61,7 @@ systems_filter = ""
 ```
 
 The cell metadata must include:
+
 ```json
 {
   "papermill": {
@@ -92,11 +104,13 @@ The cell metadata must include:
 ```
 
 **Cell 5 — Query description (markdown)**
+
 ```markdown
 ### Query for Systems with the specified package and get the Package Version
 ```
 
 **Cell 6 — Query (code)**
+
 ```python
 api = SystemsApi()
 
@@ -133,11 +147,13 @@ data = await query_result
 ```
 
 **Cell 7 — Dataframe description (markdown)**
+
 ```markdown
 ### Extract Package data from query results and create pandas dataframe
 ```
 
 **Cell 8 — Dataframe (code)**
+
 ```python
 pkg_version = { item['id'] : item['displayversion'] for item in data.data }
 df = pd.DataFrame.from_dict(pkg_version, orient='index', columns=['Package Version'])
@@ -145,11 +161,13 @@ df
 ```
 
 **Cell 9 — Output description (markdown)**
+
 ```markdown
 ### Convert dataframe to result format that the Systems Grid can interpret
 ```
 
 **Cell 10 — Output with sb.glue (code)**
+
 ```python
 df_dict = {
     'columns': ['minion id', 'package version'],
@@ -167,8 +185,10 @@ sb.glue('result', result)
 ```
 
 **Cell 11 — Usage instructions (markdown)**
+
 ```markdown
 ### View the output of this report in the Systems Grid
+
 1. Upload this notebook to the reports folder in SystemLink Jupyter
 2. From the Systems page, press the edit grid button
 3. Press '+ ADD' and select 'Notebook' as the data source
@@ -183,7 +203,12 @@ sb.glue('result', result)
 
 Query test results and return a summary. Uses `nisystemlink.clients.testmonitor`.
 
+**⚠️ API Quirk:** Request models in the TestMonitor client use camelCase field names.
+Constructor calls like `CreateResultRequest(programName="...", fileIds=[...])` are required.
+Using intuitive Python `snake_case` names will fail.
+
 **Parameters cell metadata:**
+
 ```json
 {
   "papermill": {
@@ -204,10 +229,22 @@ Query test results and return a summary. Uses `nisystemlink.clients.testmonitor`
       }
     ],
     "parameters": [
-      {"display_name": "Group by", "id": "group_by", "type": "string"},
-      {"display_name": "Program Name", "id": "program_name", "type": "string"},
-      {"display_name": "Status Filter", "id": "status_filter", "type": "string"},
-      {"display_name": "Systems Filter", "id": "systems_filter", "type": "string"}
+      { "display_name": "Group by", "id": "group_by", "type": "string" },
+      {
+        "display_name": "Program Name",
+        "id": "program_name",
+        "type": "string"
+      },
+      {
+        "display_name": "Status Filter",
+        "id": "status_filter",
+        "type": "string"
+      },
+      {
+        "display_name": "Systems Filter",
+        "id": "systems_filter",
+        "type": "string"
+      }
     ],
     "version": 2
   },
@@ -216,6 +253,7 @@ Query test results and return a summary. Uses `nisystemlink.clients.testmonitor`
 ```
 
 **Query pattern:**
+
 ```python
 from nisystemlink.clients.testmonitor import TestMonitorClient
 from nisystemlink.clients.core import HttpConfigurationManager
@@ -231,6 +269,7 @@ results = client.get_results(
 ```
 
 **Output pattern (same as Pattern 1):**
+
 ```python
 result = [{
     "display_name": "Test Summary",
@@ -251,6 +290,7 @@ sb.glue('result', result)
 When the notebook returns a single value instead of a table.
 
 **Output metadata:**
+
 ```json
 {
   "systemlink": {
@@ -266,6 +306,7 @@ When the notebook returns a single value instead of a table.
 ```
 
 **Output code:**
+
 ```python
 result = [{
     "display_name": "Total Count",
