@@ -38,7 +38,7 @@ Before generating code, clarify only the details that change the implementation:
 4. Auth context: same-origin hosted app versus remote/dev API-key flow.
 5. Deployment target: ordinary hosted webapp only, or Plugin Manager package as well.
 
-Do not ask about Angular or Nimble versions unless the user is constrained by an existing project. Default to Angular 20 and the latest compatible `@ni/nimble-angular`.
+Do not ask about Angular or Nimble versions unless the user is constrained by an existing project. Default to Angular 20 and the latest compatible `@ni/nimble-angular`, but verify the installed versions immediately after scaffold instead of assuming the generator produced the expected combination.
 
 For new SystemLink apps, recommend installing the NI Angular UI packages together unless the user is intentionally minimizing dependencies. `@ni/nimble-angular` remains the default foundation, `@ni/spright-angular` adds Spright chat and icon components, and `@ni/ok-angular` adds OK-specific controls such as accordion items and search input.
 
@@ -56,10 +56,30 @@ Then generate Angular in that starter directory so the SystemLink scaffolding st
 
 ```bash
 npx -y @angular/cli@20 new <app-name> --directory . --routing --style=scss --skip-git --no-standalone --defaults --force
-npm install @ni/nimble-angular @ni/spright-angular @ni/ok-angular @ni/systemlink-clients-ts
+npm install @ni/nimble-angular @ni/nimble-components @ni/unit-format @ni/spright-angular @ni/ok-angular @ni/systemlink-clients-ts @angular/localize
+npm install --save-dev @angular-devkit/build-angular
 ```
 
 Prefer NgModule-based apps for this workflow. The Nimble Angular wrapper modules fit naturally into a centralized `AppModule`, which reduces template surprises and keeps imports explicit.
+
+Immediately after scaffold, inspect `package.json` and `angular.json` before building features. The generator or migrations may leave the workspace on the wrong Angular major or on a builder configuration that does not bundle `@ni/nimble-angular` cleanly.
+
+For the currently supported path, standardize on:
+
+- Angular 20.x
+- `@ni/nimble-angular` 33.2.x
+- `@ni/nimble-components` 35.8.x
+- `@ni/unit-format` 1.0.4+
+- `@angular/localize` installed and added to build and test polyfills
+
+If the workspace ends up on `@angular/build:application` and Nimble fails to bundle with `Could not resolve '@ni/nimble-components/dist/esm/...'`, switch `angular.json` back to the legacy Angular builders:
+
+- `@angular-devkit/build-angular:browser`
+- `@angular-devkit/build-angular:dev-server`
+- `@angular-devkit/build-angular:extract-i18n`
+- `@angular-devkit/build-angular:karma`
+
+This fallback is not optional when the Nimble packages fail under the application builder. Fix the builder mismatch before implementing more UI.
 
 Recommend installing `@ni/spright-angular` and `@ni/ok-angular` early even if the first slice only uses Nimble. That avoids dependency churn later when the UI needs chat surfaces, product-specific icons, accordion items, or the OK search input.
 
@@ -76,6 +96,8 @@ These decisions prevent the most common hosted-webapp failures:
 - Do not add `CUSTOM_ELEMENTS_SCHEMA` just to silence missing Nimble module imports.
 - Put theme-aware color and shadow aliases on `nimble-theme-provider`, not on `:root`.
 - Import `@angular/localize/init` in Angular polyfills for both build and test paths.
+- Import Nimble fonts once in the root `src/styles.scss` with `@use '@ni/nimble-angular/styles/fonts' as *;`. Without this, Nimble components render with fallback system fonts instead of the required Source Sans Pro typeface.
+- Run a production build immediately after setup changes. Do not postpone the first `npm run build` until after the UI is implemented.
 
 If you need the exact module patterns or template wiring, load [references/nimble-angular.md](./references/nimble-angular.md).
 If you need a concise package-level inventory before choosing components, load [references/angular-ui-packages.md](./references/angular-ui-packages.md).
@@ -89,6 +111,16 @@ Use SystemLink-appropriate layout defaults instead of inventing page structure f
 - Use drawers or collapsible side panels for settings and filters.
 - Use accordions for grouped fields and advanced configuration.
 - Use cards sparingly for summaries, not as the default editing or data layout.
+
+Treat Nimble alignment as a requirement, not a style preference:
+
+- Use Nimble controls for primary actions, selection, inputs, status, and data display.
+- Use raw HTML elements mostly for semantic grouping, layout wrappers, and text structure.
+- Do not build custom-styled buttons, inputs, dropdowns, tabs, or pseudo-cards when Nimble already provides the interaction primitive.
+- Prefer Nimble spacing, borders, focus states, and theme tokens over bespoke visual treatments.
+- If a page starts to look like a generic marketing dashboard instead of a SystemLink tool, pull it back toward table/list-detail, drawers, banners, tabs, and structured metadata panels.
+
+The goal is a webapp that feels native to the SystemLink shell, not an arbitrary Angular site hosted inside it.
 
 Load [references/layout-patterns.md](./references/layout-patterns.md) when the task turns into page composition, spacing, or shell layout work.
 
@@ -117,6 +149,14 @@ When the user asks for implementation, prefer one working slice over a full app 
 - one error banner
 - one settings/control path only if required
 
+For a new app, the first vertical slice should also prove the setup:
+
+- scaffold completes
+- Angular and NI package versions are compatible
+- the app builds successfully
+- one Nimble-based route renders
+- one real SystemLink query works in the hosted shell
+
 This keeps context narrow and usually reveals the real integration blockers faster than broad scaffolding.
 
 ### 6. Publish or package only after the hosted constraints are covered
@@ -137,6 +177,7 @@ Always verify:
 - the browser console is clear of blocking errors
 - the correct SystemLink data loads
 - light/dark theme switching updates the app in real time
+- the page still reads as a Nimble/SystemLink experience rather than a custom HTML dashboard
 
 Load [references/troubleshooting.md](./references/troubleshooting.md) for the hosted validation flow and symptom-based fixes.
 
@@ -145,14 +186,20 @@ Load [references/troubleshooting.md](./references/troubleshooting.md) for the ho
 Before you consider a SystemLink webapp slice correct, confirm all of the following:
 
 - Angular 20 workspace created in the intended starter directory.
+- Angular and NI package versions verified after scaffold, not assumed.
+- `@ni/nimble-components`, `@ni/unit-format`, `@angular/localize`, and `@angular-devkit/build-angular` installed when using `@ni/nimble-angular`.
+- `angular.json` uses builders that are known to bundle Nimble successfully.
 - `AppModule` provides `APP_BASE_HREF`.
 - `index.html` does not contain a `<base>` element.
 - Router uses `useHash: true`.
 - Production build disables `inlineCritical`.
+- Root `src/styles.scss` imports `@use '@ni/nimble-angular/styles/fonts' as *;`.
 - Nimble Angular modules are imported explicitly.
+- Primary interaction controls use Nimble wrappers rather than custom HTML surrogates.
 - No hardcoded colors in component SCSS.
 - Theme-aware aliases live on `nimble-theme-provider`.
 - API client uses the correct SystemLink service base URL.
+- `npm run build` passes before publish.
 - Hosted deployment is validated after publish.
 
 ## Default implementation stance
@@ -162,20 +209,26 @@ Use these defaults unless the user asks for a different tradeoff:
 - Angular 20
 - NgModule-based app
 - `@ni/nimble-angular`
+- `@ni/nimble-components`
+- `@ni/unit-format`
 - `@ni/spright-angular`
 - `@ni/ok-angular`
 - `@ni/systemlink-clients-ts`
 - table-first data presentation
 - same-origin cookie auth
 - long-form CLI flags in examples and commands
+- Nimble-first interaction design with minimal bespoke chrome
 
 ## Common mistakes to prevent up front
 
 - Treating the app like a normal root-hosted Angular SPA instead of an iframe/sub-path app.
+- Assuming the scaffolded Angular major or builder is already correct for Nimble.
+- Waiting until the end of implementation to run the first production build.
 - Checking only the `theme` attribute instead of verifying resolved Nimble tokens.
 - Putting theme-aware aliases on `:root`.
 - Overriding SDK base URLs with incomplete service prefixes.
 - Using raw HTML controls where Nimble primitives should define the interaction model.
+- Letting the page drift into a custom dashboard aesthetic that ignores Nimble interaction and spacing patterns.
 - Loading too much reference material before the task requires it.
 
 ## When to escalate into the references

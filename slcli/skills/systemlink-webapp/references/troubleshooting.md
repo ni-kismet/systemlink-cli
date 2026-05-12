@@ -46,6 +46,7 @@ If the `theme` attribute changes but the colors do not:
 | Error or symptom                          | Likely cause                                          | Fix                                                                              |
 | ----------------------------------------- | ----------------------------------------------------- | -------------------------------------------------------------------------------- |
 | `$localize is not defined`                | Angular localize polyfill missing                     | Add `@angular/localize/init` to Angular polyfills                                |
+| `Could not resolve '@ni/nimble-components/dist/esm/...'` during build | Nimble package layout not bundling under Angular application builder | Install `@angular-devkit/build-angular` and switch `angular.json` back to the legacy browser/dev-server builders |
 | NG04002 or blank screen                   | Path routing under SystemLink sub-path                | Use hash routing                                                                 |
 | CSP `base-uri` error                      | `<base>` tag present                                  | Remove `<base>` and provide `APP_BASE_HREF` via DI                               |
 | CSP `unsafe-inline` error from styles     | Critical CSS inlining injected handlers               | Set `inlineCritical: false`                                                      |
@@ -63,6 +64,7 @@ If the `theme` attribute changes but the colors do not:
 - confirm `nimble-theme-provider` is present
 - confirm the required Nimble Angular modules are imported
 - confirm the app uses Nimble components instead of native HTML controls for primary interactions
+- confirm the page is not relying on custom-styled HTML buttons, inputs, or cards where Nimble controls should own the interaction
 
 ### App follows the shell theme attribute but colors still look wrong
 
@@ -76,6 +78,13 @@ If the `theme` attribute changes but the colors do not:
 - verify cookie auth versus API-key mode
 - verify the generated request body shape matches the real API
 
+### Build fails before the app ever runs
+
+- verify the Angular major matches the installed `@ni/nimble-angular` peer dependency
+- verify `@ni/nimble-components`, `@ni/unit-format`, and `@angular/localize` are installed
+- if the workspace uses `@angular/build:application` and Nimble imports fail to resolve, move back to `@angular-devkit/build-angular:browser`
+- rerun `npm run build` before changing more application code
+
 ### Dialogs or advanced overlays do not open
 
 - do not gate `nimble-dialog` with `*ngIf`
@@ -87,6 +96,7 @@ Before publishing or redeploying, verify:
 
 - no hardcoded colors remain in component styles
 - Nimble primitives are used for the main controls and data views
+- the page reads as a Nimble/SystemLink tool rather than a bespoke HTML dashboard
 - `APP_BASE_HREF` is provided and no `<base>` tag exists
 - routing uses `useHash: true`
 - production build disables `inlineCritical`
