@@ -154,7 +154,10 @@ in the cell's `.metadata` field for SystemLink to recognize the parameters and o
 - `tags: ["parameters"]` is **required** — this is how papermill identifies the cell
 - `systemlink.version` must be `2` for most notebooks, or `1` for **Work Item Automations**
 - Supported parameter types: `string`, `integer`, `float`, `boolean`, `string[]`
-- Supported output types: `data_frame`, `scalar`, `string`, `string[]`
+- Supported scrapbook output types: `data_frame`, `scalar`, `string`, `string[]`
+- Some interfaces define additional descriptor values outside the standard scrapbook output
+  types. For example, Data Space Analysis returns analysis option descriptors whose
+  `type` can be `scalar` or `vector`.
 - **Grafana restriction:** Notebooks intended for use in Grafana dashboards can only
   output `data_frame` and `scalar` types. The `string` and `string[]` output types
   are not supported by the Grafana plugin.
