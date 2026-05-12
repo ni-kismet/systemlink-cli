@@ -2,6 +2,17 @@
 
 <!-- towncrier release notes start -->
 
+## v1.13.6 (2026-05-12)
+
+### Documentation
+
+- Enrich systemlink-notebook agent skill with Python client service-gap guidance and API ergonomics notes; move example command to Configure group. (#143)
+
+### Other Changes
+
+- Refresh the locked Python dependencies in `poetry.lock`. (#147)
+
+
 ## v1.13.5 (2026-05-05)
 
 ### Other Changes
