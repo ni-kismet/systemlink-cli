@@ -2,6 +2,13 @@
 
 <!-- towncrier release notes start -->
 
+## v1.13.8 (2026-05-12)
+
+### Documentation
+
+- Update the SystemLink webapp skill documentation and reference guidance. (#149)
+
+
 ## v1.13.7 (2026-05-12)
 
 ### Documentation
