@@ -1,0 +1,1 @@
+Automate Towncrier fragment handling for dependency bot pull requests.
