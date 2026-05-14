@@ -2,6 +2,17 @@
 
 <!-- towncrier release notes start -->
 
+## v1.13.9 (2026-05-14)
+
+### Documentation
+
+- Improve `slcli routine` skill documentation and trigger guidance. (#146)
+
+### Other Changes
+
+- Automate Towncrier fragment handling for dependency bot pull requests. (dependency-bot-towncrier)
+
+
 ## v1.13.8 (2026-05-12)
 
 ### Documentation
