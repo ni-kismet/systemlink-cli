@@ -164,6 +164,52 @@ slcli example install <EXAMPLE_ID> [--workspace NAME]    # Provision example res
 slcli example delete <EXAMPLE_ID> [--workspace NAME]     # Remove provisioned resources
 ```
 
+### routine — Routine management
+
+`slcli routine` spans two different services with different trigger payload shapes.
+Document the API version and trigger schema explicitly when generating commands.
+
+#### v1 notebook routines
+
+Use `--api-version v1` for notebook-execution routines. These map to the
+Routine Manager API and use `--type`, `--notebook-id`, plus either `--trigger`
+or `--schedule`.
+
+Notes for v1 triggers:
+
+- `trigger.filter` is required by the v1 API schema for triggered routines.
+- The only trigger `source` documented by the swagger is `FILES`.
+- The documented `events` values are `CREATED` and `UPDATED`.
+- The simplest documented filter is `extension=".xml"`, but observed live examples also combine `workspace = ...` and `name.Contains(...)` checks.
+- Treat the filter string as service-owned syntax, not LINQ or OData. Do not rewrite it as `--filter` CLI syntax.
+- When working with an existing v1 routine, prefer `slcli routine get --api-version v1 <ID>` because the default API version is v2.
+
+#### v2 event-action routines
+
+Use the default `v2` API for event-action routines. These map to the newer
+Routine Service and use `--event` plus `--actions`.
+
+For v2 routines, there is no top-level `filter` field in the create/update
+request. Filtering is event-type-specific and lives inside
+`event.triggers[].configuration`.
+
+Notes for v2 triggers:
+
+- `event.type` selects the event provider/plugin.
+- `event.triggers[]` contains one or more named conditions.
+- Each trigger's `configuration` object is provider-specific; the v2 swagger does not enumerate a universal set of filter keys.
+- Some v2 providers do use a `configuration.filter` field, but it is part of the provider-specific trigger configuration, not a top-level routine field.
+- Other v2 providers use structured condition fields such as `path`, `type`, `comparator`, `thresholds`, and `deadband` instead of a `filter` string.
+- Do not assume the v1 file-trigger filter string syntax applies to v2 routines.
+- When documenting v2 routines, show the exact JSON shape and note that valid configuration keys depend on the event type.
+- Live survey on the demo environment found these v2 event types in use: `TAG`, `TESTRESULTCHANGED`, and `WORKITEMCHANGED`.
+- Live survey on the demo environment found these v2 action types in use: `ALARM` and `NOTEBOOK`.
+- Observed TAG routines also use comparator-driven configurations such as `IN_RANGE`, `NOT_EQUAL`, and `GREATER_THAN_OR_EQUAL`.
+- Observed `TESTRESULTCHANGED` and `WORKITEMCHANGED` filters use provider-specific expression syntax such as nested field comparisons, `after.properties["key"]`, `DateTime.parse(...)`, `.Any(...)`, and `!Contains(...)`.
+- Common NOTEBOOK action fields in v2 are `notebookId`, `parameters`, `resourceProfile`, `priority`, and `serviceAccount`.
+- ALARM-producing routines need the clear/reset action that uses trigger `nisystemlink_no_triggers_breached`.
+- Load [routine-examples.md](./references/routine-examples.md) for sanitized live examples of compound v1 FILES filters and advanced v2 configurations.
+
 ## Reference docs
 
 Consult these for detailed guidance. Load only what you need for the current task.
@@ -171,6 +217,7 @@ Consult these for detailed guidance. Load only what you need for the current tas
 | Topic                       | File                                                        | When to load                                                  |
 | --------------------------- | ----------------------------------------------------------- | ------------------------------------------------------------- |
 | CLI command reference       | [commands.md](./references/commands.md)                     | Looking up command syntax, options, or examples               |
+| Routine examples            | [routine-examples.md](./references/routine-examples.md)     | Provider-specific v1/v2 payload shapes and sanitized live examples |
 | Datasheet-to-specs workflow | [datasheet-workflow.md](./references/datasheet-workflow.md) | Importing specs from PDF, CSV, or structured text             |
 | Filtering guide             | [filtering.md](./references/filtering.md)                   | Advanced LINQ expressions, parameterized queries              |
 | Analysis recipes            | [analysis-recipes.md](./references/analysis-recipes.md)     | Multi-step analysis: yield, calibration, operator performance |

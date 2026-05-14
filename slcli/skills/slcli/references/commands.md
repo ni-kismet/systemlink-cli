@@ -358,6 +358,11 @@ Two API versions are supported:
 - **v2** (default): General event-action routines — monitor tags, work-item changes, and more; trigger alarms, emails, or notebook executions.
 - **v1**: Notebook-execution routines with SCHEDULED or TRIGGERED types.
 
+Observed on the demo environment:
+
+- v2 event types: `TAG`, `TESTRESULTCHANGED`, `WORKITEMCHANGED`
+- v2 action types: `ALARM`, `NOTEBOOK`
+
 ```bash
 # List routines
 slcli routine list [OPTIONS]
@@ -374,6 +379,9 @@ slcli routine list [OPTIONS]
 
 # Get a single routine by ID
 slcli routine get <ROUTINE_ID> [--api-version v1|v2] [-f json]
+
+# Note: the default API version is v2. Use --api-version v1 when reading or
+# updating notebook routines created through the older Routine Manager service.
 
 # Create a v2 event-action routine
 # --event: JSON object with `type` and `triggers` array
@@ -401,7 +409,10 @@ slcli routine create --api-version v1 \
   --name "On Upload" \
   --type TRIGGERED \
   --notebook-id <NOTEBOOK_ID> \
-  --trigger '{"source":"FILES","events":["CREATED"],"filter":"extension=\".csv\""}'
+  --trigger '{"source":"FILES","events":["CREATED"],"filter":"extension=\".xml\""}'
+
+# For compound FILES filters and provider-specific live examples, load
+# routine-examples.md in this folder.
 
 # Update a routine (only supplied fields are changed)
 slcli routine update <ROUTINE_ID> [--api-version v1|v2] \
@@ -420,6 +431,10 @@ slcli routine delete <ROUTINE_ID> [--api-version v1|v2] [-y]
 
 ### v2 event JSON structure
 
+For v2 routines, there is no top-level routine `filter` field. Filtering is
+provider-specific and belongs inside `event.triggers[].configuration` when the
+provider supports it.
+
 ```json
 {
   "type": "TAG",
@@ -437,8 +452,40 @@ slcli routine delete <ROUTINE_ID> [--api-version v1|v2] [-y]
 }
 ```
 
-Supported TAG comparators: `GREATER_THAN`, `LESS_THAN`, `EQUAL`, `NOT_EQUAL`.
+Observed TAG comparators include `GREATER_THAN`, `GREATER_THAN_OR_EQUAL`, `LESS_THAN`, `EQUAL`, `NOT_EQUAL`, and `IN_RANGE`.
 Tag data types: `DOUBLE`, `INT32`, `U_INT64`, `STRING`, `BOOLEAN`.
+
+Some v2 providers use a string filter inside trigger configuration instead of
+structured comparator/path fields. Example from a `WORKITEMCHANGED` routine:
+
+```json
+{
+  "type": "WORKITEMCHANGED",
+  "triggers": [
+    {
+      "name": "8f4db567-9686-4e4b-ac2c-31345cb01691",
+      "configuration": {
+        "filter": "(before.assignedTo != after.assignedTo) && (after.assignedTo = \"a69caa22-7e24-445f-8e9f-084ed98ff6e3\")"
+      }
+    }
+  ]
+}
+```
+
+Another observed string-filter provider is `TESTRESULTCHANGED`:
+
+```json
+{
+  "type": "TESTRESULTCHANGED",
+  "triggers": [
+    {
+      "configuration": {
+        "filter": "(before.status != after.status) && (after.programName = \"...\")"
+      }
+    }
+  ]
+}
+```
 
 ### v2 actions JSON structure
 
@@ -465,44 +512,13 @@ Tag data types: `DOUBLE`, `INT32`, `U_INT64`, `STRING`, `BOOLEAN`.
 
 The second ALARM entry with trigger `nisystemlink_no_triggers_breached` is required by the API — it handles the alarm clear/reset state. Email notifications are delivered via `dynamicRecipientList` inside the ALARM action configuration. Severity levels: 1 (low) – 4 (critical).
 
-### Full example: tag threshold monitor with alarm + email
+Load [routine-examples.md](./routine-examples.md) for sanitized live examples covering:
 
-```bash
-slcli routine create \
-  --name "Fred Tag Monitor" \
-  --description "Alert when fred.test.* exceeds 10.2" \
-  --enabled \
-  --event '{
-    "type": "TAG",
-    "triggers": [{
-      "name": "a1b2c3d4-e5f6-7890-abcd-ef1234567890",
-      "configuration": {
-        "comparator": "GREATER_THAN",
-        "path": "fred.test.*",
-        "thresholds": ["10.2"],
-        "type": "DOUBLE"
-      }
-    }]
-  }' \
-  --actions '[
-    {
-      "type": "ALARM",
-      "triggers": ["a1b2c3d4-e5f6-7890-abcd-ef1234567890"],
-      "configuration": {
-        "displayName": "Fred Test Tag Alarm",
-        "description": "Tag fred.test.* exceeded 10.2",
-        "severity": 4,
-        "condition": "Greater than: 10.2",
-        "dynamicRecipientList": ["fred.visser@emerson.com"]
-      }
-    },
-    {
-      "type": "ALARM",
-      "triggers": ["nisystemlink_no_triggers_breached"],
-      "configuration": null
-    }
-  ]'
-```
+- v1 FILES filters that combine workspace checks, `name.Contains(...)`, and extension matching
+- v2 TAG routines using `IN_RANGE`, `NOT_EQUAL`, and `GREATER_THAN_OR_EQUAL`
+- v2 `TESTRESULTCHANGED` filters with nested field checks, indexed property access, and `DateTime.parse(...)`
+- v2 `WORKITEMCHANGED` filters with `.Any(...)` and `!Contains(...)`
+- Representative NOTEBOOK and ALARM action payloads
 
 ## comment — Resource comments
 
