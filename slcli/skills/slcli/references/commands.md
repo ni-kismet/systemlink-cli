@@ -358,6 +358,11 @@ Two API versions are supported:
 - **v2** (default): General event-action routines — monitor tags, work-item changes, and more; trigger alarms, emails, or notebook executions.
 - **v1**: Notebook-execution routines with SCHEDULED or TRIGGERED types.
 
+Observed on the demo environment:
+
+- v2 event types: `TAG`, `TESTRESULTCHANGED`, `WORKITEMCHANGED`
+- v2 action types: `ALARM`, `NOTEBOOK`
+
 ```bash
 # List routines
 slcli routine list [OPTIONS]
@@ -374,6 +379,9 @@ slcli routine list [OPTIONS]
 
 # Get a single routine by ID
 slcli routine get <ROUTINE_ID> [--api-version v1|v2] [-f json]
+
+# Note: the default API version is v2. Use --api-version v1 when reading or
+# updating notebook routines created through the older Routine Manager service.
 
 # Create a v2 event-action routine
 # --event: JSON object with `type` and `triggers` array
@@ -401,7 +409,7 @@ slcli routine create --api-version v1 \
   --name "On Upload" \
   --type TRIGGERED \
   --notebook-id <NOTEBOOK_ID> \
-  --trigger '{"source":"FILES","events":["CREATED"],"filter":"extension=\".csv\""}'
+  --trigger '{"source":"FILES","events":["CREATED"],"filter":"extension=\".xml\""}'
 
 # Update a routine (only supplied fields are changed)
 slcli routine update <ROUTINE_ID> [--api-version v1|v2] \
@@ -419,6 +427,10 @@ slcli routine delete <ROUTINE_ID> [--api-version v1|v2] [-y]
 ```
 
 ### v2 event JSON structure
+
+For v2 routines, there is no top-level routine `filter` field. Filtering is
+provider-specific and belongs inside `event.triggers[].configuration` when the
+provider supports it.
 
 ```json
 {
@@ -439,6 +451,38 @@ slcli routine delete <ROUTINE_ID> [--api-version v1|v2] [-y]
 
 Supported TAG comparators: `GREATER_THAN`, `LESS_THAN`, `EQUAL`, `NOT_EQUAL`.
 Tag data types: `DOUBLE`, `INT32`, `U_INT64`, `STRING`, `BOOLEAN`.
+
+Some v2 providers use a string filter inside trigger configuration instead of
+structured comparator/path fields. Example from a `WORKITEMCHANGED` routine:
+
+```json
+{
+  "type": "WORKITEMCHANGED",
+  "triggers": [
+    {
+      "name": "8f4db567-9686-4e4b-ac2c-31345cb01691",
+      "configuration": {
+        "filter": "(before.assignedTo != after.assignedTo) && (after.assignedTo = \"a69caa22-7e24-445f-8e9f-084ed98ff6e3\")"
+      }
+    }
+  ]
+}
+```
+
+Another observed string-filter provider is `TESTRESULTCHANGED`:
+
+```json
+{
+  "type": "TESTRESULTCHANGED",
+  "triggers": [
+    {
+      "configuration": {
+        "filter": "(before.status != after.status) && (after.programName = \"...\")"
+      }
+    }
+  ]
+}
+```
 
 ### v2 actions JSON structure
 
@@ -464,6 +508,80 @@ Tag data types: `DOUBLE`, `INT32`, `U_INT64`, `STRING`, `BOOLEAN`.
 ```
 
 The second ALARM entry with trigger `nisystemlink_no_triggers_breached` is required by the API — it handles the alarm clear/reset state. Email notifications are delivered via `dynamicRecipientList` inside the ALARM action configuration. Severity levels: 1 (low) – 4 (critical).
+
+Observed NOTEBOOK action shape in v2 routines:
+
+```json
+[
+  {
+    "type": "NOTEBOOK",
+    "triggers": ["8f4db567-9686-4e4b-ac2c-31345cb01691"],
+    "configuration": {
+      "notebookId": "81d8df26-aeba-4b87-a1eb-d21a10684db2",
+      "parameters": {},
+      "resourceProfile": "DEFAULT",
+      "priority": "LOW",
+      "serviceAccount": "87022613-0b32-4ca9-8cf9-f0291cb0a4d3"
+    }
+  }
+]
+```
+
+Observed ALARM action shape in v2 TAG routines:
+
+```json
+[
+  {
+    "type": "ALARM",
+    "triggers": ["97c1967e-0eea-4276-863a-2b65083e2bd5"],
+    "configuration": {
+      "displayName": "CPU temp on <alarm_channel>",
+      "description": "CPU is kind of hot.",
+      "severity": 3,
+      "condition": "Greater than: 50",
+      "dynamicRecipientList": [
+        "alex.starche@emerson.com",
+        "23835d45.emerson.onmicrosoft.com@amer.teams.ms"
+      ]
+    }
+  },
+  {
+    "type": "ALARM",
+    "triggers": ["nisystemlink_no_triggers_breached"],
+    "configuration": null
+  }
+]
+```
+
+### Full example: v2 work item change triggers notebook execution
+
+```bash
+slcli routine create \
+  --name "Work Item Assigned To Me" \
+  --description "Run a notebook when a work item is assigned to me" \
+  --workspace <WORKSPACE_ID> \
+  --enabled \
+  --event '{
+    "type": "WORKITEMCHANGED",
+    "triggers": [{
+      "name": "8f4db567-9686-4e4b-ac2c-31345cb01691",
+      "configuration": {
+        "filter": "(before.assignedTo != after.assignedTo) && (after.assignedTo = \"<USER_ID>\")"
+      }
+    }]
+  }' \
+  --actions '[{
+    "type": "NOTEBOOK",
+    "triggers": ["8f4db567-9686-4e4b-ac2c-31345cb01691"],
+    "configuration": {
+      "notebookId": "<NOTEBOOK_ID>",
+      "parameters": {},
+      "resourceProfile": "DEFAULT",
+      "priority": "LOW",
+      "serviceAccount": "<SERVICE_ACCOUNT_ID>"
+    }
+  }]'
+```
 
 ### Full example: tag threshold monitor with alarm + email
 
