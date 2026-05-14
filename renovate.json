@@ -4,6 +4,20 @@
   "commitMessagePrefix": "chore(deps):",
   "schedule": ["before 7am on Monday"],
   "prConcurrentLimit": 5,
+  "gitIgnoredAuthors": [
+    "github-actions[bot] <41898282+github-actions[bot]@users.noreply.github.com>"
+  ],
+  "postUpgradeTasks": {
+    "commands": [
+      "python scripts/write_renovate_towncrier_fragment.py \"$RENOVATE_POST_UPGRADE_COMMAND_DATA_FILE\" \"{{{branchTopic}}}\""
+    ],
+    "dataFileTemplate": "[{{#each upgrades}}{\"depName\":\"{{{depName}}}\",\"newValue\":\"{{{newValue}}}\"}{{#unless @last}},{{/unless}}{{/each}}]",
+    "executionMode": "branch",
+    "fileFilters": ["newsfragments/deps-*.patch.md"],
+    "installTools": {
+      "python": {}
+    }
+  },
   "labels": ["dependencies"],
   "packageRules": [
     {
