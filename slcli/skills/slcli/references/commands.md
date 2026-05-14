@@ -411,6 +411,9 @@ slcli routine create --api-version v1 \
   --notebook-id <NOTEBOOK_ID> \
   --trigger '{"source":"FILES","events":["CREATED"],"filter":"extension=\".xml\""}'
 
+# For compound FILES filters and provider-specific live examples, load
+# routine-examples.md in this folder.
+
 # Update a routine (only supplied fields are changed)
 slcli routine update <ROUTINE_ID> [--api-version v1|v2] \
   [--name TEXT] [--description TEXT] [--workspace TEXT] \
@@ -449,7 +452,7 @@ provider supports it.
 }
 ```
 
-Supported TAG comparators: `GREATER_THAN`, `LESS_THAN`, `EQUAL`, `NOT_EQUAL`.
+Observed TAG comparators include `GREATER_THAN`, `GREATER_THAN_OR_EQUAL`, `LESS_THAN`, `EQUAL`, `NOT_EQUAL`, and `IN_RANGE`.
 Tag data types: `DOUBLE`, `INT32`, `U_INT64`, `STRING`, `BOOLEAN`.
 
 Some v2 providers use a string filter inside trigger configuration instead of
@@ -509,118 +512,13 @@ Another observed string-filter provider is `TESTRESULTCHANGED`:
 
 The second ALARM entry with trigger `nisystemlink_no_triggers_breached` is required by the API — it handles the alarm clear/reset state. Email notifications are delivered via `dynamicRecipientList` inside the ALARM action configuration. Severity levels: 1 (low) – 4 (critical).
 
-Observed NOTEBOOK action shape in v2 routines:
+Load [routine-examples.md](./routine-examples.md) for sanitized live examples covering:
 
-```json
-[
-  {
-    "type": "NOTEBOOK",
-    "triggers": ["8f4db567-9686-4e4b-ac2c-31345cb01691"],
-    "configuration": {
-      "notebookId": "81d8df26-aeba-4b87-a1eb-d21a10684db2",
-      "parameters": {},
-      "resourceProfile": "DEFAULT",
-      "priority": "LOW",
-      "serviceAccount": "87022613-0b32-4ca9-8cf9-f0291cb0a4d3"
-    }
-  }
-]
-```
-
-Observed ALARM action shape in v2 TAG routines:
-
-```json
-[
-  {
-    "type": "ALARM",
-    "triggers": ["97c1967e-0eea-4276-863a-2b65083e2bd5"],
-    "configuration": {
-      "displayName": "CPU temp on <alarm_channel>",
-      "description": "CPU is kind of hot.",
-      "severity": 3,
-      "condition": "Greater than: 50",
-      "dynamicRecipientList": [
-        "user@example.com",
-        "team-notifications@example.com"
-      ]
-    }
-  },
-  {
-    "type": "ALARM",
-    "triggers": ["nisystemlink_no_triggers_breached"],
-    "configuration": null
-  }
-]
-```
-
-### Full example: v2 work item change triggers notebook execution
-
-```bash
-slcli routine create \
-  --name "Work Item Assigned To Me" \
-  --description "Run a notebook when a work item is assigned to me" \
-  --workspace <WORKSPACE_ID> \
-  --enabled \
-  --event '{
-    "type": "WORKITEMCHANGED",
-    "triggers": [{
-      "name": "8f4db567-9686-4e4b-ac2c-31345cb01691",
-      "configuration": {
-        "filter": "(before.assignedTo != after.assignedTo) && (after.assignedTo = \"<USER_ID>\")"
-      }
-    }]
-  }' \
-  --actions '[{
-    "type": "NOTEBOOK",
-    "triggers": ["8f4db567-9686-4e4b-ac2c-31345cb01691"],
-    "configuration": {
-      "notebookId": "<NOTEBOOK_ID>",
-      "parameters": {},
-      "resourceProfile": "DEFAULT",
-      "priority": "LOW",
-      "serviceAccount": "<SERVICE_ACCOUNT_ID>"
-    }
-  }]'
-```
-
-### Full example: tag threshold monitor with alarm + email
-
-```bash
-slcli routine create \
-  --name "Fred Tag Monitor" \
-  --description "Alert when fred.test.* exceeds 10.2" \
-  --enabled \
-  --event '{
-    "type": "TAG",
-    "triggers": [{
-      "name": "a1b2c3d4-e5f6-7890-abcd-ef1234567890",
-      "configuration": {
-        "comparator": "GREATER_THAN",
-        "path": "fred.test.*",
-        "thresholds": ["10.2"],
-        "type": "DOUBLE"
-      }
-    }]
-  }' \
-  --actions '[
-    {
-      "type": "ALARM",
-      "triggers": ["a1b2c3d4-e5f6-7890-abcd-ef1234567890"],
-      "configuration": {
-        "displayName": "Fred Test Tag Alarm",
-        "description": "Tag fred.test.* exceeded 10.2",
-        "severity": 4,
-        "condition": "Greater than: 10.2",
-        "dynamicRecipientList": ["fred.visser@emerson.com"]
-      }
-    },
-    {
-      "type": "ALARM",
-      "triggers": ["nisystemlink_no_triggers_breached"],
-      "configuration": null
-    }
-  ]'
-```
+- v1 FILES filters that combine workspace checks, `name.Contains(...)`, and extension matching
+- v2 TAG routines using `IN_RANGE`, `NOT_EQUAL`, and `GREATER_THAN_OR_EQUAL`
+- v2 `TESTRESULTCHANGED` filters with nested field checks, indexed property access, and `DateTime.parse(...)`
+- v2 `WORKITEMCHANGED` filters with `.Any(...)` and `!Contains(...)`
+- Representative NOTEBOOK and ALARM action payloads
 
 ## comment — Resource comments
 

@@ -175,37 +175,14 @@ Use `--api-version v1` for notebook-execution routines. These map to the
 Routine Manager API and use `--type`, `--notebook-id`, plus either `--trigger`
 or `--schedule`.
 
-For `TRIGGERED` notebook routines, the `trigger` JSON uses this shape:
-
-```json
-{
-  "source": "FILES",
-  "events": ["CREATED"],
-  "filter": "extension=\".xml\""
-}
-```
-
 Notes for v1 triggers:
 
 - `trigger.filter` is required by the v1 API schema for triggered routines.
 - The only trigger `source` documented by the swagger is `FILES`.
 - The documented `events` values are `CREATED` and `UPDATED`.
-- The swagger includes `extension = ".csv"` as the canonical filter example; for XML uploads use `extension=".xml"`.
+- The simplest documented filter is `extension=".xml"`, but observed live examples also combine `workspace = ...` and `name.Contains(...)` checks.
 - Treat the filter string as service-owned syntax, not LINQ or OData. Do not rewrite it as `--filter` CLI syntax.
 - When working with an existing v1 routine, prefer `slcli routine get --api-version v1 <ID>` because the default API version is v2.
-
-Example:
-
-```bash
-slcli routine create \
-  --api-version v1 \
-  --name "ATML XML File Import" \
-  --workspace <WORKSPACE_ID> \
-  --type TRIGGERED \
-  --notebook-id <NOTEBOOK_ID> \
-  --trigger '{"source":"FILES","events":["CREATED"],"filter":"extension=\".xml\""}' \
-  --enabled
-```
 
 #### v2 event-action routines
 
@@ -227,115 +204,11 @@ Notes for v2 triggers:
 - When documenting v2 routines, show the exact JSON shape and note that valid configuration keys depend on the event type.
 - Live survey on the demo environment found these v2 event types in use: `TAG`, `TESTRESULTCHANGED`, and `WORKITEMCHANGED`.
 - Live survey on the demo environment found these v2 action types in use: `ALARM` and `NOTEBOOK`.
-
-Minimal v2 shape:
-
-```json
-{
-  "type": "<event-type>",
-  "triggers": [
-    {
-      "name": "<condition-name>",
-      "configuration": {
-        "<provider-specific-key>": "<value>"
-      }
-    }
-  ]
-}
-```
-
-Concrete v2 example from an existing `WORKITEMCHANGED` routine:
-
-```json
-{
-  "event": {
-    "type": "WORKITEMCHANGED",
-    "triggers": [
-      {
-        "name": "8f4db567-9686-4e4b-ac2c-31345cb01691",
-        "configuration": {
-          "filter": "(before.assignedTo != after.assignedTo) && (after.assignedTo = \"a69caa22-7e24-445f-8e9f-084ed98ff6e3\")"
-        }
-      }
-    ]
-  },
-  "actions": [
-    {
-      "type": "NOTEBOOK",
-      "triggers": [
-        "8f4db567-9686-4e4b-ac2c-31345cb01691"
-      ],
-      "configuration": {
-        "notebookId": "81d8df26-aeba-4b87-a1eb-d21a10684db2",
-        "parameters": {},
-        "resourceProfile": "DEFAULT",
-        "priority": "LOW",
-        "serviceAccount": "87022613-0b32-4ca9-8cf9-f0291cb0a4d3"
-      }
-    }
-  ]
-}
-```
-
-This example is useful because it shows the important v2 distinction: the filter lives under `event.triggers[].configuration.filter`, and the notebook execution details live under `actions[].configuration`.
-
-Concrete v2 example from an existing `TESTRESULTCHANGED` routine:
-
-```json
-{
-  "event": {
-    "type": "TESTRESULTCHANGED",
-    "triggers": [
-      {
-        "configuration": {
-          "filter": "(before.status != after.status) && (after.programName = \"...\")"
-        }
-      }
-    ]
-  }
-}
-```
-
-This shows that `TESTRESULTCHANGED`, like `WORKITEMCHANGED`, uses a provider-specific string filter under `event.triggers[].configuration.filter`.
-
-Concrete v2 example from an existing `TAG` routine:
-
-```json
-{
-  "event": {
-    "type": "TAG",
-    "triggers": [
-      {
-        "name": "97c1967e-0eea-4276-863a-2b65083e2bd5",
-        "configuration": {
-          "comparator": "GREATER_THAN",
-          "deadband": 2,
-          "path": "*.Health.Temperature.Reading.CPU Core *",
-          "thresholds": ["50"],
-          "type": "DOUBLE"
-        }
-      }
-    ]
-  },
-  "actions": [
-    {
-      "type": "ALARM",
-      "triggers": [
-        "97c1967e-0eea-4276-863a-2b65083e2bd5"
-      ],
-      "configuration": {
-        "displayName": "CPU temp on <alarm_channel>",
-        "severity": 3,
-        "dynamicRecipientList": [
-          "user@example.com"
-        ]
-      }
-    }
-  ]
-}
-```
-
-This second example shows the other common v2 pattern: provider-specific structured trigger fields, with no `configuration.filter` at all.
+- Observed TAG routines also use comparator-driven configurations such as `IN_RANGE`, `NOT_EQUAL`, and `GREATER_THAN_OR_EQUAL`.
+- Observed `TESTRESULTCHANGED` and `WORKITEMCHANGED` filters use provider-specific expression syntax such as nested field comparisons, `after.properties["key"]`, `DateTime.parse(...)`, `.Any(...)`, and `!Contains(...)`.
+- Common NOTEBOOK action fields in v2 are `notebookId`, `parameters`, `resourceProfile`, `priority`, and `serviceAccount`.
+- ALARM-producing routines need the clear/reset action that uses trigger `nisystemlink_no_triggers_breached`.
+- Load [routine-examples.md](./references/routine-examples.md) for sanitized live examples of compound v1 FILES filters and advanced v2 configurations.
 
 ## Reference docs
 
@@ -344,6 +217,7 @@ Consult these for detailed guidance. Load only what you need for the current tas
 | Topic                       | File                                                        | When to load                                                  |
 | --------------------------- | ----------------------------------------------------------- | ------------------------------------------------------------- |
 | CLI command reference       | [commands.md](./references/commands.md)                     | Looking up command syntax, options, or examples               |
+| Routine examples            | [routine-examples.md](./references/routine-examples.md)     | Provider-specific v1/v2 payload shapes and sanitized live examples |
 | Datasheet-to-specs workflow | [datasheet-workflow.md](./references/datasheet-workflow.md) | Importing specs from PDF, CSV, or structured text             |
 | Filtering guide             | [filtering.md](./references/filtering.md)                   | Advanced LINQ expressions, parameterized queries              |
 | Analysis recipes            | [analysis-recipes.md](./references/analysis-recipes.md)     | Multi-step analysis: yield, calibration, operator performance |
