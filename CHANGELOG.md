@@ -2,6 +2,13 @@
 
 <!-- towncrier release notes start -->
 
+## v1.13.10 (2026-05-14)
+
+### Bug Fixes
+
+- Add a debug flag to `slcli info` to print HTTP request and response details. (#152)
+
+
 ## v1.13.9 (2026-05-14)
 
 ### Documentation
