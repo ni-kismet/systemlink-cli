@@ -540,8 +540,8 @@ Observed ALARM action shape in v2 TAG routines:
       "severity": 3,
       "condition": "Greater than: 50",
       "dynamicRecipientList": [
-        "alex.starche@emerson.com",
-        "23835d45.emerson.onmicrosoft.com@amer.teams.ms"
+        "user@example.com",
+        "team-notifications@example.com"
       ]
     }
   },

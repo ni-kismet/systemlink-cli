@@ -327,7 +327,7 @@ Concrete v2 example from an existing `TAG` routine:
         "displayName": "CPU temp on <alarm_channel>",
         "severity": 3,
         "dynamicRecipientList": [
-          "alex.starche@emerson.com"
+          "user@example.com"
         ]
       }
     }
