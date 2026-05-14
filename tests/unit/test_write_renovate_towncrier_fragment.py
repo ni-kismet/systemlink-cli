@@ -29,7 +29,7 @@ def test_build_fragment_content_summarizes_grouped_updates() -> None:
     )
 
     assert content == (
-        "Update dependencies click to 8.1.8, rich to 14.1.0, requests to 2.32.4, and 1 others"
+        "Update dependencies click to 8.1.8, rich to 14.1.0, requests to 2.32.4, and 1 other"
     )
 
 

@@ -76,7 +76,8 @@ def build_fragment_content(upgrades: Sequence[Mapping[str, Any]]) -> str:
 
     listed_entries = entries[:MAX_LISTED_UPGRADES]
     remaining = len(entries) - MAX_LISTED_UPGRADES
-    return f"Update dependencies {', '.join(listed_entries)}, and {remaining} others"
+    other_label = "other" if remaining == 1 else "others"
+    return f"Update dependencies {', '.join(listed_entries)}, and {remaining} {other_label}"
 
 
 def load_upgrades(data_file: Path) -> list[dict[str, Any]]:
