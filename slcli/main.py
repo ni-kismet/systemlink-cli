@@ -357,8 +357,20 @@ def logout(profile: Optional[str], remove_all: bool, force: bool) -> None:
 @cli.command()
 @click.option("--format", "-f", type=click.Choice(["table", "json"]), default="table")
 @click.option("--skip-health", is_flag=True, default=False, help="Skip live service health checks.")
-def info(format: str, skip_health: bool) -> None:
+@click.option(
+    "--debug", is_flag=True, default=False, help="Show HTTP request/response debug output."
+)
+def info(format: str, skip_health: bool, debug: bool) -> None:
     """Show the active profile, configuration, and platform status."""
+    import http.client
+    import logging
+
+    if debug:
+        # Enable HTTP-level debug logging to show requests, responses, and headers
+        http.client.HTTPConnection.debuglevel = 1
+        logging.basicConfig(level=logging.DEBUG)
+        logging.getLogger("urllib3").setLevel(logging.DEBUG)
+
     from .profiles import ProfileConfig, get_active_profile
 
     platform_info = get_platform_info(skip_health=skip_health)
