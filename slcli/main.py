@@ -115,7 +115,10 @@ def _get_ca_source_display() -> str:
 def _build_tls_debug_context(ssl_verify: bool) -> ssl.SSLContext:
     """Build an SSL context aligned with the current CLI trust configuration."""
     if not ssl_verify:
-        return ssl._create_unverified_context()
+        ctx = ssl.SSLContext(ssl.PROTOCOL_TLS_CLIENT)
+        ctx.check_hostname = False
+        ctx.verify_mode = ssl.CERT_NONE
+        return ctx
 
     verify_env = os.environ.get("REQUESTS_CA_BUNDLE") or os.environ.get("SSL_CERT_FILE")
     if verify_env:
@@ -141,10 +144,13 @@ def _format_cert_name(name: object) -> str:
     for relative_name in name:
         if not isinstance(relative_name, tuple):
             continue
-        for key, value in relative_name:
-            if not isinstance(key, str) or not isinstance(value, str):
-                continue
-            parts.append(f"{key}={value}")
+        try:
+            for key, value in relative_name:
+                if not isinstance(key, str) or not isinstance(value, str):
+                    continue
+                parts.append(f"{key}={value}")
+        except (TypeError, ValueError):
+            continue
     return ", ".join(parts) if parts else "Unavailable"
 
 
@@ -155,7 +161,7 @@ def _format_subject_alt_names(subject_alt_names: object) -> str:
 
     entries: List[str] = []
     extra_count = 0
-    for index, subject_alt_name in enumerate(subject_alt_names):
+    for subject_alt_name in subject_alt_names:
         if (
             not isinstance(subject_alt_name, tuple)
             or len(subject_alt_name) != 2
@@ -164,7 +170,7 @@ def _format_subject_alt_names(subject_alt_names: object) -> str:
         ):
             continue
 
-        if index < 5:
+        if len(entries) < 5:
             entries.append(f"{subject_alt_name[0]}={subject_alt_name[1]}")
         else:
             extra_count += 1
@@ -550,7 +556,7 @@ def info(format: str, skip_health: bool, debug: bool) -> None:
     platform_info = get_platform_info(skip_health=skip_health)
 
     if debug:
-        _emit_info_debug_diagnostics(str(platform_info.get("api_url", "Not configured")))
+        _emit_info_debug_diagnostics(platform_info.get("api_url") or "Not configured")
 
     # Add profile information
     cfg = ProfileConfig.load()
