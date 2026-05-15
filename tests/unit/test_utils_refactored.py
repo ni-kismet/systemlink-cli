@@ -5,9 +5,12 @@ from typing import Any
 from unittest.mock import MagicMock, patch
 
 import pytest
+import requests
 
 from slcli.utils import (
     ExitCodes,
+    _extract_response_error_message,
+    _extract_response_status_code,
     extract_error_type,
     handle_api_error,
     parse_inner_errors,
@@ -94,6 +97,125 @@ def test_handle_api_error_forbidden(capsys: Any) -> None:
     captured = capsys.readouterr()
     assert exc_info.value.code == ExitCodes.PERMISSION_DENIED
     assert "Permission denied" in captured.err
+
+
+def _make_http_error(status_code: int, body: Any) -> requests.HTTPError:
+    """Create a requests.HTTPError with a mock response containing the given JSON body."""
+    response = MagicMock(spec=requests.Response)
+    response.status_code = status_code
+    response.json.return_value = body
+    exc = requests.HTTPError(
+        f"{status_code} Client Error: Bad Request for url: https://example.com/api"
+    )
+    exc.response = response
+    return exc
+
+
+def test_handle_api_error_extracts_error_message(capsys: Any) -> None:
+    """Server error body message should be shown instead of generic HTTP status."""
+    exc = _make_http_error(
+        400,
+        {"error": {"message": "Workspace 'Fred' was not found.", "code": -251046}},
+    )
+    with pytest.raises(SystemExit) as exc_info:
+        handle_api_error(exc)
+
+    captured = capsys.readouterr()
+    assert exc_info.value.code == ExitCodes.NOT_FOUND
+    assert "Workspace 'Fred' was not found." in captured.err
+
+
+def test_handle_api_error_extracts_toplevel_message(capsys: Any) -> None:
+    """Top-level message field from the response body should be displayed."""
+    exc = _make_http_error(400, {"message": "Something went wrong"})
+    with pytest.raises(SystemExit) as exc_info:
+        handle_api_error(exc)
+
+    captured = capsys.readouterr()
+    assert exc_info.value.code == ExitCodes.GENERAL_ERROR
+    assert "Something went wrong" in captured.err
+
+
+def test_handle_api_error_falls_back_without_json(capsys: Any) -> None:
+    """Error without parseable JSON should fall back to the exception string."""
+    response = MagicMock(spec=requests.Response)
+    response.json.side_effect = ValueError("No JSON")
+    exc = requests.HTTPError("400 Bad Request for url: https://example.com/api")
+    exc.response = response
+
+    with pytest.raises(SystemExit) as exc_info:
+        handle_api_error(exc)
+
+    captured = capsys.readouterr()
+    assert exc_info.value.code == ExitCodes.GENERAL_ERROR
+    assert "400 Bad Request" in captured.err
+
+
+def test_handle_api_error_permission_from_response_body(capsys: Any) -> None:
+    """403 response with a body message should still map to permission denied."""
+    exc = _make_http_error(
+        403,
+        {"error": {"message": "Unauthorized access to workspace"}},
+    )
+    with pytest.raises(SystemExit) as exc_info:
+        handle_api_error(exc)
+
+    captured = capsys.readouterr()
+    assert exc_info.value.code == ExitCodes.PERMISSION_DENIED
+    assert "Unauthorized access to workspace" in captured.err
+
+
+def test_handle_api_error_uses_404_status_when_message_lacks_keyword(capsys: Any) -> None:
+    """404 responses should map to not found even without matching body text."""
+    exc = _make_http_error(
+        404,
+        {"error": {"message": "Workspace 'Fred' does not exist."}},
+    )
+    with pytest.raises(SystemExit) as exc_info:
+        handle_api_error(exc)
+
+    captured = capsys.readouterr()
+    assert exc_info.value.code == ExitCodes.NOT_FOUND
+    assert "Workspace 'Fred' does not exist." in captured.err
+
+
+def test_handle_api_error_uses_403_status_when_message_lacks_keyword(capsys: Any) -> None:
+    """403 responses should map to permission denied from the status code."""
+    exc = _make_http_error(
+        403,
+        {"error": {"message": "Access denied."}},
+    )
+    with pytest.raises(SystemExit) as exc_info:
+        handle_api_error(exc)
+
+    captured = capsys.readouterr()
+    assert exc_info.value.code == ExitCodes.PERMISSION_DENIED
+    assert "Access denied." in captured.err
+
+
+def test_extract_response_error_message_no_response() -> None:
+    """Plain Exception without a response attribute returns None."""
+    assert _extract_response_error_message(Exception("boom")) is None
+
+
+def test_extract_response_status_code_no_response() -> None:
+    """Plain Exception without a response attribute returns no status code."""
+    assert _extract_response_status_code(Exception("boom")) is None
+
+
+def test_extract_response_status_code_with_response() -> None:
+    """HTTP status codes are extracted from the response object."""
+    exc = _make_http_error(404, {"error": {"message": "Missing"}})
+    assert _extract_response_status_code(exc) == 404
+
+
+def test_extract_response_error_message_nested_error() -> None:
+    """SystemLink-style nested error body is extracted."""
+    exc = _make_http_error(
+        400,
+        {"error": {"message": "Invalid input", "name": "Skyline.Validation"}},
+    )
+    assert _extract_response_error_message(exc) == "Invalid input"
 
 
 class TestMakeApiRequestHttpMethods:

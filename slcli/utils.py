@@ -65,24 +65,79 @@ def check_readonly_mode(operation: str = "this operation") -> None:
         sys.exit(ExitCodes.PERMISSION_DENIED)
 
 
+def _extract_response_error_message(exc: Exception) -> Optional[str]:
+    """Extract a human-readable error message from an HTTP error response body.
+
+    Attempts to parse the response JSON and extract the error message from
+    common SystemLink error formats (e.g., ``{"error": {"message": "..."}}``)
+    or a top-level ``"message"`` field.
+
+    Args:
+        exc: The exception, expected to be a ``requests.HTTPError`` with a response.
+
+    Returns:
+        The extracted message string, or ``None`` if unavailable.
+    """
+    response = getattr(exc, "response", None)
+    if response is None:
+        return None
+    try:
+        body = response.json()
+    except (ValueError, AttributeError):
+        return None
+
+    # SystemLink standard: {"error": {"message": "..."}}
+    error_obj = body.get("error") if isinstance(body, dict) else None
+    if isinstance(error_obj, dict):
+        msg = error_obj.get("message")
+        if msg:
+            return str(msg)
+
+    # Fallback: top-level {"message": "..."}
+    if isinstance(body, dict):
+        msg = body.get("message")
+        if msg:
+            return str(msg)
+
+    return None
+
+
+def _extract_response_status_code(exc: Exception) -> Optional[int]:
+    """Extract the HTTP status code from an exception response, if present."""
+    response = getattr(exc, "response", None)
+    status_code = getattr(response, "status_code", None)
+    return status_code if isinstance(status_code, int) else None
+
+
 def handle_api_error(exc: Exception) -> None:
     """Handle API errors with appropriate exit codes and consistent formatting.
+
+    When the exception originates from an HTTP response that contains a JSON
+    error body, the server-provided message is displayed instead of the generic
+    HTTP status line so that users get actionable feedback.
 
     Args:
         exc: The exception to handle
     """
-    error_msg = str(exc).lower()
-    if "not found" in error_msg:
-        click.echo(f"✗ Resource not found: {exc}", err=True)
+    # Try to get a detailed message from the response body first
+    detail = _extract_response_error_message(exc)
+    display_msg = detail if detail else str(exc)
+    status_code = _extract_response_status_code(exc)
+
+    error_msg = display_msg.lower()
+    if status_code == 404 or "not found" in error_msg:
+        click.echo(f"✗ Resource not found: {display_msg}", err=True)
         sys.exit(ExitCodes.NOT_FOUND)
-    elif "permission" in error_msg or "unauthorized" in error_msg or "forbidden" in error_msg:
-        click.echo(f"✗ Permission denied: {exc}", err=True)
+    elif status_code in (401, 403) or (
+        "permission" in error_msg or "unauthorized" in error_msg or "forbidden" in error_msg
+    ):
+        click.echo(f"✗ Permission denied: {display_msg}", err=True)
         sys.exit(ExitCodes.PERMISSION_DENIED)
     elif "network" in error_msg or "connection" in error_msg:
-        click.echo(f"✗ Network error: {exc}", err=True)
+        click.echo(f"✗ Network error: {display_msg}", err=True)
         sys.exit(ExitCodes.NETWORK_ERROR)
     else:
-        click.echo(f"✗ Error: {exc}", err=True)
+        click.echo(f"✗ Error: {display_msg}", err=True)
         sys.exit(ExitCodes.GENERAL_ERROR)
 
 
