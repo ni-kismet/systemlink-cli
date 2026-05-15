@@ -10,7 +10,7 @@ Use a short branch-related stem as the fragment prefix and one of the configured
 - `doc` for documentation changes
 - `misc` for other shipped changes
 
-Choose a prefix that is specific to the change and easy to relate back to the branch or topic under review.
+Choose a prefix that is specific to the change and easy to relate back to the branch or topic under review. PR- or issue-number prefixes are also accepted, but branch/topic stems are preferred for new fragments.
 
 Examples:
 

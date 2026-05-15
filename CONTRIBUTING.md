@@ -72,7 +72,10 @@ poetry run pytest tests/e2e/ -n auto
    - `misc` for other shipped changes (also releases as a patch)
 
 ```bash
-# Create a fragment named after the PR or issue number
+# Preferred: create a fragment named after the branch/topic
+poetry run towncrier create systems-search-fallback.patch.md --content "Prefer the new systems search endpoint with fallback."
+
+# Also accepted: use the PR or issue number as the prefix
 poetry run towncrier create 123.patch.md --content "Prefer the new systems search endpoint with fallback."
 ```
 
