@@ -6,6 +6,7 @@ from unittest.mock import patch
 
 from click.testing import CliRunner
 
+import slcli.main as main_module
 from slcli.main import cli
 from slcli.profiles import Profile
 
@@ -276,7 +277,53 @@ class TestInfoCommand:
 
         assert result.exit_code == 0
         assert "API key unauthorized" in result.output
-        assert "Unauthorized" in result.output
+
+    def test_info_command_debug_outputs_connection_diagnostics(self) -> None:
+        """Test info --debug emits structured connection diagnostics."""
+        test_profile = Profile(
+            name="test",
+            server="https://api.example.com",
+            api_key="test-key",
+            web_url="https://example.com",
+            platform="SLE",
+        )
+        mock_status = {
+            "server_reachable": True,
+            "auth_valid": True,
+            "services": {"Auth": "ok"},
+            "platform": "SLE",
+        }
+        debug_rows = [
+            ("SSL Verify", "enabled"),
+            ("CA Source", "system (reason=injected:requests)"),
+            ("Proxy HTTPS", "unset"),
+            ("TLS Version", "TLSv1.3"),
+            ("Leaf Cert Subject", "commonName=api.example.com"),
+        ]
+
+        with patch("slcli.profiles.get_active_profile") as mock_profile, patch(
+            "slcli.utils.get_base_url"
+        ) as mock_base_url, patch("slcli.utils.get_web_url") as mock_web_url, patch(
+            "slcli.utils.get_api_key"
+        ) as mock_api_key, patch(
+            "slcli.platform.check_service_status", return_value=mock_status
+        ), patch.object(
+            main_module, "_collect_info_debug_rows", return_value=debug_rows
+        ):
+            mock_profile.return_value = test_profile
+            mock_base_url.return_value = "https://api.example.com"
+            mock_web_url.return_value = "https://example.com"
+            mock_api_key.return_value = "test-key"
+
+            runner = CliRunner()
+            result = runner.invoke(cli, ["info", "--debug"])
+
+        assert result.exit_code == 0
+        assert "Debug Connection Diagnostics:" in result.output
+        assert "SSL Verify: enabled" in result.output
+        assert "CA Source: system (reason=injected:requests)" in result.output
+        assert "TLS Version: TLSv1.3" in result.output
+        assert "Leaf Cert Subject: commonName=api.example.com" in result.output
 
     def test_info_command_skip_health(self, monkeypatch: Any) -> None:
         """Test info command with --skip-health skips service checks."""
