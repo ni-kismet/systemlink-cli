@@ -2,6 +2,13 @@
 
 <!-- towncrier release notes start -->
 
+## v1.13.13 (2026-05-15)
+
+### Bug Fixes
+
+- Show server-provided API error messages instead of generic HTTP status errors. (improve-api-error-details)
+
+
 ## v1.13.12 (2026-05-15)
 
 ### Bug Fixes

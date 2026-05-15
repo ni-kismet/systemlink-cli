@@ -1,1 +1,0 @@
-Show server-provided API error messages instead of generic HTTP status errors.
