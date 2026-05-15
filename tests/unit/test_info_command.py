@@ -322,6 +322,7 @@ class TestInfoCommand:
             result = runner.invoke(cli, ["info", "--debug"])
 
         assert result.exit_code == 0
+        # Diagnostics are emitted to stderr; CliRunner mixes stderr into output by default.
         assert "Debug Connection Diagnostics:" in result.output
         assert "SSL Verify: enabled" in result.output
         assert "CA Source: system (reason=injected:requests)" in result.output
@@ -482,8 +483,10 @@ class TestBuildTlsDebugContext:
         assert ctx.verify_mode == ssl.CERT_NONE
         assert ctx.check_hostname is False
 
-    def test_verify_enabled_returns_default_context(self) -> None:
+    def test_verify_enabled_returns_default_context(self, monkeypatch: Any) -> None:
         """Test that ssl_verify=True returns a default context."""
+        monkeypatch.delenv("REQUESTS_CA_BUNDLE", raising=False)
+        monkeypatch.delenv("SSL_CERT_FILE", raising=False)
         ctx = main_module._build_tls_debug_context(True)
         assert isinstance(ctx, ssl.SSLContext)
         assert ctx.verify_mode == ssl.CERT_REQUIRED
