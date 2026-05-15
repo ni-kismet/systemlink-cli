@@ -102,6 +102,13 @@ def _extract_response_error_message(exc: Exception) -> Optional[str]:
     return None
 
 
+def _extract_response_status_code(exc: Exception) -> Optional[int]:
+    """Extract the HTTP status code from an exception response, if present."""
+    response = getattr(exc, "response", None)
+    status_code = getattr(response, "status_code", None)
+    return status_code if isinstance(status_code, int) else None
+
+
 def handle_api_error(exc: Exception) -> None:
     """Handle API errors with appropriate exit codes and consistent formatting.
 
@@ -115,12 +122,15 @@ def handle_api_error(exc: Exception) -> None:
     # Try to get a detailed message from the response body first
     detail = _extract_response_error_message(exc)
     display_msg = detail if detail else str(exc)
+    status_code = _extract_response_status_code(exc)
 
     error_msg = display_msg.lower()
-    if "not found" in error_msg:
+    if status_code == 404 or "not found" in error_msg:
         click.echo(f"✗ Resource not found: {display_msg}", err=True)
         sys.exit(ExitCodes.NOT_FOUND)
-    elif "permission" in error_msg or "unauthorized" in error_msg or "forbidden" in error_msg:
+    elif status_code in (401, 403) or (
+        "permission" in error_msg or "unauthorized" in error_msg or "forbidden" in error_msg
+    ):
         click.echo(f"✗ Permission denied: {display_msg}", err=True)
         sys.exit(ExitCodes.PERMISSION_DENIED)
     elif "network" in error_msg or "connection" in error_msg:

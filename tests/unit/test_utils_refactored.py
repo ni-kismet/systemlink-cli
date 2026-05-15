@@ -10,6 +10,7 @@ import requests
 from slcli.utils import (
     ExitCodes,
     _extract_response_error_message,
+    _extract_response_status_code,
     extract_error_type,
     handle_api_error,
     parse_inner_errors,
@@ -164,9 +165,48 @@ def test_handle_api_error_permission_from_response_body(capsys: Any) -> None:
     assert "Unauthorized access to workspace" in captured.err
 
 
+def test_handle_api_error_uses_404_status_when_message_lacks_keyword(capsys: Any) -> None:
+    """404 responses should map to not found even without matching body text."""
+    exc = _make_http_error(
+        404,
+        {"error": {"message": "Workspace 'Fred' does not exist."}},
+    )
+    with pytest.raises(SystemExit) as exc_info:
+        handle_api_error(exc)
+
+    captured = capsys.readouterr()
+    assert exc_info.value.code == ExitCodes.NOT_FOUND
+    assert "Workspace 'Fred' does not exist." in captured.err
+
+
+def test_handle_api_error_uses_403_status_when_message_lacks_keyword(capsys: Any) -> None:
+    """403 responses should map to permission denied from the status code."""
+    exc = _make_http_error(
+        403,
+        {"error": {"message": "Access denied."}},
+    )
+    with pytest.raises(SystemExit) as exc_info:
+        handle_api_error(exc)
+
+    captured = capsys.readouterr()
+    assert exc_info.value.code == ExitCodes.PERMISSION_DENIED
+    assert "Access denied." in captured.err
+
+
 def test_extract_response_error_message_no_response() -> None:
     """Plain Exception without a response attribute returns None."""
     assert _extract_response_error_message(Exception("boom")) is None
+
+
+def test_extract_response_status_code_no_response() -> None:
+    """Plain Exception without a response attribute returns no status code."""
+    assert _extract_response_status_code(Exception("boom")) is None
+
+
+def test_extract_response_status_code_with_response() -> None:
+    """HTTP status codes are extracted from the response object."""
+    exc = _make_http_error(404, {"error": {"message": "Missing"}})
+    assert _extract_response_status_code(exc) == 404
 
 
 def test_extract_response_error_message_nested_error() -> None:
