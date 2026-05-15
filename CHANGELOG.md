@@ -2,6 +2,13 @@
 
 <!-- towncrier release notes start -->
 
+## v1.13.11 (2026-05-15)
+
+### Bug Fixes
+
+- Expand `slcli info --debug` to include TLS trust, proxy, and leaf certificate diagnostics. (#153)
+
+
 ## v1.13.10 (2026-05-14)
 
 ### Bug Fixes
