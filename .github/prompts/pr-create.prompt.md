@@ -24,7 +24,7 @@ Use `key=value` arguments. Quote values that contain spaces, for example `title=
 2. Check whether the branch includes the required Towncrier newsfragment(s) under `newsfragments/` for the proposed changes. If no valid fragment exists, call that out explicitly before proceeding.
 3. Summarize the planned git and PR operations for the user and ask for confirmation before creating a branch, adding or editing a newsfragment, committing, pushing, or opening the PR. Include the proposed branch name, commit message if needed, whether a Towncrier fragment will be added or updated, push target, base branch, and draft status.
 4. If the current branch is the default branch, create a new descriptive feature branch and switch to it before proceeding.
-5. If the change requires a Towncrier fragment and one is missing, add it in `newsfragments/` using the PR number or issue number plus one of the configured types (`major`, `minor`, `patch`, `doc`, `misc`).
+5. If the change requires a Towncrier fragment and one is missing, add it in `newsfragments/` using a short branch-related stem plus one of the configured types (`major`, `minor`, `patch`, `doc`, `misc`).
 6. If there are uncommitted changes, commit them with a concise commit message that matches the repo's commit style.
 7. Push the branch to `origin` if it is not already published there.
 8. Draft a concise PR title from the branch name, commits, and diff unless one was provided.

@@ -2,7 +2,7 @@
 
 Every pull request must add at least one fragment in this directory.
 
-Use the PR number or issue number as the fragment prefix and one of the configured types as the suffix:
+Use a short branch-related stem as the fragment prefix and one of the configured types as the suffix:
 
 - `major` for breaking changes
 - `minor` for new features
@@ -10,11 +10,13 @@ Use the PR number or issue number as the fragment prefix and one of the configur
 - `doc` for documentation changes
 - `misc` for other shipped changes
 
+Choose a prefix that is specific to the change and easy to relate back to the branch or topic under review.
+
 Examples:
 
 ```bash
-poetry run towncrier create 121.patch.md --content "Prefer the new systems search endpoint with fallback."
-poetry run towncrier create 122.minor.md --content "Add a new workitem scheduling helper."
+poetry run towncrier create systems-search-fallback.patch.md --content "Prefer the new systems search endpoint with fallback."
+poetry run towncrier create workitem-scheduling-helper.minor.md --content "Add a new workitem scheduling helper."
 ```
 
 The release workflow uses these fragments to:
