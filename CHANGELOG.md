@@ -2,6 +2,13 @@
 
 <!-- towncrier release notes start -->
 
+## v1.13.12 (2026-05-15)
+
+### Bug Fixes
+
+- Update dependency rich to v15 (#146)
+
+
 ## v1.13.11 (2026-05-15)
 
 ### Bug Fixes
