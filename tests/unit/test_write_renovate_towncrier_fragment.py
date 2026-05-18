@@ -5,8 +5,10 @@ from pathlib import Path
 
 from scripts.write_renovate_towncrier_fragment import (
     build_fragment_content,
+    build_fragment_content_from_title,
     sanitize_fragment_stem,
     write_fragment,
+    write_title_fragment,
 )
 
 
@@ -33,6 +35,16 @@ def test_build_fragment_content_summarizes_grouped_updates() -> None:
     )
 
 
+def test_build_fragment_content_from_title_normalizes_dependency_pr_title() -> None:
+    """Dependency PR titles should become valid fragment text."""
+    assert (
+        build_fragment_content_from_title(
+            "chore(deps): Update dependency python-multipart to v0.0.29"
+        )
+        == "Update dependency python-multipart to v0.0.29."
+    )
+
+
 def test_write_fragment_creates_deterministic_patch_file(tmp_path: Path) -> None:
     """The helper should write a patch fragment under newsfragments/."""
     repo_root = tmp_path
@@ -50,3 +62,23 @@ def test_write_fragment_creates_deterministic_patch_file(tmp_path: Path) -> None
         fragment_path == repo_root / "newsfragments" / "deps-python-runtime-dependencies.patch.md"
     )
     assert fragment_path.read_text(encoding="utf-8") == "Update dependency rich to 15.0.0\n"
+
+
+def test_write_title_fragment_creates_deterministic_patch_file(tmp_path: Path) -> None:
+    """PR-title fallback should write the same deterministic patch file pattern."""
+    repo_root = tmp_path
+    (repo_root / "newsfragments").mkdir()
+
+    fragment_path = write_title_fragment(
+        "chore(deps): Update dependency python-multipart to v0.0.29",
+        "python-multipart-0.x-lockfile",
+        repo_root,
+    )
+
+    assert (
+        fragment_path == repo_root / "newsfragments" / "deps-python-multipart-0-x-lockfile.patch.md"
+    )
+    assert (
+        fragment_path.read_text(encoding="utf-8")
+        == "Update dependency python-multipart to v0.0.29.\n"
+    )

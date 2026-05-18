@@ -24,6 +24,30 @@ def sanitize_fragment_stem(branch_topic: str) -> str:
     return sanitized or "dependencies"
 
 
+def build_fragment_content_from_title(pr_title: str) -> str:
+    """Build fragment content directly from a dependency PR title.
+
+    Args:
+        pr_title: Pull request title.
+
+    Returns:
+        A concise Towncrier fragment sentence.
+    """
+    content = pr_title.strip()
+    for prefix in ("chore(deps): ", "chore: "):
+        if content.startswith(prefix):
+            content = content[len(prefix) :]
+            break
+
+    if not content:
+        return "Update dependencies"
+
+    if content[-1] not in ".!?":
+        content = f"{content}."
+
+    return content
+
+
 def _join_entries(entries: Sequence[str]) -> str:
     """Join dependency entries into a natural-language list.
 
@@ -118,6 +142,24 @@ def write_fragment(data_file: Path, branch_topic: str, repo_root: Path) -> Path:
     return fragment_path
 
 
+def write_title_fragment(pr_title: str, branch_topic: str, repo_root: Path) -> Path:
+    """Write a fragment derived from a dependency PR title.
+
+    Args:
+        pr_title: Pull request title.
+        branch_topic: Branch topic used for deterministic naming.
+        repo_root: Repository root directory.
+
+    Returns:
+        The path to the generated fragment.
+    """
+    content = build_fragment_content_from_title(pr_title)
+    fragment_name = f"deps-{sanitize_fragment_stem(branch_topic)}.patch.md"
+    fragment_path = repo_root / "newsfragments" / fragment_name
+    fragment_path.write_text(f"{content}\n", encoding="utf-8")
+    return fragment_path
+
+
 def parse_args(argv: Sequence[str] | None = None) -> argparse.Namespace:
     """Parse command-line arguments.
 
@@ -128,8 +170,9 @@ def parse_args(argv: Sequence[str] | None = None) -> argparse.Namespace:
         Parsed arguments.
     """
     parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument("data_file", type=Path)
+    parser.add_argument("data_file", nargs="?", type=Path)
     parser.add_argument("branch_topic")
+    parser.add_argument("--pr-title")
     parser.add_argument("--repo-root", type=Path, default=Path.cwd())
     return parser.parse_args(argv)
 
@@ -144,7 +187,12 @@ def main(argv: Sequence[str] | None = None) -> int:
         Process exit code.
     """
     args = parse_args(argv)
-    fragment_path = write_fragment(args.data_file, args.branch_topic, args.repo_root)
+    if args.pr_title is not None:
+        fragment_path = write_title_fragment(args.pr_title, args.branch_topic, args.repo_root)
+    else:
+        if args.data_file is None:
+            raise ValueError("data_file is required unless --pr-title is provided")
+        fragment_path = write_fragment(args.data_file, args.branch_topic, args.repo_root)
     print(fragment_path)
     return 0
 

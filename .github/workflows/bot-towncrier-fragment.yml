@@ -15,6 +15,7 @@ jobs:
       github.repository == 'ni-kismet/systemlink-cli' &&
       github.event.pull_request.head.repo.full_name == github.repository &&
       (
+        github.event.pull_request.user.login == 'renovate' ||
         github.event.pull_request.user.login == 'renovate[bot]' ||
         github.event.pull_request.user.login == 'dependabot[bot]'
       )

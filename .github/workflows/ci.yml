@@ -27,6 +27,27 @@ jobs:
       - name: Install dependencies
         run: poetry install
 
+      - name: Generate fallback Towncrier fragment for dependency bot PRs
+        if: >
+          github.event_name == 'pull_request' &&
+          (
+            github.event.pull_request.user.login == 'renovate' ||
+            github.event.pull_request.user.login == 'renovate[bot]' ||
+            github.event.pull_request.user.login == 'dependabot[bot]'
+          )
+        env:
+          BASE_REF: ${{ github.base_ref }}
+          HEAD_REF: ${{ github.event.pull_request.head.ref }}
+          PR_TITLE: ${{ github.event.pull_request.title }}
+        run: |
+          if git diff --name-only origin/${BASE_REF}...HEAD -- newsfragments | grep -q '^newsfragments/'; then
+            echo "Newsfragment already present on PR branch."
+            exit 0
+          fi
+
+          branch_topic="${HEAD_REF#*/}"
+          poetry run python scripts/write_renovate_towncrier_fragment.py --pr-title "$PR_TITLE" "$branch_topic"
+
       - name: Require Towncrier news fragment
         if: ${{ github.event_name == 'pull_request' }}
         run: poetry run towncrier check --compare-with origin/${{ github.base_ref }}
