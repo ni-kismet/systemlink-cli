@@ -2,6 +2,13 @@
 
 <!-- towncrier release notes start -->
 
+## v1.13.15 (2026-05-18)
+
+### Other Changes
+
+- Improve CI handling of Towncrier fragments for dependency bot pull requests. (towncrier-ci-bot-prs)
+
+
 ## v1.13.14 (2026-05-18)
 
 ### Bug Fixes
