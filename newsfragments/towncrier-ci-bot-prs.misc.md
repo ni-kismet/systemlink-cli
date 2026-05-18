@@ -1,0 +1,1 @@
+Improve CI handling of Towncrier fragments for dependency bot pull requests.
