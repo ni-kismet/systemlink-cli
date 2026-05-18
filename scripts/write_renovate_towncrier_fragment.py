@@ -40,7 +40,7 @@ def build_fragment_content_from_title(pr_title: str) -> str:
             break
 
     if not content:
-        return "Update dependencies"
+        return "Update dependencies."
 
     if content[-1] not in ".!?":
         content = f"{content}."
@@ -170,11 +170,23 @@ def parse_args(argv: Sequence[str] | None = None) -> argparse.Namespace:
         Parsed arguments.
     """
     parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument("data_file", nargs="?", type=Path)
-    parser.add_argument("branch_topic")
+    parser.add_argument("first_arg")
+    parser.add_argument("second_arg", nargs="?")
     parser.add_argument("--pr-title")
     parser.add_argument("--repo-root", type=Path, default=Path.cwd())
-    return parser.parse_args(argv)
+    args = parser.parse_args(argv)
+
+    if args.pr_title is not None:
+        args.branch_topic = args.first_arg
+        args.data_file = Path(args.second_arg) if args.second_arg is not None else None
+        return args
+
+    if args.second_arg is None:
+        parser.error("data_file and branch_topic are required unless --pr-title is provided")
+
+    args.data_file = Path(args.first_arg)
+    args.branch_topic = args.second_arg
+    return args
 
 
 def main(argv: Sequence[str] | None = None) -> int:
