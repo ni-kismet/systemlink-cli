@@ -2,6 +2,13 @@
 
 <!-- towncrier release notes start -->
 
+## v1.13.14 (2026-05-18)
+
+### Bug Fixes
+
+- Update dependency python-multipart to v0.0.29. (deps-python-multipart-0-x-lockfile)
+
+
 ## v1.13.13 (2026-05-15)
 
 ### Bug Fixes
