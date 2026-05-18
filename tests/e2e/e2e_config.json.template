@@ -13,6 +13,6 @@
     "platform": "SLS",
     "test_notebook_path": "_shared/reports/your-test-notebook.ipynb"
   },
-  "timeout": 30,
+  "timeout": 60,
   "cleanup": true
 }

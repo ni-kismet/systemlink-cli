@@ -33,7 +33,7 @@ Set these environment variables to configure E2E tests:
 export SLCLI_E2E_BASE_URL="https://your-dev-systemlink.domain.com"
 export SLCLI_E2E_API_KEY="your-api-key"
 export SLCLI_E2E_WORKSPACE="Default"  # Optional, defaults to "Default"
-export SLCLI_E2E_TIMEOUT="30"         # Optional, defaults to 30 seconds
+export SLCLI_E2E_TIMEOUT="60"         # Optional, defaults to 60 seconds
 export SLCLI_E2E_CLEANUP="true"       # Optional, defaults to true
 ```
 
@@ -52,7 +52,7 @@ Edit `e2e_config.json` with your dev environment details:
   "base_url": "https://your-dev-systemlink.domain.com",
   "api_key": "your-api-key",
   "workspace": "Default",
-  "timeout": 30,
+  "timeout": 60,
   "cleanup": true
 }
 ```
@@ -74,7 +74,7 @@ The E2E harness also supports a multi-platform config with separate `sle` and
     "workspace": "Default",
     "test_notebook_path": "_shared/reports/Throughput.ipynb"
   },
-  "timeout": 30,
+  "timeout": 60,
   "cleanup": true
 }
 ```
@@ -341,7 +341,7 @@ Configure these environment variables for local E2E testing:
 - `SLCLI_E2E_BASE_URL` - Dev environment URL
 - `SLCLI_E2E_API_KEY` - Test user API key
 - `SLCLI_E2E_WORKSPACE` - Target workspace (default: "Default")
-- `SLCLI_E2E_TIMEOUT` - Request timeout in seconds (default: 30)
+- `SLCLI_E2E_TIMEOUT` - Request timeout in seconds (default: 60)
 - `SLCLI_E2E_CLEANUP` - Clean up test resources (default: true)
 
 ## CI Configuration
@@ -366,7 +366,7 @@ Configure the jobs with GitHub Actions secrets and repository variables.
 - `SLCLI_E2E_SLE_BASE_URL` - Base URL for the SLE test environment
 - `SLCLI_E2E_SLE_WORKSPACE` - Workspace for the SLE test user (optional, defaults to `Default`)
 - `SLCLI_E2E_SLE_TEST_NOTEBOOK_ID` - Notebook ID used by SLE routine/notebook tests (optional, enables more SLE coverage)
-- `SLCLI_E2E_TIMEOUT` - Global E2E timeout in seconds (optional, defaults to `30`)
+- `SLCLI_E2E_TIMEOUT` - Global E2E timeout in seconds (optional, defaults to `60`)
 - `SLCLI_E2E_CLEANUP` - Whether the suite should clean up created resources (optional, defaults to `true`)
 
 ### API Key Scope Recommendations

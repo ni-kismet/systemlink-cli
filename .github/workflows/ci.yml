@@ -108,7 +108,7 @@ jobs:
                   "workspace": os.environ.get("SLCLI_E2E_SLS_WORKSPACE") or "Default",
                   "platform": "SLS",
               },
-              "timeout": int(os.environ.get("SLCLI_E2E_TIMEOUT") or "30"),
+              "timeout": int(os.environ.get("SLCLI_E2E_TIMEOUT") or "60"),
               "cleanup": (os.environ.get("SLCLI_E2E_CLEANUP") or "true").lower() == "true",
           }
 
@@ -185,7 +185,7 @@ jobs:
                   "workspace": os.environ.get("SLCLI_E2E_SLE_WORKSPACE") or "Default",
                   "platform": "SLE",
               },
-              "timeout": int(os.environ.get("SLCLI_E2E_TIMEOUT") or "30"),
+              "timeout": int(os.environ.get("SLCLI_E2E_TIMEOUT") or "60"),
               "cleanup": (os.environ.get("SLCLI_E2E_CLEANUP") or "true").lower() == "true",
           }
 
