@@ -408,6 +408,77 @@ class TestViewConfig:
         assert "Current Profile" in result.output
         assert "(none)" in result.output
 
+    def test_view_config_json_without_env_overrides(
+        self, tmp_path: Path, monkeypatch: Any
+    ) -> None:
+        """JSON output should show stored profile values without effective/source keys."""
+        config_file = tmp_path / "config.json"
+        config_data: Dict[str, Any] = {
+            "current-profile": "test",
+            "profiles": {
+                "test": {
+                    "server": "https://test.com",
+                    "api-key": "secret1234",
+                    "web-url": "https://web.test.com",
+                },
+            },
+        }
+        config_file.write_text(json.dumps(config_data))
+        config_file.chmod(0o600)
+        monkeypatch.setattr(
+            "slcli.profiles.ProfileConfig.get_config_path", classmethod(lambda cls: config_file)
+        )
+
+        cli = make_cli()
+        runner = CliRunner()
+        result = runner.invoke(cli, ["config", "view", "--format", "json"])
+
+        assert result.exit_code == 0
+        data = json.loads(result.output)
+        assert data["current-profile"] == "test"
+        assert "test" in data["profiles"]
+        assert data["profiles"]["test"]["server"] == "https://test.com"
+        assert data["profiles"]["test"]["web-url"] == "https://web.test.com"
+        # API key should be masked
+        assert data["profiles"]["test"]["api-key"] == "****1234"
+        # Should not contain effective/source keys
+        assert "effective" not in data
+        assert "env-overrides" not in data
+
+    def test_view_config_json_with_env_overrides(
+        self, tmp_path: Path, monkeypatch: Any
+    ) -> None:
+        """JSON output should include env-overrides list when env vars are set."""
+        config_file = tmp_path / "config.json"
+        config_data: Dict[str, Any] = {
+            "current-profile": "test",
+            "profiles": {
+                "test": {
+                    "server": "https://test.com",
+                    "api-key": "secret1234",
+                },
+            },
+        }
+        config_file.write_text(json.dumps(config_data))
+        config_file.chmod(0o600)
+        monkeypatch.setattr(
+            "slcli.profiles.ProfileConfig.get_config_path", classmethod(lambda cls: config_file)
+        )
+        monkeypatch.setenv("SLCLI_API_KEY", "env-secret")
+        monkeypatch.setenv("SYSTEMLINK_WEB_URL", "https://override.com")
+
+        cli = make_cli()
+        runner = CliRunner()
+        result = runner.invoke(cli, ["config", "view", "--format", "json"])
+
+        assert result.exit_code == 0
+        data = json.loads(result.output)
+        assert "env-overrides" in data
+        assert "API Key" in data["env-overrides"]
+        assert "Web URL" in data["env-overrides"]
+        # Should not contain effective/source keys
+        assert "effective" not in data
+
 
 class TestDeleteProfile:
     """Tests for the delete command."""
