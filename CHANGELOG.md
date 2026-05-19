@@ -2,6 +2,13 @@
 
 <!-- towncrier release notes start -->
 
+## v1.13.16 (2026-05-19)
+
+### Bug Fixes
+
+- Show the effective API URL, API key, and Web URL source in `slcli info` and `slcli config view`, and add preferred `SLCLI_API_*` / `SLCLI_WEB_URL` environment aliases alongside legacy `SYSTEMLINK_*` names. (auth-source-visibility)
+
+
 ## v1.13.15 (2026-05-18)
 
 ### Other Changes
