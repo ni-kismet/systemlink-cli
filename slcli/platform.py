@@ -373,7 +373,7 @@ def _get_runtime_platform() -> str:
     if platform != PLATFORM_UNKNOWN:
         return platform
 
-    status_snapshot = _get_service_status_snapshot(force_refresh=True)
+    status_snapshot = _get_service_status_snapshot(force_refresh=False)
     if status_snapshot is None:
         return platform
 

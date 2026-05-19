@@ -812,6 +812,7 @@ class TestGetPlatformInfo:
     def test_get_platform_info_sls(self) -> None:
         """Test getting platform info for SLS."""
         from slcli.profiles import Profile
+        from slcli.utils import ResolvedConfigValue
 
         profile = Profile(
             name="test",
@@ -837,16 +838,20 @@ class TestGetPlatformInfo:
         }
 
         with patch("slcli.profiles.get_active_profile") as mock_profile, patch(
-            "slcli.utils.get_base_url"
-        ) as mock_base_url, patch("slcli.utils.get_web_url") as mock_web_url, patch(
-            "slcli.utils.get_api_key"
+            "slcli.utils.get_base_url_resolution"
+        ) as mock_base_url, patch("slcli.utils.get_web_url_resolution") as mock_web_url, patch(
+            "slcli.utils.get_api_key_resolution"
         ) as mock_api_key, patch(
             "slcli.platform.check_service_status", return_value=mock_status
         ):
             mock_profile.return_value = profile
-            mock_base_url.return_value = "https://my-server.local"
-            mock_web_url.return_value = "https://my-server.local"
-            mock_api_key.return_value = "test-key"
+            mock_base_url.return_value = ResolvedConfigValue(
+                "https://my-server.local", "profile:test"
+            )
+            mock_web_url.return_value = ResolvedConfigValue(
+                "https://my-server.local", "profile:test"
+            )
+            mock_api_key.return_value = ResolvedConfigValue("test-key", "profile:test")
 
             result = get_platform_info()
 
@@ -861,6 +866,7 @@ class TestGetPlatformInfo:
     def test_get_platform_info_file_query_fallback(self) -> None:
         """Test get_platform_info reports query-files-linq when search-files is unavailable."""
         from slcli.profiles import Profile
+        from slcli.utils import ResolvedConfigValue
 
         profile = Profile(
             name="test",
@@ -884,16 +890,20 @@ class TestGetPlatformInfo:
         }
 
         with patch("slcli.profiles.get_active_profile") as mock_profile, patch(
-            "slcli.utils.get_base_url"
-        ) as mock_base_url, patch("slcli.utils.get_web_url") as mock_web_url, patch(
-            "slcli.utils.get_api_key"
+            "slcli.utils.get_base_url_resolution"
+        ) as mock_base_url, patch("slcli.utils.get_web_url_resolution") as mock_web_url, patch(
+            "slcli.utils.get_api_key_resolution"
         ) as mock_api_key, patch(
             "slcli.platform.check_service_status", return_value=mock_status
         ):
             mock_profile.return_value = profile
-            mock_base_url.return_value = "https://my-server.local"
-            mock_web_url.return_value = "https://my-server.local"
-            mock_api_key.return_value = "test-key"
+            mock_base_url.return_value = ResolvedConfigValue(
+                "https://my-server.local", "profile:test"
+            )
+            mock_web_url.return_value = ResolvedConfigValue(
+                "https://my-server.local", "profile:test"
+            )
+            mock_api_key.return_value = ResolvedConfigValue("test-key", "profile:test")
 
             result = get_platform_info()
 
@@ -904,9 +914,9 @@ class TestGetPlatformInfo:
     def test_get_platform_info_not_logged_in(self) -> None:
         """Test getting platform info when not logged in."""
         with patch("slcli.profiles.get_active_profile") as mock_profile, patch(
-            "slcli.utils.get_base_url"
-        ) as mock_base_url, patch("slcli.utils.get_web_url") as mock_web_url, patch(
-            "slcli.utils.get_api_key"
+            "slcli.utils.get_base_url_resolution"
+        ) as mock_base_url, patch("slcli.utils.get_web_url_resolution") as mock_web_url, patch(
+            "slcli.utils.get_api_key_resolution"
         ) as mock_api_key, patch(
             "slcli.platform._get_keyring_config"
         ) as mock_keyring:
@@ -926,6 +936,7 @@ class TestGetPlatformInfo:
     def test_get_platform_info_unreachable_server(self) -> None:
         """Test that platform shows unreachable when server cannot be contacted."""
         from slcli.profiles import Profile
+        from slcli.utils import ResolvedConfigValue
 
         profile = Profile(
             name="test",
@@ -942,16 +953,20 @@ class TestGetPlatformInfo:
         }
 
         with patch("slcli.profiles.get_active_profile") as mock_profile, patch(
-            "slcli.utils.get_base_url"
-        ) as mock_base_url, patch("slcli.utils.get_web_url") as mock_web_url, patch(
-            "slcli.utils.get_api_key"
+            "slcli.utils.get_base_url_resolution"
+        ) as mock_base_url, patch("slcli.utils.get_web_url_resolution") as mock_web_url, patch(
+            "slcli.utils.get_api_key_resolution"
         ) as mock_api_key, patch(
             "slcli.platform.check_service_status", return_value=mock_status
         ):
             mock_profile.return_value = profile
-            mock_base_url.return_value = "https://my-server.local"
-            mock_web_url.return_value = "https://my-server.local"
-            mock_api_key.return_value = "test-key"
+            mock_base_url.return_value = ResolvedConfigValue(
+                "https://my-server.local", "profile:test"
+            )
+            mock_web_url.return_value = ResolvedConfigValue(
+                "https://my-server.local", "profile:test"
+            )
+            mock_api_key.return_value = ResolvedConfigValue("test-key", "profile:test")
 
             result = get_platform_info()
 
@@ -965,6 +980,7 @@ class TestGetPlatformInfo:
     def test_get_platform_info_unauthorized(self) -> None:
         """Test that auth_valid=False is reported when API key is unauthorized."""
         from slcli.profiles import Profile
+        from slcli.utils import ResolvedConfigValue
 
         profile = Profile(
             name="test",
@@ -981,16 +997,18 @@ class TestGetPlatformInfo:
         }
 
         with patch("slcli.profiles.get_active_profile") as mock_profile, patch(
-            "slcli.utils.get_base_url"
-        ) as mock_base_url, patch("slcli.utils.get_web_url") as mock_web_url, patch(
-            "slcli.utils.get_api_key"
+            "slcli.utils.get_base_url_resolution"
+        ) as mock_base_url, patch("slcli.utils.get_web_url_resolution") as mock_web_url, patch(
+            "slcli.utils.get_api_key_resolution"
         ) as mock_api_key, patch(
             "slcli.platform.check_service_status", return_value=mock_status
         ):
             mock_profile.return_value = profile
-            mock_base_url.return_value = "https://api.example.com"
-            mock_web_url.return_value = "https://example.com"
-            mock_api_key.return_value = "bad-key"
+            mock_base_url.return_value = ResolvedConfigValue(
+                "https://api.example.com", "profile:test"
+            )
+            mock_web_url.return_value = ResolvedConfigValue("https://example.com", "profile:test")
+            mock_api_key.return_value = ResolvedConfigValue("bad-key", "profile:test")
 
             result = get_platform_info()
 

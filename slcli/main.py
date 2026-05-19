@@ -41,6 +41,7 @@ from .tag_click import register_tag_commands
 from .templates_click import register_templates_commands
 from .testmonitor_click import register_testmonitor_commands
 from .user_click import register_user_commands
+from .utils import describe_config_source
 from .webapp_click import register_webapp_commands
 from .workitem_click import register_workitem_commands
 from .workspace_click import register_workspace_commands
@@ -595,7 +596,6 @@ def info(format: str, skip_health: bool, debug: bool) -> None:
     platform_display = truncate(platform_info.get("platform_display", "Unknown"))
     api_url = truncate(platform_info.get("api_url", "Not configured"))
     web_url = truncate(platform_info.get("web_url", "Not configured"))
-    from .utils import describe_config_source
 
     api_url_source = truncate(
         describe_config_source(platform_info.get("api_url_source", "Unknown"))

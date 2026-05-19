@@ -461,7 +461,7 @@ def register_config_commands(cli: Any) -> None:
             if profile.readonly:
                 rows.append(["Readonly", "enabled"])
 
-        if effective:
+        if env_overrides:
             api_url_source = effective.get("api-url-source")
             if isinstance(api_url_source, str):
                 rows.append(["Effective API URL", str(effective.get("api-url", ""))])
@@ -476,8 +476,7 @@ def register_config_commands(cli: Any) -> None:
                 rows.append(["Effective Web URL", str(effective.get("web-url", ""))])
                 rows.append(["Web URL Source", describe_config_source(web_url_source)])
 
-            if env_overrides:
-                rows.append(["Active Overrides", ", ".join(env_overrides)])
+            rows.append(["Active Overrides", ", ".join(env_overrides)])
 
         click.echo("slcli Configuration:")
         render_table(
