@@ -1,0 +1,1 @@
+Improve release SBOM generation by excluding dev dependencies and enriching CycloneDX metadata.
