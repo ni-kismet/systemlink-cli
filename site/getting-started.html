@@ -228,7 +228,7 @@ slcli config view --show-secrets
 # Delete a profile
 slcli config delete old-profile --force</code></pre>
 
-  <p><code>slcli config view</code> also shows the effective API URL, Web URL, and which source won at runtime so that environment overrides are easy to spot.</p>
+  <p><code>slcli config view</code> shows the stored profile values on disk. If environment overrides are active, it displays a warning directing you to <code>slcli info</code> for the effective resolved values.</p>
 
       <h3>Using Profiles with Commands</h3>
       <pre><code># Use a specific profile for a single command
