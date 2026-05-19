@@ -1,0 +1,1 @@
+Show the effective API URL, API key, and Web URL source in `slcli info` and `slcli config view`, and add preferred `SLCLI_API_*` / `SLCLI_WEB_URL` environment aliases alongside legacy `SYSTEMLINK_*` names.

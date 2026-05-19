@@ -228,6 +228,8 @@ slcli config view --show-secrets
 # Delete a profile
 slcli config delete old-profile --force</code></pre>
 
+  <p><code>slcli config view</code> also shows the effective API URL, Web URL, and which source won at runtime so that environment overrides are easy to spot.</p>
+
       <h3>Using Profiles with Commands</h3>
       <pre><code># Use a specific profile for a single command
 slcli --profile prod workspace list
@@ -248,7 +250,7 @@ slcli config migrate</code></pre>
 
       <!-- ─── ENV VARS ─── -->
       <h2 id="env-vars">Environment Variables</h2>
-      <p>Environment variables take precedence over profile settings.</p>
+      <p>Environment variables take precedence over profile settings. Profile selection uses <code>--profile</code> first, then <code>SLCLI_PROFILE</code>, then the current profile in config. After that, API URL, API key, and Web URL are each resolved independently, so a stale environment variable can override just one field.</p>
       <table>
         <thead>
           <tr><th>Variable</th><th>Description</th></tr>
@@ -256,11 +258,15 @@ slcli config migrate</code></pre>
         <tbody>
           <tr><td><code>SLCLI_PROFILE</code></td><td>Profile to use (default: current profile)</td></tr>
           <tr><td><code>SLCLI_CONFIG</code></td><td>Custom config file path</td></tr>
-          <tr><td><code>SYSTEMLINK_API_URL</code></td><td>Override API URL</td></tr>
-          <tr><td><code>SYSTEMLINK_API_KEY</code></td><td>Override API key</td></tr>
-          <tr><td><code>SYSTEMLINK_WEB_URL</code></td><td>Override web UI URL</td></tr>
+          <tr><td><code>SLCLI_API_URL</code></td><td>Preferred API URL override</td></tr>
+          <tr><td><code>SLCLI_API_KEY</code></td><td>Preferred API key override</td></tr>
+          <tr><td><code>SLCLI_WEB_URL</code></td><td>Preferred web UI URL override</td></tr>
+          <tr><td><code>SYSTEMLINK_API_URL</code></td><td>Legacy alias for <code>SLCLI_API_URL</code></td></tr>
+          <tr><td><code>SYSTEMLINK_API_KEY</code></td><td>Legacy alias for <code>SLCLI_API_KEY</code></td></tr>
+          <tr><td><code>SYSTEMLINK_WEB_URL</code></td><td>Legacy alias for <code>SLCLI_WEB_URL</code></td></tr>
         </tbody>
       </table>
+      <p>Use <code>slcli info</code> to see the effective source for each connection setting and any active overrides.</p>
 
       <!-- ─── READONLY MODE ─── -->
       <h2 id="readonly-mode">Readonly Mode</h2>
@@ -295,6 +301,8 @@ slcli info
 
 # JSON output for scripting
 slcli info --format json</code></pre>
+
+      <p>The info output includes API URL, API key, and Web URL source rows so you can tell whether the CLI is using a profile value, an environment variable, or a legacy fallback.</p>
 
       <table>
         <thead>
