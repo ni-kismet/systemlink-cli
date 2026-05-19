@@ -7,7 +7,7 @@ agent: agent
 
 ## Summary
 
-Create and post a concise pull request for the current work. Before opening the PR, make sure the changes are on a non-default feature branch, include any required Towncrier newsfragment entries under `newsfragments/`, and are pushed to GitHub.
+Create and post a concise, high-quality pull request for the current work. Detect whether the changes are already on a non-default feature branch and reuse it; if the work is still on the default branch, create a new descriptive feature branch automatically. Ensure any required Towncrier newsfragment entries under `newsfragments/` exist, review the changes before posting, run the required validation, push the branch, open the PR, and prefer to finish only when the PR build pipeline is green.
 
 ## Arguments
 
@@ -21,10 +21,10 @@ Use `key=value` arguments. Quote values that contain spaces, for example `title=
 ## Procedure
 
 1. Inspect the git working tree, current branch, upstream status, and commits ahead of the base branch.
-2. Check whether the branch includes the required Towncrier newsfragment(s) under `newsfragments/` for the proposed changes. If no valid fragment exists, call that out explicitly before proceeding.
-3. Summarize the planned git and PR operations for the user and ask for confirmation before creating a branch, adding or editing a newsfragment, committing, pushing, or opening the PR. Include the proposed branch name, commit message if needed, whether a Towncrier fragment will be added or updated, push target, base branch, and draft status.
-4. If the current branch is the default branch, create a new descriptive feature branch and switch to it before proceeding.
-5. If the change requires a Towncrier fragment and one is missing, add it in `newsfragments/` using a short branch-related stem plus one of the configured types (`major`, `minor`, `patch`, `doc`, `misc`).
+2. Detect whether the work is already on a non-default branch. If so, reuse that branch. If the work is still on the default branch, create and switch to a new descriptive feature branch automatically before proceeding.
+3. Check whether the branch includes the required Towncrier newsfragment(s) under `newsfragments/` for the proposed changes. If a valid fragment is missing, create one automatically using a short branch-related stem plus one of the configured types (`major`, `minor`, `patch`, `doc`, `misc`).
+4. Review the current diff before committing. Look for obvious bugs, missing tests, missing release notes, weak PR framing, or gaps against repo instructions, and make small follow-up fixes when needed so the PR is reviewable and high quality.
+5. Run the repo's required validation flow before opening the PR. Prefer the project-standard sequence for linting, type checking, unit tests, and the full test suite. If a failure is caused by the current changes, fix it and rerun. If a failure is pre-existing on the base branch, confirm that and carry it forward transparently in the PR notes instead of widening scope unnecessarily.
 6. If there are uncommitted changes, commit them with a concise commit message that matches the repo's commit style.
 7. Push the branch to `origin` if it is not already published there.
 8. Draft a concise PR title from the branch name, commits, and diff unless one was provided.
@@ -34,16 +34,20 @@ Use `key=value` arguments. Quote values that contain spaces, for example `title=
    - `## Release Notes` when a Towncrier fragment was added or updated, summarizing the fragment type and intent in one line
    - `## Notes` only when needed for reviewer context
 10. Open the PR on GitHub against the requested base branch or the repository default branch.
-11. Report the branch name, commit range, PR number, PR URL, and the Towncrier fragment file(s) included back to the user.
+11. When tooling is available, check the PR status checks after opening it and continue fixing branch-caused failures until the pipeline is green. If status checks are unavailable, still post the PR but call out that pipeline state could not be verified. If checks fail for reasons unrelated to the branch changes or due to external infrastructure, report that explicitly.
+12. Report the branch name, commit range, PR number, PR URL, Towncrier fragment file(s), and validation/check status back to the user.
 
 ## Constraints
 
 - Keep the PR title specific and under 72 characters when practical.
 - Keep the PR description short and reviewer-oriented.
 - Do not leave the changes on `main` or another shared protected branch.
+- If already on a suitable non-default branch, do not create a second branch.
 - Do not create a draft PR unless the user asked for one or the branch is clearly not ready for review.
-- Do not open the PR without the required committed Towncrier fragment(s); if a fragment is missing and the user does not want prompt-driven content changes, stop and ask how they want the release note written.
+- Do not open the PR without the required committed Towncrier fragment(s); create or update the fragment automatically when the change warrants it.
 - Remember that `poetry run towncrier check --compare-with origin/main` only sees committed branch contents, so an untracked fragment does not satisfy the requirement.
+- Do not stop for a confirmation step once the user has invoked this prompt; execute the branch, Towncrier, review, validation, push, and PR workflow autonomously.
+- Prefer to finish with a PR whose build pipeline is green. If that cannot be achieved because of unrelated existing failures, unavailable status-check tooling, or external CI issues, explain the blocker precisely in the final report.
 
 ## Example
 
