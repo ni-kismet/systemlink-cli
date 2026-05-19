@@ -2,6 +2,7 @@
 
 import getpass
 import json
+import os
 import re
 import sys
 from typing import Any, Optional
@@ -18,16 +19,15 @@ from .platform import (
 from .profiles import ProfileConfig, Profile, check_config_file_permissions
 from .rich_output import render_table
 from .table_utils import output_formatted_list
-from .utils import (
-    ExitCodes,
-    get_api_key_resolution,
-    get_base_url_resolution,
-    get_web_url_resolution,
-    source_is_env,
-)
+from .utils import ExitCodes
 
 API_KEY_LENGTH = 42
 API_KEY_PATTERN = re.compile(rf"^[A-Za-z0-9_-]{{{API_KEY_LENGTH}}}$")
+ENV_OVERRIDE_FIELDS = (
+    ("API URL", ("SLCLI_API_URL", "SYSTEMLINK_API_URL")),
+    ("API Key", ("SLCLI_API_KEY", "SYSTEMLINK_API_KEY")),
+    ("Web URL", ("SLCLI_WEB_URL", "SYSTEMLINK_WEB_URL")),
+)
 
 
 def _exit_with_validation_error(message: str, exit_code: int = ExitCodes.INVALID_INPUT) -> None:
@@ -69,6 +69,15 @@ def _normalize_base_url(raw_url: str, label: str) -> str:
         )
 
     return normalized.rstrip("/")
+
+
+def _get_active_env_overrides() -> list[str]:
+    """Return config fields currently overridden by environment variables."""
+    active_overrides: list[str] = []
+    for label, env_names in ENV_OVERRIDE_FIELDS:
+        if any(os.environ.get(env_name) for env_name in env_names):
+            active_overrides.append(label)
+    return active_overrides
 
 
 def _normalize_api_key(api_key: str) -> str:
@@ -377,27 +386,7 @@ def register_config_commands(cli: Any) -> None:
     def view(format: str, show_secrets: bool) -> None:
         """View the stored configuration file values."""
         cfg = ProfileConfig.load()
-
-        # Detect environment overrides (lightweight check for hint display)
-        env_overrides: list[str] = []
-        try:
-            api_url_resolution = get_base_url_resolution()
-            if source_is_env(api_url_resolution.source):
-                env_overrides.append("API URL")
-        except Exception:
-            pass
-        try:
-            api_key_resolution = get_api_key_resolution(emit_error=False)
-            if source_is_env(api_key_resolution.source):
-                env_overrides.append("API Key")
-        except Exception:
-            pass
-        try:
-            web_url_resolution = get_web_url_resolution()
-            if source_is_env(web_url_resolution.source):
-                env_overrides.append("Web URL")
-        except Exception:
-            pass
+        env_overrides = _get_active_env_overrides()
 
         if format == "json":
             data: dict = {}

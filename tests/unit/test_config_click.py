@@ -295,10 +295,55 @@ class TestViewConfig:
         # Should NOT show effective source rows in table
         assert "API Key Source" not in result.output
         assert "Effective API URL" not in result.output
-        # Should show warning pointing to slcli info
-        assert "Environment overrides active" in result.output
         assert "API Key" in result.output
-        assert "slcli info" in result.output
+
+    def test_view_config_emits_override_warning_to_stderr(
+        self, tmp_path: Path, monkeypatch: Any
+    ) -> None:
+        """Config view should emit the override warning via stderr."""
+        config_file = tmp_path / "config.json"
+        config_data: Dict[str, Any] = {
+            "current-profile": "test",
+            "profiles": {
+                "test": {
+                    "server": "https://test.com",
+                    "api-key": "secret1234",
+                },
+            },
+        }
+        config_file.write_text(json.dumps(config_data))
+        config_file.chmod(0o600)
+        monkeypatch.setattr(
+            "slcli.profiles.ProfileConfig.get_config_path", classmethod(lambda cls: config_file)
+        )
+        monkeypatch.setenv("SLCLI_API_KEY", "env-secret")
+
+        echo_calls: list[tuple[str, bool]] = []
+
+        def fake_echo(message: Any = "", err: bool = False, **_: Any) -> None:
+            echo_calls.append((str(message), err))
+
+        def fake_render_table(**_: Any) -> None:
+            return None
+
+        monkeypatch.setattr("slcli.config_click.click.echo", fake_echo)
+        monkeypatch.setattr("slcli.config_click.render_table", fake_render_table)
+
+        cli = make_cli()
+        config_group: Any = cli.commands["config"]
+        view_command: Any = config_group.commands["view"]
+        callback: Any = view_command.callback
+        callback(format="table", show_secrets=False)
+
+        warning_messages = [
+            message
+            for message, is_stderr in echo_calls
+            if is_stderr and "Environment overrides active" in message
+        ]
+
+        assert warning_messages == [
+            "\n⚠️  Environment overrides active (API Key). Run 'slcli info' for effective values."
+        ]
 
     def test_view_config_does_not_show_effective_sources(
         self, tmp_path: Path, monkeypatch: Any
