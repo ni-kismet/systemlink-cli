@@ -13,6 +13,7 @@ Usage:
 
 from __future__ import annotations
 
+import base64
 import importlib.metadata
 import json
 import re
@@ -74,6 +75,31 @@ def normalize_license(raw: Optional[str]) -> Optional[str]:
     return None
 
 
+def find_record_file(dist: importlib.metadata.Distribution) -> Optional[Path]:
+    """Locate the dist-info RECORD file via the public distribution API."""
+    for package_path in dist.files or []:
+        if str(package_path).endswith(".dist-info/RECORD"):
+            located = Path(str(dist.locate_file(package_path)))
+            if located.exists():
+                return located
+    return None
+
+
+def decode_record_sha256(encoded_hash: str) -> Optional[str]:
+    """Decode a RECORD sha256 digest from base64url to hex."""
+    padded_hash = encoded_hash + "=" * (-len(encoded_hash) % 4)
+
+    try:
+        decoded_hash = base64.urlsafe_b64decode(padded_hash).hex()
+    except ValueError:
+        return None
+
+    if len(decoded_hash) != 64:
+        return None
+
+    return decoded_hash
+
+
 def get_package_metadata() -> Dict[str, Dict[str, Any]]:
     """Collect metadata for all installed Python packages."""
     packages: Dict[str, Dict[str, Any]] = {}
@@ -106,25 +132,17 @@ def get_package_metadata() -> Dict[str, Dict[str, Any]]:
 
         # Get hash from dist files (RECORD uses base64url, CycloneDX needs hex)
         file_hashes: List[Dict[str, str]] = []
-        if dist.files:
-            record_file = dist._path / "RECORD"  # type: ignore[attr-defined]
-            if record_file.exists():
-                for line in record_file.read_text().splitlines():
-                    parts = line.split(",")
-                    if len(parts) >= 2 and parts[1].startswith("sha256="):
-                        b64_hash = parts[1].replace("sha256=", "")
-                        # Convert base64url to hex
-                        import base64
+        record_file = find_record_file(dist)
+        if record_file is not None:
+            for line in record_file.read_text(encoding="utf-8").splitlines():
+                parts = line.split(",")
+                if len(parts) < 2 or not parts[1].startswith("sha256="):
+                    continue
 
-                        try:
-                            # Add padding if needed
-                            padded = b64_hash + "=" * (4 - len(b64_hash) % 4)
-                            hex_hash = base64.urlsafe_b64decode(padded).hex()
-                            if len(hex_hash) == 64:  # Valid SHA-256 hex
-                                file_hashes.append({"alg": "SHA-256", "content": hex_hash})
-                                break
-                        except Exception:
-                            pass
+                hex_hash = decode_record_sha256(parts[1].replace("sha256=", ""))
+                if hex_hash is not None:
+                    file_hashes.append({"alg": "SHA-256", "content": hex_hash})
+                    break
 
         packages[normalized] = {
             "license": license_expr,
@@ -150,7 +168,7 @@ def enrich_metadata(sbom: Dict[str, Any]) -> None:
     metadata["supplier"] = SBOM_SUPPLIER
 
     # Add supplier to metadata.component as well
-    component = metadata.get("component", {})
+    component = metadata.setdefault("component", {})
     component["supplier"] = SBOM_SUPPLIER
 
     # Add project license to metadata component
@@ -249,7 +267,7 @@ def main() -> None:
         print(f"Error: {sbom_path} not found", file=sys.stderr)
         sys.exit(1)
 
-    with open(sbom_path) as f:
+    with open(sbom_path, encoding="utf-8") as f:
         sbom = json.load(f)
 
     packages = get_package_metadata()
@@ -258,7 +276,7 @@ def main() -> None:
     enrich_components(sbom, packages)
     set_compositions(sbom)
 
-    with open(sbom_path, "w") as f:
+    with open(sbom_path, "w", encoding="utf-8") as f:
         json.dump(sbom, f, indent=2)
 
     # Summary

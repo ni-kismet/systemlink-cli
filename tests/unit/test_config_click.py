@@ -408,9 +408,7 @@ class TestViewConfig:
         assert "Current Profile" in result.output
         assert "(none)" in result.output
 
-    def test_view_config_json_without_env_overrides(
-        self, tmp_path: Path, monkeypatch: Any
-    ) -> None:
+    def test_view_config_json_without_env_overrides(self, tmp_path: Path, monkeypatch: Any) -> None:
         """JSON output should show stored profile values without effective/source keys."""
         config_file = tmp_path / "config.json"
         config_data: Dict[str, Any] = {
@@ -445,9 +443,7 @@ class TestViewConfig:
         assert "effective" not in data
         assert "env-overrides" not in data
 
-    def test_view_config_json_with_env_overrides(
-        self, tmp_path: Path, monkeypatch: Any
-    ) -> None:
+    def test_view_config_json_with_env_overrides(self, tmp_path: Path, monkeypatch: Any) -> None:
         """JSON output should include env-overrides list when env vars are set."""
         config_file = tmp_path / "config.json"
         config_data: Dict[str, Any] = {
