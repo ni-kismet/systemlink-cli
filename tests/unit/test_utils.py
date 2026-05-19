@@ -1,7 +1,8 @@
 """Test utilities for slcli unit tests."""
 
 import json
-from typing import Any
+from pathlib import Path
+from typing import Any, Dict
 
 
 def patch_keyring(monkeypatch: Any, platform: str = "SLE") -> None:
@@ -51,3 +52,69 @@ def test_get_web_url_ignores_keyring_backend_errors_when_api_url_is_set(
     monkeypatch.setattr(keyring, "get_password", raise_no_backend)
 
     assert get_web_url() == "https://dev-api.lifecyclesolutions.ni.com"
+
+
+def test_api_key_resolution_prefers_slcli_env_alias(monkeypatch: Any, tmp_path: Path) -> None:
+    """SLCLI_API_KEY should win over legacy env vars and profile values."""
+    from slcli.utils import get_api_key_resolution
+
+    config_file = tmp_path / "config.json"
+    config_data: Dict[str, Any] = {
+        "current-profile": "default",
+        "profiles": {
+            "default": {
+                "server": "https://test.example.com",
+                "api-key": "profile-key",
+            }
+        },
+    }
+    config_file.write_text(json.dumps(config_data))
+    config_file.chmod(0o600)
+    monkeypatch.setattr(
+        "slcli.profiles.ProfileConfig.get_config_path", classmethod(lambda cls: config_file)
+    )
+    monkeypatch.setenv("SYSTEMLINK_API_KEY", "legacy-env-key")
+    monkeypatch.setenv("SLCLI_API_KEY", "preferred-env-key")
+
+    resolved = get_api_key_resolution()
+
+    assert resolved.value == "preferred-env-key"
+    assert resolved.source == "env:SLCLI_API_KEY"
+
+
+def test_base_url_resolution_strips_trailing_slash_from_env(monkeypatch: Any) -> None:
+    """Base URL env overrides should normalize a trailing slash."""
+    from slcli.utils import get_base_url_resolution
+
+    monkeypatch.setenv("SLCLI_API_URL", "https://env.example.com/")
+
+    resolved = get_base_url_resolution()
+
+    assert resolved.value == "https://env.example.com"
+    assert resolved.source == "env:SLCLI_API_URL"
+
+
+def test_base_url_resolution_reports_profile_source(monkeypatch: Any, tmp_path: Path) -> None:
+    """Base URL resolution should report the active profile when no env override exists."""
+    from slcli.utils import get_base_url_resolution
+
+    config_file = tmp_path / "config.json"
+    config_data: Dict[str, Any] = {
+        "current-profile": "dev",
+        "profiles": {
+            "dev": {
+                "server": "https://dev.example.com/",
+                "api-key": "profile-key",
+            }
+        },
+    }
+    config_file.write_text(json.dumps(config_data))
+    config_file.chmod(0o600)
+    monkeypatch.setattr(
+        "slcli.profiles.ProfileConfig.get_config_path", classmethod(lambda cls: config_file)
+    )
+
+    resolved = get_base_url_resolution()
+
+    assert resolved.value == "https://dev.example.com"
+    assert resolved.source == "profile:dev"

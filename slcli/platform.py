@@ -249,22 +249,19 @@ def _get_cached_service_status(service_name: str, api_url: str, api_key: str) ->
 
 def _get_current_api_context() -> Optional[Tuple[Optional[str], str, str]]:
     """Resolve the current profile name, API URL, and key for service probing."""
-    api_url = os.environ.get("SYSTEMLINK_API_URL")
-    api_key = os.environ.get("SYSTEMLINK_API_KEY")
-    if api_url and api_key:
-        return None, api_url, api_key
-
-    cfg = _get_keyring_config()
-    config_api_url = cfg.get("api_url") if cfg else None
-    config_api_key = cfg.get("api_key") if cfg else None
-    if config_api_url and config_api_key:
-        return None, str(config_api_url), str(config_api_key)
-
     try:
-        from .profiles import get_active_profile_name
-        from .utils import get_api_key, get_base_url
+        from .utils import get_api_key_resolution, get_base_url_resolution
 
-        return get_active_profile_name(), get_base_url(), get_api_key()
+        api_url_resolution = get_base_url_resolution()
+        api_key_resolution = get_api_key_resolution(emit_error=False)
+
+        profile_name: Optional[str] = None
+        if api_url_resolution.source.startswith("profile:") and (
+            api_url_resolution.source == api_key_resolution.source
+        ):
+            profile_name = api_url_resolution.source.split(":", 1)[1]
+
+        return profile_name, api_url_resolution.value, api_key_resolution.value
     except Exception:
         return None
 
@@ -376,7 +373,7 @@ def _get_runtime_platform() -> str:
     if platform != PLATFORM_UNKNOWN:
         return platform
 
-    status_snapshot = _get_service_status_snapshot(force_refresh=False)
+    status_snapshot = _get_service_status_snapshot(force_refresh=True)
     if status_snapshot is None:
         return platform
 
@@ -779,23 +776,36 @@ def get_platform_info(skip_health: bool = False) -> Dict[str, Any]:
     Returns:
         Dictionary with platform info including URL, platform type, and services.
     """
-    from .utils import get_api_key, get_base_url, get_web_url
+    from .utils import (
+        get_api_key_resolution,
+        get_base_url_resolution,
+        get_web_url_resolution,
+        source_is_env,
+    )
 
-    # Use profile-aware functions instead of keyring directly
     try:
-        api_url = get_base_url()
+        api_url_resolution = get_base_url_resolution()
+        api_url = api_url_resolution.value
+        api_url_source = api_url_resolution.source
     except Exception:
         api_url = "Not configured"
+        api_url_source = "unresolved"
 
     try:
-        web_url = get_web_url()
+        web_url_resolution = get_web_url_resolution()
+        web_url = web_url_resolution.value
+        web_url_source = web_url_resolution.source
     except Exception:
         web_url = "Not configured"
+        web_url_source = "unresolved"
 
     try:
-        api_key = get_api_key()
+        api_key_resolution = get_api_key_resolution(emit_error=False)
+        api_key = api_key_resolution.value
+        api_key_source = api_key_resolution.source
         logged_in = bool(api_key)
     except Exception:
+        api_key_source = "unresolved"
         logged_in = False
 
     # Get platform from profile or keyring config
@@ -833,13 +843,26 @@ def get_platform_info(skip_health: bool = False) -> Dict[str, Any]:
 
     info: Dict[str, Any] = {
         "api_url": api_url,
+        "api_url_source": api_url_source,
         "web_url": web_url,
+        "web_url_source": web_url_source,
+        "api_key_source": api_key_source,
         "platform": platform,
         "platform_display": _get_platform_display_name(platform),
         "logged_in": logged_in,
         "server_reachable": server_reachable,
         "auth_valid": auth_valid,
     }
+
+    env_overrides = []
+    if source_is_env(api_url_source):
+        env_overrides.append("API URL")
+    if source_is_env(api_key_source):
+        env_overrides.append("API Key")
+    if source_is_env(web_url_source):
+        env_overrides.append("Web URL")
+    if env_overrides:
+        info["env_overrides"] = env_overrides
 
     if file_query_endpoint is not None:
         info["file_query_endpoint"] = file_query_endpoint

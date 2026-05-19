@@ -265,6 +265,39 @@ class TestViewConfig:
         assert "API Key" in result.output
         assert "secret1234" in result.output
 
+    def test_view_config_reports_effective_env_overrides(
+        self, tmp_path: Path, monkeypatch: Any
+    ) -> None:
+        """Config view should show when env overrides shadow the stored profile."""
+        config_file = tmp_path / "config.json"
+        config_data: Dict[str, Any] = {
+            "current-profile": "test",
+            "profiles": {
+                "test": {
+                    "server": "https://test.com",
+                    "api-key": "secret1234",
+                    "web-url": "https://web.test.com",
+                },
+            },
+        }
+        config_file.write_text(json.dumps(config_data))
+        config_file.chmod(0o600)
+        monkeypatch.setattr(
+            "slcli.profiles.ProfileConfig.get_config_path", classmethod(lambda cls: config_file)
+        )
+        monkeypatch.setenv("SLCLI_API_KEY", "env-secret")
+
+        cli = make_cli()
+        runner = CliRunner()
+        result = runner.invoke(cli, ["config", "view"])
+
+        assert result.exit_code == 0
+        assert "Profile API Key" in result.output
+        assert "API Key Source" in result.output
+        assert "Environment (SLCLI_API_KEY)" in result.output
+        assert "Active Overrides" in result.output
+        assert "API Key" in result.output
+
     def test_view_config_without_current_profile(self, tmp_path: Path, monkeypatch: Any) -> None:
         """Test viewing the config when no current profile is set."""
         config_file = tmp_path / "config.json"

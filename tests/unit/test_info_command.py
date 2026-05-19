@@ -11,6 +11,7 @@ from click.testing import CliRunner
 import slcli.main as main_module
 from slcli.main import cli
 from slcli.profiles import Profile
+from slcli.utils import ResolvedConfigValue
 
 
 class TestInfoCommand:
@@ -445,6 +446,43 @@ class TestInfoCommand:
         assert output["file_query_endpoint"] == "query-files-linq"
         assert output["elasticsearch_available"] is False
         assert output["services"]["File"] == "fallback"
+
+    def test_info_command_reports_env_auth_sources(self) -> None:
+        """Info should show the winning auth sources and active overrides."""
+        test_profile = Profile(
+            name="test",
+            server="https://test.example.com",
+            api_key="profile-key",
+            web_url="https://web.example.com",
+            platform="SLE",
+        )
+        mock_status = {
+            "server_reachable": True,
+            "auth_valid": True,
+            "services": {"Auth": "ok"},
+            "platform": "SLE",
+        }
+
+        with patch("slcli.profiles.get_active_profile", return_value=test_profile), patch(
+            "slcli.utils.get_base_url_resolution",
+            return_value=ResolvedConfigValue("https://test.example.com", "profile:test"),
+        ), patch(
+            "slcli.utils.get_web_url_resolution",
+            return_value=ResolvedConfigValue("https://web.example.com", "profile:test"),
+        ), patch(
+            "slcli.utils.get_api_key_resolution",
+            return_value=ResolvedConfigValue("env-key", "env:SLCLI_API_KEY"),
+        ), patch(
+            "slcli.platform.check_service_status", return_value=mock_status
+        ):
+            runner = CliRunner()
+            result = runner.invoke(cli, ["info"])
+
+        assert result.exit_code == 0
+        assert "API Key Source" in result.output
+        assert "Environment (SLCLI_API_KEY)" in result.output
+        assert "Overrides" in result.output
+        assert "API Key" in result.output
 
 
 class TestGetCaSourceDisplay:

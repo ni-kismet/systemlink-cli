@@ -595,14 +595,32 @@ def info(format: str, skip_health: bool, debug: bool) -> None:
     platform_display = truncate(platform_info.get("platform_display", "Unknown"))
     api_url = truncate(platform_info.get("api_url", "Not configured"))
     web_url = truncate(platform_info.get("web_url", "Not configured"))
+    from .utils import describe_config_source
+
+    api_url_source = truncate(
+        describe_config_source(platform_info.get("api_url_source", "Unknown"))
+    )
+    api_key_source = truncate(
+        describe_config_source(platform_info.get("api_key_source", "Unknown"))
+    )
+    web_url_source = truncate(
+        describe_config_source(platform_info.get("web_url_source", "Unknown"))
+    )
 
     info_rows = [
         ["Status", status],
         ["Profile", profile_display],
         ["Platform", platform_display],
         ["API URL", api_url],
+        ["API URL Source", api_url_source],
+        ["API Key Source", api_key_source],
         ["Web URL", web_url],
+        ["Web URL Source", web_url_source],
     ]
+
+    env_overrides = platform_info.get("env_overrides")
+    if isinstance(env_overrides, list) and env_overrides:
+        info_rows.append(["Overrides", truncate(", ".join(str(item) for item in env_overrides))])
 
     workspace = platform_info.get("active_profile_workspace")
     if workspace:

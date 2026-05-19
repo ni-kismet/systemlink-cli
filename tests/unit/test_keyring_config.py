@@ -56,3 +56,18 @@ def test_get_web_url_precedence(monkeypatch: MonkeyPatch, tmp_path: Path) -> Non
     monkeypatch.delenv("SYSTEMLINK_WEB_URL", raising=False)
     val2 = utils.get_web_url()
     assert val2.rstrip("/") == "https://keyring.example"
+
+
+def test_get_web_url_prefers_slcli_env_alias(monkeypatch: MonkeyPatch, tmp_path: Path) -> None:
+    """SLCLI_WEB_URL should win over the legacy SYSTEMLINK_WEB_URL alias."""
+    config_file = tmp_path / "config.json"
+    monkeypatch.setattr(
+        "slcli.profiles.ProfileConfig.get_config_path", classmethod(lambda cls: config_file)
+    )
+    monkeypatch.setenv("SYSTEMLINK_WEB_URL", "https://legacy.example")
+    monkeypatch.setenv("SLCLI_WEB_URL", "https://preferred.example")
+
+    resolved = utils.get_web_url_resolution()
+
+    assert resolved.value == "https://preferred.example"
+    assert resolved.source == "env:SLCLI_WEB_URL"
