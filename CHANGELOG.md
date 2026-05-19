@@ -2,6 +2,13 @@
 
 <!-- towncrier release notes start -->
 
+## v1.13.17 (2026-05-19)
+
+### Bug Fixes
+
+- Separate config view from runtime info so `slcli config view` shows stored profile values while `slcli info` shows effective resolved values and override sources. (config-view-info-separation)
+
+
 ## v1.13.16 (2026-05-19)
 
 ### Bug Fixes
