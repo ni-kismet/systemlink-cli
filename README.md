@@ -92,7 +92,7 @@ slcli resolves runtime connection settings in this order:
 - Profile selection: `--profile`, then `SLCLI_PROFILE`, then the current profile in config.
 - API URL, API key, and Web URL: `SLCLI_API_URL` / `SLCLI_API_KEY` / `SLCLI_WEB_URL`, then the legacy `SYSTEMLINK_*` aliases, then the active profile, then legacy keyring fallbacks.
 
-Use `slcli info` or `slcli config view` to see the effective source for each value and whether environment overrides are active.
+Use `slcli info` to see the effective source for each value and whether environment overrides are active. Use `slcli config view` to inspect the stored profile values on disk.
 
 ## Documentation
 
