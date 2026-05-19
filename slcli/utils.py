@@ -476,10 +476,9 @@ def get_api_key_resolution(emit_error: bool = True) -> ResolvedConfigValue:
         return ResolvedConfigValue(api_key, "keyring:SYSTEMLINK_API_KEY")
 
     if emit_error:
-        click.echo(
-            "\u2717 API key not found. Please set the SLCLI_API_KEY environment variable "
-            "(or legacy SYSTEMLINK_API_KEY) or run 'slcli login --profile <name>'.",
-            err=True,
+        raise click.ClickException(
+            "API key not found. Please set the SLCLI_API_KEY environment variable "
+            "(or legacy SYSTEMLINK_API_KEY) or run 'slcli login --profile <name>'."
         )
     raise click.ClickException("API key not found.")
 

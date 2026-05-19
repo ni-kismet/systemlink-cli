@@ -4,6 +4,9 @@ import json
 from pathlib import Path
 from typing import Any, Dict
 
+import click
+import pytest
+
 
 def patch_keyring(monkeypatch: Any, platform: str = "SLE") -> None:
     """Patch keyring to return a mock configuration.
@@ -118,3 +121,17 @@ def test_base_url_resolution_reports_profile_source(monkeypatch: Any, tmp_path: 
 
     assert resolved.value == "https://dev.example.com"
     assert resolved.source == "profile:dev"
+
+
+def test_api_key_resolution_raises_single_click_exception_when_missing(monkeypatch: Any) -> None:
+    """Missing API keys should raise one ClickException with the full guidance message."""
+    from slcli.utils import get_api_key_resolution
+
+    monkeypatch.delenv("SLCLI_API_KEY", raising=False)
+    monkeypatch.delenv("SYSTEMLINK_API_KEY", raising=False)
+    monkeypatch.setattr("slcli.utils._get_keyring_config", lambda: {})
+    monkeypatch.setattr("slcli.utils.keyring.get_password", lambda *_args, **_kwargs: None)
+    monkeypatch.setattr("slcli.profiles.get_active_profile", lambda: None)
+
+    with pytest.raises(click.ClickException, match="SLCLI_API_KEY environment variable"):
+        get_api_key_resolution()
