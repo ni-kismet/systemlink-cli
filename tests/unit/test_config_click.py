@@ -268,7 +268,7 @@ class TestViewConfig:
     def test_view_config_reports_effective_env_overrides(
         self, tmp_path: Path, monkeypatch: Any
     ) -> None:
-        """Config view should show when env overrides shadow the stored profile."""
+        """Config view should show a warning when env overrides are active."""
         config_file = tmp_path / "config.json"
         config_data: Dict[str, Any] = {
             "current-profile": "test",
@@ -292,16 +292,18 @@ class TestViewConfig:
         result = runner.invoke(cli, ["config", "view"])
 
         assert result.exit_code == 0
-        assert "Profile API Key" in result.output
-        assert "API Key Source" in result.output
-        assert "Environment (SLCLI_API_KEY)" in result.output
-        assert "Active Overrides" in result.output
+        # Should NOT show effective source rows in table
+        assert "API Key Source" not in result.output
+        assert "Effective API URL" not in result.output
+        # Should show warning pointing to slcli info
+        assert "Environment overrides active" in result.output
         assert "API Key" in result.output
+        assert "slcli info" in result.output
 
-    def test_view_config_reports_effective_sources_without_env_overrides(
+    def test_view_config_does_not_show_effective_sources(
         self, tmp_path: Path, monkeypatch: Any
     ) -> None:
-        """Config view should show effective sources even when env overrides are inactive."""
+        """Config view should not show effective/source rows (those belong to slcli info)."""
         config_file = tmp_path / "config.json"
         config_data: Dict[str, Any] = {
             "current-profile": "test",
@@ -324,12 +326,17 @@ class TestViewConfig:
         result = runner.invoke(cli, ["config", "view"])
 
         assert result.exit_code == 0
-        assert "Effective API URL" in result.output
-        assert "API URL Source" in result.output
-        assert "Profile 'test'" in result.output
-        assert "Effective Web URL" in result.output
-        assert "Web URL Source" in result.output
+        # Should show stored config values
+        assert "https://test.com" in result.output
+        assert "https://web.test.com" in result.output
+        # Should NOT show effective/source rows
+        assert "Effective API URL" not in result.output
+        assert "API URL Source" not in result.output
+        assert "Effective Web URL" not in result.output
+        assert "Web URL Source" not in result.output
         assert "Active Overrides" not in result.output
+        # No env override warning when no overrides active
+        assert "Environment overrides active" not in result.output
 
     def test_view_config_without_current_profile(self, tmp_path: Path, monkeypatch: Any) -> None:
         """Test viewing the config when no current profile is set."""

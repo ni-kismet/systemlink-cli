@@ -1,0 +1,1 @@
+Separate config view from runtime info so `slcli config view` shows stored profile values while `slcli info` shows effective resolved values and override sources.
