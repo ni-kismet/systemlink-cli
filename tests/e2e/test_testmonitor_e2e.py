@@ -265,6 +265,7 @@ class TestResultListE2E:
         results = cli_helper.get_json_output(result)
         assert isinstance(results, list)
 
+    @pytest.mark.sls
     def test_list_empty_results(self, cli_runner: Any, cli_helper: Any) -> None:
         """Test listing with a filter that matches nothing."""
         result = cli_runner(
