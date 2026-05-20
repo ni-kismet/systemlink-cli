@@ -78,7 +78,8 @@ def normalize_license(raw: Optional[str]) -> Optional[str]:
 def find_record_file(dist: importlib.metadata.Distribution) -> Optional[Path]:
     """Locate the dist-info RECORD file via the public distribution API."""
     for package_path in dist.files or []:
-        if str(package_path).endswith(".dist-info/RECORD"):
+        package_path_str = str(package_path).replace("\\", "/")
+        if package_path_str.endswith(".dist-info/RECORD"):
             located = Path(str(dist.locate_file(package_path)))
             if located.exists():
                 return located
