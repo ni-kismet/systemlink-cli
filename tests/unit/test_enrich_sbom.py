@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 import base64
-from pathlib import Path
+from pathlib import Path, PurePath, PureWindowsPath
 from typing import Any, Dict, List, Optional
 
 import pytest
@@ -43,7 +43,7 @@ class FakeMetadata:
 class FakeDistribution:
     """Test double exposing only the public distribution API used by the script."""
 
-    def __init__(self, record_relative_path: Path, record_location: Path) -> None:
+    def __init__(self, record_relative_path: PurePath, record_location: Path) -> None:
         """Create a fake distribution with a locatable RECORD file."""
         self.metadata = FakeMetadata(
             {
@@ -57,7 +57,7 @@ class FakeDistribution:
         self.files = [record_relative_path]
         self._record_location = record_location
 
-    def locate_file(self, path: Path) -> Path:
+    def locate_file(self, path: PurePath) -> Path:
         """Resolve a relative package path to the fake RECORD file."""
         assert path == self.files[0]
         return self._record_location
@@ -114,3 +114,26 @@ def test_get_package_metadata_uses_public_record_lookup(
             "hashes": [{"alg": "SHA-256", "content": digest_hex}],
         }
     }
+
+
+def test_get_package_metadata_accepts_windows_style_record_paths(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    """Package metadata extraction should handle Windows-style RECORD paths."""
+    record_relative_path = PureWindowsPath("demo_package-1.0.0.dist-info/RECORD")
+    record_location = tmp_path / "demo_package-1.0.0.dist-info" / "RECORD"
+    record_location.parent.mkdir(parents=True)
+
+    digest_hex = "ef" * 32
+    digest_b64 = base64.urlsafe_b64encode(bytes.fromhex(digest_hex)).decode("ascii")
+    record_location.write_text(
+        f"demo_package/__init__.py,sha256={digest_b64},123\n",
+        encoding="utf-8",
+    )
+
+    fake_dist = FakeDistribution(record_relative_path, record_location)
+    monkeypatch.setattr("importlib.metadata.distributions", lambda: [fake_dist])
+
+    metadata = get_package_metadata()
+
+    assert metadata["demo-package"]["hashes"] == [{"alg": "SHA-256", "content": digest_hex}]
