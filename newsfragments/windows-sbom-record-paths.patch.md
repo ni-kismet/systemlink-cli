@@ -1,1 +1,0 @@
-Normalize SBOM RECORD path matching so release-time metadata extraction works on Windows runners.

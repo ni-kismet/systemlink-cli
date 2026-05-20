@@ -2,6 +2,13 @@
 
 <!-- towncrier release notes start -->
 
+## v1.13.19 (2026-05-20)
+
+### Bug Fixes
+
+- Normalize SBOM RECORD path matching so release-time metadata extraction works on Windows runners. (windows-sbom-record-paths)
+
+
 ## v1.13.18 (2026-05-20)
 
 ### Bug Fixes
