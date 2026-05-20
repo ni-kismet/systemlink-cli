@@ -192,6 +192,12 @@ This will:
 - Build `dist/slcli.exe`
 - Generate a Scoop manifest `dist/scoop-slcli.json` with the correct SHA256
 
+#### Windows (WinGet Phase 1 Bootstrap)
+
+- Initial WinGet bootstrap manifests are tracked in `scripts/winget/NI.SystemLinkCLI/1.13.19/`
+- Submit and validation runbook: `docs/winget-phase1.md`
+- This phase is manual submission to `microsoft/winget-pkgs`; CI automation is planned for a later phase
+
 ### CI/CD Automation
 
 - All builds, tests, and packaging are automated via GitHub Actions for both Homebrew and Scoop

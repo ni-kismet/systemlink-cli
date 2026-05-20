@@ -1,0 +1,15 @@
+# yaml-language-server: $schema=https://aka.ms/winget-manifest.installer.1.12.0.schema.json
+PackageIdentifier: NI.SystemLinkCLI
+PackageVersion: 1.13.19
+InstallerType: zip
+NestedInstallerType: portable
+UpgradeBehavior: install
+Installers:
+- Architecture: x64
+  InstallerUrl: https://github.com/ni-kismet/systemlink-cli/releases/download/v1.13.19/slcli.zip
+  InstallerSha256: E9BAC73EFF00538B9AB8572E0BFF31B5225F4B5D21ED9C5167B858976D0C83AF
+  NestedInstallerFiles:
+  - RelativeFilePath: slcli/slcli.exe
+    PortableCommandAlias: slcli
+ManifestType: installer
+ManifestVersion: 1.12.0

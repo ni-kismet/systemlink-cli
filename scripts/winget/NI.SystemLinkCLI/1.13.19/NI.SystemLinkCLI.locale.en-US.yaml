@@ -1,0 +1,22 @@
+# yaml-language-server: $schema=https://aka.ms/winget-manifest.defaultLocale.1.12.0.schema.json
+PackageIdentifier: NI.SystemLinkCLI
+PackageVersion: 1.13.19
+PackageLocale: en-US
+Publisher: NI
+PublisherUrl: https://github.com/ni-kismet
+PublisherSupportUrl: https://github.com/ni-kismet/systemlink-cli/issues
+Author: NI
+PackageName: SystemLink CLI
+PackageUrl: https://github.com/ni-kismet/systemlink-cli
+License: MIT
+LicenseUrl: https://github.com/ni-kismet/systemlink-cli/blob/main/LICENSE
+ShortDescription: SystemLink Integrator CLI for managing SystemLink resources.
+Moniker: slcli
+Tags:
+- systemlink
+- cli
+- ni
+- automation
+ReleaseNotesUrl: https://github.com/ni-kismet/systemlink-cli/releases/tag/v1.13.19
+ManifestType: defaultLocale
+ManifestVersion: 1.12.0
