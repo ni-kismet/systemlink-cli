@@ -2,6 +2,13 @@
 
 <!-- towncrier release notes start -->
 
+## v1.13.18 (2026-05-20)
+
+### Bug Fixes
+
+- Improve release SBOM generation by excluding dev dependencies and enriching CycloneDX metadata. (improve-sbom-quality)
+
+
 ## v1.13.17 (2026-05-19)
 
 ### Bug Fixes
