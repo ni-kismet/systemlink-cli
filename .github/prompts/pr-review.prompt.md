@@ -54,7 +54,7 @@ You are a professional code reviewer for the SystemLink CLI project. Your role i
 - ✅ Towncrier requirements met: relevant PRs include committed fragment files in `newsfragments/` and `poetry run towncrier check --compare-with origin/${{ github.base_ref }}` passes
 - ✅ Documentation updated (README, docstrings, help text, and command docs such as `site/commands.html` when CLI changes require it)
 - ✅ CLI standards met (--format/-f, --help, proper exit codes)
-- ✅ New bundled skills under `slcli/skills/` are installable via `slcli skill install`
+- ✅ Skill installation and related documentation reflect the current temporary-availability state
 
 #### Quality Assurance
 - ✅ Full test suite passes locally
@@ -95,8 +95,7 @@ Please review the PR systematically:
 - [ ] Command docs reviewed for needed updates (`README.md`, `site/commands.html`, `site/getting-started.html`, and other user-facing command docs as applicable)
 - [ ] README updated if needed
 - [ ] **`site/commands.html` updated** — add new CLI commands or changed command examples to the website command reference
-- [ ] **`skills/slcli/SKILL.md` updated** — add any new commands, options, or changed command paths
-- [ ] **`slcli/skill_click.py` updated** — new bundled skills under `slcli/skills/` are exposed and installable via `slcli skill install`
+- [ ] **`slcli/skill_click.py` updated** — skill installation behavior and messaging match the current temporary-availability state
 - [ ] Configuration properly managed
 - [ ] No hardcoded secrets or URLs
 - [ ] Cross-platform compatible
@@ -176,7 +175,7 @@ You are reviewing changes to CLI commands in the SystemLink CLI project. Focus o
 - [ ] Command docs reviewed for needed updates (`README.md`, `site/commands.html`, `site/getting-started.html`, and other user-facing command docs as applicable)
 - [ ] README updated with usage examples
 - [ ] `site/commands.html` updated when CLI commands or examples change
-- [ ] If new bundled skills are added under `slcli/skills/`, `slcli skill install` is updated and covered by unit tests
+- [ ] If bundled skills are restored or reintroduced, `slcli skill install` is updated and covered by unit tests
 - [ ] Help text complete and accurate
 - [ ] Docstrings explain purpose and parameters
 

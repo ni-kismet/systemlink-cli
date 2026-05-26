@@ -316,38 +316,18 @@ slcli info --format json</code></pre>
 
       <!-- ─── SKILLS ─── -->
       <h2 id="skills">AI Agent Skills</h2>
-      <p>Install bundled agent skills so that supported AI clients automatically know how to use the CLI, build SystemLink webapps, and create SystemLink notebooks.</p>
+      <p>Bundled agent skills are temporarily unavailable. We hope to restore them shortly.</p>
 
-      <p>Three skills are available:</p>
+      <p>When restored, the planned skills will include:</p>
       <ul>
         <li><strong>slcli</strong> — teaches AI assistants how to query and manage every SystemLink resource type</li>
         <li><strong>systemlink-webapp</strong> — teaches AI assistants how to build Nimble Angular web applications using <code>@ni/nimble-angular</code> and <code>@ni/systemlink-clients-ts</code></li>
         <li><strong>systemlink-notebook</strong> — teaches AI assistants how to create, parameterize, and deploy SystemLink notebooks with the correct papermill and SystemLink metadata</li>
       </ul>
 
-      <pre><code># Interactive — prompts for client and scope
-slcli skill install
-
-# Install for a specific client
-# agents = most agent environments (including Copilot/Codex)
-slcli skill install --client agents
-slcli skill install --client claude
-slcli skill install --client all
-
-# Choose where to install
-slcli skill install --scope personal   # ~/
-slcli skill install --scope project    # current repo
-slcli skill install --scope both</code></pre>
-
-      <table>
-        <thead>
-          <tr><th>Client</th><th>Personal</th><th>Project (repo)</th></tr>
-        </thead>
-        <tbody>
-          <tr><td>agents (most agents, including Copilot/Codex)</td><td><code>~/.agents/skills/</code></td><td><code>.agents/skills/</code></td></tr>
-          <tr><td>claude</td><td><code>~/.claude/skills/</code></td><td><code>.claude/skills/</code></td></tr>
-        </tbody>
-      </table>
+      <div class="highlight-box">
+        <p><strong>Temporary status:</strong> <code>slcli skill install</code> is currently unavailable and does not install any skill files. Check release notes for restoration updates.</p>
+      </div>
 
       <!-- ─── MCP ─── -->
       <h2 id="mcp">MCP Server (experimental)</h2>
