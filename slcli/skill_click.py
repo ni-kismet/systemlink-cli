@@ -10,8 +10,7 @@ from .utils import ExitCodes
 
 SKILL_NAME = "slcli"
 TEMPORARILY_UNAVAILABLE_MESSAGE = (
-    "AI skills are temporarily unavailable and cannot be installed right now. "
-    "We hope to restore them shortly."
+    "AI skills are currently unavailable and cannot be installed right now."
 )
 _FALLBACK_SKILL_CHOICES = [
     "nipkg-file-package",
@@ -202,7 +201,7 @@ def register_skill_commands(cli: Any) -> None:
     def install_skill(
         skill: Optional[str], client: Optional[str], scope: Optional[str], force: bool
     ) -> None:
-        """Report that skill installation is temporarily unavailable."""
+        """Report that skill installation is currently unavailable."""
         del skill, client, scope, force
         click.echo(f"✗ {TEMPORARILY_UNAVAILABLE_MESSAGE}", err=True)
         sys.exit(ExitCodes.GENERAL_ERROR)

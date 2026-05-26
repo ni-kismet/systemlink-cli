@@ -91,7 +91,7 @@ def test_install_without_options_reports_temporary_unavailability(runner: CliRun
 
 
 def test_install_with_options_reports_temporary_unavailability(runner: CliRunner) -> None:
-    """Passing explicit options still reports the temporary outage."""
+    """Passing explicit options still reports the current unavailability."""
     cli = make_cli()
     result = runner.invoke(
         cli,

@@ -54,7 +54,7 @@ You are a professional code reviewer for the SystemLink CLI project. Your role i
 - ✅ Towncrier requirements met: relevant PRs include committed fragment files in `newsfragments/` and `poetry run towncrier check --compare-with origin/${{ github.base_ref }}` passes
 - ✅ Documentation updated (README, docstrings, help text, and command docs such as `site/commands.html` when CLI changes require it)
 - ✅ CLI standards met (--format/-f, --help, proper exit codes)
-- ✅ Skill installation and related documentation reflect the current temporary-availability state
+- ✅ Skill installation and related documentation reflect the current unavailable state
 
 #### Quality Assurance
 - ✅ Full test suite passes locally
@@ -95,7 +95,7 @@ Please review the PR systematically:
 - [ ] Command docs reviewed for needed updates (`README.md`, `site/commands.html`, `site/getting-started.html`, and other user-facing command docs as applicable)
 - [ ] README updated if needed
 - [ ] **`site/commands.html` updated** — add new CLI commands or changed command examples to the website command reference
-- [ ] **`slcli/skill_click.py` updated** — skill installation behavior and messaging match the current temporary-availability state
+- [ ] **`slcli/skill_click.py` updated** — skill installation behavior and messaging match the current unavailable state
 - [ ] Configuration properly managed
 - [ ] No hardcoded secrets or URLs
 - [ ] Cross-platform compatible

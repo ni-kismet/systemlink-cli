@@ -11,7 +11,7 @@ SystemLink CLI (`slcli`) is a cross-platform Python CLI for SystemLink integrato
 - **Systems state lifecycle** — list saved states, inspect versions, and import or export portable `.sls` content
 - **Multi-platform** — supports SystemLink Enterprise (SLE) and SystemLink Server (SLS) with automatic detection
 - **Multi-profile** — manage dev, staging, and prod environments with named profiles
-- **AI agent skills** — temporarily unavailable installable skills for most AI agents (Copilot, Codex, etc.) and Claude; we hope to restore them shortly
+- **AI agent skills** — currently unavailable for most AI agents (Copilot, Codex, etc.) and Claude
 - **Demo provisioning** — curated example datasets for training, demos, and evaluation
 - **WebApp lifecycle** — scaffold Nimble Angular projects, pack, publish, and manage web applications
 - **Professional CLI** — consistent error handling, colored table/JSON output, shell completion
@@ -55,7 +55,7 @@ slcli asset list --calibratable --summary
 slcli system list --state CONNECTED
 slcli spec list --product <product> --workspace all
 
-# Scaffold the SystemLink Angular starter (AI skills temporarily unavailable)
+# Scaffold the SystemLink Angular starter (AI skills currently unavailable)
 slcli webapp init ./my-dashboard
 # Open the project and follow START_HERE.md or PROMPTS.md
 
@@ -70,7 +70,7 @@ slcli webapp manifest init ./my-dashboard \
 # Package the app and generate the thin submission manifest.json
 slcli webapp pack --config ./my-dashboard/nipkg.config.json
 
-# AI skills are temporarily unavailable; we hope to restore them shortly
+# AI skills are currently unavailable
 
 # Provision a demo environment
 slcli example install demo-complete-workflow --workspace Training

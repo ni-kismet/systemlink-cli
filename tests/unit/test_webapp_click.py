@@ -180,9 +180,9 @@ def test_webapp_init_documents_skill_unavailability(
     target = tmp_path / "ng_skills"
     result = runner.invoke(cli, ["webapp", "init", str(target)])
     assert result.exit_code == 0
-    assert "temporarily unavailable" in result.output
-    assert "temporarily unavailable" in (target / "PROMPTS.md").read_text(encoding="utf-8")
-    assert "temporarily unavailable" in (target / "START_HERE.md").read_text(encoding="utf-8")
+    assert "currently unavailable" in result.output
+    assert "currently unavailable" in (target / "PROMPTS.md").read_text(encoding="utf-8")
+    assert "currently unavailable" in (target / "START_HERE.md").read_text(encoding="utf-8")
     assert not (target / ".agents" / "skills").exists()
 
 

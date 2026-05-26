@@ -719,9 +719,9 @@ def _render_angular_prompts_md(directory: Path) -> str:
     return f"""# SystemLink WebApp - AI Prompts
 
 This project was initialized with `slcli webapp init`.
-AI skills for this workflow are temporarily unavailable, so this starter keeps
-the prompts inline in this repository for now. We hope to restore the bundled
-`systemlink-webapp` and `slcli` skills shortly.
+AI skills for this workflow are currently unavailable, so this starter keeps
+the prompts inline in this repository for now instead of relying on bundled
+`systemlink-webapp` and `slcli` skills.
 
 ## Starter Prompt
 
@@ -801,8 +801,7 @@ Angular CLI remains the source of truth for the Angular workspace itself. That
 keeps the generated project aligned with current Angular defaults while the
 starter files enforce the SystemLink-specific best practices.
 
-AI skills are temporarily unavailable and are not installed into this project.
-We hope to restore them shortly.
+AI skills are currently unavailable and are not installed into this project.
 
 ## Bootstrap the Angular workspace
 
