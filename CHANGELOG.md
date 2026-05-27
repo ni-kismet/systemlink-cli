@@ -2,6 +2,13 @@
 
 <!-- towncrier release notes start -->
 
+## v1.13.20 (2026-05-27)
+
+### Bug Fixes
+
+- Disable bundled AI skill installation, remove bundled skill files from packaged artifacts, and document that AI skills are currently unavailable. (skills-temporary-unavailable)
+
+
 ## v1.13.19 (2026-05-20)
 
 ### Bug Fixes
