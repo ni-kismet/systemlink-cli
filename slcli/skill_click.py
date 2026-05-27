@@ -1,16 +1,17 @@
 """Agent Skills install command for slcli."""
 
-import shutil
 import sys
 from pathlib import Path
 from typing import Any, Dict, List, Optional, Tuple
 
 import click
-import questionary
 
 from .utils import ExitCodes
 
 SKILL_NAME = "slcli"
+TEMPORARILY_UNAVAILABLE_MESSAGE = (
+    "AI skills are currently unavailable and cannot be installed right now."
+)
 _FALLBACK_SKILL_CHOICES = [
     "nipkg-file-package",
     "slcli",
@@ -122,43 +123,9 @@ def install_skills_to_directory(
     skill_names: Optional[List[str]] = None,
     subdir: str = PROJECT_SKILLS_SUBDIR,
 ) -> int:
-    """Install bundled skills into a project directory.
-
-    Copies skill folders into a skills subdirectory within *directory*.
-    The default location (``.agents/skills/``) is the universal convention
-    recognized by multiple AI clients.
-
-    Args:
-        directory: Project root to install into.
-        skill_names: Skills to install.  Defaults to all available skills.
-        subdir: Relative subdirectory for skills.  Defaults to ``.agents/skills``.
-
-    Returns:
-        Number of skills successfully installed.
-    """
-    if skill_names is None:
-        skill_names = list(SKILL_CHOICES)
-
-    try:
-        skills_dir = _find_bundled_skills_dir()
-    except FileNotFoundError:
-        return 0
-
-    dest_parent = directory / subdir
-    installed = 0
-
-    for name in skill_names:
-        source = skills_dir / name
-        if not source.exists():
-            continue
-        dest = dest_parent / name
-        dest_parent.mkdir(parents=True, exist_ok=True)
-        if dest.exists():
-            shutil.rmtree(dest)
-        shutil.copytree(source, dest)
-        installed += 1
-
-    return installed
+    """Return 0 because bundled skill installation is temporarily disabled."""
+    del directory, skill_names, subdir
+    return 0
 
 
 def _resolve_destinations(clients: List[str], scope: str) -> List[Path]:
@@ -200,7 +167,7 @@ def register_skill_commands(cli: Any) -> None:
 
     @cli.group()
     def skill() -> None:
-        """Install and manage AI assistant skills."""
+        """Check the current status of AI assistant skills."""
 
     @skill.command(name="install")
     @click.option(
@@ -234,101 +201,7 @@ def register_skill_commands(cli: Any) -> None:
     def install_skill(
         skill: Optional[str], client: Optional[str], scope: Optional[str], force: bool
     ) -> None:
-        """Install agent skills for AI coding assistants.
-
-        Copies bundled skills into the skills directory of one or more AI clients.
-        Available skills are shown in `--help` and prompted interactively.
-        Supported clients and their skill locations:
-
-                    \b
-                agents   personal: ~/.agents/skills/         project: .agents/skills/
-                     (most agents)
-                claude   personal: ~/.claude/skills/         project: .claude/skills/
-
-        When options are omitted you will be prompted interactively.
-        """
-        # ── interactive prompts when options not supplied ─────────────────────
-        if skill is None:
-            skill = questionary.select(
-                "Which skill to install?",
-                choices=SKILL_CHOICES + ["all"],
-                default="all",
-            ).ask()
-            if skill is None:
-                raise click.Abort()
-
-        if client is None:
-            client = questionary.select(
-                "Install for which AI client?",
-                choices=[
-                    questionary.Choice("most agents", value="agents"),
-                    questionary.Choice("claude", value="claude"),
-                    questionary.Choice("all clients", value="all"),
-                ],
-                default="agents",
-            ).ask()
-            if client is None:
-                raise click.Abort()
-
-        if scope is None:
-            scope = questionary.select(
-                "Install scope?",
-                choices=["personal", "project", "both"],
-                default="personal",
-            ).ask()
-            if scope is None:
-                raise click.Abort()
-
-        # ── resolve skill and client lists ────────────────────────────────────
-        skill_names: List[str] = SKILL_CHOICES if skill == "all" else [skill]
-        clients: List[str] = CLIENT_CHOICES if client == "all" else [client]
-
-        # ── locate source ─────────────────────────────────────────────────────
-        try:
-            skills_dir = _find_bundled_skills_dir()
-        except FileNotFoundError as exc:
-            click.echo(f"✗ {exc}", err=True)
-            sys.exit(ExitCodes.GENERAL_ERROR)
-
-        destinations = _resolve_destinations(clients, scope)
-
-        installed_any = False
-        errors = 0
-
-        for skill_name in skill_names:
-            source = skills_dir / skill_name
-            if not source.exists():
-                click.echo(
-                    f"✗ Skill '{skill_name}' not found in bundled skills directory.", err=True
-                )
-                errors += 1
-                continue
-
-            for dest_parent in destinations:
-                dest = dest_parent / skill_name
-
-                if dest.exists() and not force:
-                    confirm = questionary.confirm(
-                        f"Skill already installed at {dest}. Overwrite?",
-                        default=False,
-                    ).ask()
-                    if not confirm:
-                        click.echo(f"  Skipped {dest}")
-                        continue
-
-                try:
-                    dest_parent.mkdir(parents=True, exist_ok=True)
-                    if dest.exists():
-                        shutil.rmtree(dest)
-                    shutil.copytree(source, dest)
-                    click.echo(f"✓ Installed {skill_name} skill → {dest}")
-                    installed_any = True
-                except OSError as exc:
-                    click.echo(f"✗ Failed to install to {dest}: {exc}", err=True)
-                    errors += 1
-
-        if not installed_any and errors == 0:
-            click.echo("No skill locations were updated.")
-
-        if errors:
-            sys.exit(ExitCodes.GENERAL_ERROR)
+        """Report that skill installation is currently unavailable."""
+        del skill, client, scope, force
+        click.echo(f"✗ {TEMPORARILY_UNAVAILABLE_MESSAGE}", err=True)
+        sys.exit(ExitCodes.GENERAL_ERROR)

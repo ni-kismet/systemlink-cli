@@ -81,17 +81,15 @@
         <div class="step">
           <div class="step-num">1</div>
           <div class="step-body">
-            <h3>Install the skills</h3>
-            <p>One command installs every bundled skill for the supported AI clients.</p>
-            <pre><code># Install for all supported clients (most agents + Claude)
-slcli skill install --skill all --client all --scope personal</code></pre>
+            <h3>Skills are currently unavailable</h3>
+            <p>The bundled AI skills are currently unavailable and are not installable.</p>
           </div>
         </div>
         <div class="step">
           <div class="step-num">2</div>
           <div class="step-body">
             <h3>Ask your assistant about SystemLink</h3>
-            <p>The skills are loaded automatically. Try natural language queries:</p>
+            <p>Until the skills return, use the prompts and examples in this repository directly. Try natural language queries like:</p>
             <pre><code>"Show me all failed test results from this week"
 "Which assets need calibration?"
 "Build me a fleet health dashboard for SystemLink"
@@ -103,16 +101,14 @@ slcli skill install --skill all --client all --scope personal</code></pre>
         <div class="step">
           <div class="step-num">3</div>
           <div class="step-body">
-            <h3>Project-scoped skills (optional)</h3>
-            <p>Install per-repo for team consistency — the skill files are committed alongside your code.</p>
-            <pre><code># Install into the current repo
-slcli skill install --skill all --client all --scope project</code></pre>
+            <h3>Watch for restoration</h3>
+            <p>Once skills are available again, this workflow will regain the installable personal and project-scoped skill setup.</p>
           </div>
         </div>
       </div>
 
       <div class="highlight-box">
-        <p><strong>Tip:</strong> The skills follow the <a href="https://agentskills.io/specification" target="_blank" rel="noopener">Agent Skills open standard</a>. Personal installs go under <code>~/.agents/skills/</code> or <code>~/.claude/skills/</code>; project installs go under <code>.agents/skills/</code> or <code>.claude/skills/</code>.</p>
+        <p><strong>Tip:</strong> The skills follow the <a href="https://agentskills.io/specification" target="_blank" rel="noopener">Agent Skills open standard</a>. They are currently unavailable, so the personal and project install flows are disabled.</p>
       </div>
 
       <!-- ═══════════════════════════════════════════════════════ -->
@@ -124,15 +120,15 @@ slcli skill install --skill all --client all --scope project</code></pre>
           <div class="step-num">1</div>
           <div class="step-body">
             <h3>Scaffold the project</h3>
-            <p><code>webapp init</code> creates the Angular starter, adds the AI skills, and writes the starter files your assistant uses to bootstrap Angular in place.</p>
+            <p><code>webapp init</code> creates the Angular starter and writes the starter files your assistant uses to bootstrap Angular in place.</p>
             <pre><code>slcli webapp init ./fleet-dashboard
 cd fleet-dashboard</code></pre>
             <p>The scaffolded directory includes:</p>
             <ul>
               <li><code>PROMPTS.md</code> — ready-made prompts for building dashboards, test results pages, and more</li>
               <li><code>START_HERE.md</code> — bootstrap and deployment guidance for the Angular workflow</li>
-              <li><code>.agents/skills/</code> — AI skills pre-installed so your AI assistant can discover them immediately</li>
             </ul>
+            <p>Bundled AI skills are currently unavailable, so the starter guidance lives in <code>PROMPTS.md</code> and <code>START_HERE.md</code> instead of installed skill files.</p>
           </div>
         </div>
         <div class="step">

@@ -20,7 +20,7 @@ import questionary
 import requests
 
 from .cli_utils import validate_output_format
-from .skill_click import install_skills_to_directory
+from .skill_click import TEMPORARILY_UNAVAILABLE_MESSAGE
 from .universal_handlers import UniversalResponseHandler
 from .utils import (
     ExitCodes,
@@ -719,9 +719,9 @@ def _render_angular_prompts_md(directory: Path) -> str:
     return f"""# SystemLink WebApp - AI Prompts
 
 This project was initialized with `slcli webapp init`.
-The bundled `systemlink-webapp` and `slcli` skills are already installed into
-this project so your AI assistant can scaffold the Angular workspace and apply
-the SystemLink-specific conventions immediately.
+AI skills for this workflow are currently unavailable, so this starter keeps
+the prompts inline in this repository for now instead of relying on bundled
+`systemlink-webapp` and `slcli` skills.
 
 ## Starter Prompt
 
@@ -793,14 +793,15 @@ This directory was initialized with `slcli webapp init`.
 
 `slcli` owns the SystemLink-specific starter layer for this workflow:
 
-- bundled AI skills in `.agents/skills/`
 - ready-made prompts in [PROMPTS.md](PROMPTS.md)
 - deployment guidance for `slcli webapp publish`
 - Plugin Manager packaging config scaffolding via `slcli webapp manifest init`
 
 Angular CLI remains the source of truth for the Angular workspace itself. That
 keeps the generated project aligned with current Angular defaults while the
-skills and starter files enforce the SystemLink-specific best practices.
+starter files enforce the SystemLink-specific best practices.
+
+AI skills are currently unavailable and are not installed into this project.
 
 ## Bootstrap the Angular workspace
 
@@ -870,15 +871,11 @@ def _init_angular_template(directory: Path, force: bool) -> None:
     prompts_file.write_text(_render_angular_prompts_md(directory), encoding="utf-8")
     start_here_file.write_text(_render_angular_start_here_md(directory), encoding="utf-8")
 
-    # Auto-install AI skills into the project directory
-    installed = install_skills_to_directory(directory)
-    skill_msg = f"{installed} skill(s) installed" if installed else "skills not found"
-
     format_success(
         "Scaffolded SystemLink Angular starter",
         {
             "Directory": str(directory),
-            "Skills": skill_msg,
+            "Skills": TEMPORARILY_UNAVAILABLE_MESSAGE,
             "Next steps": (
                 "1. cd " + str(directory) + "\n"
                 "   2. Open START_HERE.md and PROMPTS.md\n"
