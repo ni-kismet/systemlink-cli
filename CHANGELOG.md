@@ -2,6 +2,13 @@
 
 <!-- towncrier release notes start -->
 
+## v1.13.21 (2026-06-24)
+
+### Other Changes
+
+- Add SCA scanning configuration (add-sca-scanning)
+
+
 ## v1.13.20 (2026-05-27)
 
 ### Bug Fixes

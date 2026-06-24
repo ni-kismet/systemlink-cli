@@ -1,1 +1,0 @@
-Add SCA scanning configuration
