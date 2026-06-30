@@ -1,17 +1,15 @@
 """Agent Skills install command for slcli."""
 
+import shutil
 import sys
 from pathlib import Path
 from typing import Any, Dict, List, Optional, Tuple
 
 import click
 
-from .utils import ExitCodes
+from .utils import ExitCodes, format_success
 
 SKILL_NAME = "slcli"
-TEMPORARILY_UNAVAILABLE_MESSAGE = (
-    "AI skills are currently unavailable and cannot be installed right now."
-)
 _FALLBACK_SKILL_CHOICES = [
     "nipkg-file-package",
     "slcli",
@@ -29,6 +27,13 @@ _CLIENT_TABLE: Dict[str, Tuple[str, str]] = {
 }
 
 CLIENT_CHOICES = list(_CLIENT_TABLE.keys())
+_SKILL_DEPENDENCIES: Dict[str, List[str]] = {
+    "nipkg-file-package": ["slcli"],
+    "systemlink-job-debugging": ["slcli"],
+    "systemlink-notebook": ["slcli"],
+    "systemlink-python-test": ["slcli"],
+    "systemlink-webapp": ["slcli"],
+}
 
 
 def _skills_dir_candidates() -> List[Path]:
@@ -118,14 +123,57 @@ def _find_bundled_skills_dir() -> Path:
 PROJECT_SKILLS_SUBDIR = ".agents/skills"
 
 
+def _expand_skill_selection(skill_names: Optional[List[str]] = None) -> List[str]:
+    """Expand requested skill names with any bundled dependencies."""
+    requested = list(dict.fromkeys(skill_names or SKILL_CHOICES))
+    invalid = [name for name in requested if name not in SKILL_CHOICES]
+    if invalid:
+        invalid_display = ", ".join(sorted(invalid))
+        raise ValueError(f"Unknown bundled skill(s): {invalid_display}")
+
+    expanded: List[str] = []
+    for skill_name in requested:
+        for dependency in _SKILL_DEPENDENCIES.get(skill_name, []):
+            if dependency not in expanded:
+                expanded.append(dependency)
+        if skill_name not in expanded:
+            expanded.append(skill_name)
+    return expanded
+
+
 def install_skills_to_directory(
     directory: Path,
     skill_names: Optional[List[str]] = None,
     subdir: str = PROJECT_SKILLS_SUBDIR,
+    force: bool = False,
 ) -> int:
-    """Return 0 because bundled skill installation is temporarily disabled."""
-    del directory, skill_names, subdir
-    return 0
+    """Install bundled skills into the requested directory and return the count."""
+    bundled_skills_dir = _find_bundled_skills_dir()
+    selected_skills = _expand_skill_selection(skill_names)
+    destination_root = directory / subdir if subdir else directory
+    destination_root.mkdir(parents=True, exist_ok=True)
+
+    for skill_name in selected_skills:
+        source_dir = bundled_skills_dir / skill_name
+        if not source_dir.exists():
+            raise FileNotFoundError(
+                f"Bundled skill '{skill_name}' not found in {bundled_skills_dir}"
+            )
+
+        destination_dir = destination_root / skill_name
+        if destination_dir.exists():
+            if not force:
+                raise FileExistsError(
+                    f"{destination_dir} already exists. Use --force to overwrite it."
+                )
+            if destination_dir.is_dir():
+                shutil.rmtree(destination_dir)
+            else:
+                destination_dir.unlink()
+
+        shutil.copytree(source_dir, destination_dir)
+
+    return len(selected_skills)
 
 
 def _resolve_destinations(clients: List[str], scope: str) -> List[Path]:
@@ -167,7 +215,7 @@ def register_skill_commands(cli: Any) -> None:
 
     @cli.group()
     def skill() -> None:
-        """Check the current status of AI assistant skills."""
+        """Install bundled AI assistant skills."""
 
     @skill.command(name="install")
     @click.option(
@@ -201,7 +249,42 @@ def register_skill_commands(cli: Any) -> None:
     def install_skill(
         skill: Optional[str], client: Optional[str], scope: Optional[str], force: bool
     ) -> None:
-        """Report that skill installation is currently unavailable."""
-        del skill, client, scope, force
-        click.echo(f"✗ {TEMPORARILY_UNAVAILABLE_MESSAGE}", err=True)
-        sys.exit(ExitCodes.GENERAL_ERROR)
+        """Install bundled skills for supported AI clients."""
+        requested_skills: Optional[List[str]]
+        if skill in (None, "all"):
+            requested_skills = None
+        else:
+            assert skill is not None
+            requested_skills = [skill.lower()]
+        selected_skill_names = _expand_skill_selection(requested_skills)
+        selected_clients = CLIENT_CHOICES if client == "all" else [client or "agents"]
+        selected_scope = scope or "project"
+        destinations = _resolve_destinations(selected_clients, selected_scope)
+
+        try:
+            installed_count = 0
+            for destination in destinations:
+                installed_count += install_skills_to_directory(
+                    destination,
+                    skill_names=selected_skill_names,
+                    subdir="",
+                    force=force,
+                )
+        except ValueError as exc:
+            click.echo(f"✗ {exc}", err=True)
+            sys.exit(ExitCodes.INVALID_INPUT)
+        except FileExistsError as exc:
+            click.echo(f"✗ {exc}", err=True)
+            sys.exit(ExitCodes.INVALID_INPUT)
+        except FileNotFoundError as exc:
+            click.echo(f"✗ {exc}", err=True)
+            sys.exit(ExitCodes.GENERAL_ERROR)
+
+        format_success(
+            "Installed bundled AI skills",
+            {
+                "Skills": ", ".join(selected_skill_names),
+                "Destinations": ", ".join(str(path) for path in destinations),
+                "Installed": str(installed_count),
+            },
+        )

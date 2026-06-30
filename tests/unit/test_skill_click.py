@@ -9,7 +9,7 @@ from click.testing import CliRunner
 
 from slcli.skill_click import (
     CLIENT_CHOICES,
-    TEMPORARILY_UNAVAILABLE_MESSAGE,
+    SKILL_CHOICES,
     _find_bundled_skills_dir,
     _find_repo_root,
     _resolve_destinations,
@@ -79,26 +79,42 @@ def test_resolve_destinations_project_falls_back_to_cwd(tmp_path: Path) -> None:
     assert len(dests) == 1
 
 
-# ── temporary skill availability ─────────────────────────────────────────────
+# ── install command behavior ─────────────────────────────────────────────────
 
 
-def test_install_without_options_reports_temporary_unavailability(runner: CliRunner) -> None:
-    """The install command exits before prompting while skills are unavailable."""
+def test_install_without_options_installs_default_project_skills(
+    runner: CliRunner, tmp_path: Path
+) -> None:
+    """The default install command stages bundled skills into the repo agents path."""
     cli = make_cli()
-    result = runner.invoke(cli, ["skill", "install"])
-    assert result.exit_code != 0
-    assert TEMPORARILY_UNAVAILABLE_MESSAGE in result.output
+    with patch("slcli.skill_click._find_repo_root", return_value=tmp_path):
+        result = runner.invoke(cli, ["skill", "install"])
+    assert result.exit_code == 0
+    assert (tmp_path / ".agents" / "skills" / "slcli" / "SKILL.md").exists()
 
 
-def test_install_with_options_reports_temporary_unavailability(runner: CliRunner) -> None:
-    """Passing explicit options still reports the current unavailability."""
+def test_install_with_options_installs_selected_personal_skill_dependency(
+    runner: CliRunner, tmp_path: Path
+) -> None:
+    """Installing a specific skill also installs its bundled slcli dependency."""
     cli = make_cli()
-    result = runner.invoke(
-        cli,
-        ["skill", "install", "--skill", "slcli", "--client", "agents", "--scope", "personal"],
-    )
-    assert result.exit_code != 0
-    assert TEMPORARILY_UNAVAILABLE_MESSAGE in result.output
+    with patch("slcli.skill_click._personal_dir", return_value=tmp_path / "claude-home"):
+        result = runner.invoke(
+            cli,
+            [
+                "skill",
+                "install",
+                "--skill",
+                "systemlink-webapp",
+                "--client",
+                "claude",
+                "--scope",
+                "personal",
+            ],
+        )
+    assert result.exit_code == 0
+    assert (tmp_path / "claude-home" / "slcli" / "SKILL.md").exists()
+    assert (tmp_path / "claude-home" / "systemlink-webapp" / "SKILL.md").exists()
 
 
 # ── helper functions ─────────────────────────────────────────────────────────
@@ -123,10 +139,10 @@ def test_find_repo_root_returns_none_outside_repo(tmp_path: Path) -> None:
     assert result is None or isinstance(result, Path)
 
 
-def test_find_bundled_skills_dir_raises_when_skills_are_removed() -> None:
-    """_find_bundled_skills_dir raises once bundled skills are removed."""
-    with pytest.raises(FileNotFoundError):
-        _find_bundled_skills_dir()
+def test_find_bundled_skills_dir_returns_packaged_directory() -> None:
+    """_find_bundled_skills_dir should find the packaged skill directory."""
+    skills_dir = _find_bundled_skills_dir()
+    assert (skills_dir / "slcli" / "SKILL.md").exists()
 
 
 def test_personal_dir_returns_expanded_path() -> None:
@@ -141,14 +157,15 @@ def test_personal_dir_returns_expanded_path() -> None:
 
 
 def test_install_skills_to_directory(tmp_path: Path) -> None:
-    """Install_skills_to_directory is a no-op while skills are unavailable."""
+    """Install_skills_to_directory copies the bundled skills into the target tree."""
     count = install_skills_to_directory(tmp_path)
-    assert count == 0
-    assert not (tmp_path / ".agents" / "skills").exists()
+    assert count == len(SKILL_CHOICES)
+    assert (tmp_path / ".agents" / "skills" / "slcli" / "SKILL.md").exists()
 
 
 def test_install_skills_to_directory_specific_skill(tmp_path: Path) -> None:
-    """Install_skills_to_directory remains a no-op for specific skill requests."""
-    count = install_skills_to_directory(tmp_path, skill_names=["slcli"])
-    assert count == 0
-    assert not (tmp_path / ".agents" / "skills").exists()
+    """Specific installs copy the requested skill plus any bundled dependencies."""
+    count = install_skills_to_directory(tmp_path, skill_names=["systemlink-webapp"])
+    assert count == 2
+    assert (tmp_path / ".agents" / "skills" / "slcli" / "SKILL.md").exists()
+    assert (tmp_path / ".agents" / "skills" / "systemlink-webapp" / "SKILL.md").exists()

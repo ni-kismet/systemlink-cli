@@ -81,15 +81,20 @@
         <div class="step">
           <div class="step-num">1</div>
           <div class="step-body">
-            <h3>Skills are currently unavailable</h3>
-            <p>The bundled AI skills are currently unavailable and are not installable.</p>
+            <h3>Install the bundled skills</h3>
+            <p>Install the skills into the current repository or a personal assistant directory before you start asking for SystemLink-specific help.</p>
+            <pre><code># Project-scoped install for most agents
+slcli skill install --client agents --scope project
+
+# Personal install for both supported clients
+slcli skill install --client all --scope personal</code></pre>
           </div>
         </div>
         <div class="step">
           <div class="step-num">2</div>
           <div class="step-body">
             <h3>Ask your assistant about SystemLink</h3>
-            <p>Until the skills return, use the prompts and examples in this repository directly. Try natural language queries like:</p>
+            <p>Once the bundled skills are installed, ask natural-language questions about the exact SystemLink workflow you want to build or debug. Try prompts like:</p>
             <pre><code>"Show me all failed test results from this week"
 "Which assets need calibration?"
 "Build me a fleet health dashboard for SystemLink"
@@ -101,14 +106,14 @@
         <div class="step">
           <div class="step-num">3</div>
           <div class="step-body">
-            <h3>Watch for restoration</h3>
-            <p>Once skills are available again, this workflow will regain the installable personal and project-scoped skill setup.</p>
+            <h3>Use the skills in context</h3>
+            <p>Use project-scoped installs for repo-specific work and personal installs when you want the same SystemLink guidance available across multiple workspaces.</p>
           </div>
         </div>
       </div>
 
       <div class="highlight-box">
-        <p><strong>Tip:</strong> The skills follow the <a href="https://agentskills.io/specification" target="_blank" rel="noopener">Agent Skills open standard</a>. They are currently unavailable, so the personal and project install flows are disabled.</p>
+        <p><strong>Tip:</strong> The skills follow the <a href="https://agentskills.io/specification" target="_blank" rel="noopener">Agent Skills open standard</a>. Use <code>slcli skill install</code> for personal or project-scoped installs depending on how broadly you want the skills available.</p>
       </div>
 
       <!-- ═══════════════════════════════════════════════════════ -->
@@ -128,7 +133,7 @@ cd fleet-dashboard</code></pre>
               <li>a buildable Angular 20 app shell with starter routes for common SystemLink layouts</li>
               <li><code>README.md</code> — local development, publish, and hosting guidance for the generated app</li>
             </ul>
-            <p>Use <code>webapp init</code> only when you want the prompt-only manual bootstrap flow while bundled AI skills remain unavailable.</p>
+            <p>Use <code>webapp init</code> only when you want the manual bootstrap path with starter prompts and project-scoped skills preinstalled into <code>.agents/skills</code>.</p>
           </div>
         </div>
         <div class="step">

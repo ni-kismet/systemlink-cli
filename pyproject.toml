@@ -7,6 +7,7 @@ packages = [{ include = "slcli" }]
 include = [
     { path = "dff-editor/index.html", format = ["wheel", "sdist"] },
     { path = "dff-editor/editor.js", format = ["wheel", "sdist"] },
+    { path = "slcli/skills", format = ["wheel", "sdist"] },
     { path = "slcli/webapp_templates", format = ["wheel", "sdist"] },
 ]
 

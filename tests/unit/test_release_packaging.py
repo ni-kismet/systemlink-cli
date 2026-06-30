@@ -2,6 +2,7 @@
 
 import json
 import os
+import tomllib
 from pathlib import Path
 from typing import Any
 
@@ -81,3 +82,18 @@ def test_required_data_args_includes_existing_directory(tmp_path: Path) -> None:
     args = build_pyinstaller._required_data_args(templates_dir, "slcli/webapp_templates")
 
     assert args == ["--add-data", f"{templates_dir}{os.pathsep}slcli/webapp_templates"]
+
+
+def test_pyproject_includes_bundled_skills_and_templates() -> None:
+    """Wheel and sdist packaging should include bundled skills and webapp templates."""
+    pyproject_path = Path(__file__).resolve().parents[2] / "pyproject.toml"
+    pyproject = tomllib.loads(pyproject_path.read_text(encoding="utf-8"))
+
+    included_paths = {
+        entry["path"]
+        for entry in pyproject["tool"]["poetry"]["include"]
+        if isinstance(entry, dict) and "path" in entry
+    }
+
+    assert "slcli/skills" in included_paths
+    assert "slcli/webapp_templates" in included_paths

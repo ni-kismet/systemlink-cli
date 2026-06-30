@@ -316,9 +316,16 @@ slcli info --format json</code></pre>
 
       <!-- ─── SKILLS ─── -->
       <h2 id="skills">AI Agent Skills</h2>
-      <p>Bundled agent skills are currently unavailable.</p>
+      <p>Bundled agent skills are available for supported assistants.</p>
 
-      <p>When restored, the planned skills will include:</p>
+      <p>Install them into the current repository or your personal assistant folders:</p>
+      <pre><code># Project-scoped install for most agents
+slcli skill install --client agents --scope project
+
+# Personal install for both supported clients
+slcli skill install --client all --scope personal</code></pre>
+
+      <p>Bundled skills include:</p>
       <ul>
         <li><strong>slcli</strong> — teaches AI assistants how to query and manage every SystemLink resource type</li>
         <li><strong>systemlink-webapp</strong> — teaches AI assistants how to build Nimble Angular web applications using <code>@ni/nimble-angular</code> and <code>@ni/systemlink-clients-ts</code></li>
@@ -326,7 +333,7 @@ slcli info --format json</code></pre>
       </ul>
 
       <div class="highlight-box">
-        <p><strong>Temporary status:</strong> <code>slcli skill install</code> is currently unavailable and does not install any skill files. Check release notes for restoration updates.</p>
+        <p><strong>Tip:</strong> <code>slcli webapp init</code> also installs the project-scoped <code>slcli</code> and <code>systemlink-webapp</code> skills into <code>.agents/skills</code> for the manual Angular starter path.</p>
       </div>
 
       <!-- ─── MCP ─── -->

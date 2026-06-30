@@ -849,7 +849,7 @@ generated `.nipkg`, and emits a thin `manifest.json` with `schemaVersion`, `nipk
 Install bundled skills for supported AI clients.
 
 ```bash
-slcli skill install --skill [slcli|all] --client [agents|claude|all] --scope [personal|project|both]
+slcli skill install --skill [nipkg-file-package|slcli|systemlink-job-debugging|systemlink-notebook|systemlink-python-test|systemlink-webapp|all] --client [agents|claude|all] --scope [personal|project|both]
 ```
 
 Client paths:

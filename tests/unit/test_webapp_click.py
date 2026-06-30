@@ -173,20 +173,19 @@ def test_webapp_init_force_overwrite(tmp_path: Path, monkeypatch: MonkeyPatch) -
     assert "systemlink-webapp" in (target / "PROMPTS.md").read_text(encoding="utf-8")
 
 
-def test_webapp_init_documents_skill_unavailability(
-    tmp_path: Path, monkeypatch: MonkeyPatch
-) -> None:
-    """Webapp init should document the temporary skill outage and avoid installing files."""
+def test_webapp_init_installs_project_skills(tmp_path: Path, monkeypatch: MonkeyPatch) -> None:
+    """Webapp init should install project-scoped skills for the manual starter path."""
     runner = CliRunner()
     patch_keyring(monkeypatch)
 
     target = tmp_path / "ng_skills"
     result = runner.invoke(cli, ["webapp", "init", str(target)])
     assert result.exit_code == 0
-    assert "currently unavailable" in result.output
-    assert "currently unavailable" in (target / "PROMPTS.md").read_text(encoding="utf-8")
-    assert "currently unavailable" in (target / "START_HERE.md").read_text(encoding="utf-8")
-    assert not (target / ".agents" / "skills").exists()
+    assert "currently unavailable" not in result.output
+    assert "currently unavailable" not in (target / "PROMPTS.md").read_text(encoding="utf-8")
+    assert "currently unavailable" not in (target / "START_HERE.md").read_text(encoding="utf-8")
+    assert (target / ".agents" / "skills" / "slcli" / "SKILL.md").exists()
+    assert (target / ".agents" / "skills" / "systemlink-webapp" / "SKILL.md").exists()
 
 
 def test_webapp_new_blank_creates_host_ready_workspace(
