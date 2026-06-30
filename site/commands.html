@@ -690,8 +690,11 @@ slcli workspace disable --id &lt;workspace-id&gt;</code></pre>
       <!-- ─── WEBAPP ─── -->
       <h2 id="webapp">webapp</h2>
       <p>Scaffold, pack, publish, and manage SystemLink web applications.</p>
-      <pre><code># Scaffold the Angular starter (installs AI skills automatically)
-    slcli webapp init ./fleet-dashboard
+      <pre><code># Scaffold the recommended hosted Angular starter
+    slcli webapp new fleet-dashboard
+
+    # Low-level/manual starter path
+    slcli webapp init ./fleet-dashboard-manual
 
     # Create Plugin Manager packaging config
     slcli webapp manifest init ./fleet-dashboard \
@@ -701,11 +704,11 @@ slcli workspace disable --id &lt;workspace-id&gt;</code></pre>
       --license MIT \
       --icon-file ./icon.svg
 
-    # Follow START_HERE.md to bootstrap Angular in place, then pack from config
+    # Pack from the generated config
     slcli webapp pack --config ./fleet-dashboard/nipkg.config.json
 
     # Publish (folder or .nipkg)
-    slcli webapp publish ./dist/fleet-dashboard/browser --name MyApp --workspace Default
+    slcli webapp publish ./dist/fleet-dashboard --name MyApp --workspace Default
 
 # List, get, open, delete
 slcli webapp list --filter "MyApp"

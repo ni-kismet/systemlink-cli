@@ -2,6 +2,32 @@
 
 Complete option reference for all `slcli` command groups.
 
+## Contents
+
+- [testmonitor — Test data analysis](#testmonitor--test-data-analysis)
+- [spec — Specification management](#spec--specification-management)
+- [asset — Asset and calibration management](#asset--asset-and-calibration-management)
+- [system — System fleet management](#system--system-fleet-management)
+- [state — Software state management](#state--software-state-management)
+- [dataframe — DataFrame tables and row access](#dataframe--dataframe-tables-and-row-access)
+- [tag — Tag operations](#tag--tag-operations)
+- [routine — Event-action and notebook routine management](#routine--event-action-and-notebook-routine-management)
+- [comment — Resource comments](#comment--resource-comments)
+- [workspace — Workspace management](#workspace--workspace-management)
+- [config — Profile and credential management](#config--profile-and-credential-management)
+- [user — User management](#user--user-management)
+- [auth — Authorization policies and templates](#auth--authorization-policies-and-templates)
+- [feed — NI Package Manager feed management](#feed--ni-package-manager-feed-management)
+- [file — File Service management](#file--file-service-management)
+- [notebook — Jupyter Notebook management and execution](#notebook--jupyter-notebook-management-and-execution)
+- [customfield — Custom field (DFF) configuration](#customfield--custom-field-dff-configuration)
+- [template — Test plan template management](#template--test-plan-template-management)
+- [workitem — Work item, template, and workflow management](#workitem--work-item-template-and-workflow-management)
+- [workflow — Workflow management](#workflow--workflow-management)
+- [webapp — Web application management](#webapp--web-application-management)
+- [skill — AI skill installation](#skill--ai-skill-installation)
+- [example — Built-in example resource provisioning](#example--built-in-example-resource-provisioning)
+
 ## testmonitor — Test data analysis
 
 The primary command group for test result queries and product analysis.
@@ -809,7 +835,7 @@ slcli webapp open <WEBAPP_ID>                            # Open webapp URL in br
 `webapp init` creates the SystemLink Angular starter, not a generic HTML app. The starter installs
 project-scoped skills into `.agents/skills/` and creates `PROMPTS.md` plus `START_HERE.md` so an
 AI assistant can bootstrap the Angular workspace in place with the same Nimble/SystemLink
-conventions described by the `systemlink-webapp` skill.
+conventions described by the webapp overview inside the `slcli` skill.
 
 `webapp manifest init` writes `nipkg.config.json` using the Plugin Manager field names
 (`section`, `maintainer`, `homepage`, `xbPlugin`, `slPluginManagerTags`,
@@ -823,7 +849,7 @@ generated `.nipkg`, and emits a thin `manifest.json` with `schemaVersion`, `nipk
 Install bundled skills for supported AI clients.
 
 ```bash
-slcli skill install --skill [slcli|systemlink-webapp|systemlink-notebook|all] --client [agents|claude|all] --scope [personal|project|both]
+slcli skill install --skill [slcli|all] --client [agents|claude|all] --scope [personal|project|both]
 ```
 
 Client paths:
@@ -835,6 +861,7 @@ Client paths:
 Notes:
 
 - `agents` is the default client in interactive mode.
+- The bundled `slcli` skill now covers the previous standalone workflow skills.
 - `webapp init` installs project-scoped skills into `.agents/skills/` by default.
 
 ## example — Built-in example resource provisioning

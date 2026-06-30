@@ -1,0 +1,10 @@
+.loading-state {
+  display: grid;
+  place-items: center;
+  gap: 0.75rem;
+  min-height: 12rem;
+  padding: 2rem;
+  border: 1px dashed var(--app-border);
+  border-radius: 1rem;
+  background: var(--app-highlight-soft);
+}

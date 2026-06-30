@@ -1,10 +1,12 @@
 """Regression tests for release packaging metadata."""
 
 import json
+import os
+import tomllib
 from pathlib import Path
 from typing import Any
 
-from scripts import build_homebrew, build_scoop
+from scripts import build_homebrew, build_pyinstaller, build_scoop
 
 
 def test_render_formula_installs_binary_contents(tmp_path: Path, monkeypatch: Any) -> None:
@@ -52,3 +54,46 @@ def test_render_manifest_matches_release_zip_layout(tmp_path: Path, monkeypatch:
     assert manifest["architecture"]["64bit"]["hash"] == "ABC123"
     assert manifest["extract_dir"] == "slcli"
     assert manifest["bin"] == "slcli.exe"
+
+
+def test_optional_data_args_skips_missing_directory(tmp_path: Path, capsys: Any) -> None:
+    """Skip optional directories that are intentionally absent from PyInstaller packaging."""
+    args = build_pyinstaller._optional_data_args(tmp_path / "missing", "skills")
+
+    assert args == []
+    assert "Skipping optional data directory missing" in capsys.readouterr().out
+
+
+def test_optional_data_args_includes_existing_directory(tmp_path: Path) -> None:
+    """Include optional directories in PyInstaller packaging when they exist."""
+    skills_dir = tmp_path / "skills"
+    skills_dir.mkdir()
+
+    args = build_pyinstaller._optional_data_args(skills_dir, "skills")
+
+    assert args == ["--add-data", f"{skills_dir}{os.pathsep}skills"]
+
+
+def test_required_data_args_includes_existing_directory(tmp_path: Path) -> None:
+    """Include required directories in PyInstaller packaging when they exist."""
+    templates_dir = tmp_path / "webapp_templates"
+    templates_dir.mkdir()
+
+    args = build_pyinstaller._required_data_args(templates_dir, "slcli/webapp_templates")
+
+    assert args == ["--add-data", f"{templates_dir}{os.pathsep}slcli/webapp_templates"]
+
+
+def test_pyproject_includes_bundled_skills_and_templates() -> None:
+    """Wheel and sdist packaging should include bundled skills and webapp templates."""
+    pyproject_path = Path(__file__).resolve().parents[2] / "pyproject.toml"
+    pyproject = tomllib.loads(pyproject_path.read_text(encoding="utf-8"))
+
+    included_paths = {
+        entry["path"]
+        for entry in pyproject["tool"]["poetry"]["include"]
+        if isinstance(entry, dict) and "path" in entry
+    }
+
+    assert "slcli/skills" in included_paths
+    assert "slcli/webapp_templates" in included_paths

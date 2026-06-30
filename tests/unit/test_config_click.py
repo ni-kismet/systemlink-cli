@@ -268,7 +268,7 @@ class TestViewConfig:
     def test_view_config_reports_effective_env_overrides(
         self, tmp_path: Path, monkeypatch: Any
     ) -> None:
-        """Config view should show when env overrides shadow the stored profile."""
+        """Config view should show a warning when env overrides are active."""
         config_file = tmp_path / "config.json"
         config_data: Dict[str, Any] = {
             "current-profile": "test",
@@ -292,16 +292,63 @@ class TestViewConfig:
         result = runner.invoke(cli, ["config", "view"])
 
         assert result.exit_code == 0
-        assert "Profile API Key" in result.output
-        assert "API Key Source" in result.output
-        assert "Environment (SLCLI_API_KEY)" in result.output
-        assert "Active Overrides" in result.output
+        # Should NOT show effective source rows in table
+        assert "API Key Source" not in result.output
+        assert "Effective API URL" not in result.output
         assert "API Key" in result.output
 
-    def test_view_config_reports_effective_sources_without_env_overrides(
+    def test_view_config_emits_override_warning_to_stderr(
         self, tmp_path: Path, monkeypatch: Any
     ) -> None:
-        """Config view should show effective sources even when env overrides are inactive."""
+        """Config view should emit the override warning via stderr."""
+        config_file = tmp_path / "config.json"
+        config_data: Dict[str, Any] = {
+            "current-profile": "test",
+            "profiles": {
+                "test": {
+                    "server": "https://test.com",
+                    "api-key": "secret1234",
+                },
+            },
+        }
+        config_file.write_text(json.dumps(config_data))
+        config_file.chmod(0o600)
+        monkeypatch.setattr(
+            "slcli.profiles.ProfileConfig.get_config_path", classmethod(lambda cls: config_file)
+        )
+        monkeypatch.setenv("SLCLI_API_KEY", "env-secret")
+
+        echo_calls: list[tuple[str, bool]] = []
+
+        def fake_echo(message: Any = "", err: bool = False, **_: Any) -> None:
+            echo_calls.append((str(message), err))
+
+        def fake_render_table(**_: Any) -> None:
+            return None
+
+        monkeypatch.setattr("slcli.config_click.click.echo", fake_echo)
+        monkeypatch.setattr("slcli.config_click.render_table", fake_render_table)
+
+        cli = make_cli()
+        config_group: Any = cli.commands["config"]
+        view_command: Any = config_group.commands["view"]
+        callback: Any = view_command.callback
+        callback(format="table", show_secrets=False)
+
+        warning_messages = [
+            message
+            for message, is_stderr in echo_calls
+            if is_stderr and "Environment overrides active" in message
+        ]
+
+        assert warning_messages == [
+            "\n⚠️  Environment overrides active (API Key). Run 'slcli info' for effective values."
+        ]
+
+    def test_view_config_does_not_show_effective_sources(
+        self, tmp_path: Path, monkeypatch: Any
+    ) -> None:
+        """Config view should not show effective/source rows (those belong to slcli info)."""
         config_file = tmp_path / "config.json"
         config_data: Dict[str, Any] = {
             "current-profile": "test",
@@ -324,12 +371,17 @@ class TestViewConfig:
         result = runner.invoke(cli, ["config", "view"])
 
         assert result.exit_code == 0
-        assert "Effective API URL" in result.output
-        assert "API URL Source" in result.output
-        assert "Profile 'test'" in result.output
-        assert "Effective Web URL" in result.output
-        assert "Web URL Source" in result.output
+        # Should show stored config values
+        assert "https://test.com" in result.output
+        assert "https://web.test.com" in result.output
+        # Should NOT show effective/source rows
+        assert "Effective API URL" not in result.output
+        assert "API URL Source" not in result.output
+        assert "Effective Web URL" not in result.output
+        assert "Web URL Source" not in result.output
         assert "Active Overrides" not in result.output
+        # No env override warning when no overrides active
+        assert "Environment overrides active" not in result.output
 
     def test_view_config_without_current_profile(self, tmp_path: Path, monkeypatch: Any) -> None:
         """Test viewing the config when no current profile is set."""
@@ -355,6 +407,73 @@ class TestViewConfig:
         assert result.exit_code == 0
         assert "Current Profile" in result.output
         assert "(none)" in result.output
+
+    def test_view_config_json_without_env_overrides(self, tmp_path: Path, monkeypatch: Any) -> None:
+        """JSON output should show stored profile values without effective/source keys."""
+        config_file = tmp_path / "config.json"
+        config_data: Dict[str, Any] = {
+            "current-profile": "test",
+            "profiles": {
+                "test": {
+                    "server": "https://test.com",
+                    "api-key": "secret1234",
+                    "web-url": "https://web.test.com",
+                },
+            },
+        }
+        config_file.write_text(json.dumps(config_data))
+        config_file.chmod(0o600)
+        monkeypatch.setattr(
+            "slcli.profiles.ProfileConfig.get_config_path", classmethod(lambda cls: config_file)
+        )
+
+        cli = make_cli()
+        runner = CliRunner()
+        result = runner.invoke(cli, ["config", "view", "--format", "json"])
+
+        assert result.exit_code == 0
+        data = json.loads(result.output)
+        assert data["current-profile"] == "test"
+        assert "test" in data["profiles"]
+        assert data["profiles"]["test"]["server"] == "https://test.com"
+        assert data["profiles"]["test"]["web-url"] == "https://web.test.com"
+        # API key should be masked
+        assert data["profiles"]["test"]["api-key"] == "****1234"
+        # Should not contain effective/source keys
+        assert "effective" not in data
+        assert "env-overrides" not in data
+
+    def test_view_config_json_with_env_overrides(self, tmp_path: Path, monkeypatch: Any) -> None:
+        """JSON output should include env-overrides list when env vars are set."""
+        config_file = tmp_path / "config.json"
+        config_data: Dict[str, Any] = {
+            "current-profile": "test",
+            "profiles": {
+                "test": {
+                    "server": "https://test.com",
+                    "api-key": "secret1234",
+                },
+            },
+        }
+        config_file.write_text(json.dumps(config_data))
+        config_file.chmod(0o600)
+        monkeypatch.setattr(
+            "slcli.profiles.ProfileConfig.get_config_path", classmethod(lambda cls: config_file)
+        )
+        monkeypatch.setenv("SLCLI_API_KEY", "env-secret")
+        monkeypatch.setenv("SYSTEMLINK_WEB_URL", "https://override.com")
+
+        cli = make_cli()
+        runner = CliRunner()
+        result = runner.invoke(cli, ["config", "view", "--format", "json"])
+
+        assert result.exit_code == 0
+        data = json.loads(result.output)
+        assert "env-overrides" in data
+        assert "API Key" in data["env-overrides"]
+        assert "Web URL" in data["env-overrides"]
+        # Should not contain effective/source keys
+        assert "effective" not in data
 
 
 class TestDeleteProfile:

@@ -1,0 +1,13 @@
+{
+  "name": "{{PROJECT_NAME}}",
+  "version": "0.1.0",
+  "private": true,
+  "description": "{{PUBLISH_NAME}} hosted Angular webapp for SystemLink.",
+  "scripts": {
+    "start": "ng serve --host 0.0.0.0",
+    "build": "ng build",
+    "publish:webapp": "slcli webapp publish dist/{{PROJECT_NAME}}"
+  },
+  "dependencies": {},
+  "devDependencies": {}
+}

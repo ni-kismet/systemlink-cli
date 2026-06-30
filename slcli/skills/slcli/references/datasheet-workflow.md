@@ -12,6 +12,17 @@ raw document to live SystemLink specs.
 > spec — focus on parameters that are testable, measurable, and relevant to the
 > user's acceptance criteria.
 
+## Contents
+
+- [Step 1 — Clarify product identity and workspace](#step-1--clarify-product-identity-and-workspace)
+- [Step 2 — Create the product (if needed)](#step-2--create-the-product-if-needed)
+- [Step 3 — Extract specification data](#step-3--extract-specification-data)
+- [Step 4 — Map datasheet rows to spec JSON](#step-4--map-datasheet-rows-to-spec-json)
+- [Step 5 — Build and import the JSON payload](#step-5--build-and-import-the-json-payload)
+- [Step 6 — Upload source file and attach to product](#step-6--upload-source-file-and-attach-to-product)
+- [Step 7 — Verify](#step-7--verify)
+- [Reference payload shape](#reference-payload-shape)
+
 ## Step 1 — Clarify product identity and workspace
 
 Before touching any data, ask the user:

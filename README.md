@@ -11,7 +11,7 @@ SystemLink CLI (`slcli`) is a cross-platform Python CLI for SystemLink integrato
 - **Systems state lifecycle** — list saved states, inspect versions, and import or export portable `.sls` content
 - **Multi-platform** — supports SystemLink Enterprise (SLE) and SystemLink Server (SLS) with automatic detection
 - **Multi-profile** — manage dev, staging, and prod environments with named profiles
-- **AI agent skills** — installable skills for most AI agents (Copilot, Codex, etc.) and Claude — including a webapp skill for building Nimble Angular dashboards
+- **AI agent skills** — bundled skills for most AI agents (Copilot, Codex, etc.) and Claude
 - **Demo provisioning** — curated example datasets for training, demos, and evaluation
 - **WebApp lifecycle** — scaffold Nimble Angular projects, pack, publish, and manage web applications
 - **Professional CLI** — consistent error handling, colored table/JSON output, shell completion
@@ -55,9 +55,14 @@ slcli asset list --calibratable --summary
 slcli system list --state CONNECTED
 slcli spec list --product <product> --workspace all
 
-# Scaffold the SystemLink Angular starter (AI skills auto-installed)
-slcli webapp init ./my-dashboard
-# Open the project and follow START_HERE.md or PROMPTS.md
+# Scaffold the recommended hosted Angular starter
+slcli webapp new my-dashboard
+
+# Low-level/manual starter path for custom framework setup
+slcli webapp init ./my-dashboard-manual
+
+# Install bundled AI skills for this repo
+slcli skill install --client agents --scope project
 
 # Create Plugin Manager packaging config
 slcli webapp manifest init ./my-dashboard \
@@ -69,9 +74,6 @@ slcli webapp manifest init ./my-dashboard \
 
 # Package the app and generate the thin submission manifest.json
 slcli webapp pack --config ./my-dashboard/nipkg.config.json
-
-# Or install AI skills manually (use --client claude for Claude)
-slcli skill install
 
 # Provision a demo environment
 slcli example install demo-complete-workflow --workspace Training
@@ -92,7 +94,7 @@ slcli resolves runtime connection settings in this order:
 - Profile selection: `--profile`, then `SLCLI_PROFILE`, then the current profile in config.
 - API URL, API key, and Web URL: `SLCLI_API_URL` / `SLCLI_API_KEY` / `SLCLI_WEB_URL`, then the legacy `SYSTEMLINK_*` aliases, then the active profile, then legacy keyring fallbacks.
 
-Use `slcli info` or `slcli config view` to see the effective source for each value and whether environment overrides are active.
+Use `slcli info` to see the effective source for each value and whether environment overrides are active. Use `slcli config view` to inspect the stored profile values on disk.
 
 ## Documentation
 

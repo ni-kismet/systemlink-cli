@@ -2,6 +2,62 @@
 
 <!-- towncrier release notes start -->
 
+## v1.14.2 (2026-06-30)
+
+### Bug Fixes
+
+- Reduce `slcli webapp new` scaffold install and build warnings by updating the generated Angular starter dependencies, bootstrap path, and default build budget. (webapp-scaffold-warnings)
+
+
+## v1.14.1 (2026-06-30)
+
+### Bug Fixes
+
+- Raise the minimum supported versions of cryptography, PyJWT, and python-multipart to secure releases and refresh the lockfile. (deps-security-refresh)
+
+
+## v1.14.0 (2026-06-30)
+
+### Features
+
+- Add `slcli webapp new` as the recommended hosted Angular bootstrap path with a bundled phase-1 blank template, optional Plugin Manager metadata, built-in SystemLink hosting conventions, and restored bundled `slcli` agent skill content that includes the hosted webapp guidance. (webapp-new-bootstrap)
+
+
+## v1.13.21 (2026-06-24)
+
+### Other Changes
+
+- Add SCA scanning configuration (add-sca-scanning)
+
+
+## v1.13.20 (2026-05-27)
+
+### Bug Fixes
+
+- Disable bundled AI skill installation, remove bundled skill files from packaged artifacts, and document that AI skills are currently unavailable. (skills-temporary-unavailable)
+
+
+## v1.13.19 (2026-05-20)
+
+### Bug Fixes
+
+- Normalize SBOM RECORD path matching so release-time metadata extraction works on Windows runners. (windows-sbom-record-paths)
+
+
+## v1.13.18 (2026-05-20)
+
+### Bug Fixes
+
+- Improve release SBOM generation by excluding dev dependencies and enriching CycloneDX metadata. (improve-sbom-quality)
+
+
+## v1.13.17 (2026-05-19)
+
+### Bug Fixes
+
+- Separate config view from runtime info so `slcli config view` shows stored profile values while `slcli info` shows effective resolved values and override sources. (config-view-info-separation)
+
+
 ## v1.13.16 (2026-05-19)
 
 ### Bug Fixes

@@ -2,6 +2,7 @@
 
 import getpass
 import json
+import os
 import re
 import sys
 from typing import Any, Optional
@@ -18,17 +19,15 @@ from .platform import (
 from .profiles import ProfileConfig, Profile, check_config_file_permissions
 from .rich_output import render_table
 from .table_utils import output_formatted_list
-from .utils import (
-    ExitCodes,
-    describe_config_source,
-    get_api_key_resolution,
-    get_base_url_resolution,
-    get_web_url_resolution,
-    source_is_env,
-)
+from .utils import ExitCodes
 
 API_KEY_LENGTH = 42
 API_KEY_PATTERN = re.compile(rf"^[A-Za-z0-9_-]{{{API_KEY_LENGTH}}}$")
+ENV_OVERRIDE_FIELDS = (
+    ("API URL", ("SLCLI_API_URL", "SYSTEMLINK_API_URL")),
+    ("API Key", ("SLCLI_API_KEY", "SYSTEMLINK_API_KEY")),
+    ("Web URL", ("SLCLI_WEB_URL", "SYSTEMLINK_WEB_URL")),
+)
 
 
 def _exit_with_validation_error(message: str, exit_code: int = ExitCodes.INVALID_INPUT) -> None:
@@ -70,6 +69,15 @@ def _normalize_base_url(raw_url: str, label: str) -> str:
         )
 
     return normalized.rstrip("/")
+
+
+def _get_active_env_overrides() -> list[str]:
+    """Return config fields currently overridden by environment variables."""
+    active_overrides: list[str] = []
+    for label, env_names in ENV_OVERRIDE_FIELDS:
+        if any(os.environ.get(env_name) for env_name in env_names):
+            active_overrides.append(label)
+    return active_overrides
 
 
 def _normalize_api_key(api_key: str) -> str:
@@ -376,40 +384,9 @@ def register_config_commands(cli: Any) -> None:
         help="Show API keys in output (use with caution)",
     )
     def view(format: str, show_secrets: bool) -> None:
-        """View the full configuration."""
+        """View the stored configuration file values."""
         cfg = ProfileConfig.load()
-
-        effective: dict[str, Any] = {}
-        env_overrides: list[str] = []
-
-        try:
-            api_url_resolution = get_base_url_resolution()
-            effective["api-url"] = api_url_resolution.value
-            effective["api-url-source"] = api_url_resolution.source
-            if source_is_env(api_url_resolution.source):
-                env_overrides.append("API URL")
-        except Exception:
-            pass
-
-        try:
-            api_key_resolution = get_api_key_resolution(emit_error=False)
-            effective["api-key-source"] = api_key_resolution.source
-            if source_is_env(api_key_resolution.source):
-                env_overrides.append("API Key")
-        except Exception:
-            pass
-
-        try:
-            web_url_resolution = get_web_url_resolution()
-            effective["web-url"] = web_url_resolution.value
-            effective["web-url-source"] = web_url_resolution.source
-            if source_is_env(web_url_resolution.source):
-                env_overrides.append("Web URL")
-        except Exception:
-            pass
-
-        if env_overrides:
-            effective["env-overrides"] = env_overrides
+        env_overrides = _get_active_env_overrides()
 
         if format == "json":
             data: dict = {}
@@ -427,8 +404,8 @@ def register_config_commands(cli: Any) -> None:
                     data["profiles"][name] = profile_dict
             if cfg.settings:
                 data.update(cfg.settings)
-            if effective:
-                data["effective"] = effective
+            if env_overrides:
+                data["env-overrides"] = env_overrides
             click.echo(json.dumps(data, indent=2))
             return
 
@@ -453,31 +430,13 @@ def register_config_commands(cli: Any) -> None:
                 api_key_display = (
                     "****" + profile.api_key[-4:] if len(profile.api_key) >= 4 else "****"
                 )
-            rows.append(["Profile API Key", api_key_display])
+            rows.append(["API Key", api_key_display])
 
             if profile.workspace:
                 rows.append(["Workspace", profile.workspace])
 
             if profile.readonly:
                 rows.append(["Readonly", "enabled"])
-
-        if effective:
-            api_url_source = effective.get("api-url-source")
-            if isinstance(api_url_source, str):
-                rows.append(["Effective API URL", str(effective.get("api-url", ""))])
-                rows.append(["API URL Source", describe_config_source(api_url_source)])
-
-            api_key_source = effective.get("api-key-source")
-            if isinstance(api_key_source, str):
-                rows.append(["API Key Source", describe_config_source(api_key_source)])
-
-            web_url_source = effective.get("web-url-source")
-            if isinstance(web_url_source, str):
-                rows.append(["Effective Web URL", str(effective.get("web-url", ""))])
-                rows.append(["Web URL Source", describe_config_source(web_url_source)])
-
-            if env_overrides:
-                rows.append(["Active Overrides", ", ".join(env_overrides)])
 
         click.echo("slcli Configuration:")
         render_table(
@@ -486,6 +445,13 @@ def register_config_commands(cli: Any) -> None:
             rows=rows,
             show_total=False,
         )
+
+        if env_overrides:
+            click.echo(
+                f"\n⚠️  Environment overrides active ({', '.join(env_overrides)}). "
+                "Run 'slcli info' for effective values.",
+                err=True,
+            )
 
         # Check for permission warning
         warning = check_config_file_permissions()

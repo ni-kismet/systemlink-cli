@@ -1,0 +1,109 @@
+<section class="assets sl-page">
+  <header class="sl-page__intro">
+    <div>
+      <p class="sl-page__eyebrow">Starter Pattern: Drawer Detail</p>
+      <h2>Use this route when you need a detail view without losing the main browse context.</h2>
+      <p>
+        The sample actions and drawer guidance are placeholders. Replace them after you bind the
+        page to a real inventory or calibration workflow.
+      </p>
+    </div>
+  </header>
+
+  <div class="assets__toolbar sl-toolbar">
+    <div class="sl-toolbar__primary">
+      <nimble-button appearance="block" appearance-variant="accent">
+        Export calibration list
+      </nimble-button>
+    </div>
+
+    <div class="sl-toolbar__end">
+      <div class="sl-toolbar__actions">
+        <nimble-button appearance="ghost">Refresh inventory</nimble-button>
+      </div>
+    </div>
+  </div>
+
+  <div class="assets__table">
+    <nimble-table
+      #assetTable
+      id-field-name="id"
+      selection-mode="single"
+      (selection-change)="onSelectionChange($event)"
+    >
+      <nimble-table-column-text field-name="name" column-id="name">
+        Asset
+      </nimble-table-column-text>
+      <nimble-table-column-text field-name="type" column-id="type">
+        Type
+      </nimble-table-column-text>
+      <nimble-table-column-text field-name="status" column-id="status">
+        Status
+      </nimble-table-column-text>
+      <nimble-table-column-text field-name="location" column-id="location">
+        Location
+      </nimble-table-column-text>
+      <nimble-table-column-text field-name="owner" column-id="owner">
+        Owner
+      </nimble-table-column-text>
+      <nimble-table-column-text field-name="calibrated" column-id="calibrated">
+        Last calibrated
+      </nimble-table-column-text>
+    </nimble-table>
+  </div>
+
+  <nimble-drawer #detailDrawer location="right">
+    <header>{{ selectedAsset?.name || 'Asset detail' }}</header>
+
+    <section class="assets__drawer" *ngIf="selectedAsset as asset">
+      <nimble-banner *ngIf="asset.status === 'Out of service'" [open]="true" severity="error">
+        This asset is unavailable and should not be scheduled for test execution.
+      </nimble-banner>
+
+      <nimble-banner *ngIf="asset.status === 'Due soon'" [open]="true" severity="warning">
+        Calibration is approaching its due date. Schedule service before the next release build.
+      </nimble-banner>
+
+      <div class="assets__drawer-chips sl-chip-row">
+        <nimble-chip>{{ asset.type }}</nimble-chip>
+        <nimble-chip>{{ asset.location }}</nimble-chip>
+        <nimble-chip>{{ asset.status }}</nimble-chip>
+      </div>
+
+      <dl class="assets__detail-list">
+        <div>
+          <dt>Owner</dt>
+          <dd>{{ asset.owner }}</dd>
+        </div>
+        <div>
+          <dt>Last calibrated</dt>
+          <dd>{{ asset.calibrated }}</dd>
+        </div>
+        <div>
+          <dt>Recommended action</dt>
+          <dd>
+            {{ asset.status === 'Calibrated' ? 'Keep in active rotation.' : 'Route through metrology review.' }}
+          </dd>
+        </div>
+      </dl>
+
+    </section>
+
+    <footer class="assets__drawer-footer" *ngIf="selectedAsset">
+      <div class="assets__drawer-footer-start">
+        <nimble-button appearance="ghost" (click)="closeDrawer()">Cancel</nimble-button>
+      </div>
+
+      <div class="assets__drawer-footer-end">
+        <nimble-button appearance="ghost" (click)="closeDrawer()">Schedule follow-up</nimble-button>
+        <nimble-button
+          appearance="block"
+          appearance-variant="accent"
+          (click)="closeDrawer()"
+        >
+          Save detail
+        </nimble-button>
+      </div>
+    </footer>
+  </nimble-drawer>
+</section>
