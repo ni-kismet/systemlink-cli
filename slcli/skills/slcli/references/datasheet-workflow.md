@@ -47,30 +47,30 @@ when the checks below expose a real ambiguity.
 
 1. **Product name and part number.** Extract a candidate from the datasheet title
    page or cover. Propose a short friendly name (part number + concise
-  description) and the raw part number. If the user already provided one,
-  proceed with that value. Otherwise proceed with the best-effort candidate
-  and report it afterward unless the datasheet presents conflicting identities.
+   description) and the raw part number. If the user already provided one,
+   proceed with that value. Otherwise proceed with the best-effort candidate
+   and report it afterward unless the datasheet presents conflicting identities.
 2. **Product family.** Suggest a family based on the datasheet application domain
-  (e.g. "Audio", "Power", "Sensor", "Semiconductor", "Passive", "Connector",
-  "Test Equipment", "Module"). Proceed with the best-fit family and report the
-  assumption unless multiple families are equally plausible.
+   (e.g. "Audio", "Power", "Sensor", "Semiconductor", "Passive", "Connector",
+   "Test Equipment", "Module"). Proceed with the best-fit family and report the
+   assumption unless multiple families are equally plausible.
 3. **Existing product check.** Search by name _and_ part number:
    ```bash
    slcli testmonitor product list --name "<candidate>" -f json
    slcli testmonitor product list --part-number "<part>" -f json
    ```
-  If one clear existing product matches, reuse it and inherit its workspace.
-  If multiple conflicting matches exist, stop and ask whether to add specs to
-  an existing product or create a new product.
+   If one clear existing product matches, reuse it and inherit its workspace.
+   If multiple conflicting matches exist, stop and ask whether to add specs to
+   an existing product or create a new product.
 4. **Workspace.** Default to the user's profile workspace. If an existing product
-  was found, inherit that workspace. Otherwise, if only one enabled workspace
-  exists, use it automatically. If several enabled workspaces remain plausible,
-  show the candidates and ask the user to choose.
+   was found, inherit that workspace. Otherwise, if only one enabled workspace
+   exists, use it automatically. If several enabled workspaces remain plausible,
+   show the candidates and ask the user to choose.
 5. **Multi-variant detection.** Many datasheets cover multiple part numbers
    (e.g. Si8230/1/2/3/4/5/7/8, SN54HC595/SN74HC595). Check the title page,
-  ordering guide, or device overview table for multiple variants. If the user
-  already named one specific variant, use Option C automatically. Otherwise,
-  stop here and ask which approach to use:
+   ordering guide, or device overview table for multiple variants. If the user
+   already named one specific variant, use Option C automatically. Otherwise,
+   stop here and ask which approach to use:
 
    **Option A — Single product (default).** Create one product using the
    family part number (e.g. "Si823x"). Shared specs have no device condition.

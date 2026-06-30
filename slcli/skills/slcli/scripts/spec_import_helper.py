@@ -31,6 +31,12 @@ def _substitute_placeholders(value: Any, replacements: dict[str, str]) -> Any:
     return value
 
 
+def _normalize_enum_like_string(value: Any) -> Any:
+    if not isinstance(value, str):
+        return value
+    return value.strip().upper()
+
+
 def _write_json(path: Path, payload: dict[str, Any]) -> None:
     path.parent.mkdir(parents=True, exist_ok=True)
     path.write_text(json.dumps(payload, indent=2) + "\n", encoding="utf-8")
@@ -98,7 +104,7 @@ def _validate_conditions(conditions: Any, prefix: str, errors: list[str]) -> Non
             errors.append(f"{condition_prefix}.value must be an object")
             continue
 
-        condition_type = value.get("conditionType")
+        condition_type = _normalize_enum_like_string(value.get("conditionType"))
         if condition_type not in VALID_CONDITION_TYPES:
             errors.append(
                 f"{condition_prefix}.value.conditionType must be one of "
@@ -197,7 +203,7 @@ def validate_payload(payload: Any) -> list[str]:
             else:
                 seen_specs[spec_identity] = index
 
-        spec_type = spec.get("type")
+        spec_type = _normalize_enum_like_string(spec.get("type"))
         if isinstance(spec_type, str) and spec_type not in VALID_SPEC_TYPES:
             errors.append(f"{spec_prefix}.type must be one of {sorted(VALID_SPEC_TYPES)}")
 
@@ -223,7 +229,15 @@ def _handle_init(args: argparse.Namespace) -> int:
         "<WORKSPACE_ID>": args.workspace,
         "<SOURCE_FILE>": args.source,
     }
-    payload = _substitute_placeholders(_load_template(), replacements)
+    try:
+        payload = _substitute_placeholders(_load_template(), replacements)
+    except FileNotFoundError:
+        print("Bundled template not found: references/import-specs.min.json", file=sys.stderr)
+        return 1
+    except json.JSONDecodeError as exc:
+        print(f"Bundled template is invalid JSON: {exc}", file=sys.stderr)
+        return 1
+
     output_path = Path(args.output)
     _write_json(output_path, payload)
     print(f"Wrote starter payload to {output_path}")

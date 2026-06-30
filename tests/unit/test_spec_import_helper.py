@@ -9,6 +9,7 @@ from typing import Any
 
 import pytest
 
+from slcli.skills.slcli.scripts import spec_import_helper
 from slcli.skills.slcli.scripts.spec_import_helper import main, validate_payload
 
 
@@ -102,6 +103,30 @@ def test_validate_payload_rejects_invalid_numeric_conditions() -> None:
     assert "specs[0].conditions[0].value.discrete[1] must be numeric" in errors
 
 
+def test_validate_payload_normalizes_spec_and_condition_types() -> None:
+    """Test that spec and condition types are normalized before validation."""
+    errors = validate_payload(
+        {
+            "specs": [
+                make_spec(
+                    type=" parametric ",
+                    conditions=[
+                        {
+                            "name": "Mode",
+                            "value": {
+                                "conditionType": " string ",
+                                "discrete": ["Normal"],
+                            },
+                        }
+                    ],
+                )
+            ]
+        }
+    )
+
+    assert errors == []
+
+
 def test_validate_payload_rejects_invalid_string_conditions() -> None:
     """Test that STRING conditions reject ranges and blank discrete values."""
     errors = validate_payload(
@@ -179,8 +204,7 @@ def test_validate_payload_reports_additional_shape_errors() -> None:
     assert "specs[2].conditions[1].name must be a non-empty string" in errors
     assert "specs[2].conditions[1].value must be an object" in errors
     assert (
-        "specs[2].conditions[2].value.conditionType must be one of ['NUMERIC', 'STRING']"
-        in errors
+        "specs[2].conditions[2].value.conditionType must be one of ['NUMERIC', 'STRING']" in errors
     )
     assert "specs[2].conditions[3].value.range[0] must include min or max" in errors
     assert "specs[2].conditions[3].value.range[1].min must be numeric" in errors
@@ -221,6 +245,52 @@ def test_main_init_writes_starter_payload(
     assert payload["specs"][0]["properties"]["source"] == "device.pdf"
     captured = capsys.readouterr()
     assert f"Wrote starter payload to {output_path}" in captured.out
+
+
+def test_main_init_reports_missing_template(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    """Test that init reports a missing bundled template cleanly."""
+    monkeypatch.setattr(
+        spec_import_helper, "_load_template", lambda: (_ for _ in ()).throw(FileNotFoundError())
+    )
+    monkeypatch.setattr(
+        sys,
+        "argv",
+        ["spec_import_helper.py", "init", "--output", str(tmp_path / "starter.json")],
+    )
+
+    exit_code = main()
+
+    assert exit_code == 1
+    captured = capsys.readouterr()
+    assert "Bundled template not found: references/import-specs.min.json" in captured.err
+
+
+def test_main_init_reports_invalid_template_json(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    """Test that init reports invalid bundled template JSON cleanly."""
+    monkeypatch.setattr(
+        spec_import_helper,
+        "_load_template",
+        lambda: (_ for _ in ()).throw(json.JSONDecodeError("bad json", "x", 0)),
+    )
+    monkeypatch.setattr(
+        sys,
+        "argv",
+        ["spec_import_helper.py", "init", "--output", str(tmp_path / "starter.json")],
+    )
+
+    exit_code = main()
+
+    assert exit_code == 1
+    captured = capsys.readouterr()
+    assert "Bundled template is invalid JSON:" in captured.err
 
 
 def test_main_validate_reports_success_for_valid_payload(
