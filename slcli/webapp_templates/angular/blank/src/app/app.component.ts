@@ -1,10 +1,14 @@
 import { Component } from '@angular/core';
 
+import { NimbleThemeProviderModule } from '@ni/nimble-angular';
+
 import { ThemeSyncService } from './core/systemlink/theme-sync.service';
+import { AppShellComponent } from './core/layout/app-shell.component';
 
 @Component({
   selector: 'app-root',
-  standalone: false,
+  standalone: true,
+  imports: [NimbleThemeProviderModule, AppShellComponent],
   templateUrl: './app.component.html',
   styleUrl: './app.component.scss',
 })

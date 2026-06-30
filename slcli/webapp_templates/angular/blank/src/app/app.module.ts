@@ -1,7 +1,6 @@
-import { APP_BASE_HREF } from '@angular/common';
+import { APP_BASE_HREF, CommonModule } from '@angular/common';
 import { CUSTOM_ELEMENTS_SCHEMA, NgModule } from '@angular/core';
 import { FormsModule } from '@angular/forms';
-import { BrowserModule } from '@angular/platform-browser';
 
 import {
   NimbleAnchorTabModule,
@@ -25,8 +24,6 @@ import { NimbleTableModule } from '@ni/nimble-angular/table';
 import { NimbleTableColumnTextModule } from '@ni/nimble-angular/table-column/text';
 
 import { AppRoutingModule } from './app-routing.module';
-import { AppComponent } from './app.component';
-import { AppShellComponent } from './core/layout/app-shell.component';
 import { AssetsPageComponent } from './features/assets/assets-page.component';
 import { DatasetsPageComponent } from './features/datasets/datasets-page.component';
 import { HomePageComponent } from './features/home/home-page.component';
@@ -39,8 +36,6 @@ import { LoadingStateComponent } from './shared/components/loading-state.compone
 
 @NgModule({
   declarations: [
-    AppComponent,
-    AppShellComponent,
     HomePageComponent,
     DatasetsPageComponent,
     AssetsPageComponent,
@@ -52,7 +47,7 @@ import { LoadingStateComponent } from './shared/components/loading-state.compone
     EmptyStateComponent,
   ],
   imports: [
-    BrowserModule,
+    CommonModule,
     FormsModule,
     AppRoutingModule,
     NimbleThemeProviderModule,
@@ -76,6 +71,5 @@ import { LoadingStateComponent } from './shared/components/loading-state.compone
   ],
   providers: [{ provide: APP_BASE_HREF, useValue: '/' }],
   schemas: [CUSTOM_ELEMENTS_SCHEMA],
-  bootstrap: [AppComponent],
 })
 export class AppModule {}
