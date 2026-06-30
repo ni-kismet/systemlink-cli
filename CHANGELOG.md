@@ -2,6 +2,13 @@
 
 <!-- towncrier release notes start -->
 
+## v1.14.0 (2026-06-30)
+
+### Features
+
+- Add `slcli webapp new` as the recommended hosted Angular bootstrap path with a bundled phase-1 blank template, optional Plugin Manager metadata, built-in SystemLink hosting conventions, and restored bundled `slcli` agent skill content that includes the hosted webapp guidance. (webapp-new-bootstrap)
+
+
 ## v1.13.21 (2026-06-24)
 
 ### Other Changes
