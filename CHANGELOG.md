@@ -2,6 +2,13 @@
 
 <!-- towncrier release notes start -->
 
+## v1.15.0 (2026-06-30)
+
+### Features
+
+- Improve the datasheet parsing skill with autonomous defaults, a bundled spec import example, and a reusable import helper. (#126)
+
+
 ## v1.14.5 (2026-06-30)
 
 ### Bug Fixes
