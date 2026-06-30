@@ -436,7 +436,7 @@ def register_feed_commands(cli: Any) -> None:
 
     @cli.group()
     def feed() -> None:
-        """Manage NI Package Manager feeds and their packages.
+        """Manage SystemLink package feeds and packages.
 
         Feeds are package repositories used by NI Package Manager to install
         software on test systems. Supports Windows (.nipkg) and NI Linux RT

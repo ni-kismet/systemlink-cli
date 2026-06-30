@@ -63,13 +63,12 @@
 
       <!-- ═══════════════════════════════════════════════════════ -->
       <h1 id="ai-skills">Install AI Skills</h1>
-      <p>Two bundled skills give your AI assistant deep knowledge of SystemLink — one for CLI operations, one for building web applications.</p>
+      <p>Six bundled skills give your AI assistant current SystemLink domain knowledge across CLI operations, webapps, notebooks, test applications, packaging, and job debugging.</p>
 
       <table>
         <thead><tr><th>Skill</th><th>What it teaches</th></tr></thead>
         <tbody>
-          <tr><td><strong>slcli</strong></td><td>How to query and manage every SystemLink resource type using CLI commands</td></tr>
-          <tr><td><strong>systemlink-webapp</strong></td><td>How to build Nimble Angular webapps with <code>@ni/nimble-angular</code>, <code>@ni/systemlink-clients-ts</code>, hash routing, CSP compliance, theme sync, and deployment via <code>slcli webapp publish</code></td></tr>
+          <tr><td><strong>slcli</strong></td><td>How to query and manage SystemLink resources, build Nimble Angular webapps with <code>@ni/nimble-angular</code> and <code>@ni/systemlink-clients-ts</code>, create notebooks, debug jobs, package deployments, and handle other SystemLink workflows</td></tr>
         </tbody>
       </table>
 
@@ -77,9 +76,12 @@
         <div class="step">
           <div class="step-num">1</div>
           <div class="step-body">
-            <h3>Install the skills</h3>
-            <p>One command installs both skills for all supported AI clients.</p>
-            <pre><code># Install for all clients (Copilot, Claude, Codex)
+            <h3>Install the bundled skills</h3>
+            <p>Install the skills into the current repository or a personal assistant directory before you start asking for SystemLink-specific help.</p>
+            <pre><code># Project-scoped install for most agents
+slcli skill install --client agents --scope project
+
+# Personal install for both supported clients
 slcli skill install --client all --scope personal</code></pre>
           </div>
         </div>
@@ -87,46 +89,46 @@ slcli skill install --client all --scope personal</code></pre>
           <div class="step-num">2</div>
           <div class="step-body">
             <h3>Ask your assistant about SystemLink</h3>
-            <p>The skills are loaded automatically. Try natural language queries:</p>
+            <p>Once the bundled skills are installed, ask natural-language questions about the exact SystemLink workflow you want to build or debug. Try prompts like:</p>
             <pre><code>"Show me all failed test results from this week"
 "Which assets need calibration?"
 "Build me a fleet health dashboard for SystemLink"
+"Create a SystemLink notebook that reports daily yield by station"
+"Debug this stuck state.apply job from the Jobs API"
 "Install the demo-complete-workflow example in the Training workspace"</code></pre>
           </div>
         </div>
         <div class="step">
           <div class="step-num">3</div>
           <div class="step-body">
-            <h3>Project-scoped skills (optional)</h3>
-            <p>Install per-repo for team consistency — the skill files are committed alongside your code.</p>
-            <pre><code># Install into the current repo
-slcli skill install --client copilot --scope project</code></pre>
+            <h3>Use the skills in context</h3>
+            <p>Use project-scoped installs for repo-specific work and personal installs when you want the same SystemLink guidance available across multiple workspaces.</p>
           </div>
         </div>
       </div>
 
       <div class="highlight-box">
-        <p><strong>Tip:</strong> The skills follow the <a href="https://agentskills.io/specification" target="_blank" rel="noopener">Agent Skills open standard</a>. They work with any AI client that supports skill discovery.</p>
+        <p><strong>Tip:</strong> The skills follow the <a href="https://agentskills.io/specification" target="_blank" rel="noopener">Agent Skills open standard</a>. Use <code>slcli skill install</code> for personal or project-scoped installs depending on how broadly you want the skills available.</p>
       </div>
 
       <!-- ═══════════════════════════════════════════════════════ -->
       <h2 id="build-webapp">Build a Nimble Angular WebApp with AI</h2>
-      <p>The <code>systemlink-webapp</code> skill teaches your AI assistant the complete NI design system — <code>@ni/nimble-angular</code> components, <code>@ni/systemlink-clients-ts</code> SDK, hash routing, CSP compliance, theme synchronization, and deployment. One command sets up everything your assistant needs.</p>
+      <p>The bundled <code>slcli</code> skill includes the hosted webapp guidance your AI assistant needs: <code>@ni/nimble-angular</code> components, <code>@ni/systemlink-clients-ts</code> SDK usage, hash routing, CSP compliance, theme synchronization, and deployment. One command sets up everything your assistant needs.</p>
 
       <div class="steps">
         <div class="step">
           <div class="step-num">1</div>
           <div class="step-body">
             <h3>Scaffold the project</h3>
-            <p><code>webapp init</code> creates the Angular starter, adds the AI skills, and writes the starter files your assistant uses to bootstrap Angular in place.</p>
-            <pre><code>slcli webapp init ./fleet-dashboard
+            <p><code>webapp new</code> creates the recommended hosted Angular starter with buildable routes, SystemLink hosting defaults, and publish scripts. Use <code>webapp init</code> only when you intentionally want the low-level manual path.</p>
+            <pre><code>slcli webapp new fleet-dashboard
 cd fleet-dashboard</code></pre>
             <p>The scaffolded directory includes:</p>
             <ul>
-              <li><code>PROMPTS.md</code> — ready-made prompts for building dashboards, test results pages, and more</li>
-              <li><code>START_HERE.md</code> — bootstrap and deployment guidance for the Angular workflow</li>
-              <li><code>.agents/skills/</code> — AI skills pre-installed so your AI assistant can discover them immediately</li>
+              <li>a buildable Angular 20 app shell with starter routes for common SystemLink layouts</li>
+              <li><code>README.md</code> — local development, publish, and hosting guidance for the generated app</li>
             </ul>
+            <p>Use <code>webapp init</code> only when you want the manual bootstrap path with starter prompts and project-scoped skills preinstalled into <code>.agents/skills</code>.</p>
           </div>
         </div>
         <div class="step">
@@ -163,7 +165,7 @@ ng build --configuration production
 
 # Pack the app and generate manifest.json with the artifact SHA-256
 slcli webapp pack --config nipkg.config.json
-slcli webapp publish dist/&lt;app-name&gt;/browser/ \
+slcli webapp publish dist/&lt;app-name&gt; \
   --name "Fleet Dashboard" \
   --workspace Production</code></pre>
           </div>
@@ -177,7 +179,7 @@ slcli webapp open --id &lt;webapp-id&gt;
 
 # Re-publish after changes (same --name updates in place)
 ng build --configuration production
-slcli webapp publish dist/&lt;app-name&gt;/browser/ \
+slcli webapp publish dist/&lt;app-name&gt; \
   --name "Fleet Dashboard" --workspace Production</code></pre>
           </div>
         </div>

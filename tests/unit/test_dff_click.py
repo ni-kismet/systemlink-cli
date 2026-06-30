@@ -8,8 +8,8 @@ from typing import Any
 import click
 import pytest
 from click.testing import CliRunner
-from slcli.dff_click import register_dff_commands
 
+from slcli.dff_click import register_dff_commands
 from .test_utils import patch_keyring
 
 
@@ -460,7 +460,7 @@ def test_dff_help_commands(runner: CliRunner, monkeypatch: Any) -> None:
     # Test main customfield help
     result = runner.invoke(cli, ["customfield", "--help"])
     assert result.exit_code == 0
-    assert "Manage custom field" in result.output
+    assert "Manage SystemLink custom field configurations" in result.output
 
 
 def test_dff_edit_command_help(runner: CliRunner, monkeypatch: Any) -> None:

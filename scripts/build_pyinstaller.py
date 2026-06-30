@@ -3,15 +3,14 @@
 import os
 import subprocess
 import sys
-from pathlib import Path
-
 import tomllib
+from pathlib import Path
 
 # This script is intended to be run as a Poetry script:
 # > poetry run build-pyinstaller
 
 
-def generate_version_file():
+def generate_version_file() -> str:
     """Generate _version.py file from pyproject.toml."""
     project_root = Path(__file__).parent.parent
     pyproject_path = project_root / "pyproject.toml"
@@ -30,39 +29,43 @@ def generate_version_file():
 __version__ = "{version}"
 '''
 
-    with open(version_file_path, "w") as f:
+    with open(version_file_path, "w", encoding="utf-8") as f:
         f.write(version_content)
 
     print(f"Generated _version.py with version {version}")
     return version
 
 
-def main():
+def _required_data_args(source_dir: Path, target_dir: str) -> list[str]:
+    """Return PyInstaller --add-data args for a required directory."""
+    if not source_dir.is_dir():
+        print(f"Required data directory not found at {source_dir}")
+        sys.exit(1)
+
+    return ["--add-data", f"{source_dir}{os.pathsep}{target_dir}"]
+
+
+def _optional_data_args(source_dir: Path, target_dir: str) -> list[str]:
+    """Return PyInstaller --add-data args for an optional directory."""
+    if not source_dir.is_dir():
+        print(f"Skipping optional data directory missing at {source_dir}")
+        return []
+
+    return ["--add-data", f"{source_dir}{os.pathsep}{target_dir}"]
+
+
+def main() -> None:
     """Build the slcli binary using PyInstaller."""
     # Generate version file first
     version = generate_version_file()
 
-    project_root = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
-    entry_point = os.path.join(project_root, "slcli", "__main__.py")
-    examples_dir = os.path.join(project_root, "slcli", "examples")
-    editor_assets_dir = os.path.join(project_root, "dff-editor")
-    skills_dir = os.path.join(project_root, "slcli", "skills")
+    project_root = Path(__file__).resolve().parent.parent
+    entry_point = project_root / "slcli" / "__main__.py"
+    examples_dir = project_root / "slcli" / "examples"
+    editor_assets_dir = project_root / "dff-editor"
+    skills_dir = project_root / "slcli" / "skills"
+    webapp_templates_dir = project_root / "slcli" / "webapp_templates"
 
-    if not os.path.isdir(examples_dir):
-        print(f"Examples directory not found at {examples_dir}")
-        sys.exit(1)
-
-    if not os.path.isdir(editor_assets_dir):
-        print(f"Editor assets directory not found at {editor_assets_dir}")
-        sys.exit(1)
-
-    if not os.path.isdir(skills_dir):
-        print(f"Skills directory not found at {skills_dir}")
-        sys.exit(1)
-
-    examples_data_arg = f"{examples_dir}{os.pathsep}slcli/examples"
-    editor_data_arg = f"{editor_assets_dir}{os.pathsep}dff-editor"
-    skills_data_arg = f"{skills_dir}{os.pathsep}skills"
     cmd = [
         sys.executable,
         "-m",
@@ -71,13 +74,11 @@ def main():
         "--noconfirm",
         "--collect-submodules=shellingham",
         "--collect-data=rfc3987_syntax",
-        "--add-data",
-        examples_data_arg,
-        "--add-data",
-        editor_data_arg,
-        "--add-data",
-        skills_data_arg,
-        entry_point,
+        *_required_data_args(examples_dir, "slcli/examples"),
+        *_required_data_args(editor_assets_dir, "dff-editor"),
+        *_required_data_args(webapp_templates_dir, "slcli/webapp_templates"),
+        *_optional_data_args(skills_dir, "skills"),
+        str(entry_point),
     ]
     print(f"Running: {' '.join(cmd)}")
     result = subprocess.run(cmd)

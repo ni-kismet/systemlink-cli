@@ -12,6 +12,7 @@ from unittest.mock import patch
 import click
 import pytest
 from click.testing import CliRunner
+
 from slcli.utils import ExitCodes
 
 
@@ -37,8 +38,9 @@ def test_check_readonly_mode_allows_when_inactive() -> None:
 
 def test_readonly_mode_error_message_content() -> None:
     """Test that readonly mode provides clear error message mentioning mutation operations."""
-    from slcli.utils import check_readonly_mode
     from click.testing import CliRunner
+
+    from slcli.utils import check_readonly_mode
 
     # Create a simple CLI command to capture output
     @click.command()

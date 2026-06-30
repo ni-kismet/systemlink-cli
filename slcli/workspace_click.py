@@ -59,7 +59,7 @@ def register_workspace_commands(cli: Any) -> None:
 
     @cli.group()
     def workspace() -> None:
-        """Manage workspaces."""
+        """Manage SystemLink workspaces."""
         pass
 
     @workspace.command(name="list")

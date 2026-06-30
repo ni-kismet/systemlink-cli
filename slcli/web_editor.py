@@ -17,6 +17,159 @@ import requests
 from .utils import ExitCodes, get_base_url, get_headers, get_ssl_verify
 
 
+def _validated_proxy_origin(api_base: str) -> tuple[str, str]:
+    """Return a validated scheme and netloc for proxy requests.
+
+    Args:
+        api_base: Configured SystemLink base URL.
+
+    Returns:
+        Tuple of scheme and network location.
+
+    Raises:
+        ValueError: If the configured base URL is not a plain HTTP(S) origin.
+    """
+    parsed = urllib.parse.urlsplit(api_base)
+    if parsed.scheme not in {"http", "https"}:
+        raise ValueError("Editor proxy requires an HTTP(S) SystemLink base URL")
+    if not parsed.netloc or parsed.username or parsed.password:
+        raise ValueError("Editor proxy requires a base URL without embedded credentials")
+    if parsed.path not in {"", "/"} or parsed.query or parsed.fragment:
+        raise ValueError("Editor proxy requires a base URL without path, query, or fragment")
+    return parsed.scheme, parsed.netloc
+
+
+def _build_proxy_url(
+    origin_scheme: str,
+    origin_netloc: str,
+    target_path: str,
+) -> str:
+    """Build a proxy URL from a validated origin and allowlisted path."""
+    return urllib.parse.urlunsplit((origin_scheme, origin_netloc, target_path, "", ""))
+
+
+def _validated_proxy_path(request_path: str) -> str:
+    """Return a decoded absolute proxy path without dot-segments."""
+    decoded_path = urllib.parse.unquote(request_path)
+    if not decoded_path.startswith("/"):
+        raise ValueError("Editor proxy requires an absolute request path")
+    if any(segment in {".", ".."} for segment in decoded_path.split("/")):
+        raise ValueError("Editor proxy rejects paths containing dot-segments")
+    return decoded_path
+
+
+def _validated_proxy_query_params(query: str) -> dict[str, list[str]]:
+    """Return parsed proxy query parameters."""
+    if not query:
+        return {}
+
+    try:
+        return urllib.parse.parse_qs(
+            query,
+            keep_blank_values=True,
+            strict_parsing=True,
+            separator="&",
+        )
+    except ValueError as exc:
+        raise ValueError("Editor proxy received an invalid query string") from exc
+
+
+def _validated_single_query_value(
+    query_params: dict[str, list[str]],
+    name: str,
+) -> str:
+    """Return a single query value and reject repeated parameters."""
+    values = query_params.get(name)
+    if not values:
+        raise ValueError(f"Editor proxy requires query parameter: {name}")
+    if len(values) != 1:
+        raise ValueError(f"Editor proxy rejects repeated query parameter: {name}")
+    return values[0]
+
+
+def _validated_integer_query_value(
+    query_params: dict[str, list[str]],
+    name: str,
+    *,
+    minimum: int,
+    maximum: Optional[int] = None,
+) -> str:
+    """Return a validated integer query value preserved as a string."""
+    raw_value = _validated_single_query_value(query_params, name)
+
+    try:
+        parsed_value = int(raw_value)
+    except ValueError as exc:
+        raise ValueError(f"Editor proxy requires an integer query parameter: {name}") from exc
+
+    if parsed_value < minimum or (maximum is not None and parsed_value > maximum):
+        raise ValueError(f"Editor proxy rejected out-of-range query parameter: {name}")
+
+    return str(parsed_value)
+
+
+def _validated_identifier_query_value(query_params: dict[str, list[str]], name: str) -> str:
+    """Return a single identifier-like query value safe for proxy forwarding."""
+    value = _validated_single_query_value(query_params, name)
+    if not value.strip():
+        raise ValueError(f"Editor proxy requires a non-empty query parameter: {name}")
+    if len(value) > 256:
+        raise ValueError(f"Editor proxy rejected oversized query parameter: {name}")
+    if any(ord(character) < 32 for character in value):
+        raise ValueError(f"Editor proxy rejected invalid query parameter: {name}")
+    if any(character in value for character in "/\\?#"):
+        raise ValueError(f"Editor proxy rejected invalid query parameter: {name}")
+    return value
+
+
+def _resolve_proxy_target(
+    method: str,
+    request_path: str,
+    query: str,
+) -> Optional[tuple[str, dict[str, str]]]:
+    """Resolve a frontend route to a fixed upstream path and validated params."""
+    query_params = _validated_proxy_query_params(query)
+
+    if method == "POST":
+        post_route_map = {
+            "/api/dff/configurations": "/nidynamicformfields/v1/configurations",
+            "/api/dff/update-configurations": "/nidynamicformfields/v1/update-configurations",
+            "/nidynamicformfields/v1/update-configurations": "/nidynamicformfields/v1/update-configurations",
+        }
+        target_path = post_route_map.get(request_path)
+        if target_path is None:
+            return None
+        if query_params:
+            raise ValueError("Editor proxy does not forward query parameters for this route")
+        return target_path, {}
+
+    if method == "GET" and request_path == "/niuser/v1/workspaces":
+        unexpected_params = set(query_params) - {"take", "skip"}
+        if unexpected_params:
+            raise ValueError("Editor proxy rejected unsupported workspace query parameters")
+
+        safe_params: dict[str, str] = {}
+        if "take" in query_params:
+            safe_params["take"] = _validated_integer_query_value(
+                query_params, "take", minimum=1, maximum=1000
+            )
+        if "skip" in query_params:
+            safe_params["skip"] = _validated_integer_query_value(query_params, "skip", minimum=0)
+        return "/niuser/v1/workspaces", safe_params
+
+    if method == "GET" and request_path == "/nidynamicformfields/v1/resolved-configuration":
+        unexpected_params = set(query_params) - {"configurationId"}
+        if unexpected_params:
+            raise ValueError(
+                "Editor proxy rejected unsupported resolved-configuration query parameters"
+            )
+        return "/nidynamicformfields/v1/resolved-configuration", {
+            "configurationId": _validated_identifier_query_value(query_params, "configurationId")
+        }
+
+    return None
+
+
 class DFFWebEditor:
     """Web-based editor for custom fields configurations."""
 
@@ -132,6 +285,7 @@ class DFFWebEditor:
         editor_dir = self._editor_dir  # Capture for closure
         temp_path = self._temp_path  # Capture for closure
         api_base = get_base_url().rstrip("/")
+        api_scheme, api_netloc = _validated_proxy_origin(api_base)
         default_headers = get_headers()
         ssl_verify = get_ssl_verify()
         secret = self._secret
@@ -149,9 +303,14 @@ class DFFWebEditor:
 
             def _proxy_request(self, method: str) -> bool:
                 parsed = urllib.parse.urlparse(self.path)
+                try:
+                    request_path = _validated_proxy_path(parsed.path)
+                except ValueError as exc:
+                    self.send_error(400, str(exc))
+                    return True
 
                 # Serve slcli-config.json from temp directory
-                if parsed.path == "/slcli-config.json" and method == "GET":
+                if request_path == "/slcli-config.json" and method == "GET":
                     config_file = temp_path / "slcli-config.json"
                     if config_file.exists():
                         self.send_response(200)
@@ -164,7 +323,7 @@ class DFFWebEditor:
                         return True
 
                 # Serve config.json (the DFF configuration) from temp directory
-                if parsed.path == "/config.json" and method == "GET":
+                if request_path == "/config.json" and method == "GET":
                     config_file = temp_path / "config.json"
                     if config_file.exists():
                         self.send_response(200)
@@ -176,20 +335,16 @@ class DFFWebEditor:
                         self.send_error(404, "Config file not found")
                         return True
 
-                # Handle API proxying
-                path_map = {
-                    "/api/dff/configurations": "/nidynamicformfields/v1/configurations",
-                    "/api/dff/update-configurations": "/nidynamicformfields/v1/update-configurations",
-                }
+                try:
+                    resolved_target = _resolve_proxy_target(method, request_path, parsed.query)
+                except ValueError as exc:
+                    self.send_error(400, str(exc))
+                    return True
 
-                if parsed.path in path_map:
-                    target_path = path_map[parsed.path]
-                elif parsed.path.startswith("/nidynamicformfields/v1/"):
-                    target_path = parsed.path
-                elif parsed.path.startswith("/niuser/v1/workspaces"):
-                    target_path = parsed.path
-                else:
+                if resolved_target is None:
                     return False
+
+                target_path, target_params = resolved_target
 
                 # Require per-session secret on all proxied routes
                 req_secret = self.headers.get("X-Editor-Secret")
@@ -197,9 +352,11 @@ class DFFWebEditor:
                     self.send_error(403, "Forbidden: Missing or invalid editor secret")
                     return True
 
-                target_url = f"{api_base}{target_path}"
-                if parsed.query:
-                    target_url = f"{target_url}?{parsed.query}"
+                target_url = _build_proxy_url(
+                    origin_scheme=api_scheme,
+                    origin_netloc=api_netloc,
+                    target_path=target_path,
+                )
 
                 headers = dict(default_headers)
                 data = None
@@ -215,6 +372,7 @@ class DFFWebEditor:
                         url=target_url,
                         headers=headers,
                         data=data,
+                        params=target_params or None,
                         verify=ssl_verify,
                     )
                 except requests.RequestException as exc:  # pragma: no cover

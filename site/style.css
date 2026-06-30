@@ -574,8 +574,8 @@ footer {
   content: '';
   position: absolute;
   left: 23px;
-  top: 40px;
-  bottom: 0;
+  top: 60px;
+  bottom: 10px;
   width: 2px;
   background: var(--border);
 }

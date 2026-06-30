@@ -7,6 +7,7 @@ from unittest.mock import patch
 import click
 import pytest
 from click.testing import CliRunner
+
 from slcli.user_click import register_user_commands
 
 

@@ -120,7 +120,7 @@ def register_templates_commands(cli: Any) -> None:
     @cli.group()
     @click.pass_context
     def template(ctx: click.Context) -> None:
-        """Manage test plan templates."""
+        """Manage SystemLink test plan templates."""
         # Check for platform feature availability
         # Only check if a subcommand is being invoked (not just --help)
         if ctx.invoked_subcommand is not None:

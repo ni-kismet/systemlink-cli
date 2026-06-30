@@ -11,9 +11,10 @@ This project uses [Towncrier](https://towncrier.readthedocs.io/) plus a small re
 
 ## Fragment Format
 
-Use a Towncrier fragment named after the PR or issue number:
+Use a Towncrier fragment with a short branch/topic stem as the preferred prefix. PR- or issue-number prefixes are also accepted:
 
 ```
+poetry run towncrier create systems-search-fallback.patch.md --content "Prefer the new systems search endpoint with fallback."
 poetry run towncrier create 123.patch.md --content "Prefer the new systems search endpoint with fallback."
 ```
 
@@ -29,13 +30,13 @@ Fragment types map to version bumps as follows:
 
 ```bash
 # Patch release (1.9.3 -> 1.9.4)
-poetry run towncrier create 123.patch.md --content "Handle permission errors gracefully in workspace info."
+poetry run towncrier create permission-errors.patch.md --content "Handle permission errors gracefully in workspace info."
 
 # Minor release (1.9.3 -> 1.10.0)
-poetry run towncrier create 124.minor.md --content "Add a new version command."
+poetry run towncrier create version-command.minor.md --content "Add a new version command."
 
 # Major release (1.9.3 -> 2.0.0)
-poetry run towncrier create 125.major.md --content "Redesign the public API surface for system queries."
+poetry run towncrier create system-query-api.major.md --content "Redesign the public API surface for system queries."
 ```
 
 ## Workflows

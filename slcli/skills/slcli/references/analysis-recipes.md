@@ -3,6 +3,22 @@
 Step-by-step recipes for answering common data analysis questions with `slcli`.
 Each recipe maps to a real-world scenario and shows the exact commands needed.
 
+## Contents
+
+- [Recipe 1: Operator failure rate analysis](#recipe-1-operator-failure-rate-analysis)
+- [Recipe 2: Calibration overdue tracking](#recipe-2-calibration-overdue-tracking)
+- [Recipe 3: Test time distribution and bottleneck identification](#recipe-3-test-time-distribution-and-bottleneck-identification)
+- [Recipe 4: System capability discovery](#recipe-4-system-capability-discovery)
+- [Recipe 4b: Full system health snapshot](#recipe-4b-full-system-health-snapshot)
+- [Recipe 5: Product yield analysis](#recipe-5-product-yield-analysis)
+- [Recipe 6: Test program runtime analysis](#recipe-6-test-program-runtime-analysis)
+- [Recipe 7: Location-based failure analysis](#recipe-7-location-based-failure-analysis)
+- [Recipe 8: Fixture calibration and capacity planning](#recipe-8-fixture-calibration-and-capacity-planning)
+- [Recipe 9: Product family workload distribution](#recipe-9-product-family-workload-distribution)
+- [Recipe 10: Environmental condition failure patterns](#recipe-10-environmental-condition-failure-patterns)
+- [Recipe 11: Create and schedule a work item on a specific fixture/slot and system](#recipe-11-create-and-schedule-a-work-item-on-a-specific-fixtureslot-and-system)
+- [General tips](#general-tips)
+
 ---
 
 ## Recipe 1: Operator failure rate analysis

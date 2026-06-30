@@ -8,8 +8,8 @@ from unittest.mock import patch
 import pytest
 from click.testing import CliRunner
 from pytest import MonkeyPatch
-from slcli.main import cli
 
+from slcli.main import cli
 from .test_utils import patch_keyring
 
 

@@ -72,7 +72,10 @@ poetry run pytest tests/e2e/ -n auto
    - `misc` for other shipped changes (also releases as a patch)
 
 ```bash
-# Create a fragment named after the PR or issue number
+# Preferred: create a fragment named after the branch/topic
+poetry run towncrier create systems-search-fallback.patch.md --content "Prefer the new systems search endpoint with fallback."
+
+# Also accepted: use the PR or issue number as the prefix
 poetry run towncrier create 123.patch.md --content "Prefer the new systems search endpoint with fallback."
 ```
 
@@ -142,14 +145,20 @@ Based on [CLI Guidelines](https://clig.dev), SystemLink CLI follows these patter
    - Ensure it follows the CLI best practices outlined above
    - Ensure it supports JSON output via `--format/-f` option for list commands
 
-4. **If adding dependencies:**
+4. **If changing the hosted webapp scaffold or bundled template:**
+
+   ```bash
+   poetry run python scripts/smoke_test_webapp.py
+   ```
+
+5. **If adding dependencies:**
 
    ```bash
    poetry add <package>
    poetry lock
    ```
 
-5. **If changing packaging or build scripts:**
+6. **If changing packaging or build scripts:**
    ```bash
    poetry run build-pyinstaller
    ```
@@ -248,15 +257,9 @@ brew upgrade slcli
 - All new CLI commands must include JSON output support via `--format/-f` option
 - All error handling must use standardized exit codes and consistent formatting
 
-## Security scanning with Snyk
+## Security scanning
 
-This repository uses [Snyk](https://snyk.io/) for security scanning to identify and fix vulnerabilities in code before they reach production. Snyk provides Static Application Security Testing (SAST) that scans your code for security issues as you develop.
-
-- **IDE integration**: Install the Snyk extension for [Visual Studio Code](https://marketplace.visualstudio.com/items?itemName=snyk-security.snyk-vulnerability-scanner) or [Visual Studio](https://marketplace.visualstudio.com/items?itemName=snyk-security.snyk-vulnerability-scanner-vs-2022) to get real-time security feedback while writing code. To suggest the Snyk extension to contributors, add `.vscode/extensions.json` or `.vsconfig` files to your project root. The VSCode Snyk extension has a richer feature set and is the preferred IDE for working with Snyk.
-- **Pull request scanning**: Snyk automatically scans PRs and posts comments for high/critical vulnerabilities.
-- **Post-merge monitoring**: Automated bugs are created for unresolved issues after code is merged.
-
-For detailed guidance on working with Snyk, including how to address security issues and create ignore records, see the [Snyk reference](https://dev.azure.com/ni/DevCentral/_wiki/wikis/Stratus/146862/Snyk-reference).
+See the [security scanning reference](https://dev.azure.com/ni/DevCentral/_wiki/wikis/Stratus/160265/Security-scanning-reference) for information on security scanning tools, workflows, and best practices.
 
 ## Getting Help
 

@@ -2797,6 +2797,7 @@ def register_system_commands(cli: Any) -> None:
                     filter_expr,
                     api_order_by,
                     _parse_simple_response,
+                    take=take,
                 )
                 mock_resp: Any = FilteredResponse({"jobs": jobs})
                 UniversalResponseHandler.handle_list_response(

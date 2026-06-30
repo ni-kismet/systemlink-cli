@@ -219,8 +219,11 @@ def _warn_if_large_dataset(
     product_substitutions: List[Any],
     order_by: Optional[str] = None,
     descending: bool = False,
-) -> None:
+) -> Optional[int]:
     """Check dataset size and warn user if fetching large number of items.
+
+    Returns the total count of matching items, or None if the check failed.
+    Callers can use a zero return value to short-circuit expensive queries.
 
     Args:
         endpoint: API endpoint ("query-products" or "query-results").
@@ -230,6 +233,9 @@ def _warn_if_large_dataset(
         product_substitutions: Product filter substitutions (for results only).
         order_by: Field to order by (included in count check for consistency).
         descending: Whether results should be in descending order.
+
+    Returns:
+        Total count of matching items, or None if the probe request failed.
     """
     url = f"{_get_testmonitor_base_url()}/{endpoint}"
     payload: Dict[str, Any] = {
@@ -266,9 +272,10 @@ def _warn_if_large_dataset(
                 f"ℹ️  Fetching {total_count} items...",
                 err=True,
             )
+        return total_count
     except Exception:
         # If count check fails, proceed without warning
-        pass
+        return None
 
 
 def _query_all_products(
@@ -735,7 +742,7 @@ def register_testmonitor_commands(cli: Any) -> None:
 
     @cli.group()
     def testmonitor() -> None:
-        """Commands for test monitor products and results."""
+        """Manage SystemLink Test Monitor products and results."""
 
     @testmonitor.group()
     def product() -> None:
@@ -1132,8 +1139,9 @@ def register_testmonitor_commands(cli: Any) -> None:
                     )
                     click.echo(json.dumps(summary_stats, indent=2))
                 else:
-                    # Check total count first to warn about large datasets
-                    _warn_if_large_dataset(
+                    # Probe total count: warns for large datasets, short-circuits
+                    # when zero results match (avoids the full paginated query).
+                    total = _warn_if_large_dataset(
                         endpoint="query-results",
                         filter_expr=filter_expr,
                         substitutions=merged_subs,
@@ -1142,15 +1150,19 @@ def register_testmonitor_commands(cli: Any) -> None:
                         order_by=order_by,
                         descending=descending,
                     )
-                    results = _query_all_results(
-                        filter_expr,
-                        merged_subs,
-                        product_filter_expr,
-                        product_subs,
-                        order_by,
-                        descending,
-                        take=take,
-                    )
+
+                    if total == 0:
+                        results: List[Dict[str, Any]] = []
+                    else:
+                        results = _query_all_results(
+                            filter_expr,
+                            merged_subs,
+                            product_filter_expr,
+                            product_subs,
+                            order_by,
+                            descending,
+                            take=take,
+                        )
 
                     mock_resp: Any = FilteredResponse({"results": results})
                     UniversalResponseHandler.handle_list_response(

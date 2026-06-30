@@ -1,0 +1,65 @@
+[flake8]
+max-line-length = 100
+max-doc-length = 100
+application-import-names = slcli,tests
+ignore =
+    E1
+    E2
+    E3
+    E5
+    E701
+    E702
+    E704
+    E703
+    W1
+    W2
+    W3
+    W503
+    W504
+    W6
+    F501
+    F502
+    F503
+    F504
+    F505
+    F506
+    F507
+    F508
+    F509
+    F522
+    F523
+    F524
+    F525
+    F541
+    F703
+    F705
+    F722
+    F723
+    F812
+    D200
+    D203
+    D204
+    D206
+    D207
+    D208
+    D210
+    D213
+    D215
+    D300
+    D400
+    D401
+    D404
+    D406
+    D407
+    D408
+    D409
+    D413
+    I101
+extend-ignore = C90,D301
+docstring-convention = all
+import-order-style = smarkets
+per-file-ignores =
+    tests/**/test_*.py:D100,D102,D103
+    tests/test_*.py:D100,D102,D103
+    docs/conf.py:D1
+    __init__.py:F401

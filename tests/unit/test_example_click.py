@@ -8,6 +8,7 @@ from typing import Any, Dict, Generator, List, Optional, Tuple
 import click
 import pytest
 from click.testing import CliRunner
+
 from slcli.example_click import register_example_commands
 from slcli.example_loader import ExampleLoader
 from slcli.example_provisioner import ProvisioningAction, ProvisioningResult
@@ -324,7 +325,7 @@ def test_example_group_help(runner: CliRunner) -> None:
     result = runner.invoke(cli, ["example", "--help"])
 
     assert result.exit_code == 0
-    assert "example resource configurations" in result.output.lower()
+    assert "example systemlink resource configurations" in result.output.lower()
 
 
 def test_install_example_resolves_workspace_and_outputs_table(

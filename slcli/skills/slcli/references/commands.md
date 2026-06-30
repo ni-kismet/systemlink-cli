@@ -2,6 +2,32 @@
 
 Complete option reference for all `slcli` command groups.
 
+## Contents
+
+- [testmonitor — Test data analysis](#testmonitor--test-data-analysis)
+- [spec — Specification management](#spec--specification-management)
+- [asset — Asset and calibration management](#asset--asset-and-calibration-management)
+- [system — System fleet management](#system--system-fleet-management)
+- [state — Software state management](#state--software-state-management)
+- [dataframe — DataFrame tables and row access](#dataframe--dataframe-tables-and-row-access)
+- [tag — Tag operations](#tag--tag-operations)
+- [routine — Event-action and notebook routine management](#routine--event-action-and-notebook-routine-management)
+- [comment — Resource comments](#comment--resource-comments)
+- [workspace — Workspace management](#workspace--workspace-management)
+- [config — Profile and credential management](#config--profile-and-credential-management)
+- [user — User management](#user--user-management)
+- [auth — Authorization policies and templates](#auth--authorization-policies-and-templates)
+- [feed — NI Package Manager feed management](#feed--ni-package-manager-feed-management)
+- [file — File Service management](#file--file-service-management)
+- [notebook — Jupyter Notebook management and execution](#notebook--jupyter-notebook-management-and-execution)
+- [customfield — Custom field (DFF) configuration](#customfield--custom-field-dff-configuration)
+- [template — Test plan template management](#template--test-plan-template-management)
+- [workitem — Work item, template, and workflow management](#workitem--work-item-template-and-workflow-management)
+- [workflow — Workflow management](#workflow--workflow-management)
+- [webapp — Web application management](#webapp--web-application-management)
+- [skill — AI skill installation](#skill--ai-skill-installation)
+- [example — Built-in example resource provisioning](#example--built-in-example-resource-provisioning)
+
 ## testmonitor — Test data analysis
 
 The primary command group for test result queries and product analysis.
@@ -222,6 +248,129 @@ slcli system job summary [-f json]
 slcli system job cancel <JOB_ID>
 ```
 
+## state — Software state management
+
+```bash
+# List saved states
+slcli state list [OPTIONS]
+
+  --workspace, -w TEXT       # Filter by workspace name or ID
+  --architecture CHOICE      # ARM, X64, X86, ANY
+  --distribution CHOICE      # NI_LINUXRT, NI_LINUXRT_NXG, WINDOWS, ANY
+  --take, -t INTEGER         # Default 25
+  -f [table|json]
+
+# Get state details
+slcli state get <STATE_ID> [-f json]
+
+# Create or update a package/feed-defined state
+slcli state create --name TEXT --distribution CHOICE --architecture CHOICE [OPTIONS]
+  --workspace, -w TEXT
+  --property KEY=VALUE       # Repeatable custom property
+  --feed JSON_OR_@FILE       # Repeatable feed object
+  --package JSON_OR_@FILE    # Repeatable package object
+  --system-image JSON_OR_@FILE
+  --request FILE             # Raw JSON request override
+  -f [table|json]
+
+slcli state update <STATE_ID> [OPTIONS]
+  --name TEXT
+  --description TEXT
+  --distribution CHOICE
+  --architecture CHOICE
+  --workspace, -w TEXT
+  --property KEY=VALUE       # Replaces properties when provided
+  --request FILE             # Raw JSON patch override
+  -f [table|json]
+
+# Destructive operations
+slcli state delete <STATE_ID> [--yes]
+slcli state revert <STATE_ID> <VERSION> [--yes]
+
+# SLS file workflows
+slcli state import --name TEXT --distribution CHOICE --architecture CHOICE --file PATH [OPTIONS]
+slcli state replace-content <STATE_ID> --file PATH [--change-description TEXT] [-f json]
+slcli state export <STATE_ID> [--version VERSION] [--inline | --output FILE]
+slcli state capture <SYSTEM_ID> [--inline | --output FILE]
+
+# Version history
+slcli state history <STATE_ID> [-t INT] [-f json]
+slcli state version <STATE_ID> <VERSION> [-f json]
+```
+
+## dataframe — DataFrame tables and row access
+
+> **Requires:** DataFrame service (SLE only). Check `slcli info` for availability.
+
+```bash
+# List tables with metadata filters
+slcli dataframe list [OPTIONS]
+
+  --name TEXT                # Filter by table name (contains)
+  --workspace, -w TEXT       # Filter by workspace name or ID
+  --test-result-id TEXT      # Filter by associated test result ID
+  --supports-append / --no-supports-append
+  --filter TEXT              # Dynamic LINQ table filter
+  --substitution TEXT        # Parameterized value for --filter (repeatable)
+  --order-by CHOICE          # CREATED_AT, METADATA_MODIFIED_AT, NAME,
+                             # NUMBER_OF_ROWS, ROWS_MODIFIED_AT
+  --descending / --ascending
+  --take, -t INTEGER         # Default 25
+  -f [table|json]
+
+# Inspect a single table and its schema
+slcli dataframe get <TABLE_ID> [-f json]
+slcli dataframe schema <TABLE_ID> [--properties] [-f json]
+
+# Query row data
+slcli dataframe query <TABLE_ID> [OPTIONS]
+  --columns TEXT             # Comma-separated column list
+  --where TEXT               # column,operation,value (repeatable)
+  --order-by TEXT            # column[:asc|desc] (repeatable)
+  --take, -t INTEGER         # Default 100
+  --continuation-token TEXT  # Resume a paged read
+  --request FILE             # Raw query-data request JSON
+  -f [table|json]
+
+# Query decimated rows for plotting or large series
+slcli dataframe decimate <TABLE_ID> [OPTIONS]
+  --columns TEXT
+  --where TEXT
+  --x-column TEXT
+  --y-column TEXT            # Repeatable
+  --intervals INTEGER        # Default 1000
+  --method [LOSSY|MAX_MIN|ENTRY_EXIT]
+  --distribution [EQUAL_FREQUENCY|EQUAL_WIDTH]
+  --request FILE
+  -f [table|json]
+
+# Export or append rows
+slcli dataframe export <TABLE_ID> [OPTIONS]
+  --columns TEXT
+  --where TEXT
+  --order-by TEXT
+  --take INTEGER
+  --request FILE
+  --output, -o FILE          # Write CSV to a file
+
+slcli dataframe append <TABLE_ID> --input FILE [--input-format json|arrow] [--end-of-data]
+
+# Manage table metadata
+slcli dataframe create --definition FILE [--name TEXT] [--workspace TEXT] [-f json]
+slcli dataframe update <TABLE_ID> [OPTIONS]
+  --name TEXT
+  --workspace, -w TEXT
+  --test-result-id TEXT
+  --property KEY=VALUE                # Repeatable
+  --remove-property KEY               # Repeatable
+  --column-property COLUMN:KEY=VALUE  # Repeatable
+  --remove-column-property COLUMN:KEY # Repeatable
+  --metadata-revision INTEGER
+
+slcli dataframe update-many --definition FILE
+slcli dataframe delete <TABLE_ID>... [--yes]
+```
+
 ## tag — Tag operations
 
 ```bash
@@ -241,6 +390,11 @@ Two API versions are supported:
 - **v2** (default): General event-action routines — monitor tags, work-item changes, and more; trigger alarms, emails, or notebook executions.
 - **v1**: Notebook-execution routines with SCHEDULED or TRIGGERED types.
 
+Observed on the demo environment:
+
+- v2 event types: `TAG`, `TESTRESULTCHANGED`, `WORKITEMCHANGED`
+- v2 action types: `ALARM`, `NOTEBOOK`
+
 ```bash
 # List routines
 slcli routine list [OPTIONS]
@@ -257,6 +411,9 @@ slcli routine list [OPTIONS]
 
 # Get a single routine by ID
 slcli routine get <ROUTINE_ID> [--api-version v1|v2] [-f json]
+
+# Note: the default API version is v2. Use --api-version v1 when reading or
+# updating notebook routines created through the older Routine Manager service.
 
 # Create a v2 event-action routine
 # --event: JSON object with `type` and `triggers` array
@@ -284,7 +441,10 @@ slcli routine create --api-version v1 \
   --name "On Upload" \
   --type TRIGGERED \
   --notebook-id <NOTEBOOK_ID> \
-  --trigger '{"source":"FILES","events":["CREATED"],"filter":"extension=\".csv\""}'
+  --trigger '{"source":"FILES","events":["CREATED"],"filter":"extension=\".xml\""}'
+
+# For compound FILES filters and provider-specific live examples, load
+# routine-examples.md in this folder.
 
 # Update a routine (only supplied fields are changed)
 slcli routine update <ROUTINE_ID> [--api-version v1|v2] \
@@ -303,6 +463,10 @@ slcli routine delete <ROUTINE_ID> [--api-version v1|v2] [-y]
 
 ### v2 event JSON structure
 
+For v2 routines, there is no top-level routine `filter` field. Filtering is
+provider-specific and belongs inside `event.triggers[].configuration` when the
+provider supports it.
+
 ```json
 {
   "type": "TAG",
@@ -320,8 +484,40 @@ slcli routine delete <ROUTINE_ID> [--api-version v1|v2] [-y]
 }
 ```
 
-Supported TAG comparators: `GREATER_THAN`, `LESS_THAN`, `EQUAL`, `NOT_EQUAL`.
+Observed TAG comparators include `GREATER_THAN`, `GREATER_THAN_OR_EQUAL`, `LESS_THAN`, `EQUAL`, `NOT_EQUAL`, and `IN_RANGE`.
 Tag data types: `DOUBLE`, `INT32`, `U_INT64`, `STRING`, `BOOLEAN`.
+
+Some v2 providers use a string filter inside trigger configuration instead of
+structured comparator/path fields. Example from a `WORKITEMCHANGED` routine:
+
+```json
+{
+  "type": "WORKITEMCHANGED",
+  "triggers": [
+    {
+      "name": "8f4db567-9686-4e4b-ac2c-31345cb01691",
+      "configuration": {
+        "filter": "(before.assignedTo != after.assignedTo) && (after.assignedTo = \"a69caa22-7e24-445f-8e9f-084ed98ff6e3\")"
+      }
+    }
+  ]
+}
+```
+
+Another observed string-filter provider is `TESTRESULTCHANGED`:
+
+```json
+{
+  "type": "TESTRESULTCHANGED",
+  "triggers": [
+    {
+      "configuration": {
+        "filter": "(before.status != after.status) && (after.programName = \"...\")"
+      }
+    }
+  ]
+}
+```
 
 ### v2 actions JSON structure
 
@@ -348,46 +544,17 @@ Tag data types: `DOUBLE`, `INT32`, `U_INT64`, `STRING`, `BOOLEAN`.
 
 The second ALARM entry with trigger `nisystemlink_no_triggers_breached` is required by the API — it handles the alarm clear/reset state. Email notifications are delivered via `dynamicRecipientList` inside the ALARM action configuration. Severity levels: 1 (low) – 4 (critical).
 
-### Full example: tag threshold monitor with alarm + email
+Load [routine-examples.md](./routine-examples.md) for sanitized live examples covering:
 
-```bash
-slcli routine create \
-  --name "Fred Tag Monitor" \
-  --description "Alert when fred.test.* exceeds 10.2" \
-  --enabled \
-  --event '{
-    "type": "TAG",
-    "triggers": [{
-      "name": "a1b2c3d4-e5f6-7890-abcd-ef1234567890",
-      "configuration": {
-        "comparator": "GREATER_THAN",
-        "path": "fred.test.*",
-        "thresholds": ["10.2"],
-        "type": "DOUBLE"
-      }
-    }]
-  }' \
-  --actions '[
-    {
-      "type": "ALARM",
-      "triggers": ["a1b2c3d4-e5f6-7890-abcd-ef1234567890"],
-      "configuration": {
-        "displayName": "Fred Test Tag Alarm",
-        "description": "Tag fred.test.* exceeded 10.2",
-        "severity": 4,
-        "condition": "Greater than: 10.2",
-        "dynamicRecipientList": ["fred.visser@emerson.com"]
-      }
-    },
-    {
-      "type": "ALARM",
-      "triggers": ["nisystemlink_no_triggers_breached"],
-      "configuration": null
-    }
-  ]'
-```
+- v1 FILES filters that combine workspace checks, `name.Contains(...)`, and extension matching
+- v2 TAG routines using `IN_RANGE`, `NOT_EQUAL`, and `GREATER_THAN_OR_EQUAL`
+- v2 `TESTRESULTCHANGED` filters with nested field checks, indexed property access, and `DateTime.parse(...)`
+- v2 `WORKITEMCHANGED` filters with `.Any(...)` and `!Contains(...)`
+- Representative NOTEBOOK and ALARM action payloads
 
 ## comment — Resource comments
+
+> **Requires:** Comments service (SLE only). Check `slcli info` for availability.
 
 Attach, edit, and remove comments on any SystemLink resource. User IDs in responses
 are automatically resolved to display names.
@@ -568,6 +735,8 @@ slcli customfield edit [--directory DIR]                 # Interactively edit + 
 
 ## template — Test plan template management
 
+> **Requires:** Work Order service (SLE only). Check `slcli info` for availability.
+
 > **Note:** Work item templates are managed separately via `slcli workitem template`.
 > The `slcli template` command manages test plan _configuration_ templates used
 > when provisioning new test plan instances.
@@ -582,6 +751,10 @@ slcli template delete <TEMPLATE_ID>
 ```
 
 ## workitem — Work item, template, and workflow management
+
+> **Partially gated:** The `workitem template` and `workitem workflow` subgroups require the
+> Work Order service (SLE only). Core work item commands (`list`, `create`, `get`) are available
+> on both platforms. Check `slcli info` for service availability.
 
 Unified command group for managing work items, work item templates, and workflows.
 
@@ -668,7 +841,7 @@ slcli webapp open <WEBAPP_ID>                            # Open webapp URL in br
 `webapp init` creates the SystemLink Angular starter, not a generic HTML app. The starter installs
 project-scoped skills into `.agents/skills/` and creates `PROMPTS.md` plus `START_HERE.md` so an
 AI assistant can bootstrap the Angular workspace in place with the same Nimble/SystemLink
-conventions described by the `systemlink-webapp` skill.
+conventions described by the webapp overview inside the `slcli` skill.
 
 `webapp manifest init` writes `nipkg.config.json` using the Plugin Manager field names
 (`section`, `maintainer`, `homepage`, `xbPlugin`, `slPluginManagerTags`,
@@ -682,7 +855,7 @@ generated `.nipkg`, and emits a thin `manifest.json` with `schemaVersion`, `nipk
 Install bundled skills for supported AI clients.
 
 ```bash
-slcli skill install --skill [slcli|systemlink-webapp|systemlink-notebook|all] --client [agents|claude|all] --scope [personal|project|both]
+slcli skill install --skill [slcli|all] --client [agents|claude|all] --scope [personal|project|both]
 ```
 
 Client paths:
@@ -694,6 +867,7 @@ Client paths:
 Notes:
 
 - `agents` is the default client in interactive mode.
+- The bundled `slcli` skill now covers the previous standalone workflow skills.
 - `webapp init` installs project-scoped skills into `.agents/skills/` by default.
 
 ## example — Built-in example resource provisioning

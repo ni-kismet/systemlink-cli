@@ -2,9 +2,8 @@
 
 import subprocess
 import sys
+import tomllib
 from pathlib import Path
-
-import toml
 
 ROOT = Path(__file__).parent.parent.resolve()
 DIST = ROOT / "dist"
@@ -18,7 +17,8 @@ PYPROJECT = ROOT / "pyproject.toml"
 
 def get_version():
     """Extract the version from pyproject.toml."""
-    data = toml.load(PYPROJECT)
+    with open(PYPROJECT, "rb") as handle:
+        data = tomllib.load(handle)
     return data["tool"]["poetry"]["version"]
 
 

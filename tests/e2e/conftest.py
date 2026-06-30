@@ -94,7 +94,7 @@ def e2e_config() -> Dict[str, Any]:
         return {
             "sle": file_config.get("sle", {}),
             "sls": file_config.get("sls", {}),
-            "timeout": file_config.get("timeout", 30),
+            "timeout": file_config.get("timeout", 60),
             "cleanup": file_config.get("cleanup", True),
         }
 
@@ -103,7 +103,7 @@ def e2e_config() -> Dict[str, Any]:
         "base_url": os.getenv("SLCLI_E2E_BASE_URL"),
         "api_key": os.getenv("SLCLI_E2E_API_KEY"),
         "workspace": os.getenv("SLCLI_E2E_WORKSPACE", "Default"),
-        "timeout": int(os.getenv("SLCLI_E2E_TIMEOUT", "30")),
+        "timeout": int(os.getenv("SLCLI_E2E_TIMEOUT", "60")),
         "cleanup": os.getenv("SLCLI_E2E_CLEANUP", "true").lower() == "true",
     }
 
@@ -222,7 +222,7 @@ def setup_e2e_environment(e2e_config: Dict[str, Any]) -> Generator[None, None, N
             del os.environ[key]
 
 
-def _make_cli_runner(config: Dict[str, Any], timeout: int = 30) -> Any:
+def _make_cli_runner(config: Dict[str, Any], timeout: int = 60) -> Any:
     """Create a CLI runner with specific platform configuration."""
 
     def run_command(
@@ -271,7 +271,7 @@ def cli_runner(e2e_config: Dict[str, Any], selected_platform: str) -> Any:
     `SLCLI_E2E_PLATFORM`. In `auto` mode, SLE remains the default when both
     configs are present.
     """
-    timeout = e2e_config.get("timeout", 30)
+    timeout = e2e_config.get("timeout", 60)
     selected_config = _select_platform_config(e2e_config, selected_platform)
 
     if selected_config is not None:
@@ -284,7 +284,7 @@ def cli_runner(e2e_config: Dict[str, Any], selected_platform: str) -> Any:
 @pytest.fixture
 def sle_cli_runner(sle_config: Dict[str, Any], e2e_config: Dict[str, Any]) -> Any:
     """CLI runner configured for SystemLink Enterprise."""
-    timeout = e2e_config.get("timeout", 30)
+    timeout = e2e_config.get("timeout", 60)
     # Ensure platform is explicitly set for SLE
     config = {**sle_config, "platform": "SLE"}
     return _make_cli_runner(config, timeout)
@@ -293,7 +293,7 @@ def sle_cli_runner(sle_config: Dict[str, Any], e2e_config: Dict[str, Any]) -> An
 @pytest.fixture
 def sls_cli_runner(sls_config: Dict[str, Any], e2e_config: Dict[str, Any]) -> Any:
     """CLI runner configured for SystemLink Server."""
-    timeout = e2e_config.get("timeout", 30)
+    timeout = e2e_config.get("timeout", 60)
     # Ensure platform is explicitly set for SLS
     config = {**sls_config, "platform": "SLS"}
     return _make_cli_runner(config, timeout)
@@ -513,6 +513,8 @@ def pytest_configure(config: Any) -> None:
     config.addinivalue_line("markers", "comment: mark test as comment management related")
     config.addinivalue_line("markers", "routine: mark test as routine management related")
     config.addinivalue_line("markers", "workitem: mark test as work item management related")
+    config.addinivalue_line("markers", "dataframe: mark test as dataframe related")
+    config.addinivalue_line("markers", "state: mark test as systems state related")
 
 
 def pytest_collection_modifyitems(config: Any, items: List[Any]) -> None:

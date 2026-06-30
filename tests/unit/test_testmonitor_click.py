@@ -7,6 +7,7 @@ from unittest.mock import patch
 import click
 import pytest
 from click.testing import CliRunner
+
 from slcli.testmonitor_click import register_testmonitor_commands
 
 
@@ -221,12 +222,20 @@ def test_list_results_json_output(monkeypatch: Any, runner: CliRunner) -> None:
     """Test test result list JSON output."""
     patch_keyring(monkeypatch)
 
+    call_count = 0
+
     def mock_request(
         method: str,
         url: str,
         payload: Optional[Dict[str, Any]] = None,
         **_: Any,
     ) -> Any:
+        nonlocal call_count
+        call_count += 1
+
+        if call_count == 1:
+            return MockResponse({"totalCount": 1, "results": []})
+
         return MockResponse(
             {
                 "results": [
@@ -247,6 +256,7 @@ def test_list_results_json_output(monkeypatch: Any, runner: CliRunner) -> None:
 
     assert result.exit_code == 0
     data = json.loads(result.output)
+    assert call_count == 2
     assert len(data) == 1
     assert data[0]["id"] == "res-1"
 
@@ -307,6 +317,50 @@ def test_result_list_take_parameter(monkeypatch: Any, runner: CliRunner) -> None
     assert result.exit_code == 0
     assert captured_payloads
     assert captured_payloads[0]["take"] == 15
+
+
+def test_result_list_json_shortcircuits_on_zero_count(monkeypatch: Any, runner: CliRunner) -> None:
+    """JSON result listing skips the full query when the count probe returns zero."""
+    patch_keyring(monkeypatch)
+
+    captured_payloads: List[Dict[str, Any]] = []
+
+    def mock_request(
+        method: str,
+        url: str,
+        payload: Optional[Dict[str, Any]] = None,
+        **_: Any,
+    ) -> Any:
+        if payload:
+            captured_payloads.append(payload)
+        # Probe returns totalCount=0
+        return MockResponse({"results": [], "totalCount": 0})
+
+    monkeypatch.setattr("slcli.testmonitor_click.make_api_request", mock_request)
+    monkeypatch.setattr("slcli.testmonitor_click.get_workspace_map", lambda: {})
+
+    cli = make_cli()
+    result = runner.invoke(
+        cli,
+        [
+            "testmonitor",
+            "result",
+            "list",
+            "--format",
+            "json",
+            "--program-name",
+            "nonexistent-program-e2e-99999",
+        ],
+    )
+
+    assert result.exit_code == 0
+    # Only the probe request should have been made (take=1, returnCount=True),
+    # and the full paginated query should have been skipped.
+    assert len(captured_payloads) == 1
+    probe = captured_payloads[0]
+    assert probe["take"] == 1
+    assert probe["returnCount"] is True
+    assert "programName.Contains(@0)" in probe["filter"]
 
 
 def test_list_products_empty_results(monkeypatch: Any, runner: CliRunner) -> None:

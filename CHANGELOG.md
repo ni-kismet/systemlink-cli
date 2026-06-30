@@ -2,6 +2,225 @@
 
 <!-- towncrier release notes start -->
 
+## v1.14.3 (2026-06-30)
+
+### Bug Fixes
+
+- Fix dependency-bot Towncrier fragment handling for untracked newsfragments while preserving Renovate branch updates after the fragment workflow commits. (deps-debug-renovate-pipeline-failures)
+
+
+## v1.14.2 (2026-06-30)
+
+### Bug Fixes
+
+- Reduce `slcli webapp new` scaffold install and build warnings by updating the generated Angular starter dependencies, bootstrap path, and default build budget. (webapp-scaffold-warnings)
+
+
+## v1.14.1 (2026-06-30)
+
+### Bug Fixes
+
+- Raise the minimum supported versions of cryptography, PyJWT, and python-multipart to secure releases and refresh the lockfile. (deps-security-refresh)
+
+
+## v1.14.0 (2026-06-30)
+
+### Features
+
+- Add `slcli webapp new` as the recommended hosted Angular bootstrap path with a bundled phase-1 blank template, optional Plugin Manager metadata, built-in SystemLink hosting conventions, and restored bundled `slcli` agent skill content that includes the hosted webapp guidance. (webapp-new-bootstrap)
+
+
+## v1.13.21 (2026-06-24)
+
+### Other Changes
+
+- Add SCA scanning configuration (add-sca-scanning)
+
+
+## v1.13.20 (2026-05-27)
+
+### Bug Fixes
+
+- Disable bundled AI skill installation, remove bundled skill files from packaged artifacts, and document that AI skills are currently unavailable. (skills-temporary-unavailable)
+
+
+## v1.13.19 (2026-05-20)
+
+### Bug Fixes
+
+- Normalize SBOM RECORD path matching so release-time metadata extraction works on Windows runners. (windows-sbom-record-paths)
+
+
+## v1.13.18 (2026-05-20)
+
+### Bug Fixes
+
+- Improve release SBOM generation by excluding dev dependencies and enriching CycloneDX metadata. (improve-sbom-quality)
+
+
+## v1.13.17 (2026-05-19)
+
+### Bug Fixes
+
+- Separate config view from runtime info so `slcli config view` shows stored profile values while `slcli info` shows effective resolved values and override sources. (config-view-info-separation)
+
+
+## v1.13.16 (2026-05-19)
+
+### Bug Fixes
+
+- Show the effective API URL, API key, and Web URL source in `slcli info` and `slcli config view`, and add preferred `SLCLI_API_*` / `SLCLI_WEB_URL` environment aliases alongside legacy `SYSTEMLINK_*` names. (auth-source-visibility)
+
+
+## v1.13.15 (2026-05-18)
+
+### Other Changes
+
+- Improve CI handling of Towncrier fragments for dependency bot pull requests. (towncrier-ci-bot-prs)
+
+
+## v1.13.14 (2026-05-18)
+
+### Bug Fixes
+
+- Update dependency python-multipart to v0.0.29. (deps-python-multipart-0-x-lockfile)
+
+
+## v1.13.13 (2026-05-15)
+
+### Bug Fixes
+
+- Show server-provided API error messages instead of generic HTTP status errors. (improve-api-error-details)
+
+
+## v1.13.12 (2026-05-15)
+
+### Bug Fixes
+
+- Update dependency rich to v15 (#146)
+
+
+## v1.13.11 (2026-05-15)
+
+### Bug Fixes
+
+- Expand `slcli info --debug` to include TLS trust, proxy, and leaf certificate diagnostics. (#153)
+
+
+## v1.13.10 (2026-05-14)
+
+### Bug Fixes
+
+- Add a debug flag to `slcli info` to print HTTP request and response details. (#152)
+
+
+## v1.13.9 (2026-05-14)
+
+### Documentation
+
+- Improve `slcli routine` skill documentation and trigger guidance. (#146)
+
+### Other Changes
+
+- Automate Towncrier fragment handling for dependency bot pull requests. (dependency-bot-towncrier)
+
+
+## v1.13.8 (2026-05-12)
+
+### Documentation
+
+- Update the SystemLink webapp skill documentation and reference guidance. (#149)
+
+
+## v1.13.7 (2026-05-12)
+
+### Documentation
+
+- Document Grafana notebook output restrictions, restore the Data Table Analysis interface in
+  the notebook skill reference, and clarify Data Space Analysis vector descriptors. (#148)
+
+
+## v1.13.6 (2026-05-12)
+
+### Documentation
+
+- Enrich systemlink-notebook agent skill with Python client service-gap guidance and API ergonomics notes; move example command to Configure group. (#143)
+
+### Other Changes
+
+- Refresh the locked Python dependencies in `poetry.lock`. (#147)
+
+
+## v1.13.5 (2026-05-05)
+
+### Other Changes
+
+- Improve top-level slcli help grouping, description consistency, and panel alignment. (#142)
+
+
+## v1.13.4 (2026-05-05)
+
+### Bug Fixes
+
+- Harden custom field editor proxying and notebook download path handling. (#141)
+
+
+## v1.13.3 (2026-05-05)
+
+### Bug Fixes
+
+- Harden login and config validation to reject malformed SystemLink URLs and API keys, and fail without saving unreachable or unauthorized profiles. (#140)
+
+
+## v1.13.2 (2026-05-05)
+
+### Documentation
+
+- Update website to include info about new skills (#139)
+
+
+## v1.13.1 (2026-05-04)
+
+### Other Changes
+
+- Refresh locked dependency versions in poetry.lock. (#137)
+
+
+## v1.13.0 (2026-05-01)
+
+### Features
+
+- Add a new `state` command group for listing, inspecting, creating, importing, exporting, capturing, and reverting SystemLink software states. (#136)
+
+
+## v1.12.0 (2026-04-29)
+
+### Features
+
+- Add a new `slcli dataframe` command group for DataFrame table discovery, schema inspection, row query and decimation, CSV export, append, and metadata lifecycle operations. (#134)
+
+
+## v1.11.5 (2026-04-27)
+
+### Bug Fixes
+
+- Fix the Homebrew formula to install the staged slcli archive contents correctly. (#134)
+
+
+## v1.11.4 (2026-04-27)
+
+### Bug Fixes
+
+- Fix Homebrew and Scoop release packaging and rerun behavior. (#133)
+
+
+## v1.11.3 (2026-04-24)
+
+### Other Changes
+
+- Resolved the current security findings by upgrading vulnerable direct and transitive Python dependencies, replacing the stale external lint wrapper with a repo-local styleguide command, and hardening the web editor proxy against unsafe upstream URLs. (resolve-dependabot-security-alerts)
+
+
 ## v1.11.2 (2026-04-24)
 
 ### Documentation

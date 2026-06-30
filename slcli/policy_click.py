@@ -32,7 +32,7 @@ def register_policy_commands(cli: Any) -> None:
 
     @cli.group(name="auth")
     def auth() -> None:
-        """Manage SystemLink auth policies and policy templates."""
+        """Manage SystemLink authorization policies and policy templates."""
         pass
 
     @auth.group(name="policy")

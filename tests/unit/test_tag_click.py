@@ -7,6 +7,7 @@ from unittest.mock import MagicMock, patch
 import click
 import keyring
 from click.testing import CliRunner
+
 from slcli.tag_click import register_tag_commands
 
 

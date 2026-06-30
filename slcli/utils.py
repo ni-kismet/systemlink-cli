@@ -4,7 +4,8 @@ import datetime
 import json
 import os
 import sys
-from typing import Dict, List, Any, Optional, Callable
+from dataclasses import dataclass
+from typing import Dict, List, Any, Optional, Callable, Sequence
 
 import click
 import keyring
@@ -27,6 +28,14 @@ class SystemLinkConfig:
         self.server_uri = server_uri
         self.api_key = api_key
         self.ssl_verify = ssl_verify
+
+
+@dataclass(frozen=True)
+class ResolvedConfigValue:
+    """Resolved configuration value plus the source that supplied it."""
+
+    value: str
+    source: str
 
 
 class ExitCodes:
@@ -65,24 +74,79 @@ def check_readonly_mode(operation: str = "this operation") -> None:
         sys.exit(ExitCodes.PERMISSION_DENIED)
 
 
+def _extract_response_error_message(exc: Exception) -> Optional[str]:
+    """Extract a human-readable error message from an HTTP error response body.
+
+    Attempts to parse the response JSON and extract the error message from
+    common SystemLink error formats (e.g., ``{"error": {"message": "..."}}``)
+    or a top-level ``"message"`` field.
+
+    Args:
+        exc: The exception, expected to be a ``requests.HTTPError`` with a response.
+
+    Returns:
+        The extracted message string, or ``None`` if unavailable.
+    """
+    response = getattr(exc, "response", None)
+    if response is None:
+        return None
+    try:
+        body = response.json()
+    except (ValueError, AttributeError):
+        return None
+
+    # SystemLink standard: {"error": {"message": "..."}}
+    error_obj = body.get("error") if isinstance(body, dict) else None
+    if isinstance(error_obj, dict):
+        msg = error_obj.get("message")
+        if msg:
+            return str(msg)
+
+    # Fallback: top-level {"message": "..."}
+    if isinstance(body, dict):
+        msg = body.get("message")
+        if msg:
+            return str(msg)
+
+    return None
+
+
+def _extract_response_status_code(exc: Exception) -> Optional[int]:
+    """Extract the HTTP status code from an exception response, if present."""
+    response = getattr(exc, "response", None)
+    status_code = getattr(response, "status_code", None)
+    return status_code if isinstance(status_code, int) else None
+
+
 def handle_api_error(exc: Exception) -> None:
     """Handle API errors with appropriate exit codes and consistent formatting.
+
+    When the exception originates from an HTTP response that contains a JSON
+    error body, the server-provided message is displayed instead of the generic
+    HTTP status line so that users get actionable feedback.
 
     Args:
         exc: The exception to handle
     """
-    error_msg = str(exc).lower()
-    if "not found" in error_msg:
-        click.echo(f"✗ Resource not found: {exc}", err=True)
+    # Try to get a detailed message from the response body first
+    detail = _extract_response_error_message(exc)
+    display_msg = detail if detail else str(exc)
+    status_code = _extract_response_status_code(exc)
+
+    error_msg = display_msg.lower()
+    if status_code == 404 or "not found" in error_msg:
+        click.echo(f"✗ Resource not found: {display_msg}", err=True)
         sys.exit(ExitCodes.NOT_FOUND)
-    elif "permission" in error_msg or "unauthorized" in error_msg or "forbidden" in error_msg:
-        click.echo(f"✗ Permission denied: {exc}", err=True)
+    elif status_code in (401, 403) or (
+        "permission" in error_msg or "unauthorized" in error_msg or "forbidden" in error_msg
+    ):
+        click.echo(f"✗ Permission denied: {display_msg}", err=True)
         sys.exit(ExitCodes.PERMISSION_DENIED)
     elif "network" in error_msg or "connection" in error_msg:
-        click.echo(f"✗ Network error: {exc}", err=True)
+        click.echo(f"✗ Network error: {display_msg}", err=True)
         sys.exit(ExitCodes.NETWORK_ERROR)
     else:
-        click.echo(f"✗ Error: {exc}", err=True)
+        click.echo(f"✗ Error: {display_msg}", err=True)
         sys.exit(ExitCodes.GENERAL_ERROR)
 
 
@@ -254,100 +318,195 @@ def get_http_configuration() -> SystemLinkConfig:
     )
 
 
-def get_base_url() -> str:
-    """Retrieve the SystemLink API base URL.
+def _get_env_override(env_names: Sequence[str]) -> Optional[ResolvedConfigValue]:
+    """Return the first non-empty environment override from the provided names."""
+    for env_name in env_names:
+        value = os.environ.get(env_name)
+        if value:
+            return ResolvedConfigValue(value=value, source=f"env:{env_name}")
+    return None
+
+
+def source_is_env(source: str) -> bool:
+    """Return True when the resolved source came from an environment variable."""
+    return source.startswith("env:")
+
+
+def describe_config_source(source: str) -> str:
+    """Return a user-facing description of a resolved configuration source."""
+    if source.startswith("env:"):
+        return f"Environment ({source.split(':', 1)[1]})"
+    if source.startswith("profile:"):
+        return f"Profile '{source.split(':', 1)[1]}'"
+    if source.startswith("keyring:"):
+        return f"Legacy keyring ({source.split(':', 1)[1]})"
+    if source.startswith("default:"):
+        return f"Default ({source.split(':', 1)[1]})"
+    if source.startswith("derived:"):
+        derived_from = source.split(":", 1)[1]
+        return f"Derived from API URL via {describe_config_source(derived_from)}"
+    return source
+
+
+def get_base_url_resolution() -> ResolvedConfigValue:
+    """Resolve the SystemLink API base URL and record where it came from.
 
     Preference order:
-    1. Environment variable SYSTEMLINK_API_URL (for runtime overrides/testing)
+    1. Environment variable SLCLI_API_URL (preferred) or SYSTEMLINK_API_URL
     2. Active profile from config file
     3. Combined keyring config (legacy)
     4. Legacy keyring entry SYSTEMLINK_API_URL
     5. Default fallback to localhost
     """
-    # First, check environment variable (highest priority for runtime overrides)
-    url = os.environ.get("SYSTEMLINK_API_URL")
-    if url:
-        return url
+    override = _get_env_override(("SLCLI_API_URL", "SYSTEMLINK_API_URL"))
+    if override is not None:
+        return ResolvedConfigValue(override.value.rstrip("/"), override.source)
 
-    # Second, try the active profile
     try:
         from .profiles import get_active_profile
 
         profile = get_active_profile()
         if profile and profile.server:
-            return profile.server
+            return ResolvedConfigValue(profile.server.rstrip("/"), f"profile:{profile.name}")
     except (FileNotFoundError, json.JSONDecodeError, KeyError, AttributeError):
-        # Profile file missing, corrupted, or malformed - fall back to keyring
         pass
 
-    # Third, try the combined keyring config (legacy)
     cfg = _get_keyring_config()
     if cfg and isinstance(cfg, dict):
         config_url = cfg.get("api_url")
         if config_url:
-            return config_url
+            return ResolvedConfigValue(str(config_url).rstrip("/"), "keyring:SYSTEMLINK_CONFIG")
 
-    # Fourth, try legacy keyring entry
-    url = keyring.get_password("systemlink-cli", "SYSTEMLINK_API_URL")
+    try:
+        url = keyring.get_password("systemlink-cli", "SYSTEMLINK_API_URL")
+    except Exception:
+        url = None
     if url:
-        return url
+        return ResolvedConfigValue(url.rstrip("/"), "keyring:SYSTEMLINK_API_URL")
 
-    return "http://localhost:8000"
+    return ResolvedConfigValue("http://localhost:8000", "default:localhost")
 
 
-def get_web_url() -> str:
-    """Return the SystemLink primary web UI URL.
+def get_web_url_resolution() -> ResolvedConfigValue:
+    """Resolve the SystemLink web UI URL and record where it came from.
 
     Preference order:
-    1. Environment variable SYSTEMLINK_WEB_URL
+    1. Environment variable SLCLI_WEB_URL (preferred) or SYSTEMLINK_WEB_URL
     2. Active profile from config file
     3. Combined keyring config (legacy)
     4. Legacy keyring entry SYSTEMLINK_WEB_URL
-    5. Derived from get_base_url()
+    5. Derived from the effective API base URL
     """
-    # 1) Explicit override via environment variable
-    url = os.environ.get("SYSTEMLINK_WEB_URL")
-    if url:
-        return url.rstrip("/")
+    override = _get_env_override(("SLCLI_WEB_URL", "SYSTEMLINK_WEB_URL"))
+    if override is not None:
+        return ResolvedConfigValue(override.value.rstrip("/"), override.source)
 
-    # 2) Try the active profile
     try:
         from .profiles import get_active_profile
 
         profile = get_active_profile()
         if profile and profile.web_url:
-            return profile.web_url.rstrip("/")
+            return ResolvedConfigValue(profile.web_url.rstrip("/"), f"profile:{profile.name}")
     except (FileNotFoundError, json.JSONDecodeError, KeyError, AttributeError):
-        # Profile unavailable or misconfigured, fall back to other sources
         pass
 
-    # 3) Combined keyring config entry (legacy)
     cfg = _get_keyring_config()
     if cfg and isinstance(cfg, dict):
         maybe = cfg.get("web_url") or cfg.get("webUrl") or cfg.get("web_ui_url")
         if maybe:
-            return str(maybe).rstrip("/")
+            return ResolvedConfigValue(str(maybe).rstrip("/"), "keyring:SYSTEMLINK_CONFIG")
 
-    # 4) Legacy keyring entry fallback
     try:
         url = keyring.get_password("systemlink-cli", "SYSTEMLINK_WEB_URL")
     except Exception:
         url = None
     if url:
-        return url.rstrip("/")
+        return ResolvedConfigValue(url.rstrip("/"), "keyring:SYSTEMLINK_WEB_URL")
 
-    # Derive from API base URL
-    base = get_base_url()
+    base_resolution = get_base_url_resolution()
+    base = base_resolution.value
     try:
         from urllib.parse import urlparse
 
         parsed = urlparse(base if base.startswith("http") else "https://" + base)
         host = parsed.netloc or parsed.path
         if not host:
-            return "https://localhost"
-        return f"https://{host.rstrip('/')}"
+            return ResolvedConfigValue("https://localhost", f"derived:{base_resolution.source}")
+        return ResolvedConfigValue(
+            f"https://{host.rstrip('/')}",
+            f"derived:{base_resolution.source}",
+        )
     except Exception:
-        return "https://localhost"
+        return ResolvedConfigValue("https://localhost", f"derived:{base_resolution.source}")
+
+
+def get_api_key_resolution(emit_error: bool = True) -> ResolvedConfigValue:
+    """Resolve the SystemLink API key and record where it came from.
+
+    Preference order:
+    1. Environment variable SLCLI_API_KEY (preferred) or SYSTEMLINK_API_KEY
+    2. Active profile from config file
+    3. Combined keyring config (legacy)
+    4. Legacy keyring entry SYSTEMLINK_API_KEY
+    """
+    override = _get_env_override(("SLCLI_API_KEY", "SYSTEMLINK_API_KEY"))
+    if override is not None:
+        return override
+
+    try:
+        from .profiles import get_active_profile
+
+        profile = get_active_profile()
+        if profile and profile.api_key:
+            return ResolvedConfigValue(profile.api_key, f"profile:{profile.name}")
+    except (FileNotFoundError, json.JSONDecodeError, KeyError, AttributeError):
+        pass
+
+    cfg = _get_keyring_config()
+    if cfg and isinstance(cfg, dict):
+        maybe = cfg.get("api_key") or cfg.get("apiKey") or cfg.get("apiToken")
+        if maybe:
+            return ResolvedConfigValue(str(maybe), "keyring:SYSTEMLINK_CONFIG")
+
+    try:
+        api_key = keyring.get_password("systemlink-cli", "SYSTEMLINK_API_KEY")
+    except Exception:
+        api_key = None
+    if api_key:
+        return ResolvedConfigValue(api_key, "keyring:SYSTEMLINK_API_KEY")
+
+    if emit_error:
+        raise click.ClickException(
+            "API key not found. Please set the SLCLI_API_KEY environment variable "
+            "(or legacy SYSTEMLINK_API_KEY) or run 'slcli login --profile <name>'."
+        )
+    raise click.ClickException("API key not found.")
+
+
+def get_base_url() -> str:
+    """Retrieve the SystemLink API base URL.
+
+    Preference order:
+    1. Environment variable SLCLI_API_URL (preferred) or SYSTEMLINK_API_URL
+    2. Active profile from config file
+    3. Combined keyring config (legacy)
+    4. Legacy keyring entry SYSTEMLINK_API_URL
+    5. Default fallback to localhost
+    """
+    return get_base_url_resolution().value
+
+
+def get_web_url() -> str:
+    """Return the SystemLink primary web UI URL.
+
+    Preference order:
+    1. Environment variable SLCLI_WEB_URL (preferred) or SYSTEMLINK_WEB_URL
+    2. Active profile from config file
+    3. Combined keyring config (legacy)
+    4. Legacy keyring entry SYSTEMLINK_WEB_URL
+    5. Derived from get_base_url()
+    """
+    return get_web_url_resolution().value
 
 
 def _get_keyring_config() -> Dict[str, Any]:
@@ -375,46 +534,12 @@ def get_api_key() -> str:
     """Retrieve the SystemLink API key.
 
     Preference order:
-    1. Environment variable SYSTEMLINK_API_KEY (for runtime overrides/testing)
+    1. Environment variable SLCLI_API_KEY (preferred) or SYSTEMLINK_API_KEY
     2. Active profile from config file
     3. Combined keyring config (legacy)
     4. Legacy keyring entry SYSTEMLINK_API_KEY
     """
-    import click
-
-    # First, check environment variable (highest priority for runtime overrides)
-    api_key = os.environ.get("SYSTEMLINK_API_KEY")
-    if api_key:
-        return api_key
-
-    # Second, try the active profile
-    try:
-        from .profiles import get_active_profile
-
-        profile = get_active_profile()
-        if profile and profile.api_key:
-            return profile.api_key
-    except (FileNotFoundError, json.JSONDecodeError, KeyError, AttributeError):
-        # Profile lookup error, fall back to keyring-based configuration
-        pass
-
-    # Third, consult combined keyring config if present (legacy)
-    cfg = _get_keyring_config()
-    if cfg and isinstance(cfg, dict):
-        maybe = cfg.get("api_key") or cfg.get("apiKey") or cfg.get("apiToken")
-        if maybe:
-            return str(maybe)
-
-    # Fourth, try legacy keyring entry
-    api_key = keyring.get_password("systemlink-cli", "SYSTEMLINK_API_KEY")
-    if api_key:
-        return api_key
-
-    click.echo(
-        "Error: API key not found. Please set the SYSTEMLINK_API_KEY "
-        "environment variable or run 'slcli login --profile <name>'."
-    )
-    raise click.ClickException("API key not found.")
+    return get_api_key_resolution().value
 
 
 def get_headers(content_type: str = "") -> Dict[str, str]:
@@ -585,10 +710,21 @@ def make_api_request(
             if files:
                 # Multipart file upload
                 resp = requests.post(
-                    url, headers=default_headers, files=files, data=data, verify=ssl_verify
+                    url,
+                    headers=default_headers,
+                    files=files,
+                    data=data,
+                    verify=ssl_verify,
+                    stream=stream,
                 )
             else:
-                resp = requests.post(url, headers=default_headers, json=payload, verify=ssl_verify)
+                resp = requests.post(
+                    url,
+                    headers=default_headers,
+                    json=payload,
+                    verify=ssl_verify,
+                    stream=stream,
+                )
         elif method.upper() == "PUT":
             resp = requests.put(url, headers=default_headers, json=payload, verify=ssl_verify)
         elif method.upper() == "PATCH":

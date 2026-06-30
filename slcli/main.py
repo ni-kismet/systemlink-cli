@@ -1,19 +1,25 @@
 """slcli entry points."""
 
+import hashlib
 import json
+import os
+import socket
+import ssl
+import tomllib
 from pathlib import Path
 from types import ModuleType
-from typing import Optional
+from typing import List, Optional, Tuple
+from urllib.parse import urlparse
 
 import click as base_click
 import keyring
 import questionary
-import tomllib
 
 from .asset_click import register_asset_commands
 from .comment_click import register_comment_commands
 from .completion_click import register_completion_command
 from .config_click import register_config_commands
+from .dataframe_click import register_dataframe_commands
 from .dff_click import register_dff_commands
 from .example_click import register_example_commands
 from .feed_click import register_feed_commands
@@ -21,22 +27,21 @@ from .file_click import register_file_commands
 from .function_click import register_function_commands
 from .mcp_click import register_mcp_commands
 from .notebook_click import register_notebook_commands
-from .platform import (
-    get_platform_info,
-)
+from .platform import get_platform_info
 from .policy_click import register_policy_commands
 from .profiles import set_profile_override
-from .rich_output import install_rich_output
-from .rich_output import render_table
+from .rich_output import install_rich_output, render_table
 from .routine_click import register_routine_commands
 from .skill_click import register_skill_commands
 from .spec_click import register_spec_commands
 from .ssl_trust import OS_TRUST_INJECTED, OS_TRUST_REASON
+from .state_click import register_state_commands
 from .system_click import register_system_commands
 from .tag_click import register_tag_commands
 from .templates_click import register_templates_commands
 from .testmonitor_click import register_testmonitor_commands
 from .user_click import register_user_commands
+from .utils import describe_config_source
 from .webapp_click import register_webapp_commands
 from .workitem_click import register_workitem_commands
 from .workspace_click import register_workspace_commands
@@ -48,6 +53,240 @@ except ModuleNotFoundError:
     click = base_click
 else:
     click = rich_click_module
+
+
+def _configure_rich_click_command_groups() -> None:
+    """Configure top-level help command groups when rich-click is available."""
+    rich_click_config = getattr(click, "rich_click", None)
+    if rich_click_config is None:
+        return
+
+    # Keep the command-name/help split consistent across top-level panels so
+    # descriptions start at the same column in every group.
+    rich_click_config.STYLE_COMMANDS_TABLE_EXPAND = True
+    rich_click_config.STYLE_COMMANDS_TABLE_COLUMN_WIDTH_RATIO = (1, 5)
+
+    rich_click_config.COMMAND_GROUPS = {
+        "slcli": [
+            {
+                "name": "Configure",
+                "commands": ["config", "login", "logout", "info", "completion", "example"],
+            },
+            {
+                "name": "Administer",
+                "commands": ["auth", "user", "workspace"],
+            },
+            {
+                "name": "Operate",
+                "commands": [
+                    "asset",
+                    "system",
+                    "state",
+                    "tag",
+                    "file",
+                    "feed",
+                    "comment",
+                    "dataframe",
+                ],
+            },
+            {
+                "name": "Build & Automate",
+                "commands": ["notebook", "routine", "webapp", "customfield", "skill", "mcp"],
+            },
+            {
+                "name": "Validate & Plan",
+                "commands": ["testmonitor", "template", "spec", "workitem"],
+            },
+        ]
+    }
+
+
+def _get_ca_source_display() -> str:
+    """Describe the CA source used for HTTPS verification."""
+    if OS_TRUST_INJECTED:
+        return f"system (reason={OS_TRUST_REASON})"
+
+    verify_env = os.environ.get("REQUESTS_CA_BUNDLE") or os.environ.get("SSL_CERT_FILE")
+    if verify_env:
+        return f"custom-pem ({verify_env})"
+
+    return f"certifi (reason={OS_TRUST_REASON})"
+
+
+def _build_tls_debug_context(ssl_verify: bool) -> ssl.SSLContext:
+    """Build an SSL context aligned with the current CLI trust configuration."""
+    if not ssl_verify:
+        ctx = ssl.SSLContext(ssl.PROTOCOL_TLS_CLIENT)
+        ctx.check_hostname = False
+        ctx.verify_mode = ssl.CERT_NONE
+        return ctx
+
+    verify_env = os.environ.get("REQUESTS_CA_BUNDLE") or os.environ.get("SSL_CERT_FILE")
+    if verify_env:
+        return ssl.create_default_context(cafile=verify_env)
+
+    if OS_TRUST_INJECTED:
+        try:
+            import truststore  # type: ignore[import-not-found]
+
+            return truststore.SSLContext(ssl.PROTOCOL_TLS_CLIENT)
+        except (AttributeError, ImportError, RuntimeError, OSError, ssl.SSLError, ValueError):
+            pass
+
+    return ssl.create_default_context()
+
+
+def _format_cert_name(name: object) -> str:
+    """Flatten SSL certificate subject or issuer names for display."""
+    if not isinstance(name, tuple):
+        return "Unavailable"
+
+    parts: List[str] = []
+    for relative_name in name:
+        if not isinstance(relative_name, tuple):
+            continue
+        try:
+            for key, value in relative_name:
+                if not isinstance(key, str) or not isinstance(value, str):
+                    continue
+                parts.append(f"{key}={value}")
+        except (TypeError, ValueError):
+            continue
+    return ", ".join(parts) if parts else "Unavailable"
+
+
+def _format_subject_alt_names(subject_alt_names: object) -> str:
+    """Format certificate SANs for compact debug output."""
+    if not isinstance(subject_alt_names, tuple) or not subject_alt_names:
+        return "Unavailable"
+
+    entries: List[str] = []
+    extra_count = 0
+    for subject_alt_name in subject_alt_names:
+        if (
+            not isinstance(subject_alt_name, tuple)
+            or len(subject_alt_name) != 2
+            or not isinstance(subject_alt_name[0], str)
+            or not isinstance(subject_alt_name[1], str)
+        ):
+            continue
+
+        if len(entries) < 5:
+            entries.append(f"{subject_alt_name[0]}={subject_alt_name[1]}")
+        else:
+            extra_count += 1
+
+    if extra_count:
+        entries.append(f"... (+{extra_count} more)")
+
+    return ", ".join(entries)
+
+
+def _get_proxy_debug_rows(api_url: str) -> List[Tuple[str, str]]:
+    """Return a compact view of proxy environment state for the target URL."""
+    import requests
+
+    effective_proxies = requests.utils.get_environ_proxies(api_url)
+    return [
+        (
+            "Proxy HTTPS",
+            "set" if os.environ.get("HTTPS_PROXY") or os.environ.get("https_proxy") else "unset",
+        ),
+        (
+            "Proxy HTTP",
+            "set" if os.environ.get("HTTP_PROXY") or os.environ.get("http_proxy") else "unset",
+        ),
+        (
+            "Proxy NO_PROXY",
+            "set" if os.environ.get("NO_PROXY") or os.environ.get("no_proxy") else "unset",
+        ),
+        ("Proxy Active", "yes" if effective_proxies else "no"),
+    ]
+
+
+def _probe_tls_connection(api_url: str, ssl_verify: bool) -> List[Tuple[str, str]]:
+    """Collect TLS handshake and leaf certificate details for the API host."""
+    import requests
+
+    if not api_url or api_url == "Not configured":
+        return [("TLS Probe", "Skipped (API URL not configured)")]
+
+    parsed = urlparse(api_url)
+    if parsed.scheme.lower() != "https":
+        return [("TLS Probe", "Skipped (non-HTTPS API URL)")]
+
+    hostname = parsed.hostname
+    if not hostname:
+        return [("TLS Probe", "Skipped (unable to parse host)")]
+
+    if requests.utils.get_environ_proxies(api_url):
+        return [("TLS Probe", "Skipped (proxy-configured environment)")]
+
+    port = parsed.port or 443
+    target = f"{hostname}:{port}"
+
+    try:
+        context = _build_tls_debug_context(ssl_verify)
+        with socket.create_connection((hostname, port), timeout=5) as tcp_socket:
+            with context.wrap_socket(tcp_socket, server_hostname=hostname) as tls_socket:
+                cert = tls_socket.getpeercert()
+                cert_bytes = tls_socket.getpeercert(binary_form=True)
+                cipher = tls_socket.cipher()
+
+                rows: List[Tuple[str, str]] = [
+                    ("TLS Target", target),
+                    ("TLS Version", tls_socket.version() or "Unavailable"),
+                    ("TLS Cipher", cipher[0] if cipher else "Unavailable"),
+                ]
+
+                if isinstance(cert, dict):
+                    rows.extend(
+                        [
+                            ("Leaf Cert Subject", _format_cert_name(cert.get("subject", ()))),
+                            ("Leaf Cert Issuer", _format_cert_name(cert.get("issuer", ()))),
+                            (
+                                "Leaf Cert SANs",
+                                _format_subject_alt_names(cert.get("subjectAltName", ())),
+                            ),
+                            ("Leaf Cert Valid From", str(cert.get("notBefore", "Unavailable"))),
+                            ("Leaf Cert Valid To", str(cert.get("notAfter", "Unavailable"))),
+                        ]
+                    )
+
+                if cert_bytes:
+                    rows.append(("Leaf Cert SHA256", hashlib.sha256(cert_bytes).hexdigest()))
+
+                return rows
+    except Exception as exc:
+        return [
+            ("TLS Target", target),
+            ("TLS Probe Error", f"{exc.__class__.__name__}: {exc}"),
+        ]
+
+
+def _collect_info_debug_rows(api_url: str) -> List[Tuple[str, str]]:
+    """Return structured connection diagnostics for info --debug."""
+    from .utils import get_ssl_verify
+
+    ssl_verify = get_ssl_verify()
+    rows = [
+        ("SSL Verify", "enabled" if ssl_verify else "disabled"),
+        ("CA Source", _get_ca_source_display()),
+    ]
+    rows.extend(_get_proxy_debug_rows(api_url))
+    rows.extend(_probe_tls_connection(api_url, ssl_verify))
+    return rows
+
+
+def _emit_info_debug_diagnostics(api_url: str) -> None:
+    """Write structured connection diagnostics to stderr."""
+    click.echo("Debug Connection Diagnostics:", err=True)
+    for label, value in _collect_info_debug_rows(api_url):
+        click.echo(f"  {label}: {value}", err=True)
+    click.echo(err=True)
+
+
+_configure_rich_click_command_groups()
 
 
 def get_version() -> str:
@@ -153,17 +392,7 @@ def cli(ctx: base_click.Context, version: bool, profile: Optional[str]) -> None:
 @cli.command(hidden=True, name="_ca-info")
 def ca_info() -> None:
     """Show TLS CA trust source (hidden diagnostic)."""
-    if OS_TRUST_INJECTED:
-        click.echo(f"CA Source: system (reason={OS_TRUST_REASON})")
-    else:
-        # Determine if custom verify path set via env
-        import os
-
-        verify_env = os.environ.get("REQUESTS_CA_BUNDLE") or os.environ.get("SSL_CERT_FILE")
-        if verify_env:
-            click.echo(f"CA Source: custom-pem ({verify_env})")
-        else:
-            click.echo(f"CA Source: certifi (reason={OS_TRUST_REASON})")
+    click.echo(f"CA Source: {_get_ca_source_display()}")
 
 
 @cli.command()
@@ -194,7 +423,7 @@ def login(
     set_current: bool,
     readonly: bool,
 ) -> None:
-    """Save SystemLink credentials to a profile.
+    """Create or update a SystemLink profile with credentials.
 
     This is an alias for 'slcli config add'. Use that command
     for the same functionality and more configuration options.
@@ -226,7 +455,7 @@ def login(
 @click.option("--all", "remove_all", is_flag=True, help="Remove all profiles")
 @click.option("--force", "-f", is_flag=True, help="Skip confirmation prompt")
 def logout(profile: Optional[str], remove_all: bool, force: bool) -> None:
-    """Remove stored SystemLink credentials.
+    """Remove stored SystemLink profiles and credentials.
 
     By default, removes the current profile. Use --profile to remove a specific
     profile, or --all to remove all profiles.
@@ -309,11 +538,26 @@ def logout(profile: Optional[str], remove_all: bool, force: bool) -> None:
 @cli.command()
 @click.option("--format", "-f", type=click.Choice(["table", "json"]), default="table")
 @click.option("--skip-health", is_flag=True, default=False, help="Skip live service health checks.")
-def info(format: str, skip_health: bool) -> None:
-    """Show current configuration and detected platform."""
+@click.option(
+    "--debug", is_flag=True, default=False, help="Show HTTP request/response debug output."
+)
+def info(format: str, skip_health: bool, debug: bool) -> None:
+    """Show the active profile, configuration, and platform status."""
+    import http.client
+    import logging
+
+    if debug:
+        # Enable HTTP-level debug logging to show requests, responses, and headers
+        http.client.HTTPConnection.debuglevel = 1
+        logging.basicConfig(level=logging.DEBUG)
+        logging.getLogger("urllib3").setLevel(logging.DEBUG)
+
     from .profiles import ProfileConfig, get_active_profile
 
     platform_info = get_platform_info(skip_health=skip_health)
+
+    if debug:
+        _emit_info_debug_diagnostics(platform_info.get("api_url") or "Not configured")
 
     # Add profile information
     cfg = ProfileConfig.load()
@@ -353,13 +597,30 @@ def info(format: str, skip_health: bool) -> None:
     api_url = truncate(platform_info.get("api_url", "Not configured"))
     web_url = truncate(platform_info.get("web_url", "Not configured"))
 
+    api_url_source = truncate(
+        describe_config_source(platform_info.get("api_url_source", "Unknown"))
+    )
+    api_key_source = truncate(
+        describe_config_source(platform_info.get("api_key_source", "Unknown"))
+    )
+    web_url_source = truncate(
+        describe_config_source(platform_info.get("web_url_source", "Unknown"))
+    )
+
     info_rows = [
         ["Status", status],
         ["Profile", profile_display],
         ["Platform", platform_display],
         ["API URL", api_url],
+        ["API URL Source", api_url_source],
+        ["API Key Source", api_key_source],
         ["Web URL", web_url],
+        ["Web URL Source", web_url_source],
     ]
+
+    env_overrides = platform_info.get("env_overrides")
+    if isinstance(env_overrides, list) and env_overrides:
+        info_rows.append(["Overrides", truncate(", ".join(str(item) for item in env_overrides))])
 
     workspace = platform_info.get("active_profile_workspace")
     if workspace:
@@ -421,6 +682,7 @@ def info(format: str, skip_health: bool) -> None:
 register_completion_command(cli)
 register_asset_commands(cli)
 register_comment_commands(cli)
+register_dataframe_commands(cli)
 register_dff_commands(cli)
 register_config_commands(cli)
 register_example_commands(cli)
@@ -432,6 +694,7 @@ register_templates_commands(cli)
 register_notebook_commands(cli)
 register_policy_commands(cli)
 register_routine_commands(cli)
+register_state_commands(cli)
 register_system_commands(cli)
 register_spec_commands(cli)
 register_tag_commands(cli)

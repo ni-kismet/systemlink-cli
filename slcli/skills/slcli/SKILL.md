@@ -2,182 +2,78 @@
 name: slcli
 description: >-
   Query and manage NI SystemLink resources using the slcli command-line interface.
-  Covers test results, assets, systems, tags, feeds, files, notebooks,
-  routines, work items, work item templates, workflows, test plan templates,
-  specifications, products, datasheet-to-specification ingestion (PDF and CSV),
-  custom fields, web applications, authorization policies, users, workspaces, and more.
-  Use when the user asks about test data analysis, asset management, calibration status,
-  system fleet health, operator performance, failure analysis, production metrics,
-  equipment utilization, work order tracking, specification management,
-  importing datasheets, creating products from spec sheets,
-  or any SystemLink resource operations.
-  Supports filtering, aggregation, summary statistics, and JSON output for programmatic processing.
+  Use when the user asks about test results, assets, systems, work items,
+  specifications, webapps, notebooks, dataframes, files, feeds, tags,
+  authorization, users, or other SystemLink resource workflows.
 argument-hint: >-
-  Describe what you want to do: query test results, import a datasheet,
-  list assets, manage work items, etc.
-compatibility: >-
-  Requires slcli installed and authenticated (slcli login). Python 3.10+.
-  Requires network access to a SystemLink server instance.
-metadata:
-  author: ni-kismet
-  version: "2.0"
-#   --system SYSTEM_ID    Assign a system (by minion/system ID). Repeatable.
-#   --fixture ASSET_ID    Assign a fixture/slot (by asset ID, asset type FIXTURE). Repeatable.
-#   --dut ASSET_ID        Assign a DUT (by asset ID, asset type DEVICE_UNDER_TEST). Repeatable.
-# Use `slcli asset list --asset-type FIXTURE` to find fixture IDs.
-# Use `slcli system list` to find system IDs.
-# At least one option must be provided; time and resource options can be combined freely.
-slcli workitem schedule <WORK_ITEM_ID> \
-  [--start ISO8601] [--end ISO8601] [--duration SECONDS] \
-  [--assigned-to USER_ID] \
-  [--system SYSTEM_ID]... [--fixture ASSET_ID]... [--dut ASSET_ID]...
+  Describe the SystemLink workflow you want to inspect, automate, scaffold, or
+  troubleshoot.
+---
 
-# Work item template subgroup
-slcli workitem template list [-w WORKSPACE] [--filter TEXT] [-t INT] [-f json]
-slcli workitem template get <TEMPLATE_ID> [-f json]
-slcli workitem template create --name TEXT --type TEXT --template-group TEXT [-w WORKSPACE] [OPTIONS]
-slcli workitem template update <TEMPLATE_ID> [--name TEXT] [--description TEXT] [--summary TEXT]
-slcli workitem template delete <TEMPLATE_ID>... [--yes]
+# SystemLink CLI
 
-# Workflow subgroup
-slcli workitem workflow list [-w WORKSPACE] [-t INT] [-f json]
-slcli workitem workflow get [--id WORKFLOW_ID] [--name NAME] [-f json]
-slcli workitem workflow init [--name TEXT] [--directory DIR]   # Scaffold a local workflow file
-slcli workitem workflow create --file PATH [-w WORKSPACE]      # Create from JSON file
-slcli workitem workflow import --file PATH [-w WORKSPACE]      # Import workflow from JSON
-slcli workitem workflow export [--id WORKFLOW_ID] [--name NAME] [-o FILE]  # Export to JSON
-slcli workitem workflow update --id WORKFLOW_ID --file PATH    # Update from JSON file
-slcli workitem workflow delete --id WORKFLOW_ID [--yes]
-slcli workitem workflow preview [--file PATH] [--id WORKFLOW_ID] [--html] [--no-open] [-o FILE]
-```
+Use this skill when the task is primarily about `slcli` commands or a
+SystemLink resource workflow that should be driven from the CLI.
 
-**Create work item options:**
+## When to use it
 
-```bash
-slcli workitem create \
-  --name "Battery Cycle Test" \
-  --type testplan \
-  --state NEW \
-  --part-number "P-BAT-001" \
-  --description "Battery capacity test" \
-  --assigned-to <user-id> \
-  --workflow-id <workflow-id> \
-  --workspace Default \
-  --format json
-```
-
-### workflow — Workflow management
-
-> **Note:** The standalone `slcli workflow` command group has been replaced by
-> `slcli workitem workflow`. Use `slcli workitem workflow` for all workflow operations.
-> See the **workitem** section above.
-
-### webapp — Web application management
-
-Scaffold, package, and publish custom web applications to SystemLink.
-
-```bash
-slcli webapp init <DIRECTORY>                      # Scaffold the Angular starter
-slcli webapp manifest init <DIRECTORY> [OPTIONS]  # Create nipkg.config.json for packaging
-slcli webapp pack [FOLDER] [--config FILE] [-o OUTPUT_FILE]  # Package a webapp into a .nipkg
-slcli webapp list [-w WORKSPACE] [-t INT] [-f json]
-slcli webapp get <WEBAPP_ID> [-f json]
-slcli webapp publish PATH [--workspace NAME]             # Upload and publish a webapp
-slcli webapp delete <WEBAPP_ID>
-slcli webapp open <WEBAPP_ID>                            # Open webapp URL in browser
-```
-
-`webapp init` creates the SystemLink Angular starter, not a generic HTML app. The starter installs
-project-scoped skills into `.agents/skills/` and creates `PROMPTS.md` plus `START_HERE.md` so an
-AI assistant can bootstrap the Angular workspace in place with the same Nimble/SystemLink
-conventions described by the `systemlink-webapp` skill.
-
-`webapp manifest init` writes `nipkg.config.json` using the Plugin Manager field names
-(`section`, `maintainer`, `homepage`, `xbPlugin`, `slPluginManagerTags`,
-`slPluginManagerMinServerVersion`, `iconFile`). `webapp pack --config ...` consumes that
-metadata, carries the icon into the package, writes the matching control-file fields into the
-generated `.nipkg`, and emits a thin `manifest.json` with `schemaVersion`, `nipkgFile`,
-`sha256`, and any configured provenance fields.
-
-### skill — AI skill installation
-
-Install bundled skills for supported AI clients.
-
-```bash
-slcli skill install --skill [slcli|systemlink-webapp|systemlink-notebook|all] --client [agents|claude|all] --scope [personal|project|both]
-```
-
-Client paths:
-
-- `agents` — personal: `~/.agents/skills/`, project: `.agents/skills/` (most agents)
-- `claude` — personal: `~/.claude/skills/`, project: `.claude/skills/`
-- `all` — install to both the `agents` and `claude` locations for the selected scope
-
-Notes:
-
-- `agents` is the default client in interactive mode.
-- `webapp init` installs project-scoped skills into `.agents/skills/` by default.
-
-### example — Built-in example resource provisioning
-
-Install pre-built demo configurations (systems, assets, DUTs, templates, etc.)
-for training, testing, or evaluation.
-
-```bash
-slcli example list [-f json]                             # List available examples
-slcli example info <EXAMPLE_ID>                          # Show example details
-slcli example install <EXAMPLE_ID> [--workspace NAME]    # Provision example resources
-slcli example delete <EXAMPLE_ID> [--workspace NAME]     # Remove provisioned resources
-```
+- Querying or managing SystemLink resources through `slcli`
+- Looking up exact command syntax, flags, or JSON output patterns
+- Building command sequences for analysis, provisioning, packaging, or cleanup
+- Troubleshooting CLI behavior, platform gating, or command selection
 
 ## Reference docs
 
-Consult these for detailed guidance. Load only what you need for the current task.
+Load only what the current task needs.
 
-| Topic                       | File                                                        | When to load                                                  |
-| --------------------------- | ----------------------------------------------------------- | ------------------------------------------------------------- |
-| CLI command reference       | [commands.md](./references/commands.md)                     | Looking up command syntax, options, or examples               |
-| Datasheet-to-specs workflow | [datasheet-workflow.md](./references/datasheet-workflow.md) | Importing specs from PDF, CSV, or structured text             |
+| Topic | File | When to load |
+| --- | --- | --- |
+| CLI command reference | [commands.md](./references/commands.md) | Looking up command syntax, options, or examples |
+| Datasheet-to-spec workflow | [datasheet-workflow.md](./references/datasheet-workflow.md) | Importing specifications from PDF, CSV, or structured text |
 | Minimal spec import payload | [import-specs.min.json](./references/import-specs.min.json) | Need a bundled create-compatible starter payload or conditions |
-| Spec import helper          | [spec_import_helper.py](./scripts/spec_import_helper.py)    | Scaffold or validate a datasheet spec import payload          |
-| Filtering guide             | [filtering.md](./references/filtering.md)                   | Advanced LINQ expressions, parameterized queries              |
-| Analysis recipes            | [analysis-recipes.md](./references/analysis-recipes.md)     | Multi-step analysis: yield, calibration, operator performance |
-| Troubleshooting             | [troubleshooting.md](./references/troubleshooting.md)       | Workspace ID issues, SSL errors, encoding, PowerShell quoting |
+| Spec import helper | [spec_import_helper.py](./scripts/spec_import_helper.py) | Scaffold or validate a datasheet spec import payload |
+| Filtering guide | [filtering.md](./references/filtering.md) | Advanced filters, LINQ syntax, and query composition |
+| Analysis recipes | [analysis-recipes.md](./references/analysis-recipes.md) | Multi-step analysis workflows and reporting patterns |
+| Troubleshooting | [troubleshooting.md](./references/troubleshooting.md) | SSL, workspace IDs, encoding, or scripting pitfalls |
+| Notebook workflow | [notebook/overview.md](./references/notebook/overview.md) | Creating notebooks for SystemLink |
+| Webapp workflow | [webapp/overview.md](./references/webapp/overview.md) | Hosted Angular webapp scaffolding and deployment |
+| Python test workflow | [python-test/overview.md](./references/python-test/overview.md) | Python test app structure and deployment |
+| Job debugging | [job-debugging/overview.md](./references/job-debugging/overview.md) | Salt job triage and recovery |
+| NI package files | [nipkg/overview.md](./references/nipkg/overview.md) | File-package assembly and `nipkg pack` guidance |
 
-## Command groups at a glance
+## Default approach
 
-| Group         | Purpose                 | Key subcommands                                      |
-| ------------- | ----------------------- | ---------------------------------------------------- |
-| `testmonitor` | Test results & products | `result list/get`, `product list/create/update`      |
-| `spec`        | Specifications          | `list`, `query`, `get`, `create`, `import`, `export` |
-| `asset`       | Assets & calibration    | `list`, `get`, `summary`, `calibration`              |
-| `system`      | System fleet            | `list`, `get`, `compare`, `summary`, `job`           |
-| `tag`         | Tag read/write          | `list`, `get-value`, `set-value`, `create`           |
-| `routine`     | Event-action routines   | `list`, `create`, `enable/disable` (v1 + v2)         |
-| `comment`     | Resource comments       | `list`, `add`, `update`, `delete`                    |
-| `workitem`    | Work items & workflows  | `list`, `create`, `schedule`, `template`, `workflow` |
-| `file`        | File management         | `list`, `upload`, `download`, `query`, `watch`       |
-| `notebook`    | Jupyter notebooks       | `manage list/create`, `execute start/sync`           |
-| `feed`        | Package feeds           | `list`, `create`, `package upload`                   |
-| `customfield` | Dynamic form fields     | `list`, `create`, `export`, `edit`                   |
-| `template`    | Test plan templates     | `list`, `import`, `export`                           |
-| `webapp`      | Web applications        | `init`, `pack`, `publish`, `list`                    |
-| `config`      | Connection profiles     | `list`, `use`, `add`, `delete`                       |
-| `user`        | User management         | `list`, `get`, `create`, `update`                    |
-| `auth`        | Authorization policies  | `policy list/create`, `template list`                |
-| `workspace`   | Workspaces              | `list`, `get`                                        |
-| `skill`       | AI skill installation   | `install`                                            |
-| `example`     | Demo provisioning       | `list`, `install`, `delete`                          |
-## Key rules
+1. Prefer long-form flags in generated commands.
+2. Use `-f json` when the result will be filtered, transformed, or piped into other tools.
+3. Use `--summary --group-by` for aggregation before fetching large raw result sets.
+4. Use convenience filters first, then fall back to `--filter` with `--substitution` for complex queries.
+5. Stay scoped to the user’s requested resource or workflow.
+6. Load deeper references only when the command surface alone is not enough.
+7. Prefer workspace IDs over names in scripted workflows when an endpoint is strict about identity.
+8. Use `make_api_request` from `slcli.utils` for helper scripts so auth, SSL, and error handling stay consistent.
+9. For datasheet imports, default to autonomy when the product or workspace can be resolved unambiguously.
 
-1. **Always use `-f json`** when piping output to `jq` or doing programmatic analysis.
-2. **Use `--summary --group-by`** for aggregation instead of fetching all records and counting.
-3. **Use convenience filters first** (e.g., `--status FAILED`), fall back to `--filter` for complex queries.
-4. **Parameterize `--filter` queries** — use `--substitution` instead of string interpolation.
-5. **Combine filters** — convenience filters are ANDed together automatically.
-6. **Use `--take`** to control result volume; JSON returns all matching up to `--take`.
-7. **Status enum values**: `PASSED`, `FAILED`, `RUNNING`, `ERRORED`, `TERMINATED`, `TIMEDOUT`, `WAITING`, `SKIPPED`, `CUSTOM`.
-8. **Exit codes**: 0 = success, 1 = general error, 2 = invalid input, 3 = not found, 4 = permission denied, 5 = network error.
-9. **Prefer workspace IDs** (UUIDs) over names in scripted workflows — some endpoints reject names.
-10. **Use `make_api_request`** from `slcli.utils` for helper scripts — handles auth, SSL, and errors.
-11. **For datasheet imports, default to autonomy** — if the user already named the product or only one enabled workspace exists, proceed with best-effort defaults and report assumptions after the import plan; only stop for real forks like conflicting existing products, ambiguous part identity, or multi-variant strategy choices.
+## Common command groups
+
+| Group | Purpose | Key subcommands |
+| --- | --- | --- |
+| `testmonitor` | Test results and products | `result list/get`, `product list/create/update` |
+| `spec` | Specifications | `list`, `query`, `get`, `create`, `import`, `export` |
+| `asset` | Assets and calibration | `list`, `get`, `summary`, `calibration` |
+| `system` | System fleet | `list`, `get`, `compare`, `summary`, `job` |
+| `tag` | Tag read/write | `list`, `get-value`, `set-value`, `create` |
+| `routine` | Event-action routines | `list`, `create`, `enable/disable` |
+| `comment` | Resource comments | `list`, `add`, `update`, `delete` |
+| `workitem` | Work items and workflows | `list`, `create`, `schedule`, `template`, `workflow` |
+| `file` | File management | `list`, `upload`, `download`, `query`, `watch` |
+| `notebook` | Jupyter notebooks | `manage list/create`, `execute start/sync` |
+| `feed` | Package feeds | `list`, `create`, `package upload` |
+| `customfield` | Dynamic form fields | `list`, `create`, `export`, `edit` |
+| `template` | Test plan templates | `list`, `import`, `export` |
+| `webapp` | Web applications | `init`, `pack`, `publish`, `list` |
+| `config` | Connection profiles | `list`, `use`, `add`, `delete` |
+| `user` | User management | `list`, `get`, `create`, `update` |
+| `auth` | Authorization policies | `policy list/create`, `template list` |
+| `workspace` | Workspaces | `list`, `get` |
+| `skill` | AI skill installation | `install` |
+| `example` | Demo provisioning | `list`, `install`, `delete` |

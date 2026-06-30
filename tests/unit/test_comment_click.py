@@ -5,7 +5,9 @@ from typing import Any, Optional
 from unittest.mock import MagicMock, patch
 
 import click
+import pytest
 from click.testing import CliRunner
+
 from slcli.comment_click import register_comment_commands
 
 
@@ -18,6 +20,12 @@ def make_cli() -> click.Group:
 
     register_comment_commands(test_cli)
     return test_cli
+
+
+@pytest.fixture(autouse=True)
+def allow_comments_service(monkeypatch: Any) -> None:
+    """Keep comment command tests focused on command behavior, not feature probing."""
+    monkeypatch.setattr("slcli.platform._get_service_status", lambda _service: "ok")
 
 
 def mock_response(data: Any, status_code: int = 200) -> Any:

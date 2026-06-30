@@ -4,9 +4,9 @@ from typing import Any
 import click
 import pytest
 from click.testing import CliRunner
+
 from slcli.templates_click import register_templates_commands
 from slcli.utils import ExitCodes
-
 from .test_utils import patch_keyring
 
 
@@ -24,6 +24,12 @@ def make_cli() -> click.Group:
 @pytest.fixture
 def runner() -> CliRunner:
     return CliRunner()
+
+
+@pytest.fixture(autouse=True)
+def allow_workorder_service(monkeypatch: Any) -> None:
+    """Keep template command tests focused on template behavior, not feature probing."""
+    monkeypatch.setattr("slcli.platform._get_service_status", lambda _service: "ok")
 
 
 def mock_requests(

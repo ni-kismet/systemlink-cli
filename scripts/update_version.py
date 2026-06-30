@@ -1,9 +1,8 @@
 """Script for semantic release to update _version.py after version bump."""
 
 import sys
-from pathlib import Path
-
 import tomllib
+from pathlib import Path
 
 
 def main():

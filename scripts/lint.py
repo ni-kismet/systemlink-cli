@@ -37,7 +37,7 @@ def main() -> None:
 
     code = 0
     # Lint (non-modifying)
-    if _run([sys.executable, "-m", "ni_python_styleguide", "lint"]) != 0:
+    if _run([sys.executable, "-m", "scripts.styleguide", "lint"]) != 0:
         code = 1
 
     # Formatting

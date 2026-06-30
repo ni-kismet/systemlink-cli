@@ -143,7 +143,7 @@ def register_mcp_commands(cli: Any) -> None:
 
     @cli.group()
     def mcp() -> None:
-        """MCP (Model Context Protocol) server integration for AI assistants."""
+        """Run and configure the SystemLink MCP server for AI assistants."""
 
     @mcp.command(name="serve")
     @click.option(

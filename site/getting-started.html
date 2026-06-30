@@ -228,6 +228,8 @@ slcli config view --show-secrets
 # Delete a profile
 slcli config delete old-profile --force</code></pre>
 
+  <p><code>slcli config view</code> shows the stored profile values on disk. If environment overrides are active, it displays a warning directing you to <code>slcli info</code> for the effective resolved values.</p>
+
       <h3>Using Profiles with Commands</h3>
       <pre><code># Use a specific profile for a single command
 slcli --profile prod workspace list
@@ -248,7 +250,7 @@ slcli config migrate</code></pre>
 
       <!-- ─── ENV VARS ─── -->
       <h2 id="env-vars">Environment Variables</h2>
-      <p>Environment variables take precedence over profile settings.</p>
+      <p>Environment variables take precedence over profile settings. Profile selection uses <code>--profile</code> first, then <code>SLCLI_PROFILE</code>, then the current profile in config. After that, API URL, API key, and Web URL are each resolved independently, so a stale environment variable can override just one field.</p>
       <table>
         <thead>
           <tr><th>Variable</th><th>Description</th></tr>
@@ -256,11 +258,15 @@ slcli config migrate</code></pre>
         <tbody>
           <tr><td><code>SLCLI_PROFILE</code></td><td>Profile to use (default: current profile)</td></tr>
           <tr><td><code>SLCLI_CONFIG</code></td><td>Custom config file path</td></tr>
-          <tr><td><code>SYSTEMLINK_API_URL</code></td><td>Override API URL</td></tr>
-          <tr><td><code>SYSTEMLINK_API_KEY</code></td><td>Override API key</td></tr>
-          <tr><td><code>SYSTEMLINK_WEB_URL</code></td><td>Override web UI URL</td></tr>
+          <tr><td><code>SLCLI_API_URL</code></td><td>Preferred API URL override</td></tr>
+          <tr><td><code>SLCLI_API_KEY</code></td><td>Preferred API key override</td></tr>
+          <tr><td><code>SLCLI_WEB_URL</code></td><td>Preferred web UI URL override</td></tr>
+          <tr><td><code>SYSTEMLINK_API_URL</code></td><td>Legacy alias for <code>SLCLI_API_URL</code></td></tr>
+          <tr><td><code>SYSTEMLINK_API_KEY</code></td><td>Legacy alias for <code>SLCLI_API_KEY</code></td></tr>
+          <tr><td><code>SYSTEMLINK_WEB_URL</code></td><td>Legacy alias for <code>SLCLI_WEB_URL</code></td></tr>
         </tbody>
       </table>
+      <p>Use <code>slcli info</code> to see the effective source for each connection setting and any active overrides.</p>
 
       <!-- ─── READONLY MODE ─── -->
       <h2 id="readonly-mode">Readonly Mode</h2>
@@ -296,6 +302,8 @@ slcli info
 # JSON output for scripting
 slcli info --format json</code></pre>
 
+      <p>The info output includes API URL, API key, and Web URL source rows so you can tell whether the CLI is using a profile value, an environment variable, or a legacy fallback.</p>
+
       <table>
         <thead>
           <tr><th>Platform</th><th>Notebook Execution</th><th>Custom Fields/Templates/Workflows</th></tr>
@@ -308,38 +316,25 @@ slcli info --format json</code></pre>
 
       <!-- ─── SKILLS ─── -->
       <h2 id="skills">AI Agent Skills</h2>
-      <p>Install bundled agent skills so that supported AI clients automatically know how to use the CLI, build SystemLink webapps, and create SystemLink notebooks.</p>
+      <p>Bundled agent skills are available for supported assistants.</p>
 
-      <p>Three skills are available:</p>
+      <p>Install them into the current repository or your personal assistant folders:</p>
+      <pre><code># Project-scoped install for most agents
+slcli skill install --client agents --scope project
+
+# Personal install for both supported clients
+slcli skill install --client all --scope personal</code></pre>
+
+      <p>The bundled <code>slcli</code> skill includes guidance for:</p>
       <ul>
-        <li><strong>slcli</strong> — teaches AI assistants how to query and manage every SystemLink resource type</li>
-        <li><strong>systemlink-webapp</strong> — teaches AI assistants how to build Nimble Angular web applications using <code>@ni/nimble-angular</code> and <code>@ni/systemlink-clients-ts</code></li>
-        <li><strong>systemlink-notebook</strong> — teaches AI assistants how to create, parameterize, and deploy SystemLink notebooks with the correct papermill and SystemLink metadata</li>
+        <li><strong>CLI resource workflows</strong> — querying and managing SystemLink resource types across the platform</li>
+        <li><strong>Hosted webapps</strong> — building Nimble Angular web applications using <code>@ni/nimble-angular</code> and <code>@ni/systemlink-clients-ts</code></li>
+        <li><strong>SystemLink notebooks</strong> — creating, parameterizing, and deploying notebooks with the correct papermill and SystemLink metadata</li>
       </ul>
 
-      <pre><code># Interactive — prompts for client and scope
-slcli skill install
-
-# Install for a specific client
-# agents = most agent environments (including Copilot/Codex)
-slcli skill install --client agents
-slcli skill install --client claude
-slcli skill install --client all
-
-# Choose where to install
-slcli skill install --scope personal   # ~/
-slcli skill install --scope project    # current repo
-slcli skill install --scope both</code></pre>
-
-      <table>
-        <thead>
-          <tr><th>Client</th><th>Personal</th><th>Project (repo)</th></tr>
-        </thead>
-        <tbody>
-          <tr><td>agents (most agents, including Copilot/Codex)</td><td><code>~/.agents/skills/</code></td><td><code>.agents/skills/</code></td></tr>
-          <tr><td>claude</td><td><code>~/.claude/skills/</code></td><td><code>.claude/skills/</code></td></tr>
-        </tbody>
-      </table>
+      <div class="highlight-box">
+        <p><strong>Tip:</strong> <code>slcli webapp init</code> also installs the project-scoped <code>slcli</code> skill into <code>.agents/skills</code> for the manual Angular starter path, including the hosted webapp guidance.</p>
+      </div>
 
       <!-- ─── MCP ─── -->
       <h2 id="mcp">MCP Server (experimental)</h2>

@@ -35,7 +35,6 @@ from .workspace_utils import (
     resolve_workspace_filter,
 )
 
-
 # ---------------------------------------------------------------------------
 # URL helpers
 # ---------------------------------------------------------------------------
@@ -432,7 +431,7 @@ def register_workitem_commands(cli: Any) -> None:
 
     @cli.group()
     def workitem() -> None:
-        """Manage work items, templates, and workflows."""
+        """Manage SystemLink work items, templates, and workflows."""
 
     # -----------------------------------------------------------------------
     # workitem list
@@ -1183,8 +1182,11 @@ def register_workitem_commands(cli: Any) -> None:
     # =======================================================================
 
     @workitem.group(name="template")
-    def template_group() -> None:
+    @click.pass_context
+    def template_group(ctx: click.Context) -> None:
         """Manage work item templates."""
+        if ctx.invoked_subcommand is not None:
+            require_feature("templates")
 
     @template_group.command(name="list")
     @click.option(

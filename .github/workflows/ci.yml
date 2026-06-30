@@ -27,6 +27,32 @@ jobs:
       - name: Install dependencies
         run: poetry install
 
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '24'
+
+      - name: Generate fallback Towncrier fragment for dependency bot PRs
+        if: >
+          github.event_name == 'pull_request' &&
+          (
+            github.event.pull_request.user.login == 'renovate' ||
+            github.event.pull_request.user.login == 'renovate[bot]' ||
+            github.event.pull_request.user.login == 'dependabot[bot]'
+          )
+        env:
+          BASE_REF: ${{ github.base_ref }}
+          HEAD_REF: ${{ github.event.pull_request.head.ref }}
+          PR_TITLE: ${{ github.event.pull_request.title }}
+        run: |
+          if git diff --name-only origin/${BASE_REF}...HEAD -- newsfragments | grep -q '^newsfragments/'; then
+            echo "Newsfragment already present on PR branch."
+            exit 0
+          fi
+
+          branch_topic="${HEAD_REF#*/}"
+          poetry run python scripts/write_renovate_towncrier_fragment.py --pr-title "$PR_TITLE" "$branch_topic"
+
       - name: Require Towncrier news fragment
         if: ${{ github.event_name == 'pull_request' }}
         run: poetry run towncrier check --compare-with origin/${{ github.base_ref }}
@@ -39,6 +65,9 @@ jobs:
 
       - name: Run tests
         run: poetry run pytest
+
+      - name: Smoke test generated webapp build
+        run: poetry run python scripts/smoke_test_webapp.py
 
       - name: Build PyInstaller binary
         run: poetry run python scripts/build_pyinstaller.py
@@ -108,7 +137,7 @@ jobs:
                   "workspace": os.environ.get("SLCLI_E2E_SLS_WORKSPACE") or "Default",
                   "platform": "SLS",
               },
-              "timeout": int(os.environ.get("SLCLI_E2E_TIMEOUT") or "30"),
+              "timeout": int(os.environ.get("SLCLI_E2E_TIMEOUT") or "60"),
               "cleanup": (os.environ.get("SLCLI_E2E_CLEANUP") or "true").lower() == "true",
           }
 
@@ -185,7 +214,7 @@ jobs:
                   "workspace": os.environ.get("SLCLI_E2E_SLE_WORKSPACE") or "Default",
                   "platform": "SLE",
               },
-              "timeout": int(os.environ.get("SLCLI_E2E_TIMEOUT") or "30"),
+              "timeout": int(os.environ.get("SLCLI_E2E_TIMEOUT") or "60"),
               "cleanup": (os.environ.get("SLCLI_E2E_CLEANUP") or "true").lower() == "true",
           }
 

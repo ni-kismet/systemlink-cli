@@ -5,8 +5,13 @@ from pathlib import Path
 from typing import Any, Dict
 
 import click
+import pytest
 from click.testing import CliRunner
-from slcli.config_click import register_config_commands
+
+from slcli.config_click import _normalize_base_url, register_config_commands
+from slcli.utils import ExitCodes
+
+VALID_API_KEY = "4LpbauiNA-UI9IhjqZoS4UeikZtExLK9Q_Q77d1bJd"
 
 
 def make_cli() -> click.Group:
@@ -260,6 +265,124 @@ class TestViewConfig:
         assert "API Key" in result.output
         assert "secret1234" in result.output
 
+    def test_view_config_reports_effective_env_overrides(
+        self, tmp_path: Path, monkeypatch: Any
+    ) -> None:
+        """Config view should show a warning when env overrides are active."""
+        config_file = tmp_path / "config.json"
+        config_data: Dict[str, Any] = {
+            "current-profile": "test",
+            "profiles": {
+                "test": {
+                    "server": "https://test.com",
+                    "api-key": "secret1234",
+                    "web-url": "https://web.test.com",
+                },
+            },
+        }
+        config_file.write_text(json.dumps(config_data))
+        config_file.chmod(0o600)
+        monkeypatch.setattr(
+            "slcli.profiles.ProfileConfig.get_config_path", classmethod(lambda cls: config_file)
+        )
+        monkeypatch.setenv("SLCLI_API_KEY", "env-secret")
+
+        cli = make_cli()
+        runner = CliRunner()
+        result = runner.invoke(cli, ["config", "view"])
+
+        assert result.exit_code == 0
+        # Should NOT show effective source rows in table
+        assert "API Key Source" not in result.output
+        assert "Effective API URL" not in result.output
+        assert "API Key" in result.output
+
+    def test_view_config_emits_override_warning_to_stderr(
+        self, tmp_path: Path, monkeypatch: Any
+    ) -> None:
+        """Config view should emit the override warning via stderr."""
+        config_file = tmp_path / "config.json"
+        config_data: Dict[str, Any] = {
+            "current-profile": "test",
+            "profiles": {
+                "test": {
+                    "server": "https://test.com",
+                    "api-key": "secret1234",
+                },
+            },
+        }
+        config_file.write_text(json.dumps(config_data))
+        config_file.chmod(0o600)
+        monkeypatch.setattr(
+            "slcli.profiles.ProfileConfig.get_config_path", classmethod(lambda cls: config_file)
+        )
+        monkeypatch.setenv("SLCLI_API_KEY", "env-secret")
+
+        echo_calls: list[tuple[str, bool]] = []
+
+        def fake_echo(message: Any = "", err: bool = False, **_: Any) -> None:
+            echo_calls.append((str(message), err))
+
+        def fake_render_table(**_: Any) -> None:
+            return None
+
+        monkeypatch.setattr("slcli.config_click.click.echo", fake_echo)
+        monkeypatch.setattr("slcli.config_click.render_table", fake_render_table)
+
+        cli = make_cli()
+        config_group: Any = cli.commands["config"]
+        view_command: Any = config_group.commands["view"]
+        callback: Any = view_command.callback
+        callback(format="table", show_secrets=False)
+
+        warning_messages = [
+            message
+            for message, is_stderr in echo_calls
+            if is_stderr and "Environment overrides active" in message
+        ]
+
+        assert warning_messages == [
+            "\n⚠️  Environment overrides active (API Key). Run 'slcli info' for effective values."
+        ]
+
+    def test_view_config_does_not_show_effective_sources(
+        self, tmp_path: Path, monkeypatch: Any
+    ) -> None:
+        """Config view should not show effective/source rows (those belong to slcli info)."""
+        config_file = tmp_path / "config.json"
+        config_data: Dict[str, Any] = {
+            "current-profile": "test",
+            "profiles": {
+                "test": {
+                    "server": "https://test.com",
+                    "api-key": "secret1234",
+                    "web-url": "https://web.test.com",
+                },
+            },
+        }
+        config_file.write_text(json.dumps(config_data))
+        config_file.chmod(0o600)
+        monkeypatch.setattr(
+            "slcli.profiles.ProfileConfig.get_config_path", classmethod(lambda cls: config_file)
+        )
+
+        cli = make_cli()
+        runner = CliRunner()
+        result = runner.invoke(cli, ["config", "view"])
+
+        assert result.exit_code == 0
+        # Should show stored config values
+        assert "https://test.com" in result.output
+        assert "https://web.test.com" in result.output
+        # Should NOT show effective/source rows
+        assert "Effective API URL" not in result.output
+        assert "API URL Source" not in result.output
+        assert "Effective Web URL" not in result.output
+        assert "Web URL Source" not in result.output
+        assert "Active Overrides" not in result.output
+        # No env override warning when no overrides active
+        assert "Environment overrides active" not in result.output
+
     def test_view_config_without_current_profile(self, tmp_path: Path, monkeypatch: Any) -> None:
         """Test viewing the config when no current profile is set."""
         config_file = tmp_path / "config.json"
@@ -284,6 +407,73 @@ class TestViewConfig:
         assert result.exit_code == 0
         assert "Current Profile" in result.output
         assert "(none)" in result.output
+
+    def test_view_config_json_without_env_overrides(self, tmp_path: Path, monkeypatch: Any) -> None:
+        """JSON output should show stored profile values without effective/source keys."""
+        config_file = tmp_path / "config.json"
+        config_data: Dict[str, Any] = {
+            "current-profile": "test",
+            "profiles": {
+                "test": {
+                    "server": "https://test.com",
+                    "api-key": "secret1234",
+                    "web-url": "https://web.test.com",
+                },
+            },
+        }
+        config_file.write_text(json.dumps(config_data))
+        config_file.chmod(0o600)
+        monkeypatch.setattr(
+            "slcli.profiles.ProfileConfig.get_config_path", classmethod(lambda cls: config_file)
+        )
+
+        cli = make_cli()
+        runner = CliRunner()
+        result = runner.invoke(cli, ["config", "view", "--format", "json"])
+
+        assert result.exit_code == 0
+        data = json.loads(result.output)
+        assert data["current-profile"] == "test"
+        assert "test" in data["profiles"]
+        assert data["profiles"]["test"]["server"] == "https://test.com"
+        assert data["profiles"]["test"]["web-url"] == "https://web.test.com"
+        # API key should be masked
+        assert data["profiles"]["test"]["api-key"] == "****1234"
+        # Should not contain effective/source keys
+        assert "effective" not in data
+        assert "env-overrides" not in data
+
+    def test_view_config_json_with_env_overrides(self, tmp_path: Path, monkeypatch: Any) -> None:
+        """JSON output should include env-overrides list when env vars are set."""
+        config_file = tmp_path / "config.json"
+        config_data: Dict[str, Any] = {
+            "current-profile": "test",
+            "profiles": {
+                "test": {
+                    "server": "https://test.com",
+                    "api-key": "secret1234",
+                },
+            },
+        }
+        config_file.write_text(json.dumps(config_data))
+        config_file.chmod(0o600)
+        monkeypatch.setattr(
+            "slcli.profiles.ProfileConfig.get_config_path", classmethod(lambda cls: config_file)
+        )
+        monkeypatch.setenv("SLCLI_API_KEY", "env-secret")
+        monkeypatch.setenv("SYSTEMLINK_WEB_URL", "https://override.com")
+
+        cli = make_cli()
+        runner = CliRunner()
+        result = runner.invoke(cli, ["config", "view", "--format", "json"])
+
+        assert result.exit_code == 0
+        data = json.loads(result.output)
+        assert "env-overrides" in data
+        assert "API Key" in data["env-overrides"]
+        assert "Web URL" in data["env-overrides"]
+        # Should not contain effective/source keys
+        assert "effective" not in data
 
 
 class TestDeleteProfile:
@@ -353,10 +543,10 @@ class TestAddProfileTrailingSlash:
         monkeypatch.setattr(
             "slcli.config_click.check_service_status",
             lambda url, key: {
-                "server_reachable": False,
-                "platform": None,
-                "auth_valid": None,
-                "services": {},
+                "server_reachable": True,
+                "platform": "unknown",
+                "auth_valid": True,
+                "services": {"Auth": "ok"},
             },
         )
         monkeypatch.setattr("slcli.main.keyring.get_password", lambda *a, **kw: None)
@@ -373,7 +563,7 @@ class TestAddProfileTrailingSlash:
                 "--url",
                 "https://api.example.com/",
                 "--api-key",
-                "test-key",
+                VALID_API_KEY,
                 "--web-url",
                 "https://web.example.com/",
             ],
@@ -395,10 +585,10 @@ class TestAddProfileTrailingSlash:
         monkeypatch.setattr(
             "slcli.config_click.check_service_status",
             lambda url, key: {
-                "server_reachable": False,
-                "platform": None,
-                "auth_valid": None,
-                "services": {},
+                "server_reachable": True,
+                "platform": "unknown",
+                "auth_valid": True,
+                "services": {"Auth": "ok"},
             },
         )
         monkeypatch.setattr("slcli.main.keyring.get_password", lambda *a, **kw: None)
@@ -415,7 +605,7 @@ class TestAddProfileTrailingSlash:
                 "--url",
                 "https://api.example.com///",
                 "--api-key",
-                "test-key",
+                VALID_API_KEY,
                 "--web-url",
                 "https://web.example.com///",
             ],
@@ -427,3 +617,211 @@ class TestAddProfileTrailingSlash:
         profile = saved["profiles"]["test-multi-slash"]
         assert profile["server"] == "https://api.example.com"
         assert profile.get("web-url", "") == "https://web.example.com"
+
+    def test_config_add_rejects_unreachable_server(self, tmp_path: Path, monkeypatch: Any) -> None:
+        """Test that config add fails instead of saving an unreachable server."""
+        config_file = tmp_path / "config.json"
+        monkeypatch.setattr(
+            "slcli.profiles.ProfileConfig.get_config_path", classmethod(lambda cls: config_file)
+        )
+        monkeypatch.setattr(
+            "slcli.config_click.check_service_status",
+            lambda url, key: {
+                "server_reachable": False,
+                "platform": "unreachable",
+                "auth_valid": None,
+                "services": {},
+            },
+        )
+
+        cli = make_cli()
+        runner = CliRunner()
+        result = runner.invoke(
+            cli,
+            [
+                "config",
+                "add",
+                "--profile",
+                "offline",
+                "--url",
+                "https://offline.example.com",
+                "--api-key",
+                VALID_API_KEY,
+                "--web-url",
+                "https://web.example.com",
+            ],
+            input="\n",
+        )
+
+        assert result.exit_code == ExitCodes.NETWORK_ERROR
+        assert "Profile was not saved" in result.output
+        assert not config_file.exists()
+
+    def test_config_add_rejects_malformed_api_key(self, tmp_path: Path, monkeypatch: Any) -> None:
+        """Test that config add rejects API keys that do not match the expected format."""
+        config_file = tmp_path / "config.json"
+        monkeypatch.setattr(
+            "slcli.profiles.ProfileConfig.get_config_path", classmethod(lambda cls: config_file)
+        )
+
+        def fail_if_called(*args: Any, **kwargs: Any) -> Any:
+            raise AssertionError("check_service_status should not run for malformed API keys")
+
+        monkeypatch.setattr("slcli.config_click.check_service_status", fail_if_called)
+
+        cli = make_cli()
+        runner = CliRunner()
+        result = runner.invoke(
+            cli,
+            [
+                "config",
+                "add",
+                "--profile",
+                "bad-key",
+                "--url",
+                "https://example.test",
+                "--api-key",
+                "abc123",
+                "--web-url",
+                "https://web.example.test",
+            ],
+            input="\n",
+        )
+
+        assert result.exit_code == ExitCodes.INVALID_INPUT
+        assert "API key must be a 42-character URL-safe token" in result.output
+        assert not config_file.exists()
+
+
+class TestAddProfileUrlValidation:
+    """Tests that config add rejects malformed URLs before probing the server."""
+
+    @pytest.mark.parametrize(
+        ("raw_url", "label", "expected_message"),
+        [
+            ("", "SystemLink API URL", "SystemLink API URL cannot be empty."),
+            (
+                "ftp://example.test",
+                "SystemLink API URL",
+                "SystemLink API URL must use HTTP or HTTPS.",
+            ),
+            (
+                "https://",
+                "SystemLink API URL",
+                "SystemLink API URL must include a valid host name.",
+            ),
+            (
+                "https://example.test/api",
+                "SystemLink API URL",
+                "SystemLink API URL must be a base URL without a path, query string, or fragment.",
+            ),
+            (
+                "https://web.example.test?foo=bar",
+                "SystemLink Web UI URL",
+                "SystemLink Web UI URL must be a base URL without a path, query string, or fragment.",
+            ),
+        ],
+    )
+    def test_normalize_base_url_rejects_invalid_values(
+        self,
+        raw_url: str,
+        label: str,
+        expected_message: str,
+        capsys: Any,
+    ) -> None:
+        """Test that malformed URLs are rejected with a clear validation error."""
+        with pytest.raises(SystemExit) as exc_info:
+            _normalize_base_url(raw_url, label)
+
+        captured = capsys.readouterr()
+        assert exc_info.value.code == ExitCodes.INVALID_INPUT
+        assert expected_message in captured.err
+
+    @pytest.mark.parametrize(
+        ("raw_url", "label", "expected_url", "expected_output"),
+        [
+            (
+                "http://example.test",
+                "SystemLink API URL",
+                "http://example.test",
+                "",
+            ),
+            (
+                "example.test",
+                "SystemLink API URL",
+                "https://example.test",
+                "Warning: Adding HTTPS protocol to systemlink api url.",
+            ),
+        ],
+    )
+    def test_normalize_base_url_normalizes_valid_shortcuts(
+        self, raw_url: str, label: str, expected_url: str, expected_output: str, capsys: Any
+    ) -> None:
+        """Test that HTTP and scheme-less URLs are normalized for convenience."""
+        normalized = _normalize_base_url(raw_url, label)
+
+        captured = capsys.readouterr()
+        assert normalized == expected_url
+        if expected_output:
+            assert expected_output in captured.out
+        else:
+            assert captured.out == ""
+
+    @pytest.mark.parametrize(
+        ("option_name", "url_value", "expected_message"),
+        [
+            ("--url", "ftp://example.test", "SystemLink API URL must use HTTP or HTTPS."),
+            ("--url", "https://", "SystemLink API URL must include a valid host name."),
+            (
+                "--url",
+                "https://example.test/api",
+                "SystemLink API URL must be a base URL without a path, query string, or fragment.",
+            ),
+            (
+                "--web-url",
+                "https://web.example.test?foo=bar",
+                "SystemLink Web UI URL must be a base URL without a path, query string, or fragment.",
+            ),
+        ],
+    )
+    def test_config_add_rejects_invalid_urls_before_connectivity_check(
+        self,
+        tmp_path: Path,
+        monkeypatch: Any,
+        option_name: str,
+        url_value: str,
+        expected_message: str,
+    ) -> None:
+        """Test that malformed URLs fail validation before any server probe occurs."""
+        config_file = tmp_path / "config.json"
+        monkeypatch.setattr(
+            "slcli.profiles.ProfileConfig.get_config_path", classmethod(lambda cls: config_file)
+        )
+
+        def fail_if_called(*args: Any, **kwargs: Any) -> Any:
+            raise AssertionError("check_service_status should not run for malformed URLs")
+
+        monkeypatch.setattr("slcli.config_click.check_service_status", fail_if_called)
+
+        cli = make_cli()
+        runner = CliRunner()
+        args = [
+            "config",
+            "add",
+            "--profile",
+            "bad-url",
+            "--url",
+            "https://example.test",
+            "--api-key",
+            VALID_API_KEY,
+            "--web-url",
+            "https://web.example.test",
+        ]
+        option_index = args.index(option_name)
+        args[option_index + 1] = url_value
+
+        result = runner.invoke(cli, args, input="\n")
+
+        assert result.exit_code == ExitCodes.INVALID_INPUT
+        assert expected_message in result.output
+        assert not config_file.exists()
