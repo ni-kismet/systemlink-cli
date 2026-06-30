@@ -6,14 +6,14 @@ reference files when the implementation needs them.
 
 ## Progressive loading
 
-| Need | Read |
-| --- | --- |
-| Concise component inventory across Nimble, Spright, and OK Angular | [angular-ui-packages.md](./angular-ui-packages.md) |
-| Nimble Angular modules, wrapper usage, table/dialog/tab patterns | [nimble-angular.md](./nimble-angular.md) |
-| Page layout, spacing, split panes, drawers, accordions | [layout-patterns.md](./layout-patterns.md) |
-| SystemLink SDK base URLs, auth modes, LINQ query patterns | [systemlink-services.md](./systemlink-services.md) |
-| Build, publish, Plugin Manager packaging commands | [deployment.md](./deployment.md) |
-| Hosted validation, console triage, theme checks, recurring failures | [troubleshooting.md](./troubleshooting.md) |
+| Need                                                                | Read                                               |
+| ------------------------------------------------------------------- | -------------------------------------------------- |
+| Concise component inventory across Nimble, Spright, and OK Angular  | [angular-ui-packages.md](./angular-ui-packages.md) |
+| Nimble Angular modules, wrapper usage, table/dialog/tab patterns    | [nimble-angular.md](./nimble-angular.md)           |
+| Page layout, spacing, split panes, drawers, accordions              | [layout-patterns.md](./layout-patterns.md)         |
+| SystemLink SDK base URLs, auth modes, LINQ query patterns           | [systemlink-services.md](./systemlink-services.md) |
+| Build, publish, Plugin Manager packaging commands                   | [deployment.md](./deployment.md)                   |
+| Hosted validation, console triage, theme checks, recurring failures | [troubleshooting.md](./troubleshooting.md)         |
 
 If the user only wants planning or a first implementation slice, stay in this file.
 
@@ -23,7 +23,7 @@ Before generating code, clarify only the details that change the implementation:
 
 1. Goal: what the app should show or let the user do.
 2. Services: which SystemLink resources it must read or mutate.
-3. Starting point: new app, `slcli webapp init` starter, or existing Angular codebase.
+3. Starting point: new app via `slcli webapp new`, manual `slcli webapp init` starter, or existing Angular codebase.
 4. Auth context: same-origin hosted app versus remote/dev API-key flow.
 5. Deployment target: ordinary hosted webapp only, or Plugin Manager package as well.
 
@@ -35,19 +35,22 @@ For new SystemLink apps, recommend installing the NI Angular UI packages togethe
 
 ### 1. Bootstrap the right project shape
 
-For a new SystemLink app, prefer:
+For a new SystemLink app, default to the hosted scaffold path:
+
+```bash
+slcli webapp new <app-name>
+```
+
+Use `slcli webapp init` only when the user explicitly wants the low-level manual bootstrap path or needs a non-standard framework setup. In that case, generate Angular in the starter directory so the SystemLink scaffolding stays at the project root:
 
 ```bash
 slcli webapp init <app-dir>
-```
-
-Then generate Angular in that starter directory so the SystemLink scaffolding stays at the project root:
-
-```bash
 npx -y @angular/cli@20 new <app-name> --directory . --routing --style=scss --skip-git --no-standalone --defaults --force
 npm install @ni/nimble-angular @ni/nimble-components @ni/unit-format @ni/spright-angular @ni/ok-angular @ni/systemlink-clients-ts @angular/localize
 npm install --save-dev @angular-devkit/build-angular
 ```
+
+Be explicit with users: if they ask to scaffold a new hosted Angular app for SystemLink and do not ask for a manual setup, recommend `slcli webapp new` first, not `slcli webapp init`. Treat `init` as the exception path.
 
 Prefer NgModule-based apps for this workflow. The Nimble Angular wrapper modules fit naturally into a centralized `AppModule`, which reduces template surprises and keeps imports explicit.
 
@@ -70,9 +73,9 @@ If the workspace ends up on `@angular/build:application` and Nimble fails to bun
 
 This fallback is not optional when the Nimble packages fail under the application builder. Fix the builder mismatch before implementing more UI.
 
-Recommend installing `@ni/spright-angular` and `@ni/ok-angular` early even if the first slice only uses Nimble. That avoids dependency churn later when the UI needs chat surfaces, product-specific icons, accordion items, or the OK search input.
+Recommend installing `@ni/spright-angular` and `@ni/ok-angular` early when using the manual `init` path, even if the first slice only uses Nimble. That avoids dependency churn later when the UI needs chat surfaces, product-specific icons, accordion items, or the OK search input.
 
-If the user has not run `slcli webapp init` and explicitly wants a SystemLink-hosted webapp, recommend it first unless they want a manual setup.
+If the user has not scaffolded anything yet and explicitly wants a SystemLink-hosted webapp, recommend `slcli webapp new` first. Only fall back to `slcli webapp init` when they ask for manual bootstrapping or need to control the Angular workspace creation themselves.
 
 ### 2. Lock in the non-negotiables early
 
