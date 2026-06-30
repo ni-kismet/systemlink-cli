@@ -217,32 +217,66 @@ def test_webapp_new_blank_creates_host_ready_workspace(
     package_json = loads((target / "package.json").read_text(encoding="utf-8"))
     angular_json = loads((target / "angular.json").read_text(encoding="utf-8"))
     index_html = (target / "src" / "index.html").read_text(encoding="utf-8")
+    main_ts = (target / "src" / "main.ts").read_text(encoding="utf-8")
+    app_component = (target / "src" / "app" / "app.component.ts").read_text(encoding="utf-8")
     app_module = (target / "src" / "app" / "app.module.ts").read_text(encoding="utf-8")
     app_routing = (target / "src" / "app" / "app-routing.module.ts").read_text(encoding="utf-8")
+    app_shell = (target / "src" / "app" / "core" / "layout" / "app-shell.component.ts").read_text(
+        encoding="utf-8"
+    )
     readme = (target / "README.md").read_text(encoding="utf-8")
 
     assert package_json["dependencies"]["@ni/nimble-angular"] == "~33.2.0"
     assert package_json["dependencies"]["@ni/ok-components"] == "1.6.0"
     assert package_json["dependencies"]["@ni/systemlink-clients-ts"] == "2.2.0"
+    assert "@angular/platform-browser-dynamic" not in package_json["dependencies"]
+    assert "@angular/animations" not in package_json["dependencies"]
+    assert package_json["engines"]["node"] == ">=24"
     assert package_json["devDependencies"]["@angular/localize"] == "^20.3.0"
+    assert package_json["devDependencies"]["@angular/build"] == "^20.3.30"
+    assert "@angular-devkit/build-angular" not in package_json["devDependencies"]
+    assert "test" not in package_json["scripts"]
     assert "<base" not in index_html
+    assert "bootstrapApplication(AppComponent" in main_ts
+    assert "importProvidersFrom(AppModule)" in main_ts
+    assert "platformBrowserDynamic" not in main_ts
+    assert "standalone: true" in app_component
+    assert "AppShellComponent" in app_component
     assert "APP_BASE_HREF" in app_module
+    assert "bootstrap:" not in app_module
     assert "CUSTOM_ELEMENTS_SCHEMA" in app_module
     assert "MasterDetailPageComponent" in app_module
+    assert "standalone: true" in app_shell
+    assert "AppRoutingModule" in app_shell
     assert "useHash: true" in app_routing
     assert "path: 'master-detail'" in app_routing
     assert (
         angular_json["projects"]["coffee-roaster"]["architect"]["build"]["builder"]
-        == "@angular-devkit/build-angular:browser"
+        == "@angular/build:application"
     )
+    assert (
+        angular_json["projects"]["coffee-roaster"]["architect"]["build"]["options"]["browser"]
+        == "src/main.ts"
+    )
+    assert "test" not in angular_json["projects"]["coffee-roaster"]["architect"]
     assert (
         angular_json["projects"]["coffee-roaster"]["architect"]["build"]["configurations"][
             "production"
         ]["optimization"]["styles"]["inlineCritical"]
         is False
     )
+    assert (
+        angular_json["projects"]["coffee-roaster"]["architect"]["build"]["configurations"][
+            "production"
+        ]["budgets"][0]["maximumWarning"]
+        == "1.25MB"
+    )
     assert "slcli webapp publish dist/coffee-roaster" in readme
     assert "six Nimble-based layout patterns" in readme
+    assert "Node.js 24+ declared" in readme
+    assert "standalone root bootstrap" in readme
+    assert "warning budget tuned" in readme
+    assert "omits a default test runner setup" in readme
     assert "Skipped npm install and npm run build" in result.output
 
 

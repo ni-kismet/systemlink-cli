@@ -25,8 +25,6 @@ import { NimbleTableModule } from '@ni/nimble-angular/table';
 import { NimbleTableColumnTextModule } from '@ni/nimble-angular/table-column/text';
 
 import { AppRoutingModule } from './app-routing.module';
-import { AppComponent } from './app.component';
-import { AppShellComponent } from './core/layout/app-shell.component';
 import { AssetsPageComponent } from './features/assets/assets-page.component';
 import { DatasetsPageComponent } from './features/datasets/datasets-page.component';
 import { HomePageComponent } from './features/home/home-page.component';
@@ -39,8 +37,6 @@ import { LoadingStateComponent } from './shared/components/loading-state.compone
 
 @NgModule({
   declarations: [
-    AppComponent,
-    AppShellComponent,
     HomePageComponent,
     DatasetsPageComponent,
     AssetsPageComponent,
@@ -76,6 +72,5 @@ import { LoadingStateComponent } from './shared/components/loading-state.compone
   ],
   providers: [{ provide: APP_BASE_HREF, useValue: '/' }],
   schemas: [CUSTOM_ELEMENTS_SCHEMA],
-  bootstrap: [AppComponent],
 })
 export class AppModule {}

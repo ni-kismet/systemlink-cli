@@ -19,9 +19,10 @@ node_modules/.bin/ng build --configuration production
 
 **Do NOT pass `--base-href`.** This would reintroduce a `<base>` element that violates SystemLink's CSP.
 
-Angular may emit different publish roots depending on the active builder.
+Angular may emit different publish roots depending on the active builder and `outputPath` shape.
 
-- `@angular/build:application` emits browser assets under `dist/<app-name>/browser/`
+- the generated `slcli webapp new` scaffold keeps browser assets under `dist/<app-name>/`
+- some `@angular/build:application` workspaces emit browser assets under `dist/<app-name>/browser/`
 - `@angular-devkit/build-angular:browser` emits browser assets directly under `dist/<app-name>/`
 
 Always inspect the actual build output before publishing. Do not hardcode `/browser/` if the workspace is on the legacy builder.
@@ -99,7 +100,7 @@ Before publishing, verify:
 - [ ] `angular.json` uses a builder that bundles `@ni/nimble-angular` successfully
 - [ ] `basePath` is `window.location.origin + '/<service-prefix>'` (not just origin)
 - [ ] `credentials: 'include'` (or equivalent) set on API client
-- [ ] Build succeeded with no errors (warnings about bundle size are OK if within 2MB error limit)
+- [ ] Build succeeded with no errors
 - [ ] Publish path matches the active builder output
 
 ---
@@ -137,6 +138,10 @@ Increase error limits in `angular.json`:
 
 ```json
 "budgets": [
-  { "type": "initial", "maximumWarning": "1MB", "maximumError": "2MB" }
+  { "type": "initial", "maximumWarning": "1.25MB", "maximumError": "2MB" }
 ]
 ```
+
+The bundled `slcli webapp new` starter already ships six route-level patterns, so `1.25MB`
+is the expected warning threshold for the generated scaffold. Treat repeated warnings above that
+level as a sign that the starter content or added dependencies need review.

@@ -33,19 +33,14 @@ _WEBAPP_VERSION_MANIFEST: Dict[str, Dict[str, str]] = {
         "zoneJs": "~0.15.0",
         "rxjs": "~7.8.0",
         "tslib": "^2.3.0",
-        "angularBuilder": "^20.3.29",
-        "jasmineCore": "~5.9.0",
-        "karma": "~6.4.0",
-        "karmaChromeLauncher": "~3.2.0",
-        "karmaCoverage": "~2.2.0",
-        "karmaJasmine": "~5.1.0",
-        "karmaJasmineHtmlReporter": "~2.1.0",
+        "angularBuild": "^20.3.30",
         "nimbleAngular": "~33.2.0",
         "nimbleComponents": "~35.8.0",
         "okComponents": "1.6.0",
         "unitFormat": "^1.0.4",
         "systemlinkClients": "2.2.0",
         "sprightAngular": "latest",
+        "nodeEngine": ">=24",
     }
 }
 
@@ -217,13 +212,11 @@ def _base_angular_dependencies(angular_major: str) -> Dict[str, str]:
     manifest = _WEBAPP_VERSION_MANIFEST[angular_major]
     angular_version = manifest["angular"]
     return {
-        "@angular/animations": angular_version,
         "@angular/common": angular_version,
         "@angular/compiler": angular_version,
         "@angular/core": angular_version,
         "@angular/forms": angular_version,
         "@angular/platform-browser": angular_version,
-        "@angular/platform-browser-dynamic": angular_version,
         "@angular/router": angular_version,
         "@ni/ok-components": manifest["okComponents"],
         "rxjs": manifest["rxjs"],
@@ -237,17 +230,10 @@ def _base_angular_dev_dependencies(angular_major: str) -> Dict[str, str]:
     manifest = _WEBAPP_VERSION_MANIFEST[angular_major]
     angular_version = manifest["angular"]
     return {
-        "@angular-devkit/build-angular": manifest["angularBuilder"],
+        "@angular/build": manifest["angularBuild"],
         "@angular/cli": angular_version,
         "@angular/compiler-cli": angular_version,
         "@angular/localize": angular_version,
-        "@types/jasmine": "~5.1.0",
-        "jasmine-core": manifest["jasmineCore"],
-        "karma": manifest["karma"],
-        "karma-chrome-launcher": manifest["karmaChromeLauncher"],
-        "karma-coverage": manifest["karmaCoverage"],
-        "karma-jasmine": manifest["karmaJasmine"],
-        "karma-jasmine-html-reporter": manifest["karmaJasmineHtmlReporter"],
         "typescript": manifest["typescript"],
     }
 
@@ -282,18 +268,19 @@ def _customize_generated_package_json(
 ) -> Dict[str, Any]:
     """Apply package versions and scripts to the generated package.json."""
     package_json = load_json_file(str(package_json_path))
+    manifest = _WEBAPP_VERSION_MANIFEST[angular_major]
     dependencies = _base_angular_dependencies(angular_major)
     dependencies.update(_feature_pack_dependencies(feature_packs, angular_major))
     dev_dependencies = _base_angular_dev_dependencies(angular_major)
 
     package_json["name"] = project_name
     package_json["description"] = f"{publish_name} hosted Angular webapp for SystemLink."
+    package_json["engines"] = {"node": manifest["nodeEngine"]}
     package_json["dependencies"] = dependencies
     package_json["devDependencies"] = dev_dependencies
     package_json["scripts"] = {
         "start": "ng serve --host 0.0.0.0",
         "build": "ng build",
-        "test": "ng test --watch=false --browsers=ChromeHeadless",
         "publish:webapp": _publish_command_for_directory(
             project_name, publish_name, workspace_name
         ),
@@ -394,9 +381,9 @@ def _emit_webapp_new_dry_run(
     click.echo("  Config mutations:")
     click.echo(f"    - feature packs: {', '.join(feature_packs)}")
     click.echo("    - APP_BASE_HREF provider with no <base> tag")
-    click.echo("    - Angular localize polyfills for build and test")
+    click.echo("    - Angular localize polyfills for build")
     click.echo("    - Nimble fonts in src/styles.scss")
-    click.echo("    - legacy Angular builder with inlineCritical disabled")
+    click.echo("    - @angular/build application builder with inlineCritical disabled")
     click.echo("    - hash routing enabled unless --routing path is requested")
 
 

@@ -1,7 +1,11 @@
+import { CommonModule } from '@angular/common';
 import { Component } from '@angular/core';
-import { NavigationEnd, Router } from '@angular/router';
+import { NavigationEnd, Router, RouterModule } from '@angular/router';
+
+import { NimbleAnchorTabModule, NimbleAnchorTabsModule } from '@ni/nimble-angular';
 import { filter } from 'rxjs';
 
+import { AppRoutingModule } from '../../app-routing.module';
 import { SystemLinkContextService } from '../systemlink/systemlink-context.service';
 
 interface ShellTab {
@@ -12,7 +16,14 @@ interface ShellTab {
 
 @Component({
   selector: 'sl-app-shell',
-  standalone: false,
+  standalone: true,
+  imports: [
+    CommonModule,
+    RouterModule,
+    AppRoutingModule,
+    NimbleAnchorTabsModule,
+    NimbleAnchorTabModule,
+  ],
   templateUrl: './app-shell.component.html',
   styleUrl: './app-shell.component.scss',
 })

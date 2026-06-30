@@ -47,29 +47,30 @@ Use `slcli webapp init` only when the user explicitly wants the low-level manual
 slcli webapp init <app-dir>
 npx -y @angular/cli@20 new <app-name> --directory . --routing --style=scss --skip-git --no-standalone --defaults --force
 npm install @ni/nimble-angular @ni/nimble-components @ni/unit-format @ni/spright-angular @ni/ok-angular @ni/systemlink-clients-ts @angular/localize
-npm install --save-dev @angular-devkit/build-angular
+npm install --save-dev @angular/build
 ```
 
 Be explicit with users: if they ask to scaffold a new hosted Angular app for SystemLink and do not ask for a manual setup, recommend `slcli webapp new` first, not `slcli webapp init`. Treat `init` as the exception path.
 
-Prefer NgModule-based apps for this workflow. The Nimble Angular wrapper modules fit naturally into a centralized `AppModule`, which reduces template surprises and keeps imports explicit.
+Prefer a hybrid Angular shape for this workflow: standalone root bootstrap with NgModule-managed feature declarations. That keeps the generated app off `@angular/platform-browser-dynamic` while still letting Nimble Angular wrappers live in a centralized `AppModule` for most feature imports.
 
 Immediately after scaffold, inspect `package.json` and `angular.json` before building features. The generator or migrations may leave the workspace on the wrong Angular major or on a builder configuration that does not bundle `@ni/nimble-angular` cleanly.
 
 For the currently supported path, standardize on:
 
 - Angular 20.x
+- Node 24+
 - `@ni/nimble-angular` 33.2.x
 - `@ni/nimble-components` 35.8.x
 - `@ni/unit-format` 1.0.4+
-- `@angular/localize` installed and added to build and test polyfills
+- `@angular/build` for the hosted application builder
+- `@angular/localize` installed and added to build polyfills
 
-If the workspace ends up on `@angular/build:application` and Nimble fails to bundle with `Could not resolve '@ni/nimble-components/dist/esm/...'`, switch `angular.json` back to the legacy Angular builders:
+If the scaffold or a migrated workspace fails to bundle Nimble with `Could not resolve '@ni/nimble-components/dist/esm/...'` while using `@angular/build:application`, switch `angular.json` back to the legacy Angular builders:
 
 - `@angular-devkit/build-angular:browser`
 - `@angular-devkit/build-angular:dev-server`
 - `@angular-devkit/build-angular:extract-i18n`
-- `@angular-devkit/build-angular:karma`
 
 This fallback is not optional when the Nimble packages fail under the application builder. Fix the builder mismatch before implementing more UI.
 
@@ -87,7 +88,7 @@ These decisions prevent the most common hosted-webapp failures:
 - Use `@ni/nimble-angular` wrapper modules, not raw `@ni/nimble-components`, as the default integration path.
 - Do not add `CUSTOM_ELEMENTS_SCHEMA` just to silence missing Nimble module imports.
 - Put theme-aware color and shadow aliases on `nimble-theme-provider`, not on `:root`.
-- Import `@angular/localize/init` in Angular polyfills for both build and test paths.
+- Import `@angular/localize/init` in Angular build polyfills.
 - Import Nimble fonts once in the root `src/styles.scss` with `@use '@ni/nimble-angular/styles/fonts' as *;`.
 - Run a production build immediately after setup changes. Do not postpone the first `npm run build` until after the UI is implemented.
 
@@ -164,7 +165,7 @@ Before you consider a SystemLink webapp slice correct, confirm all of the follow
 
 - Angular 20 workspace created in the intended starter directory.
 - Angular and NI package versions verified after scaffold, not assumed.
-- `@ni/nimble-components`, `@ni/unit-format`, `@angular/localize`, and `@angular-devkit/build-angular` installed when using `@ni/nimble-angular`.
+- `@ni/nimble-components`, `@ni/unit-format`, `@angular/localize`, and `@angular/build` installed when using `@ni/nimble-angular`.
 - `angular.json` uses builders that are known to bundle Nimble successfully.
 - `AppModule` provides `APP_BASE_HREF`.
 - `index.html` does not contain a `<base>` element.
