@@ -64,6 +64,7 @@ def main() -> None:
     examples_dir = project_root / "slcli" / "examples"
     editor_assets_dir = project_root / "dff-editor"
     skills_dir = project_root / "slcli" / "skills"
+    webapp_templates_dir = project_root / "slcli" / "webapp_templates"
 
     cmd = [
         sys.executable,
@@ -75,6 +76,7 @@ def main() -> None:
         "--collect-data=rfc3987_syntax",
         *_required_data_args(examples_dir, "slcli/examples"),
         *_required_data_args(editor_assets_dir, "dff-editor"),
+        *_required_data_args(webapp_templates_dir, "slcli/webapp_templates"),
         *_optional_data_args(skills_dir, "skills"),
         str(entry_point),
     ]

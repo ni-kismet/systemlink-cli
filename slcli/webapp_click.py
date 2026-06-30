@@ -20,7 +20,7 @@ import questionary
 import requests
 
 from .cli_utils import validate_output_format
-from .skill_click import TEMPORARILY_UNAVAILABLE_MESSAGE
+from .skill_click import install_skills_to_directory
 from .universal_handlers import UniversalResponseHandler
 from .utils import (
     ExitCodes,
@@ -36,6 +36,7 @@ from .utils import (
     sanitize_filename,
     save_json_file,
 )
+from .webapp_bootstrap import register_webapp_bootstrap_commands
 from .workspace_utils import get_effective_workspace, get_workspace_display_name
 
 _PACKAGE_PATTERN = re.compile(r"^[a-z0-9][a-z0-9._-]*$")
@@ -50,6 +51,7 @@ _MAX_RELEASE_TAG_LENGTH = 200
 _MAX_SCREENSHOT_COUNT = 3
 _SOURCE_REPO_PATTERN = re.compile(r"^[A-Za-z0-9._-]+/[A-Za-z0-9._-]+$")
 _SOURCE_COMMIT_PATTERN = re.compile(r"^[0-9a-f]{40}$")
+_WEBAPP_PROJECT_SKILLS = ["slcli"]
 _ALLOWED_PLUGIN_MANAGER_KEYS = {
     "buildCommand",
     "buildDir",
@@ -719,9 +721,11 @@ def _render_angular_prompts_md(directory: Path) -> str:
     return f"""# SystemLink WebApp - AI Prompts
 
 This project was initialized with `slcli webapp init`.
-AI skills for this workflow are currently unavailable, so this starter keeps
-the prompts inline in this repository for now instead of relying on bundled
-`systemlink-webapp` and `slcli` skills.
+For a complete hosted Angular scaffold, prefer `slcli webapp new <app-name>`.
+Use `init` only when you intentionally want the low-level manual path.
+This starter also installs the bundled `slcli` skill into `.agents/skills/`
+for supported agents while keeping the prompts inline in the repository for
+quick reference.
 
 ## Starter Prompt
 
@@ -791,6 +795,9 @@ def _render_angular_start_here_md(directory: Path) -> str:
 
 This directory was initialized with `slcli webapp init`.
 
+Use `slcli webapp new <app-name>` for the recommended, fully scaffolded
+Angular path. Keep `init` for manual or non-standard framework setup.
+
 `slcli` owns the SystemLink-specific starter layer for this workflow:
 
 - ready-made prompts in [PROMPTS.md](PROMPTS.md)
@@ -801,7 +808,8 @@ Angular CLI remains the source of truth for the Angular workspace itself. That
 keeps the generated project aligned with current Angular defaults while the
 starter files enforce the SystemLink-specific best practices.
 
-AI skills are currently unavailable and are not installed into this project.
+The bundled `slcli` skill is installed into `.agents/skills/` for supported
+agent workflows.
 
 ## Bootstrap the Angular workspace
 
@@ -861,6 +869,11 @@ def _init_angular_template(directory: Path, force: bool) -> None:
         existing.append("PROMPTS.md")
     if start_here_file.exists() and not force:
         existing.append("START_HERE.md")
+    if not force:
+        skills_root = directory / ".agents" / "skills"
+        for skill_name in _WEBAPP_PROJECT_SKILLS:
+            if (skills_root / skill_name).exists():
+                existing.append(f".agents/skills/{skill_name}")
     if existing:
         click.echo(
             f"✗ {', '.join(existing)} already exist(s). Use --force to overwrite.",
@@ -870,16 +883,18 @@ def _init_angular_template(directory: Path, force: bool) -> None:
 
     prompts_file.write_text(_render_angular_prompts_md(directory), encoding="utf-8")
     start_here_file.write_text(_render_angular_start_here_md(directory), encoding="utf-8")
+    install_skills_to_directory(directory, skill_names=_WEBAPP_PROJECT_SKILLS, force=force)
 
     format_success(
         "Scaffolded SystemLink Angular starter",
         {
             "Directory": str(directory),
-            "Skills": TEMPORARILY_UNAVAILABLE_MESSAGE,
+            "Recommended path": "Use 'slcli webapp new <app-name>' for a complete Angular app",
+            "Skills": "Installed slcli into .agents/skills",
             "Next steps": (
                 "1. cd " + str(directory) + "\n"
                 "   2. Open START_HERE.md and PROMPTS.md\n"
-                "   3. Ask AI to bootstrap the Angular workspace in this directory"
+                "   3. Use this only if you want to bootstrap the framework setup manually"
             ),
         },
     )
@@ -891,6 +906,8 @@ def register_webapp_commands(cli: Any) -> None:
     @cli.group()
     def webapp() -> None:  # pragma: no cover - Click wiring
         """Build, publish, and manage SystemLink web applications."""
+
+    register_webapp_bootstrap_commands(webapp)
 
     @webapp.command(name="init")
     @click.argument(

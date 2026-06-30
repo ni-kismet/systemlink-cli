@@ -1,0 +1,61 @@
+<section class="overview sl-page">
+  <header class="sl-page__intro">
+    <p class="sl-page__eyebrow">Starter Pattern: Overview</p>
+    <h2>Replace this overview with the first hosted SystemLink flow you plan to ship.</h2>
+    <p>
+      The metrics, lists, and helper copy on this route are starter content. Remove them once this
+      page is backed by real workspace data.
+    </p>
+  </header>
+
+  <div class="overview__toolbar sl-toolbar">
+    <div class="sl-toolbar__primary">
+      <nimble-button appearance="block" appearance-variant="accent" (click)="reload()">
+        Reload starter data
+      </nimble-button>
+    </div>
+  </div>
+
+  <sl-error-banner *ngIf="state.error" [message]="state.error"></sl-error-banner>
+  <sl-loading-state *ngIf="state.isLoading"></sl-loading-state>
+
+  <ng-container *ngIf="!state.isLoading">
+    <ng-container *ngIf="state.value as model; else emptyState">
+      <nimble-banner [open]="true" severity="information">
+        {{ model.readinessMessage }}
+      </nimble-banner>
+
+      <section class="overview__metrics" *ngIf="model.metrics.length > 0; else emptyState">
+        <article
+          class="overview__metric"
+          *ngFor="let metric of model.metrics"
+          [attr.data-tone]="metric.tone"
+        >
+          <p class="overview__metric-label">{{ metric.label }}</p>
+          <h3>{{ metric.value }}</h3>
+          <p>{{ metric.detail }}</p>
+        </article>
+      </section>
+
+      <div class="overview__columns">
+        <section class="overview__section">
+          <h3>Included patterns</h3>
+          <ul>
+            <li *ngFor="let pattern of model.patterns">{{ pattern }}</li>
+          </ul>
+        </section>
+
+        <section class="overview__section">
+          <h3>Recommended next steps</h3>
+          <ol>
+            <li *ngFor="let step of model.nextSteps">{{ step }}</li>
+          </ol>
+        </section>
+      </div>
+    </ng-container>
+  </ng-container>
+
+  <ng-template #emptyState>
+    <sl-empty-state [message]="'The starter is ready. Replace one sample route with a real query.'"></sl-empty-state>
+  </ng-template>
+</section>
