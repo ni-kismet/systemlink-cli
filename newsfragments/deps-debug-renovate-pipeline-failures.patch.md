@@ -1,1 +1,0 @@
-Fix dependency-bot Towncrier fragment handling for untracked newsfragments while preserving Renovate branch updates after the fragment workflow commits.

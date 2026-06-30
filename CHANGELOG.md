@@ -2,6 +2,13 @@
 
 <!-- towncrier release notes start -->
 
+## v1.14.3 (2026-06-30)
+
+### Bug Fixes
+
+- Fix dependency-bot Towncrier fragment handling for untracked newsfragments while preserving Renovate branch updates after the fragment workflow commits. (deps-debug-renovate-pipeline-failures)
+
+
 ## v1.14.2 (2026-06-30)
 
 ### Bug Fixes
