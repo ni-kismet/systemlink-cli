@@ -1,1 +1,0 @@
-Reduce `slcli webapp new` scaffold install and build warnings by updating the generated Angular starter dependencies, bootstrap path, and default build budget.

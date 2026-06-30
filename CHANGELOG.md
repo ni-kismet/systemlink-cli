@@ -2,6 +2,13 @@
 
 <!-- towncrier release notes start -->
 
+## v1.14.2 (2026-06-30)
+
+### Bug Fixes
+
+- Reduce `slcli webapp new` scaffold install and build warnings by updating the generated Angular starter dependencies, bootstrap path, and default build budget. (webapp-scaffold-warnings)
+
+
 ## v1.14.1 (2026-06-30)
 
 ### Bug Fixes
