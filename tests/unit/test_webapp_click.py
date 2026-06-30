@@ -225,7 +225,7 @@ def test_webapp_new_blank_creates_host_ready_workspace(
 
     assert package_json["dependencies"]["@ni/nimble-angular"] == "~33.2.0"
     assert package_json["dependencies"]["@ni/ok-components"] == "1.6.0"
-    assert package_json["dependencies"]["@ni/systemlink-clients-ts"] == "latest"
+    assert package_json["dependencies"]["@ni/systemlink-clients-ts"] == "2.2.0"
     assert package_json["devDependencies"]["@angular/localize"] == "^20.3.0"
     assert "<base" not in index_html
     assert "APP_BASE_HREF" in app_module

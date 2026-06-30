@@ -76,7 +76,6 @@ const DATASET_ROWS: readonly DatasetRow[] = [
   templateUrl: './datasets-page.component.html',
   styleUrl: './datasets-page.component.scss',
 })
-export class DatasetsPageComponent implements OnInit {
 export class DatasetsPageComponent implements AfterViewInit, OnInit {
   filteredRows: readonly DatasetRow[] = [...DATASET_ROWS];
 

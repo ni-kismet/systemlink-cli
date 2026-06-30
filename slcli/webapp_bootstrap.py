@@ -44,7 +44,7 @@ _WEBAPP_VERSION_MANIFEST: Dict[str, Dict[str, str]] = {
         "nimbleComponents": "~35.8.0",
         "okComponents": "1.6.0",
         "unitFormat": "^1.0.4",
-        "systemlinkClients": "latest",
+        "systemlinkClients": "2.2.0",
         "sprightAngular": "latest",
     }
 }
