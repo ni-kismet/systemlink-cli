@@ -120,10 +120,17 @@ slcli spec create --product <PRODUCT> --spec-id VSAT01 --type PARAMETRIC \
 # Bulk import create-compatible specs from JSON
 slcli spec import --file docs/examples/specifications/import-specs.json
 
+# For installed project-scoped skills, start from .agents/skills/slcli/references/
+# import-specs.min.json or generate a starter payload with
+# .agents/skills/slcli/scripts/spec_import_helper.py init.
+
 # Export reusable create-compatible fields
 slcli spec export --product <PRODUCT> --include-limits --include-conditions \
   --projection PRODUCT_ID --projection SPEC_ID --projection NAME --projection CATEGORY \
   --projection TYPE --projection SYMBOL --projection BLOCK --projection UNIT --output specs.json
+
+# When in doubt about the payload shape, export with both limits and conditions
+# and use that JSON as the schema-discovery fallback.
 ```
 
 ## asset — Asset and calibration management

@@ -30,6 +30,8 @@ Load only what the current task needs.
 | --- | --- | --- |
 | CLI command reference | [commands.md](./references/commands.md) | Looking up command syntax, options, or examples |
 | Datasheet-to-spec workflow | [datasheet-workflow.md](./references/datasheet-workflow.md) | Importing specifications from PDF, CSV, or structured text |
+| Minimal spec import payload | [import-specs.min.json](./references/import-specs.min.json) | Need a bundled create-compatible starter payload or conditions |
+| Spec import helper | [spec_import_helper.py](./scripts/spec_import_helper.py) | Scaffold or validate a datasheet spec import payload |
 | Filtering guide | [filtering.md](./references/filtering.md) | Advanced filters, LINQ syntax, and query composition |
 | Analysis recipes | [analysis-recipes.md](./references/analysis-recipes.md) | Multi-step analysis workflows and reporting patterns |
 | Troubleshooting | [troubleshooting.md](./references/troubleshooting.md) | SSL, workspace IDs, encoding, or scripting pitfalls |
@@ -42,6 +44,36 @@ Load only what the current task needs.
 ## Default approach
 
 1. Prefer long-form flags in generated commands.
-2. Use JSON output when the result will be filtered or transformed.
-3. Stay scoped to the user’s requested resource or workflow.
-4. Load deeper references only when the command surface alone is not enough.
+2. Use `-f json` when the result will be filtered, transformed, or piped into other tools.
+3. Use `--summary --group-by` for aggregation before fetching large raw result sets.
+4. Use convenience filters first, then fall back to `--filter` with `--substitution` for complex queries.
+5. Stay scoped to the user’s requested resource or workflow.
+6. Load deeper references only when the command surface alone is not enough.
+7. Prefer workspace IDs over names in scripted workflows when an endpoint is strict about identity.
+8. Use `make_api_request` from `slcli.utils` for helper scripts so auth, SSL, and error handling stay consistent.
+9. For datasheet imports, default to autonomy when the product or workspace can be resolved unambiguously.
+
+## Common command groups
+
+| Group | Purpose | Key subcommands |
+| --- | --- | --- |
+| `testmonitor` | Test results and products | `result list/get`, `product list/create/update` |
+| `spec` | Specifications | `list`, `query`, `get`, `create`, `import`, `export` |
+| `asset` | Assets and calibration | `list`, `get`, `summary`, `calibration` |
+| `system` | System fleet | `list`, `get`, `compare`, `summary`, `job` |
+| `tag` | Tag read/write | `list`, `get-value`, `set-value`, `create` |
+| `routine` | Event-action routines | `list`, `create`, `enable/disable` |
+| `comment` | Resource comments | `list`, `add`, `update`, `delete` |
+| `workitem` | Work items and workflows | `list`, `create`, `schedule`, `template`, `workflow` |
+| `file` | File management | `list`, `upload`, `download`, `query`, `watch` |
+| `notebook` | Jupyter notebooks | `manage list/create`, `execute start/sync` |
+| `feed` | Package feeds | `list`, `create`, `package upload` |
+| `customfield` | Dynamic form fields | `list`, `create`, `export`, `edit` |
+| `template` | Test plan templates | `list`, `import`, `export` |
+| `webapp` | Web applications | `init`, `pack`, `publish`, `list` |
+| `config` | Connection profiles | `list`, `use`, `add`, `delete` |
+| `user` | User management | `list`, `get`, `create`, `update` |
+| `auth` | Authorization policies | `policy list/create`, `template list` |
+| `workspace` | Workspaces | `list`, `get` |
+| `skill` | AI skill installation | `install` |
+| `example` | Demo provisioning | `list`, `install`, `delete` |
