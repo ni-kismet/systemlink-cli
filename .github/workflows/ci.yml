@@ -27,6 +27,11 @@ jobs:
       - name: Install dependencies
         run: poetry install
 
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+
       - name: Generate fallback Towncrier fragment for dependency bot PRs
         if: >
           github.event_name == 'pull_request' &&
@@ -60,6 +65,9 @@ jobs:
 
       - name: Run tests
         run: poetry run pytest
+
+      - name: Smoke test generated webapp build
+        run: poetry run python scripts/smoke_test_webapp.py
 
       - name: Build PyInstaller binary
         run: poetry run python scripts/build_pyinstaller.py

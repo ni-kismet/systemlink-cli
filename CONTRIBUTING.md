@@ -145,14 +145,20 @@ Based on [CLI Guidelines](https://clig.dev), SystemLink CLI follows these patter
    - Ensure it follows the CLI best practices outlined above
    - Ensure it supports JSON output via `--format/-f` option for list commands
 
-4. **If adding dependencies:**
+4. **If changing the hosted webapp scaffold or bundled template:**
+
+   ```bash
+   poetry run python scripts/smoke_test_webapp.py
+   ```
+
+5. **If adding dependencies:**
 
    ```bash
    poetry add <package>
    poetry lock
    ```
 
-5. **If changing packaging or build scripts:**
+6. **If changing packaging or build scripts:**
    ```bash
    poetry run build-pyinstaller
    ```
