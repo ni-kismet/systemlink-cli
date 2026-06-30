@@ -423,15 +423,19 @@ String condition (mode, configuration, or qualitative setting):
 ## Step 5 — Build and import the JSON payload
 
 Use the bundled helper to create a starter payload when you want a clean,
-create-compatible skeleton from inside this repository:
+create-compatible skeleton from an installed skill. For the default project-
+scoped install, run:
 
 ```bash
-python slcli/skills/slcli/scripts/spec_import_helper.py init \
+python .agents/skills/slcli/scripts/spec_import_helper.py init \
   --output build/ai/<partnum>-specs.json \
   --product-id "<PRODUCT_ID>" \
   --workspace "<WORKSPACE_ID>" \
   --source "<DATASHEET_FILENAME>"
 ```
+
+If you're working directly from this repository instead of an installed skill,
+the same helper also lives at `slcli/skills/slcli/scripts/spec_import_helper.py`.
 
 The helper copies the bundled [import-specs.min.json](./import-specs.min.json)
 example and substitutes the placeholders. If you need to recover the field
@@ -491,7 +495,7 @@ tables are typically FUNCTIONAL.
 Run these checks before import:
 
 ```bash
-python slcli/skills/slcli/scripts/spec_import_helper.py validate \
+python .agents/skills/slcli/scripts/spec_import_helper.py validate \
   build/ai/<partnum>-specs.json
 ```
 

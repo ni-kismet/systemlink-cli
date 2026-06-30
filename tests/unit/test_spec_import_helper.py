@@ -2,9 +2,14 @@
 
 from __future__ import annotations
 
+import json
+import sys
+from pathlib import Path
 from typing import Any
 
-from slcli.skills.slcli.scripts.spec_import_helper import validate_payload
+import pytest
+
+from slcli.skills.slcli.scripts.spec_import_helper import main, validate_payload
 
 
 def make_spec(**overrides: Any) -> dict[str, Any]:
@@ -120,3 +125,167 @@ def test_validate_payload_rejects_invalid_string_conditions() -> None:
 
     assert "specs[0].conditions[0].value.range is invalid for STRING conditions" in errors
     assert "specs[0].conditions[0].value.discrete[0] must be a non-empty string" in errors
+
+
+def test_validate_payload_rejects_invalid_root_shapes() -> None:
+    """Test that invalid payload roots and specs containers are rejected."""
+    assert validate_payload([]) == ["payload root must be an object"]
+    assert validate_payload({"specs": {}}) == ["payload.specs must be a list"]
+
+
+def test_validate_payload_reports_additional_shape_errors() -> None:
+    """Test that malformed specs and conditions report detailed validation errors."""
+    errors = validate_payload(
+        {
+            "specs": [
+                "not-an-object",
+                {
+                    "productId": "product-1",
+                    "specId": "BADTYPE",
+                    "type": "UNKNOWN",
+                    "conditions": "invalid",
+                },
+                {
+                    "productId": "product-1",
+                    "specId": "COND-1",
+                    "type": "PARAMETRIC",
+                    "limit": {"min": True},
+                    "conditions": [
+                        None,
+                        {"name": "", "value": None},
+                        {"name": "Mode", "value": {"conditionType": "BOOLEAN"}},
+                        {
+                            "name": "Temperature",
+                            "value": {
+                                "conditionType": "NUMERIC",
+                                "range": [{}, {"min": "cold"}, 3],
+                            },
+                        },
+                        {
+                            "name": "State",
+                            "value": {"conditionType": "STRING"},
+                        },
+                    ],
+                },
+            ]
+        }
+    )
+
+    assert "specs[0] must be an object" in errors
+    assert "specs[1].type must be one of ['FUNCTIONAL', 'PARAMETRIC']" in errors
+    assert "specs[1].conditions must be a list" in errors
+    assert "specs[2].limit.min must be numeric" in errors
+    assert "specs[2].conditions[0] must be an object" in errors
+    assert "specs[2].conditions[1].name must be a non-empty string" in errors
+    assert "specs[2].conditions[1].value must be an object" in errors
+    assert (
+        "specs[2].conditions[2].value.conditionType must be one of ['NUMERIC', 'STRING']"
+        in errors
+    )
+    assert "specs[2].conditions[3].value.range[0] must include min or max" in errors
+    assert "specs[2].conditions[3].value.range[1].min must be numeric" in errors
+    assert "specs[2].conditions[3].value.range[2] must be an object" in errors
+    assert "specs[2].conditions[4].value must include discrete or range" in errors
+
+
+def test_main_init_writes_starter_payload(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    """Test that the init command writes a substituted starter payload."""
+    output_path = tmp_path / "starter.json"
+    monkeypatch.setattr(
+        sys,
+        "argv",
+        [
+            "spec_import_helper.py",
+            "init",
+            "--output",
+            str(output_path),
+            "--product-id",
+            "product-42",
+            "--workspace",
+            "workspace-42",
+            "--source",
+            "device.pdf",
+        ],
+    )
+
+    exit_code = main()
+
+    assert exit_code == 0
+    payload = json.loads(output_path.read_text(encoding="utf-8"))
+    assert payload["specs"][0]["productId"] == "product-42"
+    assert payload["specs"][0]["workspace"] == "workspace-42"
+    assert payload["specs"][0]["properties"]["source"] == "device.pdf"
+    captured = capsys.readouterr()
+    assert f"Wrote starter payload to {output_path}" in captured.out
+
+
+def test_main_validate_reports_success_for_valid_payload(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    """Test that the validate command reports success for a valid payload."""
+    payload_path = tmp_path / "valid.json"
+    payload_path.write_text(json.dumps({"specs": [make_spec()]}) + "\n", encoding="utf-8")
+    monkeypatch.setattr(sys, "argv", ["spec_import_helper.py", "validate", str(payload_path)])
+
+    exit_code = main()
+
+    assert exit_code == 0
+    captured = capsys.readouterr()
+    assert "Payload valid: 1 specs" in captured.out
+
+
+def test_main_validate_reports_invalid_json(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    """Test that the validate command reports invalid JSON input."""
+    payload_path = tmp_path / "invalid.json"
+    payload_path.write_text("{not-json}\n", encoding="utf-8")
+    monkeypatch.setattr(sys, "argv", ["spec_import_helper.py", "validate", str(payload_path)])
+
+    exit_code = main()
+
+    assert exit_code == 1
+    captured = capsys.readouterr()
+    assert f"Invalid JSON in {payload_path}:" in captured.err
+
+
+def test_main_validate_reports_missing_file(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    """Test that the validate command reports a missing payload file."""
+    payload_path = tmp_path / "missing.json"
+    monkeypatch.setattr(sys, "argv", ["spec_import_helper.py", "validate", str(payload_path)])
+
+    exit_code = main()
+
+    assert exit_code == 1
+    captured = capsys.readouterr()
+    assert f"File not found: {payload_path}" in captured.err
+
+
+def test_main_validate_reports_validation_errors(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    """Test that the validate command prints discovered payload validation errors."""
+    payload_path = tmp_path / "invalid-payload.json"
+    payload_path.write_text(json.dumps({"specs": [{"workspace": "ws-1"}]}) + "\n", encoding="utf-8")
+    monkeypatch.setattr(sys, "argv", ["spec_import_helper.py", "validate", str(payload_path)])
+
+    exit_code = main()
+
+    assert exit_code == 1
+    captured = capsys.readouterr()
+    assert f"Validation failed for {payload_path}:" in captured.err
+    assert "- specs[0].productId is required" in captured.err
