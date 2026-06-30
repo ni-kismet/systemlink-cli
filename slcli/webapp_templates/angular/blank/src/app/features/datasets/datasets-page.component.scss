@@ -1,0 +1,47 @@
+:host {
+  display: block;
+  height: 100%;
+}
+
+.datasets__intro {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: var(--ni-nimble-medium-padding);
+  align-items: end;
+}
+
+.datasets__toolbar {
+  gap: var(--ni-nimble-large-padding);
+}
+
+.datasets__toolbar nimble-text-field,
+.datasets__toolbar nimble-select {
+  min-width: 14rem;
+}
+
+.datasets__toolbar-meta {
+  display: inline-flex;
+  align-items: baseline;
+  gap: var(--ni-nimble-small-padding);
+  color: var(--app-muted);
+}
+
+.datasets__toolbar-meta strong {
+  color: var(--app-strong);
+}
+
+.datasets__table {
+  flex: 1;
+  min-height: 18rem;
+}
+
+.datasets__table nimble-table {
+  height: 18rem;
+  min-height: 18rem;
+}
+
+@media (max-width: 900px) {
+  .datasets__intro {
+    grid-template-columns: 1fr;
+  }
+}

@@ -120,15 +120,15 @@
           <div class="step-num">1</div>
           <div class="step-body">
             <h3>Scaffold the project</h3>
-            <p><code>webapp init</code> creates the Angular starter and writes the starter files your assistant uses to bootstrap Angular in place.</p>
-            <pre><code>slcli webapp init ./fleet-dashboard
+            <p><code>webapp new</code> creates the recommended hosted Angular starter with buildable routes, SystemLink hosting defaults, and publish scripts. Use <code>webapp init</code> only when you intentionally want the low-level manual path.</p>
+            <pre><code>slcli webapp new fleet-dashboard
 cd fleet-dashboard</code></pre>
             <p>The scaffolded directory includes:</p>
             <ul>
-              <li><code>PROMPTS.md</code> — ready-made prompts for building dashboards, test results pages, and more</li>
-              <li><code>START_HERE.md</code> — bootstrap and deployment guidance for the Angular workflow</li>
+              <li>a buildable Angular 20 app shell with starter routes for common SystemLink layouts</li>
+              <li><code>README.md</code> — local development, publish, and hosting guidance for the generated app</li>
             </ul>
-            <p>Bundled AI skills are currently unavailable, so the starter guidance lives in <code>PROMPTS.md</code> and <code>START_HERE.md</code> instead of installed skill files.</p>
+            <p>Use <code>webapp init</code> only when you want the prompt-only manual bootstrap flow while bundled AI skills remain unavailable.</p>
           </div>
         </div>
         <div class="step">
@@ -165,7 +165,7 @@ ng build --configuration production
 
 # Pack the app and generate manifest.json with the artifact SHA-256
 slcli webapp pack --config nipkg.config.json
-slcli webapp publish dist/&lt;app-name&gt;/browser/ \
+slcli webapp publish dist/&lt;app-name&gt; \
   --name "Fleet Dashboard" \
   --workspace Production</code></pre>
           </div>
@@ -179,7 +179,7 @@ slcli webapp open --id &lt;webapp-id&gt;
 
 # Re-publish after changes (same --name updates in place)
 ng build --configuration production
-slcli webapp publish dist/&lt;app-name&gt;/browser/ \
+slcli webapp publish dist/&lt;app-name&gt; \
   --name "Fleet Dashboard" --workspace Production</code></pre>
           </div>
         </div>

@@ -55,9 +55,11 @@ slcli asset list --calibratable --summary
 slcli system list --state CONNECTED
 slcli spec list --product <product> --workspace all
 
-# Scaffold the SystemLink Angular starter (AI skills currently unavailable)
-slcli webapp init ./my-dashboard
-# Open the project and follow START_HERE.md or PROMPTS.md
+# Scaffold the recommended hosted Angular starter
+slcli webapp new my-dashboard
+
+# Low-level/manual starter path for custom framework setup
+slcli webapp init ./my-dashboard-manual
 
 # Create Plugin Manager packaging config
 slcli webapp manifest init ./my-dashboard \

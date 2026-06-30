@@ -36,6 +36,7 @@ from .utils import (
     sanitize_filename,
     save_json_file,
 )
+from .webapp_bootstrap import register_webapp_bootstrap_commands
 from .workspace_utils import get_effective_workspace, get_workspace_display_name
 
 _PACKAGE_PATTERN = re.compile(r"^[a-z0-9][a-z0-9._-]*$")
@@ -719,6 +720,8 @@ def _render_angular_prompts_md(directory: Path) -> str:
     return f"""# SystemLink WebApp - AI Prompts
 
 This project was initialized with `slcli webapp init`.
+For a complete hosted Angular scaffold, prefer `slcli webapp new <app-name>`.
+Use `init` only when you intentionally want the low-level manual path.
 AI skills for this workflow are currently unavailable, so this starter keeps
 the prompts inline in this repository for now instead of relying on bundled
 `systemlink-webapp` and `slcli` skills.
@@ -790,6 +793,9 @@ def _render_angular_start_here_md(directory: Path) -> str:
     return f"""# SystemLink Angular WebApp Starter
 
 This directory was initialized with `slcli webapp init`.
+
+Use `slcli webapp new <app-name>` for the recommended, fully scaffolded
+Angular path. Keep `init` for manual or non-standard framework setup.
 
 `slcli` owns the SystemLink-specific starter layer for this workflow:
 
@@ -875,11 +881,12 @@ def _init_angular_template(directory: Path, force: bool) -> None:
         "Scaffolded SystemLink Angular starter",
         {
             "Directory": str(directory),
+            "Recommended path": "Use 'slcli webapp new <app-name>' for a complete Angular app",
             "Skills": TEMPORARILY_UNAVAILABLE_MESSAGE,
             "Next steps": (
                 "1. cd " + str(directory) + "\n"
                 "   2. Open START_HERE.md and PROMPTS.md\n"
-                "   3. Ask AI to bootstrap the Angular workspace in this directory"
+                "   3. Use this only if you want to bootstrap the framework setup manually"
             ),
         },
     )
@@ -891,6 +898,8 @@ def register_webapp_commands(cli: Any) -> None:
     @cli.group()
     def webapp() -> None:  # pragma: no cover - Click wiring
         """Build, publish, and manage SystemLink web applications."""
+
+    register_webapp_bootstrap_commands(webapp)
 
     @webapp.command(name="init")
     @click.argument(

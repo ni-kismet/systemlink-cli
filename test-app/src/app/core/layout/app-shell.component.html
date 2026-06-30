@@ -1,0 +1,44 @@
+<div class="shell">
+  <header class="shell__header">
+    <div class="shell__intro">
+      <p class="shell__eyebrow">Hosted Starter Shell</p>
+      <h1>Test App</h1>
+      <p class="shell__subtitle">
+        Replace this header copy, the sample tabs, and the starter facts once the app is wired to
+        a real hosted workflow.
+      </p>
+    </div>
+    <dl class="shell__facts">
+      <div>
+        <dt>Workspace</dt>
+        <dd>{{ context.workspaceName }}</dd>
+      </div>
+      <div>
+        <dt>Auth</dt>
+        <dd>{{ context.authMode }}</dd>
+      </div>
+      <div>
+        <dt>Origin</dt>
+        <dd>{{ context.origin }}</dd>
+      </div>
+    </dl>
+  </header>
+
+  <section class="shell__workspace">
+    <div class="shell__tabs-bar">
+      <nimble-anchor-tabs class="shell__tabs" [activeid]="activeTabId">
+        <nimble-anchor-tab
+          *ngFor="let tab of tabs"
+          [id]="tab.id"
+          [nimbleRouterLink]="tab.route"
+        >
+          {{ tab.label }}
+        </nimble-anchor-tab>
+      </nimble-anchor-tabs>
+    </div>
+
+    <main class="shell__content">
+      <router-outlet></router-outlet>
+    </main>
+  </section>
+</div>

@@ -1,0 +1,108 @@
+<section class="master-detail sl-page">
+  <header class="sl-page__intro">
+    <p class="sl-page__eyebrow">Starter Pattern: Master Detail</p>
+    <h2>Use this sample layout when selection and lightweight editing need to stay side by side.</h2>
+    <p>
+      The list items, fields, and helper copy here are starter content. Replace them when the
+      route is connected to the real records your app manages.
+    </p>
+  </header>
+
+  <div class="master-detail__toolbar sl-toolbar">
+    <div class="sl-toolbar__primary">
+      <nimble-button
+        appearance="block"
+        appearance-variant="accent"
+        (click)="isEditing ? saveChanges() : toggleEditMode()"
+        [disabled]="!selectedDevice"
+      >
+        {{ isEditing ? 'Save details' : 'Edit details' }}
+      </nimble-button>
+    </div>
+  </div>
+
+  <div class="master-detail__workspace">
+    <aside class="master-detail__master">
+      <ok-fv-master-detail-list
+        class="master-detail__list"
+        placeholder="Filter devices..."
+        (change)="onSelectionChange($event)"
+      >
+        <ok-fv-master-detail-list-item
+          *ngFor="let device of devices"
+          [attr.title-text]="device.name"
+          [attr.subtitle]="device.summary"
+          [attr.value]="device.id"
+          [attr.status-color]="device.statusColor || null"
+          [attr.status-label]="device.statusLabel || null"
+          [attr.selected]="device.id === selectedDeviceId ? '' : null"
+        ></ok-fv-master-detail-list-item>
+      </ok-fv-master-detail-list>
+    </aside>
+
+    <section class="master-detail__detail" *ngIf="selectedDevice as device; else emptyState">
+      <div class="master-detail__detail-header">
+        <div>
+          <h3>{{ device.name }}</h3>
+          <p *ngIf="device.statusLabel">{{ device.statusLabel }}</p>
+        </div>
+        <nimble-chip *ngIf="device.statusLabel">{{ device.statusLabel }}</nimble-chip>
+      </div>
+
+      <div class="master-detail__detail-grid">
+        <div>
+          <span>Device name</span>
+          <strong>{{ device.name }}</strong>
+        </div>
+        <div>
+          <span>Model</span>
+          <strong>{{ device.model }}</strong>
+        </div>
+        <div>
+          <span>IP address</span>
+          <strong>{{ device.ipAddress }}</strong>
+        </div>
+        <div>
+          <span>Firmware version</span>
+          <strong>{{ device.firmwareVersion }}</strong>
+        </div>
+      </div>
+
+      <div class="master-detail__edit-grid">
+        <nimble-text-field [(ngModel)]="device.location" [readonly]="!isEditing">
+          Location
+        </nimble-text-field>
+        <nimble-text-field [(ngModel)]="device.systemId" [readonly]="!isEditing">
+          Device ID
+        </nimble-text-field>
+      </div>
+
+      <nimble-text-area [(ngModel)]="device.notes" [readonly]="!isEditing" resize="vertical">
+        Notes
+      </nimble-text-area>
+
+      <nimble-switch [(ngModel)]="device.monitorEnabled" [disabled]="!isEditing">
+        Include in monitor roster
+      </nimble-switch>
+
+      <nimble-banner *ngIf="device.statusLabel === 'Pending changes'" [open]="true" severity="warning">
+        Review the pending changes before this device returns to the connected roster.
+      </nimble-banner>
+
+      <dl class="master-detail__facts">
+        <div>
+          <dt>Last seen</dt>
+          <dd>{{ device.lastSeen }}</dd>
+        </div>
+        <div>
+          <dt>Calibration due</dt>
+          <dd>{{ device.calibrationDue }}</dd>
+        </div>
+      </dl>
+    </section>
+  </div>
+
+  <ng-template #emptyState>
+    <sl-empty-state [message]="'Adjust the filter or add a real device query to populate this pattern.'"></sl-empty-state>
+  </ng-template>
+</section>

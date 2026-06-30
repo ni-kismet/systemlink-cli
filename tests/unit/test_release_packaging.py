@@ -71,3 +71,13 @@ def test_optional_data_args_includes_existing_directory(tmp_path: Path) -> None:
     args = build_pyinstaller._optional_data_args(skills_dir, "skills")
 
     assert args == ["--add-data", f"{skills_dir}{os.pathsep}skills"]
+
+
+def test_required_data_args_includes_existing_directory(tmp_path: Path) -> None:
+    """Include required directories in PyInstaller packaging when they exist."""
+    templates_dir = tmp_path / "webapp_templates"
+    templates_dir.mkdir()
+
+    args = build_pyinstaller._required_data_args(templates_dir, "slcli/webapp_templates")
+
+    assert args == ["--add-data", f"{templates_dir}{os.pathsep}slcli/webapp_templates"]

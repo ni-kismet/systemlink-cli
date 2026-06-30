@@ -112,8 +112,10 @@ def test_webapp_init_creates_starter_files(tmp_path: Path, monkeypatch: MonkeyPa
     prompts = (target / "PROMPTS.md").read_text(encoding="utf-8")
     starter = (target / "START_HERE.md").read_text(encoding="utf-8")
 
+    assert "slcli webapp new <app-name>" in prompts
     assert "Bootstrap this directory into a maintainable Angular 20 SystemLink webapp" in prompts
     assert "Angular CLI remains the source of truth" in starter
+    assert "Use `slcli webapp new <app-name>`" in starter
     assert "@ni/nimble-angular" in starter
 
 
@@ -129,6 +131,7 @@ def test_webapp_init_starter_creates_prompts(tmp_path: Path, monkeypatch: Monkey
     prompts = (target / "PROMPTS.md").read_text(encoding="utf-8")
     assert "systemlink-webapp" in prompts
     assert "systemlink-clients-ts" in prompts
+    assert "low-level manual path" in prompts
     starter = (target / "START_HERE.md").read_text(encoding="utf-8")
     assert "slcli webapp publish" in starter
     assert "Angular CLI remains the source of truth" in starter
@@ -184,6 +187,301 @@ def test_webapp_init_documents_skill_unavailability(
     assert "currently unavailable" in (target / "PROMPTS.md").read_text(encoding="utf-8")
     assert "currently unavailable" in (target / "START_HERE.md").read_text(encoding="utf-8")
     assert not (target / ".agents" / "skills").exists()
+
+
+def test_webapp_new_blank_creates_host_ready_workspace(
+    tmp_path: Path, monkeypatch: MonkeyPatch
+) -> None:
+    runner = CliRunner()
+    patch_keyring(monkeypatch)
+
+    target = tmp_path / "coffee-roaster"
+    result = runner.invoke(
+        cli,
+        [
+            "webapp",
+            "new",
+            "coffee-roaster",
+            "--directory",
+            str(target),
+            "--skip-install",
+        ],
+    )
+
+    assert result.exit_code == 0
+    assert (target / "package.json").exists()
+    assert (target / "angular.json").exists()
+    assert (target / "README.md").exists()
+    assert (target / "src" / "app" / "app.module.ts").exists()
+    assert (target / "src" / "app" / "app-routing.module.ts").exists()
+    assert (target / "src" / "app" / "features" / "master-detail").exists()
+
+    package_json = loads((target / "package.json").read_text(encoding="utf-8"))
+    angular_json = loads((target / "angular.json").read_text(encoding="utf-8"))
+    index_html = (target / "src" / "index.html").read_text(encoding="utf-8")
+    app_module = (target / "src" / "app" / "app.module.ts").read_text(encoding="utf-8")
+    app_routing = (target / "src" / "app" / "app-routing.module.ts").read_text(encoding="utf-8")
+    readme = (target / "README.md").read_text(encoding="utf-8")
+
+    assert package_json["dependencies"]["@ni/nimble-angular"] == "~33.2.0"
+    assert package_json["dependencies"]["@ni/ok-components"] == "1.6.0"
+    assert package_json["dependencies"]["@ni/systemlink-clients-ts"] == "latest"
+    assert package_json["devDependencies"]["@angular/localize"] == "^20.3.0"
+    assert "<base" not in index_html
+    assert "APP_BASE_HREF" in app_module
+    assert "CUSTOM_ELEMENTS_SCHEMA" in app_module
+    assert "MasterDetailPageComponent" in app_module
+    assert "useHash: true" in app_routing
+    assert "path: 'master-detail'" in app_routing
+    assert (
+        angular_json["projects"]["coffee-roaster"]["architect"]["build"]["builder"]
+        == "@angular-devkit/build-angular:browser"
+    )
+    assert (
+        angular_json["projects"]["coffee-roaster"]["architect"]["build"]["configurations"][
+            "production"
+        ]["optimization"]["styles"]["inlineCritical"]
+        is False
+    )
+    assert "slcli webapp publish dist/coffee-roaster" in readme
+    assert "six Nimble-based layout patterns" in readme
+    assert "Skipped npm install and npm run build" in result.output
+
+
+def test_webapp_new_blank_uses_supported_nimble_api_shapes(
+    tmp_path: Path, monkeypatch: MonkeyPatch
+) -> None:
+    runner = CliRunner()
+    patch_keyring(monkeypatch)
+
+    target = tmp_path / "nimble-api-check"
+    result = runner.invoke(
+        cli,
+        [
+            "webapp",
+            "new",
+            "nimble-api-check",
+            "--directory",
+            str(target),
+            "--skip-install",
+        ],
+    )
+
+    assert result.exit_code == 0
+
+    assets_ts = (
+        target / "src" / "app" / "features" / "assets" / "assets-page.component.ts"
+    ).read_text(encoding="utf-8")
+    app_module = (target / "src" / "app" / "app.module.ts").read_text(encoding="utf-8")
+    datasets_ts = (
+        target / "src" / "app" / "features" / "datasets" / "datasets-page.component.ts"
+    ).read_text(encoding="utf-8")
+    operations_ts = (
+        target / "src" / "app" / "features" / "operations" / "operations-page.component.ts"
+    ).read_text(encoding="utf-8")
+    master_detail_ts = (
+        target / "src" / "app" / "features" / "master-detail" / "master-detail-page.component.ts"
+    ).read_text(encoding="utf-8")
+    home_html = (
+        target / "src" / "app" / "features" / "home" / "home-page.component.html"
+    ).read_text(encoding="utf-8")
+    datasets_html = (
+        target / "src" / "app" / "features" / "datasets" / "datasets-page.component.html"
+    ).read_text(encoding="utf-8")
+    operations_html = (
+        target / "src" / "app" / "features" / "operations" / "operations-page.component.html"
+    ).read_text(encoding="utf-8")
+    assets_html = (
+        target / "src" / "app" / "features" / "assets" / "assets-page.component.html"
+    ).read_text(encoding="utf-8")
+    settings_html = (
+        target / "src" / "app" / "features" / "settings" / "settings-page.component.html"
+    ).read_text(encoding="utf-8")
+    master_detail_html = (
+        target / "src" / "app" / "features" / "master-detail" / "master-detail-page.component.html"
+    ).read_text(encoding="utf-8")
+
+    assert "TableFieldValue" in assets_ts
+    assert "TableFieldValue" in datasets_ts
+    assert "TableFieldValue" in operations_ts
+    assert "queuePaneWidth" in operations_ts
+    assert "startResize" in operations_ts
+    assert "toggleDetailPane" in operations_ts
+    assert "isDetailCollapsed" in operations_ts
+    assert "@ni/ok-components/dist/esm/fv/master-detail-list" in master_detail_ts
+    assert ".close();" in assets_ts
+    assert ".hide();" not in assets_ts
+    assert "selectedRecordIds[0]" in assets_ts
+    assert "selectedRecordIds[0]" in operations_ts
+    assert "TableRowSelectionEventDetail<" not in assets_ts
+    assert "TableRowSelectionEventDetail<" not in operations_ts
+    assert 'severity="information"' in home_html
+    assert 'severity="information"' in datasets_html
+    assert 'severity="information"' in operations_html
+    assert 'severity="information"' in settings_html
+    assert 'role="separator"' in operations_html
+    assert "Show details" in operations_html
+    assert "operations__splitter-toggle" in operations_html
+    assert 'severity="info"' not in home_html
+    assert 'severity="info"' not in datasets_html
+    assert 'severity="success"' not in operations_html
+    assert 'severity="success"' not in settings_html
+    assert "NimbleChipModule" in app_module
+    assert "nimble-checkbox" in settings_html
+    assert "nimble-switch" in settings_html
+    assert "nimble-text-area" in master_detail_html
+    assert "ok-fv-master-detail-list" in master_detail_html
+    assert "ok-fv-master-detail-list-item" in master_detail_html
+    assert "nimble-chip" in assets_html
+    assert "nimble-chip" in operations_html
+    assert "nimble-chip" in master_detail_html
+    assert "sl-pill" not in assets_html
+    assert "sl-pill" not in operations_html
+    assert "sl-pill" not in master_detail_html
+
+
+def test_webapp_new_with_nimble_only_keeps_template_base_dependencies(
+    tmp_path: Path, monkeypatch: MonkeyPatch
+) -> None:
+    runner = CliRunner()
+    patch_keyring(monkeypatch)
+
+    target = tmp_path / "nimble-only"
+    result = runner.invoke(
+        cli,
+        [
+            "webapp",
+            "new",
+            "nimble-only",
+            "--directory",
+            str(target),
+            "--skip-install",
+            "--with",
+            "nimble",
+        ],
+    )
+
+    assert result.exit_code == 0
+
+    package_json = loads((target / "package.json").read_text(encoding="utf-8"))
+    dependencies = package_json["dependencies"]
+
+    assert dependencies["@ni/nimble-angular"] == "~33.2.0"
+    assert dependencies["@ni/ok-components"] == "1.6.0"
+    assert "@ni/systemlink-clients-ts" not in dependencies
+    assert "@ni/ok-angular" not in dependencies
+
+
+def test_webapp_new_dry_run_does_not_write_files(tmp_path: Path, monkeypatch: MonkeyPatch) -> None:
+    runner = CliRunner()
+    patch_keyring(monkeypatch)
+
+    target = tmp_path / "yield-dashboard"
+    result = runner.invoke(
+        cli,
+        [
+            "webapp",
+            "new",
+            "yield-dashboard",
+            "--directory",
+            str(target),
+            "--dry-run",
+        ],
+    )
+
+    assert result.exit_code == 0
+    assert not target.exists()
+    assert "Webapp generation dry run" in result.output
+    assert "Package list:" in result.output
+    assert "Config mutations:" in result.output
+    assert "src/app/app.module.ts" in result.output
+
+
+def test_webapp_new_plugin_manager_writes_packaging_metadata(
+    tmp_path: Path, monkeypatch: MonkeyPatch
+) -> None:
+    runner = CliRunner()
+    patch_keyring(monkeypatch)
+
+    target = tmp_path / "asset-browser"
+    result = runner.invoke(
+        cli,
+        [
+            "webapp",
+            "new",
+            "asset-browser",
+            "--directory",
+            str(target),
+            "--skip-install",
+            "--plugin-manager",
+            "--publish-name",
+            "Asset Browser",
+            "--workspace",
+            "Training - April 2026",
+        ],
+    )
+
+    assert result.exit_code == 0
+    assert (target / "icon.svg").exists()
+    assert (target / "nipkg.config.json").exists()
+    package_json = loads((target / "package.json").read_text(encoding="utf-8"))
+    pack_config = loads((target / "nipkg.config.json").read_text(encoding="utf-8"))
+
+    assert package_json["scripts"]["pack:webapp"] == "slcli webapp pack --config nipkg.config.json"
+    assert pack_config["package"] == "asset-browser"
+    assert pack_config["displayName"] == "Asset Browser"
+    assert pack_config["buildDir"] == "dist/asset-browser"
+    assert "npm run pack:webapp" in result.output
+
+
+def test_webapp_new_rejects_unshipped_templates(tmp_path: Path, monkeypatch: MonkeyPatch) -> None:
+    runner = CliRunner()
+    patch_keyring(monkeypatch)
+
+    result = runner.invoke(
+        cli,
+        [
+            "webapp",
+            "new",
+            "support-console",
+            "--directory",
+            str(tmp_path / "support"),
+            "--template",
+            "admin",
+        ],
+    )
+
+    assert result.exit_code == ExitCodes.INVALID_INPUT
+    assert "Phase 1 currently supports only --template blank" in result.output
+
+
+def test_webapp_new_runs_install_and_build(tmp_path: Path, monkeypatch: MonkeyPatch) -> None:
+    runner = CliRunner()
+    patch_keyring(monkeypatch)
+
+    commands: List[List[str]] = []
+
+    class Completed:
+        def __init__(self) -> None:
+            self.returncode = 0
+            self.stdout = ""
+            self.stderr = ""
+
+    def fake_run(*args: Any, **kwargs: Any) -> Completed:
+        commands.append(list(args[0]))
+        assert kwargs["cwd"] == tmp_path / "build-check"
+        return Completed()
+
+    monkeypatch.setattr("slcli.webapp_bootstrap.subprocess.run", fake_run)
+
+    result = runner.invoke(
+        cli,
+        ["webapp", "new", "build-check", "--directory", str(tmp_path / "build-check")],
+    )
+
+    assert result.exit_code == 0
+    assert commands == [["npm", "install"], ["npm", "run", "build"]]
+    assert "npm run build passed" in result.output
 
 
 def test_webapp_manifest_init_writes_pack_config_only(
