@@ -2,6 +2,13 @@
 
 <!-- towncrier release notes start -->
 
+## v1.14.5 (2026-06-30)
+
+### Bug Fixes
+
+- Update dependency black to v26.5.1. (deps-black-26-x-lockfile)
+
+
 ## v1.14.4 (2026-06-30)
 
 ### Bug Fixes
