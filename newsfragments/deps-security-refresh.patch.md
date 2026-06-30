@@ -1,0 +1,1 @@
+Raise the minimum supported versions of cryptography, PyJWT, and python-multipart to secure releases and refresh the lockfile.
