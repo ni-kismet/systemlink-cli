@@ -2,6 +2,13 @@
 
 <!-- towncrier release notes start -->
 
+## v1.14.1 (2026-06-30)
+
+### Bug Fixes
+
+- Raise the minimum supported versions of cryptography, PyJWT, and python-multipart to secure releases and refresh the lockfile. (deps-security-refresh)
+
+
 ## v1.14.0 (2026-06-30)
 
 ### Features
