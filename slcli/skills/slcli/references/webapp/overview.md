@@ -72,6 +72,8 @@ If the scaffold or a migrated workspace fails to bundle Nimble with `Could not r
 - `@angular-devkit/build-angular:dev-server`
 - `@angular-devkit/build-angular:extract-i18n`
 
+Also add `@angular-devkit/build-angular` back to `devDependencies` before switching those builders. The hosted scaffold now standardizes on `@angular/build`, so the legacy builders are not present unless you reinstall them explicitly.
+
 This fallback is not optional when the Nimble packages fail under the application builder. Fix the builder mismatch before implementing more UI.
 
 Recommend installing `@ni/spright-angular` and `@ni/ok-angular` early when using the manual `init` path, even if the first slice only uses Nimble. That avoids dependency churn later when the UI needs chat surfaces, product-specific icons, accordion items, or the OK search input.

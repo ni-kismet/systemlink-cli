@@ -1,7 +1,6 @@
-import { APP_BASE_HREF } from '@angular/common';
+import { APP_BASE_HREF, CommonModule } from '@angular/common';
 import { CUSTOM_ELEMENTS_SCHEMA, NgModule } from '@angular/core';
 import { FormsModule } from '@angular/forms';
-import { BrowserModule } from '@angular/platform-browser';
 
 import {
   NimbleAnchorTabModule,
@@ -48,7 +47,7 @@ import { LoadingStateComponent } from './shared/components/loading-state.compone
     EmptyStateComponent,
   ],
   imports: [
-    BrowserModule,
+    CommonModule,
     FormsModule,
     AppRoutingModule,
     NimbleThemeProviderModule,

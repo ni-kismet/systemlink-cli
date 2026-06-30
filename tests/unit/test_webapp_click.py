@@ -245,9 +245,12 @@ def test_webapp_new_blank_creates_host_ready_workspace(
     assert "APP_BASE_HREF" in app_module
     assert "bootstrap:" not in app_module
     assert "CUSTOM_ELEMENTS_SCHEMA" in app_module
+    assert "CommonModule" in app_module
+    assert "BrowserModule" not in app_module
     assert "MasterDetailPageComponent" in app_module
     assert "standalone: true" in app_shell
-    assert "AppRoutingModule" in app_shell
+    assert "RouterModule" in app_shell
+    assert "AppRoutingModule" not in app_shell
     assert "useHash: true" in app_routing
     assert "path: 'master-detail'" in app_routing
     assert (

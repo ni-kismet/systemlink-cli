@@ -5,7 +5,6 @@ import { NavigationEnd, Router, RouterModule } from '@angular/router';
 import { NimbleAnchorTabModule, NimbleAnchorTabsModule } from '@ni/nimble-angular';
 import { filter } from 'rxjs';
 
-import { AppRoutingModule } from '../../app-routing.module';
 import { SystemLinkContextService } from '../systemlink/systemlink-context.service';
 
 interface ShellTab {
@@ -20,7 +19,6 @@ interface ShellTab {
   imports: [
     CommonModule,
     RouterModule,
-    AppRoutingModule,
     NimbleAnchorTabsModule,
     NimbleAnchorTabModule,
   ],
