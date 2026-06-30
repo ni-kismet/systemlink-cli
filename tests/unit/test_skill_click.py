@@ -96,7 +96,7 @@ def test_install_without_options_installs_default_project_skills(
 def test_install_with_options_installs_selected_personal_skill_dependency(
     runner: CliRunner, tmp_path: Path
 ) -> None:
-    """Installing a specific skill also installs its bundled slcli dependency."""
+    """Installing a specific skill stages that bundled skill into the chosen destination."""
     cli = make_cli()
     with patch("slcli.skill_click._personal_dir", return_value=tmp_path / "claude-home"):
         result = runner.invoke(
@@ -105,7 +105,7 @@ def test_install_with_options_installs_selected_personal_skill_dependency(
                 "skill",
                 "install",
                 "--skill",
-                "systemlink-webapp",
+                "slcli",
                 "--client",
                 "claude",
                 "--scope",
@@ -114,7 +114,6 @@ def test_install_with_options_installs_selected_personal_skill_dependency(
         )
     assert result.exit_code == 0
     assert (tmp_path / "claude-home" / "slcli" / "SKILL.md").exists()
-    assert (tmp_path / "claude-home" / "systemlink-webapp" / "SKILL.md").exists()
 
 
 # ── helper functions ─────────────────────────────────────────────────────────
@@ -164,8 +163,7 @@ def test_install_skills_to_directory(tmp_path: Path) -> None:
 
 
 def test_install_skills_to_directory_specific_skill(tmp_path: Path) -> None:
-    """Specific installs copy the requested skill plus any bundled dependencies."""
-    count = install_skills_to_directory(tmp_path, skill_names=["systemlink-webapp"])
-    assert count == 2
+    """Specific installs copy only the requested bundled skill."""
+    count = install_skills_to_directory(tmp_path, skill_names=["slcli"])
+    assert count == 1
     assert (tmp_path / ".agents" / "skills" / "slcli" / "SKILL.md").exists()
-    assert (tmp_path / ".agents" / "skills" / "systemlink-webapp" / "SKILL.md").exists()

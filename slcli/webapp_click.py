@@ -51,7 +51,7 @@ _MAX_RELEASE_TAG_LENGTH = 200
 _MAX_SCREENSHOT_COUNT = 3
 _SOURCE_REPO_PATTERN = re.compile(r"^[A-Za-z0-9._-]+/[A-Za-z0-9._-]+$")
 _SOURCE_COMMIT_PATTERN = re.compile(r"^[0-9a-f]{40}$")
-_WEBAPP_PROJECT_SKILLS = ["slcli", "systemlink-webapp"]
+_WEBAPP_PROJECT_SKILLS = ["slcli"]
 _ALLOWED_PLUGIN_MANAGER_KEYS = {
     "buildCommand",
     "buildDir",
@@ -723,9 +723,9 @@ def _render_angular_prompts_md(directory: Path) -> str:
 This project was initialized with `slcli webapp init`.
 For a complete hosted Angular scaffold, prefer `slcli webapp new <app-name>`.
 Use `init` only when you intentionally want the low-level manual path.
-This starter also installs the bundled `slcli` and `systemlink-webapp` skills
-into `.agents/skills/` for supported agents while keeping the prompts inline in
-the repository for quick reference.
+This starter also installs the bundled `slcli` skill into `.agents/skills/`
+for supported agents while keeping the prompts inline in the repository for
+quick reference.
 
 ## Starter Prompt
 
@@ -808,8 +808,8 @@ Angular CLI remains the source of truth for the Angular workspace itself. That
 keeps the generated project aligned with current Angular defaults while the
 starter files enforce the SystemLink-specific best practices.
 
-Bundled `slcli` and `systemlink-webapp` skills are installed into
-`.agents/skills/` for supported agent workflows.
+The bundled `slcli` skill is installed into `.agents/skills/` for supported
+agent workflows.
 
 ## Bootstrap the Angular workspace
 
@@ -890,7 +890,7 @@ def _init_angular_template(directory: Path, force: bool) -> None:
         {
             "Directory": str(directory),
             "Recommended path": "Use 'slcli webapp new <app-name>' for a complete Angular app",
-            "Skills": "Installed slcli and systemlink-webapp into .agents/skills",
+            "Skills": "Installed slcli into .agents/skills",
             "Next steps": (
                 "1. cd " + str(directory) + "\n"
                 "   2. Open START_HERE.md and PROMPTS.md\n"

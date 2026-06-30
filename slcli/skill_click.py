@@ -10,14 +10,7 @@ import click
 from .utils import ExitCodes, format_success
 
 SKILL_NAME = "slcli"
-_FALLBACK_SKILL_CHOICES = [
-    "nipkg-file-package",
-    "slcli",
-    "systemlink-job-debugging",
-    "systemlink-notebook",
-    "systemlink-python-test",
-    "systemlink-webapp",
-]
+_FALLBACK_SKILL_CHOICES = [SKILL_NAME]
 
 # Mapping of client name -> (personal skills dir, project subdir relative to repo root)
 # personal dir uses Path.home() so it's always resolved at call time via _personal_dir().
@@ -27,13 +20,6 @@ _CLIENT_TABLE: Dict[str, Tuple[str, str]] = {
 }
 
 CLIENT_CHOICES = list(_CLIENT_TABLE.keys())
-_SKILL_DEPENDENCIES: Dict[str, List[str]] = {
-    "nipkg-file-package": ["slcli"],
-    "systemlink-job-debugging": ["slcli"],
-    "systemlink-notebook": ["slcli"],
-    "systemlink-python-test": ["slcli"],
-    "systemlink-webapp": ["slcli"],
-}
 
 
 def _skills_dir_candidates() -> List[Path]:
@@ -124,21 +110,13 @@ PROJECT_SKILLS_SUBDIR = ".agents/skills"
 
 
 def _expand_skill_selection(skill_names: Optional[List[str]] = None) -> List[str]:
-    """Expand requested skill names with any bundled dependencies."""
+    """Validate and normalize requested bundled skill names."""
     requested = list(dict.fromkeys(skill_names or SKILL_CHOICES))
     invalid = [name for name in requested if name not in SKILL_CHOICES]
     if invalid:
         invalid_display = ", ".join(sorted(invalid))
         raise ValueError(f"Unknown bundled skill(s): {invalid_display}")
-
-    expanded: List[str] = []
-    for skill_name in requested:
-        for dependency in _SKILL_DEPENDENCIES.get(skill_name, []):
-            if dependency not in expanded:
-                expanded.append(dependency)
-        if skill_name not in expanded:
-            expanded.append(skill_name)
-    return expanded
+    return requested
 
 
 def install_skills_to_directory(

@@ -129,7 +129,7 @@ def test_webapp_init_starter_creates_prompts(tmp_path: Path, monkeypatch: Monkey
     assert (target / "PROMPTS.md").exists()
     assert (target / "START_HERE.md").exists()
     prompts = (target / "PROMPTS.md").read_text(encoding="utf-8")
-    assert "systemlink-webapp" in prompts
+    assert "bundled `slcli` skill" in prompts
     assert "systemlink-clients-ts" in prompts
     assert "low-level manual path" in prompts
     starter = (target / "START_HERE.md").read_text(encoding="utf-8")
@@ -170,7 +170,7 @@ def test_webapp_init_force_overwrite(tmp_path: Path, monkeypatch: MonkeyPatch) -
 
     result = runner.invoke(cli, ["webapp", "init", str(target), "--force"])
     assert result.exit_code == 0
-    assert "systemlink-webapp" in (target / "PROMPTS.md").read_text(encoding="utf-8")
+    assert "bundled `slcli` skill" in (target / "PROMPTS.md").read_text(encoding="utf-8")
 
 
 def test_webapp_init_installs_project_skills(tmp_path: Path, monkeypatch: MonkeyPatch) -> None:
@@ -185,7 +185,6 @@ def test_webapp_init_installs_project_skills(tmp_path: Path, monkeypatch: Monkey
     assert "currently unavailable" not in (target / "PROMPTS.md").read_text(encoding="utf-8")
     assert "currently unavailable" not in (target / "START_HERE.md").read_text(encoding="utf-8")
     assert (target / ".agents" / "skills" / "slcli" / "SKILL.md").exists()
-    assert (target / ".agents" / "skills" / "systemlink-webapp" / "SKILL.md").exists()
 
 
 def test_webapp_new_blank_creates_host_ready_workspace(
