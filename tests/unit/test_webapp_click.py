@@ -4,7 +4,7 @@ import io
 import tarfile
 from hashlib import sha256
 from json import dumps, loads
-from pathlib import Path
+from pathlib import Path, PureWindowsPath
 from typing import Any, Dict, List
 from unittest.mock import patch
 
@@ -12,6 +12,7 @@ import pytest
 from click.testing import CliRunner
 from pytest import MonkeyPatch
 
+from slcli import webapp_bootstrap
 from slcli.main import cli
 from slcli.utils import ExitCodes
 from .test_utils import patch_keyring
@@ -430,6 +431,31 @@ def test_webapp_new_dry_run_does_not_write_files(tmp_path: Path, monkeypatch: Mo
     assert "Package list:" in result.output
     assert "Config mutations:" in result.output
     assert "src/app/app.module.ts" in result.output
+
+
+def test_template_relative_file_list_normalizes_windows_paths(monkeypatch: MonkeyPatch) -> None:
+    class FakeWindowsFile:
+        def __init__(self, raw_path: str) -> None:
+            self._path = PureWindowsPath(raw_path)
+
+        def is_file(self) -> bool:
+            return True
+
+        def relative_to(self, other: Path) -> PureWindowsPath:
+            return self._path.relative_to(PureWindowsPath(str(other)))
+
+    def fake_rglob(_self: Path, _pattern: str) -> list[FakeWindowsFile]:
+        return [
+            FakeWindowsFile("C:/template/src/app/app.module.ts"),
+            FakeWindowsFile("C:/template/src/styles.scss"),
+        ]
+
+    monkeypatch.setattr(Path, "rglob", fake_rglob)
+
+    assert webapp_bootstrap._template_relative_file_list(Path("C:/template")) == [
+        "src/app/app.module.ts",
+        "src/styles.scss",
+    ]
 
 
 def test_webapp_new_plugin_manager_writes_packaging_metadata(
