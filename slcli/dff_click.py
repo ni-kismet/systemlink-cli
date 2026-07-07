@@ -201,7 +201,7 @@ def _coerce_dff_payload_to_import_format(data: Any) -> Dict[str, Any]:
         if "configuration" in data and "configurations" not in data:
             configuration = data.get("configuration")
             return {
-                "configurations": [configuration] if configuration else [],
+                "configurations": [configuration] if configuration is not None else [],
                 "groups": data.get("groups", []),
                 "fields": data.get("fields", []),
             }

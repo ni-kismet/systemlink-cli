@@ -497,6 +497,54 @@ def test_dff_config_create_rejects_invalid_root_payload(
         Path(input_file).unlink()
 
 
+def test_dff_config_create_preserves_empty_export_configuration(
+    monkeypatch: Any, runner: CliRunner
+) -> None:
+    """Test create preserves an explicit empty export-shaped configuration object."""
+    patch_keyring(monkeypatch)
+
+    captured_request: dict[str, Any] = {}
+
+    def mock_post(method: str, url: str, data: Any, *args: Any, **kwargs: Any) -> Any:
+        captured_request["method"] = method
+        captured_request["url"] = url
+        captured_request["data"] = data
+
+        class R:
+            def __init__(self) -> None:
+                self.status_code = 201
+
+            def raise_for_status(self) -> None:
+                pass
+
+            def json(self) -> Any:
+                return {"configurations": [{"id": "new-config-id", "name": "Unknown"}]}
+
+            @property
+            def text(self) -> str:
+                return json.dumps(self.json())
+
+        return R()
+
+    monkeypatch.setattr("slcli.dff_click.make_api_request", mock_post)
+
+    cli = make_cli()
+    exported_config: dict[str, Any] = {"configuration": {}, "groups": [], "fields": []}
+
+    with tempfile.NamedTemporaryFile(mode="w", suffix=".json", delete=False) as f:
+        json.dump(exported_config, f)
+        input_file = f.name
+
+    try:
+        result = runner.invoke(cli, ["customfield", "create", "--file", input_file])
+
+        assert result.exit_code == 0
+        assert captured_request["method"] == "POST"
+        assert captured_request["data"]["configurations"] == [{}]
+    finally:
+        Path(input_file).unlink()
+
+
 def test_dff_config_export_success(monkeypatch: Any, runner: CliRunner) -> None:
     """Test exporting a DFF configuration."""
     patch_keyring(monkeypatch)
