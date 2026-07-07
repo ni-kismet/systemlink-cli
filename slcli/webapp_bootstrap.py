@@ -126,7 +126,9 @@ def _ensure_supported_webapp_template(template: str) -> None:
 def _template_relative_file_list(template_dir: Path) -> List[str]:
     """Return the relative file list for a bundled template."""
     return sorted(
-        str(path.relative_to(template_dir)) for path in template_dir.rglob("*") if path.is_file()
+        path.relative_to(template_dir).as_posix()
+        for path in template_dir.rglob("*")
+        if path.is_file()
     )
 
 
