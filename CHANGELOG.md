@@ -2,6 +2,13 @@
 
 <!-- towncrier release notes start -->
 
+## v1.15.1 (2026-07-07)
+
+### Bug Fixes
+
+- Normalize webapp dry-run file paths so preview output uses forward slashes on Windows. (windows-webapp-dry-run-paths)
+
+
 ## v1.15.0 (2026-06-30)
 
 ### Features
