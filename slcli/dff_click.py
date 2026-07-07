@@ -49,6 +49,16 @@ VALID_FIELD_TYPES = [
     "LinkedResource",
 ]
 
+_FIELD_TYPE_CANONICAL_MAP = {
+    "text": "TEXT",
+    "number": "NUMBER",
+    "boolean": "BOOLEAN",
+    "enum": "ENUM",
+    "datetime": "DATE_TIME",
+    "table": "TABLE",
+    "linkedresource": "LINKED_RESOURCE",
+}
+
 # Help text for resource type parameter
 RESOURCE_TYPE_HELP = f"Resource type. Valid values: {', '.join(VALID_RESOURCE_TYPES)}"
 
@@ -162,11 +172,70 @@ def validate_field_type(field_type: str) -> None:
     Raises:
         click.ClickException: If the field type is not valid
     """
-    if field_type not in VALID_FIELD_TYPES:
+    normalized_field_type = "".join(ch for ch in field_type if ch.isalnum()).lower()
+    if normalized_field_type not in _FIELD_TYPE_CANONICAL_MAP:
         valid_types_str = ", ".join(VALID_FIELD_TYPES)
         raise click.ClickException(
             f"Invalid field type: '{field_type}'. " f"Valid types are: {valid_types_str}"
         )
+
+
+def _canonicalize_field_type(field_type: str) -> str:
+    """Convert user-facing or exported field type values to API enum values."""
+    validate_field_type(field_type)
+    normalized_field_type = "".join(ch for ch in field_type if ch.isalnum()).lower()
+    return _FIELD_TYPE_CANONICAL_MAP[normalized_field_type]
+
+
+def _coerce_dff_payload_to_import_format(data: Any) -> Dict[str, Any]:
+    """Normalize imported/exported DFF payloads into the create/update envelope."""
+    if isinstance(data, list):
+        return {"configurations": data}
+
+    if isinstance(data, dict):
+        if "configuration" in data and "configurations" not in data:
+            configuration = data.get("configuration")
+            return {
+                "configurations": [configuration] if configuration else [],
+                "groups": data.get("groups", []),
+                "fields": data.get("fields", []),
+            }
+
+        if "configurations" not in data:
+            return {"configurations": [data]}
+
+        return data
+
+    return {"configurations": [data]}
+
+
+def _normalize_dff_payload_for_write(data: Any) -> Dict[str, Any]:
+    """Prepare DFF create/update payloads for API submission."""
+    normalized_data = _coerce_dff_payload_to_import_format(data)
+
+    configurations = normalized_data.get("configurations", [])
+    for i, config in enumerate(configurations):
+        if isinstance(config, dict):
+            resource_type = config.get("resourceType")
+            if resource_type:
+                try:
+                    validate_resource_type(resource_type)
+                except click.ClickException as e:
+                    raise click.ClickException(
+                        f"Invalid resource type in configuration {i + 1}: {e.message}"
+                    )
+
+    fields = normalized_data.get("fields", [])
+    for i, field in enumerate(fields):
+        if isinstance(field, dict):
+            field_type = field.get("type")
+            if field_type:
+                try:
+                    field["type"] = _canonicalize_field_type(field_type)
+                except click.ClickException as e:
+                    raise click.ClickException(f"Invalid field type in field {i + 1}: {e.message}")
+
+    return normalized_data
 
 
 def _query_all_groups(
@@ -441,41 +510,7 @@ def register_dff_commands(cli: Any) -> None:
         url = f"{get_base_url()}/nidynamicformfields/v1/configurations"
 
         try:
-            data = load_json_file(input_file)
-
-            # Ensure data is in the expected format
-            if isinstance(data, dict) and "configurations" not in data:
-                # Wrap single configuration
-                data = {"configurations": [data]}
-            elif isinstance(data, list):
-                # Wrap list of configurations
-                data = {"configurations": data}
-
-            # Validate resource types in configurations
-            configurations = data.get("configurations", [])
-            for i, config in enumerate(configurations):
-                if isinstance(config, dict):
-                    resource_type = config.get("resourceType")
-                    if resource_type:
-                        try:
-                            validate_resource_type(resource_type)
-                        except click.ClickException as e:
-                            raise click.ClickException(
-                                f"Invalid resource type in configuration {i + 1}: {e.message}"
-                            )
-
-            # Validate field types in fields
-            fields = data.get("fields", [])
-            for i, field in enumerate(fields):
-                if isinstance(field, dict):
-                    field_type = field.get("type")
-                    if field_type:
-                        try:
-                            validate_field_type(field_type)
-                        except click.ClickException as e:
-                            raise click.ClickException(
-                                f"Invalid field type in field {i + 1}: {e.message}"
-                            )
+            data = _normalize_dff_payload_for_write(load_json_file(input_file))
 
             # Make API request without automatic error handling to parse validation errors
             resp = make_api_request("POST", url, data, handle_errors=False)
@@ -563,13 +598,7 @@ def register_dff_commands(cli: Any) -> None:
         url = f"{get_base_url()}/nidynamicformfields/v1/update-configurations"
 
         try:
-            data = load_json_file(input_file)
-
-            # Ensure data is in the expected format
-            if isinstance(data, dict) and "configurations" not in data:
-                data = {"configurations": [data]}
-            elif isinstance(data, list):
-                data = {"configurations": data}
+            data = _normalize_dff_payload_for_write(load_json_file(input_file))
 
             resp = make_api_request("POST", url, data, handle_errors=False)
             response_data = resp.json() if resp.text.strip() else {}
@@ -774,11 +803,16 @@ def register_dff_commands(cli: Any) -> None:
             full_url = f"{url}?{query_string}"
 
             resp = make_api_request("GET", full_url)
-            data = resp.json()
+            data = _coerce_dff_payload_to_import_format(resp.json())
 
             # Generate output filename if not provided
             if not output:
-                config_name = data.get("configuration", {}).get("name", f"config-{config_id}")
+                configurations = data.get("configurations", [])
+                config_name = (
+                    configurations[0].get("name", f"config-{config_id}")
+                    if configurations
+                    else f"config-{config_id}"
+                )
                 safe_name = sanitize_filename(config_name, f"config-{config_id}")
                 output = f"{safe_name}.json"
 

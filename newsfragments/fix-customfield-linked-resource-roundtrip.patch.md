@@ -1,0 +1,1 @@
+Fix custom field export/create round-trips for linked-resource DFFs by accepting exported field type values and writing importable export payloads.
