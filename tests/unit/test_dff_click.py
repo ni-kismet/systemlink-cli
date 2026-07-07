@@ -10,6 +10,7 @@ import pytest
 from click.testing import CliRunner
 
 from slcli.dff_click import register_dff_commands
+from slcli.utils import ExitCodes
 from .test_utils import patch_keyring
 
 
@@ -431,6 +432,67 @@ def test_dff_config_create_accepts_exported_linked_resource_payload(
         assert captured_request["data"]["configurations"][0]["name"] == "Exported Configuration"
         assert captured_request["data"]["groups"][0]["key"] == "group1"
         assert captured_request["data"]["fields"][0]["type"] == "LINKED_RESOURCE"
+    finally:
+        Path(input_file).unlink()
+
+
+def test_dff_config_create_rejects_non_string_field_type(
+    monkeypatch: Any, runner: CliRunner
+) -> None:
+    """Test create fails cleanly when a field type is not a string."""
+    patch_keyring(monkeypatch)
+
+    cli = make_cli()
+    invalid_config = {
+        "configuration": {
+            "id": "config1",
+            "name": "Exported Configuration",
+            "workspace": "ws1",
+            "resourceType": "system:system",
+        },
+        "fields": [
+            {
+                "key": "field1",
+                "workspace": "ws1",
+                "displayText": "Linked System",
+                "type": 123,
+                "mandatory": False,
+            }
+        ],
+    }
+
+    with tempfile.NamedTemporaryFile(mode="w", suffix=".json", delete=False) as f:
+        json.dump(invalid_config, f)
+        input_file = f.name
+
+    try:
+        result = runner.invoke(cli, ["customfield", "create", "--file", input_file])
+
+        assert result.exit_code == ExitCodes.INVALID_INPUT
+        assert "Invalid field type in field 1" in result.output
+        assert "Field type must be a string" in result.output
+    finally:
+        Path(input_file).unlink()
+
+
+def test_dff_config_create_rejects_invalid_root_payload(
+    monkeypatch: Any, runner: CliRunner
+) -> None:
+    """Test create rejects unsupported JSON root payload types."""
+    patch_keyring(monkeypatch)
+
+    cli = make_cli()
+
+    with tempfile.NamedTemporaryFile(mode="w", suffix=".json", delete=False) as f:
+        json.dump("not-a-dff-payload", f)
+        input_file = f.name
+
+    try:
+        result = runner.invoke(cli, ["customfield", "create", "--file", input_file])
+
+        assert result.exit_code == ExitCodes.INVALID_INPUT
+        assert "Invalid custom field payload" in result.output
+        assert "root JSON value must be an object or array" in result.output
     finally:
         Path(input_file).unlink()
 

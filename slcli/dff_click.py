@@ -172,6 +172,11 @@ def validate_field_type(field_type: str) -> None:
     Raises:
         click.ClickException: If the field type is not valid
     """
+    if not isinstance(field_type, str):
+        raise click.ClickException(
+            f"Invalid field type: '{field_type}'. Field type must be a string."
+        )
+
     normalized_field_type = "".join(ch for ch in field_type if ch.isalnum()).lower()
     if normalized_field_type not in _FIELD_TYPE_CANONICAL_MAP:
         valid_types_str = ", ".join(VALID_FIELD_TYPES)
@@ -206,7 +211,9 @@ def _coerce_dff_payload_to_import_format(data: Any) -> Dict[str, Any]:
 
         return data
 
-    return {"configurations": [data]}
+    raise click.ClickException(
+        "Invalid custom field payload: root JSON value must be an object or array."
+    )
 
 
 def _normalize_dff_payload_for_write(data: Any) -> Dict[str, Any]:
@@ -558,6 +565,9 @@ def register_dff_commands(cli: Any) -> None:
 
                     sys.exit(ExitCodes.GENERAL_ERROR)
 
+        except click.ClickException as exc:
+            click.echo(f"✗ {exc.message}", err=True)
+            sys.exit(ExitCodes.INVALID_INPUT)
         except requests.RequestException as exc:
             # Handle HTTP errors with detailed validation error parsing
             if hasattr(exc, "response") and exc.response is not None:
@@ -642,6 +652,9 @@ def register_dff_commands(cli: Any) -> None:
                                 f"  - {config.get('name', 'Unknown')}: {config.get('id', '')}"
                             )
 
+        except click.ClickException as exc:
+            click.echo(f"✗ {exc.message}", err=True)
+            sys.exit(ExitCodes.INVALID_INPUT)
         except requests.RequestException as exc:
             # Handle HTTP errors with detailed validation error parsing
             if hasattr(exc, "response") and exc.response is not None:
