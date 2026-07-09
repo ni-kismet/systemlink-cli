@@ -408,6 +408,32 @@ def test_webapp_new_with_nimble_only_keeps_template_base_dependencies(
     assert "@ni/ok-angular" not in dependencies
 
 
+def test_webapp_new_accepts_ok_feature_pack(tmp_path: Path, monkeypatch: MonkeyPatch) -> None:
+    runner = CliRunner()
+    patch_keyring(monkeypatch)
+
+    target = tmp_path / "ok-pack"
+    result = runner.invoke(
+        cli,
+        [
+            "webapp",
+            "new",
+            "ok-pack",
+            "--directory",
+            str(target),
+            "--skip-install",
+            "--with",
+            "nimble,ok",
+        ],
+    )
+
+    assert result.exit_code == 0
+    package_json = loads((target / "package.json").read_text(encoding="utf-8"))
+
+    assert package_json["dependencies"]["@ni/ok-components"] == "1.6.0"
+    assert "@ni/systemlink-clients-ts" not in package_json["dependencies"]
+
+
 def test_webapp_new_dry_run_does_not_write_files(tmp_path: Path, monkeypatch: MonkeyPatch) -> None:
     runner = CliRunner()
     patch_keyring(monkeypatch)
@@ -495,25 +521,74 @@ def test_webapp_new_plugin_manager_writes_packaging_metadata(
     assert "npm run pack:webapp" in result.output
 
 
-def test_webapp_new_rejects_unshipped_templates(tmp_path: Path, monkeypatch: MonkeyPatch) -> None:
+@pytest.mark.parametrize(
+    ("template", "present_routes", "absent_routes", "expected_pattern"),
+    [
+        (
+            "dashboard",
+            ["path: 'datasets'", "path: 'assets'"],
+            ["path: 'master-detail'", "path: 'operations'", "path: 'settings'"],
+            "Search-first Nimble table toolbar",
+        ),
+        (
+            "list-detail",
+            ["path: 'assets'", "path: 'master-detail'"],
+            ["path: 'datasets'", "path: 'operations'", "path: 'settings'"],
+            "Master/detail split pane",
+        ),
+        (
+            "admin",
+            ["path: 'operations'", "path: 'settings'"],
+            ["path: 'datasets'", "path: 'assets'", "path: 'master-detail'"],
+            "Grouped settings form",
+        ),
+    ],
+)
+def test_webapp_new_named_templates_render_focused_navigation(
+    tmp_path: Path,
+    monkeypatch: MonkeyPatch,
+    template: str,
+    present_routes: List[str],
+    absent_routes: List[str],
+    expected_pattern: str,
+) -> None:
     runner = CliRunner()
     patch_keyring(monkeypatch)
 
+    target = tmp_path / template
     result = runner.invoke(
         cli,
         [
             "webapp",
             "new",
-            "support-console",
+            template,
             "--directory",
-            str(tmp_path / "support"),
+            str(target),
             "--template",
-            "admin",
+            template,
+            "--skip-install",
         ],
     )
 
-    assert result.exit_code == ExitCodes.INVALID_INPUT
-    assert "Phase 1 currently supports only --template blank" in result.output
+    assert result.exit_code == 0
+
+    routing = (target / "src" / "app" / "app-routing.module.ts").read_text(encoding="utf-8")
+    shell = (target / "src" / "app" / "core" / "layout" / "app-shell.component.ts").read_text(
+        encoding="utf-8"
+    )
+    home_data = (
+        target / "src" / "app" / "core" / "systemlink" / "webapp-home-data.service.ts"
+    ).read_text(encoding="utf-8")
+    readme = (target / "README.md").read_text(encoding="utf-8")
+
+    for route in present_routes:
+        assert route in routing
+    for route in absent_routes:
+        assert route not in routing
+
+    assert "readonly tabs: readonly ShellTab[]" in shell
+    assert expected_pattern in home_data
+    assert expected_pattern in readme
 
 
 def test_webapp_new_runs_install_and_build(tmp_path: Path, monkeypatch: MonkeyPatch) -> None:

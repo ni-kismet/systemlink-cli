@@ -19,12 +19,11 @@ from .utils import (
 
 _WEBAPP_FRAMEWORK_CHOICES = ("angular",)
 _WEBAPP_TEMPLATE_CHOICES = ("blank", "dashboard", "list-detail", "admin")
-_WEBAPP_PHASE1_SUPPORTED_TEMPLATES = frozenset({"blank"})
-_WEBAPP_FEATURE_PACK_CHOICES = ("nimble", "spright", "clients")
+_WEBAPP_FEATURE_PACK_CHOICES = ("nimble", "spright", "clients", "ok")
 _WEBAPP_ROUTING_CHOICES = ("hash", "path")
 _WEBAPP_AUTH_CHOICES = ("same-origin", "api-key")
 _WEBAPP_THEME_SYNC_CHOICES = ("auto", "off")
-_WEBAPP_DEFAULT_FEATURE_PACKS = "nimble,clients"
+_WEBAPP_DEFAULT_FEATURE_PACKS = "nimble,clients,ok"
 _WEBAPP_SUPPORTED_ANGULAR_MAJOR = "20"
 _WEBAPP_VERSION_MANIFEST: Dict[str, Dict[str, str]] = {
     "20": {
@@ -43,6 +42,102 @@ _WEBAPP_VERSION_MANIFEST: Dict[str, Dict[str, str]] = {
         "nodeEngine": ">=24",
     }
 }
+_WEBAPP_TEMPLATE_PROFILES: Dict[str, Dict[str, Any]] = {
+    "blank": {
+        "source_template": "blank",
+        "tabs": [
+            {"id": "overview", "label": "Overview", "route": "/"},
+            {"id": "datasets", "label": "Data Table", "route": "/datasets"},
+            {"id": "assets", "label": "Drawer Detail", "route": "/assets"},
+            {"id": "master-detail", "label": "Master Detail", "route": "/master-detail"},
+            {"id": "operations", "label": "Operations", "route": "/operations"},
+            {"id": "settings", "label": "Settings", "route": "/settings"},
+        ],
+        "pattern_summary": "six Nimble-based layout patterns ready to replace with real SystemLink resource calls",
+        "patterns": [
+            "Route-level navigation with Nimble anchor tabs",
+            "Search-first Nimble table toolbar with concise Search <items> copy",
+            "Drawer-based detail inspection from a primary dataset",
+            "Master/detail split pane with read-only detail fields until edit mode",
+            "Split operations workspace with manual refresh and a confirm dialog",
+            "Grouped settings form with theme-aware sections and readonly hosted facts",
+        ],
+        "readme_patterns": [
+            "Route-level navigation with Nimble anchor tabs",
+            "Search-first Nimble table toolbar with concise Search <items> copy",
+            "Drawer-based detail inspection from a primary dataset",
+            "Master/detail split pane with read-only detail fields until edit mode",
+            "Split operations workspace with manual refresh and a confirm dialog",
+            "Grouped settings form with theme-aware sections and readonly hosted facts",
+        ],
+        "readiness_message": "This starter keeps hosted routing, Nimble tokens, and sample control text aligned to current Stratus guidance.",
+    },
+    "dashboard": {
+        "source_template": "blank",
+        "tabs": [
+            {"id": "overview", "label": "Overview", "route": "/"},
+            {"id": "datasets", "label": "Data Table", "route": "/datasets"},
+            {"id": "assets", "label": "Drawer Detail", "route": "/assets"},
+        ],
+        "pattern_summary": "three dashboard-oriented starter routes ready for metrics, tables, and record drill-down",
+        "patterns": [
+            "Route-level navigation with Nimble anchor tabs",
+            "Search-first Nimble table toolbar with concise Search <items> copy",
+            "Drawer-based detail inspection from a primary dataset",
+        ],
+        "readme_patterns": [
+            "Route-level navigation with Nimble anchor tabs",
+            "Search-first Nimble table toolbar with concise Search <items> copy",
+            "Drawer-based detail inspection from a primary dataset",
+        ],
+        "readiness_message": "This dashboard starter keeps hosted routing, Nimble tokens, and table-first control text aligned to current Stratus guidance.",
+    },
+    "list-detail": {
+        "source_template": "blank",
+        "tabs": [
+            {"id": "overview", "label": "Overview", "route": "/"},
+            {"id": "assets", "label": "Drawer Detail", "route": "/assets"},
+            {"id": "master-detail", "label": "Master Detail", "route": "/master-detail"},
+        ],
+        "pattern_summary": "three list-and-detail starter routes ready for inspection, selection, and edit workflows",
+        "patterns": [
+            "Route-level navigation with Nimble anchor tabs",
+            "Drawer-based detail inspection from a primary dataset",
+            "Master/detail split pane with read-only detail fields until edit mode",
+        ],
+        "readme_patterns": [
+            "Route-level navigation with Nimble anchor tabs",
+            "Drawer-based detail inspection from a primary dataset",
+            "Master/detail split pane with read-only detail fields until edit mode",
+        ],
+        "readiness_message": "This list-detail starter keeps hosted routing, Nimble tokens, and record-inspection flows aligned to current Stratus guidance.",
+    },
+    "admin": {
+        "source_template": "blank",
+        "tabs": [
+            {"id": "overview", "label": "Overview", "route": "/"},
+            {"id": "operations", "label": "Operations", "route": "/operations"},
+            {"id": "settings", "label": "Settings", "route": "/settings"},
+        ],
+        "pattern_summary": "three admin-focused starter routes ready for queue management and configuration workflows",
+        "patterns": [
+            "Route-level navigation with Nimble anchor tabs",
+            "Split operations workspace with manual refresh and a confirm dialog",
+            "Grouped settings form with theme-aware sections and readonly hosted facts",
+        ],
+        "readme_patterns": [
+            "Route-level navigation with Nimble anchor tabs",
+            "Split operations workspace with manual refresh and a confirm dialog",
+            "Grouped settings form with theme-aware sections and readonly hosted facts",
+        ],
+        "readiness_message": "This admin starter keeps hosted routing, Nimble tokens, and configuration-first workflows aligned to current Stratus guidance.",
+    },
+}
+
+
+def _webapp_template_profile(template: str) -> Dict[str, Any]:
+    """Return the generation profile for a named template."""
+    return _WEBAPP_TEMPLATE_PROFILES[template]
 
 
 def _webapp_templates_dir_candidates() -> List[Path]:
@@ -62,13 +157,15 @@ def _webapp_templates_dir_candidates() -> List[Path]:
 
 def _resolve_webapp_template_directory(framework: str, template: str) -> Path:
     """Resolve a bundled webapp template directory from the current install layout."""
+    source_template = _webapp_template_profile(template)["source_template"]
     for candidate_root in _webapp_templates_dir_candidates():
-        candidate = candidate_root / framework / template
+        candidate = candidate_root / framework / source_template
         if candidate.exists() and (candidate / "package.json").exists():
             return candidate
 
     raise FileNotFoundError(
-        f"Bundled webapp template not found for framework '{framework}' and template '{template}'."
+        "Bundled webapp template not found for framework "
+        f"'{framework}' and template '{source_template}'."
     )
 
 
@@ -110,17 +207,6 @@ def _parse_feature_pack_selection(selection: str) -> List[str]:
         sys.exit(ExitCodes.INVALID_INPUT)
 
     return unique_requested
-
-
-def _ensure_supported_webapp_template(template: str) -> None:
-    """Reject templates that are planned but not yet shipped."""
-    if template not in _WEBAPP_PHASE1_SUPPORTED_TEMPLATES:
-        click.echo(
-            "✗ Phase 1 currently supports only --template blank. "
-            "Dashboard, list-detail, and admin templates are planned follow-on work.",
-            err=True,
-        )
-        sys.exit(ExitCodes.INVALID_INPUT)
 
 
 def _template_relative_file_list(template_dir: Path) -> List[str]:
@@ -207,6 +293,337 @@ def _write_rendered_template_tree(
             source_path.read_text(encoding="utf-8"), replacements
         )
         target_path.write_text(rendered_text, encoding="utf-8")
+
+
+def _build_webapp_routing_module(template: str, routing_mode: str) -> str:
+    """Render app-routing.module.ts for the selected template."""
+    tabs = _webapp_template_profile(template)["tabs"]
+    import_map = {
+        "/": "HomePageComponent",
+        "/datasets": "DatasetsPageComponent",
+        "/assets": "AssetsPageComponent",
+        "/master-detail": "MasterDetailPageComponent",
+        "/operations": "OperationsPageComponent",
+        "/settings": "SettingsPageComponent",
+    }
+    file_map = {
+        "/": "./features/home/home-page.component",
+        "/datasets": "./features/datasets/datasets-page.component",
+        "/assets": "./features/assets/assets-page.component",
+        "/master-detail": "./features/master-detail/master-detail-page.component",
+        "/operations": "./features/operations/operations-page.component",
+        "/settings": "./features/settings/settings-page.component",
+    }
+
+    imports = [
+        "import { NgModule } from '@angular/core';",
+        "import { RouterModule, Routes } from '@angular/router';",
+        "",
+    ]
+    for tab in tabs:
+        route = tab["route"]
+        component_name = import_map[route]
+        imports.append(f"import {{ {component_name} }} from '{file_map[route]}';")
+
+    route_entries: List[str] = []
+    for tab in tabs:
+        path_value = "" if tab["route"] == "/" else tab["route"].lstrip("/")
+        component_name = import_map[tab["route"]]
+        route_entries.extend(
+            [
+                "  {",
+                f"    path: '{path_value}',",
+                f"    component: {component_name},",
+                "  },",
+            ]
+        )
+
+    lines = imports + [
+        "",
+        "const routes: Routes = [",
+        *route_entries,
+        "];",
+        "",
+        "@NgModule({",
+        f"  imports: [RouterModule.forRoot(routes, {{ useHash: {'true' if routing_mode == 'hash' else 'false'} }})],",
+        "  exports: [RouterModule],",
+        "})",
+        "export class AppRoutingModule {}",
+        "",
+    ]
+    return "\n".join(lines)
+
+
+def _build_webapp_shell_component(template: str) -> str:
+    """Render the app shell tabs for the selected template."""
+    tab_lines = [
+        f"    {{ id: '{tab['id']}', label: '{tab['label']}', route: '{tab['route']}' }},"
+        for tab in _webapp_template_profile(template)["tabs"]
+    ]
+
+    return "\n".join(
+        [
+            "import { CommonModule } from '@angular/common';",
+            "import { Component } from '@angular/core';",
+            "import { NavigationEnd, Router, RouterModule } from '@angular/router';",
+            "",
+            "import { NimbleAnchorTabModule, NimbleAnchorTabsModule } from '@ni/nimble-angular';",
+            "import { filter } from 'rxjs';",
+            "",
+            "import { SystemLinkContextService } from '../systemlink/systemlink-context.service';",
+            "",
+            "interface ShellTab {",
+            "  id: string;",
+            "  label: string;",
+            "  route: string;",
+            "}",
+            "",
+            "@Component({",
+            "  selector: 'sl-app-shell',",
+            "  standalone: true,",
+            "  imports: [",
+            "    CommonModule,",
+            "    RouterModule,",
+            "    NimbleAnchorTabsModule,",
+            "    NimbleAnchorTabModule,",
+            "  ],",
+            "  templateUrl: './app-shell.component.html',",
+            "  styleUrl: './app-shell.component.scss',",
+            "})",
+            "export class AppShellComponent {",
+            "  readonly tabs: readonly ShellTab[] = [",
+            *tab_lines,
+            "  ];",
+            "",
+            "  activeTabId = 'overview';",
+            "",
+            "  constructor(",
+            "    public readonly context: SystemLinkContextService,",
+            "    router: Router,",
+            "  ) {",
+            "    this.updateActiveTab(router.url);",
+            "    router.events",
+            "      .pipe(filter((event): event is NavigationEnd => event instanceof NavigationEnd))",
+            "      .subscribe((event: NavigationEnd) => {",
+            "        this.updateActiveTab(event.urlAfterRedirects);",
+            "      });",
+            "  }",
+            "",
+            "  private updateActiveTab(url: string): void {",
+            "    const path = url.split('?')[0] || '/';",
+            "    const active = this.tabs.find((tab: ShellTab) => {",
+            "      if (tab.route === '/') {",
+            "        return path === '/';",
+            "      }",
+            "",
+            "      return path === tab.route || path.startsWith(`${tab.route}/`);",
+            "    });",
+            "",
+            "    this.activeTabId = active?.id ?? 'overview';",
+            "  }",
+            "}",
+            "",
+        ]
+    )
+
+
+def _quoted_typescript_list(values: List[str]) -> str:
+    """Return a comma-separated TypeScript string literal list."""
+    return ",\n        ".join(f"'{value}'" for value in values)
+
+
+def _build_webapp_home_data_service(template: str) -> str:
+    """Render the home data service for the selected template."""
+    profile = _webapp_template_profile(template)
+    patterns = _quoted_typescript_list(profile["patterns"])
+    return "\n".join(
+        [
+            "import { Injectable } from '@angular/core';",
+            "",
+            "import { SystemLinkContextService } from './systemlink-context.service';",
+            "",
+            "export interface HomeMetric {",
+            "  label: string;",
+            "  value: string;",
+            "  detail: string;",
+            "  tone: 'info' | 'success' | 'warning';",
+            "}",
+            "",
+            "export interface HomePageModel {",
+            "  metrics: HomeMetric[];",
+            "  patterns: string[];",
+            "  nextSteps: string[];",
+            "  readinessMessage: string;",
+            "}",
+            "",
+            "@Injectable({ providedIn: 'root' })",
+            "export class WebappHomeDataService {",
+            "  constructor(private readonly context: SystemLinkContextService) {}",
+            "",
+            "  async load(): Promise<HomePageModel> {",
+            "    return {",
+            "      metrics: [",
+            "        {",
+            "          label: 'Hosted origin',",
+            "          value: this.context.origin,",
+            "          detail: 'Root future SDK clients and direct fetch calls here.',",
+            "          tone: 'info',",
+            "        },",
+            "        {",
+            "          label: 'Auth mode',",
+            "          value: this.context.authMode,",
+            "          detail: 'Swap with --auth when you need API-key-driven development flows.',",
+            "          tone: 'warning',",
+            "        },",
+            "        {",
+            "          label: 'Workspace',",
+            "          value: this.context.workspaceName,",
+            "          detail: 'Publishing help text and starter docs are already aligned to this workspace.',",
+            "          tone: 'success',",
+            "        },",
+            "      ],",
+            "      patterns: [",
+            f"        {patterns},",
+            "      ],",
+            "      nextSteps: [",
+            "        'Replace one sample page with a real SystemLink query before adding more routes.',",
+            "        'Use Nimble buttons for actions and Nimble anchors or route tabs for navigation.',",
+            "        'Preserve hosted query parameters if you later add cross-app breadcrumbs.',",
+            "      ],",
+            f"      readinessMessage: '{profile['readiness_message']}',",
+            "    };",
+            "  }",
+            "}",
+            "",
+        ]
+    )
+
+
+def _build_webapp_readme(
+    template: str,
+    publish_name: str,
+    app_name: str,
+    routing_mode: str,
+    publish_command: str,
+    workspace_name: str,
+    auth_mode: str,
+) -> str:
+    """Render README.md for the selected template."""
+    profile = _webapp_template_profile(template)
+    routed_features = [tab["route"].lstrip("/") or "home" for tab in profile["tabs"]]
+    readme_patterns = "\n".join(f"- {item}" for item in profile["readme_patterns"])
+    return f"""# {publish_name}
+
+This app was generated by `slcli webapp new {app_name}` as a hosted Angular 20 starter for SystemLink.
+
+## What You Start With
+
+- Node.js 24+ declared in `package.json#engines`
+- Angular 20 with standalone root bootstrap and NgModule-managed feature declarations
+- `@ni/nimble-angular` wired into the standalone root plus `AppModule`
+- `nimble-theme-provider` at the application root
+- `APP_BASE_HREF` provided without a `<base>` tag in `src/index.html`
+- `useHash: {'true' if routing_mode == 'hash' else 'false'}` routing for hosted navigation
+- `@angular/localize/init` configured for the build polyfill path
+- Nimble fonts imported in `src/styles.scss`
+- modern Angular application builders configured for the hosted scaffold
+- initial bundle warning budget tuned for the included starter shell
+- shared loading, error, and empty states
+- SystemLink context and theme sync services under `src/app/core/systemlink/`
+- {profile['pattern_summary']}
+
+## Enabled Starter Routes
+
+{', '.join(routed_features)}
+
+## Local Development
+
+```bash
+npm install
+npm run build
+```
+
+The generated scaffold intentionally omits a default test runner setup so `npm install`
+does not pull in the deprecated Karma/Jasmine stack. Add your preferred test tooling when
+you start writing app-specific tests.
+
+## Publish To SystemLink
+
+```bash
+{publish_command}
+```
+
+Current workspace default: `{workspace_name or 'Default'}`
+
+## Hosted Validation Notes
+
+- Keep `APP_BASE_HREF` in `src/app/app.module.ts`
+- Keep `useHash: {'true' if routing_mode == 'hash' else 'false'}` in `src/app/app-routing.module.ts`
+- Do not add a `<base>` tag to `src/index.html`
+- Keep `inlineCritical: false` in `angular.json`
+- Use `window.location.origin` when adding more SystemLink service clients
+
+## Sample Service Wiring
+
+The generated `SystemLinkContextService` centralizes:
+
+- the hosted origin (`window.location.origin`)
+- auth mode (`{auth_mode}`)
+- request defaults for same-origin cookies or API-key headers
+
+## Included Patterns
+
+{readme_patterns}
+
+## Pattern Guardrails
+
+- Use Nimble tokens for custom fonts and colors. Import Nimble fonts once in `src/styles.scss`, then derive any custom styling from token-backed CSS variables.
+- Use `nimble-button` for actions and Nimble anchors or route tabs for navigation. Do not style regular buttons to imitate Nimble buttons.
+- Use concise `Search <items>` placeholders for toolbar text filters, and prefer `readonly` over `disabled` for non-editable text content.
+- Add refresh controls only to views with data that changes outside the current session. Static overview and settings routes should stay manual.
+- If you add breadcrumbs for cross-app navigation, preserve their hierarchy through query parameters instead of rewriting breadcrumb state during same-app tab switches.
+
+Use these routes as starting points and replace one of them with a real SystemLink resource flow before broadening the app shell.
+"""
+
+
+def _apply_selected_webapp_template(
+    target_dir: Path,
+    template: str,
+    app_name: str,
+    publish_name: str,
+    workspace_name: str,
+    routing_mode: str,
+    auth_mode: str,
+) -> None:
+    """Rewrite the generated starter entrypoints for the selected template."""
+    app_dir = target_dir / "src" / "app"
+    (app_dir / "app-routing.module.ts").write_text(
+        _build_webapp_routing_module(template, routing_mode),
+        encoding="utf-8",
+    )
+    (app_dir / "core" / "layout" / "app-shell.component.ts").write_text(
+        _build_webapp_shell_component(template),
+        encoding="utf-8",
+    )
+    (app_dir / "core" / "systemlink" / "webapp-home-data.service.ts").write_text(
+        _build_webapp_home_data_service(template),
+        encoding="utf-8",
+    )
+    (target_dir / "README.md").write_text(
+        _build_webapp_readme(
+            template=template,
+            publish_name=publish_name,
+            app_name=app_name,
+            routing_mode=routing_mode,
+            publish_command=_publish_command_for_directory(
+                _slugify_webapp_name(app_name), publish_name, workspace_name
+            ),
+            workspace_name=workspace_name,
+            auth_mode=auth_mode,
+        ),
+        encoding="utf-8",
+    )
 
 
 def _base_angular_dependencies(angular_major: str) -> Dict[str, str]:
@@ -366,6 +783,7 @@ def _emit_webapp_new_dry_run(
     plugin_manager: bool,
 ) -> None:
     """Print the generation plan without writing files."""
+    profile = _webapp_template_profile(template)
     click.echo("Webapp generation dry run")
     click.echo(f"  Framework: {framework}")
     click.echo(f"  Template: {template}")
@@ -382,6 +800,10 @@ def _emit_webapp_new_dry_run(
         click.echo(f"    - {package_name}@{version}")
     click.echo("  Config mutations:")
     click.echo(f"    - feature packs: {', '.join(feature_packs)}")
+    click.echo(
+        "    - enabled routes: "
+        + ", ".join(tab["route"].lstrip("/") or "home" for tab in profile["tabs"])
+    )
     click.echo("    - APP_BASE_HREF provider with no <base> tag")
     click.echo("    - Angular localize polyfills for build")
     click.echo("    - Nimble fonts in src/styles.scss")
@@ -418,7 +840,6 @@ def _generate_new_webapp(
         )
         sys.exit(ExitCodes.INVALID_INPUT)
 
-    _ensure_supported_webapp_template(template)
     feature_packs = _parse_feature_pack_selection(feature_pack_selection)
 
     project_name = _slugify_webapp_name(app_name)
@@ -454,6 +875,15 @@ def _generate_new_webapp(
 
     _ensure_generation_directory(target_dir, force)
     _write_rendered_template_tree(template_dir, target_dir, replacements)
+    _apply_selected_webapp_template(
+        target_dir=target_dir,
+        template=template,
+        app_name=app_name,
+        publish_name=publish_display_name,
+        workspace_name=workspace_name,
+        routing_mode=routing_mode,
+        auth_mode=auth_mode,
+    )
     _customize_generated_package_json(
         package_json_path=target_dir / "package.json",
         feature_packs=feature_packs,

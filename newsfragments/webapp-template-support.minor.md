@@ -1,0 +1,1 @@
+Add OK feature-pack support and enable dashboard, list-detail, and admin hosted webapp templates.
