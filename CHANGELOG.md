@@ -2,6 +2,13 @@
 
 <!-- towncrier release notes start -->
 
+## v1.15.2 (2026-07-09)
+
+### Bug Fixes
+
+- Fix custom field export/create round-trips for linked-resource DFFs by accepting exported field type values and writing importable export payloads. (fix-customfield-linked-resource-roundtrip)
+
+
 ## v1.15.1 (2026-07-07)
 
 ### Bug Fixes
