@@ -10,6 +10,7 @@ import pytest
 from click.testing import CliRunner
 
 from slcli.dff_click import register_dff_commands
+from slcli.utils import ExitCodes
 from .test_utils import patch_keyring
 
 
@@ -358,6 +359,192 @@ def test_dff_config_create_validation_error(monkeypatch: Any, runner: CliRunner)
         Path(input_file).unlink()
 
 
+def test_dff_config_create_accepts_exported_linked_resource_payload(
+    monkeypatch: Any, runner: CliRunner
+) -> None:
+    """Test create accepts export-shaped payloads with linked-resource field types."""
+    patch_keyring(monkeypatch)
+
+    captured_request: dict[str, Any] = {}
+
+    def mock_post(method: str, url: str, data: Any, *args: Any, **kwargs: Any) -> Any:
+        captured_request["method"] = method
+        captured_request["url"] = url
+        captured_request["data"] = data
+
+        class R:
+            def __init__(self) -> None:
+                self.status_code = 201
+
+            def raise_for_status(self) -> None:
+                pass
+
+            def json(self) -> Any:
+                return {
+                    "configurations": [{"id": "new-config-id", "name": "Exported Configuration"}]
+                }
+
+            @property
+            def text(self) -> str:
+                return json.dumps(self.json())
+
+        return R()
+
+    monkeypatch.setattr("slcli.dff_click.make_api_request", mock_post)
+
+    cli = make_cli()
+
+    exported_config = {
+        "configuration": {
+            "id": "config1",
+            "name": "Exported Configuration",
+            "workspace": "ws1",
+            "resourceType": "system:system",
+        },
+        "groups": [
+            {
+                "key": "group1",
+                "workspace": "ws1",
+                "displayText": "Group 1",
+                "fields": ["field1"],
+            }
+        ],
+        "fields": [
+            {
+                "key": "field1",
+                "workspace": "ws1",
+                "displayText": "Linked System",
+                "type": "LINKED_RESOURCE",
+                "mandatory": False,
+            }
+        ],
+    }
+
+    with tempfile.NamedTemporaryFile(mode="w", suffix=".json", delete=False) as f:
+        json.dump(exported_config, f)
+        input_file = f.name
+
+    try:
+        result = runner.invoke(cli, ["customfield", "create", "--file", input_file])
+
+        assert result.exit_code == 0
+        assert captured_request["method"] == "POST"
+        assert captured_request["data"]["configurations"][0]["name"] == "Exported Configuration"
+        assert captured_request["data"]["groups"][0]["key"] == "group1"
+        assert captured_request["data"]["fields"][0]["type"] == "LINKED_RESOURCE"
+    finally:
+        Path(input_file).unlink()
+
+
+def test_dff_config_create_rejects_non_string_field_type(
+    monkeypatch: Any, runner: CliRunner
+) -> None:
+    """Test create fails cleanly when a field type is not a string."""
+    patch_keyring(monkeypatch)
+
+    cli = make_cli()
+    invalid_config = {
+        "configuration": {
+            "id": "config1",
+            "name": "Exported Configuration",
+            "workspace": "ws1",
+            "resourceType": "system:system",
+        },
+        "fields": [
+            {
+                "key": "field1",
+                "workspace": "ws1",
+                "displayText": "Linked System",
+                "type": 123,
+                "mandatory": False,
+            }
+        ],
+    }
+
+    with tempfile.NamedTemporaryFile(mode="w", suffix=".json", delete=False) as f:
+        json.dump(invalid_config, f)
+        input_file = f.name
+
+    try:
+        result = runner.invoke(cli, ["customfield", "create", "--file", input_file])
+
+        assert result.exit_code == ExitCodes.INVALID_INPUT
+        assert "Invalid field type in field 1" in result.output
+        assert "Field type must be a string" in result.output
+    finally:
+        Path(input_file).unlink()
+
+
+def test_dff_config_create_rejects_invalid_root_payload(
+    monkeypatch: Any, runner: CliRunner
+) -> None:
+    """Test create rejects unsupported JSON root payload types."""
+    patch_keyring(monkeypatch)
+
+    cli = make_cli()
+
+    with tempfile.NamedTemporaryFile(mode="w", suffix=".json", delete=False) as f:
+        json.dump("not-a-dff-payload", f)
+        input_file = f.name
+
+    try:
+        result = runner.invoke(cli, ["customfield", "create", "--file", input_file])
+
+        assert result.exit_code == ExitCodes.INVALID_INPUT
+        assert "Invalid custom field payload" in result.output
+        assert "root JSON value must be an object or array" in result.output
+    finally:
+        Path(input_file).unlink()
+
+
+def test_dff_config_create_preserves_empty_export_configuration(
+    monkeypatch: Any, runner: CliRunner
+) -> None:
+    """Test create preserves an explicit empty export-shaped configuration object."""
+    patch_keyring(monkeypatch)
+
+    captured_request: dict[str, Any] = {}
+
+    def mock_post(method: str, url: str, data: Any, *args: Any, **kwargs: Any) -> Any:
+        captured_request["method"] = method
+        captured_request["url"] = url
+        captured_request["data"] = data
+
+        class R:
+            def __init__(self) -> None:
+                self.status_code = 201
+
+            def raise_for_status(self) -> None:
+                pass
+
+            def json(self) -> Any:
+                return {"configurations": [{"id": "new-config-id", "name": "Unknown"}]}
+
+            @property
+            def text(self) -> str:
+                return json.dumps(self.json())
+
+        return R()
+
+    monkeypatch.setattr("slcli.dff_click.make_api_request", mock_post)
+
+    cli = make_cli()
+    exported_config: dict[str, Any] = {"configuration": {}, "groups": [], "fields": []}
+
+    with tempfile.NamedTemporaryFile(mode="w", suffix=".json", delete=False) as f:
+        json.dump(exported_config, f)
+        input_file = f.name
+
+    try:
+        result = runner.invoke(cli, ["customfield", "create", "--file", input_file])
+
+        assert result.exit_code == 0
+        assert captured_request["method"] == "POST"
+        assert captured_request["data"]["configurations"] == [{}]
+    finally:
+        Path(input_file).unlink()
+
+
 def test_dff_config_export_success(monkeypatch: Any, runner: CliRunner) -> None:
     """Test exporting a DFF configuration."""
     patch_keyring(monkeypatch)
@@ -399,7 +586,92 @@ def test_dff_config_export_success(monkeypatch: Any, runner: CliRunner) -> None:
         with open(output_file) as f:
             exported_data = json.load(f)
 
-        assert exported_data["configuration"]["name"] == "Test Configuration"
+        assert len(exported_data["configurations"]) == 1
+        assert exported_data["configurations"][0]["name"] == "Test Configuration"
+
+
+def test_dff_config_export_create_round_trip(monkeypatch: Any, runner: CliRunner) -> None:
+    """Test export output can be fed directly back into create."""
+    patch_keyring(monkeypatch)
+
+    exported_response = {
+        "configuration": {
+            "id": "config1",
+            "name": "Round Trip Configuration",
+            "workspace": "ws1",
+            "resourceType": "system:system",
+        },
+        "groups": [
+            {
+                "key": "group1",
+                "workspace": "ws1",
+                "displayText": "Group 1",
+                "fields": ["field1"],
+            }
+        ],
+        "fields": [
+            {
+                "key": "field1",
+                "workspace": "ws1",
+                "displayText": "Linked System",
+                "type": "LinkedResource",
+                "mandatory": False,
+            }
+        ],
+    }
+    captured_request: dict[str, Any] = {}
+
+    def mock_make_api_request(method: str, url: str, *args: Any, **kwargs: Any) -> Any:
+        if method == "GET":
+
+            class GetResponse:
+                def raise_for_status(self) -> None:
+                    pass
+
+                def json(self) -> Any:
+                    return exported_response
+
+            return GetResponse()
+
+        data = args[0] if args else kwargs.get("payload")
+        captured_request["method"] = method
+        captured_request["url"] = url
+        captured_request["data"] = data
+
+        class PostResponse:
+            def __init__(self) -> None:
+                self.status_code = 201
+
+            def raise_for_status(self) -> None:
+                pass
+
+            def json(self) -> Any:
+                return {
+                    "configurations": [{"id": "new-config-id", "name": "Round Trip Configuration"}]
+                }
+
+            @property
+            def text(self) -> str:
+                return json.dumps(self.json())
+
+        return PostResponse()
+
+    monkeypatch.setattr("slcli.dff_click.make_api_request", mock_make_api_request)
+
+    cli = make_cli()
+
+    with tempfile.TemporaryDirectory() as temp_dir:
+        output_file = Path(temp_dir) / "exported-config.json"
+
+        export_result = runner.invoke(
+            cli, ["customfield", "export", "--id", "config1", "--output", str(output_file)]
+        )
+        assert export_result.exit_code == 0
+
+        create_result = runner.invoke(cli, ["customfield", "create", "--file", str(output_file)])
+        assert create_result.exit_code == 0
+        assert captured_request["data"]["configurations"][0]["name"] == "Round Trip Configuration"
+        assert captured_request["data"]["fields"][0]["type"] == "LINKED_RESOURCE"
 
 
 def test_dff_config_delete_confirmation_abort(monkeypatch: Any, runner: CliRunner) -> None:
