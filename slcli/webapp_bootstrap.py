@@ -27,18 +27,18 @@ _WEBAPP_DEFAULT_FEATURE_PACKS = "nimble,clients,ok"
 _WEBAPP_SUPPORTED_ANGULAR_MAJOR = "20"
 _WEBAPP_VERSION_MANIFEST: Dict[str, Dict[str, str]] = {
     "20": {
-        "angular": "^20.3.0",
-        "typescript": "~5.9.2",
-        "zoneJs": "~0.15.0",
-        "rxjs": "~7.8.0",
-        "tslib": "^2.3.0",
-        "angularBuild": "^20.3.30",
-        "nimbleAngular": "~33.2.0",
-        "nimbleComponents": "~35.8.0",
-        "okComponents": "1.6.0",
-        "unitFormat": "^1.0.4",
-        "systemlinkClients": "2.2.0",
-        "sprightAngular": "latest",
+        "angular": "^20.3.26",
+        "typescript": "~5.9.3",
+        "zoneJs": "~0.15.1",
+        "rxjs": "~7.8.2",
+        "tslib": "^2.8.1",
+        "angularBuild": "^20.3.32",
+        "nimbleAngular": "~33.4.4",
+        "nimbleComponents": "~35.12.3",
+        "okAngular": "2.5.0",
+        "unitFormat": "^1.0.5",
+        "systemlinkClients": "3.0.2",
+        "sprightAngular": "9.5.5",
         "nodeEngine": ">=24",
     }
 }
@@ -637,7 +637,6 @@ def _base_angular_dependencies(angular_major: str) -> Dict[str, str]:
         "@angular/forms": angular_version,
         "@angular/platform-browser": angular_version,
         "@angular/router": angular_version,
-        "@ni/ok-components": manifest["okComponents"],
         "rxjs": manifest["rxjs"],
         "tslib": manifest["tslib"],
         "zone.js": manifest["zoneJs"],
@@ -673,6 +672,8 @@ def _feature_pack_dependencies(feature_packs: List[str], angular_major: str) -> 
         dependencies["@ni/systemlink-clients-ts"] = manifest["systemlinkClients"]
     if "spright" in feature_packs:
         dependencies["@ni/spright-angular"] = manifest["sprightAngular"]
+    if "ok" in feature_packs:
+        dependencies["@ni/ok-angular"] = manifest["okAngular"]
     return dependencies
 
 
