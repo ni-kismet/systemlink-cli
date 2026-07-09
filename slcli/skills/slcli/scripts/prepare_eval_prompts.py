@@ -44,12 +44,6 @@ def parse_args() -> argparse.Namespace:
         help="Fail-fast wall-clock budget in minutes for one eval run.",
     )
     parser.add_argument(
-        "--max-parallel",
-        type=int,
-        default=3,
-        help="Maximum number of independent runs to schedule in parallel batches.",
-    )
-    parser.add_argument(
         "--stub-output",
         action="store_true",
         help="Create placeholder output files in empty outputs directories.",
@@ -81,6 +75,7 @@ def build_prompt(
     configuration: str,
     max_tool_calls: int,
     max_minutes: float,
+    baseline_repo_root: str | None,
 ) -> str:
     """Build the executor prompt text for one run."""
     lines = ["Execute this task.", ""]
@@ -98,6 +93,11 @@ def build_prompt(
             [
                 "Baseline run: do not load the slcli skill for this execution.",
                 "Solve the task without relying on the skill instructions.",
+                (
+                    f"Use this isolated baseline repo root: {baseline_repo_root}"
+                    if baseline_repo_root
+                    else "No isolated baseline repo was prepared; do not load the skill from the current checkout."
+                ),
                 "",
             ]
         )
@@ -153,41 +153,6 @@ def iter_run_dirs(iteration_dir: Path) -> list[tuple[Path, Path, Path]]:
     return triples
 
 
-def chunked_runs(run_dirs: list[Path], batch_size: int) -> list[list[Path]]:
-    """Group run directories into modest parallel batches."""
-    return [run_dirs[index : index + batch_size] for index in range(0, len(run_dirs), batch_size)]
-
-
-def build_orchestration_manifest(
-    iteration_dir: Path,
-    run_records: list[dict[str, Any]],
-    max_parallel: int,
-    max_tool_calls: int,
-    max_minutes: float,
-) -> dict[str, Any]:
-    """Build a machine-readable run plan for the parent orchestrator."""
-    run_dirs = [Path(record["run_dir"]) for record in run_records]
-    batches = []
-    for batch_index, batch in enumerate(chunked_runs(run_dirs, max_parallel), start=1):
-        batch_records = [record for record in run_records if Path(record["run_dir"]) in batch]
-        batches.append(
-            {
-                "batch": batch_index,
-                "max_parallel": max_parallel,
-                "runs": batch_records,
-            }
-        )
-
-    return {
-        "iteration_dir": str(iteration_dir.resolve()),
-        "max_parallel": max_parallel,
-        "max_tool_calls": max_tool_calls,
-        "max_minutes": max_minutes,
-        "total_runs": len(run_records),
-        "batches": batches,
-    }
-
-
 def maybe_write(path: Path, content: str, force: bool) -> bool:
     """Write content when allowed and report whether a write happened."""
     if path.exists() and not force:
@@ -211,12 +176,9 @@ def main() -> None:
         raise SystemExit("--max-tool-calls must be greater than 0")
     if args.max_minutes <= 0:
         raise SystemExit("--max-minutes must be greater than 0")
-    if args.max_parallel <= 0:
-        raise SystemExit("--max-parallel must be greater than 0")
 
     written = 0
     placeholders = 0
-    run_records: list[dict[str, Any]] = []
 
     for metadata_path, inputs_path, run_dir in iter_run_dirs(args.iteration_dir):
         metadata = load_json(metadata_path)
@@ -232,26 +194,11 @@ def main() -> None:
             configuration,
             args.max_tool_calls,
             args.max_minutes,
+            metadata.get("baseline_repo_root"),
         )
         prompt_path = run_dir / "executor_prompt.txt"
         if maybe_write(prompt_path, prompt_text, args.force):
             written += 1
-
-        run_records.append(
-            {
-                "eval_id": metadata.get("eval_id"),
-                "title": (
-                    metadata.get("slug") or metadata.get("prompt") or run_dir.parent.parent.name
-                ),
-                "configuration": configuration,
-                "run_dir": str(run_dir.resolve()),
-                "prompt_path": str(prompt_path.resolve()),
-                "output_dir": str(output_dir.resolve()),
-                "artifact_name": args.artifact_name,
-                "max_tool_calls": args.max_tool_calls,
-                "max_minutes": args.max_minutes,
-            }
-        )
 
         if args.stub_output:
             placeholder_path = output_dir / args.artifact_name
@@ -262,23 +209,9 @@ def main() -> None:
             ):
                 placeholders += 1
 
-    orchestration_manifest = build_orchestration_manifest(
-        args.iteration_dir,
-        run_records,
-        args.max_parallel,
-        args.max_tool_calls,
-        args.max_minutes,
-    )
-    manifest_path = args.iteration_dir / "orchestration_manifest.json"
-    manifest_path.write_text(
-        json.dumps(orchestration_manifest, indent=2) + "\n",
-        encoding="utf-8",
-    )
-
     print(f"prompts_written={written}")
     if args.stub_output:
         print(f"placeholders_written={placeholders}")
-    print(f"orchestration_manifest={manifest_path}")
 
 
 if __name__ == "__main__":

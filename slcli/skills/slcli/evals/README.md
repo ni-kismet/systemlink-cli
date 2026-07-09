@@ -25,8 +25,7 @@ Optional examples:
 The prompt performs the full gating workflow:
 
 - prepare or reuse a gating iteration
-- generate executor prompts and orchestration metadata
-- render the orchestration plan
+- generate executor prompts
 - execute `with_skill` and `without_skill` runs via isolated subagents
 - grade and aggregate the iteration
 - regenerate `review.html`
@@ -38,7 +37,7 @@ If you need to run the flow manually, these are the underlying steps.
 #### Prepare a fresh gating workspace
 
 ```bash
-python slcli/skills/slcli/scripts/prepare_eval_workspace.py --suite gating
+python slcli/skills/slcli/scripts/prepare_eval_workspace.py --suite gating --isolate-baseline
 ```
 
 This prints a new iteration directory such as:
@@ -47,40 +46,33 @@ This prints a new iteration directory such as:
 slcli/skills/slcli-workspace/iteration-1
 ```
 
-#### Generate executor prompts and the orchestration manifest
+When `--isolate-baseline` is enabled, the iteration also contains a
+`baseline_repo/` snapshot with the skill directory removed. Use that snapshot
+for `without_skill` runs if you want a deterministic baseline that cannot read
+the checked-in skill files.
+
+#### Generate executor prompts
 
 ```bash
 python slcli/skills/slcli/scripts/prepare_eval_prompts.py \
   slcli/skills/slcli-workspace/iteration-1 \
   --max-tool-calls 8 \
-  --max-minutes 3 \
-  --max-parallel 3
+  --max-minutes 3
 ```
 
-This writes:
-
-- one `executor_prompt.txt` per prepared run
-- `orchestration_manifest.json` at the iteration root
-
-#### Render the parent-chat execution plan
-
-```bash
-python slcli/skills/slcli/scripts/render_orchestration_plan.py \
-  slcli/skills/slcli-workspace/iteration-1 \
-  --output slcli/skills/slcli-workspace/iteration-1/orchestration-plan.md
-```
+This writes one `executor_prompt.txt` per prepared run.
 
 #### Execute the runs in Copilot
 
 Use [COPILOT_BATCH_RUN_PROMPT.md](./COPILOT_BATCH_RUN_PROMPT.md) together with
-the generated `orchestration_manifest.json` or `orchestration-plan.md`.
+the generated `executor_prompt.txt` files.
 
 Recommended execution pattern:
 
 1. Use one parent chat as the orchestrator.
 2. Run each prepared eval in a fresh stateless subagent.
 3. Let `with_skill` runs load the `slcli` skill.
-4. Do not let `without_skill` runs load the skill.
+4. Point `without_skill` runs at `baseline_repo/` when present and do not load the skill.
 5. Keep concurrency modest, usually 2 to 4 runs at a time.
 6. If a run exceeds its budget, save the best grounded `response.txt`, add a short `notes.txt`, and continue.
 
@@ -118,8 +110,7 @@ This writes `review.html` in the iteration directory.
 - `../../../.github/prompts/eval-skill-gating.prompt.md`: one-shot gating eval prompt
 - `COPILOT_BATCH_RUN_PROMPT.md`: parent-chat orchestration prompt
 - `../scripts/prepare_eval_workspace.py`: scaffolds an iteration directory
-- `../scripts/prepare_eval_prompts.py`: writes executor prompts and orchestration metadata
-- `../scripts/render_orchestration_plan.py`: renders a batch-by-batch parent-chat plan
+- `../scripts/prepare_eval_prompts.py`: writes executor prompts
 - `../scripts/benchmark_iteration.py`: grades and aggregates a full iteration
 - `../scripts/render_eval_review.py`: writes the static review page
 

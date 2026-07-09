@@ -9,6 +9,7 @@ from __future__ import annotations
 import argparse
 import json
 import re
+import shutil
 from pathlib import Path
 from typing import Any
 
@@ -68,6 +69,11 @@ def parse_args() -> argparse.Namespace:
         action="store_true",
         help="Allow scaffolding into an existing iteration directory.",
     )
+    parser.add_argument(
+        "--isolate-baseline",
+        action="store_true",
+        help="Create an isolated baseline repo snapshot without the skill directory.",
+    )
     return parser.parse_args()
 
 
@@ -124,6 +130,47 @@ def write_json(path: Path, payload: dict[str, Any]) -> None:
     path.write_text(json.dumps(payload, indent=2) + "\n", encoding="utf-8")
 
 
+def find_repo_root(skill_dir: Path) -> Path:
+    """Find the repository root that contains the skill."""
+    for candidate in [skill_dir, *skill_dir.parents]:
+        if (candidate / "pyproject.toml").exists():
+            return candidate
+    raise ValueError(f"Could not determine repository root from {skill_dir}")
+
+
+def create_isolated_baseline_repo(
+    skill_dir: Path,
+    iteration_dir: Path,
+    baseline: str,
+    force: bool,
+) -> Path | None:
+    """Create a baseline repo snapshot with the skill directory removed."""
+    if baseline != "without_skill":
+        return None
+
+    repo_root = find_repo_root(skill_dir)
+    snapshot_root = iteration_dir / "baseline_repo"
+    if snapshot_root.exists():
+        if not force:
+            raise FileExistsError(
+                f"{snapshot_root} already exists. Use --force to recreate the baseline snapshot."
+            )
+        shutil.rmtree(snapshot_root)
+
+    def ignore_entries(_: str, names: list[str]) -> set[str]:
+        ignored = {".git", ".venv", "__pycache__", ".mypy_cache", ".pytest_cache"}
+        return {name for name in names if name in ignored}
+
+    shutil.copytree(repo_root, snapshot_root, ignore=ignore_entries)
+
+    skill_relative_path = skill_dir.relative_to(repo_root)
+    isolated_skill_dir = snapshot_root / skill_relative_path
+    if isolated_skill_dir.exists():
+        shutil.rmtree(isolated_skill_dir)
+
+    return snapshot_root
+
+
 def make_run_dirs(eval_dir: Path, configurations: list[str], runs_per_config: int) -> None:
     """Create configuration and run directories."""
     for configuration in configurations:
@@ -133,7 +180,12 @@ def make_run_dirs(eval_dir: Path, configurations: list[str], runs_per_config: in
 
 
 def scaffold_eval_dir(
-    skill_dir: Path, iteration_dir: Path, entry: dict[str, Any], baseline: str, runs_per_config: int
+    skill_dir: Path,
+    iteration_dir: Path,
+    entry: dict[str, Any],
+    baseline: str,
+    runs_per_config: int,
+    baseline_repo_root: Path | None,
 ) -> None:
     """Create one eval directory and its metadata."""
     eval_name = build_eval_name(entry)
@@ -146,6 +198,7 @@ def scaffold_eval_dir(
         "prompt": entry["prompt"],
         "assertions": entry.get("expectations", []),
         "tags": entry.get("tags", []),
+        "baseline_repo_root": str(baseline_repo_root.resolve()) if baseline_repo_root else None,
     }
     write_json(eval_dir / "eval_metadata.json", metadata)
 
@@ -180,13 +233,31 @@ def main() -> None:
         )
     iteration_dir.mkdir(parents=True, exist_ok=True)
 
+    baseline_repo_root = None
+    if args.isolate_baseline:
+        baseline_repo_root = create_isolated_baseline_repo(
+            skill_dir,
+            iteration_dir,
+            args.baseline,
+            args.force,
+        )
+
     for entry in selected:
-        scaffold_eval_dir(skill_dir, iteration_dir, entry, args.baseline, args.runs_per_config)
+        scaffold_eval_dir(
+            skill_dir,
+            iteration_dir,
+            entry,
+            args.baseline,
+            args.runs_per_config,
+            baseline_repo_root,
+        )
 
     summary = {
         "skill_name": manifest.get("skill_name"),
         "suite": args.suite,
         "baseline": args.baseline,
+        "baseline_isolated": bool(args.isolate_baseline and baseline_repo_root),
+        "baseline_repo_root": str(baseline_repo_root.resolve()) if baseline_repo_root else None,
         "iteration": iteration_number,
         "runs_per_config": args.runs_per_config,
         "eval_ids": [entry["id"] for entry in selected],

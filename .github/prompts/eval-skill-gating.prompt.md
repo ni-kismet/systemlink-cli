@@ -1,6 +1,6 @@
 ---
 name: eval-skill-gating
-description: Run the full slcli gating eval workflow end to end: prepare an iteration, generate prompts and orchestration metadata, execute with_skill and without_skill runs via isolated subagents, grade, benchmark, and regenerate the static review page.
+description: Run the full slcli gating eval workflow end to end: prepare an iteration, generate prompts, execute with_skill and without_skill runs via isolated subagents, grade, benchmark, and regenerate the static review page.
 argument-hint: Optional key=value args such as iteration_dir="..." max_parallel=3 max_tool_calls=8 max_minutes=3 force=true
 agent: agent
 ---
@@ -12,7 +12,7 @@ Run the `slcli` gating eval workflow from one parent Copilot chat.
 This prompt should:
 
 1. prepare or reuse a gating iteration workspace
-2. generate executor prompts and orchestration metadata
+2. generate executor prompts
 3. execute all `with_skill` and `without_skill` runs with isolated subagents
 4. grade and aggregate the iteration
 5. regenerate the static review page
@@ -46,12 +46,12 @@ You are running the `slcli` gating eval workflow. Execute this sequence autonomo
 - Otherwise run:
 
 ```bash
-python slcli/skills/slcli/scripts/prepare_eval_workspace.py --suite gating
+python slcli/skills/slcli/scripts/prepare_eval_workspace.py --suite gating --isolate-baseline
 ```
 
 - Capture the printed iteration directory and use it for all later steps.
 
-### 2. Generate prompts and orchestration metadata
+### 2. Generate executor prompts
 
 Run:
 
@@ -59,22 +59,13 @@ Run:
 python slcli/skills/slcli/scripts/prepare_eval_prompts.py <ITERATION_DIR> \
   --force \
   --max-tool-calls <MAX_TOOL_CALLS> \
-  --max-minutes <MAX_MINUTES> \
-  --max-parallel <MAX_PARALLEL>
+  --max-minutes <MAX_MINUTES>
 ```
 
-Then render the parent-chat checklist:
-
-```bash
-python slcli/skills/slcli/scripts/render_orchestration_plan.py <ITERATION_DIR> \
-  --output <ITERATION_DIR>/orchestration-plan.md
-```
-
-### 3. Read the orchestration inputs
+### 3. Read the run inputs
 
 - Read `<ITERATION_DIR>/iteration_manifest.json`.
-- Read `<ITERATION_DIR>/orchestration_manifest.json`.
-- Use `orchestration_manifest.json` as the source of truth for run ordering, batches, budget, and concurrency.
+- Discover every `executor_prompt.txt` under `<ITERATION_DIR>`.
 
 ### 4. Execute the eval runs
 
@@ -82,15 +73,14 @@ python slcli/skills/slcli/scripts/render_orchestration_plan.py <ITERATION_DIR> \
 - Do not answer run prompts directly in the parent chat context.
 - Execute each prepared run in a fresh stateless subagent.
 - Never reuse a subagent across runs.
-- Run batches sequentially.
-- Within each batch, parallelize independent runs up to `max_parallel`.
+- Parallelize independent runs modestly, up to `max_parallel`.
 
 For each run:
 
 - Read that run's `executor_prompt.txt`.
 - For `with_skill`, allow the subagent to read and use the `slcli` skill.
-- For `without_skill`, do not load the skill.
-- Respect the fail-fast budget from the orchestration manifest.
+- For `without_skill`, do not load the skill and use the isolated baseline repo path named in the prompt when present.
+- Respect the fail-fast budget written into the executor prompt.
 - If the run converges, save the final answer to `outputs/response.txt`.
 - If the run does not converge inside budget, save the best grounded partial answer to `outputs/response.txt` and add `outputs/notes.txt` with a brief failure reason.
 - Never write outside the run's `outputs/` directory.
@@ -126,7 +116,6 @@ Report:
 ## Constraints
 
 - Treat the parent chat as contaminated shared context; only subagents should execute eval prompts.
-- Prefer `orchestration_manifest.json` over ad hoc discovery when it exists.
 - Keep concurrency modest even if more parallelism is available.
 - Continue the batch if a single run fails.
 - Keep all saved responses grounded in supported `slcli` commands and workflows.
