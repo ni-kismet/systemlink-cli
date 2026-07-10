@@ -529,19 +529,19 @@ def test_webapp_new_plugin_manager_writes_packaging_metadata(
     [
         (
             "dashboard",
-            ["path: 'datasets'", "path: 'assets'"],
+            ["path: ''", "path: 'datasets'", "path: 'assets'"],
             ["path: 'master-detail'", "path: 'operations'", "path: 'settings'"],
             "Search-first Nimble table toolbar",
         ),
         (
             "list-detail",
-            ["path: 'assets'", "path: 'master-detail'"],
+            ["path: ''", "path: 'assets'", "path: 'master-detail'"],
             ["path: 'datasets'", "path: 'operations'", "path: 'settings'"],
             "Master/detail split pane",
         ),
         (
             "admin",
-            ["path: 'operations'", "path: 'settings'"],
+            ["path: ''", "path: 'operations'", "path: 'settings'"],
             ["path: 'datasets'", "path: 'assets'", "path: 'master-detail'"],
             "Grouped settings form",
         ),
@@ -592,6 +592,18 @@ def test_webapp_new_named_templates_render_focused_navigation(
     assert "readonly tabs: readonly ShellTab[]" in shell
     assert expected_pattern in home_data
     assert expected_pattern in readme
+
+
+def test_resolve_webapp_template_directory_reports_selected_template_name(
+    monkeypatch: MonkeyPatch,
+) -> None:
+    monkeypatch.setattr(webapp_bootstrap, "_webapp_templates_dir_candidates", lambda: [])
+
+    with pytest.raises(FileNotFoundError) as exc_info:
+        webapp_bootstrap._resolve_webapp_template_directory("angular", "dashboard")
+
+    assert "selected template 'dashboard'" in str(exc_info.value)
+    assert "source template 'blank'" in str(exc_info.value)
 
 
 def test_webapp_new_runs_install_and_build(tmp_path: Path, monkeypatch: MonkeyPatch) -> None:

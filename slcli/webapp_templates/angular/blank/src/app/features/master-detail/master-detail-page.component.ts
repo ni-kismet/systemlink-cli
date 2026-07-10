@@ -124,7 +124,7 @@ const DEVICE_ROWS: readonly DeviceRecord[] = [
   templateUrl: './master-detail-page.component.html',
   styleUrl: './master-detail-page.component.scss',
 })
-export class MasterDetailPageComponent implements AfterViewInit {
+export class MasterDetailPageComponent {
   readonly devices: DeviceRecord[] = DEVICE_ROWS.map((device: DeviceRecord) => ({ ...device }));
 
   filteredDevices: readonly DeviceRecord[] = [...this.devices];

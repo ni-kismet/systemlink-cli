@@ -165,7 +165,8 @@ def _resolve_webapp_template_directory(framework: str, template: str) -> Path:
 
     raise FileNotFoundError(
         "Bundled webapp template not found for framework "
-        f"'{framework}' and template '{source_template}'."
+        f"'{framework}', selected template '{template}', and source template "
+        f"'{source_template}'."
     )
 
 
