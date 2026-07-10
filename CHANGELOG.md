@@ -2,6 +2,13 @@
 
 <!-- towncrier release notes start -->
 
+## v1.16.0 (2026-07-10)
+
+### Features
+
+- Add OK feature-pack support and enable dashboard, list-detail, and admin hosted webapp templates. (webapp-template-support)
+
+
 ## v1.15.2 (2026-07-09)
 
 ### Bug Fixes
