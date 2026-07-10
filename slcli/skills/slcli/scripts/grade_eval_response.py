@@ -9,6 +9,11 @@ from pathlib import Path
 from typing import Any
 
 
+def read_text_artifact(path: Path) -> str:
+    """Read a text artifact without failing on undecodable bytes."""
+    return path.read_text(encoding="utf-8", errors="replace")
+
+
 def parse_args() -> argparse.Namespace:
     """Parse command-line arguments."""
     parser = argparse.ArgumentParser(
@@ -43,7 +48,7 @@ def parse_args() -> argparse.Namespace:
 
 def load_eval(manifest_path: Path, eval_id: int) -> dict[str, Any]:
     """Load one eval entry from the manifest."""
-    payload = json.loads(manifest_path.read_text(encoding="utf-8"))
+    payload = json.loads(read_text_artifact(manifest_path))
     for entry in payload.get("evals", []):
         if entry.get("id") == eval_id:
             return entry
@@ -53,7 +58,7 @@ def load_eval(manifest_path: Path, eval_id: int) -> dict[str, Any]:
 def gather_response_text(response_path: Path) -> tuple[str, list[str]]:
     """Read response text from a file or a directory of artifacts."""
     if response_path.is_file():
-        return response_path.read_text(encoding="utf-8"), [str(response_path)]
+        return read_text_artifact(response_path), [str(response_path)]
 
     text_parts: list[str] = []
     sources: list[str] = []
@@ -62,7 +67,7 @@ def gather_response_text(response_path: Path) -> tuple[str, list[str]]:
             continue
         if file_path.suffix.lower() not in {".txt", ".md", ".json", ".log", ".sh"}:
             continue
-        text_parts.append(file_path.read_text(encoding="utf-8"))
+        text_parts.append(read_text_artifact(file_path))
         sources.append(str(file_path))
 
     if not text_parts:
@@ -106,7 +111,7 @@ def load_timing(timing_path: Path | None) -> dict[str, Any]:
     """Load optional timing metadata."""
     if timing_path is None or not timing_path.exists():
         return {}
-    return json.loads(timing_path.read_text(encoding="utf-8"))
+    return json.loads(read_text_artifact(timing_path))
 
 
 def grade_response(

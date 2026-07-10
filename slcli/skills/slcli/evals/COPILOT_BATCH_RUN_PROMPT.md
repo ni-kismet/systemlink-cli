@@ -52,7 +52,7 @@ Run the prepared gating eval iteration end to end.
 Use one parent conversation only as the orchestrator. For each executor prompt,
 spawn a fresh stateless subagent so the runs do not share prompt history.
 For `with_skill`, allow the subagent to read and use the skill at:
-/Users/fvisser/Documents/GitRepositories/systemlink-cli/slcli/skills/slcli
+<REPO_ROOT>/slcli/skills/slcli
 For `without_skill`, explicitly do not load that skill. If the executor prompt
 provides an isolated `baseline_repo/` path, use that repo view instead of the
 main checkout.
@@ -60,7 +60,7 @@ Run independent evals in parallel when possible, but keep concurrency modest:
 typically 2 to 4 subagents at a time.
 
 Iteration workspace:
-/Users/fvisser/Documents/GitRepositories/systemlink-cli/slcli/skills/slcli-workspace/iteration-1
+<ITERATION_DIR>
 
 Instructions:
 1. Read iteration_manifest.json in that workspace.
@@ -75,8 +75,8 @@ Instructions:
    - with_skill
    - without_skill
 5. After all outputs are populated, run:
-   - python slcli/skills/slcli/scripts/benchmark_iteration.py slcli/skills/slcli-workspace/iteration-1
-   - python slcli/skills/slcli/scripts/render_eval_review.py slcli/skills/slcli-workspace/iteration-1
+   - python slcli/skills/slcli/scripts/benchmark_iteration.py <ITERATION_DIR>
+   - python slcli/skills/slcli/scripts/render_eval_review.py <ITERATION_DIR>
 6. Report:
    - which run directories were populated
    - whether grading and benchmark generation succeeded
@@ -112,3 +112,6 @@ Execution rules:
     artifacts
 - If you want broader coverage, swap the iteration path to a prepared
   `regression` iteration.
+
+Replace `<REPO_ROOT>` with the repository root and `<ITERATION_DIR>` with the
+prepared iteration path before using the template.
