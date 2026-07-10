@@ -410,6 +410,17 @@ def test_webapp_new_with_nimble_only_keeps_template_base_dependencies(
     assert "@ni/ok-angular" not in dependencies
     assert "@ni/ok-components" not in dependencies
 
+    app_module = (target / "src" / "app" / "app.module.ts").read_text(encoding="utf-8")
+    master_detail_html = (
+        target / "src" / "app" / "features" / "master-detail" / "master-detail-page.component.html"
+    ).read_text(encoding="utf-8")
+
+    assert "@ni/ok-angular" not in app_module
+    assert "OkFvMasterDetailListModule" not in app_module
+    assert "ok-fv-master-detail-list" not in master_detail_html
+    assert "nimble-select" in master_detail_html
+    assert "nimble-list-option" in master_detail_html
+
 
 def test_webapp_new_accepts_ok_feature_pack(tmp_path: Path, monkeypatch: MonkeyPatch) -> None:
     runner = CliRunner()

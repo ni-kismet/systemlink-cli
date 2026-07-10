@@ -166,6 +166,10 @@ export class MasterDetailPageComponent {
     this.isEditing = false;
   }
 
+  onSelectedDeviceIdChange(): void {
+    this.isEditing = false;
+  }
+
   toggleEditMode(): void {
     if (!this.selectedDevice) {
       return;

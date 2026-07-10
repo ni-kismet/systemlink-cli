@@ -428,6 +428,252 @@ def _build_webapp_shell_component(template: str) -> str:
     )
 
 
+def _build_webapp_app_module(enable_ok_feature: bool) -> str:
+    """Render app.module.ts for the selected feature-pack set."""
+    ok_imports = []
+    ok_modules = []
+    if enable_ok_feature:
+        ok_imports = [
+            "import { OkFvMasterDetailListItemModule } from '@ni/ok-angular/fv/master-detail-list-item';",
+            "import { OkFvMasterDetailListModule } from '@ni/ok-angular/fv/master-detail-list';",
+        ]
+        ok_modules = [
+            "    OkFvMasterDetailListModule,",
+            "    OkFvMasterDetailListItemModule,",
+        ]
+
+    lines = [
+        "import { APP_BASE_HREF, CommonModule } from '@angular/common';",
+        "import { NgModule } from '@angular/core';",
+        "import { FormsModule } from '@angular/forms';",
+        "",
+        "import {",
+        "  NimbleAnchorTabModule,",
+        "  NimbleAnchorTabsModule,",
+        "  NimbleBannerModule,",
+        "  NimbleButtonModule,",
+        "  NimbleCheckboxModule,",
+        "  NimbleDialogModule,",
+        "  NimbleDrawerModule,",
+        "  NimbleListOptionModule,",
+        "  NimbleSelectModule,",
+        "  NimbleSpinnerModule,",
+        "  NimbleSwitchModule,",
+        "  NimbleTextAreaModule,",
+        "  NimbleTextFieldModule,",
+        "  NimbleThemeProviderModule,",
+        "} from '@ni/nimble-angular';",
+        "import { NimbleChipModule } from '@ni/nimble-angular/chip';",
+        "import { NimbleLabelProviderCoreModule } from '@ni/nimble-angular/label-provider/core';",
+        "import { NimbleTableModule } from '@ni/nimble-angular/table';",
+        "import { NimbleTableColumnTextModule } from '@ni/nimble-angular/table-column/text';",
+    ]
+    if ok_imports:
+        lines.extend([*ok_imports])
+
+    lines.extend(
+        [
+            "",
+            "import { AppRoutingModule } from './app-routing.module';",
+            "import { AssetsPageComponent } from './features/assets/assets-page.component';",
+            "import { DatasetsPageComponent } from './features/datasets/datasets-page.component';",
+            "import { HomePageComponent } from './features/home/home-page.component';",
+            "import { MasterDetailPageComponent } from './features/master-detail/master-detail-page.component';",
+            "import { OperationsPageComponent } from './features/operations/operations-page.component';",
+            "import { SettingsPageComponent } from './features/settings/settings-page.component';",
+            "import { EmptyStateComponent } from './shared/components/empty-state.component';",
+            "import { ErrorBannerComponent } from './shared/components/error-banner.component';",
+            "import { LoadingStateComponent } from './shared/components/loading-state.component';",
+            "",
+            "@NgModule({",
+            "  declarations: [",
+            "    HomePageComponent,",
+            "    DatasetsPageComponent,",
+            "    AssetsPageComponent,",
+            "    MasterDetailPageComponent,",
+            "    OperationsPageComponent,",
+            "    SettingsPageComponent,",
+            "    LoadingStateComponent,",
+            "    ErrorBannerComponent,",
+            "    EmptyStateComponent,",
+            "  ],",
+            "  imports: [",
+            "    CommonModule,",
+            "    FormsModule,",
+            "    AppRoutingModule,",
+            "    NimbleThemeProviderModule,",
+            "    NimbleLabelProviderCoreModule,",
+            "    NimbleAnchorTabsModule,",
+            "    NimbleAnchorTabModule,",
+            "    NimbleBannerModule,",
+            "    NimbleButtonModule,",
+            "    NimbleCheckboxModule,",
+            "    NimbleChipModule,",
+            "    NimbleDialogModule,",
+            "    NimbleDrawerModule,",
+            "    NimbleListOptionModule,",
+            "    NimbleSelectModule,",
+            "    NimbleSpinnerModule,",
+            "    NimbleSwitchModule,",
+            "    NimbleTextAreaModule,",
+            "    NimbleTextFieldModule,",
+            "    NimbleTableModule,",
+            "    NimbleTableColumnTextModule,",
+            *ok_modules,
+            "  ],",
+            "  providers: [{ provide: APP_BASE_HREF, useValue: '/' }],",
+            "})",
+            "export class AppModule {}",
+            "",
+        ]
+    )
+    return "\n".join(lines)
+
+
+def _build_master_detail_page_template(enable_ok_feature: bool) -> str:
+    """Render master-detail-page.component.html for the selected feature-pack set."""
+    list_markup = """
+            <ok-fv-master-detail-list
+                class=\"master-detail__list\"
+                placeholder=\"Filter devices...\"
+                (change)=\"onSelectionChange($event)\"
+            >
+                <ok-fv-master-detail-list-item
+                    *ngFor=\"let device of filteredDevices\"
+                    [attr.title-text]=\"device.name\"
+                    [attr.subtitle]=\"device.summary\"
+                    [attr.value]=\"device.id\"
+                    [attr.status-color]=\"device.statusColor || null\"
+                    [attr.status-label]=\"device.statusLabel || null\"
+                    [selected]=\"device.id === selectedDeviceId\"
+                ></ok-fv-master-detail-list-item>
+            </ok-fv-master-detail-list>
+""".rstrip()
+    if not enable_ok_feature:
+        list_markup = """
+            <nimble-select
+                class=\"master-detail__list\"
+                aria-label=\"Devices\"
+                filter-mode=\"standard\"
+                [(ngModel)]=\"selectedDeviceId\"
+                (ngModelChange)=\"onSelectedDeviceIdChange()\"
+            >
+                <nimble-list-option *ngFor=\"let device of filteredDevices\" [value]=\"device.id\">
+                    {{ device.name }} · {{ device.summary }}
+                </nimble-list-option>
+            </nimble-select>
+""".rstrip()
+
+    return (
+        """<section class=\"master-detail sl-page\">
+    <header class=\"sl-page__intro\">
+        <p class=\"sl-page__eyebrow\">Starter Pattern: Master Detail</p>
+        <h2>Use this sample layout when selection and lightweight editing need to stay side by side.</h2>
+        <p>
+            The list items, fields, and helper copy here are starter content. Replace them when the
+            route is connected to the real records your app manages.
+        </p>
+    </header>
+
+    <div class=\"master-detail__toolbar sl-toolbar\">
+        <div class=\"sl-toolbar__primary\">
+            <nimble-button
+                appearance=\"block\"
+                appearance-variant=\"accent\"
+                (click)=\"isEditing ? saveChanges() : toggleEditMode()\"
+                [disabled]=\"!selectedDevice\"
+            >
+                {{ isEditing ? 'Save details' : 'Edit details' }}
+            </nimble-button>
+        </div>
+    </div>
+
+    <div class=\"master-detail__workspace\">
+        <aside class=\"master-detail__master\">
+            <nimble-text-field
+                class=\"master-detail__filter\"
+                [(ngModel)]=\"filterTerm\"
+                placeholder=\"Search devices\"
+                (ngModelChange)=\"applyFilter()\"
+            >
+                Filter devices
+            </nimble-text-field>
+
+"""
+        + list_markup
+        + """
+        </aside>
+
+        <section class=\"master-detail__detail\" *ngIf=\"selectedDevice as device; else emptyState\">
+            <div class=\"master-detail__detail-header\">
+                <div>
+                    <h3>{{ device.name }}</h3>
+                    <p *ngIf=\"device.statusLabel\">{{ device.statusLabel }}</p>
+                </div>
+                <nimble-chip *ngIf=\"device.statusLabel\">{{ device.statusLabel }}</nimble-chip>
+            </div>
+
+            <div class=\"master-detail__detail-grid\">
+                <div>
+                    <span>Device name</span>
+                    <strong>{{ device.name }}</strong>
+                </div>
+                <div>
+                    <span>Model</span>
+                    <strong>{{ device.model }}</strong>
+                </div>
+                <div>
+                    <span>IP address</span>
+                    <strong>{{ device.ipAddress }}</strong>
+                </div>
+                <div>
+                    <span>Firmware version</span>
+                    <strong>{{ device.firmwareVersion }}</strong>
+                </div>
+            </div>
+
+            <div class=\"master-detail__edit-grid\">
+                <nimble-text-field [(ngModel)]=\"device.location\" [readonly]=\"!isEditing\">
+                    Location
+                </nimble-text-field>
+                <nimble-text-field [(ngModel)]=\"device.systemId\" [readonly]=\"!isEditing\">
+                    Device ID
+                </nimble-text-field>
+            </div>
+
+            <nimble-text-area [(ngModel)]=\"device.notes\" [readonly]=\"!isEditing\" resize=\"vertical\">
+                Notes
+            </nimble-text-area>
+
+            <nimble-switch [(ngModel)]=\"device.monitorEnabled\" [disabled]=\"!isEditing\">
+                Include in monitor roster
+            </nimble-switch>
+
+            <nimble-banner *ngIf=\"device.statusLabel === 'Pending changes'\" [open]=\"true\" severity=\"warning\">
+                Review the pending changes before this device returns to the connected roster.
+            </nimble-banner>
+
+            <dl class=\"master-detail__facts\">
+                <div>
+                    <dt>Last seen</dt>
+                    <dd>{{ device.lastSeen }}</dd>
+                </div>
+                <div>
+                    <dt>Calibration due</dt>
+                    <dd>{{ device.calibrationDue }}</dd>
+                </div>
+            </dl>
+        </section>
+    </div>
+
+    <ng-template #emptyState>
+        <sl-empty-state [message]=\"'Adjust the filter or add a real device query to populate this pattern.'\"></sl-empty-state>
+    </ng-template>
+</section>
+"""
+    )
+
+
 def _quoted_typescript_list(values: List[str]) -> str:
     """Return a comma-separated TypeScript string literal list."""
     return ",\n        ".join(f"'{value}'" for value in values)
@@ -596,9 +842,15 @@ def _apply_selected_webapp_template(
     workspace_name: str,
     routing_mode: str,
     auth_mode: str,
+    feature_packs: List[str],
 ) -> None:
     """Rewrite the generated starter entrypoints for the selected template."""
     app_dir = target_dir / "src" / "app"
+    enable_ok_feature = "ok" in feature_packs
+    (app_dir / "app.module.ts").write_text(
+        _build_webapp_app_module(enable_ok_feature),
+        encoding="utf-8",
+    )
     (app_dir / "app-routing.module.ts").write_text(
         _build_webapp_routing_module(template, routing_mode),
         encoding="utf-8",
@@ -609,6 +861,10 @@ def _apply_selected_webapp_template(
     )
     (app_dir / "core" / "systemlink" / "webapp-home-data.service.ts").write_text(
         _build_webapp_home_data_service(template),
+        encoding="utf-8",
+    )
+    (app_dir / "features" / "master-detail" / "master-detail-page.component.html").write_text(
+        _build_master_detail_page_template(enable_ok_feature),
         encoding="utf-8",
     )
     (target_dir / "README.md").write_text(
@@ -885,6 +1141,7 @@ def _generate_new_webapp(
         workspace_name=workspace_name,
         routing_mode=routing_mode,
         auth_mode=auth_mode,
+        feature_packs=feature_packs,
     )
     _customize_generated_package_json(
         package_json_path=target_dir / "package.json",
