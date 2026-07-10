@@ -17,6 +17,23 @@ reference files when the implementation needs them.
 
 If the user only wants planning or a first implementation slice, stay in this file.
 
+## Component-first rule
+
+Before inventing a surface with `div`s, custom borders, or repeated card shells, check whether the
+needed primitive already exists in Nimble, Spright, or OK.
+
+- Use package components for interactive or visual surfaces first.
+- Use raw HTML mostly for semantic grouping, flex/grid layout, and text structure.
+- Do not build custom-styled buttons, inputs, tabs, drawers, search bars, banners, summary tiles,
+  or faux cards when a published NI component already covers the job.
+- Treat `div` wrappers as layout scaffolding, not as the primary design language.
+
+Start with these references before authoring bespoke UI:
+
+- Nimble Storybook: https://nimble.ni.dev/storybook/index.html
+- Nimble Component APIs: https://nimble.ni.dev/storybook/index.html?path=/docs/component-apis--docs
+- Nimble Getting Started: https://nimble.ni.dev/storybook/index.html?path=/docs/getting-started--docs
+
 ## First response checklist
 
 Before generating code, clarify only the details that change the implementation:
@@ -29,7 +46,7 @@ Before generating code, clarify only the details that change the implementation:
 
 Do not ask about Angular or Nimble versions unless the user is constrained by an existing project. Default to Angular 20 and the latest compatible `@ni/nimble-angular`, but verify the installed versions immediately after scaffold instead of assuming the generator produced the expected combination.
 
-For new SystemLink apps, recommend installing the NI Angular UI packages together unless the user is intentionally minimizing dependencies. `@ni/nimble-angular` remains the default foundation, `@ni/spright-angular` adds Spright chat and icon components, and `@ni/ok-angular` adds OK-specific controls such as accordion items and search input.
+For new SystemLink apps, recommend installing the NI UI packages together unless the user is intentionally minimizing dependencies. `@ni/nimble-angular` remains the default foundation, `@ni/spright-angular` adds Spright chat and icon components, and `@ni/ok-angular` is the default entry point for OK surfaces such as accordion items, search input, summary panels, and other OK wrappers. Do not reach for `@ni/ok-components` directly in normal app code.
 
 ## Recommended workflow
 
@@ -60,9 +77,12 @@ For the currently supported path, standardize on:
 
 - Angular 20.x
 - Node 24+
-- `@ni/nimble-angular` 33.2.x
-- `@ni/nimble-components` 35.8.x
-- `@ni/unit-format` 1.0.4+
+- `@ni/nimble-angular` 33.4.x
+- `@ni/nimble-components` 35.12.x
+- `@ni/unit-format` 1.0.5+
+- `@ni/spright-angular` 9.5.x
+- `@ni/ok-angular` 2.5.0+
+- `@ni/systemlink-clients-ts` 3.0.2
 - `@angular/build` for the hosted application builder
 - `@angular/localize` installed and added to build polyfills
 
@@ -76,7 +96,7 @@ Also add `@angular-devkit/build-angular` back to `devDependencies` before switch
 
 This fallback is not optional when the Nimble packages fail under the application builder. Fix the builder mismatch before implementing more UI.
 
-Recommend installing `@ni/spright-angular` and `@ni/ok-angular` early when using the manual `init` path, even if the first slice only uses Nimble. That avoids dependency churn later when the UI needs chat surfaces, product-specific icons, accordion items, or the OK search input.
+Recommend installing `@ni/spright-angular` and `@ni/ok-angular` early when using the manual `init` path, even if the first slice only uses Nimble. That avoids dependency churn later when the UI needs chat surfaces, product-specific icons, or OK wrappers.
 
 If the user has not scaffolded anything yet and explicitly wants a SystemLink-hosted webapp, recommend `slcli webapp new` first. Only fall back to `slcli webapp init` when they ask for manual bootstrapping or need to control the Angular workspace creation themselves.
 
@@ -103,13 +123,16 @@ Use SystemLink-appropriate layout defaults instead of inventing page structure f
 - Use drawers or collapsible side panels for settings and filters.
 - Use accordions for grouped fields and advanced configuration.
 - Use cards sparingly for summaries, not as the default editing or data layout.
+- Prefer NI summary-panel, accordion, table, drawer, tab, banner, and search components before composing a new surface from plain `div`s.
 
 Treat Nimble alignment as a requirement, not a style preference:
 
 - Use Nimble controls for primary actions, selection, inputs, status, and data display.
+- Prefer OK and Spright components when they provide a better fit than generic layout wrappers.
 - Use raw HTML elements mostly for semantic grouping, layout wrappers, and text structure.
 - Do not build custom-styled buttons, inputs, dropdowns, tabs, or pseudo-cards when Nimble already provides the interaction primitive.
 - Prefer Nimble spacing, borders, focus states, and theme tokens over bespoke visual treatments.
+- If an NI component exists for the surface, use it instead of styling a `div` to imitate it.
 - If a page starts to look like a generic marketing dashboard instead of a SystemLink tool, pull it back toward table/list-detail, drawers, banners, tabs, and structured metadata panels.
 
 ### 4. Integrate SystemLink APIs the low-risk way
@@ -176,6 +199,7 @@ Before you consider a SystemLink webapp slice correct, confirm all of the follow
 - Root `src/styles.scss` imports `@use '@ni/nimble-angular/styles/fonts' as *;`.
 - Nimble Angular modules are imported explicitly.
 - Primary interaction controls use Nimble wrappers rather than custom HTML surrogates.
+- When Nimble lacks a needed surface, check `angular-ui-packages.md` and the Nimble Storybook before creating a bespoke `div`-based substitute.
 - No hardcoded colors in component SCSS.
 - Theme-aware aliases live on `nimble-theme-provider`.
 - API client uses the correct SystemLink service base URL.

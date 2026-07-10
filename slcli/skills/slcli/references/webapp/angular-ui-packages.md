@@ -2,6 +2,24 @@
 
 Use this file when you need a quick package-level inventory before choosing components. Load `nimble-angular.md` only after you know which Nimble components you actually need.
 
+## Use published components first
+
+Before styling a `div` into a faux card, tile, accordion, search bar, button row, or summary panel,
+check this file and the Nimble Storybook first.
+
+- Prefer NI components for visible surfaces and interactions.
+- Use raw HTML mainly for layout containers, semantic sections, and text.
+- Treat custom card shells as the exception path, not the default response to a dashboard or layout request.
+
+## Reference links
+
+| Surface                 | Link                                                                         | Use                                                               |
+| ----------------------- | ---------------------------------------------------------------------------- | ----------------------------------------------------------------- |
+| Nimble Storybook        | https://nimble.ni.dev/storybook/index.html                                   | Search the published Nimble components before inventing a surface |
+| Nimble Getting Started  | https://nimble.ni.dev/storybook/index.html?path=/docs/getting-started--docs  | Bootstrap and package expectations                                |
+| Nimble Component APIs   | https://nimble.ni.dev/storybook/index.html?path=/docs/component-apis--docs   | Component inventory and API lookup                                |
+| Nimble Component Status | https://nimble.ni.dev/storybook/index.html?path=/docs/component-status--docs | Check maturity and availability                                   |
+
 ## Install recommendation
 
 For new SystemLink webapps, prefer installing the NI Angular UI packages together:
@@ -10,15 +28,15 @@ For new SystemLink webapps, prefer installing the NI Angular UI packages togethe
 npm install @ni/nimble-angular @ni/spright-angular @ni/ok-angular
 ```
 
-Use Nimble as the default foundation, then pull in Spright and OK Angular when the app needs their specialized components.
+Use Nimble as the default foundation, then pull in Spright and OK Angular when the app needs their specialized surfaces.
 
 ## Package roles
 
-| Package               | Primary role                                           | When to reach for it                                                                                                       |
-| --------------------- | ------------------------------------------------------ | -------------------------------------------------------------------------------------------------------------------------- |
-| `@ni/nimble-angular`  | Core SystemLink-aligned component foundation           | Use for the default app shell, tables, buttons, inputs, drawers, banners, dialogs, navigation, and most day-to-day UI work |
-| `@ni/spright-angular` | Spright chat, rectangle, and NI-specific icon wrappers | Use for chat experiences, AI/copilot surfaces, and Spright-specific iconography                                            |
-| `@ni/ok-angular`      | OK-specific interaction components                     | Use when the design needs OK accordion items, OK search input, or OK button primitives                                     |
+| Package               | Primary role                                           | When to reach for it                                                                                                              |
+| --------------------- | ------------------------------------------------------ | --------------------------------------------------------------------------------------------------------------------------------- |
+| `@ni/nimble-angular`  | Core SystemLink-aligned component foundation           | Use for the default app shell, tables, buttons, inputs, drawers, banners, dialogs, navigation, and most day-to-day UI work        |
+| `@ni/spright-angular` | Spright chat, rectangle, and NI-specific icon wrappers | Use for chat experiences, AI/copilot surfaces, and Spright-specific iconography                                                   |
+| `@ni/ok-angular`      | OK-specific Angular wrappers                           | Use when the design needs OK accordion items, OK search input, OK chip selectors, summary panels, or OK button primitives         |
 
 ## Recommended AppModule example
 
@@ -99,6 +117,16 @@ Representative components already documented there include:
 - `nimble-banner`
 - `nimble-dialog`
 
+Representative layout and navigation surfaces to prefer before bespoke HTML include:
+
+- `nimble-anchor`
+- `nimble-anchor-tabs`
+- `nimble-anchor-tab`
+- `nimble-drawer`
+- `nimble-banner`
+- `nimble-spinner`
+- `nimble-table`
+
 ### `@ni/spright-angular`
 
 Published Angular wrappers currently include:
@@ -126,7 +154,7 @@ Published Spright icon directives currently include:
 
 ### `@ni/ok-angular`
 
-Published Angular wrappers in `@ni/ok-angular@2.4.0` currently include:
+Published Angular wrappers in `@ni/ok-angular@2.5.0` currently include:
 
 | Tag                         | Angular symbol                | Import path                             | Use                                          |
 | --------------------------- | ----------------------------- | --------------------------------------- | -------------------------------------------- |
@@ -135,17 +163,22 @@ Published Angular wrappers in `@ni/ok-angular@2.4.0` currently include:
 | `ok-fv-card`                | `OkFvCardModule`              | `@ni/ok-angular/fv/card`                | OK card surface with title and description   |
 | `ok-fv-chip-selector`       | `OkFvChipSelectorModule`      | `@ni/ok-angular/fv/chip-selector`       | Multi-value chip selector control            |
 | `ok-fv-context-help`        | `OkFvContextHelpModule`       | `@ni/ok-angular/fv/context-help`        | Inline context-help or severity help content |
+| `ok-fv-master-detail-list`  | `OkFvMasterDetailListModule`  | `@ni/ok-angular/fv/master-detail-list`  | Master/detail list container                 |
+| `ok-fv-master-detail-list-item` | `OkFvMasterDetailListItemModule` | `@ni/ok-angular/fv/master-detail-list-item` | Item rows inside the master/detail list |
 | `ok-fv-search-input`        | `OkFvSearchInputModule`       | `@ni/ok-angular/fv/search-input`        | OK search input control                      |
 | `ok-fv-split-button`        | `OkFvSplitButtonModule`       | `@ni/ok-angular/fv/split-button`        | Split button with primary and menu actions   |
 | `ok-fv-split-button-anchor` | `OkFvSplitButtonAnchorModule` | `@ni/ok-angular/fv/split-button-anchor` | Anchor-style split button                    |
 | `ok-fv-summary-panel`       | `OkFvSummaryPanelModule`      | `@ni/ok-angular/fv/summary-panel`       | Summary panel container                      |
 | `ok-fv-summary-panel-tile`  | `OkFvSummaryPanelTileModule`  | `@ni/ok-angular/fv/summary-panel-tile`  | Summary panel metric or status tile          |
 
+Use `@ni/ok-angular` as the default and preferred entry point for OK components in Angular apps. The wrapper package now includes the master-detail list surface as well, so generated apps and skill guidance should stay on `@ni/ok-angular` rather than importing `@ni/ok-components` directly.
+
 ## Selection guidance
 
 - Start with Nimble for the app shell and the majority of controls.
 - Add Spright when the app needs chat UI or Spright-specific iconography.
 - Add OK Angular when the design specifically benefits from its accordion item, search input, chip selector, split button, summary panel, card, or OK button components.
+- Prefer a published component over styling a `div` to imitate the same surface.
 - Keep imports explicit at the module level; do not use `CUSTOM_ELEMENTS_SCHEMA` as a shortcut for missing wrappers.
 
 ## Next step references

@@ -227,14 +227,14 @@ def test_webapp_new_blank_creates_host_ready_workspace(
     )
     readme = (target / "README.md").read_text(encoding="utf-8")
 
-    assert package_json["dependencies"]["@ni/nimble-angular"] == "~33.2.0"
-    assert package_json["dependencies"]["@ni/ok-components"] == "1.6.0"
-    assert package_json["dependencies"]["@ni/systemlink-clients-ts"] == "2.2.0"
+    assert package_json["dependencies"]["@ni/nimble-angular"] == "~33.4.4"
+    assert package_json["dependencies"]["@ni/ok-angular"] == "2.5.0"
+    assert package_json["dependencies"]["@ni/systemlink-clients-ts"] == "3.0.2"
     assert "@angular/platform-browser-dynamic" not in package_json["dependencies"]
     assert "@angular/animations" not in package_json["dependencies"]
     assert package_json["engines"]["node"] == ">=24"
-    assert package_json["devDependencies"]["@angular/localize"] == "^20.3.0"
-    assert package_json["devDependencies"]["@angular/build"] == "^20.3.30"
+    assert package_json["devDependencies"]["@angular/localize"] == "^20.3.26"
+    assert package_json["devDependencies"]["@angular/build"] == "^20.3.32"
     assert "@angular-devkit/build-angular" not in package_json["devDependencies"]
     assert "test" not in package_json["scripts"]
     assert "<base" not in index_html
@@ -245,7 +245,7 @@ def test_webapp_new_blank_creates_host_ready_workspace(
     assert "AppShellComponent" in app_component
     assert "APP_BASE_HREF" in app_module
     assert "bootstrap:" not in app_module
-    assert "CUSTOM_ELEMENTS_SCHEMA" in app_module
+    assert "CUSTOM_ELEMENTS_SCHEMA" not in app_module
     assert "CommonModule" in app_module
     assert "BrowserModule" not in app_module
     assert "MasterDetailPageComponent" in app_module
@@ -344,7 +344,8 @@ def test_webapp_new_blank_uses_supported_nimble_api_shapes(
     assert "startResize" in operations_ts
     assert "toggleDetailPane" in operations_ts
     assert "isDetailCollapsed" in operations_ts
-    assert "@ni/ok-components/dist/esm/fv/master-detail-list" in master_detail_ts
+    assert "MasterDetailChangeDetail" in master_detail_ts
+    assert "filteredDevices" in master_detail_ts
     assert ".close();" in assets_ts
     assert ".hide();" not in assets_ts
     assert "selectedRecordIds[0]" in assets_ts
@@ -368,6 +369,8 @@ def test_webapp_new_blank_uses_supported_nimble_api_shapes(
     assert "nimble-text-area" in master_detail_html
     assert "ok-fv-master-detail-list" in master_detail_html
     assert "ok-fv-master-detail-list-item" in master_detail_html
+    assert "nimble-text-field" in master_detail_html
+    assert "Filter devices" in master_detail_html
     assert "nimble-chip" in assets_html
     assert "nimble-chip" in operations_html
     assert "nimble-chip" in master_detail_html
@@ -402,10 +405,47 @@ def test_webapp_new_with_nimble_only_keeps_template_base_dependencies(
     package_json = loads((target / "package.json").read_text(encoding="utf-8"))
     dependencies = package_json["dependencies"]
 
-    assert dependencies["@ni/nimble-angular"] == "~33.2.0"
-    assert dependencies["@ni/ok-components"] == "1.6.0"
+    assert dependencies["@ni/nimble-angular"] == "~33.4.4"
     assert "@ni/systemlink-clients-ts" not in dependencies
     assert "@ni/ok-angular" not in dependencies
+    assert "@ni/ok-components" not in dependencies
+
+    app_module = (target / "src" / "app" / "app.module.ts").read_text(encoding="utf-8")
+    master_detail_html = (
+        target / "src" / "app" / "features" / "master-detail" / "master-detail-page.component.html"
+    ).read_text(encoding="utf-8")
+
+    assert "@ni/ok-angular" not in app_module
+    assert "OkFvMasterDetailListModule" not in app_module
+    assert "ok-fv-master-detail-list" not in master_detail_html
+    assert "nimble-select" in master_detail_html
+    assert "nimble-list-option" in master_detail_html
+
+
+def test_webapp_new_accepts_ok_feature_pack(tmp_path: Path, monkeypatch: MonkeyPatch) -> None:
+    runner = CliRunner()
+    patch_keyring(monkeypatch)
+
+    target = tmp_path / "ok-pack"
+    result = runner.invoke(
+        cli,
+        [
+            "webapp",
+            "new",
+            "ok-pack",
+            "--directory",
+            str(target),
+            "--skip-install",
+            "--with",
+            "nimble,ok",
+        ],
+    )
+
+    assert result.exit_code == 0
+    package_json = loads((target / "package.json").read_text(encoding="utf-8"))
+
+    assert package_json["dependencies"]["@ni/ok-angular"] == "2.5.0"
+    assert "@ni/systemlink-clients-ts" not in package_json["dependencies"]
 
 
 def test_webapp_new_dry_run_does_not_write_files(tmp_path: Path, monkeypatch: MonkeyPatch) -> None:
@@ -495,25 +535,86 @@ def test_webapp_new_plugin_manager_writes_packaging_metadata(
     assert "npm run pack:webapp" in result.output
 
 
-def test_webapp_new_rejects_unshipped_templates(tmp_path: Path, monkeypatch: MonkeyPatch) -> None:
+@pytest.mark.parametrize(
+    ("template", "present_routes", "absent_routes", "expected_pattern"),
+    [
+        (
+            "dashboard",
+            ["path: ''", "path: 'datasets'", "path: 'assets'"],
+            ["path: 'master-detail'", "path: 'operations'", "path: 'settings'"],
+            "Search-first Nimble table toolbar",
+        ),
+        (
+            "list-detail",
+            ["path: ''", "path: 'assets'", "path: 'master-detail'"],
+            ["path: 'datasets'", "path: 'operations'", "path: 'settings'"],
+            "Master/detail split pane",
+        ),
+        (
+            "admin",
+            ["path: ''", "path: 'operations'", "path: 'settings'"],
+            ["path: 'datasets'", "path: 'assets'", "path: 'master-detail'"],
+            "Grouped settings form",
+        ),
+    ],
+)
+def test_webapp_new_named_templates_render_focused_navigation(
+    tmp_path: Path,
+    monkeypatch: MonkeyPatch,
+    template: str,
+    present_routes: List[str],
+    absent_routes: List[str],
+    expected_pattern: str,
+) -> None:
     runner = CliRunner()
     patch_keyring(monkeypatch)
 
+    target = tmp_path / template
     result = runner.invoke(
         cli,
         [
             "webapp",
             "new",
-            "support-console",
+            template,
             "--directory",
-            str(tmp_path / "support"),
+            str(target),
             "--template",
-            "admin",
+            template,
+            "--skip-install",
         ],
     )
 
-    assert result.exit_code == ExitCodes.INVALID_INPUT
-    assert "Phase 1 currently supports only --template blank" in result.output
+    assert result.exit_code == 0
+
+    routing = (target / "src" / "app" / "app-routing.module.ts").read_text(encoding="utf-8")
+    shell = (target / "src" / "app" / "core" / "layout" / "app-shell.component.ts").read_text(
+        encoding="utf-8"
+    )
+    home_data = (
+        target / "src" / "app" / "core" / "systemlink" / "webapp-home-data.service.ts"
+    ).read_text(encoding="utf-8")
+    readme = (target / "README.md").read_text(encoding="utf-8")
+
+    for route in present_routes:
+        assert route in routing
+    for route in absent_routes:
+        assert route not in routing
+
+    assert "readonly tabs: readonly ShellTab[]" in shell
+    assert expected_pattern in home_data
+    assert expected_pattern in readme
+
+
+def test_resolve_webapp_template_directory_reports_selected_template_name(
+    monkeypatch: MonkeyPatch,
+) -> None:
+    monkeypatch.setattr(webapp_bootstrap, "_webapp_templates_dir_candidates", lambda: [])
+
+    with pytest.raises(FileNotFoundError) as exc_info:
+        webapp_bootstrap._resolve_webapp_template_directory("angular", "dashboard")
+
+    assert "selected template 'dashboard'" in str(exc_info.value)
+    assert "source template 'blank'" in str(exc_info.value)
 
 
 def test_webapp_new_runs_install_and_build(tmp_path: Path, monkeypatch: MonkeyPatch) -> None:

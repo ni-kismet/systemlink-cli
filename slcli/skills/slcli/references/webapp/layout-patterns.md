@@ -51,9 +51,21 @@ Do not combine multiple starter patterns in the first implementation slice unles
 ## Core rules
 
 - Use Nimble components and Nimble design tokens for primary UI. Avoid generic cards as the default page structure for browse, detail, and settings workflows.
+- Check published Nimble, Spright, and OK components before creating a custom surface from plain `div`s.
+- Use `div`s for flex, grid, spacing, grouping, and semantics, not as a substitute for a published control or design surface.
 - Put toolbars and tab bars in a 40px-tall container with content vertically centered and a `1px solid var(--ni-nimble-divider-background-color)` bottom border.
 - Use `nimble-button` for button affordances. If you need clickable list rows or a section rail, style them as navigation rows rather than faux Nimble buttons.
 - Keep theme-aware aliases on `nimble-theme-provider`, not on `:root`, so custom colors and surfaces follow the active Nimble theme.
+
+## Prefer components over faux cards
+
+When the request sounds like "dashboard", "summary", "overview", or "settings", do not default to wrapping everything in repeated card containers.
+
+- For browse data, start with `nimble-table` plus a toolbar.
+- For selection-driven workflows, start with drawer-detail or master/detail.
+- For grouped configuration, start with accordion items or sectioned form groups.
+- For metrics or status rollups, prefer OK summary panels or a small number of focused summary surfaces.
+- Use cards only when a published card or summary component is the real primitive you need, not as a catch-all page layout pattern.
 
 ## Spacing tokens
 
