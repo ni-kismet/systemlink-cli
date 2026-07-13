@@ -2,6 +2,14 @@
 
 <!-- towncrier release notes start -->
 
+## v1.16.2 (2026-07-13)
+
+### Bug Fixes
+
+- Update dependency pyinstaller to v6.21.0. (deps-pyinstaller-6-x-lockfile)
+- Update dependency pytest to v9.1.1. (deps-pytest-9-x-lockfile)
+
+
 ## v1.16.1 (2026-07-13)
 
 ### Bug Fixes
