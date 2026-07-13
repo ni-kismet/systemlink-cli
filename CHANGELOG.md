@@ -2,6 +2,14 @@
 
 <!-- towncrier release notes start -->
 
+## v1.16.1 (2026-07-13)
+
+### Bug Fixes
+
+- Update dependency lxml to v6.1.1. (deps-lxml-6-x-lockfile)
+- Update dependency mcp to v1.28.1. (deps-mcp-1-x-lockfile)
+
+
 ## v1.16.0 (2026-07-10)
 
 ### Features
