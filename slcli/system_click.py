@@ -2522,13 +2522,8 @@ def register_system_commands(cli: Any) -> None:
             payload: Dict[str, Any] = {"alias": alias}
             effective_workspace = get_effective_workspace(workspace)
             if effective_workspace:
-                try:
-                    workspace_map = get_workspace_map()
-                    payload["workspace"] = resolve_workspace_filter(
-                        effective_workspace, workspace_map
-                    )
-                except Exception:
-                    payload["workspace"] = effective_workspace
+                workspace_map = get_workspace_map()
+                payload["workspace"] = resolve_workspace_filter(effective_workspace, workspace_map)
             if location_id:
                 payload["locationId"] = location_id
 
