@@ -274,6 +274,12 @@ slcli system compare "PXI Controller A" "PXI Controller B"
 slcli system compare &lt;system-a&gt; &lt;system-b&gt; --format json</code></pre>
       <p>Compares installed software and connected assets across two systems. Accepts system IDs or aliases and highlights package-only differences, version differences, asset count mismatches, and slot differences.</p>
 
+      <h3>Create Virtual System</h3>
+      <pre><code>slcli system create --alias "Test System 01" --workspace Default
+slcli system create --alias "Test System 02" --location-id &lt;location-id&gt;
+slcli system create --alias "Test System 03" --format json</code></pre>
+      <p>Creates a virtual system that can report data without a physical Salt minion connection. The command returns the generated system ID and reports whether the system was activated.</p>
+
       <h3>Summary &amp; Reports</h3>
       <pre><code>slcli system summary
 slcli system report --type SOFTWARE --output software_report.csv

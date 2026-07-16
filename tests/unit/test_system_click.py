@@ -1365,6 +1365,26 @@ class TestCreateVirtualSystem:
         assert result.exit_code == 0
         assert json.loads(result.output) == {"minionId": "virtual-system-2"}
 
+    def test_create_table_output_for_unactivated_system(
+        self, monkeypatch: Any, runner: CliRunner
+    ) -> None:
+        """Test table output when the system is created without a license."""
+        patch_keyring(monkeypatch)
+        monkeypatch.setattr("slcli.profiles.is_active_profile_readonly", lambda: False)
+        monkeypatch.setattr("slcli.system_click.get_effective_workspace", lambda workspace: None)
+
+        def mock_post(*args: Any, **kwargs: Any) -> Any:
+            assert kwargs["payload"] == {"alias": "Cloud Device"}
+            return MockResponse({"minionId": "virtual-system-2"}, status_code=200)
+
+        monkeypatch.setattr("slcli.system_click.make_api_request", mock_post)
+
+        cli = make_cli()
+        result = runner.invoke(cli, ["system", "create", "--alias", "Cloud Device"])
+
+        assert result.exit_code == 0
+        assert "Activated: No (license unavailable)" in result.output
+
     def test_create_api_error(self, monkeypatch: Any, runner: CliRunner) -> None:
         """Test virtual-system creation handles API errors."""
         patch_keyring(monkeypatch)
