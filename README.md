@@ -53,6 +53,7 @@ slcli login
 slcli testmonitor result list --summary --group-by status
 slcli asset list --calibratable --summary
 slcli system list --state CONNECTED
+slcli system create --alias "Cloud Gateway" --workspace Default
 slcli spec list --product <product> --workspace all
 
 # Scaffold the recommended hosted Angular starter

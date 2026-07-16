@@ -1288,6 +1288,100 @@ class TestSystemSummary:
         assert result.exit_code != 0
 
 
+class TestCreateVirtualSystem:
+    """Tests for 'system create' command."""
+
+    def test_create_with_workspace_and_location(self, monkeypatch: Any, runner: CliRunner) -> None:
+        """Test creating a virtual system with all supported fields."""
+        patch_keyring(monkeypatch)
+        monkeypatch.setattr("slcli.profiles.is_active_profile_readonly", lambda: False)
+        monkeypatch.setattr("slcli.system_click.get_base_url", lambda: "https://test.com")
+        monkeypatch.setattr("slcli.system_click.get_workspace_map", lambda: {"ws-1": "Production"})
+        captured_requests: List[Dict[str, Any]] = []
+
+        def mock_post(*args: Any, **kwargs: Any) -> Any:
+            captured_requests.append(
+                {
+                    "method": args[0],
+                    "url": args[1],
+                    "payload": kwargs.get("payload", {}),
+                }
+            )
+            return MockResponse({"minionId": "virtual-system-1"}, status_code=201)
+
+        monkeypatch.setattr("slcli.system_click.make_api_request", mock_post)
+
+        cli = make_cli()
+        result = runner.invoke(
+            cli,
+            [
+                "system",
+                "create",
+                "--alias",
+                "Telemetry Gateway",
+                "--workspace",
+                "Production",
+                "--location-id",
+                "location-1",
+            ],
+        )
+
+        assert result.exit_code == 0
+        assert captured_requests == [
+            {
+                "method": "POST",
+                "url": "https://test.com/nisysmgmt/v1/virtual",
+                "payload": {
+                    "alias": "Telemetry Gateway",
+                    "workspace": "ws-1",
+                    "locationId": "location-1",
+                },
+            }
+        ]
+        assert "Virtual system created" in result.output
+        assert "virtual-system-1" in result.output
+        assert "Activated: Yes" in result.output
+
+    def test_create_json_output_for_unactivated_system(
+        self, monkeypatch: Any, runner: CliRunner
+    ) -> None:
+        """Test JSON output when the system is created without a license."""
+        patch_keyring(monkeypatch)
+        monkeypatch.setattr("slcli.profiles.is_active_profile_readonly", lambda: False)
+        monkeypatch.setattr("slcli.system_click.get_effective_workspace", lambda workspace: None)
+
+        def mock_post(*args: Any, **kwargs: Any) -> Any:
+            assert kwargs["payload"] == {"alias": "Cloud Device"}
+            return MockResponse({"minionId": "virtual-system-2"}, status_code=200)
+
+        monkeypatch.setattr("slcli.system_click.make_api_request", mock_post)
+
+        cli = make_cli()
+        result = runner.invoke(
+            cli,
+            ["system", "create", "--alias", "Cloud Device", "--format", "json"],
+        )
+
+        assert result.exit_code == 0
+        assert json.loads(result.output) == {"minionId": "virtual-system-2"}
+
+    def test_create_api_error(self, monkeypatch: Any, runner: CliRunner) -> None:
+        """Test virtual-system creation handles API errors."""
+        patch_keyring(monkeypatch)
+        monkeypatch.setattr("slcli.profiles.is_active_profile_readonly", lambda: False)
+        monkeypatch.setattr("slcli.system_click.get_effective_workspace", lambda workspace: None)
+
+        def mock_post(*args: Any, **kwargs: Any) -> Any:
+            raise Exception("Forbidden")
+
+        monkeypatch.setattr("slcli.system_click.make_api_request", mock_post)
+
+        cli = make_cli()
+        result = runner.invoke(cli, ["system", "create", "--alias", "Cloud Device"])
+
+        assert result.exit_code != 0
+
+
 class TestUpdateSystem:
     """Tests for 'system update' command."""
 

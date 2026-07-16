@@ -2485,8 +2485,69 @@ def register_system_commands(cli: Any) -> None:
             handle_api_error(exc)
 
     # ------------------------------------------------------------------
-    # Phase 2: update, remove, report, job subgroup
+    # Phase 2: create, update, remove, report, job subgroup
     # ------------------------------------------------------------------
+
+    @system.command(name="create")
+    @click.option("--alias", required=True, help="Alias for the virtual system")
+    @click.option(
+        "--workspace",
+        "-w",
+        help="Workspace ID or name; defaults to the active profile workspace",
+    )
+    @click.option("--location-id", help="Location ID for the virtual system")
+    @click.option(
+        "--format",
+        "-f",
+        type=click.Choice(["table", "json"]),
+        default="table",
+        show_default=True,
+        help="Output format",
+    )
+    def create_virtual_system(
+        alias: str,
+        workspace: Optional[str],
+        location_id: Optional[str],
+        format: str,
+    ) -> None:
+        """Create a virtual system.
+
+        Virtual systems can report data without a physical Salt minion
+        connection. The command returns the generated system (minion) ID.
+        """
+        check_readonly_mode("create a virtual system")
+        format_output = validate_output_format(format)
+
+        try:
+            payload: Dict[str, Any] = {"alias": alias}
+            effective_workspace = get_effective_workspace(workspace)
+            if effective_workspace:
+                try:
+                    workspace_map = get_workspace_map()
+                    payload["workspace"] = resolve_workspace_filter(
+                        effective_workspace, workspace_map
+                    )
+                except Exception:
+                    payload["workspace"] = effective_workspace
+            if location_id:
+                payload["locationId"] = location_id
+
+            url = f"{_get_sysmgmt_base_url()}/virtual"
+            resp = make_api_request("POST", url, payload=payload)
+            data = resp.json()
+
+            if format_output.lower() == "json":
+                click.echo(json.dumps(data, indent=2))
+            else:
+                result_data = {
+                    "Alias": alias,
+                    "ID": data.get("minionId", "") if isinstance(data, dict) else "",
+                    "Activated": "No (license unavailable)" if resp.status_code == 200 else "Yes",
+                }
+                format_success("Virtual system created", result_data)
+
+        except Exception as exc:  # noqa: BLE001
+            handle_api_error(exc)
 
     @system.command(name="update")
     @click.argument("system_id")
