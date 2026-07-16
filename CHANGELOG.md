@@ -2,6 +2,13 @@
 
 <!-- towncrier release notes start -->
 
+## v1.17.0 (2026-07-16)
+
+### Features
+
+- Add `slcli system create` for registering virtual systems. (system-virtual-create)
+
+
 ## v1.16.3 (2026-07-13)
 
 ### Bug Fixes
