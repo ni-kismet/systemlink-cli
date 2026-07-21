@@ -7,7 +7,6 @@ on:
 
 permissions:
   contents: write
-  pull-requests: read
 
 jobs:
   add-towncrier-fragment:
@@ -19,25 +18,27 @@ jobs:
         github.event.pull_request.user.login == 'renovate[bot]' ||
         github.event.pull_request.user.login == 'dependabot[bot]'
       )
+    environment:
+      name: towncrier-fragment
     runs-on: ubuntu-latest
     steps:
-      - name: Checkout PR branch
+      - name: Checkout base branch
         uses: actions/checkout@v6
         with:
-          repository: ${{ github.repository }}
-          ref: ${{ github.event.pull_request.head.sha }}
+          ref: refs/heads/${{ github.event.pull_request.base.ref }}
           fetch-depth: 0
 
       - name: Create Towncrier fragment
         shell: bash
         env:
-          BASE_REF: ${{ github.base_ref }}
+          BASE_SHA: ${{ github.event.pull_request.base.sha }}
+          HEAD_SHA: ${{ github.event.pull_request.head.sha }}
           HEAD_REF: ${{ github.event.pull_request.head.ref }}
           PR_NUMBER: ${{ github.event.pull_request.number }}
           PR_TITLE: ${{ github.event.pull_request.title }}
         run: |
-          git fetch origin "${BASE_REF}" --depth=1
-          if git diff --name-only FETCH_HEAD...HEAD -- newsfragments | grep -q '^newsfragments/'; then
+          git fetch --no-tags origin "${HEAD_SHA}"
+          if git diff --name-only "${BASE_SHA}...${HEAD_SHA}" -- newsfragments | grep -q '^newsfragments/'; then
             echo "Newsfragment already present on PR branch."
             exit 0
           fi
@@ -59,10 +60,12 @@ jobs:
           esac
 
           printf '%s\n' "$content" > "$fragment"
+          echo "FRAGMENT_PATH=$fragment" >> "$GITHUB_ENV"
 
       - name: Commit Towncrier fragment
         shell: bash
         env:
+          HEAD_SHA: ${{ github.event.pull_request.head.sha }}
           PR_NUMBER: ${{ github.event.pull_request.number }}
           HEAD_REF: ${{ github.event.pull_request.head.ref }}
         run: |
@@ -74,6 +77,9 @@ jobs:
 
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-          git add newsfragments
-          git commit -m "chore(ci): add towncrier fragment for PR #${PR_NUMBER}"
-          git push origin "HEAD:${HEAD_REF}"
+          fragment_blob=$(git hash-object -w "$FRAGMENT_PATH")
+          git read-tree "$HEAD_SHA"
+          git update-index --add --cacheinfo "100644,${fragment_blob},${FRAGMENT_PATH}"
+          tree_sha=$(git write-tree)
+          commit_sha=$(git commit-tree "$tree_sha" -p "$HEAD_SHA" -m "chore(ci): add towncrier fragment for PR #${PR_NUMBER}")
+          git push origin "${commit_sha}:refs/heads/${HEAD_REF}"
