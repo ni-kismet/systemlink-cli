@@ -2,6 +2,13 @@
 
 <!-- towncrier release notes start -->
 
+## v1.17.1 (2026-07-21)
+
+### Bug Fixes
+
+- Update dependency mypy to v2.2.0. (deps-mypy-2-x-lockfile)
+
+
 ## v1.17.0 (2026-07-16)
 
 ### Features
