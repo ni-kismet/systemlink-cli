@@ -248,7 +248,7 @@ def _add_profile_impl(
     click.echo("Checking server connectivity and services...")
     status = check_service_status(url, api_key)
 
-    if status.get("certificate_error"):
+    if status.get("certificate_error") and not status.get("server_reachable"):
         status = _trust_certificate_if_requested(url, api_key, status, trust_fingerprint)
 
     platform = status["platform"]

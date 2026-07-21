@@ -23,7 +23,7 @@ class SystemLinkConfig:
         Args:
             server_uri: Base URL for the SystemLink API
             api_key: API key for authentication
-            ssl_verify: Whether to verify SSL certificates
+            ssl_verify: Whether to verify SSL certificates, or a CA bundle / PEM path
         """
         self.server_uri = server_uri
         self.api_key = api_key

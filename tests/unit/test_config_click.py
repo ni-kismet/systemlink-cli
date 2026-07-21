@@ -479,6 +479,52 @@ class TestViewConfig:
 class TestTrustedCertificates:
     """Tests for managed certificate trust commands."""
 
+    def test_reachable_server_skips_certificate_trust_flow(
+        self, tmp_path: Path, monkeypatch: Any
+    ) -> None:
+        """A partial probe certificate error should not block a reachable profile."""
+        config_file = tmp_path / "config.json"
+        monkeypatch.setattr(
+            "slcli.profiles.ProfileConfig.get_config_path", classmethod(lambda cls: config_file)
+        )
+        monkeypatch.setattr(
+            "slcli.config_click.check_service_status",
+            lambda _url, _api_key: {
+                "server_reachable": True,
+                "platform": "unknown",
+                "auth_valid": True,
+                "services": {"Auth": "ok", "Files": "certificate_error"},
+                "certificate_error": True,
+            },
+        )
+
+        def fail_if_trust_flow_runs(*args: Any, **kwargs: Any) -> Any:
+            raise AssertionError("certificate trust flow should not run for a reachable server")
+
+        monkeypatch.setattr(
+            "slcli.config_click._trust_certificate_if_requested", fail_if_trust_flow_runs
+        )
+
+        result = CliRunner().invoke(
+            make_cli(),
+            [
+                "config",
+                "add",
+                "--profile",
+                "reachable",
+                "--url",
+                "https://example.com",
+                "--api-key",
+                VALID_API_KEY,
+                "--web-url",
+                "https://web.example.com",
+            ],
+            input="\n",
+        )
+
+        assert result.exit_code == 0, result.output
+        assert config_file.exists()
+
     def test_list_trusted_certificates_json(self, monkeypatch: Any) -> None:
         """Trust list should expose certificate metadata as JSON."""
         monkeypatch.setattr(
