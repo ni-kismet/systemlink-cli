@@ -96,6 +96,29 @@ slcli resolves runtime connection settings in this order:
 
 Use `slcli info` to see the effective source for each value and whether environment overrides are active. Use `slcli config view` to inspect the stored profile values on disk.
 
+### Self-Signed Server Certificates
+
+TLS certificate verification remains enabled by default. When `slcli login` or `slcli config add` reaches a server with an untrusted certificate, it displays the certificate subject, issuer, validity, and SHA-256 fingerprint before asking for approval. The certificate is stored only after explicit approval and is then used as a verified PEM trust entry for that server origin.
+
+For non-interactive setup, provide the fingerprint explicitly:
+
+```bash
+slcli login --url https://systemlink.example.local \
+	--api-key "$SYSTEMLINK_API_KEY" \
+	--web-url https://systemlink.example.local \
+	--trust-fingerprint <sha256-fingerprint>
+```
+
+Trust entries can also be managed directly:
+
+```bash
+slcli config trust list
+slcli config trust add --url https://systemlink.example.local --fingerprint <sha256-fingerprint>
+slcli config trust remove --url https://systemlink.example.local
+```
+
+Managed certificates are stored under the `trust` directory next to the slcli configuration file. Hostname verification is still enforced. `SLCLI_SSL_VERIFY=false` disables certificate verification entirely and should only be used as a temporary diagnostic override; it does not add a trusted certificate.
+
 ## Documentation
 
 | Section                                                                            | Description                                                |

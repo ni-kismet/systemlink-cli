@@ -5,7 +5,7 @@ import json
 import os
 import sys
 from dataclasses import dataclass
-from typing import Dict, List, Any, Optional, Callable, Sequence
+from typing import Any, Callable, Dict, List, Optional, Sequence, Union
 
 import click
 import keyring
@@ -17,7 +17,7 @@ from .rich_output import print_json
 class SystemLinkConfig:
     """Simple configuration class for SystemLink API connection."""
 
-    def __init__(self, server_uri: str, api_key: str, ssl_verify: bool = True):
+    def __init__(self, server_uri: str, api_key: str, ssl_verify: Union[bool, str] = True):
         """Initialize SystemLink configuration.
 
         Args:
@@ -27,7 +27,7 @@ class SystemLinkConfig:
         """
         self.server_uri = server_uri
         self.api_key = api_key
-        self.ssl_verify = ssl_verify
+        self.ssl_verify: Union[bool, str] = ssl_verify
 
 
 @dataclass(frozen=True)
@@ -309,7 +309,7 @@ def get_http_configuration() -> SystemLinkConfig:
     server_uri = get_base_url()
     api_key = get_api_key()
 
-    ssl_verify = get_ssl_verify()
+    ssl_verify = get_ssl_verify(server_uri)
 
     return SystemLinkConfig(
         server_uri=server_uri,
@@ -556,11 +556,37 @@ def get_headers(content_type: str = "") -> Dict[str, str]:
     return headers
 
 
-def get_ssl_verify() -> bool:
-    """Return SSL verification setting from environment variable. Defaults to True."""
+def get_ssl_verify(server_uri: Optional[str] = None) -> Union[bool, str]:
+    """Return the effective SSL verification setting for a server.
+
+    The result is ``False`` only when explicitly disabled. Otherwise it is a
+    managed PEM path when the server has an accepted certificate, or ``True``
+    for the normal OS/certifi verification path.
+    """
     env = os.environ.get("SLCLI_SSL_VERIFY")
     if env is not None:
-        return env.lower() not in ("0", "false", "no")
+        if env.lower() in ("0", "false", "no"):
+            return False
+
+    if os.environ.get("REQUESTS_CA_BUNDLE") or os.environ.get("SSL_CERT_FILE"):
+        return os.environ.get("REQUESTS_CA_BUNDLE") or os.environ["SSL_CERT_FILE"]
+
+    if server_uri is None:
+        try:
+            server_uri = get_base_url()
+        except Exception:
+            server_uri = None
+
+    if server_uri:
+        try:
+            from .ssl_trust import get_managed_trust_path
+
+            managed_path = get_managed_trust_path(server_uri)
+            if managed_path is not None:
+                return str(managed_path)
+        except (OSError, ValueError):
+            pass
+
     return True
 
 
@@ -702,7 +728,7 @@ def make_api_request(
         if files:
             default_headers.pop("Content-Type", None)
 
-        ssl_verify = get_ssl_verify()
+        ssl_verify = get_ssl_verify(url)
 
         if method.upper() == "GET":
             resp = requests.get(url, headers=default_headers, verify=ssl_verify, stream=stream)

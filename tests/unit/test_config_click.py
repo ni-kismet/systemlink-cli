@@ -476,6 +476,55 @@ class TestViewConfig:
         assert "effective" not in data
 
 
+class TestTrustedCertificates:
+    """Tests for managed certificate trust commands."""
+
+    def test_list_trusted_certificates_json(self, monkeypatch: Any) -> None:
+        """Trust list should expose certificate metadata as JSON."""
+        monkeypatch.setattr(
+            "slcli.config_click.get_managed_trust_records",
+            lambda: [{"origin": "https://example.com:443", "fingerprint": "A" * 64}],
+        )
+
+        result = CliRunner().invoke(make_cli(), ["config", "trust", "list", "--format", "json"])
+
+        assert result.exit_code == 0, result.output
+        assert json.loads(result.output)[0]["fingerprint"] == "A" * 64
+
+    def test_add_trusted_certificate_rejects_fingerprint_mismatch(self, monkeypatch: Any) -> None:
+        """Trust add must reject a certificate that differs from the supplied fingerprint."""
+        from slcli.ssl_trust import ServerCertificate
+
+        certificate = ServerCertificate(
+            origin="https://example.com:443",
+            pem=b"pem",
+            fingerprint="B" * 64,
+            subject="subject",
+            issuer="issuer",
+            sans=[],
+            not_before="before",
+            not_after="after",
+            self_signed=True,
+        )
+        monkeypatch.setattr(
+            "slcli.config_click.inspect_server_certificate", lambda _url: certificate
+        )
+        saved_certificates: list[ServerCertificate] = []
+        monkeypatch.setattr(
+            "slcli.config_click.save_managed_certificate",
+            lambda certificate_to_save: saved_certificates.append(certificate_to_save),
+        )
+
+        result = CliRunner().invoke(
+            make_cli(),
+            ["config", "trust", "add", "--url", "https://example.com", "--fingerprint", "C" * 64],
+        )
+
+        assert result.exit_code != 0
+        assert "does not match" in result.output
+        assert saved_certificates == []
+
+
 class TestDeleteProfile:
     """Tests for the delete command."""
 
