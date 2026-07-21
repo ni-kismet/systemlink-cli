@@ -50,6 +50,10 @@ jobs:
           fi
 
           fragment="newsfragments/deps-${fragment_stem}.patch.md"
+          if git cat-file -e "${HEAD_SHA}:${fragment}" 2>/dev/null; then
+            fragment="newsfragments/deps-${fragment_stem}-${PR_NUMBER}.patch.md"
+          fi
+
           content="$PR_TITLE"
           content="${content#chore(deps): }"
           content="${content#chore: }"
@@ -82,4 +86,4 @@ jobs:
           git update-index --add --cacheinfo "100644,${fragment_blob},${FRAGMENT_PATH}"
           tree_sha=$(git write-tree)
           commit_sha=$(git commit-tree "$tree_sha" -p "$HEAD_SHA" -m "chore(ci): add towncrier fragment for PR #${PR_NUMBER}")
-          git push origin "${commit_sha}:refs/heads/${HEAD_REF}"
+          git push --force-with-lease="refs/heads/${HEAD_REF}:${HEAD_SHA}" origin "${commit_sha}:refs/heads/${HEAD_REF}"
