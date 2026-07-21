@@ -2,6 +2,13 @@
 
 <!-- towncrier release notes start -->
 
+## v1.17.2 (2026-07-21)
+
+### Bug Fixes
+
+- Prevent privileged workflows from checking out pull request-controlled code when generating dependency update fragments. (secure-bot-towncrier-checkout)
+
+
 ## v1.17.1 (2026-07-21)
 
 ### Bug Fixes
