@@ -4,8 +4,9 @@ import getpass
 import json
 import os
 import re
+import ssl
 import sys
-from typing import Any, Optional
+from typing import Any, NoReturn, Optional
 from urllib.parse import urlparse
 
 import click
@@ -18,8 +19,15 @@ from .platform import (
 )
 from .profiles import ProfileConfig, Profile, check_config_file_permissions
 from .rich_output import render_table
+from .ssl_trust import (
+    get_managed_trust_records,
+    get_ssl_server_origin,
+    inspect_server_certificate,
+    remove_managed_trust,
+    save_managed_certificate,
+)
 from .table_utils import output_formatted_list
-from .utils import ExitCodes
+from .utils import ExitCodes, get_base_url
 
 API_KEY_LENGTH = 42
 API_KEY_PATTERN = re.compile(rf"^[A-Za-z0-9_-]{{{API_KEY_LENGTH}}}$")
@@ -30,7 +38,7 @@ ENV_OVERRIDE_FIELDS = (
 )
 
 
-def _exit_with_validation_error(message: str, exit_code: int = ExitCodes.INVALID_INPUT) -> None:
+def _exit_with_validation_error(message: str, exit_code: int = ExitCodes.INVALID_INPUT) -> NoReturn:
     """Exit the command with a consistent validation message."""
     click.echo(f"✗ {message}", err=True)
     sys.exit(exit_code)
@@ -100,6 +108,91 @@ def _all_service_probes_unauthorized(services: dict[str, str]) -> bool:
     return bool(services) and all(status == "unauthorized" for status in services.values())
 
 
+def _normalize_fingerprint(fingerprint: str) -> str:
+    """Normalize a SHA-256 certificate fingerprint supplied by a user."""
+    normalized = fingerprint.replace(":", "").replace(" ", "").strip().upper()
+    if len(normalized) != 64 or any(
+        character not in "0123456789ABCDEF" for character in normalized
+    ):
+        _exit_with_validation_error("Certificate fingerprint must be a 64-character SHA-256 value.")
+    return normalized
+
+
+def _show_certificate_warning(certificate: dict[str, Any]) -> None:
+    """Display the identity of a certificate before it is trusted."""
+    click.echo("\n⚠️  TLS certificate verification failed.", err=True)
+    click.echo(f"  Server: {certificate.get('origin', 'unknown')}", err=True)
+    click.echo(f"  Subject: {certificate.get('subject', 'unknown')}", err=True)
+    click.echo(f"  Issuer: {certificate.get('issuer', 'unknown')}", err=True)
+    click.echo(f"  SHA-256: {certificate.get('fingerprint', 'unknown')}", err=True)
+    click.echo(f"  Self-signed: {'yes' if certificate.get('self-signed') else 'no'}", err=True)
+    click.echo(
+        f"  Valid: {certificate.get('not-before', 'unknown')} to "
+        f"{certificate.get('not-after', 'unknown')}",
+        err=True,
+    )
+
+
+def _trust_certificate_if_requested(
+    url: str, api_key: str, status: dict[str, Any], trust_fingerprint: Optional[str]
+) -> dict[str, Any]:
+    """Prompt for or apply certificate trust after a verification failure."""
+    certificate_details = status.get("certificate")
+    if not isinstance(certificate_details, dict):
+        _exit_with_validation_error(
+            "TLS certificate verification failed, but the server certificate could not be "
+            "inspected. Profile was not saved.",
+            ExitCodes.NETWORK_ERROR,
+        )
+
+    _show_certificate_warning(certificate_details)
+    expected_fingerprint = _normalize_fingerprint(trust_fingerprint) if trust_fingerprint else None
+    actual_fingerprint = str(certificate_details.get("fingerprint", "")).upper()
+    if expected_fingerprint:
+        if expected_fingerprint != actual_fingerprint:
+            _exit_with_validation_error(
+                "The server certificate fingerprint does not match --trust-fingerprint. "
+                "Profile was not saved.",
+                ExitCodes.INVALID_INPUT,
+            )
+    elif not click.confirm("Trust this certificate for this server?", default=False):
+        _exit_with_validation_error("Certificate was not trusted. Profile was not saved.")
+
+    try:
+        certificate = inspect_server_certificate(url)
+    except (OSError, ValueError, ssl.SSLError) as exc:
+        _exit_with_validation_error(
+            f"Could not inspect the server certificate: {exc}. Profile was not saved.",
+            ExitCodes.NETWORK_ERROR,
+        )
+
+    if certificate.fingerprint != actual_fingerprint:
+        _exit_with_validation_error(
+            "The server certificate changed during approval. Profile was not saved.",
+            ExitCodes.NETWORK_ERROR,
+        )
+
+    try:
+        save_managed_certificate(certificate)
+        retry_status = check_service_status(url, api_key)
+    except (OSError, ValueError) as exc:
+        _exit_with_validation_error(
+            f"Could not save the trusted certificate: {exc}. Profile was not saved.",
+            ExitCodes.GENERAL_ERROR,
+        )
+
+    if not retry_status.get("server_reachable") or retry_status.get("certificate_error"):
+        remove_managed_trust(url)
+        _exit_with_validation_error(
+            "The server could not be verified after trusting its certificate. "
+            "Profile was not saved.",
+            ExitCodes.NETWORK_ERROR,
+        )
+
+    click.echo("  Certificate: ✓ Trusted for this server")
+    return retry_status
+
+
 def _add_profile_impl(
     profile: Optional[str],
     url: Optional[str],
@@ -108,6 +201,7 @@ def _add_profile_impl(
     workspace: Optional[str],
     set_current: bool,
     readonly: bool,
+    trust_fingerprint: Optional[str] = None,
 ) -> None:
     """Shared implementation for add-profile and login commands.
 
@@ -122,6 +216,7 @@ def _add_profile_impl(
         workspace: Default workspace for this profile
         set_current: Whether to set as the current profile
         readonly: Whether to enable readonly mode
+        trust_fingerprint: Optional SHA-256 fingerprint for non-interactive trust approval
     """
     # Get profile name
     if not profile:
@@ -152,6 +247,10 @@ def _add_profile_impl(
     # Detect platform type and check service status
     click.echo("Checking server connectivity and services...")
     status = check_service_status(url, api_key)
+
+    if status.get("certificate_error") and not status.get("server_reachable"):
+        status = _trust_certificate_if_requested(url, api_key, status, trust_fingerprint)
+
     platform = status["platform"]
     services = status.get("services", {})
 
@@ -458,6 +557,98 @@ def register_config_commands(cli: Any) -> None:
         if warning:
             click.echo(f"\n⚠️  {warning}", err=True)
 
+    @config.group(name="trust")
+    def trust() -> None:
+        """Manage explicitly trusted server certificates."""
+        pass
+
+    @trust.command(name="list")
+    @click.option(
+        "--format",
+        "output_format",
+        type=click.Choice(["table", "json"]),
+        default="table",
+        help="Output format",
+    )
+    def list_trusted_certificates(output_format: str) -> None:
+        """List certificates trusted by slcli."""
+        records = get_managed_trust_records()
+        if output_format == "json":
+            click.echo(json.dumps(records, indent=2))
+            return
+        if not records:
+            click.echo("No managed server certificates.")
+            return
+
+        rows = [
+            [
+                str(record.get("origin", "")),
+                str(record.get("fingerprint", "")),
+                "yes" if record.get("self-signed") else "no",
+            ]
+            for record in records
+        ]
+        render_table(
+            headers=["SERVER", "SHA-256", "SELF-SIGNED"],
+            column_widths=[40, 64, 12],
+            rows=rows,
+            show_total=True,
+            total_label="certificate(s)",
+        )
+
+    @trust.command(name="add")
+    @click.option("--url", help="HTTPS server URL (defaults to the active API URL)")
+    @click.option(
+        "--fingerprint",
+        required=True,
+        help="Expected SHA-256 fingerprint of the certificate to trust",
+    )
+    def add_trusted_certificate(url: Optional[str], fingerprint: str) -> None:
+        """Trust a server certificate after verifying its fingerprint."""
+        server_url = url or get_base_url()
+        try:
+            expected_fingerprint = _normalize_fingerprint(fingerprint)
+            certificate = inspect_server_certificate(server_url)
+        except (OSError, ValueError, ssl.SSLError) as exc:
+            _exit_with_validation_error(f"Could not inspect the server certificate: {exc}.")
+
+        _show_certificate_warning(certificate.to_dict())
+        if certificate.fingerprint != expected_fingerprint:
+            _exit_with_validation_error(
+                "The server certificate fingerprint does not match the supplied fingerprint."
+            )
+        try:
+            path = save_managed_certificate(certificate)
+        except OSError as exc:
+            _exit_with_validation_error(f"Could not save the trusted certificate: {exc}.")
+        click.echo(f"✓ Trusted certificate for {certificate.origin}")
+        click.echo(f"  Certificate file: {path}")
+
+    @trust.command(name="remove")
+    @click.option("--url", help="HTTPS server URL (defaults to the active API URL)")
+    @click.option("--force", is_flag=True, help="Skip confirmation prompt")
+    def remove_trusted_certificate(url: Optional[str], force: bool) -> None:
+        """Remove a server certificate from the managed trust store."""
+        server_url = url or get_base_url()
+        try:
+            origin = get_ssl_server_origin(server_url)
+        except ValueError as exc:
+            _exit_with_validation_error(str(exc))
+        if not force and not click.confirm(
+            f"Remove trusted certificate for {origin}?", default=False
+        ):
+            click.echo("Certificate was not removed.")
+            return
+        try:
+            removed = remove_managed_trust(server_url)
+        except (OSError, ValueError) as exc:
+            _exit_with_validation_error(f"Could not remove the trusted certificate: {exc}.")
+        if not removed:
+            _exit_with_validation_error(
+                f"No trusted certificate found for {origin}.", ExitCodes.NOT_FOUND
+            )
+        click.echo(f"✓ Removed trusted certificate for {origin}")
+
     @config.command(name="delete")
     @click.argument("name")
     @click.option("--force", "-f", is_flag=True, help="Skip confirmation prompt")
@@ -558,6 +749,10 @@ def register_config_commands(cli: Any) -> None:
             "publish, and disable commands)"
         ),
     )
+    @click.option(
+        "--trust-fingerprint",
+        help="Trust a certificate after its SHA-256 fingerprint matches exactly",
+    )
     def add_profile(
         profile: Optional[str],
         url: Optional[str],
@@ -566,6 +761,7 @@ def register_config_commands(cli: Any) -> None:
         workspace: Optional[str],
         set_current: bool,
         readonly: bool,
+        trust_fingerprint: Optional[str],
     ) -> None:
         """Add or update a SystemLink profile.
 
@@ -588,4 +784,5 @@ def register_config_commands(cli: Any) -> None:
             workspace=workspace,
             set_current=set_current,
             readonly=readonly,
+            trust_fingerprint=trust_fingerprint,
         )

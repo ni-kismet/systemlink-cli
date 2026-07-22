@@ -3,6 +3,7 @@
 import importlib
 import json
 from typing import Any, Optional
+from unittest.mock import patch
 
 import click
 from click.testing import CliRunner
@@ -131,6 +132,68 @@ def test_login_with_flags(monkeypatch: Any, tmp_path: Any) -> None:
     assert "Connection: ✓ Verified" in result.output
     assert "Platform: SystemLink Enterprise" in result.output
     # Verify config was written
+    assert config_file.exists()
+
+
+def test_login_prompts_to_trust_certificate_and_retries(monkeypatch: Any, tmp_path: Any) -> None:
+    """Login should persist an approved certificate and retry the service probe."""
+    from slcli.ssl_trust import ServerCertificate
+
+    config_file = tmp_path / "config.json"
+    monkeypatch.setattr(
+        "slcli.profiles.ProfileConfig.get_config_path", classmethod(lambda cls: config_file)
+    )
+    certificate = ServerCertificate(
+        origin="https://example.test:443",
+        pem=b"pem",
+        fingerprint="D" * 64,
+        subject="commonName=example.test",
+        issuer="commonName=example.test",
+        sans=["example.test"],
+        not_before="before",
+        not_after="after",
+        self_signed=True,
+    )
+    failed_status = {
+        "server_reachable": False,
+        "auth_valid": None,
+        "services": {"Auth": "certificate_error"},
+        "certificate_error": True,
+        "certificate": certificate.to_dict(),
+        "platform": "unreachable",
+    }
+    verified_status = {
+        "server_reachable": True,
+        "auth_valid": True,
+        "services": {"Auth": "ok"},
+        "platform": PLATFORM_SLE,
+    }
+    monkeypatch.setattr("slcli.main.keyring.get_password", lambda *a, **kw: None)
+
+    with patch(
+        "slcli.config_click.check_service_status", side_effect=[failed_status, verified_status]
+    ) as check_status, patch(
+        "slcli.config_click.inspect_server_certificate", return_value=certificate
+    ):
+        result = CliRunner().invoke(
+            cli,
+            [
+                "login",
+                "--profile",
+                "test",
+                "--url",
+                "https://example.test",
+                "--api-key",
+                VALID_API_KEY,
+                "--web-url",
+                "https://web.example.test",
+            ],
+            input="y\n\n",
+        )
+
+    assert result.exit_code == 0, result.output
+    assert "Certificate: ✓ Trusted for this server" in result.output
+    assert check_status.call_count == 2
     assert config_file.exists()
 
 

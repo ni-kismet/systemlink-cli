@@ -6,6 +6,7 @@ This module provides utilities to detect and manage the target platform
 
 import json
 import os
+import ssl
 import sys
 import time
 from functools import lru_cache
@@ -15,6 +16,7 @@ import click
 import keyring
 import requests
 
+from .ssl_trust import use_standard_ssl_context
 from .utils import ExitCodes, get_ssl_verify
 
 DEFAULT_SERVICE_PROBE_CACHE_TTL_SECONDS = 300
@@ -206,7 +208,7 @@ def _probe_service_status(api_url: str, api_key: str, method: str, url_path: str
         "Content-Type": "application/json",
         "User-Agent": "SystemLink-CLI/1.0 (cross-platform)",
     }
-    ssl_verify = get_ssl_verify()
+    ssl_verify = get_ssl_verify(api_url)
 
     try:
         full_url = f"{api_url}{url_path}"
@@ -469,7 +471,7 @@ def get_file_query_capability(api_url: str, api_key: str) -> Dict[str, Any]:
         "Content-Type": "application/json",
         "User-Agent": "SystemLink-CLI/1.0 (cross-platform)",
     }
-    ssl_verify = get_ssl_verify()
+    ssl_verify = get_ssl_verify(api_url)
 
     try:
         search_resp = requests.post(
@@ -583,7 +585,7 @@ def get_system_query_capability(api_url: str, api_key: str) -> Dict[str, Any]:
         "Content-Type": "application/json",
         "User-Agent": "SystemLink-CLI/1.0 (cross-platform)",
     }
-    ssl_verify = get_ssl_verify()
+    ssl_verify = get_ssl_verify(api_url)
 
     try:
         search_resp = requests.post(
@@ -679,17 +681,25 @@ def check_service_status(api_url: str, api_key: str) -> Dict[str, Any]:
         - platform: detected platform string (PLATFORM_SLE, PLATFORM_SLS,
           PLATFORM_UNREACHABLE, PLATFORM_UNKNOWN)
     """
+    ssl_verify = get_ssl_verify(api_url)
+    with use_standard_ssl_context(ssl_verify):
+        return _check_service_status(api_url, api_key)
+
+
+def _check_service_status(api_url: str, api_key: str) -> Dict[str, Any]:
+    """Probe services while the caller has selected the appropriate SSL context."""
     headers = {
         "x-ni-api-key": api_key,
         "Content-Type": "application/json",
         "User-Agent": "SystemLink-CLI/1.0 (cross-platform)",
     }
-    ssl_verify = get_ssl_verify()
+    ssl_verify = get_ssl_verify(api_url)
 
     services: Dict[str, str] = {}
     any_responded = False
     any_authorized = False
     all_unauthorized = True
+    certificate_error = False
 
     for display_name, method, url_path in SERVICE_CHECKS:
         try:
@@ -725,15 +735,28 @@ def check_service_status(api_url: str, api_key: str) -> Dict[str, Any]:
             else:
                 services[display_name] = "error"
                 all_unauthorized = False
+        except requests.exceptions.SSLError:
+            services[display_name] = "certificate_error"
+            certificate_error = True
         except requests.RequestException:
             services[display_name] = "unreachable"
 
     # Determine overall status
     if not any_responded:
+        certificate_details: Optional[Dict[str, Any]] = None
+        if certificate_error:
+            try:
+                from .ssl_trust import inspect_server_certificate
+
+                certificate_details = inspect_server_certificate(api_url).to_dict()
+            except (OSError, ValueError, ssl.SSLError):
+                certificate_details = None
         return {
             "server_reachable": False,
             "auth_valid": None,
             "services": services,
+            "certificate_error": certificate_error,
+            "certificate": certificate_details,
             "file_query_endpoint": None,
             "elasticsearch_available": None,
             "system_query_endpoint": None,
@@ -759,6 +782,7 @@ def check_service_status(api_url: str, api_key: str) -> Dict[str, Any]:
         "server_reachable": True,
         "auth_valid": auth_valid,
         "services": services,
+        "certificate_error": certificate_error,
         "file_query_endpoint": file_capability["file_query_endpoint"],
         "elasticsearch_available": file_capability["elasticsearch_available"],
         "system_query_endpoint": system_capability["system_query_endpoint"],
