@@ -163,5 +163,8 @@ def test_ssl_verify_uses_managed_certificate(monkeypatch: Any, tmp_path: Path) -
 
     assert get_ssl_verify("https://example.com") == str(path)
 
+    monkeypatch.setenv("SSL_CERT_FILE", "/path/to/system-bundle.pem")
+    assert get_ssl_verify("https://example.com") == str(path)
+
     monkeypatch.setenv("SLCLI_SSL_VERIFY", "false")
     assert get_ssl_verify("https://example.com") is False

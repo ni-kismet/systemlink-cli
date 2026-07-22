@@ -569,9 +569,6 @@ def get_ssl_verify(server_uri: Optional[str] = None) -> Union[bool, str]:
         if env.lower() in ("0", "false", "no"):
             return False
 
-    if os.environ.get("REQUESTS_CA_BUNDLE") or os.environ.get("SSL_CERT_FILE"):
-        return os.environ.get("REQUESTS_CA_BUNDLE") or os.environ["SSL_CERT_FILE"]
-
     if server_uri is None:
         try:
             server_uri = get_base_url()
@@ -587,6 +584,9 @@ def get_ssl_verify(server_uri: Optional[str] = None) -> Union[bool, str]:
                 return str(managed_path)
         except (OSError, ValueError):
             pass
+
+    if os.environ.get("REQUESTS_CA_BUNDLE") or os.environ.get("SSL_CERT_FILE"):
+        return os.environ.get("REQUESTS_CA_BUNDLE") or os.environ["SSL_CERT_FILE"]
 
     return True
 
