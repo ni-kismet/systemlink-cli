@@ -19,9 +19,10 @@ import socket
 import ssl
 import sys
 import traceback
+from contextlib import contextmanager
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Any, Dict, List, Optional
+from typing import Any, Dict, Iterator, List, Optional, Union
 from urllib.parse import urlparse
 
 from cryptography import x509
@@ -29,6 +30,7 @@ from cryptography.hazmat.primitives import hashes, serialization
 
 OS_TRUST_INJECTED: bool = False
 OS_TRUST_REASON: str = "not-attempted"
+_STANDARD_SSL_CONTEXT = ssl.SSLContext
 
 
 @dataclass(frozen=True)
@@ -70,6 +72,7 @@ __all__ = [
     "inject_os_trust",
     "remove_managed_trust",
     "save_managed_certificate",
+    "use_standard_ssl_context",
 ]
 
 
@@ -84,6 +87,42 @@ def get_ssl_server_origin(api_url: str) -> str:
         hostname = f"[{hostname}]"
     port = parsed.port or 443
     return f"https://{hostname}:{port}"
+
+
+@contextmanager
+def use_standard_ssl_context(ssl_verify: Union[bool, str]) -> Iterator[None]:
+    """Use Python's standard SSL context for explicit CA bundle verification.
+
+    The OS trust integration replaces SSL context implementations globally. For
+    explicit CA bundle paths, requests must use the standard implementation so
+    the supplied bundle is evaluated instead of the platform trust verifier.
+    """
+    if not isinstance(ssl_verify, str):
+        yield
+        return
+
+    import requests.adapters
+    import urllib3.util.ssl_ as urllib3_ssl
+
+    patched_ssl_context = ssl.SSLContext
+    patched_urllib3_context = urllib3_ssl.SSLContext
+    has_preloaded_context = hasattr(requests.adapters, "_preloaded_ssl_context")
+    patched_preloaded_context = getattr(requests.adapters, "_preloaded_ssl_context", None)
+    try:
+        setattr(ssl, "SSLContext", _STANDARD_SSL_CONTEXT)
+        setattr(urllib3_ssl, "SSLContext", _STANDARD_SSL_CONTEXT)
+        if has_preloaded_context:
+            setattr(
+                requests.adapters,
+                "_preloaded_ssl_context",
+                _STANDARD_SSL_CONTEXT(ssl.PROTOCOL_TLS_CLIENT),
+            )
+        yield
+    finally:
+        setattr(ssl, "SSLContext", patched_ssl_context)
+        setattr(urllib3_ssl, "SSLContext", patched_urllib3_context)
+        if has_preloaded_context:
+            setattr(requests.adapters, "_preloaded_ssl_context", patched_preloaded_context)
 
 
 def _get_trust_directory() -> Path:
@@ -150,13 +189,33 @@ def inspect_server_certificate(api_url: str, timeout: float = 5) -> ServerCertif
     parsed = urlparse(origin)
     assert parsed.hostname is not None
     port = parsed.port or 443
-    context = ssl.SSLContext(ssl.PROTOCOL_TLS_CLIENT)
-    context.check_hostname = False
-    context.verify_mode = ssl.CERT_NONE
+    certificate_chain_pem: Optional[bytes] = None
+    patched_ssl_context = ssl.SSLContext
+    try:
+        setattr(ssl, "SSLContext", _STANDARD_SSL_CONTEXT)
+        context = ssl.SSLContext(ssl.PROTOCOL_TLS_CLIENT)
+        context.check_hostname = False
+        context.verify_mode = ssl.CERT_NONE
 
-    with socket.create_connection((parsed.hostname, port), timeout=timeout) as tcp_socket:
-        with context.wrap_socket(tcp_socket, server_hostname=parsed.hostname) as tls_socket:
-            certificate_der = tls_socket.getpeercert(binary_form=True)
+        with socket.create_connection((parsed.hostname, port), timeout=timeout) as tcp_socket:
+            with context.wrap_socket(tcp_socket, server_hostname=parsed.hostname) as tls_socket:
+                certificate_der = tls_socket.getpeercert(binary_form=True)
+                ssl_object = getattr(tls_socket, "_sslobj", None)
+                get_unverified_chain = getattr(ssl_object, "get_unverified_chain", None)
+                if callable(get_unverified_chain):
+                    try:
+                        chain = get_unverified_chain()
+                        chain_pem = b"".join(
+                            (pem.encode("ascii") if isinstance(pem, str) else pem)
+                            for chain_certificate in chain
+                            for pem in (chain_certificate.public_bytes(),)
+                        )
+                        if chain_pem:
+                            certificate_chain_pem = chain_pem
+                    except (AttributeError, OSError, ValueError):
+                        pass
+    finally:
+        setattr(ssl, "SSLContext", patched_ssl_context)
 
     if not certificate_der:
         raise ssl.SSLError("The server did not provide a TLS certificate.")
@@ -172,7 +231,7 @@ def inspect_server_certificate(api_url: str, timeout: float = 5) -> ServerCertif
 
     return ServerCertificate(
         origin=origin,
-        pem=certificate.public_bytes(serialization.Encoding.PEM),
+        pem=certificate_chain_pem or certificate.public_bytes(serialization.Encoding.PEM),
         fingerprint=certificate.fingerprint(hashes.SHA256()).hex().upper(),
         subject=_certificate_name(certificate.subject),
         issuer=_certificate_name(certificate.issuer),

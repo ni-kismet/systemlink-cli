@@ -16,6 +16,7 @@ import click
 import keyring
 import requests
 
+from .ssl_trust import use_standard_ssl_context
 from .utils import ExitCodes, get_ssl_verify
 
 DEFAULT_SERVICE_PROBE_CACHE_TTL_SECONDS = 300
@@ -680,6 +681,13 @@ def check_service_status(api_url: str, api_key: str) -> Dict[str, Any]:
         - platform: detected platform string (PLATFORM_SLE, PLATFORM_SLS,
           PLATFORM_UNREACHABLE, PLATFORM_UNKNOWN)
     """
+    ssl_verify = get_ssl_verify(api_url)
+    with use_standard_ssl_context(ssl_verify):
+        return _check_service_status(api_url, api_key)
+
+
+def _check_service_status(api_url: str, api_key: str) -> Dict[str, Any]:
+    """Probe services while the caller has selected the appropriate SSL context."""
     headers = {
         "x-ni-api-key": api_key,
         "Content-Type": "application/json",

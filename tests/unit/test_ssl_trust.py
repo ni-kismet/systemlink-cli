@@ -100,3 +100,78 @@ def test_managed_certificate_persistence_is_origin_scoped(monkeypatch: Any, tmp_
     assert get_managed_trust_records()[0]["fingerprint"] == "A" * 64
     assert remove_managed_trust("https://example.com") is True
     assert get_managed_trust_path("https://example.com") is None
+
+
+def test_certificate_inspection_uses_unpatched_context_and_peer_chain(monkeypatch: Any) -> None:
+    """Inspection should bypass truststore and retain the full peer certificate chain."""
+    from slcli import ssl_trust
+
+    class FakeCertificate:
+        subject = object()
+        issuer = subject
+        extensions = types.SimpleNamespace(
+            get_extension_for_class=lambda _certificate_type: types.SimpleNamespace(
+                value=["example.com"]
+            )
+        )
+
+        def public_bytes(self, _encoding: Any) -> bytes:
+            return b"leaf-pem"
+
+        def fingerprint(self, _algorithm: Any) -> bytes:
+            return b"\x01" * 32
+
+    class FakePeerCertificate:
+        def public_bytes(self) -> str:
+            return "chain-pem"
+
+    class FakeTlsSocket:
+        _sslobj = types.SimpleNamespace(
+            get_unverified_chain=lambda: [FakePeerCertificate(), FakePeerCertificate()]
+        )
+
+        def __enter__(self) -> "FakeTlsSocket":
+            return self
+
+        def __exit__(self, *args: Any) -> None:
+            pass
+
+        def getpeercert(self, binary_form: bool = False) -> bytes:
+            assert binary_form is True
+            return b"certificate-der"
+
+    class FakeTcpSocket:
+        def __enter__(self) -> "FakeTcpSocket":
+            return self
+
+        def __exit__(self, *args: Any) -> None:
+            pass
+
+    class FakeContext:
+        def __init__(self, _protocol: int) -> None:
+            self.check_hostname = True
+            self.verify_mode = ssl_trust.ssl.CERT_REQUIRED
+
+        def wrap_socket(self, _socket: Any, server_hostname: str) -> FakeTlsSocket:
+            assert server_hostname == "example.com"
+            return FakeTlsSocket()
+
+    patched_context = object()
+    monkeypatch.setattr(ssl_trust.ssl, "SSLContext", patched_context)
+    monkeypatch.setattr(ssl_trust, "_STANDARD_SSL_CONTEXT", FakeContext)
+    monkeypatch.setattr(
+        ssl_trust.socket, "create_connection", lambda *args, **kwargs: FakeTcpSocket()
+    )
+    monkeypatch.setattr(
+        ssl_trust.x509, "load_der_x509_certificate", lambda _certificate_der: FakeCertificate()
+    )
+    monkeypatch.setattr(ssl_trust, "_certificate_name", lambda _name: "name")
+    monkeypatch.setattr(
+        ssl_trust, "_certificate_validity", lambda _certificate: ("before", "after")
+    )
+
+    certificate = ssl_trust.inspect_server_certificate("https://example.com")
+
+    assert ssl_trust.ssl.SSLContext is patched_context
+    assert certificate.pem == b"chain-pemchain-pem"
+    assert certificate.fingerprint == "01" * 32

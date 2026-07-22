@@ -12,6 +12,7 @@ import keyring
 import requests
 
 from .rich_output import print_json
+from .ssl_trust import use_standard_ssl_context
 
 
 class SystemLinkConfig:
@@ -730,35 +731,36 @@ def make_api_request(
 
         ssl_verify = get_ssl_verify(url)
 
-        if method.upper() == "GET":
-            resp = requests.get(url, headers=default_headers, verify=ssl_verify, stream=stream)
-        elif method.upper() == "POST":
-            if files:
-                # Multipart file upload
-                resp = requests.post(
-                    url,
-                    headers=default_headers,
-                    files=files,
-                    data=data,
-                    verify=ssl_verify,
-                    stream=stream,
-                )
+        with use_standard_ssl_context(ssl_verify):
+            if method.upper() == "GET":
+                resp = requests.get(url, headers=default_headers, verify=ssl_verify, stream=stream)
+            elif method.upper() == "POST":
+                if files:
+                    # Multipart file upload
+                    resp = requests.post(
+                        url,
+                        headers=default_headers,
+                        files=files,
+                        data=data,
+                        verify=ssl_verify,
+                        stream=stream,
+                    )
+                else:
+                    resp = requests.post(
+                        url,
+                        headers=default_headers,
+                        json=payload,
+                        verify=ssl_verify,
+                        stream=stream,
+                    )
+            elif method.upper() == "PUT":
+                resp = requests.put(url, headers=default_headers, json=payload, verify=ssl_verify)
+            elif method.upper() == "PATCH":
+                resp = requests.patch(url, headers=default_headers, json=payload, verify=ssl_verify)
+            elif method.upper() == "DELETE":
+                resp = requests.delete(url, headers=default_headers, verify=ssl_verify)
             else:
-                resp = requests.post(
-                    url,
-                    headers=default_headers,
-                    json=payload,
-                    verify=ssl_verify,
-                    stream=stream,
-                )
-        elif method.upper() == "PUT":
-            resp = requests.put(url, headers=default_headers, json=payload, verify=ssl_verify)
-        elif method.upper() == "PATCH":
-            resp = requests.patch(url, headers=default_headers, json=payload, verify=ssl_verify)
-        elif method.upper() == "DELETE":
-            resp = requests.delete(url, headers=default_headers, verify=ssl_verify)
-        else:
-            raise ValueError(f"Unsupported HTTP method: {method}")
+                raise ValueError(f"Unsupported HTTP method: {method}")
 
         resp.raise_for_status()
         return resp
