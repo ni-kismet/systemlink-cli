@@ -1,0 +1,4 @@
+Parameter,Category,Min,Typ,Max,Unit,Conditions,Notes
+Nominal supply voltage,Electrical Characteristics,,5.0,,V,,Derived from bench supply requirement
+Supply current,Electrical Characteristics,,,10.5,mA,"Temperature=25 C; Mode=Normal",Maximum current in normal mode at room temperature
+Startup delay,Timing,1.2,1.8,2.4,ms,"Voltage=5 V",Measured from enable to output stable
