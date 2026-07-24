@@ -151,6 +151,61 @@ def _build_published_webapp_url(
     return ""
 
 
+def _find_conflicting_webapp_id(value: Any) -> str:
+    """Find a webapp ID in a duplicate-create response payload."""
+    if isinstance(value, dict):
+        for key in (
+            "id",
+            "webappId",
+            "webAppId",
+            "existingId",
+            "existingWebappId",
+            "existingWebAppId",
+            "resourceId",
+        ):
+            candidate = value.get(key)
+            if candidate:
+                return str(candidate)
+        for nested in value.values():
+            conflict_id = _find_conflicting_webapp_id(nested)
+            if conflict_id:
+                return conflict_id
+    elif isinstance(value, list):
+        for nested in value:
+            conflict_id = _find_conflicting_webapp_id(nested)
+            if conflict_id:
+                return conflict_id
+    return ""
+
+
+def _handle_webapp_create_conflict(
+    response: Any,
+    workspace_id: str,
+    workspace_name_hint: str,
+    webapp_name: str,
+) -> None:
+    """Display details for a webapp that conflicts with a create request."""
+    if response.status_code != 409:
+        return
+
+    try:
+        conflict_id = _find_conflicting_webapp_id(response.json())
+    except (ValueError, AttributeError):
+        conflict_id = ""
+
+    click.echo("✗ A webapp with this name already exists.", err=True)
+    if conflict_id:
+        conflict_url = _build_published_webapp_url(
+            conflict_id,
+            webapp_name=webapp_name,
+            workspace_id=workspace_id,
+            workspace_name_hint=workspace_name_hint,
+        )
+        click.echo(f"  Conflicting Webapp ID: {conflict_id}", err=True)
+        click.echo(f"  Conflicting Webapp URL: {conflict_url}", err=True)
+    sys.exit(ExitCodes.INVALID_INPUT)
+
+
 def _query_webapps_http(filter_str: str, max_items: int = 1000) -> List[Dict[str, Any]]:
     """Query webapps using continuation token pagination.
 
@@ -1518,6 +1573,12 @@ def register_webapp_commands(cli: Any) -> None:
                             json=payload,
                             verify=get_ssl_verify(),
                         )
+                        _handle_webapp_create_conflict(
+                            resp_create,
+                            workspace_id=created_workspace_id,
+                            workspace_name_hint=get_effective_workspace(workspace) or workspace,
+                            webapp_name=name,
+                        )
                         resp_create.raise_for_status()
                         created = resp_create.json()
                         webapp_id = created.get("id")
@@ -1589,6 +1650,12 @@ def register_webapp_commands(cli: Any) -> None:
                         headers=get_headers("application/json"),
                         json=payload,
                         verify=get_ssl_verify(),
+                    )
+                    _handle_webapp_create_conflict(
+                        resp_create,
+                        workspace_id=created_workspace_id,
+                        workspace_name_hint=get_effective_workspace(workspace) or workspace,
+                        webapp_name=name,
                     )
                     resp_create.raise_for_status()
                     created = resp_create.json()
