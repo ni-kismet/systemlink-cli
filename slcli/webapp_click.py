@@ -151,6 +151,111 @@ def _build_published_webapp_url(
     return ""
 
 
+def _find_conflicting_webapp_id(value: Any) -> str:
+    """Find a webapp ID in a duplicate-create response payload."""
+    if isinstance(value, dict):
+        for key in (
+            "id",
+            "webappId",
+            "webAppId",
+            "existingId",
+            "existingWebappId",
+            "existingWebAppId",
+            "resourceId",
+        ):
+            candidate = value.get(key)
+            if candidate:
+                return str(candidate)
+        for nested in value.values():
+            conflict_id = _find_conflicting_webapp_id(nested)
+            if conflict_id:
+                return conflict_id
+    elif isinstance(value, list):
+        for nested in value:
+            conflict_id = _find_conflicting_webapp_id(nested)
+            if conflict_id:
+                return conflict_id
+    return ""
+
+
+def _find_existing_webapp(webapp_name: str, workspace_id: str) -> Optional[Dict[str, Any]]:
+    """Find an existing WebVI with the requested name and workspace."""
+    escaped_name = webapp_name.replace("\\", "\\\\").replace('"', '\\"')
+    filter_parts = [f'type == "WebVI"', f'name.Contains("{escaped_name}")']
+    if workspace_id:
+        escaped_workspace = workspace_id.replace("\\", "\\\\").replace('"', '\\"')
+        filter_parts.append(f'workspace == "{escaped_workspace}"')
+
+    try:
+        webapps = _query_webapps_http(" and ".join(filter_parts), max_items=100)
+    except Exception:
+        return None
+
+    for webapp in webapps:
+        if (
+            webapp.get("type") == "WebVI"
+            and webapp.get("name") == webapp_name
+            and (not workspace_id or webapp.get("workspace") == workspace_id)
+        ):
+            return webapp
+    return None
+
+
+def _handle_webapp_create_conflict(
+    response: Any,
+    workspace_id: str,
+    workspace_name_hint: str,
+    webapp_name: str,
+) -> None:
+    """Display details for a webapp that conflicts with a create request."""
+    if response.status_code != 409:
+        return
+
+    try:
+        response_data = response.json()
+    except (ValueError, AttributeError):
+        response_data = {}
+
+    conflict_id = _find_conflicting_webapp_id(response_data)
+    conflict_record: Optional[Dict[str, Any]] = None
+    if not conflict_id:
+        conflict_record = _find_existing_webapp(webapp_name, workspace_id)
+        if conflict_record:
+            conflict_id = str(conflict_record.get("id", ""))
+    conflict_message = ""
+    if isinstance(response_data, dict):
+        error_data = response_data.get("error")
+        if isinstance(error_data, dict):
+            message = error_data.get("message")
+            if message:
+                conflict_message = str(message)
+        if not conflict_message:
+            message = response_data.get("message")
+            if message:
+                conflict_message = str(message)
+
+    if not conflict_message:
+        conflict_message = "A webapp with this name already exists."
+
+    click.echo(f"✗ {conflict_message}", err=True)
+    if conflict_id:
+        conflict_name = str(conflict_record.get("name", "")) if conflict_record else webapp_name
+        conflict_workspace_id = (
+            str(conflict_record.get("workspace", "")) if conflict_record else workspace_id
+        )
+        conflict_properties = conflict_record.get("properties", {}) if conflict_record else None
+        conflict_url = _build_published_webapp_url(
+            conflict_id,
+            webapp_name=conflict_name,
+            workspace_id=conflict_workspace_id,
+            workspace_name_hint=workspace_name_hint,
+            properties=conflict_properties,
+        )
+        click.echo(f"  Conflicting Webapp ID: {conflict_id}", err=True)
+        click.echo(f"  Conflicting Webapp URL: {conflict_url}", err=True)
+    sys.exit(ExitCodes.INVALID_INPUT)
+
+
 def _query_webapps_http(filter_str: str, max_items: int = 1000) -> List[Dict[str, Any]]:
     """Query webapps using continuation token pagination.
 
@@ -1518,6 +1623,12 @@ def register_webapp_commands(cli: Any) -> None:
                             json=payload,
                             verify=get_ssl_verify(),
                         )
+                        _handle_webapp_create_conflict(
+                            resp_create,
+                            workspace_id=created_workspace_id,
+                            workspace_name_hint=get_effective_workspace(workspace) or workspace,
+                            webapp_name=name,
+                        )
                         resp_create.raise_for_status()
                         created = resp_create.json()
                         webapp_id = created.get("id")
@@ -1589,6 +1700,12 @@ def register_webapp_commands(cli: Any) -> None:
                         headers=get_headers("application/json"),
                         json=payload,
                         verify=get_ssl_verify(),
+                    )
+                    _handle_webapp_create_conflict(
+                        resp_create,
+                        workspace_id=created_workspace_id,
+                        workspace_name_hint=get_effective_workspace(workspace) or workspace,
+                        webapp_name=name,
                     )
                     resp_create.raise_for_status()
                     created = resp_create.json()
