@@ -1432,16 +1432,22 @@ def test_webapp_publish_creates_and_uploads(tmp_path: Path, monkeypatch: MonkeyP
     assert "https://web.example.test/webapps/app/Default/NewApp" in result.output
 
 
+@pytest.mark.parametrize("source_kind", ["package", "folder"])
 def test_webapp_publish_duplicate_name_shows_conflicting_webapp_details(
-    tmp_path: Path, monkeypatch: MonkeyPatch
+    tmp_path: Path, monkeypatch: MonkeyPatch, source_kind: str
 ) -> None:
     runner = CliRunner()
     patch_keyring(monkeypatch)
     import requests
     import slcli.webapp_click
 
-    package = tmp_path / "app.nipkg"
-    package.write_bytes(b"test")
+    if source_kind == "package":
+        source = tmp_path / "app.nipkg"
+        source.write_bytes(b"test")
+    else:
+        source = tmp_path / "site"
+        source.mkdir()
+        (source / "index.html").write_text("hi")
 
     class MockPostResp:
         status_code = 409
@@ -1449,7 +1455,7 @@ def test_webapp_publish_duplicate_name_shows_conflicting_webapp_details(
         def json(self) -> Dict[str, Any]:
             return {
                 "error": {
-                    "message": "A webapp with this name already exists.",
+                    "message": "The webapp name is already in use.",
                     "details": {"webapp": {"id": "conflicting-webapp-id"}},
                 }
             }
@@ -1463,11 +1469,11 @@ def test_webapp_publish_duplicate_name_shows_conflicting_webapp_details(
     monkeypatch.setattr(slcli.webapp_click, "get_web_url", lambda: "https://web.example.test")
 
     result = runner.invoke(
-        cli, ["webapp", "publish", str(package), "--name", "Existing App", "--workspace", "Default"]
+        cli, ["webapp", "publish", str(source), "--name", "Existing App", "--workspace", "Default"]
     )
 
     assert result.exit_code == ExitCodes.INVALID_INPUT
-    assert "A webapp with this name already exists." in result.output
+    assert "The webapp name is already in use." in result.output
     assert "Conflicting Webapp ID: conflicting-webapp-id" in result.output
     assert (
         "Conflicting Webapp URL: https://web.example.test/webapps/app/Default/Existing%20App"

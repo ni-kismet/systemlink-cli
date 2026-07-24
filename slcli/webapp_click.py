@@ -189,11 +189,27 @@ def _handle_webapp_create_conflict(
         return
 
     try:
-        conflict_id = _find_conflicting_webapp_id(response.json())
+        response_data = response.json()
     except (ValueError, AttributeError):
-        conflict_id = ""
+        response_data = {}
 
-    click.echo("✗ A webapp with this name already exists.", err=True)
+    conflict_id = _find_conflicting_webapp_id(response_data)
+    conflict_message = ""
+    if isinstance(response_data, dict):
+        error_data = response_data.get("error")
+        if isinstance(error_data, dict):
+            message = error_data.get("message")
+            if message:
+                conflict_message = str(message)
+        if not conflict_message:
+            message = response_data.get("message")
+            if message:
+                conflict_message = str(message)
+
+    if not conflict_message:
+        conflict_message = "A webapp with this name already exists."
+
+    click.echo(f"✗ {conflict_message}", err=True)
     if conflict_id:
         conflict_url = _build_published_webapp_url(
             conflict_id,
