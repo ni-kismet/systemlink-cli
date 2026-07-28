@@ -2,6 +2,13 @@
 
 <!-- towncrier release notes start -->
 
+## v1.17.4 (2026-07-28)
+
+### Bug Fixes
+
+- Add pipx-focused MCP dependency guidance and expose an install-time MCP extra (`systemlink-cli[mcp]`) so users can enable MCP support in one install. (mcp-pipx-install)
+
+
 ## v1.17.3 (2026-07-28)
 
 ### Bug Fixes
