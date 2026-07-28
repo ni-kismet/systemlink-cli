@@ -79,6 +79,9 @@ pytest-xdist = "^3.8.0"
 # Excel file generation
 openpyxl = "^3.1.5"
 
+# MCP server (optional feature, also needed for type checking)
+mcp = ">=1.0"
+
 [tool.pytest.ini_options]
 addopts = "--cov slcli --strict-markers --doctest-modules --ignore=tests/e2e"
 testpaths = ["tests/unit"]

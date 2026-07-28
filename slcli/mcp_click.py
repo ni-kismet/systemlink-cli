@@ -201,8 +201,8 @@ def register_mcp_commands(cli: Any) -> None:
                 "✗ The 'mcp' package is not installed.\n"
                 "  Install it with: pip install 'mcp>=1.0'\n"
                 "  Or in a Poetry project: poetry add mcp\n"
-                "  If slcli was installed with pipx: "
-                "pipx runpip systemlink-cli install 'mcp>=1.0'",
+                "  If slcli was installed with pipx:\n"
+                "  pipx runpip systemlink-cli install 'mcp>=1.0'\n",
                 err=True,
             )
             sys.exit(ExitCodes.GENERAL_ERROR)
