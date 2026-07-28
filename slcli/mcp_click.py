@@ -6,6 +6,7 @@ Provides 'slcli mcp serve' and 'slcli mcp install' subcommands.
 import json
 import platform
 import shutil
+import subprocess
 import sys
 from pathlib import Path
 from typing import Any, Dict, List, Optional
@@ -138,6 +139,25 @@ _INSTALLERS: Dict[str, Any] = {
 _TARGET_CHOICES: List[str] = ["vscode", "claude", "cursor", "codex", "all"]
 
 
+def _install_mcp_dependency() -> None:
+    """Install the optional MCP runtime dependency into the current environment."""
+    install_cmd = [sys.executable, "-m", "pip", "install", "mcp>=1.0"]
+    completed = subprocess.run(install_cmd, check=False, capture_output=True, text=True)
+    if completed.returncode != 0:
+        raise RuntimeError(completed.stderr.strip() or completed.stdout.strip() or "pip install failed")
+
+
+def _show_missing_mcp_help() -> None:
+    """Print guidance for installing the optional MCP dependency."""
+    click.echo(
+        "✗ The 'mcp' package is not installed.\n"
+        "  Install it with: python -m pip install 'mcp>=1.0'\n"
+        "  If installed via pipx: pipx runpip systemlink-cli install 'mcp>=1.0'\n"
+        "  Or in a Poetry project: poetry add mcp",
+        err=True,
+    )
+
+
 def register_mcp_commands(cli: Any) -> None:
     """Register the 'mcp' command group and its subcommands."""
 
@@ -170,7 +190,13 @@ def register_mcp_commands(cli: Any) -> None:
         show_default=True,
         help="Host to bind to (streamable HTTP transport only).",
     )
-    def serve(transport: str, port: int, host: str) -> None:
+    @click.option(
+        "--install-mcp",
+        is_flag=True,
+        default=False,
+        help="If mcp is missing, install it into this Python environment and continue.",
+    )
+    def serve(transport: str, port: int, host: str, install_mcp: bool) -> None:
         """Start the MCP server.
 
         Defaults to stdio transport for direct AI client integration (VS Code
@@ -192,18 +218,27 @@ def register_mcp_commands(cli: Any) -> None:
             slcli mcp serve --transport streamable-http
             npx @modelcontextprotocol/inspector
             # connect to http://127.0.0.1:8000/mcp (transport: Streamable HTTP)
+
+        \b
+        Auto-install missing dependency into the current environment:
+            slcli mcp serve --install-mcp
         """
         try:
             from .mcp_server import main as run_mcp_server
             from .mcp_server import server as mcp_server
         except ImportError:
-            click.echo(
-                "✗ The 'mcp' package is not installed.\n"
-                "  Install it with: pip install 'mcp>=1.0'\n"
-                "  Or in a Poetry project: poetry add mcp",
-                err=True,
-            )
-            sys.exit(ExitCodes.GENERAL_ERROR)
+            if install_mcp:
+                click.echo("• Installing missing MCP dependency...", err=True)
+                try:
+                    _install_mcp_dependency()
+                    from .mcp_server import main as run_mcp_server
+                    from .mcp_server import server as mcp_server
+                except Exception:  # noqa: BLE001
+                    _show_missing_mcp_help()
+                    sys.exit(ExitCodes.GENERAL_ERROR)
+            else:
+                _show_missing_mcp_help()
+                sys.exit(ExitCodes.GENERAL_ERROR)
 
         if transport == "stdio":
             run_mcp_server()

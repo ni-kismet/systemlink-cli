@@ -22,6 +22,9 @@ SystemLink CLI (`slcli`) is a cross-platform Python CLI for SystemLink integrato
 # pipx (recommended cross-platform Python install)
 pipx install systemlink-cli
 
+# optional MCP server dependency (if `slcli mcp serve` reports mcp missing)
+pipx runpip systemlink-cli install "mcp>=1.0"
+
 # Verify the CLI is on your PATH
 slcli --help
 

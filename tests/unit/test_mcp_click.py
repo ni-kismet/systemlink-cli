@@ -3,6 +3,7 @@
 import json
 import sys
 from pathlib import Path
+from types import ModuleType
 from typing import Any
 
 import click
@@ -148,6 +149,41 @@ def test_mcp_serve_import_error_shows_helpful_message(monkeypatch: Any, runner: 
     result = runner.invoke(cli, ["mcp", "serve"])
     assert result.exit_code != 0
     assert "mcp" in result.output.lower() or "mcp" in (result.stderr or "").lower()
+    assert "pipx runpip systemlink-cli install" in result.output
+
+
+def test_mcp_serve_install_mcp_flag_installs_then_runs(monkeypatch: Any, runner: CliRunner) -> None:
+    """Serve can auto-install mcp and continue when --install-mcp is specified."""
+    monkeypatch.setitem(sys.modules, "slcli.mcp_server", None)  # type: ignore[arg-type]
+    called: list[bool] = []
+
+    def mock_install() -> None:
+        module = ModuleType("slcli.mcp_server")
+
+        def mock_main() -> None:
+            called.append(True)
+
+        class MockSettings:
+            host: str = "127.0.0.1"
+            port: int = 8000
+
+        class MockServer:
+            settings = MockSettings()
+
+            @staticmethod
+            def run(transport: str = "stdio") -> None:
+                _ = transport
+
+        module.main = mock_main  # type: ignore[attr-defined]
+        module.server = MockServer()  # type: ignore[attr-defined]
+        sys.modules["slcli.mcp_server"] = module
+
+    monkeypatch.setattr("slcli.mcp_click._install_mcp_dependency", mock_install)
+
+    cli = make_cli()
+    result = runner.invoke(cli, ["mcp", "serve", "--install-mcp"])
+    assert result.exit_code == 0
+    assert called == [True]
 
 
 # ---------------------------------------------------------------------------
@@ -241,6 +277,7 @@ def test_mcp_serve_streamable_http_import_error_shows_helpful_message(
     result = runner.invoke(cli, ["mcp", "serve", "--transport", "streamable-http"])
     assert result.exit_code != 0
     assert "mcp" in result.output.lower() or "mcp" in (result.stderr or "").lower()
+    assert "pipx runpip systemlink-cli install" in result.output
 
 
 # ---------------------------------------------------------------------------

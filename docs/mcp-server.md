@@ -31,11 +31,23 @@ are never sent to any third party.
 
 ## Installation
 
-The `mcp` package is included in the `slcli` dev dependencies. If you are
-using a standalone binary or a minimal source install, add it explicitly:
+If you installed `slcli` with `pipx` and `mcp` is missing, install it into the
+existing pipx environment:
 
 ```bash
-pip install "mcp>=1.0"
+pipx runpip systemlink-cli install "mcp>=1.0"
+```
+
+You can also let `slcli` install it on demand:
+
+```bash
+slcli mcp serve --install-mcp
+```
+
+For virtual environments or source installs, add it explicitly:
+
+```bash
+python -m pip install "mcp>=1.0"
 # or in a Poetry project:
 poetry add mcp
 ```
