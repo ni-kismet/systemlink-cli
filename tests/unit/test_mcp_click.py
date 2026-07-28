@@ -148,6 +148,7 @@ def test_mcp_serve_import_error_shows_helpful_message(monkeypatch: Any, runner: 
     result = runner.invoke(cli, ["mcp", "serve"])
     assert result.exit_code != 0
     assert "mcp" in result.output.lower() or "mcp" in (result.stderr or "").lower()
+    assert "pipx runpip systemlink-cli install 'mcp>=1.0'" in (result.stderr or "")
 
 
 # ---------------------------------------------------------------------------
@@ -241,6 +242,7 @@ def test_mcp_serve_streamable_http_import_error_shows_helpful_message(
     result = runner.invoke(cli, ["mcp", "serve", "--transport", "streamable-http"])
     assert result.exit_code != 0
     assert "mcp" in result.output.lower() or "mcp" in (result.stderr or "").lower()
+    assert "pipx runpip systemlink-cli install 'mcp>=1.0'" in (result.stderr or "")
 
 
 # ---------------------------------------------------------------------------
