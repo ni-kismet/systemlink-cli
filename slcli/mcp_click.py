@@ -144,7 +144,9 @@ def _install_mcp_dependency() -> None:
     install_cmd = [sys.executable, "-m", "pip", "install", "mcp>=1.0"]
     completed = subprocess.run(install_cmd, check=False, capture_output=True, text=True)
     if completed.returncode != 0:
-        raise RuntimeError(completed.stderr.strip() or completed.stdout.strip() or "pip install failed")
+        raise RuntimeError(
+            completed.stderr.strip() or completed.stdout.strip() or "pip install failed"
+        )
 
 
 def _show_missing_mcp_help() -> None:
