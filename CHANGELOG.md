@@ -2,6 +2,13 @@
 
 <!-- towncrier release notes start -->
 
+## v1.17.3 (2026-07-28)
+
+### Bug Fixes
+
+- Include the conflicting webapp ID and published URL when publishing a duplicate webapp name. (webapp-conflict-details)
+
+
 ## v1.17.2 (2026-07-21)
 
 ### Bug Fixes
