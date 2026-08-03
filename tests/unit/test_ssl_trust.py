@@ -94,7 +94,8 @@ def test_managed_certificate_persistence_is_origin_scoped(monkeypatch: Any, tmp_
 
     path = save_managed_certificate(certificate)
     assert path.read_bytes() == certificate.pem
-    assert path.stat().st_mode & 0o777 == 0o600
+    if sys.platform != "win32":
+        assert path.stat().st_mode & 0o777 == 0o600
     assert get_managed_trust_path("https://example.com/path") == path
     assert get_managed_trust_path("https://other.example.com") is None
     assert get_managed_trust_records()[0]["fingerprint"] == "A" * 64
