@@ -2,6 +2,13 @@
 
 <!-- towncrier release notes start -->
 
+## v1.18.0 (2026-08-03)
+
+### Features
+
+- Add explicit trust-store support for SystemLink servers using self-signed TLS certificates. (self-signed-certificate-trust)
+
+
 ## v1.17.4 (2026-07-28)
 
 ### Bug Fixes
