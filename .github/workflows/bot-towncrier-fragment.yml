@@ -23,7 +23,7 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - name: Checkout base branch
-        uses: actions/checkout@v6
+        uses: actions/checkout@v7
         with:
           ref: refs/heads/${{ github.event.pull_request.base.ref }}
           fetch-depth: 0
