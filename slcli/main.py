@@ -8,7 +8,7 @@ import ssl
 import tomllib
 from pathlib import Path
 from types import ModuleType
-from typing import List, Optional, Tuple
+from typing import List, Optional, Tuple, Union
 from urllib.parse import urlparse
 
 import click as base_click
@@ -103,6 +103,16 @@ def _configure_rich_click_command_groups() -> None:
 
 def _get_ca_source_display() -> str:
     """Describe the CA source used for HTTPS verification."""
+    try:
+        from .ssl_trust import get_managed_trust_path
+        from .utils import get_base_url
+
+        managed_path = get_managed_trust_path(get_base_url())
+        if managed_path is not None:
+            return f"managed-pem ({managed_path})"
+    except (OSError, ValueError):
+        pass
+
     if OS_TRUST_INJECTED:
         return f"system (reason={OS_TRUST_REASON})"
 
@@ -113,13 +123,16 @@ def _get_ca_source_display() -> str:
     return f"certifi (reason={OS_TRUST_REASON})"
 
 
-def _build_tls_debug_context(ssl_verify: bool) -> ssl.SSLContext:
+def _build_tls_debug_context(ssl_verify: Union[bool, str]) -> ssl.SSLContext:
     """Build an SSL context aligned with the current CLI trust configuration."""
     if not ssl_verify:
         ctx = ssl.SSLContext(ssl.PROTOCOL_TLS_CLIENT)
         ctx.check_hostname = False
         ctx.verify_mode = ssl.CERT_NONE
         return ctx
+
+    if isinstance(ssl_verify, str):
+        return ssl.create_default_context(cafile=ssl_verify)
 
     verify_env = os.environ.get("REQUESTS_CA_BUNDLE") or os.environ.get("SSL_CERT_FILE")
     if verify_env:
@@ -204,7 +217,7 @@ def _get_proxy_debug_rows(api_url: str) -> List[Tuple[str, str]]:
     ]
 
 
-def _probe_tls_connection(api_url: str, ssl_verify: bool) -> List[Tuple[str, str]]:
+def _probe_tls_connection(api_url: str, ssl_verify: Union[bool, str]) -> List[Tuple[str, str]]:
     """Collect TLS handshake and leaf certificate details for the API host."""
     import requests
 
@@ -268,7 +281,7 @@ def _collect_info_debug_rows(api_url: str) -> List[Tuple[str, str]]:
     """Return structured connection diagnostics for info --debug."""
     from .utils import get_ssl_verify
 
-    ssl_verify = get_ssl_verify()
+    ssl_verify = get_ssl_verify(api_url)
     rows = [
         ("SSL Verify", "enabled" if ssl_verify else "disabled"),
         ("CA Source", _get_ca_source_display()),
@@ -414,6 +427,10 @@ def ca_info() -> None:
         "publish, and disable commands)"
     ),
 )
+@click.option(
+    "--trust-fingerprint",
+    help="Trust a certificate after its SHA-256 fingerprint matches exactly",
+)
 def login(
     profile: Optional[str],
     url: Optional[str],
@@ -422,6 +439,7 @@ def login(
     workspace: Optional[str],
     set_current: bool,
     readonly: bool,
+    trust_fingerprint: Optional[str],
 ) -> None:
     """Create or update a SystemLink profile with credentials.
 
@@ -447,6 +465,7 @@ def login(
         workspace=workspace,
         set_current=set_current,
         readonly=readonly,
+        trust_fingerprint=trust_fingerprint,
     )
 
 

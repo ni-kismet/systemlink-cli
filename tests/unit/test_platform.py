@@ -262,6 +262,34 @@ class TestCheckServiceStatus:
         assert result["auth_valid"] is None
         assert result["platform"] == PLATFORM_UNREACHABLE
 
+    def test_certificate_error_includes_leaf_certificate_details(self, monkeypatch: Any) -> None:
+        """TLS verification failures should expose details for explicit trust approval."""
+        from slcli.ssl_trust import ServerCertificate
+
+        certificate = ServerCertificate(
+            origin="https://example.com:443",
+            pem=b"pem",
+            fingerprint="C" * 64,
+            subject="subject",
+            issuer="subject",
+            sans=["example.com"],
+            not_before="before",
+            not_after="after",
+            self_signed=True,
+        )
+        error = req_module.exceptions.SSLError("certificate verify failed")
+        monkeypatch.setattr(
+            "slcli.platform.requests.get", side_effect := MagicMock(side_effect=error)
+        )
+        monkeypatch.setattr("slcli.platform.requests.post", side_effect)
+        monkeypatch.setattr("slcli.ssl_trust.inspect_server_certificate", lambda _url: certificate)
+
+        result = check_service_status("https://example.com", "key")
+
+        assert result["server_reachable"] is False
+        assert result["certificate_error"] is True
+        assert result["certificate"]["fingerprint"] == "C" * 64
+
     def test_infer_sle_when_any_sle_only_service_is_available(self) -> None:
         """Test that a reachable SLE-only service is enough to infer SLE."""
         mock_get, mock_post = self._mock_requests(

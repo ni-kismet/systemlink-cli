@@ -135,3 +135,36 @@ def test_api_key_resolution_raises_single_click_exception_when_missing(monkeypat
 
     with pytest.raises(click.ClickException, match="SLCLI_API_KEY environment variable"):
         get_api_key_resolution()
+
+
+def test_ssl_verify_uses_managed_certificate(monkeypatch: Any, tmp_path: Path) -> None:
+    """The request verification setting should use an accepted server certificate."""
+    from slcli.ssl_trust import ServerCertificate, save_managed_certificate
+    from slcli.utils import get_ssl_verify
+
+    monkeypatch.delenv("REQUESTS_CA_BUNDLE", raising=False)
+    monkeypatch.delenv("SSL_CERT_FILE", raising=False)
+    config_file = tmp_path / "config.json"
+    monkeypatch.setattr(
+        "slcli.profiles.ProfileConfig.get_config_path", classmethod(lambda cls: config_file)
+    )
+    certificate = ServerCertificate(
+        origin="https://example.com:443",
+        pem=b"pem",
+        fingerprint="B" * 64,
+        subject="subject",
+        issuer="issuer",
+        sans=[],
+        not_before="before",
+        not_after="after",
+        self_signed=False,
+    )
+    path = save_managed_certificate(certificate)
+
+    assert get_ssl_verify("https://example.com") == str(path)
+
+    monkeypatch.setenv("SSL_CERT_FILE", "/path/to/system-bundle.pem")
+    assert get_ssl_verify("https://example.com") == str(path)
+
+    monkeypatch.setenv("SLCLI_SSL_VERIFY", "false")
+    assert get_ssl_verify("https://example.com") is False
