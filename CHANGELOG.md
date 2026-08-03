@@ -2,6 +2,14 @@
 
 <!-- towncrier release notes start -->
 
+## v1.18.1 (2026-08-03)
+
+### Bug Fixes
+
+- Update GitHub Actions to v7. (deps-major-github-actions)
+- Fix Windows release validation for self-signed certificate trust support. (windows-self-signed-trust)
+
+
 ## v1.18.0 (2026-08-03)
 
 ### Features

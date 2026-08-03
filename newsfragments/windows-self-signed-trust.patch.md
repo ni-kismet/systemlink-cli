@@ -1,1 +1,0 @@
-Fix Windows release validation for self-signed certificate trust support.
