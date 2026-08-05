@@ -7,6 +7,7 @@ Supports dry-run mode for validation without creating resources.
 from __future__ import annotations
 
 import json as json_module
+import urllib.parse
 from dataclasses import dataclass
 from enum import Enum
 from typing import Any, Dict, List, Optional, Tuple
@@ -148,6 +149,11 @@ class ExampleProvisioner:
         self._test_results_deleted = False
         self._files_deleted = False
         self._notebooks_deleted = False
+        resources_by_reference = {
+            str(resource.get("id_reference")): resource
+            for resource in resources
+            if isinstance(resource, dict) and resource.get("id_reference")
+        }
 
         try:
             for resource in reversed([r for r in resources if isinstance(r, dict)]):
@@ -200,6 +206,10 @@ class ExampleProvisioner:
                     "data_table": self._delete_data_table,
                     "file": self._delete_file,
                     "notebook": self._delete_notebook,
+                    "state": self._delete_state,
+                    "tag": self._delete_tag,
+                    "specification": self._delete_specification,
+                    "feed": self._delete_feed,
                 }
                 delete_fn = delete_map.get(rtype)
                 if not delete_fn:
@@ -214,7 +224,13 @@ class ExampleProvisioner:
                     )
                     continue
 
-                server_id = delete_fn({"name": rname})
+                delete_props = resource.get("properties", {})
+                if not isinstance(delete_props, dict):
+                    delete_props = {}
+                delete_props = dict(delete_props)
+                delete_props["name"] = rname
+                delete_props = self._resolve_delete_props(delete_props, resources_by_reference)
+                server_id = delete_fn(delete_props)
                 # Determine action: DELETED if successful, SKIPPED if not found
                 action = ProvisioningAction.DELETED if server_id else ProvisioningAction.SKIPPED
                 results.append(
@@ -270,6 +286,10 @@ class ExampleProvisioner:
             "data_table": self._create_data_table,
             "file": self._create_file,
             "notebook": self._create_notebook,
+            "state": self._create_state,
+            "tag": self._create_tag,
+            "specification": self._create_specification,
+            "feed": self._create_feed,
         }
 
         create_fn = create_map.get(rtype)
@@ -313,6 +333,16 @@ class ExampleProvisioner:
                 existing_id = self._get_data_table_by_name(rname)
             elif rtype == "file":
                 existing_id = self._get_file_by_name(rname)
+            elif rtype == "state":
+                existing_id = self._get_state_by_name(rname)
+            elif rtype == "tag":
+                existing_id = self._get_tag_by_path(rname)
+            elif rtype == "specification":
+                existing_id = self._get_specification_by_key(props_with_name)
+            elif rtype == "feed":
+                existing_id = self._get_feed_by_name(
+                    rname, str(props_with_name.get("platform", "")) or None
+                )
 
             if existing_id:
                 # Resource already exists, skip creation
@@ -404,6 +434,24 @@ class ExampleProvisioner:
             return id_map.get(ref, obj)  # leave as-is if not yet defined
         return obj
 
+    def _resolve_delete_props(
+        self, props: Dict[str, Any], resources_by_reference: Dict[str, Dict[str, Any]]
+    ) -> Dict[str, Any]:
+        """Resolve resource references needed by property-dependent delete handlers."""
+        resolved = dict(props)
+        for key in ("product_id", "productId"):
+            value = resolved.get(key)
+            if not isinstance(value, str) or not value.startswith("${") or not value.endswith("}"):
+                continue
+            reference = value[2:-1]
+            referenced_resource = resources_by_reference.get(reference)
+            if not referenced_resource or referenced_resource.get("type") != "product":
+                continue
+            product_id = self._get_product_by_name(str(referenced_resource.get("name", "")))
+            if product_id:
+                resolved[key] = product_id
+        return resolved
+
     @staticmethod
     def _deduplicate_keywords(keywords: List[str]) -> List[str]:
         """Return deduplicated keywords preserving insertion order."""
@@ -414,6 +462,299 @@ class ExampleProvisioner:
                 result.append(kw)
                 seen.add(kw)
         return result
+
+    def _create_state(self, props: Dict[str, Any]) -> Optional[str]:
+        """Create a systems state and return its server ID."""
+        payload: Dict[str, Any] = {
+            "name": props.get("name", ""),
+            "distribution": props.get("distribution", ""),
+            "architecture": props.get("architecture", ""),
+        }
+        if self.workspace_id:
+            payload["workspace"] = self.workspace_id
+
+        for source_key, api_key in (
+            ("description", "description"),
+            ("properties", "properties"),
+            ("feeds", "feeds"),
+            ("packages", "packages"),
+            ("system_image", "systemImage"),
+            ("systemImage", "systemImage"),
+        ):
+            if source_key in props:
+                payload[api_key] = props[source_key]
+
+        resp = make_api_request(
+            "POST",
+            f"{get_base_url()}/nisystemsstate/v1/states",
+            payload,
+            handle_errors=False,
+        )
+        data = resp.json()
+        if not isinstance(data, dict) or not data.get("id"):
+            return None
+        return str(data["id"])
+
+    def _get_state_by_name(self, name: str) -> Optional[str]:
+        """Find a state by exact name and workspace."""
+        url = f"{get_base_url()}/nisystemsstate/v1/states?Skip=0&Take=1000"
+        if self.workspace_id:
+            url += f"&Workspace={self.workspace_id}"
+        resp = make_api_request("GET", url, payload=None, handle_errors=False)
+        data = resp.json()
+        states = data.get("states", []) if isinstance(data, dict) else []
+        if not isinstance(states, list):
+            return None
+
+        for state in states:
+            if not isinstance(state, dict) or state.get("name") != name:
+                continue
+            if self.workspace_id and state.get("workspace") != self.workspace_id:
+                continue
+            state_id = state.get("id")
+            if state_id:
+                return str(state_id)
+        return None
+
+    def _delete_state(self, props: Dict[str, Any]) -> Optional[str]:
+        """Delete a state by exact name and return its server ID."""
+        state_id = self._get_state_by_name(str(props.get("name", "")))
+        if not state_id:
+            return None
+
+        make_api_request(
+            "DELETE",
+            f"{get_base_url()}/nisystemsstate/v1/states/{state_id}",
+            payload=None,
+            handle_errors=False,
+        )
+        return state_id
+
+    def _tag_url(self, path: str) -> str:
+        """Build the metadata URL for a workspace-scoped tag path."""
+        workspace_path = f"{self.workspace_id}/" if self.workspace_id else ""
+        encoded_path = urllib.parse.quote(path, safe="")
+        return f"{get_base_url()}/nitag/v2/tags/{workspace_path}{encoded_path}"
+
+    def _create_tag(self, props: Dict[str, Any]) -> Optional[str]:
+        """Create tag metadata and return its path as the resource ID."""
+        path = str(props.get("name", ""))
+        payload: Dict[str, Any] = {
+            "path": path,
+            "type": props.get("type", props.get("tag_type", "")),
+            "workspace": self.workspace_id,
+            "collectAggregates": bool(props.get("collectAggregates", False)),
+        }
+        for key in ("keywords", "properties"):
+            if key in props:
+                payload[key] = props[key]
+
+        make_api_request("PUT", self._tag_url(path), payload=payload, handle_errors=False)
+        return path or None
+
+    def _get_tag_by_path(self, path: str) -> Optional[str]:
+        """Return a tag path when metadata exists, otherwise None."""
+        try:
+            resp = make_api_request("GET", self._tag_url(path), payload=None, handle_errors=False)
+            data = resp.json()
+            return path if isinstance(data, dict) and data.get("path") == path else None
+        except Exception:
+            return None
+
+    def _delete_tag(self, props: Dict[str, Any]) -> Optional[str]:
+        """Delete tag metadata by path and return that path."""
+        path = str(props.get("name", ""))
+        if not self._get_tag_by_path(path):
+            return None
+        make_api_request("DELETE", self._tag_url(path), payload=None, handle_errors=False)
+        return path or None
+
+    @staticmethod
+    def _spec_product_id(props: Dict[str, Any]) -> Optional[str]:
+        """Read a specification product reference from config properties."""
+        product_id = props.get("productId", props.get("product_id"))
+        return str(product_id) if product_id else None
+
+    @staticmethod
+    def _spec_id(props: Dict[str, Any]) -> str:
+        """Read a specification identifier, defaulting to its resource name."""
+        return str(props.get("specId", props.get("spec_id", props.get("name", ""))))
+
+    def _create_specification(self, props: Dict[str, Any]) -> Optional[str]:
+        """Create one specification through the bulk specification endpoint."""
+        product_id = self._spec_product_id(props)
+        if not product_id:
+            return None
+
+        payload: Dict[str, Any] = {
+            "productId": product_id,
+            "specId": self._spec_id(props),
+            "type": str(props.get("type", props.get("spec_type", ""))).upper(),
+        }
+        for api_key, source_keys in {
+            "name": ("name",),
+            "category": ("category",),
+            "symbol": ("symbol",),
+            "block": ("block",),
+            "unit": ("unit",),
+            "limit": ("limit",),
+            "conditions": ("conditions",),
+            "keywords": ("keywords",),
+            "properties": ("properties",),
+            "workspace": ("workspace",),
+        }.items():
+            for source_key in source_keys:
+                if source_key in props:
+                    payload[api_key] = props[source_key]
+                    break
+        if "workspace" not in payload and self.workspace_id:
+            payload["workspace"] = self.workspace_id
+
+        resp = make_api_request(
+            "POST",
+            f"{get_base_url()}/nispec/v1/specs",
+            payload={"specs": [payload]},
+            handle_errors=False,
+        )
+        data = resp.json()
+        created_specs = data.get("createdSpecs", []) if isinstance(data, dict) else []
+        if isinstance(created_specs, list) and created_specs:
+            created = created_specs[0]
+            if isinstance(created, dict) and created.get("id"):
+                return str(created["id"])
+            if isinstance(created, str) and created:
+                return created
+        return None
+
+    def _get_specification_by_key(self, props: Dict[str, Any]) -> Optional[str]:
+        """Find a specification by exact product ID and spec ID."""
+        product_id = self._spec_product_id(props)
+        spec_id = self._spec_id(props)
+        if not product_id or not spec_id:
+            return None
+
+        resp = make_api_request(
+            "POST",
+            f"{get_base_url()}/nispec/v1/query-specs",
+            payload={"productIds": [product_id], "take": 1000},
+            handle_errors=False,
+        )
+        data = resp.json()
+        specs = data.get("specs", []) if isinstance(data, dict) else []
+        if not isinstance(specs, list):
+            return None
+        for spec in specs:
+            if not isinstance(spec, dict):
+                continue
+            if str(spec.get("productId", "")) != product_id:
+                continue
+            if str(spec.get("specId", "")) != spec_id:
+                continue
+            specification_id = spec.get("id")
+            if specification_id:
+                return str(specification_id)
+        return None
+
+    def _delete_specification(self, props: Dict[str, Any]) -> Optional[str]:
+        """Delete a specification by product/spec key and return its ID."""
+        specification_id = self._get_specification_by_key(props)
+        if not specification_id:
+            return None
+
+        resp = make_api_request(
+            "POST",
+            f"{get_base_url()}/nispec/v1/delete-specs",
+            payload={"ids": [specification_id]},
+            handle_errors=False,
+        )
+        if getattr(resp, "status_code", None) == 204:
+            return specification_id
+        data = resp.json()
+        if isinstance(data, dict):
+            failed_ids = data.get("failedSpecIds", [])
+            if isinstance(failed_ids, list) and specification_id in failed_ids:
+                return None
+            deleted_ids = data.get("deletedSpecIds")
+            if isinstance(deleted_ids, list) and specification_id not in deleted_ids:
+                return None
+        return specification_id
+
+    def _get_feed_by_name(self, name: str, platform: Optional[str] = None) -> Optional[str]:
+        """Find a feed by exact name, platform, and workspace."""
+        from .feed_click import _get_feed_base_url, _normalize_platform
+
+        params: List[str] = []
+        if platform:
+            params.append(f"platform={_normalize_platform(platform)}")
+        if self.workspace_id:
+            params.append(f"workspace={self.workspace_id}")
+        url = f"{_get_feed_base_url()}/feeds"
+        if params:
+            url += "?" + "&".join(params)
+
+        try:
+            resp = make_api_request("GET", url, payload=None, handle_errors=False)
+            data = resp.json()
+        except Exception:
+            return None
+        feeds = data.get("feeds", []) if isinstance(data, dict) else []
+        if not isinstance(feeds, list):
+            return None
+
+        for feed in feeds:
+            if not isinstance(feed, dict):
+                continue
+            feed_name = feed.get("name") or feed.get("feedName")
+            feed_workspace = feed.get("workspace", feed.get("workspaceId"))
+            if feed_name != name:
+                continue
+            if self.workspace_id and feed_workspace != self.workspace_id:
+                continue
+            feed_id = feed.get("id") or feed.get("feedId")
+            if feed_id:
+                return str(feed_id)
+        return None
+
+    def _create_feed(self, props: Dict[str, Any]) -> Optional[str]:
+        """Create a feed and wait for an asynchronous create job when needed."""
+        from .feed_click import _create_feed as create_feed, _wait_for_job
+
+        name = str(props.get("name", ""))
+        platform = str(props.get("platform", ""))
+        if not name or not platform:
+            return None
+
+        result = create_feed(
+            name=name,
+            platform=platform,
+            description=props.get("description"),
+            workspace=self.workspace_id,
+        )
+        job = result.get("job", {}) if isinstance(result, dict) else {}
+        job_id = result.get("jobId") if isinstance(result, dict) else None
+        if not job_id and isinstance(job, dict):
+            job_id = job.get("id")
+        if job_id:
+            completed_job = _wait_for_job(str(job_id), timeout=int(props.get("timeout", 300)))
+            feed_id = completed_job.get("resourceId") or completed_job.get("feedId")
+        else:
+            feed_id = result.get("id") if isinstance(result, dict) else None
+        return str(feed_id) if feed_id else None
+
+    def _delete_feed(self, props: Dict[str, Any]) -> Optional[str]:
+        """Delete a feed by exact name and wait for an asynchronous job."""
+        from .feed_click import _delete_feed as delete_feed, _wait_for_job
+
+        name = str(props.get("name", ""))
+        platform = str(props.get("platform", "")) or None
+        feed_id = self._get_feed_by_name(name, platform)
+        if not feed_id:
+            return None
+
+        job_id = delete_feed(feed_id)
+        if job_id:
+            _wait_for_job(str(job_id), timeout=int(props.get("timeout", 300)))
+        return feed_id
 
     # --- Create methods (real API calls) ---
     def _create_location(self, props: Dict[str, Any]) -> str:

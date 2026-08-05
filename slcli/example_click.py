@@ -62,6 +62,54 @@ def _serialize_results(results: List[ProvisioningResult]) -> List[Dict[str, Any]
     return serialized
 
 
+def _build_install_manifest(
+    config: Dict[str, Any],
+    workspace_id: Optional[str],
+    results: List[Dict[str, Any]],
+    logical_ids: Dict[str, str],
+) -> Dict[str, Any]:
+    """Build the opt-in manifest contract for data-heavy fixtures."""
+    resource_actions: Dict[str, List[Dict[str, Any]]] = {
+        "created": [],
+        "updated": [],
+        "skipped": [],
+        "failed": [],
+    }
+    for result in results:
+        action = result.get("action")
+        if action in resource_actions:
+            resource_actions[action].append(result)
+
+    validation = config.get("validation", {})
+    if not isinstance(validation, dict):
+        validation = {}
+    unsupported = validation.get("unsupported", [])
+    if not isinstance(unsupported, list):
+        unsupported = [str(unsupported)]
+    required_relationships = validation.get("required_relationships", [])
+    if not isinstance(required_relationships, list):
+        required_relationships = [str(required_relationships)]
+
+    failed_relationships = validation.get("failed_relationships", [])
+    if not isinstance(failed_relationships, list):
+        failed_relationships = [str(failed_relationships)]
+
+    incomplete = bool(resource_actions["failed"] or unsupported or failed_relationships)
+    return {
+        "example": config.get("name", ""),
+        "version": config.get("example_version", "1.0.0"),
+        "workspace": {"name": config.get("workspace_name", ""), "id": workspace_id},
+        "resources": resource_actions,
+        "logical_ids": logical_ids,
+        "validation": {
+            "required_relationships": required_relationships,
+            "failed_relationships": failed_relationships,
+            "unsupported": unsupported,
+            "complete": not incomplete,
+        },
+    }
+
+
 def _result_row_formatter(item: Dict[str, Any]) -> List[str]:
     """Formatter for table rows in provisioning output."""
     return [
@@ -278,12 +326,33 @@ def register_example_commands(cli: Any) -> None:
                 handle_api_error(err)
 
             serialized = _serialize_results(results)
-            _write_audit_log(serialized, audit_log, quiet=format == "json")
-            _output_results(serialized, format)
-
+            manifest_mode = bool(config.get("install_manifest"))
+            manifest = _build_install_manifest(
+                config,
+                workspace_id,
+                serialized,
+                getattr(provisioner, "id_map", {}),
+            )
             failed = any(r.get("action") == ProvisioningAction.FAILED.value for r in serialized)
-            if failed:
-                click.echo("✗ One or more resources failed to provision.", err=True)
+            incomplete = manifest["validation"]["complete"] is False
+
+            if manifest_mode and format == "json":
+                _write_audit_log([manifest], audit_log, quiet=True)
+                click.echo(json.dumps(manifest, indent=2))
+            else:
+                _write_audit_log(serialized, audit_log, quiet=format == "json")
+                _output_results(serialized, format)
+
+            if failed or (manifest_mode and incomplete):
+                if manifest_mode and incomplete and manifest["validation"]["unsupported"]:
+                    click.echo(
+                        "✗ Example install is incomplete: required capabilities are unsupported.",
+                        err=True,
+                    )
+                elif failed:
+                    click.echo("✗ One or more resources failed to provision.", err=True)
+                else:
+                    click.echo("✗ Example install is incomplete.", err=True)
                 sys.exit(ExitCodes.GENERAL_ERROR)
 
             if format == "json":

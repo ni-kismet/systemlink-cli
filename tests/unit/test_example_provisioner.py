@@ -326,6 +326,298 @@ def test_unsupported_resource_type(mock_api: Any) -> None:
     assert results[0].error is not None and "Unsupported resource type" in results[0].error
 
 
+@patch("slcli.example_provisioner.get_base_url")
+@patch("slcli.example_provisioner.make_api_request")
+def test_state_provisioning_builds_payload_and_stores_id(mock_api: Any, mock_base_url: Any) -> None:
+    """States use synchronous create responses and workspace-scoped name lookup."""
+    mock_base_url.return_value = "https://api.test.com"
+    calls = []
+
+    def mock_state_api(*args: Any, **kwargs: Any) -> Any:
+        calls.append((args, kwargs))
+        response = MagicMock()
+        if args[0] == "GET":
+            response.json.return_value = {"states": []}
+        else:
+            response.json.return_value = {"id": "state-123"}
+        return response
+
+    mock_api.side_effect = mock_state_api
+    config = {
+        "format_version": "1.0",
+        "name": "state-test",
+        "title": "State Test",
+        "resources": [
+            {
+                "type": "state",
+                "name": "Windows image",
+                "id_reference": "state_windows",
+                "properties": {
+                    "distribution": "WINDOWS",
+                    "architecture": "X64",
+                    "description": "Test state",
+                    "properties": {"channel": "stable"},
+                },
+            }
+        ],
+    }
+
+    results, err = ExampleProvisioner(workspace_id="ws-test").provision(config)
+
+    assert err is None
+    assert results[0].action == ProvisioningAction.CREATED
+    assert results[0].server_id == "state-123"
+    assert calls[0][0][0] == "GET"
+    assert "Workspace=ws-test" in calls[0][0][1]
+    assert calls[1][0][0] == "POST"
+    assert calls[1][0][2] == {
+        "name": "Windows image",
+        "distribution": "WINDOWS",
+        "architecture": "X64",
+        "workspace": "ws-test",
+        "description": "Test state",
+        "properties": {"channel": "stable"},
+    }
+
+
+@patch("slcli.example_provisioner.get_base_url")
+@patch("slcli.example_provisioner.make_api_request")
+def test_tag_provisioning_uses_encoded_path_identity(mock_api: Any, mock_base_url: Any) -> None:
+    """Tags are identified by their workspace-scoped path, not a UUID."""
+    mock_base_url.return_value = "https://api.test.com"
+
+    def mock_tag_api(*args: Any, **kwargs: Any) -> Any:
+        if args[0] == "GET":
+            raise RuntimeError("tag not found")
+        response = MagicMock()
+        response.json.return_value = {}
+        return response
+
+    mock_api.side_effect = mock_tag_api
+    config = {
+        "format_version": "1.0",
+        "name": "tag-test",
+        "title": "Tag Test",
+        "resources": [
+            {
+                "type": "tag",
+                "name": "system/temperature",
+                "id_reference": "tag_temperature",
+                "properties": {
+                    "type": "DOUBLE",
+                    "collectAggregates": True,
+                    "keywords": ["fixture"],
+                    "properties": {"unit": "C"},
+                },
+            }
+        ],
+    }
+
+    results, err = ExampleProvisioner(workspace_id="ws-test").provision(config)
+
+    assert err is None
+    assert results[0].action == ProvisioningAction.CREATED
+    assert results[0].server_id == "system/temperature"
+    assert mock_api.call_args_list[0].args[1].endswith("/tags/ws-test/system%2Ftemperature")
+    assert mock_api.call_args_list[1].kwargs["payload"] == {
+        "path": "system/temperature",
+        "type": "DOUBLE",
+        "workspace": "ws-test",
+        "collectAggregates": True,
+        "keywords": ["fixture"],
+        "properties": {"unit": "C"},
+    }
+
+
+@patch("slcli.example_provisioner.get_base_url")
+@patch("slcli.example_provisioner.make_api_request")
+def test_tag_provisioning_does_not_treat_empty_metadata_as_existing(
+    mock_api: Any, mock_base_url: Any
+) -> None:
+    """A successful response without a path does not suppress tag creation."""
+    mock_base_url.return_value = "https://api.test.com"
+    get_response = MagicMock()
+    get_response.json.return_value = {}
+    put_response = MagicMock()
+    put_response.json.return_value = {}
+    mock_api.side_effect = [get_response, put_response]
+
+    config = {
+        "format_version": "1.0",
+        "name": "tag-empty-response-test",
+        "title": "Tag Empty Response Test",
+        "resources": [
+            {
+                "type": "tag",
+                "name": "system/temperature",
+                "id_reference": "tag_temperature",
+                "properties": {"type": "DOUBLE"},
+            }
+        ],
+    }
+
+    results, err = ExampleProvisioner(workspace_id="ws-test").provision(config)
+
+    assert err is None
+    assert results[0].action == ProvisioningAction.CREATED
+    assert mock_api.call_args_list[1].args[0] == "PUT"
+
+
+@patch("slcli.example_provisioner.get_base_url")
+@patch("slcli.example_provisioner.make_api_request")
+def test_specification_provisioning_extracts_bulk_created_id(
+    mock_api: Any, mock_base_url: Any
+) -> None:
+    """Specifications use product/spec keys for lookup and createdSpecs for IDs."""
+    mock_base_url.return_value = "https://api.test.com"
+
+    def mock_spec_api(*args: Any, **kwargs: Any) -> Any:
+        response = MagicMock()
+        if args[0] == "POST" and "query-specs" in args[1]:
+            response.json.return_value = {"specs": []}
+        else:
+            response.json.return_value = {"createdSpecs": [{"id": "spec-123"}]}
+        return response
+
+    mock_api.side_effect = mock_spec_api
+    config = {
+        "format_version": "1.0",
+        "name": "spec-test",
+        "title": "Specification Test",
+        "resources": [
+            {
+                "type": "specification",
+                "name": "Voltage",
+                "id_reference": "spec_voltage",
+                "properties": {
+                    "product_id": "product-123",
+                    "spec_id": "voltage",
+                    "type": "PARAMETRIC",
+                    "unit": "V",
+                    "limit": {"min": 0, "max": 5},
+                },
+            }
+        ],
+    }
+
+    results, err = ExampleProvisioner(workspace_id="ws-test").provision(config)
+
+    assert err is None
+    assert results[0].action == ProvisioningAction.CREATED
+    assert results[0].server_id == "spec-123"
+    create_call = mock_api.call_args_list[1]
+    assert create_call.args[1].endswith("/nispec/v1/specs")
+    assert create_call.kwargs["payload"] == {
+        "specs": [
+            {
+                "productId": "product-123",
+                "specId": "voltage",
+                "type": "PARAMETRIC",
+                "name": "Voltage",
+                "unit": "V",
+                "limit": {"min": 0, "max": 5},
+                "workspace": "ws-test",
+            }
+        ]
+    }
+
+
+@patch("slcli.example_provisioner.get_base_url")
+@patch("slcli.example_provisioner.make_api_request")
+def test_specification_delete_resolves_product_reference(mock_api: Any, mock_base_url: Any) -> None:
+    """Specification cleanup resolves product references before querying specs."""
+    mock_base_url.return_value = "https://api.test.com"
+
+    def mock_delete_api(*args: Any, **kwargs: Any) -> Any:
+        response = MagicMock()
+        if args[0] == "GET" and "products" in args[1]:
+            response.json.return_value = {
+                "products": [{"id": "product-123", "name": "Product XYZ", "workspace": "ws-test"}]
+            }
+        elif args[0] == "POST" and "query-specs" in args[1]:
+            response.json.return_value = {
+                "specs": [{"id": "spec-123", "productId": "product-123", "specId": "voltage"}]
+            }
+        response.status_code = 204
+        return response
+
+    mock_api.side_effect = mock_delete_api
+    config = {
+        "format_version": "1.0",
+        "name": "spec-delete-test",
+        "title": "Specification Delete Test",
+        "resources": [
+            {
+                "type": "product",
+                "name": "Product XYZ",
+                "id_reference": "product_xyz",
+                "tags": ["other"],
+                "properties": {},
+            },
+            {
+                "type": "specification",
+                "name": "Voltage",
+                "id_reference": "spec_voltage",
+                "tags": ["selected"],
+                "properties": {"product_id": "${product_xyz}", "spec_id": "voltage"},
+            },
+        ],
+    }
+
+    results, err = ExampleProvisioner(workspace_id="ws-test").delete(
+        config, filter_tags=["selected"]
+    )
+
+    assert err is None
+    assert results[0].resource_type == "specification"
+    assert results[0].action == ProvisioningAction.DELETED
+    assert results[0].server_id == "spec-123"
+    query_call = next(call for call in mock_api.call_args_list if "query-specs" in call.args[1])
+    assert query_call.kwargs["payload"]["productIds"] == ["product-123"]
+
+
+@patch("slcli.example_provisioner.get_base_url")
+@patch("slcli.example_provisioner.make_api_request")
+@patch("slcli.feed_click._wait_for_job")
+@patch("slcli.feed_click._create_feed")
+@patch("slcli.feed_click._normalize_platform")
+def test_feed_provisioning_stores_completed_resource_id(
+    mock_normalize: Any,
+    mock_create: Any,
+    mock_wait: Any,
+    mock_api: Any,
+    mock_base_url: Any,
+) -> None:
+    """Feed jobs must resolve to a completed feed resource ID."""
+    mock_base_url.return_value = "https://api.test.com"
+    mock_normalize.return_value = "WINDOWS"
+    mock_create.return_value = {"jobId": "job-123"}
+    mock_wait.return_value = {"resourceId": "feed-123"}
+    response = MagicMock()
+    response.json.return_value = {"feeds": []}
+    mock_api.return_value = response
+    config = {
+        "format_version": "1.0",
+        "name": "feed-test",
+        "title": "Feed Test",
+        "resources": [
+            {
+                "type": "feed",
+                "name": "Fixture feed",
+                "id_reference": "feed_fixture",
+                "properties": {"platform": "windows", "description": "Fixture"},
+            }
+        ],
+    }
+
+    results, err = ExampleProvisioner(workspace_id="ws-test").provision(config)
+
+    assert err is None
+    assert results[0].action == ProvisioningAction.CREATED
+    assert results[0].server_id == "feed-123"
+    mock_wait.assert_called_once_with("job-123", timeout=300)
+
+
 @patch("slcli.example_provisioner.make_api_request")
 def test_tag_filtering_on_delete(mock_api: Any) -> None:
     """Test that delete filters by tag correctly."""
