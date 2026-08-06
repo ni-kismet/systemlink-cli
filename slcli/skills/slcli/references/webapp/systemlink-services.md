@@ -14,9 +14,11 @@ Use the spec URL as the `input` in your `openapi-ts.config.ts`.
 
 ---
 
-## Tag Historian (`/nitag`)
+## Tag Services
 
-**Base URL:** `window.location.origin + '/nitag'`
+**Tag service base URL:** `window.location.origin + '/nitag'`
+
+**Tag Historian service base URL:** `window.location.origin + '/nitaghistorian'`
 
 ### Key endpoints
 
@@ -25,7 +27,7 @@ Use the spec URL as the `input` in your `openapi-ts.config.ts`.
 | Query tags with current values | POST | `/nitag/v2/query-tags-with-values` |
 | Get single tag | GET | `/nitag/v2/tags/{path}` |
 | Write tag value | PUT | `/nitag/v2/tags/{path}/values/current` |
-| Query tag history | POST | `/nitag/v2/history-data/query-decimated-data` |
+| Query tag history | POST | `/nitaghistorian/v2/tags/query-history` |
 
 ### Query body (`POST /query-tags-with-values`)
 

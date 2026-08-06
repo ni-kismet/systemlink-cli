@@ -378,6 +378,7 @@ slcli dataframe delete <TABLE_ID>... [--yes]
 slcli tag list [OPTIONS]                            # List tags (filter by path glob, workspace)
 slcli tag get <TAG_PATH> [-f json]                  # Get tag metadata
 slcli tag get-value <TAG_PATH>                      # Read current tag value
+slcli tag history <TAG_PATH> [-w WORKSPACE] [-t TAKE] [-f json]  # Read historical tag values
 slcli tag set-value <TAG_PATH> <VALUE>              # Write a tag value
 slcli tag create --path <PATH> --data-type <TYPE>   # Create a new tag
 slcli tag update <TAG_PATH> [OPTIONS]               # Update tag metadata

@@ -245,6 +245,146 @@ class TestTagList:
                 assert "Query Failed" in result.output
 
 
+class TestTagHistory:
+    """Tests for tag history command."""
+
+    def test_history_json_output(self, monkeypatch: Any) -> None:
+        """Test historical values are returned as normalized JSON."""
+
+        def mock_get_password(service: str, key: str) -> Optional[str]:
+            if key == "SYSTEMLINK_CONFIG":
+                return json.dumps({"api_url": "http://localhost", "api_key": "test"})
+            return None
+
+        monkeypatch.setattr(keyring, "get_password", mock_get_password)
+
+        cli = make_cli()
+        runner = CliRunner()
+        history = [
+            {
+                "timestamp": "2024-01-02T00:00:00Z",
+                "value": "23.5",
+            }
+        ]
+
+        with patch("slcli.tag_click.get_base_url", return_value="http://localhost"):
+            with patch("slcli.tag_click.make_api_request") as mock_request:
+                with patch("slcli.tag_click.resolve_workspace_id") as mock_resolve:
+                    mock_resolve.return_value = "ws-123"
+                    mock_request.return_value = mock_response({"type": "DOUBLE", "values": history})
+
+                    result = runner.invoke(
+                        cli,
+                        [
+                            "tag",
+                            "history",
+                            "sensor/temperature",
+                            "--workspace",
+                            "ws-123",
+                            "--take",
+                            "2",
+                            "--format",
+                            "json",
+                        ],
+                    )
+
+        assert result.exit_code == 0
+        assert json.loads(result.output) == [{**entry, "type": "DOUBLE"} for entry in history]
+        mock_request.assert_called_once_with(
+            "POST",
+            "http://localhost/nitaghistorian/v2/tags/query-history",
+            payload={
+                "path": "sensor/temperature",
+                "workspace": "ws-123",
+                "startTime": "0001-01-01T00:00:00Z",
+                "endTime": "9999-12-31T23:59:59Z",
+                "take": 2,
+                "sortOrder": "DESCENDING",
+            },
+        )
+
+    def test_history_table_output(self, monkeypatch: Any) -> None:
+        """Test historical values are rendered in table format."""
+
+        def mock_get_password(service: str, key: str) -> Optional[str]:
+            if key == "SYSTEMLINK_CONFIG":
+                return json.dumps({"api_url": "http://localhost", "api_key": "test"})
+            return None
+
+        monkeypatch.setattr(keyring, "get_password", mock_get_password)
+
+        cli = make_cli()
+        runner = CliRunner()
+        history: Any = [
+            {
+                "timestamp": "2024-01-02T00:00:00Z",
+                "value": "23.5",
+            }
+        ]
+
+        with patch("slcli.tag_click.make_api_request") as mock_request:
+            with patch("slcli.tag_click.resolve_workspace_id") as mock_resolve:
+                mock_resolve.return_value = None
+                mock_request.return_value = mock_response({"type": "DOUBLE", "values": history})
+
+                result = runner.invoke(cli, ["tag", "history", "temperature"])
+
+        assert result.exit_code == 0
+        assert "Timestamp" in result.output
+        assert "2024-01-02T00:00:00Z" in result.output
+        assert "23.5" in result.output
+        assert "DOUBLE" in result.output
+
+    def test_history_empty_output(self, monkeypatch: Any) -> None:
+        """Test an empty history response has a useful table message."""
+
+        def mock_get_password(service: str, key: str) -> Optional[str]:
+            if key == "SYSTEMLINK_CONFIG":
+                return json.dumps({"api_url": "http://localhost", "api_key": "test"})
+            return None
+
+        monkeypatch.setattr(keyring, "get_password", mock_get_password)
+
+        cli = make_cli()
+        runner = CliRunner()
+
+        with patch("slcli.tag_click.make_api_request") as mock_request:
+            with patch("slcli.tag_click.resolve_workspace_id") as mock_resolve:
+                mock_resolve.return_value = "ws-123"
+                mock_request.return_value = mock_response({"values": []})
+
+                result = runner.invoke(
+                    cli,
+                    ["tag", "history", "temperature", "--workspace", "ws-123"],
+                )
+
+        assert result.exit_code == 0
+        assert "No tag history found in workspace 'ws-123'" in result.output
+
+    def test_history_api_error(self, monkeypatch: Any) -> None:
+        """Test history API errors use standard CLI error handling."""
+
+        def mock_get_password(service: str, key: str) -> Optional[str]:
+            if key == "SYSTEMLINK_CONFIG":
+                return json.dumps({"api_url": "http://localhost", "api_key": "test"})
+            return None
+
+        monkeypatch.setattr(keyring, "get_password", mock_get_password)
+
+        cli = make_cli()
+        runner = CliRunner()
+
+        with patch("slcli.tag_click.make_api_request") as mock_request:
+            with patch("slcli.tag_click.resolve_workspace_id") as mock_resolve:
+                mock_resolve.return_value = None
+                mock_request.side_effect = Exception("History query failed")
+
+                result = runner.invoke(cli, ["tag", "history", "temperature"])
+
+        assert result.exit_code != 0
+        assert "History query failed" in result.output
+
+
 class TestTagGet:
     """Tests for tag get command."""
 

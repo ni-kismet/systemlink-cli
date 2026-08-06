@@ -52,6 +52,23 @@ def _tag_formatter(item: Dict[str, Any]) -> List[str]:
     return [path, tag_type, value, last_updated]
 
 
+def _tag_history_formatter(item: Dict[str, Any]) -> List[str]:
+    """Format one historical tag value for table output."""
+    value_data = item.get("value", {})
+    if isinstance(value_data, dict):
+        value = value_data.get("value", "N/A")
+        tag_type = value_data.get("type", item.get("type", "N/A"))
+    else:
+        value = value_data if value_data is not None else "N/A"
+        tag_type = item.get("type", "N/A")
+
+    return [
+        str(item.get("timestamp", "N/A")),
+        str(value),
+        str(tag_type),
+    ]
+
+
 def _calculate_column_widths() -> List[int]:
     """Calculate dynamic column widths based on terminal size.
 
@@ -162,6 +179,59 @@ def _detect_value_type(value_str: str) -> Tuple[Any, str]:
 
     # Default to string
     return value_str, "STRING"
+
+
+def _get_tag_history(tag_path: str, workspace_id: Optional[str], take: int) -> List[Dict[str, Any]]:
+    """Fetch historical values for a tag.
+
+    Args:
+        tag_path: Tag path.
+        workspace_id: Optional workspace ID.
+        take: Maximum number of history entries to return.
+
+    Returns:
+        Historical tag value dictionaries, most recent first.
+    """
+    query_payload: Dict[str, Any] = {
+        "path": tag_path,
+        "startTime": "0001-01-01T00:00:00Z",
+        "endTime": "9999-12-31T23:59:59Z",
+        "take": take,
+        "sortOrder": "DESCENDING",
+    }
+    if workspace_id:
+        query_payload["workspace"] = workspace_id
+
+    url = f"{get_base_url()}/nitaghistorian/v2/tags/query-history"
+    resp = make_api_request("POST", url, payload=query_payload)
+    data = resp.json()
+
+    if isinstance(data, list):
+        return [item for item in data if isinstance(item, dict)]
+
+    if not isinstance(data, dict):
+        return []
+
+    value_type = data.get("type")
+
+    def normalize_entries(entries: Any) -> List[Dict[str, Any]]:
+        if not isinstance(entries, list):
+            return []
+        normalized: List[Dict[str, Any]] = []
+        for item in entries:
+            if not isinstance(item, dict):
+                continue
+            if isinstance(value_type, str) and "type" not in item:
+                item = {**item, "type": value_type}
+            normalized.append(item)
+        return normalized
+
+    for key in ("values", "history", "tagsWithAggregates", "data"):
+        entries = data.get(key)
+        if isinstance(entries, list):
+            return normalize_entries(entries)
+
+    return []
 
 
 def register_tag_commands(cli: Any) -> None:
@@ -317,6 +387,59 @@ def register_tag_commands(cli: Any) -> None:
                 if format == "table" and total_count > len(tags):
                     click.echo(f"\nShowing {len(tags)} of {total_count} tags")
 
+        except Exception as exc:
+            handle_api_error(exc)
+
+    @tag.command(name="history")
+    @click.argument("tag_path")
+    @click.option(
+        "--workspace",
+        "-w",
+        type=str,
+        default=None,
+        help="Workspace ID or name (defaults to default workspace)",
+    )
+    @click.option(
+        "--take",
+        "-t",
+        type=click.IntRange(min=1),
+        default=100,
+        show_default=True,
+        help="Maximum number of historical values to return",
+    )
+    @click.option(
+        "--format",
+        "-f",
+        type=click.Choice(["table", "json"]),
+        default="table",
+        show_default=True,
+        help="Output format",
+    )
+    def tag_history(tag_path: str, workspace: Optional[str], take: int, format: str) -> None:
+        """Show historical values for a tag.
+
+        TAG_PATH is the path identifier of the tag.
+        """
+        validate_output_format(format)
+
+        try:
+            ws_id = resolve_workspace_id(workspace)
+            history = _get_tag_history(tag_path, ws_id, take)
+            history_resp = FilteredResponse({"values": history})
+            workspace_label = ws_id or workspace or "default workspace"
+
+            UniversalResponseHandler.handle_list_response(
+                resp=history_resp,
+                data_key="values",
+                item_name="tag history entry",
+                format_output=format,
+                formatter_func=_tag_history_formatter,
+                headers=["Timestamp", "Value", "Type"],
+                column_widths=[28, 30, 12],
+                empty_message=f"No tag history found in workspace '{workspace_label}'",
+                enable_pagination=False,
+                page_size=take,
+            )
         except Exception as exc:
             handle_api_error(exc)
 
