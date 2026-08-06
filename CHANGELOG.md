@@ -2,6 +2,14 @@
 
 <!-- towncrier release notes start -->
 
+## v1.18.2 (2026-08-06)
+
+### Bug Fixes
+
+- Update dependency cyclonedx-bom to v7.3.1. (deps-cyclonedx-bom-7-x-lockfile)
+- Update dependency mypy to v2.3.0. (deps-mypy-2-x-lockfile)
+
+
 ## v1.18.1 (2026-08-03)
 
 ### Bug Fixes
