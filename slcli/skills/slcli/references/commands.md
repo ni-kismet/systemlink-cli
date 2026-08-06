@@ -5,6 +5,7 @@ Complete option reference for all `slcli` command groups.
 ## Contents
 
 - [testmonitor — Test data analysis](#testmonitor--test-data-analysis)
+- [alarm — Alarm monitoring and lifecycle management](#alarm--alarm-monitoring-and-lifecycle-management)
 - [spec — Specification management](#spec--specification-management)
 - [asset — Asset and calibration management](#asset--asset-and-calibration-management)
 - [system — System fleet management](#system--system-fleet-management)
@@ -172,6 +173,56 @@ slcli asset location-history <ASSET_ID> [-f json]   # Location/connection histor
 slcli asset create --model-name TEXT [OPTIONS]       # Create an asset
 slcli asset update <ASSET_ID> [OPTIONS]              # Update an asset
 slcli asset delete <ASSET_ID>                        # Delete an asset
+```
+
+## alarm — Alarm monitoring and lifecycle management
+
+Alarm list queries default to active alarms in the effective workspace. Use
+`--state all --workspace all` for an unrestricted history search.
+
+```bash
+# List active alarms or search alarm history with filters
+slcli alarm list [OPTIONS]
+
+  --state [active|inactive|all]  # Default: active
+  --alarm-id TEXT                # Exact alarm ID
+  --display-name TEXT            # Display name text
+  --channel TEXT                 # Channel text
+  --resource-type TEXT           # Exact resource type
+  --min-severity INTEGER         # Minimum current severity
+  --max-severity INTEGER         # Maximum current severity
+  --workspace, -w TEXT           # Workspace name/ID, or all
+  --filter TEXT                  # Dynamic LINQ filter
+  --substitution TEXT            # Value for --filter (repeatable)
+  --include-transitions          # Include all stored transitions
+  --most-recent-only             # Group by alarm ID and keep the latest instance
+  --take, -t INTEGER             # Default 25; maximum 1000
+  -f [table|json]
+
+# Inspect an alarm instance
+slcli alarm get <INSTANCE_ID> [-f json]
+
+# Acknowledge or force-clear alarm instances
+slcli alarm acknowledge <INSTANCE_ID>...
+slcli alarm force-clear <INSTANCE_ID>... [--yes]
+
+# Permanently remove alarm instances
+slcli alarm delete <INSTANCE_ID>... [--yes]
+
+# Create an alarm or report a SET/CLEAR transition
+slcli alarm transition <ALARM_ID> --transition [SET|CLEAR] [OPTIONS]
+  --severity INTEGER             # CLEAR defaults to -1
+  --workspace TEXT
+  --value TEXT --condition TEXT --short-text TEXT --detail-text TEXT
+  --channel TEXT --resource-type TEXT --display-name TEXT --description TEXT
+  --keyword TEXT                 # Repeatable
+  --property KEY=VALUE           # Repeatable
+
+# Leave a live active-alarm dashboard running in a terminal
+slcli alarm monitor [OPTIONS]
+  --interval FLOAT               # Seconds between refreshes, default 5.0
+  --once                         # Render one snapshot and exit
+  --no-clear                     # Keep prior snapshots in the terminal
 ```
 
 ## system — System fleet management
