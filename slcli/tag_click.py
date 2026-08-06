@@ -5,6 +5,7 @@ tag values. All tag operations are scoped to workspaces with proper error handli
 """
 
 import json
+import math
 import shutil
 import sys
 import urllib.parse
@@ -23,6 +24,8 @@ from .utils import (
     make_api_request,
 )
 from .workspace_utils import resolve_workspace_id
+
+_TAG_HISTORY_GRAPH_HEIGHT = 6
 
 
 def _tag_formatter(item: Dict[str, Any]) -> List[str]:
@@ -67,6 +70,107 @@ def _tag_history_formatter(item: Dict[str, Any]) -> List[str]:
         str(value),
         str(tag_type),
     ]
+
+
+def _tag_history_numeric_value(item: Dict[str, Any]) -> Optional[float]:
+    """Return a finite numeric history value, if one is available."""
+    value_data = item.get("value")
+    value = value_data.get("value") if isinstance(value_data, dict) else value_data
+    if value is None or isinstance(value, bool):
+        return None
+
+    try:
+        numeric_value = float(value)
+    except (TypeError, ValueError):
+        return None
+
+    return numeric_value if math.isfinite(numeric_value) else None
+
+
+def _downsample_history(values: List[float], width: int) -> List[float]:
+    """Downsample values to fit the available graph width."""
+    if len(values) <= width:
+        return values
+    if width <= 1:
+        return [values[-1]]
+
+    return [values[round(index * (len(values) - 1) / (width - 1))] for index in range(width)]
+
+
+def _format_graph_value(value: float) -> str:
+    """Format a graph statistic without unnecessary trailing zeroes."""
+    return f"{value:.6g}"
+
+
+def _render_tag_history_graph(
+    tag_path: str, workspace_label: str, history: List[Dict[str, Any]]
+) -> None:
+    """Render numeric tag history as a terminal sparkline."""
+    if not history:
+        click.echo(f"No tag history found in workspace '{workspace_label}'")
+        return
+
+    chronological_history = list(reversed(history))
+    numeric_values = [_tag_history_numeric_value(item) for item in chronological_history]
+    if any(value is None for value in numeric_values):
+        click.echo(
+            f"Cannot graph non-numeric tag history for '{tag_path}' "
+            f"in workspace '{workspace_label}'."
+        )
+        click.echo("Run without --graph to view the history table.")
+        return
+
+    values = [value for value in numeric_values if value is not None]
+    minimum = min(values)
+    maximum = max(values)
+    latest = values[-1]
+    terminal_width = max(shutil.get_terminal_size().columns, 1)
+    graph_width = max(1, min(len(values), terminal_width - 16))
+    graph_values = _downsample_history(values, graph_width)
+    value_range = maximum - minimum
+    point_rows = [
+        (
+            _TAG_HISTORY_GRAPH_HEIGHT // 2
+            if value_range == 0
+            else round((maximum - value) / value_range * (_TAG_HISTORY_GRAPH_HEIGHT - 1))
+        )
+        for value in graph_values
+    ]
+    graph_rows = [[" "] * len(graph_values) for _ in range(_TAG_HISTORY_GRAPH_HEIGHT)]
+    for index, point_row in enumerate(point_rows):
+        graph_rows[point_row][index] = "●"
+        if index == 0:
+            continue
+
+        previous_row = point_rows[index - 1]
+        if previous_row == point_row:
+            continue
+
+        step = 1 if point_row > previous_row else -1
+        for row in range(previous_row + step, point_row, step):
+            graph_rows[row][index] = "│"
+
+    first_timestamp = chronological_history[0].get("timestamp", "N/A")
+    last_timestamp = chronological_history[-1].get("timestamp", "N/A")
+    click.echo(f"Tag history graph for '{tag_path}'")
+    click.echo(f"Workspace: {workspace_label}")
+    click.echo(f"Range: {first_timestamp} to {last_timestamp}")
+    click.echo(
+        f"Min: {_format_graph_value(minimum)}  "
+        f"Max: {_format_graph_value(maximum)}  "
+        f"Latest: {_format_graph_value(latest)}"
+    )
+    for row, graph_row in enumerate(graph_rows):
+        if value_range == 0:
+            row_label = (
+                _format_graph_value(maximum) if row == _TAG_HISTORY_GRAPH_HEIGHT // 2 else ""
+            )
+        else:
+            row_value = maximum - value_range * row / (_TAG_HISTORY_GRAPH_HEIGHT - 1)
+            row_label = _format_graph_value(row_value)
+        click.echo(f"  {row_label:>8} ┤{''.join(graph_row)}")
+    click.echo(f"  {_format_graph_value(minimum):>8} └{'─' * len(graph_values)}")
+    click.echo(f"  oldest{' ' * max(len(graph_values) - 12, 1)}newest")
 
 
 def _calculate_column_widths() -> List[int]:
@@ -415,18 +519,37 @@ def register_tag_commands(cli: Any) -> None:
         show_default=True,
         help="Output format",
     )
-    def tag_history(tag_path: str, workspace: Optional[str], take: int, format: str) -> None:
+    @click.option(
+        "--graph",
+        is_flag=True,
+        help="Render numeric history as a terminal sparkline (table format only)",
+    )
+    def tag_history(
+        tag_path: str,
+        workspace: Optional[str],
+        take: int,
+        format: str,
+        graph: bool,
+    ) -> None:
         """Show historical values for a tag.
 
         TAG_PATH is the path identifier of the tag.
         """
         validate_output_format(format)
+        if graph and format == "json":
+            click.echo("✗ --graph cannot be used with --format json", err=True)
+            sys.exit(ExitCodes.INVALID_INPUT)
 
         try:
             ws_id = resolve_workspace_id(workspace)
             history = _get_tag_history(tag_path, ws_id, take)
-            history_resp = FilteredResponse({"values": history})
             workspace_label = ws_id or workspace or "default workspace"
+
+            if graph:
+                _render_tag_history_graph(tag_path, workspace_label, history)
+                return
+
+            history_resp = FilteredResponse({"values": history})
 
             UniversalResponseHandler.handle_list_response(
                 resp=history_resp,

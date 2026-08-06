@@ -638,6 +638,9 @@ slcli tag get-value "sensor.temp" --include-aggregates
 # View historical values
 slcli tag history "sensor.temp" --take 100 --format table
 
+# View numeric history as a terminal sparkline
+slcli tag history "sensor.temp" --take 100 --graph
+
 # View details with aggregates
 slcli tag get "sensor.temp" --include-aggregates
 

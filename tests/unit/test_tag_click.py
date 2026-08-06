@@ -335,6 +335,57 @@ class TestTagHistory:
         assert "23.5" in result.output
         assert "DOUBLE" in result.output
 
+    def test_history_graph_output(self, monkeypatch: Any) -> None:
+        """Test numeric history is rendered chronologically as a sparkline."""
+
+        def mock_get_password(service: str, key: str) -> Optional[str]:
+            if key == "SYSTEMLINK_CONFIG":
+                return json.dumps({"api_url": "http://localhost", "api_key": "test"})
+            return None
+
+        monkeypatch.setattr(keyring, "get_password", mock_get_password)
+
+        cli = make_cli()
+        runner = CliRunner()
+        history: Any = [
+            {"timestamp": "2024-01-02T00:00:03Z", "value": "30"},
+            {"timestamp": "2024-01-02T00:00:02Z", "value": "20"},
+            {"timestamp": "2024-01-02T00:00:01Z", "value": "10"},
+        ]
+
+        with patch("slcli.tag_click.make_api_request") as mock_request:
+            with patch("slcli.tag_click.resolve_workspace_id") as mock_resolve:
+                mock_resolve.return_value = "ws-123"
+                mock_request.return_value = mock_response({"type": "DOUBLE", "values": history})
+
+                result = runner.invoke(
+                    cli,
+                    ["tag", "history", "temperature", "--workspace", "ws-123", "--graph"],
+                )
+
+        assert result.exit_code == 0
+        assert "Tag history graph for 'temperature'" in result.output
+        assert "Workspace: ws-123" in result.output
+        assert "Range: 2024-01-02T00:00:01Z to 2024-01-02T00:00:03Z" in result.output
+        assert "Min: 10  Max: 30  Latest: 30" in result.output
+        graph_rows = [line for line in result.output.splitlines() if "┤" in line]
+        assert len(graph_rows) == 6
+        assert "●" in graph_rows[0]
+        assert "●" in graph_rows[-1]
+
+    def test_history_graph_rejects_json_format(self, monkeypatch: Any) -> None:
+        """Test graph mode cannot be combined with JSON output."""
+        cli = make_cli()
+        runner = CliRunner()
+
+        result = runner.invoke(
+            cli,
+            ["tag", "history", "temperature", "--graph", "--format", "json"],
+        )
+
+        assert result.exit_code != 0
+        assert "--graph cannot be used with --format json" in result.output
+
     def test_history_empty_output(self, monkeypatch: Any) -> None:
         """Test an empty history response has a useful table message."""
 
