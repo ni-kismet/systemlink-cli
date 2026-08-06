@@ -176,6 +176,6 @@ def test_ssl_verify_prefers_os_trust_over_ssl_cert_file(monkeypatch: Any) -> Non
 
     monkeypatch.delenv("REQUESTS_CA_BUNDLE", raising=False)
     monkeypatch.setenv("SSL_CERT_FILE", "/path/to/corporate-root.pem")
-    monkeypatch.setattr("slcli.utils.OS_TRUST_INJECTED", True)
+    monkeypatch.setattr("slcli.ssl_trust.OS_TRUST_INJECTED", True)
 
     assert get_ssl_verify("https://example.com") is True

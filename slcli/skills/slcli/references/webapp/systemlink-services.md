@@ -177,7 +177,7 @@ path = "cpu" or path = "mem"           OR
 keywords.Contains("production")        array contains
 ```
 
-String values must be double-quoted in the filter string. Build filters by joining parts with `and`.
+String values must be double-quoted in the filter string. Build filters by joining parts with ` and `, including the surrounding spaces.
 
 ---
 
