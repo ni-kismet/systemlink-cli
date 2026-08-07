@@ -58,6 +58,7 @@ Load only what the current task needs.
 | Group | Purpose | Key subcommands |
 | --- | --- | --- |
 | `testmonitor` | Test results and products | `result list/get`, `product list/create/update` |
+| `alarm` | Alarm monitoring and lifecycle actions | `list`, `get`, `acknowledge`, `force-clear`, `delete`, `transition`, `monitor` |
 | `spec` | Specifications | `list`, `query`, `get`, `create`, `import`, `export` |
 | `asset` | Assets and calibration | `list`, `get`, `summary`, `calibration` |
 | `system` | System fleet | `list`, `get`, `compare`, `summary`, `job` |

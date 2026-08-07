@@ -119,6 +119,26 @@ Use the spec URL as the `input` in your `openapi-ts.config.ts`.
 
 ---
 
+## Alarm Management (`/nialarm`)
+
+**Base URL:** `window.location.origin + '/nialarm'`
+
+### Key endpoints
+
+| Operation | Method | Path |
+|-----------|--------|------|
+| Query alarms with Dynamic LINQ | POST | `/nialarm/v1/query-instances-with-filter` |
+| Get alarm instance | GET | `/nialarm/v1/instances/{instanceId}` |
+| Create or update alarm transition | POST | `/nialarm/v1/instances` |
+| Acknowledge or force-clear alarms | POST | `/nialarm/v1/acknowledge-instances-by-instance-id` |
+| Delete alarms in a batch | POST | `/nialarm/v1/delete-instances-by-instance-id` |
+
+The query response uses an `alarms` array and may include `totalCount` and
+`continuationToken`. The CLI uses the Dynamic LINQ endpoint because the older
+`query-instances` endpoint is deprecated.
+
+---
+
 ## Work Orders (`/niworkorder`)
 
 **Base URL:** `window.location.origin + '/niworkorder'`

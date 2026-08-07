@@ -509,6 +509,7 @@ def pytest_configure(config: Any) -> None:
     config.addinivalue_line("markers", "tag: mark test as tag service related")
     config.addinivalue_line("markers", "system: mark test as system management related")
     config.addinivalue_line("markers", "asset: mark test as asset management related")
+    config.addinivalue_line("markers", "alarm: mark test as alarm management related")
     config.addinivalue_line("markers", "testmonitor: mark test as test monitor related")
     config.addinivalue_line("markers", "comment: mark test as comment management related")
     config.addinivalue_line("markers", "routine: mark test as routine management related")

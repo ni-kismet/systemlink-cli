@@ -51,6 +51,7 @@
         <a href="#mcp" class="sidebar-link">mcp</a>
         <a href="#testmonitor" class="sidebar-link">testmonitor</a>
         <a href="#asset" class="sidebar-link">asset</a>
+        <a href="#alarm" class="sidebar-link">alarm</a>
         <a href="#system" class="sidebar-link">system</a>
         <a href="#state" class="sidebar-link">state</a>
         <a href="#dataframe" class="sidebar-link">dataframe</a>
@@ -83,6 +84,7 @@
         <div class="cmd-group"><h3>mcp</h3><p>Model Context Protocol server install and serve commands</p><code>slcli mcp install</code></div>
         <div class="cmd-group"><h3>testmonitor</h3><p>Test results, products, steps, measurements</p><code>slcli testmonitor result list</code></div>
         <div class="cmd-group"><h3>asset</h3><p>Hardware assets, calibration, fleet summary</p><code>slcli asset list</code></div>
+        <div class="cmd-group"><h3>alarm</h3><p>Alarm listing, lifecycle actions, transitions, and monitoring</p><code>slcli alarm list</code></div>
         <div class="cmd-group"><h3>system</h3><p>Managed systems, package comparison, jobs, reports</p><code>slcli system list</code></div>
         <div class="cmd-group"><h3>state</h3><p>Saved software states, .sls import/export, history, versioning</p><code>slcli state list</code></div>
         <div class="cmd-group"><h3>dataframe</h3><p>DataFrame tables, schema inspection, row queries, CSV export</p><code>slcli dataframe schema &lt;table-id&gt;</code></div>
@@ -240,6 +242,37 @@ slcli asset location-history &lt;asset-id&gt; \
       <pre><code>slcli asset create --model-name "PXI-4071" --serial-number "SN-123" --bus-type PCI_PXI
 slcli asset update &lt;asset-id&gt; --name "Updated Name"
 slcli asset delete &lt;asset-id&gt; --force</code></pre>
+
+      <!-- ─── ALARM ─── -->
+      <h2 id="alarm">alarm</h2>
+      <p>Query alarm instances, inspect and acknowledge conditions, clear or delete records, report transitions, and monitor active alarms.</p>
+
+      <h3>List &amp; Filter</h3>
+      <pre><code># List active alarms in the effective workspace
+    slcli alarm list
+
+    # Search alarm history across all workspaces
+    slcli alarm list --state all --workspace all --format json
+
+    # Filter by severity and resource
+    slcli alarm list --min-severity 3 --resource-type Tag</code></pre>
+
+      <h3>Inspect &amp; Manage</h3>
+      <pre><code># Inspect one alarm instance
+    slcli alarm get &lt;instance-id&gt;
+
+    # Acknowledge, force-clear, or delete alarm instances
+    slcli alarm acknowledge &lt;instance-id&gt;
+    slcli alarm force-clear &lt;instance-id&gt; --yes
+    slcli alarm delete &lt;instance-id&gt; --yes
+
+    # Create an alarm or report a SET/CLEAR transition
+    slcli alarm transition &lt;alarm-id&gt; --severity 3 --display-name "High disk use"
+    slcli alarm transition &lt;alarm-id&gt; --transition CLEAR
+
+    # Render a live dashboard or a single snapshot
+    slcli alarm monitor
+    slcli alarm monitor --once --format json</code></pre>
 
       <!-- ─── SYSTEM ─── -->
       <h2 id="system">system</h2>
