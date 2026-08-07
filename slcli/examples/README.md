@@ -47,17 +47,11 @@ discover through visualization:
 Phase-one fixture data for validating Systems and Products queries. It
 provisions the resource families supported by the generic example provisioner:
 
-- 5 virtual systems
-- 6 DUT/instrument assets
-- 2 products
-- 12 dated test results, including 6 results with measurement steps
-- 1 deployment state, 1 feed, 1 tag with 12 history samples, and 1 specification (metadata only)
-- 3 DataFrame tables with populated compliance-measurement rows
-- 2 supporting files
 
-This fixture uses an opt-in install manifest. Its current release explicitly
-reports unsupported package inventory, alarms, jobs, feed packages, deployment
-state package inventory, specification evidence,
+ 1 deployment state, 1 feed, 1 tag with 12 history samples,
+ 3 active alarms, and 1 specification (metadata only)
+reports unsupported package inventory, jobs, feed packages, deployment state
+package inventory, specification evidence,
 and workspace lifecycle.
 Because those capabilities are required by the full Nigel acceptance matrix,
 the install intentionally exits nonzero after emitting its JSON manifest.
@@ -162,6 +156,7 @@ cleanup:
 - `state` - Systems deployment state
 - `tag` - Workspace-scoped tag metadata
 - `specification` - Product specification metadata
+- `alarm` - Active alarm instance and transition
 
 ## Notes
 

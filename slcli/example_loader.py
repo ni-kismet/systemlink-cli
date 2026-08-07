@@ -37,6 +37,7 @@ class ExampleLoader:
         "tag",
         "specification",
         "feed",
+        "alarm",
     }
 
     def __init__(self, examples_dir: Optional[Path] = None) -> None:

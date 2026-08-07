@@ -22,6 +22,12 @@ def test_nigel_fixture_declares_deterministic_core_resources() -> None:
     assert counts["feed"] == 1
     assert counts["state"] == 1
     assert counts["tag"] == 1
+    assert counts["alarm"] == 3
+    alarms = [resource for resource in resources if resource["type"] == "alarm"]
+    assert {alarm["properties"]["transition"] for alarm in alarms} == {"SET"}
+    assert {alarm["properties"]["properties"]["minionId"] for alarm in alarms} == {
+        "${system_pxi_rack_07}"
+    }
     tag = next(resource for resource in resources if resource["type"] == "tag")
     history = tag["properties"]["history"]
     assert len(history) == 12
@@ -66,6 +72,7 @@ def test_nigel_fixture_declares_deterministic_core_resources() -> None:
         assert all(analysis_start <= timestamp <= analysis_end for timestamp in timestamps)
     unsupported = config["validation"]["unsupported"]
     assert not any("populated DataFrame rows" in item for item in unsupported)
+    assert not any("active alarms" in item for item in unsupported)
     assert any("specification condition evidence" in item for item in unsupported)
     assert len(config["validation"]["required_relationships"]) >= 5
     assert config["validation"]["unsupported"]

@@ -10,6 +10,7 @@ import json as json_module
 import urllib.parse
 from dataclasses import dataclass
 from enum import Enum
+from pathlib import Path
 from typing import Any, Dict, List, Optional, Tuple
 
 import click
@@ -212,6 +213,7 @@ class ExampleProvisioner:
                     "tag": self._delete_tag,
                     "specification": self._delete_specification,
                     "feed": self._delete_feed,
+                    "alarm": self._delete_alarm,
                 }
                 delete_fn = delete_map.get(rtype)
                 if not delete_fn:
@@ -293,6 +295,7 @@ class ExampleProvisioner:
             "tag": self._create_tag,
             "specification": self._create_specification,
             "feed": self._create_feed,
+            "alarm": self._create_alarm,
         }
 
         create_fn = create_map.get(rtype)
@@ -347,7 +350,9 @@ class ExampleProvisioner:
                         error="Existing table does not have the expected ownership marker",
                     )
             elif rtype == "file":
-                existing_id = self._get_file_by_name(rname)
+                existing_id = self._get_file_by_name(rname, props_with_name.get("file_path"))
+            elif rtype == "notebook":
+                existing_id = self._get_notebook_by_name(rname)
             elif rtype == "state":
                 existing_id = self._get_state_by_name(
                     rname,
@@ -363,6 +368,11 @@ class ExampleProvisioner:
                     str(props_with_name.get("platform", "")) or None,
                     ownership_marker=self._resource_ownership_marker(props_with_name),
                 )
+            elif rtype == "alarm":
+                alarm_id = str(
+                    props_with_name.get("alarm_id", props_with_name.get("alarmId", rname))
+                )
+                existing_id = self._get_alarm_by_id(alarm_id)
 
             if existing_id:
                 if rtype == "data_table":
@@ -612,6 +622,150 @@ class ExampleProvisioner:
             handle_errors=False,
         )
         return state_id
+
+    @staticmethod
+    def _alarm_id(props: Dict[str, Any]) -> str:
+        """Read an alarm ID from resource properties, defaulting to its name."""
+        return str(props.get("alarm_id", props.get("alarmId", props.get("name", ""))))
+
+    def _alarm_items(self, data: Any) -> List[Dict[str, Any]]:
+        """Extract alarm instances from current and legacy response shapes."""
+        if isinstance(data, list):
+            return [item for item in data if isinstance(item, dict)]
+        if not isinstance(data, dict):
+            return []
+        for key in ("alarms", "alarmInstances", "filterMatches", "instances", "items"):
+            values = data.get(key)
+            if isinstance(values, list):
+                return [item for item in values if isinstance(item, dict)]
+        return []
+
+    def _get_alarm_by_id(self, alarm_id: str) -> Optional[str]:
+        """Find the most recently updated alarm instance by alarm ID."""
+        if not alarm_id:
+            return None
+
+        filter_parts = ["alarmId == @0"]
+        substitutions: List[Any] = [alarm_id]
+        if self.workspace_id:
+            filter_parts.append("workspace == @1")
+            substitutions.append(self.workspace_id)
+        ownership_marker = f"slcli-example:{self.example_name}" if self.example_name else None
+        if ownership_marker:
+            filter_parts.append(f"keywords.Any(x => x == @{len(substitutions)})")
+            substitutions.append(ownership_marker)
+        payload: Dict[str, Any] = {
+            "filter": " && ".join(filter_parts),
+            "substitutions": substitutions,
+            "take": 1000,
+            "returnCount": True,
+            "orderBy": "UPDATED_AT",
+            "orderByDescending": True,
+            "returnMostRecentlyOccurredOnly": True,
+        }
+        resp = make_api_request(
+            "POST",
+            f"{get_base_url()}/nialarm/v1/query-instances-with-filter",
+            payload=payload,
+            handle_errors=False,
+        )
+        for item in self._alarm_items(resp.json()):
+            if ownership_marker:
+                keywords = item.get("keywords", [])
+                if not isinstance(keywords, list) or ownership_marker not in keywords:
+                    continue
+            instance_id = item.get("instanceId") or item.get("id")
+            if instance_id:
+                return str(instance_id)
+        return None
+
+    def _create_alarm(self, props: Dict[str, Any]) -> Optional[str]:
+        """Create an alarm transition and return its instance ID."""
+        alarm_id = self._alarm_id(props)
+        if not alarm_id:
+            return None
+
+        transition_type = str(props.get("transition", "SET")).upper()
+        if transition_type not in {"SET", "CLEAR"}:
+            raise ValueError("Alarm transition must be SET or CLEAR")
+
+        transition: Dict[str, Any] = {"transitionType": transition_type}
+        severity = props.get("severity", props.get("severityLevel"))
+        if severity is not None:
+            transition["severityLevel"] = severity
+        elif transition_type == "CLEAR":
+            transition["severityLevel"] = -1
+        for api_key, source_keys in {
+            "value": ("value",),
+            "condition": ("condition",),
+            "shortText": ("short_text", "shortText"),
+            "detailText": ("detail_text", "detailText"),
+        }.items():
+            for source_key in source_keys:
+                if source_key in props and props[source_key] is not None:
+                    transition[api_key] = props[source_key]
+                    break
+
+        payload: Dict[str, Any] = {
+            "alarmId": alarm_id,
+            "transition": transition,
+        }
+        workspace = props.get("workspace") or self.workspace_id
+        if workspace:
+            payload["workspace"] = workspace
+        for api_key, source_keys in {
+            "channel": ("channel",),
+            "resourceType": ("resource_type", "resourceType"),
+            "displayName": ("display_name", "displayName"),
+            "description": ("description",),
+            "createdBy": ("created_by", "createdBy"),
+        }.items():
+            for source_key in source_keys:
+                if source_key in props and props[source_key] is not None:
+                    payload[api_key] = props[source_key]
+                    break
+
+        keywords = props.get("keywords", [])
+        if not isinstance(keywords, list):
+            raise ValueError("Alarm keywords must be a list")
+        alarm_keywords = [str(keyword) for keyword in keywords]
+        alarm_keywords.extend(["slcli-provisioner"])
+        if self.example_name:
+            alarm_keywords.append(f"slcli-example:{self.example_name}")
+        payload["keywords"] = self._deduplicate_keywords(alarm_keywords)
+
+        configured_properties = props.get("properties")
+        if configured_properties is not None:
+            if not isinstance(configured_properties, dict):
+                raise ValueError("Alarm properties must be an object")
+            payload["properties"] = configured_properties
+
+        resp = make_api_request(
+            "POST",
+            f"{get_base_url()}/nialarm/v1/instances",
+            payload=payload,
+            handle_errors=False,
+        )
+        data = resp.json()
+        if isinstance(data, dict):
+            instance_id = data.get("instanceId") or data.get("id")
+            if instance_id:
+                return str(instance_id)
+        return None
+
+    def _delete_alarm(self, props: Dict[str, Any]) -> Optional[str]:
+        """Delete the most recent alarm instance for an alarm ID."""
+        instance_id = self._get_alarm_by_id(self._alarm_id(props))
+        if not instance_id:
+            return None
+
+        make_api_request(
+            "POST",
+            f"{get_base_url()}/nialarm/v1/delete-instances-by-instance-id",
+            payload={"instanceIds": [instance_id]},
+            handle_errors=False,
+        )
+        return instance_id
 
     def _tag_url(self, path: str) -> str:
         """Build the metadata URL for a workspace-scoped tag path."""
@@ -1243,11 +1397,9 @@ class ExampleProvisioner:
         """
         try:
             url = f"{get_base_url()}/nisysmgmt/v1/query-systems"
-            filter_expr = f'alias = "{name}"'
             payload = {
                 "skip": 0,
                 "take": 100,
-                "filter": filter_expr,
                 "projection": "new(id,alias,workspace)",
                 "orderBy": "alias",
             }
@@ -1279,11 +1431,9 @@ class ExampleProvisioner:
         ids: List[str] = []
         try:
             url = f"{get_base_url()}/nisysmgmt/v1/query-systems"
-            filter_expr = f'alias = "{name}"'
             payload = {
                 "skip": 0,
                 "take": 200,
-                "filter": filter_expr,
                 "projection": "new(id,alias,workspace)",
                 "orderBy": "alias",
             }
@@ -1468,11 +1618,6 @@ class ExampleProvisioner:
         """
         try:
             url = f"{get_base_url()}/niapm/v1/query-assets"
-            filters = []
-            if self.workspace_id:
-                filters.append(f'Workspace = "{self.workspace_id}"')
-            filters.append(f'AssetName = "{name}"')
-            filter_expr = " and ".join(filters)
             projection = (
                 "new(id,name,modelName,modelNumber,vendorName,vendorNumber,serialNumber,"
                 "workspace,properties,keywords,location.minionId,location.parent,"
@@ -1482,7 +1627,6 @@ class ExampleProvisioner:
                 "externalCalibration.resolvedDueDate,selfCalibration.date)"
             )
             payload = {
-                "filter": filter_expr,
                 "take": 1000,
                 "skip": 0,
                 "projection": projection,
@@ -1523,11 +1667,6 @@ class ExampleProvisioner:
         """
         try:
             url = f"{get_base_url()}/niapm/v1/query-assets"
-            filters = []
-            if self.workspace_id:
-                filters.append(f'Workspace = "{self.workspace_id}"')
-            filters.append(f'AssetName = "{name}"')
-            filter_expr = " and ".join(filters)
             projection = (
                 "new(id,name,modelName,modelNumber,vendorName,vendorNumber,serialNumber,"
                 "workspace,properties,keywords,location.minionId,location.parent,"
@@ -1537,7 +1676,6 @@ class ExampleProvisioner:
                 "externalCalibration.resolvedDueDate,selfCalibration.date)"
             )
             payload = {
-                "filter": filter_expr,
                 "take": 1000,
                 "skip": 0,
                 "projection": projection,
@@ -1667,16 +1805,23 @@ class ExampleProvisioner:
 
         try:
             # Build filter to match products tagged for cleanup
-            filter_parts = ['keywords.Any(x => x == "slcli-provisioner")']
+            filter_parts = ["keywords.Any(x => x == @0)"]
+            substitutions: List[str] = ["slcli-provisioner"]
             if example_tag:
-                filter_parts.append(f'keywords.Any(x => x == "{example_tag}")')
+                filter_parts.append(f"keywords.Any(x => x == @{len(substitutions)})")
+                substitutions.append(example_tag)
             if self.workspace_id:
-                filter_parts.append(f'workspace == "{self.workspace_id}"')
+                filter_parts.append(f"workspace == @{len(substitutions)}")
+                substitutions.append(self.workspace_id)
 
             filter_expr = " && ".join(filter_parts)
 
             query_url = f"{get_base_url()}/nitestmonitor/v2/query-products"
-            query_payload = {"filter": filter_expr, "take": 1000}
+            query_payload = {
+                "filter": filter_expr,
+                "substitutions": substitutions,
+                "take": 1000,
+            }
             query_resp = make_api_request("POST", query_url, query_payload, handle_errors=False)
             products = query_resp.json().get("products", [])
 
@@ -1996,6 +2141,13 @@ class ExampleProvisioner:
                     },
                 ],
             }
+
+            configured_actions = props.get("actions")
+            if isinstance(configured_actions, list):
+                wf_obj["actions"] = configured_actions
+            configured_states = props.get("states")
+            if isinstance(configured_states, list):
+                wf_obj["states"] = configured_states
 
             payload = wf_obj
             resp = make_api_request("POST", url, payload, handle_errors=False)
@@ -2792,19 +2944,23 @@ class ExampleProvisioner:
         try:
             # Build filter to match results with slcli-provisioner keyword
             # Also match example tag if set
-            filter_parts = ['keywords.Any(x => x == "slcli-provisioner")']
+            filter_parts = ["keywords.Any(x => x == @0)"]
+            substitutions: List[str] = ["slcli-provisioner"]
             if example_tag:
-                filter_parts.append(f'keywords.Any(x => x == "{example_tag}")')
+                filter_parts.append(f"keywords.Any(x => x == @{len(substitutions)})")
+                substitutions.append(example_tag)
 
             filter_expr = " && ".join(filter_parts)
 
             # Add workspace filter if set
             if self.workspace_id:
-                filter_expr += f' && workspace == "{self.workspace_id}"'
+                filter_expr += f" && workspace == @{len(substitutions)}"
+                substitutions.append(self.workspace_id)
 
             url = f"{get_base_url()}/nitestmonitor/v2/query-results"
             payload = {
                 "filter": filter_expr,
+                "substitutions": substitutions,
                 "take": 1000,
             }
 
@@ -3310,6 +3466,36 @@ class ExampleProvisioner:
             )
             return None
 
+    def _get_notebook_by_name(self, name: str) -> Optional[str]:
+        """Look up an example-owned notebook by name and workspace."""
+        if not name:
+            return None
+
+        try:
+            resp = make_api_request(
+                "POST",
+                f"{get_base_url()}/ninotebook/v1/notebook/query",
+                payload={"take": 1000},
+                handle_errors=False,
+            )
+            data = resp.json()
+            notebooks = data.get("notebooks", []) if isinstance(data, dict) else []
+            expected_workspace = self.workspace_id or "Default"
+            for notebook in notebooks:
+                if str(notebook.get("name", "")).lower() != name.lower():
+                    continue
+                if str(notebook.get("workspace", "")) != expected_workspace:
+                    continue
+                properties = notebook.get("properties", {})
+                if self.example_name and properties.get("slcli-example") != self.example_name:
+                    continue
+                notebook_id = notebook.get("id")
+                if notebook_id:
+                    return str(notebook_id)
+        except Exception:
+            return None
+        return None
+
     def _create_notebook(self, props: Dict[str, Any]) -> Optional[str]:
         """Create a notebook from a file path and assign an interface.
 
@@ -3424,14 +3610,43 @@ class ExampleProvisioner:
             )
             return None
 
-    def _get_file_by_name(self, name: str) -> Optional[str]:
-        """Look up file by name.
+    def _get_file_by_name(self, name: str, file_path: Optional[str] = None) -> Optional[str]:
+        """Look up an example-owned file by its uploaded name and workspace."""
+        if not name:
+            return None
 
-        Returns file ID if found, None otherwise.
-        Note: Files do not support name-based lookup; always returns None.
-        """
-        # Files endpoint doesn't support name filtering in LINQ;
-        # return None to skip lookups
+        upload_name = name
+        if file_path and "." not in upload_name:
+            file_extension = Path(file_path).suffix
+            if file_extension:
+                upload_name = f"{upload_name}{file_extension}"
+
+        try:
+            query_url = f"{get_base_url()}/nifile/v1/service-groups/Default/query-files"
+            query_params = {"take": "1000"}
+            if self.workspace_id:
+                query_params["workspace"] = self.workspace_id
+            query_url = f"{query_url}?{urllib.parse.urlencode(query_params)}"
+            resp = make_api_request("POST", query_url, payload={}, handle_errors=False)
+            data = resp.json()
+            files = data.get("availableFiles", []) if isinstance(data, dict) else []
+            example_tag = f"slcli-example:{self.example_name}" if self.example_name else None
+            for file_item in files:
+                properties = file_item.get("properties", {})
+                if str(properties.get("Name", "")).lower() != upload_name.lower():
+                    continue
+                file_workspace = file_item.get("workspace")
+                if file_workspace and str(file_workspace) != str(self.workspace_id):
+                    continue
+                if example_tag:
+                    tags = [tag.strip() for tag in str(properties.get("slcli-tags", "")).split(",")]
+                    if example_tag not in tags or "slcli-provisioner" not in tags:
+                        continue
+                file_id = file_item.get("id")
+                if file_id:
+                    return str(file_id)
+        except Exception:
+            return None
         return None
 
     def _delete_file(self, props: Dict[str, Any]) -> Optional[str]:
@@ -3447,10 +3662,11 @@ class ExampleProvisioner:
             # Try to query files by workspace
             if self.workspace_id and example_tag:
                 # Simple query by workspace only - custom properties may not be queryable
-                filter_expr = f'workspace == "{self.workspace_id}"'
-
-                query_url = f"{get_base_url()}/nifile/v1/service-groups/Default/query-files-linq"
-                query_payload = {"filter": filter_expr, "take": 1000}
+                query_url = (
+                    f"{get_base_url()}/nifile/v1/service-groups/Default/query-files?"
+                    f"{urllib.parse.urlencode({'take': 1000, 'workspace': self.workspace_id})}"
+                )
+                query_payload: Dict[str, Any] = {}
                 query_resp = make_api_request("POST", query_url, query_payload, handle_errors=False)
                 files = query_resp.json().get("availableFiles", [])
 
@@ -3501,9 +3717,8 @@ class ExampleProvisioner:
                 # Extract example name from tag
                 example_name = example_tag.split(":")[-1]
 
-                # Query by workspace only
-                filter_str = f'workspace == "{self.workspace_id}"'
-                payload: Dict[str, Any] = {"filter": filter_str, "take": 100}
+                # Query all notebooks and filter workspace and ownership client-side.
+                payload: Dict[str, Any] = {"take": 100}
                 resp = make_api_request(
                     "POST",
                     f"{base_url}/ninotebook/v1/notebook/query",
@@ -3514,6 +3729,8 @@ class ExampleProvisioner:
 
                 # Filter client-side by checking properties for our example tag
                 for notebook in notebooks:
+                    if str(notebook.get("workspace", "")) != str(self.workspace_id):
+                        continue
                     props_meta = notebook.get("properties", {})
                     if props_meta.get("slcli-example") == example_name:
                         nb_id = notebook.get("id")

@@ -49,13 +49,13 @@ The following requirements need an additional verified provisioning layer:
 | --------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | Workspace                   | The installer requires an existing workspace. It does not create, own, or delete workspaces.                                                                                                                   |
 | Package inventory           | Virtual-system creation creates aliases only; it does not seed the package projection used by `system list` and `system get`.                                                                                  |
-| Alarms and jobs             | No generic example resource type currently creates alarm instances or system jobs with the required states and relationships.                                                                                  |
+| Alarms and jobs             | The generic example provisioner creates active alarm instances; system jobs with the required states and relationships remain unsupported.                                                                       |
 | Feeds and deployment states | CLI create helpers exist, but feed package upload and state population are separate workflows and are not idempotent example resources.                                                                        |
 | Tag history                 | The generic example provisioner configures permanent retention, writes fixed timestamped values through the tag timestamped-value endpoint, and verifies that Tag Historian returns every configured sample.   |
 | Specifications and evidence | Specification helpers are not wired into the generic provisioner, and condition outcomes have not been verified as queryable evidence.                                                                         |
 | DataFrame rows              | The generic provisioner creates table schemas only; row append is a separate API operation.                                                                                                                    |
-| Ownership and cleanup       | The provisioner adds its example marker where the resource API supports keywords or metadata. Virtual systems do not accept that marker, so system ownership must be solved before claiming cleanup isolation. |
-
+ | Specifications and evidence | The generic provisioner creates specification metadata and expected conditions, but condition outcomes have not been verified as queryable evidence.                                                        |
+ | DataFrame rows              | The generic provisioner creates table schemas and appends configured rows; richer result or evidence relationships remain outside the fixture resource model.                                                   |
 This is intentional pushback on the proposal, not an acceptance waiver. The
 definition of done remains appropriate for a complete fixture, but the current
 release must be evaluated as a core-data fixture plus an explicit unsupported

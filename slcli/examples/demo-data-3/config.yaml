@@ -37,7 +37,6 @@ validation:
   unsupported:
     - "workspace lifecycle: example install requires an existing workspace and does not create or delete it"
     - "system package inventory: virtual-system creation does not seed enumerable packages or versions"
-    - "active alarms: the generic example provisioner has no alarm-instance create path"
     - "system jobs: the generic example provisioner has no queued/running/failed job seed path"
     - "feed packages: feed creation and package upload are asynchronous CLI workflows, not fixture resources"
     - "deployment state package inventory: state creation does not seed package inventory"
@@ -198,6 +197,69 @@ resources:
       description: "System without the primary product test data"
     id_reference: "system_testbench_44"
     tags: ["demo-data-3"]
+
+  - type: "alarm"
+    name: "nigel/fixture/temperature-high"
+    properties:
+      transition: "SET"
+      severity: 2
+      value: "85"
+      condition: "> 80 C"
+      short_text: "High fixture temperature"
+      detail_text: "Fixture temperature exceeded the operating threshold"
+      channel: "nigel/fixture/temperature"
+      resource_type: "Tag"
+      display_name: "Fixture temperature high"
+      description: "Temperature alarm for the primary fixture system"
+      created_by: "demo-data-3"
+      keywords: ["temperature", "fixture"]
+      properties:
+        minionId: "${system_pxi_rack_07}"
+        fixture: "demo-data-3"
+    id_reference: "alarm_temperature_high"
+    tags: ["demo-data-3", "primary"]
+
+  - type: "alarm"
+    name: "nigel/fixture/voltage-low"
+    properties:
+      transition: "SET"
+      severity: 1
+      value: "10.8"
+      condition: "< 11.5 V"
+      short_text: "Low output voltage"
+      detail_text: "Fixture output voltage is below the specification limit"
+      channel: "Product XYZ"
+      resource_type: "Product"
+      display_name: "Fixture voltage low"
+      description: "Voltage alarm for the primary fixture system"
+      created_by: "demo-data-3"
+      keywords: ["voltage", "fixture"]
+      properties:
+        minionId: "${system_pxi_rack_07}"
+        fixture: "demo-data-3"
+    id_reference: "alarm_voltage_low"
+    tags: ["demo-data-3", "primary"]
+
+  - type: "alarm"
+    name: "nigel/fixture/instrument-fault"
+    properties:
+      transition: "SET"
+      severity: 2
+      value: "DMM-000184"
+      condition: "calibration due"
+      short_text: "Instrument calibration due"
+      detail_text: "The primary DMM requires calibration before use"
+      channel: "DMM-000184"
+      resource_type: "Asset"
+      display_name: "Instrument calibration due"
+      description: "Calibration alarm for the primary fixture system"
+      created_by: "demo-data-3"
+      keywords: ["calibration", "fixture"]
+      properties:
+        minionId: "${system_pxi_rack_07}"
+        fixture: "demo-data-3"
+    id_reference: "alarm_instrument_fault"
+    tags: ["demo-data-3", "primary"]
 
   - type: "dut"
     name: "DUT-1234567"

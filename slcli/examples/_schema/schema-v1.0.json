@@ -144,7 +144,8 @@
             "state",
             "tag",
             "specification",
-            "feed"
+            "feed",
+            "alarm"
           ],
           "description": "SLE resource type"
         },
