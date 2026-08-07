@@ -1265,7 +1265,14 @@ def register_webapp_commands(cli: Any) -> None:
         default="",
         help="Case-insensitive substring match on name",
     )
-    @click.option("--take", "take", type=int, default=25, show_default=True, help="Max rows/page")
+    @click.option(
+        "--take",
+        "take",
+        type=int,
+        default=25,
+        show_default=True,
+        help="Maximum webapps to return (table page size; JSON list total)",
+    )
     @click.option(
         "--format",
         "format_output",
@@ -1281,14 +1288,9 @@ def register_webapp_commands(cli: Any) -> None:
             # Validate and normalize format option
             format_output = validate_output_format(format_output)
 
-            # Determine how many items to request from the API
-            if format_output.lower() == "json":
-                # For JSON output we want to return all matching items (no
-                # interactive pagination). Use a falsy api_take (0) to indicate
-                # "fetch all" to the helper.
-                api_take = 0
-            else:
-                api_take = take if take != 25 else 1000
+            # JSON uses --take as a total cap; table mode keeps fetching pages
+            # so the user can choose whether to continue after each page.
+            api_take = take if format_output.lower() == "json" else (take if take != 25 else 1000)
             # Use server-side query to only retrieve WebVI documents
             base_filter = 'type == "WebVI"'
             workspace = get_effective_workspace(workspace) or workspace
@@ -1316,11 +1318,8 @@ def register_webapp_commands(cli: Any) -> None:
                 name_clause = f"({' or '.join(variants)})"
                 base_filter = f"({base_filter}) and ({name_clause})"
 
-            # If the user requested JSON output or did not request a specific take,
-            # fetch all matching items (using server-side paging). Otherwise, if
-            # the user specified a take and wants table output, perform interactive
-            # server-side paging: fetch a page, show total (if available), and offer
-            # to fetch the next page(s).
+            # JSON is bounded by --take. Table output remains interactive and
+            # fetches the next page only after the user confirms.
             webapps: List[Dict[str, Any]] = []
             if format_output.lower() == "json" or take == 0:
                 webapps = _query_webapps_http(base_filter, max_items=api_take)

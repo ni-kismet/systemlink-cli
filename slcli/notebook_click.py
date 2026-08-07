@@ -134,17 +134,21 @@ def _get_notebook_base_url() -> str:
 def _query_notebooks_http(
     filter_str: Optional[str] = None, take: int = 1000
 ) -> List[Dict[str, Any]]:
-    """Query notebooks using continuation token pagination for better performance."""
+    """Query notebooks using continuation token pagination up to ``take`` items."""
     base_url = _get_notebook_base_url()
     headers = get_headers("application/json")
     is_sls = get_platform() == PLATFORM_SLS
 
-    all_notebooks = []
+    if take <= 0:
+        return []
+
+    all_notebooks: List[Dict[str, Any]] = []
     continuation_token = None
 
-    while True:
+    while len(all_notebooks) < take:
+        remaining = take - len(all_notebooks)
         # Build payload for the request
-        payload: Dict[str, Any] = {"take": 100}  # Use consistent page size for efficient pagination
+        payload: Dict[str, Any] = {"take": min(100, remaining)}
         if filter_str:
             payload["filter"] = filter_str
         if continuation_token:
@@ -165,6 +169,8 @@ def _query_notebooks_http(
 
             # Handle invalid parameters gracefully and add notebooks to results
             for nb in raw_notebooks:
+                if len(all_notebooks) >= take:
+                    break
                 try:
                     # Fix parameters field if it's a list instead of dict
                     if "parameters" in nb and isinstance(nb["parameters"], list):
@@ -185,7 +191,7 @@ def _query_notebooks_http(
 
             # Check if there are more pages
             continuation_token = data.get("continuationToken")
-            if not continuation_token:
+            if not continuation_token or len(all_notebooks) >= take:
                 break
 
         except requests.exceptions.RequestException as exc:
@@ -193,7 +199,7 @@ def _query_notebooks_http(
         except Exception as exc:
             raise Exception(f"Failed to query notebooks: {exc}")
 
-    return all_notebooks
+    return all_notebooks[:take]
 
 
 def _get_notebook_http(notebook_id: str) -> Dict[str, Any]:
@@ -919,7 +925,8 @@ def register_notebook_commands(cli: Any) -> None:
             combined_filter = " and ".join(filter_parts) if filter_parts else None
 
             try:
-                notebooks_raw = _query_notebooks_http(combined_filter, take=1000)
+                query_take = take if format_output.lower() == "json" else 1000
+                notebooks_raw = _query_notebooks_http(combined_filter, take=query_take)
             except Exception as exc:
                 click.echo(
                     f"✗ Error querying notebooks: {exc}",

@@ -177,27 +177,29 @@ def _query_alarm_page(
 def _query_all_alarms(
     filter_expr: Optional[str],
     substitutions: List[Any],
+    max_items: int,
     include_transitions: bool,
     most_recent_only: bool,
 ) -> List[Dict[str, Any]]:
-    """Fetch every page of a query for JSON output."""
+    """Fetch pages up to the requested JSON result limit."""
     alarms: List[Dict[str, Any]] = []
     continuation_token: Optional[str] = None
 
-    while True:
+    while len(alarms) < max_items:
+        remaining = max_items - len(alarms)
         page, continuation_token, _ = _query_alarm_page(
             filter_expr,
             substitutions,
-            _MAX_QUERY_TAKE,
+            min(_MAX_QUERY_TAKE, remaining),
             continuation_token,
             include_transitions,
             most_recent_only,
         )
-        alarms.extend(page)
+        alarms.extend(page[:remaining])
         if not continuation_token or not page:
             break
 
-    return alarms
+    return alarms[:max_items]
 
 
 def _format_timestamp(value: Any) -> str:
@@ -235,6 +237,12 @@ def _alarm_formatter(item: Dict[str, Any], workspace_map: Dict[str, str]) -> Lis
     ]
 
 
+def _get_transition_count(item: Dict[str, Any]) -> int:
+    """Return the number of transitions when the response contains a list."""
+    transitions = item.get("transitions")
+    return len(transitions) if isinstance(transitions, list) else 0
+
+
 def _display_alarm_list(
     alarms: List[Dict[str, Any]],
     format_output: str,
@@ -264,7 +272,7 @@ def _display_alarm_list(
     )
 
     if include_transitions and format_output.lower() == "table":
-        transition_count = sum(len(item.get("transitions", [])) for item in alarms)
+        transition_count = sum(_get_transition_count(item) for item in alarms)
         if transition_count:
             click.echo(f"Transitions included: {transition_count}")
 
@@ -293,7 +301,7 @@ def _get_alarm_details(data: Dict[str, Any], format_output: str) -> None:
         ("Keywords", ", ".join(data.get("keywords", []))),
         ("Properties", json.dumps(data.get("properties", {}), sort_keys=True)),
         ("Notes", json.dumps(data.get("notes", []), sort_keys=True)),
-        ("Transitions", str(len(data.get("transitions", [])))),
+        ("Transitions", str(_get_transition_count(data))),
     ]
     render_table(
         headers=["FIELD", "VALUE"],
@@ -377,7 +385,7 @@ def _list_alarm_options(function: Any) -> Any:
             type=click.IntRange(min=1, max=_MAX_QUERY_TAKE),
             default=25,
             show_default=True,
-            help="Items per page (table output only)",
+            help="Maximum alarms to return (table page/snapshot size; JSON list total)",
         ),
         click.option(
             "--state",
@@ -457,6 +465,7 @@ def _run_list_alarms(
         alarms = _query_all_alarms(
             filter_expr,
             filter_substitutions,
+            take,
             include_transitions,
             most_recent_only,
         )

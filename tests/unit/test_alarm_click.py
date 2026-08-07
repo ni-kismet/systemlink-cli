@@ -194,13 +194,36 @@ def test_list_outputs_json_and_uses_alarm_filter_endpoint(
     ]
     assert requests[0]["url"].endswith("/nialarm/v1/query-instances-with-filter")
     assert requests[0]["payload"] == {
-        "take": 1000,
+        "take": 25,
         "returnCount": True,
         "orderBy": "UPDATED_AT",
         "orderByDescending": True,
         "filter": "alarmId == @0 && (channel == @1)",
         "substitutions": ["alarm-1", "tag-channel"],
     }
+
+
+def test_alarm_list_json_stops_paging_at_take(runner: CliRunner, monkeypatch: Any) -> None:
+    """JSON list output should stop requesting pages at the requested limit."""
+    patch_alarm_config(monkeypatch)
+    requests: List[Dict[str, Any]] = []
+
+    def mock_request(method: str, url: str, **kwargs: Any) -> MockResponse:
+        requests.append(kwargs["payload"])
+        return MockResponse(
+            {
+                "alarms": [{"instanceId": "instance-1"}],
+                "continuationToken": "next",
+            }
+        )
+
+    monkeypatch.setattr("slcli.alarm_click.make_api_request", mock_request)
+    result = runner.invoke(make_cli(), ["alarm", "list", "--format", "json", "--take", "1"])
+
+    assert result.exit_code == 0, result.output
+    assert json.loads(result.output) == [{"instanceId": "instance-1"}]
+    assert len(requests) == 1
+    assert requests[0]["take"] == 1
 
 
 def test_get_alarm_quotes_instance_id(runner: CliRunner, monkeypatch: Any) -> None:
@@ -356,6 +379,23 @@ def test_alarm_list_empty_table(runner: CliRunner, monkeypatch: Any) -> None:
 
     assert result.exit_code == 0, result.output
     assert "No alarms found." in result.output
+
+
+def test_alarm_list_ignores_malformed_transitions(runner: CliRunner, monkeypatch: Any) -> None:
+    """Malformed transition values should not crash table rendering."""
+    patch_alarm_config(monkeypatch)
+    monkeypatch.setattr(
+        "slcli.alarm_click.make_api_request",
+        lambda method, url, **kwargs: MockResponse(
+            {"alarms": [{"instanceId": "instance-1", "transitions": None}]}
+        ),
+    )
+
+    result = runner.invoke(make_cli(), ["alarm", "list", "--include-transitions"])
+
+    assert result.exit_code == 0, result.output
+    assert "instance-1" in result.output
+    assert "Transitions included" not in result.output
 
 
 def test_transition_clear_defaults_to_negative_one(runner: CliRunner, monkeypatch: Any) -> None:
