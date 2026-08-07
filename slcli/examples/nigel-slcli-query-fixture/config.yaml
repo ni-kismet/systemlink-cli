@@ -1,7 +1,7 @@
 ---
 format_version: "1.0"
 name: "nigel-slcli-query-fixture"
-example_version: "1.0.0"
+example_version: "1.1.0"
 title: "Nigel slcli Systems and Products Query Fixture"
 description: |
   Deterministic Systems and Products data for Nigel query validation.
@@ -9,13 +9,13 @@ description: |
   This release provisions the resource families supported by the generic
   example provisioner: products, virtual systems, DUT and instrument assets,
   test results with steps, a deployment state, feed and tag metadata, a
-  specification, DataFrame table schemas, and supporting files.
+  specification condition metadata, populated DataFrame tables, and supporting files.
   Unsupported capabilities are declared below and make the install exit with a
   nonzero status. The installer must not present this phase-one fixture as the
   complete 14-example acceptance dataset.
 author: "NI"
 created_date: "2026-08-05"
-updated_date: "2026-08-05"
+updated_date: "2026-08-07"
 tags:
   - "nigel"
   - "query-fixture"
@@ -42,8 +42,7 @@ validation:
     - "feed packages: feed creation and package upload are asynchronous CLI workflows, not fixture resources"
     - "deployment state package inventory: state creation does not seed package inventory"
     - "tag history: tag metadata is provisioned, but historical/current tag values are not seeded"
-    - "specification condition evidence: specification metadata is provisioned, but test evidence is not"
-    - "populated DataFrame rows: the example provisioner creates schemas but does not append rows"
+    - "specification condition evidence: /nispec/v1 stores expected conditions only; it has no outcome or test-result evidence API"
     - "system-to-asset query projection: location.minionId is provisioned, but the accepted CLI/Nigel retrieval path is not verified"
     - "result-to-instrument query projection: asset ID and channel fields are provisioned, but the accepted CLI/Nigel retrieval path is not verified"
 
@@ -99,17 +98,44 @@ resources:
     tags: ["nigel-slcli-query-fixture"]
 
   - type: "specification"
-    name: "Output Voltage"
+    name: "Product XYZ 2025 Compliance"
     properties:
       product_id: "${product_xyz}"
-      spec_id: "output-voltage"
+      spec_id: "product-xyz-compliance"
       type: "PARAMETRIC"
       unit: "V"
       limit:
         min: 11.5
         max: 12.5
+      conditions:
+        - name: "Overvoltage margin at high temperature"
+          value:
+            conditionType: "NUMERIC"
+            discrete: [85]
+            unit: "C"
+        - name: "Leakage current at 5 V standby"
+          value:
+            conditionType: "NUMERIC"
+            discrete: [5]
+            unit: "V"
+        - name: "Cold-start response time"
+          value:
+            conditionType: "NUMERIC"
+            discrete: [-20]
+            unit: "C"
+        - name: "Nominal output voltage"
+          value:
+            conditionType: "NUMERIC"
+            discrete: [12]
+            unit: "V"
+        - name: "Thermal shutdown behavior"
+          value:
+            conditionType: "NUMERIC"
+            discrete: [85]
+            unit: "C"
       properties:
         fixture: "nigel-slcli-query-fixture"
+        compliance_report: "product-xyz-compliance-report.json"
     id_reference: "spec_xyz_output_voltage"
     tags: ["nigel-slcli-query-fixture"]
 
@@ -631,7 +657,9 @@ resources:
   - type: "data_table"
     name: "Overvoltage Results - XYZ"
     properties:
-      description: "Schema for bounded overvoltage compliance measurements; rows are not seeded in v1.0.0"
+      description: "Bounded overvoltage compliance measurements"
+      rows_file: "overvoltage-results.json"
+      end_of_data: true
       properties:
         fixture: "nigel-slcli-query-fixture"
         ownership_marker: "slcli-example:nigel-slcli-query-fixture"
@@ -660,7 +688,9 @@ resources:
   - type: "data_table"
     name: "Leakage Current Results - XYZ"
     properties:
-      description: "Schema for leakage-current compliance measurements; rows are not seeded in v1.0.0"
+      description: "Bounded leakage-current compliance measurements"
+      rows_file: "leakage-current-results.json"
+      end_of_data: true
       properties:
         fixture: "nigel-slcli-query-fixture"
         ownership_marker: "slcli-example:nigel-slcli-query-fixture"
@@ -687,7 +717,9 @@ resources:
   - type: "data_table"
     name: "Thermal Response Results - XYZ"
     properties:
-      description: "Schema for thermal-response compliance measurements; rows are not seeded in v1.0.0"
+      description: "Bounded thermal-response compliance measurements"
+      rows_file: "thermal-response-results.json"
+      end_of_data: true
       properties:
         fixture: "nigel-slcli-query-fixture"
         ownership_marker: "slcli-example:nigel-slcli-query-fixture"
@@ -745,7 +777,7 @@ cleanup:
 
 post_install:
   instructions: |
-    This release is intentionally incomplete. Inspect the JSON manifest for
-    unsupported capabilities before using it for Nigel acceptance testing.
-    The resources that were created are safe to delete with the matching
-    example command and workspace.
+    This release still declares unsupported capabilities in the JSON manifest.
+    Inspect that manifest before using it for Nigel acceptance testing. The
+    resources that were created are safe to delete with the matching example
+    command and workspace.

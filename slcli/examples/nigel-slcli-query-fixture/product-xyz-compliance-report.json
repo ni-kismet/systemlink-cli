@@ -42,5 +42,5 @@
       "evidence": []
     }
   ],
-  "provisioning_note": "Supporting evidence only; specification records and populated tables are unsupported by this fixture release."
+  "provisioning_note": "Specification metadata and five expected conditions are provisioned, and the three DataFrame tables contain populated rows. This JSON remains supporting evidence; structured condition outcomes and links to test-result evidence are unsupported by the specification API."
 }

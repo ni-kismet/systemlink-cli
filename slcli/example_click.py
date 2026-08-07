@@ -57,6 +57,7 @@ def _serialize_results(results: List[ProvisioningResult]) -> List[Dict[str, Any]
                 "action": action_value,
                 "server_id": res.server_id,
                 "error": res.error,
+                "details": res.details,
             }
         )
     return serialized

@@ -2,6 +2,7 @@
 
 import json
 from collections import Counter
+from datetime import datetime, timezone
 from pathlib import Path
 
 from slcli.example_loader import ExampleLoader
@@ -14,7 +15,7 @@ def test_nigel_fixture_declares_deterministic_core_resources() -> None:
     counts = Counter(resource["type"] for resource in resources)
 
     assert config["install_manifest"] is True
-    assert config["example_version"] == "1.0.0"
+    assert config["example_version"] == "1.1.0"
     assert counts["system"] == 5
     assert counts["asset"] + counts["dut"] == 6
     assert counts["product"] == 2
@@ -25,6 +26,42 @@ def test_nigel_fixture_declares_deterministic_core_resources() -> None:
     assert counts["test_result"] == 12
     assert counts["data_table"] == 3
     assert counts["file"] == 2
+    specification = next(resource for resource in resources if resource["type"] == "specification")
+    conditions = specification["properties"]["conditions"]
+    assert len(conditions) == 5
+    assert {condition["name"] for condition in conditions} == {
+        "Overvoltage margin at high temperature",
+        "Leakage current at 5 V standby",
+        "Cold-start response time",
+        "Nominal output voltage",
+        "Thermal shutdown behavior",
+    }
+    data_tables = [resource for resource in resources if resource["type"] == "data_table"]
+    assert {table["properties"]["rows_file"] for table in data_tables} == {
+        "overvoltage-results.json",
+        "leakage-current-results.json",
+        "thermal-response-results.json",
+    }
+    fixture_dir = Path(__file__).resolve().parents[2] / "slcli" / "examples" / config["name"]
+    analysis_start = datetime(2025, 1, 1, tzinfo=timezone.utc)
+    analysis_end = datetime(2025, 6, 30, 23, 59, 59, tzinfo=timezone.utc)
+    for table in data_tables:
+        rows_path = fixture_dir / table["properties"]["rows_file"]
+        assert rows_path.exists()
+        rows_config = json.loads(rows_path.read_text(encoding="utf-8"))
+        assert rows_config["frame"]["columns"] == [
+            column["name"] for column in table["properties"]["columns"]
+        ]
+        rows = rows_config["frame"]["data"]
+        assert len(rows) >= 12
+        assert {row[-1] for row in rows} == {"PASS", "FAIL"}
+        timestamps = []
+        for row in rows:
+            timestamps.append(datetime.fromisoformat(row[0].replace("Z", "+00:00")))
+        assert all(analysis_start <= timestamp <= analysis_end for timestamp in timestamps)
+    unsupported = config["validation"]["unsupported"]
+    assert not any("populated DataFrame rows" in item for item in unsupported)
+    assert any("specification condition evidence" in item for item in unsupported)
     assert len(config["validation"]["required_relationships"]) >= 5
     assert config["validation"]["unsupported"]
 

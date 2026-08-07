@@ -412,6 +412,7 @@ def test_install_example_json_and_audit_log(
                 resource_name="System 1",
                 action=ProvisioningAction.SKIPPED,
                 server_id=None,
+                details={"rows_expected": 2, "rows_added": 1},
             )
             return [res], None
 
@@ -443,6 +444,7 @@ def test_install_example_json_and_audit_log(
     assert result.exit_code == 0
     data = json.loads(result.output)
     assert data[0]["action"] == "skipped"
+    assert data[0]["details"] == {"rows_expected": 2, "rows_added": 1}
     assert audit_path.exists()
     with open(audit_path, "r") as f:
         saved = json.load(f)

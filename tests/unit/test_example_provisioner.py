@@ -1,5 +1,8 @@
+import json
 from typing import Any, Dict
 from unittest.mock import MagicMock, patch
+
+import pytest
 
 from slcli.example_provisioner import ExampleProvisioner, ProvisioningAction
 
@@ -329,7 +332,7 @@ def test_unsupported_resource_type(mock_api: Any) -> None:
 @patch("slcli.example_provisioner.get_base_url")
 @patch("slcli.example_provisioner.make_api_request")
 def test_state_provisioning_builds_payload_and_stores_id(mock_api: Any, mock_base_url: Any) -> None:
-    """States use synchronous create responses and workspace-scoped name lookup."""
+    """States use synchronous create responses and example-scoped lookup."""
     mock_base_url.return_value = "https://api.test.com"
     calls = []
 
@@ -362,7 +365,9 @@ def test_state_provisioning_builds_payload_and_stores_id(mock_api: Any, mock_bas
         ],
     }
 
-    results, err = ExampleProvisioner(workspace_id="ws-test").provision(config)
+    results, err = ExampleProvisioner(workspace_id="ws-test", example_name="state-test").provision(
+        config
+    )
 
     assert err is None
     assert results[0].action == ProvisioningAction.CREATED
@@ -376,8 +381,36 @@ def test_state_provisioning_builds_payload_and_stores_id(mock_api: Any, mock_bas
         "architecture": "X64",
         "workspace": "ws-test",
         "description": "Test state",
-        "properties": {"channel": "stable"},
+        "properties": {
+            "channel": "stable",
+            "slcli-example": "slcli-example:state-test",
+        },
     }
+
+
+@patch("slcli.example_provisioner.get_base_url")
+@patch("slcli.example_provisioner.make_api_request")
+def test_state_delete_ignores_unowned_same_name(mock_api: Any, mock_base_url: Any) -> None:
+    """State cleanup does not delete an unowned same-name resource."""
+    mock_base_url.return_value = "https://api.test.com"
+    response = MagicMock()
+    response.json.return_value = {
+        "states": [
+            {
+                "id": "state-foreign",
+                "name": "Windows image",
+                "workspace": "ws-test",
+                "properties": {"slcli-example": "slcli-example:other"},
+            }
+        ]
+    }
+    mock_api.return_value = response
+
+    provisioner = ExampleProvisioner(workspace_id="ws-test", example_name="fixture")
+
+    assert provisioner._delete_state({"name": "Windows image"}) is None
+    assert mock_api.call_count == 1
+    assert mock_api.call_args.args[0] == "GET"
 
 
 @patch("slcli.example_provisioner.get_base_url")
@@ -456,7 +489,9 @@ def test_tag_provisioning_does_not_treat_empty_metadata_as_existing(
         ],
     }
 
-    results, err = ExampleProvisioner(workspace_id="ws-test").provision(config)
+    results, err = ExampleProvisioner(workspace_id="ws-test", example_name="fixture").provision(
+        config
+    )
 
     assert err is None
     assert results[0].action == ProvisioningAction.CREATED
@@ -500,7 +535,9 @@ def test_specification_provisioning_extracts_bulk_created_id(
         ],
     }
 
-    results, err = ExampleProvisioner(workspace_id="ws-test").provision(config)
+    results, err = ExampleProvisioner(workspace_id="ws-test", example_name="fixture").provision(
+        config
+    )
 
     assert err is None
     assert results[0].action == ProvisioningAction.CREATED
@@ -578,6 +615,119 @@ def test_specification_delete_resolves_product_reference(mock_api: Any, mock_bas
 
 @patch("slcli.example_provisioner.get_base_url")
 @patch("slcli.example_provisioner.make_api_request")
+def test_data_table_rows_append_only_missing_rows(mock_api: Any, mock_base_url: Any) -> None:
+    """Provisioning DataFrame rows is idempotent across repeated installs."""
+    mock_base_url.return_value = "https://api.test.com"
+    columns = ["timestamp", "value"]
+    existing_rows = [["2025-01-01T00:00:00.000Z", "1"]]
+    append_payloads = []
+
+    def mock_dataframe_api(*args: Any, **kwargs: Any) -> Any:
+        response = MagicMock()
+        response.raise_for_status.return_value = None
+        url = args[1]
+        if "query-data" in url:
+            response.json.return_value = {
+                "frame": {"columns": columns, "data": list(existing_rows)},
+                "continuationToken": None,
+            }
+        else:
+            append_payloads.append(args[2])
+            existing_rows.extend(args[2]["frame"]["data"])
+            response.json.return_value = {}
+        return response
+
+    mock_api.side_effect = mock_dataframe_api
+    rows_file = json.dumps(
+        {
+            "frame": {
+                "columns": columns,
+                "data": [
+                    existing_rows[0],
+                    ["2025-01-01T00:05:00.000Z", "2"],
+                ],
+            }
+        }
+    ).encode("utf-8")
+    provisioner = ExampleProvisioner(example_name="fixture")
+    props = {
+        "columns": [{"name": column} for column in columns],
+        "rows_file": "rows.json",
+    }
+
+    with patch.object(provisioner, "_read_example_file", return_value=rows_file):
+        provisioner._ensure_data_table_rows("table-123", props)
+        assert provisioner._last_resource_details == {
+            "rows_expected": 2,
+            "rows_existing": 1,
+            "rows_added": 1,
+        }
+        provisioner._ensure_data_table_rows("table-123", props)
+
+    assert len(append_payloads) == 1
+    assert append_payloads[0]["frame"]["data"] == [["2025-01-01T00:05:00.000Z", "2"]]
+    assert provisioner._last_resource_details == {
+        "rows_expected": 2,
+        "rows_existing": 2,
+        "rows_added": 0,
+    }
+
+
+@patch("slcli.example_provisioner.get_base_url")
+@patch("slcli.example_provisioner.make_api_request")
+def test_data_table_rows_reject_conflicting_index(mock_api: Any, mock_base_url: Any) -> None:
+    """A reused index with changed contents fails instead of duplicating a row."""
+    mock_base_url.return_value = "https://api.test.com"
+    response = MagicMock()
+    response.raise_for_status.return_value = None
+    response.json.return_value = {
+        "frame": {
+            "columns": ["timestamp", "value"],
+            "data": [["2025-01-01T00:00:00.000Z", "1"]],
+        },
+        "continuationToken": None,
+    }
+    mock_api.return_value = response
+    provisioner = ExampleProvisioner(example_name="fixture")
+    props = {
+        "columns": [{"name": "timestamp"}, {"name": "value"}],
+        "rows": [["2025-01-01T00:00:00.000Z", "2"]],
+    }
+
+    with pytest.raises(ValueError, match="different row contents"):
+        provisioner._ensure_data_table_rows("table-123", props)
+
+    assert mock_api.call_count == 1
+
+
+@patch("slcli.example_provisioner.get_base_url")
+@patch("slcli.example_provisioner.make_api_request")
+def test_data_table_lookup_requests_and_returns_id(mock_api: Any, mock_base_url: Any) -> None:
+    """Dataframe table lookup requests the projected ID used by the provisioner."""
+    mock_base_url.return_value = "https://api.test.com"
+    response = MagicMock()
+    response.json.return_value = {
+        "tables": [
+            {
+                "id": "table-123",
+                "name": "Fixture table",
+                "properties": {"ownership_marker": "slcli-example:fixture"},
+                "workspace": "ws-test",
+            }
+        ]
+    }
+    response.raise_for_status.return_value = None
+    mock_api.return_value = response
+
+    provisioner = ExampleProvisioner(workspace_id="ws-test")
+
+    assert provisioner._get_data_table_by_name("Fixture table") == "table-123"
+    payload = mock_api.call_args.args[2]
+    assert payload["projection"] == ["ID", "NAME", "PROPERTIES", "WORKSPACE"]
+
+
+@patch("slcli.example_provisioner.get_base_url")
+@patch("slcli.example_provisioner.make_api_request")
 @patch("slcli.feed_click._wait_for_job")
 @patch("slcli.feed_click._create_feed")
 @patch("slcli.feed_click._normalize_platform")
@@ -610,12 +760,44 @@ def test_feed_provisioning_stores_completed_resource_id(
         ],
     }
 
-    results, err = ExampleProvisioner(workspace_id="ws-test").provision(config)
+    results, err = ExampleProvisioner(workspace_id="ws-test", example_name="fixture").provision(
+        config
+    )
 
     assert err is None
     assert results[0].action == ProvisioningAction.CREATED
     assert results[0].server_id == "feed-123"
     mock_wait.assert_called_once_with("job-123", timeout=300)
+    assert "[slcli-example:fixture]" in mock_create.call_args.kwargs["description"]
+
+
+@patch("slcli.example_provisioner.get_base_url")
+@patch("slcli.example_provisioner.make_api_request")
+@patch("slcli.feed_click._normalize_platform")
+def test_feed_delete_ignores_unowned_same_name(
+    mock_normalize: Any, mock_api: Any, mock_base_url: Any
+) -> None:
+    """Feed cleanup does not delete an unowned same-name resource."""
+    mock_base_url.return_value = "https://api.test.com"
+    mock_normalize.return_value = "WINDOWS"
+    response = MagicMock()
+    response.json.return_value = {
+        "feeds": [
+            {
+                "id": "feed-foreign",
+                "name": "Fixture feed",
+                "workspace": "ws-test",
+                "description": "A feed owned by another example",
+            }
+        ]
+    }
+    mock_api.return_value = response
+
+    provisioner = ExampleProvisioner(workspace_id="ws-test", example_name="fixture")
+
+    assert provisioner._delete_feed({"name": "Fixture feed", "platform": "windows"}) is None
+    assert mock_api.call_count == 1
+    assert mock_api.call_args.args[0] == "GET"
 
 
 @patch("slcli.example_provisioner.make_api_request")
