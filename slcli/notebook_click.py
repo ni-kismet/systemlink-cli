@@ -925,7 +925,7 @@ def register_notebook_commands(cli: Any) -> None:
             combined_filter = " and ".join(filter_parts) if filter_parts else None
 
             try:
-                query_take = take if format_output.lower() == "json" else 1000
+                query_take = 1000
                 notebooks_raw = _query_notebooks_http(combined_filter, take=query_take)
             except Exception as exc:
                 click.echo(
