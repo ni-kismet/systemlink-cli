@@ -925,8 +925,7 @@ def register_notebook_commands(cli: Any) -> None:
             combined_filter = " and ".join(filter_parts) if filter_parts else None
 
             try:
-                query_take = 1000
-                notebooks_raw = _query_notebooks_http(combined_filter, take=query_take)
+                notebooks_raw = _query_notebooks_http(combined_filter, take=1000)
             except Exception as exc:
                 click.echo(
                     f"✗ Error querying notebooks: {exc}",
