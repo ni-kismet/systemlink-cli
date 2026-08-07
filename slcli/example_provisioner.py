@@ -378,6 +378,18 @@ class ExampleProvisioner:
                             error=str(exc),
                             details=self._last_resource_details,
                         )
+                elif rtype == "tag":
+                    try:
+                        self._write_tag_history(props_with_name)
+                    except Exception as exc:
+                        return ProvisioningResult(
+                            id_reference=rid,
+                            resource_type=rtype,
+                            resource_name=rname,
+                            action=ProvisioningAction.FAILED,
+                            server_id=str(existing_id),
+                            error=str(exc),
+                        )
                 # Resource already exists, skip creation
                 return ProvisioningResult(
                     id_reference=rid,
@@ -616,12 +628,147 @@ class ExampleProvisioner:
             "workspace": self.workspace_id,
             "collectAggregates": bool(props.get("collectAggregates", False)),
         }
-        for key in ("keywords", "properties"):
+        for key in ("keywords",):
             if key in props:
                 payload[key] = props[key]
+        tag_properties: Dict[str, Any] = {}
+        if isinstance(props.get("properties"), dict):
+            tag_properties.update(props["properties"])
+        if props.get("history"):
+            tag_properties["nitagRetention"] = str(
+                props.get("retention", tag_properties.get("nitagRetention", "PERMANENT"))
+            ).upper()
+        if tag_properties:
+            payload["properties"] = tag_properties
 
         make_api_request("PUT", self._tag_url(path), payload=payload, handle_errors=False)
+        self._write_tag_history(props)
         return path or None
+
+    def _write_tag_history(self, props: Dict[str, Any]) -> None:
+        """Write configured timestamped values to a tag."""
+        history = props.get("history", [])
+        if history is None:
+            return
+        if not isinstance(history, list):
+            raise ValueError("Tag history must be a list")
+        if not history:
+            return
+
+        path = str(props.get("name", ""))
+        tag_type = str(props.get("type", props.get("tag_type", "")))
+        if not path or not tag_type:
+            raise ValueError("Tag history requires a tag name and type")
+
+        values: List[Dict[str, Any]] = []
+        for index, entry in enumerate(history):
+            if not isinstance(entry, dict):
+                raise ValueError(f"Tag history entry {index} must be an object")
+            timestamp = entry.get("timestamp")
+            if not timestamp:
+                raise ValueError(f"Tag history entry {index} is missing timestamp")
+            if "value" not in entry or entry["value"] is None:
+                raise ValueError(f"Tag history entry {index} is missing value")
+
+            value = entry["value"]
+            value_text = str(value).lower() if isinstance(value, bool) else str(value)
+            value_entry: Dict[str, Any] = {
+                "path": path,
+                "value": value_text,
+                "timestamp": str(timestamp),
+            }
+            if self.workspace_id:
+                value_entry["workspace"] = self.workspace_id
+            values.append(value_entry)
+
+        configured_properties = props.get("properties")
+        configured_retention = (
+            configured_properties.get("nitagRetention")
+            if isinstance(configured_properties, dict)
+            else None
+        )
+        retention = str(props.get("retention", configured_retention or "PERMANENT")).upper()
+        tag_metadata: Dict[str, Any] = {
+            "path": path,
+            "type": tag_type,
+            "workspace": self.workspace_id,
+            "properties": {"nitagRetention": retention},
+        }
+
+        base_url = get_base_url()
+        make_api_request(
+            "POST",
+            f"{base_url}/nitag/v2/tags",
+            payload=tag_metadata,
+            handle_errors=False,
+        )
+        query: Dict[str, Any] = {
+            "path": path,
+            "startTime": "0001-01-01T00:00:00Z",
+            "endTime": "9999-12-31T23:59:59Z",
+            "take": max(len(values), 1000),
+            "sortOrder": "ASCENDING",
+        }
+        if self.workspace_id:
+            query["workspace"] = self.workspace_id
+        history_url = f"{base_url}/nitaghistorian/v2/tags/query-history"
+        existing_response = make_api_request(
+            "POST", history_url, payload=query, handle_errors=False
+        )
+        existing_data = existing_response.json()
+        existing_values = existing_data.get("values", []) if isinstance(existing_data, dict) else []
+        existing_keys = {
+            (
+                str(item.get("timestamp", "")).replace(".000000", ""),
+                str(item.get("value")),
+            )
+            for item in existing_values
+            if isinstance(item, dict)
+        }
+        pending_values = [
+            item
+            for item in values
+            if (
+                item["timestamp"].replace(".000000", ""),
+                item["value"],
+            )
+            not in existing_keys
+        ]
+        timestamped_values: List[Dict[str, Any]] = []
+        for item in pending_values:
+            timestamped_values.append(
+                {
+                    "value": {"type": tag_type, "value": item["value"]},
+                    "timestamp": item["timestamp"],
+                }
+            )
+        update_url = f"{base_url}/nitag/v2/tags/{urllib.parse.quote(path, safe='')}/update-values"
+        if self.workspace_id:
+            update_url = f"{update_url}?workspace={urllib.parse.quote(self.workspace_id, safe='')}"
+        if timestamped_values:
+            make_api_request(
+                "POST",
+                update_url,
+                payload=timestamped_values,
+                handle_errors=False,
+            )
+
+        response = make_api_request("POST", history_url, payload=query, handle_errors=False)
+        response_data = response.json()
+        recorded_values = response_data.get("values", []) if isinstance(response_data, dict) else []
+        recorded = {
+            (
+                str(item.get("timestamp", "")).replace(".000000", ""),
+                str(item.get("value")),
+            )
+            for item in recorded_values
+            if isinstance(item, dict)
+        }
+        expected = {(item["timestamp"], item["value"]) for item in values}
+        if not expected.issubset(recorded):
+            raise RuntimeError(
+                "history: unsupported - Tag Historian did not retain all configured values"
+            )
 
     def _get_tag_by_path(self, path: str) -> Optional[str]:
         """Return a tag path when metadata exists, otherwise None."""

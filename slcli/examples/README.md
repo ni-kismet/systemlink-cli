@@ -51,13 +51,13 @@ provisions the resource families supported by the generic example provisioner:
 - 6 DUT/instrument assets
 - 2 products
 - 12 dated test results, including 6 results with measurement steps
-- 1 deployment state, 1 feed, 1 tag, and 1 specification (metadata only)
+- 1 deployment state, 1 feed, 1 tag with 12 history samples, and 1 specification (metadata only)
 - 3 DataFrame tables with populated compliance-measurement rows
 - 2 supporting files
 
 This fixture uses an opt-in install manifest. Its current release explicitly
 reports unsupported package inventory, alarms, jobs, feed packages, deployment
-state package inventory, tag history/current values, specification evidence,
+state package inventory, specification evidence,
 and workspace lifecycle.
 Because those capabilities are required by the full Nigel acceptance matrix,
 the install intentionally exits nonzero after emitting its JSON manifest.

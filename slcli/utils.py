@@ -700,7 +700,7 @@ def save_json_file(
 def make_api_request(
     method: str,
     url: str,
-    payload: Optional[Dict[str, Any]] = None,
+    payload: Optional[Union[Dict[str, Any], List[Any]]] = None,
     headers: Optional[Dict[str, str]] = None,
     handle_errors: bool = True,
     files: Optional[Dict[str, Any]] = None,

@@ -464,6 +464,149 @@ def test_tag_provisioning_uses_encoded_path_identity(mock_api: Any, mock_base_ur
 
 @patch("slcli.example_provisioner.get_base_url")
 @patch("slcli.example_provisioner.make_api_request")
+def test_tag_provisioning_writes_timestamped_history(mock_api: Any, mock_base_url: Any) -> None:
+    """Tag history samples are written in config order with their timestamps."""
+    mock_base_url.return_value = "https://api.test.com"
+    query_count = 0
+
+    def mock_tag_api(*args: Any, **kwargs: Any) -> Any:
+        nonlocal query_count
+        response = MagicMock()
+        if args[0] == "GET":
+            raise RuntimeError("tag not found")
+        if "query-history" in args[1]:
+            query_count += 1
+            response.json.return_value = (
+                {"values": []}
+                if query_count == 1
+                else {
+                    "values": [
+                        {"value": "21.0", "timestamp": "2026-08-05T12:00:00Z"},
+                        {"value": "21.5", "timestamp": "2026-08-05T12:05:00Z"},
+                    ]
+                }
+            )
+        else:
+            response.json.return_value = {}
+        return response
+
+    mock_api.side_effect = mock_tag_api
+    history = [
+        {"timestamp": "2026-08-05T12:00:00Z", "value": 21.0},
+        {"timestamp": "2026-08-05T12:05:00Z", "value": 21.5},
+    ]
+    config = {
+        "format_version": "1.0",
+        "name": "tag-history-test",
+        "title": "Tag History Test",
+        "resources": [
+            {
+                "type": "tag",
+                "name": "system/temperature",
+                "id_reference": "tag_temperature",
+                "properties": {"type": "DOUBLE", "history": history},
+            }
+        ],
+    }
+
+    results, err = ExampleProvisioner(workspace_id="ws-test").provision(config)
+
+    assert err is None
+    assert results[0].action == ProvisioningAction.CREATED
+    assert mock_api.call_args_list[2].args[0] == "POST"
+    assert mock_api.call_args_list[2].args[1].endswith("/nitag/v2/tags")
+    assert mock_api.call_args_list[2].kwargs["payload"] == {
+        "path": "system/temperature",
+        "type": "DOUBLE",
+        "workspace": "ws-test",
+        "properties": {"nitagRetention": "PERMANENT"},
+    }
+    assert (
+        mock_api.call_args_list[4]
+        .args[1]
+        .endswith("/nitag/v2/tags/system%2Ftemperature/update-values?workspace=ws-test")
+    )
+    assert mock_api.call_args_list[4].kwargs["payload"] == [
+        {
+            "value": {"type": "DOUBLE", "value": "21.0"},
+            "timestamp": "2026-08-05T12:00:00Z",
+        },
+        {
+            "value": {"type": "DOUBLE", "value": "21.5"},
+            "timestamp": "2026-08-05T12:05:00Z",
+        },
+    ]
+    assert mock_api.call_args_list[5].args[1].endswith("/nitaghistorian/v2/tags/query-history")
+
+
+@patch("slcli.example_provisioner.get_base_url")
+@patch("slcli.example_provisioner.make_api_request")
+def test_existing_tag_replays_timestamped_history(mock_api: Any, mock_base_url: Any) -> None:
+    """An existing tag receives configured history without recreating metadata."""
+    mock_base_url.return_value = "https://api.test.com"
+    get_response = MagicMock()
+    get_response.json.return_value = {"path": "system/temperature"}
+    metadata_response = MagicMock()
+    existing_history_response = MagicMock()
+    existing_history_response.json.return_value = {"values": []}
+    insert_response = MagicMock()
+    history_response = MagicMock()
+    history_response.json.return_value = {
+        "values": [{"value": "21.0", "timestamp": "2026-08-05T12:00:00Z"}]
+    }
+    mock_api.side_effect = [
+        get_response,
+        metadata_response,
+        existing_history_response,
+        insert_response,
+        history_response,
+    ]
+    config = {
+        "format_version": "1.0",
+        "name": "existing-tag-history-test",
+        "title": "Existing Tag History Test",
+        "resources": [
+            {
+                "type": "tag",
+                "name": "system/temperature",
+                "id_reference": "tag_temperature",
+                "properties": {
+                    "type": "DOUBLE",
+                    "history": [{"timestamp": "2026-08-05T12:00:00Z", "value": 21.0}],
+                },
+            }
+        ],
+    }
+
+    results, err = ExampleProvisioner(workspace_id="ws-test").provision(config)
+
+    assert err is None
+    assert results[0].action == ProvisioningAction.SKIPPED
+    assert results[0].server_id == "system/temperature"
+    assert mock_api.call_args_list[1].args[0] == "POST"
+    assert mock_api.call_args_list[1].args[1].endswith("/nitag/v2/tags")
+    assert mock_api.call_args_list[1].kwargs["payload"] == {
+        "path": "system/temperature",
+        "type": "DOUBLE",
+        "workspace": "ws-test",
+        "properties": {"nitagRetention": "PERMANENT"},
+    }
+    assert (
+        mock_api.call_args_list[3]
+        .args[1]
+        .endswith("/nitag/v2/tags/system%2Ftemperature/update-values?workspace=ws-test")
+    )
+    assert mock_api.call_args_list[3].kwargs["payload"] == [
+        {
+            "value": {"type": "DOUBLE", "value": "21.0"},
+            "timestamp": "2026-08-05T12:00:00Z",
+        }
+    ]
+    assert mock_api.call_args_list[4].args[1].endswith("/nitaghistorian/v2/tags/query-history")
+
+
+@patch("slcli.example_provisioner.get_base_url")
+@patch("slcli.example_provisioner.make_api_request")
 def test_tag_provisioning_does_not_treat_empty_metadata_as_existing(
     mock_api: Any, mock_base_url: Any
 ) -> None:

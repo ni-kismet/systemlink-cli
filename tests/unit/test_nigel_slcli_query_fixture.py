@@ -15,13 +15,18 @@ def test_nigel_fixture_declares_deterministic_core_resources() -> None:
     counts = Counter(resource["type"] for resource in resources)
 
     assert config["install_manifest"] is True
-    assert config["example_version"] == "1.1.0"
+    assert config["example_version"] == "1.2.0"
     assert counts["system"] == 5
     assert counts["asset"] + counts["dut"] == 6
     assert counts["product"] == 2
     assert counts["feed"] == 1
     assert counts["state"] == 1
     assert counts["tag"] == 1
+    tag = next(resource for resource in resources if resource["type"] == "tag")
+    history = tag["properties"]["history"]
+    assert len(history) == 12
+    assert history[0] == {"timestamp": "2026-08-05T12:00:00Z", "value": 21.0}
+    assert history[-1] == {"timestamp": "2026-08-05T12:55:00Z", "value": 22.1}
     assert counts["specification"] == 1
     assert counts["test_result"] == 12
     assert counts["data_table"] == 3

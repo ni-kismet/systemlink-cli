@@ -1,14 +1,14 @@
 ---
 format_version: "1.0"
 name: "nigel-slcli-query-fixture"
-example_version: "1.1.0"
+example_version: "1.2.0"
 title: "Nigel slcli Systems and Products Query Fixture"
 description: |
   Deterministic Systems and Products data for Nigel query validation.
 
   This release provisions the resource families supported by the generic
   example provisioner: products, virtual systems, DUT and instrument assets,
-  test results with steps, a deployment state, feed and tag metadata, a
+  test results with steps, a deployment state, feed and tag metadata/history, a
   specification condition metadata, populated DataFrame tables, and supporting files.
   Unsupported capabilities are declared below and make the install exit with a
   nonzero status. The installer must not present this phase-one fixture as the
@@ -41,7 +41,6 @@ validation:
     - "system jobs: the generic example provisioner has no queued/running/failed job seed path"
     - "feed packages: feed creation and package upload are asynchronous CLI workflows, not fixture resources"
     - "deployment state package inventory: state creation does not seed package inventory"
-    - "tag history: tag metadata is provisioned, but historical/current tag values are not seeded"
     - "specification condition evidence: /nispec/v1 stores expected conditions only; it has no outcome or test-result evidence API"
     - "system-to-asset query projection: location.minionId is provisioned, but the accepted CLI/Nigel retrieval path is not verified"
     - "result-to-instrument query projection: asset ID and channel fields are provisioned, but the accepted CLI/Nigel retrieval path is not verified"
@@ -91,9 +90,35 @@ resources:
     properties:
       type: "DOUBLE"
       collectAggregates: true
+      retention: "PERMANENT"
       keywords: ["nigel-slcli-query-fixture", "temperature"]
       properties:
         unit: "C"
+      history:
+        - timestamp: "2026-08-05T12:00:00Z"
+          value: 21.0
+        - timestamp: "2026-08-05T12:05:00Z"
+          value: 21.1
+        - timestamp: "2026-08-05T12:10:00Z"
+          value: 21.2
+        - timestamp: "2026-08-05T12:15:00Z"
+          value: 21.3
+        - timestamp: "2026-08-05T12:20:00Z"
+          value: 21.4
+        - timestamp: "2026-08-05T12:25:00Z"
+          value: 21.5
+        - timestamp: "2026-08-05T12:30:00Z"
+          value: 21.6
+        - timestamp: "2026-08-05T12:35:00Z"
+          value: 21.7
+        - timestamp: "2026-08-05T12:40:00Z"
+          value: 21.8
+        - timestamp: "2026-08-05T12:45:00Z"
+          value: 21.9
+        - timestamp: "2026-08-05T12:50:00Z"
+          value: 22.0
+        - timestamp: "2026-08-05T12:55:00Z"
+          value: 22.1
     id_reference: "tag_nigel_temperature"
     tags: ["nigel-slcli-query-fixture"]
 
