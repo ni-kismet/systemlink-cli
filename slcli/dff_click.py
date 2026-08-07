@@ -336,7 +336,9 @@ def _query_all_fields(
 
 
 def _query_all_configurations(
-    workspace_filter: Optional[str] = None, workspace_map: Optional[dict] = None
+    workspace_filter: Optional[str] = None,
+    workspace_map: Optional[dict] = None,
+    max_items: Optional[int] = None,
 ) -> List[Dict[str, Any]]:
     """Query all configurations using continuation token pagination.
 
@@ -348,12 +350,20 @@ def _query_all_configurations(
         List of all configurations, optionally filtered by workspace
     """
     url = f"{get_base_url()}/nidynamicformfields/v1/configurations"
-    all_configurations = []
+    all_configurations: List[Dict[str, Any]] = []
     continuation_token = None
 
     while True:
+        if max_items is not None:
+            remaining = max_items - len(all_configurations)
+            if remaining <= 0:
+                break
+            page_size = min(100, remaining)
+        else:
+            page_size = 100
+
         # Build parameters for the request
-        params = {"Take": 100}  # Use smaller page size for efficient pagination
+        params = {"Take": page_size}
         if continuation_token:
             params["ContinuationToken"] = continuation_token
 
@@ -364,22 +374,20 @@ def _query_all_configurations(
         resp = make_api_request("GET", full_url)
         data = resp.json()
 
-        # Extract configurations from this page
+        # Extract configurations from this page, applying client-side workspace filtering
         configurations = data.get("configurations", [])
+        if workspace_filter and workspace_map:
+            configurations = filter_by_workspace(configurations, workspace_filter, workspace_map)
         all_configurations.extend(configurations)
 
         # Check if there are more pages
         continuation_token = data.get("continuationToken")
-        if not continuation_token:
+        if not continuation_token or (
+            max_items is not None and len(all_configurations) >= max_items
+        ):
             break
 
-    # Filter by workspace if specified
-    if workspace_filter and workspace_map:
-        all_configurations = filter_by_workspace(
-            all_configurations, workspace_filter, workspace_map
-        )
-
-    return all_configurations
+    return all_configurations[:max_items] if max_items is not None else all_configurations
 
 
 def register_dff_commands(cli: Any) -> None:
@@ -423,11 +431,13 @@ def register_dff_commands(cli: Any) -> None:
             format_config_row = WorkspaceFormatter.create_config_row_formatter(workspace_map)
 
             # Use continuation token pagination following user_click.py pattern
-            all_configurations = _query_all_configurations(workspace, workspace_map)
+            all_configurations = _query_all_configurations(
+                workspace,
+                workspace_map,
+                max_items=take if format.lower() == "json" else None,
+            )
 
             # Use UniversalResponseHandler for consistent pagination
-            from typing import Any
-
             # Create a mock response with all data
             filtered_resp: Any = FilteredResponse({"configurations": all_configurations})
 
@@ -442,6 +452,7 @@ def register_dff_commands(cli: Any) -> None:
                 [36, 40, 36],
                 "No custom field configurations found.",
                 enable_pagination=True,
+                page_size=take,
             )
 
         except Exception as exc:

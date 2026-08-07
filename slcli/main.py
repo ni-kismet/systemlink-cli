@@ -15,6 +15,7 @@ import click as base_click
 import keyring
 import questionary
 
+from .alarm_click import register_alarm_commands
 from .asset_click import register_asset_commands
 from .comment_click import register_comment_commands
 from .completion_click import register_completion_command
@@ -79,6 +80,7 @@ def _configure_rich_click_command_groups() -> None:
             {
                 "name": "Operate",
                 "commands": [
+                    "alarm",
                     "asset",
                     "system",
                     "state",
@@ -699,6 +701,7 @@ def info(format: str, skip_health: bool, debug: bool) -> None:
 
 
 register_completion_command(cli)
+register_alarm_commands(cli)
 register_asset_commands(cli)
 register_comment_commands(cli)
 register_dataframe_commands(cli)

@@ -468,7 +468,7 @@ def register_asset_commands(cli: Any) -> None:
         type=int,
         default=25,
         show_default=True,
-        help="Items per page (table output only)",
+        help="Maximum assets to return (table page size; JSON list total)",
     )
     @click.option("--model", help="Filter by model name (contains match)")
     @click.option("--serial-number", help="Filter by serial number (exact match)")
@@ -617,7 +617,11 @@ def register_asset_commands(cli: Any) -> None:
             if format_output.lower() == "json":
                 _warn_if_large_dataset(filter_expr, calibratable)
                 assets = _query_all_assets(
-                    filter_expr, order_by, descending, calibratable_only=calibratable
+                    filter_expr,
+                    order_by,
+                    descending,
+                    take=take,
+                    calibratable_only=calibratable,
                 )
 
                 if summary:

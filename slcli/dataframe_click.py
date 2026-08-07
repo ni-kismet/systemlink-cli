@@ -413,14 +413,28 @@ def _display_table_pages(initial_payload: Dict[str, Any], workspace_map: Dict[st
         payload["continuationToken"] = continuation_token
 
 
-def _fetch_all_table_pages(initial_payload: Dict[str, Any]) -> Dict[str, Any]:
-    """Fetch every table page for JSON output."""
+def _fetch_all_table_pages(
+    initial_payload: Dict[str, Any], max_items: Optional[int] = None
+) -> Dict[str, Any]:
+    """Fetch table pages up to the JSON result limit."""
     payload = dict(initial_payload)
     all_tables: List[Dict[str, Any]] = []
 
     while True:
+        if max_items is not None:
+            remaining = max_items - len(all_tables)
+            if remaining <= 0:
+                return {"tables": all_tables[:max_items], "continuationToken": None}
+            payload["take"] = min(int(payload.get("take", remaining)), remaining)
+
         data = _fetch_table_page(payload)
-        all_tables.extend(data.get("tables", []) or [])
+        page_tables = data.get("tables", []) or []
+        if max_items is not None:
+            page_tables = page_tables[: max_items - len(all_tables)]
+        all_tables.extend(page_tables)
+        if max_items is not None and len(all_tables) >= max_items:
+            return {"tables": all_tables[:max_items], "continuationToken": None}
+
         continuation_token = data.get("continuationToken")
         if not continuation_token:
             return {"tables": all_tables, "continuationToken": None}
@@ -676,7 +690,14 @@ def register_dataframe_commands(cli: Any) -> None:
         help="Sort field for tables",
     )
     @click.option("--descending/--ascending", default=False, help="Sort descending")
-    @click.option("--take", "-t", type=int, default=25, show_default=True, help="Page size")
+    @click.option(
+        "--take",
+        "-t",
+        type=int,
+        default=25,
+        show_default=True,
+        help="Maximum tables to return (table page size; JSON list total)",
+    )
     @click.option(
         "--format",
         "-f",
@@ -713,7 +734,7 @@ def register_dataframe_commands(cli: Any) -> None:
 
         try:
             if format_output == "json":
-                click.echo(json.dumps(_fetch_all_table_pages(payload), indent=2))
+                click.echo(json.dumps(_fetch_all_table_pages(payload, max_items=take), indent=2))
                 return
 
             _display_table_pages(payload, get_workspace_map())

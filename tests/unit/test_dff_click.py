@@ -3,7 +3,7 @@
 import json
 import tempfile
 from pathlib import Path
-from typing import Any
+from typing import Any, List
 
 import click
 import pytest
@@ -136,6 +136,37 @@ def test_dff_config_list_json_format(monkeypatch: Any, runner: CliRunner) -> Non
     output_json = json.loads(result.output)
     assert len(output_json) == 1
     assert output_json[0]["name"] == "Test Configuration"
+
+
+def test_dff_config_list_json_honors_take(monkeypatch: Any, runner: CliRunner) -> None:
+    """JSON configuration output should stop paging at the requested limit."""
+    patch_keyring(monkeypatch)
+    requests: List[str] = []
+
+    def mock_request(method: str, url: str, *args: Any, **kwargs: Any) -> Any:
+        requests.append(url)
+
+        class R:
+            def raise_for_status(self) -> None:
+                pass
+
+            def json(self) -> Any:
+                return {
+                    "configurations": [{"id": "config1", "name": "First Configuration"}],
+                    "continuationToken": "next",
+                }
+
+        return R()
+
+    monkeypatch.setattr("slcli.dff_click.get_workspace_map", lambda: {})
+    monkeypatch.setattr("slcli.dff_click.make_api_request", mock_request)
+
+    result = runner.invoke(make_cli(), ["customfield", "list", "--format", "json", "--take", "1"])
+
+    assert result.exit_code == 0, result.output
+    assert json.loads(result.output) == [{"id": "config1", "name": "First Configuration"}]
+    assert len(requests) == 1
+    assert "Take=1" in requests[0]
 
 
 def test_dff_config_get_success(monkeypatch: Any, runner: CliRunner) -> None:

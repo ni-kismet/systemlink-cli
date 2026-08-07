@@ -3,7 +3,7 @@
 import os
 import tempfile
 from pathlib import Path
-from typing import Any
+from typing import Any, Dict, List
 
 from click.testing import CliRunner
 from pytest import MonkeyPatch
@@ -106,6 +106,46 @@ def test_notebook_list_with_filter(monkeypatch: MonkeyPatch) -> None:
     # New implementation avoids ToLower() and uses multiple case variants
     assert 'name.Contains("test")' in built or 'name.Contains("Test")' in built
     assert "TestNotebook" in result.output
+
+
+def test_query_notebooks_http_respects_take(monkeypatch: MonkeyPatch) -> None:
+    """Notebook pagination should stop once the requested limit is reached."""
+    import slcli.notebook_click
+
+    class MockResponse:
+        def __init__(self, data: Dict[str, Any]) -> None:
+            self._data = data
+
+        def raise_for_status(self) -> None:
+            return None
+
+        def json(self) -> Dict[str, Any]:
+            return self._data
+
+    requests: List[Dict[str, Any]] = []
+
+    def mock_post(url: str, **kwargs: Any) -> MockResponse:
+        requests.append(kwargs["json"])
+        return MockResponse(
+            {
+                "notebooks": [
+                    {"id": "notebook-1", "name": "First"},
+                    {"id": "notebook-2", "name": "Second"},
+                ],
+                "continuationToken": "next",
+            }
+        )
+
+    monkeypatch.setattr(slcli.notebook_click, "get_platform", lambda: PLATFORM_SLE)
+    monkeypatch.setattr(slcli.notebook_click, "get_base_url", lambda: "https://server.example")
+    monkeypatch.setattr(slcli.notebook_click, "get_headers", lambda content_type: {})
+    monkeypatch.setattr(slcli.notebook_click, "get_ssl_verify", lambda: True)
+    monkeypatch.setattr(slcli.notebook_click.requests, "post", mock_post)
+
+    notebooks = slcli.notebook_click._query_notebooks_http(take=1)
+
+    assert notebooks == [{"id": "notebook-1", "name": "First", "parameters": {}}]
+    assert requests == [{"take": 1}]
 
 
 def test_notebook_download_by_id(monkeypatch: MonkeyPatch) -> None:

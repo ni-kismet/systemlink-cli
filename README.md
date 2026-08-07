@@ -6,7 +6,7 @@ SystemLink CLI (`slcli`) is a cross-platform Python CLI for SystemLink integrato
 
 ## Features
 
-- **20+ resource types** — test results, assets, systems, specifications, work items, notebooks, feeds, tags, files, users, policies, webapps, and more
+- **20+ resource types** — test results, assets, systems, alarms, specifications, work items, notebooks, feeds, tags, files, users, policies, webapps, and more
 - **DataFrame tables** — inspect schema, query rows, export CSV, append data, and manage DataFrame table metadata
 - **Systems state lifecycle** — list saved states, inspect versions, and import or export portable `.sls` content
 - **Multi-platform** — supports SystemLink Enterprise (SLE) and SystemLink Server (SLS) with automatic detection

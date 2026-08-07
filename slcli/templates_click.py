@@ -63,6 +63,7 @@ def _query_all_templates(
     workspace_filter: Optional[str] = None,
     workspace_map: Optional[dict] = None,
     search_text: Optional[str] = None,
+    max_items: Optional[int] = None,
 ) -> List[Dict[str, Any]]:
     """Query all test plan templates using continuation token pagination.
 
@@ -74,13 +75,21 @@ def _query_all_templates(
         List of all templates, optionally filtered by workspace
     """
     url = f"{get_base_url()}/niworkorder/v1/query-testplan-templates"
-    all_templates = []
+    all_templates: List[Dict[str, Any]] = []
     continuation_token = None
 
     while True:
+        if max_items is not None:
+            remaining = max_items - len(all_templates)
+            if remaining <= 0:
+                break
+            page_size = min(100, remaining)
+        else:
+            page_size = 100
+
         # Build payload for the request
         payload = {
-            "take": 100,  # Use smaller page size for efficient pagination
+            "take": page_size,
             "orderBy": "TEMPLATE_GROUP",
             "descending": False,
             "projection": ["ID", "NAME", "WORKSPACE", "TEMPLATE_GROUP"],
@@ -111,7 +120,7 @@ def _query_all_templates(
         if not continuation_token:
             break
 
-    return all_templates
+    return all_templates[:max_items] if max_items is not None else all_templates
 
 
 def register_templates_commands(cli: Any) -> None:
@@ -304,8 +313,13 @@ def register_templates_commands(cli: Any) -> None:
             if workspace:
                 workspace_id = resolve_workspace_filter(workspace, workspace_map)
 
-            # Use continuation token pagination to get all templates
-            all_templates = _query_all_templates(workspace_id, workspace_map, filter_text)
+            # Bound JSON output while retaining interactive table paging.
+            all_templates = _query_all_templates(
+                workspace_id,
+                workspace_map,
+                filter_text,
+                max_items=take if format_output.lower() == "json" else None,
+            )
 
             # Create a mock response with all data
             resp: Any = FilteredResponse({"testPlanTemplates": all_templates})
