@@ -45,16 +45,16 @@ acceptance scope.
 
 The following requirements need an additional verified provisioning layer:
 
-| Requirement | Review outcome |
-| --- | --- |
-| Workspace | The installer requires an existing workspace. It does not create, own, or delete workspaces. |
-| Package inventory | Virtual-system creation creates aliases only; it does not seed the package projection used by `system list` and `system get`. |
-| Alarms and jobs | No generic example resource type currently creates alarm instances or system jobs with the required states and relationships. |
-| Feeds and deployment states | CLI create helpers exist, but feed package upload and state population are separate workflows and are not idempotent example resources. |
-| Tag history | The normal example path has no bounded history writer; current tag values are not a substitute for history. |
-| Specifications and evidence | Specification helpers are not wired into the generic provisioner, and condition outcomes have not been verified as queryable evidence. |
-| DataFrame rows | The generic provisioner creates table schemas only; row append is a separate API operation. |
-| Ownership and cleanup | The provisioner adds its example marker where the resource API supports keywords or metadata. Virtual systems do not accept that marker, so system ownership must be solved before claiming cleanup isolation. |
+| Requirement                 | Review outcome                                                                                                                                                                                                 |
+| --------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Workspace                   | The installer requires an existing workspace. It does not create, own, or delete workspaces.                                                                                                                   |
+| Package inventory           | Virtual-system creation creates aliases only; it does not seed the package projection used by `system list` and `system get`.                                                                                  |
+| Alarms and jobs             | No generic example resource type currently creates alarm instances or system jobs with the required states and relationships.                                                                                  |
+| Feeds and deployment states | CLI create helpers exist, but feed package upload and state population are separate workflows and are not idempotent example resources.                                                                        |
+| Tag history                 | The normal example path has no bounded history writer; current tag values are not a substitute for history.                                                                                                    |
+| Specifications and evidence | Specification helpers are not wired into the generic provisioner, and condition outcomes have not been verified as queryable evidence.                                                                         |
+| DataFrame rows              | The generic provisioner creates table schemas only; row append is a separate API operation.                                                                                                                    |
+| Ownership and cleanup       | The provisioner adds its example marker where the resource API supports keywords or metadata. Virtual systems do not accept that marker, so system ownership must be solved before claiming cleanup isolation. |
 
 This is intentional pushback on the proposal, not an acceptance waiver. The
 definition of done remains appropriate for a complete fixture, but the current
@@ -120,41 +120,41 @@ commands and expected answers remain reproducible.
 The installer must create the following resource families. Counts are minimums;
 logical names and relationships are normative.
 
-| Resource family | Minimum | Required purpose |
-| --- | ---: | --- |
-| Workspace | 1 | Isolate the fixture and provide a stable query scope. |
-| Systems | 5 | Positive package matches, a version-negative system, current-system context, and cross-domain relationships. |
-| Installed package records | 5 systems with inventory | Validate package name filtering, package detail, and version comparison. |
-| Alarms | 3 on the primary system | Validate multiple active alarms and a grounded empty-alarm response on another system. |
-| Assets | 6 | DUT, PXI-4071 traceability, connected asset summary, calibration state, and asset filtering. |
-| Products | 2 | Product-scoped results and a product with no results for negative validation. |
-| DUTs | 2 | Serial history and comparison between a populated and unknown serial. |
-| Test results | At least 12 | Serial history, failures by product/time/station, instrument traceability, and result detail. |
-| Test steps or measurement records | At least 6 results with steps | Store the instrument and channel used for the DUT measurement in a CLI-readable relationship. |
-| Feed | 1 | Package summary with names and versions. |
-| Feed packages | 12 | Exercise package enumeration and grouped version summaries. |
-| Deployment state | 1 populated, 1 empty | Positive software summary and grounded no-package response. |
-| Jobs | 3 on the primary system | Queued, running, and failed job states. |
-| Tags | 1 with history | Current value and recent trend. |
-| Tag history samples | At least 12 | Cover the last hour with a stable range and a visible upward drift. |
-| Specifications | 1 with at least 5 conditions | Product compliance query. |
-| Compliance evidence | At least 5 condition outcomes | Three open gaps, one pass, and one not-run condition. |
-| DataFrame tables | 3 populated | Provide bounded measurement data for result and analysis workflows. |
-| Notebooks | 1 optional analysis notebook | Demonstrate the compliance calculation workflow when direct CLI gap computation is unavailable. |
-| Files | 2 optional source/report files | Preserve a specification source and a generated compliance report for traceability. |
+| Resource family                   |                        Minimum | Required purpose                                                                                             |
+| --------------------------------- | -----------------------------: | ------------------------------------------------------------------------------------------------------------ |
+| Workspace                         |                              1 | Isolate the fixture and provide a stable query scope.                                                        |
+| Systems                           |                              5 | Positive package matches, a version-negative system, current-system context, and cross-domain relationships. |
+| Installed package records         |       5 systems with inventory | Validate package name filtering, package detail, and version comparison.                                     |
+| Alarms                            |        3 on the primary system | Validate multiple active alarms and a grounded empty-alarm response on another system.                       |
+| Assets                            |                              6 | DUT, PXI-4071 traceability, connected asset summary, calibration state, and asset filtering.                 |
+| Products                          |                              2 | Product-scoped results and a product with no results for negative validation.                                |
+| DUTs                              |                              2 | Serial history and comparison between a populated and unknown serial.                                        |
+| Test results                      |                    At least 12 | Serial history, failures by product/time/station, instrument traceability, and result detail.                |
+| Test steps or measurement records |  At least 6 results with steps | Store the instrument and channel used for the DUT measurement in a CLI-readable relationship.                |
+| Feed                              |                              1 | Package summary with names and versions.                                                                     |
+| Feed packages                     |                             12 | Exercise package enumeration and grouped version summaries.                                                  |
+| Deployment state                  |           1 populated, 1 empty | Positive software summary and grounded no-package response.                                                  |
+| Jobs                              |        3 on the primary system | Queued, running, and failed job states.                                                                      |
+| Tags                              |                 1 with history | Current value and recent trend.                                                                              |
+| Tag history samples               |                    At least 12 | Cover the last hour with a stable range and a visible upward drift.                                          |
+| Specifications                    |   1 with at least 5 conditions | Product compliance query.                                                                                    |
+| Compliance evidence               |  At least 5 condition outcomes | Three open gaps, one pass, and one not-run condition.                                                        |
+| DataFrame tables                  |                    3 populated | Provide bounded measurement data for result and analysis workflows.                                          |
+| Notebooks                         |   1 optional analysis notebook | Demonstrate the compliance calculation workflow when direct CLI gap computation is unavailable.              |
+| Files                             | 2 optional source/report files | Preserve a specification source and a generated compliance report for traceability.                          |
 
 ## System and software inventory
 
 Create five systems with stable aliases and different inventory outcomes.
 `PXI-Rack-07` is the primary current-page system.
 
-| System | Package inventory | Expected use |
-| --- | --- | --- |
-| `PXI-Rack-07` | `NI-DAQmx 2025 Q1`, `NI-DMM 2025 Q1`, `NI-SCOPE 24.8`, `SystemLink Client 2025.3` | Current-system software, alarms, jobs, connected assets, and version-positive query. |
-| `PXI-Rack-12` | `NI-DAQmx 24.8`, `NI-DMM 24.8`, `SystemLink Client 2025.3` | Additional package match. |
-| `HIL-03` | `NI-DAQmx 20.1`, `NI-SCOPE 24.8`, `SystemLink Client 2025.2` | Boundary and version-positive query. |
-| `BurnIn-02` | `NI-DAQmx 19.0`, `SystemLink Client 2024.4` | Name match but version-negative for `> 20.0`. |
-| `TestBench-44` | `NI-DMM 2025 Q1`, `NI-SCOPE 24.8` | Non-match for DAQmx and negative filtering. |
+| System         | Package inventory                                                                 | Expected use                                                                         |
+| -------------- | --------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------ |
+| `PXI-Rack-07`  | `NI-DAQmx 2025 Q1`, `NI-DMM 2025 Q1`, `NI-SCOPE 24.8`, `SystemLink Client 2025.3` | Current-system software, alarms, jobs, connected assets, and version-positive query. |
+| `PXI-Rack-12`  | `NI-DAQmx 24.8`, `NI-DMM 24.8`, `SystemLink Client 2025.3`                        | Additional package match.                                                            |
+| `HIL-03`       | `NI-DAQmx 20.1`, `NI-SCOPE 24.8`, `SystemLink Client 2025.2`                      | Boundary and version-positive query.                                                 |
+| `BurnIn-02`    | `NI-DAQmx 19.0`, `SystemLink Client 2024.4`                                       | Name match but version-negative for `> 20.0`.                                        |
+| `TestBench-44` | `NI-DMM 2025 Q1`, `NI-SCOPE 24.8`                                                 | Non-match for DAQmx and negative filtering.                                          |
 
 Each system must expose package name and version through the same system detail
 or inventory projection that `slcli system get --include-all` and the Nigel
@@ -177,11 +177,11 @@ as later than `20.0`, while excluding `BurnIn-02` and `TestBench-44`.
 
 Attach three active alarms to `PXI-Rack-07`:
 
-| Logical alarm | State | Summary | Related resource |
-| --- | --- | --- | --- |
-| `alarm-disk-space` | Active | Disk space low on controller C: | `PXI-Rack-07` |
-| `alarm-calibration-due` | Active | Calibration overdue for DMM `DMM-000184` | Asset `asset-dmm-pxi4071` |
-| `alarm-inventory-refresh` | Acknowledged or inactive | Inventory refresh required | `PXI-Rack-07` |
+| Logical alarm             | State                    | Summary                                  | Related resource          |
+| ------------------------- | ------------------------ | ---------------------------------------- | ------------------------- |
+| `alarm-disk-space`        | Active                   | Disk space low on controller C:          | `PXI-Rack-07`             |
+| `alarm-calibration-due`   | Active                   | Calibration overdue for DMM `DMM-000184` | Asset `asset-dmm-pxi4071` |
+| `alarm-inventory-refresh` | Acknowledged or inactive | Inventory refresh required               | `PXI-Rack-07`             |
 
 Only the first two may be returned by an active-alarm query. Include severity,
 created time, source, and related system or asset IDs. Add a second system with
@@ -202,14 +202,14 @@ the system detail relationship used by `slcli system get --include-jobs`.
 
 Create these assets and connect them to the systems and results as shown.
 
-| Logical asset | Type | Model | Serial | System | Calibration |
-| --- | --- | --- | --- | --- | --- |
-| `asset-dut-1234567` | DUT | Product XYZ | `1234567` | `PXI-Rack-07` | Not applicable |
-| `asset-dmm-pxi4071` | Instrument | NI PXI-4071 | `DMM-000184` | `PXI-Rack-07` | Due `2026-09-15` |
-| `asset-scope-a2231` | Instrument | NI PXI-5105 | `A-2231` | `PXI-Rack-07` | OK |
-| `asset-power-a8870` | Instrument | Power Supply | `A-8870` | `PXI-Rack-07` | OK |
-| `asset-switch-a1902` | Instrument | PXI Switch | `A-1902` | `PXI-Rack-07` | OK |
-| `asset-dmm-other` | Instrument | NI PXI-4071 | `DMM-000199` | `PXI-Rack-12` | OK |
+| Logical asset        | Type       | Model        | Serial       | System        | Calibration      |
+| -------------------- | ---------- | ------------ | ------------ | ------------- | ---------------- |
+| `asset-dut-1234567`  | DUT        | Product XYZ  | `1234567`    | `PXI-Rack-07` | Not applicable   |
+| `asset-dmm-pxi4071`  | Instrument | NI PXI-4071  | `DMM-000184` | `PXI-Rack-07` | Due `2026-09-15` |
+| `asset-scope-a2231`  | Instrument | NI PXI-5105  | `A-2231`     | `PXI-Rack-07` | OK               |
+| `asset-power-a8870`  | Instrument | Power Supply | `A-8870`     | `PXI-Rack-07` | OK               |
+| `asset-switch-a1902` | Instrument | PXI Switch   | `A-1902`     | `PXI-Rack-07` | OK               |
+| `asset-dmm-other`    | Instrument | NI PXI-4071  | `DMM-000199` | `PXI-Rack-12` | OK               |
 
 The primary system must return four connected instruments and the DUT through
 its supported asset relationship. The PXI-4071 asset must be searchable by
@@ -249,13 +249,13 @@ Create two products:
 
 Create at least these result groups for `Product XYZ`:
 
-| Result group | Minimum | Required fields |
-| --- | ---: | --- |
-| Serial history for DUT `1234567` | 6 | Result ID, status, start time, program name, product/part number, station, system, and measurements. |
-| Failed Overvoltage results on station `cRIO0100101NIC` | 3 | Failed status, failure reason, timestamp, station, DUT serial, and product. At least two must fall in the selected two-quarter window. |
-| Passing Overvoltage results | 3 | Passed status and measurements for comparison with failures. |
-| Traceability result | 1 | Instrument asset ID `asset-dmm-pxi4071`, channel, and test step. This may overlap another group. |
-| Boundary/unknown result | 1 | A result outside the selected time window or for `Product ABC` to test filtering. |
+| Result group                                           | Minimum | Required fields                                                                                                                        |
+| ------------------------------------------------------ | ------: | -------------------------------------------------------------------------------------------------------------------------------------- |
+| Serial history for DUT `1234567`                       |       6 | Result ID, status, start time, program name, product/part number, station, system, and measurements.                                   |
+| Failed Overvoltage results on station `cRIO0100101NIC` |       3 | Failed status, failure reason, timestamp, station, DUT serial, and product. At least two must fall in the selected two-quarter window. |
+| Passing Overvoltage results                            |       3 | Passed status and measurements for comparison with failures.                                                                           |
+| Traceability result                                    |       1 | Instrument asset ID `asset-dmm-pxi4071`, channel, and test step. This may overlap another group.                                       |
+| Boundary/unknown result                                |       1 | A result outside the selected time window or for `Product ABC` to test filtering.                                                      |
 
 Use fixed result dates spanning `2025-01-01` through `2025-06-30` for the
 example's two-quarter query. Include numeric measurements, units, limits,
@@ -342,13 +342,13 @@ claiming that the tag example is complete.
 Create specification `Product XYZ 2025 Compliance` for `Product XYZ` with at
 least these five conditions:
 
-| Condition | Expected result | Fixture outcome |
-| --- | --- | --- |
-| Overvoltage margin at high temperature | At least `10%` | Gap: measured `7%` |
-| Leakage current at 5 V standby | At most `2 mA` | Gap: measured `3.4 mA` |
-| Cold-start response time | At most `100 ms` | Gap: measured `142 ms` |
-| Nominal output voltage | `12 V +/- 0.5 V` | Pass |
-| Thermal shutdown behavior | Shutdown at `85 C` | Not run |
+| Condition                              | Expected result    | Fixture outcome        |
+| -------------------------------------- | ------------------ | ---------------------- |
+| Overvoltage margin at high temperature | At least `10%`     | Gap: measured `7%`     |
+| Leakage current at 5 V standby         | At most `2 mA`     | Gap: measured `3.4 mA` |
+| Cold-start response time               | At most `100 ms`   | Gap: measured `142 ms` |
+| Nominal output voltage                 | `12 V +/- 0.5 V`   | Pass                   |
+| Thermal shutdown behavior              | Shutdown at `85 C` | Not run                |
 
 Each condition must have an explicit status, expected limits, observed value
 when available, evidence result IDs, and a human-readable gap explanation.
@@ -410,7 +410,7 @@ The example installer must emit JSON with these sections:
 {
   "example": "nigel-slcli-query-fixture",
   "version": "1.0.0",
-  "workspace": {"name": "...", "id": "..."},
+  "workspace": { "name": "...", "id": "..." },
   "resources": {
     "created": [],
     "updated": [],
@@ -441,22 +441,22 @@ The following outcomes are the minimum acceptance targets for the 14 examples.
 Counts may be greater, but must be deterministic and documented in the example
 manifest.
 
-| Example | Required positive data | Required negative or safety case |
-| --- | --- | --- |
-| 1. Software on current system | Current system has four named packages with versions. | Unknown system returns not found; no version inferred from client metadata. |
-| 2. Active alarms | Primary system has two active alarms with severity and related resources. | Second system has zero active alarms. |
-| 3. PXI-4071 used for DUT measurement | DUT `1234567` links through a result and channel to `DMM-000184`. | An unrelated PXI-4071 is not selected by model name alone. |
-| 4. Serial history | `1234567` has at least six dated results. | Unknown serial returns an empty result with no invented history. |
-| 5. Systems with NI-DAQmx | Four systems match package name. | `TestBench-44` is excluded because it has no DAQmx. |
-| 6. Failed product measurements | At least three failures for `XYZ-2025-001` in the selected window. | Boundary/out-of-window and other-product results are excluded. |
-| 7. Feed software | Feed contains 12 enumerable packages with versions. | Empty or unknown feed returns a grounded empty/not-found result. |
-| 8. Response feedback | No fixture data required. | Covered by Nigel UI acceptance, not `slcli` provisioning. |
-| 9. Deployment-state software | `2025 Q1 validation` returns its populated package set. | `empty validation state` returns zero packages. |
-| 10. Connected assets | Primary system returns the DUT and four instruments. | Asset from another system is not included. |
-| 11. Pending jobs | Primary system returns queued, running, and failed jobs. | A system with no jobs returns zero. |
-| 12. Tag current/history | Current value `24.8 C`; bounded hour history shows range and upward drift. | History outside the one-hour window is excluded. |
-| 13. Compliance gaps | Product returns three named open gaps with evidence. | Not-run condition is not reported as a failed measurement. |
-| 14. DAQmx version filter | Three systems have DAQmx later than `20.0`. | `20.0` or older and systems without DAQmx are excluded. |
+| Example                              | Required positive data                                                     | Required negative or safety case                                            |
+| ------------------------------------ | -------------------------------------------------------------------------- | --------------------------------------------------------------------------- |
+| 1. Software on current system        | Current system has four named packages with versions.                      | Unknown system returns not found; no version inferred from client metadata. |
+| 2. Active alarms                     | Primary system has two active alarms with severity and related resources.  | Second system has zero active alarms.                                       |
+| 3. PXI-4071 used for DUT measurement | DUT `1234567` links through a result and channel to `DMM-000184`.          | An unrelated PXI-4071 is not selected by model name alone.                  |
+| 4. Serial history                    | `1234567` has at least six dated results.                                  | Unknown serial returns an empty result with no invented history.            |
+| 5. Systems with NI-DAQmx             | Four systems match package name.                                           | `TestBench-44` is excluded because it has no DAQmx.                         |
+| 6. Failed product measurements       | At least three failures for `XYZ-2025-001` in the selected window.         | Boundary/out-of-window and other-product results are excluded.              |
+| 7. Feed software                     | Feed contains 12 enumerable packages with versions.                        | Empty or unknown feed returns a grounded empty/not-found result.            |
+| 8. Response feedback                 | No fixture data required.                                                  | Covered by Nigel UI acceptance, not `slcli` provisioning.                   |
+| 9. Deployment-state software         | `2025 Q1 validation` returns its populated package set.                    | `empty validation state` returns zero packages.                             |
+| 10. Connected assets                 | Primary system returns the DUT and four instruments.                       | Asset from another system is not included.                                  |
+| 11. Pending jobs                     | Primary system returns queued, running, and failed jobs.                   | A system with no jobs returns zero.                                         |
+| 12. Tag current/history              | Current value `24.8 C`; bounded hour history shows range and upward drift. | History outside the one-hour window is excluded.                            |
+| 13. Compliance gaps                  | Product returns three named open gaps with evidence.                       | Not-run condition is not reported as a failed measurement.                  |
+| 14. DAQmx version filter             | Three systems have DAQmx later than `20.0`.                                | `20.0` or older and systems without DAQmx are excluded.                     |
 
 For every positive result, acceptance must verify both the raw `slcli -f json`
 output and the Nigel answer. Nigel answers must cite the resource names or IDs,
