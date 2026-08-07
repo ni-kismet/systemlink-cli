@@ -1,6 +1,6 @@
 ---
 format_version: "1.0"
-name: "nigel-slcli-query-fixture"
+name: "demo-data-3"
 example_version: "1.2.0"
 title: "Nigel slcli Systems and Products Query Fixture"
 description: |
@@ -23,9 +23,9 @@ tags:
   - "products"
 estimated_setup_time_minutes: 5
 required_systemlink_version: "2024.1"
-target_workspace: "nigel-slcli-query-fixture-workspace"
+target_workspace: "demo-data-3-workspace"
 install_manifest: true
-workspace_name: "nigel-slcli-query-fixture-workspace"
+workspace_name: "demo-data-3-workspace"
 
 validation:
   required_relationships:
@@ -54,7 +54,7 @@ resources:
       part_number: "XYZ-2025-001"
       keywords: ["fixture-product"]
     id_reference: "product_xyz"
-    tags: ["nigel-slcli-query-fixture"]
+    tags: ["demo-data-3"]
 
   - type: "product"
     name: "Product ABC"
@@ -64,7 +64,7 @@ resources:
       part_number: "ABC-2025-001"
       keywords: ["fixture-product"]
     id_reference: "product_abc"
-    tags: ["nigel-slcli-query-fixture"]
+    tags: ["demo-data-3"]
 
   - type: "feed"
     name: "Nigel Fixture Windows Feed"
@@ -72,7 +72,7 @@ resources:
       platform: "windows"
       description: "Feed metadata for deployment-state query fixtures"
     id_reference: "feed_nigel_windows"
-    tags: ["nigel-slcli-query-fixture"]
+    tags: ["demo-data-3"]
 
   - type: "state"
     name: "Nigel Fixture Windows State"
@@ -81,9 +81,9 @@ resources:
       distribution: "WINDOWS"
       architecture: "X64"
       properties:
-        fixture: "nigel-slcli-query-fixture"
+        fixture: "demo-data-3"
     id_reference: "state_nigel_windows"
-    tags: ["nigel-slcli-query-fixture"]
+    tags: ["demo-data-3"]
 
   - type: "tag"
     name: "nigel/fixture/temperature"
@@ -91,7 +91,7 @@ resources:
       type: "DOUBLE"
       collectAggregates: true
       retention: "PERMANENT"
-      keywords: ["nigel-slcli-query-fixture", "temperature"]
+      keywords: ["demo-data-3", "temperature"]
       properties:
         unit: "C"
       history:
@@ -120,7 +120,7 @@ resources:
         - timestamp: "2026-08-05T12:55:00Z"
           value: 22.1
     id_reference: "tag_nigel_temperature"
-    tags: ["nigel-slcli-query-fixture"]
+    tags: ["demo-data-3"]
 
   - type: "specification"
     name: "Product XYZ 2025 Compliance"
@@ -159,45 +159,45 @@ resources:
             discrete: [85]
             unit: "C"
       properties:
-        fixture: "nigel-slcli-query-fixture"
+        fixture: "demo-data-3"
         compliance_report: "product-xyz-compliance-report.json"
     id_reference: "spec_xyz_output_voltage"
-    tags: ["nigel-slcli-query-fixture"]
+    tags: ["demo-data-3"]
 
   - type: "system"
     name: "PXI-Rack-07"
     properties:
       description: "Primary fixture system and current-system query target"
     id_reference: "system_pxi_rack_07"
-    tags: ["nigel-slcli-query-fixture", "primary"]
+    tags: ["demo-data-3", "primary"]
 
   - type: "system"
     name: "PXI-Rack-12"
     properties:
       description: "Additional fixture system"
     id_reference: "system_pxi_rack_12"
-    tags: ["nigel-slcli-query-fixture"]
+    tags: ["demo-data-3"]
 
   - type: "system"
     name: "HIL-03"
     properties:
       description: "Boundary fixture system"
     id_reference: "system_hil_03"
-    tags: ["nigel-slcli-query-fixture"]
+    tags: ["demo-data-3"]
 
   - type: "system"
     name: "BurnIn-02"
     properties:
       description: "Negative package-version comparison system"
     id_reference: "system_burnin_02"
-    tags: ["nigel-slcli-query-fixture"]
+    tags: ["demo-data-3"]
 
   - type: "system"
     name: "TestBench-44"
     properties:
       description: "System without the primary product test data"
     id_reference: "system_testbench_44"
-    tags: ["nigel-slcli-query-fixture"]
+    tags: ["demo-data-3"]
 
   - type: "dut"
     name: "DUT-1234567"
@@ -210,7 +210,7 @@ resources:
       serial_number: "1234567"
       bus_type: "ACCESSORY"
     id_reference: "asset_dut_1234567"
-    tags: ["nigel-slcli-query-fixture"]
+    tags: ["demo-data-3"]
 
   - type: "asset"
     name: "DMM-000184"
@@ -225,7 +225,7 @@ resources:
         calibration_status: "DUE"
         calibration_due_date: "2026-09-15"
     id_reference: "asset_dmm_pxi4071"
-    tags: ["nigel-slcli-query-fixture"]
+    tags: ["demo-data-3"]
 
   - type: "asset"
     name: "A-2231"
@@ -239,7 +239,7 @@ resources:
       properties:
         calibration_status: "OK"
     id_reference: "asset_scope_a2231"
-    tags: ["nigel-slcli-query-fixture"]
+    tags: ["demo-data-3"]
 
   - type: "asset"
     name: "A-8870"
@@ -253,7 +253,7 @@ resources:
       properties:
         calibration_status: "OK"
     id_reference: "asset_power_a8870"
-    tags: ["nigel-slcli-query-fixture"]
+    tags: ["demo-data-3"]
 
   - type: "asset"
     name: "A-1902"
@@ -267,7 +267,7 @@ resources:
       properties:
         calibration_status: "OK"
     id_reference: "asset_switch_a1902"
-    tags: ["nigel-slcli-query-fixture"]
+    tags: ["demo-data-3"]
 
   - type: "asset"
     name: "DMM-000199"
@@ -281,7 +281,7 @@ resources:
       properties:
         calibration_status: "OK"
     id_reference: "asset_dmm_other"
-    tags: ["nigel-slcli-query-fixture"]
+    tags: ["demo-data-3"]
 
   - type: "test_result"
     name: "Overvoltage 2025-01-15"
@@ -319,7 +319,7 @@ resources:
                 status: "Failed"
                 comparisonType: "GE"
     id_reference: "result_tr_xyz_ov_001"
-    tags: ["nigel-slcli-query-fixture", "overvoltage", "traceability"]
+    tags: ["demo-data-3", "overvoltage", "traceability"]
 
   - type: "test_result"
     name: "Overvoltage 2025-02-15"
@@ -356,7 +356,7 @@ resources:
                 status: "Passed"
                 comparisonType: "GELE"
     id_reference: "result_tr_xyz_ov_002"
-    tags: ["nigel-slcli-query-fixture", "overvoltage"]
+    tags: ["demo-data-3", "overvoltage"]
 
   - type: "test_result"
     name: "Overvoltage 2025-03-15"
@@ -394,7 +394,7 @@ resources:
                 status: "Failed"
                 comparisonType: "GE"
     id_reference: "result_tr_xyz_ov_003"
-    tags: ["nigel-slcli-query-fixture", "overvoltage"]
+    tags: ["demo-data-3", "overvoltage"]
 
   - type: "test_result"
     name: "Overvoltage 2025-04-15"
@@ -431,7 +431,7 @@ resources:
                 status: "Passed"
                 comparisonType: "GELE"
     id_reference: "result_tr_xyz_ov_004"
-    tags: ["nigel-slcli-query-fixture", "overvoltage"]
+    tags: ["demo-data-3", "overvoltage"]
 
   - type: "test_result"
     name: "Overvoltage 2025-05-15"
@@ -469,7 +469,7 @@ resources:
                 status: "Failed"
                 comparisonType: "GE"
     id_reference: "result_tr_xyz_ov_005"
-    tags: ["nigel-slcli-query-fixture", "overvoltage"]
+    tags: ["demo-data-3", "overvoltage"]
 
   - type: "test_result"
     name: "Overvoltage 2025-06-15"
@@ -506,7 +506,7 @@ resources:
                 status: "Passed"
                 comparisonType: "GELE"
     id_reference: "result_tr_xyz_ov_006"
-    tags: ["nigel-slcli-query-fixture", "overvoltage"]
+    tags: ["demo-data-3", "overvoltage"]
 
   - type: "test_result"
     name: "Instrument Traceability 2025-06-20"
@@ -541,7 +541,7 @@ resources:
                 status: "Passed"
                 comparisonType: "GELE"
     id_reference: "result_tr_xyz_traceability"
-    tags: ["nigel-slcli-query-fixture", "traceability"]
+    tags: ["demo-data-3", "traceability"]
 
   - type: "test_result"
     name: "Boundary Result 2024-12-31"
@@ -561,7 +561,7 @@ resources:
         failure_reason: "Boundary result is outside the 2025 analysis window"
         station: "BoundaryStation"
     id_reference: "result_boundary_out_of_window"
-    tags: ["nigel-slcli-query-fixture", "boundary"]
+    tags: ["demo-data-3", "boundary"]
 
   - type: "test_result"
     name: "Leakage Current 2025-02-20"
@@ -582,7 +582,7 @@ resources:
         failure_reason: "Standby leakage current exceeded the 2 mA limit"
         station: "cRIO0100101NIC"
     id_reference: "result_tr_xyz_leakage"
-    tags: ["nigel-slcli-query-fixture", "leakage"]
+    tags: ["demo-data-3", "leakage"]
 
   - type: "test_result"
     name: "Cold Start 2025-03-20"
@@ -603,7 +603,7 @@ resources:
         failure_reason: "Cold-start response exceeded the 100 ms limit"
         station: "cRIO0100101NIC"
     id_reference: "result_tr_xyz_cold_start"
-    tags: ["nigel-slcli-query-fixture", "cold-start"]
+    tags: ["demo-data-3", "cold-start"]
 
   - type: "test_result"
     name: "Overvoltage 2025-01-31"
@@ -640,7 +640,7 @@ resources:
                 status: "Passed"
                 comparisonType: "GELE"
     id_reference: "result_tr_xyz_ov_other_system"
-    tags: ["nigel-slcli-query-fixture", "overvoltage"]
+    tags: ["demo-data-3", "overvoltage"]
 
   - type: "test_result"
     name: "Thermal Response 2025-04-20"
@@ -677,7 +677,7 @@ resources:
                 status: "Passed"
                 comparisonType: "GELE"
     id_reference: "result_tr_xyz_thermal"
-    tags: ["nigel-slcli-query-fixture", "thermal"]
+    tags: ["demo-data-3", "thermal"]
 
   - type: "data_table"
     name: "Overvoltage Results - XYZ"
@@ -686,8 +686,8 @@ resources:
       rows_file: "overvoltage-results.json"
       end_of_data: true
       properties:
-        fixture: "nigel-slcli-query-fixture"
-        ownership_marker: "slcli-example:nigel-slcli-query-fixture"
+        fixture: "demo-data-3"
+        ownership_marker: "slcli-example:demo-data-3"
       columns:
         - name: "timestamp"
           type: "TIMESTAMP"
@@ -708,7 +708,7 @@ resources:
         - name: "status"
           type: "STRING"
     id_reference: "table_overvoltage_xyz"
-    tags: ["nigel-slcli-query-fixture"]
+    tags: ["demo-data-3"]
 
   - type: "data_table"
     name: "Leakage Current Results - XYZ"
@@ -717,8 +717,8 @@ resources:
       rows_file: "leakage-current-results.json"
       end_of_data: true
       properties:
-        fixture: "nigel-slcli-query-fixture"
-        ownership_marker: "slcli-example:nigel-slcli-query-fixture"
+        fixture: "demo-data-3"
+        ownership_marker: "slcli-example:demo-data-3"
       columns:
         - name: "timestamp"
           type: "TIMESTAMP"
@@ -737,7 +737,7 @@ resources:
         - name: "status"
           type: "STRING"
     id_reference: "table_leakage_xyz"
-    tags: ["nigel-slcli-query-fixture"]
+    tags: ["demo-data-3"]
 
   - type: "data_table"
     name: "Thermal Response Results - XYZ"
@@ -746,8 +746,8 @@ resources:
       rows_file: "thermal-response-results.json"
       end_of_data: true
       properties:
-        fixture: "nigel-slcli-query-fixture"
-        ownership_marker: "slcli-example:nigel-slcli-query-fixture"
+        fixture: "demo-data-3"
+        ownership_marker: "slcli-example:demo-data-3"
       columns:
         - name: "timestamp"
           type: "TIMESTAMP"
@@ -764,7 +764,7 @@ resources:
         - name: "status"
           type: "STRING"
     id_reference: "table_thermal_xyz"
-    tags: ["nigel-slcli-query-fixture"]
+    tags: ["demo-data-3"]
 
   - type: "file"
     name: "product-xyz-specification.csv"
@@ -773,7 +773,7 @@ resources:
       file_path: "product-xyz-specification.csv"
       content_type: "text/csv"
     id_reference: "file_product_xyz_specification"
-    tags: ["nigel-slcli-query-fixture"]
+    tags: ["demo-data-3"]
 
   - type: "file"
     name: "product-xyz-compliance-report.json"
@@ -782,7 +782,7 @@ resources:
       file_path: "product-xyz-compliance-report.json"
       content_type: "application/json"
     id_reference: "file_product_xyz_compliance_report"
-    tags: ["nigel-slcli-query-fixture"]
+    tags: ["demo-data-3"]
 
 cleanup:
   order:
@@ -797,7 +797,7 @@ cleanup:
     - "dut"
     - "system"
     - "product"
-  filter_tags: ["nigel-slcli-query-fixture"]
+  filter_tags: ["demo-data-3"]
   require_confirmation: true
 
 post_install:

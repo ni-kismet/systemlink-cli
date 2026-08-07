@@ -76,7 +76,7 @@ slcli webapp manifest init ./my-dashboard \
 slcli webapp pack --config ./my-dashboard/nipkg.config.json
 
 # Provision a demo environment
-slcli example install demo-complete-workflow --workspace Training
+slcli example install demo-data-1 --workspace Training
 ```
 
 ## Color Output

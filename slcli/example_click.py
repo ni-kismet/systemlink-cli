@@ -238,7 +238,7 @@ def register_example_commands(cli: Any) -> None:
         estimated setup time.
 
         Example:
-            slcli example info demo-test-plans
+            slcli example info demo-data-2
         """
         try:
             loader = ExampleLoader()

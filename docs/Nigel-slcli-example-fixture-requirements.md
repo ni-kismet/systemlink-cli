@@ -34,7 +34,7 @@ phase-one fixture rather than fabricating relationships that the accepted CLI
 or Nigel queries cannot retrieve.
 
 The current fixture at
-[`slcli/examples/nigel-slcli-query-fixture/`](../slcli/examples/nigel-slcli-query-fixture/)
+[`slcli/examples/demo-data-3/`](../slcli/examples/demo-data-3/)
 provisions 5 virtual systems, 6 DUT/instrument assets, 2 products, 12 test
 results, 3 DataFrame schemas, and 2 supporting files. Test results carry the
 system, product, DUT serial, station, and instrument asset ID as API fields;
@@ -51,7 +51,7 @@ The following requirements need an additional verified provisioning layer:
 | Package inventory           | Virtual-system creation creates aliases only; it does not seed the package projection used by `system list` and `system get`.                                                                                  |
 | Alarms and jobs             | No generic example resource type currently creates alarm instances or system jobs with the required states and relationships.                                                                                  |
 | Feeds and deployment states | CLI create helpers exist, but feed package upload and state population are separate workflows and are not idempotent example resources.                                                                        |
-| Tag history                 | The generic example provisioner configures permanent retention, writes fixed timestamped values through the tag timestamped-value endpoint, and verifies that Tag Historian returns every configured sample. |
+| Tag history                 | The generic example provisioner configures permanent retention, writes fixed timestamped values through the tag timestamped-value endpoint, and verifies that Tag Historian returns every configured sample.   |
 | Specifications and evidence | Specification helpers are not wired into the generic provisioner, and condition outcomes have not been verified as queryable evidence.                                                                         |
 | DataFrame rows              | The generic provisioner creates table schemas only; row append is a separate API operation.                                                                                                                    |
 | Ownership and cleanup       | The provisioner adds its example marker where the resource API supports keywords or metadata. Virtual systems do not accept that marker, so system ownership must be solved before claiming cleanup isolation. |
@@ -64,23 +64,23 @@ raw `slcli -f json` checks before changing `validation.complete` to `true`.
 
 ## Proposed example
 
-- Example name: `nigel-slcli-query-fixture`
+- Example name: `demo-data-3`
 - Install command:
 
   ```bash
-  slcli example install nigel-slcli-query-fixture \
+  slcli example install demo-data-3 \
     -w a-fred-test-workspace -f json
   ```
 
 - Delete command:
 
   ```bash
-  slcli example delete nigel-slcli-query-fixture \
+  slcli example delete demo-data-3 \
     -w a-fred-test-workspace -f json
   ```
 
 - Scope: one dedicated workspace per installation.
-- Ownership marker on every resource: `slcli-example:nigel-slcli-query-fixture`.
+- Ownership marker on every resource: `slcli-example:demo-data-3`.
 - Idempotence: a second install updates or skips the same logical resources;
   it does not duplicate results, tag history, packages, or alarms.
 - Cleanup: delete removes only resources carrying the ownership marker. It must
@@ -98,7 +98,7 @@ count baseline.
 
 Use these conventions across all resource types:
 
-- Workspace: `nigel-slcli-query-fixture-workspace`.
+- Workspace: `demo-data-3-workspace`.
 - Primary system: `PXI-Rack-07`.
 - Additional systems: `PXI-Rack-12`, `HIL-03`, `BurnIn-02`, and `TestBench-44`.
 - Primary product: `Product XYZ`, part number `XYZ-2025-001`, family
@@ -408,7 +408,7 @@ The example installer must emit JSON with these sections:
 
 ```json
 {
-  "example": "nigel-slcli-query-fixture",
+  "example": "demo-data-3",
   "version": "1.0.0",
   "workspace": { "name": "...", "id": "..." },
   "resources": {

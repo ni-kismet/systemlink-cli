@@ -4,7 +4,7 @@ This directory contains example configurations for quickly setting up demo resou
 
 ## Examples
 
-### demo-test-plans
+### demo-data-2
 
 A complete example demonstrating the end-to-end test planning workflow. Includes:
 
@@ -42,7 +42,7 @@ discover through visualization:
 
 **Setup time:** ~5 minutes
 
-### nigel-slcli-query-fixture
+### demo-data-3
 
 Phase-one fixture data for validating Systems and Products queries. It
 provisions the resource families supported by the generic example provisioner:
@@ -71,25 +71,25 @@ the install intentionally exits nonzero after emitting its JSON manifest.
 slcli example list
 
 # Show details about an example
-slcli example info demo-test-plans
+slcli example info demo-data-2
 
 # Preview what would be created (dry-run)
-slcli example install demo-test-plans -w <workspace-id> --dry-run
+slcli example install demo-data-2 -w <workspace-id> --dry-run
 
 # Create resources in a specific workspace (name or ID)
-slcli example install demo-test-plans -w <workspace>
+slcli example install demo-data-2 -w <workspace>
 # Write an audit log of provisioning results
-slcli example install demo-test-plans -w <workspace> --audit-log install-log.json --format json
+slcli example install demo-data-2 -w <workspace> --audit-log install-log.json --format json
 
 # Install the Nigel fixture and inspect its completeness manifest
-slcli example install nigel-slcli-query-fixture \
+slcli example install demo-data-3 \
   -w <workspace> --format json --audit-log nigel-fixture-manifest.json
 
 # Delete example resources from a workspace
-slcli example delete demo-test-plans -w <workspace-id> --dry-run
-slcli example delete demo-test-plans -w <workspace>
+slcli example delete demo-data-2 -w <workspace-id> --dry-run
+slcli example delete demo-data-2 -w <workspace>
 # Write an audit log of deletion results
-slcli example delete demo-test-plans -w <workspace> --audit-log delete-log.json --format json
+slcli example delete demo-data-2 -w <workspace> --audit-log delete-log.json --format json
 ```
 
 ## Creating New Examples

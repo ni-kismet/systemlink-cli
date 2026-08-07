@@ -10,7 +10,7 @@ from slcli.example_loader import ExampleLoader
 
 def test_nigel_fixture_declares_deterministic_core_resources() -> None:
     """The fixture keeps its supported core inventory and incomplete contract stable."""
-    config = ExampleLoader().load_config("nigel-slcli-query-fixture")
+    config = ExampleLoader().load_config("demo-data-3")
     resources = config["resources"]
     counts = Counter(resource["type"] for resource in resources)
 
@@ -78,13 +78,13 @@ def test_nigel_fixture_declares_deterministic_core_resources() -> None:
 
 def test_nigel_fixture_compliance_report_references_fixture_results() -> None:
     """Compliance evidence IDs must resolve to fixture result references."""
-    config = ExampleLoader().load_config("nigel-slcli-query-fixture")
+    config = ExampleLoader().load_config("demo-data-3")
     resource_references = {resource["id_reference"] for resource in config["resources"]}
     report_path = (
         Path(__file__).resolve().parents[2]
         / "slcli"
         / "examples"
-        / "nigel-slcli-query-fixture"
+        / "demo-data-3"
         / "product-xyz-compliance-report.json"
     )
     report = json.loads(report_path.read_text(encoding="utf-8"))

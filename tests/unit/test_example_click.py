@@ -457,7 +457,7 @@ def test_install_fixture_manifest_reports_unsupported_capabilities(
     """Fixture installs must expose incomplete capabilities and fail explicitly."""
     config = {
         "format_version": "1.0",
-        "name": "nigel-slcli-query-fixture",
+        "name": "demo-data-3",
         "example_version": "1.0.0",
         "title": "Nigel Query Fixture",
         "install_manifest": True,
@@ -474,7 +474,7 @@ def test_install_fixture_manifest_reports_unsupported_capabilities(
             }
         ],
     }
-    create_example_config(temp_examples_dir, "nigel-slcli-query-fixture", config)
+    create_example_config(temp_examples_dir, "demo-data-3", config)
 
     class DummyProvisioner:
         id_map = {"system_pxi_rack_07": "system-007"}
@@ -505,7 +505,7 @@ def test_install_fixture_manifest_reports_unsupported_capabilities(
         [
             "example",
             "install",
-            "nigel-slcli-query-fixture",
+            "demo-data-3",
             "--workspace",
             "Training",
             "--format",
@@ -515,7 +515,7 @@ def test_install_fixture_manifest_reports_unsupported_capabilities(
 
     assert result.exit_code == ExitCodes.GENERAL_ERROR
     manifest = json.loads(result.stdout)
-    assert manifest["example"] == "nigel-slcli-query-fixture"
+    assert manifest["example"] == "demo-data-3"
     assert manifest["logical_ids"]["system_pxi_rack_07"] == "system-007"
     assert manifest["resources"]["created"][0]["resource_name"] == "PXI-Rack-07"
     assert manifest["validation"]["complete"] is False
