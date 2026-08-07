@@ -328,7 +328,7 @@ class ExampleProvisioner:
             elif rtype == "work_order":
                 existing_id = self._get_work_order_by_name(rname)
             elif rtype == "test_result":
-                existing_id = self._get_test_result_by_name(rname)
+                existing_id = self._get_test_result_by_properties(props_with_name)
             elif rtype == "data_table":
                 existing_id = self._get_data_table_by_name(rname)
             elif rtype == "file":
@@ -2484,12 +2484,10 @@ class ExampleProvisioner:
                 err=True,
             )
 
-    def _get_test_result_by_name(self, name: str) -> Optional[str]:
-        """Look up test results by programName via /nitestmonitor/v2/results.
-
-        Returns first matching result ID in the workspace, None otherwise.
-        """
-        if not name:
+    def _get_test_result_by_properties(self, props: Dict[str, Any]) -> Optional[str]:
+        """Look up a result by its stable fixture identity fields."""
+        program_name = props.get("program_name") or props.get("test_phase")
+        if not program_name:
             return None
         try:
             url = f"{get_base_url()}/nitestmonitor/v2/results"
@@ -2500,7 +2498,17 @@ class ExampleProvisioner:
                 for r in results:
                     if self.workspace_id and str(r.get("workspace", "")) != str(self.workspace_id):
                         continue
-                    if str(r.get("programName", "")) == name:
+                    if str(r.get("programName", "")) != str(program_name):
+                        continue
+                    for property_name, response_name in (
+                        ("start_time", "startedAt"),
+                        ("serial_number", "serialNumber"),
+                        ("part_number", "partNumber"),
+                    ):
+                        expected = props.get(property_name)
+                        if expected is not None and str(r.get(response_name, "")) != str(expected):
+                            break
+                    else:
                         rid = r.get("id")
                         if rid:
                             return str(rid)

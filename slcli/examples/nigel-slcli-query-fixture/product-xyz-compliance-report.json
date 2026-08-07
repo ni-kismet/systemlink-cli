@@ -11,7 +11,7 @@
       "expected": "at least 10%",
       "observed": "7%",
       "status": "gap",
-      "evidence": ["TR-XYZ-OV-001", "TR-XYZ-OV-003", "TR-XYZ-OV-005"]
+      "evidence": ["result_tr_xyz_ov_001", "result_tr_xyz_ov_003", "result_tr_xyz_ov_005"]
     },
     {
       "condition": "Leakage current at 5 V standby",

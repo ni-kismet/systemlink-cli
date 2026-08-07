@@ -980,6 +980,73 @@ def test_create_test_steps_not_called_when_no_steps(mock_api: Any, mock_base_url
     assert steps_url_called == []
 
 
+@patch("slcli.example_provisioner.get_base_url")
+@patch("slcli.example_provisioner.make_api_request")
+def test_test_result_duplicate_detection_uses_result_identity(
+    mock_api: Any, mock_base_url: Any
+) -> None:
+    """Results with distinct fixture dates are not collapsed by program name."""
+    mock_base_url.return_value = "https://api.test.com"
+    response = MagicMock()
+    response.json.return_value = {
+        "results": [
+            {
+                "id": "result-existing",
+                "workspace": "ws-test",
+                "programName": "Overvoltage",
+                "startedAt": "2025-01-15T08:00:00Z",
+                "serialNumber": "1234567",
+                "partNumber": "XYZ-2025-001",
+            }
+        ]
+    }
+    mock_api.return_value = response
+
+    config = {
+        "format_version": "1.0",
+        "name": "result-identity-test",
+        "title": "Result Identity Test",
+        "resources": [
+            {
+                "type": "test_result",
+                "name": "Overvoltage 2025-01-15",
+                "id_reference": "result_existing",
+                "properties": {
+                    "program_name": "Overvoltage",
+                    "start_time": "2025-01-15T08:00:00Z",
+                    "serial_number": "1234567",
+                    "part_number": "XYZ-2025-001",
+                },
+            },
+            {
+                "type": "test_result",
+                "name": "Overvoltage 2025-02-15",
+                "id_reference": "result_new",
+                "properties": {
+                    "program_name": "Overvoltage",
+                    "start_time": "2025-02-15T08:00:00Z",
+                    "serial_number": "1234567",
+                    "part_number": "XYZ-2025-001",
+                },
+            },
+        ],
+    }
+
+    provisioner = ExampleProvisioner(workspace_id="ws-test", dry_run=False)
+    with patch.object(provisioner, "_create_test_result", return_value="result-new"):
+        results, err = provisioner.provision(config)
+
+    assert err is None
+    assert results[0].action == ProvisioningAction.SKIPPED
+    assert results[0].server_id == "result-existing"
+    assert results[1].action == ProvisioningAction.CREATED
+    assert results[1].server_id == "result-new"
+    assert provisioner.id_map == {
+        "result_existing": "result-existing",
+        "result_new": "result-new",
+    }
+
+
 # ---------------------------------------------------------------------------
 # _build_asset_obj / _create_dut unit tests
 # ---------------------------------------------------------------------------

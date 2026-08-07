@@ -105,10 +105,10 @@ Use these conventions across all resource types:
   `Power Electronics`.
 - Primary DUT: serial number `1234567`, model `Product XYZ`.
 - Primary test station: `cRIO0100101NIC`.
-- Primary feed: `2025 Q1 Validation Feed`.
-- Primary deployment state: `2025 Q1 validation`.
-- Primary tag: `ChamberTemp-07`, units `C`.
-- Primary specification: `Product XYZ 2025 Compliance`.
+- Primary feed: `Nigel Fixture Windows Feed`.
+- Primary deployment state: `Nigel Fixture Windows State`.
+- Primary tag: `nigel/fixture/temperature`, units `C`.
+- Primary specification: `Output Voltage`.
 
 All timestamps must be explicit UTC timestamps. The fixture must use a date
 range relative to the evaluation date only if the installer also writes the

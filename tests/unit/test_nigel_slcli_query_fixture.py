@@ -1,6 +1,8 @@
 """Contract tests for the Nigel slcli query fixture."""
 
+import json
 from collections import Counter
+from pathlib import Path
 
 from slcli.example_loader import ExampleLoader
 
@@ -30,3 +32,20 @@ def test_nigel_fixture_declares_deterministic_core_resources() -> None:
     assert "system_pxi_rack_07" in resource_references
     assert "asset_dmm_pxi4071" in resource_references
     assert "result_tr_xyz_traceability" in resource_references
+
+
+def test_nigel_fixture_compliance_report_references_fixture_results() -> None:
+    """Compliance evidence IDs must resolve to fixture result references."""
+    config = ExampleLoader().load_config("nigel-slcli-query-fixture")
+    resource_references = {resource["id_reference"] for resource in config["resources"]}
+    report_path = (
+        Path(__file__).resolve().parents[2]
+        / "slcli"
+        / "examples"
+        / "nigel-slcli-query-fixture"
+        / "product-xyz-compliance-report.json"
+    )
+    report = json.loads(report_path.read_text(encoding="utf-8"))
+    evidence_references = {evidence_id for gap in report["gaps"] for evidence_id in gap["evidence"]}
+
+    assert evidence_references <= resource_references

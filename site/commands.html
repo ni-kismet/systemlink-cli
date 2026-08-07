@@ -774,6 +774,10 @@ slcli example install demo-complete-workflow \
 # Dry-run
 slcli example install demo-complete-workflow --workspace Training --dry-run
 
+# Install the phase-one Nigel query fixture and write its completeness manifest
+slcli example install nigel-slcli-query-fixture \
+  --workspace Training --format json --audit-log nigel-fixture-manifest.json
+
 # Delete provisioned resources
 slcli example delete demo-complete-workflow \
   --workspace Training --audit-log delete-log.json</code></pre>
@@ -785,7 +789,9 @@ slcli example delete demo-complete-workflow \
         <li><strong>exercise-5-1-parametric-insights</strong> — parametric test data for training exercises</li>
         <li><strong>exercise-7-1-test-plans</strong> — test plan creation and scheduling exercises</li>
         <li><strong>spec-compliance-notebooks</strong> — Jupyter notebooks for specification compliance analysis</li>
+        <li><strong>nigel-slcli-query-fixture</strong> — phase-one Systems and Products query data with an explicit incomplete-install manifest</li>
       </ul>
+      <p>The Nigel fixture intentionally exits nonzero when its manifest reports unsupported acceptance capabilities. Use the JSON output and audit log to inspect the provisioned resource IDs and validation gaps.</p>
 
     </main>
   </div>
