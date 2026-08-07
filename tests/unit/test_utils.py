@@ -168,3 +168,14 @@ def test_ssl_verify_uses_managed_certificate(monkeypatch: Any, tmp_path: Path) -
 
     monkeypatch.setenv("SLCLI_SSL_VERIFY", "false")
     assert get_ssl_verify("https://example.com") is False
+
+
+def test_ssl_verify_prefers_os_trust_over_ssl_cert_file(monkeypatch: Any) -> None:
+    """The OS trust store should not be replaced by a single SSL_CERT_FILE root."""
+    from slcli.utils import get_ssl_verify
+
+    monkeypatch.delenv("REQUESTS_CA_BUNDLE", raising=False)
+    monkeypatch.setenv("SSL_CERT_FILE", "/path/to/corporate-root.pem")
+    monkeypatch.setattr("slcli.ssl_trust.OS_TRUST_INJECTED", True)
+
+    assert get_ssl_verify("https://example.com") is True

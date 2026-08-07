@@ -11,6 +11,7 @@ import click
 import keyring
 import requests
 
+from . import ssl_trust
 from .rich_output import print_json
 from .ssl_trust import use_standard_ssl_context
 
@@ -585,8 +586,13 @@ def get_ssl_verify(server_uri: Optional[str] = None) -> Union[bool, str]:
         except (OSError, ValueError):
             pass
 
-    if os.environ.get("REQUESTS_CA_BUNDLE") or os.environ.get("SSL_CERT_FILE"):
-        return os.environ.get("REQUESTS_CA_BUNDLE") or os.environ["SSL_CERT_FILE"]
+    requests_ca_bundle = os.environ.get("REQUESTS_CA_BUNDLE")
+    if requests_ca_bundle:
+        return requests_ca_bundle
+
+    ssl_cert_file = os.environ.get("SSL_CERT_FILE")
+    if ssl_cert_file and not ssl_trust.OS_TRUST_INJECTED:
+        return ssl_cert_file
 
     return True
 

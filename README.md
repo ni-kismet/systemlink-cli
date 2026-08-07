@@ -119,6 +119,8 @@ slcli config trust remove --url https://systemlink.example.local
 
 Managed certificates are stored under the `trust` directory next to the slcli configuration file. Hostname verification is still enforced. `SLCLI_SSL_VERIFY=false` disables certificate verification entirely and should only be used as a temporary diagnostic override; it does not add a trusted certificate.
 
+When the operating system trust store is available, it remains the default even if `SSL_CERT_FILE` points to a single corporate root certificate. Use `REQUESTS_CA_BUNDLE` when an explicit complete CA bundle is required.
+
 ## Documentation
 
 | Section                                                                            | Description                                                |
