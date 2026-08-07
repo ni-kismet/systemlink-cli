@@ -35,6 +35,7 @@ Load only what the current task needs.
 | Filtering guide | [filtering.md](./references/filtering.md) | Advanced filters, LINQ syntax, and query composition |
 | Analysis recipes | [analysis-recipes.md](./references/analysis-recipes.md) | Multi-step analysis workflows and reporting patterns |
 | Troubleshooting | [troubleshooting.md](./references/troubleshooting.md) | SSL, workspace IDs, encoding, or scripting pitfalls |
+| Eval workflow | [evals/README.md](./evals/README.md) | Developing, grading, and benchmarking this skill |
 | Notebook workflow | [notebook/overview.md](./references/notebook/overview.md) | Creating notebooks for SystemLink |
 | Webapp workflow | [webapp/overview.md](./references/webapp/overview.md) | Hosted Angular webapp scaffolding and deployment |
 | Python test workflow | [python-test/overview.md](./references/python-test/overview.md) | Python test app structure and deployment |

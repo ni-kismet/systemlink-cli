@@ -1,0 +1,434 @@
+{
+  "skill_name": "slcli",
+  "recommended_suites": {
+    "gating": [1, 4, 5, 7, 10],
+    "regression": [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11]
+  },
+  "evals": [
+    {
+      "id": 1,
+      "tags": ["gating", "testmonitor", "analysis"],
+      "prompt": "Show me all failed measurements on product BAT-MODEL-ABC-001 for the last month.",
+      "expected_output": "Uses the testmonitor results surface to query recent failed results for a specific product and returns a command-oriented analysis path.",
+      "files": [],
+      "expectations": [
+        "Selects the `testmonitor` command group rather than an unrelated resource group",
+        "Uses JSON output when the result is intended for analysis or filtering",
+        "Applies a product-specific filter and a failure-status filter",
+        "Does not invent unsupported subcommands or flags"
+      ],
+      "grading_rules": [
+        {
+          "text": "Uses the testmonitor result surface",
+          "mode": "any_of",
+          "patterns": [
+            "slcli\\s+testmonitor\\s+result\\s+list"
+          ]
+        },
+        {
+          "text": "Requests JSON output for analysis",
+          "mode": "any_of",
+          "patterns": [
+            "--format\\s+json",
+            "-f\\s+json"
+          ]
+        },
+        {
+          "text": "Includes product and failed-status filters",
+          "mode": "all_of",
+          "patterns": [
+            "--part-number\\s+\"?BAT-MODEL-ABC-001\"?",
+            "--status\\s+FAILED"
+          ]
+        },
+        {
+          "text": "Avoids unsupported generic query commands",
+          "mode": "none_of",
+          "patterns": [
+            "slcli\\s+query\\b",
+            "slcli\\s+search\\b"
+          ]
+        }
+      ]
+    },
+    {
+      "id": 2,
+      "tags": ["regression", "system"],
+      "prompt": "Compare systems apm-pxi-2 and formation-station-REAL.",
+      "expected_output": "Uses the system comparison workflow and provides a direct command or short sequence for comparing two systems.",
+      "files": [],
+      "expectations": [
+        "Selects the `system` command group",
+        "Uses the compare-oriented system workflow instead of a generic list command",
+        "Keeps the response scoped to the requested systems",
+        "Prefers long-form flags if options are needed"
+      ],
+      "grading_rules": [
+        {
+          "text": "Uses the system compare command",
+          "mode": "any_of",
+          "patterns": [
+            "slcli\\s+system\\s+compare\\s+apm-pxi-2\\s+formation-station-REAL"
+          ]
+        },
+        {
+          "text": "Avoids replacing compare with generic list output",
+          "mode": "none_of",
+          "patterns": [
+            "slcli\\s+system\\s+list"
+          ]
+        }
+      ]
+    },
+    {
+      "id": 3,
+      "tags": ["regression", "system", "summary"],
+      "prompt": "Give me a summary of system WinDev2302Eval measurement capabilities.",
+      "expected_output": "Uses the system resource workflow to inspect one system and summarize capabilities without drifting into unrelated resource types.",
+      "files": [],
+      "expectations": [
+        "Selects the `system` command group",
+        "Uses a get or inspection-oriented command before summarizing",
+        "Does not switch to asset or tag commands unless justified",
+        "Keeps the workflow focused on one named system"
+      ],
+      "grading_rules": [
+        {
+          "text": "Uses a system inspection command for the named system",
+          "mode": "any_of",
+          "patterns": [
+            "slcli\\s+system\\s+get\\s+WinDev2302Eval",
+            "slcli\\s+system\\s+list[^\n]*--alias\\s+WinDev2302Eval"
+          ]
+        },
+        {
+          "text": "Avoids drifting into unrelated command groups",
+          "mode": "none_of",
+          "patterns": [
+            "slcli\\s+asset\\s+",
+            "slcli\\s+tag\\s+"
+          ]
+        }
+      ]
+    },
+    {
+      "id": 4,
+      "tags": ["gating", "testmonitor", "filters", "safety"],
+      "prompt": "Show me failed BATT-8 tests from operator xli in June 2022.",
+      "expected_output": "Builds a filtered testmonitor query that combines convenience filters and safe parameterized filtering for compound conditions.",
+      "files": [],
+      "expectations": [
+        "Selects the `testmonitor` command group",
+        "Combines multiple conditions instead of suggesting manual post-processing only",
+        "Uses `--substitution` when composing a complex filter rather than string interpolation",
+        "Uses JSON output if the command is meant to be further analyzed"
+      ],
+      "grading_rules": [
+        {
+          "text": "Uses the testmonitor result list command",
+          "mode": "any_of",
+          "patterns": [
+            "slcli\\s+testmonitor\\s+result\\s+list"
+          ]
+        },
+        {
+          "text": "Includes part and operator constraints",
+          "mode": "all_of",
+          "patterns": [
+            "BATT-8",
+            "xli"
+          ]
+        },
+        {
+          "text": "Uses substitutions for a complex filter",
+          "mode": "any_of",
+          "patterns": [
+            "--substitution\\s+",
+            "--product-substitution\\s+"
+          ]
+        },
+        {
+          "text": "Requests JSON output for downstream analysis",
+          "mode": "any_of",
+          "patterns": [
+            "--format\\s+json",
+            "-f\\s+json"
+          ]
+        }
+      ]
+    },
+    {
+      "id": 5,
+      "tags": ["gating", "dataframe", "service-gating"],
+      "prompt": "Query dataframe table ProductionMetrics for rows where operator is J. Santos and export the results to JSON.",
+      "expected_output": "Uses the dataframe workflow, includes a service-availability check if needed, and produces an exportable JSON-oriented command path.",
+      "files": [],
+      "expectations": [
+        "Selects the `dataframe` command group",
+        "Uses JSON output for export or downstream processing",
+        "Mentions service availability or `slcli info` if the task depends on Enterprise-only services",
+        "Does not fabricate a SQL interface if the CLI uses dataframe subcommands and filters"
+      ],
+      "grading_rules": [
+        {
+          "text": "Uses the dataframe command group",
+          "mode": "any_of",
+          "patterns": [
+            "slcli\\s+dataframe\\s+"
+          ]
+        },
+        {
+          "text": "Requests JSON output",
+          "mode": "any_of",
+          "patterns": [
+            "--format\\s+json",
+            "-f\\s+json"
+          ]
+        },
+        {
+          "text": "Checks or mentions service availability",
+          "mode": "any_of",
+          "patterns": [
+            "slcli\\s+info",
+            "DataFrame service",
+            "SystemLink Enterprise"
+          ]
+        },
+        {
+          "text": "Avoids inventing SQL-only syntax",
+          "mode": "none_of",
+          "patterns": [
+            "SELECT\\s+\\*\\s+FROM",
+            "WHERE\\s+operator"
+          ]
+        }
+      ]
+    },
+    {
+      "id": 6,
+      "tags": ["regression", "testmonitor", "safety"],
+      "prompt": "I need all tests that are either FAILED or ERRORED for BATT products. Build the safest slcli command you can.",
+      "expected_output": "Produces a safety-conscious testmonitor command that handles multi-status filtering without unsafe interpolation or invented syntax.",
+      "files": [],
+      "expectations": [
+        "Selects the `testmonitor` command group",
+        "Represents the multi-status condition in a valid CLI-friendly way",
+        "Avoids string-concatenated filter fragments when substitutions are appropriate",
+        "Does not recommend downloading everything and filtering manually unless necessary"
+      ],
+      "grading_rules": [
+        {
+          "text": "Uses the testmonitor result list command",
+          "mode": "any_of",
+          "patterns": [
+            "slcli\\s+testmonitor\\s+result\\s+list"
+          ]
+        },
+        {
+          "text": "Addresses both FAILED and ERRORED statuses",
+          "mode": "all_of",
+          "patterns": [
+            "FAILED",
+            "ERRORED"
+          ]
+        },
+        {
+          "text": "Avoids manual-export-first guidance",
+          "mode": "none_of",
+          "patterns": [
+            "download everything",
+            "export all results"
+          ]
+        }
+      ]
+    },
+    {
+      "id": 7,
+      "tags": ["gating", "workitem", "workflow"],
+      "prompt": "Create a work item template for a battery cycle test in workspace Default, then show me how to verify it was created.",
+      "expected_output": "Provides a multi-step workitem template workflow covering creation followed by a verification step.",
+      "files": [],
+      "expectations": [
+        "Selects the `workitem template` workflow rather than a deprecated or unrelated command group",
+        "Includes a create step and a follow-up verification step",
+        "Uses the workspace option consistently across steps when relevant",
+        "Does not collapse the task into a single unverifiable command"
+      ],
+      "grading_rules": [
+        {
+          "text": "Uses the workitem template create command",
+          "mode": "any_of",
+          "patterns": [
+            "slcli\\s+workitem\\s+template\\s+create"
+          ]
+        },
+        {
+          "text": "Includes a verification step",
+          "mode": "any_of",
+          "patterns": [
+            "slcli\\s+workitem\\s+template\\s+list",
+            "slcli\\s+workitem\\s+template\\s+get"
+          ]
+        },
+        {
+          "text": "Carries the workspace through the workflow",
+          "mode": "any_of",
+          "patterns": [
+            "--workspace\\s+Default"
+          ]
+        }
+      ]
+    },
+    {
+      "id": 8,
+      "tags": ["regression", "webapp", "packaging"],
+      "prompt": "Scaffold a hosted Angular webapp for SystemLink and then package it as a nipkg.",
+      "expected_output": "Uses the webapp workflow to initialize and package a SystemLink-hosted webapp with the correct command family sequence.",
+      "files": [],
+      "expectations": [
+        "Selects the `webapp` command group",
+        "Uses `webapp init` or `webapp new` before packaging-related steps",
+        "Uses the package or manifest workflow rather than generic archive commands",
+        "Keeps the response in terms of supported `slcli` webapp commands"
+      ],
+      "grading_rules": [
+        {
+          "text": "Uses a supported webapp scaffold command",
+          "mode": "any_of",
+          "patterns": [
+            "slcli\\s+webapp\\s+new",
+            "slcli\\s+webapp\\s+init"
+          ]
+        },
+        {
+          "text": "Includes the packaging workflow",
+          "mode": "all_of",
+          "patterns": [
+            "slcli\\s+webapp\\s+manifest\\s+init",
+            "slcli\\s+webapp\\s+pack"
+          ]
+        }
+      ]
+    },
+    {
+      "id": 9,
+      "tags": ["regression", "spec", "workflow"],
+      "prompt": "Import a datasheet into specifications from a local CSV file and give me the follow-up command to inspect the imported spec.",
+      "expected_output": "Provides a spec import workflow followed by an inspection step, with the sequence grounded in supported specification commands.",
+      "files": [],
+      "expectations": [
+        "Selects the `spec` command group",
+        "Uses an import-oriented command followed by a get, list, or query verification step",
+        "Does not invent a one-shot command that both imports and validates without a second step",
+        "Keeps the workflow compatible with local file input"
+      ],
+      "grading_rules": [
+        {
+          "text": "Uses the spec import command",
+          "mode": "any_of",
+          "patterns": [
+            "slcli\\s+spec\\s+import"
+          ]
+        },
+        {
+          "text": "Includes a follow-up verification command",
+          "mode": "any_of",
+          "patterns": [
+            "slcli\\s+spec\\s+list",
+            "slcli\\s+spec\\s+export",
+            "slcli\\s+spec\\s+get"
+          ]
+        }
+      ]
+    },
+    {
+      "id": 10,
+      "tags": ["gating", "spec", "file-backed", "import"],
+      "prompt": "Using the attached CSV fixture, show me the supported slcli workflow to turn it into importable specifications for product BAT-MODEL-ABC-001 and then verify the import.",
+      "expected_output": "Uses the attached CSV as a file-backed input, converts it into a create-compatible JSON payload or helper-generated payload, imports it with the spec workflow, and includes a verification step.",
+      "files": [
+        "evals/files/spec-import/battery-specs.csv"
+      ],
+      "expectations": [
+        "Uses the `spec` command group for import rather than inventing direct CSV ingestion",
+        "Recognizes that CSV should be transformed into importable JSON before `slcli spec import`",
+        "References the attached fixture path when describing the workflow",
+        "Includes a follow-up verification command"
+      ],
+      "grading_rules": [
+        {
+          "text": "References the attached CSV fixture",
+          "mode": "any_of",
+          "patterns": [
+            "evals/files/spec-import/battery-specs\\.csv"
+          ]
+        },
+        {
+          "text": "Uses a supported JSON-based import workflow",
+          "mode": "all_of",
+          "patterns": [
+            "slcli\\s+spec\\s+import",
+            "json"
+          ]
+        },
+        {
+          "text": "Avoids inventing direct CSV import support",
+          "mode": "none_of",
+          "patterns": [
+            "slcli\\s+spec\\s+import[^\n]*\\.csv",
+            "--csv"
+          ]
+        },
+        {
+          "text": "Includes a verification command after import",
+          "mode": "any_of",
+          "patterns": [
+            "slcli\\s+spec\\s+list",
+            "slcli\\s+spec\\s+export",
+            "slcli\\s+spec\\s+get"
+          ]
+        }
+      ]
+    },
+    {
+      "id": 11,
+      "tags": ["regression", "webapp", "file-backed", "packaging"],
+      "prompt": "Using the attached Plugin Manager config, give me the exact slcli commands to package the webapp and then publish the built app from dist/fleet-dashboard/.",
+      "expected_output": "Uses the attached packaging config as a file-backed input, packages the webapp with `slcli webapp pack --config ...`, and publishes the built app from the provided dist path.",
+      "files": [
+        "evals/files/webapp-package/nipkg.config.json",
+        "evals/files/webapp-package/icon.svg"
+      ],
+      "expectations": [
+        "Uses `slcli webapp pack --config ...` with the attached config path",
+        "Uses `slcli webapp publish dist/fleet-dashboard/` for hosted deployment rather than publishing the nipkg",
+        "Does not re-run `webapp manifest init` when a config file is already supplied",
+        "Keeps both steps inside supported `slcli webapp` commands"
+      ],
+      "grading_rules": [
+        {
+          "text": "Uses the attached nipkg config for packaging",
+          "mode": "all_of",
+          "patterns": [
+            "slcli\\s+webapp\\s+pack",
+            "--config\\s+evals/files/webapp-package/nipkg\\.config\\.json"
+          ]
+        },
+        {
+          "text": "Publishes the built app directory rather than the package file",
+          "mode": "any_of",
+          "patterns": [
+            "slcli\\s+webapp\\s+publish\\s+dist/fleet-dashboard/"
+          ]
+        },
+        {
+          "text": "Avoids regenerating the manifest when config already exists",
+          "mode": "none_of",
+          "patterns": [
+            "slcli\\s+webapp\\s+manifest\\s+init"
+          ]
+        }
+      ]
+    }
+  ]
+}
