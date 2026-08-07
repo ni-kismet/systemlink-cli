@@ -254,12 +254,27 @@ def query_tag_history(path: str, take: int = 100) -> str:
     from .utils import get_base_url
 
     path = _require(path, "path")
-    encoded_path = urllib.parse.quote(path, safe="")
-    url = f"{get_base_url()}/nitag/v2/tags/{encoded_path}/values/history?take={take}"
-    data = _get_json(url)
+    url = f"{get_base_url()}/nitaghistorian/v2/tags/query-history"
+    data = _post_json(
+        url,
+        {
+            "path": path,
+            "startTime": "0001-01-01T00:00:00Z",
+            "endTime": "9999-12-31T23:59:59Z",
+            "take": take,
+            "sortOrder": "DESCENDING",
+        },
+    )
     if isinstance(data, list):
         return _dump(data)
-    return _dump(data.get("values", data.get("tagsWithAggregates", [])))
+    values = data.get("values", [])
+    value_type = data.get("type")
+    if isinstance(values, list) and isinstance(value_type, str):
+        values = [
+            {**item, "type": value_type} if isinstance(item, dict) and "type" not in item else item
+            for item in values
+        ]
+    return _dump(values)
 
 
 @server.tool()

@@ -185,6 +185,39 @@ def test_read_tag_values_reads_each_path(monkeypatch: Any) -> None:
     assert all("values/current" in url for url in seen_urls)
 
 
+def test_query_tag_history_uses_tag_historian(monkeypatch: Any) -> None:
+    """query_tag_history calls the Tag Historian query endpoint."""
+    from slcli.mcp_server import query_tag_history
+
+    seen_calls: list = []
+    monkeypatch.setattr("slcli.utils.get_base_url", lambda: "https://test.host")
+
+    def mock_request(method: str, url: str, payload: Any = None, **kw: Any) -> Any:
+        seen_calls.append({"method": method, "url": url, "payload": payload})
+        return make_mock_response(
+            {"type": "DOUBLE", "values": [{"timestamp": "2024-01-01T00:00:00Z", "value": "42"}]}
+        )
+
+    monkeypatch.setattr("slcli.utils.make_api_request", mock_request)
+
+    result = json.loads(query_tag_history(path="tag.one", take=2))
+
+    assert result == [{"timestamp": "2024-01-01T00:00:00Z", "value": "42", "type": "DOUBLE"}]
+    assert seen_calls == [
+        {
+            "method": "POST",
+            "url": "https://test.host/nitaghistorian/v2/tags/query-history",
+            "payload": {
+                "path": "tag.one",
+                "startTime": "0001-01-01T00:00:00Z",
+                "endTime": "9999-12-31T23:59:59Z",
+                "take": 2,
+                "sortOrder": "DESCENDING",
+            },
+        }
+    ]
+
+
 def test_query_systems_normalizes_wrapped_response(monkeypatch: Any) -> None:
     """query_systems prefers search-systems and normalizes materialized responses."""
     from slcli.mcp_server import query_systems

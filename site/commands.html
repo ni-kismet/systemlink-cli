@@ -93,7 +93,7 @@
         <div class="cmd-group"><h3>routine</h3><p>Event-action routines (v1 &amp; v2)</p><code>slcli routine list</code></div>
         <div class="cmd-group"><h3>feed</h3><p>NI Package Manager feeds &amp; packages</p><code>slcli feed list</code></div>
         <div class="cmd-group"><h3>file</h3><p>File upload, download, query, watch</p><code>slcli file list</code></div>
-        <div class="cmd-group"><h3>tag</h3><p>Tags: create, read, set values</p><code>slcli tag list</code></div>
+        <div class="cmd-group"><h3>tag</h3><p>Tags: create, read, values, and value history</p><code>slcli tag list</code></div>
         <div class="cmd-group"><h3>user</h3><p>User &amp; service account management</p><code>slcli user list</code></div>
         <div class="cmd-group"><h3>auth</h3><p>Authorization policies &amp; templates</p><code>slcli auth policy list</code></div>
         <div class="cmd-group"><h3>workspace</h3><p>Workspace listing, info, disable</p><code>slcli workspace list</code></div>
@@ -634,6 +634,12 @@ slcli tag create "sensor.temp" --type DOUBLE --keywords "lab" --collect-aggregat
 # Set / get values
 slcli tag set-value "sensor.temp" "42.5"
 slcli tag get-value "sensor.temp" --include-aggregates
+
+# View historical values
+slcli tag history "sensor.temp" --take 100 --format table
+
+# View numeric history as a terminal sparkline
+slcli tag history "sensor.temp" --take 100 --graph
 
 # View details with aggregates
 slcli tag get "sensor.temp" --include-aggregates
