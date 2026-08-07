@@ -2,6 +2,13 @@
 
 <!-- towncrier release notes start -->
 
+## v1.19.0 (2026-08-07)
+
+### Features
+
+- Add a `--graph` option to render numeric tag history as a terminal sparkline. (tag-history-graph)
+
+
 ## v1.18.2 (2026-08-06)
 
 ### Bug Fixes
