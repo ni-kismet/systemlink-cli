@@ -2,6 +2,13 @@
 
 <!-- towncrier release notes start -->
 
+## v1.20.0 (2026-08-07)
+
+### Features
+
+- Add alarm listing, inspection, acknowledgment, force-clear, deletion, transition, and terminal monitoring commands. (alarm-support)
+
+
 ## v1.19.0 (2026-08-07)
 
 ### Features
