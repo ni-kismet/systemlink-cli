@@ -804,27 +804,33 @@ slcli customfield init --name "My Config" --workspace "MyWorkspace" \
 slcli example list
 
 # Inspect an example
-slcli example info demo-complete-workflow
+slcli example info demo-data-1
 
 # Install (with audit log)
-slcli example install demo-complete-workflow \
+slcli example install demo-data-1 \
   --workspace Training --audit-log install-log.json
 
 # Dry-run
-slcli example install demo-complete-workflow --workspace Training --dry-run
+slcli example install demo-data-1 --workspace Training --dry-run
+
+# Install the phase-one Nigel query fixture and write its completeness manifest
+slcli example install demo-data-3 \
+  --workspace Training --format json --audit-log nigel-fixture-manifest.json
 
 # Delete provisioned resources
-slcli example delete demo-complete-workflow \
+slcli example delete demo-data-1 \
   --workspace Training --audit-log delete-log.json</code></pre>
 
       <p>Available examples:</p>
       <ul>
-        <li><strong>demo-complete-workflow</strong> — end-to-end workflow with systems, assets, DUTs, plans, and results</li>
-        <li><strong>demo-test-plans</strong> — focused test-plan setup with reusable assets and templates</li>
+        <li><strong>demo-data-1</strong> — end-to-end workflow with systems, assets, DUTs, plans, and results</li>
+        <li><strong>demo-data-2</strong> — focused test-plan setup with reusable assets and templates</li>
         <li><strong>exercise-5-1-parametric-insights</strong> — parametric test data for training exercises</li>
         <li><strong>exercise-7-1-test-plans</strong> — test plan creation and scheduling exercises</li>
         <li><strong>spec-compliance-notebooks</strong> — Jupyter notebooks for specification compliance analysis</li>
+        <li><strong>demo-data-3</strong> — phase-one Systems and Products query data with an explicit incomplete-install manifest</li>
       </ul>
+      <p>The Nigel fixture intentionally exits nonzero when its manifest reports unsupported acceptance capabilities. Use the JSON output and audit log to inspect the provisioned resource IDs and validation gaps.</p>
 
     </main>
   </div>

@@ -1,5 +1,8 @@
+import json
 from typing import Any, Dict
 from unittest.mock import MagicMock, patch
+
+import pytest
 
 from slcli.example_provisioner import ExampleProvisioner, ProvisioningAction
 
@@ -326,6 +329,754 @@ def test_unsupported_resource_type(mock_api: Any) -> None:
     assert results[0].error is not None and "Unsupported resource type" in results[0].error
 
 
+@patch("slcli.example_provisioner.get_base_url")
+@patch("slcli.example_provisioner.make_api_request")
+def test_state_provisioning_builds_payload_and_stores_id(mock_api: Any, mock_base_url: Any) -> None:
+    """States use synchronous create responses and example-scoped lookup."""
+    mock_base_url.return_value = "https://api.test.com"
+    calls = []
+
+    def mock_state_api(*args: Any, **kwargs: Any) -> Any:
+        calls.append((args, kwargs))
+        response = MagicMock()
+        if args[0] == "GET":
+            response.json.return_value = {"states": []}
+        else:
+            response.json.return_value = {"id": "state-123"}
+        return response
+
+    mock_api.side_effect = mock_state_api
+    config = {
+        "format_version": "1.0",
+        "name": "state-test",
+        "title": "State Test",
+        "resources": [
+            {
+                "type": "state",
+                "name": "Windows image",
+                "id_reference": "state_windows",
+                "properties": {
+                    "distribution": "WINDOWS",
+                    "architecture": "X64",
+                    "description": "Test state",
+                    "properties": {"channel": "stable"},
+                },
+            }
+        ],
+    }
+
+    results, err = ExampleProvisioner(workspace_id="ws-test", example_name="state-test").provision(
+        config
+    )
+
+    assert err is None
+    assert results[0].action == ProvisioningAction.CREATED
+    assert results[0].server_id == "state-123"
+    assert calls[0][0][0] == "GET"
+    assert "Workspace=ws-test" in calls[0][0][1]
+    assert calls[1][0][0] == "POST"
+    assert calls[1][0][2] == {
+        "name": "Windows image",
+        "distribution": "WINDOWS",
+        "architecture": "X64",
+        "workspace": "ws-test",
+        "description": "Test state",
+        "properties": {
+            "channel": "stable",
+            "slcli-example": "slcli-example:state-test",
+        },
+    }
+
+
+@patch("slcli.example_provisioner.get_base_url")
+@patch("slcli.example_provisioner.make_api_request")
+def test_state_delete_ignores_unowned_same_name(mock_api: Any, mock_base_url: Any) -> None:
+    """State cleanup does not delete an unowned same-name resource."""
+    mock_base_url.return_value = "https://api.test.com"
+    response = MagicMock()
+    response.json.return_value = {
+        "states": [
+            {
+                "id": "state-foreign",
+                "name": "Windows image",
+                "workspace": "ws-test",
+                "properties": {"slcli-example": "slcli-example:other"},
+            }
+        ]
+    }
+    mock_api.return_value = response
+
+    provisioner = ExampleProvisioner(workspace_id="ws-test", example_name="fixture")
+
+    assert provisioner._delete_state({"name": "Windows image"}) is None
+    assert mock_api.call_count == 1
+    assert mock_api.call_args.args[0] == "GET"
+
+
+@patch("slcli.example_provisioner.get_base_url")
+@patch("slcli.example_provisioner.make_api_request")
+def test_tag_provisioning_uses_encoded_path_identity(mock_api: Any, mock_base_url: Any) -> None:
+    """Tags are identified by their workspace-scoped path, not a UUID."""
+    mock_base_url.return_value = "https://api.test.com"
+
+    def mock_tag_api(*args: Any, **kwargs: Any) -> Any:
+        if args[0] == "GET":
+            raise RuntimeError("tag not found")
+        response = MagicMock()
+        response.json.return_value = {}
+        return response
+
+    mock_api.side_effect = mock_tag_api
+    config = {
+        "format_version": "1.0",
+        "name": "tag-test",
+        "title": "Tag Test",
+        "resources": [
+            {
+                "type": "tag",
+                "name": "system/temperature",
+                "id_reference": "tag_temperature",
+                "properties": {
+                    "type": "DOUBLE",
+                    "collectAggregates": True,
+                    "keywords": ["fixture"],
+                    "properties": {"unit": "C"},
+                },
+            }
+        ],
+    }
+
+    results, err = ExampleProvisioner(workspace_id="ws-test", example_name="fixture").provision(
+        config
+    )
+
+    assert err is None
+    assert results[0].action == ProvisioningAction.CREATED
+    assert results[0].server_id == "system/temperature"
+    assert mock_api.call_args_list[0].args[1].endswith("/tags/ws-test/system%2Ftemperature")
+    assert mock_api.call_args_list[1].kwargs["payload"] == {
+        "path": "system/temperature",
+        "type": "DOUBLE",
+        "workspace": "ws-test",
+        "collectAggregates": True,
+        "keywords": ["fixture"],
+        "properties": {"unit": "C", "slcli-example": "slcli-example:fixture"},
+    }
+
+
+@patch("slcli.example_provisioner.get_base_url")
+@patch("slcli.example_provisioner.make_api_request")
+def test_tag_provisioning_writes_timestamped_history(mock_api: Any, mock_base_url: Any) -> None:
+    """Tag history samples are written in config order with their timestamps."""
+    mock_base_url.return_value = "https://api.test.com"
+    query_count = 0
+
+    def mock_tag_api(*args: Any, **kwargs: Any) -> Any:
+        nonlocal query_count
+        response = MagicMock()
+        if args[0] == "GET":
+            raise RuntimeError("tag not found")
+        if "query-history" in args[1]:
+            query_count += 1
+            response.json.return_value = (
+                {"values": []}
+                if query_count == 1
+                else {
+                    "values": [
+                        {"value": "21.0", "timestamp": "2026-08-05T12:00:00Z"},
+                        {"value": "21.5", "timestamp": "2026-08-05T12:05:00Z"},
+                    ]
+                }
+            )
+        else:
+            response.json.return_value = {}
+        return response
+
+    mock_api.side_effect = mock_tag_api
+    history = [
+        {"timestamp": "2026-08-05T12:00:00Z", "value": 21.0},
+        {"timestamp": "2026-08-05T12:05:00Z", "value": 21.5},
+    ]
+    config = {
+        "format_version": "1.0",
+        "name": "tag-history-test",
+        "title": "Tag History Test",
+        "resources": [
+            {
+                "type": "tag",
+                "name": "system/temperature",
+                "id_reference": "tag_temperature",
+                "properties": {"type": "DOUBLE", "history": history},
+            }
+        ],
+    }
+
+    results, err = ExampleProvisioner(workspace_id="ws-test", example_name="fixture").provision(
+        config
+    )
+
+    assert err is None
+    assert results[0].action == ProvisioningAction.CREATED
+    assert mock_api.call_args_list[2].args[0] == "POST"
+    assert mock_api.call_args_list[2].args[1].endswith("/nitag/v2/tags")
+    assert mock_api.call_args_list[2].kwargs["payload"] == {
+        "path": "system/temperature",
+        "type": "DOUBLE",
+        "workspace": "ws-test",
+        "properties": {
+            "nitagRetention": "PERMANENT",
+            "slcli-example": "slcli-example:fixture",
+        },
+    }
+    assert (
+        mock_api.call_args_list[4]
+        .args[1]
+        .endswith("/nitag/v2/tags/system%2Ftemperature/update-values?workspace=ws-test")
+    )
+    assert mock_api.call_args_list[4].kwargs["payload"] == [
+        {
+            "value": {"type": "DOUBLE", "value": "21.0"},
+            "timestamp": "2026-08-05T12:00:00Z",
+        },
+        {
+            "value": {"type": "DOUBLE", "value": "21.5"},
+            "timestamp": "2026-08-05T12:05:00Z",
+        },
+    ]
+    assert mock_api.call_args_list[5].args[1].endswith("/nitaghistorian/v2/tags/query-history")
+
+
+@patch("slcli.example_provisioner.get_base_url")
+@patch("slcli.example_provisioner.make_api_request")
+def test_existing_tag_replays_timestamped_history(mock_api: Any, mock_base_url: Any) -> None:
+    """An existing tag receives configured history without recreating metadata."""
+    mock_base_url.return_value = "https://api.test.com"
+    get_response = MagicMock()
+    get_response.json.return_value = {
+        "path": "system/temperature",
+        "properties": {"slcli-example": "slcli-example:fixture"},
+    }
+    metadata_response = MagicMock()
+    existing_history_response = MagicMock()
+    existing_history_response.json.return_value = {"values": []}
+    insert_response = MagicMock()
+    history_response = MagicMock()
+    history_response.json.return_value = {
+        "values": [{"value": "21.0", "timestamp": "2026-08-05T12:00:00Z"}]
+    }
+    mock_api.side_effect = [
+        get_response,
+        metadata_response,
+        existing_history_response,
+        insert_response,
+        history_response,
+    ]
+    config = {
+        "format_version": "1.0",
+        "name": "existing-tag-history-test",
+        "title": "Existing Tag History Test",
+        "resources": [
+            {
+                "type": "tag",
+                "name": "system/temperature",
+                "id_reference": "tag_temperature",
+                "properties": {
+                    "type": "DOUBLE",
+                    "history": [{"timestamp": "2026-08-05T12:00:00Z", "value": 21.0}],
+                },
+            }
+        ],
+    }
+
+    results, err = ExampleProvisioner(workspace_id="ws-test", example_name="fixture").provision(
+        config
+    )
+
+    assert err is None
+    assert results[0].action == ProvisioningAction.SKIPPED
+    assert results[0].server_id == "system/temperature"
+    assert mock_api.call_args_list[1].args[0] == "POST"
+    assert mock_api.call_args_list[1].args[1].endswith("/nitag/v2/tags")
+    assert mock_api.call_args_list[1].kwargs["payload"] == {
+        "path": "system/temperature",
+        "type": "DOUBLE",
+        "workspace": "ws-test",
+        "properties": {
+            "nitagRetention": "PERMANENT",
+            "slcli-example": "slcli-example:fixture",
+        },
+    }
+    assert (
+        mock_api.call_args_list[3]
+        .args[1]
+        .endswith("/nitag/v2/tags/system%2Ftemperature/update-values?workspace=ws-test")
+    )
+    assert mock_api.call_args_list[3].kwargs["payload"] == [
+        {
+            "value": {"type": "DOUBLE", "value": "21.0"},
+            "timestamp": "2026-08-05T12:00:00Z",
+        }
+    ]
+    assert mock_api.call_args_list[4].args[1].endswith("/nitaghistorian/v2/tags/query-history")
+
+
+@patch("slcli.example_provisioner.get_base_url")
+@patch("slcli.example_provisioner.make_api_request")
+def test_tag_provisioning_does_not_treat_empty_metadata_as_existing(
+    mock_api: Any, mock_base_url: Any
+) -> None:
+    """A successful response without a path does not suppress tag creation."""
+    mock_base_url.return_value = "https://api.test.com"
+    get_response = MagicMock()
+    get_response.json.return_value = {}
+    put_response = MagicMock()
+    put_response.json.return_value = {}
+    mock_api.side_effect = [get_response, put_response]
+
+    config = {
+        "format_version": "1.0",
+        "name": "tag-empty-response-test",
+        "title": "Tag Empty Response Test",
+        "resources": [
+            {
+                "type": "tag",
+                "name": "system/temperature",
+                "id_reference": "tag_temperature",
+                "properties": {"type": "DOUBLE"},
+            }
+        ],
+    }
+
+    results, err = ExampleProvisioner(workspace_id="ws-test", example_name="fixture").provision(
+        config
+    )
+
+    assert err is None
+    assert results[0].action == ProvisioningAction.CREATED
+    assert mock_api.call_args_list[1].args[0] == "PUT"
+
+
+@patch("slcli.example_provisioner.get_base_url")
+@patch("slcli.example_provisioner.make_api_request")
+def test_tag_lookup_requires_example_ownership(mock_api: Any, mock_base_url: Any) -> None:
+    """Tag lookup and cleanup ignore metadata owned by another example."""
+    mock_base_url.return_value = "https://api.test.com"
+    response = MagicMock()
+    response.json.return_value = {
+        "path": "system/temperature",
+        "properties": {"slcli-example": "slcli-example:other"},
+    }
+    mock_api.return_value = response
+    provisioner = ExampleProvisioner(workspace_id="ws-test", example_name="fixture")
+
+    assert (
+        provisioner._get_tag_by_path("system/temperature", ownership_marker="slcli-example:fixture")
+        is None
+    )
+    assert provisioner._delete_tag({"name": "system/temperature"}) is None
+    assert mock_api.call_count == 2
+
+
+@patch("slcli.example_provisioner.get_base_url")
+@patch("slcli.example_provisioner.make_api_request")
+def test_specification_provisioning_extracts_bulk_created_id(
+    mock_api: Any, mock_base_url: Any
+) -> None:
+    """Specifications use product/spec keys for lookup and createdSpecs for IDs."""
+    mock_base_url.return_value = "https://api.test.com"
+
+    def mock_spec_api(*args: Any, **kwargs: Any) -> Any:
+        response = MagicMock()
+        if args[0] == "POST" and "query-specs" in args[1]:
+            response.json.return_value = {"specs": []}
+        else:
+            response.json.return_value = {"createdSpecs": [{"id": "spec-123"}]}
+        return response
+
+    mock_api.side_effect = mock_spec_api
+    config = {
+        "format_version": "1.0",
+        "name": "spec-test",
+        "title": "Specification Test",
+        "resources": [
+            {
+                "type": "specification",
+                "name": "Voltage",
+                "id_reference": "spec_voltage",
+                "properties": {
+                    "product_id": "product-123",
+                    "spec_id": "voltage",
+                    "type": "PARAMETRIC",
+                    "unit": "V",
+                    "limit": {"min": 0, "max": 5},
+                },
+            }
+        ],
+    }
+
+    results, err = ExampleProvisioner(workspace_id="ws-test", example_name="fixture").provision(
+        config
+    )
+
+    assert err is None
+    assert results[0].action == ProvisioningAction.CREATED
+    assert results[0].server_id == "spec-123"
+    create_call = mock_api.call_args_list[1]
+    assert create_call.args[1].endswith("/nispec/v1/specs")
+    assert create_call.kwargs["payload"] == {
+        "specs": [
+            {
+                "productId": "product-123",
+                "specId": "voltage",
+                "type": "PARAMETRIC",
+                "name": "Voltage",
+                "unit": "V",
+                "limit": {"min": 0, "max": 5},
+                "properties": {"slcli-example": "slcli-example:fixture"},
+                "workspace": "ws-test",
+            }
+        ]
+    }
+
+
+@patch("slcli.example_provisioner.get_base_url")
+@patch("slcli.example_provisioner.make_api_request")
+def test_specification_delete_resolves_product_reference(mock_api: Any, mock_base_url: Any) -> None:
+    """Specification cleanup resolves product references before querying specs."""
+    mock_base_url.return_value = "https://api.test.com"
+
+    def mock_delete_api(*args: Any, **kwargs: Any) -> Any:
+        response = MagicMock()
+        if args[0] == "GET" and "products" in args[1]:
+            response.json.return_value = {
+                "products": [
+                    {
+                        "id": "product-123",
+                        "name": "Product XYZ",
+                        "workspace": "ws-test",
+                        "keywords": ["slcli-example:spec-delete-test"],
+                    }
+                ]
+            }
+        elif args[0] == "POST" and "query-specs" in args[1]:
+            response.json.return_value = {
+                "specs": [
+                    {
+                        "id": "spec-123",
+                        "productId": "product-123",
+                        "specId": "voltage",
+                        "properties": {"slcli-example": "slcli-example:spec-delete-test"},
+                    }
+                ]
+            }
+        response.status_code = 204
+        return response
+
+    mock_api.side_effect = mock_delete_api
+    config = {
+        "format_version": "1.0",
+        "name": "spec-delete-test",
+        "title": "Specification Delete Test",
+        "resources": [
+            {
+                "type": "product",
+                "name": "Product XYZ",
+                "id_reference": "product_xyz",
+                "tags": ["other"],
+                "properties": {},
+            },
+            {
+                "type": "specification",
+                "name": "Voltage",
+                "id_reference": "spec_voltage",
+                "tags": ["selected"],
+                "properties": {"product_id": "${product_xyz}", "spec_id": "voltage"},
+            },
+        ],
+    }
+
+    results, err = ExampleProvisioner(
+        workspace_id="ws-test", example_name="spec-delete-test"
+    ).delete(config, filter_tags=["selected"])
+
+    assert err is None
+    assert results[0].resource_type == "specification"
+    assert results[0].action == ProvisioningAction.DELETED
+    assert results[0].server_id == "spec-123"
+    query_call = next(call for call in mock_api.call_args_list if "query-specs" in call.args[1])
+    assert query_call.kwargs["payload"]["productIds"] == ["product-123"]
+
+
+@patch("slcli.example_provisioner.get_base_url")
+@patch("slcli.example_provisioner.make_api_request")
+def test_specification_lookup_requires_example_ownership(mock_api: Any, mock_base_url: Any) -> None:
+    """Specification lookup and cleanup ignore metadata owned by another example."""
+    mock_base_url.return_value = "https://api.test.com"
+    response = MagicMock()
+    response.json.return_value = {
+        "specs": [
+            {
+                "id": "spec-foreign",
+                "productId": "product-123",
+                "specId": "voltage",
+                "properties": {"slcli-example": "slcli-example:other"},
+            }
+        ]
+    }
+    mock_api.return_value = response
+    provisioner = ExampleProvisioner(workspace_id="ws-test", example_name="fixture")
+    props = {"product_id": "product-123", "spec_id": "voltage"}
+
+    assert provisioner._get_specification_by_key(props) is None
+    assert provisioner._delete_specification(props) is None
+    assert mock_api.call_count == 2
+
+
+@patch("slcli.example_provisioner.get_base_url")
+@patch("slcli.example_provisioner.make_api_request")
+def test_asset_and_dut_lookup_match_name_and_workspace(mock_api: Any, mock_base_url: Any) -> None:
+    """Asset reinstall lookup does not reuse the first tagged asset."""
+    mock_base_url.return_value = "https://api.test.com"
+    response = MagicMock()
+    response.json.return_value = {
+        "assets": [
+            {
+                "id": "asset-wrong-name",
+                "name": "Other Asset",
+                "workspace": "ws-test",
+                "keywords": ["slcli-example:fixture"],
+            },
+            {
+                "id": "asset-wrong-workspace",
+                "name": "Target Asset",
+                "workspace": "other-workspace",
+                "keywords": ["slcli-example:fixture"],
+            },
+            {
+                "id": "asset-target",
+                "name": "Target Asset",
+                "workspace": "ws-test",
+                "keywords": ["slcli-example:fixture"],
+            },
+        ]
+    }
+    mock_api.return_value = response
+    provisioner = ExampleProvisioner(workspace_id="ws-test", example_name="fixture")
+
+    assert provisioner._get_asset_by_name("Target Asset") == "asset-target"
+    assert provisioner._get_dut_by_name("Target Asset") == "asset-target"
+
+
+@patch("slcli.example_provisioner.get_base_url")
+@patch("slcli.example_provisioner.make_api_request")
+def test_system_lookup_paginates_until_match(mock_api: Any, mock_base_url: Any) -> None:
+    """System lookup searches past the first page before creating a duplicate."""
+    mock_base_url.return_value = "https://api.test.com"
+    first_page = MagicMock()
+    first_page.json.return_value = {
+        "data": [
+            {"id": f"system-{index}", "alias": "Other System", "workspace": "ws-test"}
+            for index in range(100)
+        ]
+    }
+    second_page = MagicMock()
+    second_page.json.return_value = {
+        "data": [{"id": "system-target", "alias": "Target System", "workspace": "ws-test"}]
+    }
+    mock_api.side_effect = [first_page, second_page]
+    provisioner = ExampleProvisioner(workspace_id="ws-test", example_name="fixture")
+
+    assert provisioner._get_system_by_name("Target System") == "system-target"
+    assert mock_api.call_args_list[1].args[2]["skip"] == 100
+
+
+@patch("slcli.example_provisioner.get_base_url")
+@patch("slcli.example_provisioner.make_api_request")
+def test_data_table_rows_append_only_missing_rows(mock_api: Any, mock_base_url: Any) -> None:
+    """Provisioning DataFrame rows is idempotent across repeated installs."""
+    mock_base_url.return_value = "https://api.test.com"
+    columns = ["timestamp", "value"]
+    existing_rows = [["2025-01-01T00:00:00.000Z", "1"]]
+    append_payloads = []
+
+    def mock_dataframe_api(*args: Any, **kwargs: Any) -> Any:
+        response = MagicMock()
+        response.raise_for_status.return_value = None
+        url = args[1]
+        if "query-data" in url:
+            response.json.return_value = {
+                "frame": {"columns": columns, "data": list(existing_rows)},
+                "continuationToken": None,
+            }
+        else:
+            append_payloads.append(args[2])
+            existing_rows.extend(args[2]["frame"]["data"])
+            response.json.return_value = {}
+        return response
+
+    mock_api.side_effect = mock_dataframe_api
+    rows_file = json.dumps(
+        {
+            "frame": {
+                "columns": columns,
+                "data": [
+                    existing_rows[0],
+                    ["2025-01-01T00:05:00.000Z", "2"],
+                ],
+            }
+        }
+    ).encode("utf-8")
+    provisioner = ExampleProvisioner(example_name="fixture")
+    props = {
+        "columns": [{"name": column} for column in columns],
+        "rows_file": "rows.json",
+    }
+
+    with patch.object(provisioner, "_read_example_file", return_value=rows_file):
+        provisioner._ensure_data_table_rows("table-123", props)
+        assert provisioner._last_resource_details == {
+            "rows_expected": 2,
+            "rows_existing": 1,
+            "rows_added": 1,
+        }
+        provisioner._ensure_data_table_rows("table-123", props)
+
+    assert len(append_payloads) == 1
+    assert append_payloads[0]["frame"]["data"] == [["2025-01-01T00:05:00.000Z", "2"]]
+    assert provisioner._last_resource_details == {
+        "rows_expected": 2,
+        "rows_existing": 2,
+        "rows_added": 0,
+    }
+
+
+@patch("slcli.example_provisioner.get_base_url")
+@patch("slcli.example_provisioner.make_api_request")
+def test_data_table_rows_reject_conflicting_index(mock_api: Any, mock_base_url: Any) -> None:
+    """A reused index with changed contents fails instead of duplicating a row."""
+    mock_base_url.return_value = "https://api.test.com"
+    response = MagicMock()
+    response.raise_for_status.return_value = None
+    response.json.return_value = {
+        "frame": {
+            "columns": ["timestamp", "value"],
+            "data": [["2025-01-01T00:00:00.000Z", "1"]],
+        },
+        "continuationToken": None,
+    }
+    mock_api.return_value = response
+    provisioner = ExampleProvisioner(example_name="fixture")
+    props = {
+        "columns": [{"name": "timestamp"}, {"name": "value"}],
+        "rows": [["2025-01-01T00:00:00.000Z", "2"]],
+    }
+
+    with pytest.raises(ValueError, match="different row contents"):
+        provisioner._ensure_data_table_rows("table-123", props)
+
+    assert mock_api.call_count == 1
+
+
+@patch("slcli.example_provisioner.get_base_url")
+@patch("slcli.example_provisioner.make_api_request")
+def test_data_table_lookup_requests_and_returns_id(mock_api: Any, mock_base_url: Any) -> None:
+    """Dataframe table lookup requests the projected ID used by the provisioner."""
+    mock_base_url.return_value = "https://api.test.com"
+    response = MagicMock()
+    response.json.return_value = {
+        "tables": [
+            {
+                "id": "table-123",
+                "name": "Fixture table",
+                "properties": {"ownership_marker": "slcli-example:fixture"},
+                "workspace": "ws-test",
+            }
+        ]
+    }
+    response.raise_for_status.return_value = None
+    mock_api.return_value = response
+
+    provisioner = ExampleProvisioner(workspace_id="ws-test")
+
+    assert provisioner._get_data_table_by_name("Fixture table") == "table-123"
+    payload = mock_api.call_args.args[2]
+    assert payload["projection"] == ["ID", "NAME", "PROPERTIES", "WORKSPACE"]
+
+
+@patch("slcli.example_provisioner.get_base_url")
+@patch("slcli.example_provisioner.make_api_request")
+@patch("slcli.feed_click._wait_for_job")
+@patch("slcli.feed_click._create_feed")
+@patch("slcli.feed_click._normalize_platform")
+def test_feed_provisioning_stores_completed_resource_id(
+    mock_normalize: Any,
+    mock_create: Any,
+    mock_wait: Any,
+    mock_api: Any,
+    mock_base_url: Any,
+) -> None:
+    """Feed jobs must resolve to a completed feed resource ID."""
+    mock_base_url.return_value = "https://api.test.com"
+    mock_normalize.return_value = "WINDOWS"
+    mock_create.return_value = {"jobId": "job-123"}
+    mock_wait.return_value = {"resourceId": "feed-123"}
+    response = MagicMock()
+    response.json.return_value = {"feeds": []}
+    mock_api.return_value = response
+    config = {
+        "format_version": "1.0",
+        "name": "feed-test",
+        "title": "Feed Test",
+        "resources": [
+            {
+                "type": "feed",
+                "name": "Fixture feed",
+                "id_reference": "feed_fixture",
+                "properties": {"platform": "windows", "description": "Fixture"},
+            }
+        ],
+    }
+
+    results, err = ExampleProvisioner(workspace_id="ws-test", example_name="fixture").provision(
+        config
+    )
+
+    assert err is None
+    assert results[0].action == ProvisioningAction.CREATED
+    assert results[0].server_id == "feed-123"
+    mock_wait.assert_called_once_with("job-123", timeout=300)
+    assert "[slcli-example:fixture]" in mock_create.call_args.kwargs["description"]
+
+
+@patch("slcli.example_provisioner.get_base_url")
+@patch("slcli.example_provisioner.make_api_request")
+@patch("slcli.feed_click._normalize_platform")
+def test_feed_delete_ignores_unowned_same_name(
+    mock_normalize: Any, mock_api: Any, mock_base_url: Any
+) -> None:
+    """Feed cleanup does not delete an unowned same-name resource."""
+    mock_base_url.return_value = "https://api.test.com"
+    mock_normalize.return_value = "WINDOWS"
+    response = MagicMock()
+    response.json.return_value = {
+        "feeds": [
+            {
+                "id": "feed-foreign",
+                "name": "Fixture feed",
+                "workspace": "ws-test",
+                "description": "A feed owned by another example",
+            }
+        ]
+    }
+    mock_api.return_value = response
+
+    provisioner = ExampleProvisioner(workspace_id="ws-test", example_name="fixture")
+
+    assert provisioner._delete_feed({"name": "Fixture feed", "platform": "windows"}) is None
+    assert mock_api.call_count == 1
+    assert mock_api.call_args.args[0] == "GET"
+
+
 @patch("slcli.example_provisioner.make_api_request")
 def test_tag_filtering_on_delete(mock_api: Any) -> None:
     """Test that delete filters by tag correctly."""
@@ -446,6 +1197,97 @@ def test_notebook_properties_preserved_with_interface(
     assert put_metadata["properties"].get("slcli-example") == "test-example"
     # Verify interface property was actually added
     assert put_metadata["properties"].get("interface") == "File Analysis"
+
+
+@patch("slcli.example_provisioner.get_base_url")
+@patch("slcli.example_provisioner.make_api_request")
+def test_existing_notebook_is_skipped_when_owned(mock_api: Any, mock_base_url: Any) -> None:
+    """Provisioning reuses an example-owned notebook instead of uploading it again."""
+    mock_base_url.return_value = "https://api.test.com"
+    response = MagicMock()
+    response.json.return_value = {
+        "notebooks": [
+            {
+                "id": "nb-existing",
+                "name": "Fixture analysis.ipynb",
+                "workspace": "ws-test",
+                "properties": {"slcli-example": "fixture"},
+            }
+        ]
+    }
+    mock_api.return_value = response
+
+    resource = {
+        "type": "notebook",
+        "name": "Fixture analysis.ipynb",
+        "id_reference": "nb_fixture",
+        "properties": {"file_path": "fixture.ipynb"},
+    }
+    result = ExampleProvisioner(workspace_id="ws-test", example_name="fixture")._provision_resource(
+        resource, {}
+    )
+
+    assert result.action == ProvisioningAction.SKIPPED
+    assert result.server_id == "nb-existing"
+    mock_api.assert_called_once()
+
+
+@patch("slcli.example_provisioner.get_base_url")
+@patch("slcli.example_provisioner.make_api_request")
+def test_existing_file_is_skipped_when_owned(mock_api: Any, mock_base_url: Any) -> None:
+    """Provisioning reuses an example-owned file instead of uploading it again."""
+    mock_base_url.return_value = "https://api.test.com"
+    response = MagicMock()
+    response.json.return_value = {
+        "availableFiles": [
+            {
+                "id": "file-existing",
+                "workspace": "ws-test",
+                "properties": {
+                    "Name": "fixture.csv",
+                    "slcli-tags": "fixture,slcli-provisioner,slcli-example:fixture",
+                },
+            }
+        ]
+    }
+    mock_api.return_value = response
+
+    resource = {
+        "type": "file",
+        "name": "fixture.csv",
+        "id_reference": "file_fixture",
+        "properties": {"file_path": "fixture.csv"},
+    }
+    result = ExampleProvisioner(workspace_id="ws-test", example_name="fixture")._provision_resource(
+        resource, {}
+    )
+
+    assert result.action == ProvisioningAction.SKIPPED
+    assert result.server_id == "file-existing"
+    mock_api.assert_called_once()
+
+
+@patch("slcli.example_provisioner.get_base_url")
+@patch("slcli.example_provisioner.make_api_request")
+def test_workflow_provisioning_uses_configured_actions_and_states(
+    mock_api: Any, mock_base_url: Any
+) -> None:
+    """Workflow resources pass configured state-machine definitions to the API."""
+    mock_base_url.return_value = "https://api.test.com"
+    response = MagicMock()
+    response.json.return_value = {"id": "workflow-123"}
+    mock_api.return_value = response
+
+    actions = [{"name": "START", "executionAction": {"type": "MANUAL"}}]
+    states = [{"name": "NEW", "substates": []}]
+    result = ExampleProvisioner(workspace_id="ws-test")._create_workflow(
+        {"name": "Fixture workflow", "actions": actions, "states": states}
+    )
+
+    assert result == "workflow-123"
+    payload = mock_api.call_args.args[2]
+    assert payload["actions"] == actions
+    assert payload["states"] == states
 
 
 # ---------------------------------------------------------------------------
@@ -688,6 +1530,73 @@ def test_create_test_steps_not_called_when_no_steps(mock_api: Any, mock_base_url
     assert steps_url_called == []
 
 
+@patch("slcli.example_provisioner.get_base_url")
+@patch("slcli.example_provisioner.make_api_request")
+def test_test_result_duplicate_detection_uses_result_identity(
+    mock_api: Any, mock_base_url: Any
+) -> None:
+    """Results with distinct fixture dates are not collapsed by program name."""
+    mock_base_url.return_value = "https://api.test.com"
+    response = MagicMock()
+    response.json.return_value = {
+        "results": [
+            {
+                "id": "result-existing",
+                "workspace": "ws-test",
+                "programName": "Overvoltage",
+                "startedAt": "2025-01-15T08:00:00Z",
+                "serialNumber": "1234567",
+                "partNumber": "XYZ-2025-001",
+            }
+        ]
+    }
+    mock_api.return_value = response
+
+    config = {
+        "format_version": "1.0",
+        "name": "result-identity-test",
+        "title": "Result Identity Test",
+        "resources": [
+            {
+                "type": "test_result",
+                "name": "Overvoltage 2025-01-15",
+                "id_reference": "result_existing",
+                "properties": {
+                    "program_name": "Overvoltage",
+                    "start_time": "2025-01-15T08:00:00Z",
+                    "serial_number": "1234567",
+                    "part_number": "XYZ-2025-001",
+                },
+            },
+            {
+                "type": "test_result",
+                "name": "Overvoltage 2025-02-15",
+                "id_reference": "result_new",
+                "properties": {
+                    "program_name": "Overvoltage",
+                    "start_time": "2025-02-15T08:00:00Z",
+                    "serial_number": "1234567",
+                    "part_number": "XYZ-2025-001",
+                },
+            },
+        ],
+    }
+
+    provisioner = ExampleProvisioner(workspace_id="ws-test", dry_run=False)
+    with patch.object(provisioner, "_create_test_result", return_value="result-new"):
+        results, err = provisioner.provision(config)
+
+    assert err is None
+    assert results[0].action == ProvisioningAction.SKIPPED
+    assert results[0].server_id == "result-existing"
+    assert results[1].action == ProvisioningAction.CREATED
+    assert results[1].server_id == "result-new"
+    assert provisioner.id_map == {
+        "result_existing": "result-existing",
+        "result_new": "result-new",
+    }
+
+
 # ---------------------------------------------------------------------------
 # _build_asset_obj / _create_dut unit tests
 # ---------------------------------------------------------------------------
@@ -856,3 +1765,164 @@ def test_create_test_steps_empty_list_skips_post(mock_api: Any, mock_base_url: A
     prov._create_test_steps("result-empty", ["not-a-dict", 42], [])  # type: ignore[list-item]
 
     mock_api.assert_not_called()
+
+
+@patch("slcli.example_provisioner.get_base_url")
+@patch("slcli.example_provisioner.make_api_request")
+def test_alarm_provisioning_builds_payload_and_resolves_references(
+    mock_api: Any, mock_base_url: Any
+) -> None:
+    """Alarm creation preserves metadata and resolves nested system references."""
+    mock_base_url.return_value = "https://api.test.com"
+    query_response = MagicMock()
+    query_response.json.return_value = {"alarmInstances": []}
+    create_response = MagicMock()
+    create_response.json.return_value = {"instanceId": "alarm-instance-1"}
+    mock_api.side_effect = [query_response, create_response]
+
+    resource = {
+        "type": "alarm",
+        "name": "Fixture temperature high",
+        "id_reference": "alarm_temperature_high",
+        "properties": {
+            "alarm_id": "nigel/fixture/temperature-high",
+            "transition": "SET",
+            "severity": 2,
+            "value": "85",
+            "condition": "> 80 C",
+            "short_text": "High fixture temperature",
+            "detail_text": "Fixture temperature exceeded the operating threshold",
+            "channel": "nigel/fixture/temperature",
+            "resource_type": "Tag",
+            "display_name": "Fixture temperature high",
+            "description": "Temperature alarm for the primary fixture system",
+            "created_by": "demo-data-3",
+            "keywords": ["temperature", "fixture"],
+            "properties": {"minionId": "${system_pxi_rack_07}"},
+        },
+    }
+
+    result = ExampleProvisioner(
+        workspace_id="ws-test", example_name="demo-data-3"
+    )._provision_resource(resource, {"system_pxi_rack_07": "system-07"})
+
+    assert result.action == ProvisioningAction.CREATED
+    assert result.server_id == "alarm-instance-1"
+    assert mock_api.call_args_list[0].kwargs["payload"] == {
+        "filter": "alarmId == @0 && workspace == @1 && keywords.Any(x => x == @2)",
+        "substitutions": [
+            "nigel/fixture/temperature-high",
+            "ws-test",
+            "slcli-example:demo-data-3",
+        ],
+        "take": 1000,
+        "returnCount": True,
+        "orderBy": "UPDATED_AT",
+        "orderByDescending": True,
+        "returnMostRecentlyOccurredOnly": True,
+    }
+    assert mock_api.call_args_list[1].kwargs["payload"] == {
+        "alarmId": "nigel/fixture/temperature-high",
+        "workspace": "ws-test",
+        "transition": {
+            "transitionType": "SET",
+            "severityLevel": 2,
+            "value": "85",
+            "condition": "> 80 C",
+            "shortText": "High fixture temperature",
+            "detailText": "Fixture temperature exceeded the operating threshold",
+        },
+        "channel": "nigel/fixture/temperature",
+        "resourceType": "Tag",
+        "displayName": "Fixture temperature high",
+        "description": "Temperature alarm for the primary fixture system",
+        "createdBy": "demo-data-3",
+        "keywords": ["temperature", "fixture", "slcli-provisioner", "slcli-example:demo-data-3"],
+        "properties": {"minionId": "system-07"},
+    }
+
+
+@patch("slcli.example_provisioner.get_base_url")
+@patch("slcli.example_provisioner.make_api_request")
+def test_existing_alarm_is_skipped_without_creating_another_transition(
+    mock_api: Any, mock_base_url: Any
+) -> None:
+    """An existing alarm instance is reused on repeated fixture installation."""
+    mock_base_url.return_value = "https://api.test.com"
+    response = MagicMock()
+    response.json.return_value = {
+        "filterMatches": [{"alarmId": "fixture-alarm", "instanceId": "existing-instance"}]
+    }
+    mock_api.return_value = response
+
+    resource = {
+        "type": "alarm",
+        "name": "Fixture alarm",
+        "id_reference": "alarm_fixture",
+        "properties": {"alarm_id": "fixture-alarm"},
+    }
+    result = ExampleProvisioner(workspace_id="ws-test")._provision_resource(resource, {})
+
+    assert result.action == ProvisioningAction.SKIPPED
+    assert result.server_id == "existing-instance"
+    mock_api.assert_called_once()
+
+
+@patch("slcli.example_provisioner.get_base_url")
+@patch("slcli.example_provisioner.make_api_request")
+def test_foreign_alarm_is_not_reused(mock_api: Any, mock_base_url: Any) -> None:
+    """A fixture never reuses an alarm owned by another example."""
+    mock_base_url.return_value = "https://api.test.com"
+    query_response = MagicMock()
+    query_response.json.return_value = {
+        "filterMatches": [
+            {
+                "alarmId": "fixture-alarm",
+                "instanceId": "foreign-instance",
+                "keywords": ["slcli-provisioner", "slcli-example:other-example"],
+            }
+        ]
+    }
+    create_response = MagicMock()
+    create_response.json.return_value = {"instanceId": "new-instance"}
+    mock_api.side_effect = [query_response, create_response]
+
+    resource = {
+        "type": "alarm",
+        "name": "Fixture alarm",
+        "id_reference": "alarm_fixture",
+        "properties": {"alarm_id": "fixture-alarm", "transition": "SET"},
+    }
+    result = ExampleProvisioner(workspace_id="ws-test", example_name="fixture")._provision_resource(
+        resource, {}
+    )
+
+    assert result.action == ProvisioningAction.CREATED
+    assert result.server_id == "new-instance"
+    assert mock_api.call_count == 2
+    assert mock_api.call_args_list[0].kwargs["payload"]["substitutions"][-1] == (
+        "slcli-example:fixture"
+    )
+
+
+@patch("slcli.example_provisioner.get_base_url")
+@patch("slcli.example_provisioner.make_api_request")
+def test_alarm_delete_removes_most_recent_instance(mock_api: Any, mock_base_url: Any) -> None:
+    """Alarm cleanup resolves the instance and calls the bulk delete endpoint."""
+    mock_base_url.return_value = "https://api.test.com"
+    query_response = MagicMock()
+    query_response.json.return_value = {"alarmInstances": [{"instanceId": "alarm-instance-1"}]}
+    delete_response = MagicMock()
+    delete_response.json.return_value = {}
+    mock_api.side_effect = [query_response, delete_response]
+
+    instance_id = ExampleProvisioner(workspace_id="ws-test")._delete_alarm(
+        {"alarm_id": "fixture-alarm"}
+    )
+
+    assert instance_id == "alarm-instance-1"
+    assert mock_api.call_args_list[1].args[0] == "POST"
+    assert (
+        mock_api.call_args_list[1].args[1].endswith("/nialarm/v1/delete-instances-by-instance-id")
+    )
+    assert mock_api.call_args_list[1].kwargs["payload"] == {"instanceIds": ["alarm-instance-1"]}

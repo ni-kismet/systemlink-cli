@@ -1,7 +1,7 @@
 ---
 # SLE Example Configuration: Production Quality Assurance Lab
 format_version: "1.0"
-name: "demo-complete-workflow"
+name: "demo-data-1"
 title: "Production Quality Assurance Testing Laboratory"
 description: |
   A comprehensive example demonstrating a complete production testing facility
@@ -47,7 +47,7 @@ resources:
       country: "USA"
       building: "Lab Complex A"
     id_reference: "loc_lab"
-    tags: ["demo-complete-workflow"]
+    tags: ["demo-data-1"]
 
   # Phase 2: Products
   - type: "product"
@@ -58,7 +58,7 @@ resources:
       manufacturer: "Demo Advanced Tech"
       part_number: "DCS-3000"
     id_reference: "prod_acs"
-    tags: ["demo-complete-workflow"]
+    tags: ["demo-data-1"]
 
   # Phase 3: Systems
   - type: "system"
@@ -70,7 +70,7 @@ resources:
       serial_number: "CSTB-001"
       status: "operational"
     id_reference: "sys_bench1"
-    tags: ["demo-complete-workflow"]
+    tags: ["demo-data-1"]
 
   - type: "system"
     name: "Control System Test Bench 2"
@@ -81,7 +81,7 @@ resources:
       serial_number: "CSTB-002"
       status: "operational"
     id_reference: "sys_bench2"
-    tags: ["demo-complete-workflow"]
+    tags: ["demo-data-1"]
 
   # ============================================================================
   # TIER 1: CROSS-CUTTING RESOURCES
@@ -101,7 +101,7 @@ resources:
       serial_number: "ACS-SN-20250101-001"
       bus_type: "USB"
     id_reference: "dut_acs_001"
-    tags: ["demo-complete-workflow"]
+    tags: ["demo-data-1"]
 
   - type: "dut"
     name: "DUT-ACS-002 (Bench 2)"
@@ -116,7 +116,7 @@ resources:
       serial_number: "ACS-SN-20250102-002"
       bus_type: "USB"
     id_reference: "dut_acs_002"
-    tags: ["demo-complete-workflow"]
+    tags: ["demo-data-1"]
 
   # Phase 5: Fixtures/Reference instruments
   - type: "asset"
@@ -130,7 +130,7 @@ resources:
       bus_type: "GPIB"
       serial_number: "REF-VS-SN-001"
     id_reference: "asset_ref_vs"
-    tags: ["demo-complete-workflow"]
+    tags: ["demo-data-1"]
 
   - type: "asset"
     name: "Data Logger"
@@ -143,7 +143,7 @@ resources:
       bus_type: "Ethernet"
       serial_number: "DLX-SN-001"
     id_reference: "asset_datalogger"
-    tags: ["demo-complete-workflow"]
+    tags: ["demo-data-1"]
 
   # ============================================================================
   # TIER 2: WORK & EXECUTION RESOURCES
@@ -235,7 +235,7 @@ resources:
               displayText: "Canceled"
               availableActions: []
     id_reference: "wf_acs_validation"
-    tags: ["demo-complete-workflow"]
+    tags: ["demo-data-1"]
 
   # Phase 7: Test Template (references Workflow)
   - type: "testtemplate"
@@ -280,7 +280,7 @@ resources:
         - Thermal: < 80°C
       acceptance_criteria: "All measurements within specification limits"
     id_reference: "tt_acs_validation"
-    tags: ["demo-complete-workflow"]
+    tags: ["demo-data-1"]
 
   # Phase 8: Work Items (Test Plans - scheduled via Work Order)
   - type: "work_item"
@@ -296,7 +296,7 @@ resources:
       expected_duration_minutes: 60
       acceptance_criteria: "All measurements pass spec limits"
     id_reference: "wi_acs_run1"
-    tags: ["demo-complete-workflow", "run1"]
+    tags: ["demo-data-1", "run1"]
 
   - type: "work_item"
     name: "ACS Regression Test - Unit 002"
@@ -311,7 +311,7 @@ resources:
       expected_duration_minutes: 60
       acceptance_criteria: "All measurements pass spec limits"
     id_reference: "wi_acs_run2"
-    tags: ["demo-complete-workflow", "run2"]
+    tags: ["demo-data-1", "run2"]
 
   # Phase 9: Work Order (schedules Work Items and reserves resources)
   - type: "work_order"
@@ -334,7 +334,7 @@ resources:
         - "${dut_acs_001}"
         - "${dut_acs_002}"
     id_reference: "wo_acs_campaign"
-    tags: ["demo-complete-workflow"]
+    tags: ["demo-data-1"]
 
   # ============================================================================
   # TIER 3: DATA & RESULTS RESOURCES
@@ -364,7 +364,7 @@ resources:
         - "voltage_regulation_run1.csv"
         - "voltage_waveform_run1.tds"
     id_reference: "tr_acs_run1_voltage"
-    tags: ["demo-complete-workflow", "run1"]
+    tags: ["demo-data-1", "run1"]
 
   - type: "test_result"
     name: "ACS Run 1 - Result 2 (Response Time Test)"
@@ -390,7 +390,7 @@ resources:
         - "response_time_run1.csv"
         - "step_response_run1.tds"
     id_reference: "tr_acs_run1_response"
-    tags: ["demo-complete-workflow", "run1"]
+    tags: ["demo-data-1", "run1"]
 
   - type: "test_result"
     name: "ACS Run 1 - Result 3 (Thermal Test)"
@@ -416,7 +416,7 @@ resources:
         - "thermal_profile_run1.csv"
         - "thermal_log_run1.txt"
     id_reference: "tr_acs_run1_thermal"
-    tags: ["demo-complete-workflow", "run1"]
+    tags: ["demo-data-1", "run1"]
 
   - type: "test_result"
     name: "ACS Run 2 - Voltage Regression Test"
@@ -441,7 +441,7 @@ resources:
         - "voltage_regression_run2.csv"
         - "regression_comparison_run2.txt"
     id_reference: "tr_acs_run2_regression"
-    tags: ["demo-complete-workflow", "run2"]
+    tags: ["demo-data-1", "run2"]
 
   - type: "test_result"
     name: "ACS Campaign Summary"
@@ -466,7 +466,7 @@ resources:
         - "executive_summary.md"
         - "test_matrix_completed.xlsx"
     id_reference: "tr_campaign_summary"
-    tags: ["demo-complete-workflow"]
+    tags: ["demo-data-1"]
 
   # Phase 11: Data Tables (structured measurement data)
   - type: "data_table"
@@ -497,7 +497,7 @@ resources:
         - ["2025-12-18T08:21:00Z", 3.0, 11.97, 0.9, "PASS"]
         - ["2025-12-18T08:23:00Z", 5.0, 11.98, 0.8, "PASS"]
     id_reference: "dt_voltage_reg_run1"
-    tags: ["demo-complete-workflow", "run1"]
+    tags: ["demo-data-1", "run1"]
 
   - type: "data_table"
     name: "Response Time Results - Run 1"
@@ -525,7 +525,7 @@ resources:
         - [4, 86.8, 91.2, 2.0]
         - [5, 87.7, 93.5, 2.5]
     id_reference: "dt_response_time_run1"
-    tags: ["demo-complete-workflow", "run1"]
+    tags: ["demo-data-1", "run1"]
 
   - type: "data_table"
     name: "Thermal Profile - Run 1"
@@ -553,7 +553,7 @@ resources:
         - [15, 58.6, 56.3, 22.5]
         - [30, 68.3, 65.1, 22.6]
     id_reference: "dt_thermal_run1"
-    tags: ["demo-complete-workflow", "run1"]
+    tags: ["demo-data-1", "run1"]
 
   - type: "data_table"
     name: "Voltage Regression Results - Run 2"
@@ -583,7 +583,7 @@ resources:
         - [3.0, 11.97, 11.96, -10, "NO_REGRESSION"]
         - [5.0, 11.98, 11.97, -10, "NO_REGRESSION"]
     id_reference: "dt_voltage_reg_run2"
-    tags: ["demo-complete-workflow", "run2"]
+    tags: ["demo-data-1", "run2"]
 
   # Phase 12: Files (test logs, reports, raw data)
   - type: "file"
@@ -596,7 +596,7 @@ resources:
       created_date: "2025-12-18T08:35:00Z"
       file_category: "test_data"
     id_reference: "f_voltage_run1"
-    tags: ["demo-complete-workflow", "run1"]
+    tags: ["demo-data-1", "run1"]
 
   - type: "file"
     name: "test_log_run1_complete.txt"
@@ -609,7 +609,7 @@ resources:
       file_category: "test_log"
       log_entries: 156
     id_reference: "f_test_log_run1"
-    tags: ["demo-complete-workflow", "run1"]
+    tags: ["demo-data-1", "run1"]
 
   - type: "file"
     name: "campaign_summary_report.pdf"
@@ -622,7 +622,7 @@ resources:
       file_category: "report"
       pages: 12
     id_reference: "f_campaign_report"
-    tags: ["demo-complete-workflow"]
+    tags: ["demo-data-1"]
 
   - type: "file"
     name: "test_matrix_completed.xlsx"
@@ -635,4 +635,4 @@ resources:
       file_category: "report"
       sheets: 5
     id_reference: "f_test_matrix"
-    tags: ["demo-complete-workflow"]
+    tags: ["demo-data-1"]

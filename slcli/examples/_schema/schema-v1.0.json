@@ -139,7 +139,13 @@
             "work_order",
             "test_result",
             "data_table",
-            "file"
+            "file",
+            "notebook",
+            "state",
+            "tag",
+            "specification",
+            "feed",
+            "alarm"
           ],
           "description": "SLE resource type"
         },

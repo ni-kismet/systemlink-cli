@@ -412,6 +412,7 @@ def test_install_example_json_and_audit_log(
                 resource_name="System 1",
                 action=ProvisioningAction.SKIPPED,
                 server_id=None,
+                details={"rows_expected": 2, "rows_added": 1},
             )
             return [res], None
 
@@ -443,10 +444,88 @@ def test_install_example_json_and_audit_log(
     assert result.exit_code == 0
     data = json.loads(result.output)
     assert data[0]["action"] == "skipped"
+    assert data[0]["details"] == {"rows_expected": 2, "rows_added": 1}
     assert audit_path.exists()
     with open(audit_path, "r") as f:
         saved = json.load(f)
     assert saved[0]["action"] == "skipped"
+
+
+def test_install_fixture_manifest_reports_unsupported_capabilities(
+    runner: CliRunner, temp_examples_dir: Path, monkeypatch: Any
+) -> None:
+    """Fixture installs must expose incomplete capabilities and fail explicitly."""
+    config = {
+        "format_version": "1.0",
+        "name": "demo-data-3",
+        "example_version": "1.0.0",
+        "title": "Nigel Query Fixture",
+        "install_manifest": True,
+        "validation": {
+            "required_relationships": ["result-to-instrument"],
+            "unsupported": ["system.packageInventory"],
+        },
+        "resources": [
+            {
+                "type": "system",
+                "name": "PXI-Rack-07",
+                "id_reference": "system_pxi_rack_07",
+                "properties": {"name": "PXI-Rack-07"},
+            }
+        ],
+    }
+    create_example_config(temp_examples_dir, "demo-data-3", config)
+    audit_path = temp_examples_dir / "manifest.json"
+
+    class DummyProvisioner:
+        id_map = {"system_pxi_rack_07": "system-007"}
+
+        def __init__(self, *args: Any, **kwargs: Any) -> None:
+            pass
+
+        def provision(self, _: Dict[str, Any]) -> Tuple[List[ProvisioningResult], None]:
+            return [
+                ProvisioningResult(
+                    id_reference="system_pxi_rack_07",
+                    resource_type="system",
+                    resource_name="PXI-Rack-07",
+                    action=ProvisioningAction.CREATED,
+                    server_id="system-007",
+                )
+            ], None
+
+    monkeypatch.setattr(
+        "slcli.example_click.ExampleLoader", lambda: ExampleLoader(temp_examples_dir)
+    )
+    monkeypatch.setattr("slcli.example_click.ExampleProvisioner", DummyProvisioner)
+    monkeypatch.setattr("slcli.example_click.get_workspace_map", lambda: {"ws-1": "Training"})
+
+    cli = make_cli()
+    result = runner.invoke(
+        cli,
+        [
+            "example",
+            "install",
+            "demo-data-3",
+            "--workspace",
+            "Training",
+            "--format",
+            "json",
+            "--audit-log",
+            str(audit_path),
+        ],
+    )
+
+    assert result.exit_code == ExitCodes.GENERAL_ERROR
+    manifest = json.loads(result.stdout)
+    assert manifest["example"] == "demo-data-3"
+    assert manifest["logical_ids"]["system_pxi_rack_07"] == "system-007"
+    assert manifest["resources"]["created"][0]["resource_name"] == "PXI-Rack-07"
+    assert manifest["validation"]["complete"] is False
+    assert manifest["validation"]["unsupported"] == ["system.packageInventory"]
+    with open(audit_path, "r") as f:
+        saved_manifest = json.load(f)
+    assert saved_manifest["example"] == "demo-data-3"
 
 
 def test_delete_example_outputs_deleted_results(

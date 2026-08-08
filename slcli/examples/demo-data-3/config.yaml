@@ -1,0 +1,870 @@
+---
+format_version: "1.0"
+name: "demo-data-3"
+example_version: "1.2.0"
+title: "Nigel slcli Systems and Products Query Fixture"
+description: |
+  Deterministic Systems and Products data for Nigel query validation.
+
+  This release provisions the resource families supported by the generic
+  example provisioner: products, virtual systems, DUT and instrument assets,
+  test results with steps, a deployment state, feed and tag metadata/history, a
+  specification condition metadata, populated DataFrame tables, and supporting files.
+  Unsupported capabilities are declared below and make the install exit with a
+  nonzero status. The installer must not present this phase-one fixture as the
+  complete 14-example acceptance dataset.
+author: "NI"
+created_date: "2026-08-05"
+updated_date: "2026-08-07"
+tags:
+  - "nigel"
+  - "query-fixture"
+  - "systems"
+  - "products"
+estimated_setup_time_minutes: 5
+required_systemlink_version: "2024.1"
+target_workspace: "demo-data-3-workspace"
+install_manifest: true
+workspace_name: "demo-data-3-workspace"
+
+validation:
+  required_relationships:
+    - "asset.location.minionId -> system"
+    - "test_result.systemId -> system"
+    - "test_result.properties.instrument_asset_id -> asset"
+    - "test_step.properties.instrument_asset_id -> asset"
+    - "test_result.partNumber -> product part number"
+  unsupported:
+    - "workspace lifecycle: example install requires an existing workspace and does not create or delete it"
+    - "system package inventory: virtual-system creation does not seed enumerable packages or versions"
+    - "system jobs: the generic example provisioner has no queued/running/failed job seed path"
+    - "feed packages: feed creation and package upload are asynchronous CLI workflows, not fixture resources"
+    - "deployment state package inventory: state creation does not seed package inventory"
+    - "specification condition evidence: /nispec/v1 stores expected conditions only; it has no outcome or test-result evidence API"
+    - "system-to-asset query projection: location.minionId is provisioned, but the accepted CLI/Nigel retrieval path is not verified"
+    - "result-to-instrument query projection: asset ID and channel fields are provisioned, but the accepted CLI/Nigel retrieval path is not verified"
+
+resources:
+  - type: "product"
+    name: "Product XYZ"
+    properties:
+      description: "Power electronics product used by the query fixture"
+      family: "Power Electronics"
+      part_number: "XYZ-2025-001"
+      keywords: ["fixture-product"]
+    id_reference: "product_xyz"
+    tags: ["demo-data-3"]
+
+  - type: "product"
+    name: "Product ABC"
+    properties:
+      description: "Negative product case with no fixture results"
+      family: "Power Electronics"
+      part_number: "ABC-2025-001"
+      keywords: ["fixture-product"]
+    id_reference: "product_abc"
+    tags: ["demo-data-3"]
+
+  - type: "feed"
+    name: "Nigel Fixture Windows Feed"
+    properties:
+      platform: "windows"
+      description: "Feed metadata for deployment-state query fixtures"
+    id_reference: "feed_nigel_windows"
+    tags: ["demo-data-3"]
+
+  - type: "state"
+    name: "Nigel Fixture Windows State"
+    properties:
+      description: "Windows deployment state for query fixtures"
+      distribution: "WINDOWS"
+      architecture: "X64"
+      properties:
+        fixture: "demo-data-3"
+    id_reference: "state_nigel_windows"
+    tags: ["demo-data-3"]
+
+  - type: "tag"
+    name: "nigel/fixture/temperature"
+    properties:
+      type: "DOUBLE"
+      collectAggregates: true
+      retention: "PERMANENT"
+      keywords: ["demo-data-3", "temperature"]
+      properties:
+        unit: "C"
+      history:
+        - timestamp: "2026-08-05T12:00:00Z"
+          value: 21.0
+        - timestamp: "2026-08-05T12:05:00Z"
+          value: 21.1
+        - timestamp: "2026-08-05T12:10:00Z"
+          value: 21.2
+        - timestamp: "2026-08-05T12:15:00Z"
+          value: 21.3
+        - timestamp: "2026-08-05T12:20:00Z"
+          value: 21.4
+        - timestamp: "2026-08-05T12:25:00Z"
+          value: 21.5
+        - timestamp: "2026-08-05T12:30:00Z"
+          value: 21.6
+        - timestamp: "2026-08-05T12:35:00Z"
+          value: 21.7
+        - timestamp: "2026-08-05T12:40:00Z"
+          value: 21.8
+        - timestamp: "2026-08-05T12:45:00Z"
+          value: 21.9
+        - timestamp: "2026-08-05T12:50:00Z"
+          value: 22.0
+        - timestamp: "2026-08-05T12:55:00Z"
+          value: 22.1
+    id_reference: "tag_nigel_temperature"
+    tags: ["demo-data-3"]
+
+  - type: "specification"
+    name: "Product XYZ 2025 Compliance"
+    properties:
+      product_id: "${product_xyz}"
+      spec_id: "product-xyz-compliance"
+      type: "PARAMETRIC"
+      unit: "V"
+      limit:
+        min: 11.5
+        max: 12.5
+      conditions:
+        - name: "Overvoltage margin at high temperature"
+          value:
+            conditionType: "NUMERIC"
+            discrete: [85]
+            unit: "C"
+        - name: "Leakage current at 5 V standby"
+          value:
+            conditionType: "NUMERIC"
+            discrete: [5]
+            unit: "V"
+        - name: "Cold-start response time"
+          value:
+            conditionType: "NUMERIC"
+            discrete: [-20]
+            unit: "C"
+        - name: "Nominal output voltage"
+          value:
+            conditionType: "NUMERIC"
+            discrete: [12]
+            unit: "V"
+        - name: "Thermal shutdown behavior"
+          value:
+            conditionType: "NUMERIC"
+            discrete: [85]
+            unit: "C"
+      properties:
+        fixture: "demo-data-3"
+        compliance_report: "product-xyz-compliance-report.json"
+    id_reference: "spec_xyz_output_voltage"
+    tags: ["demo-data-3"]
+
+  - type: "system"
+    name: "PXI-Rack-07"
+    properties:
+      description: "Primary fixture system and current-system query target"
+    id_reference: "system_pxi_rack_07"
+    tags: ["demo-data-3", "primary"]
+
+  - type: "system"
+    name: "PXI-Rack-12"
+    properties:
+      description: "Additional fixture system"
+    id_reference: "system_pxi_rack_12"
+    tags: ["demo-data-3"]
+
+  - type: "system"
+    name: "HIL-03"
+    properties:
+      description: "Boundary fixture system"
+    id_reference: "system_hil_03"
+    tags: ["demo-data-3"]
+
+  - type: "system"
+    name: "BurnIn-02"
+    properties:
+      description: "Negative package-version comparison system"
+    id_reference: "system_burnin_02"
+    tags: ["demo-data-3"]
+
+  - type: "system"
+    name: "TestBench-44"
+    properties:
+      description: "System without the primary product test data"
+    id_reference: "system_testbench_44"
+    tags: ["demo-data-3"]
+
+  - type: "alarm"
+    name: "nigel/fixture/temperature-high"
+    properties:
+      transition: "SET"
+      severity: 2
+      value: "85"
+      condition: "> 80 C"
+      short_text: "High fixture temperature"
+      detail_text: "Fixture temperature exceeded the operating threshold"
+      channel: "nigel/fixture/temperature"
+      resource_type: "Tag"
+      display_name: "Fixture temperature high"
+      description: "Temperature alarm for the primary fixture system"
+      created_by: "demo-data-3"
+      keywords: ["temperature", "fixture"]
+      properties:
+        minionId: "${system_pxi_rack_07}"
+        fixture: "demo-data-3"
+    id_reference: "alarm_temperature_high"
+    tags: ["demo-data-3", "primary"]
+
+  - type: "alarm"
+    name: "nigel/fixture/voltage-low"
+    properties:
+      transition: "SET"
+      severity: 1
+      value: "10.8"
+      condition: "< 11.5 V"
+      short_text: "Low output voltage"
+      detail_text: "Fixture output voltage is below the specification limit"
+      channel: "Product XYZ"
+      resource_type: "Product"
+      display_name: "Fixture voltage low"
+      description: "Voltage alarm for the primary fixture system"
+      created_by: "demo-data-3"
+      keywords: ["voltage", "fixture"]
+      properties:
+        minionId: "${system_pxi_rack_07}"
+        fixture: "demo-data-3"
+    id_reference: "alarm_voltage_low"
+    tags: ["demo-data-3", "primary"]
+
+  - type: "alarm"
+    name: "nigel/fixture/instrument-fault"
+    properties:
+      transition: "SET"
+      severity: 2
+      value: "DMM-000184"
+      condition: "calibration due"
+      short_text: "Instrument calibration due"
+      detail_text: "The primary DMM requires calibration before use"
+      channel: "DMM-000184"
+      resource_type: "Asset"
+      display_name: "Instrument calibration due"
+      description: "Calibration alarm for the primary fixture system"
+      created_by: "demo-data-3"
+      keywords: ["calibration", "fixture"]
+      properties:
+        minionId: "${system_pxi_rack_07}"
+        fixture: "demo-data-3"
+    id_reference: "alarm_instrument_fault"
+    tags: ["demo-data-3", "primary"]
+
+  - type: "dut"
+    name: "DUT-1234567"
+    properties:
+      description: "Primary DUT for serial-history queries"
+      system_id: "${system_pxi_rack_07}"
+      model_name: "Product XYZ"
+      part_number: "XYZ-2025-001"
+      vendor_name: "NI Fixture"
+      serial_number: "1234567"
+      bus_type: "ACCESSORY"
+    id_reference: "asset_dut_1234567"
+    tags: ["demo-data-3"]
+
+  - type: "asset"
+    name: "DMM-000184"
+    properties:
+      description: "Primary PXI-4071 instrument; calibration metadata is retained as properties"
+      system_id: "${system_pxi_rack_07}"
+      model_name: "NI PXI-4071"
+      vendor_name: "NI"
+      serial_number: "DMM-000184"
+      bus_type: "ACCESSORY"
+      properties:
+        calibration_status: "DUE"
+        calibration_due_date: "2026-09-15"
+    id_reference: "asset_dmm_pxi4071"
+    tags: ["demo-data-3"]
+
+  - type: "asset"
+    name: "A-2231"
+    properties:
+      description: "Primary PXI-5105 instrument"
+      system_id: "${system_pxi_rack_07}"
+      model_name: "NI PXI-5105"
+      vendor_name: "NI"
+      serial_number: "A-2231"
+      bus_type: "ACCESSORY"
+      properties:
+        calibration_status: "OK"
+    id_reference: "asset_scope_a2231"
+    tags: ["demo-data-3"]
+
+  - type: "asset"
+    name: "A-8870"
+    properties:
+      description: "Primary power supply instrument"
+      system_id: "${system_pxi_rack_07}"
+      model_name: "Power Supply"
+      vendor_name: "NI Fixture"
+      serial_number: "A-8870"
+      bus_type: "ACCESSORY"
+      properties:
+        calibration_status: "OK"
+    id_reference: "asset_power_a8870"
+    tags: ["demo-data-3"]
+
+  - type: "asset"
+    name: "A-1902"
+    properties:
+      description: "Primary PXI switch instrument"
+      system_id: "${system_pxi_rack_07}"
+      model_name: "PXI Switch"
+      vendor_name: "NI Fixture"
+      serial_number: "A-1902"
+      bus_type: "ACCESSORY"
+      properties:
+        calibration_status: "OK"
+    id_reference: "asset_switch_a1902"
+    tags: ["demo-data-3"]
+
+  - type: "asset"
+    name: "DMM-000199"
+    properties:
+      description: "Unrelated PXI-4071 negative traceability case"
+      system_id: "${system_pxi_rack_12}"
+      model_name: "NI PXI-4071"
+      vendor_name: "NI"
+      serial_number: "DMM-000199"
+      bus_type: "ACCESSORY"
+      properties:
+        calibration_status: "OK"
+    id_reference: "asset_dmm_other"
+    tags: ["demo-data-3"]
+
+  - type: "test_result"
+    name: "Overvoltage 2025-01-15"
+    properties:
+      program_name: "Overvoltage"
+      part_number: "XYZ-2025-001"
+      serial_number: "1234567"
+      system_id: "${system_pxi_rack_07}"
+      operator: "Fixture Operator"
+      start_time: "2025-01-15T08:00:00Z"
+      status: "failed"
+      measurements:
+        measured_voltage: "12.84"
+        limit_voltage: "12.50"
+        temperature_c: "85.0"
+        failure_category: "overvoltage_margin"
+      properties:
+        failure_reason: "Measured high-temperature margin was 7 percent; minimum is 10 percent"
+        station: "cRIO0100101NIC"
+        instrument_asset_id: "${asset_dmm_pxi4071}"
+        measurement_channel: "ai0"
+      steps:
+        - name: "High-temperature overvoltage measurement"
+          step_type: "NumericLimitTest"
+          status: "failed"
+          properties:
+            instrument_asset_id: "${asset_dmm_pxi4071}"
+            measurement_channel: "ai0"
+          data:
+            parameters:
+              - name: "Overvoltage margin"
+                measurement: "7"
+                lowLimit: "10"
+                units: "%"
+                status: "Failed"
+                comparisonType: "GE"
+    id_reference: "result_tr_xyz_ov_001"
+    tags: ["demo-data-3", "overvoltage", "traceability"]
+
+  - type: "test_result"
+    name: "Overvoltage 2025-02-15"
+    properties:
+      program_name: "Overvoltage"
+      part_number: "XYZ-2025-001"
+      serial_number: "1234567"
+      system_id: "${system_pxi_rack_07}"
+      operator: "Fixture Operator"
+      start_time: "2025-02-15T08:00:00Z"
+      status: "passed"
+      measurements:
+        measured_voltage: "12.10"
+        limit_voltage: "12.50"
+        temperature_c: "25.0"
+      properties:
+        station: "cRIO0100101NIC"
+        instrument_asset_id: "${asset_dmm_pxi4071}"
+        measurement_channel: "ai1"
+      steps:
+        - name: "Nominal overvoltage measurement"
+          step_type: "NumericLimitTest"
+          status: "passed"
+          properties:
+            instrument_asset_id: "${asset_dmm_pxi4071}"
+            measurement_channel: "ai1"
+          data:
+            parameters:
+              - name: "Output voltage"
+                measurement: "12.10"
+                lowLimit: "11.50"
+                highLimit: "12.50"
+                units: "V"
+                status: "Passed"
+                comparisonType: "GELE"
+    id_reference: "result_tr_xyz_ov_002"
+    tags: ["demo-data-3", "overvoltage"]
+
+  - type: "test_result"
+    name: "Overvoltage 2025-03-15"
+    properties:
+      program_name: "Overvoltage"
+      part_number: "XYZ-2025-001"
+      serial_number: "1234567"
+      system_id: "${system_pxi_rack_07}"
+      operator: "Fixture Operator"
+      start_time: "2025-03-15T08:00:00Z"
+      status: "failed"
+      measurements:
+        measured_voltage: "12.78"
+        limit_voltage: "12.50"
+        temperature_c: "85.0"
+        failure_category: "overvoltage_margin"
+      properties:
+        failure_reason: "Measured high-temperature margin was 7 percent; minimum is 10 percent"
+        station: "cRIO0100101NIC"
+        instrument_asset_id: "${asset_dmm_pxi4071}"
+        measurement_channel: "ai0"
+      steps:
+        - name: "High-temperature overvoltage measurement"
+          step_type: "NumericLimitTest"
+          status: "failed"
+          properties:
+            instrument_asset_id: "${asset_dmm_pxi4071}"
+            measurement_channel: "ai0"
+          data:
+            parameters:
+              - name: "Overvoltage margin"
+                measurement: "7"
+                lowLimit: "10"
+                units: "%"
+                status: "Failed"
+                comparisonType: "GE"
+    id_reference: "result_tr_xyz_ov_003"
+    tags: ["demo-data-3", "overvoltage"]
+
+  - type: "test_result"
+    name: "Overvoltage 2025-04-15"
+    properties:
+      program_name: "Overvoltage"
+      part_number: "XYZ-2025-001"
+      serial_number: "1234567"
+      system_id: "${system_pxi_rack_07}"
+      operator: "Fixture Operator"
+      start_time: "2025-04-15T08:00:00Z"
+      status: "passed"
+      measurements:
+        measured_voltage: "12.08"
+        limit_voltage: "12.50"
+        temperature_c: "25.0"
+      properties:
+        station: "cRIO0100101NIC"
+        instrument_asset_id: "${asset_scope_a2231}"
+        measurement_channel: "ai2"
+      steps:
+        - name: "Nominal overvoltage measurement"
+          step_type: "NumericLimitTest"
+          status: "passed"
+          properties:
+            instrument_asset_id: "${asset_scope_a2231}"
+            measurement_channel: "ai2"
+          data:
+            parameters:
+              - name: "Output voltage"
+                measurement: "12.08"
+                lowLimit: "11.50"
+                highLimit: "12.50"
+                units: "V"
+                status: "Passed"
+                comparisonType: "GELE"
+    id_reference: "result_tr_xyz_ov_004"
+    tags: ["demo-data-3", "overvoltage"]
+
+  - type: "test_result"
+    name: "Overvoltage 2025-05-15"
+    properties:
+      program_name: "Overvoltage"
+      part_number: "XYZ-2025-001"
+      serial_number: "1234567"
+      system_id: "${system_pxi_rack_07}"
+      operator: "Fixture Operator"
+      start_time: "2025-05-15T08:00:00Z"
+      status: "failed"
+      measurements:
+        measured_voltage: "12.81"
+        limit_voltage: "12.50"
+        temperature_c: "85.0"
+        failure_category: "overvoltage_margin"
+      properties:
+        failure_reason: "Measured high-temperature margin was 7 percent; minimum is 10 percent"
+        station: "cRIO0100101NIC"
+        instrument_asset_id: "${asset_dmm_pxi4071}"
+        measurement_channel: "ai0"
+      steps:
+        - name: "High-temperature overvoltage measurement"
+          step_type: "NumericLimitTest"
+          status: "failed"
+          properties:
+            instrument_asset_id: "${asset_dmm_pxi4071}"
+            measurement_channel: "ai0"
+          data:
+            parameters:
+              - name: "Overvoltage margin"
+                measurement: "7"
+                lowLimit: "10"
+                units: "%"
+                status: "Failed"
+                comparisonType: "GE"
+    id_reference: "result_tr_xyz_ov_005"
+    tags: ["demo-data-3", "overvoltage"]
+
+  - type: "test_result"
+    name: "Overvoltage 2025-06-15"
+    properties:
+      program_name: "Overvoltage"
+      part_number: "XYZ-2025-001"
+      serial_number: "1234567"
+      system_id: "${system_pxi_rack_07}"
+      operator: "Fixture Operator"
+      start_time: "2025-06-15T08:00:00Z"
+      status: "passed"
+      measurements:
+        measured_voltage: "12.12"
+        limit_voltage: "12.50"
+        temperature_c: "25.0"
+      properties:
+        station: "cRIO0100101NIC"
+        instrument_asset_id: "${asset_scope_a2231}"
+        measurement_channel: "ai1"
+      steps:
+        - name: "Nominal overvoltage measurement"
+          step_type: "NumericLimitTest"
+          status: "passed"
+          properties:
+            instrument_asset_id: "${asset_scope_a2231}"
+            measurement_channel: "ai1"
+          data:
+            parameters:
+              - name: "Output voltage"
+                measurement: "12.12"
+                lowLimit: "11.50"
+                highLimit: "12.50"
+                units: "V"
+                status: "Passed"
+                comparisonType: "GELE"
+    id_reference: "result_tr_xyz_ov_006"
+    tags: ["demo-data-3", "overvoltage"]
+
+  - type: "test_result"
+    name: "Instrument Traceability 2025-06-20"
+    properties:
+      program_name: "Instrument Traceability"
+      part_number: "XYZ-2025-001"
+      serial_number: "1234567"
+      system_id: "${system_pxi_rack_07}"
+      operator: "Fixture Operator"
+      start_time: "2025-06-20T09:00:00Z"
+      status: "passed"
+      measurements:
+        measured_voltage: "12.00"
+      properties:
+        station: "cRIO0100101NIC"
+        instrument_asset_id: "${asset_dmm_pxi4071}"
+        measurement_channel: "ai0"
+      steps:
+        - name: "DMM-000184 channel ai0 measurement"
+          step_type: "NumericLimitTest"
+          status: "passed"
+          properties:
+            instrument_asset_id: "${asset_dmm_pxi4071}"
+            measurement_channel: "ai0"
+          data:
+            parameters:
+              - name: "Nominal output voltage"
+                measurement: "12.00"
+                lowLimit: "11.50"
+                highLimit: "12.50"
+                units: "V"
+                status: "Passed"
+                comparisonType: "GELE"
+    id_reference: "result_tr_xyz_traceability"
+    tags: ["demo-data-3", "traceability"]
+
+  - type: "test_result"
+    name: "Boundary Result 2024-12-31"
+    properties:
+      program_name: "Overvoltage"
+      part_number: "BOUNDARY-2025-001"
+      serial_number: "BOUNDARY-0001"
+      system_id: "${system_testbench_44}"
+      operator: "Fixture Operator"
+      start_time: "2024-12-31T08:00:00Z"
+      status: "failed"
+      measurements:
+        measured_voltage: "14.00"
+        limit_voltage: "12.50"
+        failure_category: "outside-analysis-window"
+      properties:
+        failure_reason: "Boundary result is outside the 2025 analysis window"
+        station: "BoundaryStation"
+    id_reference: "result_boundary_out_of_window"
+    tags: ["demo-data-3", "boundary"]
+
+  - type: "test_result"
+    name: "Leakage Current 2025-02-20"
+    properties:
+      program_name: "Leakage Current"
+      part_number: "XYZ-2025-001"
+      serial_number: "1234567"
+      system_id: "${system_pxi_rack_07}"
+      operator: "Fixture Operator"
+      start_time: "2025-02-20T10:00:00Z"
+      status: "failed"
+      measurements:
+        measured_current_ma: "3.4"
+        upper_limit_ma: "2.0"
+        temperature_c: "25.0"
+        failure_category: "leakage_current"
+      properties:
+        failure_reason: "Standby leakage current exceeded the 2 mA limit"
+        station: "cRIO0100101NIC"
+    id_reference: "result_tr_xyz_leakage"
+    tags: ["demo-data-3", "leakage"]
+
+  - type: "test_result"
+    name: "Cold Start 2025-03-20"
+    properties:
+      program_name: "Cold Start"
+      part_number: "XYZ-2025-001"
+      serial_number: "1234567"
+      system_id: "${system_pxi_rack_07}"
+      operator: "Fixture Operator"
+      start_time: "2025-03-20T11:00:00Z"
+      status: "failed"
+      measurements:
+        response_time_ms: "142"
+        upper_limit_ms: "100"
+        temperature_c: "-20.0"
+        failure_category: "cold_start_response"
+      properties:
+        failure_reason: "Cold-start response exceeded the 100 ms limit"
+        station: "cRIO0100101NIC"
+    id_reference: "result_tr_xyz_cold_start"
+    tags: ["demo-data-3", "cold-start"]
+
+  - type: "test_result"
+    name: "Overvoltage 2025-01-31"
+    properties:
+      program_name: "Overvoltage"
+      part_number: "XYZ-2025-001"
+      serial_number: "1234567"
+      system_id: "${system_pxi_rack_12}"
+      operator: "Fixture Operator"
+      start_time: "2025-01-31T08:00:00Z"
+      status: "passed"
+      measurements:
+        measured_voltage: "12.04"
+        limit_voltage: "12.50"
+        temperature_c: "25.0"
+      properties:
+        station: "PXI-Rack-12"
+        instrument_asset_id: "${asset_dmm_other}"
+        measurement_channel: "ai0"
+      steps:
+        - name: "Nominal overvoltage measurement"
+          step_type: "NumericLimitTest"
+          status: "passed"
+          properties:
+            instrument_asset_id: "${asset_dmm_other}"
+            measurement_channel: "ai0"
+          data:
+            parameters:
+              - name: "Output voltage"
+                measurement: "12.04"
+                lowLimit: "11.50"
+                highLimit: "12.50"
+                units: "V"
+                status: "Passed"
+                comparisonType: "GELE"
+    id_reference: "result_tr_xyz_ov_other_system"
+    tags: ["demo-data-3", "overvoltage"]
+
+  - type: "test_result"
+    name: "Thermal Response 2025-04-20"
+    properties:
+      program_name: "Thermal Response"
+      part_number: "XYZ-2025-001"
+      serial_number: "1234567"
+      system_id: "${system_hil_03}"
+      operator: "Fixture Operator"
+      start_time: "2025-04-20T12:00:00Z"
+      status: "passed"
+      measurements:
+        response_time_ms: "88"
+        upper_limit_ms: "100"
+        temperature_c: "65.0"
+      properties:
+        station: "HIL-03"
+        instrument_asset_id: "${asset_scope_a2231}"
+        measurement_channel: "ai3"
+      steps:
+        - name: "Thermal response measurement"
+          step_type: "NumericLimitTest"
+          status: "passed"
+          properties:
+            instrument_asset_id: "${asset_scope_a2231}"
+            measurement_channel: "ai3"
+          data:
+            parameters:
+              - name: "Response time"
+                measurement: "88"
+                lowLimit: "0"
+                highLimit: "100"
+                units: "ms"
+                status: "Passed"
+                comparisonType: "GELE"
+    id_reference: "result_tr_xyz_thermal"
+    tags: ["demo-data-3", "thermal"]
+
+  - type: "data_table"
+    name: "Overvoltage Results - XYZ"
+    properties:
+      description: "Bounded overvoltage compliance measurements"
+      rows_file: "overvoltage-results.json"
+      end_of_data: true
+      properties:
+        fixture: "demo-data-3"
+        ownership_marker: "slcli-example:demo-data-3"
+      columns:
+        - name: "timestamp"
+          type: "TIMESTAMP"
+        - name: "DUT serial"
+          type: "STRING"
+        - name: "station"
+          type: "STRING"
+        - name: "voltage"
+          type: "NUMBER"
+        - name: "temperature"
+          type: "NUMBER"
+        - name: "measured value"
+          type: "NUMBER"
+        - name: "lower limit"
+          type: "NUMBER"
+        - name: "upper limit"
+          type: "NUMBER"
+        - name: "status"
+          type: "STRING"
+    id_reference: "table_overvoltage_xyz"
+    tags: ["demo-data-3"]
+
+  - type: "data_table"
+    name: "Leakage Current Results - XYZ"
+    properties:
+      description: "Bounded leakage-current compliance measurements"
+      rows_file: "leakage-current-results.json"
+      end_of_data: true
+      properties:
+        fixture: "demo-data-3"
+        ownership_marker: "slcli-example:demo-data-3"
+      columns:
+        - name: "timestamp"
+          type: "TIMESTAMP"
+        - name: "DUT serial"
+          type: "STRING"
+        - name: "station"
+          type: "STRING"
+        - name: "current"
+          type: "NUMBER"
+        - name: "temperature"
+          type: "NUMBER"
+        - name: "measured value"
+          type: "NUMBER"
+        - name: "upper limit"
+          type: "NUMBER"
+        - name: "status"
+          type: "STRING"
+    id_reference: "table_leakage_xyz"
+    tags: ["demo-data-3"]
+
+  - type: "data_table"
+    name: "Thermal Response Results - XYZ"
+    properties:
+      description: "Bounded thermal-response compliance measurements"
+      rows_file: "thermal-response-results.json"
+      end_of_data: true
+      properties:
+        fixture: "demo-data-3"
+        ownership_marker: "slcli-example:demo-data-3"
+      columns:
+        - name: "timestamp"
+          type: "TIMESTAMP"
+        - name: "DUT serial"
+          type: "STRING"
+        - name: "station"
+          type: "STRING"
+        - name: "temperature"
+          type: "NUMBER"
+        - name: "response time"
+          type: "NUMBER"
+        - name: "limit"
+          type: "NUMBER"
+        - name: "status"
+          type: "STRING"
+    id_reference: "table_thermal_xyz"
+    tags: ["demo-data-3"]
+
+  - type: "file"
+    name: "product-xyz-specification.csv"
+    properties:
+      description: "Supporting specification source for the query fixture"
+      file_path: "product-xyz-specification.csv"
+      content_type: "text/csv"
+    id_reference: "file_product_xyz_specification"
+    tags: ["demo-data-3"]
+
+  - type: "file"
+    name: "product-xyz-compliance-report.json"
+    properties:
+      description: "Supporting deterministic compliance summary for the query fixture"
+      file_path: "product-xyz-compliance-report.json"
+      content_type: "application/json"
+    id_reference: "file_product_xyz_compliance_report"
+    tags: ["demo-data-3"]
+
+cleanup:
+  order:
+    - "file"
+    - "data_table"
+    - "specification"
+    - "tag"
+    - "state"
+    - "feed"
+    - "test_result"
+    - "asset"
+    - "dut"
+    - "system"
+    - "product"
+  filter_tags: ["demo-data-3"]
+  require_confirmation: true
+
+post_install:
+  instructions: |
+    This release still declares unsupported capabilities in the JSON manifest.
+    Inspect that manifest before using it for Nigel acceptance testing. The
+    resources that were created are safe to delete with the matching example
+    command and workspace.

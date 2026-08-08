@@ -33,6 +33,11 @@ class ExampleLoader:
         "data_table",
         "file",
         "notebook",
+        "state",
+        "tag",
+        "specification",
+        "feed",
+        "alarm",
     }
 
     def __init__(self, examples_dir: Optional[Path] = None) -> None:
