@@ -2,6 +2,13 @@
 
 <!-- towncrier release notes start -->
 
+## v1.22.0 (2026-08-08)
+
+### Features
+
+- Support installing example fixtures from an arbitrary local `config.yaml` with `slcli example install --file`; referenced files are resolved relative to the fixture directory. (arbitrary-example-install)
+
+
 ## v1.21.0 (2026-08-08)
 
 ### Features
