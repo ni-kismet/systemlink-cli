@@ -475,6 +475,7 @@ def test_install_fixture_manifest_reports_unsupported_capabilities(
         ],
     }
     create_example_config(temp_examples_dir, "demo-data-3", config)
+    audit_path = temp_examples_dir / "manifest.json"
 
     class DummyProvisioner:
         id_map = {"system_pxi_rack_07": "system-007"}
@@ -510,6 +511,8 @@ def test_install_fixture_manifest_reports_unsupported_capabilities(
             "Training",
             "--format",
             "json",
+            "--audit-log",
+            str(audit_path),
         ],
     )
 
@@ -520,6 +523,9 @@ def test_install_fixture_manifest_reports_unsupported_capabilities(
     assert manifest["resources"]["created"][0]["resource_name"] == "PXI-Rack-07"
     assert manifest["validation"]["complete"] is False
     assert manifest["validation"]["unsupported"] == ["system.packageInventory"]
+    with open(audit_path, "r") as f:
+        saved_manifest = json.load(f)
+    assert saved_manifest["example"] == "demo-data-3"
 
 
 def test_delete_example_outputs_deleted_results(

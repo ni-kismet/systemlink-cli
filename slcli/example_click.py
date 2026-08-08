@@ -150,9 +150,7 @@ def _output_results(results: List[Dict[str, Any]], format_output: str) -> None:
     )
 
 
-def _write_audit_log(
-    results: List[Dict[str, Any]], audit_log: Optional[str], quiet: bool = False
-) -> None:
+def _write_audit_log(results: Any, audit_log: Optional[str], quiet: bool = False) -> None:
     """Persist results to an audit log file if requested."""
     if not audit_log:
         return
@@ -338,7 +336,7 @@ def register_example_commands(cli: Any) -> None:
             incomplete = manifest["validation"]["complete"] is False
 
             if manifest_mode and format == "json":
-                _write_audit_log([manifest], audit_log, quiet=True)
+                _write_audit_log(manifest, audit_log, quiet=True)
                 click.echo(json.dumps(manifest, indent=2))
             else:
                 _write_audit_log(serialized, audit_log, quiet=format == "json")

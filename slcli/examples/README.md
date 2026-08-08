@@ -46,13 +46,10 @@ discover through visualization:
 
 Phase-one fixture data for validating Systems and Products queries. It
 provisions the resource families supported by the generic example provisioner:
-
-
- 1 deployment state, 1 feed, 1 tag with 12 history samples,
- 3 active alarms, and 1 specification (metadata only)
-reports unsupported package inventory, jobs, feed packages, deployment state
-package inventory, specification evidence,
-and workspace lifecycle.
+1 deployment state, 1 feed, 1 tag with 12 history samples, 3 active alarms,
+and 1 specification (metadata only). It reports unsupported package inventory,
+jobs, feed packages, deployment state package inventory, specification
+evidence, and workspace lifecycle.
 Because those capabilities are required by the full Nigel acceptance matrix,
 the install intentionally exits nonzero after emitting its JSON manifest.
 

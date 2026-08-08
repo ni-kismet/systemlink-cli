@@ -359,7 +359,10 @@ class ExampleProvisioner:
                     ownership_marker=self._resource_ownership_marker(props_with_name),
                 )
             elif rtype == "tag":
-                existing_id = self._get_tag_by_path(rname)
+                existing_id = self._get_tag_by_path(
+                    rname,
+                    ownership_marker=self._resource_ownership_marker(props_with_name),
+                )
             elif rtype == "specification":
                 existing_id = self._get_specification_by_key(props_with_name)
             elif rtype == "feed":
@@ -788,6 +791,9 @@ class ExampleProvisioner:
         tag_properties: Dict[str, Any] = {}
         if isinstance(props.get("properties"), dict):
             tag_properties.update(props["properties"])
+        ownership_marker = self._resource_ownership_marker(props)
+        if ownership_marker:
+            tag_properties["slcli-example"] = ownership_marker
         if props.get("history"):
             tag_properties["nitagRetention"] = str(
                 props.get("retention", tag_properties.get("nitagRetention", "PERMANENT"))
@@ -848,6 +854,9 @@ class ExampleProvisioner:
             "workspace": self.workspace_id,
             "properties": {"nitagRetention": retention},
         }
+        ownership_marker = self._resource_ownership_marker(props)
+        if ownership_marker:
+            tag_metadata["properties"]["slcli-example"] = ownership_marker
 
         base_url = get_base_url()
         make_api_request(
@@ -924,19 +933,26 @@ class ExampleProvisioner:
                 "history: unsupported - Tag Historian did not retain all configured values"
             )
 
-    def _get_tag_by_path(self, path: str) -> Optional[str]:
-        """Return a tag path when metadata exists, otherwise None."""
+    def _get_tag_by_path(self, path: str, ownership_marker: Optional[str] = None) -> Optional[str]:
+        """Return an owned tag path when metadata exists, otherwise None."""
+        if not ownership_marker:
+            return None
         try:
             resp = make_api_request("GET", self._tag_url(path), payload=None, handle_errors=False)
             data = resp.json()
-            return path if isinstance(data, dict) and data.get("path") == path else None
+            if not isinstance(data, dict) or data.get("path") != path:
+                return None
+            properties = data.get("properties", {})
+            if not isinstance(properties, dict):
+                return None
+            return path if str(properties.get("slcli-example", "")) == ownership_marker else None
         except Exception:
             return None
 
     def _delete_tag(self, props: Dict[str, Any]) -> Optional[str]:
         """Delete tag metadata by path and return that path."""
         path = str(props.get("name", ""))
-        if not self._get_tag_by_path(path):
+        if not self._get_tag_by_path(path, ownership_marker=self._resource_ownership_marker(props)):
             return None
         make_api_request("DELETE", self._tag_url(path), payload=None, handle_errors=False)
         return path or None
@@ -979,6 +995,16 @@ class ExampleProvisioner:
                 if source_key in props:
                     payload[api_key] = props[source_key]
                     break
+        specification_properties = payload.get("properties")
+        if isinstance(specification_properties, dict):
+            specification_properties = dict(specification_properties)
+        else:
+            specification_properties = {}
+        ownership_marker = self._resource_ownership_marker(props)
+        if ownership_marker:
+            specification_properties["slcli-example"] = ownership_marker
+        if specification_properties:
+            payload["properties"] = specification_properties
         if "workspace" not in payload and self.workspace_id:
             payload["workspace"] = self.workspace_id
 
@@ -1002,7 +1028,8 @@ class ExampleProvisioner:
         """Find a specification by exact product ID and spec ID."""
         product_id = self._spec_product_id(props)
         spec_id = self._spec_id(props)
-        if not product_id or not spec_id:
+        ownership_marker = self._resource_ownership_marker(props)
+        if not product_id or not spec_id or not ownership_marker:
             return None
 
         resp = make_api_request(
@@ -1021,6 +1048,11 @@ class ExampleProvisioner:
             if str(spec.get("productId", "")) != product_id:
                 continue
             if str(spec.get("specId", "")) != spec_id:
+                continue
+            specification_properties = spec.get("properties", {})
+            if not isinstance(specification_properties, dict):
+                continue
+            if str(specification_properties.get("slcli-example", "")) != ownership_marker:
                 continue
             specification_id = spec.get("id")
             if specification_id:
@@ -1397,30 +1429,36 @@ class ExampleProvisioner:
         """
         try:
             url = f"{get_base_url()}/nisysmgmt/v1/query-systems"
-            payload = {
+            payload: Dict[str, Any] = {
                 "skip": 0,
                 "take": 100,
                 "projection": "new(id,alias,workspace)",
                 "orderBy": "alias",
             }
-            resp = make_api_request("POST", url, payload, handle_errors=False)
-            data = resp.json()
-            systems: List[Dict[str, Any]] = []
-            if isinstance(data, dict) and isinstance(data.get("data"), list):
-                systems = data.get("data", [])
-            elif isinstance(data, list):
-                # Legacy shape: list of items with optional 'data' field
-                for item in data:
-                    sys = item.get("data", item) if isinstance(item, dict) else {}
-                    if sys:
-                        systems.append(sys)
-            for sys in systems:
-                alias = str(sys.get("alias", ""))
-                if alias != name:
-                    continue
-                if self.workspace_id and str(sys.get("workspace", "")) != str(self.workspace_id):
-                    continue
-                return str(sys.get("id", "")) or None
+            while True:
+                resp = make_api_request("POST", url, payload, handle_errors=False)
+                data = resp.json()
+                systems: List[Dict[str, Any]] = []
+                if isinstance(data, dict) and isinstance(data.get("data"), list):
+                    systems = data.get("data", [])
+                elif isinstance(data, list):
+                    # Legacy shape: list of items with optional 'data' field
+                    for item in data:
+                        system_item = item.get("data", item) if isinstance(item, dict) else {}
+                        if system_item:
+                            systems.append(system_item)
+                for system_item in systems:
+                    alias = str(system_item.get("alias", ""))
+                    if alias != name:
+                        continue
+                    if self.workspace_id and str(system_item.get("workspace", "")) != str(
+                        self.workspace_id
+                    ):
+                        continue
+                    return str(system_item.get("id", "")) or None
+                if len(systems) < 100:
+                    break
+                payload["skip"] += len(systems)
         except Exception:
             # API unavailable or malformed response; return None to allow fallback to creation
             pass
@@ -1431,31 +1469,37 @@ class ExampleProvisioner:
         ids: List[str] = []
         try:
             url = f"{get_base_url()}/nisysmgmt/v1/query-systems"
-            payload = {
+            payload: Dict[str, Any] = {
                 "skip": 0,
                 "take": 200,
                 "projection": "new(id,alias,workspace)",
                 "orderBy": "alias",
             }
-            resp = make_api_request("POST", url, payload, handle_errors=False)
-            data = resp.json()
-            systems: List[Dict[str, Any]] = []
-            if isinstance(data, dict) and isinstance(data.get("data"), list):
-                systems = data.get("data", [])
-            elif isinstance(data, list):
-                for item in data:
-                    sys = item.get("data", item) if isinstance(item, dict) else {}
-                    if sys:
-                        systems.append(sys)
-            for sys in systems:
-                alias = str(sys.get("alias", ""))
-                if alias != name:
-                    continue
-                if self.workspace_id and str(sys.get("workspace", "")) != str(self.workspace_id):
-                    continue
-                sid = str(sys.get("id", ""))
-                if sid:
-                    ids.append(sid)
+            while True:
+                resp = make_api_request("POST", url, payload, handle_errors=False)
+                data = resp.json()
+                systems: List[Dict[str, Any]] = []
+                if isinstance(data, dict) and isinstance(data.get("data"), list):
+                    systems = data.get("data", [])
+                elif isinstance(data, list):
+                    for item in data:
+                        system_item = item.get("data", item) if isinstance(item, dict) else {}
+                        if system_item:
+                            systems.append(system_item)
+                for system_item in systems:
+                    alias = str(system_item.get("alias", ""))
+                    if alias != name:
+                        continue
+                    if self.workspace_id and str(system_item.get("workspace", "")) != str(
+                        self.workspace_id
+                    ):
+                        continue
+                    system_id = str(system_item.get("id", ""))
+                    if system_id:
+                        ids.append(system_id)
+                if len(systems) < 200:
+                    break
+                payload["skip"] += len(systems)
         except Exception:
             # API unavailable or malformed response; return empty list to proceed with creation
             pass
@@ -1636,6 +1680,10 @@ class ExampleProvisioner:
             assets = data.get("assets", [])
             example_tag = f"slcli-example:{self.example_name}" if self.example_name else None
             for asset in assets:
+                if str(asset.get("name", "")) != name:
+                    continue
+                if self.workspace_id and str(asset.get("workspace", "")) != str(self.workspace_id):
+                    continue
                 if example_tag:
                     keywords = asset.get("keywords", [])
                     if not (isinstance(keywords, list) and example_tag in keywords):
@@ -1685,6 +1733,10 @@ class ExampleProvisioner:
             assets = data.get("assets", [])
             example_tag = f"slcli-example:{self.example_name}" if self.example_name else None
             for asset in assets:
+                if str(asset.get("name", "")) != name:
+                    continue
+                if self.workspace_id and str(asset.get("workspace", "")) != str(self.workspace_id):
+                    continue
                 if example_tag:
                     keywords = asset.get("keywords", [])
                     if not (isinstance(keywords, list) and example_tag in keywords):

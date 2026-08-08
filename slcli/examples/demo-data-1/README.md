@@ -110,8 +110,8 @@ slcli example install demo-data-1 -w <workspace> --dry-run
 slcli example install demo-data-1 -w <workspace>
 
 # Cleanup (removes all tagged resources)
-slcli example uninstall demo-data-1 -w <workspace> --dry-run
-slcli example uninstall demo-data-1 -w <workspace>
+slcli example delete demo-data-1 -w <workspace> --dry-run
+slcli example delete demo-data-1 -w <workspace>
 ```
 
 ### Expected Output
@@ -254,7 +254,7 @@ demo-data-1/
 Remove all created resources:
 
 ```bash
-slcli example uninstall demo-data-1 -w <workspace>
+slcli example delete demo-data-1 -w <workspace>
 ```
 
 This removes all resources tagged with `slcli-example:demo-data-1`, leaving your workspace clean.
@@ -283,7 +283,7 @@ slcli product list -w <workspace>
 slcli system list -w <workspace>
 
 # Run uninstall to clean up and retry
-slcli example uninstall demo-data-1 -w <workspace>
+slcli example delete demo-data-1 -w <workspace>
 slcli example install demo-data-1 -w <workspace>
 ```
 
