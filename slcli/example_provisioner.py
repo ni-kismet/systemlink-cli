@@ -62,6 +62,7 @@ class ExampleProvisioner:
         workspace_id: Optional[str] = None,
         example_name: Optional[str] = None,
         dry_run: bool = False,
+        example_dir: Optional[Path] = None,
     ) -> None:
         """Initialize the provisioner.
 
@@ -69,10 +70,12 @@ class ExampleProvisioner:
             workspace_id: Workspace identifier (ID).
             example_name: Example name for tagging resources.
             dry_run: When True, does not create any resources (SKIPPED).
+            example_dir: Directory containing an externally supplied example config.
         """
         self.workspace_id = workspace_id
         self.example_name = example_name
         self.dry_run = dry_run
+        self.example_dir = example_dir
         self.id_map: Dict[str, str] = {}
         self._test_results_deleted: bool = False
         self._files_deleted: bool = False
@@ -3480,15 +3483,10 @@ class ExampleProvisioner:
         Returns:
             File contents as bytes, or None if not found.
         """
-        from pathlib import Path
-
         try:
-            if self.example_name:
-                # Path relative to slcli/examples/{example_name}/
-                example_dir = Path(__file__).parent / "examples" / self.example_name
-                full_path = example_dir / file_path
-            else:
-                full_path = Path(file_path)
+            full_path = self._resolve_example_file(file_path)
+            if full_path is None:
+                return None
 
             if not full_path.exists():
                 click.echo(
@@ -3514,6 +3512,31 @@ class ExampleProvisioner:
         except Exception as exc:
             click.echo(
                 f"Warning: Error reading file {file_path}: {exc}",
+                err=True,
+            )
+            return None
+
+    def _resolve_example_file(self, file_path: str) -> Optional[Path]:
+        """Resolve a fixture file and contain it when a fixture directory is configured.
+
+        Without a fixture directory, return the path as provided for backwards
+        compatibility with callers that supply their own working-directory context.
+        """
+        if self.example_dir:
+            example_dir = self.example_dir
+        elif self.example_name:
+            example_dir = Path(__file__).parent / "examples" / self.example_name
+        else:
+            return Path(file_path)
+
+        try:
+            resolved_dir = example_dir.resolve()
+            resolved_path = (resolved_dir / file_path).resolve()
+            resolved_path.relative_to(resolved_dir)
+            return resolved_path
+        except (OSError, ValueError):
+            click.echo(
+                f"Warning: File path must remain inside the example directory: {file_path}",
                 err=True,
             )
             return None
@@ -3566,16 +3589,12 @@ class ExampleProvisioner:
 
         if not name or not file_path:
             return None
-        from pathlib import Path
 
         try:
-            # Resolve file path relative to example directory
-            if self.example_name:
-                # Path relative to slcli/examples/{example_name}/
-                example_dir = Path(__file__).parent / "examples" / self.example_name
-                notebook_file = example_dir / file_path
-            else:
-                notebook_file = Path(file_path)
+            # Resolve file path relative to the example directory
+            notebook_file = self._resolve_example_file(file_path)
+            if notebook_file is None:
+                return None
 
             if not notebook_file.exists():
                 return None

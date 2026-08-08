@@ -368,7 +368,8 @@ def test_install_example_resolves_workspace_and_outputs_table(
             return [res], None
 
     monkeypatch.setattr(
-        "slcli.example_click.ExampleLoader", lambda: ExampleLoader(temp_examples_dir)
+        "slcli.example_click.ExampleLoader",
+        lambda: ExampleLoader(temp_examples_dir),
     )
     monkeypatch.setattr("slcli.example_click.ExampleProvisioner", DummyProvisioner)
     monkeypatch.setattr("slcli.example_click.get_workspace_map", lambda: {"ws-1": "Training"})
@@ -380,6 +381,62 @@ def test_install_example_resolves_workspace_and_outputs_table(
     assert "System 1" in result.output
     assert captured["workspace_id"] == "ws-1"
     assert captured["dry_run"] is False
+
+
+def test_install_example_from_file_uses_config_directory_for_references(
+    runner: CliRunner, temp_examples_dir: Path, monkeypatch: Any
+) -> None:
+    """Install accepts an external config and passes its directory to the provisioner."""
+    import yaml  # type: ignore
+
+    example_dir = temp_examples_dir / "example-resources"
+    example_dir.mkdir()
+    config_path = example_dir / "config.yaml"
+    reference_path = example_dir / "product-xyz-specification.csv"
+    config = {
+        "format_version": "1.0",
+        "name": "example-resources",
+        "title": "Nigel Evaluation Fixture",
+        "resources": [],
+    }
+    with open(config_path, "w") as f:
+        yaml.dump(config, f)
+    reference_path.write_text("name,value\nOutput Voltage,5\n")
+
+    captured: Dict[str, Any] = {}
+
+    class DummyProvisioner:
+        def __init__(
+            self,
+            workspace_id: Optional[str],
+            example_name: Optional[str],
+            dry_run: bool,
+            example_dir: Optional[Path] = None,
+        ) -> None:
+            captured["workspace_id"] = workspace_id
+            captured["example_name"] = example_name
+            captured["dry_run"] = dry_run
+            captured["example_dir"] = example_dir
+
+        def provision(self, _: Dict[str, Any]) -> Tuple[List[ProvisioningResult], None]:
+            return [], None
+
+    monkeypatch.setattr(
+        "slcli.example_click.ExampleLoader", lambda: ExampleLoader(temp_examples_dir)
+    )
+    monkeypatch.setattr("slcli.example_click.ExampleProvisioner", DummyProvisioner)
+    monkeypatch.setattr("slcli.example_click.get_workspace_map", lambda: {"ws-1": "Training"})
+
+    cli = make_cli()
+    result = runner.invoke(
+        cli,
+        ["example", "install", "--file", str(config_path), "--workspace", "Training"],
+    )
+
+    assert result.exit_code == 0
+    assert captured["workspace_id"] == "ws-1"
+    assert captured["example_name"] == "example-resources"
+    assert captured["example_dir"] == example_dir.resolve()
 
 
 def test_install_example_json_and_audit_log(

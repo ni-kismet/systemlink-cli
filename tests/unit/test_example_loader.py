@@ -89,6 +89,27 @@ def test_load_valid_config(temp_examples_dir: Path) -> None:
     assert len(loaded["resources"]) == 1
 
 
+def test_load_config_file_from_arbitrary_directory(temp_examples_dir: Path) -> None:
+    """Test loading a config file outside the bundled examples directory."""
+    import yaml  # type: ignore
+
+    example_dir = temp_examples_dir / "example-resources"
+    example_dir.mkdir()
+    config_path = example_dir / "config.yaml"
+    config = {
+        "format_version": "1.0",
+        "name": "example-resources",
+        "title": "Nigel Evaluation Fixture",
+        "resources": [],
+    }
+    with open(config_path, "w") as f:
+        yaml.dump(config, f)
+
+    loaded = ExampleLoader(temp_examples_dir).load_config_file(config_path)
+
+    assert loaded["name"] == "example-resources"
+
+
 def test_load_missing_config(temp_examples_dir: Path) -> None:
     """Test loading a non-existent example raises FileNotFoundError."""
     loader = ExampleLoader(temp_examples_dir)
@@ -105,6 +126,24 @@ def test_validate_config_required_fields(temp_examples_dir: Path) -> None:
     loader = ExampleLoader(temp_examples_dir)
     errors = loader.validate_config(config)
     assert len(errors) > 0
+
+
+@pytest.mark.parametrize("invalid_name", [None, "", 123, {}])
+def test_validate_config_rejects_invalid_name(
+    temp_examples_dir: Path, invalid_name: object
+) -> None:
+    """Test schema validation rejects missing example ownership names."""
+    config = {
+        "format_version": "1.0",
+        "name": invalid_name,
+        "title": "Test",
+        "resources": [],
+    }
+    loader = ExampleLoader(temp_examples_dir)
+
+    errors = loader.validate_config(config)
+
+    assert "name must be a non-empty string" in errors
 
 
 def test_validate_config_invalid_format_version(temp_examples_dir: Path) -> None:

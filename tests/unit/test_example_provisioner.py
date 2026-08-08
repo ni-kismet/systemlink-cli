@@ -46,6 +46,35 @@ def test_dry_run_skips_creation() -> None:
     assert all(r.server_id is None for r in results)
 
 
+def test_read_example_file_uses_external_example_directory(tmp_path: Any) -> None:
+    """Referenced files are resolved relative to an externally supplied config."""
+    example_dir = tmp_path / "example-resources"
+    example_dir.mkdir()
+    reference_path = example_dir / "product-xyz-specification.csv"
+    reference_path.write_bytes(b"name,value\nOutput Voltage,5\n")
+
+    provisioner = ExampleProvisioner(example_name="example-resources", example_dir=example_dir)
+
+    assert (
+        provisioner._read_example_file(
+            "product-xyz-specification.csv",
+        )
+        == reference_path.read_bytes()
+    )
+
+
+def test_read_example_file_rejects_paths_outside_external_directory(tmp_path: Any) -> None:
+    """Fixture references cannot read files outside the fixture directory."""
+    example_dir = tmp_path / "example-resources"
+    example_dir.mkdir()
+    outside_path = tmp_path / "outside.txt"
+    outside_path.write_bytes(b"not part of the fixture")
+
+    provisioner = ExampleProvisioner(example_dir=example_dir)
+
+    assert provisioner._read_example_file("../outside.txt") is None
+
+
 @patch("slcli.example_provisioner.get_base_url")
 @patch("slcli.example_provisioner.make_api_request")
 def test_provision_creates_in_order_and_assigns_ids(mock_api: Any, mock_base_url: Any) -> None:
@@ -1134,9 +1163,12 @@ def test_tag_filtering_on_delete(mock_api: Any) -> None:
 @patch("slcli.example_provisioner.get_base_url")
 @patch("slcli.example_provisioner.get_headers")
 @patch("builtins.open", create=True)
-@patch("pathlib.Path")
 def test_notebook_properties_preserved_with_interface(
-    mock_path: Any, mock_open: Any, mock_headers: Any, mock_base_url: Any, mock_requests: Any
+    mock_open: Any,
+    mock_headers: Any,
+    mock_base_url: Any,
+    mock_requests: Any,
+    tmp_path: Any,
 ) -> None:
     """Test that slcli-example property is preserved when adding interface."""
     # Setup mocks
@@ -1148,9 +1180,9 @@ def test_notebook_properties_preserved_with_interface(
     mock_file_obj.read.return_value = b'{"cells":[]}'
     mock_open.return_value.__enter__.return_value = mock_file_obj
 
-    mock_notebook_path = MagicMock()
-    mock_notebook_path.exists.return_value = True
-    mock_path.return_value.__truediv__.return_value.__truediv__.return_value = mock_notebook_path
+    example_dir = tmp_path / "test-example"
+    example_dir.mkdir()
+    (example_dir / "test.ipynb").write_bytes(b"notebook")
 
     # Track PUT request metadata
     put_metadata = None
@@ -1177,7 +1209,12 @@ def test_notebook_properties_preserved_with_interface(
     mock_requests.put.side_effect = mock_put
 
     # Create provisioner and test notebook creation
-    prov = ExampleProvisioner(example_name="test-example", workspace_id="ws-test", dry_run=False)
+    prov = ExampleProvisioner(
+        example_name="test-example",
+        workspace_id="ws-test",
+        dry_run=False,
+        example_dir=example_dir,
+    )
     notebook_id = prov._create_notebook(
         {
             "name": "Test Notebook",

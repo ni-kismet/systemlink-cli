@@ -932,5 +932,12 @@ for training, testing, or evaluation.
 slcli example list [-f json]                             # List available examples
 slcli example info <EXAMPLE_ID>                          # Show example details
 slcli example install <EXAMPLE_ID> [--workspace NAME]    # Provision example resources
+slcli example install --file PATH [--workspace NAME]     # Install a local fixture
 slcli example delete <EXAMPLE_ID> [--workspace NAME]     # Remove provisioned resources
 ```
+
+For a local fixture, `PATH` points to its `config.yaml`; referenced files are
+resolved relative to the directory containing that file.
+
+For the YAML contract and authoring workflow, load
+[example-authoring.md](./example-authoring.md).
