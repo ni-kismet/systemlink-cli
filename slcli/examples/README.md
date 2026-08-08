@@ -108,7 +108,7 @@ resource references, file-backed resources, and validation caveats, see the
   bundled example as the reference for resource-specific `properties`.
 
 3. Test locally:
-   ```bash
+  ```bash
   slcli example install my-example --workspace <workspace> --dry-run
    ```
 

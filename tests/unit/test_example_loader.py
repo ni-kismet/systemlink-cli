@@ -128,6 +128,24 @@ def test_validate_config_required_fields(temp_examples_dir: Path) -> None:
     assert len(errors) > 0
 
 
+@pytest.mark.parametrize("invalid_name", [None, "", 123, {}])
+def test_validate_config_rejects_invalid_name(
+    temp_examples_dir: Path, invalid_name: object
+) -> None:
+    """Test schema validation rejects missing example ownership names."""
+    config = {
+        "format_version": "1.0",
+        "name": invalid_name,
+        "title": "Test",
+        "resources": [],
+    }
+    loader = ExampleLoader(temp_examples_dir)
+
+    errors = loader.validate_config(config)
+
+    assert "name must be a non-empty string" in errors
+
+
 def test_validate_config_invalid_format_version(temp_examples_dir: Path) -> None:
     """Test schema validation catches unsupported format version."""
     config = {

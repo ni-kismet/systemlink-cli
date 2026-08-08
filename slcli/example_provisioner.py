@@ -3517,7 +3517,11 @@ class ExampleProvisioner:
             return None
 
     def _resolve_example_file(self, file_path: str) -> Optional[Path]:
-        """Resolve a fixture file while keeping it inside the fixture directory."""
+        """Resolve a fixture file and contain it when a fixture directory is configured.
+
+        Without a fixture directory, return the path as provided for backwards
+        compatibility with callers that supply their own working-directory context.
+        """
         if self.example_dir:
             example_dir = self.example_dir
         elif self.example_name:

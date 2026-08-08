@@ -173,6 +173,10 @@ class ExampleLoader:
         if missing_fields:
             errors.append(f"Missing required fields: {', '.join(sorted(missing_fields))}")
 
+        name = config.get("name")
+        if "name" in config and (not isinstance(name, str) or not name.strip()):
+            errors.append("name must be a non-empty string")
+
         # Check format_version is supported
         version = config.get("format_version")
         if version and version not in self.SUPPORTED_SCHEMA_VERSIONS:
