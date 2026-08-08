@@ -813,6 +813,10 @@ slcli example install demo-data-1 \
 # Dry-run
 slcli example install demo-data-1 --workspace Training --dry-run
 
+# Install an external fixture; referenced files are resolved beside config.yaml
+slcli example install --file ./fixtures/example-resources/config.yaml \
+  --workspace Training
+
 # Install the phase-one Nigel query fixture and write its completeness manifest
 slcli example install demo-data-3 \
   --workspace Training --format json --audit-log nigel-fixture-manifest.json
@@ -822,6 +826,7 @@ slcli example delete demo-data-1 \
   --workspace Training --audit-log delete-log.json</code></pre>
 
       <p>Available examples:</p>
+      <p>For local fixtures, use <code>--file PATH</code> with a <code>config.yaml</code> file. Relative <code>file_path</code>, <code>rows_file</code>, and <code>data_file</code> references resolve relative to that configuration file's directory.</p>
       <ul>
         <li><strong>demo-data-1</strong> — end-to-end workflow with systems, assets, DUTs, plans, and results</li>
         <li><strong>demo-data-2</strong> — focused test-plan setup with reusable assets and templates</li>
