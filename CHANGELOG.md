@@ -2,6 +2,13 @@
 
 <!-- towncrier release notes start -->
 
+## v1.21.0 (2026-08-08)
+
+### Features
+
+- Add the Nigel Systems and Products query fixture and extend example provisioning to support feeds, deployment states, tags, specifications, alarms, and populated DataFrame rows. (example-provisioner-resource-support)
+
+
 ## v1.20.0 (2026-08-07)
 
 ### Features
