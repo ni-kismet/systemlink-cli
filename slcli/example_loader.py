@@ -105,6 +105,31 @@ class ExampleLoader:
                 f"Example '{example_name}' not found. " f"Config path: {config_path}"
             )
 
+        return self._load_config(config_path, example_name)
+
+    def load_config_file(self, config_file: Path) -> Dict[str, Any]:
+        """Load and validate an example configuration from an arbitrary file.
+
+        Args:
+            config_file: Path to the example's YAML configuration file.
+
+        Returns:
+            Validated config dictionary.
+
+        Raises:
+            FileNotFoundError: If the config file does not exist.
+            ValueError: If config fails validation.
+        """
+        config_path = config_file.expanduser().resolve()
+        if not config_path.exists():
+            raise FileNotFoundError(f"Example config not found: {config_path}")
+        if not config_path.is_file():
+            raise ValueError(f"Example config is not a file: {config_path}")
+
+        return self._load_config(config_path, str(config_path))
+
+    def _load_config(self, config_path: Path, source_name: str) -> Dict[str, Any]:
+        """Load and validate a config at a known path."""
         # Load YAML
         try:
             with open(config_path, "r") as f:
@@ -118,14 +143,14 @@ class ExampleLoader:
         # Validate schema
         errors = self.validate_config(config)
         if errors:
-            msg = f"Config validation failed for '{example_name}':\n"
+            msg = f"Config validation failed for '{source_name}':\n"
             msg += "\n".join(f"  - {e}" for e in errors)
             raise ValueError(msg)
 
         # Validate references
         ref_errors = self._validate_references(config)
         if ref_errors:
-            msg = f"Reference validation failed for '{example_name}':\n"
+            msg = f"Reference validation failed for '{source_name}':\n"
             msg += "\n".join(f"  - {e}" for e in ref_errors)
             raise ValueError(msg)
 

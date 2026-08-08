@@ -89,6 +89,27 @@ def test_load_valid_config(temp_examples_dir: Path) -> None:
     assert len(loaded["resources"]) == 1
 
 
+def test_load_config_file_from_arbitrary_directory(temp_examples_dir: Path) -> None:
+    """Test loading a config file outside the bundled examples directory."""
+    import yaml  # type: ignore
+
+    example_dir = temp_examples_dir / "example-resources"
+    example_dir.mkdir()
+    config_path = example_dir / "config.yaml"
+    config = {
+        "format_version": "1.0",
+        "name": "example-resources",
+        "title": "Nigel Evaluation Fixture",
+        "resources": [],
+    }
+    with open(config_path, "w") as f:
+        yaml.dump(config, f)
+
+    loaded = ExampleLoader(temp_examples_dir).load_config_file(config_path)
+
+    assert loaded["name"] == "example-resources"
+
+
 def test_load_missing_config(temp_examples_dir: Path) -> None:
     """Test loading a non-existent example raises FileNotFoundError."""
     loader = ExampleLoader(temp_examples_dir)

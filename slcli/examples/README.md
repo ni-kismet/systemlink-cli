@@ -76,6 +76,12 @@ slcli example install demo-data-2 -w <workspace> --audit-log install-log.json --
 slcli example install demo-data-3 \
   -w <workspace> --format json --audit-log nigel-fixture-manifest.json
 
+# Install an example from any local directory. Paths in config.yaml are
+# resolved relative to the directory containing config.yaml.
+slcli example install \
+  --file ./fixtures/example-resources/config.yaml \
+  --workspace <workspace>
+
 # Delete example resources from a workspace
 slcli example delete demo-data-2 -w <workspace-id> --dry-run
 slcli example delete demo-data-2 -w <workspace>
@@ -85,6 +91,10 @@ slcli example delete demo-data-2 -w <workspace> --audit-log delete-log.json --fo
 
 ## Creating New Examples
 
+For the complete authoring contract, including external fixture directories,
+resource references, file-backed resources, and validation caveats, see the
+[Example Fixture Authoring Guide](../skills/slcli/references/example-authoring.md).
+
 1. Create a new directory in `examples/`:
 
    ```
@@ -93,12 +103,36 @@ slcli example delete demo-data-2 -w <workspace> --audit-log delete-log.json --fo
    └── README.md            # Optional: Setup guide
    ```
 
-2. Create `config.yaml` following the schema in `_schema/schema-v1.0.json`
+2. Create `config.yaml` following the schema in
+  [`_schema/schema-v1.0.json`](_schema/schema-v1.0.json). Use the closest
+  bundled example as the reference for resource-specific `properties`.
 
 3. Test locally:
    ```bash
-   slcli example info my-example
+  slcli example install my-example --workspace <workspace> --dry-run
    ```
+
+External fixtures use the same format and do not need to be copied into the
+package:
+
+```text
+fixtures/example-resources/
+├── config.yaml
+├── README.md
+└── product-xyz-specification.csv
+```
+
+```bash
+slcli example install \
+  --file fixtures/example-resources/config.yaml \
+  --workspace <workspace> \
+  --dry-run
+```
+
+Paths in `file_path`, `rows_file`, and `data_file` properties are resolved
+relative to the directory containing `config.yaml`. Only files named by a
+resource are uploaded; a sibling README or data file is not uploaded merely
+because it is present.
 
 ## Configuration Format
 
@@ -158,9 +192,13 @@ cleanup:
 ## Notes
 
 - Examples are versioned with the `format_version` field (currently 1.0)
-- Resource cleanup is tag-based and order-aware
+- Resource cleanup uses example ownership tags and reverse resource order. The
+  `cleanup` block is descriptive metadata; `example delete` does not currently
+  consume its custom order or confirmation settings.
 - References use `${id_reference}` syntax for interpolation
+- Resources are provisioned in list order, so referenced resources must appear first
 - All resources created by an example are tagged with the example name for safe deletion
+- The JSON Schema is the authoring reference; runtime validation currently checks only a subset of its types and patterns
 - Examples with `install_manifest: true` emit grouped resource actions and a
   `validation.complete` flag when JSON output is requested. Unsupported
   capabilities or failed relationships make the command return a nonzero exit

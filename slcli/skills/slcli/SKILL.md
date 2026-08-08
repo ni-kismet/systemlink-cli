@@ -4,7 +4,9 @@ description: >-
   Query and manage NI SystemLink resources using the slcli command-line interface.
   Use when the user asks about test results, assets, systems, work items,
   specifications, webapps, notebooks, dataframes, files, feeds, tags,
-  authorization, users, or other SystemLink resource workflows.
+  authorization, users, example fixture authoring, example config.yaml files,
+  or other SystemLink resource workflows. Use it when the user asks to create,
+  validate, review, install, or troubleshoot a SystemLink example fixture.
 argument-hint: >-
   Describe the SystemLink workflow you want to inspect, automate, scaffold, or
   troubleshoot.
@@ -20,6 +22,7 @@ SystemLink resource workflow that should be driven from the CLI.
 - Querying or managing SystemLink resources through `slcli`
 - Looking up exact command syntax, flags, or JSON output patterns
 - Building command sequences for analysis, provisioning, packaging, or cleanup
+- Creating, validating, or reviewing `slcli example` fixture YAML
 - Troubleshooting CLI behavior, platform gating, or command selection
 
 ## Reference docs
@@ -29,6 +32,7 @@ Load only what the current task needs.
 | Topic | File | When to load |
 | --- | --- | --- |
 | CLI command reference | [commands.md](./references/commands.md) | Looking up command syntax, options, or examples |
+| Example fixture authoring | [example-authoring.md](./references/example-authoring.md) | Creating or reviewing `config.yaml`, resource references, file-backed fixtures, or validation behavior |
 | Datasheet-to-spec workflow | [datasheet-workflow.md](./references/datasheet-workflow.md) | Importing specifications from PDF, CSV, or structured text |
 | Minimal spec import payload | [import-specs.min.json](./references/import-specs.min.json) | Need a bundled create-compatible starter payload or conditions |
 | Spec import helper | [spec_import_helper.py](./scripts/spec_import_helper.py) | Scaffold or validate a datasheet spec import payload |
@@ -49,9 +53,10 @@ Load only what the current task needs.
 4. Use convenience filters first, then fall back to `--filter` with `--substitution` for complex queries.
 5. Stay scoped to the user’s requested resource or workflow.
 6. Load deeper references only when the command surface alone is not enough.
-7. Prefer workspace IDs over names in scripted workflows when an endpoint is strict about identity.
-8. Use `make_api_request` from `slcli.utils` for helper scripts so auth, SSL, and error handling stay consistent.
-9. For datasheet imports, default to autonomy when the product or workspace can be resolved unambiguously.
+7. For example authoring or review, load `example-authoring.md` before proposing YAML.
+8. Prefer workspace IDs over names in scripted workflows when an endpoint is strict about identity.
+9. Use `make_api_request` from `slcli.utils` for helper scripts so auth, SSL, and error handling stay consistent.
+10. For datasheet imports, default to autonomy when the product or workspace can be resolved unambiguously.
 
 ## Common command groups
 

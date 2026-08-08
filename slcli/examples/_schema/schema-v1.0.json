@@ -25,6 +25,10 @@
       "type": "string",
       "description": "Human-readable example title"
     },
+    "example_version": {
+      "type": "string",
+      "description": "Fixture data version used in the optional install manifest"
+    },
     "description": {
       "type": "string",
       "description": "Detailed description of what example includes"
@@ -64,6 +68,15 @@
       ],
       "description": "Target workspace name or null for default"
     },
+    "workspace_name": {
+      "type": "string",
+      "description": "Workspace name recorded in the optional install manifest"
+    },
+    "install_manifest": {
+      "type": "boolean",
+      "default": false,
+      "description": "Emit the grouped install manifest when JSON output is requested"
+    },
     "resources": {
       "type": "array",
       "items": {
@@ -79,19 +92,19 @@
           "items": {
             "type": "string"
           },
-          "description": "Resource types to delete in this order"
+          "description": "Descriptive intended deletion order; generic example delete currently reverses the resources list"
         },
         "filter_tags": {
           "type": "array",
           "items": {
             "type": "string"
           },
-          "description": "Only delete resources with these tags"
+          "description": "Tags intended for cleanup filtering"
         },
         "require_confirmation": {
           "type": "boolean",
           "default": true,
-          "description": "Require confirmation before cleanup"
+          "description": "Descriptive confirmation preference; generic example delete does not currently prompt from this field"
         }
       }
     },
@@ -102,6 +115,27 @@
           "type": "boolean",
           "default": true,
           "description": "Workspace must exist before install"
+        },
+        "required_relationships": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          },
+          "description": "Relationships the fixture expects to be queryable after install"
+        },
+        "failed_relationships": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          },
+          "description": "Relationships that failed validation"
+        },
+        "unsupported": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          },
+          "description": "Capabilities intentionally not represented by the fixture"
         }
       }
     },
