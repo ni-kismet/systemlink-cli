@@ -8,14 +8,15 @@ description: |
 
   This release provisions the resource families supported by the generic
   example provisioner: products, virtual systems, DUT and instrument assets,
-  test results with steps, a deployment state, feed and tag metadata/history, a
-  specification condition metadata, populated DataFrame tables, and supporting files.
+  test results with steps, a deployment state, feed and package metadata,
+  tag metadata/history, specification condition metadata, populated DataFrame
+  tables, and supporting files.
   Unsupported capabilities are declared below and make the install exit with a
   nonzero status. The installer must not present this phase-one fixture as the
   complete 14-example acceptance dataset.
 author: "NI"
 created_date: "2026-08-05"
-updated_date: "2026-08-07"
+updated_date: "2026-08-11"
 tags:
   - "nigel"
   - "query-fixture"
@@ -38,8 +39,6 @@ validation:
     - "workspace lifecycle: example install requires an existing workspace and does not create or delete it"
     - "system package inventory: virtual-system creation does not seed enumerable packages or versions"
     - "system jobs: the generic example provisioner has no queued/running/failed job seed path"
-    - "feed packages: feed creation and package upload are asynchronous CLI workflows, not fixture resources"
-    - "deployment state package inventory: state creation does not seed package inventory"
     - "specification condition evidence: /nispec/v1 stores expected conditions only; it has no outcome or test-result evidence API"
     - "system-to-asset query projection: location.minionId is provisioned, but the accepted CLI/Nigel retrieval path is not verified"
     - "result-to-instrument query projection: asset ID and channel fields are provisioned, but the accepted CLI/Nigel retrieval path is not verified"
@@ -73,12 +72,47 @@ resources:
     id_reference: "feed_nigel_windows"
     tags: ["demo-data-3"]
 
+  - type: "package"
+    name: "Nigel Fixture Agent"
+    properties:
+      feed_id: "${feed_nigel_windows}"
+      source:
+        type: "dummy"
+        package_name: "nigel-fixture-agent"
+        version: "1.0.0"
+        architecture: "all"
+        files:
+          README.txt: "Deterministic fixture package for Systems query validation.\n"
+          package-info.txt: "nigel-fixture-agent 1.0.0\n"
+    id_reference: "package_nigel_agent"
+    tags: ["demo-data-3"]
+
+  - type: "package"
+    name: "Nigel Fixture Agent Update"
+    properties:
+      feed_id: "${feed_nigel_windows}"
+      source:
+        type: "dummy"
+        package_name: "nigel-fixture-agent"
+        version: "1.1.0"
+        architecture: "all"
+        files:
+          README.txt: "Deterministic fixture package update for Systems query validation.\n"
+          package-info.txt: "nigel-fixture-agent 1.1.0\n"
+    id_reference: "package_nigel_agent_update"
+    tags: ["demo-data-3"]
+
   - type: "state"
     name: "Nigel Fixture Windows State"
     properties:
       description: "Windows deployment state for query fixtures"
       distribution: "WINDOWS"
       architecture: "X64"
+      feeds:
+        - "${feed_nigel_windows}"
+      packages:
+        - "${package_nigel_agent}"
+        - "${package_nigel_agent_update}"
       properties:
         fixture: "demo-data-3"
     id_reference: "state_nigel_windows"

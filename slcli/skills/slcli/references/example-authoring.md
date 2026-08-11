@@ -99,6 +99,7 @@ The supported `type` values are:
 | `file` | Supporting file upload | [spec-compliance-notebooks](../../../examples/spec-compliance-notebooks/config.yaml) |
 | `notebook` | Jupyter notebook upload | [spec-compliance-notebooks](../../../examples/spec-compliance-notebooks/config.yaml) |
 | `feed` | Package feed metadata | [demo-data-3](../../../examples/demo-data-3/config.yaml) |
+| `package` | Package uploaded to a feed | This guide's package example |
 | `state` | Deployment state metadata | [demo-data-3](../../../examples/demo-data-3/config.yaml) |
 | `tag` | Workspace tag and optional history | [demo-data-3](../../../examples/demo-data-3/config.yaml) |
 | `specification` | Product specification and conditions | [demo-data-3](../../../examples/demo-data-3/config.yaml) |
@@ -107,6 +108,62 @@ The supported `type` values are:
 The `properties` object is intentionally resource-specific and open-ended in
 the common schema. Start with the closest bundled example and verify the
 property names against the corresponding `slcli` command or API model.
+
+### Package Resources
+
+Place a package after its feed and reference the feed with `${feed_reference}`:
+
+```yaml
+- type: "package"
+  name: "Fixture package"
+  properties:
+    feed_id: "${feed_fixture}"
+    source:
+      type: "dummy"
+      package_name: "fixture-package"
+      version: "1.0.0"
+      architecture: "all"
+      files:
+        README.txt: "Fixture payload\n"
+  id_reference: "package_fixture"
+```
+
+The `source.type` values are:
+
+- `dummy`: builds a minimal `.nipkg` from inline text or byte `files`. The
+  generated folder uses `<package_name>_<version>_<architecture>` naming.
+- `file`: uploads a `.nipkg` at a path relative to the fixture directory, for
+  example `source: {type: file, path: packages/fixture_1.0.0_all.nipkg}`.
+- `repository`: downloads an explicitly declared HTTP(S) `.nipkg` URL before
+  upload. Use a direct package URL discovered from NI repository/feed metadata;
+  the repository catalog itself does not provide package bytes through this
+  resource. The URL must end in `.nipkg`.
+
+All package sources are uploaded through the existing feed package helpers.
+Package identity is the target feed plus package name and version, and package
+cleanup runs before the feed cleanup because resources are deleted in reverse
+configuration order.
+
+To include a provisioned feed and packages in a deployment state, place the
+state after those resources and use their references as list entries:
+
+```yaml
+- type: "state"
+  name: "Fixture state"
+  properties:
+    distribution: "WINDOWS"
+    architecture: "X64"
+    feeds:
+      - "${feed_fixture}"
+    packages:
+      - "${package_fixture}"
+  id_reference: "state_fixture"
+```
+
+The provisioner resolves feed references to `{name, url, enabled, compressed}`
+objects and package references to `{name, version, installRecommends}` objects.
+This keeps server IDs out of the state content and makes reinstalling an
+existing fixture refresh its state inventory.
 
 ## File-Backed Resources
 

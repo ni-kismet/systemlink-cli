@@ -74,13 +74,6 @@ slcli webapp manifest init ./my-dashboard \
 
 # Package the app and generate the thin submission manifest.json
 slcli webapp pack --config ./my-dashboard/nipkg.config.json
-
-# Provision a demo environment
-slcli example install demo-data-1 --workspace Training
-
-# Install an external example fixture and its sibling reference files
-slcli example install --file ./fixtures/example-resources/config.yaml \
-       --workspace nigel-test-workspace
 ```
 
 ## Color Output

@@ -83,3 +83,9 @@ Load only what the current task needs.
 | `workspace` | Workspaces | `list`, `get` |
 | `skill` | AI skill installation | `install` |
 | `example` | Demo provisioning | `list`, `install`, `delete` |
+
+Example package fixtures are declared as `package` resources after a `feed`
+resource. Use `source.type: dummy` for deterministic packages, `file` for a
+fixture-relative `.nipkg`, or `repository` for an explicit HTTPS package URL.
+The repository catalog can identify packages and feeds, but package bytes must
+come from a direct package URL or an existing feed download path.

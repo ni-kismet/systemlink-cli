@@ -7,6 +7,8 @@ Supports dry-run mode for validation without creating resources.
 from __future__ import annotations
 
 import json as json_module
+import re
+import tempfile
 import urllib.parse
 from dataclasses import dataclass
 from enum import Enum
@@ -16,7 +18,8 @@ from typing import Any, Dict, List, Optional, Tuple
 import click
 import requests
 
-from .utils import get_base_url, get_headers, make_api_request
+from .utils import get_base_url, get_headers, get_ssl_verify, make_api_request
+from .webapp_click import pack_folder_to_nipkg
 
 
 class ProvisioningAction(Enum):
@@ -216,6 +219,7 @@ class ExampleProvisioner:
                     "tag": self._delete_tag,
                     "specification": self._delete_specification,
                     "feed": self._delete_feed,
+                    "package": self._delete_package,
                     "alarm": self._delete_alarm,
                 }
                 delete_fn = delete_map.get(rtype)
@@ -298,6 +302,7 @@ class ExampleProvisioner:
             "tag": self._create_tag,
             "specification": self._create_specification,
             "feed": self._create_feed,
+            "package": self._create_package,
             "alarm": self._create_alarm,
         }
 
@@ -374,6 +379,8 @@ class ExampleProvisioner:
                     str(props_with_name.get("platform", "")) or None,
                     ownership_marker=self._resource_ownership_marker(props_with_name),
                 )
+            elif rtype == "package":
+                existing_id = self._get_package_by_identity(props_with_name)
             elif rtype == "alarm":
                 alarm_id = str(
                     props_with_name.get("alarm_id", props_with_name.get("alarmId", rname))
@@ -397,6 +404,18 @@ class ExampleProvisioner:
                 elif rtype == "tag":
                     try:
                         self._write_tag_history(props_with_name)
+                    except Exception as exc:
+                        return ProvisioningResult(
+                            id_reference=rid,
+                            resource_type=rtype,
+                            resource_name=rname,
+                            action=ProvisioningAction.FAILED,
+                            server_id=str(existing_id),
+                            error=str(exc),
+                        )
+                elif rtype == "state":
+                    try:
+                        self._update_state(str(existing_id), props_with_name)
                     except Exception as exc:
                         return ProvisioningResult(
                             id_reference=rid,
@@ -514,6 +533,27 @@ class ExampleProvisioner:
             product_id = self._get_product_by_name(str(referenced_resource.get("name", "")))
             if product_id:
                 resolved[key] = product_id
+
+        for key in ("feed_id", "feedId"):
+            value = resolved.get(key)
+            if not isinstance(value, str) or not value.startswith("${") or not value.endswith("}"):
+                continue
+            reference = value[2:-1]
+            referenced_resource = resources_by_reference.get(reference)
+            if not referenced_resource or referenced_resource.get("type") != "feed":
+                continue
+            feed_properties = referenced_resource.get("properties", {})
+            if not isinstance(feed_properties, dict):
+                feed_properties = {}
+            feed_properties = dict(feed_properties)
+            feed_properties["name"] = referenced_resource.get("name", "")
+            feed_id = self._get_feed_by_name(
+                str(feed_properties["name"]),
+                str(feed_properties.get("platform", "")) or None,
+                ownership_marker=self._resource_ownership_marker(feed_properties),
+            )
+            if feed_id:
+                resolved[key] = feed_id
         return resolved
 
     @staticmethod
@@ -539,8 +579,8 @@ class ExampleProvisioner:
             return f"slcli-example:{self.example_name}"
         return None
 
-    def _create_state(self, props: Dict[str, Any]) -> Optional[str]:
-        """Create a systems state and return its server ID."""
+    def _build_state_payload(self, props: Dict[str, Any]) -> Dict[str, Any]:
+        """Build a systems state payload, resolving fixture resource references."""
         payload: Dict[str, Any] = {
             "name": props.get("name", ""),
             "distribution": props.get("distribution", ""),
@@ -551,13 +591,16 @@ class ExampleProvisioner:
 
         for source_key, api_key in (
             ("description", "description"),
-            ("feeds", "feeds"),
-            ("packages", "packages"),
             ("system_image", "systemImage"),
             ("systemImage", "systemImage"),
         ):
             if source_key in props:
                 payload[api_key] = props[source_key]
+
+        if "feeds" in props:
+            payload["feeds"] = self._materialize_state_feeds(props["feeds"])
+        if "packages" in props:
+            payload["packages"] = self._materialize_state_packages(props["packages"])
 
         state_properties = props.get("properties")
         if isinstance(state_properties, dict):
@@ -570,6 +613,112 @@ class ExampleProvisioner:
         if state_properties:
             payload["properties"] = state_properties
 
+        return payload
+
+    def _materialize_state_feeds(self, values: Any) -> Any:
+        """Resolve feed IDs into the structured feed objects required by states."""
+        if values is None:
+            return None
+        if not isinstance(values, list):
+            raise ValueError("State feeds must be a list")
+        return [self._materialize_state_feed(value) for value in values]
+
+    def _materialize_state_feed(self, value: Any) -> Dict[str, Any]:
+        """Resolve one state feed reference or preserve an explicit feed object."""
+        if isinstance(value, str):
+            return self._state_feed_from_id(value)
+        if not isinstance(value, dict):
+            raise ValueError("State feed entries must be references or objects")
+
+        reference = value.get("reference")
+        if reference is None:
+            return dict(value)
+        if not isinstance(reference, str) or not reference:
+            raise ValueError("State feed reference must be a non-empty string")
+
+        feed = self._state_feed_from_id(reference)
+        for key in ("name", "url", "enabled", "compressed"):
+            if key in value:
+                feed[key] = value[key]
+        return feed
+
+    def _state_feed_from_id(self, feed_id: str) -> Dict[str, Any]:
+        """Build a state feed object from a provisioned feed ID."""
+        from .feed_click import _get_feed, _get_feed_base_url
+
+        feed_data = _get_feed(feed_id)
+        feed_name = feed_data.get("name") or feed_data.get("feedName")
+        if not feed_name:
+            raise ValueError(f"Feed {feed_id} has no name")
+
+        feed_url = (
+            feed_data.get("url")
+            or feed_data.get("directoryUri")
+            or feed_data.get("directoryURI")
+            or f"{_get_feed_base_url()}/feeds/{urllib.parse.quote(feed_id, safe='')}/files"
+        )
+        return {
+            "name": str(feed_name),
+            "url": str(feed_url),
+            "enabled": True,
+            "compressed": False,
+        }
+
+    def _materialize_state_packages(self, values: Any) -> Any:
+        """Resolve package IDs into the structured package objects required by states."""
+        if values is None:
+            return None
+        if not isinstance(values, list):
+            raise ValueError("State packages must be a list")
+        return [self._materialize_state_package(value) for value in values]
+
+    def _materialize_state_package(self, value: Any) -> Dict[str, Any]:
+        """Resolve one state package reference or preserve an explicit package object."""
+        if isinstance(value, str):
+            return self._state_package_from_id(value)
+        if not isinstance(value, dict):
+            raise ValueError("State package entries must be references or objects")
+
+        reference = value.get("reference")
+        if reference is None:
+            return dict(value)
+        if not isinstance(reference, str) or not reference:
+            raise ValueError("State package reference must be a non-empty string")
+
+        package = self._state_package_from_id(reference)
+        if "installRecommends" in value:
+            package["installRecommends"] = value["installRecommends"]
+        return package
+
+    def _state_package_from_id(self, package_id: str) -> Dict[str, Any]:
+        """Build a state package object from a provisioned package ID."""
+        from .feed_click import _get_feed_base_url
+
+        package_url = f"{_get_feed_base_url()}/packages/{urllib.parse.quote(package_id, safe='')}"
+        resp = make_api_request("GET", package_url, payload=None, handle_errors=False)
+        data = resp.json()
+        if isinstance(data, dict) and isinstance(data.get("package"), dict):
+            data = data["package"]
+        if not isinstance(data, dict):
+            raise ValueError(f"Package {package_id} response is invalid")
+
+        metadata = data.get("metadata", {})
+        if not isinstance(metadata, dict):
+            metadata = {}
+        package_name = metadata.get("packageName") or metadata.get("name") or data.get("name")
+        version = metadata.get("version") or data.get("version")
+        if not package_name or not version:
+            raise ValueError(f"Package {package_id} has incomplete metadata")
+        return {
+            "name": str(package_name),
+            "version": str(version),
+            "installRecommends": True,
+        }
+
+    def _create_state(self, props: Dict[str, Any]) -> Optional[str]:
+        """Create a systems state and return its server ID."""
+        payload = self._build_state_payload(props)
+
         resp = make_api_request(
             "POST",
             f"{get_base_url()}/nisystemsstate/v1/states",
@@ -580,6 +729,15 @@ class ExampleProvisioner:
         if not isinstance(data, dict) or not data.get("id"):
             return None
         return str(data["id"])
+
+    def _update_state(self, state_id: str, props: Dict[str, Any]) -> None:
+        """Update an existing systems state to match the fixture configuration."""
+        make_api_request(
+            "PATCH",
+            f"{get_base_url()}/nisystemsstate/v1/states/{state_id}",
+            self._build_state_payload(props),
+            handle_errors=False,
+        )
 
     def _get_state_by_name(
         self, name: str, ownership_marker: Optional[str] = None
@@ -1186,6 +1344,216 @@ class ExampleProvisioner:
         if job_id:
             _wait_for_job(str(job_id), timeout=int(props.get("timeout", 300)))
         return feed_id
+
+    def _package_identity(self, props: Dict[str, Any]) -> Tuple[str, str, str]:
+        """Return the feed, package name, and version used to identify a package."""
+        feed_id = str(props.get("feed_id", props.get("feedId", "")))
+        source = props.get("source", {})
+        if not isinstance(source, dict):
+            source = {}
+        package_name = self._safe_package_component(
+            str(
+                source.get(
+                    "package_name",
+                    source.get(
+                        "package", props.get("package_name", props.get("name", "fixture-package"))
+                    ),
+                )
+            ),
+            "fixture-package",
+        )
+        version = self._safe_package_component(
+            str(source.get("version", props.get("version", "1.0.0"))), "1.0.0"
+        )
+        return feed_id, package_name, version
+
+    def _get_package_by_identity(self, props: Dict[str, Any]) -> Optional[str]:
+        """Find an example package by feed, package name, and version."""
+        from .feed_click import _list_packages
+
+        feed_id, package_name, version = self._package_identity(props)
+        if not feed_id or not package_name or not version:
+            return None
+
+        try:
+            packages = _list_packages(feed_id)
+        except Exception:
+            return None
+
+        for package in packages:
+            metadata = package.get("metadata", {})
+            if not isinstance(metadata, dict):
+                metadata = {}
+            actual_name = metadata.get("packageName", metadata.get("name", package.get("name")))
+            actual_version = metadata.get("version", package.get("version"))
+            if str(actual_name) == package_name and str(actual_version) == version:
+                package_id = package.get("id", package.get("packageId"))
+                if package_id:
+                    return str(package_id)
+        return None
+
+    @staticmethod
+    def _safe_package_component(value: str, fallback: str) -> str:
+        """Convert a package name component into a safe folder-name component."""
+        normalized = re.sub(r"[^A-Za-z0-9._-]+", "-", value).strip("-._")
+        return normalized or fallback
+
+    def _write_dummy_package_payload(self, folder: Path, files: Any) -> None:
+        """Write inline dummy package files while preventing path escapes."""
+        if files is None:
+            files = {"README.txt": "Package created by slcli example provisioner\n"}
+        if not isinstance(files, dict):
+            raise ValueError("Dummy package source 'files' must be an object")
+
+        root = folder.resolve()
+        for relative_name, content in files.items():
+            if not isinstance(relative_name, str) or not relative_name.strip():
+                raise ValueError("Dummy package file names must be non-empty strings")
+            destination = (root / relative_name).resolve()
+            try:
+                destination.relative_to(root)
+            except ValueError as exc:
+                raise ValueError(
+                    f"Dummy package file must remain inside the package folder: {relative_name}"
+                ) from exc
+            destination.parent.mkdir(parents=True, exist_ok=True)
+            if isinstance(content, str):
+                destination.write_text(content, encoding="utf-8")
+            elif isinstance(content, bytes):
+                destination.write_bytes(content)
+            else:
+                raise ValueError(f"Dummy package content must be text or bytes: {relative_name}")
+
+    def _materialize_package(self, props: Dict[str, Any], output_dir: Path) -> Path:
+        """Create or resolve the package file described by a package resource."""
+        source = props.get("source", {"type": "dummy"})
+        if not isinstance(source, dict):
+            raise ValueError("Package source must be an object")
+        source_type = str(source.get("type", "dummy")).lower()
+
+        if source_type == "file":
+            file_path = source.get("path", source.get("file"))
+            if not isinstance(file_path, str) or not file_path:
+                raise ValueError("File package source requires 'path'")
+            resolved_file = self._resolve_example_file(file_path)
+            if resolved_file is None or not resolved_file.is_file():
+                raise FileNotFoundError(f"Package file not found: {file_path}")
+            if resolved_file.suffix.lower() != ".nipkg":
+                raise ValueError("Package file source must point to a .nipkg file")
+            return resolved_file
+
+        if source_type == "repository":
+            package_url = source.get("url", source.get("package_url"))
+            if not isinstance(package_url, str) or not package_url:
+                raise ValueError("Repository package source requires 'url'")
+            parsed = urllib.parse.urlparse(package_url)
+            if parsed.scheme not in {"http", "https"} or not parsed.netloc:
+                raise ValueError("Repository package URL must use http or https")
+            filename = Path(parsed.path).name or "repository-package.nipkg"
+            if not filename.lower().endswith(".nipkg"):
+                raise ValueError("Repository package URL must point to a .nipkg file")
+            destination = output_dir / filename
+            max_size_bytes = int(source.get("max_size_bytes", 1024 * 1024 * 1024))
+            if max_size_bytes <= 0:
+                raise ValueError("Repository package 'max_size_bytes' must be positive")
+            response = requests.get(
+                package_url,
+                stream=True,
+                timeout=int(source.get("timeout", props.get("timeout", 300))),
+                verify=get_ssl_verify(package_url),
+            )
+            try:
+                response.raise_for_status()
+                content_length = response.headers.get("Content-Length")
+                if content_length and int(content_length) > max_size_bytes:
+                    raise ValueError("Repository package exceeds the configured size limit")
+                downloaded_bytes = 0
+                with open(destination, "wb") as package_file:
+                    for chunk in response.iter_content(chunk_size=8192):
+                        if chunk:
+                            downloaded_bytes += len(chunk)
+                            if downloaded_bytes > max_size_bytes:
+                                raise ValueError(
+                                    "Repository package exceeds the configured size limit"
+                                )
+                            package_file.write(chunk)
+            except Exception:
+                destination.unlink(missing_ok=True)
+                raise
+            finally:
+                response.close()
+            return destination
+
+        if source_type != "dummy":
+            raise ValueError(f"Unsupported package source type: {source_type}")
+
+        package_name = self._safe_package_component(
+            str(
+                source.get(
+                    "package_name",
+                    source.get(
+                        "package", props.get("package_name", props.get("name", "fixture-package"))
+                    ),
+                )
+            ),
+            "fixture-package",
+        )
+        version = self._safe_package_component(
+            str(source.get("version", props.get("version", "1.0.0"))), "1.0.0"
+        )
+        architecture = self._safe_package_component(str(source.get("architecture", "all")), "all")
+        package_folder = output_dir / f"{package_name}_{version}_{architecture}"
+        package_folder.mkdir(parents=True, exist_ok=True)
+        self._write_dummy_package_payload(package_folder, source.get("files"))
+        return pack_folder_to_nipkg(package_folder)
+
+    def _create_package(self, props: Dict[str, Any]) -> Optional[str]:
+        """Create a package file and upload it to an existing feed."""
+        from .feed_click import _list_packages, _upload_package, _wait_for_job
+
+        feed_id = str(props.get("feed_id", props.get("feedId", "")))
+        if not feed_id:
+            return None
+
+        with tempfile.TemporaryDirectory(prefix="slcli-example-package-") as temp_dir:
+            package_path = self._materialize_package(props, Path(temp_dir))
+            upload_result = _upload_package(
+                feed_id,
+                str(package_path),
+                overwrite=bool(props.get("overwrite", False)),
+            )
+            job_id = upload_result.get("jobId", upload_result.get("job", {}).get("id", ""))
+            package_id = upload_result.get("id", upload_result.get("packageId", ""))
+            if job_id:
+                completed_job = _wait_for_job(
+                    str(job_id),
+                    timeout=int(props.get("timeout", 300)),
+                    feed_id=feed_id,
+                )
+                package_id = completed_job.get("resourceId", package_id)
+            if not package_id:
+                package_id = self._get_package_by_identity(props)
+            if not package_id:
+                for package in _list_packages(feed_id):
+                    if Path(str(package.get("fileName", ""))).name == package_path.name:
+                        package_id = package.get("id", package.get("packageId", ""))
+                        break
+            if not package_id:
+                return None
+            self._last_resource_details = {"file": package_path.name, "feed_id": feed_id}
+            return str(package_id)
+
+    def _delete_package(self, props: Dict[str, Any]) -> Optional[str]:
+        """Delete an example package by its feed identity."""
+        from .feed_click import _delete_package as delete_package, _wait_for_job
+
+        package_id = self._get_package_by_identity(props)
+        if not package_id:
+            return None
+        job_id = delete_package(package_id)
+        if job_id:
+            _wait_for_job(str(job_id), timeout=int(props.get("timeout", 300)))
+        return package_id
 
     # --- Create methods (real API calls) ---
     def _create_location(self, props: Dict[str, Any]) -> str:
