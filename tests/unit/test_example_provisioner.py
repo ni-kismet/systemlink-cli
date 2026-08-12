@@ -1252,14 +1252,14 @@ def test_dummy_package_is_packed_uploaded_and_cleaned_up(
 
 
 @patch("slcli.feed_click._list_packages")
-def test_package_identity_uses_resource_name_and_default_version(mock_list: Any) -> None:
+def test_package_identity_normalizes_resource_name_and_default_version(mock_list: Any) -> None:
     mock_list.return_value = [
         {"id": "package-123", "metadata": {"packageName": "fixture-package", "version": "1.0.0"}}
     ]
     provisioner = ExampleProvisioner()
 
     assert (
-        provisioner._get_package_by_identity({"name": "fixture-package", "feed_id": "feed-123"})
+        provisioner._get_package_by_identity({"name": "Fixture Package", "feed_id": "feed-123"})
         == "package-123"
     )
 
@@ -1272,9 +1272,10 @@ def test_repository_package_source_downloads_nipkg(mock_get: Any, tmp_path: Any)
     mock_get.return_value = response
     provisioner = ExampleProvisioner()
 
+    output_dir = tmp_path / "downloads"
     package_path = provisioner._materialize_package(
         {"source": {"type": "repository", "url": "https://packages.example.test/daqmx.nipkg"}},
-        tmp_path,
+        output_dir,
     )
 
     assert package_path.read_bytes() == b"package-bytes"

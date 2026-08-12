@@ -18,7 +18,7 @@ from typing import Any, Dict, List, Optional, Tuple
 import click
 import requests
 
-from .utils import get_base_url, get_headers, get_ssl_verify, make_api_request
+from .utils import get_base_url, get_headers, get_ssl_verify, make_api_request, sanitize_filename
 from .webapp_click import pack_folder_to_nipkg
 
 
@@ -1351,7 +1351,7 @@ class ExampleProvisioner:
         source = props.get("source", {})
         if not isinstance(source, dict):
             source = {}
-        package_name = self._safe_package_component(
+        package_name = sanitize_filename(
             str(
                 source.get(
                     "package_name",
@@ -1452,6 +1452,7 @@ class ExampleProvisioner:
             filename = Path(parsed.path).name or "repository-package.nipkg"
             if not filename.lower().endswith(".nipkg"):
                 raise ValueError("Repository package URL must point to a .nipkg file")
+            output_dir.mkdir(parents=True, exist_ok=True)
             destination = output_dir / filename
             max_size_bytes = int(source.get("max_size_bytes", 1024 * 1024 * 1024))
             if max_size_bytes <= 0:
@@ -1487,7 +1488,7 @@ class ExampleProvisioner:
         if source_type != "dummy":
             raise ValueError(f"Unsupported package source type: {source_type}")
 
-        package_name = self._safe_package_component(
+        package_name = sanitize_filename(
             str(
                 source.get(
                     "package_name",
