@@ -2,6 +2,13 @@
 
 <!-- towncrier release notes start -->
 
+## v1.22.1 (2026-08-12)
+
+### Bug Fixes
+
+- Make `webapp new` reliably detect Node.js and npm on Windows and decode npm output without locale errors. (webapp-new-windows-bootstrap)
+
+
 ## v1.22.0 (2026-08-08)
 
 ### Features
