@@ -620,6 +620,7 @@ def test_resolve_webapp_template_directory_reports_selected_template_name(
 def test_webapp_new_runs_install_and_build(tmp_path: Path, monkeypatch: MonkeyPatch) -> None:
     runner = CliRunner()
     patch_keyring(monkeypatch)
+    monkeypatch.setattr(webapp_bootstrap.shutil, "which", lambda command: command)
 
     commands: List[List[str]] = []
 
@@ -632,6 +633,8 @@ def test_webapp_new_runs_install_and_build(tmp_path: Path, monkeypatch: MonkeyPa
     def fake_run(*args: Any, **kwargs: Any) -> Completed:
         commands.append(list(args[0]))
         assert kwargs["cwd"] == tmp_path / "build-check"
+        assert kwargs["encoding"] == "utf-8"
+        assert kwargs["errors"] == "replace"
         return Completed()
 
     monkeypatch.setattr("slcli.webapp_bootstrap.subprocess.run", fake_run)
@@ -642,8 +645,45 @@ def test_webapp_new_runs_install_and_build(tmp_path: Path, monkeypatch: MonkeyPa
     )
 
     assert result.exit_code == 0
-    assert commands == [["npm", "install"], ["npm", "run", "build"]]
+    npm_executable = "npm.cmd" if webapp_bootstrap.sys.platform == "win32" else "npm"
+    assert commands == [[npm_executable, "install"], [npm_executable, "run", "build"]]
     assert "npm run build passed" in result.output
+
+
+def test_webapp_new_reports_missing_prerequisites(tmp_path: Path, monkeypatch: MonkeyPatch) -> None:
+    runner = CliRunner()
+    patch_keyring(monkeypatch)
+    monkeypatch.setattr(webapp_bootstrap.shutil, "which", lambda command: None)
+
+    target = tmp_path / "missing-tools"
+    result = runner.invoke(cli, ["webapp", "new", "missing-tools", "--directory", str(target)])
+
+    assert result.exit_code == ExitCodes.GENERAL_ERROR
+    assert "Missing required webapp dependencies: Node.js, npm" in result.output
+    assert "Node.js 24+" in result.output
+    assert not target.exists()
+
+
+def test_webapp_local_command_uses_npm_cmd_on_windows(
+    tmp_path: Path, monkeypatch: MonkeyPatch
+) -> None:
+    commands: List[List[str]] = []
+
+    class Completed:
+        returncode = 0
+        stdout = ""
+        stderr = ""
+
+    def fake_run(*args: Any, **kwargs: Any) -> Completed:
+        commands.append(list(args[0]))
+        return Completed()
+
+    monkeypatch.setattr(webapp_bootstrap.sys, "platform", "win32")
+    monkeypatch.setattr("slcli.webapp_bootstrap.subprocess.run", fake_run)
+
+    webapp_bootstrap._run_webapp_local_command(tmp_path, ["npm", "install"], "npm install")
+
+    assert commands == [["npm.cmd", "install"]]
 
 
 def test_webapp_manifest_init_writes_pack_config_only(

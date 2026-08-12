@@ -1,6 +1,7 @@
 """Hosted Angular webapp bootstrap commands and template generation helpers."""
 
 import re
+import shutil
 import subprocess
 import sys
 from pathlib import Path
@@ -1006,15 +1007,45 @@ def _initialize_plugin_manager_files(directory: Path, project_name: str, publish
     save_json_file(config, str(directory / "nipkg.config.json"))
 
 
+def _npm_executable() -> str:
+    """Return the npm executable name for the current platform."""
+    return "npm.cmd" if sys.platform == "win32" else "npm"
+
+
+def _validate_webapp_prerequisites() -> None:
+    """Verify the external runtimes required to install and build a webapp."""
+    required_commands = [("Node.js", "node"), ("npm", _npm_executable())]
+    missing_commands = [
+        display_name
+        for display_name, executable in required_commands
+        if shutil.which(executable) is None
+    ]
+    if missing_commands:
+        click.echo(
+            "✗ Missing required webapp dependencies: " + ", ".join(missing_commands),
+            err=True,
+        )
+        click.echo(
+            "Install Node.js 24+ and ensure both node and npm are available on PATH.",
+            err=True,
+        )
+        sys.exit(ExitCodes.GENERAL_ERROR)
+
+
 def _run_webapp_local_command(directory: Path, command: List[str], label: str) -> None:
     """Run a local process for webapp generation and surface actionable failures."""
     click.echo(f"→ {label}")
+    local_command = list(command)
+    if sys.platform == "win32" and local_command and local_command[0] == "npm":
+        local_command[0] = _npm_executable()
     try:
         result = subprocess.run(
-            command,
+            local_command,
             cwd=directory,
             capture_output=True,
             text=True,
+            encoding="utf-8",
+            errors="replace",
             check=False,
         )
     except FileNotFoundError as exc:
@@ -1130,6 +1161,9 @@ def _generate_new_webapp(
             plugin_manager=plugin_manager,
         )
         return
+
+    if not skip_install:
+        _validate_webapp_prerequisites()
 
     _ensure_generation_directory(target_dir, force)
     _write_rendered_template_tree(template_dir, target_dir, replacements)
