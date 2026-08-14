@@ -1,0 +1,1674 @@
+---
+# SLE Example 
+format_version: "1.0"
+name: "example-cca-thermocycle-test-data"
+title: "example-cca-thermocycle-test-data"
+description: |
+  Training data for Exercise 5-1: Query and Visualize Parametric Test Data.
+
+  Provisions a realistic dataset of thermal cycle test results for the
+  Sensor CCA Xtreme battery pack product, collected across three test stands over
+  six weeks. Includes distractor products (Model XYZ, Sensor CCA Xtreme Rev B)
+  to populate the Products table and require students to locate the
+  correct product by part number.
+
+  Highlights built into the data for guided discovery:
+  - TC-03 runs consistently ~3-4 degrees C warmer than TC-01/TC-02
+    (indicating a potential calibration offset)
+  - TC-01 Run 5 (Feb 4): internal_resistance spikes to 21.4 mΩ (FAIL)
+    then recovers after maintenance
+  - TC-03 Run 4 (Jan 30): cell_temp_3 spikes to 44.8 °C (FAIL),
+    prompting stand recalibration
+  - Vcc Voltage and terminal voltage show a slow downward trend across
+    all stands, consistent with normal cell aging
+
+author: "Eric Franke - NI FAE"
+created_date: "2026-07-12"
+updated_date: "2026-07-12"
+tags:
+  - "training"
+  - "test-insights"
+  - "parametric"
+
+estimated_setup_time_minutes: 5
+required_systemlink_version: "2024.1"
+target_workspace: null
+
+resources:
+
+  # ==========================================================================
+  # LOCATION
+  # ==========================================================================
+
+  - type: "location"
+    name: "CCA Production Test Facility"
+    properties:
+      description: "Primary facility for Circuit Card Assembly production testing"
+      address: "A1A Beachfront Avenue"
+      city: "Melbourne"
+      state: "FL"
+      country: "USA"
+      building: "Main Plant"
+    id_reference: "loc_cca_prod_facility"
+    tags: ["example-cca-thermocycle-test-data"]
+
+  # ==========================================================================
+  # PRODUCTS
+  # ==========================================================================
+
+  # Primary product
+  - type: "product"
+    name: "Sensor CCA"
+    properties:
+      description: "Circuit Card Assembly with integrated sensor"
+      family: "Circuit Card Assembly"
+      category: "Sensor"
+      manufacturer: "Beachfront Sensor Systems"
+      part_number: "Sensor-CCA-X"
+    id_reference: "sensor_cca_x"
+    tags: ["example-cca-thermocycle-test-data"]
+
+  
+  # ==========================================================================
+  # TEST SYSTEMS (thermal cycle test stands)
+  # ==========================================================================
+
+  - type: "system"
+    name: "CCA Thermal Test System CTTS-001"
+    properties:
+      description: "CCA Thermal Test System"
+      location_id: "${loc_cca_prod_facility}"
+      serial_number: "CTTS-SN-00001"
+      status: "operational"
+    id_reference: "sys_ctts001"
+    tags: ["example-cca-thermocycle-test-data"]
+
+  - type: "system"
+    name: "CCA Thermal Test System CTTS-002"
+    properties:
+      description: "CCA Thermal Test System"
+      location_id: "${loc_cca_prod_facility}"
+      serial_number: "CTTS-SN-00002"
+      status: "operational"
+    id_reference: "sys_ctts002"
+    tags: ["example-cca-thermocycle-test-data"]
+
+
+  # ==========================================================================
+  # ASSETS
+  # ==========================================================================
+
+  # thermotron
+  - type: "asset"
+    name: "Thermotron SE-3000 Thermal Chamber #1"
+    properties:
+      description: "Environmental chamber for thermal cycle testing of CCA products"
+      system_id: "${sys_ctts001}"
+      location_id: "${loc_cca_prod_facility}"
+      model_name: "Thermotron SE-3000"
+      vendor_name: "Thermotron Industries"
+      bus_type: "GPIB"
+      serial_number: "SE00001"
+    id_reference: "asset_thermotron_se3000_1"
+    tags: ["example-cca-thermocycle-test-data"]
+  
+  - type: "asset"
+    name: "Thermotron SE-3000 Thermal Chamber #2"
+    properties:
+      description: "Environmental chamber for thermal cycle testing of CCA products"
+      system_id: "${sys_ctts002}"
+      location_id: "${loc_cca_prod_facility}"
+      model_name: "Thermotron SE-3000"
+      vendor_name: "Thermotron Industries"
+      bus_type: "GPIB"
+      serial_number: "SE00002"
+    id_reference: "asset_thermotron_se3000_2"
+    tags: ["example-cca-thermocycle-test-data"]
+
+  
+  # Slot fixtures
+
+  - type: "fixture"
+    name: "Slot 1-1"
+    properties:
+      description: "Custome Fixture for Sensor CCA Xtreme"
+      system_id: "${sys_ctts001}"
+      location: 
+        physical_location: "${sys_ctts001}"
+        parent_id: "Thermotron SE-3000 Thermal Chamber #1"
+        resource_uri: ""
+        slot_number: "1"
+        state:
+          asset_presence: PRESENT
+          system_connection: CONNECTED
+      part_number: "Fixture-A"
+      model_name: "Custome Fixture for Sensor CCA Xtreme"
+      model_number: "xxx"
+      vendor_name: "Beachfront Sensor Systems"
+      serial_number: "Fixture-0001"
+      bus_type: "BUILT_IN_SYSTEM"
+    id_reference: "fixture_slot1_1"
+    tags: ["example-cca-thermocycle-test-data"]
+
+  - type: "fixture"
+    name: "Slot 2-1"
+    properties:
+      description: "Custome Fixture for Sensor CCA Xtreme"
+      system_id: "${sys_ctts001}"
+      location: 
+        physical_location: "${sys_ctts001}"
+        parent_id: "Thermotron SE-3000 Thermal Chamber #1"
+        resource_uri: ""
+        slot_number: "2"
+        state:
+          asset_presence: PRESENT
+          system_connection: CONNECTED
+      part_number: "Fixture-A"
+      model_name: "Custome Fixture for Sensor CCA Xtreme"
+      model_number: "xxx"
+      vendor_name: "Beachfront Sensor Systems"
+      serial_number: "Fixture-0002"
+      bus_type: "BUILT_IN_SYSTEM"
+    id_reference: "fixture_slot2_1"
+    tags: ["example-cca-thermocycle-test-data"]
+
+  - type: "fixture"
+    name: "Slot 3-1"
+    properties:
+      description: "Custome Fixture for Sensor CCA Xtreme"
+      system_id: "${sys_ctts001}"
+      location: 
+        physical_location: "${sys_ctts001}"
+        parent_id: "Thermotron SE-3000 Thermal Chamber #1"
+        resource_uri: ""
+        slot_number: "3"
+        state:
+          asset_presence: PRESENT
+          system_connection: CONNECTED
+      part_number: "Fixture-A"
+      model_name: "Custome Fixture for Sensor CCA Xtreme"
+      model_number: "xxx"
+      vendor_name: "Beachfront Sensor Systems"
+      serial_number: "Fixture-0003"
+      bus_type: "BUILT_IN_SYSTEM"
+    id_reference: "fixture_slot3_1"
+    tags: ["example-cca-thermocycle-test-data"]
+
+  - type: "fixture"
+    name: "Slot 4-1"
+    properties:
+      description: "Custome Fixture for Sensor CCA Xtreme"
+      system_id: "${sys_ctts001}"
+      location: 
+        physical_location: "${sys_ctts001}"
+        parent_id: "Thermotron SE-3000 Thermal Chamber #1"
+        resource_uri: ""
+        slot_number: "4"
+        state:
+          asset_presence: PRESENT
+          system_connection: CONNECTED
+      part_number: "Fixture-A"
+      model_name: "Custome Fixture for Sensor CCA Xtreme"
+      model_number: "xxx"
+      vendor_name: "Beachfront Sensor Systems"
+      serial_number: "Fixture-0004"
+      bus_type: "BUILT_IN_SYSTEM"
+    id_reference: "fixture_slot4_1"
+    tags: ["example-cca-thermocycle-test-data"]
+
+  - type: "fixture"
+    name: "Slot 5-1"
+    properties:
+      description: "Custome Fixture for Sensor CCA Xtreme"
+      system_id: "${sys_ctts001}"
+      location: 
+        physical_location: "${sys_ctts001}"
+        parent_id: "Thermotron SE-3000 Thermal Chamber #1"
+        resource_uri: ""
+        slot_number: "5"
+        state:
+          asset_presence: PRESENT
+          system_connection: CONNECTED
+      part_number: "Fixture-A"
+      model_name: "Custome Fixture for Sensor CCA Xtreme"
+      model_number: "xxx"
+      vendor_name: "Beachfront Sensor Systems"
+      serial_number: "Fixture-0005"
+      bus_type: "BUILT_IN_SYSTEM"
+    id_reference: "fixture_slot5_1"
+    tags: ["example-cca-thermocycle-test-data"]
+
+  - type: "fixture"
+    name: "Slot 6-1"
+    properties:
+      description: "Custome Fixture for Sensor CCA Xtreme"
+      system_id: "${sys_ctts001}"
+      location: 
+        physical_location: "${sys_ctts001}"
+        parent_id: "Thermotron SE-3000 Thermal Chamber #1"
+        resource_uri: ""
+        slot_number: "6"
+        state:
+          asset_presence: PRESENT
+          system_connection: CONNECTED
+      part_number: "Fixture-A"
+      model_name: "Custome Fixture for Sensor CCA Xtreme"
+      model_number: "xxx"
+      vendor_name: "Beachfront Sensor Systems"
+      serial_number: "Fixture-0006"
+      bus_type: "BUILT_IN_SYSTEM"
+    id_reference: "fixture_slot6_1"
+    tags: ["example-cca-thermocycle-test-data"]
+  
+
+  - type: "fixture"
+    name: "Slot 1-2"
+    properties:
+      description: "Custome Fixture for Sensor CCA Xtreme"
+      system_id: "${sys_ctts002}"
+      location: 
+        physical_location: "${sys_ctts002}"
+        parent_id: "Thermotron SE-3000 Thermal Chamber #2"
+        resource_uri: ""
+        slot_number: "1"
+        state:
+          asset_presence: PRESENT
+          system_connection: CONNECTED
+      part_number: "Fixture-A"
+      model_name: "Custome Fixture for Sensor CCA Xtreme"
+      model_number: "xxx"
+      vendor_name: "Beachfront Sensor Systems"
+      serial_number: "Fixture-0007"
+      bus_type: "BUILT_IN_SYSTEM"
+    id_reference: "fixture_slot1_2"
+    tags: ["example-cca-thermocycle-test-data"]
+
+  - type: "fixture"
+    name: "Slot 2-2"
+    properties:
+      description: "Custome Fixture for Sensor CCA Xtreme"
+      system_id: "${sys_ctts002}"
+      location: 
+        physical_location: "${sys_ctts002}"
+        parent_id: "Thermotron SE-3000 Thermal Chamber #2"
+        resource_uri: ""
+        slot_number: "2"
+        state:
+          asset_presence: PRESENT
+          system_connection: CONNECTED
+      part_number: "Fixture-A"
+      model_name: "Custome Fixture for Sensor CCA Xtreme"
+      model_number: "xxx"
+      vendor_name: "Beachfront Sensor Systems"
+      serial_number: "Fixture-0008"
+      bus_type: "BUILT_IN_SYSTEM"
+    id_reference: "fixture_slot2_2"
+    tags: ["example-cca-thermocycle-test-data"]
+
+  - type: "fixture"
+    name: "Slot 3-2"
+    properties:
+      description: "Custome Fixture for Sensor CCA Xtreme"
+      system_id: "${sys_ctts002}"
+      location: 
+        physical_location: "${sys_ctts002}"
+        parent_id: "Thermotron SE-3000 Thermal Chamber #2"
+        resource_uri: ""
+        slot_number: "3"
+        state:
+          asset_presence: PRESENT
+          system_connection: CONNECTED
+      part_number: "Fixture-A"
+      model_name: "Custome Fixture for Sensor CCA Xtreme"
+      model_number: "xxx"
+      vendor_name: "Beachfront Sensor Systems"
+      serial_number: "Fixture-0009"
+      bus_type: "BUILT_IN_SYSTEM"
+    id_reference: "fixture_slot3_2"
+    tags: ["example-cca-thermocycle-test-data"]
+
+  - type: "fixture"
+    name: "Slot 4-2"
+    properties:
+      description: "Custome Fixture for Sensor CCA Xtreme"
+      system_id: "${sys_ctts002}"
+      location: 
+        physical_location: "${sys_ctts002}"
+        parent_id: "Thermotron SE-3000 Thermal Chamber #2"
+        resource_uri: ""
+        slot_number: "4"
+        state:
+          asset_presence: PRESENT
+          system_connection: CONNECTED
+      part_number: "Fixture-A"
+      model_name: "Custome Fixture for Sensor CCA Xtreme"
+      model_number: "xxx"
+      vendor_name: "Beachfront Sensor Systems"
+      serial_number: "Fixture-0010"
+      bus_type: "BUILT_IN_SYSTEM"
+    id_reference: "fixture_slot4_2"
+    tags: ["example-cca-thermocycle-test-data"]
+
+  - type: "fixture"
+    name: "Slot 5-2"
+    properties:
+      description: "Custome Fixture for Sensor CCA Xtreme"
+      system_id: "${sys_ctts002}"
+      location: 
+        physical_location: "${sys_ctts002}"
+        parent_id: "Thermotron SE-3000 Thermal Chamber #2"
+        resource_uri: ""
+        slot_number: "5"
+        state:
+          asset_presence: PRESENT
+          system_connection: CONNECTED
+      part_number: "Fixture-A"
+      model_name: "Custome Fixture for Sensor CCA Xtreme"
+      model_number: "xxx"
+      vendor_name: "Beachfront Sensor Systems"
+      serial_number: "Fixture-0011"
+      bus_type: "BUILT_IN_SYSTEM"
+    id_reference: "fixture_slot5_2"
+    tags: ["example-cca-thermocycle-test-data"]
+
+  - type: "fixture"
+    name: "Slot 6-2"
+    properties:
+      description: "Custome Fixture for Sensor CCA Xtreme"
+      system_id: "${sys_ctts002}"
+      location: 
+        physical_location: "${sys_ctts002}"
+        parent_id: "Thermotron SE-3000 Thermal Chamber #2"
+        resource_uri: ""
+        slot_number: "6"
+        state:
+          asset_presence: PRESENT
+          system_connection: CONNECTED
+      part_number: "Fixture-A"
+      model_name: "Custome Fixture for Sensor CCA Xtreme"
+      model_number: "xxx"
+      vendor_name: "Beachfront Sensor Systems"
+      serial_number: "Fixture-0012"
+      bus_type: "BUILT_IN_SYSTEM"
+    id_reference: "fixture_slot6_2"
+    tags: ["example-cca-thermocycle-test-data"]
+
+  # pxi system with modules
+
+  # ==========================================================================
+  # DUTs
+  # ==========================================================================
+
+  - type: "dut"
+    name: "Sensor-CCA-DUT-30001"
+    properties:
+      description: "Sensor CCA Xtreme unit under long-term thermal cycle test on TC-01"
+      system_id: "${sys_ctts001}"
+      location: 
+        physical_location: "${sys_ctts001}"
+        parent_id: "Slot 1-1"
+        resource_uri: ""
+        slot_number: "1"
+        state:
+          asset_presence: PRESENT
+          system_connection: CONNECTED
+      part_number: "Sensor-CCA-X"
+      model_name: "Sensor CCA Xtreme"
+      model_number: "Sensor-CCA-X"
+      vendor_name: "Beachfront Sensor Systems"
+      serial_number: "CCA-30001"
+      bus_type: "BUILT_IN_SYSTEM"
+    id_reference: "dut_cca_30001"
+    tags: ["example-cca-thermocycle-test-data"]
+
+  - type: "dut"
+    name: "Sensor-CCA-DUT-30002"
+    properties:
+      description: "Sensor CCA Xtreme unit under long-term thermal cycle test on TC-02"
+      system_id: "${sys_ctts002}"
+      location: 
+        physical_location: "${sys_ctts002}"
+        parent_id: "Slot 2-2"
+        resource_uri: ""
+        slot_number: "2"
+        state:
+          asset_presence: PRESENT
+          system_connection: CONNECTED 
+      part_number: "Sensor-CCA-X"
+      model_name: "Sensor CCA Xtreme"
+      model_number: "Sensor-CCA-X"
+      vendor_name: "Beachfront Sensor Systems"
+      serial_number: "CCA-30002"
+      bus_type: "BUILT_IN_SYSTEM"
+    id_reference: "dut_cca_30002"
+    tags: ["example-cca-thermocycle-test-data"]
+
+  - type: "dut"
+    name: "Sensor-CCA-DUT-30003"
+    properties:
+      description: "Sensor CCA Xtreme unit under long-term thermal cycle test on TC-03"
+      system_id: "${sys_ctts002}"
+      location: 
+        physical_location: "${sys_ctts002}"
+        parent_id: "Slot 3-2"
+        resource_uri: ""
+        slot_number: "3"
+        state:
+          asset_presence: PRESENT
+          system_connection: CONNECTED
+      part_number: "Sensor-CCA-X"
+      model_name: "Sensor CCA Xtreme"
+      model_number: "Sensor-CCA-X"
+      vendor_name: "Beachfront Sensor Systems"
+      serial_number: "CCA-30003"
+      bus_type: "BUILT_IN_SYSTEM"
+    id_reference: "dut_cca_30003"
+    tags: ["example-cca-thermocycle-test-data"]
+
+
+  # ==========================================================================
+  # TEST RESULTS — Sensor CCA Xtreme, TC-001 (6 weekly runs, Jan 6 – Feb 11 2026)
+  # Notable: Run 5 (Feb 4) FAILS on internal_resistance spike (21.4 mΩ > 20.0 mΩ spec)
+  # ==========================================================================
+
+  - type: "test_result"
+    name: "Sensor CCA Xtreme TC-001 Cycle 1"
+    properties:
+      program_name: "Thermal Cycle Test"
+      part_number: "Sensor-CCA-X"
+      serial_number: "CCA-30001"
+      system_id: "${sys_ctts001}"
+      operator: "Operator A"
+      start_time: "2026-01-06T08:00:00Z"
+      status: "passed"
+      measurements:
+        cycle_count: "1"
+        cell_temperature_1_c: "37.2"
+        cell_temperature_2_c: "36.8"
+        cell_temperature_3_c: "37.5"
+        cell_temperature_4_c: "37.1"
+        ambient_temperature_c: "22.5"
+        terminal_voltage_v: "3.85"
+        charge_current_a: "1.45"
+        Vcc_voltage_v: "51.8"
+        internal_resistance_mohm: "12.3"
+        state_of_charge_pct: "99.8"
+      steps:
+        - name: "Pin1 to Pin2 Resistance Check"
+          step_type: "NumericLimitTest"
+          status: "passed"
+          total_time_in_seconds: 3.2
+          data:
+            parameters:
+              - name: "Pin1 to Pin2 Resistance"
+                measurement: "12.3"
+                highLimit: "20.0"
+                units: "mOhm"
+                status: "Passed"
+                comparisonType: "LE"
+        - name: "Sensor Temperature Check (Ch3)"
+          step_type: "NumericLimitTest"
+          status: "passed"
+          total_time_in_seconds: 1.8
+          data:
+            parameters:
+              - name: "Sensor Temperature 3"
+                measurement: "37.5"
+                highLimit: "42.0"
+                units: "degC"
+                status: "Passed"
+                comparisonType: "LE"
+        - name: "Vcc Voltage Check"
+          step_type: "NumericLimitTest"
+          status: "passed"
+          total_time_in_seconds: 5.1
+          data:
+            parameters:
+              - name: "Vcc Voltage"
+                measurement: "51.8"
+                lowLimit: "49.0"
+                units: "v"
+                status: "Passed"
+                comparisonType: "GE"
+    id_reference: "tr_a_tc001_c1"
+    tags: ["example-cca-thermocycle-test-data"]
+
+  - type: "test_result"
+    name: "Sensor CCA Xtreme TC-001 Cycle 2"
+    properties:
+      program_name: "Thermal Cycle Test"
+      part_number: "Sensor-CCA-X"
+      serial_number: "CCA-30001"
+      system_id: "${sys_ctts001}"
+      operator: "Operator A"
+      start_time: "2026-01-13T08:00:00Z"
+      status: "passed"
+      measurements:
+        cycle_count: "2"
+        cell_temperature_1_c: "37.5"
+        cell_temperature_2_c: "37.1"
+        cell_temperature_3_c: "37.8"
+        cell_temperature_4_c: "37.4"
+        ambient_temperature_c: "22.3"
+        terminal_voltage_v: "3.84"
+        charge_current_a: "1.44"
+        Vcc_voltage_v: "51.6"
+        internal_resistance_mohm: "12.8"
+        state_of_charge_pct: "99.7"
+      steps:
+        - name: "Pin1 to Pin2 Resistance Check"
+          step_type: "NumericLimitTest"
+          status: "passed"
+          total_time_in_seconds: 3.2
+          data:
+            parameters:
+              - name: "Pin1 to Pin2 Resistance"
+                measurement: "12.8"
+                highLimit: "20.0"
+                units: "mOhm"
+                status: "Passed"
+                comparisonType: "LE"
+        - name: "Sensor Temperature Check (Ch3)"
+          step_type: "NumericLimitTest"
+          status: "passed"
+          total_time_in_seconds: 1.8
+          data:
+            parameters:
+              - name: "Sensor Temperature 3"
+                measurement: "37.8"
+                highLimit: "42.0"
+                units: "degC"
+                status: "Passed"
+                comparisonType: "LE"
+        - name: "Vcc Voltage Check"
+          step_type: "NumericLimitTest"
+          status: "passed"
+          total_time_in_seconds: 5.1
+          data:
+            parameters:
+              - name: "Vcc Voltage"
+                measurement: "51.6"
+                lowLimit: "49.0"
+                units: "v"
+                status: "Passed"
+                comparisonType: "GE"
+    id_reference: "tr_a_tc001_c2"
+    tags: ["example-cca-thermocycle-test-data"]
+
+  - type: "test_result"
+    name: "Sensor CCA Xtreme TC-001 Cycle 3"
+    properties:
+      program_name: "Thermal Cycle Test"
+      part_number: "Sensor-CCA-X"
+      serial_number: "CCA-30001"
+      system_id: "${sys_ctts001}"
+      operator: "Operator A"
+      start_time: "2026-01-20T08:00:00Z"
+      status: "passed"
+      measurements:
+        cycle_count: "3"
+        cell_temperature_1_c: "37.8"
+        cell_temperature_2_c: "37.4"
+        cell_temperature_3_c: "38.1"
+        cell_temperature_4_c: "37.7"
+        ambient_temperature_c: "22.8"
+        terminal_voltage_v: "3.83"
+        charge_current_a: "1.43"
+        Vcc_voltage_v: "51.4"
+        internal_resistance_mohm: "13.5"
+        state_of_charge_pct: "99.6"
+      steps:
+        - name: "Pin1 to Pin2 Resistance Check"
+          step_type: "NumericLimitTest"
+          status: "passed"
+          total_time_in_seconds: 3.2
+          data:
+            parameters:
+              - name: "Pin1 to Pin2 Resistance"
+                measurement: "13.5"
+                highLimit: "20.0"
+                units: "mOhm"
+                status: "Passed"
+                comparisonType: "LE"
+        - name: "Sensor Temperature Check (Ch3)"
+          step_type: "NumericLimitTest"
+          status: "passed"
+          total_time_in_seconds: 1.8
+          data:
+            parameters:
+              - name: "Sensor Temperature 3"
+                measurement: "38.1"
+                highLimit: "42.0"
+                units: "degC"
+                status: "Passed"
+                comparisonType: "LE"
+        - name: "Vcc Voltage Check"
+          step_type: "NumericLimitTest"
+          status: "passed"
+          total_time_in_seconds: 5.1
+          data:
+            parameters:
+              - name: "Vcc Voltage"
+                measurement: "51.4"
+                lowLimit: "49.0"
+                units: "v"
+                status: "Passed"
+                comparisonType: "GE"
+    id_reference: "tr_a_tc001_c3"
+    tags: ["example-cca-thermocycle-test-data"]
+
+  - type: "test_result"
+    name: "Sensor CCA Xtreme TC-001 Cycle 4"
+    properties:
+      program_name: "Thermal Cycle Test"
+      part_number: "Sensor-CCA-X"
+      serial_number: "CCA-30001"
+      system_id: "${sys_ctts001}"
+      operator: "Operator A"
+      start_time: "2026-01-28T08:00:00Z"
+      status: "passed"
+      measurements:
+        cycle_count: "4"
+        cell_temperature_1_c: "38.1"
+        cell_temperature_2_c: "37.7"
+        cell_temperature_3_c: "38.4"
+        cell_temperature_4_c: "38.0"
+        ambient_temperature_c: "22.4"
+        terminal_voltage_v: "3.82"
+        charge_current_a: "1.43"
+        Vcc_voltage_v: "51.2"
+        internal_resistance_mohm: "14.2"
+        state_of_charge_pct: "99.5"
+      steps:
+        - name: "Pin1 to Pin2 Resistance Check"
+          step_type: "NumericLimitTest"
+          status: "passed"
+          total_time_in_seconds: 3.2
+          data:
+            parameters:
+              - name: "Pin1 to Pin2 Resistance"
+                measurement: "14.2"
+                highLimit: "20.0"
+                units: "mOhm"
+                status: "Passed"
+                comparisonType: "LE"
+        - name: "Sensor Temperature Check (Ch3)"
+          step_type: "NumericLimitTest"
+          status: "passed"
+          total_time_in_seconds: 1.8
+          data:
+            parameters:
+              - name: "Sensor Temperature 3"
+                measurement: "38.4"
+                highLimit: "42.0"
+                units: "degC"
+                status: "Passed"
+                comparisonType: "LE"
+        - name: "Vcc Voltage Check"
+          step_type: "NumericLimitTest"
+          status: "passed"
+          total_time_in_seconds: 5.1
+          data:
+            parameters:
+              - name: "Vcc Voltage"
+                measurement: "51.2"
+                lowLimit: "49.0"
+                units: "v"
+                status: "Passed"
+                comparisonType: "GE"
+    id_reference: "tr_a_tc001_c4"
+    tags: ["example-cca-thermocycle-test-data"]
+
+  # TC-001 Cycle 5 — FAIL: internal_resistance spike (21.4 mΩ exceeds 20.0 mΩ spec)
+  - type: "test_result"
+    name: "Sensor CCA Xtreme TC-001 Cycle 5"
+    properties:
+      program_name: "Thermal Cycle Test"
+      part_number: "Sensor-CCA-X"
+      serial_number: "CCA-30001"
+      system_id: "${sys_ctts001}"
+      operator: "Operator A"
+      start_time: "2026-02-04T08:00:00Z"
+      status: "failed"
+      measurements:
+        cycle_count: "5"
+        cell_temperature_1_c: "38.3"
+        cell_temperature_2_c: "37.9"
+        cell_temperature_3_c: "38.6"
+        cell_temperature_4_c: "38.2"
+        ambient_temperature_c: "22.6"
+        terminal_voltage_v: "3.81"
+        charge_current_a: "1.42"
+        Vcc_voltage_v: "51.0"
+        internal_resistance_mohm: "21.4"
+        state_of_charge_pct: "99.4"
+      steps:
+        - name: "Pin1 to Pin2 Resistance Check"
+          step_type: "NumericLimitTest"
+          status: "failed"
+          total_time_in_seconds: 3.2
+          data:
+            parameters:
+              - name: "Pin1 to Pin2 Resistance"
+                measurement: "21.4"
+                highLimit: "20.0"
+                units: "mOhm"
+                status: "Failed"
+                comparisonType: "LE"
+        - name: "Sensor Temperature Check (Ch3)"
+          step_type: "NumericLimitTest"
+          status: "passed"
+          total_time_in_seconds: 1.8
+          data:
+            parameters:
+              - name: "Sensor Temperature 3"
+                measurement: "38.6"
+                highLimit: "42.0"
+                units: "degC"
+                status: "Passed"
+                comparisonType: "LE"
+        - name: "Vcc Voltage Check"
+          step_type: "NumericLimitTest"
+          status: "passed"
+          total_time_in_seconds: 5.1
+          data:
+            parameters:
+              - name: "Vcc Voltage"
+                measurement: "51.0"
+                lowLimit: "49.0"
+                units: "v"
+                status: "Passed"
+                comparisonType: "GE"
+    id_reference: "tr_a_tc001_c5"
+    tags: ["example-cca-thermocycle-test-data"]
+
+  # TC-001 Cycle 6 — PASS after maintenance (resistance normalized)
+  - type: "test_result"
+    name: "Sensor CCA Xtreme TC-001 Cycle 6"
+    properties:
+      program_name: "Thermal Cycle Test"
+      part_number: "Sensor-CCA-X"
+      serial_number: "CCA-30001"
+      system_id: "${sys_ctts001}"
+      operator: "Operator A"
+      start_time: "2026-02-11T08:00:00Z"
+      status: "passed"
+      measurements:
+        cycle_count: "6"
+        cell_temperature_1_c: "38.6"
+        cell_temperature_2_c: "38.2"
+        cell_temperature_3_c: "38.9"
+        cell_temperature_4_c: "38.5"
+        ambient_temperature_c: "22.7"
+        terminal_voltage_v: "3.80"
+        charge_current_a: "1.42"
+        Vcc_voltage_v: "50.8"
+        internal_resistance_mohm: "15.8"
+        state_of_charge_pct: "99.3"
+      steps:
+        - name: "Pin1 to Pin2 Resistance Check"
+          step_type: "NumericLimitTest"
+          status: "passed"
+          total_time_in_seconds: 3.2
+          data:
+            parameters:
+              - name: "Pin1 to Pin2 Resistance"
+                measurement: "15.8"
+                highLimit: "20.0"
+                units: "mOhm"
+                status: "Passed"
+                comparisonType: "LE"
+        - name: "Sensor Temperature Check (Ch3)"
+          step_type: "NumericLimitTest"
+          status: "passed"
+          total_time_in_seconds: 1.8
+          data:
+            parameters:
+              - name: "Sensor Temperature 3"
+                measurement: "38.9"
+                highLimit: "42.0"
+                units: "degC"
+                status: "Passed"
+                comparisonType: "LE"
+        - name: "Vcc Voltage Check"
+          step_type: "NumericLimitTest"
+          status: "passed"
+          total_time_in_seconds: 5.1
+          data:
+            parameters:
+              - name: "Vcc Voltage"
+                measurement: "50.8"
+                lowLimit: "49.0"
+                units: "v"
+                status: "Passed"
+                comparisonType: "GE"
+    id_reference: "tr_a_tc001_c6"
+    tags: ["example-cca-thermocycle-test-data"]
+
+  # ==========================================================================
+  # TEST RESULTS — Sensor CCA Xtreme, TC-002 (6 weekly runs, Jan 7 – Feb 12 2026)
+  # Golden reference stand — all PASS, lowest temperatures and resistance
+  # ==========================================================================
+
+  - type: "test_result"
+    name: "Sensor CCA Xtreme TC-002 Cycle 1"
+    properties:
+      program_name: "Thermal Cycle Test"
+      part_number: "Sensor-CCA-X"
+      serial_number: "CCA-30002"
+      system_id: "${sys_ctts002}"
+      operator: "Operator B"
+      start_time: "2026-01-07T08:00:00Z"
+      status: "passed"
+      measurements:
+        cycle_count: "1"
+        cell_temperature_1_c: "36.5"
+        cell_temperature_2_c: "36.2"
+        cell_temperature_3_c: "36.8"
+        cell_temperature_4_c: "36.4"
+        ambient_temperature_c: "22.4"
+        terminal_voltage_v: "3.85"
+        charge_current_a: "1.46"
+        Vcc_voltage_v: "51.9"
+        internal_resistance_mohm: "11.8"
+        state_of_charge_pct: "99.9"
+      steps:
+        - name: "Pin1 to Pin2 Resistance Check"
+          step_type: "NumericLimitTest"
+          status: "passed"
+          total_time_in_seconds: 3.2
+          data:
+            parameters:
+              - name: "Pin1 to Pin2 Resistance"
+                measurement: "11.8"
+                highLimit: "20.0"
+                units: "mOhm"
+                status: "Passed"
+                comparisonType: "LE"
+        - name: "Sensor Temperature Check (Ch3)"
+          step_type: "NumericLimitTest"
+          status: "passed"
+          total_time_in_seconds: 1.8
+          data:
+            parameters:
+              - name: "Sensor Temperature 3"
+                measurement: "36.8"
+                highLimit: "42.0"
+                units: "degC"
+                status: "Passed"
+                comparisonType: "LE"
+        - name: "Vcc Voltage Check"
+          step_type: "NumericLimitTest"
+          status: "passed"
+          total_time_in_seconds: 5.1
+          data:
+            parameters:
+              - name: "Vcc Voltage"
+                measurement: "51.9"
+                lowLimit: "49.0"
+                units: "v"
+                status: "Passed"
+                comparisonType: "GE"
+    id_reference: "tr_a_tc002_c1"
+    tags: ["example-cca-thermocycle-test-data"]
+
+  - type: "test_result"
+    name: "Sensor CCA Xtreme TC-002 Cycle 2"
+    properties:
+      program_name: "Thermal Cycle Test"
+      part_number: "Sensor-CCA-X"
+      serial_number: "CCA-30002"
+      system_id: "${sys_ctts002}"
+      operator: "Operator B"
+      start_time: "2026-01-14T08:00:00Z"
+      status: "passed"
+      measurements:
+        cycle_count: "2"
+        cell_temperature_1_c: "36.7"
+        cell_temperature_2_c: "36.4"
+        cell_temperature_3_c: "37.0"
+        cell_temperature_4_c: "36.6"
+        ambient_temperature_c: "22.5"
+        terminal_voltage_v: "3.84"
+        charge_current_a: "1.45"
+        Vcc_voltage_v: "51.8"
+        internal_resistance_mohm: "12.1"
+        state_of_charge_pct: "99.8"
+      steps:
+        - name: "Pin1 to Pin2 Resistance Check"
+          step_type: "NumericLimitTest"
+          status: "passed"
+          total_time_in_seconds: 3.2
+          data:
+            parameters:
+              - name: "Pin1 to Pin2 Resistance"
+                measurement: "12.1"
+                highLimit: "20.0"
+                units: "mOhm"
+                status: "Passed"
+                comparisonType: "LE"
+        - name: "Sensor Temperature Check (Ch3)"
+          step_type: "NumericLimitTest"
+          status: "passed"
+          total_time_in_seconds: 1.8
+          data:
+            parameters:
+              - name: "Sensor Temperature 3"
+                measurement: "37.0"
+                highLimit: "42.0"
+                units: "degC"
+                status: "Passed"
+                comparisonType: "LE"
+        - name: "Vcc Voltage Check"
+          step_type: "NumericLimitTest"
+          status: "passed"
+          total_time_in_seconds: 5.1
+          data:
+            parameters:
+              - name: "Vcc Voltage"
+                measurement: "51.8"
+                lowLimit: "49.0"
+                units: "v"
+                status: "Passed"
+                comparisonType: "GE"
+    id_reference: "tr_a_tc002_c2"
+    tags: ["example-cca-thermocycle-test-data"]
+
+  - type: "test_result"
+    name: "Sensor CCA Xtreme TC-002 Cycle 3"
+    properties:
+      program_name: "Thermal Cycle Test"
+      part_number: "Sensor-CCA-X"
+      serial_number: "CCA-30002"
+      system_id: "${sys_ctts002}"
+      operator: "Operator B"
+      start_time: "2026-01-21T08:00:00Z"
+      status: "passed"
+      measurements:
+        cycle_count: "3"
+        cell_temperature_1_c: "36.9"
+        cell_temperature_2_c: "36.6"
+        cell_temperature_3_c: "37.2"
+        cell_temperature_4_c: "36.8"
+        ambient_temperature_c: "22.3"
+        terminal_voltage_v: "3.84"
+        charge_current_a: "1.45"
+        Vcc_voltage_v: "51.6"
+        internal_resistance_mohm: "12.4"
+        state_of_charge_pct: "99.7"
+      steps:
+        - name: "Pin1 to Pin2 Resistance Check"
+          step_type: "NumericLimitTest"
+          status: "passed"
+          total_time_in_seconds: 3.2
+          data:
+            parameters:
+              - name: "Pin1 to Pin2 Resistance"
+                measurement: "12.4"
+                highLimit: "20.0"
+                units: "mOhm"
+                status: "Passed"
+                comparisonType: "LE"
+        - name: "Sensor Temperature Check (Ch3)"
+          step_type: "NumericLimitTest"
+          status: "passed"
+          total_time_in_seconds: 1.8
+          data:
+            parameters:
+              - name: "Sensor Temperature 3"
+                measurement: "37.2"
+                highLimit: "42.0"
+                units: "degC"
+                status: "Passed"
+                comparisonType: "LE"
+        - name: "Vcc Voltage Check"
+          step_type: "NumericLimitTest"
+          status: "passed"
+          total_time_in_seconds: 5.1
+          data:
+            parameters:
+              - name: "Vcc Voltage"
+                measurement: "51.6"
+                lowLimit: "49.0"
+                units: "v"
+                status: "Passed"
+                comparisonType: "GE"
+    id_reference: "tr_a_tc002_c3"
+    tags: ["example-cca-thermocycle-test-data"]
+
+  - type: "test_result"
+    name: "Sensor CCA Xtreme TC-002 Cycle 4"
+    properties:
+      program_name: "Thermal Cycle Test"
+      part_number: "Sensor-CCA-X"
+      serial_number: "CCA-30002"
+      system_id: "${sys_ctts002}"
+      operator: "Operator B"
+      start_time: "2026-01-29T08:00:00Z"
+      status: "passed"
+      measurements:
+        cycle_count: "4"
+        cell_temperature_1_c: "37.1"
+        cell_temperature_2_c: "36.8"
+        cell_temperature_3_c: "37.4"
+        cell_temperature_4_c: "37.0"
+        ambient_temperature_c: "22.6"
+        terminal_voltage_v: "3.83"
+        charge_current_a: "1.44"
+        Vcc_voltage_v: "51.4"
+        internal_resistance_mohm: "12.7"
+        state_of_charge_pct: "99.6"
+      steps:
+        - name: "Pin1 to Pin2 Resistance Check"
+          step_type: "NumericLimitTest"
+          status: "passed"
+          total_time_in_seconds: 3.2
+          data:
+            parameters:
+              - name: "Pin1 to Pin2 Resistance"
+                measurement: "12.7"
+                highLimit: "20.0"
+                units: "mOhm"
+                status: "Passed"
+                comparisonType: "LE"
+        - name: "Sensor Temperature Check (Ch3)"
+          step_type: "NumericLimitTest"
+          status: "passed"
+          total_time_in_seconds: 1.8
+          data:
+            parameters:
+              - name: "Sensor Temperature 3"
+                measurement: "37.4"
+                highLimit: "42.0"
+                units: "degC"
+                status: "Passed"
+                comparisonType: "LE"
+        - name: "Vcc Voltage Check"
+          step_type: "NumericLimitTest"
+          status: "passed"
+          total_time_in_seconds: 5.1
+          data:
+            parameters:
+              - name: "Vcc Voltage"
+                measurement: "51.4"
+                lowLimit: "49.0"
+                units: "v"
+                status: "Passed"
+                comparisonType: "GE"
+    id_reference: "tr_a_tc002_c4"
+    tags: ["example-cca-thermocycle-test-data"]
+
+  - type: "test_result"
+    name: "Sensor CCA Xtreme TC-002 Cycle 5"
+    properties:
+      program_name: "Thermal Cycle Test"
+      part_number: "Sensor-CCA-X"
+      serial_number: "CCA-30002"
+      system_id: "${sys_ctts002}"
+      operator: "Operator B"
+      start_time: "2026-02-05T08:00:00Z"
+      status: "passed"
+      measurements:
+        cycle_count: "5"
+        cell_temperature_1_c: "37.3"
+        cell_temperature_2_c: "37.0"
+        cell_temperature_3_c: "37.6"
+        cell_temperature_4_c: "37.2"
+        ambient_temperature_c: "22.4"
+        terminal_voltage_v: "3.82"
+        charge_current_a: "1.44"
+        Vcc_voltage_v: "51.2"
+        internal_resistance_mohm: "13.0"
+        state_of_charge_pct: "99.5"
+      steps:
+        - name: "Pin1 to Pin2 Resistance Check"
+          step_type: "NumericLimitTest"
+          status: "passed"
+          total_time_in_seconds: 3.2
+          data:
+            parameters:
+              - name: "Pin1 to Pin2 Resistance"
+                measurement: "13.0"
+                highLimit: "20.0"
+                units: "mOhm"
+                status: "Passed"
+                comparisonType: "LE"
+        - name: "Sensor Temperature Check (Ch3)"
+          step_type: "NumericLimitTest"
+          status: "passed"
+          total_time_in_seconds: 1.8
+          data:
+            parameters:
+              - name: "Sensor Temperature 3"
+                measurement: "37.6"
+                highLimit: "42.0"
+                units: "degC"
+                status: "Passed"
+                comparisonType: "LE"
+        - name: "Vcc Voltage Check"
+          step_type: "NumericLimitTest"
+          status: "passed"
+          total_time_in_seconds: 5.1
+          data:
+            parameters:
+              - name: "Vcc Voltage"
+                measurement: "51.2"
+                lowLimit: "49.0"
+                units: "v"
+                status: "Passed"
+                comparisonType: "GE"
+    id_reference: "tr_a_tc002_c5"
+    tags: ["example-cca-thermocycle-test-data"]
+
+  - type: "test_result"
+    name: "Sensor CCA Xtreme TC-002 Cycle 6"
+    properties:
+      program_name: "Thermal Cycle Test"
+      part_number: "Sensor-CCA-X"
+      serial_number: "CCA-30002"
+      system_id: "${sys_ctts002}"
+      operator: "Operator B"
+      start_time: "2026-02-12T08:00:00Z"
+      status: "passed"
+      measurements:
+        cycle_count: "6"
+        cell_temperature_1_c: "37.5"
+        cell_temperature_2_c: "37.2"
+        cell_temperature_3_c: "37.8"
+        cell_temperature_4_c: "37.4"
+        ambient_temperature_c: "22.5"
+        terminal_voltage_v: "3.81"
+        charge_current_a: "1.43"
+        Vcc_voltage_v: "51.0"
+        internal_resistance_mohm: "13.3"
+        state_of_charge_pct: "99.4"
+      steps:
+        - name: "Pin1 to Pin2 Resistance Check"
+          step_type: "NumericLimitTest"
+          status: "passed"
+          total_time_in_seconds: 3.2
+          data:
+            parameters:
+              - name: "Pin1 to Pin2 Resistance"
+                measurement: "13.3"
+                highLimit: "20.0"
+                units: "mOhm"
+                status: "Passed"
+                comparisonType: "LE"
+        - name: "Sensor Temperature Check (Ch3)"
+          step_type: "NumericLimitTest"
+          status: "passed"
+          total_time_in_seconds: 1.8
+          data:
+            parameters:
+              - name: "Sensor Temperature 3"
+                measurement: "37.8"
+                highLimit: "42.0"
+                units: "degC"
+                status: "Passed"
+                comparisonType: "LE"
+        - name: "Vcc Voltage Check"
+          step_type: "NumericLimitTest"
+          status: "passed"
+          total_time_in_seconds: 5.1
+          data:
+            parameters:
+              - name: "Vcc Voltage"
+                measurement: "51.0"
+                lowLimit: "49.0"
+                units: "v"
+                status: "Passed"
+                comparisonType: "GE"
+    id_reference: "tr_a_tc002_c6"
+    tags: ["example-cca-thermocycle-test-data"]
+
+  # ==========================================================================
+  # TEST RESULTS — Sensor CCA Xtreme, TC-003 (6 weekly runs, Jan 8 – Feb 13 2026)
+  # Notable: TC-03 runs ~3-4 °C warmer (calibration offset).
+  # Run 4 (Jan 30) FAILS: cell_temperature_3_c spikes to 44.8 °C (spec: max 42 °C)
+  # Stand recalibrated before Run 5.
+  # ==========================================================================
+
+  - type: "test_result"
+    name: "Sensor CCA Xtreme TC-003 Cycle 1"
+    properties:
+      program_name: "Thermal Cycle Test"
+      part_number: "Sensor-CCA-X"
+      serial_number: "CCA-30003"
+      system_id: "${sys_ctts002}"
+      operator: "Operator C"
+      start_time: "2026-01-08T08:00:00Z"
+      status: "passed"
+      steps:
+        - name: "Pin1 to Pin2 Resistance Check"
+          step_type: "NumericLimitTest"
+          status: "passed"
+          total_time_in_seconds: 3.2
+          data:
+            parameters:
+              - name: "Pin1 to Pin2 Resistance"
+                measurement: "12.5"
+                highLimit: "20.0"
+                units: "mOhm"
+                status: "Passed"
+                comparisonType: "LE"
+        - name: "Sensor Temperature Check (Ch3)"
+          step_type: "NumericLimitTest"
+          status: "passed"
+          total_time_in_seconds: 1.8
+          data:
+            parameters:
+              - name: "Sensor Temperature 3"
+                measurement: "40.4"
+                highLimit: "42.0"
+                units: "degC"
+                status: "Passed"
+                comparisonType: "LE"
+        - name: "Vcc Voltage Check"
+          step_type: "NumericLimitTest"
+          status: "passed"
+          total_time_in_seconds: 5.1
+          data:
+            parameters:
+              - name: "Vcc Voltage"
+                measurement: "51.7"
+                lowLimit: "49.0"
+                units: "v"
+                status: "Passed"
+                comparisonType: "GE"
+    id_reference: "tr_a_tc003_c1"
+    tags: ["example-cca-thermocycle-test-data"]
+
+  - type: "test_result"
+    name: "Sensor CCA Xtreme TC-003 Cycle 2"
+    properties:
+      program_name: "Thermal Cycle Test"
+      part_number: "Sensor-CCA-X"
+      serial_number: "CCA-30003"
+      system_id: "${sys_ctts002}"
+      operator: "Operator C"
+      start_time: "2026-01-15T08:00:00Z"
+      status: "passed"
+      measurements:
+        cycle_count: "2"
+        cell_temperature_1_c: "40.3"
+        cell_temperature_2_c: "40.0"
+        cell_temperature_3_c: "40.6"
+        cell_temperature_4_c: "40.2"
+        ambient_temperature_c: "22.4"
+        terminal_voltage_v: "3.83"
+        charge_current_a: "1.44"
+        Vcc_voltage_v: "51.5"
+        internal_resistance_mohm: "12.9"
+        state_of_charge_pct: "99.6"
+      steps:
+        - name: "Pin1 to Pin2 Resistance Check"
+          step_type: "NumericLimitTest"
+          status: "passed"
+          total_time_in_seconds: 3.2
+          data:
+            parameters:
+              - name: "Pin1 to Pin2 Resistance"
+                measurement: "12.9"
+                highLimit: "20.0"
+                units: "mOhm"
+                status: "Passed"
+                comparisonType: "LE"
+        - name: "Sensor Temperature Check (Ch3)"
+          step_type: "NumericLimitTest"
+          status: "passed"
+          total_time_in_seconds: 1.8
+          data:
+            parameters:
+              - name: "Sensor Temperature 3"
+                measurement: "40.6"
+                highLimit: "42.0"
+                units: "degC"
+                status: "Passed"
+                comparisonType: "LE"
+        - name: "Vcc Voltage Check"
+          step_type: "NumericLimitTest"
+          status: "passed"
+          total_time_in_seconds: 5.1
+          data:
+            parameters:
+              - name: "Vcc Voltage"
+                measurement: "51.5"
+                lowLimit: "49.0"
+                units: "v"
+                status: "Passed"
+                comparisonType: "GE"
+    id_reference: "tr_a_tc003_c2"
+    tags: ["example-cca-thermocycle-test-data"]
+
+  - type: "test_result"
+    name: "Sensor CCA Xtreme TC-003 Cycle 3"
+    properties:
+      program_name: "Thermal Cycle Test"
+      part_number: "Sensor-CCA-X"
+      serial_number: "CCA-30003"
+      system_id: "${sys_ctts002}"
+      operator: "Operator C"
+      start_time: "2026-01-22T08:00:00Z"
+      status: "passed"
+      measurements:
+        cycle_count: "3"
+        cell_temperature_1_c: "40.5"
+        cell_temperature_2_c: "40.2"
+        cell_temperature_3_c: "40.9"
+        cell_temperature_4_c: "40.4"
+        ambient_temperature_c: "22.7"
+        terminal_voltage_v: "3.82"
+        charge_current_a: "1.43"
+        Vcc_voltage_v: "51.3"
+        internal_resistance_mohm: "13.4"
+        state_of_charge_pct: "99.5"
+      steps:
+        - name: "Pin1 to Pin2 Resistance Check"
+          step_type: "NumericLimitTest"
+          status: "passed"
+          total_time_in_seconds: 3.2
+          data:
+            parameters:
+              - name: "Pin1 to Pin2 Resistance"
+                measurement: "13.4"
+                highLimit: "20.0"
+                units: "mOhm"
+                status: "Passed"
+                comparisonType: "LE"
+        - name: "Sensor Temperature Check (Ch3)"
+          step_type: "NumericLimitTest"
+          status: "passed"
+          total_time_in_seconds: 1.8
+          data:
+            parameters:
+              - name: "Sensor Temperature 3"
+                measurement: "40.9"
+                highLimit: "42.0"
+                units: "degC"
+                status: "Passed"
+                comparisonType: "LE"
+        - name: "Vcc Voltage Check"
+          step_type: "NumericLimitTest"
+          status: "passed"
+          total_time_in_seconds: 5.1
+          data:
+            parameters:
+              - name: "Vcc Voltage"
+                measurement: "51.3"
+                lowLimit: "49.0"
+                units: "v"
+                status: "Passed"
+                comparisonType: "GE"
+    id_reference: "tr_a_tc003_c3"
+    tags: ["example-cca-thermocycle-test-data"]
+
+  # TC-003 Cycle 4 — FAIL: cell_temperature_3_c spike (44.8 °C exceeds 42 °C spec)
+  - type: "test_result"
+    name: "Sensor CCA Xtreme TC-003 Cycle 4"
+    properties:
+      program_name: "Thermal Cycle Test"
+      part_number: "Sensor-CCA-X"
+      serial_number: "CCA-30003"
+      system_id: "${sys_ctts002}"
+      operator: "Operator C"
+      start_time: "2026-01-30T08:00:00Z"
+      status: "failed"
+      measurements:
+        cycle_count: "4"
+        cell_temperature_1_c: "41.2"
+        cell_temperature_2_c: "40.9"
+        cell_temperature_3_c: "44.8"
+        cell_temperature_4_c: "41.0"
+        ambient_temperature_c: "22.5"
+        terminal_voltage_v: "3.80"
+        charge_current_a: "1.42"
+        Vcc_voltage_v: "51.0"
+        internal_resistance_mohm: "14.8"
+        state_of_charge_pct: "99.3"
+      steps:
+        - name: "Pin1 to Pin2 Resistance Check"
+          step_type: "NumericLimitTest"
+          status: "passed"
+          total_time_in_seconds: 3.2
+          data:
+            parameters:
+              - name: "Pin1 to Pin2 Resistance"
+                measurement: "14.8"
+                highLimit: "20.0"
+                units: "mOhm"
+                status: "Passed"
+                comparisonType: "LE"
+        - name: "Sensor Temperature Check (Ch3)"
+          step_type: "NumericLimitTest"
+          status: "failed"
+          total_time_in_seconds: 1.8
+          data:
+            parameters:
+              - name: "Sensor Temperature 3"
+                measurement: "44.8"
+                highLimit: "42.0"
+                units: "degC"
+                status: "Failed"
+                comparisonType: "LE"
+        - name: "Vcc Voltage Check"
+          step_type: "NumericLimitTest"
+          status: "passed"
+          total_time_in_seconds: 5.1
+          data:
+            parameters:
+              - name: "Vcc Voltage"
+                measurement: "51.0"
+                lowLimit: "49.0"
+                units: "v"
+                status: "Passed"
+                comparisonType: "GE"
+    id_reference: "tr_a_tc003_c4"
+    tags: ["example-cca-thermocycle-test-data"]
+
+  # TC-003 Cycle 5 — PASS after stand recalibration
+  - type: "test_result"
+    name: "Sensor CCA Xtreme TC-003 Cycle 5"
+    properties:
+      program_name: "Thermal Cycle Test"
+      part_number: "Sensor-CCA-X"
+      serial_number: "CCA-30003"
+      system_id: "${sys_ctts002}"
+      operator: "Operator C"
+      start_time: "2026-02-06T08:00:00Z"
+      status: "passed"
+      measurements:
+        cycle_count: "5"
+        cell_temperature_1_c: "40.7"
+        cell_temperature_2_c: "40.4"
+        cell_temperature_3_c: "41.0"
+        cell_temperature_4_c: "40.6"
+        ambient_temperature_c: "22.8"
+        terminal_voltage_v: "3.81"
+        charge_current_a: "1.43"
+        Vcc_voltage_v: "51.1"
+        internal_resistance_mohm: "13.8"
+        state_of_charge_pct: "99.4"
+      steps:
+        - name: "Pin1 to Pin2 Resistance Check"
+          step_type: "NumericLimitTest"
+          status: "passed"
+          total_time_in_seconds: 3.2
+          data:
+            parameters:
+              - name: "Pin1 to Pin2 Resistance"
+                measurement: "13.8"
+                highLimit: "20.0"
+                units: "mOhm"
+                status: "Passed"
+                comparisonType: "LE"
+        - name: "Sensor Temperature Check (Ch3)"
+          step_type: "NumericLimitTest"
+          status: "passed"
+          total_time_in_seconds: 1.8
+          data:
+            parameters:
+              - name: "Sensor Temperature 3"
+                measurement: "41.0"
+                highLimit: "42.0"
+                units: "degC"
+                status: "Passed"
+                comparisonType: "LE"
+        - name: "Vcc Voltage Check"
+          step_type: "NumericLimitTest"
+          status: "passed"
+          total_time_in_seconds: 5.1
+          data:
+            parameters:
+              - name: "Vcc Voltage"
+                measurement: "51.1"
+                lowLimit: "49.0"
+                units: "v"
+                status: "Passed"
+                comparisonType: "GE"
+    id_reference: "tr_a_tc003_c5"
+    tags: ["example-cca-thermocycle-test-data"]
+
+  - type: "test_result"
+    name: "Sensor CCA Xtreme TC-003 Cycle 6"
+    properties:
+      program_name: "Thermal Cycle Test"
+      part_number: "Sensor-CCA-X"
+      serial_number: "CCA-30003"
+      system_id: "${sys_ctts002}"
+      operator: "Operator C"
+      start_time: "2026-02-13T08:00:00Z"
+      status: "passed"
+      measurements:
+        cycle_count: "6"
+        cell_temperature_1_c: "40.9"
+        cell_temperature_2_c: "40.6"
+        cell_temperature_3_c: "41.2"
+        cell_temperature_4_c: "40.8"
+        ambient_temperature_c: "22.6"
+        terminal_voltage_v: "3.80"
+        charge_current_a: "1.42"
+        Vcc_voltage_v: "51.0"
+        internal_resistance_mohm: "14.1"
+        state_of_charge_pct: "99.3"
+      steps:
+        - name: "Pin1 to Pin2 Resistance Check"
+          step_type: "NumericLimitTest"
+          status: "passed"
+          total_time_in_seconds: 3.2
+          data:
+            parameters:
+              - name: "Pin1 to Pin2 Resistance"
+                measurement: "14.1"
+                highLimit: "20.0"
+                units: "mOhm"
+                status: "Passed"
+                comparisonType: "LE"
+        - name: "Sensor Temperature Check (Ch3)"
+          step_type: "NumericLimitTest"
+          status: "passed"
+          total_time_in_seconds: 1.8
+          data:
+            parameters:
+              - name: "Sensor Temperature 3"
+                measurement: "41.2"
+                highLimit: "42.0"
+                units: "degC"
+                status: "Passed"
+                comparisonType: "LE"
+        - name: "Vcc Voltage Check"
+          step_type: "NumericLimitTest"
+          status: "passed"
+          total_time_in_seconds: 5.1
+          data:
+            parameters:
+              - name: "Vcc Voltage"
+                measurement: "51.0"
+                lowLimit: "49.0"
+                units: "v"
+                status: "Passed"
+                comparisonType: "GE"
+    id_reference: "tr_a_tc003_c6"
+    tags: ["example-cca-thermocycle-test-data"]
+
+  
+
+  # ==========================================================================
+  # INCOMPLETE RESULTS — simulate interrupted or aborted runs (for realism)
+  # Students will see these in the results list; they have no measurement data.
+  # ==========================================================================
+
+  - type: "test_result"
+    name: "Sensor CCA Xtreme TC-001 Aborted Run (connection lost)"
+    properties:
+      program_name: "Thermal Cycle Test"
+      part_number: "Sensor-CCA-X"
+      serial_number: "CCA-30001"
+      system_id: "${sys_ctts001}"
+      operator: "Operator A"
+      start_time: "2026-02-15T08:00:00Z"
+      status: "failed"
+    id_reference: "tr_a_tc001_aborted"
+    tags: ["example-cca-thermocycle-test-data"]
+
+  - type: "test_result"
+    name: "Sensor CCA Xtreme TC-003 Aborted Run (power outage)"
+    properties:
+      program_name: "Thermal Cycle Test"
+      part_number: "Sensor-CCA-X"
+      serial_number: "CCA-30003"
+      system_id: "${sys_ctts002}"
+      operator: "Operator C"
+      start_time: "2026-02-16T08:00:00Z"
+      status: "failed"
+    id_reference: "tr_a_tc003_aborted"
+    tags: ["example-cca-thermocycle-test-data"]
+
+  - type: "test_result"
+    name: "Sensor CCA Xtreme TC-002 Aborted Run (operator cancelled)"
+    properties:
+      program_name: "Thermal Cycle Test"
+      part_number: "Sensor-CCA-X"
+      serial_number: "CCA-30002"
+      system_id: "${sys_ctts002}"
+      operator: "Operator B"
+      start_time: "2026-02-17T08:00:00Z"
+      status: "skipped"
+    id_reference: "tr_a_tc002_aborted"
+    tags: ["example-cca-thermocycle-test-data"]
+
+cleanup:
+  order:
+    - "test_result"
+    - "dut"
+    - "system"
+    - "product"
+    - "location"
+  filter_tags: ["example-cca-thermocycle-test-data"]
+  require_confirmation: true
+
+validation:
+  require_workspace: true
+
+post_install:
+  instructions: |
+    ✓ Example data installed successfully!
+
+    Resources created:
+    - 1 location:              Battery Test Facility
+    - 1 products:              Sensor CCA Xtreme 
+    - 3 test systems:          TC-01, TC-02, TC-03
+    - 5 DUTs:                  BAT-DUT-A01/B01/C01, XYZ-DUT-001, a-REVB-DUT-001
+    - 18 test results:         Sensor CCA Xtreme (6 per stand, Jan 6 – Feb 13 2026)
+    -  3 incomplete results:   Aborted/skipped runs for realism
+
+    Data highlights for student discovery:
+    - TC-03 Sensor Temperatures run ~3-4 °C warmer than TC-01/TC-02 (calibration offset)
+    - TC-01 Cycle 5 (Feb 4): internal_resistance_mohm = 21.4 → FAIL
+    - TC-03 Cycle 4 (Jan 30): cell_temperature_3_c = 44.8 → FAIL
+    - Vcc Voltage and voltage show a slow downward trend across all three stands
+
+    Next steps:
+    1. Open Test Insights > Products in the SystemLink web interface
+    2. Locate "Sensor CCA Xtreme" (part number Sensor-CCA-X)
+
