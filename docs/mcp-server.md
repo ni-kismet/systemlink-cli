@@ -42,7 +42,7 @@ pip install "systemlink-cli[mcp]"
 If `slcli` is already installed without MCP support, add it in place:
 
 ```bash
-pipx runpip systemlink-cli install "mcp>=1.0"
+pipx runpip systemlink-cli install "mcp>=2,<3"
 # or in a Poetry project:
 poetry add mcp
 ```

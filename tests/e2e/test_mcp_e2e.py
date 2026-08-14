@@ -15,7 +15,7 @@ import json
 import os
 from typing import Any, Dict, List, Optional, Tuple
 
-import httpx
+import httpx2 as httpx
 import pytest
 from mcp import ClientSession
 from mcp.client.streamable_http import streamable_http_client
@@ -170,7 +170,7 @@ async def _call_tool(
 ) -> CallToolResult:
     """Call an MCP tool and fail on unexpected MCP-level errors."""
     result = await session.call_tool(name, arguments)
-    if result.isError and not allow_error:
+    if result.is_error and not allow_error:
         pytest.fail(f"Tool '{name}' returned an unexpected error: {_tool_result_text(result)}")
     return result
 
@@ -184,7 +184,7 @@ async def _exercise_mcp_tools(mcp_url: str, timeout_seconds: int) -> None:
             async with streamable_http_client(
                 mcp_url,
                 http_client=http_client,
-            ) as (read_stream, write_stream, _):
+            ) as (read_stream, write_stream):
                 async with ClientSession(read_stream, write_stream) as session:
                     await session.initialize()
 
@@ -262,7 +262,7 @@ async def _exercise_mcp_tools(mcp_url: str, timeout_seconds: int) -> None:
                         {"take": 5},
                         allow_error=True,
                     )
-                    if not policy_result.isError:
+                    if not policy_result.is_error:
                         policies = _tool_result_json(policy_result)
                         state["policy_id"] = _first_id(policies)
 

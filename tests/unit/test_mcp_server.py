@@ -17,13 +17,33 @@ def make_mock_response(json_data: Any, status_code: int = 200) -> Any:
     return resp
 
 
-def test_server_is_fastmcp_instance() -> None:
-    """The module-level server is a FastMCP instance."""
-    from mcp.server.fastmcp import FastMCP  # type: ignore[import-untyped]
+def test_server_is_mcpserver_instance() -> None:
+    """The module-level server is an MCPServer instance."""
+    from mcp.server.mcpserver import MCPServer
 
     from slcli.mcp_server import server
 
-    assert isinstance(server, FastMCP)
+    assert isinstance(server, MCPServer)
+
+
+def test_run_streamable_http_passes_host_and_port_to_mcp_2() -> None:
+    """The MCP 2 server receives HTTP settings through run arguments."""
+    import slcli.mcp_server as mcp_server_module
+
+    captured: dict[str, Any] = {}
+
+    class MockServer:
+        def run(self, **kwargs: Any) -> None:
+            captured.update(kwargs)
+
+    original_server = mcp_server_module.server
+    mcp_server_module.server = MockServer()  # type: ignore[assignment]
+    try:
+        mcp_server_module.run_streamable_http(host="0.0.0.0", port=9000)
+    finally:
+        mcp_server_module.server = original_server
+
+    assert captured == {"transport": "streamable-http", "host": "0.0.0.0", "port": 9000}
 
 
 def test_server_tool_names() -> None:

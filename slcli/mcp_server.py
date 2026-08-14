@@ -10,9 +10,9 @@ import sys
 import urllib.parse
 from typing import Any, Callable, Dict, List, Literal, Optional, TypeVar
 
-from mcp.server.fastmcp import FastMCP  # type: ignore[import-untyped]
+from mcp.server.mcpserver import MCPServer
 
-server = FastMCP("slcli")
+server = MCPServer("slcli")
 T = TypeVar("T")
 
 
@@ -807,6 +807,11 @@ async def _run() -> None:
     """Run the MCP server over stdio."""
     print("slcli MCP server ready — waiting for client", file=sys.stderr, flush=True)
     await server.run_stdio_async()
+
+
+def run_streamable_http(host: str, port: int) -> None:
+    """Run the MCP server over streamable HTTP."""
+    server.run(transport="streamable-http", host=host, port=port)
 
 
 def main() -> None:

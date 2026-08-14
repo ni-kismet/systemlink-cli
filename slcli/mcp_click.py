@@ -195,14 +195,14 @@ def register_mcp_commands(cli: Any) -> None:
         """
         try:
             from .mcp_server import main as run_mcp_server
-            from .mcp_server import server as mcp_server
+            from .mcp_server import run_streamable_http
         except ImportError:
             click.echo(
                 "✗ The 'mcp' package is not installed.\n"
-                "  Install it with: pip install 'mcp>=1.0'\n"
+                "  Install it with: pip install 'mcp>=2,<3'\n"
                 "  Or in a Poetry project: poetry add mcp\n"
                 "  If slcli was installed with pipx:\n"
-                "  pipx runpip systemlink-cli install 'mcp>=1.0'\n",
+                "  pipx runpip systemlink-cli install 'mcp>=2,<3'\n",
                 err=True,
             )
             sys.exit(ExitCodes.GENERAL_ERROR)
@@ -210,9 +210,6 @@ def register_mcp_commands(cli: Any) -> None:
         if transport == "stdio":
             run_mcp_server()
         else:
-            mcp_server.settings.host = host
-            mcp_server.settings.port = port
-
             click.echo(
                 "✓ slcli MCP server starting in streamable HTTP mode on "
                 f"http://{host}:{port}/mcp"
@@ -224,7 +221,7 @@ def register_mcp_commands(cli: Any) -> None:
             click.echo("  Press Ctrl+C to stop.\n")
 
             try:
-                mcp_server.run(transport="streamable-http")
+                run_streamable_http(host=host, port=port)
             except KeyboardInterrupt:
                 click.echo("\nslcli MCP server stopped")
                 sys.exit(0)
