@@ -17,14 +17,15 @@ from typing import Any, Dict, List, Optional, Tuple
 
 import httpx2 as httpx
 import pytest
-from mcp import ClientSession
+from mcp import Client, ClientSession
 from mcp.client.streamable_http import streamable_http_client
-from mcp.types import CallToolResult, ListToolsResult, TextContent
+from mcp.types import LATEST_PROTOCOL_VERSION, CallToolResult, ListToolsResult, TextContent
 
 from slcli.mcp_reachability import is_reachability_failure
 
 DEFAULT_MCP_URL = "http://127.0.0.1:8000/mcp"
 DEFAULT_TIMEOUT_SECONDS = 5
+LEGACY_PROTOCOL_VERSION = "2025-11-25"
 MISSING_RESOURCE_SENTINEL = "mcp-e2e-missing-resource"
 MISSING_TAG_PATH = "mcp.e2e.missing.tag"
 
@@ -175,6 +176,23 @@ async def _call_tool(
     return result
 
 
+async def _discover_mcp_protocol(mcp_url: str, timeout_seconds: int) -> str:
+    """Discover the MCP protocol and verify the server's tool surface."""
+    try:
+        async with Client(
+            mcp_url,
+            mode="auto",
+            read_timeout_seconds=float(timeout_seconds),
+        ) as session:
+            tools: ListToolsResult = await session.list_tools()
+            assert {tool.name for tool in tools.tools} == EXPECTED_TOOL_NAMES
+            return session.protocol_version
+    except Exception as exc:
+        if is_reachability_failure(exc):
+            pytest.skip(f"Local MCP server is not reachable at {mcp_url}: {exc}")
+        raise
+
+
 async def _exercise_mcp_tools(mcp_url: str, timeout_seconds: int) -> None:
     """Connect to the live streamable HTTP server and exercise the MCP tool surface."""
     state: Dict[str, Any] = {}
@@ -191,6 +209,10 @@ async def _exercise_mcp_tools(mcp_url: str, timeout_seconds: int) -> None:
                     tools: ListToolsResult = await session.list_tools()
                     tool_names = {tool.name for tool in tools.tools}
                     assert tool_names == EXPECTED_TOOL_NAMES
+                    assert session.protocol_version in {
+                        LATEST_PROTOCOL_VERSION,
+                        LEGACY_PROTOCOL_VERSION,
+                    }
 
                     workspaces = _tool_result_json(
                         await _call_tool(session, "query_workspaces", {"take": 5})
@@ -463,6 +485,13 @@ async def _exercise_mcp_tools(mcp_url: str, timeout_seconds: int) -> None:
 @pytest.mark.slow
 class TestMcpStreamableHttpE2E:
     """End-to-end tests for a locally running slcli MCP streamable HTTP server."""
+
+    def test_auto_negotiates_latest_protocol(self) -> None:
+        """Connect with discovery and negotiate the latest MCP protocol."""
+        mcp_url = _env("SLCLI_MCP_E2E_URL", DEFAULT_MCP_URL) or DEFAULT_MCP_URL
+        timeout_seconds = int(_env("SLCLI_MCP_E2E_TIMEOUT", str(DEFAULT_TIMEOUT_SECONDS)) or 5)
+        protocol_version = asyncio.run(_discover_mcp_protocol(mcp_url, timeout_seconds))
+        assert protocol_version == LATEST_PROTOCOL_VERSION
 
     def test_exercise_all_tools(self) -> None:
         """Connect to the local streamable HTTP server and exercise the full MCP tool set."""

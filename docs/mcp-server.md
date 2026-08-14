@@ -163,6 +163,14 @@ tools, call them with custom arguments, and inspect the JSON responses.
 The server uses your existing Poetry / venv Python environment,
 so no `uv` or PyPI access is needed.
 
+### Protocol compatibility
+
+The MCP SDK v2 server supports the latest `2026-07-28` protocol. The E2E
+client connects with SDK auto-negotiation: it tries modern discovery first and
+falls back to the `2025-11-25` initialize handshake when connecting to a
+legacy MCP peer. This keeps the HTTP test harness compatible with both
+protocol eras while new servers use the latest protocol automatically.
+
 ## Available tools
 
 ### Phase 1 — Read-only foundation
