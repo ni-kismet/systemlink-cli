@@ -14,6 +14,7 @@ from slcli.mcp_click import (
     _merge_and_write_json,
     _slcli_exe,
     _vscode_server_entry,
+    DEFAULT_STREAMABLE_HTTP_PORT,
     register_mcp_commands,
 )
 
@@ -61,7 +62,7 @@ def test_vscode_server_entry_format() -> None:
     assert entry == {
         "type": "stdio",
         "command": "/usr/local/bin/slcli",
-        "args": ["mcp", "serve"],
+        "args": ["mcp", "serve", "--transport", "stdio"],
     }
 
 
@@ -70,7 +71,7 @@ def test_claude_server_entry_format() -> None:
     entry = _claude_server_entry("/usr/local/bin/slcli")
     assert entry == {
         "command": "/usr/local/bin/slcli",
-        "args": ["mcp", "serve"],
+        "args": ["mcp", "serve", "--transport", "stdio"],
     }
     assert "type" not in entry
 
@@ -134,9 +135,32 @@ def test_mcp_serve_calls_mcp_server_main(monkeypatch: Any, runner: CliRunner) ->
     monkeypatch.setattr(_mcp_server_module, "main", mock_main)
 
     cli = make_cli()
-    result = runner.invoke(cli, ["mcp", "serve"])
+    result = runner.invoke(cli, ["mcp", "serve", "--transport", "stdio"])
     assert result.exit_code == 0
     assert called == [True]
+
+
+def test_mcp_serve_defaults_to_streamable_http(monkeypatch: Any, runner: CliRunner) -> None:
+    """The serve command defaults to the local streamable HTTP server."""
+    import slcli.mcp_server as _mcp_server_module
+
+    captured: dict[str, Any] = {}
+    monkeypatch.setattr(
+        _mcp_server_module.server,
+        "run",
+        lambda **kwargs: captured.update(kwargs),
+    )
+    monkeypatch.setattr(_mcp_server_module, "main", lambda: None)
+
+    cli = make_cli()
+    result = runner.invoke(cli, ["mcp", "serve"])
+
+    assert result.exit_code == 0
+    assert captured == {
+        "transport": "streamable-http",
+        "host": "127.0.0.1",
+        "port": DEFAULT_STREAMABLE_HTTP_PORT,
+    }
 
 
 def test_mcp_serve_import_error_shows_helpful_message(monkeypatch: Any, runner: CliRunner) -> None:
@@ -216,7 +240,7 @@ def test_mcp_serve_streamable_http_shows_inspector_instructions(
 
     cli = make_cli()
     result = runner.invoke(cli, ["mcp", "serve", "--transport", "streamable-http"])
-    assert "127.0.0.1:8000/mcp" in result.output
+    assert f"127.0.0.1:{DEFAULT_STREAMABLE_HTTP_PORT}/mcp" in result.output
     assert "inspector" in result.output.lower()
 
 
@@ -251,7 +275,12 @@ def test_mcp_install_vscode_creates_file(monkeypatch: Any, runner: CliRunner) ->
         assert config_file.exists(), f".vscode/mcp.json not found; output: {result.output}"
         data = json.loads(config_file.read_text())
         assert data["servers"]["slcli"]["type"] == "stdio"
-        assert data["servers"]["slcli"]["args"] == ["mcp", "serve"]
+        assert data["servers"]["slcli"]["args"] == [
+            "mcp",
+            "serve",
+            "--transport",
+            "stdio",
+        ]
 
 
 def test_mcp_install_vscode_default_target(monkeypatch: Any, runner: CliRunner) -> None:

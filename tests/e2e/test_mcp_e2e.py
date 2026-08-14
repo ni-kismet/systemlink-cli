@@ -2,10 +2,10 @@
 
 These tests connect to a locally running MCP server started with:
 
-    poetry run slcli mcp serve --transport streamable-http
+    poetry run slcli mcp serve
 
 Environment variables:
-- SLCLI_MCP_E2E_URL: MCP endpoint URL (default: http://127.0.0.1:8000/mcp)
+- SLCLI_MCP_E2E_URL: MCP endpoint URL (default: http://127.0.0.1:8765/mcp)
 - SLCLI_MCP_E2E_TIMEOUT: transport timeout in seconds (default: 5)
 - SLCLI_MCP_E2E_<RESOURCE>: optional resource overrides for sparse environments
 """
@@ -23,7 +23,7 @@ from mcp.types import LATEST_PROTOCOL_VERSION, CallToolResult, ListToolsResult, 
 
 from slcli.mcp_reachability import is_reachability_failure
 
-DEFAULT_MCP_URL = "http://127.0.0.1:8000/mcp"
+DEFAULT_MCP_URL = "http://127.0.0.1:8765/mcp"
 DEFAULT_TIMEOUT_SECONDS = 5
 DEFAULT_SSE_READ_TIMEOUT_SECONDS = 300
 LEGACY_PROTOCOL_VERSION = "2025-11-25"
@@ -99,6 +99,8 @@ def _tool_result_json(result: CallToolResult) -> Any:
 
 def _first_id(items: Any) -> Optional[str]:
     """Return the first top-level item ID from a list response."""
+    if isinstance(items, dict):
+        items = items.get("items", [])
     if not isinstance(items, list):
         return None
     for item in items:

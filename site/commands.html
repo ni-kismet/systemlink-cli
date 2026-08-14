@@ -152,16 +152,16 @@ slcli testmonitor result list --format json</code></pre>
     slcli mcp install --target all</code></pre>
 
       <h3>Serve The MCP Endpoint</h3>
-      <pre><code># Default stdio transport for AI clients that spawn the server directly
+      <pre><code># Default streamable HTTP transport for the MCP Inspector and browser tooling
     slcli mcp serve
 
-    # Streamable HTTP transport for the MCP Inspector and browser tooling
-    slcli mcp serve --transport streamable-http
+    # Stdio transport for AI clients that spawn the server directly
+    slcli mcp serve --transport stdio
 
     # Bind to a custom host and port
     slcli mcp serve --transport streamable-http --host 0.0.0.0 --port 9000</code></pre>
 
-      <p>Streamable HTTP serves the MCP endpoint at <code>http://127.0.0.1:8000/mcp</code> by default.</p>
+      <p>Streamable HTTP serves the MCP endpoint at <code>http://127.0.0.1:8765/mcp</code> by default.</p>
 
       <!-- ─── TEST MONITOR ─── -->
       <h2 id="testmonitor">testmonitor</h2>
