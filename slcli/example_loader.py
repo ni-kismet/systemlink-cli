@@ -24,6 +24,7 @@ class ExampleLoader:
         "product",
         "system",
         "asset",
+        "fixture",
         "dut",
         "testtemplate",
         "workflow",

@@ -1715,6 +1715,115 @@ def test_build_asset_obj_snake_case_fields() -> None:
     assert obj["busType"] == "TCP_IP"
 
 
+def test_build_asset_obj_maps_optional_asset_create_fields() -> None:
+    """Optional AssetCreateModel fields are mapped from snake_case aliases."""
+    prov = ExampleProvisioner(workspace_id="ws-test", dry_run=False)
+    obj = prov._build_asset_obj(
+        {
+            "name": "Scope 1",
+            "firmware_version": "A1",
+            "hardware_version": "H2",
+            "visa_resource_name": "TCPIP0::1.2.3.4::INSTR",
+            "temperature_sensors": [{"name": "temp0", "reading": 42.0}],
+            "supports_self_calibration": True,
+            "supports_external_calibration": False,
+            "custom_calibration_interval": "24",
+            "self_calibration": {"date": "2026-07-01T00:00:00Z"},
+            "is_ni_asset": True,
+            "external_calibration": {"certificateNumber": "CERT-1"},
+            "discovery_type": "MANUAL",
+            "supports_self_test": True,
+            "supports_reset": False,
+            "scan_code": "SCN-001",
+        }
+    )
+
+    assert obj["firmwareVersion"] == "A1"
+    assert obj["hardwareVersion"] == "H2"
+    assert obj["visaResourceName"] == "TCPIP0::1.2.3.4::INSTR"
+    assert obj["temperatureSensors"] == [{"name": "temp0", "reading": 42.0}]
+    assert obj["supportsSelfCalibration"] is True
+    assert obj["supportsExternalCalibration"] is False
+    assert obj["customCalibrationInterval"] == 24
+    assert obj["selfCalibration"] == {"date": "2026-07-01T00:00:00Z"}
+    assert obj["isNIAsset"] is True
+    assert obj["externalCalibration"] == {"certificateNumber": "CERT-1"}
+    assert obj["discoveryType"] == "MANUAL"
+    assert obj["supportsSelfTest"] is True
+    assert obj["supportsReset"] is False
+    assert obj["scanCode"] == "SCN-001"
+
+
+def test_build_asset_obj_merges_location_with_system_and_parent() -> None:
+    """Provided location object is preserved and merged with system/parent references."""
+    prov = ExampleProvisioner(workspace_id="ws-test", dry_run=False)
+    obj = prov._build_asset_obj(
+        {
+            "name": "DAQ Device",
+            "location": {"physicalLocation": "Rack 7", "state": {"systemConnection": "CONNECTED"}},
+            "systemId": "sys-777",
+            "parent_id": "asset-parent-9",
+        }
+    )
+
+    assert obj["location"]["physicalLocation"] == "Rack 7"
+    assert obj["location"]["minionId"] == "sys-777"
+    assert obj["location"]["parent"] == "asset-parent-9"
+    assert obj["location"]["state"]["systemConnection"] == "CONNECTED"
+    assert obj["location"]["state"]["assetPresence"] == "UNKNOWN"
+
+
+def test_build_asset_obj_normalizes_location_subfields() -> None:
+    """Location subfields and nested state aliases map to schema-style keys."""
+    prov = ExampleProvisioner(workspace_id="ws-test", dry_run=False)
+    obj = prov._build_asset_obj(
+        {
+            "name": "Digitizer",
+            "location": {
+                "minion_id": "sys-abc",
+                "physical_location": "Bench A",
+                "resource_uri": "1/2/3",
+                "slot_number": "7",
+                "state": {
+                    "asset_presence": "PRESENT",
+                    "system_connection": "CONNECTED",
+                },
+            },
+        }
+    )
+
+    loc = obj["location"]
+    assert loc["minionId"] == "sys-abc"
+    assert loc["physicalLocation"] == "Bench A"
+    assert loc["resourceUri"] == "1/2/3"
+    assert loc["slotNumber"] == 7
+    assert loc["state"]["assetPresence"] == "PRESENT"
+    assert loc["state"]["systemConnection"] == "CONNECTED"
+
+
+@patch("slcli.example_provisioner.get_base_url")
+@patch("slcli.example_provisioner.make_api_request")
+def test_create_system_includes_location_id(mock_api: Any, mock_base_url: Any) -> None:
+    """_create_system maps location_id to locationId payload field."""
+    mock_base_url.return_value = "https://api.test.com"
+    resp = MagicMock()
+    resp.raise_for_status.return_value = None
+    resp.json.return_value = {"minionId": "sys-001"}
+    mock_api.return_value = resp
+
+    prov = ExampleProvisioner(workspace_id="ws-test", dry_run=False)
+    server_id = prov._create_system({"name": "System A", "location_id": "loc-123"})
+
+    assert server_id == "sys-001"
+    mock_api.assert_called_once()
+    assert mock_api.call_args[0][0] == "POST"
+    assert "/nisysmgmt/v1/virtual" in mock_api.call_args[0][1]
+    payload = mock_api.call_args[0][2]
+    assert payload["alias"] == "System A"
+    assert payload["workspace"] == "ws-test"
+    assert payload["locationId"] == "loc-123"
+
+
 @patch("slcli.example_provisioner.get_base_url")
 @patch("slcli.example_provisioner.make_api_request")
 def test_create_dut_delegates_to_shared_helpers(mock_api: Any, mock_base_url: Any) -> None:

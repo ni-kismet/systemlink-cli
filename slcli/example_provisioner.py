@@ -19,6 +19,7 @@ import requests
 from .utils import get_base_url, get_headers, make_api_request
 
 
+
 class ProvisioningAction(Enum):
     """Type of action taken by the provisioner."""
 
@@ -203,6 +204,7 @@ class ExampleProvisioner:
                     "product": self._delete_product,
                     "system": self._delete_system,
                     "asset": self._delete_asset,
+                    "fixture": self._delete_fixture,
                     "dut": self._delete_dut,
                     "testtemplate": self._delete_testtemplate,
                     "workflow": self._delete_workflow,
@@ -285,6 +287,7 @@ class ExampleProvisioner:
             "product": self._create_product,
             "system": self._create_system,
             "asset": self._create_asset,
+            "fixture": self._create_fixture,
             "dut": self._create_dut,
             "testtemplate": self._create_testtemplate,
             "workflow": self._create_workflow,
@@ -326,6 +329,8 @@ class ExampleProvisioner:
                 existing_id = self._get_system_by_name(rname)
             elif rtype == "asset":
                 existing_id = self._get_asset_by_name(rname)
+            elif rtype == "fixture":
+                existing_id = self._get_fixture_by_name(rname)
             elif rtype == "dut":
                 existing_id = self._get_dut_by_name(rname)
             elif rtype == "testtemplate":
@@ -1407,7 +1412,7 @@ class ExampleProvisioner:
         """Create virtual system via Systems Management API and return server ID.
 
         Uses POST /nisysmgmt/v1/virtual with request body:
-        { alias, workspace }
+        { alias, workspace, locationId }
         """
         url = f"{get_base_url()}/nisysmgmt/v1/virtual"
         # Systems Management API uses 'alias' not 'name'
@@ -1418,6 +1423,9 @@ class ExampleProvisioner:
         # Note: Systems API rejects empty string workspace
         if self.workspace_id and self.workspace_id.strip():
             payload["workspace"] = self.workspace_id
+        location_id = props.get("locationId") or props.get("location_id")
+        if isinstance(location_id, str) and location_id.strip():
+            payload["locationId"] = location_id.strip()
         resp = make_api_request("POST", url, payload, handle_errors=False)
         resp.raise_for_status()
         data = resp.json()
@@ -1542,9 +1550,33 @@ class ExampleProvisioner:
             "vendorName": ["vendorName", "vendor_name"],
             "vendorNumber": ["vendorNumber", "vendor_number"],
             "serialNumber": ["serialNumber", "serial_number"],
+            "firmwareVersion": ["firmwareVersion", "firmware_version"],
+            "hardwareVersion": ["hardwareVersion", "hardware_version"],
+            "visaResourceName": ["visaResourceName", "visa_resource_name"],
+            "temperatureSensors": ["temperatureSensors", "temperature_sensors"],
+            "supportsSelfCalibration": [
+                "supportsSelfCalibration",
+                "supports_self_calibration",
+            ],
+            "supportsExternalCalibration": [
+                "supportsExternalCalibration",
+                "supports_external_calibration",
+            ],
+            "customCalibrationInterval": [
+                "customCalibrationInterval",
+                "custom_calibration_interval",
+            ],
+            "selfCalibration": ["selfCalibration", "self_calibration"],
+            "isNIAsset": ["isNIAsset", "is_ni_asset"],
+            "location": ["location"],
+            "externalCalibration": ["externalCalibration", "external_calibration"],
+            "discoveryType": ["discoveryType", "discovery_type"],
             "partNumber": ["partNumber", "part_number"],
             "properties": ["properties"],
             "fileIds": ["fileIds", "file_ids"],
+            "supportsSelfTest": ["supportsSelfTest", "supports_self_test"],
+            "supportsReset": ["supportsReset", "supports_reset"],
+            "scanCode": ["scanCode", "scan_code"],
         }
         for target, candidates in field_map.items():
             # If the caller already set asset_type, skip the assetType field-map entry
@@ -1563,7 +1595,7 @@ class ExampleProvisioner:
                 if trimmed == "" or trimmed == "0":
                     continue
             # Coerce numeric fields to integers when provided as strings
-            if target in ("modelNumber", "vendorNumber"):
+            if target in ("modelNumber", "vendorNumber", "customCalibrationInterval"):
                 if isinstance(val, str):
                     num = val.strip()
                     if num.isdigit():
@@ -1597,13 +1629,63 @@ class ExampleProvisioner:
         if "vendorName" not in asset_obj:
             asset_obj["vendorName"] = "Unknown"
 
-        # If a system is provided via resolved "system_id", construct the location object
-        # using the system's minion ID per AssetLocationWithPresenceModel.
-        if "system_id" in props and isinstance(props["system_id"], str):
-            asset_obj["location"] = {
-                "minionId": props["system_id"],
-                "state": {"assetPresence": "UNKNOWN"},
-            }
+        # Build location object from provided location plus resolved relationship props.
+        location_obj: Dict[str, Any] = {}
+        if isinstance(asset_obj.get("location"), dict):
+            location_obj = dict(asset_obj["location"])
+
+        location_field_map: Dict[str, List[str]] = {
+            "minionId": ["minionId", "minion_id"],
+            "physicalLocation": ["physicalLocation", "physical_location"],
+            "parent": ["parent", "parent_id", "parentId", "parent_asset_id", "parentAssetId"],
+            "resourceUri": ["resourceUri", "resource_uri"],
+            "slotNumber": ["slotNumber", "slot_number"],
+        }
+        for target, candidates in location_field_map.items():
+            for cand in candidates:
+                if cand in location_obj and location_obj[cand] is not None:
+                    location_obj[target] = location_obj[cand]
+                    break
+
+        if "state" in location_obj and isinstance(location_obj["state"], dict):
+            state_obj = dict(location_obj["state"])
+            if "asset_presence" in state_obj and "assetPresence" not in state_obj:
+                state_obj["assetPresence"] = state_obj["asset_presence"]
+            if "system_connection" in state_obj and "systemConnection" not in state_obj:
+                state_obj["systemConnection"] = state_obj["system_connection"]
+            location_obj["state"] = state_obj
+
+        slot_number = location_obj.get("slotNumber")
+        if isinstance(slot_number, str):
+            slot_number_trimmed = slot_number.strip()
+            if slot_number_trimmed.isdigit():
+                location_obj["slotNumber"] = int(slot_number_trimmed)
+
+        if not isinstance(location_obj.get("state"), dict):
+            location_obj["state"] = {"assetPresence": "UNKNOWN"}
+        else:
+            location_obj["state"].setdefault("assetPresence", "UNKNOWN")
+
+        system_id = None
+        for key in ("system_id", "systemId", "minion_id", "minionId"):
+            val = props.get(key)
+            if isinstance(val, str) and val.strip():
+                system_id = val.strip()
+                break
+        if system_id:
+            location_obj["minionId"] = system_id
+
+        parent_asset_id: Optional[str] = None
+        for key in ("parent_asset_id", "parent_id", "parentAssetId", "parentId"):
+            val = props.get(key)
+            if isinstance(val, str) and val.strip():
+                parent_asset_id = val.strip()
+                break
+        if parent_asset_id:
+            location_obj["parent"] = parent_asset_id
+
+        if location_obj:
+            asset_obj["location"] = location_obj
         elif "location" not in asset_obj:
             asset_obj["location"] = {"state": {"assetPresence": "UNKNOWN"}}
 
@@ -1654,6 +1736,18 @@ class ExampleProvisioner:
                        workspace, keywords, properties, ... }] }
         """
         asset_obj = self._build_asset_obj(props, default_name="Unknown Asset")
+        return self._post_asset(asset_obj)
+
+    def _create_fixture(self, props: Dict[str, Any]) -> str:
+        """Create fixture via Asset Management API and return server ID.
+
+        Fixtures are assets with assetType=FIXTURE. They can be linked as child
+        assets by specifying one of: parent_asset_id, parent_id, parentAssetId,
+        or parentId in resource properties.
+        """
+        asset_obj = self._build_asset_obj(
+            props, default_name="Unknown Fixture", asset_type="FIXTURE"
+        )
         return self._post_asset(asset_obj)
 
     def _get_asset_by_name(self, name: str) -> Optional[str]:
@@ -1739,6 +1833,52 @@ class ExampleProvisioner:
                 if str(asset.get("name", "")) != name:
                     continue
                 if self.workspace_id and str(asset.get("workspace", "")) != str(self.workspace_id):
+                    continue
+                if example_tag:
+                    keywords = asset.get("keywords", [])
+                    if not (isinstance(keywords, list) and example_tag in keywords):
+                        continue
+                return str(asset.get("id", "")) or None
+        except Exception:
+            # API unavailable or malformed response; return None to allow fallback to creation
+            pass
+        return None
+
+    def _get_fixture_by_name(self, name: str) -> Optional[str]:
+        """Find a fixture by exact `name` within workspace. Returns ID or None.
+
+        Fixtures are managed as assets via Asset Management API: POST
+        /niapm/v1/query-assets which returns { assets: [...], totalCount }.
+        Filters via API on workspace/name and client-side on assetType and
+        example tag (keywords).
+        """
+        try:
+            url = f"{get_base_url()}/niapm/v1/query-assets"
+            filters = []
+            if self.workspace_id:
+                filters.append(f'Workspace = "{self.workspace_id}"')
+            filters.append(f'AssetName = "{name}"')
+            filter_expr = " and ".join(filters)
+            projection = (
+                "new(id,name,assetType,modelName,modelNumber,vendorName,vendorNumber,serialNumber,"
+                "workspace,properties,keywords,location.minionId,location.parent,"
+                "location.physicalLocation,location.state.assetPresence,location.state.systemConnection,"
+                "discoveryType,supportsSelfTest,supportsSelfCalibration,supportsReset,"
+                "supportsExternalCalibration,scanCode,temperatureSensors.reading,"
+                "externalCalibration.resolvedDueDate,selfCalibration.date)"
+            )
+            payload = {
+                "filter": filter_expr,
+                "take": 1000,
+                "skip": 0,
+                "projection": projection,
+            }
+            resp = make_api_request("POST", url, payload, handle_errors=False)
+            data = resp.json()
+            assets = data.get("assets", [])
+            example_tag = f"slcli-example:{self.example_name}" if self.example_name else None
+            for asset in assets:
+                if str(asset.get("assetType", "")) != "FIXTURE":
                     continue
                 if example_tag:
                     keywords = asset.get("keywords", [])
@@ -1965,6 +2105,29 @@ class ExampleProvisioner:
             resp = make_api_request("POST", url, payload, handle_errors=False)
             resp.raise_for_status()
             return dut_id
+        except Exception:
+            return None
+
+    def _delete_fixture(self, props: Dict[str, Any]) -> Optional[str]:
+        """Delete fixture via /niapm/v1/delete-assets.
+
+        Returns ID if deleted, None otherwise.
+        """
+        name = props.get("name", "")
+        if not name:
+            return None
+
+        fixture_id = self._get_fixture_by_name(name)
+        if not fixture_id:
+            # Fixture doesn't exist
+            return None
+
+        try:
+            url = f"{get_base_url()}/niapm/v1/delete-assets"
+            payload = {"ids": [fixture_id]}
+            resp = make_api_request("POST", url, payload, handle_errors=False)
+            resp.raise_for_status()
+            return fixture_id
         except Exception:
             return None
 

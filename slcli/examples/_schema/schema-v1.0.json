@@ -166,6 +166,7 @@
             "product",
             "system",
             "asset",
+            "fixture",
             "dut",
             "testtemplate",
             "workflow",
