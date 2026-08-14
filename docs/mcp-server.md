@@ -44,7 +44,7 @@ If `slcli` is already installed without MCP support, add it in place:
 ```bash
 pipx runpip systemlink-cli install "mcp>=2,<3"
 # or in a Poetry project:
-poetry add mcp
+poetry add "mcp>=2,<3"
 ```
 
 ## Registering with AI clients

@@ -25,6 +25,7 @@ from slcli.mcp_reachability import is_reachability_failure
 
 DEFAULT_MCP_URL = "http://127.0.0.1:8000/mcp"
 DEFAULT_TIMEOUT_SECONDS = 5
+DEFAULT_SSE_READ_TIMEOUT_SECONDS = 300
 LEGACY_PROTOCOL_VERSION = "2025-11-25"
 MISSING_RESOURCE_SENTINEL = "mcp-e2e-missing-resource"
 MISSING_TAG_PATH = "mcp.e2e.missing.tag"
@@ -198,7 +199,8 @@ async def _exercise_mcp_tools(mcp_url: str, timeout_seconds: int) -> None:
     state: Dict[str, Any] = {}
 
     try:
-        async with httpx.AsyncClient(timeout=httpx.Timeout(timeout_seconds)) as http_client:
+        timeout = httpx.Timeout(timeout_seconds, read=DEFAULT_SSE_READ_TIMEOUT_SECONDS)
+        async with httpx.AsyncClient(timeout=timeout) as http_client:
             async with streamable_http_client(
                 mcp_url,
                 http_client=http_client,

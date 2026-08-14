@@ -200,7 +200,7 @@ def register_mcp_commands(cli: Any) -> None:
             click.echo(
                 "✗ The 'mcp' package is not installed.\n"
                 "  Install it with: pip install 'mcp>=2,<3'\n"
-                "  Or in a Poetry project: poetry add mcp\n"
+                "  Or in a Poetry project: poetry add 'mcp>=2,<3'\n"
                 "  If slcli was installed with pipx:\n"
                 "  pipx runpip systemlink-cli install 'mcp>=2,<3'\n",
                 err=True,
