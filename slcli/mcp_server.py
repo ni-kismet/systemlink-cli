@@ -8,12 +8,66 @@ import asyncio
 import json
 import sys
 import urllib.parse
-from typing import Any, Callable, Dict, List, Literal, Optional, TypeVar
+from pathlib import Path
+from typing import Annotated, Any, Callable, Dict, List, Literal, Optional, TypeVar
 
-from mcp.server.fastmcp import FastMCP  # type: ignore[import-untyped]
+from mcp.server.mcpserver import MCPServer
+from mcp.types import ToolAnnotations
+from pydantic import BaseModel, Field
 
-server = FastMCP("slcli")
+from ._version import __version__
+
+server = MCPServer(
+    name="slcli",
+    title="SystemLink CLI",
+    description="Query-oriented tools for discovering and retrieving NI SystemLink resources.",
+    instructions=(
+        "Use query_* tools to discover SystemLink resources and get_* tools when an ID or path "
+        "is already known. Resolve workspace names to IDs when a service requires an ID. "
+        "Filters are service-specific; use substitutions for Dynamic LINQ values. Results are "
+        "scoped to the active slcli profile and workspace. An empty result means no matching "
+        "visible data was found; it does not prove that a resource does not exist."
+    ),
+    version=__version__,
+)
 T = TypeVar("T")
+
+_READ_ONLY_TOOL_ANNOTATIONS = ToolAnnotations(
+    read_only_hint=True,
+    destructive_hint=False,
+    idempotent_hint=True,
+    open_world_hint=False,
+)
+
+
+def _reference_root_candidates() -> List[Path]:
+    """Return candidate packaged-reference directories for source and frozen layouts."""
+    candidates: List[Path] = []
+
+    meipass = getattr(sys, "_MEIPASS", None)
+    if meipass:
+        candidates.append(Path(meipass) / "skills" / "slcli" / "references")
+
+    if getattr(sys, "frozen", False):
+        candidates.append(Path(sys.executable).resolve().parent / "skills" / "slcli" / "references")
+
+    candidates.append(Path(__file__).resolve().parent / "skills" / "slcli" / "references")
+    return candidates
+
+
+def _find_reference_root() -> Path:
+    """Locate the packaged MCP reference directory."""
+    for candidate in _reference_root_candidates():
+        if candidate.is_dir():
+            return candidate
+    raise FileNotFoundError("Bundled MCP reference files not found.")
+
+
+class WorkspaceQueryResponse(BaseModel):
+    """Structured response returned by workspace discovery."""
+
+    items: List[Dict[str, Any]] = Field(description="Workspaces matching the supplied filters.")
+    count: int = Field(description="Number of workspaces in items.")
 
 
 _CAPABILITIES = """# slcli MCP capabilities
@@ -34,13 +88,120 @@ Core discovery tools:
 Use the corresponding get_* tool when you already know the resource ID/path.
 Most query tools support a small set of structured filters plus a raw service
 filter when the underlying API supports it.
+
+Detailed references are available as read-only resources:
+- slcli://docs/commands
+- slcli://docs/filtering
 """
 
 
 @server.resource("slcli://capabilities")
 def capabilities() -> str:
-    """Return a concise overview of the MCP tool surface."""
+    """Return the tool-selection rules and reference resource index."""
     return _CAPABILITIES
+
+
+def _read_reference(filename: str) -> str:
+    """Read a packaged slcli skill reference for an MCP resource."""
+    return (_find_reference_root() / filename).read_text(encoding="utf-8")
+
+
+@server.resource("slcli://docs/commands", mime_type="text/markdown")
+def commands_reference() -> str:
+    """Return the complete slcli command and resource reference."""
+    return _read_reference("commands.md")
+
+
+@server.resource("slcli://docs/filtering", mime_type="text/markdown")
+def filtering_reference() -> str:
+    """Return filtering and substitution guidance for SystemLink services."""
+    return _read_reference("filtering.md")
+
+
+@server.prompt(
+    name="investigate_failed_test_results",
+    title="Investigate failed test results",
+    description="Prepare a repeatable investigation of failed SystemLink test results.",
+)
+def investigate_failed_test_results(
+    workspace: Annotated[
+        Optional[str], Field(description="Workspace name or ID to scope the investigation.")
+    ] = None,
+    program_name: Annotated[
+        Optional[str], Field(description="Optional program name to filter the failed results.")
+    ] = None,
+    serial_number: Annotated[
+        Optional[str], Field(description="Optional DUT serial number to filter the results.")
+    ] = None,
+    take: Annotated[
+        int, Field(ge=1, le=100, description="Maximum number of failed results to inspect.")
+    ] = 25,
+) -> str:
+    """Prepare a tool-driven investigation of failed test results."""
+    scope = f"workspace '{workspace}'" if workspace else "the active workspace scope"
+    filters = ["status='FAILED'"]
+    if program_name:
+        filters.append(f"program_name='{program_name}'")
+    if serial_number:
+        filters.append(f"serial_number='{serial_number}'")
+    filter_text = ", ".join(filters)
+
+    return (
+        f"Investigate failed SystemLink test results in {scope}. "
+        f"Start with query_test_results using {filter_text} and take={take}. "
+        "For each result, use get_test_result_by_id and get_test_steps to collect "
+        "the failure reason, failing step, DUT identity, program, operator, host, "
+        "and timestamps. Group recurring failures by symptom, test step, and "
+        "hardware or software identity. Report the evidence, distinguish observed "
+        "facts from hypotheses, and identify the next useful diagnostic query."
+    )
+
+
+@server.prompt(
+    name="review_fleet_calibration",
+    title="Review fleet calibration",
+    description="Prepare a repeatable review of SystemLink asset calibration status.",
+)
+def review_fleet_calibration(
+    workspace: Annotated[
+        Optional[str], Field(description="Workspace name or ID to scope the asset review.")
+    ] = None,
+    calibration_status: Annotated[
+        Optional[
+            Literal[
+                "OK",
+                "APPROACHING_RECOMMENDED_DUE_DATE",
+                "PAST_RECOMMENDED_DUE_DATE",
+            ]
+        ],
+        Field(description="Optional calibration status to focus the review on."),
+    ] = None,
+    model: Annotated[
+        Optional[str], Field(description="Optional asset model name to filter the review.")
+    ] = None,
+    take: Annotated[
+        int, Field(ge=1, le=500, description="Maximum number of assets to inspect.")
+    ] = 100,
+) -> str:
+    """Prepare a tool-driven review of fleet calibration status."""
+    scope = f"workspace '{workspace}'" if workspace else "the active workspace scope"
+    filters = []
+    if calibration_status:
+        filters.append(f"calibration_status='{calibration_status}'")
+    if model:
+        filters.append(f"model='{model}'")
+    filter_text = f" with {', '.join(filters)}" if filters else ""
+
+    return (
+        f"Review SystemLink asset calibration status for {scope}{filter_text}. "
+        f"Start with query_assets using take={take}. Summarize counts by calibration "
+        "status, model, and workspace when those fields are present. For assets "
+        "approaching or past their recommended due date, use get_asset_by_id to "
+        "verify the metadata and identify the owner, location, last calibration, "
+        "and recommended due date. Separate overdue assets from assets that are "
+        "healthy, call out missing calibration fields, and propose a prioritized "
+        "follow-up list grounded in the returned records."
+    )
 
 
 def _dump(data: Any) -> str:
@@ -107,13 +268,26 @@ def _normalize_systems(data: Any) -> List[Dict[str, Any]]:
     return []
 
 
-@server.tool()
+@server.tool(
+    title="Query SystemLink workspaces",
+    annotations=_READ_ONLY_TOOL_ANNOTATIONS,
+)
 def query_workspaces(
-    name: Optional[str] = None,
-    enabled: Optional[bool] = None,
-    take: int = 100,
-) -> str:
-    """Query workspaces by name and enabled status."""
+    name: Annotated[
+        Optional[str], Field(description="Case-insensitive substring of the workspace name.")
+    ] = None,
+    enabled: Annotated[
+        Optional[bool], Field(description="Return only enabled or disabled workspaces.")
+    ] = None,
+    take: Annotated[
+        int, Field(ge=1, le=500, description="Maximum number of workspaces to return.")
+    ] = 100,
+) -> WorkspaceQueryResponse:
+    """Discover workspaces visible to the active SystemLink profile.
+
+    Use this tool to resolve a workspace name to its ID before calling a
+    workspace-scoped query tool.
+    """
     from .utils import get_base_url
 
     url = f"{get_base_url()}/niuser/v1/workspaces?take={take}"
@@ -128,17 +302,28 @@ def query_workspaces(
             continue
         filtered.append(workspace)
 
-    return _dump(filtered)
+    return WorkspaceQueryResponse(items=filtered, count=len(filtered))
 
 
-@server.tool()
+@server.tool(
+    title="Query SystemLink users",
+    annotations=_READ_ONLY_TOOL_ANNOTATIONS,
+)
 def query_users(
-    search: Optional[str] = None,
-    user_type: Literal["all", "user", "service"] = "all",
-    include_disabled: bool = False,
-    take: int = 100,
+    search: Annotated[
+        Optional[str], Field(description="Text matched against first name, last name, or email.")
+    ] = None,
+    user_type: Annotated[
+        Literal["all", "user", "service"], Field(description="User category to include.")
+    ] = "all",
+    include_disabled: Annotated[
+        bool, Field(description="Include disabled users in the result.")
+    ] = False,
+    take: Annotated[
+        int, Field(ge=1, le=500, description="Maximum number of users to return.")
+    ] = 100,
 ) -> str:
-    """Query users by text search, type, and status."""
+    """Discover users by text, category, and enabled status."""
     from .user_click import _query_all_users
 
     combined_filter: Optional[str] = None
@@ -167,9 +352,12 @@ def query_users(
     return _dump(users)
 
 
-@server.tool()
+@server.tool(
+    title="Get a SystemLink user",
+    annotations=_READ_ONLY_TOOL_ANNOTATIONS,
+)
 def get_user_by_id(user_id: str) -> str:
-    """Get a single user by ID."""
+    """Get one user when its SystemLink user ID is already known."""
     from .utils import get_base_url
 
     user_id = _require(user_id, "user_id")
@@ -177,7 +365,7 @@ def get_user_by_id(user_id: str) -> str:
     return _dump(_get_json(url))
 
 
-@server.tool()
+@server.tool(annotations=_READ_ONLY_TOOL_ANNOTATIONS)
 def search_tags(
     path: Optional[str] = None,
     workspace: Optional[str] = None,
@@ -208,7 +396,7 @@ def search_tags(
     return _dump(_post_json(url, payload).get("tagsWithValues", []))
 
 
-@server.tool()
+@server.tool(annotations=_READ_ONLY_TOOL_ANNOTATIONS)
 def read_tag_values(paths: List[str]) -> str:
     """Read current values for multiple tag paths."""
     from .utils import get_base_url, make_api_request
@@ -229,7 +417,7 @@ def read_tag_values(paths: List[str]) -> str:
     return _dump(results)
 
 
-@server.tool()
+@server.tool(annotations=_READ_ONLY_TOOL_ANNOTATIONS)
 def get_tag_by_path(path: str) -> str:
     """Get tag metadata and current value for a single tag path."""
     from .utils import get_base_url, make_api_request
@@ -248,7 +436,7 @@ def get_tag_by_path(path: str) -> str:
     return _dump(tag_data)
 
 
-@server.tool()
+@server.tool(annotations=_READ_ONLY_TOOL_ANNOTATIONS)
 def query_tag_history(path: str, take: int = 100) -> str:
     """Query historical values for a single tag path."""
     from .utils import get_base_url
@@ -277,15 +465,20 @@ def query_tag_history(path: str, take: int = 100) -> str:
     return _dump(values)
 
 
-@server.tool()
+@server.tool(
+    title="Query SystemLink systems",
+    annotations=_READ_ONLY_TOOL_ANNOTATIONS,
+)
 def query_systems(
     alias: Optional[str] = None,
     state: Optional[Literal["CONNECTED", "DISCONNECTED"]] = None,
     workspace: Optional[str] = None,
     filter: Optional[str] = None,  # noqa: A002
-    take: int = 100,
+    take: Annotated[
+        int, Field(ge=1, le=500, description="Maximum number of systems to return.")
+    ] = 100,
 ) -> str:
-    """Query systems by alias, connection state, workspace, or raw filter."""
+    """Discover managed systems by alias, connection state, workspace, or raw filter."""
     import requests as requests_lib
 
     from .system_query_utils import (
@@ -345,7 +538,7 @@ def query_systems(
     return _dump(_normalize_systems(data))
 
 
-@server.tool()
+@server.tool(annotations=_READ_ONLY_TOOL_ANNOTATIONS)
 def get_system_by_id(system_id: str) -> str:
     """Get a single system by ID."""
     from .utils import get_base_url
@@ -358,7 +551,10 @@ def get_system_by_id(system_id: str) -> str:
     return _dump(items[0])
 
 
-@server.tool()
+@server.tool(
+    title="Query SystemLink assets",
+    annotations=_READ_ONLY_TOOL_ANNOTATIONS,
+)
 def query_assets(
     calibration_status: Optional[
         Literal["OK", "APPROACHING_RECOMMENDED_DUE_DATE", "PAST_RECOMMENDED_DUE_DATE"]
@@ -366,9 +562,11 @@ def query_assets(
     workspace: Optional[str] = None,
     model: Optional[str] = None,
     filter: Optional[str] = None,  # noqa: A002
-    take: int = 100,
+    take: Annotated[
+        int, Field(ge=1, le=500, description="Maximum number of assets to return.")
+    ] = 100,
 ) -> str:
-    """Query assets by calibration status, workspace, model, or raw filter."""
+    """Discover assets by calibration status, workspace, model, or raw filter."""
     from .utils import get_base_url
 
     filter_parts: List[str] = []
@@ -394,7 +592,7 @@ def query_assets(
     return _dump(_post_json(url, payload).get("assets", []))
 
 
-@server.tool()
+@server.tool(annotations=_READ_ONLY_TOOL_ANNOTATIONS)
 def get_asset_by_id(asset_id: str) -> str:
     """Get a single asset by ID."""
     from .utils import get_base_url
@@ -404,7 +602,7 @@ def get_asset_by_id(asset_id: str) -> str:
     return _dump(_get_json(url))
 
 
-@server.tool()
+@server.tool(annotations=_READ_ONLY_TOOL_ANNOTATIONS)
 def query_alarms(
     severity: Optional[Literal["CRITICAL", "HIGH", "MEDIUM", "LOW"]] = None,
     workspace: Optional[str] = None,
@@ -426,7 +624,10 @@ def query_alarms(
     return _dump(data.get("alarmInstances", data.get("instances", data.get("items", []))))
 
 
-@server.tool()
+@server.tool(
+    title="Query SystemLink test results",
+    annotations=_READ_ONLY_TOOL_ANNOTATIONS,
+)
 def query_test_results(
     status: Optional[
         Literal[
@@ -448,10 +649,12 @@ def query_test_results(
     workspace: Optional[str] = None,
     filter: Optional[str] = None,  # noqa: A002
     substitutions: Optional[List[str]] = None,
-    skip: int = 0,
-    take: int = 100,
+    skip: Annotated[int, Field(ge=0, description="Number of matching results to skip.")] = 0,
+    take: Annotated[
+        int, Field(ge=1, le=500, description="Maximum number of results to return.")
+    ] = 100,
 ) -> str:
-    """Query test results with structured filters plus an optional raw filter."""
+    """Discover test results with structured filters and an optional raw filter."""
     from .utils import get_base_url
 
     filter_parts: List[str] = []
@@ -517,7 +720,7 @@ def query_test_results(
     return _dump(_post_json(url, payload).get("results", []))
 
 
-@server.tool()
+@server.tool(annotations=_READ_ONLY_TOOL_ANNOTATIONS)
 def get_test_result_by_id(result_id: str) -> str:
     """Get a single test result by ID."""
     from .utils import get_base_url
@@ -527,7 +730,7 @@ def get_test_result_by_id(result_id: str) -> str:
     return _dump(_get_json(url))
 
 
-@server.tool()
+@server.tool(annotations=_READ_ONLY_TOOL_ANNOTATIONS)
 def get_test_steps(
     result_id: str,
     take: int = 100,
@@ -555,7 +758,7 @@ def get_test_steps(
     )
 
 
-@server.tool()
+@server.tool(annotations=_READ_ONLY_TOOL_ANNOTATIONS)
 def query_routines(
     enabled: Optional[bool] = None,
     api_version: Literal["v1", "v2"] = "v2",
@@ -574,7 +777,7 @@ def query_routines(
     return _dump(_get_json(url).get("routines", []))
 
 
-@server.tool()
+@server.tool(annotations=_READ_ONLY_TOOL_ANNOTATIONS)
 def get_routine_by_id(
     routine_id: str,
     api_version: Literal["v1", "v2"] = "v2",
@@ -587,7 +790,7 @@ def get_routine_by_id(
     return _dump(_get_json(url))
 
 
-@server.tool()
+@server.tool(annotations=_READ_ONLY_TOOL_ANNOTATIONS)
 def query_files(
     workspace: Optional[str] = None,
     id_filter: Optional[str] = None,
@@ -626,7 +829,7 @@ def query_files(
     return _dump(resp.json().get("availableFiles", []))
 
 
-@server.tool()
+@server.tool(annotations=_READ_ONLY_TOOL_ANNOTATIONS)
 def get_file_by_id(file_id: str) -> str:
     """Get file metadata by ID with query-files/query-files-linq fallback."""
     from .file_click import _get_file_by_id_via_query_files, _get_file_by_id_via_query_files_linq
@@ -640,7 +843,7 @@ def get_file_by_id(file_id: str) -> str:
     return _dump(file_data)
 
 
-@server.tool()
+@server.tool(annotations=_READ_ONLY_TOOL_ANNOTATIONS)
 def query_notebooks(filter: Optional[str] = None, take: int = 100) -> str:  # noqa: A002
     """Query notebooks with the platform-specific notebook service."""
     from .notebook_click import _query_notebooks_http
@@ -648,7 +851,7 @@ def query_notebooks(filter: Optional[str] = None, take: int = 100) -> str:  # no
     return _dump(_query_notebooks_http(filter_str=filter, take=take)[:take])
 
 
-@server.tool()
+@server.tool(annotations=_READ_ONLY_TOOL_ANNOTATIONS)
 def get_notebook_by_id(notebook_id: str) -> str:
     """Get a single notebook by ID or path, depending on platform."""
     from .notebook_click import _get_notebook_http
@@ -657,7 +860,7 @@ def get_notebook_by_id(notebook_id: str) -> str:
     return _dump(_get_notebook_http(notebook_id))
 
 
-@server.tool()
+@server.tool(annotations=_READ_ONLY_TOOL_ANNOTATIONS)
 def query_workitems(
     filter: Optional[str] = None,  # noqa: A002
     substitutions: Optional[List[str]] = None,
@@ -677,7 +880,7 @@ def query_workitems(
     return _dump(items)
 
 
-@server.tool()
+@server.tool(annotations=_READ_ONLY_TOOL_ANNOTATIONS)
 def query_workitem_templates(
     filter: Optional[str] = None,  # noqa: A002
     substitutions: Optional[List[str]] = None,
@@ -697,7 +900,7 @@ def query_workitem_templates(
     return _dump(items)
 
 
-@server.tool()
+@server.tool(annotations=_READ_ONLY_TOOL_ANNOTATIONS)
 def query_workflows(workspace: Optional[str] = None, take: int = 100) -> str:
     """Query workflows with continuation-token pagination."""
     from .workitem_click import _query_all_workflows
@@ -705,7 +908,7 @@ def query_workflows(workspace: Optional[str] = None, take: int = 100) -> str:
     return _dump(_call_cli_helper(_query_all_workflows, workspace_filter=workspace, max_items=take))
 
 
-@server.tool()
+@server.tool(annotations=_READ_ONLY_TOOL_ANNOTATIONS)
 def query_feeds(
     platform: Optional[str] = None,
     workspace: Optional[str] = None,
@@ -726,7 +929,7 @@ def query_feeds(
     return _dump(_get_json(url).get("feeds", []))
 
 
-@server.tool()
+@server.tool(annotations=_READ_ONLY_TOOL_ANNOTATIONS)
 def get_feed_by_id(feed_id: str) -> str:
     """Get a single feed by ID."""
     from .feed_click import _get_feed
@@ -735,7 +938,7 @@ def get_feed_by_id(feed_id: str) -> str:
     return _dump(_call_cli_helper(_get_feed, feed_id))
 
 
-@server.tool()
+@server.tool(annotations=_READ_ONLY_TOOL_ANNOTATIONS)
 def query_feed_packages(feed_id: str) -> str:
     """List packages in a feed."""
     from .feed_click import _list_packages
@@ -744,7 +947,7 @@ def query_feed_packages(feed_id: str) -> str:
     return _dump(_call_cli_helper(_list_packages, feed_id))
 
 
-@server.tool()
+@server.tool(annotations=_READ_ONLY_TOOL_ANNOTATIONS)
 def query_webapps(filter: str = "", take: int = 100) -> str:
     """Query webapps using the webapp service continuation-token flow."""
     from .webapp_click import _query_webapps_http
@@ -752,7 +955,7 @@ def query_webapps(filter: str = "", take: int = 100) -> str:
     return _dump(_query_webapps_http(filter, max_items=take))
 
 
-@server.tool()
+@server.tool(annotations=_READ_ONLY_TOOL_ANNOTATIONS)
 def get_webapp_by_id(webapp_id: str) -> str:
     """Get a single webapp by ID."""
     from .webapp_click import _get_webapp_base_url
@@ -762,7 +965,7 @@ def get_webapp_by_id(webapp_id: str) -> str:
     return _dump(_get_json(url))
 
 
-@server.tool()
+@server.tool(annotations=_READ_ONLY_TOOL_ANNOTATIONS)
 def query_policies(
     policy_type: Optional[Literal["default", "internal", "custom", "role"]] = None,
     builtin: bool = False,
@@ -793,7 +996,7 @@ def query_policies(
     return _dump(_get_json(url).get("policies", []))
 
 
-@server.tool()
+@server.tool(annotations=_READ_ONLY_TOOL_ANNOTATIONS)
 def get_policy_by_id(policy_id: str) -> str:
     """Get a single authorization policy by ID."""
     from .utils import get_base_url
@@ -803,7 +1006,7 @@ def get_policy_by_id(policy_id: str) -> str:
     return _dump(_get_json(url))
 
 
-@server.tool()
+@server.tool(annotations=_READ_ONLY_TOOL_ANNOTATIONS)
 def query_comments(
     resource_type: str,
     resource_id: str,
@@ -822,6 +1025,11 @@ async def _run() -> None:
     """Run the MCP server over stdio."""
     print("slcli MCP server ready — waiting for client", file=sys.stderr, flush=True)
     await server.run_stdio_async()
+
+
+def run_streamable_http(host: str, port: int) -> None:
+    """Run the MCP server over streamable HTTP."""
+    server.run(transport="streamable-http", host=host, port=port)
 
 
 def main() -> None:

@@ -14,6 +14,8 @@ import click
 
 from .utils import ExitCodes
 
+DEFAULT_STREAMABLE_HTTP_PORT = 8765
+
 
 def _slcli_exe() -> str:
     """Return the absolute path to the slcli executable, or 'slcli' as a fallback."""
@@ -26,7 +28,7 @@ def _vscode_server_entry(slcli_exe: str) -> Dict[str, Any]:
     return {
         "type": "stdio",
         "command": slcli_exe,
-        "args": ["mcp", "serve"],
+        "args": ["mcp", "serve", "--transport", "stdio"],
     }
 
 
@@ -34,7 +36,7 @@ def _claude_server_entry(slcli_exe: str) -> Dict[str, Any]:
     """Return the Claude Desktop / Cursor MCP server JSON object for slcli."""
     return {
         "command": slcli_exe,
-        "args": ["mcp", "serve"],
+        "args": ["mcp", "serve", "--transport", "stdio"],
     }
 
 
@@ -150,7 +152,7 @@ def register_mcp_commands(cli: Any) -> None:
         "--transport",
         "-T",
         type=click.Choice(["stdio", "streamable-http"]),
-        default="stdio",
+        default="streamable-http",
         show_default=True,
         help=(
             "Transport layer: 'stdio' for AI client integration, "
@@ -160,7 +162,7 @@ def register_mcp_commands(cli: Any) -> None:
     @click.option(
         "--port",
         "-p",
-        default=8000,
+        default=DEFAULT_STREAMABLE_HTTP_PORT,
         show_default=True,
         help="Port to bind to (streamable HTTP transport only).",
     )
@@ -173,36 +175,35 @@ def register_mcp_commands(cli: Any) -> None:
     def serve(transport: str, port: int, host: str) -> None:
         """Start the MCP server.
 
-        Defaults to stdio transport for direct AI client integration (VS Code
-        Copilot, Claude Desktop, Cursor).  Switch to streamable HTTP transport to serve
-        over HTTP — useful for the MCP Inspector, browser-based tooling, or
-        any client that prefers a persistent HTTP connection.
+        Defaults to streamable HTTP on localhost — useful for the MCP Inspector,
+        browser-based tooling, or any client that prefers a persistent HTTP connection.
+        Use stdio explicitly for AI clients that launch the server as a subprocess.
 
         \b
-        Stdio (default — configure once with 'slcli mcp install'):
+        Streamable HTTP (default on http://127.0.0.1:8765/mcp):
             slcli mcp serve
-
-        \b
-        Streamable HTTP (HTTP server on http://127.0.0.1:8000/mcp):
-            slcli mcp serve --transport streamable-http
             slcli mcp serve --transport streamable-http --host 0.0.0.0 --port 9000
 
         \b
+        Stdio (for direct AI client integration):
+            slcli mcp serve --transport stdio
+
+        \b
         Test with the MCP Inspector (Streamable HTTP):
-            slcli mcp serve --transport streamable-http
+            slcli mcp serve
             npx @modelcontextprotocol/inspector
-            # connect to http://127.0.0.1:8000/mcp (transport: Streamable HTTP)
+            # connect to http://127.0.0.1:8765/mcp (transport: Streamable HTTP)
         """
         try:
             from .mcp_server import main as run_mcp_server
-            from .mcp_server import server as mcp_server
+            from .mcp_server import run_streamable_http
         except ImportError:
             click.echo(
                 "✗ The 'mcp' package is not installed.\n"
-                "  Install it with: pip install 'mcp>=1.0'\n"
-                "  Or in a Poetry project: poetry add mcp\n"
+                "  Install it with: pip install 'mcp>=2,<3'\n"
+                "  Or in a Poetry project: poetry add 'mcp>=2,<3'\n"
                 "  If slcli was installed with pipx:\n"
-                "  pipx runpip systemlink-cli install 'mcp>=1.0'\n",
+                "  pipx runpip systemlink-cli install 'mcp>=2,<3'\n",
                 err=True,
             )
             sys.exit(ExitCodes.GENERAL_ERROR)
@@ -210,9 +211,6 @@ def register_mcp_commands(cli: Any) -> None:
         if transport == "stdio":
             run_mcp_server()
         else:
-            mcp_server.settings.host = host
-            mcp_server.settings.port = port
-
             click.echo(
                 "✓ slcli MCP server starting in streamable HTTP mode on "
                 f"http://{host}:{port}/mcp"
@@ -224,7 +222,7 @@ def register_mcp_commands(cli: Any) -> None:
             click.echo("  Press Ctrl+C to stop.\n")
 
             try:
-                mcp_server.run(transport="streamable-http")
+                run_streamable_http(host=host, port=port)
             except KeyboardInterrupt:
                 click.echo("\nslcli MCP server stopped")
                 sys.exit(0)

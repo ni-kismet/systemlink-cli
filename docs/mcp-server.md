@@ -1,592 +1,290 @@
 # slcli MCP Server
 
-The slcli MCP (Model Context Protocol) server lets AI assistants — VS Code
-Copilot Agent mode, Claude Desktop, Cursor, and any other MCP-compatible
-client — call SystemLink APIs directly as structured tools.
+The slcli MCP (Model Context Protocol) server lets an MCP-compatible host such
+as VS Code Copilot Agent mode, Claude Desktop, Cursor, or Codex query the
+SystemLink APIs through the active slcli profile.
 
-## How it works
+The design and rollout plan for client guidance is documented in
+[MCP Client Guidance Plan](mcp-guidance-plan.md).
 
-```
-AI assistant (VS Code / Claude Desktop / Cursor)
-  │
-  │  MCP stdio protocol
-  ▼
-slcli mcp serve  ←── reads credentials from keyring / active profile
-  │
-  │  HTTPS + API key
-  ▼
-SystemLink server
-```
-
-The server runs as a subprocess on your local machine. The MCP client
-(VS Code, Claude Desktop, etc.) spawns it on demand by executing:
-
-```
-slcli mcp serve
-```
-
-Because the server runs locally it reuses your existing `slcli` credentials
-and profile — no separate authentication step is needed, and your API keys
-are never sent to any third party.
-
-## Installation
+## Install
 
 Install MCP support with the optional extra:
 
 ```bash
 pipx install "systemlink-cli[mcp]"
-# or with pip:
+# or
 pip install "systemlink-cli[mcp]"
 ```
 
-If `slcli` is already installed without MCP support, add it in place:
+For an existing Poetry checkout:
 
 ```bash
-pipx runpip systemlink-cli install "mcp>=1.0"
-# or in a Poetry project:
-poetry add mcp
+poetry install --with dev
 ```
 
-## Registering with AI clients
+## Register a client
 
-Use `slcli mcp install` to write the correct configuration file for your
-client automatically:
+The installer merges an slcli entry into the selected client configuration:
 
 ```bash
-# VS Code Copilot Agent mode (.vscode/mcp.json in the current directory)
+# VS Code: .vscode/mcp.json in the current directory
 slcli mcp install
 
-# Claude Desktop (global platform config file)
+# Claude Desktop global configuration
 slcli mcp install --target claude
 
-# Cursor (.cursor/mcp.json in the current directory)
+# Cursor or Codex project configuration
 slcli mcp install --target cursor
-
-# Codex CLI (.codex/mcp.json in the current directory)
 slcli mcp install --target codex
 
-# All four at once
+# All supported targets
 slcli mcp install --target all
 ```
 
-The install command reads any existing config file and **merges** the slcli
-entry — it will not overwrite other servers you have already configured.
+The server uses the active slcli profile and stored credentials. No API key is
+copied into the MCP client configuration.
 
-### Manual configuration
+## Run the server
 
-If you prefer to edit config files by hand, add the following entry.
-
-#### VS Code — `.vscode/mcp.json`
-
-```json
-{
-  "servers": {
-    "slcli": {
-      "type": "stdio",
-      "command": "slcli",
-      "args": ["mcp", "serve"]
-    }
-  }
-}
-```
-
-#### Claude Desktop — `claude_desktop_config.json`
-
-| Platform | Path                                                              |
-| -------- | ----------------------------------------------------------------- |
-| macOS    | `~/Library/Application Support/Claude/claude_desktop_config.json` |
-| Windows  | `%APPDATA%\Claude\claude_desktop_config.json`                     |
-| Linux    | `~/.config/claude/claude_desktop_config.json`                     |
-
-```json
-{
-  "mcpServers": {
-    "slcli": {
-      "command": "slcli",
-      "args": ["mcp", "serve"]
-    }
-  }
-}
-```
-
-#### Cursor — `.cursor/mcp.json`
-
-```json
-{
-  "mcpServers": {
-    "slcli": {
-      "command": "slcli",
-      "args": ["mcp", "serve"]
-    }
-  }
-}
-```
-
-#### OpenAI Codex CLI — `.codex/mcp.json`
-
-```json
-{
-  "mcpServers": {
-    "slcli": {
-      "command": "slcli",
-      "args": ["mcp", "serve"]
-    }
-  }
-}
-```
-
-After editing the config file, restart (or reload) the AI client to pick up
-the new server.
-
-## Streamable HTTP transport
-
-Pass `--transport streamable-http` to run the server over HTTP instead of stdio.
-This is useful for browser-based tooling, the
-[MCP Inspector](https://github.com/modelcontextprotocol/inspector), or any
-client that prefers a persistent HTTP connection over process spawning.
+Streamable HTTP is the default transport for the local server:
 
 ```bash
-# Start the server (default: http://127.0.0.1:8000/mcp)
-slcli mcp serve --transport streamable-http
+slcli mcp serve
+```
 
-# Custom host/port
+The default endpoint is `http://127.0.0.1:8765/mcp`. Use stdio explicitly for
+AI clients that launch the server as a subprocess:
+
+```bash
+slcli mcp serve --transport stdio
 slcli mcp serve --transport streamable-http --host 0.0.0.0 --port 9000
+```
 
-# In a second terminal, launch the inspector UI
+```bash
 npx @modelcontextprotocol/inspector
 ```
 
-Then open the inspector in your browser and connect to
-`http://127.0.0.1:8000/mcp` (Streamable HTTP transport). You can browse all available
-tools, call them with custom arguments, and inspect the JSON responses.
+Connect the Inspector to the endpoint using the Streamable HTTP transport.
+The option value is `streamable-http`; `http-streamable` is not a valid slcli
+transport value. Configurations generated by `slcli mcp install` use explicit
+stdio transport so existing AI client integrations continue to work.
 
-The server uses your existing Poetry / venv Python environment,
-so no `uv` or PyPI access is needed.
+## How clients learn to use it
 
-## Available tools
+The server provides guidance through several MCP layers:
 
-### Phase 1 — Read-only foundation
+1. **Initialization instructions** contain universal routing and safety rules:
+   use `query_*` tools for discovery, `get_*` tools for known IDs or paths,
+   resolve workspace names when an API requires IDs, and use substitutions for
+   Dynamic LINQ values.
+2. **Tool metadata** contains each tool's description, typed input schema,
+   pagination bounds, enum values, and read-only/idempotency annotations.
+3. **Reference resources** provide detailed Markdown documentation when a
+   client needs command syntax or service-specific filters.
+4. **The bundled slcli skill** remains the long-form workflow reference for
+   clients that support installed skills.
 
-| Tool                      | Description                                                           |
-| ------------------------- | --------------------------------------------------------------------- |
-| `workspace_list`          | List workspaces, returns id/name/enabled/default                      |
-| `tag_list`                | List tags by path glob and/or workspace, includes current value       |
-| `tag_get`                 | Get a single tag by exact path (metadata + current value)             |
-| `system_list`             | List managed systems, optionally filter by connection state           |
-| `asset_list`              | List assets, optionally filter by calibration status or workspace     |
-| `testmonitor_result_list` | List test results with rich filtering (status, program, serial, etc.) |
-| `routine_list`            | List automation routines (v2 event/action or v1 notebook scheduling)  |
+Critical tool-selection rules are included in initialization instructions and
+tool descriptions. Clients are not required to read a resource or install the
+slcli skill.
 
-### Phase 2 — Get-by-ID and mutations
+### Reference resources
 
-| Tool                     | Type  | Description                                         |
-| ------------------------ | ----- | --------------------------------------------------- |
-| `tag_set_value`          | write | Write a value to a tag by path (type auto-detected) |
-| `system_get`             | read  | Full details of a single system by ID               |
-| `asset_get`              | read  | Full details of a single asset by ID                |
-| `testmonitor_result_get` | read  | Full test result object by ID                       |
-| `routine_get`            | read  | Full details of a single routine by ID              |
-| `routine_enable`         | write | Enable a routine by ID                              |
-| `routine_disable`        | write | Disable a routine by ID                             |
+The server exposes these read-only resources:
 
-### Phase 3 — Broader coverage
+| URI | Purpose |
+| --- | --- |
+| `slcli://capabilities` | Short tool-selection index |
+| `slcli://docs/commands` | Packaged command and resource reference |
+| `slcli://docs/filtering` | Service filter and substitution reference |
 
-| Tool                         | Description                                                        |
-| ---------------------------- | ------------------------------------------------------------------ |
-| `user_list`                  | List users, optionally filtered by workspace or expression         |
-| `testmonitor_step_list`      | List test steps for a given result ID                              |
-| `file_list`                  | List uploaded files, optionally filtered by name or workspace      |
-| `asset_calibration_summary`  | Fleet-wide calibration counts (total, approaching, past due, etc.) |
-| `testmonitor_result_summary` | Pass/fail/error counts for test results (efficient, no data fetch) |
-| `notebook_list`              | List Jupyter notebooks (SLS and SLE compatible)                    |
+The detailed resources are read from the packaged files under
+`slcli/skills/slcli/references/`, keeping MCP documentation and the bundled
+skill aligned.
 
-### Phase 4 — Alarms, tag history, and workspace mutations
+## Tool surface
 
-| Tool                | Type  | Description                                                  |
-| ------------------- | ----- | ------------------------------------------------------------ |
-| `alarm_list`        | read  | List active alarm instances, filter by severity or workspace |
-| `tag_history`       | read  | Historical values for a tag, most recent first               |
-| `workspace_create`  | write | Create a new workspace by name                               |
-| `workspace_disable` | write | Disable an existing workspace (requires id + current name)   |
+All current tools are read-only and idempotent. Use the `query_*` or `search_*`
+tools to discover records, then use a matching `get_*` tool when an ID or path
+is already known.
 
-All tools return JSON. Error responses are also JSON: `{"error": "<message>"}`.
+### Workspaces and users
 
-### `workspace_list`
+| Tool | Purpose |
+| --- | --- |
+| `query_workspaces` | Discover workspaces by name and enabled status |
+| `query_users` | Discover users by text, type, and disabled status |
+| `get_user_by_id` | Retrieve one user by ID |
 
-Returns id, name, enabled state, and default flag for each workspace.
-Call this first to discover workspace IDs used by other tools.
+### Tags
 
-```json
-{ "take": 25 }
-```
+| Tool | Purpose |
+| --- | --- |
+| `search_tags` | Find tags by path, workspace, or keyword and include current values |
+| `read_tag_values` | Read current values for multiple tag paths |
+| `get_tag_by_path` | Retrieve tag metadata and its current value |
+| `query_tag_history` | Retrieve historical values for one tag path |
 
-### `tag_list`
+### Systems, assets, and alarms
 
-Returns tag metadata and current value for each tag matching the filter.
+| Tool | Purpose |
+| --- | --- |
+| `query_systems` | Discover managed systems by alias, state, workspace, or raw filter |
+| `get_system_by_id` | Retrieve one system by ID |
+| `query_assets` | Discover assets by calibration status, workspace, model, or raw filter |
+| `get_asset_by_id` | Retrieve one asset by ID |
+| `query_alarms` | Discover active alarms by severity or workspace |
+
+### Test Monitor
+
+| Tool | Purpose |
+| --- | --- |
+| `query_test_results` | Discover test results using structured or raw filters |
+| `get_test_result_by_id` | Retrieve one test result by ID |
+| `get_test_steps` | Retrieve steps for a result, including continuation information |
+
+### Routines, files, and notebooks
+
+| Tool | Purpose |
+| --- | --- |
+| `query_routines` | Discover v1 or v2 routines by enabled state |
+| `get_routine_by_id` | Retrieve one routine by ID |
+| `query_files` | Discover files using the file service query fallback |
+| `get_file_by_id` | Retrieve file metadata by ID |
+| `query_notebooks` | Discover notebooks on the active platform |
+| `get_notebook_by_id` | Retrieve one notebook by ID or path |
+
+### Work items, workflows, feeds, and webapps
+
+| Tool | Purpose |
+| --- | --- |
+| `query_workitems` | Discover work items with filters and pagination |
+| `query_workitem_templates` | Discover work item templates |
+| `query_workflows` | Discover workflows by workspace |
+| `query_feeds` | Discover package feeds by platform and workspace |
+| `get_feed_by_id` | Retrieve one feed by ID |
+| `query_feed_packages` | List packages in a feed |
+| `query_webapps` | Discover webapps with the service filter |
+| `get_webapp_by_id` | Retrieve one webapp by ID |
+
+### Authorization and comments
+
+| Tool | Purpose |
+| --- | --- |
+| `query_policies` | Discover authorization policies by type, name, and built-in status |
+| `get_policy_by_id` | Retrieve one authorization policy by ID |
+| `query_comments` | Retrieve comments for a resource type and resource ID |
+
+## Calling patterns
+
+### Resolve a workspace before a scoped query
 
 ```json
 {
-  "path": "machine.line1.*",
-  "workspace": "<workspace-id>",
-  "take": 50
+  "name": "Production",
+  "enabled": true,
+  "take": 25
 }
 ```
 
-`path` accepts glob patterns (e.g. `sensor.*`, `*.temperature`).
+Pass the returned workspace ID to a service that requires an ID. Workspace
+parameters that are documented as names or IDs can accept either form.
 
-### `tag_get`
-
-```json
-{ "path": "machine.line1.temperature" }
-```
-
-Returns the full tag object plus a `currentValue` field.
-
-### `system_list`
-
-```json
-{
-  "state": "CONNECTED",
-  "take": 50
-}
-```
-
-`state` accepts `CONNECTED` or `DISCONNECTED`.
-
-### `asset_list`
-
-```json
-{
-  "calibration_status": "PAST_RECOMMENDED_DUE_DATE",
-  "workspace": "<workspace-id>",
-  "take": 50
-}
-```
-
-`calibration_status` accepts `OK`, `APPROACHING_RECOMMENDED_DUE_DATE`,
-or `PAST_RECOMMENDED_DUE_DATE`.
-
-### `testmonitor_result_list`
+### Use structured filters first
 
 ```json
 {
   "status": "FAILED",
-  "program_name": "Battery Test",
-  "serial_number": "SN-001",
-  "part_number": "PN-123",
-  "operator": "jsmith",
-  "workspace": "<workspace-id>",
-  "filter": "StartedAt > \"2026-01-01T00:00:00Z\"",
-  "take": 100
-}
-```
-
-Status values: `PASSED`, `FAILED`, `RUNNING`, `ERRORED`, `TERMINATED`,
-`TIMEDOUT`, `WAITING`, `SKIPPED`.
-
-The `filter` field accepts a raw Dynamic LINQ expression for advanced queries.
-Convenience filters (`status`, `program_name`, etc.) are ANDed together
-and ANDed with `filter` if both are supplied.
-
-### `routine_list`
-
-```json
-{
-  "enabled": true,
-  "api_version": "v2",
-  "take": 25
-}
-```
-
-`api_version` is `v2` (default, tag-event/alarm-action routines) or `v1`
-(notebook scheduling routines).
-
-### `tag_set_value`
-
-```json
-{
-  "path": "machine.line1.setpoint",
-  "value": "72.5",
-  "data_type": "DOUBLE"
-}
-```
-
-Write a value to a tag. If `data_type` is omitted the server fetches the
-tag's registered type automatically.
-Auto-detection order when the tag has no registered type:
-`"true"/"false"` → `BOOLEAN`, integer string → `INT`,
-decimal string → `DOUBLE`, everything else → `STRING`.
-
-### `system_get`
-
-```json
-{ "system_id": "<system-id>" }
-```
-
-Returns the full system record for a single managed system.
-Use `system_list` to discover IDs.
-
-### `asset_get`
-
-```json
-{ "asset_id": "<asset-id>" }
-```
-
-Returns the full asset record including calibration status.
-Use `asset_list` to discover IDs.
-
-### `testmonitor_result_get`
-
-```json
-{ "result_id": "<result-id>" }
-```
-
-Returns the full test result object.
-Use `testmonitor_result_list` to discover IDs.
-
-### `routine_get`
-
-```json
-{
-  "routine_id": "<routine-id>",
-  "api_version": "v2"
-}
-```
-
-Returns the full routine record. Use `routine_list` to discover IDs.
-
-### `routine_enable` / `routine_disable`
-
-```json
-{
-  "routine_id": "<routine-id>",
-  "api_version": "v2"
-}
-```
-
-Enables or disables a routine. Returns `{"id": "...", "enabled": true/false}`.### `user_list`
-
-```json
-{
-  "take": 25,
-  "include_disabled": false,
-  "workspace": "<workspace-id>",
-  "filter": "email.Contains(\"ni.com\")"
-}
-```
-
-Returns user objects including id, firstName, lastName, email, and status.
-Active users only by default; set `include_disabled=true` to include all.
-
-### `testmonitor_step_list`
-
-```json
-{
-  "result_id": "<result-id>",
-  "take": 100
-}
-```
-
-Returns all steps for a test result including name, status, measurements,
-and timing. Use `testmonitor_result_list` to find result IDs.
-
-### `file_list`
-
-```json
-{
-  "take": 25,
-  "workspace": "<workspace-id>",
-  "name_filter": ".csv"
-}
-```
-
-Returns file metadata (id, name, size, created date, workspace).
-`name_filter` is a substring match across file name and extension.
-
-### `asset_calibration_summary`
-
-No parameters. Returns a single JSON object with fleet-wide counts:
-
-```json
-{
-  "total": 250,
-  "approachingRecommendedDueDate": 12,
-  "pastRecommendedDueDate": 3,
-  "outForCalibration": 1,
-  "totalCalibrated": 200
-}
-```
-
-### `testmonitor_result_summary`
-
-```json
-{
-  "workspace": "<workspace-id>",
-  "program_name": "Battery Test",
-  "filter": "StartedAt > \"2026-01-01T00:00:00Z\""
-}
-```
-
-Makes efficient count-only queries (no data transferred) and returns:
-
-```json
-{
-  "total": 500,
-  "byStatus": {
-    "PASSED": 450,
-    "FAILED": 40,
-    "ERRORED": 5,
-    "RUNNING": 3,
-    "TERMINATED": 2,
-    "TIMEDOUT": 0
-  }
-}
-```
-
-### `notebook_list`
-
-```json
-{
-  "take": 25,
-  "workspace": "<workspace-id>"
-}
-```
-
-Works on both SystemLink Server (SLS, uses `/ninbexec/v2`) and
-SystemLink Enterprise (SLE, uses `/ninotebook/v1`). The platform is
-detected automatically from the active profile.
-
-### `alarm_list`
-
-```json
-{
-  "severity": "HIGH",
-  "workspace": "<workspace-id>",
-  "take": 25
-}
-```
-
-Returns active (unresolved) alarm instances including instanceId, alarmId,
-message, severity, and tagPath. `severity` accepts `CRITICAL`, `HIGH`,
-`MEDIUM`, or `LOW`.
-
-### `tag_history`
-
-```json
-{
-  "path": "machine.line1.temperature",
+  "program_name": "Battery",
+  "workspace": "Production",
   "take": 50
 }
 ```
 
-Returns a list of past tag values with timestamps, most recent first.
-Use `tag_get` to inspect the current value or `tag_list` to discover paths.
-
-### `workspace_create`
-
-```json
-{ "name": "Line 2 Testing" }
-```
-
-Creates a new workspace with the given name. The workspace is enabled by
-default. Returns the created workspace object including the new id.
-
-### `workspace_disable`
+Use the `filter` and `substitutions` parameters only when the structured
+parameters do not express the query. Do not interpolate user values into a
+Dynamic LINQ expression:
 
 ```json
 {
-  "workspace_id": "<workspace-id>",
-  "workspace_name": "Line 2 Testing"
+  "filter": "programName == @0",
+  "substitutions": ["Battery"]
 }
 ```
 
-Disables the workspace. Both `workspace_id` and `workspace_name` are
-required (the API PUT endpoint updates the full record). Use
-`workspace_list` to look up the id and current name before calling this
-tool. Returns `{"id": "...", "name": "...", "enabled": false}`.
+Filtering syntax differs between SystemLink services. Read
+`slcli://docs/filtering` when the service-specific expression is unclear.
 
-## Readonly mode
+## Workflow prompts
 
-If your active `slcli` profile has readonly mode enabled
-(`slcli login --readonly`), all tool calls that attempt mutations will
-return an error response rather than modifying data. The current tool set
-is read-only by design; this note is relevant to future mutation tools.
+Clients that expose user-selected MCP prompts can use these repeatable
+workflows:
 
-## Selecting a profile
+| Prompt | Purpose |
+| --- | --- |
+| `investigate_failed_test_results` | Find failed results, inspect their steps, and group recurring symptoms |
+| `review_fleet_calibration` | Summarize asset calibration status and prioritize overdue follow-up |
 
-The MCP server inherits the active `slcli` profile, including any
-`SLCLI_PROFILE` environment variable the client process has set.
+Both prompts accept optional workspace and service filters, then return a
+user-visible workflow that tells the client which query and get tools to call.
+They prepare a workflow for the user; they do not execute API calls or replace
+the tool metadata.
 
-To point the server at a specific environment, create a named profile and
-set the env var in the client config. Example for VS Code:
+### Pagination
+
+Most query tools accept `take`, usually defaulting to 100 and bounded to a
+positive value. `query_test_results` also accepts `skip`, and `get_test_steps`
+returns a continuation token when the service provides one. Do not assume
+that a single request represents the complete service dataset.
+
+## Output compatibility
+
+Most current handlers return JSON-serialized text for compatibility with the
+existing MCP clients. That text is valid JSON and normally contains a list for a
+query or an object for a get operation.
+
+`query_workspaces` is the first typed response. Its structured result has this
+shape:
 
 ```json
 {
-  "servers": {
-    "slcli-prod": {
-      "type": "stdio",
-      "command": "slcli",
-      "args": ["mcp", "serve"],
-      "env": {
-        "SLCLI_PROFILE": "prod"
-      }
-    }
-  }
+  "items": [{"id": "...", "name": "Production", "enabled": true}],
+  "count": 1
 }
 ```
 
-## Implementation notes
+For the remaining tools, the Python return annotation is currently `str`, so the
+generated MCP `output_schema` describes a string. Additional typed response
+models will be introduced incrementally after their service response shapes are
+covered by tests.
 
-- All `mcp` package imports are **lazy** (inside function bodies). The module
-  is safe to import even if `mcp` is not installed; only `slcli mcp serve`
-  will fail.
-- Tool handlers are **synchronous** and called from the async MCP dispatch
-  loop. They use `make_api_request` from `slcli.utils`, which is the same
-  HTTP helper used by all other slcli commands.
-- The `slcli-mcp` entry point (`pyproject.toml`) is a direct alias for
-  `slcli mcp serve`, provided for clients that prefer a single-word command.
+## Authentication and safety
 
-## Roadmap
+The server reads the same profile and credential configuration as the CLI. Use
+`slcli info` to inspect the active profile and effective API URL before starting
+the server.
 
-### Phase 1 — Read-only foundation ✅ (complete)
+The current MCP surface is read-only. Tool annotations communicate that intent
+to clients, but annotations are hints rather than an authorization boundary.
+The active SystemLink credentials and server permissions remain authoritative.
 
-7 tools covering the five most common resources:
-`workspace_list`, `tag_list`, `tag_get`, `system_list`, `asset_list`,
-`testmonitor_result_list`, `routine_list`
+## Development checks
 
-### Phase 2 — Get-by-ID and first mutations ✅ (complete)
+Run the focused MCP tests while changing the server:
 
-7 tools that complete the core read surface and add safe write operations:
+```bash
+poetry run pytest tests/unit/test_mcp_server.py -q
+```
 
-| Tool                     | Type  | Description                    |
-| ------------------------ | ----- | ------------------------------ |
-| `tag_set_value`          | write | Write a value to a tag by path |
-| `system_get`             | read  | Full details of one system     |
-| `asset_get`              | read  | Full details of one asset      |
-| `testmonitor_result_get` | read  | Full result with step summary  |
-| `routine_get`            | read  | Full details of one routine    |
-| `routine_enable`         | write | Enable a routine by ID         |
-| `routine_disable`        | write | Disable a routine by ID        |
+Run the full required checks before submitting a change:
 
-### Phase 3 — Broader coverage ✅ (complete)
+```bash
+poetry run ni-python-styleguide lint
+poetry run mypy slcli tests
+poetry run pytest tests/unit -q
+poetry run pytest
+```
 
-6 tools expanding coverage to users, files, notebooks, steps, and summary aggregations:
-
-| Tool                         | Description                              |
-| ---------------------------- | ---------------------------------------- |
-| `user_list`                  | List users (niuser/v1/users)             |
-| `testmonitor_step_list`      | List test steps for a result             |
-| `file_list`                  | List uploaded files (nifile-manager)     |
-| `asset_calibration_summary`  | Aggregate counts by calibration status   |
-| `testmonitor_result_summary` | Pass/fail counts per program / workspace |
-| `notebook_list`              | List Jupyter notebooks                   |
-
-### Phase 4 — Alarms, tag history, workspace mutations, Codex CLI ✅ (complete)
-
-| Tool / Feature                     | Description                                         |
-| ---------------------------------- | --------------------------------------------------- |
-| `alarm_list`                       | List active alarms (nialarm/v1), filter by severity |
-| `tag_history`                      | Historical tag values                               |
-| `workspace_create`                 | Create a workspace by name                          |
-| `workspace_disable`                | Disable a workspace by ID + name                    |
-| `slcli mcp install --target codex` | OpenAI Codex CLI install target (.codex/mcp.json)   |
+The streamable HTTP E2E test expects a server at
+`http://127.0.0.1:8765/mcp` and skips when that local endpoint is unavailable.

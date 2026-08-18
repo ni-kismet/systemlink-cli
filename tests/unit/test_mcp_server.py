@@ -2,10 +2,11 @@
 
 import asyncio
 import json
-from typing import Any
+from typing import Any, cast
 from unittest.mock import MagicMock
 
 import pytest
+from mcp.types import GetPromptResult, TextContent
 
 
 def make_mock_response(json_data: Any, status_code: int = 200) -> Any:
@@ -17,13 +18,207 @@ def make_mock_response(json_data: Any, status_code: int = 200) -> Any:
     return resp
 
 
-def test_server_is_fastmcp_instance() -> None:
-    """The module-level server is a FastMCP instance."""
-    from mcp.server.fastmcp import FastMCP  # type: ignore[import-untyped]
+def test_server_is_mcpserver_instance() -> None:
+    """The module-level server is an MCPServer instance."""
+    from mcp.server.mcpserver import MCPServer
 
     from slcli.mcp_server import server
 
-    assert isinstance(server, FastMCP)
+    assert isinstance(server, MCPServer)
+
+
+def test_server_publishes_client_guidance() -> None:
+    """The initialization metadata gives clients the universal tool-routing rules."""
+    from slcli._version import __version__
+    from slcli.mcp_server import server
+
+    assert server.version == __version__
+    instructions = server.instructions
+    assert isinstance(instructions, str)
+    assert "query_* tools" in instructions
+    assert "get_* tools" in instructions
+    assert "substitutions" in instructions
+
+
+def test_server_lists_reference_resources() -> None:
+    """The server exposes the capabilities index and detailed packaged references."""
+    from slcli.mcp_server import server
+
+    resources = asyncio.run(server.list_resources())
+    resource_uris = {resource.uri for resource in resources}
+
+    assert resource_uris == {
+        "slcli://capabilities",
+        "slcli://docs/commands",
+        "slcli://docs/filtering",
+    }
+
+
+def test_server_lists_workflow_prompts() -> None:
+    """The server exposes repeatable, user-selected investigation workflows."""
+    from slcli.mcp_server import server
+
+    prompts = asyncio.run(server.list_prompts())
+    prompt_names = {prompt.name for prompt in prompts}
+
+    assert prompt_names == {"investigate_failed_test_results", "review_fleet_calibration"}
+
+
+def test_failed_results_prompt_renders_tool_workflow() -> None:
+    """The failed-results prompt carries selected filters into its workflow."""
+    from slcli.mcp_server import server
+
+    result = cast(
+        GetPromptResult,
+        asyncio.run(
+            server.get_prompt(
+                "investigate_failed_test_results",
+                {
+                    "workspace": "Production",
+                    "program_name": "Battery",
+                    "serial_number": "DUT-42",
+                    "take": 10,
+                },
+            )
+        ),
+    )
+
+    message = result.messages[0].content
+    assert isinstance(message, TextContent)
+    assert "query_test_results" in message.text
+    assert "workspace 'Production'" in message.text
+    assert "program_name='Battery'" in message.text
+    assert "take=10" in message.text
+    assert "get_test_steps" in message.text
+
+
+def test_calibration_prompt_renders_tool_workflow() -> None:
+    """The calibration prompt carries selected filters into its workflow."""
+    from slcli.mcp_server import server
+
+    result = cast(
+        GetPromptResult,
+        asyncio.run(
+            server.get_prompt(
+                "review_fleet_calibration",
+                {
+                    "workspace": "Production",
+                    "calibration_status": "PAST_RECOMMENDED_DUE_DATE",
+                    "model": "PXI",
+                    "take": 20,
+                },
+            )
+        ),
+    )
+
+    message = result.messages[0].content
+    assert isinstance(message, TextContent)
+    assert "query_assets" in message.text
+    assert "calibration_status='PAST_RECOMMENDED_DUE_DATE'" in message.text
+    assert "model='PXI'" in message.text
+    assert "get_asset_by_id" in message.text
+
+
+def test_core_tool_metadata_describes_workspace_contract() -> None:
+    """The workspace discovery tool publishes titles, annotations, and constraints."""
+    from slcli.mcp_server import server
+
+    tools = asyncio.run(server.list_tools())
+    workspace_tool = next(tool for tool in tools if tool.name == "query_workspaces")
+
+    assert workspace_tool.title == "Query SystemLink workspaces"
+    assert workspace_tool.annotations is not None
+    assert workspace_tool.annotations.read_only_hint is True
+    assert workspace_tool.annotations.idempotent_hint is True
+
+    take_schema = workspace_tool.input_schema["properties"]["take"]
+    assert take_schema["minimum"] == 1
+    assert take_schema["maximum"] == 500
+    description = take_schema["description"]
+    assert isinstance(description, str)
+    assert "Maximum number of workspaces" in description
+
+
+def test_workspace_tool_publishes_structured_output_schema() -> None:
+    """Workspace discovery advertises its typed items/count response."""
+    from slcli.mcp_server import server
+
+    tools = asyncio.run(server.list_tools())
+    workspace_tool = next(tool for tool in tools if tool.name == "query_workspaces")
+
+    assert workspace_tool.output_schema is not None
+    assert workspace_tool.output_schema["properties"]["items"]["type"] == "array"
+    assert workspace_tool.output_schema["properties"]["count"]["type"] == "integer"
+
+
+def test_workspace_tool_returns_structured_content(monkeypatch: Any) -> None:
+    """An MCP client receives the typed workspace envelope in both result channels."""
+    from mcp import Client
+
+    from slcli.mcp_server import server
+
+    workspaces = [{"id": "ws1", "name": "Default", "enabled": True}]
+    monkeypatch.setattr("slcli.utils.get_base_url", lambda: "https://test.host")
+    monkeypatch.setattr(
+        "slcli.utils.make_api_request",
+        lambda *a, **kw: make_mock_response({"workspaces": workspaces}),
+    )
+
+    async def call_workspace_tool() -> Any:
+        async with Client(server) as client:
+            return await client.call_tool("query_workspaces", {"name": "def"})
+
+    result = asyncio.run(call_workspace_tool())
+
+    assert result.structured_content == {"items": workspaces, "count": 1}
+    assert json.loads(result.content[0].text) == {"items": workspaces, "count": 1}
+
+
+def test_reference_resources_read_packaged_skill_content() -> None:
+    """Reference resources use the packaged skill files as their source of truth."""
+    from slcli.mcp_server import commands_reference, filtering_reference
+
+    assert commands_reference().startswith("# CLI Command Reference")
+    assert filtering_reference().startswith("# Filtering Reference")
+
+
+def test_reference_resources_use_frozen_layout_candidates(monkeypatch: Any, tmp_path: Any) -> None:
+    """Reference resources resolve correctly from the frozen packaged layout."""
+    import slcli.mcp_server as mcp_server
+
+    references_dir = tmp_path / "skills" / "slcli" / "references"
+    references_dir.mkdir(parents=True)
+    (references_dir / "commands.md").write_text("# Frozen Commands", encoding="utf-8")
+    (references_dir / "filtering.md").write_text("# Frozen Filtering", encoding="utf-8")
+
+    monkeypatch.setattr(
+        mcp_server,
+        "_reference_root_candidates",
+        lambda: [references_dir],
+    )
+
+    assert mcp_server.commands_reference() == "# Frozen Commands"
+    assert mcp_server.filtering_reference() == "# Frozen Filtering"
+
+
+def test_run_streamable_http_passes_host_and_port_to_mcp_2() -> None:
+    """The MCP 2 server receives HTTP settings through run arguments."""
+    import slcli.mcp_server as mcp_server_module
+
+    captured: dict[str, Any] = {}
+
+    class MockServer:
+        def run(self, **kwargs: Any) -> None:
+            captured.update(kwargs)
+
+    original_server = mcp_server_module.server
+    mcp_server_module.server = MockServer()  # type: ignore[assignment]
+    try:
+        mcp_server_module.run_streamable_http(host="0.0.0.0", port=9000)
+    finally:
+        mcp_server_module.server = original_server
+
+    assert captured == {"transport": "streamable-http", "host": "0.0.0.0", "port": 9000}
 
 
 def test_server_tool_names() -> None:
@@ -138,8 +333,11 @@ def test_query_workspaces_filters_client_side(monkeypatch: Any) -> None:
         lambda *a, **kw: make_mock_response({"workspaces": workspaces}),
     )
 
-    result = json.loads(query_workspaces(name="def", enabled=True))
-    assert result == [{"id": "ws1", "name": "Default", "enabled": True}]
+    result = query_workspaces(name="def", enabled=True)
+    assert result.model_dump() == {
+        "items": [{"id": "ws1", "name": "Default", "enabled": True}],
+        "count": 1,
+    }
 
 
 def test_search_tags_builds_expected_filter(monkeypatch: Any) -> None:
