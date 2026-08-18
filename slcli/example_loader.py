@@ -37,6 +37,7 @@ class ExampleLoader:
         "tag",
         "specification",
         "feed",
+        "package",
         "alarm",
     }
 

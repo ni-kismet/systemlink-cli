@@ -567,7 +567,7 @@ def _validate_plugin_manager_metadata(
     return validated
 
 
-def _pack_folder_to_nipkg(
+def pack_folder_to_nipkg(
     folder: Path,
     output: Optional[Path] = None,
     metadata: Optional[Dict[str, Any]] = None,
@@ -731,6 +731,10 @@ def _pack_folder_to_nipkg(
             out_f.write(b"\n")
 
     return output
+
+
+# Keep the original private name for callers and tests that still use it.
+_pack_folder_to_nipkg = pack_folder_to_nipkg
 
 
 # ── Template scaffolding helpers ──────────────────────────────────────────

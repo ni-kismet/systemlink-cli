@@ -46,10 +46,9 @@ discover through visualization:
 
 Phase-one fixture data for validating Systems and Products queries. It
 provisions the resource families supported by the generic example provisioner:
-1 deployment state, 1 feed, 1 tag with 12 history samples, 3 active alarms,
-and 1 specification (metadata only). It reports unsupported package inventory,
-jobs, feed packages, deployment state package inventory, specification
-evidence, and workspace lifecycle.
+1 deployment state populated with that feed and both package versions, 1 tag
+with 12 history samples, 3 active alarms, and 1 specification (metadata only).
+It reports unsupported jobs, specification evidence, and workspace lifecycle.
 Because those capabilities are required by the full Nigel acceptance matrix,
 the install intentionally exits nonzero after emitting its JSON manifest.
 
@@ -183,11 +182,54 @@ cleanup:
 - `data_table` - DataFrame table schema
 - `file` - Uploaded supporting file
 - `notebook` - Uploaded Jupyter notebook
-- `feed` - Package feed metadata (package uploads are separate)
+- `feed` - Package feed metadata
+- `package` - Package uploaded to a previously created feed
 - `state` - Systems deployment state
 - `tag` - Workspace-scoped tag metadata
 - `specification` - Product specification metadata
 - `alarm` - Active alarm instance and transition
+
+### Package Resources
+
+Package resources must follow their feed in the resource list so that the feed
+reference can be resolved:
+
+```yaml
+- type: "feed"
+  name: "Fixture Windows Feed"
+  properties:
+    platform: "windows"
+  id_reference: "feed_fixture"
+
+- type: "package"
+  name: "Fixture package"
+  properties:
+    feed_id: "${feed_fixture}"
+    source:
+      type: "dummy"
+      package_name: "fixture-package"
+      version: "1.0.0"
+      architecture: "all"
+      files:
+        README.txt: "Package payload created for fixture validation.\n"
+  id_reference: "package_fixture"
+```
+
+Supported package sources are:
+
+- `dummy` (default): creates a deterministic minimal `.nipkg` from inline
+  `files` and uploads it to the feed.
+- `file`: uploads a fixture-relative `.nipkg` from `source.path`. The path is
+  contained within the directory containing `config.yaml`.
+- `repository`: downloads a direct HTTP(S) URL ending in `.nipkg`, then uploads
+  it. Use a URL obtained from the repository/feed service; the repository
+  catalog is not treated as a package-byte endpoint. Downloads are streamed and
+  TLS verification remains enabled.
+
+`source.package_name` and `source.version` identify a package for duplicate
+detection across all source modes. Dummy packages default to the resource name
+and version `1.0.0`; declare both values for local or repository packages when
+they cannot be inferred from the resource name.
 
 ## Notes
 
@@ -197,6 +239,7 @@ cleanup:
   consume its custom order or confirmation settings.
 - References use `${id_reference}` syntax for interpolation
 - Resources are provisioned in list order, so referenced resources must appear first
+- Package resources are provisioned after their feed and are deleted before it
 - All resources created by an example are tagged with the example name for safe deletion
 - The JSON Schema is the authoring reference; runtime validation currently checks only a subset of its types and patterns
 - Examples with `install_manifest: true` emit grouped resource actions and a

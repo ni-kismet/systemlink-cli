@@ -1,0 +1,1 @@
+Add package resources to example fixtures, including deterministic dummy `.nipkg` generation, local package files, and explicit repository package URLs.
