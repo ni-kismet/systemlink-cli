@@ -37,18 +37,26 @@ class Profile:
 
     name: str
     server: str
-    api_key: str
+    api_key: str = ""
     web_url: Optional[str] = None
     platform: Optional[str] = None
     workspace: Optional[str] = None
     readonly: bool = False
+    auth_mode: str = "api-key"
+    pkce_client_id: Optional[str] = None
+    pkce_scopes: Optional[List[str]] = None
 
     def to_dict(self) -> Dict[str, Any]:
         """Convert profile to dictionary for serialization."""
-        result: Dict[str, Any] = {
-            "server": self.server,
-            "api-key": self.api_key,
-        }
+        result: Dict[str, Any] = {"server": self.server}
+        if self.auth_mode == "pkce":
+            result["auth-mode"] = self.auth_mode
+            if self.pkce_client_id:
+                result["pkce-client-id"] = self.pkce_client_id
+            if self.pkce_scopes:
+                result["pkce-scopes"] = self.pkce_scopes
+        else:
+            result["api-key"] = self.api_key
         if self.web_url:
             result["web-url"] = self.web_url
         if self.platform:
@@ -70,6 +78,9 @@ class Profile:
             platform=data.get("platform"),
             workspace=data.get("workspace"),
             readonly=data.get("readonly", False),
+            auth_mode=data.get("auth-mode", "api-key"),
+            pkce_client_id=data.get("pkce-client-id"),
+            pkce_scopes=data.get("pkce-scopes"),
         )
 
 

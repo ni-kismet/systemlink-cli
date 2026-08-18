@@ -121,6 +121,32 @@ slcli config trust add --url https://systemlink.example.local --fingerprint <sha
 slcli config trust remove --url https://systemlink.example.local
 ```
 
+### PKCE Login
+
+PKCE login is an opt-in browser flow against the Stratus Token Service. It keeps
+the API URL and Web UI URL separate, uses a loopback callback, and sends the
+returned access token directly to SystemLink APIs as an
+`Authorization: Bearer <token>` header. The public client ID must be registered
+by the SystemLink service owner; it is not inferred from the hostname.
+
+```bash
+slcli login --auth pkce \
+	--profile azemr-pre \
+	--url https://azemr-pre-api.lifecyclesolutions.ni.com \
+	--web-url https://azemr-pre.lifecyclesolutions.ni.com \
+	--client-id stratus-client-auth
+```
+
+For `azemr-pre`, the registered public client is `stratus-client-auth`. The
+default scopes are `openid profile email offline_access` and can be overridden
+by repeating `--scope`. The registered loopback callback port is `9876`; make
+sure it is available before starting the login. Access and refresh tokens are
+stored in the operating-system keyring; the profile JSON stores only the
+authentication mode and public client metadata. Access tokens are refreshed
+with the rotated refresh token when they expire.
+The existing API-key flow remains the default and is selected with
+`--auth api-key`.
+
 Managed certificates are stored under the `trust` directory next to the slcli configuration file. Hostname verification is still enforced. `SLCLI_SSL_VERIFY=false` disables certificate verification entirely and should only be used as a temporary diagnostic override; it does not add a trusted certificate.
 
 When the operating system trust store is available, it remains the default even if `SSL_CERT_FILE` points to a single corporate root certificate. Use `REQUESTS_CA_BUNDLE` when an explicit complete CA bundle is required.

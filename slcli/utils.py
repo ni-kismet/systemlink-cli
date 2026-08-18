@@ -40,6 +40,15 @@ class ResolvedConfigValue:
     source: str
 
 
+@dataclass(frozen=True)
+class ResolvedAuth:
+    """Resolved credential, its source, and the HTTP authentication scheme."""
+
+    value: str
+    source: str
+    scheme: str
+
+
 class ExitCodes:
     """Standard exit codes for CLI operations."""
 
@@ -442,8 +451,8 @@ def get_web_url_resolution() -> ResolvedConfigValue:
         return ResolvedConfigValue("https://localhost", f"derived:{base_resolution.source}")
 
 
-def get_api_key_resolution(emit_error: bool = True) -> ResolvedConfigValue:
-    """Resolve the SystemLink API key and record where it came from.
+def get_auth_resolution(emit_error: bool = True) -> ResolvedAuth:
+    """Resolve the active credential and its HTTP authentication scheme.
 
     Preference order:
     1. Environment variable SLCLI_API_KEY (preferred) or SYSTEMLINK_API_KEY
@@ -453,14 +462,42 @@ def get_api_key_resolution(emit_error: bool = True) -> ResolvedConfigValue:
     """
     override = _get_env_override(("SLCLI_API_KEY", "SYSTEMLINK_API_KEY"))
     if override is not None:
-        return override
+        return ResolvedAuth(override.value, override.source, "api-key")
 
     try:
         from .profiles import get_active_profile
 
         profile = get_active_profile()
-        if profile and profile.api_key:
-            return ResolvedConfigValue(profile.api_key, f"profile:{profile.name}")
+        if profile:
+            if profile.auth_mode == "pkce":
+                from .pkce import get_pkce_access_token
+
+                access_token = get_pkce_access_token(profile.name)
+                if access_token:
+                    return ResolvedAuth(access_token, f"profile:{profile.name}:pkce", "bearer")
+                if profile.web_url and profile.pkce_client_id:
+                    from .pkce import PkceError, refresh_pkce_credentials
+
+                    try:
+                        refreshed = refresh_pkce_credentials(
+                            profile.name, profile.web_url, profile.pkce_client_id
+                        )
+                    except PkceError:
+                        pass
+                    else:
+                        return ResolvedAuth(
+                            refreshed.access_token,
+                            f"profile:{profile.name}:pkce-refresh",
+                            "bearer",
+                        )
+                if emit_error:
+                    raise click.ClickException(
+                        f"PKCE bearer token for profile '{profile.name}' is unavailable. "
+                        f"Run 'slcli login --profile {profile.name} --auth pkce' again."
+                    )
+                raise click.ClickException("PKCE bearer token not found.")
+            if profile.api_key:
+                return ResolvedAuth(profile.api_key, f"profile:{profile.name}", "api-key")
     except (FileNotFoundError, json.JSONDecodeError, KeyError, AttributeError):
         pass
 
@@ -468,14 +505,14 @@ def get_api_key_resolution(emit_error: bool = True) -> ResolvedConfigValue:
     if cfg and isinstance(cfg, dict):
         maybe = cfg.get("api_key") or cfg.get("apiKey") or cfg.get("apiToken")
         if maybe:
-            return ResolvedConfigValue(str(maybe), "keyring:SYSTEMLINK_CONFIG")
+            return ResolvedAuth(str(maybe), "keyring:SYSTEMLINK_CONFIG", "api-key")
 
     try:
         api_key = keyring.get_password("systemlink-cli", "SYSTEMLINK_API_KEY")
     except Exception:
         api_key = None
     if api_key:
-        return ResolvedConfigValue(api_key, "keyring:SYSTEMLINK_API_KEY")
+        return ResolvedAuth(api_key, "keyring:SYSTEMLINK_API_KEY", "api-key")
 
     if emit_error:
         raise click.ClickException(
@@ -483,6 +520,12 @@ def get_api_key_resolution(emit_error: bool = True) -> ResolvedConfigValue:
             "(or legacy SYSTEMLINK_API_KEY) or run 'slcli login --profile <name>'."
         )
     raise click.ClickException("API key not found.")
+
+
+def get_api_key_resolution(emit_error: bool = True) -> ResolvedConfigValue:
+    """Resolve the active credential using the legacy API-key result shape."""
+    resolved = get_auth_resolution(emit_error=emit_error)
+    return ResolvedConfigValue(resolved.value, resolved.source)
 
 
 def get_base_url() -> str:
@@ -533,7 +576,7 @@ def _get_keyring_config() -> Dict[str, Any]:
 
 
 def get_api_key() -> str:
-    """Retrieve the SystemLink API key.
+    """Retrieve the active credential using the legacy API-key helper name.
 
     Preference order:
     1. Environment variable SLCLI_API_KEY (preferred) or SYSTEMLINK_API_KEY
@@ -544,18 +587,31 @@ def get_api_key() -> str:
     return get_api_key_resolution().value
 
 
-def get_headers(content_type: str = "") -> Dict[str, str]:
-    """Return headers for SystemLink API requests.
-
-    Allows caller to override Content-Type. If content_type is None or empty, omit the header.
-    """
+def get_auth_headers(
+    credential: str, auth_scheme: str = "api-key", content_type: str = ""
+) -> Dict[str, str]:
+    """Build SystemLink request headers for an API key or bearer token."""
     headers = {
-        "x-ni-api-key": get_api_key(),
         "User-Agent": "SystemLink-CLI/1.0 (cross-platform)",
     }
+    if auth_scheme == "bearer":
+        headers["Authorization"] = f"Bearer {credential}"
+    elif auth_scheme == "api-key":
+        headers["x-ni-api-key"] = credential
+    else:
+        raise ValueError(f"Unsupported authentication scheme: {auth_scheme}")
     if content_type:
         headers["Content-Type"] = content_type
     return headers
+
+
+def get_headers(content_type: str = "") -> Dict[str, str]:
+    """Return headers for the active SystemLink authentication mode.
+
+    Allows caller to override Content-Type. If content_type is None or empty, omit the header.
+    """
+    resolved = get_auth_resolution()
+    return get_auth_headers(resolved.value, resolved.scheme, content_type)
 
 
 def get_ssl_verify(server_uri: Optional[str] = None) -> Union[bool, str]:

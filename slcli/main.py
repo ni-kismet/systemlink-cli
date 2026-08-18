@@ -415,6 +415,24 @@ def ca_info() -> None:
 @click.option("--url", help="SystemLink API URL")
 @click.option("--api-key", help="SystemLink API key")
 @click.option("--web-url", help="SystemLink Web UI base URL")
+@click.option(
+    "--auth",
+    "auth_mode",
+    type=click.Choice(["api-key", "pkce"]),
+    default="api-key",
+    show_default=True,
+    help="Authentication flow to use",
+)
+@click.option("--client-id", help="Public OAuth client ID for the PKCE prototype")
+@click.option(
+    "--scope",
+    "scopes",
+    multiple=True,
+    help=(
+        "OAuth scope to request; may be repeated "
+        "(defaults to openid profile email offline_access)"
+    ),
+)
 @click.option("--workspace", "-w", help="Default workspace for this profile")
 @click.option(
     "--set-current/--no-set-current",
@@ -438,6 +456,9 @@ def login(
     url: Optional[str],
     api_key: Optional[str],
     web_url: Optional[str],
+    auth_mode: str,
+    client_id: Optional[str],
+    scopes: tuple[str, ...],
     workspace: Optional[str],
     set_current: bool,
     readonly: bool,
@@ -464,6 +485,9 @@ def login(
         url=url,
         api_key=api_key,
         web_url=web_url,
+        auth_mode=auth_mode,
+        client_id=client_id,
+        scopes=scopes,
         workspace=workspace,
         set_current=set_current,
         readonly=readonly,
@@ -486,6 +510,7 @@ def logout(profile: Optional[str], remove_all: bool, force: bool) -> None:
     from .profiles import ProfileConfig
 
     cfg = ProfileConfig.load()
+    removed_profiles: list[str] = []
 
     if remove_all:
         if not force:
@@ -497,6 +522,7 @@ def logout(profile: Optional[str], remove_all: bool, force: bool) -> None:
                 return
 
         # Clear all profiles
+        removed_profiles = list(cfg.profiles)
         cfg.profiles.clear()
         cfg.current_profile = None
         cfg.save()
@@ -517,6 +543,7 @@ def logout(profile: Optional[str], remove_all: bool, force: bool) -> None:
                 return
 
         cfg.delete_profile(profile)
+        removed_profiles = [profile]
         cfg.save()
         click.echo(f"✓ Profile '{profile}' removed.")
 
@@ -536,12 +563,20 @@ def logout(profile: Optional[str], remove_all: bool, force: bool) -> None:
                 return
 
         cfg.delete_profile(current)
+        removed_profiles = [current]
         cfg.save()
         click.echo(f"✓ Profile '{current}' removed.")
         if cfg.current_profile:
             click.echo(f"  Current profile is now: {cfg.current_profile}")
 
     # Also clean up legacy keyring entries
+    try:
+        from .pkce import delete_pkce_credentials
+
+        for removed_profile in removed_profiles:
+            delete_pkce_credentials(removed_profile)
+    except Exception:
+        pass
     try:
         keyring.delete_password("systemlink-cli", "SYSTEMLINK_API_KEY")
     except Exception:

@@ -141,6 +141,20 @@ class TestCheckServiceStatus:
         assert result["services"]["Test Monitor"] == "ok"
         assert result["services"]["Work Order"] == "ok"
 
+    def test_bearer_auth_uses_authorization_header(self) -> None:
+        """Service probes use a bearer header when PKCE supplies the credential."""
+        mock_get, mock_post = self._mock_requests({})
+        with patch("slcli.platform.requests.get", mock_get), patch(
+            "slcli.platform.requests.post", mock_post
+        ):
+            result = check_service_status("https://api.example.com", "access-token", "bearer")
+
+        assert result["auth_valid"] is True
+        for mock_request in [*mock_get.call_args_list, *mock_post.call_args_list]:
+            headers = mock_request.kwargs["headers"]
+            assert headers["Authorization"] == "Bearer access-token"
+            assert "x-ni-api-key" not in headers
+
     def test_all_services_ok_sls(self) -> None:
         """Test SLS detected when workorder returns 404."""
         mock_get, mock_post = self._mock_requests(

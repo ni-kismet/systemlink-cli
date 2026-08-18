@@ -85,6 +85,57 @@ def test_api_key_resolution_prefers_slcli_env_alias(monkeypatch: Any, tmp_path: 
     assert resolved.source == "env:SLCLI_API_KEY"
 
 
+def test_pkce_auth_resolution_returns_bearer_scheme(monkeypatch: Any) -> None:
+    """PKCE profiles resolve to an access token and bearer scheme."""
+    from slcli.profiles import Profile
+    from slcli.utils import get_auth_resolution
+
+    monkeypatch.setattr(
+        "slcli.profiles.get_active_profile",
+        lambda: Profile(
+            name="pkce",
+            server="https://api.example.com",
+            auth_mode="pkce",
+            pkce_client_id="client-id",
+        ),
+    )
+    monkeypatch.setattr("slcli.pkce.get_pkce_access_token", lambda _profile: "access-token")
+
+    resolved = get_auth_resolution()
+
+    assert resolved.value == "access-token"
+    assert resolved.source == "profile:pkce:pkce"
+    assert resolved.scheme == "bearer"
+
+
+def test_get_auth_headers_uses_only_bearer_header() -> None:
+    """Bearer requests must not also send the API-key header."""
+    from slcli.utils import get_auth_headers
+
+    headers = get_auth_headers("access-token", "bearer", "application/json")
+
+    assert headers["Authorization"] == "Bearer access-token"
+    assert "x-ni-api-key" not in headers
+    assert headers["Content-Type"] == "application/json"
+
+
+def test_get_headers_uses_resolved_bearer_scheme(monkeypatch: Any) -> None:
+    """Shared request headers follow the resolved PKCE authentication scheme."""
+    from slcli.utils import ResolvedAuth, get_headers
+
+    monkeypatch.setattr(
+        "slcli.utils.get_auth_resolution",
+        lambda: ResolvedAuth("access-token", "profile:pkce:pkce", "bearer"),
+    )
+
+    headers = get_headers()
+
+    assert headers == {
+        "Authorization": "Bearer access-token",
+        "User-Agent": "SystemLink-CLI/1.0 (cross-platform)",
+    }
+
+
 def test_base_url_resolution_strips_trailing_slash_from_env(monkeypatch: Any) -> None:
     """Base URL env overrides should normalize a trailing slash."""
     from slcli.utils import get_base_url_resolution
