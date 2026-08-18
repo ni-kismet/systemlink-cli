@@ -2,6 +2,18 @@
 
 <!-- towncrier release notes start -->
 
+## v1.24.0 (2026-08-18)
+
+### Features
+
+- Make the MCP server self-describing with client guidance resources, workflow prompts, tool metadata, and the first typed workspace response. (mcp-client-guidance)
+
+### Bug Fixes
+
+- Update dependency mcp to v2.0.0, support its server and streamable HTTP APIs,
+  and use modern MCP protocol discovery with a legacy handshake fallback. (deps-mcp-2-x-lockfile)
+
+
 ## v1.23.0 (2026-08-18)
 
 ### Features
