@@ -2,6 +2,13 @@
 
 <!-- towncrier release notes start -->
 
+## v1.23.0 (2026-08-18)
+
+### Features
+
+- Add package resources to example fixtures, including deterministic dummy `.nipkg` generation, local package files, and explicit repository package URLs. (example-package-resources)
+
+
 ## v1.22.1 (2026-08-12)
 
 ### Bug Fixes
