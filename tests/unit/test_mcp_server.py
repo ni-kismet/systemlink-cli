@@ -182,9 +182,7 @@ def test_reference_resources_read_packaged_skill_content() -> None:
     assert filtering_reference().startswith("# Filtering Reference")
 
 
-def test_reference_resources_use_frozen_layout_candidates(
-    monkeypatch: Any, tmp_path: Any
-) -> None:
+def test_reference_resources_use_frozen_layout_candidates(monkeypatch: Any, tmp_path: Any) -> None:
     """Reference resources resolve correctly from the frozen packaged layout."""
     import slcli.mcp_server as mcp_server
 
