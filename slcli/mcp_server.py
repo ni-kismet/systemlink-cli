@@ -39,6 +39,7 @@ _READ_ONLY_TOOL_ANNOTATIONS = ToolAnnotations(
     open_world_hint=False,
 )
 
+
 def _reference_root_candidates() -> List[Path]:
     """Return candidate packaged-reference directories for source and frozen layouts."""
     candidates: List[Path] = []
@@ -48,9 +49,7 @@ def _reference_root_candidates() -> List[Path]:
         candidates.append(Path(meipass) / "skills" / "slcli" / "references")
 
     if getattr(sys, "frozen", False):
-        candidates.append(
-            Path(sys.executable).resolve().parent / "skills" / "slcli" / "references"
-        )
+        candidates.append(Path(sys.executable).resolve().parent / "skills" / "slcli" / "references")
 
     candidates.append(Path(__file__).resolve().parent / "skills" / "slcli" / "references")
     return candidates
