@@ -182,6 +182,27 @@ def test_reference_resources_read_packaged_skill_content() -> None:
     assert filtering_reference().startswith("# Filtering Reference")
 
 
+def test_reference_resources_use_frozen_layout_candidates(
+    monkeypatch: Any, tmp_path: Any
+) -> None:
+    """Reference resources resolve correctly from the frozen packaged layout."""
+    import slcli.mcp_server as mcp_server
+
+    references_dir = tmp_path / "skills" / "slcli" / "references"
+    references_dir.mkdir(parents=True)
+    (references_dir / "commands.md").write_text("# Frozen Commands", encoding="utf-8")
+    (references_dir / "filtering.md").write_text("# Frozen Filtering", encoding="utf-8")
+
+    monkeypatch.setattr(
+        mcp_server,
+        "_reference_root_candidates",
+        lambda: [references_dir],
+    )
+
+    assert mcp_server.commands_reference() == "# Frozen Commands"
+    assert mcp_server.filtering_reference() == "# Frozen Filtering"
+
+
 def test_run_streamable_http_passes_host_and_port_to_mcp_2() -> None:
     """The MCP 2 server receives HTTP settings through run arguments."""
     import slcli.mcp_server as mcp_server_module

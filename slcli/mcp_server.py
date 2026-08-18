@@ -39,7 +39,29 @@ _READ_ONLY_TOOL_ANNOTATIONS = ToolAnnotations(
     open_world_hint=False,
 )
 
-_REFERENCE_ROOT = Path(__file__).parent / "skills" / "slcli" / "references"
+def _reference_root_candidates() -> List[Path]:
+    """Return candidate packaged-reference directories for source and frozen layouts."""
+    candidates: List[Path] = []
+
+    meipass = getattr(sys, "_MEIPASS", None)
+    if meipass:
+        candidates.append(Path(meipass) / "skills" / "slcli" / "references")
+
+    if getattr(sys, "frozen", False):
+        candidates.append(
+            Path(sys.executable).resolve().parent / "skills" / "slcli" / "references"
+        )
+
+    candidates.append(Path(__file__).resolve().parent / "skills" / "slcli" / "references")
+    return candidates
+
+
+def _find_reference_root() -> Path:
+    """Locate the packaged MCP reference directory."""
+    for candidate in _reference_root_candidates():
+        if candidate.is_dir():
+            return candidate
+    raise FileNotFoundError("Bundled MCP reference files not found.")
 
 
 class WorkspaceQueryResponse(BaseModel):
@@ -82,7 +104,7 @@ def capabilities() -> str:
 
 def _read_reference(filename: str) -> str:
     """Read a packaged slcli skill reference for an MCP resource."""
-    return (_REFERENCE_ROOT / filename).read_text(encoding="utf-8")
+    return (_find_reference_root() / filename).read_text(encoding="utf-8")
 
 
 @server.resource("slcli://docs/commands", mime_type="text/markdown")
