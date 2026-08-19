@@ -347,7 +347,7 @@ def _add_profile_impl(
     if status["auth_valid"] is not True:
         verification_message = (
             "Connected to the server, but profile verification was inconclusive. Check the "
-            "API URL, bearer token, and service availability. Profile was not saved."
+            "Web UI URL, bearer token, and service availability. Profile was not saved."
             if auth_mode == "pkce"
             else "Connected to the server, but profile verification was inconclusive. Check the "
             "API URL, API key, and service availability. Profile was not saved."

@@ -122,10 +122,9 @@ def test_perform_pkce_login_returns_bearer_token(
     import slcli.pkce as pkce
 
     class FakeServer:
-        server_address = ("127.0.0.1", 4321)
-
         def __init__(self, *_args: Any) -> None:
             server_bind.append(_args[0])
+            self.server_address = _args[0]
             self.callback_params = None
 
         def server_close(self) -> None:
@@ -179,10 +178,9 @@ def test_perform_pkce_login_supports_a_custom_callback_port(monkeypatch: Any) ->
     import slcli.pkce as pkce
 
     class FakeServer:
-        server_address = ("127.0.0.1", 4321)
-
         def __init__(self, *_args: Any) -> None:
             server_bind.append(_args[0])
+            self.server_address = _args[0]
             self.callback_params = None
 
         def server_close(self) -> None:
@@ -216,7 +214,7 @@ def test_perform_pkce_login_supports_a_custom_callback_port(monkeypatch: Any) ->
 
     assert server_bind == [("127.0.0.1", 4320)]
     query = parse_qs(urlparse(authorization_url[0]).query)
-    assert query["redirect_uri"] == ["http://127.0.0.1:4321/callback"]
+    assert query["redirect_uri"] == ["http://127.0.0.1:4320/callback"]
 
 
 def test_perform_pkce_login_rejects_state_mismatch(monkeypatch: Any) -> None:
