@@ -144,6 +144,47 @@ def test_list_workitems_json(monkeypatch: Any, runner: CliRunner) -> None:
     assert data[0]["id"] == "1000"
 
 
+def test_list_workitems_json_uses_requested_take(monkeypatch: Any, runner: CliRunner) -> None:
+    """JSON work-item queries use the requested page size for filtered queries."""
+    patch_keyring(monkeypatch)
+    payloads: List[Dict[str, Any]] = []
+
+    def mock_post(*args: Any, **kwargs: Any) -> Any:
+        payloads.append(kwargs["json"])
+
+        class R:
+            status_code = 200
+
+            def raise_for_status(self) -> None:
+                pass
+
+            def json(self) -> Any:
+                return {"workItems": []}
+
+        return R()
+
+    monkeypatch.setattr("requests.post", mock_post)
+    monkeypatch.setattr("slcli.workitem_click.get_workspace_map", lambda: {})
+
+    cli = make_cli()
+    result = runner.invoke(
+        cli,
+        [
+            "workitem",
+            "list",
+            "--format",
+            "json",
+            "--filter",
+            'name == "missing"',
+            "--take",
+            "5",
+        ],
+    )
+
+    assert result.exit_code == 0
+    assert payloads[0]["take"] == 5
+
+
 def test_list_workitems_state_filter(monkeypatch: Any, runner: CliRunner) -> None:
     """--state flag is included in payload filter."""
     patch_keyring(monkeypatch)
