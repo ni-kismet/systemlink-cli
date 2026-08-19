@@ -99,7 +99,9 @@ class TestWorkitemListE2E:
                 "--format",
                 "json",
                 "--filter",
-                f'name == "{nonexistent_name}"',
+                "name == @0",
+                "--substitution",
+                nonexistent_name,
                 "--take",
                 "5",
             ]
@@ -219,7 +221,9 @@ class TestWorkitemLifecycleE2E:
                     "--format",
                     "json",
                     "--filter",
-                    f'name == "{wi_name}"',
+                    "name == @0",
+                    "--substitution",
+                    wi_name,
                     "--take",
                     "10",
                 ]

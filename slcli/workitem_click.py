@@ -462,6 +462,12 @@ def register_workitem_commands(cli: Any) -> None:
         help="Dynamic LINQ filter expression (e.g. 'state == \"NEW\"')",
     )
     @click.option(
+        "--substitution",
+        "filter_substitutions",
+        multiple=True,
+        help="Substitution value for --filter (repeatable)",
+    )
+    @click.option(
         "--state",
         "-s",
         default=None,
@@ -480,6 +486,7 @@ def register_workitem_commands(cli: Any) -> None:
         format: str,
         take: int,
         filter_expr: Optional[str],
+        filter_substitutions: Tuple[str, ...],
         state: Optional[str],
         workspace: Optional[str],
     ) -> None:
@@ -511,6 +518,9 @@ def register_workitem_commands(cli: Any) -> None:
 
                 user_filter = re.sub(r"@(\d+)", _offset, filter_expr)
                 parts.append(f"({user_filter})")
+                subs.extend(filter_substitutions)
+            elif filter_substitutions:
+                raise click.UsageError("--substitution requires --filter")
 
             if parts:
                 final_filter = " && ".join(parts)
