@@ -16,6 +16,7 @@ from .platform import (
     PLATFORM_SLE,
     PLATFORM_SLS,
     check_service_status,
+    check_web_server_auth,
 )
 from .profiles import ProfileConfig, Profile, check_config_file_permissions
 from .rich_output import render_table
@@ -134,7 +135,11 @@ def _show_certificate_warning(certificate: dict[str, Any]) -> None:
 
 
 def _trust_certificate_if_requested(
-    url: str, api_key: str, status: dict[str, Any], trust_fingerprint: Optional[str]
+    url: str,
+    credential: str,
+    status: dict[str, Any],
+    trust_fingerprint: Optional[str],
+    auth_scheme: str = "api-key",
 ) -> dict[str, Any]:
     """Prompt for or apply certificate trust after a verification failure."""
     certificate_details = status.get("certificate")
@@ -174,7 +179,10 @@ def _trust_certificate_if_requested(
 
     try:
         save_managed_certificate(certificate)
-        retry_status = check_service_status(url, api_key)
+        if auth_scheme == "bearer":
+            retry_status = check_web_server_auth(url, credential, auth_scheme=auth_scheme)
+        else:
+            retry_status = check_service_status(url, credential, auth_scheme=auth_scheme)
     except (OSError, ValueError) as exc:
         _exit_with_validation_error(
             f"Could not save the trusted certificate: {exc}. Profile was not saved.",
@@ -205,6 +213,7 @@ def _add_profile_impl(
     auth_mode: str = "api-key",
     client_id: Optional[str] = None,
     scopes: tuple[str, ...] = (),
+    callback_port: Optional[int] = None,
 ) -> None:
     """Shared implementation for add-profile and login commands.
 
@@ -223,6 +232,7 @@ def _add_profile_impl(
         auth_mode: Authentication flow to use
         client_id: Public OAuth client ID for the PKCE login
         scopes: OAuth scopes for the PKCE login
+        callback_port: Optional loopback callback port; zero selects an ephemeral port
     """
     # Get profile name
     if not profile:
@@ -262,8 +272,20 @@ def _add_profile_impl(
     pkce_result: Any = None
     pkce_scopes = list(scopes) if scopes else ["openid", "profile", "email", "offline_access"]
     if auth_mode == "pkce":
+        certificate_status = check_web_server_auth(web_url, "", auth_scheme="bearer")
+        if certificate_status.get("certificate_error") and not certificate_status.get(
+            "server_reachable"
+        ):
+            _trust_certificate_if_requested(
+                web_url,
+                "",
+                certificate_status,
+                trust_fingerprint,
+                auth_scheme="bearer",
+            )
         if not client_id:
             client_id = click.prompt("PKCE client ID")
+        assert isinstance(client_id, str)
         client_id = client_id.strip()
         if not client_id:
             _exit_with_validation_error("PKCE client ID cannot be empty.")
@@ -272,21 +294,34 @@ def _add_profile_impl(
 
         click.echo("Opening the SystemLink Web UI for authentication...")
         try:
-            pkce_result = perform_pkce_login(web_url, client_id, pkce_scopes)
+            if callback_port is None:
+                pkce_result = perform_pkce_login(web_url, client_id, pkce_scopes)
+            else:
+                pkce_result = perform_pkce_login(
+                    web_url, client_id, pkce_scopes, callback_port=callback_port
+                )
         except PkceError as exc:
             _exit_with_validation_error(f"PKCE login failed: {exc}")
         api_key = pkce_result.access_token
 
     assert isinstance(api_key, str)
 
-    # Detect platform type and check service status
+    # Validate PKCE against the Web Server identity route; API-key login retains API probes.
     click.echo("Checking server connectivity and services...")
-    status = check_service_status(
-        url, api_key, auth_scheme="bearer" if auth_mode == "pkce" else "api-key"
-    )
+    if auth_mode == "pkce":
+        status = check_web_server_auth(web_url, api_key, auth_scheme="bearer")
+    else:
+        status = check_service_status(url, api_key)
 
     if status.get("certificate_error") and not status.get("server_reachable"):
-        status = _trust_certificate_if_requested(url, api_key, status, trust_fingerprint)
+        validation_url = web_url if auth_mode == "pkce" else url
+        status = _trust_certificate_if_requested(
+            validation_url,
+            api_key,
+            status,
+            trust_fingerprint,
+            auth_scheme="bearer" if auth_mode == "pkce" else "api-key",
+        )
 
     platform = status["platform"]
     services = status.get("services", {})
@@ -820,6 +855,11 @@ def register_config_commands(cli: Any) -> None:
     )
     @click.option("--client-id", help="Public OAuth client ID for the PKCE prototype")
     @click.option(
+        "--callback-port",
+        type=click.IntRange(0, 65535),
+        help="Loopback callback port; use 0 for an ephemeral port",
+    )
+    @click.option(
         "--scope",
         "scopes",
         multiple=True,
@@ -853,6 +893,7 @@ def register_config_commands(cli: Any) -> None:
         web_url: Optional[str],
         auth_mode: str,
         client_id: Optional[str],
+        callback_port: Optional[int],
         scopes: tuple[str, ...],
         workspace: Optional[str],
         set_current: bool,
@@ -879,6 +920,7 @@ def register_config_commands(cli: Any) -> None:
             web_url=web_url,
             auth_mode=auth_mode,
             client_id=client_id,
+            callback_port=callback_port,
             scopes=scopes,
             workspace=workspace,
             set_current=set_current,

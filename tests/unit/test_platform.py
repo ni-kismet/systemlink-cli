@@ -21,6 +21,7 @@ from slcli.platform import (
     get_platform_info,
     has_feature,
     require_feature,
+    check_web_server_auth,
 )
 
 
@@ -154,6 +155,55 @@ class TestCheckServiceStatus:
             headers = mock_request.kwargs["headers"]
             assert headers["Authorization"] == "Bearer access-token"
             assert "x-ni-api-key" not in headers
+
+    def test_web_server_auth_probes_identity_route_with_bearer(self) -> None:
+        """PKCE validation targets the Web Server identity route."""
+        response = _make_mock_response(200)
+        with patch("slcli.platform.requests.get", return_value=response) as mock_get, patch(
+            "slcli.platform.get_ssl_verify", return_value=True
+        ):
+            result = check_web_server_auth(
+                "https://web.example.com", "access-token", auth_scheme="bearer"
+            )
+
+        assert result["server_reachable"] is True
+        assert result["auth_valid"] is True
+        assert result["services"] == {"Web Server": "ok"}
+        assert mock_get.call_args.args[0] == "https://web.example.com/niauth/v1/auth"
+        assert mock_get.call_args.kwargs["headers"]["Authorization"] == "Bearer access-token"
+        assert "x-ni-api-key" not in mock_get.call_args.kwargs["headers"]
+
+    def test_web_server_auth_reports_unauthorized_bearer(self) -> None:
+        """A rejected bearer token is distinguishable from an unreachable Web Server."""
+        with patch("slcli.platform.requests.get", return_value=_make_mock_response(401)), patch(
+            "slcli.platform.get_ssl_verify", return_value=True
+        ):
+            result = check_web_server_auth("https://web.example.com", "bad-token")
+
+        assert result["server_reachable"] is True
+        assert result["auth_valid"] is False
+        assert result["services"] == {"Web Server": "unauthorized"}
+
+    def test_web_server_auth_reports_certificate_error(self) -> None:
+        """TLS failures expose certificate metadata for the trust flow."""
+        certificate = MagicMock()
+        certificate.to_dict.return_value = {
+            "origin": "https://web.example.com:443",
+            "fingerprint": "A" * 64,
+        }
+        with patch(
+            "slcli.platform.requests.get",
+            side_effect=req_module.exceptions.SSLError("untrusted certificate"),
+        ), patch("slcli.platform.get_ssl_verify", return_value=True), patch(
+            "slcli.ssl_trust.inspect_server_certificate", return_value=certificate
+        ):
+            result = check_web_server_auth("https://web.example.com", "access-token")
+
+        assert result["server_reachable"] is False
+        assert result["auth_valid"] is None
+        assert result["certificate_error"] is True
+        assert result["certificate"] == certificate.to_dict.return_value
+        assert result["services"] == {"Web Server": "certificate_error"}
 
     def test_all_services_ok_sls(self) -> None:
         """Test SLS detected when workorder returns 404."""
@@ -618,6 +668,40 @@ class TestHasFeature:
             assert has_feature("templates") is True
             assert has_feature("workflows") is True
 
+    def test_pkce_service_probe_context_uses_web_url(self, tmp_path: Any, monkeypatch: Any) -> None:
+        """Test PKCE health probes use the Web UI route root."""
+        from slcli.platform import _get_current_api_context
+        from slcli.utils import ResolvedAuth
+
+        monkeypatch.delenv("SLCLI_API_KEY", raising=False)
+        monkeypatch.delenv("SYSTEMLINK_API_KEY", raising=False)
+        config_file = tmp_path / "config.json"
+        config_file.write_text(
+            json.dumps(
+                {
+                    "current-profile": "pkce",
+                    "profiles": {
+                        "pkce": {
+                            "server": "https://api.example.com",
+                            "web-url": "https://web.example.com",
+                            "auth-mode": "pkce",
+                        }
+                    },
+                }
+            )
+        )
+        monkeypatch.setattr(
+            "slcli.utils.get_auth_resolution",
+            lambda emit_error=False: ResolvedAuth("access-token", "profile:pkce:pkce", "bearer"),
+        )
+
+        assert _get_current_api_context() == (
+            "pkce",
+            "https://web.example.com",
+            "access-token",
+            "bearer",
+        )
+
     def test_has_feature_workorder_not_found_overrides_sle_platform(self) -> None:
         """Test Work Order-backed features are disabled when the service is missing."""
         config = {"platform": "SLE"}
@@ -1018,6 +1102,30 @@ class TestGetPlatformInfo:
             assert result["server_reachable"] is False
             assert result["auth_valid"] is None
             assert "features" not in result
+
+    def test_bearer_snapshot_uses_web_server_probe(self) -> None:
+        """Bearer health checks use the Web Server identity route."""
+        from slcli.platform import _get_service_status_snapshot
+
+        status = {
+            "server_reachable": True,
+            "auth_valid": True,
+            "services": {"Web Server": "ok"},
+            "platform": PLATFORM_UNKNOWN,
+        }
+        with patch(
+            "slcli.platform._get_current_api_context",
+            return_value=("pkce", "https://web.example.com", "access-token", "bearer"),
+        ), patch("slcli.platform._save_service_status_snapshot"), patch(
+            "slcli.platform.check_web_server_auth", return_value=status
+        ) as mock_web_probe, patch(
+            "slcli.platform.check_service_status"
+        ) as mock_api_probe:
+            result = _get_service_status_snapshot(force_refresh=True)
+
+        assert result == status
+        mock_web_probe.assert_called_once_with("https://web.example.com", "access-token", "bearer")
+        mock_api_probe.assert_not_called()
 
     def test_get_platform_info_unauthorized(self) -> None:
         """Test that auth_valid=False is reported when API key is unauthorized."""

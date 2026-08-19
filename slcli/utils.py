@@ -5,7 +5,7 @@ import json
 import os
 import sys
 from dataclasses import dataclass
-from typing import Any, Callable, Dict, List, Optional, Sequence, Union
+from typing import Any, Callable, Dict, List, Literal, Optional, Sequence, Union
 
 import click
 import keyring
@@ -47,6 +47,9 @@ class ResolvedAuth:
     value: str
     source: str
     scheme: str
+
+
+RouteTarget = Literal["api", "web"]
 
 
 class ExitCodes:
@@ -528,8 +531,34 @@ def get_api_key_resolution(emit_error: bool = True) -> ResolvedConfigValue:
     return ResolvedConfigValue(resolved.value, resolved.source)
 
 
+def _uses_web_routes() -> bool:
+    """Return whether the active authentication profile uses Web Server routes.
+
+    Returns:
+        ``True`` for an active PKCE profile without an API-key environment
+        override; otherwise ``False``.
+    """
+    if _get_env_override(("SLCLI_API_KEY", "SYSTEMLINK_API_KEY")) is not None:
+        return False
+
+    try:
+        from .profiles import get_active_profile
+
+        profile = get_active_profile()
+    except (
+        FileNotFoundError,
+        json.JSONDecodeError,
+        KeyError,
+        AttributeError,
+        click.ClickException,
+    ):
+        return False
+
+    return bool(profile and profile.auth_mode == "pkce")
+
+
 def get_base_url() -> str:
-    """Retrieve the SystemLink API base URL.
+    """Retrieve the effective SystemLink command base URL.
 
     Preference order:
     1. Environment variable SLCLI_API_URL (preferred) or SYSTEMLINK_API_URL
@@ -537,8 +566,13 @@ def get_base_url() -> str:
     3. Combined keyring config (legacy)
     4. Legacy keyring entry SYSTEMLINK_API_URL
     5. Default fallback to localhost
+
+    PKCE profiles use their Web UI URL because bearer tokens are supported by
+    the Web Server route family. ``get_base_url_resolution()`` remains the
+    accessor for the separately configured API URL.
     """
-    return get_base_url_resolution().value
+    api_url = get_base_url_resolution().value
+    return get_web_url() if _uses_web_routes() else api_url
 
 
 def get_web_url() -> str:
@@ -612,6 +646,28 @@ def get_headers(content_type: str = "") -> Dict[str, str]:
     """
     resolved = get_auth_resolution()
     return get_auth_headers(resolved.value, resolved.scheme, content_type)
+
+
+def get_route_url(path: str, target: RouteTarget = "api") -> str:
+    """Build a route URL from the configured API or Web Server base URL.
+
+    Args:
+        path: Route path, with or without a leading slash.
+        target: Base URL to use, either ``api`` or ``web``.
+
+    Returns:
+        The fully qualified route URL.
+
+    Raises:
+        ValueError: If ``target`` is not a supported route target.
+    """
+    if target == "api":
+        base_url = get_base_url_resolution().value
+    elif target == "web":
+        base_url = get_web_url()
+    else:
+        raise ValueError(f"Unsupported route target: {target}")
+    return f"{base_url.rstrip('/')}/{path.lstrip('/')}"
 
 
 def get_ssl_verify(server_uri: Optional[str] = None) -> Union[bool, str]:
@@ -762,6 +818,8 @@ def make_api_request(
     files: Optional[Dict[str, Any]] = None,
     data: Optional[Dict[str, Any]] = None,
     stream: bool = False,
+    credential: Optional[str] = None,
+    auth_scheme: Optional[str] = None,
 ) -> requests.Response:
     """Make API request with consistent error handling and configuration.
 
@@ -774,6 +832,9 @@ def make_api_request(
         files: Files to upload (for multipart form data)
         data: Form data (for multipart requests, used with files)
         stream: Whether to stream the response (for large file downloads)
+        credential: Optional explicit credential for this request. When omitted, the active
+            credential is resolved from configuration.
+        auth_scheme: Authentication scheme for an explicit credential.
 
     Returns:
         Response object
@@ -783,7 +844,11 @@ def make_api_request(
     """
     try:
         # Merge provided headers with default headers
-        default_headers = get_headers()
+        default_headers = (
+            get_auth_headers(credential, auth_scheme or "api-key")
+            if credential is not None
+            else get_headers()
+        )
         if headers:
             default_headers.update(headers)
 
@@ -835,6 +900,49 @@ def make_api_request(
             return None  # type: ignore
         else:
             raise
+
+
+def make_web_request(
+    method: str,
+    path: str,
+    payload: Optional[Union[Dict[str, Any], List[Any]]] = None,
+    headers: Optional[Dict[str, str]] = None,
+    handle_errors: bool = True,
+    files: Optional[Dict[str, Any]] = None,
+    data: Optional[Dict[str, Any]] = None,
+    stream: bool = False,
+    credential: Optional[str] = None,
+    auth_scheme: Optional[str] = None,
+) -> requests.Response:
+    """Make a request to a Web Server route using the configured Web URL.
+
+    Args:
+        method: HTTP method (GET, POST, etc.)
+        path: Web Server route path, such as ``/niauth/v1/auth``.
+        payload: Request payload for POST/PUT requests (JSON body)
+        headers: Additional headers (will be merged with default headers)
+        handle_errors: Whether to handle errors with consistent formatting
+        files: Files to upload (for multipart form data)
+        data: Form data (for multipart requests, used with files)
+        stream: Whether to stream the response (for large file downloads)
+        credential: Optional explicit credential for this request.
+        auth_scheme: Authentication scheme for an explicit credential.
+
+    Returns:
+        Response object.
+    """
+    return make_api_request(
+        method,
+        get_route_url(path, target="web"),
+        payload=payload,
+        headers=headers,
+        handle_errors=handle_errors,
+        files=files,
+        data=data,
+        stream=stream,
+        credential=credential,
+        auth_scheme=auth_scheme,
+    )
 
 
 # --- Workspace Validation Utilities ---

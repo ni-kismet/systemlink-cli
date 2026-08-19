@@ -425,6 +425,11 @@ def ca_info() -> None:
 )
 @click.option("--client-id", help="Public OAuth client ID for the PKCE prototype")
 @click.option(
+    "--callback-port",
+    type=click.IntRange(0, 65535),
+    help="Loopback callback port; use 0 for an ephemeral port",
+)
+@click.option(
     "--scope",
     "scopes",
     multiple=True,
@@ -458,6 +463,7 @@ def login(
     web_url: Optional[str],
     auth_mode: str,
     client_id: Optional[str],
+    callback_port: Optional[int],
     scopes: tuple[str, ...],
     workspace: Optional[str],
     set_current: bool,
@@ -487,6 +493,7 @@ def login(
         web_url=web_url,
         auth_mode=auth_mode,
         client_id=client_id,
+        callback_port=callback_port,
         scopes=scopes,
         workspace=workspace,
         set_current=set_current,
@@ -641,7 +648,10 @@ def info(format: str, skip_health: bool, debug: bool) -> None:
     elif platform_info.get("server_reachable") is False:
         status = "✗ Server unreachable"
     elif platform_info.get("auth_valid") is False:
-        status = "✗ API key unauthorized"
+        credential_name = (
+            "Bearer token" if active_profile and active_profile.auth_mode == "pkce" else "API key"
+        )
+        status = f"✗ {credential_name} unauthorized"
     else:
         status = "✓ Connected"
 

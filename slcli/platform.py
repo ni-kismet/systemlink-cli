@@ -87,6 +87,7 @@ FILE_QUERY_PATH = "/nifile/v1/service-groups/Default/query-files"
 FILE_QUERY_LINQ_PATH = "/nifile/v1/service-groups/Default/query-files-linq"
 SYSTEM_SEARCH_PATH = "/nisysmgmt/v1/materialized/search-systems"
 SYSTEM_QUERY_PATH = "/nisysmgmt/v1/query-systems"
+WEB_SERVER_AUTH_PATH = "/niauth/v1/auth"
 
 SLE_ONLY_SERVICE_NAMES = (
     "Dynamic Form Fields",
@@ -230,6 +231,8 @@ def _probe_service_status(
                 verify=ssl_verify,
                 timeout=10,
             )
+    except requests.exceptions.SSLError:
+        return "certificate_error"
     except requests.RequestException:
         return "unreachable"
 
@@ -240,6 +243,52 @@ def _probe_service_status(
     if response.status_code in (404, 501):
         return "not_found"
     return "error"
+
+
+def check_web_server_auth(
+    web_url: str, credential: str, auth_scheme: str = "bearer"
+) -> Dict[str, Any]:
+    """Validate a credential against the Web Server identity route.
+
+    Args:
+        web_url: The Web Server base URL.
+        credential: The API key or bearer token to validate.
+        auth_scheme: HTTP authentication scheme for the credential.
+
+    Returns:
+        A status dictionary containing reachability, authorization, certificate,
+        and Web Server probe information.
+    """
+    ssl_verify = get_ssl_verify(web_url)
+    with use_standard_ssl_context(ssl_verify):
+        status = _probe_service_status(
+            web_url, credential, "GET", WEB_SERVER_AUTH_PATH, auth_scheme
+        )
+    if status == "ok":
+        auth_valid: Optional[bool] = True
+    elif status == "unauthorized":
+        auth_valid = False
+    else:
+        auth_valid = None
+
+    certificate_details: Optional[Dict[str, Any]] = None
+    certificate_error = status == "certificate_error"
+    if certificate_error:
+        try:
+            from .ssl_trust import inspect_server_certificate
+
+            certificate_details = inspect_server_certificate(web_url).to_dict()
+        except (OSError, ValueError, ssl.SSLError):
+            certificate_details = None
+
+    return {
+        "server_reachable": status not in ("unreachable", "certificate_error"),
+        "auth_valid": auth_valid,
+        "services": {"Web Server": status},
+        "certificate_error": certificate_error,
+        "certificate": certificate_details,
+        "platform": PLATFORM_UNKNOWN,
+    }
 
 
 @lru_cache(maxsize=None)
@@ -257,12 +306,13 @@ def _get_cached_service_status(
 
 
 def _get_current_api_context() -> Optional[Tuple[Optional[str], str, str, str]]:
-    """Resolve the current profile, API URL, credential, and auth scheme."""
+    """Resolve the current profile, command URL, credential, and auth scheme."""
     try:
-        from .utils import get_auth_resolution, get_base_url_resolution
+        from .utils import get_auth_resolution, get_base_url, get_base_url_resolution
 
         api_url_resolution = get_base_url_resolution()
         auth_resolution = get_auth_resolution(emit_error=False)
+        command_url = get_base_url()
 
         profile_name: Optional[str] = None
         if api_url_resolution.source.startswith("profile:") and (
@@ -273,7 +323,7 @@ def _get_current_api_context() -> Optional[Tuple[Optional[str], str, str, str]]:
 
         return (
             profile_name,
-            api_url_resolution.value,
+            command_url,
             auth_resolution.value,
             auth_resolution.scheme,
         )
@@ -371,7 +421,10 @@ def _get_service_status_snapshot(force_refresh: bool = False) -> Optional[Dict[s
             return cached_status
 
     _, api_url, credential, auth_scheme = api_context
-    status = check_service_status(api_url, credential, auth_scheme)
+    if auth_scheme == "bearer":
+        status = check_web_server_auth(api_url, credential, auth_scheme)
+    else:
+        status = check_service_status(api_url, credential, auth_scheme)
     _save_service_status_snapshot(api_context, status)
     return status
 

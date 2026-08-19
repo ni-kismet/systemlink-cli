@@ -3,6 +3,7 @@
 import json
 from pathlib import Path
 from typing import Any, Dict
+from unittest.mock import MagicMock, patch
 
 import click
 import pytest
@@ -134,6 +135,99 @@ def test_get_headers_uses_resolved_bearer_scheme(monkeypatch: Any) -> None:
         "Authorization": "Bearer access-token",
         "User-Agent": "SystemLink-CLI/1.0 (cross-platform)",
     }
+
+
+def test_get_base_url_uses_web_url_for_pkce_profile(monkeypatch: Any) -> None:
+    """Commands use the Web Server root when the active profile uses PKCE."""
+    from slcli.profiles import Profile
+    from slcli.utils import get_base_url
+
+    monkeypatch.setenv("SLCLI_API_URL", "https://api.example.com")
+    monkeypatch.setenv("SLCLI_WEB_URL", "https://web.example.com")
+    monkeypatch.delenv("SLCLI_API_KEY", raising=False)
+    monkeypatch.delenv("SYSTEMLINK_API_KEY", raising=False)
+    monkeypatch.setattr(
+        "slcli.profiles.get_active_profile",
+        lambda: Profile(name="pkce", server="https://api.example.com", auth_mode="pkce"),
+    )
+
+    assert get_base_url() == "https://web.example.com"
+
+
+def test_api_key_override_keeps_api_url_for_pkce_profile(monkeypatch: Any) -> None:
+    """An explicit API-key environment override retains API routing."""
+    from slcli.profiles import Profile
+    from slcli.utils import get_base_url
+
+    monkeypatch.setenv("SLCLI_API_URL", "https://api.example.com")
+    monkeypatch.setenv("SLCLI_WEB_URL", "https://web.example.com")
+    monkeypatch.setenv("SLCLI_API_KEY", "api-key-override")
+    monkeypatch.setattr(
+        "slcli.profiles.get_active_profile",
+        lambda: Profile(name="pkce", server="https://api.example.com", auth_mode="pkce"),
+    )
+
+    assert get_base_url() == "https://api.example.com"
+
+
+def test_get_route_url_selects_web_url(monkeypatch: Any) -> None:
+    """Web route URLs use the configured Web Server host."""
+    from slcli.utils import get_route_url
+
+    monkeypatch.setenv("SLCLI_API_URL", "https://api.example.com")
+    monkeypatch.setenv("SLCLI_WEB_URL", "https://web.example.com/")
+
+    assert get_route_url("/niauth/v1/auth", target="web") == (
+        "https://web.example.com/niauth/v1/auth"
+    )
+
+
+def test_get_route_url_api_target_keeps_literal_api_url_for_pkce(monkeypatch: Any) -> None:
+    """Explicit API routes remain on the API host when PKCE changes the command root."""
+    from slcli.profiles import Profile
+    from slcli.utils import get_route_url
+
+    monkeypatch.setenv("SLCLI_API_URL", "https://api.example.com")
+    monkeypatch.setenv("SLCLI_WEB_URL", "https://web.example.com")
+    monkeypatch.setattr(
+        "slcli.profiles.get_active_profile",
+        lambda: Profile(name="pkce", server="https://api.example.com", auth_mode="pkce"),
+    )
+
+    assert get_route_url("/api/v1/resource", target="api") == (
+        "https://api.example.com/api/v1/resource"
+    )
+
+
+def test_get_route_url_rejects_unknown_target() -> None:
+    """Route construction should fail closed for an unsupported target."""
+    from slcli.utils import get_route_url
+
+    with pytest.raises(ValueError, match="Unsupported route target"):
+        get_route_url("/niauth/v1/auth", target="other")  # type: ignore[arg-type]
+
+
+def test_make_web_request_uses_explicit_bearer_credential(monkeypatch: Any) -> None:
+    """Web requests can use a freshly issued bearer token before profile save."""
+    from slcli.utils import make_web_request
+
+    monkeypatch.setenv("SLCLI_WEB_URL", "https://web.example.com")
+    response = MagicMock()
+    response.raise_for_status = MagicMock()
+
+    with patch("requests.get", return_value=response) as mock_get:
+        result = make_web_request(
+            "GET",
+            "/niauth/v1/auth",
+            credential="access-token",
+            auth_scheme="bearer",
+        )
+
+    assert result is response
+    call_kwargs = mock_get.call_args.kwargs
+    assert mock_get.call_args.args[0] == "https://web.example.com/niauth/v1/auth"
+    assert call_kwargs["headers"]["Authorization"] == "Bearer access-token"
+    assert "x-ni-api-key" not in call_kwargs["headers"]
 
 
 def test_base_url_resolution_strips_trailing_slash_from_env(monkeypatch: Any) -> None:

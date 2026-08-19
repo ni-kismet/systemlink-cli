@@ -4,6 +4,7 @@ import base64
 import hashlib
 import json
 from typing import Any, Mapping
+from unittest.mock import MagicMock
 from urllib.parse import parse_qs, urlparse
 
 from click.testing import CliRunner
@@ -12,6 +13,8 @@ from slcli.main import cli
 from slcli.pkce import (
     PkceError,
     PkceLoginResult,
+    _callback_response,
+    _render_callback_page,
     build_authorization_url,
     generate_pkce_pair,
     get_pkce_access_token,
@@ -19,6 +22,32 @@ from slcli.pkce import (
     refresh_pkce_credentials,
     save_pkce_credentials,
 )
+
+
+def test_render_callback_success_page_is_branded_and_escapes_message() -> None:
+    """The callback page matches the login styling without exposing callback values."""
+    page = _render_callback_page("Login <complete> authorization-code", True).decode("utf-8")
+
+    assert "Login complete | SystemLink" in page
+    assert "Source Sans Pro" in page
+    assert "00ad7c" in page
+    assert "SystemLink" in page
+    assert 'src="data:image/svg+xml;base64,' in page
+    assert 'alt="SystemLink"' in page
+    assert "brand-mark" not in page
+    assert "status-icon success" in page
+    assert "You can close this browser tab and return to slcli." in page
+    assert "Login &lt;complete&gt; authorization-code" in page
+    assert "<script>" not in page
+
+
+def test_render_callback_error_page_omits_close_instruction() -> None:
+    """Error callback pages retain the branded shell without implying successful login."""
+    page = _render_callback_page("The login callback path was not found.", False).decode("utf-8")
+
+    assert "Login callback unavailable | SystemLink" in page
+    assert "status-icon error" in page
+    assert "You can close this browser tab and return to slcli." not in page
 
 
 class Response:
@@ -64,6 +93,26 @@ def test_build_authorization_url_contains_required_parameters() -> None:
     assert query["scope"] == ["openid offline_access"]
     assert query["state"] == ["state-value"]
     assert query["code_challenge_method"] == ["S256"]
+
+
+def test_callback_response_rejects_unverified_callback() -> None:
+    """The browser page must not claim success before callback validation."""
+    status, message = _callback_response(
+        {"state": ["wrong-state"], "code": ["authorization-code"]}, "expected-state"
+    )
+
+    assert status == 400
+    assert message == "The login callback could not be verified."
+
+
+def test_callback_response_rejects_authorization_error() -> None:
+    """The browser page must show an error when the provider denies authorization."""
+    status, message = _callback_response(
+        {"state": ["expected-state"], "error": ["access_denied"]}, "expected-state"
+    )
+
+    assert status == 400
+    assert message == "SystemLink sign-in was denied."
 
 
 def test_perform_pkce_login_returns_bearer_token(
@@ -123,6 +172,51 @@ def test_perform_pkce_login_returns_bearer_token(
     assert result == PkceLoginResult("access-token", "refresh-token")
     assert server_bind == [("127.0.0.1", pkce.PKCE_CALLBACK_PORT)]
     assert [item[0] for item in requests_seen] == ["https://web.example/nitoken/v1/token"]
+
+
+def test_perform_pkce_login_supports_a_custom_callback_port(monkeypatch: Any) -> None:
+    """Registered loopback clients can select a port other than the default."""
+    import slcli.pkce as pkce
+
+    class FakeServer:
+        server_address = ("127.0.0.1", 4321)
+
+        def __init__(self, *_args: Any) -> None:
+            server_bind.append(_args[0])
+            self.callback_params = None
+
+        def server_close(self) -> None:
+            pass
+
+    authorization_url: list[str] = []
+    server_bind: list[tuple[str, int]] = []
+    monkeypatch.setattr(pkce, "_CallbackServer", FakeServer)
+    monkeypatch.setattr(pkce, "get_ssl_verify", lambda _url: True)
+
+    def open_browser(url: str, new: int = 0) -> bool:
+        authorization_url.append(url)
+        return True
+
+    monkeypatch.setattr(pkce.webbrowser, "open", open_browser)
+    monkeypatch.setattr(
+        pkce,
+        "_wait_for_callback",
+        lambda *_args: {
+            "state": [parse_qs(urlparse(authorization_url[0]).query)["state"][0]],
+            "code": ["code"],
+        },
+    )
+    monkeypatch.setattr(
+        pkce.requests,
+        "post",
+        lambda *_args, **_kwargs: Response({"access_token": "access-token"}),
+    )
+
+    perform_pkce_login("https://web.example", "client-id", callback_port=4320)
+
+    assert server_bind == [("127.0.0.1", 4320)]
+    query = parse_qs(urlparse(authorization_url[0]).query)
+    assert query["redirect_uri"] == ["http://127.0.0.1:4321/callback"]
 
 
 def test_perform_pkce_login_rejects_state_mismatch(monkeypatch: Any) -> None:
@@ -215,6 +309,32 @@ def test_refresh_pkce_credentials_rotates_tokens(monkeypatch: Any) -> None:
     assert [item[0] for item in requests_seen] == ["https://web.example/nitoken/v1/token"]
 
 
+def test_refresh_pkce_credentials_keeps_existing_refresh_token_when_omitted(
+    monkeypatch: Any,
+) -> None:
+    """A refresh response may omit a replacement while retaining the old token."""
+    import slcli.pkce as pkce
+
+    values = {"PKCE:test:refresh-token": "old-refresh-token"}
+    monkeypatch.setattr(pkce, "get_ssl_verify", lambda _url: True)
+    monkeypatch.setattr(pkce.keyring, "get_password", lambda _s, key: values.get(key))
+    monkeypatch.setattr(
+        pkce.keyring,
+        "set_password",
+        lambda _s, key, value: values.__setitem__(key, value),
+    )
+    monkeypatch.setattr(pkce.keyring, "delete_password", lambda *_args: None)
+    monkeypatch.setattr(
+        pkce.requests,
+        "post",
+        lambda *_args, **_kwargs: Response({"access_token": "new-access-token"}),
+    )
+
+    refresh_pkce_credentials("test", "https://web.example", "client-id")
+
+    assert values["PKCE:test:refresh-token"] == "old-refresh-token"
+
+
 def test_login_pkce_uses_bearer_token_and_stores_metadata(monkeypatch: Any, tmp_path: Any) -> None:
     """The CLI can create a PKCE profile without prompting for an API key."""
     import slcli.config_click as config_click
@@ -230,16 +350,15 @@ def test_login_pkce_uses_bearer_token_and_stores_metadata(monkeypatch: Any, tmp_
         lambda *_args, **_kwargs: PkceLoginResult("access-token", "refresh-token"),
     )
     monkeypatch.setattr(pkce, "save_pkce_credentials", lambda *_args, **_kwargs: None)
-    monkeypatch.setattr(
-        config_click,
-        "check_service_status",
-        lambda _url, credential, auth_scheme: {
+    mock_web_probe = MagicMock(
+        return_value={
             "server_reachable": True,
-            "auth_valid": credential == "access-token" and auth_scheme == "bearer",
-            "services": {"Auth": "ok"},
+            "auth_valid": True,
+            "services": {"Web Server": "ok"},
             "platform": "SLE",
-        },
+        }
     )
+    monkeypatch.setattr(config_click, "check_web_server_auth", mock_web_probe)
 
     result = CliRunner().invoke(
         cli,
@@ -266,3 +385,7 @@ def test_login_pkce_uses_bearer_token_and_stores_metadata(monkeypatch: Any, tmp_
     assert profile["pkce-client-id"] == "client-id"
     assert "api-key" not in profile
     assert "PKCE bearer token:  ✓ Authorized" in result.output
+    assert mock_web_probe.call_args_list[-1] == (
+        ("https://web.example", "access-token"),
+        {"auth_scheme": "bearer"},
+    )
