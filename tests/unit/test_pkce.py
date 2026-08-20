@@ -385,7 +385,7 @@ def test_login_pkce_uses_bearer_token_and_stores_metadata(monkeypatch: Any, tmp_
             "server_reachable": True,
             "auth_valid": True,
             "services": {"Web Server": "ok"},
-            "platform": "SLE",
+            "platform": "unknown",
         }
     )
     monkeypatch.setattr(config_click, "check_web_server_auth", mock_web_probe)

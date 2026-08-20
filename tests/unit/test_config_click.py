@@ -963,13 +963,7 @@ class TestPkceProfileVerification:
             client_id="client-id",
         )
 
-        assert mock_web_probe.call_args_list[0] == (
-            ("https://web.example.com", ""),
-            {"auth_scheme": "bearer"},
-        )
-        assert mock_web_probe.call_args_list == [
-            (("https://web.example.com", ""), {"auth_scheme": "bearer"})
-        ]
+        mock_web_probe.assert_called_once_with("https://web.example.com", "", auth_scheme="bearer")
         mock_service_probe.assert_called_once_with(
             "https://web.example.com", "access-token", auth_scheme="bearer"
         )
