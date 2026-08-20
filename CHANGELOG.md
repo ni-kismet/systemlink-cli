@@ -2,6 +2,13 @@
 
 <!-- towncrier release notes start -->
 
+## v1.25.0 (2026-08-20)
+
+### Features
+
+- Add opt-in browser-based PKCE login for the Stratus Token Service, using direct bearer access tokens while preserving API-key login as the default. (pkce-login)
+
+
 ## v1.24.0 (2026-08-18)
 
 ### Features
