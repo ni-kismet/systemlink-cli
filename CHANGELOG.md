@@ -2,6 +2,13 @@
 
 <!-- towncrier release notes start -->
 
+## v1.25.1 (2026-08-20)
+
+### Bug Fixes
+
+- Use the Web URL service probes during PKCE login and health checks so the active SystemLink platform is detected correctly. (pkce-platform-detection)
+
+
 ## v1.25.0 (2026-08-20)
 
 ### Features

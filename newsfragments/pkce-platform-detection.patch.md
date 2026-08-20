@@ -1,1 +1,0 @@
-Use the Web URL service probes during PKCE login and health checks so the active SystemLink platform is detected correctly.
