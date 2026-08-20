@@ -506,7 +506,7 @@ class TestTrustedCertificates:
             "slcli.config_click.inspect_server_certificate", lambda _url: certificate
         )
         monkeypatch.setattr("slcli.config_click.save_managed_certificate", lambda _cert: None)
-        monkeypatch.setattr("slcli.config_click.check_web_server_auth", mock_check)
+        monkeypatch.setattr("slcli.config_click.check_service_status", mock_check)
 
         result = _trust_certificate_if_requested(
             "https://web.example.com",
@@ -835,7 +835,7 @@ class TestAddProfileTrailingSlash:
 
 
 class TestPkceProfileVerification:
-    """Tests for PKCE verification against Web Server routes."""
+    """Tests for PKCE verification against Web Server and service routes."""
 
     def test_pkce_trusts_web_certificate_before_browser_login(
         self, tmp_path: Path, monkeypatch: Any
@@ -879,9 +879,21 @@ class TestPkceProfileVerification:
             events.append("login")
             return PkceLoginResult("access-token", "refresh-token")
 
+        def mock_service_probe(
+            url: str, credential: str, auth_scheme: str = "bearer"
+        ) -> dict[str, Any]:
+            events.append(f"service-probe:{credential}")
+            return {
+                "server_reachable": True,
+                "auth_valid": True,
+                "services": {"Auth": "ok", "Work Order": "ok"},
+                "platform": "SLE",
+            }
+
         monkeypatch.setattr("slcli.config_click._trust_certificate_if_requested", trust_certificate)
         monkeypatch.setattr("slcli.pkce.perform_pkce_login", perform_login)
         monkeypatch.setattr("slcli.pkce.save_pkce_credentials", lambda *args: None)
+        monkeypatch.setattr("slcli.config_click.check_service_status", mock_service_probe)
 
         _add_profile_impl(
             profile="pkce",
@@ -896,12 +908,16 @@ class TestPkceProfileVerification:
             client_id="client-id",
         )
 
-        assert events == ["probe:", "trust", "probe:trusted", "login", "probe:access-token"]
+        assert events == [
+            "probe:",
+            "trust",
+            "probe:trusted",
+            "login",
+            "service-probe:access-token",
+        ]
 
-    def test_pkce_login_uses_web_server_identity_probe(
-        self, tmp_path: Path, monkeypatch: Any
-    ) -> None:
-        """PKCE login must not probe the separate API host during the prototype."""
+    def test_pkce_login_uses_web_service_probe(self, tmp_path: Path, monkeypatch: Any) -> None:
+        """PKCE login detects the platform through the Web URL service routes."""
         from slcli.config_click import _add_profile_impl
         from slcli.pkce import PkceLoginResult
 
@@ -924,6 +940,15 @@ class TestPkceProfileVerification:
             }
         )
         monkeypatch.setattr("slcli.config_click.check_web_server_auth", mock_web_probe)
+        mock_service_probe = MagicMock(
+            return_value={
+                "server_reachable": True,
+                "platform": "SLE",
+                "auth_valid": True,
+                "services": {"Auth": "ok", "Work Order": "ok"},
+            }
+        )
+        monkeypatch.setattr("slcli.config_click.check_service_status", mock_service_probe)
         monkeypatch.setattr("slcli.pkce.save_pkce_credentials", lambda *args: None)
 
         _add_profile_impl(
@@ -942,12 +967,15 @@ class TestPkceProfileVerification:
             ("https://web.example.com", ""),
             {"auth_scheme": "bearer"},
         )
-        assert mock_web_probe.call_args_list[-1] == (
-            ("https://web.example.com", "access-token"),
-            {"auth_scheme": "bearer"},
+        assert mock_web_probe.call_args_list == [
+            (("https://web.example.com", ""), {"auth_scheme": "bearer"})
+        ]
+        mock_service_probe.assert_called_once_with(
+            "https://web.example.com", "access-token", auth_scheme="bearer"
         )
         saved = json.loads(config_file.read_text())
         assert saved["profiles"]["pkce"]["server"] == "https://api.example.com"
+        assert saved["profiles"]["pkce"]["platform"] == "SLE"
 
     def test_pkce_credential_failure_restores_existing_profile(
         self, tmp_path: Path, monkeypatch: Any
@@ -985,6 +1013,15 @@ class TestPkceProfileVerification:
                 "auth_valid": True,
                 "services": {"Web Server": "ok"},
                 "platform": "unknown",
+            },
+        )
+        monkeypatch.setattr(
+            "slcli.config_click.check_service_status",
+            lambda *_args, **_kwargs: {
+                "server_reachable": True,
+                "auth_valid": True,
+                "services": {"Auth": "ok", "Work Order": "ok"},
+                "platform": "SLE",
             },
         )
         monkeypatch.setattr(

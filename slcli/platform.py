@@ -422,7 +422,7 @@ def _get_service_status_snapshot(force_refresh: bool = False) -> Optional[Dict[s
 
     _, api_url, credential, auth_scheme = api_context
     if auth_scheme == "bearer":
-        status = check_web_server_auth(api_url, credential, auth_scheme)
+        status = check_service_status(api_url, credential, auth_scheme)
     else:
         status = check_service_status(api_url, credential)
     _save_service_status_snapshot(api_context, status)
