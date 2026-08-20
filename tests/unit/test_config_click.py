@@ -949,6 +949,73 @@ class TestPkceProfileVerification:
         saved = json.loads(config_file.read_text())
         assert saved["profiles"]["pkce"]["server"] == "https://api.example.com"
 
+    def test_pkce_credential_failure_restores_existing_profile(
+        self, tmp_path: Path, monkeypatch: Any
+    ) -> None:
+        """Failed PKCE credential storage restores the profile and current selection."""
+        from slcli.config_click import _add_profile_impl
+        from slcli.pkce import PkceLoginResult
+
+        config_file = tmp_path / "config.json"
+        config_file.write_text(
+            json.dumps(
+                {
+                    "current-profile": "other",
+                    "profiles": {
+                        "pkce": {
+                            "server": "https://old-api.example.com",
+                            "api-key": "old-api-key",
+                            "web-url": "https://old-web.example.com",
+                        },
+                        "other": {
+                            "server": "https://other-api.example.com",
+                            "api-key": "other-api-key",
+                        },
+                    },
+                }
+            )
+        )
+        monkeypatch.setattr(
+            "slcli.profiles.ProfileConfig.get_config_path", classmethod(lambda cls: config_file)
+        )
+        monkeypatch.setattr(
+            "slcli.config_click.check_web_server_auth",
+            lambda *_args, **_kwargs: {
+                "server_reachable": True,
+                "auth_valid": True,
+                "services": {"Web Server": "ok"},
+                "platform": "unknown",
+            },
+        )
+        monkeypatch.setattr(
+            "slcli.pkce.perform_pkce_login",
+            lambda *_args, **_kwargs: PkceLoginResult("new-access-token", "new-refresh-token"),
+        )
+
+        def fail_to_save_credentials(*_args: Any, **_kwargs: Any) -> None:
+            raise RuntimeError("keyring unavailable")
+
+        monkeypatch.setattr("slcli.pkce.save_pkce_credentials", fail_to_save_credentials)
+
+        with pytest.raises(SystemExit) as exc_info:
+            _add_profile_impl(
+                profile="pkce",
+                url="https://new-api.example.com",
+                api_key=None,
+                web_url="https://new-web.example.com",
+                workspace="",
+                set_current=True,
+                readonly=False,
+                auth_mode="pkce",
+                client_id="client-id",
+            )
+
+        assert exc_info.value.code == ExitCodes.GENERAL_ERROR
+        saved = json.loads(config_file.read_text())
+        assert saved["current-profile"] == "other"
+        assert saved["profiles"]["pkce"]["server"] == "https://old-api.example.com"
+        assert saved["profiles"]["pkce"]["api-key"] == "old-api-key"
+
 
 class TestAddProfileUrlValidation:
     """Tests that config add rejects malformed URLs before probing the server."""

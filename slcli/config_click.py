@@ -407,6 +407,8 @@ def _add_profile_impl(
 
     # Load config and add profile
     cfg = ProfileConfig.load()
+    previous_profile = cfg.get_profile(profile)
+    previous_current_profile = cfg.current_profile
     cfg.add_profile(new_profile, set_current=set_current)
     cfg.save()
 
@@ -421,7 +423,11 @@ def _add_profile_impl(
                 pkce_result.expires_at,
             )
         except Exception as exc:
-            cfg.delete_profile(profile)
+            if previous_profile is None:
+                cfg.profiles.pop(profile, None)
+            else:
+                cfg.profiles[profile] = previous_profile
+            cfg.current_profile = previous_current_profile
             cfg.save()
             _exit_with_validation_error(
                 f"Could not store PKCE credentials securely: {exc}.",

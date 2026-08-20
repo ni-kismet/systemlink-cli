@@ -23,6 +23,13 @@ DEFAULT_SCOPES = ("openid", "profile", "email", "offline_access")
 PKCE_KEYRING_SERVICE = "systemlink-cli"
 PKCE_TIMEOUT_SECONDS = 300
 PKCE_CALLBACK_PORT = 9876
+_PKCE_CREDENTIAL_NAMES = (
+    "access-token",
+    "refresh-token",
+    "access-expires-at",
+    "session-key",
+    "session-expires-at",
+)
 _SYSTEMLINK_LOGO_DATA = base64.b64encode(
     Path(__file__).with_name("systemlink-logo.svg").read_bytes()
 ).decode("ascii")
@@ -485,40 +492,59 @@ def save_pkce_credentials(
     expires_at: Optional[float] = None,
 ) -> None:
     """Persist PKCE bearer credentials in the operating-system keyring."""
-    keyring.set_password(
-        PKCE_KEYRING_SERVICE, _credential_key(profile_name, "access-token"), access_token
-    )
-    if refresh_token:
-        keyring.set_password(
-            PKCE_KEYRING_SERVICE,
-            _credential_key(profile_name, "refresh-token"),
-            refresh_token,
+    previous_values = {
+        credential: keyring.get_password(
+            PKCE_KEYRING_SERVICE, _credential_key(profile_name, credential)
         )
-    else:
-        try:
-            keyring.delete_password(
-                PKCE_KEYRING_SERVICE, _credential_key(profile_name, "refresh-token")
-            )
-        except Exception:
-            pass
-    if expires_at is not None:
+        for credential in _PKCE_CREDENTIAL_NAMES
+    }
+
+    try:
         keyring.set_password(
-            PKCE_KEYRING_SERVICE,
-            _credential_key(profile_name, "access-expires-at"),
-            str(expires_at),
+            PKCE_KEYRING_SERVICE, _credential_key(profile_name, "access-token"), access_token
         )
-    else:
-        try:
-            keyring.delete_password(
-                PKCE_KEYRING_SERVICE, _credential_key(profile_name, "access-expires-at")
+        if refresh_token:
+            keyring.set_password(
+                PKCE_KEYRING_SERVICE,
+                _credential_key(profile_name, "refresh-token"),
+                refresh_token,
             )
-        except Exception:
-            pass
-    for credential in ("session-key", "session-expires-at"):
-        try:
-            keyring.delete_password(PKCE_KEYRING_SERVICE, _credential_key(profile_name, credential))
-        except Exception:
-            pass
+        else:
+            _delete_pkce_credential(profile_name, "refresh-token")
+        if expires_at is not None:
+            keyring.set_password(
+                PKCE_KEYRING_SERVICE,
+                _credential_key(profile_name, "access-expires-at"),
+                str(expires_at),
+            )
+        else:
+            _delete_pkce_credential(profile_name, "access-expires-at")
+        _delete_pkce_credential(profile_name, "session-key")
+        _delete_pkce_credential(profile_name, "session-expires-at")
+    except Exception:
+        for credential, value in previous_values.items():
+            try:
+                if value is None:
+                    keyring.delete_password(
+                        PKCE_KEYRING_SERVICE, _credential_key(profile_name, credential)
+                    )
+                else:
+                    keyring.set_password(
+                        PKCE_KEYRING_SERVICE,
+                        _credential_key(profile_name, credential),
+                        value,
+                    )
+            except Exception:
+                pass
+        raise
+
+
+def _delete_pkce_credential(profile_name: str, credential: str) -> None:
+    """Delete an optional PKCE credential without failing the save operation."""
+    try:
+        keyring.delete_password(PKCE_KEYRING_SERVICE, _credential_key(profile_name, credential))
+    except Exception:
+        pass
 
 
 def get_pkce_access_token(profile_name: str) -> Optional[str]:

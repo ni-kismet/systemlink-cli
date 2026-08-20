@@ -7,6 +7,7 @@ from typing import Any, Mapping
 from unittest.mock import MagicMock
 from urllib.parse import parse_qs, urlparse
 
+import pytest
 from click.testing import CliRunner
 
 from slcli.main import cli
@@ -261,6 +262,37 @@ def test_pkce_credentials_are_keyring_backed(monkeypatch: Any) -> None:
     assert get_pkce_access_token("test") == "access-token"
     assert values["PKCE:test:refresh-token"] == "refresh-token"
     assert "api-key" not in json.dumps({"auth-mode": "pkce"})
+
+
+def test_save_pkce_credentials_restores_previous_values_on_failure(monkeypatch: Any) -> None:
+    """A partial keyring update must not replace the existing credentials."""
+    import slcli.pkce as pkce
+
+    values = {
+        "PKCE:test:access-token": "old-access-token",
+        "PKCE:test:refresh-token": "old-refresh-token",
+        "PKCE:test:access-expires-at": "100.0",
+        "PKCE:test:session-key": "old-session-key",
+        "PKCE:test:session-expires-at": "200.0",
+    }
+    previous_values = values.copy()
+
+    monkeypatch.setattr(pkce.keyring, "get_password", lambda _service, key: values.get(key))
+
+    def set_password(_service: str, key: str, value: str) -> None:
+        if key == "PKCE:test:access-expires-at" and value == "300.0":
+            raise RuntimeError("keyring unavailable")
+        values[key] = value
+
+    monkeypatch.setattr(pkce.keyring, "set_password", set_password)
+    monkeypatch.setattr(
+        pkce.keyring, "delete_password", lambda _service, key: values.pop(key, None)
+    )
+
+    with pytest.raises(RuntimeError, match="keyring unavailable"):
+        save_pkce_credentials("test", "new-access-token", "new-refresh-token", 300.0)
+
+    assert values == previous_values
 
 
 def test_refresh_pkce_credentials_rotates_tokens(monkeypatch: Any) -> None:
