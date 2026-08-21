@@ -77,11 +77,11 @@ For the currently supported path, standardize on:
 
 - Angular 20.x
 - Node 24+
-- `@ni/nimble-angular` 33.4.x
+- `@ni/nimble-angular` 33.5.x
 - `@ni/nimble-components` 35.12.x
 - `@ni/unit-format` 1.0.5+
 - `@ni/spright-angular` 9.5.x
-- `@ni/ok-angular` 2.5.0+
+- `@ni/ok-angular` 2.5.4+
 - `@ni/systemlink-clients-ts` 3.0.2
 - `@angular/build` for the hosted application builder
 - `@angular/localize` installed and added to build polyfills

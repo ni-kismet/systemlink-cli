@@ -154,7 +154,7 @@ Published Spright icon directives currently include:
 
 ### `@ni/ok-angular`
 
-Published Angular wrappers in `@ni/ok-angular@2.5.0` currently include:
+Published Angular wrappers in `@ni/ok-angular@2.5.4` currently include:
 
 | Tag                         | Angular symbol                | Import path                             | Use                                          |
 | --------------------------- | ----------------------------- | --------------------------------------- | -------------------------------------------- |
