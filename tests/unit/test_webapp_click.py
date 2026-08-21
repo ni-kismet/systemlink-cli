@@ -1,6 +1,8 @@
 """Unit tests for slcli webapp commands."""
 
 import io
+import shutil
+import subprocess
 import tarfile
 from hashlib import sha256
 from json import dumps, loads
@@ -227,15 +229,22 @@ def test_webapp_new_blank_creates_host_ready_workspace(
     )
     readme = (target / "README.md").read_text(encoding="utf-8")
 
-    assert package_json["dependencies"]["@ni/nimble-angular"] == "~33.4.4"
-    assert package_json["dependencies"]["@ni/ok-angular"] == "2.5.0"
+    assert package_json["dependencies"]["@ni/nimble-angular"] == "~33.5.0"
+    assert package_json["dependencies"]["@ni/nimble-components"] == "~35.12.7"
+    assert package_json["dependencies"]["@ni/ok-angular"] == "2.5.4"
     assert package_json["dependencies"]["@ni/systemlink-clients-ts"] == "3.0.2"
     assert "@angular/platform-browser-dynamic" not in package_json["dependencies"]
     assert "@angular/animations" not in package_json["dependencies"]
     assert package_json["engines"]["node"] == ">=24"
-    assert package_json["devDependencies"]["@angular/localize"] == "^20.3.26"
-    assert package_json["devDependencies"]["@angular/build"] == "^20.3.32"
+    assert package_json["devDependencies"]["@angular/localize"] == "^20.3.29"
+    assert package_json["devDependencies"]["@angular/build"] == "^20.3.34"
+    assert package_json["devDependencies"]["@cyclonedx/cyclonedx-npm"] == "~6.0.1"
     assert "@angular-devkit/build-angular" not in package_json["devDependencies"]
+    assert package_json["scripts"]["sbom"] == (
+        "cyclonedx-npm --omit dev --output-format JSON "
+        "--output-file sbom.cdx.json --validate --output-reproducible "
+        "&& node scripts/filter-sbom.js sbom.cdx.json"
+    )
     assert "test" not in package_json["scripts"]
     assert "<base" not in index_html
     assert "bootstrapApplication(AppComponent" in main_ts
@@ -280,8 +289,11 @@ def test_webapp_new_blank_creates_host_ready_workspace(
     assert "Node.js 24+ declared" in readme
     assert "standalone root bootstrap" in readme
     assert "warning budget tuned" in readme
+    assert "runtime-only CycloneDX document" in readme
+    assert "project-root" in readme
+    assert "outside `dist/`" in readme
     assert "omits a default test runner setup" in readme
-    assert "Skipped npm install and npm run build" in result.output
+    assert "Skipped npm install, npm run sbom, and npm run build" in result.output
 
 
 def test_webapp_new_blank_uses_supported_nimble_api_shapes(
@@ -405,7 +417,7 @@ def test_webapp_new_with_nimble_only_keeps_template_base_dependencies(
     package_json = loads((target / "package.json").read_text(encoding="utf-8"))
     dependencies = package_json["dependencies"]
 
-    assert dependencies["@ni/nimble-angular"] == "~33.4.4"
+    assert dependencies["@ni/nimble-angular"] == "~33.5.0"
     assert "@ni/systemlink-clients-ts" not in dependencies
     assert "@ni/ok-angular" not in dependencies
     assert "@ni/ok-components" not in dependencies
@@ -444,8 +456,114 @@ def test_webapp_new_accepts_ok_feature_pack(tmp_path: Path, monkeypatch: MonkeyP
     assert result.exit_code == 0
     package_json = loads((target / "package.json").read_text(encoding="utf-8"))
 
-    assert package_json["dependencies"]["@ni/ok-angular"] == "2.5.0"
+    assert package_json["dependencies"]["@ni/ok-angular"] == "2.5.4"
     assert "@ni/systemlink-clients-ts" not in package_json["dependencies"]
+
+
+def test_webapp_new_accepts_spright_feature_pack(tmp_path: Path, monkeypatch: MonkeyPatch) -> None:
+    runner = CliRunner()
+    patch_keyring(monkeypatch)
+
+    target = tmp_path / "spright-pack"
+    result = runner.invoke(
+        cli,
+        [
+            "webapp",
+            "new",
+            "spright-pack",
+            "--directory",
+            str(target),
+            "--skip-install",
+            "--with",
+            "nimble,spright",
+        ],
+    )
+
+    assert result.exit_code == 0
+    package_json = loads((target / "package.json").read_text(encoding="utf-8"))
+
+    assert package_json["dependencies"]["@ni/nimble-components"] == "~35.12.7"
+    assert package_json["dependencies"]["@ni/spright-angular"] == "9.5.9"
+
+
+def test_webapp_sbom_filter_removes_development_components(tmp_path: Path) -> None:
+    node_path = shutil.which("node")
+    if node_path is None:
+        pytest.skip("Node.js is required to test the generated SBOM filter")
+
+    nested_runtime = {
+        "type": "library",
+        "name": "rxjs",
+        "version": "7.8.2",
+        "bom-ref": "nested-runtime",
+    }
+    nested_development = {
+        "type": "library",
+        "name": "typescript",
+        "version": "5.9.3",
+        "bom-ref": "nested-development",
+        "properties": [{"name": "cdx:npm:package:development", "value": "true"}],
+    }
+    runtime_component = {
+        "type": "library",
+        "name": "webapp",
+        "version": "0.1.0",
+        "bom-ref": "runtime",
+        "components": [nested_development, nested_runtime],
+    }
+    top_level_development = {
+        "type": "library",
+        "name": "@angular/build",
+        "version": "20.3.34",
+        "bom-ref": "top-level-development",
+        "properties": [{"name": "cdx:npm:package:development", "value": "true"}],
+    }
+    sbom_path = tmp_path / "sbom.cdx.json"
+    sbom_path.write_text(
+        dumps(
+            {
+                "bomFormat": "CycloneDX",
+                "specVersion": "1.6",
+                "version": 1,
+                "components": [runtime_component, top_level_development],
+                "dependencies": [
+                    {
+                        "ref": "runtime",
+                        "dependsOn": [
+                            "nested-development",
+                            "nested-runtime",
+                            "top-level-development",
+                        ],
+                    },
+                    {"ref": "top-level-development", "dependsOn": []},
+                ],
+            }
+        ),
+        encoding="utf-8",
+    )
+
+    script_path = (
+        Path(__file__).parents[2]
+        / "slcli"
+        / "webapp_templates"
+        / "angular"
+        / "blank"
+        / "scripts"
+        / "filter-sbom.js"
+    )
+    subprocess.run([node_path, str(script_path), str(sbom_path)], check=True)
+
+    filtered = loads(sbom_path.read_text(encoding="utf-8"))
+    assert filtered["components"] == [
+        {
+            "type": "library",
+            "name": "webapp",
+            "version": "0.1.0",
+            "bom-ref": "runtime",
+            "components": [nested_runtime],
+        }
+    ]
+    assert filtered["dependencies"] == [{"ref": "runtime", "dependsOn": ["nested-runtime"]}]
 
 
 def test_webapp_new_dry_run_does_not_write_files(tmp_path: Path, monkeypatch: MonkeyPatch) -> None:
@@ -646,8 +764,12 @@ def test_webapp_new_runs_install_and_build(tmp_path: Path, monkeypatch: MonkeyPa
 
     assert result.exit_code == 0
     npm_executable = "npm.cmd" if webapp_bootstrap.sys.platform == "win32" else "npm"
-    assert commands == [[npm_executable, "install"], [npm_executable, "run", "build"]]
-    assert "npm run build passed" in result.output
+    assert commands == [
+        [npm_executable, "install"],
+        [npm_executable, "run", "sbom"],
+        [npm_executable, "run", "build"],
+    ]
+    assert "npm run sbom and npm run build passed" in result.output
 
 
 def test_webapp_new_reports_missing_prerequisites(tmp_path: Path, monkeypatch: MonkeyPatch) -> None:
