@@ -504,6 +504,20 @@ def test_webapp_sbom_filter_removes_development_components(tmp_path: Path) -> No
         "bom-ref": "nested-development",
         "properties": [{"name": "cdx:npm:package:development", "value": "true"}],
     }
+    nested_development_child = {
+        "type": "library",
+        "name": "development-child",
+        "version": "1.0.0",
+        "bom-ref": "nested-development-child",
+    }
+    nested_development_parent = {
+        "type": "library",
+        "name": "development-parent",
+        "version": "1.0.0",
+        "bom-ref": "nested-development-parent",
+        "properties": [{"name": "cdx:npm:package:development", "value": "true"}],
+        "components": [nested_development_child],
+    }
     runtime_component = {
         "type": "library",
         "name": "webapp",
@@ -525,7 +539,7 @@ def test_webapp_sbom_filter_removes_development_components(tmp_path: Path) -> No
                 "bomFormat": "CycloneDX",
                 "specVersion": "1.6",
                 "version": 1,
-                "components": [runtime_component, top_level_development],
+                "components": [runtime_component, top_level_development, nested_development_parent],
                 "dependencies": [
                     {
                         "ref": "runtime",
@@ -533,9 +547,14 @@ def test_webapp_sbom_filter_removes_development_components(tmp_path: Path) -> No
                             "nested-development",
                             "nested-runtime",
                             "top-level-development",
+                            "nested-development-parent",
                         ],
                     },
                     {"ref": "top-level-development", "dependsOn": []},
+                    {
+                        "ref": "nested-development-parent",
+                        "dependsOn": ["nested-development-child"],
+                    },
                 ],
             }
         ),

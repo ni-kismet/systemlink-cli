@@ -3,18 +3,29 @@ const fs = require("fs");
 const inputPath = process.argv[2] || "sbom.cdx.json";
 const bom = JSON.parse(fs.readFileSync(inputPath, "utf8"));
 
+function collectComponentRefs(component, refs) {
+  if (component["bom-ref"]) {
+    refs.add(component["bom-ref"]);
+  }
+
+  for (const child of component.components || []) {
+    collectComponentRefs(child, refs);
+  }
+}
+
 function collectDevelopmentRefs(components, refs) {
   for (const component of components || []) {
-    if (
+    const isDevelopment =
       (component.properties || []).some(
         (property) =>
           property.name === "cdx:npm:package:development" && property.value === "true",
-      ) && component["bom-ref"]
-    ) {
-      refs.add(component["bom-ref"]);
-    }
+      );
 
-    collectDevelopmentRefs(component.components, refs);
+    if (isDevelopment) {
+      collectComponentRefs(component, refs);
+    } else {
+      collectDevelopmentRefs(component.components, refs);
+    }
   }
 }
 
