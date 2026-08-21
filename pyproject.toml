@@ -110,7 +110,7 @@ markers = [
 line-length = 100
 
 [tool.mypy]
-python_version = "3.13"
+python_version = "3.11"
 files = "**/*.py"
 disallow_untyped_defs = true
 warn_unused_configs = true
