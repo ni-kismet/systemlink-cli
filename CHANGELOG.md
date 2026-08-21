@@ -2,6 +2,13 @@
 
 <!-- towncrier release notes start -->
 
+## v1.26.1 (2026-08-21)
+
+### Bug Fixes
+
+- Update Python, JavaScript, and GitHub Actions dependencies flagged in issue #79. (deps-issue-79)
+
+
 ## v1.26.0 (2026-08-21)
 
 ### Features

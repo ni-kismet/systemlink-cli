@@ -1,1 +1,0 @@
-Update Python, JavaScript, and GitHub Actions dependencies flagged in issue #79.
