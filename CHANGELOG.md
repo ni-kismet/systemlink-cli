@@ -2,6 +2,13 @@
 
 <!-- towncrier release notes start -->
 
+## v1.26.0 (2026-08-21)
+
+### Features
+
+- Generate a runtime-only CycloneDX SBOM by default, removing development-marked components, and refresh compatible Angular and NI package dependencies for new Angular webapps. (webapp-sbom)
+
+
 ## v1.25.1 (2026-08-20)
 
 ### Bug Fixes
