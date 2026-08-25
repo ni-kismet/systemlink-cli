@@ -1,0 +1,1 @@
+Correct SLS E2E test selection for services and environments that are unavailable or empty.
