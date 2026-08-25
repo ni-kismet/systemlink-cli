@@ -1,6 +1,6 @@
 # End-to-End Testing Framework
 
-This directory contains end-to-end (E2E) tests for the SystemLink CLI that run against a real SystemLink dev tier environment.
+This directory contains end-to-end (E2E) tests for the SystemLink CLI that run against configured SystemLink test environments.
 
 ## Overview
 
@@ -30,7 +30,7 @@ tests/e2e/
 Set these environment variables to configure E2E tests:
 
 ```bash
-export SLCLI_E2E_BASE_URL="https://your-dev-systemlink.domain.com"
+export SLCLI_E2E_BASE_URL="https://your-test-systemlink.domain.com"
 export SLCLI_E2E_API_KEY="your-api-key"
 export SLCLI_E2E_WORKSPACE="Default"  # Optional, defaults to "Default"
 export SLCLI_E2E_TIMEOUT="60"         # Optional, defaults to 60 seconds
@@ -45,7 +45,7 @@ Copy and customize the configuration template:
 cp tests/e2e/e2e_config.json.template tests/e2e/e2e_config.json
 ```
 
-Edit `e2e_config.json` with your dev environment details:
+Edit `e2e_config.json` with your test environment details:
 
 ```json
 {
@@ -63,7 +63,7 @@ The E2E harness also supports a multi-platform config with separate `sle` and
 ```json
 {
   "sle": {
-    "base_url": "https://dev-api.lifecyclesolutions.ni.com",
+    "base_url": "https://test.lifecyclesolutions.ni.com",
     "api_key": "your-sle-api-key",
     "workspace": "Default",
     "test_notebook_id": "<sle-notebook-id>"
@@ -338,7 +338,7 @@ If those CI prerequisites are not configured, the GitHub Actions E2E jobs are sk
 
 Configure these environment variables for local E2E testing:
 
-- `SLCLI_E2E_BASE_URL` - Dev environment URL
+- `SLCLI_E2E_BASE_URL` - Test environment URL
 - `SLCLI_E2E_API_KEY` - Test user API key
 - `SLCLI_E2E_WORKSPACE` - Target workspace (default: "Default")
 - `SLCLI_E2E_TIMEOUT` - Request timeout in seconds (default: 60)
@@ -351,7 +351,10 @@ The GitHub Actions pipeline can run the E2E suite in two separate jobs:
 - `E2E (SLS)` runs `poetry run pytest tests/e2e/ -m "e2e and not sle" --e2e-platform sls -n auto --timeout=300`
 - `E2E (SLE)` runs `poetry run pytest tests/e2e/ -m "e2e and not sls" --e2e-platform sle -n auto --timeout=300`
 
-Configure the jobs with GitHub Actions secrets and repository variables.
+The CI jobs use `https://base.systemlink.io` for SLS and
+`https://test.lifecyclesolutions.ni.com` for SLE. Configure the jobs with
+GitHub Actions secrets and repository variables for workspace and test-data
+settings.
 
 ### Required GitHub Secrets
 
@@ -360,10 +363,8 @@ Configure the jobs with GitHub Actions secrets and repository variables.
 
 ### Recommended GitHub Repository Variables
 
-- `SLCLI_E2E_SLS_BASE_URL` - Base URL for the SLS test environment
 - `SLCLI_E2E_SLS_WORKSPACE` - Workspace for the SLS test user (optional, defaults to `Default`)
 - `SLCLI_E2E_SLS_TEST_NOTEBOOK_PATH` - Notebook path used by SLS notebook execution tests (optional, enables more SLS coverage)
-- `SLCLI_E2E_SLE_BASE_URL` - Base URL for the SLE test environment
 - `SLCLI_E2E_SLE_WORKSPACE` - Workspace for the SLE test user (optional, defaults to `Default`)
 - `SLCLI_E2E_SLE_TEST_NOTEBOOK_ID` - Notebook ID used by SLE routine/notebook tests (optional, enables more SLE coverage)
 - `SLCLI_E2E_TIMEOUT` - Global E2E timeout in seconds (optional, defaults to `60`)
@@ -376,7 +377,7 @@ Create two separate test-user API keys, one per environment:
 - `SLCLI_E2E_SLS_API_KEY`: an SLS test user with access to the target workspace plus any SLS notebook execution resources referenced by `SLCLI_E2E_SLS_TEST_NOTEBOOK_PATH`
 - `SLCLI_E2E_SLE_API_KEY`: an SLE test user with access to the target workspace and the services covered by the SLE suite, including notebooks, routines, work items, comments, feeds, files, tags, users, workspaces, and test monitor resources
 
-The jobs are skipped automatically when the matching base URL variable or API key secret is not configured.
+The jobs are skipped automatically when the matching API key secret is not configured.
 
 ## Test Design Principles
 
