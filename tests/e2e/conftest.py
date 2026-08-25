@@ -62,9 +62,9 @@ def _select_platform_config(
 
 def _load_config_file() -> Dict[str, Any]:
     """Load configuration from file if it exists."""
-    config_file = Path("tests/e2e/e2e_config.json")
+    config_file = Path(__file__).resolve().with_name("e2e_config.json")
     if config_file.exists():
-        with open(config_file) as f:
+        with open(config_file, encoding="utf-8") as f:
             return json.load(f)
     return {}
 
@@ -91,11 +91,17 @@ def e2e_config() -> Dict[str, Any]:
     # Check for new multi-platform config structure
     if "sle" in file_config or "sls" in file_config:
         # New format - return the whole config with platform sections
+        timeout = int(os.getenv("SLCLI_E2E_TIMEOUT", str(file_config.get("timeout", 60))))
+        cleanup_value = os.getenv("SLCLI_E2E_CLEANUP")
         return {
             "sle": file_config.get("sle", {}),
             "sls": file_config.get("sls", {}),
-            "timeout": file_config.get("timeout", 60),
-            "cleanup": file_config.get("cleanup", True),
+            "timeout": timeout,
+            "cleanup": (
+                cleanup_value.lower() == "true"
+                if cleanup_value is not None
+                else file_config.get("cleanup", True)
+            ),
         }
 
     # Legacy format - convert to new format for compatibility
@@ -240,11 +246,14 @@ def _make_cli_runner(config: Dict[str, Any], timeout: int = 60) -> Any:
         # Use explicit platform if specified in config (most reliable method)
         if config.get("platform"):
             env["SYSTEMLINK_PLATFORM"] = config["platform"]
+        env["PYTHONIOENCODING"] = "utf-8"
+        env["SLCLI_NON_INTERACTIVE"] = "true"
 
         result = subprocess.run(
             cmd,
             input=input_data,
             text=True,
+            encoding="utf-8",
             capture_output=True,
             timeout=timeout,
             env=env,

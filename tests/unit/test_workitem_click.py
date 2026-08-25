@@ -281,6 +281,43 @@ def test_list_workitems_shows_pagination_prompt(monkeypatch: Any, runner: CliRun
     assert call_count[0] == 1  # second page never fetched
 
 
+def test_list_workitems_stops_pagination_when_non_interactive(
+    monkeypatch: Any, runner: CliRunner
+) -> None:
+    """Captured output stops before prompting for another work-item page."""
+    patch_keyring(monkeypatch)
+    monkeypatch.setenv("SLCLI_NON_INTERACTIVE", "true")
+
+    call_count: List[int] = [0]
+
+    def mock_post(*a: Any, **kw: Any) -> Any:
+        call_count[0] += 1
+
+        class R:
+            status_code = 200
+
+            def raise_for_status(self) -> None:
+                pass
+
+            def json(self) -> Any:
+                return {
+                    "workItems": [_make_workitem(wi_id=str(i)) for i in range(5)],
+                    "continuationToken": "next-page-token",
+                }
+
+        return R()
+
+    monkeypatch.setattr("requests.post", mock_post)
+    monkeypatch.setattr("slcli.workitem_click.get_workspace_map", lambda: {"ws1": "Default"})
+
+    cli = make_cli()
+    result = runner.invoke(cli, ["workitem", "list", "--take", "5"])
+
+    assert result.exit_code == 0
+    assert "Showing 5 work item(s). More may be available." in result.output
+    assert call_count[0] == 1
+
+
 def test_list_workitems_stale_token_no_prompt(monkeypatch: Any, runner: CliRunner) -> None:
     """Stale token (fewer items than take) never triggers the pagination prompt."""
     patch_keyring(monkeypatch)

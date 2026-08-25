@@ -12,7 +12,7 @@ import click
 import requests
 
 from . import workflow_preview
-from .cli_utils import validate_output_format
+from .cli_utils import is_interactive_environment, validate_output_format
 from .platform import require_feature
 from .universal_handlers import FilteredResponse, UniversalResponseHandler
 from .utils import (
@@ -574,6 +574,8 @@ def register_workitem_commands(cli: Any) -> None:
                 if not cont:
                     break
                 click.echo(f"\nShowing {displayed} work item(s). More may be available.")
+                if not is_interactive_environment():
+                    break
                 if not click.confirm(f"Show next {take} results?", default=True):
                     break
 
@@ -1280,6 +1282,8 @@ def register_workitem_commands(cli: Any) -> None:
                 if not cont:
                     break
                 click.echo(f"\nShowing {displayed} template(s). More may be available.")
+                if not is_interactive_environment():
+                    break
                 if not click.confirm(f"Show next {take} results?", default=True):
                     break
 
@@ -1864,6 +1868,8 @@ def register_workitem_commands(cli: Any) -> None:
                 if not cont:
                     break
                 click.echo(f"\nShowing {displayed} workflow(s). More may be available.")
+                if not is_interactive_environment():
+                    break
                 if not click.confirm(f"Show next {take} results?", default=True):
                     break
 

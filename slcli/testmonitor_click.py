@@ -8,7 +8,7 @@ from typing import Any, Dict, Iterable, List, Optional, Tuple
 import click
 import questionary
 
-from .cli_utils import validate_output_format
+from .cli_utils import is_interactive_environment, validate_output_format
 from .universal_handlers import FilteredResponse, UniversalResponseHandler
 from .utils import (
     ExitCodes,
@@ -205,6 +205,9 @@ def _handle_interactive_pagination(
 
         # Ask if user wants to fetch the next page
         if not cont:
+            break
+
+        if not is_interactive_environment():
             break
 
         if not questionary.confirm("Show next set of results?", default=True).ask():

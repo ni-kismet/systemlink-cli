@@ -18,7 +18,7 @@ import click
 import questionary
 import requests as requests_lib
 
-from .cli_utils import validate_output_format
+from .cli_utils import is_interactive_environment, validate_output_format
 from .rich_output import render_table
 from .system_query_utils import (
     DEFAULT_SYSTEM_JSON_FIELDS,
@@ -682,6 +682,9 @@ def _handle_interactive_pagination(
         if not page_was_full:
             break
 
+        if not is_interactive_environment():
+            break
+
         if not questionary.confirm(
             "More results may be available. Show next set?", default=True
         ).ask():
@@ -766,6 +769,9 @@ def _handle_materialized_system_pagination_with_fallback(
             pass
 
         if len(page_items) < take:
+            break
+
+        if not is_interactive_environment():
             break
 
         if not questionary.confirm(

@@ -11,7 +11,7 @@ from urllib.parse import quote
 import click
 import questionary
 
-from .cli_utils import confirm_bulk_operation, validate_output_format
+from .cli_utils import confirm_bulk_operation, is_interactive_environment, validate_output_format
 from .rich_output import render_table
 from .universal_handlers import FilteredResponse, UniversalResponseHandler
 from .utils import (
@@ -500,6 +500,8 @@ def _run_list_alarms(
             include_transitions=include_transitions,
         )
         if not continuation_token:
+            break
+        if not is_interactive_environment():
             break
         if not questionary.confirm("Show next set of alarms?", default=True).ask():
             break

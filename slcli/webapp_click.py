@@ -19,7 +19,7 @@ import click
 import questionary
 import requests
 
-from .cli_utils import validate_output_format
+from .cli_utils import is_interactive_environment, validate_output_format
 from .skill_click import install_skills_to_directory
 from .universal_handlers import UniversalResponseHandler
 from .utils import (
@@ -1415,6 +1415,9 @@ def register_webapp_commands(cli: Any) -> None:
                         break
 
                     # Ask the user if they want to fetch the next set
+                    if not is_interactive_environment():
+                        break
+
                     if not questionary.confirm("Show next set of results?", default=True).ask():
                         break
 
