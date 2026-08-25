@@ -22,6 +22,7 @@ class TestSystemListE2E:
 
         systems = cli_helper.get_json_output(result)
         assert isinstance(systems, list)
+        assert len(systems) <= 5
 
     def test_list_table(self, cli_runner: Any, cli_helper: Any) -> None:
         """Test listing systems in table format."""
