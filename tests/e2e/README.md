@@ -63,7 +63,7 @@ The E2E harness also supports a multi-platform config with separate `sle` and
 ```json
 {
   "sle": {
-    "base_url": "https://test.lifecyclesolutions.ni.com",
+    "base_url": "https://test-api.your-sle-server",
     "api_key": "your-sle-api-key",
     "workspace": "Default",
     "test_notebook_id": "<sle-notebook-id>"
@@ -352,7 +352,7 @@ The GitHub Actions pipeline can run the E2E suite in two separate jobs:
 - `E2E (SLE)` runs `poetry run pytest tests/e2e/ -m "e2e and not sls" --e2e-platform sle -n auto --timeout=300`
 
 The CI jobs use `https://base.systemlink.io` for SLS and
-`https://test.lifecyclesolutions.ni.com` for SLE. Configure the jobs with
+`https://test-api.lifecyclesolutions.ni.com` for SLE. Configure the jobs with
 GitHub Actions secrets and repository variables for workspace and test-data
 settings.
 

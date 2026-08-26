@@ -161,7 +161,7 @@ jobs:
     needs: build-test-lint
     timeout-minutes: 45
     env:
-      SLCLI_E2E_SLE_BASE_URL: https://test.lifecyclesolutions.ni.com
+      SLCLI_E2E_SLE_BASE_URL: https://test-api.lifecyclesolutions.ni.com
     steps:
       - name: Check SLE E2E configuration
         id: sle-config
