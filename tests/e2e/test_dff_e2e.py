@@ -40,7 +40,9 @@ class TestDFFE2E:
     ) -> None:
         """Test DFF config list with workspace filtering."""
         workspace = configured_workspace
-        result = cli_runner(["customfield", "list", "--workspace", workspace, "--format", "json"])
+        result = cli_runner(
+            ["customfield", "list", "--workspace", workspace, "--take", "1", "--format", "json"]
+        )
         cli_helper.assert_success(result)
 
         configs = cli_helper.get_json_output(result)
