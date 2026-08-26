@@ -1755,7 +1755,7 @@ def test_build_asset_obj_maps_optional_asset_create_fields() -> None:
 
 
 def test_build_asset_obj_merges_location_with_system_and_parent() -> None:
-    """Provided location object is preserved and merged with system/parent references."""
+    """Provided location object is merged with camelCase relationship fields."""
     prov = ExampleProvisioner(workspace_id="ws-test", dry_run=False)
     obj = prov._build_asset_obj(
         {
@@ -1769,8 +1769,8 @@ def test_build_asset_obj_merges_location_with_system_and_parent() -> None:
     assert obj["location"]["physicalLocation"] == "Rack 7"
     assert obj["location"]["minionId"] == "sys-777"
     assert obj["location"]["parent"] == "asset-parent-9"
-    assert obj["location"]["state"]["systemConnection"] == "CONNECTED"
     assert obj["location"]["state"]["assetPresence"] == "UNKNOWN"
+    assert "systemConnection" not in obj["location"]["state"]
 
 
 def test_build_asset_obj_normalizes_location_subfields() -> None:
@@ -1795,10 +1795,111 @@ def test_build_asset_obj_normalizes_location_subfields() -> None:
     loc = obj["location"]
     assert loc["minionId"] == "sys-abc"
     assert loc["physicalLocation"] == "Bench A"
+    assert "physical_location" not in loc
     assert loc["resourceUri"] == "1/2/3"
     assert loc["slotNumber"] == 7
+    assert "slot_number" not in loc
     assert loc["state"]["assetPresence"] == "PRESENT"
-    assert loc["state"]["systemConnection"] == "CONNECTED"
+    assert "systemConnection" not in loc["state"]
+    assert "system_connection" not in loc["state"]
+
+
+def test_build_asset_obj_normalizes_external_calibration_subfields() -> None:
+    """External calibration subfields map to schema-style keys."""
+    prov = ExampleProvisioner(workspace_id="ws-test", dry_run=False)
+    obj = prov._build_asset_obj(
+        {
+            "name": "DMM",
+            "external_calibration": {
+                "temperature_sensors": [{"name": "ambient", "reading": 24.5}],
+                "is_limited": True,
+                "date": "2026-06-01T00:00:00Z",
+                "recommended_interval": "12",
+                "next_recommended_date": "2027-06-01T00:00:00Z",
+                "next_custom_due_date": "2027-03-01T00:00:00Z",
+                "resolved_due_date": "2027-06-01T00:00:00Z",
+                "comments": "Annual calibration",
+                "entry_type": "MANUAL",
+            },
+        }
+    )
+
+    external_calibration = obj["externalCalibration"]
+    assert external_calibration["temperatureSensors"] == [{"name": "ambient", "reading": 24.5}]
+    assert external_calibration["isLimited"] is True
+    assert external_calibration["date"] == "2026-06-01T00:00:00Z"
+    assert external_calibration["recommendedInterval"] == 12
+    assert external_calibration["nextRecommendedDate"] == "2027-06-01T00:00:00Z"
+    assert external_calibration["nextCustomDueDate"] == "2027-03-01T00:00:00Z"
+    assert external_calibration["resolvedDueDate"] == "2027-06-01T00:00:00Z"
+    assert external_calibration["comments"] == "Annual calibration"
+    assert external_calibration["entryType"] == "MANUAL"
+    assert "entry_type" not in external_calibration
+
+
+def test_build_asset_obj_wraps_single_external_calibration_temperature_sensor() -> None:
+    """A single temperature sensor object is wrapped into the API array shape."""
+    prov = ExampleProvisioner(workspace_id="ws-test", dry_run=False)
+    obj = prov._build_asset_obj(
+        {
+            "name": "DMM",
+            "external_calibration": {
+                "temperature_sensor": {"name": "Sensor0", "reading": 25},
+            },
+        }
+    )
+
+    external_calibration = obj["externalCalibration"]
+    assert external_calibration["temperatureSensors"] == [{"name": "Sensor0", "reading": 25}]
+
+
+def test_build_asset_obj_keeps_all_external_calibration_temperature_sensors() -> None:
+    """Multiple temperature sensors are preserved in the emitted API payload array."""
+    prov = ExampleProvisioner(workspace_id="ws-test", dry_run=False)
+    obj = prov._build_asset_obj(
+        {
+            "name": "DMM",
+            "external_calibration": {
+                "temperature_sensors": [
+                    {"name": "Sensor0", "reading": 25},
+                    {"name": "Sensor1", "reading": 26},
+                ],
+            },
+        }
+    )
+
+    external_calibration = obj["externalCalibration"]
+    assert external_calibration["temperatureSensors"] == [
+        {"name": "Sensor0", "reading": 25},
+        {"name": "Sensor1", "reading": 26},
+    ]
+
+
+def test_build_asset_obj_normalizes_compact_external_calibration_aliases() -> None:
+    """Compact alias keys (no underscore/camel) map to externalCalibration fields."""
+    prov = ExampleProvisioner(workspace_id="ws-test", dry_run=False)
+    obj = prov._build_asset_obj(
+        {
+            "name": "PXIe Module",
+            "supportsexternalcalibration": True,
+            "externalcalibration": {
+                "date": "2025-12-01",
+                "recommendedinterval": "12",
+                "nextrecommendeddate": "2026-12-01",
+                "entrytype": "MANUAL",
+            },
+        }
+    )
+
+    assert obj["supportsExternalCalibration"] is True
+    external_calibration = obj["externalCalibration"]
+    assert external_calibration["date"] == "2025-12-01"
+    assert external_calibration["recommendedInterval"] == 12
+    assert external_calibration["nextRecommendedDate"] == "2026-12-01"
+    assert external_calibration["entryType"] == "MANUAL"
+    assert "recommendedinterval" not in external_calibration
+    assert "nextrecommendeddate" not in external_calibration
+    assert "entrytype" not in external_calibration
 
 
 @patch("slcli.example_provisioner.get_base_url")
@@ -1899,6 +2000,31 @@ def test_create_test_steps_optional_fields(mock_api: Any, mock_base_url: Any) ->
     assert step["inputs"] == [{"name": "voltage", "value": "3.7"}]
     assert step["outputs"] == [{"name": "result", "value": "FAIL"}]
     assert step["properties"] == {"env": "lab", "temp": "25C"}
+
+
+@patch("slcli.example_provisioner.get_base_url")
+@patch("slcli.example_provisioner.make_api_request")
+def test_create_test_steps_dict_inputs_outputs(mock_api: Any, mock_base_url: Any) -> None:
+    """Dict-style inputs/outputs are normalized to NamedValueObject arrays."""
+    mock_base_url.return_value = "https://api.test.com"
+    mock_api.return_value = MagicMock()
+
+    prov = ExampleProvisioner(workspace_id="ws-test", dry_run=False)
+    steps = [
+        {
+            "name": "Dict I/O Step",
+            "status": "passed",
+            "inputs": {"Temp (C)": "-40.0"},
+            "outputs": {"Temp (C)": "-40.1"},
+        }
+    ]
+
+    prov._create_test_steps("result-io", steps, [])
+
+    payload = mock_api.call_args[0][2]
+    step = payload["steps"][0]
+    assert step["inputs"] == [{"name": "Temp (C)", "value": "-40.0"}]
+    assert step["outputs"] == [{"name": "Temp (C)", "value": "-40.1"}]
 
 
 @patch("slcli.example_provisioner.get_base_url")

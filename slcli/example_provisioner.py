@@ -1561,6 +1561,7 @@ class ExampleProvisioner:
             "supportsExternalCalibration": [
                 "supportsExternalCalibration",
                 "supports_external_calibration",
+                "supportsexternalcalibration",
             ],
             "customCalibrationInterval": [
                 "customCalibrationInterval",
@@ -1569,7 +1570,11 @@ class ExampleProvisioner:
             "selfCalibration": ["selfCalibration", "self_calibration"],
             "isNIAsset": ["isNIAsset", "is_ni_asset"],
             "location": ["location"],
-            "externalCalibration": ["externalCalibration", "external_calibration"],
+            "externalCalibration": [
+                "externalCalibration",
+                "external_calibration",
+                "externalcalibration",
+            ],
             "discoveryType": ["discoveryType", "discovery_type"],
             "partNumber": ["partNumber", "part_number"],
             "properties": ["properties"],
@@ -1646,13 +1651,25 @@ class ExampleProvisioner:
                 if cand in location_obj and location_obj[cand] is not None:
                     location_obj[target] = location_obj[cand]
                     break
+        for key in (
+            "minion_id",
+            "physical_location",
+            "parent_id",
+            "parentId",
+            "parent_asset_id",
+            "parentAssetId",
+            "resource_uri",
+            "slot_number",
+        ):
+            location_obj.pop(key, None)
 
         if "state" in location_obj and isinstance(location_obj["state"], dict):
             state_obj = dict(location_obj["state"])
             if "asset_presence" in state_obj and "assetPresence" not in state_obj:
                 state_obj["assetPresence"] = state_obj["asset_presence"]
-            if "system_connection" in state_obj and "systemConnection" not in state_obj:
-                state_obj["systemConnection"] = state_obj["system_connection"]
+            state_obj.pop("asset_presence", None)
+            state_obj.pop("systemConnection", None)
+            state_obj.pop("system_connection", None)
             location_obj["state"] = state_obj
 
         slot_number = location_obj.get("slotNumber")
@@ -1688,6 +1705,99 @@ class ExampleProvisioner:
             asset_obj["location"] = location_obj
         elif "location" not in asset_obj:
             asset_obj["location"] = {"state": {"assetPresence": "UNKNOWN"}}
+
+        # Build externalCalibration object from provided data plus input aliases.
+        external_calibration_obj: Dict[str, Any] = {}
+        if isinstance(asset_obj.get("externalCalibration"), dict):
+            external_calibration_obj = dict(asset_obj["externalCalibration"])
+
+        external_calibration_field_map: Dict[str, List[str]] = {
+            "temperatureSensors": [
+                "temperatureSensors",
+                "temperatureSensor",
+                "temperature_sensors",
+                "temperature_sensor",
+                "temperaturesensors",
+                "temperaturesensor",
+            ],
+            "isLimited": ["isLimited", "is_limited", "islimited"],
+            "date": ["date"],
+            "recommendedInterval": [
+                "recommendedInterval",
+                "recommended_interval",
+                "recommendedinterval",
+            ],
+            "nextRecommendedDate": [
+                "nextRecommendedDate",
+                "next_recommended_date",
+                "nextrecommendeddate",
+            ],
+            "nextCustomDueDate": [
+                "nextCustomDueDate",
+                "next_custom_due_date",
+                "nextcustomduedate",
+            ],
+            "resolvedDueDate": ["resolvedDueDate", "resolved_due_date", "resolvedduedate"],
+            "comments": ["comments"],
+            "entryType": ["entryType", "entry_type", "entrytype"],
+        }
+        for target, candidates in external_calibration_field_map.items():
+            for cand in candidates:
+                if cand in external_calibration_obj and external_calibration_obj[cand] is not None:
+                    external_calibration_obj[target] = external_calibration_obj[cand]
+                    break
+
+        for key in (
+            "temperature_sensors",
+            "temperaturesensors",
+            "is_limited",
+            "islimited",
+            "recommended_interval",
+            "recommendedinterval",
+            "next_recommended_date",
+            "nextrecommendeddate",
+            "next_custom_due_date",
+            "nextcustomduedate",
+            "resolved_due_date",
+            "resolvedduedate",
+            "entry_type",
+            "entrytype",
+        ):
+            external_calibration_obj.pop(key, None)
+
+        recommended_interval = external_calibration_obj.get("recommendedInterval")
+        if isinstance(recommended_interval, str):
+            recommended_interval_trimmed = recommended_interval.strip()
+            if recommended_interval_trimmed.isdigit():
+                external_calibration_obj["recommendedInterval"] = int(
+                    recommended_interval_trimmed
+                )
+
+        # Accept simplified config values but always emit array payload shape.
+        temperature_sensors = external_calibration_obj.get("temperatureSensors")
+        if isinstance(temperature_sensors, dict):
+            external_calibration_obj["temperatureSensors"] = [temperature_sensors]
+        elif isinstance(temperature_sensors, list):
+            normalized_sensors: List[Dict[str, Any]] = []
+            for sensor in temperature_sensors:
+                if not isinstance(sensor, dict):
+                    continue
+                normalized_sensor: Dict[str, Any] = {}
+                if "name" in sensor and sensor["name"] is not None:
+                    normalized_sensor["name"] = str(sensor["name"])
+                if "reading" in sensor and sensor["reading"] is not None:
+                    normalized_sensor["reading"] = sensor["reading"]
+                if normalized_sensor:
+                    normalized_sensors.append(normalized_sensor)
+            if normalized_sensors:
+                external_calibration_obj["temperatureSensors"] = normalized_sensors
+            else:
+                external_calibration_obj.pop("temperatureSensors", None)
+        elif temperature_sensors is not None:
+            external_calibration_obj.pop("temperatureSensors", None)
+
+        if external_calibration_obj:
+            asset_obj["externalCalibration"] = external_calibration_obj
 
         # Tag resource with example name for cleanup
         keywords: List[str] = []
@@ -3057,11 +3167,37 @@ class ExampleProvisioner:
                 if data_obj:
                     step_obj["data"] = data_obj
 
-            # inputs / outputs (list of {name, value})
+            # inputs / outputs (NamedValueObject list)
             for field in ("inputs", "outputs"):
                 vals = step_cfg.get(field)
-                if isinstance(vals, list):
-                    step_obj[field] = vals
+                named_values: List[Dict[str, str]] = []
+                if isinstance(vals, dict):
+                    named_values = [
+                        {"name": str(name), "value": str(value)}
+                        for name, value in vals.items()
+                        if value is not None
+                    ]
+                elif isinstance(vals, list):
+                    for item in vals:
+                        if not isinstance(item, dict):
+                            continue
+                        if "name" in item and item.get("name") is not None:
+                            named_values.append(
+                                {
+                                    "name": str(item["name"]),
+                                    "value": str(item.get("value", "")),
+                                }
+                            )
+                        else:
+                            named_values.extend(
+                                [
+                                    {"name": str(name), "value": str(value)}
+                                    for name, value in item.items()
+                                    if value is not None
+                                ]
+                            )
+                if named_values:
+                    step_obj[field] = named_values
 
             # properties (string key-value map)
             step_props = step_cfg.get("properties")

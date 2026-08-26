@@ -631,6 +631,60 @@ def test_delete_example_outputs_deleted_results(
     assert "deleted" in result.output.lower()
 
 
+def test_delete_example_from_file_uses_config_directory_for_references(
+    runner: CliRunner, temp_examples_dir: Path, monkeypatch: Any
+) -> None:
+    """Delete accepts an external config and passes its directory to the provisioner."""
+    import yaml  # type: ignore
+
+    example_dir = temp_examples_dir / "example-resources"
+    example_dir.mkdir()
+    config_path = example_dir / "config.yaml"
+    config = {
+        "format_version": "1.0",
+        "name": "example-resources",
+        "title": "External Delete Fixture",
+        "resources": [],
+    }
+    with open(config_path, "w") as f:
+        yaml.dump(config, f)
+
+    captured: Dict[str, Any] = {}
+
+    class DummyProvisioner:
+        def __init__(
+            self,
+            workspace_id: Optional[str],
+            example_name: Optional[str],
+            dry_run: bool,
+            example_dir: Optional[Path] = None,
+        ) -> None:
+            captured["workspace_id"] = workspace_id
+            captured["example_name"] = example_name
+            captured["dry_run"] = dry_run
+            captured["example_dir"] = example_dir
+
+        def delete(self, _: Dict[str, Any]) -> Tuple[List[ProvisioningResult], None]:
+            return [], None
+
+    monkeypatch.setattr(
+        "slcli.example_click.ExampleLoader", lambda: ExampleLoader(temp_examples_dir)
+    )
+    monkeypatch.setattr("slcli.example_click.ExampleProvisioner", DummyProvisioner)
+    monkeypatch.setattr("slcli.example_click.get_workspace_map", lambda: {"ws-1": "Training"})
+
+    cli = make_cli()
+    result = runner.invoke(
+        cli,
+        ["example", "delete", "--file", str(config_path), "--workspace", "Training"],
+    )
+
+    assert result.exit_code == 0
+    assert captured["workspace_id"] == "ws-1"
+    assert captured["example_name"] == "example-resources"
+    assert captured["example_dir"] == example_dir.resolve()
+
+
 def test_install_example_workspace_not_found(
     runner: CliRunner, temp_examples_dir: Path, monkeypatch: Any
 ) -> None:
