@@ -180,6 +180,7 @@
             "tag",
             "specification",
             "feed",
+            "package",
             "alarm"
           ],
           "description": "SLE resource type"
@@ -190,7 +191,7 @@
         },
         "properties": {
           "type": "object",
-          "description": "Resource-specific properties (API fields)"
+          "description": "Resource-specific properties (API fields). For package resources, use feed_id and source with type dummy, file, or repository."
         },
         "id_reference": {
           "type": "string",

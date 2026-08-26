@@ -17,7 +17,7 @@ import keyring
 import requests
 
 from .ssl_trust import use_standard_ssl_context
-from .utils import ExitCodes, get_ssl_verify
+from .utils import ExitCodes, get_auth_headers, get_ssl_verify
 
 DEFAULT_SERVICE_PROBE_CACHE_TTL_SECONDS = 300
 
@@ -87,6 +87,7 @@ FILE_QUERY_PATH = "/nifile/v1/service-groups/Default/query-files"
 FILE_QUERY_LINQ_PATH = "/nifile/v1/service-groups/Default/query-files-linq"
 SYSTEM_SEARCH_PATH = "/nisysmgmt/v1/materialized/search-systems"
 SYSTEM_QUERY_PATH = "/nisysmgmt/v1/query-systems"
+WEB_SERVER_AUTH_PATH = "/niauth/v1/auth"
 
 SLE_ONLY_SERVICE_NAMES = (
     "Dynamic Form Fields",
@@ -141,7 +142,7 @@ def _get_keyring_config() -> Dict[str, Any]:
     return {}
 
 
-def detect_platform(api_url: str, api_key: str) -> str:
+def detect_platform(api_url: str, credential: str, auth_scheme: str = "api-key") -> str:
     """Detect the SystemLink platform type by probing endpoints.
 
     Uses check_service_status to probe services and determine:
@@ -150,13 +151,14 @@ def detect_platform(api_url: str, api_key: str) -> str:
 
     Args:
         api_url: The SystemLink API base URL
-        api_key: The API key for authentication
+        credential: The API key or bearer token for authentication.
+        auth_scheme: HTTP authentication scheme, either ``api-key`` or ``bearer``.
 
     Returns:
         Platform identifier (PLATFORM_SLE, PLATFORM_SLS, PLATFORM_UNREACHABLE,
         or PLATFORM_UNKNOWN)
     """
-    status = check_service_status(api_url, api_key)
+    status = check_service_status(api_url, credential, auth_scheme)
     return status["platform"]
 
 
@@ -201,13 +203,15 @@ def clear_platform_cache() -> None:
     _get_cached_service_status.cache_clear()
 
 
-def _probe_service_status(api_url: str, api_key: str, method: str, url_path: str) -> str:
+def _probe_service_status(
+    api_url: str,
+    credential: str,
+    method: str,
+    url_path: str,
+    auth_scheme: str = "api-key",
+) -> str:
     """Probe a single service endpoint and return its normalized status."""
-    headers = {
-        "x-ni-api-key": api_key,
-        "Content-Type": "application/json",
-        "User-Agent": "SystemLink-CLI/1.0 (cross-platform)",
-    }
+    headers = get_auth_headers(credential, auth_scheme, "application/json")
     ssl_verify = get_ssl_verify(api_url)
 
     try:
@@ -227,6 +231,8 @@ def _probe_service_status(api_url: str, api_key: str, method: str, url_path: str
                 verify=ssl_verify,
                 timeout=10,
             )
+    except requests.exceptions.SSLError:
+        return "certificate_error"
     except requests.RequestException:
         return "unreachable"
 
@@ -239,31 +245,88 @@ def _probe_service_status(api_url: str, api_key: str, method: str, url_path: str
     return "error"
 
 
+def check_web_server_auth(
+    web_url: str, credential: str, auth_scheme: str = "bearer"
+) -> Dict[str, Any]:
+    """Validate a credential against the Web Server identity route.
+
+    Args:
+        web_url: The Web Server base URL.
+        credential: The API key or bearer token to validate.
+        auth_scheme: HTTP authentication scheme for the credential.
+
+    Returns:
+        A status dictionary containing reachability, authorization, certificate,
+        and Web Server probe information.
+    """
+    ssl_verify = get_ssl_verify(web_url)
+    with use_standard_ssl_context(ssl_verify):
+        status = _probe_service_status(
+            web_url, credential, "GET", WEB_SERVER_AUTH_PATH, auth_scheme
+        )
+    if status == "ok":
+        auth_valid: Optional[bool] = True
+    elif status == "unauthorized":
+        auth_valid = False
+    else:
+        auth_valid = None
+
+    certificate_details: Optional[Dict[str, Any]] = None
+    certificate_error = status == "certificate_error"
+    if certificate_error:
+        try:
+            from .ssl_trust import inspect_server_certificate
+
+            certificate_details = inspect_server_certificate(web_url).to_dict()
+        except (OSError, ValueError, ssl.SSLError):
+            certificate_details = None
+
+    return {
+        "server_reachable": status not in ("unreachable", "certificate_error"),
+        "auth_valid": auth_valid,
+        "services": {"Web Server": status},
+        "certificate_error": certificate_error,
+        "certificate": certificate_details,
+        "platform": PLATFORM_UNKNOWN,
+    }
+
+
 @lru_cache(maxsize=None)
-def _get_cached_service_status(service_name: str, api_url: str, api_key: str) -> str:
+def _get_cached_service_status(
+    service_name: str, api_url: str, credential: str, auth_scheme: str = "api-key"
+) -> str:
     """Probe and cache a service status for a specific server and credential pair."""
     service_check = next((entry for entry in SERVICE_CHECKS if entry[0] == service_name), None)
     if service_check is None:
         return "error"
 
-    return _probe_service_status(api_url, api_key, service_check[1], service_check[2])
+    return _probe_service_status(
+        api_url, credential, service_check[1], service_check[2], auth_scheme
+    )
 
 
-def _get_current_api_context() -> Optional[Tuple[Optional[str], str, str]]:
-    """Resolve the current profile name, API URL, and key for service probing."""
+def _get_current_api_context() -> Optional[Tuple[Optional[str], str, str, str]]:
+    """Resolve the current profile, command URL, credential, and auth scheme."""
     try:
-        from .utils import get_api_key_resolution, get_base_url_resolution
+        from .utils import get_auth_resolution, get_base_url, get_base_url_resolution
 
         api_url_resolution = get_base_url_resolution()
-        api_key_resolution = get_api_key_resolution(emit_error=False)
+        auth_resolution = get_auth_resolution(emit_error=False)
+        command_url = get_base_url()
 
         profile_name: Optional[str] = None
         if api_url_resolution.source.startswith("profile:") and (
-            api_url_resolution.source == api_key_resolution.source
+            auth_resolution.source == api_url_resolution.source
+            or auth_resolution.source.startswith(f"{api_url_resolution.source}:")
         ):
             profile_name = api_url_resolution.source.split(":", 1)[1]
 
-        return profile_name, api_url_resolution.value, api_key_resolution.value
+        return (
+            profile_name,
+            command_url,
+            auth_resolution.value,
+            auth_resolution.scheme,
+        )
     except Exception:
         return None
 
@@ -282,17 +345,24 @@ def _get_service_probe_cache_ttl_seconds() -> int:
     return max(ttl_seconds, 0)
 
 
-def _build_service_probe_cache_key(profile_name: Optional[str], api_url: str, api_key: str) -> str:
+def _build_service_probe_cache_key(
+    profile_name: Optional[str],
+    api_url: str,
+    credential: str,
+    auth_scheme: str = "api-key",
+) -> str:
     """Build a stable cache key for persisted service probe snapshots."""
     import hashlib
 
     identity = profile_name or api_url.rstrip("/")
-    api_key_fingerprint = hashlib.sha256(api_key.encode("utf-8")).hexdigest()[:16]
-    return f"{identity}|{api_url.rstrip('/')}|{api_key_fingerprint}"
+    credential_fingerprint = hashlib.sha256(
+        f"{auth_scheme}:{credential}".encode("utf-8")
+    ).hexdigest()[:16]
+    return f"{identity}|{api_url.rstrip('/')}|{auth_scheme}|{credential_fingerprint}"
 
 
 def _load_cached_service_status_snapshot(
-    api_context: Tuple[Optional[str], str, str], max_age_seconds: Optional[int] = None
+    api_context: Tuple[Optional[str], str, str, str], max_age_seconds: Optional[int] = None
 ) -> Optional[Dict[str, Any]]:
     """Load a fresh persisted service probe snapshot when available."""
     from .profiles import get_service_probe_cache_entry
@@ -303,8 +373,8 @@ def _load_cached_service_status_snapshot(
     if ttl_seconds <= 0:
         return None
 
-    profile_name, api_url, api_key = api_context
-    cache_key = _build_service_probe_cache_key(profile_name, api_url, api_key)
+    profile_name, api_url, credential, auth_scheme = api_context
+    cache_key = _build_service_probe_cache_key(profile_name, api_url, credential, auth_scheme)
     entry = get_service_probe_cache_entry(cache_key)
     if entry is None:
         return None
@@ -321,13 +391,13 @@ def _load_cached_service_status_snapshot(
 
 
 def _save_service_status_snapshot(
-    api_context: Tuple[Optional[str], str, str], status: Dict[str, Any]
+    api_context: Tuple[Optional[str], str, str, str], status: Dict[str, Any]
 ) -> None:
     """Persist a service probe snapshot for reuse across CLI invocations."""
     from .profiles import save_service_probe_cache_entry
 
-    profile_name, api_url, api_key = api_context
-    cache_key = _build_service_probe_cache_key(profile_name, api_url, api_key)
+    profile_name, api_url, credential, auth_scheme = api_context
+    cache_key = _build_service_probe_cache_key(profile_name, api_url, credential, auth_scheme)
     save_service_probe_cache_entry(
         cache_key,
         {
@@ -350,8 +420,11 @@ def _get_service_status_snapshot(force_refresh: bool = False) -> Optional[Dict[s
         if cached_status is not None:
             return cached_status
 
-    _, api_url, api_key = api_context
-    status = check_service_status(api_url, api_key)
+    _, api_url, credential, auth_scheme = api_context
+    if auth_scheme == "bearer":
+        status = check_service_status(api_url, credential, auth_scheme)
+    else:
+        status = check_service_status(api_url, credential)
     _save_service_status_snapshot(api_context, status)
     return status
 
@@ -464,13 +537,11 @@ SERVICE_CHECKS: List[List[str]] = [
 ]
 
 
-def get_file_query_capability(api_url: str, api_key: str) -> Dict[str, Any]:
+def get_file_query_capability(
+    api_url: str, credential: str, auth_scheme: str = "api-key"
+) -> Dict[str, Any]:
     """Determine which file query endpoint is available for this server."""
-    headers = {
-        "x-ni-api-key": api_key,
-        "Content-Type": "application/json",
-        "User-Agent": "SystemLink-CLI/1.0 (cross-platform)",
-    }
+    headers = get_auth_headers(credential, auth_scheme, "application/json")
     ssl_verify = get_ssl_verify(api_url)
 
     try:
@@ -578,13 +649,11 @@ def get_file_query_capability(api_url: str, api_key: str) -> Dict[str, Any]:
         }
 
 
-def get_system_query_capability(api_url: str, api_key: str) -> Dict[str, Any]:
+def get_system_query_capability(
+    api_url: str, credential: str, auth_scheme: str = "api-key"
+) -> Dict[str, Any]:
     """Determine which systems query endpoint is available for this server."""
-    headers = {
-        "x-ni-api-key": api_key,
-        "Content-Type": "application/json",
-        "User-Agent": "SystemLink-CLI/1.0 (cross-platform)",
-    }
+    headers = get_auth_headers(credential, auth_scheme, "application/json")
     ssl_verify = get_ssl_verify(api_url)
 
     try:
@@ -659,14 +728,17 @@ def get_system_query_capability(api_url: str, api_key: str) -> Dict[str, Any]:
         }
 
 
-def check_service_status(api_url: str, api_key: str) -> Dict[str, Any]:
+def check_service_status(
+    api_url: str, credential: str, auth_scheme: str = "api-key"
+) -> Dict[str, Any]:
     """Probe key SystemLink services and report their status.
 
     Checks reachability, authorization, and availability of core services.
 
     Args:
         api_url: The SystemLink API base URL.
-        api_key: The API key for authentication.
+        credential: The API key or bearer token for authentication.
+        auth_scheme: HTTP authentication scheme, either ``api-key`` or ``bearer``.
 
     Returns:
         Dictionary with:
@@ -683,16 +755,14 @@ def check_service_status(api_url: str, api_key: str) -> Dict[str, Any]:
     """
     ssl_verify = get_ssl_verify(api_url)
     with use_standard_ssl_context(ssl_verify):
-        return _check_service_status(api_url, api_key)
+        return _check_service_status(api_url, credential, auth_scheme)
 
 
-def _check_service_status(api_url: str, api_key: str) -> Dict[str, Any]:
+def _check_service_status(
+    api_url: str, credential: str, auth_scheme: str = "api-key"
+) -> Dict[str, Any]:
     """Probe services while the caller has selected the appropriate SSL context."""
-    headers = {
-        "x-ni-api-key": api_key,
-        "Content-Type": "application/json",
-        "User-Agent": "SystemLink-CLI/1.0 (cross-platform)",
-    }
+    headers = get_auth_headers(credential, auth_scheme, "application/json")
     ssl_verify = get_ssl_verify(api_url)
 
     services: Dict[str, str] = {}
@@ -773,9 +843,9 @@ def _check_service_status(api_url: str, api_key: str) -> Dict[str, Any]:
     # Determine platform from multiple SLE-only service responses.
     platform = _detect_platform_from_services(services)
 
-    file_capability = get_file_query_capability(api_url, api_key)
+    file_capability = get_file_query_capability(api_url, credential, auth_scheme)
     services["File"] = file_capability["status"]
-    system_capability = get_system_query_capability(api_url, api_key)
+    system_capability = get_system_query_capability(api_url, credential, auth_scheme)
     services["Systems"] = system_capability["status"]
 
     return {

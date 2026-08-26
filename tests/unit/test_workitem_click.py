@@ -144,6 +144,51 @@ def test_list_workitems_json(monkeypatch: Any, runner: CliRunner) -> None:
     assert data[0]["id"] == "1000"
 
 
+def test_list_workitems_json_uses_requested_take(monkeypatch: Any, runner: CliRunner) -> None:
+    """JSON work-item queries use requested page size and filter substitutions."""
+    patch_keyring(monkeypatch)
+    payloads: List[Dict[str, Any]] = []
+
+    def mock_post(*args: Any, **kwargs: Any) -> Any:
+        payloads.append(kwargs["json"])
+
+        class R:
+            status_code = 200
+
+            def raise_for_status(self) -> None:
+                pass
+
+            def json(self) -> Any:
+                return {"workItems": []}
+
+        return R()
+
+    monkeypatch.setattr("requests.post", mock_post)
+    monkeypatch.setattr("slcli.workitem_click.get_workspace_map", lambda: {})
+
+    cli = make_cli()
+    result = runner.invoke(
+        cli,
+        [
+            "workitem",
+            "list",
+            "--format",
+            "json",
+            "--filter",
+            "name == @0",
+            "--substitution",
+            "missing",
+            "--take",
+            "5",
+        ],
+    )
+
+    assert result.exit_code == 0
+    assert payloads[0]["take"] == 5
+    assert payloads[0]["filter"] == "((name == @0))"
+    assert payloads[0]["substitutions"] == ["missing"]
+
+
 def test_list_workitems_state_filter(monkeypatch: Any, runner: CliRunner) -> None:
     """--state flag is included in payload filter."""
     patch_keyring(monkeypatch)
@@ -1817,7 +1862,18 @@ def test_list_workitems_with_filter_expression(monkeypatch: Any, runner: CliRunn
     # Using both --state (adds @0) and --filter with @0 (should be offset to @1)
     result = runner.invoke(
         cli,
-        ["workitem", "list", "--state", "NEW", "--filter", "name == @0", "--format", "json"],
+        [
+            "workitem",
+            "list",
+            "--state",
+            "NEW",
+            "--filter",
+            "name == @0",
+            "--substitution",
+            "Battery Cycle Test",
+            "--format",
+            "json",
+        ],
     )
     assert result.exit_code == 0
     # The combined filter should have the state sub at @0 and the filter sub offset to @1
@@ -1825,6 +1881,7 @@ def test_list_workitems_with_filter_expression(monkeypatch: Any, runner: CliRunn
     assert "filter" in payload
     # @0 is for state, @1 should be the offset user filter
     assert "@1" in payload["filter"]
+    assert payload["substitutions"] == ["NEW", "Battery Cycle Test"]
 
 
 def test_list_workitems_with_workspace_filter_unit(monkeypatch: Any, runner: CliRunner) -> None:

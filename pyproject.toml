@@ -1,10 +1,11 @@
 [tool.poetry]
 name = "systemlink-cli"
-version = "1.22.1"
+version = "1.26.1"
 description = "SystemLink Integrator CLI - cross-platform CLI for SystemLink workflows and templates."
 authors = ["Fred Visser <fred.visser@emerson.com>"]
 packages = [{ include = "slcli" }]
 include = [
+    { path = "slcli/systemlink-logo.svg", format = ["wheel", "sdist"] },
     { path = "dff-editor/index.html", format = ["wheel", "sdist"] },
     { path = "dff-editor/editor.js", format = ["wheel", "sdist"] },
     { path = "slcli/skills", format = ["wheel", "sdist"] },
@@ -37,7 +38,7 @@ rich = ">=15,<16"
 rich-click = ">=1.8,<2"
 cryptography = ">=49.0.0"
 pygments = ">=2.20.0"
-mcp = { version = ">=1.0", optional = true }
+mcp = { version = ">=2,<3", optional = true }
 
 [tool.poetry.extras]
 mcp = ["mcp"]
@@ -80,7 +81,7 @@ pytest-xdist = "^3.8.0"
 openpyxl = "^3.1.5"
 
 # MCP server (optional feature, also needed for type checking)
-mcp = ">=1.0"
+mcp = ">=2,<3"
 
 [tool.pytest.ini_options]
 addopts = "--cov slcli --strict-markers --doctest-modules --ignore=tests/e2e"
@@ -109,7 +110,7 @@ markers = [
 line-length = 100
 
 [tool.mypy]
-python_version = "3.13"
+python_version = "3.11"
 files = "**/*.py"
 disallow_untyped_defs = true
 warn_unused_configs = true

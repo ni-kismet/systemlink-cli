@@ -45,6 +45,15 @@ def _required_data_args(source_dir: Path, target_dir: str) -> list[str]:
     return ["--add-data", f"{source_dir}{os.pathsep}{target_dir}"]
 
 
+def _required_data_file_args(source_file: Path, target_dir: str) -> list[str]:
+    """Return PyInstaller --add-data args for a required file."""
+    if not source_file.is_file():
+        print(f"Required data file not found at {source_file}")
+        sys.exit(1)
+
+    return ["--add-data", f"{source_file}{os.pathsep}{target_dir}"]
+
+
 def _optional_data_args(source_dir: Path, target_dir: str) -> list[str]:
     """Return PyInstaller --add-data args for an optional directory."""
     if not source_dir.is_dir():
@@ -61,6 +70,7 @@ def main() -> None:
 
     project_root = Path(__file__).resolve().parent.parent
     entry_point = project_root / "slcli" / "__main__.py"
+    logo_file = project_root / "slcli" / "systemlink-logo.svg"
     examples_dir = project_root / "slcli" / "examples"
     editor_assets_dir = project_root / "dff-editor"
     skills_dir = project_root / "slcli" / "skills"
@@ -74,6 +84,7 @@ def main() -> None:
         "--noconfirm",
         "--collect-submodules=shellingham",
         "--collect-data=rfc3987_syntax",
+        *_required_data_file_args(logo_file, "slcli"),
         *_required_data_args(examples_dir, "slcli/examples"),
         *_required_data_args(editor_assets_dir, "dff-editor"),
         *_required_data_args(webapp_templates_dir, "slcli/webapp_templates"),

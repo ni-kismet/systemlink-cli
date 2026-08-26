@@ -1,4 +1,5 @@
 import json
+from pathlib import Path
 from typing import Any, Dict
 from unittest.mock import MagicMock, patch
 
@@ -1077,6 +1078,116 @@ def test_feed_provisioning_stores_completed_resource_id(
     assert "[slcli-example:fixture]" in mock_create.call_args.kwargs["description"]
 
 
+@patch("slcli.feed_click._get_feed_base_url")
+@patch("slcli.feed_click._get_feed")
+@patch("slcli.example_provisioner.make_api_request")
+def test_state_payload_materializes_feed_and_package_references(
+    mock_api: Any, mock_get_feed: Any, mock_feed_base_url: Any
+) -> None:
+    """State references become structured feed and package API objects."""
+    mock_feed_base_url.return_value = "https://api.test.com/nifeed/v1"
+    mock_get_feed.return_value = {"id": "feed-123", "name": "Fixture feed"}
+
+    def mock_get(*args: Any, **kwargs: Any) -> Any:
+        del kwargs
+        response = MagicMock()
+        package_id = str(args[1]).rsplit("/", 1)[-1]
+        response.json.return_value = {
+            "id": package_id,
+            "metadata": {
+                "packageName": "fixture-package",
+                "version": "1.0.0" if package_id == "package-1" else "1.1.0",
+            },
+        }
+        return response
+
+    mock_api.side_effect = mock_get
+    provisioner = ExampleProvisioner()
+
+    payload = provisioner._build_state_payload(
+        {
+            "name": "Fixture state",
+            "distribution": "WINDOWS",
+            "architecture": "X64",
+            "feeds": ["feed-123"],
+            "packages": ["package-1", "package-2"],
+        }
+    )
+
+    assert payload["feeds"] == [
+        {
+            "name": "Fixture feed",
+            "url": "https://api.test.com/nifeed/v1/feeds/feed-123/files",
+            "enabled": True,
+            "compressed": False,
+        }
+    ]
+    assert payload["packages"] == [
+        {"name": "fixture-package", "version": "1.0.0", "installRecommends": True},
+        {"name": "fixture-package", "version": "1.1.0", "installRecommends": True},
+    ]
+    assert "id" not in payload["feeds"][0]
+    assert "package-1" not in json.dumps(payload)
+
+
+@patch.object(ExampleProvisioner, "_get_state_by_name", return_value="state-123")
+@patch("slcli.example_provisioner.get_base_url")
+@patch("slcli.feed_click._get_feed_base_url")
+@patch("slcli.feed_click._get_feed")
+@patch("slcli.example_provisioner.make_api_request")
+def test_existing_state_is_updated_with_materialized_inventory(
+    mock_api: Any,
+    mock_get_feed: Any,
+    mock_feed_base_url: Any,
+    mock_base_url: Any,
+    mock_get_state: Any,
+) -> None:
+    """Reinstalling an owned state refreshes its feed and package inventory."""
+    mock_base_url.return_value = "https://api.test.com"
+    mock_feed_base_url.return_value = "https://api.test.com/nifeed/v1"
+    mock_get_feed.return_value = {"id": "feed-123", "name": "Fixture feed"}
+
+    package_response = MagicMock()
+    package_response.json.return_value = {
+        "metadata": {"packageName": "fixture-package", "version": "1.0.0"}
+    }
+    mock_api.return_value = package_response
+
+    provisioner = ExampleProvisioner(workspace_id="ws-test", example_name="fixture")
+    result = provisioner._provision_resource(
+        {
+            "type": "state",
+            "name": "Fixture state",
+            "id_reference": "state_fixture",
+            "properties": {
+                "distribution": "WINDOWS",
+                "architecture": "X64",
+                "feeds": ["feed-123"],
+                "packages": ["package-123"],
+            },
+        },
+        {},
+    )
+
+    assert result.action == ProvisioningAction.SKIPPED
+    assert result.server_id == "state-123"
+    assert result.error == "Resource already exists"
+    mock_get_state.assert_called_once()
+    assert mock_api.call_args.args[0] == "PATCH"
+    assert mock_api.call_args.args[1] == "https://api.test.com/nisystemsstate/v1/states/state-123"
+    assert mock_api.call_args.args[2]["feeds"] == [
+        {
+            "name": "Fixture feed",
+            "url": "https://api.test.com/nifeed/v1/feeds/feed-123/files",
+            "enabled": True,
+            "compressed": False,
+        }
+    ]
+    assert mock_api.call_args.args[2]["packages"] == [
+        {"name": "fixture-package", "version": "1.0.0", "installRecommends": True}
+    ]
+
+
 @patch("slcli.example_provisioner.get_base_url")
 @patch("slcli.example_provisioner.make_api_request")
 @patch("slcli.feed_click._normalize_platform")
@@ -1104,6 +1215,135 @@ def test_feed_delete_ignores_unowned_same_name(
     assert provisioner._delete_feed({"name": "Fixture feed", "platform": "windows"}) is None
     assert mock_api.call_count == 1
     assert mock_api.call_args.args[0] == "GET"
+
+
+@patch("slcli.example_provisioner.pack_folder_to_nipkg")
+@patch("slcli.feed_click._list_packages")
+@patch("slcli.feed_click._upload_package")
+def test_dummy_package_is_packed_uploaded_and_cleaned_up(
+    mock_upload: Any, mock_list: Any, mock_pack: Any
+) -> None:
+    """Dummy package sources are materialized in a temporary directory."""
+    mock_upload.return_value = {"packageId": "package-123"}
+    mock_list.return_value = []
+    mock_pack.side_effect = lambda folder: folder.parent / f"{folder.name}.nipkg"
+    provisioner = ExampleProvisioner(example_name="fixture")
+
+    package_id = provisioner._create_package(
+        {
+            "name": "fixture-package",
+            "feed_id": "feed-123",
+            "source": {
+                "type": "dummy",
+                "version": "1.2.3",
+                "files": {"payload/readme.txt": "fixture"},
+            },
+        }
+    )
+
+    assert package_id == "package-123"
+    mock_upload.assert_called_once()
+    uploaded_path = Path(mock_upload.call_args.args[1])
+    assert uploaded_path.name == "fixture-package_1.2.3_all.nipkg"
+    assert not uploaded_path.exists()
+    mock_pack.assert_called_once()
+    packed_folder = mock_pack.call_args.args[0]
+    assert not packed_folder.exists()
+
+
+@patch("slcli.feed_click._list_packages")
+def test_package_identity_normalizes_resource_name_and_default_version(mock_list: Any) -> None:
+    mock_list.return_value = [
+        {"id": "package-123", "metadata": {"packageName": "fixture-package", "version": "1.0.0"}}
+    ]
+    provisioner = ExampleProvisioner()
+
+    assert (
+        provisioner._get_package_by_identity({"name": "Fixture Package", "feed_id": "feed-123"})
+        == "package-123"
+    )
+
+
+@patch("slcli.example_provisioner.requests.get")
+def test_repository_package_source_downloads_nipkg(mock_get: Any, tmp_path: Any) -> None:
+    response = MagicMock()
+    response.headers = {}
+    response.iter_content.return_value = [b"package-bytes"]
+    mock_get.return_value = response
+    provisioner = ExampleProvisioner()
+
+    output_dir = tmp_path / "downloads"
+    package_path = provisioner._materialize_package(
+        {"source": {"type": "repository", "url": "https://packages.example.test/daqmx.nipkg"}},
+        output_dir,
+    )
+
+    assert package_path.read_bytes() == b"package-bytes"
+    mock_get.assert_called_once()
+    response.raise_for_status.assert_called_once_with()
+    response.close.assert_called_once_with()
+
+
+def test_package_file_source_stays_inside_example_directory(tmp_path: Any) -> None:
+    example_dir = tmp_path / "fixture"
+    example_dir.mkdir()
+    package_path = example_dir / "fixture-package_1.0.0_all.nipkg"
+    package_path.write_bytes(b"package")
+    provisioner = ExampleProvisioner(example_dir=example_dir)
+
+    assert (
+        provisioner._materialize_package(
+            {"source": {"type": "file", "path": package_path.name}}, tmp_path
+        )
+        == package_path
+    )
+    with pytest.raises(FileNotFoundError, match="Package file not found"):
+        provisioner._materialize_package(
+            {"source": {"type": "file", "path": "../outside.nipkg"}}, tmp_path
+        )
+
+
+@patch("slcli.feed_click._wait_for_job")
+@patch("slcli.feed_click._delete_package")
+@patch("slcli.feed_click._list_packages")
+def test_package_delete_waits_for_async_job(
+    mock_list: Any, mock_delete: Any, mock_wait: Any
+) -> None:
+    mock_list.return_value = [
+        {"id": "package-123", "metadata": {"packageName": "fixture-package", "version": "1.0.0"}}
+    ]
+    mock_delete.return_value = "job-123"
+    provisioner = ExampleProvisioner()
+
+    assert (
+        provisioner._delete_package(
+            {"name": "fixture-package", "feed_id": "feed-123", "timeout": 45}
+        )
+        == "package-123"
+    )
+    mock_delete.assert_called_once_with("package-123")
+    mock_wait.assert_called_once_with("job-123", timeout=45)
+
+
+def test_package_resources_are_skipped_in_dry_run() -> None:
+    config = {
+        "format_version": "1.0",
+        "name": "package-dry-run",
+        "title": "Package Dry Run",
+        "resources": [
+            {
+                "type": "package",
+                "name": "Fixture package",
+                "id_reference": "package_fixture",
+                "properties": {"feed_id": "feed-123"},
+            }
+        ],
+    }
+
+    results, error = ExampleProvisioner(dry_run=True).provision(config)
+
+    assert error is None
+    assert results[0].action == ProvisioningAction.SKIPPED
 
 
 @patch("slcli.example_provisioner.make_api_request")

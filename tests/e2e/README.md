@@ -125,7 +125,7 @@ full MCP tool surface that is expected to work in local environments.
 Start the server in one terminal:
 
 ```bash
-poetry run slcli mcp serve -T streamable-http
+poetry run slcli mcp serve
 ```
 
 Run the smoke test in another terminal:
@@ -137,7 +137,7 @@ poetry run pytest tests/e2e/test_mcp_e2e.py -m e2e -v
 Optional overrides:
 
 ```bash
-export SLCLI_MCP_E2E_URL="http://127.0.0.1:8000/mcp"
+export SLCLI_MCP_E2E_URL="http://127.0.0.1:8765/mcp"
 export SLCLI_MCP_E2E_TIMEOUT="5"
 export SLCLI_MCP_E2E_USER_ID="<known-user-id>"
 export SLCLI_MCP_E2E_TAG_PATH="<known-tag-path>"

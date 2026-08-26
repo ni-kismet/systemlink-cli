@@ -60,6 +60,7 @@ def _query_all_workitems(
     substitutions: Optional[List[Any]] = None,
     workspace_filter: Optional[str] = None,
     max_items: Optional[int] = None,
+    page_size: int = 100,
 ) -> List[Dict[str, Any]]:
     """Fetch work items via continuation-token pagination.
 
@@ -70,6 +71,7 @@ def _query_all_workitems(
         max_items: Maximum number of items to return.  ``None`` means fetch
             all.  Used to guard against buggy continuation tokens that are
             returned even when the requested take has been satisfied.
+        page_size: Number of items to request from the service per page.
 
     Returns:
         List of up to *max_items* matching work items.
@@ -79,7 +81,7 @@ def _query_all_workitems(
     continuation_token: Optional[str] = None
 
     while True:
-        payload: Dict[str, Any] = {"take": 100}
+        payload: Dict[str, Any] = {"take": page_size}
         combined_filter_parts: List[str] = []
         combined_subs: List[Any] = []
 
@@ -460,6 +462,12 @@ def register_workitem_commands(cli: Any) -> None:
         help="Dynamic LINQ filter expression (e.g. 'state == \"NEW\"')",
     )
     @click.option(
+        "--substitution",
+        "filter_substitutions",
+        multiple=True,
+        help="Substitution value for --filter (repeatable)",
+    )
+    @click.option(
         "--state",
         "-s",
         default=None,
@@ -478,6 +486,7 @@ def register_workitem_commands(cli: Any) -> None:
         format: str,
         take: int,
         filter_expr: Optional[str],
+        filter_substitutions: Tuple[str, ...],
         state: Optional[str],
         workspace: Optional[str],
     ) -> None:
@@ -509,13 +518,16 @@ def register_workitem_commands(cli: Any) -> None:
 
                 user_filter = re.sub(r"@(\d+)", _offset, filter_expr)
                 parts.append(f"({user_filter})")
+                subs.extend(filter_substitutions)
+            elif filter_substitutions:
+                raise click.UsageError("--substitution requires --filter")
 
             if parts:
                 final_filter = " && ".join(parts)
 
             if format_output == "json":
                 items = _query_all_workitems(
-                    final_filter, subs or None, workspace_id, max_items=take
+                    final_filter, subs or None, workspace_id, max_items=take, page_size=take
                 )
                 click.echo(json.dumps(items, indent=2))
                 return

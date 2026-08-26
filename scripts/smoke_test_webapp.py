@@ -16,7 +16,7 @@ def _run_command(command: Sequence[str], cwd: Path | None = None) -> None:
 
 
 def smoke_test_webapp(workspace_dir: Path, app_name: str) -> None:
-    """Generate a hosted Angular webapp and verify it installs and builds."""
+    """Generate a hosted Angular webapp and verify it installs, creates an SBOM, and builds."""
     _run_command(
         [
             sys.executable,
@@ -31,13 +31,14 @@ def smoke_test_webapp(workspace_dir: Path, app_name: str) -> None:
         ]
     )
     _run_command(["npm", "install"], cwd=workspace_dir)
+    _run_command(["npm", "run", "sbom"], cwd=workspace_dir)
     _run_command(["npm", "run", "build"], cwd=workspace_dir)
 
 
 def _parse_args(argv: Sequence[str] | None = None) -> argparse.Namespace:
     """Parse command-line arguments for the webapp smoke test."""
     parser = argparse.ArgumentParser(
-        description="Generate a hosted Angular webapp and verify npm install/build.",
+        description="Generate a hosted Angular webapp and verify npm install, SBOM generation, and build.",
     )
     parser.add_argument(
         "--app-name",

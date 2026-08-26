@@ -2,6 +2,53 @@
 
 <!-- towncrier release notes start -->
 
+## v1.26.1 (2026-08-21)
+
+### Bug Fixes
+
+- Update Python, JavaScript, and GitHub Actions dependencies flagged in issue #79. (deps-issue-79)
+
+
+## v1.26.0 (2026-08-21)
+
+### Features
+
+- Generate a runtime-only CycloneDX SBOM by default, removing development-marked components, and refresh compatible Angular and NI package dependencies for new Angular webapps. (webapp-sbom)
+
+
+## v1.25.1 (2026-08-20)
+
+### Bug Fixes
+
+- Use the Web URL service probes during PKCE login and health checks so the active SystemLink platform is detected correctly. (pkce-platform-detection)
+
+
+## v1.25.0 (2026-08-20)
+
+### Features
+
+- Add opt-in browser-based PKCE login for the Stratus Token Service, using direct bearer access tokens while preserving API-key login as the default. (pkce-login)
+
+
+## v1.24.0 (2026-08-18)
+
+### Features
+
+- Make the MCP server self-describing with client guidance resources, workflow prompts, tool metadata, and the first typed workspace response. (mcp-client-guidance)
+
+### Bug Fixes
+
+- Update dependency mcp to v2.0.0, support its server and streamable HTTP APIs,
+  and use modern MCP protocol discovery with a legacy handshake fallback. (deps-mcp-2-x-lockfile)
+
+
+## v1.23.0 (2026-08-18)
+
+### Features
+
+- Add package resources to example fixtures, including deterministic dummy `.nipkg` generation, local package files, and explicit repository package URLs. (example-package-resources)
+
+
 ## v1.22.1 (2026-08-12)
 
 ### Bug Fixes

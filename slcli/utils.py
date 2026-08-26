@@ -5,7 +5,7 @@ import json
 import os
 import sys
 from dataclasses import dataclass
-from typing import Any, Callable, Dict, List, Optional, Sequence, Union
+from typing import Any, Callable, Dict, List, Literal, Optional, Sequence, Union
 
 import click
 import keyring
@@ -38,6 +38,18 @@ class ResolvedConfigValue:
 
     value: str
     source: str
+
+
+@dataclass(frozen=True)
+class ResolvedAuth:
+    """Resolved credential, its source, and the HTTP authentication scheme."""
+
+    value: str
+    source: str
+    scheme: str
+
+
+RouteTarget = Literal["api", "web"]
 
 
 class ExitCodes:
@@ -442,8 +454,8 @@ def get_web_url_resolution() -> ResolvedConfigValue:
         return ResolvedConfigValue("https://localhost", f"derived:{base_resolution.source}")
 
 
-def get_api_key_resolution(emit_error: bool = True) -> ResolvedConfigValue:
-    """Resolve the SystemLink API key and record where it came from.
+def get_auth_resolution(emit_error: bool = True) -> ResolvedAuth:
+    """Resolve the active credential and its HTTP authentication scheme.
 
     Preference order:
     1. Environment variable SLCLI_API_KEY (preferred) or SYSTEMLINK_API_KEY
@@ -453,14 +465,42 @@ def get_api_key_resolution(emit_error: bool = True) -> ResolvedConfigValue:
     """
     override = _get_env_override(("SLCLI_API_KEY", "SYSTEMLINK_API_KEY"))
     if override is not None:
-        return override
+        return ResolvedAuth(override.value, override.source, "api-key")
 
     try:
         from .profiles import get_active_profile
 
         profile = get_active_profile()
-        if profile and profile.api_key:
-            return ResolvedConfigValue(profile.api_key, f"profile:{profile.name}")
+        if profile:
+            if profile.auth_mode == "pkce":
+                from .pkce import get_pkce_access_token
+
+                access_token = get_pkce_access_token(profile.name)
+                if access_token:
+                    return ResolvedAuth(access_token, f"profile:{profile.name}:pkce", "bearer")
+                if profile.web_url and profile.pkce_client_id:
+                    from .pkce import PkceError, refresh_pkce_credentials
+
+                    try:
+                        refreshed = refresh_pkce_credentials(
+                            profile.name, profile.web_url, profile.pkce_client_id
+                        )
+                    except PkceError:
+                        pass
+                    else:
+                        return ResolvedAuth(
+                            refreshed.access_token,
+                            f"profile:{profile.name}:pkce-refresh",
+                            "bearer",
+                        )
+                if emit_error:
+                    raise click.ClickException(
+                        f"PKCE bearer token for profile '{profile.name}' is unavailable. "
+                        f"Run 'slcli login --profile {profile.name} --auth pkce' again."
+                    )
+                raise click.ClickException("PKCE bearer token not found.")
+            if profile.api_key:
+                return ResolvedAuth(profile.api_key, f"profile:{profile.name}", "api-key")
     except (FileNotFoundError, json.JSONDecodeError, KeyError, AttributeError):
         pass
 
@@ -468,14 +508,14 @@ def get_api_key_resolution(emit_error: bool = True) -> ResolvedConfigValue:
     if cfg and isinstance(cfg, dict):
         maybe = cfg.get("api_key") or cfg.get("apiKey") or cfg.get("apiToken")
         if maybe:
-            return ResolvedConfigValue(str(maybe), "keyring:SYSTEMLINK_CONFIG")
+            return ResolvedAuth(str(maybe), "keyring:SYSTEMLINK_CONFIG", "api-key")
 
     try:
         api_key = keyring.get_password("systemlink-cli", "SYSTEMLINK_API_KEY")
     except Exception:
         api_key = None
     if api_key:
-        return ResolvedConfigValue(api_key, "keyring:SYSTEMLINK_API_KEY")
+        return ResolvedAuth(api_key, "keyring:SYSTEMLINK_API_KEY", "api-key")
 
     if emit_error:
         raise click.ClickException(
@@ -485,8 +525,40 @@ def get_api_key_resolution(emit_error: bool = True) -> ResolvedConfigValue:
     raise click.ClickException("API key not found.")
 
 
+def get_api_key_resolution(emit_error: bool = True) -> ResolvedConfigValue:
+    """Resolve the active credential using the legacy API-key result shape."""
+    resolved = get_auth_resolution(emit_error=emit_error)
+    return ResolvedConfigValue(resolved.value, resolved.source)
+
+
+def _uses_web_routes() -> bool:
+    """Return whether the active authentication profile uses Web Server routes.
+
+    Returns:
+        ``True`` for an active PKCE profile without an API-key environment
+        override; otherwise ``False``.
+    """
+    if _get_env_override(("SLCLI_API_KEY", "SYSTEMLINK_API_KEY")) is not None:
+        return False
+
+    try:
+        from .profiles import get_active_profile
+
+        profile = get_active_profile()
+    except (
+        FileNotFoundError,
+        json.JSONDecodeError,
+        KeyError,
+        AttributeError,
+        click.ClickException,
+    ):
+        return False
+
+    return bool(profile and profile.auth_mode == "pkce")
+
+
 def get_base_url() -> str:
-    """Retrieve the SystemLink API base URL.
+    """Retrieve the effective SystemLink command base URL.
 
     Preference order:
     1. Environment variable SLCLI_API_URL (preferred) or SYSTEMLINK_API_URL
@@ -494,8 +566,13 @@ def get_base_url() -> str:
     3. Combined keyring config (legacy)
     4. Legacy keyring entry SYSTEMLINK_API_URL
     5. Default fallback to localhost
+
+    PKCE profiles use their Web UI URL because bearer tokens are supported by
+    the Web Server route family. ``get_base_url_resolution()`` remains the
+    accessor for the separately configured API URL.
     """
-    return get_base_url_resolution().value
+    api_url = get_base_url_resolution().value
+    return get_web_url() if _uses_web_routes() else api_url
 
 
 def get_web_url() -> str:
@@ -533,7 +610,7 @@ def _get_keyring_config() -> Dict[str, Any]:
 
 
 def get_api_key() -> str:
-    """Retrieve the SystemLink API key.
+    """Retrieve the active credential using the legacy API-key helper name.
 
     Preference order:
     1. Environment variable SLCLI_API_KEY (preferred) or SYSTEMLINK_API_KEY
@@ -544,18 +621,53 @@ def get_api_key() -> str:
     return get_api_key_resolution().value
 
 
-def get_headers(content_type: str = "") -> Dict[str, str]:
-    """Return headers for SystemLink API requests.
-
-    Allows caller to override Content-Type. If content_type is None or empty, omit the header.
-    """
+def get_auth_headers(
+    credential: str, auth_scheme: str = "api-key", content_type: str = ""
+) -> Dict[str, str]:
+    """Build SystemLink request headers for an API key or bearer token."""
     headers = {
-        "x-ni-api-key": get_api_key(),
         "User-Agent": "SystemLink-CLI/1.0 (cross-platform)",
     }
+    if auth_scheme == "bearer":
+        headers["Authorization"] = f"Bearer {credential}"
+    elif auth_scheme == "api-key":
+        headers["x-ni-api-key"] = credential
+    else:
+        raise ValueError(f"Unsupported authentication scheme: {auth_scheme}")
     if content_type:
         headers["Content-Type"] = content_type
     return headers
+
+
+def get_headers(content_type: str = "") -> Dict[str, str]:
+    """Return headers for the active SystemLink authentication mode.
+
+    Allows caller to override Content-Type. If content_type is None or empty, omit the header.
+    """
+    resolved = get_auth_resolution()
+    return get_auth_headers(resolved.value, resolved.scheme, content_type)
+
+
+def get_route_url(path: str, target: RouteTarget = "api") -> str:
+    """Build a route URL from the configured API or Web Server base URL.
+
+    Args:
+        path: Route path, with or without a leading slash.
+        target: Base URL to use, either ``api`` or ``web``.
+
+    Returns:
+        The fully qualified route URL.
+
+    Raises:
+        ValueError: If ``target`` is not a supported route target.
+    """
+    if target == "api":
+        base_url = get_base_url_resolution().value
+    elif target == "web":
+        base_url = get_web_url()
+    else:
+        raise ValueError(f"Unsupported route target: {target}")
+    return f"{base_url.rstrip('/')}/{path.lstrip('/')}"
 
 
 def get_ssl_verify(server_uri: Optional[str] = None) -> Union[bool, str]:
@@ -706,6 +818,8 @@ def make_api_request(
     files: Optional[Dict[str, Any]] = None,
     data: Optional[Dict[str, Any]] = None,
     stream: bool = False,
+    credential: Optional[str] = None,
+    auth_scheme: Optional[str] = None,
 ) -> requests.Response:
     """Make API request with consistent error handling and configuration.
 
@@ -718,6 +832,9 @@ def make_api_request(
         files: Files to upload (for multipart form data)
         data: Form data (for multipart requests, used with files)
         stream: Whether to stream the response (for large file downloads)
+        credential: Optional explicit credential for this request. When omitted, the active
+            credential is resolved from configuration.
+        auth_scheme: Authentication scheme for an explicit credential.
 
     Returns:
         Response object
@@ -727,7 +844,11 @@ def make_api_request(
     """
     try:
         # Merge provided headers with default headers
-        default_headers = get_headers()
+        default_headers = (
+            get_auth_headers(credential, auth_scheme or "api-key")
+            if credential is not None
+            else get_headers()
+        )
         if headers:
             default_headers.update(headers)
 
@@ -779,6 +900,49 @@ def make_api_request(
             return None  # type: ignore
         else:
             raise
+
+
+def make_web_request(
+    method: str,
+    path: str,
+    payload: Optional[Union[Dict[str, Any], List[Any]]] = None,
+    headers: Optional[Dict[str, str]] = None,
+    handle_errors: bool = True,
+    files: Optional[Dict[str, Any]] = None,
+    data: Optional[Dict[str, Any]] = None,
+    stream: bool = False,
+    credential: Optional[str] = None,
+    auth_scheme: Optional[str] = None,
+) -> requests.Response:
+    """Make a request to a Web Server route using the configured Web URL.
+
+    Args:
+        method: HTTP method (GET, POST, etc.)
+        path: Web Server route path, such as ``/niauth/v1/auth``.
+        payload: Request payload for POST/PUT requests (JSON body)
+        headers: Additional headers (will be merged with default headers)
+        handle_errors: Whether to handle errors with consistent formatting
+        files: Files to upload (for multipart form data)
+        data: Form data (for multipart requests, used with files)
+        stream: Whether to stream the response (for large file downloads)
+        credential: Optional explicit credential for this request.
+        auth_scheme: Authentication scheme for an explicit credential.
+
+    Returns:
+        Response object.
+    """
+    return make_api_request(
+        method,
+        get_route_url(path, target="web"),
+        payload=payload,
+        headers=headers,
+        handle_errors=handle_errors,
+        files=files,
+        data=data,
+        stream=stream,
+        credential=credential,
+        auth_scheme=auth_scheme,
+    )
 
 
 # --- Workspace Validation Utilities ---

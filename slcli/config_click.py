@@ -16,6 +16,7 @@ from .platform import (
     PLATFORM_SLE,
     PLATFORM_SLS,
     check_service_status,
+    check_web_server_auth,
 )
 from .profiles import ProfileConfig, Profile, check_config_file_permissions
 from .rich_output import render_table
@@ -134,7 +135,11 @@ def _show_certificate_warning(certificate: dict[str, Any]) -> None:
 
 
 def _trust_certificate_if_requested(
-    url: str, api_key: str, status: dict[str, Any], trust_fingerprint: Optional[str]
+    url: str,
+    credential: str,
+    status: dict[str, Any],
+    trust_fingerprint: Optional[str],
+    auth_scheme: str = "api-key",
 ) -> dict[str, Any]:
     """Prompt for or apply certificate trust after a verification failure."""
     certificate_details = status.get("certificate")
@@ -174,7 +179,7 @@ def _trust_certificate_if_requested(
 
     try:
         save_managed_certificate(certificate)
-        retry_status = check_service_status(url, api_key)
+        retry_status = check_service_status(url, credential, auth_scheme=auth_scheme)
     except (OSError, ValueError) as exc:
         _exit_with_validation_error(
             f"Could not save the trusted certificate: {exc}. Profile was not saved.",
@@ -202,6 +207,10 @@ def _add_profile_impl(
     set_current: bool,
     readonly: bool,
     trust_fingerprint: Optional[str] = None,
+    auth_mode: str = "api-key",
+    client_id: Optional[str] = None,
+    scopes: tuple[str, ...] = (),
+    callback_port: Optional[int] = None,
 ) -> None:
     """Shared implementation for add-profile and login commands.
 
@@ -217,6 +226,10 @@ def _add_profile_impl(
         set_current: Whether to set as the current profile
         readonly: Whether to enable readonly mode
         trust_fingerprint: Optional SHA-256 fingerprint for non-interactive trust approval
+        auth_mode: Authentication flow to use
+        client_id: Public OAuth client ID for the PKCE login
+        scopes: OAuth scopes for the PKCE login
+        callback_port: Optional loopback callback port; zero selects an ephemeral port
     """
     # Get profile name
     if not profile:
@@ -231,11 +244,20 @@ def _add_profile_impl(
     assert isinstance(url, str)
     url = _normalize_base_url(url, "SystemLink API URL")
 
-    # Get API key - either from flag or prompt
-    if not api_key:
-        api_key = getpass.getpass("Enter your SystemLink API key: ")
-    assert isinstance(api_key, str)
-    api_key = _normalize_api_key(api_key)
+    if auth_mode == "api-key":
+        # Get API key - either from flag or prompt
+        if not api_key:
+            api_key = getpass.getpass("Enter your SystemLink API key: ")
+        assert isinstance(api_key, str)
+        api_key = _normalize_api_key(api_key)
+    elif auth_mode == "pkce":
+        if api_key:
+            _exit_with_validation_error(
+                "--api-key cannot be combined with --auth pkce. "
+                "Use --auth api-key for the API-key login flow."
+            )
+    else:
+        _exit_with_validation_error(f"Unsupported authentication flow: {auth_mode}")
 
     # Normalize and validate web_url (prompt if not provided)
     if not web_url:
@@ -244,12 +266,59 @@ def _add_profile_impl(
     assert isinstance(web_url, str)
     web_url = _normalize_base_url(web_url, "SystemLink Web UI URL")
 
-    # Detect platform type and check service status
+    pkce_result: Any = None
+    pkce_scopes = list(scopes) if scopes else ["openid", "profile", "email", "offline_access"]
+    if auth_mode == "pkce":
+        certificate_status = check_web_server_auth(web_url, "", auth_scheme="bearer")
+        if certificate_status.get("certificate_error") and not certificate_status.get(
+            "server_reachable"
+        ):
+            _trust_certificate_if_requested(
+                web_url,
+                "",
+                certificate_status,
+                trust_fingerprint,
+                auth_scheme="bearer",
+            )
+        if not client_id:
+            client_id = click.prompt("PKCE client ID")
+        assert isinstance(client_id, str)
+        client_id = client_id.strip()
+        if not client_id:
+            _exit_with_validation_error("PKCE client ID cannot be empty.")
+
+        from .pkce import PkceError, perform_pkce_login
+
+        click.echo("Opening the SystemLink Web UI for authentication...")
+        try:
+            if callback_port is None:
+                pkce_result = perform_pkce_login(web_url, client_id, pkce_scopes)
+            else:
+                pkce_result = perform_pkce_login(
+                    web_url, client_id, pkce_scopes, callback_port=callback_port
+                )
+        except PkceError as exc:
+            _exit_with_validation_error(f"PKCE login failed: {exc}")
+        api_key = pkce_result.access_token
+
+    assert isinstance(api_key, str)
+
+    # PKCE uses the Web URL for bearer service probes; API-key login uses the API URL.
     click.echo("Checking server connectivity and services...")
-    status = check_service_status(url, api_key)
+    if auth_mode == "pkce":
+        status = check_service_status(web_url, api_key, auth_scheme="bearer")
+    else:
+        status = check_service_status(url, api_key)
 
     if status.get("certificate_error") and not status.get("server_reachable"):
-        status = _trust_certificate_if_requested(url, api_key, status, trust_fingerprint)
+        validation_url = web_url if auth_mode == "pkce" else url
+        status = _trust_certificate_if_requested(
+            validation_url,
+            api_key,
+            status,
+            trust_fingerprint,
+            auth_scheme="bearer" if auth_mode == "pkce" else "api-key",
+        )
 
     platform = status["platform"]
     services = status.get("services", {})
@@ -262,16 +331,26 @@ def _add_profile_impl(
         )
 
     if status["auth_valid"] is False and _all_service_probes_unauthorized(services):
+        auth_failure_message = (
+            "PKCE bearer token validation failed. The server responded, but the token was not authorized. "
+            if auth_mode == "pkce"
+            else "API key validation failed. The server responded, but the key was not authorized. "
+        )
         _exit_with_validation_error(
-            "API key validation failed. The server responded, but the key was not authorized. "
-            "Profile was not saved.",
+            auth_failure_message + "Profile was not saved.",
             ExitCodes.PERMISSION_DENIED,
         )
 
     if status["auth_valid"] is not True:
-        _exit_with_validation_error(
+        verification_message = (
             "Connected to the server, but profile verification was inconclusive. Check the "
-            "API URL, API key, and service availability. Profile was not saved.",
+            "Web UI URL, bearer token, and service availability. Profile was not saved."
+            if auth_mode == "pkce"
+            else "Connected to the server, but profile verification was inconclusive. Check the "
+            "API URL, API key, and service availability. Profile was not saved."
+        )
+        _exit_with_validation_error(
+            verification_message,
             ExitCodes.GENERAL_ERROR,
         )
 
@@ -283,7 +362,10 @@ def _add_profile_impl(
     else:
         click.echo("  Platform: Unknown (will attempt all features)")
 
-    click.echo("  API key:  ✓ Authorized")
+    if auth_mode == "pkce":
+        click.echo("  PKCE bearer token:  ✓ Authorized")
+    else:
+        click.echo("  API key:  ✓ Authorized")
 
     if status.get("file_query_endpoint") == "query-files":
         click.echo("  File query: query-files")
@@ -315,12 +397,39 @@ def _add_profile_impl(
         platform=platform,
         workspace=workspace,
         readonly=readonly,
+        auth_mode=auth_mode,
+        pkce_client_id=client_id if auth_mode == "pkce" else None,
+        pkce_scopes=pkce_scopes if auth_mode == "pkce" else None,
     )
 
     # Load config and add profile
     cfg = ProfileConfig.load()
+    previous_profile = cfg.get_profile(profile)
+    previous_current_profile = cfg.current_profile
     cfg.add_profile(new_profile, set_current=set_current)
     cfg.save()
+
+    if auth_mode == "pkce" and pkce_result is not None:
+        from .pkce import save_pkce_credentials
+
+        try:
+            save_pkce_credentials(
+                profile,
+                pkce_result.access_token,
+                pkce_result.refresh_token,
+                pkce_result.expires_at,
+            )
+        except Exception as exc:
+            if previous_profile is None:
+                cfg.profiles.pop(profile, None)
+            else:
+                cfg.profiles[profile] = previous_profile
+            cfg.current_profile = previous_current_profile
+            cfg.save()
+            _exit_with_validation_error(
+                f"Could not store PKCE credentials securely: {exc}.",
+                ExitCodes.GENERAL_ERROR,
+            )
 
     click.echo(f"\n✓ Profile '{profile}' saved successfully.")
     click.echo(f"  Server: {url}")
@@ -373,6 +482,7 @@ def register_config_commands(cli: Any) -> None:
                 item = {
                     "name": p.name,
                     "server": p.server,
+                    "auth-mode": p.auth_mode,
                     "current": p.name == cfg.current_profile,
                 }
                 if p.web_url:
@@ -523,13 +633,16 @@ def register_config_commands(cli: Any) -> None:
             if profile.platform:
                 rows.append(["Platform", profile.platform or "Unknown"])
 
-            if show_secrets:
-                api_key_display = profile.api_key
+            if profile.auth_mode == "pkce":
+                rows.append(["Authentication", "PKCE (bearer token in keyring)"])
             else:
-                api_key_display = (
-                    "****" + profile.api_key[-4:] if len(profile.api_key) >= 4 else "****"
-                )
-            rows.append(["API Key", api_key_display])
+                if show_secrets:
+                    api_key_display = profile.api_key
+                else:
+                    api_key_display = (
+                        "****" + profile.api_key[-4:] if len(profile.api_key) >= 4 else "****"
+                    )
+                rows.append(["API Key", api_key_display])
 
             if profile.workspace:
                 rows.append(["Workspace", profile.workspace])
@@ -735,6 +848,29 @@ def register_config_commands(cli: Any) -> None:
     @click.option("--url", help="SystemLink API URL")
     @click.option("--api-key", help="SystemLink API key")
     @click.option("--web-url", help="SystemLink Web UI base URL")
+    @click.option(
+        "--auth",
+        "auth_mode",
+        type=click.Choice(["api-key", "pkce"]),
+        default="api-key",
+        show_default=True,
+        help="Authentication flow to use",
+    )
+    @click.option("--client-id", help="Public OAuth client ID for the PKCE prototype")
+    @click.option(
+        "--callback-port",
+        type=click.IntRange(0, 65535),
+        help="Loopback callback port; use 0 for an ephemeral port",
+    )
+    @click.option(
+        "--scope",
+        "scopes",
+        multiple=True,
+        help=(
+            "OAuth scope to request; may be repeated "
+            "(defaults to openid profile email offline_access)"
+        ),
+    )
     @click.option("--workspace", "-w", help="Default workspace for this profile")
     @click.option(
         "--set-current/--no-set-current",
@@ -758,6 +894,10 @@ def register_config_commands(cli: Any) -> None:
         url: Optional[str],
         api_key: Optional[str],
         web_url: Optional[str],
+        auth_mode: str,
+        client_id: Optional[str],
+        callback_port: Optional[int],
+        scopes: tuple[str, ...],
         workspace: Optional[str],
         set_current: bool,
         readonly: bool,
@@ -781,6 +921,10 @@ def register_config_commands(cli: Any) -> None:
             url=url,
             api_key=api_key,
             web_url=web_url,
+            auth_mode=auth_mode,
+            client_id=client_id,
+            callback_port=callback_port,
+            scopes=scopes,
             workspace=workspace,
             set_current=set_current,
             readonly=readonly,

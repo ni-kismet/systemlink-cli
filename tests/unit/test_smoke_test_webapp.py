@@ -7,7 +7,7 @@ import pytest
 from scripts import smoke_test_webapp
 
 
-def test_smoke_test_webapp_runs_generation_install_and_build(
+def test_smoke_test_webapp_runs_generation_install_sbom_and_build(
     monkeypatch: pytest.MonkeyPatch, tmp_path: Path
 ) -> None:
     commands: list[tuple[list[str], Path | None]] = []
@@ -41,6 +41,7 @@ def test_smoke_test_webapp_runs_generation_install_and_build(
             None,
         ),
         (["npm", "install"], workspace_dir),
+        (["npm", "run", "sbom"], workspace_dir),
         (["npm", "run", "build"], workspace_dir),
     ]
 

@@ -38,9 +38,9 @@ jobs:
           ref: ${{ github.event.inputs.tag || github.ref }}
 
       - name: Set up Python
-        uses: actions/setup-python@v6
+        uses: actions/setup-python@v7
         with:
-          python-version: '3.13'
+          python-version: '3.14'
 
       - name: Install Poetry
         run: pip install poetry
@@ -90,9 +90,9 @@ jobs:
           ref: ${{ github.event.inputs.tag || github.ref }}
 
       - name: Set up Python
-        uses: actions/setup-python@v6
+        uses: actions/setup-python@v7
         with:
-          python-version: '3.13'
+          python-version: '3.14'
 
       - name: Install Poetry
         run: pip install poetry
@@ -138,9 +138,9 @@ jobs:
           ref: ${{ github.event.inputs.tag || github.ref }}
 
       - name: Set up Python
-        uses: actions/setup-python@v6
+        uses: actions/setup-python@v7
         with:
-          python-version: '3.13'
+          python-version: '3.14'
 
       - name: Install Poetry
         run: pip install poetry
@@ -173,9 +173,9 @@ jobs:
           ref: ${{ github.event.inputs.tag || github.ref }}
 
       - name: Set up Python
-        uses: actions/setup-python@v6
+        uses: actions/setup-python@v7
         with:
-          python-version: '3.13'
+          python-version: '3.14'
 
       - name: Install Poetry
         run: pip install poetry
@@ -294,9 +294,9 @@ jobs:
           ref: ${{ github.event.inputs.tag || github.ref }}
 
       - name: Set up Python
-        uses: actions/setup-python@v6
+        uses: actions/setup-python@v7
         with:
-          python-version: '3.13'
+          python-version: '3.14'
 
       - name: Install Poetry
         run: pip install poetry
