@@ -8,7 +8,11 @@ from typing import Any, Dict, List, Optional, Tuple
 import click
 import questionary
 
-from .cli_utils import confirm_bulk_operation, validate_output_format
+from .cli_utils import (
+    confirm_bulk_operation,
+    is_interactive_environment,
+    validate_output_format,
+)
 from .rich_output import render_table
 from .universal_handlers import FilteredResponse, UniversalResponseHandler
 from .utils import (
@@ -1068,6 +1072,9 @@ def _handle_spec_interactive_pagination(
             pass
 
         if not cont:
+            break
+
+        if not is_interactive_environment():
             break
 
         if not questionary.confirm("Show next set of results?", default=True).ask():

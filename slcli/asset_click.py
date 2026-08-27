@@ -12,7 +12,7 @@ from typing import Any, Dict, List, Optional, Tuple
 import click
 import questionary
 
-from .cli_utils import validate_output_format
+from .cli_utils import is_interactive_environment, validate_output_format
 from .universal_handlers import FilteredResponse, UniversalResponseHandler
 from .utils import (
     ExitCodes,
@@ -300,6 +300,9 @@ def _handle_asset_interactive_pagination(
 
         # Check if there are more results
         if shown_count >= total_count:
+            break
+
+        if not is_interactive_environment():
             break
 
         if not questionary.confirm("Show next set of results?", default=True).ask():

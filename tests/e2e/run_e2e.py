@@ -2,6 +2,7 @@
 
 import os
 import sys
+from pathlib import Path
 
 import pytest
 
@@ -11,8 +12,9 @@ def run_e2e_tests() -> int:
     # Check for required environment variables
     required_env = ["SLCLI_E2E_BASE_URL", "SLCLI_E2E_API_KEY"]
     missing_env = [var for var in required_env if not os.getenv(var)]
+    config_file = Path(__file__).resolve().with_name("e2e_config.json")
 
-    if missing_env:
+    if missing_env and not config_file.is_file():
         print("❌ Missing required environment variables for E2E tests:")
         for var in missing_env:
             print(f"  - {var}")

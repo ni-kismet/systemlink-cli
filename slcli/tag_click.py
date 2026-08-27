@@ -14,7 +14,7 @@ from typing import Any, Dict, List, Optional, Tuple
 import click
 import questionary
 
-from .cli_utils import validate_output_format
+from .cli_utils import is_interactive_environment, validate_output_format
 from .universal_handlers import FilteredResponse, UniversalResponseHandler
 from .utils import (
     ExitCodes,
@@ -460,6 +460,9 @@ def register_tag_commands(cli: Any) -> None:
                         break
 
                     # Ask if user wants more
+                    if not is_interactive_environment():
+                        break
+
                     if questionary.confirm(f"Show next {take} results?", default=True).ask():
                         query_params["continuationToken"] = continuation_token
                         resp = make_api_request("POST", url, payload=query_params)
