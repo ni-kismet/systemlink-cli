@@ -428,7 +428,7 @@ def paginate_list_output(
                 current_page += 1
                 continue
 
-            if not questionary.confirm("Show next 25 results?", default=True).ask():
+            if not questionary.confirm(f"Show next {page_size} results?", default=True).ask():
                 break
 
             click.echo()  # Add blank line between pages
