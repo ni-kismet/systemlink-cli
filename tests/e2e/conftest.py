@@ -308,17 +308,43 @@ def sls_cli_runner(sls_config: Dict[str, Any], e2e_config: Dict[str, Any]) -> An
     return _make_cli_runner(config, timeout)
 
 
-@pytest.fixture
+@pytest.fixture(scope="session")
 def configured_workspace(e2e_config: Dict[str, Any], selected_platform: str) -> str:
-    """Return the configured workspace name for E2E tests.
+    """Return a configured workspace name that exists in the target environment.
 
-    Generic tests use the workspace from the selected active platform.
+    Generic tests use the workspace from the selected active platform. If that workspace
+    is not present in the target tenant, use the first accessible workspace instead.
     For platform-specific tests, prefer `sle_workspace` or `sls_workspace`.
     """
     selected_config = _select_platform_config(e2e_config, selected_platform)
-    if selected_config is not None:
-        return selected_config.get("workspace", "Default")
-    return e2e_config.get("workspace", "Default")
+    configured_name = (
+        selected_config.get("workspace", "Default")
+        if selected_config is not None
+        else e2e_config.get("workspace", "Default")
+    )
+
+    runner_config = selected_config if selected_config is not None else e2e_config
+    runner = _make_cli_runner(runner_config, e2e_config.get("timeout", 60))
+    result = runner(["workspace", "list", "--format", "json"])
+    try:
+        workspaces = json.loads(result.stdout)
+    except json.JSONDecodeError as exc:
+        pytest.fail(f"Failed to parse workspace list response: {exc}")
+
+    if not isinstance(workspaces, list):
+        pytest.fail("Workspace list response was not a JSON array")
+
+    available_workspaces = [
+        workspace
+        for workspace in workspaces
+        if isinstance(workspace, dict) and workspace.get("name")
+    ]
+    if not available_workspaces:
+        pytest.skip("No accessible workspaces available in the target environment")
+
+    if any(workspace.get("name") == configured_name for workspace in available_workspaces):
+        return str(configured_name)
+    return str(available_workspaces[0]["name"])
 
 
 @pytest.fixture

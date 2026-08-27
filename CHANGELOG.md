@@ -2,6 +2,13 @@
 
 <!-- towncrier release notes start -->
 
+## v1.26.2 (2026-08-27)
+
+### Bug Fixes
+
+- Run E2E tests against the SLE test tier and SLS base environment, while selecting only supported services and accepting empty collections. (sls-e2e-test-selection)
+
+
 ## v1.26.1 (2026-08-21)
 
 ### Bug Fixes

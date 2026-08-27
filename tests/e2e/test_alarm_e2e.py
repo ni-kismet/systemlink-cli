@@ -5,6 +5,8 @@ from typing import Any, Optional
 
 import pytest
 
+pytestmark = pytest.mark.sle
+
 
 @pytest.mark.e2e
 @pytest.mark.alarm
