@@ -83,18 +83,19 @@ jobs:
     runs-on: ubuntu-latest
     needs: build-test-lint
     timeout-minutes: 45
+    env:
+      SLCLI_E2E_SLS_BASE_URL: https://base.systemlink.io
     steps:
       - name: Check SLS E2E configuration
         id: sls-config
         env:
-          SLCLI_E2E_SLS_BASE_URL: ${{ vars.SLCLI_E2E_SLS_BASE_URL }}
           SLCLI_E2E_SLS_API_KEY: ${{ secrets.SLCLI_E2E_SLS_API_KEY }}
         run: |
-          if [ -n "$SLCLI_E2E_SLS_BASE_URL" ] && [ -n "$SLCLI_E2E_SLS_API_KEY" ]; then
+          if [ -n "$SLCLI_E2E_SLS_API_KEY" ]; then
             echo "enabled=true" >> "$GITHUB_OUTPUT"
           else
             echo "enabled=false" >> "$GITHUB_OUTPUT"
-            echo "Skipping SLS E2E job because SLCLI_E2E_SLS_BASE_URL or SLCLI_E2E_SLS_API_KEY is not configured."
+            echo "Skipping SLS E2E job because SLCLI_E2E_SLS_API_KEY is not configured."
           fi
 
       - name: Checkout code
@@ -118,7 +119,6 @@ jobs:
       - name: Write SLS E2E config
         if: ${{ steps.sls-config.outputs.enabled == 'true' }}
         env:
-          SLCLI_E2E_SLS_BASE_URL: ${{ vars.SLCLI_E2E_SLS_BASE_URL }}
           SLCLI_E2E_SLS_API_KEY: ${{ secrets.SLCLI_E2E_SLS_API_KEY }}
           SLCLI_E2E_SLS_WORKSPACE: ${{ vars.SLCLI_E2E_SLS_WORKSPACE }}
           SLCLI_E2E_SLS_TEST_NOTEBOOK_PATH: ${{ vars.SLCLI_E2E_SLS_TEST_NOTEBOOK_PATH }}
@@ -160,18 +160,19 @@ jobs:
     runs-on: ubuntu-latest
     needs: build-test-lint
     timeout-minutes: 45
+    env:
+      SLCLI_E2E_SLE_BASE_URL: https://test-api.lifecyclesolutions.ni.com
     steps:
       - name: Check SLE E2E configuration
         id: sle-config
         env:
-          SLCLI_E2E_SLE_BASE_URL: ${{ vars.SLCLI_E2E_SLE_BASE_URL }}
           SLCLI_E2E_SLE_API_KEY: ${{ secrets.SLCLI_E2E_SLE_API_KEY }}
         run: |
-          if [ -n "$SLCLI_E2E_SLE_BASE_URL" ] && [ -n "$SLCLI_E2E_SLE_API_KEY" ]; then
+          if [ -n "$SLCLI_E2E_SLE_API_KEY" ]; then
             echo "enabled=true" >> "$GITHUB_OUTPUT"
           else
             echo "enabled=false" >> "$GITHUB_OUTPUT"
-            echo "Skipping SLE E2E job because SLCLI_E2E_SLE_BASE_URL or SLCLI_E2E_SLE_API_KEY is not configured."
+            echo "Skipping SLE E2E job because SLCLI_E2E_SLE_API_KEY is not configured."
           fi
 
       - name: Checkout code
@@ -195,7 +196,6 @@ jobs:
       - name: Write SLE E2E config
         if: ${{ steps.sle-config.outputs.enabled == 'true' }}
         env:
-          SLCLI_E2E_SLE_BASE_URL: ${{ vars.SLCLI_E2E_SLE_BASE_URL }}
           SLCLI_E2E_SLE_API_KEY: ${{ secrets.SLCLI_E2E_SLE_API_KEY }}
           SLCLI_E2E_SLE_WORKSPACE: ${{ vars.SLCLI_E2E_SLE_WORKSPACE }}
           SLCLI_E2E_SLE_TEST_NOTEBOOK_ID: ${{ vars.SLCLI_E2E_SLE_TEST_NOTEBOOK_ID }}
