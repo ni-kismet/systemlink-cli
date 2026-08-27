@@ -685,6 +685,59 @@ def test_delete_example_from_file_uses_config_directory_for_references(
     assert captured["example_dir"] == example_dir.resolve()
 
 
+def test_delete_example_from_file_exits_nonzero_for_failed_resource(
+    runner: CliRunner, temp_examples_dir: Path, monkeypatch: Any
+) -> None:
+    """External config deletion propagates resource failures to the exit code."""
+    import yaml  # type: ignore
+
+    config_path = temp_examples_dir / "external-config.yaml"
+    config = {
+        "format_version": "1.0",
+        "name": "external-config",
+        "title": "External Config",
+        "resources": [
+            {
+                "type": "fixture",
+                "name": "Fixture Slot",
+                "id_reference": "fixture_slot",
+                "properties": {},
+            }
+        ],
+    }
+    with open(config_path, "w") as config_stream:
+        yaml.dump(config, config_stream)
+
+    class FailingProvisioner:
+        def __init__(self, **_: Any) -> None:
+            pass
+
+        def delete(self, _: Dict[str, Any]) -> Tuple[List[ProvisioningResult], Optional[Exception]]:
+            return [
+                ProvisioningResult(
+                    id_reference="fixture_slot",
+                    resource_type="fixture",
+                    resource_name="Fixture Slot",
+                    action=ProvisioningAction.FAILED,
+                    error="partial API failure",
+                )
+            ], None
+
+    monkeypatch.setattr(
+        "slcli.example_click.ExampleLoader", lambda: ExampleLoader(temp_examples_dir)
+    )
+    monkeypatch.setattr("slcli.example_click.ExampleProvisioner", FailingProvisioner)
+    monkeypatch.setattr("slcli.example_click.get_workspace_map", lambda: {"ws-1": "Training"})
+
+    result = runner.invoke(
+        make_cli(),
+        ["example", "delete", "--file", str(config_path), "--workspace", "Training"],
+    )
+
+    assert result.exit_code == ExitCodes.GENERAL_ERROR
+    assert "One or more resources failed to delete" in result.output
+
+
 def test_install_example_workspace_not_found(
     runner: CliRunner, temp_examples_dir: Path, monkeypatch: Any
 ) -> None:

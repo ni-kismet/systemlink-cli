@@ -92,7 +92,7 @@ resources:
   # Students select "Slot_01" as the fixture for Chamber B in the Scheduling
   # Assistant and verify the Fixtures column shows Slot_01 afterwards
   # (Verify Fixture Allocation section).
-  - type: "asset"
+  - type: "fixture"
     name: "Slot_01"
     properties:
       description: "Fixture slot 1 in Chamber B — primary DUT mounting position"
@@ -101,8 +101,7 @@ resources:
       model_name: "Fixture Slot"
       vendor_name: "DemoPower Systems"
       serial_number: "SLOT-CHB-01"
-      assetType: "FIXTURE"
-    id_reference: "asset_slot01"
+    id_reference: "fixture_slot01"
     tags: ["exercise-7-1-test-plans"]
 
   # ==========================================================================
@@ -282,7 +281,7 @@ cleanup:
     - "testtemplate"
     - "workflow"
     - "dut"
-    - "asset"
+    - "fixture"
     - "system"
     - "product"
     - "location"

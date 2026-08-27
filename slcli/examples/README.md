@@ -126,6 +126,11 @@ slcli example install \
   --file fixtures/example-resources/config.yaml \
   --workspace <workspace> \
   --dry-run
+
+# Delete resources from the same external fixture
+slcli example delete \
+  --file fixtures/example-resources/config.yaml \
+  --workspace <workspace>
 ```
 
 Paths in `file_path`, `rows_file`, and `data_file` properties are resolved
@@ -173,6 +178,7 @@ cleanup:
 - `product` - Product definition
 - `system` - Test system
 - `asset` - Asset on a system
+- `fixture` - Fixture asset on a system or parent asset
 - `dut` - Device under test
 - `testtemplate` - Test plan template
 - `workflow` - Workflow definition

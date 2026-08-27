@@ -63,6 +63,11 @@ class ExitCodes:
     NETWORK_ERROR = 5
 
 
+def escape_filter_value(value: str) -> str:
+    """Escape backslashes and double quotes in API filter string literals."""
+    return value.replace("\\", "\\\\").replace('"', '\\"')
+
+
 def check_readonly_mode(operation: str = "this operation") -> None:
     """Check if the active profile is in readonly mode and exit if it is.
 

@@ -17,6 +17,7 @@ from .universal_handlers import FilteredResponse, UniversalResponseHandler
 from .utils import (
     ExitCodes,
     check_readonly_mode,
+    escape_filter_value,
     format_success,
     get_base_url,
     get_workspace_map,
@@ -29,22 +30,12 @@ from .workspace_utils import (
     resolve_workspace_filter,
 )
 
+_escape_filter_value = escape_filter_value
+
 
 def _get_asset_base_url() -> str:
     """Get the base URL for the Asset Management API."""
     return f"{get_base_url()}/niapm/v1"
-
-
-def _escape_filter_value(value: str) -> str:
-    """Escape double quotes in filter values to prevent injection.
-
-    Args:
-        value: Raw filter value from user input.
-
-    Returns:
-        Escaped value safe for embedding in filter expressions.
-    """
-    return value.replace('"', '\\"')
 
 
 def _parse_properties(properties: Tuple[str, ...]) -> Dict[str, str]:
@@ -100,10 +91,10 @@ def _build_asset_filter(
     parts: List[str] = []
 
     if model:
-        escaped = _escape_filter_value(model)
+        escaped = escape_filter_value(model)
         parts.append(f'ModelName.Contains("{escaped}")')
     if serial_number:
-        escaped = _escape_filter_value(serial_number)
+        escaped = escape_filter_value(serial_number)
         parts.append(f'SerialNumber = "{escaped}"')
     if bus_type:
         parts.append(f'BusType = "{bus_type}"')
@@ -117,7 +108,7 @@ def _build_asset_filter(
             ' and Location.AssetState.AssetPresence = "PRESENT"'
         )
     if workspace_id:
-        escaped = _escape_filter_value(workspace_id)
+        escaped = escape_filter_value(workspace_id)
         parts.append(f'Workspace = "{escaped}"')
     if custom_filter:
         parts.append(custom_filter)

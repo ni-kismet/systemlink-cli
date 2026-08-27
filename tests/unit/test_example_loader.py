@@ -59,6 +59,15 @@ def test_loader_initialization(temp_examples_dir: Path) -> None:
     assert loader.examples_dir == temp_examples_dir
 
 
+def test_bundled_test_plan_example_uses_fixture_resource_type() -> None:
+    """Bundled fixture assets use the dedicated fixture resource contract."""
+    config = ExampleLoader().load_config("exercise-7-1-test-plans")
+
+    fixture = next(resource for resource in config["resources"] if resource["name"] == "Slot_01")
+    assert fixture["type"] == "fixture"
+    assert "assetType" not in fixture["properties"]
+
+
 def test_load_valid_config(temp_examples_dir: Path) -> None:
     """Test loading a valid example config."""
     config = {

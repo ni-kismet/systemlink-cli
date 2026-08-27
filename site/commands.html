@@ -817,6 +817,10 @@ slcli example install demo-data-1 --workspace Training --dry-run
 slcli example install --file ./fixtures/example-resources/config.yaml \
   --workspace Training
 
+# Delete resources from an external fixture
+slcli example delete --file ./fixtures/example-resources/config.yaml \
+  --workspace Training
+
 # Install the phase-one Nigel query fixture and write its completeness manifest
 slcli example install demo-data-3 \
   --workspace Training --format json --audit-log nigel-fixture-manifest.json

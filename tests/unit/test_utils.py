@@ -36,6 +36,15 @@ def patch_keyring(monkeypatch: Any, platform: str = "SLE") -> None:
     monkeypatch.setattr(keyring, "delete_password", lambda *a, **kw: None)
 
 
+def test_escape_filter_value_escapes_backslashes_before_quotes() -> None:
+    """Filter values cannot terminate a quoted literal after a backslash."""
+    from slcli.utils import escape_filter_value
+
+    assert escape_filter_value('fixture\\" or AssetType = "SYSTEM') == (
+        'fixture\\\\\\" or AssetType = \\"SYSTEM'
+    )
+
+
 def test_get_web_url_ignores_keyring_backend_errors_when_api_url_is_set(
     monkeypatch: Any,
 ) -> None:
