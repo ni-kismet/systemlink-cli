@@ -2,6 +2,13 @@
 
 <!-- towncrier release notes start -->
 
+## v1.26.3 (2026-08-27)
+
+### Bug Fixes
+
+- Prevent interactive pagination prompts from blocking captured CLI output and improve Windows E2E subprocess configuration handling. (windows-e2e-noninteractive)
+
+
 ## v1.26.2 (2026-08-27)
 
 ### Bug Fixes
