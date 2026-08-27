@@ -1,1 +1,0 @@
-Run E2E tests against the SLE test tier and SLS base environment, while selecting only supported services and accepting empty collections.
