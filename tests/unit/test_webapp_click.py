@@ -1,7 +1,6 @@
 """Unit tests for slcli webapp commands."""
 
 import io
-import re
 import shutil
 import subprocess
 import tarfile
@@ -106,9 +105,10 @@ def test_webapp_help_omits_legacy_init_command() -> None:
     runner = CliRunner()
 
     result = runner.invoke(cli, ["webapp", "--help"])
-    visible_commands = re.findall(
-        r"^\s*[^a-zA-Z\s]?\s*([a-z][a-z-]*)\s{2,}", result.output, re.MULTILINE
-    )
+    webapp_group: Any = cli.commands["webapp"]
+    visible_commands = [
+        name for name, command in webapp_group.commands.items() if not command.hidden
+    ]
 
     assert result.exit_code == 0
     assert "init" not in visible_commands
