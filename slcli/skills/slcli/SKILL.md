@@ -76,7 +76,7 @@ Load only what the current task needs.
 | `feed` | Package feeds | `list`, `create`, `package upload` |
 | `customfield` | Dynamic form fields | `list`, `create`, `export`, `edit` |
 | `template` | Test plan templates | `list`, `import`, `export` |
-| `webapp` | Web applications | `init`, `pack`, `publish`, `list` |
+| `webapp` | Web applications | `new`, `pack`, `publish`, `list` |
 | `config` | Connection profiles | `list`, `use`, `add`, `delete` |
 | `user` | User management | `list`, `get`, `create`, `update` |
 | `auth` | Authorization policies | `policy list/create`, `template list` |

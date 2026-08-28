@@ -101,6 +101,16 @@ def _no_profile_workspace() -> Any:
         yield
 
 
+def test_webapp_help_omits_legacy_init_command() -> None:
+    runner = CliRunner()
+
+    result = runner.invoke(cli, ["webapp", "--help"])
+
+    assert result.exit_code == 0
+    assert "init" not in result.output
+    assert "new" in result.output
+
+
 def test_webapp_init_creates_starter_files(tmp_path: Path, monkeypatch: MonkeyPatch) -> None:
     runner = CliRunner()
     patch_keyring(monkeypatch)

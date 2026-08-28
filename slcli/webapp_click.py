@@ -1018,7 +1018,7 @@ def register_webapp_commands(cli: Any) -> None:
 
     register_webapp_bootstrap_commands(webapp)
 
-    @webapp.command(name="init")
+    @webapp.command(name="init", hidden=True)
     @click.argument(
         "directory",
         type=click.Path(file_okay=False, dir_okay=True, path_type=Path),

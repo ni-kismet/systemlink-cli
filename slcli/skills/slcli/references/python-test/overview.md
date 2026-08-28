@@ -15,7 +15,7 @@ control metadata, or deployment layout.
 
 ## Prerequisites
 
-- Python 3.10+
+- Python >=3.11.1,<3.15 (Python 3.11.1 through 3.14)
 - `nisystemlink-clients` as the primary communication layer
 - SystemLink server with Test Monitor, Asset Management, Work Order, and File services
 - Valid API key with appropriate permissions for dev-mode runs
