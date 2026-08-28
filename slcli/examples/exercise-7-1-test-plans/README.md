@@ -66,7 +66,7 @@ slcli example delete exercise-7-1-test-plans -w <workspace>
 - The **Thermal Cycle Test** work item is pre-created (linked to the work order)
   so students can practice the Scheduling Assistant steps immediately after
   completing the Create test plan wizard.
-- **Slot_01** is an `asset` with `assetType: FIXTURE` on Chamber B.
+- **Slot_01** is a `fixture` resource on Chamber B.
   It appears in the Scheduling Assistant's fixture picker and in the
   Fixtures column of the Work Items table.
 - **BAT-DUT-C01** shares the same naming convention as the DUTs
@@ -87,7 +87,7 @@ Deletion order (respects dependencies):
 3. `testtemplate`
 4. `workflow`
 5. `dut`
-6. `asset` (fixture Slot_01)
+6. `fixture` (Slot_01)
 7. `system` (Chamber B)
 8. `product` (Model ABC)
 9. `location` (Battery Testing Lab)

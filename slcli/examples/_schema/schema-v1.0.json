@@ -92,14 +92,14 @@
           "items": {
             "type": "string"
           },
-          "description": "Descriptive intended deletion order; generic example delete currently reverses the resources list"
+          "description": "Resource-type deletion order; unlisted types are deleted afterwards in reverse provisioning order"
         },
         "filter_tags": {
           "type": "array",
           "items": {
             "type": "string"
           },
-          "description": "Tags intended for cleanup filtering"
+          "description": "Delete only resources matching at least one configured tag"
         },
         "require_confirmation": {
           "type": "boolean",
@@ -166,6 +166,7 @@
             "product",
             "system",
             "asset",
+            "fixture",
             "dut",
             "testtemplate",
             "workflow",

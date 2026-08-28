@@ -408,7 +408,13 @@ def register_example_commands(cli: Any) -> None:
             handle_api_error(exc)
 
     @example.command(name="delete")
-    @click.argument("example_name")
+    @click.argument("example_name", required=False)
+    @click.option(
+        "--file",
+        "config_file",
+        type=click.Path(exists=True, dir_okay=False, readable=True, resolve_path=True),
+        help="Path to an example config.yaml; referenced files are relative to its directory.",
+    )
     @click.option("--workspace", "-w", required=True, help="Workspace name or ID for resources")
     @click.option(
         "--format",
@@ -429,7 +435,8 @@ def register_example_commands(cli: Any) -> None:
         help="Path to write deletion results as JSON for auditing.",
     )
     def delete_example(
-        example_name: str,
+        example_name: Optional[str],
+        config_file: Optional[str],
         workspace: Optional[str],
         format: str,
         dry_run: bool,
@@ -442,14 +449,29 @@ def register_example_commands(cli: Any) -> None:
 
         try:
             loader = ExampleLoader()
-            config = loader.load_config(example_name)
+            example_dir: Optional[Path] = None
+            if config_file and example_name:
+                raise ValueError("Specify either EXAMPLE_NAME or --file, not both.")
+            if not config_file and not example_name:
+                raise ValueError("Provide an EXAMPLE_NAME or --file path to config.yaml.")
+
+            if config_file:
+                config_path = Path(config_file)
+                config = loader.load_config_file(config_path)
+                example_name = str(config["name"])
+                example_dir = config_path.parent
+            else:
+                config = loader.load_config(example_name or "")
 
             workspace_id = _resolve_workspace_id(get_effective_workspace(workspace))
-            provisioner = ExampleProvisioner(
-                workspace_id=workspace_id,
-                example_name=example_name,
-                dry_run=dry_run,
-            )
+            provisioner_options: Dict[str, Any] = {
+                "workspace_id": workspace_id,
+                "example_name": example_name,
+                "dry_run": dry_run,
+            }
+            if example_dir is not None:
+                provisioner_options["example_dir"] = example_dir
+            provisioner = ExampleProvisioner(**provisioner_options)
 
             results, err = provisioner.delete(config)
             if err:

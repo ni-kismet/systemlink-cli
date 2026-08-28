@@ -18,7 +18,14 @@ from typing import Any, Dict, List, Optional, Tuple
 import click
 import requests
 
-from .utils import get_base_url, get_headers, get_ssl_verify, make_api_request, sanitize_filename
+from .utils import (
+    escape_filter_value,
+    get_base_url,
+    get_headers,
+    get_ssl_verify,
+    make_api_request,
+    sanitize_filename,
+)
 from .webapp_click import pack_folder_to_nipkg
 
 
@@ -154,6 +161,30 @@ class ExampleProvisioner:
         if not isinstance(resources, list):
             return [], ValueError("Config 'resources' must be a list")
 
+        cleanup = config.get("cleanup", {})
+        if isinstance(cleanup, dict) and filter_tags is None:
+            configured_tags = cleanup.get("filter_tags")
+            if isinstance(configured_tags, list):
+                filter_tags = [str(tag) for tag in configured_tags]
+
+        deletion_resources = [resource for resource in resources if isinstance(resource, dict)]
+        if isinstance(cleanup, dict) and isinstance(cleanup.get("order"), list):
+            ordered_types = list(
+                dict.fromkeys(str(resource_type) for resource_type in cleanup["order"])
+            )
+            deletion_resources = [
+                resource
+                for resource_type in ordered_types
+                for resource in reversed(deletion_resources)
+                if str(resource.get("type", "unknown")) == resource_type
+            ] + [
+                resource
+                for resource in reversed(deletion_resources)
+                if str(resource.get("type", "unknown")) not in ordered_types
+            ]
+        else:
+            deletion_resources.reverse()
+
         # Reset per-run flags
         self._test_results_deleted = False
         self._files_deleted = False
@@ -165,7 +196,7 @@ class ExampleProvisioner:
         }
 
         try:
-            for resource in reversed([r for r in resources if isinstance(r, dict)]):
+            for resource in deletion_resources:
                 rtype = str(resource.get("type", "unknown"))
                 rname = str(resource.get("name", "unknown"))
                 rid = str(resource.get("id_reference", rname or rtype))
@@ -206,6 +237,7 @@ class ExampleProvisioner:
                     "product": self._delete_product,
                     "system": self._delete_system,
                     "asset": self._delete_asset,
+                    "fixture": self._delete_fixture,
                     "dut": self._delete_dut,
                     "testtemplate": self._delete_testtemplate,
                     "workflow": self._delete_workflow,
@@ -241,7 +273,19 @@ class ExampleProvisioner:
                 delete_props = dict(delete_props)
                 delete_props["name"] = rname
                 delete_props = self._resolve_delete_props(delete_props, resources_by_reference)
-                server_id = delete_fn(delete_props)
+                try:
+                    server_id = delete_fn(delete_props)
+                except Exception as exc:
+                    results.append(
+                        ProvisioningResult(
+                            id_reference=rid,
+                            resource_type=rtype,
+                            resource_name=rname,
+                            action=ProvisioningAction.FAILED,
+                            error=str(exc),
+                        )
+                    )
+                    continue
                 # Determine action: DELETED if successful, SKIPPED if not found
                 action = ProvisioningAction.DELETED if server_id else ProvisioningAction.SKIPPED
                 results.append(
@@ -289,6 +333,7 @@ class ExampleProvisioner:
             "product": self._create_product,
             "system": self._create_system,
             "asset": self._create_asset,
+            "fixture": self._create_fixture,
             "dut": self._create_dut,
             "testtemplate": self._create_testtemplate,
             "workflow": self._create_workflow,
@@ -331,6 +376,8 @@ class ExampleProvisioner:
                 existing_id = self._get_system_by_name(rname)
             elif rtype == "asset":
                 existing_id = self._get_asset_by_name(rname)
+            elif rtype == "fixture":
+                existing_id = self._get_fixture_by_name(rname)
             elif rtype == "dut":
                 existing_id = self._get_dut_by_name(rname)
             elif rtype == "testtemplate":
@@ -1776,7 +1823,7 @@ class ExampleProvisioner:
         """Create virtual system via Systems Management API and return server ID.
 
         Uses POST /nisysmgmt/v1/virtual with request body:
-        { alias, workspace }
+        { alias, workspace, locationId }
         """
         url = f"{get_base_url()}/nisysmgmt/v1/virtual"
         # Systems Management API uses 'alias' not 'name'
@@ -1787,6 +1834,9 @@ class ExampleProvisioner:
         # Note: Systems API rejects empty string workspace
         if self.workspace_id and self.workspace_id.strip():
             payload["workspace"] = self.workspace_id
+        location_id = props.get("locationId") or props.get("location_id")
+        if isinstance(location_id, str) and location_id.strip():
+            payload["locationId"] = location_id.strip()
         resp = make_api_request("POST", url, payload, handle_errors=False)
         resp.raise_for_status()
         data = resp.json()
@@ -1911,9 +1961,38 @@ class ExampleProvisioner:
             "vendorName": ["vendorName", "vendor_name"],
             "vendorNumber": ["vendorNumber", "vendor_number"],
             "serialNumber": ["serialNumber", "serial_number"],
+            "firmwareVersion": ["firmwareVersion", "firmware_version"],
+            "hardwareVersion": ["hardwareVersion", "hardware_version"],
+            "visaResourceName": ["visaResourceName", "visa_resource_name"],
+            "temperatureSensors": ["temperatureSensors", "temperature_sensors"],
+            "supportsSelfCalibration": [
+                "supportsSelfCalibration",
+                "supports_self_calibration",
+            ],
+            "supportsExternalCalibration": [
+                "supportsExternalCalibration",
+                "supports_external_calibration",
+                "supportsexternalcalibration",
+            ],
+            "customCalibrationInterval": [
+                "customCalibrationInterval",
+                "custom_calibration_interval",
+            ],
+            "selfCalibration": ["selfCalibration", "self_calibration"],
+            "isNIAsset": ["isNIAsset", "is_ni_asset"],
+            "location": ["location"],
+            "externalCalibration": [
+                "externalCalibration",
+                "external_calibration",
+                "externalcalibration",
+            ],
+            "discoveryType": ["discoveryType", "discovery_type"],
             "partNumber": ["partNumber", "part_number"],
             "properties": ["properties"],
             "fileIds": ["fileIds", "file_ids"],
+            "supportsSelfTest": ["supportsSelfTest", "supports_self_test"],
+            "supportsReset": ["supportsReset", "supports_reset"],
+            "scanCode": ["scanCode", "scan_code"],
         }
         for target, candidates in field_map.items():
             # If the caller already set asset_type, skip the assetType field-map entry
@@ -1932,7 +2011,7 @@ class ExampleProvisioner:
                 if trimmed == "" or trimmed == "0":
                     continue
             # Coerce numeric fields to integers when provided as strings
-            if target in ("modelNumber", "vendorNumber"):
+            if target in ("modelNumber", "vendorNumber", "customCalibrationInterval"):
                 if isinstance(val, str):
                     num = val.strip()
                     if num.isdigit():
@@ -1966,15 +2045,155 @@ class ExampleProvisioner:
         if "vendorName" not in asset_obj:
             asset_obj["vendorName"] = "Unknown"
 
-        # If a system is provided via resolved "system_id", construct the location object
-        # using the system's minion ID per AssetLocationWithPresenceModel.
-        if "system_id" in props and isinstance(props["system_id"], str):
-            asset_obj["location"] = {
-                "minionId": props["system_id"],
-                "state": {"assetPresence": "UNKNOWN"},
-            }
+        # Build location object from provided location plus resolved relationship props.
+        location_obj: Dict[str, Any] = {}
+        if isinstance(asset_obj.get("location"), dict):
+            location_obj = dict(asset_obj["location"])
+
+        location_field_map: Dict[str, List[str]] = {
+            "minionId": ["minionId", "minion_id"],
+            "physicalLocation": ["physicalLocation", "physical_location"],
+            "parent": ["parent", "parent_id", "parentId", "parent_asset_id", "parentAssetId"],
+            "resourceUri": ["resourceUri", "resource_uri"],
+            "slotNumber": ["slotNumber", "slot_number"],
+        }
+        for target, candidates in location_field_map.items():
+            for cand in candidates:
+                if cand in location_obj and location_obj[cand] is not None:
+                    location_obj[target] = location_obj[cand]
+                    break
+        for key in (
+            "minion_id",
+            "physical_location",
+            "parent_id",
+            "parentId",
+            "parent_asset_id",
+            "parentAssetId",
+            "resource_uri",
+            "slot_number",
+        ):
+            location_obj.pop(key, None)
+
+        if "state" in location_obj and isinstance(location_obj["state"], dict):
+            state_obj = dict(location_obj["state"])
+            if "asset_presence" in state_obj and "assetPresence" not in state_obj:
+                state_obj["assetPresence"] = state_obj["asset_presence"]
+            state_obj.pop("asset_presence", None)
+            state_obj.pop("systemConnection", None)
+            state_obj.pop("system_connection", None)
+            location_obj["state"] = state_obj
+
+        slot_number = location_obj.get("slotNumber")
+        if isinstance(slot_number, str):
+            slot_number_trimmed = slot_number.strip()
+            if slot_number_trimmed.isdigit():
+                location_obj["slotNumber"] = int(slot_number_trimmed)
+
+        if not isinstance(location_obj.get("state"), dict):
+            location_obj["state"] = {"assetPresence": "UNKNOWN"}
+        else:
+            location_obj["state"].setdefault("assetPresence", "UNKNOWN")
+
+        system_id = None
+        for key in ("system_id", "systemId", "minion_id", "minionId"):
+            val = props.get(key)
+            if isinstance(val, str) and val.strip():
+                system_id = val.strip()
+                break
+        if system_id:
+            location_obj["minionId"] = system_id
+
+        parent_asset_id: Optional[str] = None
+        for key in ("parent_asset_id", "parent_id", "parentAssetId", "parentId"):
+            val = props.get(key)
+            if isinstance(val, str) and val.strip():
+                parent_asset_id = val.strip()
+                break
+        if parent_asset_id:
+            location_obj["parent"] = parent_asset_id
+
+        if location_obj:
+            asset_obj["location"] = location_obj
         elif "location" not in asset_obj:
             asset_obj["location"] = {"state": {"assetPresence": "UNKNOWN"}}
+
+        # Build externalCalibration object from provided data plus input aliases.
+        external_calibration_source: Dict[str, Any] = {}
+        if isinstance(asset_obj.get("externalCalibration"), dict):
+            external_calibration_source = dict(asset_obj["externalCalibration"])
+        asset_obj.pop("externalCalibration", None)
+        external_calibration_obj: Dict[str, Any] = {}
+
+        external_calibration_field_map: Dict[str, List[str]] = {
+            "temperatureSensors": [
+                "temperatureSensors",
+                "temperatureSensor",
+                "temperature_sensors",
+                "temperature_sensor",
+                "temperaturesensors",
+                "temperaturesensor",
+            ],
+            "isLimited": ["isLimited", "is_limited", "islimited"],
+            "date": ["date"],
+            "recommendedInterval": [
+                "recommendedInterval",
+                "recommended_interval",
+                "recommendedinterval",
+            ],
+            "nextRecommendedDate": [
+                "nextRecommendedDate",
+                "next_recommended_date",
+                "nextrecommendeddate",
+            ],
+            "nextCustomDueDate": [
+                "nextCustomDueDate",
+                "next_custom_due_date",
+                "nextcustomduedate",
+            ],
+            "comments": ["comments"],
+            "entryType": ["entryType", "entry_type", "entrytype"],
+            "checksum": ["checksum"],
+        }
+        for target, candidates in external_calibration_field_map.items():
+            for cand in candidates:
+                if (
+                    cand in external_calibration_source
+                    and external_calibration_source[cand] is not None
+                ):
+                    external_calibration_obj[target] = external_calibration_source[cand]
+                    break
+
+        recommended_interval = external_calibration_obj.get("recommendedInterval")
+        if isinstance(recommended_interval, str):
+            recommended_interval_trimmed = recommended_interval.strip()
+            if recommended_interval_trimmed.isdigit():
+                external_calibration_obj["recommendedInterval"] = int(recommended_interval_trimmed)
+
+        # Accept simplified config values but always emit array payload shape.
+        temperature_sensors = external_calibration_obj.get("temperatureSensors")
+        if isinstance(temperature_sensors, dict):
+            temperature_sensors = [temperature_sensors]
+        if isinstance(temperature_sensors, list):
+            normalized_sensors: List[Dict[str, Any]] = []
+            for sensor in temperature_sensors:
+                if not isinstance(sensor, dict):
+                    continue
+                normalized_sensor: Dict[str, Any] = {}
+                if "name" in sensor and sensor["name"] is not None:
+                    normalized_sensor["name"] = str(sensor["name"])
+                if "reading" in sensor and sensor["reading"] is not None:
+                    normalized_sensor["reading"] = sensor["reading"]
+                if normalized_sensor:
+                    normalized_sensors.append(normalized_sensor)
+            if normalized_sensors:
+                external_calibration_obj["temperatureSensors"] = normalized_sensors
+            else:
+                external_calibration_obj.pop("temperatureSensors", None)
+        elif temperature_sensors is not None:
+            external_calibration_obj.pop("temperatureSensors", None)
+
+        if external_calibration_obj:
+            asset_obj["externalCalibration"] = external_calibration_obj
 
         # Tag resource with example name for cleanup
         keywords: List[str] = []
@@ -2013,6 +2232,20 @@ class ExampleProvisioner:
                     resource_id = err.get("resourceId")
                     if resource_id:
                         return str(resource_id)
+        error = data.get("error")
+        if isinstance(error, dict):
+            messages = [str(error.get("message", "")).strip()]
+            inner_errors = error.get("innerErrors", [])
+            if isinstance(inner_errors, list):
+                messages.extend(
+                    str(inner_error.get("message", "")).strip()
+                    for inner_error in inner_errors
+                    if isinstance(inner_error, dict)
+                )
+            detail = "; ".join(message for message in messages if message)
+            raise RuntimeError(f"Asset creation failed: {detail or 'unknown API error'}")
+        if data.get("failed"):
+            raise RuntimeError("Asset creation failed: request was returned in the failed list")
         return ""
 
     def _create_asset(self, props: Dict[str, Any]) -> str:
@@ -2023,6 +2256,18 @@ class ExampleProvisioner:
                        workspace, keywords, properties, ... }] }
         """
         asset_obj = self._build_asset_obj(props, default_name="Unknown Asset")
+        return self._post_asset(asset_obj)
+
+    def _create_fixture(self, props: Dict[str, Any]) -> str:
+        """Create fixture via Asset Management API and return server ID.
+
+        Fixtures are assets with assetType=FIXTURE. They can be linked as child
+        assets by specifying one of: parent_asset_id, parent_id, parentAssetId,
+        or parentId in resource properties.
+        """
+        asset_obj = self._build_asset_obj(
+            props, default_name="Unknown Fixture", asset_type="FIXTURE"
+        )
         return self._post_asset(asset_obj)
 
     def _get_asset_by_name(self, name: str) -> Optional[str]:
@@ -2117,6 +2362,52 @@ class ExampleProvisioner:
         except Exception:
             # API unavailable or malformed response; return None to allow fallback to creation
             pass
+        return None
+
+    def _get_fixture_by_name(self, name: str) -> Optional[str]:
+        """Find a fixture by exact `name` within workspace. Returns ID or None.
+
+        Fixtures are managed as assets via Asset Management API: POST
+        /niapm/v1/query-assets which returns { assets: [...], totalCount }.
+        Filters via API on workspace/name and client-side on assetType and
+        example tag (keywords).
+        """
+        url = f"{get_base_url()}/niapm/v1/query-assets"
+        filters: List[str] = []
+        if self.workspace_id:
+            filters.append(f'Workspace = "{escape_filter_value(str(self.workspace_id))}"')
+        filters.append(f'AssetName = "{escape_filter_value(name)}"')
+        filter_expr = " and ".join(filters)
+        projection = (
+            "new(id,name,assetType,modelName,modelNumber,vendorName,vendorNumber,serialNumber,"
+            "workspace,properties,keywords,location.minionId,location.parent,"
+            "location.physicalLocation,location.state.assetPresence,location.state.systemConnection,"
+            "discoveryType,supportsSelfTest,supportsSelfCalibration,supportsReset,"
+            "supportsExternalCalibration,scanCode,temperatureSensors.reading,"
+            "externalCalibration.resolvedDueDate,selfCalibration.date)"
+        )
+        payload = {
+            "filter": filter_expr,
+            "take": 1000,
+            "skip": 0,
+            "projection": projection,
+        }
+        resp = make_api_request("POST", url, payload, handle_errors=False)
+        data = resp.json()
+        assets = data.get("assets", [])
+        example_tag = f"slcli-example:{self.example_name}" if self.example_name else None
+        for asset in assets:
+            if str(asset.get("assetType", "")) != "FIXTURE":
+                continue
+            if str(asset.get("name", "")) != name:
+                continue
+            if self.workspace_id and str(asset.get("workspace", "")) != str(self.workspace_id):
+                continue
+            if example_tag:
+                keywords = asset.get("keywords", [])
+                if not (isinstance(keywords, list) and example_tag in keywords):
+                    continue
+            return str(asset.get("id", "")) or None
         return None
 
     def _create_testtemplate(self, props: Dict[str, Any]) -> Optional[str]:
@@ -2305,14 +2596,7 @@ class ExampleProvisioner:
             # Asset doesn't exist
             return None
 
-        try:
-            url = f"{get_base_url()}/niapm/v1/delete-assets"
-            payload = {"ids": [asset_id]}
-            resp = make_api_request("POST", url, payload, handle_errors=False)
-            resp.raise_for_status()
-            return asset_id
-        except Exception:
-            return None
+        return self._delete_managed_asset(asset_id, "asset")
 
     def _delete_dut(self, props: Dict[str, Any]) -> Optional[str]:
         """Delete DUT via /niapm/v1/delete-assets.
@@ -2328,14 +2612,36 @@ class ExampleProvisioner:
             # DUT doesn't exist
             return None
 
-        try:
-            url = f"{get_base_url()}/niapm/v1/delete-assets"
-            payload = {"ids": [dut_id]}
-            resp = make_api_request("POST", url, payload, handle_errors=False)
-            resp.raise_for_status()
-            return dut_id
-        except Exception:
+        return self._delete_managed_asset(dut_id, "DUT")
+
+    def _delete_fixture(self, props: Dict[str, Any]) -> Optional[str]:
+        """Delete fixture via /niapm/v1/delete-assets.
+
+        Returns ID if deleted, None otherwise.
+        """
+        name = props.get("name", "")
+        if not name:
             return None
+
+        fixture_id = self._get_fixture_by_name(name)
+        if not fixture_id:
+            # Fixture doesn't exist
+            return None
+
+        return self._delete_managed_asset(fixture_id, "fixture")
+
+    def _delete_managed_asset(self, asset_id: str, resource_label: str) -> str:
+        """Delete one Asset Management resource and verify partial-success output."""
+        url = f"{get_base_url()}/niapm/v1/delete-assets"
+        payload = {"ids": [asset_id]}
+        resp = make_api_request("POST", url, payload, handle_errors=False)
+        resp.raise_for_status()
+        data = resp.json()
+        deleted_ids = data.get("ids", [])
+        failed_ids = data.get("failed", [])
+        if asset_id in deleted_ids and asset_id not in failed_ids:
+            return asset_id
+        raise RuntimeError(f"Asset Management failed to delete {resource_label} {asset_id}")
 
     def _delete_testtemplate(self, props: Dict[str, Any]) -> Optional[str]:
         """Delete test template via /niworkitem/v1/delete-workitem-templates.
@@ -3263,11 +3569,40 @@ class ExampleProvisioner:
                 if data_obj:
                     step_obj["data"] = data_obj
 
-            # inputs / outputs (list of {name, value})
+            # inputs / outputs (NamedValueObject list)
             for field in ("inputs", "outputs"):
                 vals = step_cfg.get(field)
-                if isinstance(vals, list):
-                    step_obj[field] = vals
+                named_values: List[Dict[str, str]] = []
+                if isinstance(vals, dict):
+                    named_values = [
+                        {"name": str(name), "value": str(value)}
+                        for name, value in vals.items()
+                        if value is not None
+                    ]
+                elif isinstance(vals, list):
+                    for item in vals:
+                        if not isinstance(item, dict):
+                            continue
+                        if "name" in item and item.get("name") is not None:
+                            value = item.get("value", "")
+                            if value is None:
+                                value = ""
+                            named_values.append(
+                                {
+                                    "name": str(item["name"]),
+                                    "value": str(value),
+                                }
+                            )
+                        else:
+                            named_values.extend(
+                                [
+                                    {"name": str(name), "value": str(value)}
+                                    for name, value in item.items()
+                                    if value is not None
+                                ]
+                            )
+                if named_values:
+                    step_obj[field] = named_values
 
             # properties (string key-value map)
             step_props = step_cfg.get("properties")
@@ -3304,7 +3639,7 @@ class ExampleProvisioner:
 
     def _get_test_result_by_properties(self, props: Dict[str, Any]) -> Optional[str]:
         """Look up a result by its stable fixture identity fields."""
-        program_name = props.get("program_name") or props.get("test_phase")
+        program_name = props.get("program_name") or props.get("test_phase") or props.get("name")
         if not program_name:
             return None
         try:
@@ -3314,25 +3649,33 @@ class ExampleProvisioner:
             results = data.get("results") or data
             if isinstance(results, list):
                 for r in results:
-                    if self.workspace_id and str(r.get("workspace", "")) != str(self.workspace_id):
+                    if not self._test_result_matches_properties(r, props):
                         continue
-                    if str(r.get("programName", "")) != str(program_name):
-                        continue
-                    for property_name, response_name in (
-                        ("start_time", "startedAt"),
-                        ("serial_number", "serialNumber"),
-                        ("part_number", "partNumber"),
-                    ):
-                        expected = props.get(property_name)
-                        if expected is not None and str(r.get(response_name, "")) != str(expected):
-                            break
-                    else:
-                        rid = r.get("id")
-                        if rid:
-                            return str(rid)
+                    rid = r.get("id")
+                    if rid:
+                        return str(rid)
             return None
         except Exception:
             return None
+
+    def _test_result_matches_properties(
+        self, result: Dict[str, Any], props: Dict[str, Any]
+    ) -> bool:
+        """Return whether a result matches the stable identity used during creation."""
+        program_name = props.get("program_name") or props.get("test_phase") or props.get("name")
+        if self.workspace_id and str(result.get("workspace", "")) != str(self.workspace_id):
+            return False
+        if str(result.get("programName", "")) != str(program_name or ""):
+            return False
+        for property_name, response_name in (
+            ("start_time", "startedAt"),
+            ("serial_number", "serialNumber"),
+            ("part_number", "partNumber"),
+        ):
+            expected = props.get(property_name)
+            if expected is not None and str(result.get(response_name, "")) != str(expected):
+                return False
+        return True
 
     def _get_test_result_ids_by_name(self, name: str) -> List[str]:
         """Return all test result IDs with exact programName in current workspace."""
@@ -3373,6 +3716,9 @@ class ExampleProvisioner:
             if example_tag:
                 filter_parts.append(f"keywords.Any(x => x == @{len(substitutions)})")
                 substitutions.append(example_tag)
+            program_name = props.get("program_name") or props.get("test_phase") or props.get("name")
+            filter_parts.append(f"programName == @{len(substitutions)}")
+            substitutions.append(str(program_name or ""))
 
             filter_expr = " && ".join(filter_parts)
 
@@ -3401,6 +3747,8 @@ class ExampleProvisioner:
             # Extract IDs from matching results
             result_ids: List[str] = []
             for r in results:
+                if not self._test_result_matches_properties(r, props):
+                    continue
                 rid = r.get("id")
                 if rid:
                     result_ids.append(str(rid))
@@ -4095,6 +4443,10 @@ class ExampleProvisioner:
         Returns an ID summary if deleted, None otherwise.
         """
         example_tag = f"slcli-example:{self.example_name}" if self.example_name else None
+        upload_name = str(props.get("name", ""))
+        file_path = props.get("file_path")
+        if isinstance(file_path, str) and "." not in upload_name:
+            upload_name += Path(file_path).suffix
 
         try:
             deleted_ids: List[str] = []
@@ -4115,8 +4467,12 @@ class ExampleProvisioner:
                 for file_item in files:
                     # Check if this file has our example tag in metadata
                     props_meta = file_item.get("properties", {})
-                    tags_str = props_meta.get("slcli-tags", "")
-                    if example_tag in tags_str and "slcli-provisioner" in tags_str:
+                    tags = [tag.strip() for tag in str(props_meta.get("slcli-tags", "")).split(",")]
+                    if (
+                        str(props_meta.get("Name", "")).lower() == upload_name.lower()
+                        and example_tag in tags
+                        and "slcli-provisioner" in tags
+                    ):
                         fid = file_item.get("id")
                         if fid:
                             file_ids.append(str(fid))
@@ -4145,6 +4501,7 @@ class ExampleProvisioner:
         Returns an ID summary if deleted, None otherwise.
         """
         example_tag = f"slcli-example:{self.example_name}" if self.example_name else None
+        notebook_name = str(props.get("name", ""))
 
         try:
             deleted_ids: List[str] = []
@@ -4170,6 +4527,8 @@ class ExampleProvisioner:
                 # Filter client-side by checking properties for our example tag
                 for notebook in notebooks:
                     if str(notebook.get("workspace", "")) != str(self.workspace_id):
+                        continue
+                    if str(notebook.get("name", "")).lower() != notebook_name.lower():
                         continue
                     props_meta = notebook.get("properties", {})
                     if props_meta.get("slcli-example") == example_name:
