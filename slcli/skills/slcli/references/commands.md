@@ -893,6 +893,7 @@ For new applications, use `slcli webapp new <app-name>`. Treat the older
 is intentionally omitted from the recommended command sequence.
 
 ```bash
+slcli webapp new <APP_NAME> [OPTIONS]                # Generate a hosted Angular webapp
 slcli webapp manifest init <DIRECTORY> [OPTIONS]  # Create nipkg.config.json for packaging
 slcli webapp pack [FOLDER] [--config FILE] [--output OUTPUT_FILE]  # Package a webapp into a .nipkg
 slcli webapp list [-w WORKSPACE] [--filter TEXT] [--take INT] [--format json]
