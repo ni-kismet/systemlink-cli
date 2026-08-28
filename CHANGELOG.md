@@ -2,6 +2,13 @@
 
 <!-- towncrier release notes start -->
 
+## v1.27.0 (2026-08-28)
+
+### Features
+
+- Add external example fixture provisioning and deletion, including fixture assets and richer demo metadata. (#213)
+
+
 ## v1.26.3 (2026-08-27)
 
 ### Bug Fixes
