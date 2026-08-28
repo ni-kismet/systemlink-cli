@@ -67,16 +67,30 @@ Prefer a hybrid Angular shape for this workflow: standalone root bootstrap with 
 
 Immediately after scaffold, inspect `package.json` and `angular.json` before building features. The generator or migrations may leave the workspace on the wrong Angular major or on a builder configuration that does not bundle `@ni/nimble-angular` cleanly.
 
-Treat the generated template as a parts bin, not as the application's final information architecture. Before adding real API calls or polishing the UI, define the one primary user job and aggressively prune everything that does not support it. A focused application is usually better than a showcase of every starter pattern.
+#### Establish the operator workflow before extending the template
 
-For the first pass, remove:
+Treat the generated starter screens as a parts bin, not as the application's final information architecture. Before adding API calls, new routes, or visual polish:
 
-- routes, navigation tabs, and feature folders that are outside the primary workflow
-- sample cards, metrics, tables, forms, buttons, and placeholder copy that do not support a real user decision
-- demo data, mock handlers, and state branches that the application will not use
-- component styles, assets, and package dependencies left unused after the deletion
+1. Write the primary user job in one sentence.
+2. Define the decision the user must make and the evidence needed to make it.
+3. Keep one primary workflow and one dominant results surface in the first viewport.
+4. Put filters and the primary action next to that results surface.
+5. Remove starter routes, tabs, dashboards, cards, status panels, and placeholder content that do not support the job.
+6. Keep loading, error, and empty states inside the same workflow rather than creating separate decorative panels for them.
+7. Use summary metrics only when they answer a decision the user cannot answer from the main result.
 
-Keep only the smallest coherent flow, including the states that make that flow usable: loading, empty, error, and successful completion where applicable. Do not keep a generated screen merely because it demonstrates a Nimble pattern, and do not fill every route before the primary workflow is deliberate and working. After pruning, remove the corresponding route entries, imports, and navigation items, then run the production build so dead template assumptions are caught early.
+Prefer this compact hierarchy:
+
+- context and purpose
+- filters and primary action
+- evidence
+- supporting detail
+
+Avoid repeating the product identity in both the application shell and page header. Avoid stacking multiple headings, status blocks, KPI cards, and toolbars before the user reaches the main evidence.
+
+After defining the workflow, aggressively prune the starter template. Remove routes, navigation tabs, feature folders, sample UI, demo data, mock handlers, unused state branches, styles, assets, and package dependencies that do not support the job. Keep only the smallest coherent flow and its necessary loading, empty, error, and successful-completion states. Do not keep a generated screen merely because it demonstrates a Nimble pattern, and do not fill every route before the primary workflow is deliberate and working. Remove corresponding route entries, imports, and navigation items, then run the production build so dead template assumptions are caught early.
+
+Validate the composition with populated and empty/error states at desktop and mobile widths. The design is ready when a user can identify the page's purpose, find the main control, and reach the evidence without passing through unrelated starter UI.
 
 For the currently supported path, standardize on:
 
@@ -195,6 +209,8 @@ Before you consider a SystemLink webapp slice correct, confirm all of the follow
 
 - Angular 20 workspace created in the intended starter directory.
 - Generated template was pruned to the primary user job rather than retained as a multi-route showcase.
+- Primary user job, decision evidence, dominant results surface, and compact page hierarchy are explicit.
+- Populated, empty, and error states have been checked at desktop and mobile widths.
 - Every retained route, component, dependency, asset, and style supports a real user workflow or required application state.
 - Angular and NI package versions verified after scaffold, not assumed.
 - `@ni/nimble-components`, `@ni/unit-format`, `@angular/localize`, and `@angular/build` installed when using `@ni/nimble-angular`.
