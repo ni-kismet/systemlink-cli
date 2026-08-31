@@ -105,11 +105,12 @@ def test_webapp_help_omits_legacy_init_command() -> None:
     runner = CliRunner()
 
     result = runner.invoke(cli, ["webapp", "--help"])
-    rendered_command_names = [
-        line.strip("\N{BOX DRAWINGS LIGHT VERTICAL} ").split(maxsplit=1)[0]
-        for line in result.output.splitlines()
-        if line.lstrip().startswith("\N{BOX DRAWINGS LIGHT VERTICAL} ")
-    ]
+    rendered_command_names = []
+    for line in result.output.splitlines():
+        command_line = line.strip("\N{BOX DRAWINGS LIGHT VERTICAL} ")
+        command_name = command_line.split(maxsplit=1)[0] if command_line else ""
+        if command_name in {"init", "new"}:
+            rendered_command_names.append(command_name)
 
     assert result.exit_code == 0
     assert "init" not in rendered_command_names
