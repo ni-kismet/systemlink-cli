@@ -198,7 +198,9 @@ Available `--group-by` values: `status`, `programName`, `serialNumber`,
 ## Pagination
 
 - **Table output**: Paginated interactively (default 25 rows, Y/n prompt for next page).
-- **JSON output**: Returns all results up to `--take` limit in a single array.
+- **JSON output**: Most commands return matching results up to the `--take` limit in a single array.
+- **Notebook exception**: `notebook manage list` currently queries up to 1000 notebooks for JSON output;
+  its `--take` value controls table paging but is not a JSON result cap.
 - **`--take, -t`**: Controls maximum items. Default 25 for most commands, 100 for systems.
 
 ```bash

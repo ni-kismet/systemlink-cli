@@ -40,7 +40,7 @@ Before generating code, clarify only the details that change the implementation:
 
 1. Goal: what the app should show or let the user do.
 2. Services: which SystemLink resources it must read or mutate.
-3. Starting point: new app via `slcli webapp new`, manual `slcli webapp init` starter, or existing Angular codebase.
+3. Starting point: new app via `slcli webapp new`, or an existing Angular codebase.
 4. Auth context: same-origin hosted app versus remote/dev API-key flow.
 5. Deployment target: ordinary hosted webapp only, or Plugin Manager package as well.
 
@@ -58,20 +58,39 @@ For a new SystemLink app, default to the hosted scaffold path:
 slcli webapp new <app-name>
 ```
 
-Use `slcli webapp init` only when the user explicitly wants the low-level manual bootstrap path or needs a non-standard framework setup. In that case, generate Angular in the starter directory so the SystemLink scaffolding stays at the project root:
-
-```bash
-slcli webapp init <app-dir>
-npx -y @angular/cli@20 new <app-name> --directory . --routing --style=scss --skip-git --no-standalone --defaults --force
-npm install @ni/nimble-angular @ni/nimble-components @ni/unit-format @ni/spright-angular @ni/ok-angular @ni/systemlink-clients-ts @angular/localize
-npm install --save-dev @angular/build
-```
-
-Be explicit with users: if they ask to scaffold a new hosted Angular app for SystemLink and do not ask for a manual setup, recommend `slcli webapp new` first, not `slcli webapp init`. Treat `init` as the exception path.
+Use `slcli webapp new` for new hosted Angular applications. For an existing
+Angular codebase, work in place and skip both scaffold commands. The older
+`slcli webapp init` command is a compatibility-only manual bootstrap path and
+is not a supported starting point for new skill-guided work.
 
 Prefer a hybrid Angular shape for this workflow: standalone root bootstrap with NgModule-managed feature declarations. That keeps the generated app off `@angular/platform-browser-dynamic` while still letting Nimble Angular wrappers live in a centralized `AppModule` for most feature imports.
 
 Immediately after scaffold, inspect `package.json` and `angular.json` before building features. The generator or migrations may leave the workspace on the wrong Angular major or on a builder configuration that does not bundle `@ni/nimble-angular` cleanly.
+
+#### Establish the operator workflow before extending the template
+
+Treat the generated starter screens as a parts bin, not as the application's final information architecture. Before adding API calls, new routes, or visual polish:
+
+1. Write the primary user job in one sentence.
+2. Define the decision the user must make and the evidence needed to make it.
+3. Keep one primary workflow and one dominant results surface in the first viewport.
+4. Put filters and the primary action next to that results surface.
+5. Remove starter routes, tabs, dashboards, cards, status panels, and placeholder content that do not support the job.
+6. Keep loading, error, and empty states inside the same workflow rather than creating separate decorative panels for them.
+7. Use summary metrics only when they answer a decision the user cannot answer from the main result.
+
+Prefer this compact hierarchy:
+
+- context and purpose
+- filters and primary action
+- evidence
+- supporting detail
+
+Avoid repeating the product identity in both the application shell and page header. Avoid stacking multiple headings, status blocks, KPI cards, and toolbars before the user reaches the main evidence.
+
+After defining the workflow, aggressively prune the starter template. Remove routes, navigation tabs, feature folders, sample UI, demo data, mock handlers, unused state branches, styles, assets, and package dependencies that do not support the job. Keep only the smallest coherent flow and its necessary loading, empty, error, and successful-completion states. Do not keep a generated screen merely because it demonstrates a Nimble pattern, and do not fill every route before the primary workflow is deliberate and working. Remove corresponding route entries, imports, and navigation items, then run the production build so dead template assumptions are caught early.
+
+Validate the composition with populated and empty/error states at desktop and mobile widths. The design is ready when a user can identify the page's purpose, find the main control, and reach the evidence without passing through unrelated starter UI.
 
 For the currently supported path, standardize on:
 
@@ -96,9 +115,9 @@ Also add `@angular-devkit/build-angular` back to `devDependencies` before switch
 
 This fallback is not optional when the Nimble packages fail under the application builder. Fix the builder mismatch before implementing more UI.
 
-Recommend installing `@ni/spright-angular` and `@ni/ok-angular` early when using the manual `init` path, even if the first slice only uses Nimble. That avoids dependency churn later when the UI needs chat surfaces, product-specific icons, or OK wrappers.
-
-If the user has not scaffolded anything yet and explicitly wants a SystemLink-hosted webapp, recommend `slcli webapp new` first. Only fall back to `slcli webapp init` when they ask for manual bootstrapping or need to control the Angular workspace creation themselves.
+Install `@ni/spright-angular` and `@ni/ok-angular` early when the first slice
+needs chat surfaces, product-specific icons, or OK wrappers. This avoids
+dependency churn later without requiring a legacy bootstrap path.
 
 ### 2. Lock in the non-negotiables early
 
@@ -189,6 +208,10 @@ Always verify:
 Before you consider a SystemLink webapp slice correct, confirm all of the following:
 
 - Angular 20 workspace created in the intended starter directory.
+- Generated template was pruned to the primary user job rather than retained as a multi-route showcase.
+- Primary user job, decision evidence, dominant results surface, and compact page hierarchy are explicit.
+- Populated, empty, and error states have been checked at desktop and mobile widths.
+- Every retained route, component, dependency, asset, and style supports a real user workflow or required application state.
 - Angular and NI package versions verified after scaffold, not assumed.
 - `@ni/nimble-components`, `@ni/unit-format`, `@angular/localize`, and `@angular/build` installed when using `@ni/nimble-angular`.
 - `angular.json` uses builders that are known to bundle Nimble successfully.

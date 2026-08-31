@@ -11,6 +11,7 @@ from typing import Any, Dict, List
 from unittest.mock import patch
 
 import pytest
+from click import unstyle
 from click.testing import CliRunner
 from pytest import MonkeyPatch
 
@@ -99,6 +100,32 @@ def _no_profile_workspace() -> Any:
     """Prevent profile workspace default from interfering with tests."""
     with patch("slcli.workspace_utils.get_default_workspace", return_value=None):
         yield
+
+
+def test_webapp_help_omits_legacy_init_command() -> None:
+    runner = CliRunner()
+
+    result = runner.invoke(cli, ["webapp", "--help"])
+    rendered_command_names = []
+    for line in unstyle(result.output).splitlines():
+        command_line = line.strip("\N{BOX DRAWINGS LIGHT VERTICAL} ")
+        command_name = command_line.split(maxsplit=1)[0] if command_line else ""
+        if command_name in {"init", "new"}:
+            rendered_command_names.append(command_name)
+
+    assert result.exit_code == 0
+    assert "init" not in rendered_command_names
+    assert "new" in rendered_command_names
+
+
+def test_webapp_init_help_points_to_new_command() -> None:
+    runner = CliRunner()
+
+    result = runner.invoke(cli, ["webapp", "init", "--help"])
+
+    assert result.exit_code == 0
+    assert "Compatibility-only" in result.output
+    assert "slcli webapp new" in result.output
 
 
 def test_webapp_init_creates_starter_files(tmp_path: Path, monkeypatch: MonkeyPatch) -> None:
