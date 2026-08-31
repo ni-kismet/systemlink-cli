@@ -11,6 +11,7 @@ from typing import Any, Dict, List
 from unittest.mock import patch
 
 import pytest
+from click import unstyle
 from click.testing import CliRunner
 from pytest import MonkeyPatch
 
@@ -106,7 +107,7 @@ def test_webapp_help_omits_legacy_init_command() -> None:
 
     result = runner.invoke(cli, ["webapp", "--help"])
     rendered_command_names = []
-    for line in result.output.splitlines():
+    for line in unstyle(result.output).splitlines():
         command_line = line.strip("\N{BOX DRAWINGS LIGHT VERTICAL} ")
         command_name = command_line.split(maxsplit=1)[0] if command_line else ""
         if command_name in {"init", "new"}:
