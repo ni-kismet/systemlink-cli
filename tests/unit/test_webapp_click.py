@@ -105,14 +105,25 @@ def test_webapp_help_omits_legacy_init_command() -> None:
     runner = CliRunner()
 
     result = runner.invoke(cli, ["webapp", "--help"])
-    webapp_group: Any = cli.commands["webapp"]
-    visible_commands = [
-        name for name, command in webapp_group.commands.items() if not command.hidden
+    rendered_command_names = [
+        line.strip("\N{BOX DRAWINGS LIGHT VERTICAL} ").split(maxsplit=1)[0]
+        for line in result.output.splitlines()
+        if line.lstrip().startswith("\N{BOX DRAWINGS LIGHT VERTICAL} ")
     ]
 
     assert result.exit_code == 0
-    assert "init" not in visible_commands
-    assert "new" in visible_commands
+    assert "init" not in rendered_command_names
+    assert "new" in rendered_command_names
+
+
+def test_webapp_init_help_points_to_new_command() -> None:
+    runner = CliRunner()
+
+    result = runner.invoke(cli, ["webapp", "init", "--help"])
+
+    assert result.exit_code == 0
+    assert "Compatibility-only" in result.output
+    assert "slcli webapp new" in result.output
 
 
 def test_webapp_init_creates_starter_files(tmp_path: Path, monkeypatch: MonkeyPatch) -> None:

@@ -1025,7 +1025,7 @@ def register_webapp_commands(cli: Any) -> None:
     )
     @click.option("--force", is_flag=True, help="Overwrite existing starter files")
     def init_webapp(directory: Path, force: bool) -> None:
-        """Scaffold the SystemLink Angular starter for a new webapp."""
+        """Compatibility-only bootstrap; use ``slcli webapp new`` for new apps."""
         try:
             _init_angular_template(directory, force)
         except SystemExit:
