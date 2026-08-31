@@ -2,6 +2,13 @@
 
 <!-- towncrier release notes start -->
 
+## v1.27.1 (2026-08-31)
+
+### Bug Fixes
+
+- Refresh bundled CLI guidance to match current command behavior, recommend focused webapp scaffolds, and hide the legacy webapp init command from help. (focused-webapp-skill)
+
+
 ## v1.27.0 (2026-08-28)
 
 ### Features
