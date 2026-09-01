@@ -2,6 +2,13 @@
 
 <!-- towncrier release notes start -->
 
+## v1.27.2 (2026-09-01)
+
+### Bug Fixes
+
+- Expand the bundled SystemLink skill with a focused webapp deployment workflow and add the `-f` alias to `webapp list`. (focused-webapp-skill)
+
+
 ## v1.27.1 (2026-08-31)
 
 ### Bug Fixes

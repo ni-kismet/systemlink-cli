@@ -1,1 +1,0 @@
-Expand the bundled SystemLink skill with a focused webapp deployment workflow and add the `-f` alias to `webapp list`.
