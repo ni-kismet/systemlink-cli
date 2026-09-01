@@ -132,10 +132,10 @@ def _skill_installation_status(destination_root: Path, skill_name: str) -> str:
     if not version_file.exists():
         return "unversioned"
 
-    installed_version = version_file.read_text(encoding="utf-8").strip()
     try:
+        installed_version = version_file.read_text(encoding="utf-8").strip()
         return "current" if Version(installed_version) >= Version(__version__) else "outdated"
-    except InvalidVersion:
+    except (InvalidVersion, OSError):
         return "unversioned"
 
 
@@ -299,6 +299,9 @@ def register_skill_commands(cli: Any) -> None:
             sys.exit(ExitCodes.INVALID_INPUT)
         except FileNotFoundError as exc:
             click.echo(f"✗ {exc}", err=True)
+            sys.exit(ExitCodes.GENERAL_ERROR)
+        except OSError as exc:
+            click.echo(f"✗ Unable to install skills: {exc}", err=True)
             sys.exit(ExitCodes.GENERAL_ERROR)
 
         format_success(

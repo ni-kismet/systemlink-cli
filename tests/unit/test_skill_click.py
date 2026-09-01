@@ -138,6 +138,19 @@ def test_install_custom_directory_rejects_client(runner: CliRunner, tmp_path: Pa
     assert "--directory cannot be combined" in result.output
 
 
+def test_install_reports_filesystem_error(runner: CliRunner, tmp_path: Path) -> None:
+    """Install reports filesystem failures without exposing a traceback."""
+    with patch(
+        "slcli.skill_click.install_skills_to_directory",
+        side_effect=PermissionError("read-only destination"),
+    ):
+        result = runner.invoke(make_cli(), ["skill", "install", "--directory", str(tmp_path)])
+
+    assert result.exit_code == 1
+    assert "Unable to install skills: read-only destination" in result.output
+    assert "Traceback" not in result.output
+
+
 def test_check_reports_current_custom_installation(runner: CliRunner, tmp_path: Path) -> None:
     """Check succeeds when a custom installation matches the bundled version."""
     install_skills_to_directory(tmp_path, subdir="")
@@ -237,3 +250,14 @@ def test_skill_installation_status(
             (skill_dir / ".slcli-version").write_text(installed_version, encoding="utf-8")
 
     assert _skill_installation_status(tmp_path, "slcli") == expected_status
+
+
+def test_skill_installation_status_handles_unreadable_version(tmp_path: Path) -> None:
+    """Unreadable version metadata is treated as an unversioned installation."""
+    skill_dir = tmp_path / "slcli"
+    skill_dir.mkdir()
+    version_file = skill_dir / ".slcli-version"
+    version_file.touch()
+
+    with patch.object(Path, "read_text", side_effect=PermissionError("denied")):
+        assert _skill_installation_status(tmp_path, "slcli") == "unversioned"
