@@ -48,7 +48,8 @@ Load only what the current task needs.
 ## Default approach
 
 1. Prefer long-form flags in generated commands.
-2. Use `-f json` when the result will be filtered, transformed, or piped into other tools.
+2. Use `--format json` when the result will be filtered, transformed, or piped
+  into other tools.
 3. Use `--summary --group-by` for aggregation before fetching large raw result sets.
 4. Use convenience filters first, then fall back to `--filter` with `--substitution` for complex queries.
 5. Stay scoped to the user’s requested resource or workflow.
@@ -89,3 +90,113 @@ resource. Use `source.type: dummy` for deterministic packages, `file` for a
 fixture-relative `.nipkg`, or `repository` for an explicit HTTPS package URL.
 The repository catalog can identify packages and feeds, but package bytes must
 come from a direct package URL or an existing feed download path.
+
+## Mandatory scope resolution
+
+Before the first resource query, resolve the profile and workspace separately.
+Treat a workspace supplied by the user as a workspace name, never as a profile
+name.
+
+1. Run `slcli config list --format json` and select profiles whose `workspace`
+  field matches the requested workspace. Do not infer a profile from a similar
+  name such as `demo-fred` or `fred-roaster`.
+2. Use the global `--profile NAME` override on every command. The option goes
+  before the command group, for example:
+
+  ```bash
+  slcli --profile PROFILE_NAME workspace list --format json
+  ```
+
+  This preserves the user's global active profile.
+3. If several profiles match, probe them sequentially with
+  `slcli --profile NAME info --skip-health --format json`. Continue past a
+  missing credential, unavailable endpoint, or permission error. Confirm the
+  selected candidate with one read-only workspace query before issuing the
+  actual resource query. Do not fan out the same query across candidates.
+4. Use the first authorized candidate. Ask the user only when several
+  candidates are authorized and the choice could change the answer.
+5. With the selected profile, run `workspace list --format json` and resolve
+  the requested workspace name to its UUID. Carry both the display name and
+  UUID, but use the UUID for subsequent queries when the command accepts it.
+
+When reading `slcli info --format json`, use `active_profile_name` as the
+effective profile after CLI or environment overrides. `current_profile` is the
+persisted config pointer and may differ. Use `api_url_source` to confirm where
+the effective endpoint came from; never use `current_profile` alone to decide
+which profile served a query.
+
+## Mandatory non-interactive webapp deployment protocol
+
+For every webapp creation, publish, redeploy, or update task, load
+[deployment.md](./references/webapp/deployment.md) and follow its ordered
+protocol. Do not build or upload an artifact until the deployment target has
+been resolved. The protocol is non-interactive: use JSON output and bounded
+inventory commands, and do not rely on table pagination or terminal prompts.
+
+1. Discover the installed command surface before composing commands:
+  ```bash
+  slcli config list --format json
+  slcli webapp publish -h
+  slcli webapp list -h
+  ```
+  Installed `--help` wins over this skill and its references. Confirm every
+  option on the installed CLI; `webapp publish` currently has `--id`, `--name`,
+  and `--workspace`, while `webapp list` has bounded JSON output and `-f`.
+  Prefer long options in generated commands after confirming they exist.
+2. Resolve the effective profile and target workspace separately. Probe a
+  candidate with `info --skip-health --format json`, resolve the workspace
+  display name to its UUID with `workspace list --format json`, and carry the
+  UUID into every later command. Never use a similar profile name as a
+  substitute for workspace identity.
+3. Resolve the exact webapp target before building or uploading. Use a
+  bounded, filtered, non-interactive inventory, for example:
+  ```bash
+  slcli --profile PROFILE webapp list \
+    --workspace WORKSPACE_ID --filter "Coffee Tasting" \
+    --take 10 --format json
+  ```
+  The server-side `--filter` is a substring filter, so compare returned names
+  locally. One exact name match means update that webapp with its returned ID
+  by default. Multiple exact matches are ambiguous and require a selected ID.
+  No exact match means report that a new resource would be created and obtain
+  explicit confirmation or an explicit create instruction before using
+  `--name`; never create a duplicate as an implicit fallback.
+4. Inspect the project contract before running its dev server or production
+  build. Read `package.json` and `angular.json`; do not append `--host` when
+  the package script already supplies it. Remove or correct legacy Angular
+  options such as `buildOptimizer` and `vendorChunk` when they make `ng serve`
+  reject the configuration. Run the production build, detect its actual
+  output directory, and verify the hosted routing, CSP, authentication, and
+  service/workspace contract. The Test Monitor results service prefix is
+  `/nitest/v2/query-results`, not `/nitestmonitor/v2/query-results`; do not
+  hardcode `workspace=Default` when the target workspace was resolved.
+5. Publish only after steps 1-4 pass. Pass the resolved workspace for a new
+  webapp, or the exact existing webapp ID for an update. Capture the returned
+  webapp ID, published URL, and publish timestamp in the task record.
+6. Validate at three levels: deployment metadata with `webapp get`, an
+  authenticated CLI query for the target workspace and required resources,
+  and an authenticated browser check of the hosted URL. A reachable URL is
+  not proof of an authenticated app. If the browser redirects to login or
+  returns 401, report exactly: `deployment reachable, interactive hosted
+  validation pending.`
+
+## Product lookup and overview defaults
+
+For product discovery, use this order:
+
+1. Try an exact or likely part number with `testmonitor product list
+  --part-number`.
+2. Try the name and family convenience filters.
+3. If a convenience filter returns `[]`, treat that as inconclusive. Scan the
+  resolved workspace catalog with a bounded JSON query and match name or part
+  number locally with `jq`.
+4. Fetch the selected product with `testmonitor product get <PRODUCT_ID>`.
+
+For a product overview, fetch the product record and directly linked metadata
+only. Use `--summary` for counts and statuses, and grouped summaries for
+profiles, programs, or other supported dimensions. For result data, use only
+dimensions exposed by the command, such as `status` and `programName`. Fetch
+only the latest 5 to 10 results, projecting relevant fields with `jq`. Fetch
+full result details only for a specific run or failure. Record an explicit UTC
+`as of` time and treat counts from separate live queries as separate
+observations.

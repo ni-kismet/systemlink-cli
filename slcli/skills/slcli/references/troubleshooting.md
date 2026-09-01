@@ -2,6 +2,25 @@
 
 Common issues and workarounds when using `slcli` or scripting against SystemLink APIs.
 
+## Effective profile and workspace scope
+
+Resolve the workspace and profile independently before querying resources. A
+workspace name is not a profile name. Use `slcli config list --format json` to
+find profiles mapped to the workspace, then pass the selected profile before
+each command with `slcli --profile NAME ...`.
+
+When `slcli info --format json` shows different values, use
+`active_profile_name` for the effective profile and `api_url_source` for the
+effective endpoint. `current_profile` is only the persisted config pointer and
+may be stale relative to a CLI or environment override.
+
+## Live-data snapshots
+
+Queries are live and may change between commands. Record the query time and
+avoid presenting counts from separate commands as one atomic snapshot. If
+multiple aggregations must agree exactly, fetch one bounded JSON result set and
+derive all aggregations locally.
+
 ## Workspace IDs vs names
 
 Some API endpoints (notably **file upload**) require the workspace **UUID**, not
