@@ -82,7 +82,7 @@ Load only what the current task needs.
 | `user` | User management | `list`, `get`, `create`, `update` |
 | `auth` | Authorization policies | `policy list/create`, `template list` |
 | `workspace` | Workspaces | `list`, `get` |
-| `skill` | AI skill installation | `install` |
+| `skill` | AI skill installation | `install`, `check` |
 | `example` | Demo provisioning | `list`, `install`, `delete` |
 
 Example package fixtures are declared as `package` resources after a `feed`

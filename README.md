@@ -55,36 +55,18 @@ slcli asset list --calibratable --summary
 slcli system list --state CONNECTED
 slcli spec list --product <product> --workspace all
 
+# Install bundled AI skills for this repo
+slcli skill install --client agents --scope project
+slcli skill check --client agents --scope project
+
+# Or install skills directly into a custom directory
+slcli skill install --directory ./my-agent/skills
+
 # Scaffold the recommended hosted Angular starter
 slcli webapp new my-dashboard
 
-# Low-level/manual starter path for custom framework setup
-slcli webapp init ./my-dashboard-manual
-
-# Install bundled AI skills for this repo
-slcli skill install --client agents --scope project
-
-# Create Plugin Manager packaging config
-slcli webapp manifest init ./my-dashboard \
-	--description "A dashboard for monitoring fleet health and calibration status." \
-	--section Dashboard \
-	--maintainer "Your Name <you@example.com>" \
-	--license MIT \
-	--icon-file ./icon.svg
-
-# Package the app and generate the thin submission manifest.json
-slcli webapp pack --config ./my-dashboard/nipkg.config.json
-
 # Provision a demo environment
 slcli example install demo-data-1 --workspace Training
-
-# Install an external example fixture and its sibling reference files
-slcli example install --file ./fixtures/example-resources/config.yaml \
-	--workspace nigel-test-workspace
-
-# Delete resources from the external example fixture
-slcli example delete --file ./fixtures/example-resources/config.yaml \
-	--workspace nigel-test-workspace
 ```
 
 ## Color Output
