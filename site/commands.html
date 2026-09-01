@@ -69,6 +69,7 @@
         <a href="#webapp" class="sidebar-link">webapp</a>
         <a href="#comment" class="sidebar-link">comment</a>
         <a href="#customfield" class="sidebar-link">customfield</a>
+        <a href="#skill" class="sidebar-link">skill</a>
         <a href="#example" class="sidebar-link">example</a>
       </div>
     </aside>
@@ -102,6 +103,7 @@
         <div class="cmd-group"><h3>webapp</h3><p>Static web app lifecycle</p><code>slcli webapp list</code></div>
         <div class="cmd-group"><h3>comment</h3><p>Comments on any resource</p><code>slcli comment list</code></div>
         <div class="cmd-group"><h3>customfield</h3><p>Custom field configurations</p><code>slcli customfield list</code></div>
+        <div class="cmd-group"><h3>skill</h3><p>Bundled AI skill installation and version checks</p><code>slcli skill check</code></div>
         <div class="cmd-group"><h3>example</h3><p>Demo environment provisioning</p><code>slcli example list</code></div>
       </div>
 
@@ -796,6 +798,23 @@ slcli customfield edit --id &lt;config-id&gt;
 # Initialize a new configuration template
 slcli customfield init --name "My Config" --workspace "MyWorkspace" \
   --resource-type workorder:workorder</code></pre>
+
+  <!-- ─── SKILL ─── -->
+  <h2 id="skill">skill</h2>
+  <p>Install bundled AI assistant skills and check whether existing installations match the current slcli release.</p>
+  <pre><code># Install into the current project's standard agent directory
+slcli skill install --client agents --scope project
+
+# Check installed versions and return nonzero when an update is needed
+slcli skill check --client agents --scope project
+
+# Install or check a directory that directly contains skill folders
+slcli skill install --directory ./my-agent/skills
+slcli skill check --directory ./my-agent/skills
+
+# Replace an outdated or unversioned installation
+slcli skill install --directory ./my-agent/skills --force</code></pre>
+  <p><code>--directory</code> cannot be combined with <code>--client</code> or <code>--scope</code>.</p>
 
       <!-- ─── EXAMPLE ─── -->
       <h2 id="example">example</h2>

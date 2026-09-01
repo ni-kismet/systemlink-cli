@@ -948,10 +948,13 @@ generated `.nipkg`, and emits a thin `manifest.json` with `schemaVersion`, `nipk
 
 ## skill — AI skill installation
 
-Install bundled skills for supported AI clients.
+Install bundled skills for supported AI clients, or directly into a custom skills directory.
 
 ```bash
 slcli skill install --skill [slcli|all] --client [agents|claude|all] --scope [personal|project|both]
+slcli skill install --skill [slcli|all] --directory PATH
+slcli skill check --skill [slcli|all] --client [agents|claude|all] --scope [personal|project|both]
+slcli skill check --skill [slcli|all] --directory PATH
 ```
 
 Client paths:
@@ -963,6 +966,11 @@ Client paths:
 Notes:
 
 - `agents` is the default client in interactive mode.
+- `--directory` is the directory that directly contains skill folders and cannot be combined
+  with `--client` or `--scope`.
+- Installed skills carry the `slcli` release version. `skill check` exits nonzero if a skill is
+  missing, predates the bundled version, or was installed before version metadata was added.
+- Use `skill install --force` to update an existing installation.
 - The bundled `slcli` skill now covers the previous standalone workflow skills.
 
 ## example — Built-in example resource provisioning

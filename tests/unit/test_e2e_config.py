@@ -1,7 +1,8 @@
 """Tests for E2E configuration loading behavior."""
 
 import importlib
-from typing import Any, Dict
+import subprocess
+from typing import Any, Dict, List
 
 e2e_conftest: Any = importlib.import_module("tests.e2e.conftest")
 
@@ -26,3 +27,20 @@ def test_e2e_config_env_overrides_multi_platform_values(monkeypatch: Any) -> Non
 
     assert config["timeout"] == 120
     assert config["cleanup"] is False
+
+
+def test_cli_runner_retries_rate_limited_command(monkeypatch: Any) -> None:
+    """The E2E runner retries transient HTTP 429 responses."""
+    rate_limited = subprocess.CompletedProcess(
+        args=[], returncode=1, stdout="", stderr="429 Client Error: Too Many Requests"
+    )
+    success = subprocess.CompletedProcess(args=[], returncode=0, stdout="[]", stderr="")
+    run_results = iter([rate_limited, success])
+    sleeps: List[int] = []
+    monkeypatch.setattr(e2e_conftest.subprocess, "run", lambda *args, **kwargs: next(run_results))
+    monkeypatch.setattr(e2e_conftest.time, "sleep", sleeps.append)
+
+    result = e2e_conftest._make_cli_runner({})(["user", "list"])
+
+    assert result is success
+    assert sleeps == [1]

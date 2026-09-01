@@ -7,12 +7,14 @@ import click
 import pytest
 from click.testing import CliRunner
 
+from slcli._version import __version__
 from slcli.skill_click import (
     CLIENT_CHOICES,
     SKILL_CHOICES,
     _find_bundled_skills_dir,
     _find_repo_root,
     _resolve_destinations,
+    _skill_installation_status,
     install_skills_to_directory,
     register_skill_commands,
 )
@@ -116,6 +118,62 @@ def test_install_with_options_installs_selected_personal_skill_dependency(
     assert (tmp_path / "claude-home" / "slcli" / "SKILL.md").exists()
 
 
+def test_install_to_custom_directory(runner: CliRunner, tmp_path: Path) -> None:
+    """A custom directory is used directly as the skills root."""
+    target = tmp_path / "custom-skills"
+    result = runner.invoke(make_cli(), ["skill", "install", "--directory", str(target)])
+
+    assert result.exit_code == 0
+    assert (target / "slcli" / "SKILL.md").exists()
+
+
+def test_install_custom_directory_rejects_client(runner: CliRunner, tmp_path: Path) -> None:
+    """Custom and client-specific destination options cannot be mixed."""
+    result = runner.invoke(
+        make_cli(),
+        ["skill", "install", "--directory", str(tmp_path), "--client", "claude"],
+    )
+
+    assert result.exit_code == 2
+    assert "--directory cannot be combined" in result.output
+
+
+def test_install_reports_filesystem_error(runner: CliRunner, tmp_path: Path) -> None:
+    """Install reports filesystem failures without exposing a traceback."""
+    with patch(
+        "slcli.skill_click.install_skills_to_directory",
+        side_effect=PermissionError("read-only destination"),
+    ):
+        result = runner.invoke(make_cli(), ["skill", "install", "--directory", str(tmp_path)])
+
+    assert result.exit_code == 1
+    assert "Unable to install skills: read-only destination" in result.output
+    assert "Traceback" not in result.output
+
+
+def test_check_reports_current_custom_installation(runner: CliRunner, tmp_path: Path) -> None:
+    """Check succeeds when a custom installation matches the bundled version."""
+    install_skills_to_directory(tmp_path, subdir="")
+
+    result = runner.invoke(make_cli(), ["skill", "check", "--directory", str(tmp_path)])
+
+    assert result.exit_code == 0
+    assert f"Bundled skill version: {__version__}" in result.output
+    assert f"{tmp_path / 'slcli'}: current" in result.output
+
+
+def test_check_reports_outdated_custom_installation(runner: CliRunner, tmp_path: Path) -> None:
+    """Check fails when an installed skill predates the bundled version."""
+    skill_dir = tmp_path / "slcli"
+    skill_dir.mkdir()
+    (skill_dir / ".slcli-version").write_text("0.1.0\n", encoding="utf-8")
+
+    result = runner.invoke(make_cli(), ["skill", "check", "--directory", str(tmp_path)])
+
+    assert result.exit_code == 1
+    assert f"{skill_dir}: outdated" in result.output
+
+
 # ── helper functions ─────────────────────────────────────────────────────────
 
 
@@ -160,6 +218,8 @@ def test_install_skills_to_directory(tmp_path: Path) -> None:
     count = install_skills_to_directory(tmp_path)
     assert count == len(SKILL_CHOICES)
     assert (tmp_path / ".agents" / "skills" / "slcli" / "SKILL.md").exists()
+    version_file = tmp_path / ".agents" / "skills" / "slcli" / ".slcli-version"
+    assert version_file.read_text(encoding="utf-8").strip() == __version__
 
 
 def test_install_skills_to_directory_specific_skill(tmp_path: Path) -> None:
@@ -167,3 +227,37 @@ def test_install_skills_to_directory_specific_skill(tmp_path: Path) -> None:
     count = install_skills_to_directory(tmp_path, skill_names=["slcli"])
     assert count == 1
     assert (tmp_path / ".agents" / "skills" / "slcli" / "SKILL.md").exists()
+
+
+@pytest.mark.parametrize(
+    ("installed_version", "expected_status"),
+    [
+        (None, "missing"),
+        ("", "unversioned"),
+        ("0.1.0", "outdated"),
+        (__version__, "current"),
+        ("999.0.0", "current"),
+    ],
+)
+def test_skill_installation_status(
+    tmp_path: Path, installed_version: str | None, expected_status: str
+) -> None:
+    """Skill status compares installed metadata with the bundled release version."""
+    skill_dir = tmp_path / "slcli"
+    if installed_version is not None:
+        skill_dir.mkdir()
+        if installed_version:
+            (skill_dir / ".slcli-version").write_text(installed_version, encoding="utf-8")
+
+    assert _skill_installation_status(tmp_path, "slcli") == expected_status
+
+
+def test_skill_installation_status_handles_unreadable_version(tmp_path: Path) -> None:
+    """Unreadable version metadata is treated as an unversioned installation."""
+    skill_dir = tmp_path / "slcli"
+    skill_dir.mkdir()
+    version_file = skill_dir / ".slcli-version"
+    version_file.touch()
+
+    with patch.object(Path, "read_text", side_effect=PermissionError("denied")):
+        assert _skill_installation_status(tmp_path, "slcli") == "unversioned"

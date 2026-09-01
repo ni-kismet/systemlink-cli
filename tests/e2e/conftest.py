@@ -4,11 +4,14 @@ import json
 import os
 import subprocess
 import tempfile
+import time
 import uuid
 from pathlib import Path
 from typing import Any, Dict, Generator, List, Optional
 
 import pytest
+
+_RATE_LIMIT_RETRIES = 3
 
 
 def _get_requested_platform(pytest_config: Optional[Any] = None) -> str:
@@ -249,15 +252,20 @@ def _make_cli_runner(config: Dict[str, Any], timeout: int = 60) -> Any:
         env["PYTHONIOENCODING"] = "utf-8"
         env["SLCLI_NON_INTERACTIVE"] = "true"
 
-        result = subprocess.run(
-            cmd,
-            input=input_data,
-            text=True,
-            encoding="utf-8",
-            capture_output=True,
-            timeout=timeout,
-            env=env,
-        )
+        for attempt in range(_RATE_LIMIT_RETRIES + 1):
+            result = subprocess.run(
+                cmd,
+                input=input_data,
+                text=True,
+                encoding="utf-8",
+                capture_output=True,
+                timeout=timeout,
+                env=env,
+            )
+            if "429 Client Error: Too Many Requests" not in result.stderr:
+                break
+            if attempt < _RATE_LIMIT_RETRIES:
+                time.sleep(2**attempt)
 
         if check and result.returncode != 0:
             pytest.fail(
