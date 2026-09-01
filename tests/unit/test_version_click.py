@@ -8,6 +8,7 @@ from typing import Any
 import pytest
 import requests
 from click.testing import CliRunner
+from packaging.version import InvalidVersion
 
 from slcli.main import cli
 from slcli.version_click import (
@@ -43,6 +44,17 @@ def test_fetch_latest_version(monkeypatch: Any) -> None:
     )
 
     assert fetch_latest_version() == "1.30.0"
+
+
+def test_fetch_latest_version_rejects_invalid_remote_version(monkeypatch: Any) -> None:
+    """Malformed PyPI versions are reported as invalid remote responses."""
+    monkeypatch.setattr(
+        "slcli.version_click.requests.get",
+        lambda url, timeout: MockResponse({"info": {"version": "not-a-version"}}),
+    )
+
+    with pytest.raises(ValueError, match="PyPI returned an invalid version"):
+        fetch_latest_version()
 
 
 @pytest.mark.parametrize(
@@ -183,7 +195,7 @@ def test_version_check_json_and_fail_if_outdated(monkeypatch: Any) -> None:
     )
     runner = CliRunner()
 
-    result = runner.invoke(cli, ["version", "check", "--format", "json", "--fail-if-outdated"])
+    result = runner.invoke(cli, ["version", "check", "-f", "json", "--fail-if-outdated"])
 
     assert result.exit_code == 1
     assert json.loads(result.output)["status"] == "outdated"
@@ -201,6 +213,34 @@ def test_version_check_network_failure(monkeypatch: Any) -> None:
 
     assert result.exit_code == 5
     assert "Unable to retrieve" in result.output
+
+
+def test_version_check_invalid_remote_version(monkeypatch: Any) -> None:
+    """A malformed remote version uses the network error exit code."""
+    monkeypatch.setattr(
+        "slcli.version_click.check_version",
+        lambda: (_ for _ in ()).throw(ValueError("invalid remote version")),
+    )
+    runner = CliRunner()
+
+    result = runner.invoke(cli, ["version", "check"])
+
+    assert result.exit_code == 5
+    assert "Unable to retrieve" in result.output
+
+
+def test_version_check_invalid_installed_version(monkeypatch: Any) -> None:
+    """A malformed installed version uses the invalid-input exit code."""
+    monkeypatch.setattr(
+        "slcli.version_click.check_version",
+        lambda: (_ for _ in ()).throw(InvalidVersion("invalid installed version")),
+    )
+    runner = CliRunner()
+
+    result = runner.invoke(cli, ["version", "check"])
+
+    assert result.exit_code == 2
+    assert "Invalid version" in result.output
 
 
 def test_version_command_skips_credential_migration(monkeypatch: Any) -> None:

@@ -36,7 +36,15 @@ class InstallMethod(str, Enum):
 
 @dataclass(frozen=True)
 class VersionCheckResult:
-    """Result returned by a version check."""
+    """Result returned by a version check.
+
+    Attributes:
+        current_version: Installed slcli version.
+        latest_version: Latest version published to PyPI.
+        status: One of ``outdated``, ``current``, or ``ahead``.
+        install_method: Detected installation method.
+        update_command: Suggested update command, when available.
+    """
 
     current_version: str
     latest_version: str
@@ -56,6 +64,10 @@ def fetch_latest_version() -> str:
         raise ValueError("PyPI returned an unexpected response") from exc
     if not isinstance(version, str) or not version:
         raise ValueError("PyPI returned an invalid version")
+    try:
+        Version(version)
+    except InvalidVersion as exc:
+        raise ValueError(f"PyPI returned an invalid version: {version}") from exc
     return version
 
 
@@ -155,6 +167,7 @@ def register_version_commands(cli: Any) -> None:
     @version.command(name="check")
     @click.option(
         "--format",
+        "-f",
         "format_output",
         type=click.Choice(["text", "json"]),
         default="text",
@@ -172,10 +185,10 @@ def register_version_commands(cli: Any) -> None:
             result = check_version()
         except InvalidVersion as exc:
             click.echo(f"✗ Invalid version: {exc}", err=True)
-            raise click.exceptions.Exit(ExitCodes.INVALID_INPUT) from exc
+            sys.exit(ExitCodes.INVALID_INPUT)
         except (requests.RequestException, ValueError) as exc:
             click.echo(f"✗ Unable to retrieve the latest slcli version: {exc}", err=True)
-            raise click.exceptions.Exit(ExitCodes.NETWORK_ERROR) from exc
+            sys.exit(ExitCodes.NETWORK_ERROR)
 
         if format_output == "json":
             print_json(asdict(result))
@@ -183,4 +196,4 @@ def register_version_commands(cli: Any) -> None:
             _render_version_check(result)
 
         if fail_if_outdated and result.status == "outdated":
-            raise click.exceptions.Exit(ExitCodes.GENERAL_ERROR)
+            sys.exit(ExitCodes.GENERAL_ERROR)
