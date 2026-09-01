@@ -47,17 +47,33 @@ Load only what the current task needs.
 
 ## Default approach
 
-1. Prefer long-form flags in generated commands.
-2. Use `--format json` when the result will be filtered, transformed, or piped
+1. At the start of troubleshooting or a substantial `slcli` workflow, run the
+  update preflight once per session:
+
+  ```bash
+  slcli version check
+  slcli skill check --client CLIENT --scope SCOPE
+  ```
+
+  Set `CLIENT` and `SCOPE` to the active skill installation, or use
+  `--directory PATH` for a custom skills directory. If the CLI is outdated,
+  recommend the update command printed by `version check`. If the skill is
+  missing, unversioned, or outdated, recommend `slcli skill install` with the
+  same target and `--force`. Ask before running either update because they
+  modify the user's environment. A failed or unavailable check is advisory:
+  report it briefly and continue the requested workflow unless version skew
+  is the likely cause.
+2. Prefer long-form flags in generated commands.
+3. Use `--format json` when the result will be filtered, transformed, or piped
    into other tools.
-3. Use `--summary --group-by` for aggregation before fetching large raw result sets.
-4. Use convenience filters first, then fall back to `--filter` with `--substitution` for complex queries.
-5. Stay scoped to the user’s requested resource or workflow.
-6. Load deeper references only when the command surface alone is not enough.
-7. For example authoring or review, load `example-authoring.md` before proposing YAML.
-8. Prefer workspace IDs over names in scripted workflows when an endpoint is strict about identity.
-9. Use `make_api_request` from `slcli.utils` for helper scripts so auth, SSL, and error handling stay consistent.
-10. For datasheet imports, default to autonomy when the product or workspace can be resolved unambiguously.
+4. Use `--summary --group-by` for aggregation before fetching large raw result sets.
+5. Use convenience filters first, then fall back to `--filter` with `--substitution` for complex queries.
+6. Stay scoped to the user’s requested resource or workflow.
+7. Load deeper references only when the command surface alone is not enough.
+8. For example authoring or review, load `example-authoring.md` before proposing YAML.
+9. Prefer workspace IDs over names in scripted workflows when an endpoint is strict about identity.
+10. Use `make_api_request` from `slcli.utils` for helper scripts so auth, SSL, and error handling stay consistent.
+11. For datasheet imports, default to autonomy when the product or workspace can be resolved unambiguously.
 
 ## Common command groups
 
@@ -82,6 +98,7 @@ Load only what the current task needs.
 | `user` | User management | `list`, `get`, `create`, `update` |
 | `auth` | Authorization policies | `policy list/create`, `template list` |
 | `workspace` | Workspaces | `list`, `get` |
+| `version` | CLI update hygiene | `check` |
 | `skill` | AI skill installation | `install`, `check` |
 | `example` | Demo provisioning | `list`, `install`, `delete` |
 

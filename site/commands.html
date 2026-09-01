@@ -69,6 +69,7 @@
         <a href="#webapp" class="sidebar-link">webapp</a>
         <a href="#comment" class="sidebar-link">comment</a>
         <a href="#customfield" class="sidebar-link">customfield</a>
+        <a href="#version" class="sidebar-link">version</a>
         <a href="#skill" class="sidebar-link">skill</a>
         <a href="#example" class="sidebar-link">example</a>
       </div>
@@ -103,6 +104,7 @@
         <div class="cmd-group"><h3>webapp</h3><p>Static web app lifecycle</p><code>slcli webapp list</code></div>
         <div class="cmd-group"><h3>comment</h3><p>Comments on any resource</p><code>slcli comment list</code></div>
         <div class="cmd-group"><h3>customfield</h3><p>Custom field configurations</p><code>slcli customfield list</code></div>
+        <div class="cmd-group"><h3>version</h3><p>CLI version and update guidance</p><code>slcli version check</code></div>
         <div class="cmd-group"><h3>skill</h3><p>Bundled AI skill installation and version checks</p><code>slcli skill check</code></div>
         <div class="cmd-group"><h3>example</h3><p>Demo environment provisioning</p><code>slcli example list</code></div>
       </div>
@@ -798,6 +800,22 @@ slcli customfield edit --id &lt;config-id&gt;
 # Initialize a new configuration template
 slcli customfield init --name "My Config" --workspace "MyWorkspace" \
   --resource-type workorder:workorder</code></pre>
+
+  <!-- ─── VERSION ─── -->
+  <h2 id="version">version</h2>
+  <p>Show the installed slcli version or check PyPI for a newer release and display the update command for the detected installation method.</p>
+  <pre><code># Show the installed version without a network request
+slcli version
+
+# Check for a newer release and show update guidance
+slcli version check
+
+# Emit structured output for automation
+slcli version check --format json
+
+# Return exit code 1 when an update is available
+slcli version check --fail-if-outdated</code></pre>
+  <p>The check recognizes Homebrew, Scoop, pipx, uv, pip, standalone binaries, and development checkouts. Network lookup failures return exit code <code>5</code>.</p>
 
   <!-- ─── SKILL ─── -->
   <h2 id="skill">skill</h2>

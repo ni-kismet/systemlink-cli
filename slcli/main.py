@@ -43,6 +43,7 @@ from .templates_click import register_templates_commands
 from .testmonitor_click import register_testmonitor_commands
 from .user_click import register_user_commands
 from .utils import describe_config_source
+from .version_click import register_version_commands
 from .webapp_click import register_webapp_commands
 from .workitem_click import register_workitem_commands
 from .workspace_click import register_workspace_commands
@@ -71,7 +72,15 @@ def _configure_rich_click_command_groups() -> None:
         "slcli": [
             {
                 "name": "Configure",
-                "commands": ["config", "login", "logout", "info", "completion", "example"],
+                "commands": [
+                    "config",
+                    "login",
+                    "logout",
+                    "info",
+                    "version",
+                    "completion",
+                    "example",
+                ],
             },
             {
                 "name": "Administer",
@@ -363,7 +372,7 @@ def cli(ctx: base_click.Context, version: bool, profile: Optional[str]) -> None:
 
     # Check for mandatory migration BEFORE any command runs
     # Skip migration check only for version flag and config migrate command
-    if ctx.invoked_subcommand not in (None, "config"):
+    if ctx.invoked_subcommand not in (None, "config", "version"):
         from .profiles import ProfileConfig, has_keyring_credentials, migrate_from_keyring
 
         config_path = ProfileConfig.get_config_path()
@@ -769,5 +778,6 @@ register_testmonitor_commands(cli)
 register_webapp_commands(cli)
 register_skill_commands(cli)
 register_user_commands(cli)
+register_version_commands(cli)
 register_workitem_commands(cli)
 register_workspace_commands(cli)

@@ -52,7 +52,8 @@ You are a professional code reviewer for the SystemLink CLI project. Your role i
 - ✅ Type checking passes: `poetry run mypy slcli tests`
 - ✅ Formatting clean: `poetry run black .` (100 char limit)
 - ✅ Towncrier requirements met: relevant PRs include committed fragment files in `newsfragments/` and `poetry run towncrier check --compare-with origin/${{ github.base_ref }}` passes
-- ✅ Documentation updated (README, docstrings, help text, and command docs such as `site/commands.html` when CLI changes require it)
+- ✅ Documentation updated at the right layer (docstrings, help text, and docs-site command pages;
+  README only when its succinct high-level content is affected)
 - ✅ CLI standards met (--format/-f, --help, proper exit codes)
 - ✅ Skill installation and related documentation reflect the current bundled-skills state
 
@@ -92,8 +93,10 @@ Please review the PR systematically:
 **4. Repository Standards**
 - [ ] CLI standards met (--format, --help, exit codes)
 - [ ] Required Towncrier fragment(s) exist in `newsfragments/` with the correct type (`major`, `minor`, `patch`, `doc`, `misc`) and match the user-visible scope of the PR
-- [ ] Command docs reviewed for needed updates (`README.md`, `site/commands.html`, `site/getting-started.html`, and other user-facing command docs as applicable)
-- [ ] README updated if needed
+- [ ] Detailed command docs reviewed for needed updates (`site/commands.html`,
+  `site/getting-started.html`, and other docs-site pages as applicable)
+- [ ] README remains succinct; it changes only when installation, positioning, quick-start
+  workflows, or documentation navigation changed
 - [ ] **`site/commands.html` updated** — add new CLI commands or changed command examples to the website command reference
 - [ ] **`slcli/skill_click.py` updated** — skill installation behavior and messaging match the current bundled skills set
 - [ ] Configuration properly managed
@@ -136,7 +139,7 @@ poetry run pytest tests/e2e/ -n auto --timeout=300
 ```
 
 ### References
-- Primary guide: `.github/AGENTS.md`
+- Primary guide: `AGENTS.md`
 
 ---
 
@@ -172,8 +175,10 @@ You are reviewing changes to CLI commands in the SystemLink CLI project. Focus o
 
 **Documentation:**
 - [ ] Required Towncrier fragment(s) exist and match the CLI/documentation impact of the PR
-- [ ] Command docs reviewed for needed updates (`README.md`, `site/commands.html`, `site/getting-started.html`, and other user-facing command docs as applicable)
-- [ ] README updated with usage examples
+- [ ] Detailed command docs reviewed for needed updates (`site/commands.html`,
+  `site/getting-started.html`, and other docs-site pages as applicable)
+- [ ] README is not used as the exhaustive command reference; update it only when its high-level
+  purpose is affected
 - [ ] `site/commands.html` updated when CLI commands or examples change
 - [ ] If bundled skills are added or updated, `slcli skill install` is updated and covered by unit tests
 - [ ] Help text complete and accurate
@@ -232,7 +237,7 @@ You are reviewing API integration changes in the SystemLink CLI project. Focus o
 - [ ] Audit logging for critical operations
 - [ ] Resource tagging for cleanup/filtering
 - [ ] Confirmation required for destructive operations
-- [ ] API changes documented in README
+- [ ] User-facing API behavior documented in the relevant docs-site page
 
 ### Key Commands
 
@@ -373,7 +378,7 @@ poetry run pytest tests/e2e/ -n auto --timeout=300
 
 ### Review Files
 
-- **Primary Guide:** `.github/AGENTS.md`
+- **Primary Guide:** `AGENTS.md`
 - **Slash Command Prompt:** `.github/prompts/pr-review.prompt.md`
 
 ### Exit Codes
