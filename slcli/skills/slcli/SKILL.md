@@ -94,12 +94,13 @@ come from a direct package URL or an existing feed download path.
 ## Mandatory scope resolution
 
 Before the first resource query, resolve the profile and workspace separately.
-Treat a workspace supplied by the user as a workspace name, never as a profile
-name.
+Treat a workspace supplied by the user as a workspace identifier, never as a
+profile name. Match it exactly against either the workspace name or UUID.
 
 1. Run `slcli config list --format json` and select profiles whose `workspace`
-  field matches the requested workspace. Do not infer a profile from a similar
-  name such as `demo-fred` or `fred-roaster`.
+  field matches the requested workspace name. If the user supplied a UUID,
+  probe configured profiles sequentially instead. Do not infer a profile from
+  a similar name such as `demo-fred` or `fred-roaster`.
 2. Use the global `--profile NAME` override on every command. The option goes
   before the command group, for example:
 
@@ -116,8 +117,9 @@ name.
 4. Use the first authorized candidate. Ask the user only when several
   candidates are authorized and the choice could change the answer.
 5. With the selected profile, run `workspace list --format json` and resolve
-  the requested workspace name to its UUID. Carry both the display name and
-  UUID, but use the UUID for subsequent queries when the command accepts it.
+  the requested workspace by exact name or UUID. Carry both the display name
+  and UUID, but use the UUID for subsequent queries when the command accepts
+  it.
 
 When reading `slcli info --format json`, use `active_profile_name` as the
 effective profile after CLI or environment overrides. `current_profile` is the

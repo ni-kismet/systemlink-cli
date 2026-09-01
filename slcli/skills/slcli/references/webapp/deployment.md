@@ -24,7 +24,7 @@ confirming them with help.
 ## 2. Resolve profile and workspace
 
 Resolve profile identity and workspace identity independently. A workspace
-display name is not a profile name, and a similar profile name is not evidence
+name or UUID is not a profile name, and a similar profile name is not evidence
 that it serves the requested workspace.
 
 ```bash
@@ -37,7 +37,8 @@ slcli --profile <PROFILE> workspace list --format json
 ```
 
 Use `active_profile_name` from `info` as the effective profile and resolve the
-requested workspace to its UUID from the workspace response. Record both:
+requested workspace by exact name or UUID from the workspace response. Record
+both:
 
 ```text
 PROFILE=<effective profile name>
