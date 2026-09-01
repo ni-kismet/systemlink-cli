@@ -26,6 +26,7 @@ Complete option reference for all `slcli` command groups.
 - [workitem — Work item, template, and workflow management](#workitem--work-item-template-and-workflow-management)
 - [workflow — Workflow management](#workflow--workflow-management)
 - [webapp — Web application management](#webapp--web-application-management)
+- [version — CLI update check](#version--cli-update-check)
 - [skill — AI skill installation](#skill--ai-skill-installation)
 - [example — Built-in example resource provisioning](#example--built-in-example-resource-provisioning)
 - [Scope and capability discovery](#scope-and-capability-discovery)
@@ -946,6 +947,23 @@ metadata, carries the icon into the package, writes the matching control-file fi
 generated `.nipkg`, and emits a thin `manifest.json` with `schemaVersion`, `nipkgFile`,
 `sha256`, and any configured provenance fields.
 
+## version — CLI update check
+
+Compare the installed CLI with the latest PyPI release and identify the update command for
+its installation method.
+
+```bash
+slcli version                         # Show the installed version without a network request
+slcli version check                   # Check PyPI and show update guidance
+slcli version check --format json     # Structured output for automation
+slcli version check --fail-if-outdated
+```
+
+`version check` detects Homebrew, Scoop, pipx, uv, pip, standalone binaries, and development
+checkouts. By default, finding an update still exits successfully; use `--fail-if-outdated`
+when an outdated installation should fail automation. A lookup failure exits with the network
+error code and must not be interpreted as confirmation that the CLI is current.
+
 ## skill — AI skill installation
 
 Install bundled skills for supported AI clients, or directly into a custom skills directory.
@@ -971,6 +989,17 @@ Notes:
 - Installed skills carry the `slcli` release version. `skill check` exits nonzero if a skill is
   missing, predates the bundled version, or was installed before version metadata was added.
 - Use `skill install --force` to update an existing installation.
+- For hygiene checks, specify the client and scope that contain the active skill, then use the
+  same target to update it:
+
+  ```bash
+  slcli skill check --client agents --scope project
+  slcli skill install --client agents --scope project --force
+  ```
+
+  Substitute `claude`, `personal`, or `--directory PATH` when that is where the active skill is
+  installed. Checking the wrong target can report a current skill as missing.
+
 - The bundled `slcli` skill now covers the previous standalone workflow skills.
 
 ## example — Built-in example resource provisioning

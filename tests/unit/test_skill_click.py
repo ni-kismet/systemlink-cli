@@ -229,6 +229,15 @@ def test_install_skills_to_directory_specific_skill(tmp_path: Path) -> None:
     assert (tmp_path / ".agents" / "skills" / "slcli" / "SKILL.md").exists()
 
 
+def test_bundled_skill_includes_update_preflight() -> None:
+    """Bundled guidance checks both the CLI and installed skill versions."""
+    skill_text = (_find_bundled_skills_dir() / "slcli" / "SKILL.md").read_text(encoding="utf-8")
+
+    assert "slcli version check" in skill_text
+    assert "slcli skill check" in skill_text
+    assert "slcli skill install" in skill_text
+
+
 @pytest.mark.parametrize(
     ("installed_version", "expected_status"),
     [

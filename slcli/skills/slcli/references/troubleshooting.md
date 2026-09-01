@@ -2,6 +2,28 @@
 
 Common issues and workarounds when using `slcli` or scripting against SystemLink APIs.
 
+## Update preflight
+
+Before deeper troubleshooting, check the CLI and the active installed skill once per session:
+
+```bash
+slcli version check
+slcli skill check --client <CLIENT> --scope <SCOPE>
+```
+
+Use `--directory <PATH>` instead of `--client` and `--scope` for a custom skill location. If
+the CLI is outdated, recommend the manager-specific command printed by `version check`. If the
+skill check reports `missing`, `unversioned`, or `outdated`, recommend updating the same target:
+
+```bash
+slcli skill install --client <CLIENT> --scope <SCOPE> --force
+```
+
+Obtain the user's approval before running an update. If either check fails because the command
+is unavailable or the network cannot be reached, note that version status is unknown and
+continue troubleshooting. Give version skew more weight when the failure involves unknown
+commands, changed options, output shape, packaging, or skill instructions.
+
 ## Effective profile and workspace scope
 
 Resolve the workspace and profile independently before querying resources. A
