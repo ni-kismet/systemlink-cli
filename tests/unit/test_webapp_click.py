@@ -128,6 +128,34 @@ def test_webapp_init_help_points_to_new_command() -> None:
     assert "slcli webapp new" in result.output
 
 
+def test_webapp_list_accepts_short_format_alias(monkeypatch: MonkeyPatch) -> None:
+    runner = CliRunner()
+    monkeypatch.setattr(
+        "slcli.webapp_click._query_webapps_http",
+        lambda *_args, **_kwargs: [
+            {
+                "id": "webapp-1",
+                "name": "Dashboard",
+                "workspace": "workspace-1",
+                "type": "WebVI",
+            }
+        ],
+    )
+    monkeypatch.setattr("slcli.webapp_click.get_workspace_map", lambda: {})
+
+    result = runner.invoke(cli, ["webapp", "list", "-f", "json"])
+
+    assert result.exit_code == 0
+    assert loads(result.output) == [
+        {
+            "id": "webapp-1",
+            "name": "Dashboard",
+            "workspace": "workspace-1",
+            "type": "WebVI",
+        }
+    ]
+
+
 def test_webapp_init_creates_starter_files(tmp_path: Path, monkeypatch: MonkeyPatch) -> None:
     runner = CliRunner()
     patch_keyring(monkeypatch)

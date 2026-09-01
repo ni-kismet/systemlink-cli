@@ -17,7 +17,91 @@ Each recipe maps to a real-world scenario and shows the exact commands needed.
 - [Recipe 9: Product family workload distribution](#recipe-9-product-family-workload-distribution)
 - [Recipe 10: Environmental condition failure patterns](#recipe-10-environmental-condition-failure-patterns)
 - [Recipe 11: Create and schedule a work item on a specific fixture/slot and system](#recipe-11-create-and-schedule-a-work-item-on-a-specific-fixtureslot-and-system)
+- [Product discovery and overview](#product-discovery-and-overview)
 - [General tips](#general-tips)
+
+---
+
+## Product discovery and overview
+
+**Question:** Tell me about a product in a specific workspace without
+producing an oversized, inconsistent report.
+
+**Prerequisite:** Complete the mandatory profile and workspace resolution in
+the main `slcli` skill. Set `PROFILE` to the selected profile and
+`WORKSPACE_ID` to the resolved workspace UUID. Capture the observation time
+before querying live data:
+
+```bash
+PROFILE="<PROFILE_NAME>"
+WORKSPACE_ID="<WORKSPACE_UUID>"
+AS_OF="$(date -u +"%Y-%m-%dT%H:%M:%SZ")"
+printf 'As of %s\n' "$AS_OF"
+```
+
+**Lookup order:**
+
+```bash
+# 1. Exact or likely part number
+slcli --profile "$PROFILE" testmonitor product list \
+  --workspace "$WORKSPACE_ID" --part-number "<PART_NUMBER>" \
+  --format json --take 25
+
+# 2. Name or family convenience filters, when the part-number lookup is empty
+slcli --profile "$PROFILE" testmonitor product list \
+  --workspace "$WORKSPACE_ID" --name "<PRODUCT_NAME>" \
+  --format json --take 25
+slcli --profile "$PROFILE" testmonitor product list \
+  --workspace "$WORKSPACE_ID" --family "<FAMILY>" \
+  --format json --take 25
+
+# 3. Bounded workspace catalog fallback when convenience filters are empty
+slcli --profile "$PROFILE" testmonitor product list \
+  --workspace "$WORKSPACE_ID" --format json --take 100 |
+  jq --arg name "<PRODUCT_NAME>" --arg part "<PART_NUMBER>" '
+    [ .[] | select(
+        (($name != "") and ((.name // "" | ascii_downcase) | contains($name | ascii_downcase)))
+        or (($part != "") and ((.partNumber // "" | ascii_downcase) | contains($part | ascii_downcase)))
+      ) | {id, name, partNumber, family, workspace} ]'
+```
+
+An empty result from a name or family filter does not prove that the product is
+absent. Increase the bounded catalog limit only deliberately, and project the
+candidate fields in `jq` before displaying them. Fetch the selected record only
+after identifying its ID:
+
+```bash
+slcli --profile "$PROFILE" testmonitor product get <PRODUCT_ID> --format json
+```
+
+**Overview budget:**
+
+```bash
+# Directly linked metadata, only when relevant to the question
+slcli --profile "$PROFILE" spec list --product <PRODUCT_ID> --format json
+
+# Compact counts and status breakdown
+slcli --profile "$PROFILE" testmonitor result list \
+  --part-number "<PART_NUMBER>" --summary --group-by status \
+  --format json
+
+# Grouped program summary
+slcli --profile "$PROFILE" testmonitor result list \
+  --part-number "<PART_NUMBER>" --summary --group-by programName \
+  --format json
+
+# Latest 5 to 10 results, projected to relevant fields
+slcli --profile "$PROFILE" testmonitor result list \
+  --part-number "<PART_NUMBER>" --order-by STARTED_AT --descending \
+  --take 10 --format json |
+  jq '[.[] | {id, status: .status.statusType, startedAt, programName,
+               partNumber, serialNumber}]'
+```
+
+Use `testmonitor result get <RESULT_ID> --include-steps --format json` only
+when the user asks about a particular run or failure. Counts from separate
+commands are not one atomic snapshot; report the `as of` time and call out
+live-data changes when totals do not agree.
 
 ---
 
@@ -482,8 +566,9 @@ slcli workitem schedule wi-12345 \
 - **Start with `--summary`** to understand data shape before fetching raw records.
 - **Use `--group-by`** with `--summary` for aggregation: `status`, `programName`,
   `serialNumber`, `operator`, `hostName`, `systemId`.
-- **Chain with `jq`** for complex transformations — always use `-f json`.
-- **Use `--take` wisely** — start small (100-500), increase if needed.
+- **Chain with `jq`** for complex transformations — always use `--format json`.
+- **Use `--take` wisely** — start with 5-10 for recent detail and a bounded
+  catalog query for discovery; increase only when the question requires it.
 - **For rate calculations**, query total count and filtered count separately, then divide.
 - **Use `--order-by TOTAL_TIME_IN_SECONDS --descending`** to find slowest tests quickly.
 - **Asset `--connected` flag** limits to assets in currently connected systems.

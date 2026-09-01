@@ -28,6 +28,31 @@ Complete option reference for all `slcli` command groups.
 - [webapp — Web application management](#webapp--web-application-management)
 - [skill — AI skill installation](#skill--ai-skill-installation)
 - [example — Built-in example resource provisioning](#example--built-in-example-resource-provisioning)
+- [Scope and capability discovery](#scope-and-capability-discovery)
+
+## Scope and capability discovery
+
+Resolve a requested workspace before querying its resources. `--profile` is a
+global option and must precede the command group:
+
+```bash
+# Find profiles mapped to the requested workspace
+slcli config list --format json | \
+  jq -r --arg workspace "Fred" '.[] | select((.workspace // "") == $workspace) | .name'
+
+# Probe candidates one at a time without changing the active profile
+slcli --profile <PROFILE_NAME> info --skip-health --format json
+slcli --profile <PROFILE_NAME> workspace list --format json
+```
+
+In `info` JSON, `active_profile_name` is the effective profile for the command,
+while `current_profile` is the persisted config pointer. `api_url_source`
+identifies the source of the effective API URL. Use the effective fields when
+they disagree; `current_profile` alone is not a reliable query-scope signal.
+
+Consult `<command> --help` whenever a flag or alias is uncertain. Format aliases
+are command-specific, and the installed CLI help is authoritative. Generated
+commands should prefer the long form `--format json`.
 
 ## testmonitor — Test data analysis
 
@@ -78,7 +103,7 @@ slcli testmonitor product list [OPTIONS]
   --workspace, -w TEXT       # Filter by workspace name or ID
   --summary                  # Show summary statistics
   --take, -t INTEGER         # Items per page (default 25)
-  -f [table|json]
+  --format, -f [table|json]
 
 # Get a single product
 slcli testmonitor product get <PRODUCT_ID> [-f json]
@@ -665,8 +690,8 @@ slcli comment delete <ID1> <ID2> <ID3>
 ## workspace — Workspace management
 
 ```bash
-slcli workspace list [-f json]
-slcli workspace get --workspace WORKSPACE_ID [-f json]
+slcli workspace list [--format json]
+slcli workspace get --workspace WORKSPACE_ID [--format json]
 slcli workspace disable --id WORKSPACE_ID [--yes]
 ```
 
@@ -681,7 +706,7 @@ slcli logout [--profile NAME] [--all] [--force]
 slcli info [-f json] [--skip-health]            # Show active profile and service health
 slcli completion [--shell SHELL] [--install]    # Generate or install shell tab completion
 
-slcli config list [-f json]                     # List all profiles
+slcli config list [--format json]               # List all profiles
 slcli config current                            # Show the active profile name
 slcli config use <PROFILE>                      # Switch the active profile
 slcli config view [-f json] [--show-secrets]    # Show stored profile details
@@ -896,12 +921,19 @@ is intentionally omitted from the recommended command sequence.
 slcli webapp new <APP_NAME> [OPTIONS]                # Generate a hosted Angular webapp
 slcli webapp manifest init <DIRECTORY> [OPTIONS]  # Create nipkg.config.json for packaging
 slcli webapp pack [FOLDER] [--config FILE] [--output OUTPUT_FILE]  # Package a webapp into a .nipkg
-slcli webapp list [-w WORKSPACE] [--filter TEXT] [--take INT] [--format json]
+slcli webapp list [-w WORKSPACE] [--filter TEXT] [--take INT] [--format FORMAT] [-f FORMAT]
 slcli webapp get --id WEBAPP_ID [--format json]
-slcli webapp publish PATH [--workspace NAME]             # Upload and publish a webapp
+slcli webapp publish PATH --id WEBAPP_ID                # Update an existing webapp
+slcli webapp publish PATH --name NAME --workspace NAME  # Create metadata and upload
 slcli webapp delete --id WEBAPP_ID [--yes]
 slcli webapp open --id WEBAPP_ID                          # Open webapp URL in browser
 ```
+
+`webapp list` supports both `--format` and `-f` in the current CLI. Older
+installed versions may expose only the long form, so use `slcli webapp list
+--help` to verify the local command surface before scripting against it.
+`webapp publish` has no output-format option; use `webapp get --format json`
+after publishing when structured deployment metadata is needed.
 
 For an existing Angular project, work in that project directly and load the
 webapp references as needed. Do not introduce the legacy `webapp init` step

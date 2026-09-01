@@ -1279,6 +1279,7 @@ def register_webapp_commands(cli: Any) -> None:
     )
     @click.option(
         "--format",
+        "-f",
         "format_output",
         type=click.Choice(["table", "json"]),
         default="table",

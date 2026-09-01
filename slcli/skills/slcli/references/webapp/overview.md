@@ -187,7 +187,11 @@ For a new app, the first vertical slice should also prove the setup:
 
 ### 6. Publish or package only after the hosted constraints are covered
 
-For ordinary hosted deployment, build and publish after the routing, CSP, theme, and client setup are in place.
+For every create, publish, redeploy, or update task, load
+[deployment.md](./deployment.md) first. It requires command-help discovery,
+profile/workspace resolution, and exact webapp target resolution before any
+build or upload. Build and publish only after the routing, CSP, theme, and
+client setup are in place.
 
 For Plugin Manager packaging, use `slcli webapp manifest init` to generate `nipkg.config.json`, then `slcli webapp pack` to create the `.nipkg`.
 
