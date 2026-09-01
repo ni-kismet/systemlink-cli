@@ -175,13 +175,17 @@ slcli --profile <PROFILE> webapp publish <ACTUAL_BUILD_OUTPUT_DIR> \
 ```
 
 The command creates webapp metadata and uploads the content. Capture the
-returned webapp ID, published URL, and publish timestamp. Save the ID for every
-future redeploy and for `slcli webapp open`.
+returned webapp ID and published URL. Immediately after a successful upload,
+record the current UTC time as the observed publish timestamp. Save the ID for
+every future redeploy and for `slcli webapp open`.
 
 Example output:
 
 ```
-Webapp ID: 3727d9ac-86e1-4d6e-820e-d2631c0b28e9
+✓ Published webapp content
+  Webapp ID: 3727d9ac-86e1-4d6e-820e-d2631c0b28e9
+  Source: <PACKAGED_SOURCE_PATH>
+  Published URL: https://systemlink.example.com/webapps/coffee-tasting
 ```
 
 ### Redeploy (update existing webapp)
@@ -200,9 +204,9 @@ After publishing, fetch deployment metadata explicitly:
 slcli --profile <PROFILE> webapp get --id <WEBAPP_ID> --format json
 ```
 
-Record the ID, URL, workspace, and publish timestamp returned by the publish or
-metadata response. If the CLI output does not include a timestamp, record the
-UTC time immediately after the successful upload and label it as observed.
+Record the ID, URL, and workspace returned by the publish or metadata response.
+Record the UTC time immediately after the successful upload and label it as an
+observed publish timestamp because the CLI does not return one.
 
 ## 6. Validate at three levels
 

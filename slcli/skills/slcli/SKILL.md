@@ -49,7 +49,7 @@ Load only what the current task needs.
 
 1. Prefer long-form flags in generated commands.
 2. Use `--format json` when the result will be filtered, transformed, or piped
-  into other tools.
+   into other tools.
 3. Use `--summary --group-by` for aggregation before fetching large raw result sets.
 4. Use convenience filters first, then fall back to `--filter` with `--substitution` for complex queries.
 5. Stay scoped to the user’s requested resource or workflow.
