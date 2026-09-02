@@ -2,6 +2,13 @@
 
 <!-- towncrier release notes start -->
 
+## v1.27.6 (2026-09-02)
+
+### Bug Fixes
+
+- Update Python runtime dependencies. (deps-python-runtime-dependencies)
+
+
 ## v1.27.5 (2026-09-02)
 
 ### Bug Fixes
