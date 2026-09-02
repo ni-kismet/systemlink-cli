@@ -2,6 +2,18 @@
 
 <!-- towncrier release notes start -->
 
+## v1.27.3 (2026-09-02)
+
+### Features
+
+- Add version checks and custom destination directories to the bundled AI skill installer. (skill-versioning)
+- Add `slcli version check` to compare the installed version with PyPI and show the update command for Homebrew, Scoop, pipx, uv, or pip installations. Update the bundled agent skill to check both the CLI and skill versions as routine workflow and troubleshooting hygiene. (version-check)
+
+### Bug Fixes
+
+- Build SystemLink Server webapp URLs using the WebVI host route. (webapp-server-url)
+
+
 ## v1.27.2 (2026-09-01)
 
 ### Bug Fixes
