@@ -20,6 +20,7 @@ import questionary
 import requests
 
 from .cli_utils import is_interactive_environment, validate_output_format
+from .platform import PLATFORM_SLS, get_platform
 from .skill_click import install_skills_to_directory
 from .universal_handlers import UniversalResponseHandler
 from .utils import (
@@ -96,8 +97,9 @@ def _build_published_webapp_url(
 ) -> str:
     """Return the best available published URL for a webapp.
 
-    Prefers the friendly SystemLink web UI URL and falls back to any explicit
-    URL-like property returned by the service, then the raw content endpoint.
+    Uses the WebVI host route for SystemLink Server and otherwise prefers the
+    friendly SystemLink web UI URL. Falls back to any explicit URL-like property
+    returned by the service, then the raw content endpoint.
     """
     from urllib.parse import quote
 
@@ -132,6 +134,10 @@ def _build_published_webapp_url(
         mapped_workspace_name = str(workspace_map.get(resolved_workspace_id, "") or "").strip()
         if mapped_workspace_name:
             workspace_name = mapped_workspace_name
+
+    if get_platform() == PLATFORM_SLS and webapp_id:
+        web_base = get_web_url().rstrip("/")
+        return f"{web_base}/#/webvihost/view/webvi/{quote(webapp_id, safe='')}"
 
     if resolved_name and workspace_name:
         web_base = get_web_url().rstrip("/")

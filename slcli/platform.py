@@ -168,8 +168,9 @@ def get_platform() -> str:
 
     Detection priority:
     1. SYSTEMLINK_PLATFORM environment variable (explicit, most reliable)
-    2. Stored platform from keyring config (set during login via endpoint probing)
-    3. Return PLATFORM_UNKNOWN if no explicit or stored platform is available
+    2. Platform stored on the active profile (set during login via endpoint probing)
+    3. Stored platform from keyring config (legacy fallback)
+    4. Return PLATFORM_UNKNOWN if no explicit or stored platform is available
 
     Note: Results are cached for performance. Use clear_platform_cache() to reset.
 
@@ -182,11 +183,26 @@ def get_platform() -> str:
     if env_platform in (PLATFORM_SLE, PLATFORM_SLS):
         return env_platform
 
-    # Priority 2: Stored platform from keyring config (set during login)
-    # This was detected via endpoint probing, which is reliable
+    if not any(os.environ.get(name) for name in ("SLCLI_API_URL", "SYSTEMLINK_API_URL")):
+        try:
+            from .profiles import get_active_profile
+
+            profile = get_active_profile()
+            profile_platform = str(profile.platform or "").upper() if profile else ""
+            if profile_platform in (PLATFORM_SLE, PLATFORM_SLS):
+                return profile_platform
+        except (
+            FileNotFoundError,
+            json.JSONDecodeError,
+            KeyError,
+            AttributeError,
+            click.ClickException,
+        ):
+            pass
+
     cfg = _get_keyring_config()
     if cfg:
-        platform = cfg.get("platform", "")
+        platform = str(cfg.get("platform", "")).upper()
         if platform in (PLATFORM_SLE, PLATFORM_SLS):
             return platform
 
