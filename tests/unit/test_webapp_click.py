@@ -1873,3 +1873,47 @@ def test_webapp_open_uses_workspace_url(monkeypatch: MonkeyPatch) -> None:
     assert result.exit_code == 0
     assert opened[0] == "https://web.example.test/webapps/app/Workspace%20One/AppOne"
     assert "Opening" in result.output
+
+
+def test_webapp_open_uses_server_hash_url(monkeypatch: MonkeyPatch) -> None:
+    """Ensure Server webapps use the WebVI host route instead of the cloud route."""
+    runner = CliRunner()
+    patch_keyring(monkeypatch)
+
+    import requests
+    import slcli.webapp_click
+    from slcli.platform import PLATFORM_SLS
+
+    class MockResp:
+        def json(self) -> Dict[str, Any]:
+            return {
+                "id": "cfb6266e-edbd-4ded-8a3b-9f15bd44abd8",
+                "name": "AppOne",
+                "workspace": "ws1",
+                "properties": {},
+                "type": "WebVI",
+            }
+
+        def raise_for_status(self) -> None:
+            return None
+
+    opened: list[str] = []
+
+    import webbrowser
+
+    monkeypatch.setattr(requests, "get", lambda *a, **k: MockResp())
+    monkeypatch.setattr(slcli.webapp_click, "get_platform", lambda: PLATFORM_SLS)
+    monkeypatch.setattr(slcli.webapp_click, "get_web_url", lambda: "https://base.systemlink.io")
+    monkeypatch.setattr(slcli.webapp_click, "get_workspace_map", lambda: {"ws1": "Default"})
+    monkeypatch.setattr(webbrowser, "open", lambda url: opened.append(url))
+
+    result = runner.invoke(
+        cli,
+        ["webapp", "open", "--id", "cfb6266e-edbd-4ded-8a3b-9f15bd44abd8"],
+    )
+
+    assert result.exit_code == 0
+    assert opened[0] == (
+        "https://base.systemlink.io/#/webvihost/view/webvi/" "cfb6266e-edbd-4ded-8a3b-9f15bd44abd8"
+    )
+    assert "Opening" in result.output

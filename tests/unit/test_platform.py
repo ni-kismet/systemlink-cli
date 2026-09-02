@@ -577,6 +577,23 @@ class TestGetPlatform:
 
             assert result == PLATFORM_SLS
 
+    def test_get_platform_from_active_profile(self) -> None:
+        """Test getting the platform stored on the active profile."""
+        from slcli.profiles import Profile
+
+        profile = Profile(
+            name="server",
+            server="https://my-server.local",
+            platform="SLS",
+        )
+
+        with patch("slcli.profiles.get_active_profile", return_value=profile), patch(
+            "slcli.platform.keyring.get_password", return_value=None
+        ):
+            result = get_platform()
+
+        assert result == PLATFORM_SLS
+
     def test_get_platform_unknown_when_not_configured(self) -> None:
         """Test that UNKNOWN is returned when keyring has no config."""
         with patch("slcli.platform.keyring.get_password") as mock_keyring:
