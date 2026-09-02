@@ -2,6 +2,13 @@
 
 <!-- towncrier release notes start -->
 
+## v1.27.4 (2026-09-02)
+
+### Bug Fixes
+
+- Remove the duplicate shell header and unsupported Angular development options from generated webapp templates. (webapp-template-duplicate-header)
+
+
 ## v1.27.3 (2026-09-02)
 
 ### Features
