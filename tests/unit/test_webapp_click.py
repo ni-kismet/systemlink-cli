@@ -282,6 +282,9 @@ def test_webapp_new_blank_creates_host_ready_workspace(
     app_shell = (target / "src" / "app" / "core" / "layout" / "app-shell.component.ts").read_text(
         encoding="utf-8"
     )
+    app_shell_template = (
+        target / "src" / "app" / "core" / "layout" / "app-shell.component.html"
+    ).read_text(encoding="utf-8")
     readme = (target / "README.md").read_text(encoding="utf-8")
 
     assert package_json["dependencies"]["@ni/nimble-angular"] == "~33.5.0"
@@ -300,6 +303,10 @@ def test_webapp_new_blank_creates_host_ready_workspace(
         "--output-file sbom.cdx.json --validate --output-reproducible "
         "&& node scripts/filter-sbom.js sbom.cdx.json"
     )
+    development_build = angular_json["projects"]["coffee-roaster"]["architect"]["build"][
+        "configurations"
+    ]["development"]
+    assert not {"buildOptimizer", "vendorChunk"}.intersection(development_build)
     assert "test" not in package_json["scripts"]
     assert "<base" not in index_html
     assert "bootstrapApplication(AppComponent" in main_ts
@@ -316,6 +323,7 @@ def test_webapp_new_blank_creates_host_ready_workspace(
     assert "standalone: true" in app_shell
     assert "RouterModule" in app_shell
     assert "AppRoutingModule" not in app_shell
+    assert '<header class="shell__header">' not in app_shell_template
     assert "useHash: true" in app_routing
     assert "path: 'master-detail'" in app_routing
     assert (
