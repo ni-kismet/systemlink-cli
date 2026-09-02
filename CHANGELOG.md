@@ -2,6 +2,14 @@
 
 <!-- towncrier release notes start -->
 
+## v1.27.5 (2026-09-02)
+
+### Bug Fixes
+
+- Update dependency isort to v9. (deps-isort-9-x)
+- Update dependency mcp to v2.1.1. (deps-mcp-2-x-lockfile)
+
+
 ## v1.27.4 (2026-09-02)
 
 ### Bug Fixes
