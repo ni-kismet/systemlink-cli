@@ -2,7 +2,6 @@
   "$schema": "https://docs.renovatebot.com/renovate-schema.json",
   "extends": ["local>ni/python-renovate-config:recommended"],
   "commitMessagePrefix": "chore(deps):",
-  "schedule": ["before 7am on Monday"],
   "prConcurrentLimit": 5,
   "gitIgnoredAuthors": [
     "github-actions[bot] <41898282+github-actions[bot]@users.noreply.github.com>"
