@@ -274,6 +274,7 @@ def test_webapp_new_blank_creates_host_ready_workspace(
 
     package_json = loads((target / "package.json").read_text(encoding="utf-8"))
     angular_json = loads((target / "angular.json").read_text(encoding="utf-8"))
+    tsconfig_json = loads((target / "tsconfig.json").read_text(encoding="utf-8"))
     index_html = (target / "src" / "index.html").read_text(encoding="utf-8")
     main_ts = (target / "src" / "main.ts").read_text(encoding="utf-8")
     app_component = (target / "src" / "app" / "app.component.ts").read_text(encoding="utf-8")
@@ -298,6 +299,11 @@ def test_webapp_new_blank_creates_host_ready_workspace(
     assert package_json["devDependencies"]["@angular/build"] == "^20.3.34"
     assert package_json["devDependencies"]["@cyclonedx/cyclonedx-npm"] == "~6.0.1"
     assert "@angular-devkit/build-angular" not in package_json["devDependencies"]
+    compiler_options = tsconfig_json["compilerOptions"]
+    assert compiler_options["rootDir"] == "./src"
+    assert compiler_options["moduleResolution"] == "bundler"
+    assert "baseUrl" not in compiler_options
+    assert "downlevelIteration" not in compiler_options
     assert package_json["scripts"]["sbom"] == (
         "cyclonedx-npm --omit dev --output-format JSON "
         "--output-file sbom.cdx.json --validate --output-reproducible "

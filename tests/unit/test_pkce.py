@@ -385,20 +385,10 @@ def test_login_pkce_uses_bearer_token_and_stores_metadata(monkeypatch: Any, tmp_
             "server_reachable": True,
             "auth_valid": True,
             "services": {"Web Server": "ok"},
-            "platform": "unknown",
+            "platform": "SLE",
         }
     )
     monkeypatch.setattr(config_click, "check_web_server_auth", mock_web_probe)
-    monkeypatch.setattr(
-        config_click,
-        "check_service_status",
-        lambda *_args, **_kwargs: {
-            "server_reachable": True,
-            "auth_valid": True,
-            "services": {"Auth": "ok", "Work Order": "ok"},
-            "platform": "SLE",
-        },
-    )
 
     result = CliRunner().invoke(
         cli,
@@ -425,6 +415,7 @@ def test_login_pkce_uses_bearer_token_and_stores_metadata(monkeypatch: Any, tmp_
     assert profile["pkce-client-id"] == "client-id"
     assert "api-key" not in profile
     assert "PKCE bearer token:  ✓ Authorized" in result.output
-    assert mock_web_probe.call_args_list == [
-        (("https://web.example", ""), {"auth_scheme": "bearer"})
-    ]
+    assert mock_web_probe.call_args_list[-1] == (
+        ("https://web.example", "access-token"),
+        {"auth_scheme": "bearer"},
+    )

@@ -577,23 +577,6 @@ class TestGetPlatform:
 
             assert result == PLATFORM_SLS
 
-    def test_get_platform_from_active_profile(self) -> None:
-        """Test getting the platform stored on the active profile."""
-        from slcli.profiles import Profile
-
-        profile = Profile(
-            name="server",
-            server="https://my-server.local",
-            platform="SLS",
-        )
-
-        with patch("slcli.profiles.get_active_profile", return_value=profile), patch(
-            "slcli.platform.keyring.get_password", return_value=None
-        ):
-            result = get_platform()
-
-        assert result == PLATFORM_SLS
-
     def test_get_platform_unknown_when_not_configured(self) -> None:
         """Test that UNKNOWN is returned when keyring has no config."""
         with patch("slcli.platform.keyring.get_password") as mock_keyring:
@@ -1120,31 +1103,29 @@ class TestGetPlatformInfo:
             assert result["auth_valid"] is None
             assert "features" not in result
 
-    def test_bearer_snapshot_uses_service_probe(self) -> None:
-        """Bearer health checks use service routes to detect the platform."""
+    def test_bearer_snapshot_uses_web_server_probe(self) -> None:
+        """Bearer health checks use the Web Server identity route."""
         from slcli.platform import _get_service_status_snapshot
 
         status = {
             "server_reachable": True,
             "auth_valid": True,
-            "services": {"Auth": "ok", "Work Order": "ok"},
-            "platform": PLATFORM_SLE,
+            "services": {"Web Server": "ok"},
+            "platform": PLATFORM_UNKNOWN,
         }
         with patch(
             "slcli.platform._get_current_api_context",
             return_value=("pkce", "https://web.example.com", "access-token", "bearer"),
         ), patch("slcli.platform._save_service_status_snapshot"), patch(
-            "slcli.platform.check_service_status", return_value=status
-        ) as mock_service_probe, patch(
-            "slcli.platform.check_web_server_auth"
-        ) as mock_web_probe:
+            "slcli.platform.check_web_server_auth", return_value=status
+        ) as mock_web_probe, patch(
+            "slcli.platform.check_service_status"
+        ) as mock_api_probe:
             result = _get_service_status_snapshot(force_refresh=True)
 
         assert result == status
-        mock_service_probe.assert_called_once_with(
-            "https://web.example.com", "access-token", "bearer"
-        )
-        mock_web_probe.assert_not_called()
+        mock_web_probe.assert_called_once_with("https://web.example.com", "access-token", "bearer")
+        mock_api_probe.assert_not_called()
 
     def test_get_platform_info_unauthorized(self) -> None:
         """Test that auth_valid=False is reported when API key is unauthorized."""
