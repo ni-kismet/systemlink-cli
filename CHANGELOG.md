@@ -2,6 +2,13 @@
 
 <!-- towncrier release notes start -->
 
+## v1.27.7 (2026-09-04)
+
+### Other Changes
+
+- Adopt the shared NI Python Renovate configuration. (migrate-python-renovate-config)
+
+
 ## v1.27.6 (2026-09-02)
 
 ### Bug Fixes
