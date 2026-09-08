@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import argparse
+import hashlib
 import json
 from pathlib import Path
 from typing import Any
@@ -58,11 +59,13 @@ def prepare_iteration(tmp_path: Path) -> Path:
     )
     eval_dir = tmp_path / "eval-1-example"
     write_json(eval_dir / "eval_metadata.json", {"eval_id": 1})
+    write_json(eval_dir / "inputs_manifest.json", {"files": []})
     for configuration in ("with_skill", "old_skill"):
         for run_number in range(1, 4):
+            grading_payload = grading(1.0)
             write_json(
                 eval_dir / configuration / f"run-{run_number}" / "grading.json",
-                grading(1.0),
+                grading_payload,
             )
             write_json(
                 eval_dir / configuration / f"run-{run_number}" / "run_record.json",
@@ -77,6 +80,8 @@ def prepare_iteration(tmp_path: Path) -> Path:
                     "trial": run_number,
                     "configuration": configuration,
                     "classification": "pass",
+                    "inputs": [],
+                    "grading": grading_payload,
                 },
             )
             write_json(
@@ -98,13 +103,15 @@ def test_evaluate_iteration_passes_non_regressing_candidate(tmp_path: Path) -> N
 def test_evaluate_iteration_detects_critical_regression(tmp_path: Path) -> None:
     eval_dir = prepare_iteration(tmp_path)
     for run_number in (1, 2):
+        grading_payload = grading(0.0, critical_pass=False)
         write_json(
             eval_dir / "with_skill" / f"run-{run_number}" / "grading.json",
-            grading(0.0, critical_pass=False),
+            grading_payload,
         )
         record_path = eval_dir / "with_skill" / f"run-{run_number}" / "run_record.json"
         record = json.loads(record_path.read_text(encoding="utf-8"))
         record["classification"] = "fail"
+        record["grading"] = grading_payload
         write_json(record_path, record)
 
     result = evaluate_iteration(tmp_path, margin=0.05)
@@ -119,13 +126,15 @@ def test_evaluate_iteration_detects_critical_regression(tmp_path: Path) -> None:
 
 def test_candidate_only_failure_regresses_even_with_candidate_majority(tmp_path: Path) -> None:
     eval_dir = prepare_iteration(tmp_path)
+    grading_payload = grading(0.9, critical_pass=False)
     write_json(
         eval_dir / "with_skill" / "run-1" / "grading.json",
-        grading(0.9, critical_pass=False),
+        grading_payload,
     )
     record_path = eval_dir / "with_skill" / "run-1" / "run_record.json"
     record = json.loads(record_path.read_text(encoding="utf-8"))
     record["classification"] = "fail"
+    record["grading"] = grading_payload
     write_json(record_path, record)
 
     result = evaluate_iteration(tmp_path, margin=0.05)
@@ -137,10 +146,15 @@ def test_candidate_only_failure_regresses_even_with_candidate_majority(tmp_path:
 def test_evaluate_iteration_detects_aggregate_regression(tmp_path: Path) -> None:
     eval_dir = prepare_iteration(tmp_path)
     for run_number in range(1, 4):
+        grading_payload = grading(0.9)
         write_json(
             eval_dir / "with_skill" / f"run-{run_number}" / "grading.json",
-            grading(0.9),
+            grading_payload,
         )
+        record_path = eval_dir / "with_skill" / f"run-{run_number}" / "run_record.json"
+        record = json.loads(record_path.read_text(encoding="utf-8"))
+        record["grading"] = grading_payload
+        write_json(record_path, record)
 
     result = evaluate_iteration(tmp_path, margin=0.05)
 
@@ -196,6 +210,43 @@ def test_evaluate_iteration_is_inconclusive_for_stale_provenance(tmp_path: Path)
 
     assert result["status"] == "inconclusive"
     assert str(eval_dir / "with_skill" / "run-1") in result["missing_or_inconclusive_runs"]
+
+
+def test_evaluate_iteration_is_inconclusive_for_modified_grading(tmp_path: Path) -> None:
+    eval_dir = prepare_iteration(tmp_path)
+    grading_path = eval_dir / "with_skill" / "run-1" / "grading.json"
+    modified = json.loads(grading_path.read_text(encoding="utf-8"))
+    modified["summary"]["pass_rate"] = 0.25
+    write_json(grading_path, modified)
+
+    result = evaluate_iteration(tmp_path, margin=0.05)
+
+    assert result["status"] == "inconclusive"
+    assert str(eval_dir / "with_skill" / "run-1") in result["missing_or_inconclusive_runs"]
+
+
+def test_evaluate_iteration_is_inconclusive_for_modified_input(tmp_path: Path) -> None:
+    eval_dir = prepare_iteration(tmp_path)
+    input_path = eval_dir / "inputs" / "fixture.txt"
+    input_path.parent.mkdir()
+    input_path.write_text("original\n", encoding="utf-8")
+    input_record = {
+        "relative_path": "fixture.txt",
+        "absolute_path": str(input_path),
+        "sha256": hashlib.sha256(input_path.read_bytes()).hexdigest(),
+    }
+    write_json(eval_dir / "inputs_manifest.json", {"files": [input_record]})
+    for configuration in ("with_skill", "old_skill"):
+        for run_number in range(1, 4):
+            record_path = eval_dir / configuration / f"run-{run_number}" / "run_record.json"
+            record = json.loads(record_path.read_text(encoding="utf-8"))
+            record["inputs"] = [input_record]
+            write_json(record_path, record)
+    input_path.write_text("modified\n", encoding="utf-8")
+
+    result = evaluate_iteration(tmp_path, margin=0.05)
+
+    assert result["status"] == "inconclusive"
 
 
 @pytest.mark.parametrize("value", ["-0.1", "1.1", "nan", "inf"])

@@ -97,3 +97,62 @@ def test_webapp_packaging_fixture_is_valid() -> None:
     assert validated["buildDir"] == "webapp-content"
     assert validated["iconFile"] == "icon.svg"
     assert (config_path.parent / validated["buildDir"]).is_dir()
+
+
+def checked_in_rule(eval_id: int, text: str) -> dict[str, object]:
+    """Return one checked-in grading rule by eval and text."""
+    manifest = load_manifest(Path("slcli/skills/slcli/evals/evals.json"))
+    eval_entry = next(entry for entry in manifest["evals"] if entry["id"] == eval_id)
+    return next(rule for rule in eval_entry["grading_rules"] if rule["text"] == text)
+
+
+def test_eval_one_rejects_constraints_split_across_commands() -> None:
+    rule = checked_in_rule(1, "Combines product, status, and last-month filters in one invocation")
+    response = (
+        "slcli testmonitor result list --part-number BAT-MODEL-ABC-001 --status FAILED\n"
+        "slcli testmonitor result list --filter 'startedAt >= @0 and startedAt < @1' "
+        "--substitution 2026-08-01 --substitution 2026-09-01"
+    )
+
+    assert evaluate_rule(response, rule, reference_date=date(2026, 9, 8))[0] is False
+
+
+def test_dataframe_rule_requires_supported_case_sensitive_operation() -> None:
+    rule = checked_in_rule(5, "Queries ProductionMetrics with the requested operator constraint")
+
+    assert (
+        evaluate_rule(
+            "slcli dataframe query ProductionMetrics --where 'operator,EQUALS,J. Santos'", rule
+        )[0]
+        is True
+    )
+    assert (
+        evaluate_rule(
+            "slcli dataframe query ProductionMetrics --where 'operator,eq,J. Santos'", rule
+        )[0]
+        is False
+    )
+
+
+def test_spec_rules_require_json_import_and_valid_verification_arguments() -> None:
+    import_rule = checked_in_rule(9, "Uses the spec import command")
+    verify_rule = checked_in_rule(9, "Includes a follow-up verification command")
+
+    assert evaluate_rule("slcli spec import --file datasheet.csv", import_rule)[0] is False
+    assert evaluate_rule("slcli spec import --file specifications.json", import_rule)[0] is True
+    for invalid in ("slcli spec get", "slcli spec list", "slcli spec export"):
+        assert evaluate_rule(invalid, verify_rule)[0] is False
+    assert evaluate_rule("slcli spec get --id imported-spec-id", verify_rule)[0] is True
+    assert evaluate_rule("slcli spec list --product BAT-MODEL-ABC-001", verify_rule)[0] is True
+
+
+def test_webapp_packaging_rule_is_name_agnostic_and_option_order_independent() -> None:
+    rule = checked_in_rule(8, "Includes the packaging workflow")
+    response = (
+        "slcli webapp manifest init another-app --license MIT --icon-file icon.svg "
+        "--description 'A dashboard' --maintainer 'Team <team@example.com>' "
+        "--section Dashboard\n"
+        "slcli webapp pack --output app.nipkg --config another-app/nipkg.config.json"
+    )
+
+    assert evaluate_rule(response, rule)[0] is True

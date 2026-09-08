@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import argparse
+import hashlib
 import json
 import math
 import sys
@@ -49,7 +50,8 @@ def load_run(
     grading_path = run_dir / "grading.json"
     metadata_path = run_dir / "outputs" / "run_metadata.json"
     record_path = run_dir / "run_record.json"
-    if not grading_path.exists() or not metadata_path.exists() or not record_path.exists():
+    inputs_path = run_dir.parents[1] / "inputs_manifest.json"
+    if not all(path.exists() for path in (grading_path, metadata_path, record_path, inputs_path)):
         return None
     metadata = load_json(metadata_path)
     required_metadata = {
@@ -69,6 +71,12 @@ def load_run(
     if grading.get("classification") == "inconclusive":
         return None
     record = load_json(record_path)
+    expected_inputs = load_json(inputs_path).get("files", [])
+    inputs_match = record.get("inputs") == expected_inputs and all(
+        Path(item["absolute_path"]).is_file()
+        and hashlib.sha256(Path(item["absolute_path"]).read_bytes()).hexdigest() == item["sha256"]
+        for item in expected_inputs
+    )
     expected_provenance = {
         "skill_name": iteration.get("skill_name"),
         "candidate_sha": iteration.get("candidate_sha"),
@@ -80,9 +88,15 @@ def load_run(
         "trial": run_number,
         "configuration": run_dir.parent.name,
     }
-    if any(record.get(field) != value for field, value in expected_provenance.items()):
+    if (
+        any(record.get(field) != value for field, value in expected_provenance.items())
+        or not inputs_match
+    ):
         return None
-    if record.get("classification") != grading.get("classification"):
+    if (
+        record.get("classification") != grading.get("classification")
+        or record.get("grading") != grading
+    ):
         return None
     return grading, metadata
 

@@ -80,3 +80,17 @@ def test_summarize_query_result_marks_executor_errors_inconclusive(
     assert result["pass"] is None
     assert result["trigger_rate"] is None
     assert result["errors"] == 3
+
+
+@pytest.mark.parametrize("value", ["-0.1", "1.1", "nan", "inf"])
+def test_unit_interval_rate_rejects_invalid_values(run_eval_module: ModuleType, value: str) -> None:
+    with pytest.raises(
+        run_eval_module.argparse.ArgumentTypeError,
+        match="finite value between 0 and 1",
+    ):
+        run_eval_module.unit_interval_rate(value)
+
+
+@pytest.mark.parametrize("value", ["0", "0.5", "1"])
+def test_unit_interval_rate_accepts_boundaries(run_eval_module: ModuleType, value: str) -> None:
+    assert run_eval_module.unit_interval_rate(value) == float(value)

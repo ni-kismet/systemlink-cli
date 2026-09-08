@@ -260,12 +260,32 @@ def create_isolated_baseline_repo(
     return snapshot_root
 
 
-def make_run_dirs(eval_dir: Path, configurations: list[str], runs_per_config: int) -> None:
-    """Create configuration and run directories."""
+def make_run_dirs(
+    eval_dir: Path,
+    configurations: list[str],
+    runs_per_config: int,
+    repo_templates: dict[str, Path | None],
+) -> None:
+    """Create run directories with independent repository sandboxes."""
     for configuration in configurations:
         for run_number in range(1, runs_per_config + 1):
-            outputs_dir = eval_dir / configuration / f"run-{run_number}" / "outputs"
+            run_dir = eval_dir / configuration / f"run-{run_number}"
+            outputs_dir = run_dir / "outputs"
             outputs_dir.mkdir(parents=True, exist_ok=True)
+            repository_root = None
+            repo_template = repo_templates.get(configuration)
+            if repo_template is not None:
+                repository_root = run_dir / "repo"
+                shutil.copytree(repo_template, repository_root)
+            write_json(
+                run_dir / "run_config.json",
+                {
+                    "configuration": configuration,
+                    "repository_root": (
+                        str(repository_root.resolve()) if repository_root else None
+                    ),
+                },
+            )
 
 
 def prepare_iteration_directory(iteration_dir: Path, force: bool) -> None:
@@ -299,25 +319,31 @@ def scaffold_eval_dir(
         "prompt": entry["prompt"],
         "assertions": entry.get("expectations", []),
         "tags": entry.get("tags", []),
-        "candidate_repo_root": (
-            str(candidate_repo_root.resolve()) if candidate_repo_root else None
-        ),
-        "baseline_repo_root": str(baseline_repo_root.resolve()) if baseline_repo_root else None,
     }
     write_json(eval_dir / "eval_metadata.json", metadata)
 
     input_files = []
     for relative_path in entry.get("files", []):
+        source_path = skill_dir / relative_path
+        input_path = eval_dir / "inputs" / relative_path
+        input_path.parent.mkdir(parents=True, exist_ok=True)
+        shutil.copy2(source_path, input_path)
         input_files.append(
             {
                 "relative_path": relative_path,
-                "absolute_path": str((skill_dir / relative_path).resolve()),
+                "absolute_path": str(input_path.resolve()),
+                "sha256": hashlib.sha256(input_path.read_bytes()).hexdigest(),
             }
         )
     write_json(eval_dir / "inputs_manifest.json", {"files": input_files})
 
     (eval_dir / "prompt.txt").write_text(entry["prompt"] + "\n", encoding="utf-8")
-    make_run_dirs(eval_dir, ["with_skill", baseline], runs_per_config)
+    make_run_dirs(
+        eval_dir,
+        ["with_skill", baseline],
+        runs_per_config,
+        {"with_skill": candidate_repo_root, baseline: baseline_repo_root},
+    )
 
 
 def main() -> None:
@@ -367,10 +393,12 @@ def main() -> None:
         "suite": args.suite,
         "baseline": args.baseline,
         "baseline_isolated": bool(baseline_repo_root),
-        "candidate_repo_root": (
+        "candidate_repo_template": (
             str(candidate_repo_root.resolve()) if candidate_repo_root else None
         ),
-        "baseline_repo_root": str(baseline_repo_root.resolve()) if baseline_repo_root else None,
+        "baseline_repo_template": (
+            str(baseline_repo_root.resolve()) if baseline_repo_root else None
+        ),
         "baseline_ref": args.baseline_ref if args.baseline == "old_skill" else None,
         "baseline_sha": baseline_sha,
         "candidate_sha": candidate_sha,

@@ -79,8 +79,9 @@ Append `--force` only when the parsed `force` value is `true`.
 For each run:
 
 - Read that run's `executor_prompt.txt`.
-- For `with_skill`, load the candidate skill path inside the isolated candidate repo named in the prompt.
-- For `old_skill`, load the merge-base skill path inside the isolated baseline repo named in the prompt.
+- For `with_skill`, load the candidate skill path inside the run-specific candidate repo named in the prompt.
+- For `old_skill`, load the merge-base skill path inside the run-specific baseline repo named in the prompt.
+- Use only the neutral fixture paths named in the executor prompt for attached inputs.
 - Respect the fail-fast budget written into the executor prompt.
 - If the run converges, save the final answer to `outputs/response.txt`.
 - Save the complete executor trace to `outputs/transcript.jsonl`.

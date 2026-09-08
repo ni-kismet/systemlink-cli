@@ -7,6 +7,7 @@ for a set of queries. Outputs results as JSON.
 
 import argparse
 import json
+import math
 import os
 import select
 import subprocess
@@ -17,6 +18,14 @@ from concurrent.futures import ProcessPoolExecutor, as_completed
 from pathlib import Path
 
 from scripts.utils import parse_skill_md
+
+
+def unit_interval_rate(value: str) -> float:
+    """Parse a finite trigger rate between zero and one."""
+    parsed = float(value)
+    if not math.isfinite(parsed) or not 0 <= parsed <= 1:
+        raise argparse.ArgumentTypeError("rate must be a finite value between 0 and 1")
+    return parsed
 
 
 def find_project_root() -> Path:
@@ -309,11 +318,14 @@ def main() -> None:
     parser.add_argument("--timeout", type=int, default=30, help="Timeout per query in seconds")
     parser.add_argument("--runs-per-query", type=int, default=3, help="Number of runs per query")
     parser.add_argument(
-        "--trigger-threshold", type=float, default=0.5, help="Trigger rate threshold"
+        "--trigger-threshold",
+        type=unit_interval_rate,
+        default=0.5,
+        help="Trigger rate threshold",
     )
     parser.add_argument(
         "--negative-trigger-threshold",
-        type=float,
+        type=unit_interval_rate,
         help="Maximum trigger rate for should-not-trigger queries (defaults to trigger threshold)",
     )
     parser.add_argument(

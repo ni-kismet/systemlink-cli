@@ -98,6 +98,7 @@ def grade_run(
 
     timing_path = run_dir / "timing.json"
     graded = grade_response(manifest_path, eval_id, response_path, timing_path)
+    input_manifest = load_json(run_dir.parents[1] / "inputs_manifest.json")
     run_metadata_path = outputs_dir / "run_metadata.json"
     run_metadata = load_json(run_metadata_path) if run_metadata_path.exists() else {}
     infrastructure_error = run_metadata.get("status") == "infrastructure_error"
@@ -118,11 +119,12 @@ def grade_run(
         "baseline_sha": iteration_metadata.get("baseline_sha"),
         "candidate_skill_hash": iteration_metadata.get("candidate_skill_hash"),
         "baseline_skill_hash": iteration_metadata.get("baseline_skill_hash"),
-        "eval_manifest_hash": iteration_metadata.get("eval_manifest_hash"),
+        "eval_manifest_hash": hashlib.sha256(manifest_path.read_bytes()).hexdigest(),
         "eval_id": eval_id,
         "trial": int(run_dir.name.removeprefix("run-")),
         "configuration": run_dir.parent.name,
         "executor": run_metadata,
+        "inputs": input_manifest.get("files", []),
         "timing": load_json(timing_path) if timing_path.exists() else {},
         "outputs": file_manifest(outputs_dir),
         "grading": graded,

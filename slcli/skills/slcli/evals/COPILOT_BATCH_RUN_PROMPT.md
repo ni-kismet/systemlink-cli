@@ -35,14 +35,16 @@ In one parent chat, Copilot should:
 2. Find every `executor_prompt.txt` under the iteration directory.
 3. For each prepared run directory:
    - execute the prompt in a fresh stateless subagent
-  - load the candidate `slcli` skill from the isolated candidate repo for `with_skill` runs
-   - load the merge-base `slcli` skill from the isolated baseline repo for `old_skill` runs
-   - stop early when the per-run budget is exhausted and record the failure
-   - save the final answer to `outputs/response.txt`
-  - save the complete executor trace to `outputs/transcript.jsonl`
-   - save executor identity, configuration, and completion status to `outputs/run_metadata.json`
-   - retry infrastructure failures once; after a second failure, set status to `infrastructure_error` and continue
-   - optionally save `outputs/notes.txt` for assumptions
+
+- load the candidate `slcli` skill from the run-specific candidate repo for `with_skill` runs
+- load the merge-base `slcli` skill from the run-specific baseline repo for `old_skill` runs
+- stop early when the per-run budget is exhausted and record the failure
+- save the final answer to `outputs/response.txt`
+- save the complete executor trace to `outputs/transcript.jsonl`
+- save executor identity, configuration, and completion status to `outputs/run_metadata.json`
+- retry infrastructure failures once; after a second failure, set status to `infrastructure_error` and continue
+- optionally save `outputs/notes.txt` for assumptions
+
 4. Run `benchmark_iteration.py`.
 5. Run `render_eval_review.py`.
 6. Summarize which runs were populated and where the review HTML was written.
@@ -54,10 +56,11 @@ Run the prepared gating eval iteration end to end.
 
 Use one parent conversation only as the orchestrator. For each executor prompt,
 spawn a fresh stateless subagent so the runs do not share prompt history.
-For `with_skill`, load the skill path inside the isolated `candidate_repo/`
+For `with_skill`, load the skill path inside the run-specific candidate repo
 named by the executor prompt instead of using the working checkout.
-For `old_skill`, load the skill path inside the isolated `baseline_repo/` named
-by the executor prompt instead of using the candidate checkout.
+For `old_skill`, load the skill path inside the run-specific baseline repo named
+by the executor prompt instead of using the candidate checkout. Use only the
+neutral input paths named by the executor prompt for attached fixtures.
 Run independent evals in parallel when possible, but keep concurrency modest:
 typically 2 to 4 subagents at a time.
 

@@ -69,6 +69,25 @@
           ]
         },
         {
+          "text": "Combines product, status, and last-month filters in one invocation",
+          "critical": true,
+          "positive_control": "slcli testmonitor result list --part-number BAT-MODEL-ABC-001 --status FAILED --filter \"startedAt >= @0 and startedAt < @1\" --substitution 2026-08-01T00:00:00Z --substitution 2026-09-01T00:00:00Z",
+          "negative_control": "slcli testmonitor result list --part-number BAT-MODEL-ABC-001 --status FAILED\nslcli testmonitor result list --filter \"startedAt >= @0 and startedAt < @1\" --substitution 2026-08-01T00:00:00Z --substitution 2026-09-01T00:00:00Z",
+          "scope": "command",
+          "validator": "previous_calendar_month",
+          "control_reference_date": "2026-09-08",
+          "mode": "all_of",
+          "patterns": [
+            "slcli\\s+testmonitor\\s+result\\s+list",
+            "--part-number\\s+BAT-MODEL-ABC-001",
+            "--status\\s+FAILED",
+            "startedAt\\s*>=\\s*@\\d+",
+            "startedAt\\s*<\\s*@\\d+",
+            "--substitution\\s+2026-08-01",
+            "--substitution\\s+2026-09-01"
+          ]
+        },
+        {
           "text": "Avoids unsupported generic query commands",
           "critical": true,
           "positive_control": "slcli testmonitor result list",
@@ -266,13 +285,13 @@
         {
           "text": "Queries ProductionMetrics with the requested operator constraint",
           "critical": true,
-          "positive_control": "slcli dataframe query ProductionMetrics --where \"operator,eq,J. Santos\" --format json",
+          "positive_control": "slcli dataframe query ProductionMetrics --where \"operator,EQUALS,J. Santos\" --format json",
           "negative_control": "slcli dataframe list",
           "scope": "command",
           "mode": "all_of",
           "patterns": [
             "slcli\\s+dataframe\\s+query\\s+ProductionMetrics",
-            "--where\\s+operator,eq,J\\. Santos"
+            "--where\\s+operator,(?-i:EQUALS),J\\. Santos"
           ]
         },
         {
@@ -448,12 +467,12 @@
         {
           "text": "Includes the packaging workflow",
           "critical": true,
-          "positive_control": "slcli webapp manifest init fleet-dashboard --package fleet-dashboard --description \"Hosted SystemLink dashboard\" --section Dashboard --maintainer \"Team <team@example.com>\" --license MIT --icon-file fleet-dashboard/src/favicon.ico --build-dir dist/fleet-dashboard/browser\nslcli webapp pack --config fleet-dashboard/nipkg.config.json",
+          "positive_control": "slcli webapp manifest init dashboard-app --license MIT --maintainer \"Team <team@example.com>\" --section Dashboard --description \"Hosted SystemLink dashboard\" --icon-file dashboard-app/src/favicon.ico\nslcli webapp pack --config dashboard-app/nipkg.config.json",
           "negative_control": "slcli webapp pack",
           "mode": "all_of",
           "patterns": [
-            "slcli\\s+webapp\\s+manifest\\s+init\\s+fleet-dashboard[^\\n]*--description[^\\n]*--section[^\\n]*--maintainer[^\\n]*--license[^\\n]*--icon-file",
-            "slcli\\s+webapp\\s+pack\\s+--config\\s+fleet-dashboard/nipkg\\.config\\.json"
+            "slcli\\s+webapp\\s+manifest\\s+init\\s+\\S+(?=[^\\n]*--description\\s+)(?=[^\\n]*--section\\s+)(?=[^\\n]*--maintainer\\s+)(?=[^\\n]*--license\\s+)(?=[^\\n]*--icon-file\\s+)",
+            "slcli\\s+webapp\\s+pack\\b(?=[^\\n]*--config\\s+\\S*nipkg\\.config\\.json)"
           ]
         }
       ]
@@ -479,20 +498,20 @@
           "scope": "command",
           "mode": "any_of",
           "patterns": [
-            "slcli\\s+spec\\s+import"
+            "slcli\\s+spec\\s+import\\b(?=[^\\n]*--file\\s+\\S+\\.json\\b)"
           ]
         },
         {
           "text": "Includes a follow-up verification command",
           "critical": true,
-          "positive_control": "slcli spec get imported-spec-id",
+          "positive_control": "slcli spec get --id imported-spec-id",
           "negative_control": "slcli spec import --file specifications.json",
           "scope": "command",
           "mode": "any_of",
           "patterns": [
-            "slcli\\s+spec\\s+list",
-            "slcli\\s+spec\\s+export",
-            "slcli\\s+spec\\s+get"
+            "slcli\\s+spec\\s+list\\b(?=[^\\n]*--product\\s+\\S+)",
+            "slcli\\s+spec\\s+export\\b(?=[^\\n]*--product\\s+\\S+)",
+            "slcli\\s+spec\\s+get\\b(?=[^\\n]*--id\\s+\\S+)"
           ]
         }
       ]
@@ -546,14 +565,14 @@
         {
           "text": "Includes a verification command after import",
           "critical": true,
-          "positive_control": "slcli spec list",
+          "positive_control": "slcli spec list --product BAT-MODEL-ABC-001",
           "negative_control": "slcli spec import --file specifications.json",
           "scope": "command",
           "mode": "any_of",
           "patterns": [
-            "slcli\\s+spec\\s+list",
-            "slcli\\s+spec\\s+export",
-            "slcli\\s+spec\\s+get"
+            "slcli\\s+spec\\s+list\\b(?=[^\\n]*--product\\s+\\S+)",
+            "slcli\\s+spec\\s+export\\b(?=[^\\n]*--product\\s+\\S+)",
+            "slcli\\s+spec\\s+get\\b(?=[^\\n]*--id\\s+\\S+)"
           ]
         }
       ]

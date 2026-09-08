@@ -3,6 +3,8 @@
 from __future__ import annotations
 
 import argparse
+import hashlib
+import json
 import subprocess
 from pathlib import Path
 
@@ -15,6 +17,7 @@ from slcli.skills.slcli.scripts.prepare_eval_workspace import (
     hash_directory,
     positive_int,
     prepare_iteration_directory,
+    scaffold_eval_dir,
     select_evals,
 )
 
@@ -64,8 +67,7 @@ def test_old_skill_prompt_loads_snapshot_skill(tmp_path: Path) -> None:
         configuration="old_skill",
         max_tool_calls=8,
         max_minutes=3,
-        candidate_repo_root=None,
-        baseline_repo_root=str(baseline_repo),
+        repository_root=str(baseline_repo),
     )
 
     assert f"Skill path: {baseline_repo / 'slcli' / 'skills' / 'slcli'}" in prompt
@@ -83,13 +85,76 @@ def test_with_skill_prompt_loads_isolated_candidate_skill(tmp_path: Path) -> Non
         configuration="with_skill",
         max_tool_calls=8,
         max_minutes=3,
-        candidate_repo_root=str(candidate_repo),
-        baseline_repo_root=None,
+        repository_root=str(candidate_repo),
     )
 
     assert f"Skill path: {candidate_repo / 'slcli' / 'skills' / 'slcli'}" in prompt
     assert f"Use this isolated candidate repo root: {candidate_repo}" in prompt
     assert "transcript.jsonl containing the complete executor trace" in prompt
+
+
+def test_scaffold_eval_uses_independent_run_repos_and_neutral_inputs(tmp_path: Path) -> None:
+    skill_dir = tmp_path / "working" / "slcli" / "skills" / "slcli"
+    fixture = skill_dir / "evals" / "files" / "input.txt"
+    fixture.parent.mkdir(parents=True)
+    fixture.write_text("fixture\n", encoding="utf-8")
+    candidate_template = tmp_path / "candidate-template"
+    baseline_template = tmp_path / "baseline-template"
+    for template, content in (
+        (candidate_template, "candidate\n"),
+        (baseline_template, "baseline\n"),
+    ):
+        template_skill = template / "slcli" / "skills" / "slcli"
+        template_skill.mkdir(parents=True)
+        (template_skill / "SKILL.md").write_text(content, encoding="utf-8")
+
+    iteration_dir = tmp_path / "iteration"
+    iteration_dir.mkdir()
+    scaffold_eval_dir(
+        skill_dir,
+        iteration_dir,
+        {
+            "id": 1,
+            "prompt": "Use the fixture",
+            "expectations": [],
+            "tags": ["gating"],
+            "files": ["evals/files/input.txt"],
+        },
+        "old_skill",
+        2,
+        candidate_template,
+        baseline_template,
+    )
+
+    eval_dir = next(iteration_dir.glob("eval-*"))
+    candidate_roots = [
+        Path(
+            json.loads(
+                (eval_dir / "with_skill" / f"run-{run}" / "run_config.json").read_text(
+                    encoding="utf-8"
+                )
+            )["repository_root"]
+        )
+        for run in (1, 2)
+    ]
+    baseline_root = Path(
+        json.loads(
+            (eval_dir / "old_skill" / "run-1" / "run_config.json").read_text(encoding="utf-8")
+        )["repository_root"]
+    )
+    input_record = json.loads((eval_dir / "inputs_manifest.json").read_text(encoding="utf-8"))[
+        "files"
+    ][0]
+    input_path = Path(input_record["absolute_path"])
+
+    assert candidate_roots[0] != candidate_roots[1]
+    assert candidate_roots[0].is_relative_to(eval_dir)
+    assert baseline_root.is_relative_to(eval_dir)
+    assert input_path.is_relative_to(eval_dir / "inputs")
+    assert not input_path.is_relative_to(skill_dir)
+    assert input_record["sha256"] == hashlib.sha256(input_path.read_bytes()).hexdigest()
+    (candidate_roots[0] / "changed.txt").write_text("changed\n", encoding="utf-8")
+    assert not (candidate_roots[1] / "changed.txt").exists()
 
 
 def test_select_evals_deduplicates_explicit_ids() -> None:

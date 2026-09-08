@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import hashlib
 import json
 from pathlib import Path
 from typing import Any
@@ -46,6 +47,7 @@ def test_grade_run_records_provenance_and_only_grades_response(tmp_path: Path) -
         },
     )
     run_dir = tmp_path / "iteration" / "eval-1" / "with_skill" / "run-1"
+    write_json(run_dir.parents[1] / "inputs_manifest.json", {"files": []})
     outputs = run_dir / "outputs"
     outputs.mkdir(parents=True)
     (outputs / "response.txt").write_text("I could not determine the command.\n", encoding="utf-8")
@@ -80,6 +82,8 @@ def test_grade_run_records_provenance_and_only_grades_response(tmp_path: Path) -
         == "fail"
     )
     assert record["candidate_sha"] == "candidate"
+    assert record["eval_manifest_hash"] == hashlib.sha256(manifest_path.read_bytes()).hexdigest()
+    assert record["inputs"] == []
     assert {item["path"] for item in record["outputs"]} == {
         "notes.txt",
         "response.txt",

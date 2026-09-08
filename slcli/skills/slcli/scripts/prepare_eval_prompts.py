@@ -71,39 +71,36 @@ def build_prompt(
     configuration: str,
     max_tool_calls: int,
     max_minutes: float,
-    candidate_repo_root: str | None,
-    baseline_repo_root: str | None,
+    repository_root: str | None,
 ) -> str:
     """Build the executor prompt text for one run."""
     lines = ["Execute this task.", ""]
 
     if configuration == "with_skill":
         candidate_skill_path = (
-            Path(candidate_repo_root) / "slcli" / "skills" / "slcli"
-            if candidate_repo_root
-            else skill_path
+            Path(repository_root) / "slcli" / "skills" / "slcli" if repository_root else skill_path
         )
         lines.extend(
             [
                 f"Skill path: {candidate_skill_path}",
                 "Use the skill guidance from that path while solving the task.",
                 *(
-                    [f"Use this isolated candidate repo root: {candidate_repo_root}"]
-                    if candidate_repo_root
+                    [f"Use this isolated candidate repo root: {repository_root}"]
+                    if repository_root
                     else []
                 ),
                 "",
             ]
         )
     elif configuration == "old_skill":
-        if not baseline_repo_root:
+        if not repository_root:
             raise ValueError("old_skill runs require an isolated baseline repository")
-        baseline_skill_path = Path(baseline_repo_root) / "slcli" / "skills" / "slcli"
+        baseline_skill_path = Path(repository_root) / "slcli" / "skills" / "slcli"
         lines.extend(
             [
                 f"Skill path: {baseline_skill_path}",
                 "Use the merge-base version of the skill from that path while solving the task.",
-                f"Use this isolated baseline repo root: {baseline_repo_root}",
+                f"Use this isolated baseline repo root: {repository_root}",
                 "",
             ]
         )
@@ -113,8 +110,8 @@ def build_prompt(
                 "Baseline run: do not load the slcli skill for this execution.",
                 "Solve the task without relying on the skill instructions.",
                 (
-                    f"Use this isolated baseline repo root: {baseline_repo_root}"
-                    if baseline_repo_root
+                    f"Use this isolated baseline repo root: {repository_root}"
+                    if repository_root
                     else "No isolated baseline repo was prepared; do not load the skill from the current checkout."
                 ),
                 "",
@@ -205,6 +202,7 @@ def main() -> None:
     for metadata_path, inputs_path, run_dir in iter_run_dirs(args.iteration_dir):
         metadata = load_json(metadata_path)
         inputs = load_json(inputs_path)
+        run_config = load_json(run_dir / "run_config.json")
         configuration = run_dir.parent.name
         output_dir = run_dir / "outputs"
         prompt_text = build_prompt(
@@ -215,8 +213,7 @@ def main() -> None:
             configuration,
             args.max_tool_calls,
             args.max_minutes,
-            metadata.get("candidate_repo_root"),
-            metadata.get("baseline_repo_root"),
+            run_config.get("repository_root"),
         )
         prompt_path = run_dir / "executor_prompt.txt"
         if maybe_write(prompt_path, prompt_text, args.force):

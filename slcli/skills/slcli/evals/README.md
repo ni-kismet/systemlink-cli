@@ -48,10 +48,12 @@ This prints a new iteration directory such as:
 slcli/skills/slcli-workspace/iteration-1
 ```
 
-The iteration contains paired `candidate_repo/` and `baseline_repo/` snapshots
-of the current candidate checkout. Only the `slcli` skill in `baseline_repo/`
-is replaced with its version from the merge base of `origin/main` and `HEAD`,
-so the experiment arms differ only in the skill under test. Use
+The iteration contains paired candidate and baseline repository templates from
+the current candidate checkout. Only the `slcli` skill in the baseline template
+is replaced with its version from the merge base of `origin/main` and `HEAD`.
+Each trial receives its own copy of the appropriate template, so parallel runs
+cannot modify another trial's repository. File-backed fixtures are copied into
+a neutral `inputs/` directory shared by both arms. Use
 `--baseline-ref` when comparing against another branch. Use
 `--baseline without_skill --isolate-baseline` only when measuring whether a new
 skill adds value; that comparison is not a regression test.
@@ -76,8 +78,8 @@ Recommended execution pattern:
 
 1. Use one parent chat as the orchestrator.
 2. Run each prepared eval in a fresh stateless subagent.
-3. Point `with_skill` runs at the skill inside `candidate_repo/`.
-4. Point `old_skill` runs at the skill inside `baseline_repo/`.
+3. Point `with_skill` runs at the run-specific candidate skill path in its prompt.
+4. Point `old_skill` runs at the run-specific baseline skill path in its prompt.
 5. Keep concurrency modest, usually 2 to 4 runs at a time.
 6. If a run exceeds its budget, save the best grounded `response.txt`, add a short `notes.txt`, and continue.
 
@@ -92,9 +94,24 @@ write:
 Candidate and baseline trials are incomparable when provider, model, or harness
 metadata differs.
 
+The gate also treats a run as inconclusive when its candidate/baseline hashes,
+eval manifest hash, run identity, classification, or detailed grading payload
+does not match the immutable provenance captured in `run_record.json`.
+
 Retry an infrastructure failure once. If the retry also fails, preserve the
 partial artifacts with `status: infrastructure_error`; the gate reports that
 trial as inconclusive instead of scoring it as a skill failure.
+
+## Harness Invariants
+
+- Every trial uses a fresh repository sandbox and a fresh stateless subagent.
+- Candidate and baseline sandboxes begin from the same candidate repository;
+  only the baseline skill directory differs.
+- Input fixtures live outside both skill trees and are identical for both arms.
+- Copied fixture hashes must match their preparation-time input manifest.
+- Critical compound workflows must pass within one command invocation.
+- Positive controls must use supported command paths and required arguments.
+- Executor errors and provenance mismatches are inconclusive, never passing evidence.
 
 #### Grade and aggregate the iteration
 
