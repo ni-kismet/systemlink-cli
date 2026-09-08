@@ -4,9 +4,11 @@ from __future__ import annotations
 
 import argparse
 import json
+import runpy
 import subprocess
 import sys
 from pathlib import Path
+from typing import Any, Callable, cast
 
 
 def parse_args() -> argparse.Namespace:
@@ -73,8 +75,15 @@ def run_command(command: list[str]) -> None:
     subprocess.run(command, check=True)
 
 
-def enrich_benchmark(iteration_dir: Path) -> None:
-    """Replace aggregate placeholders with recorded iteration metadata."""
+def metric_delta(run_summary: dict[str, Any], candidate: str, baseline: str, metric: str) -> float:
+    """Calculate a candidate-minus-baseline mean metric delta."""
+    candidate_mean = run_summary.get(candidate, {}).get(metric, {}).get("mean", 0)
+    baseline_mean = run_summary.get(baseline, {}).get(metric, {}).get("mean", 0)
+    return float(candidate_mean) - float(baseline_mean)
+
+
+def enrich_benchmark(iteration_dir: Path, aggregate_script: Path) -> None:
+    """Apply recorded metadata and regenerate both benchmark artifacts."""
     benchmark_path = iteration_dir / "benchmark.json"
     benchmark = json.loads(benchmark_path.read_text(encoding="utf-8"))
     iteration = json.loads((iteration_dir / "iteration_manifest.json").read_text(encoding="utf-8"))
@@ -100,7 +109,19 @@ def enrich_benchmark(iteration_dir: Path) -> None:
             "eval_manifest_hash": iteration.get("eval_manifest_hash"),
         }
     )
+    baseline = iteration["baseline"]
+    run_summary = benchmark["run_summary"]
+    run_summary["delta"] = {
+        "pass_rate": f"{metric_delta(run_summary, 'with_skill', baseline, 'pass_rate'):+.2f}",
+        "time_seconds": f"{metric_delta(run_summary, 'with_skill', baseline, 'time_seconds'):+.1f}",
+        "tokens": f"{metric_delta(run_summary, 'with_skill', baseline, 'tokens'):+.0f}",
+    }
     benchmark_path.write_text(json.dumps(benchmark, indent=2) + "\n", encoding="utf-8")
+    aggregate_module = runpy.run_path(str(aggregate_script))
+    generate_markdown = cast(Callable[[dict[str, Any]], str], aggregate_module["generate_markdown"])
+    (iteration_dir / "benchmark.md").write_text(
+        generate_markdown(benchmark) + "\n", encoding="utf-8"
+    )
 
 
 def main() -> None:
@@ -130,7 +151,7 @@ def main() -> None:
         args.skill_path,
     ]
     run_command(aggregate_command)
-    enrich_benchmark(args.iteration_dir)
+    enrich_benchmark(args.iteration_dir, args.aggregate_script)
 
     if not args.skip_gate:
         compare_script = script_dir / "compare_iteration.py"

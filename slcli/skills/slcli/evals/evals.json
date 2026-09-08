@@ -53,6 +53,20 @@
           ]
         },
         {
+          "text": "Includes a parameterized last-month time window",
+          "critical": true,
+          "positive_control": "slcli testmonitor result list --filter \"startedAt >= @0 and startedAt < @1\" --substitution 2026-08-01T00:00:00Z --substitution 2026-09-01T00:00:00Z",
+          "negative_control": "slcli testmonitor result list --part-number BAT-MODEL-ABC-001 --status FAILED",
+          "scope": "command",
+          "mode": "all_of",
+          "patterns": [
+            "--filter\\s+",
+            "startedAt\\s*>=",
+            "startedAt\\s*<",
+            "--substitution\\s+"
+          ]
+        },
+        {
           "text": "Avoids unsupported generic query commands",
           "critical": true,
           "positive_control": "slcli testmonitor result list",
@@ -191,6 +205,19 @@
           ]
         },
         {
+          "text": "Includes failed status and the bounded June 2022 date range",
+          "critical": true,
+          "positive_control": "slcli testmonitor result list --status FAILED --filter \"startedAt >= @0 and startedAt < @1\" --substitution 2022-06-01T00:00:00Z --substitution 2022-07-01T00:00:00Z",
+          "negative_control": "slcli testmonitor result list --part-number BATT-8 --operator xli",
+          "scope": "command",
+          "mode": "all_of",
+          "patterns": [
+            "--status\\s+FAILED",
+            "2022-06-01",
+            "2022-07-01"
+          ]
+        },
+        {
           "text": "Requests JSON output for downstream analysis",
           "critical": false,
           "scope": "command",
@@ -216,14 +243,15 @@
       ],
       "grading_rules": [
         {
-          "text": "Uses the dataframe command group",
+          "text": "Queries ProductionMetrics with the requested operator constraint",
           "critical": true,
-          "positive_control": "slcli dataframe query ProductionMetrics",
-          "negative_control": "slcli table query ProductionMetrics",
+          "positive_control": "slcli dataframe query ProductionMetrics --where \"operator,eq,J. Santos\" --format json",
+          "negative_control": "slcli dataframe list",
           "scope": "command",
-          "mode": "any_of",
+          "mode": "all_of",
           "patterns": [
-            "slcli\\s+dataframe\\s+"
+            "slcli\\s+dataframe\\s+query\\s+ProductionMetrics",
+            "--where\\s+operator,eq,J\\. Santos"
           ]
         },
         {
@@ -407,7 +435,7 @@
         {
           "text": "Uses the spec import command",
           "critical": true,
-          "positive_control": "slcli spec import specifications.json",
+          "positive_control": "slcli spec import --file specifications.json",
           "negative_control": "slcli spec create specifications.json",
           "scope": "command",
           "mode": "any_of",
@@ -419,7 +447,7 @@
           "text": "Includes a follow-up verification command",
           "critical": true,
           "positive_control": "slcli spec get imported-spec-id",
-          "negative_control": "slcli spec import specifications.json",
+          "negative_control": "slcli spec import --file specifications.json",
           "scope": "command",
           "mode": "any_of",
           "patterns": [
@@ -456,18 +484,18 @@
         {
           "text": "Uses a supported JSON-based import workflow",
           "critical": true,
-          "positive_control": "Convert the CSV to JSON, then run slcli spec import specifications.json",
+          "positive_control": "Create specifications for BAT-MODEL-ABC-001 in JSON, then run slcli spec import --file specifications.json",
           "negative_control": "slcli spec import battery-specs.csv",
           "mode": "all_of",
           "patterns": [
-            "slcli\\s+spec\\s+import",
-            "json"
+            "slcli\\s+spec\\s+import\\s+--file\\s+[^\\s]+\\.json",
+            "BAT-MODEL-ABC-001"
           ]
         },
         {
           "text": "Avoids inventing direct CSV import support",
           "critical": true,
-          "positive_control": "slcli spec import specifications.json",
+          "positive_control": "slcli spec import --file specifications.json",
           "negative_control": "slcli spec import battery-specs.csv",
           "scope": "command",
           "mode": "none_of",
@@ -480,7 +508,7 @@
           "text": "Includes a verification command after import",
           "critical": true,
           "positive_control": "slcli spec list",
-          "negative_control": "slcli spec import specifications.json",
+          "negative_control": "slcli spec import --file specifications.json",
           "scope": "command",
           "mode": "any_of",
           "patterns": [
@@ -510,13 +538,13 @@
         {
           "text": "Uses the attached nipkg config for packaging",
           "critical": true,
-          "positive_control": "slcli webapp pack --config evals/files/webapp-package/nipkg.config.json",
+          "positive_control": "slcli webapp pack --config slcli/skills/slcli/evals/files/webapp-package/nipkg.config.json",
           "negative_control": "slcli webapp pack",
           "scope": "command",
           "mode": "all_of",
           "patterns": [
             "slcli\\s+webapp\\s+pack",
-            "--config\\s+evals/files/webapp-package/nipkg\\.config\\.json"
+            "--config\\s+(?:\\S*/)?evals/files/webapp-package/nipkg\\.config\\.json"
           ]
         },
         {

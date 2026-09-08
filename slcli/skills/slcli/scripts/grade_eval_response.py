@@ -5,6 +5,7 @@ from __future__ import annotations
 import argparse
 import json
 import re
+import shlex
 from pathlib import Path
 from typing import Any
 
@@ -58,24 +59,14 @@ def load_eval(manifest_path: Path, eval_id: int) -> dict[str, Any]:
 
 
 def gather_response_text(response_path: Path) -> tuple[str, list[str]]:
-    """Read response text from a file or a directory of artifacts."""
+    """Read a final response file or the designated response in an output directory."""
     if response_path.is_file():
         return read_text_artifact(response_path), [str(response_path)]
 
-    text_parts: list[str] = []
-    sources: list[str] = []
-    for file_path in sorted(response_path.rglob("*")):
-        if not file_path.is_file():
-            continue
-        if file_path.suffix.lower() not in {".txt", ".md", ".json", ".log", ".sh"}:
-            continue
-        text_parts.append(read_text_artifact(file_path))
-        sources.append(str(file_path))
-
-    if not text_parts:
-        raise ValueError(f"No readable text artifacts found under {response_path}")
-
-    return "\n\n".join(text_parts), sources
+    final_response = response_path / "response.txt"
+    if not final_response.is_file():
+        raise ValueError(f"Final response artifact not found: {final_response}")
+    return read_text_artifact(final_response), [str(final_response)]
 
 
 def extract_slcli_commands(text: str) -> list[str]:
@@ -87,18 +78,26 @@ def extract_slcli_commands(text: str) -> list[str]:
         if pending:
             pending += " " + line.removesuffix("\\").strip()
             if not line.endswith("\\"):
-                commands.append(pending)
+                commands.extend(extract_slcli_commands(pending))
                 pending = ""
             continue
-        match = re.search(r"(?:^|[;&|]\s*)(slcli\s+.+)$", line)
-        if match:
-            command = match.group(1).removesuffix("\\").strip()
-            if line.endswith("\\"):
-                pending = command
+        if line.endswith("\\"):
+            pending = line.removesuffix("\\").strip()
+            continue
+        lexer = shlex.shlex(line.strip("`"), posix=True, punctuation_chars=";&|")
+        lexer.whitespace_split = True
+        lexer.commenters = ""
+        tokens = list(lexer)
+        segment: list[str] = []
+        for token in [*tokens, ";"]:
+            if token in {";", "&&", "||", "|", "&"}:
+                if "slcli" in segment:
+                    commands.append(" ".join(segment[segment.index("slcli") :]))
+                segment = []
             else:
-                commands.append(command)
+                segment.append(token)
     if pending:
-        commands.append(pending)
+        commands.extend(extract_slcli_commands(pending))
     return commands
 
 

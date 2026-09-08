@@ -120,6 +120,9 @@ def load_run_results(benchmark_dir: Path) -> dict:
                 except json.JSONDecodeError as e:
                     print(f"Warning: Invalid JSON in {grading_file}: {e}")
                     continue
+                if grading.get("classification") == "inconclusive":
+                    print(f"Warning: skipping inconclusive run in {run_dir}")
+                    continue
 
                 # Extract metrics
                 result = {

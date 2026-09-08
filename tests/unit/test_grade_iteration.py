@@ -29,6 +29,7 @@ def test_grade_run_records_provenance_and_only_grades_response(tmp_path: Path) -
                     "prompt": "Use the supported command",
                     "expected_output": "A supported command",
                     "files": [],
+                    "expectations": ["Uses the supported command"],
                     "grading_rules": [
                         {
                             "text": "supported command",
@@ -73,6 +74,10 @@ def test_grade_run_records_provenance_and_only_grades_response(tmp_path: Path) -
     assert message.startswith("graded ")
     record = json.loads((run_dir / "run_record.json").read_text(encoding="utf-8"))
     assert record["classification"] == "fail"
+    assert (
+        json.loads((run_dir / "grading.json").read_text(encoding="utf-8"))["classification"]
+        == "fail"
+    )
     assert record["candidate_sha"] == "candidate"
     assert {item["path"] for item in record["outputs"]} == {
         "notes.txt",

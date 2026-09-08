@@ -110,9 +110,10 @@ The gate exits with:
 - `1`: regression detected
 - `2`: inconclusive because runs or required metadata are missing or incompatible
 
-The default gate fails when a candidate has a majority critical failure on a
-task whose baseline passes a majority of trials, or when mean assertion pass
-rate drops by more than five percentage points.
+The default gate fails when the baseline passes the critical rules in a
+majority of trials and any paired candidate trial introduces a critical
+failure. It also fails when mean assertion pass rate drops by more than five
+percentage points.
 
 #### Regenerate the review page
 

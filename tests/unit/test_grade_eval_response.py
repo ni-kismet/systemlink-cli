@@ -37,7 +37,7 @@ def test_gather_response_text_replaces_invalid_utf8_bytes(tmp_path: Path) -> Non
     assert sources == [str(response_path)]
 
 
-def test_grade_response_reads_directory_artifacts_with_invalid_utf8(tmp_path: Path) -> None:
+def test_grade_response_reads_final_directory_response_with_invalid_utf8(tmp_path: Path) -> None:
     manifest_path = tmp_path / "evals.json"
     manifest_path.write_text(
         json.dumps(
@@ -51,6 +51,8 @@ def test_grade_response_reads_directory_artifacts_with_invalid_utf8(tmp_path: Pa
                         "tags": ["gating"],
                         "prompt": "Run a testmonitor command",
                         "expected_output": "Uses the testmonitor command group",
+                        "files": [],
+                        "expectations": ["Uses testmonitor"],
                         "grading_rules": [
                             {
                                 "text": "Matches command",
@@ -71,12 +73,25 @@ def test_grade_response_reads_directory_artifacts_with_invalid_utf8(tmp_path: Pa
     )
     response_dir = tmp_path / "outputs"
     response_dir.mkdir()
-    (response_dir / "response.log").write_bytes(b"slcli testmonitor\xff result list\n")
+    (response_dir / "response.txt").write_bytes(b"slcli testmonitor\xff result list\n")
+    (response_dir / "notes.txt").write_text("slcli system list\n", encoding="utf-8")
 
     output = grade_response(manifest_path, 1, response_dir)
 
     assert output["summary"] == {"passed": 1, "failed": 0, "total": 1, "pass_rate": 1.0}
-    assert output["eval_feedback"]["sources"] == [str(response_dir / "response.log")]
+    assert output["eval_feedback"]["sources"] == [str(response_dir / "response.txt")]
+
+
+def test_directory_grading_does_not_use_notes(tmp_path: Path) -> None:
+    outputs = tmp_path / "outputs"
+    outputs.mkdir()
+    (outputs / "response.txt").write_text("No command found.\n", encoding="utf-8")
+    (outputs / "notes.txt").write_text("slcli system list\n", encoding="utf-8")
+
+    text, sources = gather_response_text(outputs)
+
+    assert text == "No command found.\n"
+    assert sources == [str(outputs / "response.txt")]
 
 
 def test_command_rule_requires_patterns_in_same_invocation(tmp_path: Path) -> None:
@@ -94,6 +109,7 @@ def test_command_rule_requires_patterns_in_same_invocation(tmp_path: Path) -> No
                         "prompt": "test",
                         "expected_output": "test",
                         "files": [],
+                        "expectations": ["same command"],
                         "grading_rules": [
                             {
                                 "text": "same command",
@@ -121,3 +137,24 @@ def test_command_rule_requires_patterns_in_same_invocation(tmp_path: Path) -> No
     output = grade_response(manifest_path, 1, response_path)
 
     assert output["expectations"][0]["passed"] is False
+
+
+def test_command_rule_splits_shell_command_lists(tmp_path: Path) -> None:
+    rule = {
+        "mode": "all_of",
+        "scope": "command",
+        "patterns": ["--part-number BATT", "--status FAILED"],
+    }
+
+    commands = extract_slcli_commands(
+        "slcli testmonitor result list --part-number BATT && "
+        "slcli testmonitor result list --status FAILED"
+    )
+
+    assert commands == [
+        "slcli testmonitor result list --part-number BATT",
+        "slcli testmonitor result list --status FAILED",
+    ]
+    from slcli.skills.slcli.scripts.grade_eval_response import evaluate_rule
+
+    assert evaluate_rule(" && ".join(commands), rule)[0] is False

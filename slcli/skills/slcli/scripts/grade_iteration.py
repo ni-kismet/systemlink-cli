@@ -94,10 +94,20 @@ def grade_run(
 
     timing_path = run_dir / "timing.json"
     graded = grade_response(manifest_path, eval_id, response_path, timing_path)
-    output_path.write_text(json.dumps(graded, indent=2) + "\n", encoding="utf-8")
     run_metadata_path = run_dir / "outputs" / "run_metadata.json"
     run_metadata = load_json(run_metadata_path) if run_metadata_path.exists() else {}
     infrastructure_error = run_metadata.get("status") == "infrastructure_error"
+    classification = (
+        "inconclusive"
+        if infrastructure_error
+        else (
+            "pass"
+            if all(item["passed"] for item in graded["expectations"] if item.get("critical", True))
+            else "fail"
+        )
+    )
+    graded["classification"] = classification
+    output_path.write_text(json.dumps(graded, indent=2) + "\n", encoding="utf-8")
     record = {
         "skill_name": iteration_metadata.get("skill_name"),
         "candidate_sha": iteration_metadata.get("candidate_sha"),
@@ -112,17 +122,7 @@ def grade_run(
         "timing": load_json(timing_path) if timing_path.exists() else {},
         "outputs": file_manifest(run_dir / "outputs"),
         "grading": graded,
-        "classification": (
-            "inconclusive"
-            if infrastructure_error
-            else (
-                "pass"
-                if all(
-                    item["passed"] for item in graded["expectations"] if item.get("critical", True)
-                )
-                else "fail"
-            )
-        ),
+        "classification": classification,
     }
     (run_dir / "run_record.json").write_text(json.dumps(record, indent=2) + "\n", encoding="utf-8")
     return f"graded {run_dir}"

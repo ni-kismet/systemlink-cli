@@ -35,21 +35,46 @@ def validate_manifest(payload: dict[str, Any], skill_dir: Path) -> None:
 
     for entry in entries:
         eval_id = entry["id"]
-        if not entry.get("prompt") or not entry.get("expected_output"):
+        required_entry_fields = {
+            "prompt",
+            "expected_output",
+            "files",
+            "expectations",
+            "grading_rules",
+        }
+        missing_entry_fields = required_entry_fields - entry.keys()
+        if missing_entry_fields:
+            raise ValueError(
+                f"eval {eval_id} is missing required fields: {sorted(missing_entry_fields)}"
+            )
+        if not entry["prompt"] or not entry["expected_output"]:
             raise ValueError(f"eval {eval_id} requires prompt and expected_output")
-        for relative_path in entry.get("files", []):
+        if not isinstance(entry["files"], list) or not isinstance(entry["expectations"], list):
+            raise ValueError(f"eval {eval_id} files and expectations must be lists")
+        for relative_path in entry["files"]:
+            if not isinstance(relative_path, str):
+                raise ValueError(f"eval {eval_id} fixture paths must be strings")
             if not (skill_dir / relative_path).is_file():
                 raise ValueError(f"eval {eval_id} fixture does not exist: {relative_path}")
-        rules = entry.get("grading_rules", [])
+        rules = entry["grading_rules"]
+        if not isinstance(rules, list):
+            raise ValueError(f"eval {eval_id} grading_rules must be a list")
         if eval_id in suites["gating"] and not rules:
             raise ValueError(f"gating eval {eval_id} requires grading rules")
         for rule in rules:
+            if not isinstance(rule.get("critical"), bool):
+                raise ValueError(f"eval {eval_id} grading rules require an explicit critical flag")
+            missing_rule_fields = {"text", "mode", "patterns"} - rule.keys()
+            if missing_rule_fields:
+                raise ValueError(
+                    f"eval {eval_id} grading rule is missing fields: {sorted(missing_rule_fields)}"
+                )
+            if not isinstance(rule["text"], str) or not rule["text"]:
+                raise ValueError(f"eval {eval_id} grading rule text must be non-empty")
             if rule.get("mode") not in SUPPORTED_RULE_MODES:
                 raise ValueError(f"eval {eval_id} has unsupported rule mode: {rule.get('mode')}")
             if rule.get("scope", "response") not in SUPPORTED_RULE_SCOPES:
                 raise ValueError(f"eval {eval_id} has unsupported rule scope: {rule.get('scope')}")
-            if not isinstance(rule.get("critical"), bool):
-                raise ValueError(f"eval {eval_id} grading rules require an explicit critical flag")
             if not rule.get("patterns"):
                 raise ValueError(f"eval {eval_id} grading rules require patterns")
             if rule["critical"] and (

@@ -57,10 +57,11 @@ Run:
 
 ```bash
 python slcli/skills/slcli/scripts/prepare_eval_prompts.py <ITERATION_DIR> \
-  --force \
   --max-tool-calls <MAX_TOOL_CALLS> \
   --max-minutes <MAX_MINUTES>
 ```
+
+Append `--force` only when the parsed `force` value is `true`.
 
 ### 3. Read the run inputs
 
@@ -93,8 +94,10 @@ For each run:
 After all runs are attempted, run:
 
 ```bash
-python slcli/skills/slcli/scripts/benchmark_iteration.py --force <ITERATION_DIR>
+python slcli/skills/slcli/scripts/benchmark_iteration.py <ITERATION_DIR>
 ```
+
+Append `--force` only when the parsed `force` value is `true`.
 
 ### 6. Regenerate the static review page
 

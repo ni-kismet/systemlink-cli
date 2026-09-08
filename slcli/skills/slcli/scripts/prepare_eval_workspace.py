@@ -20,6 +20,14 @@ from typing import Any
 from slcli.skills.slcli.scripts.eval_manifest import load_manifest
 
 
+def positive_int(value: str) -> int:
+    """Parse a positive integer argument."""
+    parsed = int(value)
+    if parsed <= 0:
+        raise argparse.ArgumentTypeError("value must be greater than zero")
+    return parsed
+
+
 def parse_args() -> argparse.Namespace:
     """Parse command-line arguments."""
     script_dir = Path(__file__).resolve().parent
@@ -60,7 +68,7 @@ def parse_args() -> argparse.Namespace:
     )
     parser.add_argument(
         "--runs-per-config",
-        type=int,
+        type=positive_int,
         default=3,
         help="Number of run directories to create for each configuration.",
     )
@@ -159,7 +167,11 @@ def run_git(repo_root: Path, *args: str) -> str:
 def hash_directory(directory: Path) -> str:
     """Return a stable SHA-256 hash for a directory tree."""
     digest = hashlib.sha256()
-    for file_path in sorted(path for path in directory.rglob("*") if path.is_file()):
+    for file_path in sorted(
+        path
+        for path in directory.rglob("*")
+        if path.is_file() and "__pycache__" not in path.parts and path.suffix != ".pyc"
+    ):
         digest.update(file_path.relative_to(directory).as_posix().encode("utf-8"))
         digest.update(b"\0")
         digest.update(file_path.read_bytes())
@@ -219,9 +231,15 @@ def create_isolated_baseline_repo(
             )
         shutil.rmtree(snapshot_root)
 
-    def ignore_entries(_: str, names: list[str]) -> set[str]:
+    workspace_root = iteration_dir.parent.resolve()
+
+    def ignore_entries(directory: str, names: list[str]) -> set[str]:
         ignored = {".git", ".venv", "__pycache__", ".mypy_cache", ".pytest_cache"}
-        return {name for name in names if name in ignored}
+        return {
+            name
+            for name in names
+            if name in ignored or (Path(directory) / name).resolve() == workspace_root
+        }
 
     shutil.copytree(repo_root, snapshot_root, ignore=ignore_entries)
 
@@ -239,6 +257,17 @@ def make_run_dirs(eval_dir: Path, configurations: list[str], runs_per_config: in
         for run_number in range(1, runs_per_config + 1):
             outputs_dir = eval_dir / configuration / f"run-{run_number}" / "outputs"
             outputs_dir.mkdir(parents=True, exist_ok=True)
+
+
+def prepare_iteration_directory(iteration_dir: Path, force: bool) -> None:
+    """Create an empty iteration directory, replacing it only when requested."""
+    if iteration_dir.exists():
+        if not force:
+            raise FileExistsError(
+                f"{iteration_dir} already exists. Use --force or choose another iteration number."
+            )
+        shutil.rmtree(iteration_dir)
+    iteration_dir.mkdir(parents=True)
 
 
 def scaffold_eval_dir(
@@ -289,11 +318,7 @@ def main() -> None:
     workspace_root.mkdir(parents=True, exist_ok=True)
     iteration_number = args.iteration or next_iteration_number(workspace_root)
     iteration_dir = workspace_root / f"iteration-{iteration_number}"
-    if iteration_dir.exists() and not args.force:
-        raise FileExistsError(
-            f"{iteration_dir} already exists. Use --force or choose another iteration number."
-        )
-    iteration_dir.mkdir(parents=True, exist_ok=True)
+    prepare_iteration_directory(iteration_dir, args.force)
 
     baseline_repo_root = None
     baseline_sha = None

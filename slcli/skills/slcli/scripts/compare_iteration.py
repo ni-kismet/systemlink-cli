@@ -31,11 +31,17 @@ def load_json(path: Path) -> dict[str, Any]:
     return json.loads(path.read_text(encoding="utf-8"))
 
 
-def load_run(run_dir: Path) -> tuple[dict[str, Any], dict[str, Any]] | None:
+def load_run(
+    run_dir: Path,
+    iteration: dict[str, Any],
+    eval_id: int,
+    run_number: int,
+) -> tuple[dict[str, Any], dict[str, Any]] | None:
     """Load grading output when a run completed successfully."""
     grading_path = run_dir / "grading.json"
     metadata_path = run_dir / "outputs" / "run_metadata.json"
-    if not grading_path.exists() or not metadata_path.exists():
+    record_path = run_dir / "run_record.json"
+    if not grading_path.exists() or not metadata_path.exists() or not record_path.exists():
         return None
     metadata = load_json(metadata_path)
     required_metadata = {
@@ -53,6 +59,22 @@ def load_run(run_dir: Path) -> tuple[dict[str, Any], dict[str, Any]] | None:
         return None
     grading = load_json(grading_path)
     if grading.get("classification") == "inconclusive":
+        return None
+    record = load_json(record_path)
+    expected_provenance = {
+        "skill_name": iteration.get("skill_name"),
+        "candidate_sha": iteration.get("candidate_sha"),
+        "baseline_sha": iteration.get("baseline_sha"),
+        "candidate_skill_hash": iteration.get("candidate_skill_hash"),
+        "baseline_skill_hash": iteration.get("baseline_skill_hash"),
+        "eval_manifest_hash": iteration.get("eval_manifest_hash"),
+        "eval_id": eval_id,
+        "trial": run_number,
+        "configuration": run_dir.parent.name,
+    }
+    if any(record.get(field) != value for field, value in expected_provenance.items()):
+        return None
+    if record.get("classification") != grading.get("classification"):
         return None
     return grading, metadata
 
@@ -96,14 +118,24 @@ def evaluate_iteration(iteration_dir: Path, margin: float) -> dict[str, Any]:
                 (baseline, baseline_gradings),
             ):
                 run_dir = eval_dir / configuration / f"run-{run_number}"
-                run = load_run(run_dir)
+                run = load_run(run_dir, manifest, int(eval_id), run_number)
                 if run is None:
                     missing_runs.append(str(run_dir))
                 else:
                     destination.append(run[0])
 
-            candidate_run = load_run(eval_dir / "with_skill" / f"run-{run_number}")
-            baseline_run = load_run(eval_dir / baseline / f"run-{run_number}")
+            candidate_run = load_run(
+                eval_dir / "with_skill" / f"run-{run_number}",
+                manifest,
+                int(eval_id),
+                run_number,
+            )
+            baseline_run = load_run(
+                eval_dir / baseline / f"run-{run_number}",
+                manifest,
+                int(eval_id),
+                run_number,
+            )
             if candidate_run and baseline_run:
                 candidate_metadata = candidate_run[1]
                 baseline_metadata = baseline_run[1]

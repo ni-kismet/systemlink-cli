@@ -72,6 +72,8 @@ Instructions:
    - if the run does not converge inside that budget, stop, write the best grounded response you have to response.txt, and write notes.txt explaining the failure briefly
    - save the final user-facing answer to the sibling outputs/response.txt path named in the prompt
    - save optional outputs/notes.txt only if assumptions or caveats matter
+  - save outputs/run_metadata.json with executor_provider, exact executor_model, harness, configuration, and status
+  - use status `completed` only for a completed model run; retry an infrastructure failure once, then use `infrastructure_error` and preserve partial artifacts
 4. Do both configurations for every eval:
    - with_skill
    - old_skill
