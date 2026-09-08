@@ -1,4 +1,5 @@
 {
+  "manifest_version": 1,
   "skill_name": "slcli",
   "recommended_suites": {
     "gating": [1, 4, 5, 7, 10],
@@ -20,6 +21,10 @@
       "grading_rules": [
         {
           "text": "Uses the testmonitor result surface",
+          "critical": true,
+          "positive_control": "slcli testmonitor result list",
+          "negative_control": "slcli system list",
+          "scope": "command",
           "mode": "any_of",
           "patterns": [
             "slcli\\s+testmonitor\\s+result\\s+list"
@@ -27,6 +32,8 @@
         },
         {
           "text": "Requests JSON output for analysis",
+          "critical": false,
+          "scope": "command",
           "mode": "any_of",
           "patterns": [
             "--format\\s+json",
@@ -35,6 +42,10 @@
         },
         {
           "text": "Includes product and failed-status filters",
+          "critical": true,
+          "positive_control": "slcli testmonitor result list --part-number BAT-MODEL-ABC-001 --status FAILED",
+          "negative_control": "slcli testmonitor result list --part-number BAT-MODEL-ABC-001",
+          "scope": "command",
           "mode": "all_of",
           "patterns": [
             "--part-number\\s+\"?BAT-MODEL-ABC-001\"?",
@@ -43,6 +54,10 @@
         },
         {
           "text": "Avoids unsupported generic query commands",
+          "critical": true,
+          "positive_control": "slcli testmonitor result list",
+          "negative_control": "slcli query results",
+          "scope": "command",
           "mode": "none_of",
           "patterns": [
             "slcli\\s+query\\b",
@@ -66,6 +81,10 @@
       "grading_rules": [
         {
           "text": "Uses the system compare command",
+          "critical": true,
+          "positive_control": "slcli system compare apm-pxi-2 formation-station-REAL",
+          "negative_control": "slcli system list",
+          "scope": "command",
           "mode": "any_of",
           "patterns": [
             "slcli\\s+system\\s+compare\\s+apm-pxi-2\\s+formation-station-REAL"
@@ -73,6 +92,10 @@
         },
         {
           "text": "Avoids replacing compare with generic list output",
+          "critical": true,
+          "positive_control": "slcli system compare apm-pxi-2 formation-station-REAL",
+          "negative_control": "slcli system list",
+          "scope": "command",
           "mode": "none_of",
           "patterns": [
             "slcli\\s+system\\s+list"
@@ -95,6 +118,10 @@
       "grading_rules": [
         {
           "text": "Uses a system inspection command for the named system",
+          "critical": true,
+          "positive_control": "slcli system get WinDev2302Eval",
+          "negative_control": "slcli system get OtherSystem",
+          "scope": "command",
           "mode": "any_of",
           "patterns": [
             "slcli\\s+system\\s+get\\s+WinDev2302Eval",
@@ -103,6 +130,10 @@
         },
         {
           "text": "Avoids drifting into unrelated command groups",
+          "critical": true,
+          "positive_control": "slcli system get WinDev2302Eval",
+          "negative_control": "slcli asset list",
+          "scope": "command",
           "mode": "none_of",
           "patterns": [
             "slcli\\s+asset\\s+",
@@ -126,6 +157,10 @@
       "grading_rules": [
         {
           "text": "Uses the testmonitor result list command",
+          "critical": true,
+          "positive_control": "slcli testmonitor result list",
+          "negative_control": "slcli testmonitor product list",
+          "scope": "command",
           "mode": "any_of",
           "patterns": [
             "slcli\\s+testmonitor\\s+result\\s+list"
@@ -133,6 +168,10 @@
         },
         {
           "text": "Includes part and operator constraints",
+          "critical": true,
+          "positive_control": "slcli testmonitor result list --part-number BATT-8 --filter 'operator = xli'",
+          "negative_control": "slcli testmonitor result list --part-number BATT-8",
+          "scope": "command",
           "mode": "all_of",
           "patterns": [
             "BATT-8",
@@ -141,6 +180,10 @@
         },
         {
           "text": "Uses substitutions for a complex filter",
+          "critical": true,
+          "positive_control": "slcli testmonitor result list --substitution operator=xli",
+          "negative_control": "slcli testmonitor result list --filter operator=xli",
+          "scope": "command",
           "mode": "any_of",
           "patterns": [
             "--substitution\\s+",
@@ -149,6 +192,8 @@
         },
         {
           "text": "Requests JSON output for downstream analysis",
+          "critical": false,
+          "scope": "command",
           "mode": "any_of",
           "patterns": [
             "--format\\s+json",
@@ -172,6 +217,10 @@
       "grading_rules": [
         {
           "text": "Uses the dataframe command group",
+          "critical": true,
+          "positive_control": "slcli dataframe query ProductionMetrics",
+          "negative_control": "slcli table query ProductionMetrics",
+          "scope": "command",
           "mode": "any_of",
           "patterns": [
             "slcli\\s+dataframe\\s+"
@@ -179,6 +228,8 @@
         },
         {
           "text": "Requests JSON output",
+          "critical": false,
+          "scope": "command",
           "mode": "any_of",
           "patterns": [
             "--format\\s+json",
@@ -187,6 +238,7 @@
         },
         {
           "text": "Checks or mentions service availability",
+          "critical": false,
           "mode": "any_of",
           "patterns": [
             "slcli\\s+info",
@@ -196,6 +248,9 @@
         },
         {
           "text": "Avoids inventing SQL-only syntax",
+          "critical": true,
+          "positive_control": "Use slcli dataframe query with a filter.",
+          "negative_control": "SELECT * FROM ProductionMetrics WHERE operator = 'J. Santos'",
           "mode": "none_of",
           "patterns": [
             "SELECT\\s+\\*\\s+FROM",
@@ -219,6 +274,10 @@
       "grading_rules": [
         {
           "text": "Uses the testmonitor result list command",
+          "critical": true,
+          "positive_control": "slcli testmonitor result list",
+          "negative_control": "slcli testmonitor product list",
+          "scope": "command",
           "mode": "any_of",
           "patterns": [
             "slcli\\s+testmonitor\\s+result\\s+list"
@@ -226,6 +285,10 @@
         },
         {
           "text": "Addresses both FAILED and ERRORED statuses",
+          "critical": true,
+          "positive_control": "slcli testmonitor result list --filter 'status = FAILED or status = ERRORED'",
+          "negative_control": "slcli testmonitor result list --status FAILED",
+          "scope": "command",
           "mode": "all_of",
           "patterns": [
             "FAILED",
@@ -234,6 +297,7 @@
         },
         {
           "text": "Avoids manual-export-first guidance",
+          "critical": false,
           "mode": "none_of",
           "patterns": [
             "download everything",
@@ -257,6 +321,10 @@
       "grading_rules": [
         {
           "text": "Uses the workitem template create command",
+          "critical": true,
+          "positive_control": "slcli workitem template create battery-cycle.json",
+          "negative_control": "slcli workitem create battery-cycle.json",
+          "scope": "command",
           "mode": "any_of",
           "patterns": [
             "slcli\\s+workitem\\s+template\\s+create"
@@ -264,6 +332,10 @@
         },
         {
           "text": "Includes a verification step",
+          "critical": true,
+          "positive_control": "slcli workitem template list",
+          "negative_control": "slcli workitem list",
+          "scope": "command",
           "mode": "any_of",
           "patterns": [
             "slcli\\s+workitem\\s+template\\s+list",
@@ -272,6 +344,8 @@
         },
         {
           "text": "Carries the workspace through the workflow",
+          "critical": false,
+          "scope": "command",
           "mode": "any_of",
           "patterns": [
             "--workspace\\s+Default"
@@ -294,6 +368,10 @@
       "grading_rules": [
         {
           "text": "Uses a supported webapp scaffold command",
+          "critical": true,
+          "positive_control": "slcli webapp new fleet-dashboard",
+          "negative_control": "ng new fleet-dashboard",
+          "scope": "command",
           "mode": "any_of",
           "patterns": [
             "slcli\\s+webapp\\s+new",
@@ -302,6 +380,9 @@
         },
         {
           "text": "Includes the packaging workflow",
+          "critical": true,
+          "positive_control": "slcli webapp manifest init\nslcli webapp pack",
+          "negative_control": "slcli webapp pack",
           "mode": "all_of",
           "patterns": [
             "slcli\\s+webapp\\s+manifest\\s+init",
@@ -325,6 +406,10 @@
       "grading_rules": [
         {
           "text": "Uses the spec import command",
+          "critical": true,
+          "positive_control": "slcli spec import specifications.json",
+          "negative_control": "slcli spec create specifications.json",
+          "scope": "command",
           "mode": "any_of",
           "patterns": [
             "slcli\\s+spec\\s+import"
@@ -332,6 +417,10 @@
         },
         {
           "text": "Includes a follow-up verification command",
+          "critical": true,
+          "positive_control": "slcli spec get imported-spec-id",
+          "negative_control": "slcli spec import specifications.json",
+          "scope": "command",
           "mode": "any_of",
           "patterns": [
             "slcli\\s+spec\\s+list",
@@ -358,6 +447,7 @@
       "grading_rules": [
         {
           "text": "References the attached CSV fixture",
+          "critical": false,
           "mode": "any_of",
           "patterns": [
             "evals/files/spec-import/battery-specs\\.csv"
@@ -365,6 +455,9 @@
         },
         {
           "text": "Uses a supported JSON-based import workflow",
+          "critical": true,
+          "positive_control": "Convert the CSV to JSON, then run slcli spec import specifications.json",
+          "negative_control": "slcli spec import battery-specs.csv",
           "mode": "all_of",
           "patterns": [
             "slcli\\s+spec\\s+import",
@@ -373,6 +466,10 @@
         },
         {
           "text": "Avoids inventing direct CSV import support",
+          "critical": true,
+          "positive_control": "slcli spec import specifications.json",
+          "negative_control": "slcli spec import battery-specs.csv",
+          "scope": "command",
           "mode": "none_of",
           "patterns": [
             "slcli\\s+spec\\s+import[^\n]*\\.csv",
@@ -381,6 +478,10 @@
         },
         {
           "text": "Includes a verification command after import",
+          "critical": true,
+          "positive_control": "slcli spec list",
+          "negative_control": "slcli spec import specifications.json",
+          "scope": "command",
           "mode": "any_of",
           "patterns": [
             "slcli\\s+spec\\s+list",
@@ -408,6 +509,10 @@
       "grading_rules": [
         {
           "text": "Uses the attached nipkg config for packaging",
+          "critical": true,
+          "positive_control": "slcli webapp pack --config evals/files/webapp-package/nipkg.config.json",
+          "negative_control": "slcli webapp pack",
+          "scope": "command",
           "mode": "all_of",
           "patterns": [
             "slcli\\s+webapp\\s+pack",
@@ -416,6 +521,10 @@
         },
         {
           "text": "Publishes the built app directory rather than the package file",
+          "critical": true,
+          "positive_control": "slcli webapp publish dist/fleet-dashboard/",
+          "negative_control": "slcli webapp publish fleet-dashboard.nipkg",
+          "scope": "command",
           "mode": "any_of",
           "patterns": [
             "slcli\\s+webapp\\s+publish\\s+dist/fleet-dashboard/"
@@ -423,6 +532,10 @@
         },
         {
           "text": "Avoids regenerating the manifest when config already exists",
+          "critical": true,
+          "positive_control": "slcli webapp pack --config nipkg.config.json",
+          "negative_control": "slcli webapp manifest init",
+          "scope": "command",
           "mode": "none_of",
           "patterns": [
             "slcli\\s+webapp\\s+manifest\\s+init"

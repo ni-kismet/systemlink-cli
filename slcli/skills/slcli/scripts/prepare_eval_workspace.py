@@ -7,11 +7,17 @@ and viewer flow so runs can be saved and graded consistently.
 from __future__ import annotations
 
 import argparse
+import hashlib
 import json
 import re
 import shutil
+import subprocess
+import tarfile
+from io import BytesIO
 from pathlib import Path
 from typing import Any
+
+from slcli.skills.slcli.scripts.eval_manifest import load_manifest
 
 
 def parse_args() -> argparse.Namespace:
@@ -55,14 +61,19 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument(
         "--runs-per-config",
         type=int,
-        default=1,
+        default=3,
         help="Number of run directories to create for each configuration.",
     )
     parser.add_argument(
         "--baseline",
         choices=["without_skill", "old_skill"],
-        default="without_skill",
+        default="old_skill",
         help="Baseline configuration directory name.",
+    )
+    parser.add_argument(
+        "--baseline-ref",
+        default="origin/main",
+        help="Git ref used to find the merge-base skill snapshot.",
     )
     parser.add_argument(
         "--force",
@@ -72,7 +83,7 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument(
         "--isolate-baseline",
         action="store_true",
-        help="Create an isolated baseline repo snapshot without the skill directory.",
+        help="Create an isolated repo for without_skill runs; old_skill is always isolated.",
     )
     return parser.parse_args()
 
@@ -81,11 +92,6 @@ def slugify(text: str) -> str:
     """Convert free text to a filesystem-safe slug."""
     cleaned = re.sub(r"[^a-zA-Z0-9]+", "-", text.strip().lower())
     return cleaned.strip("-") or "eval"
-
-
-def load_manifest(manifest_path: Path) -> dict[str, Any]:
-    """Load eval manifest JSON."""
-    return json.loads(manifest_path.read_text(encoding="utf-8"))
 
 
 def select_evals(
@@ -136,6 +142,62 @@ def find_repo_root(skill_dir: Path) -> Path:
         if (candidate / "pyproject.toml").exists():
             return candidate
     raise ValueError(f"Could not determine repository root from {skill_dir}")
+
+
+def run_git(repo_root: Path, *args: str) -> str:
+    """Run Git and return stripped standard output."""
+    result = subprocess.run(
+        ["git", *args],
+        cwd=repo_root,
+        check=True,
+        capture_output=True,
+        text=True,
+    )
+    return result.stdout.strip()
+
+
+def hash_directory(directory: Path) -> str:
+    """Return a stable SHA-256 hash for a directory tree."""
+    digest = hashlib.sha256()
+    for file_path in sorted(path for path in directory.rglob("*") if path.is_file()):
+        digest.update(file_path.relative_to(directory).as_posix().encode("utf-8"))
+        digest.update(b"\0")
+        digest.update(file_path.read_bytes())
+        digest.update(b"\0")
+    return digest.hexdigest()
+
+
+def create_old_skill_snapshot(
+    skill_dir: Path,
+    iteration_dir: Path,
+    baseline_ref: str,
+    force: bool,
+) -> tuple[Path, str]:
+    """Export the merge-base repository containing the previous skill version."""
+    repo_root = find_repo_root(skill_dir)
+    merge_base = run_git(repo_root, "merge-base", baseline_ref, "HEAD")
+    snapshot_root = iteration_dir / "baseline_repo"
+    if snapshot_root.exists():
+        if not force:
+            raise FileExistsError(
+                f"{snapshot_root} already exists. Use --force to recreate the baseline snapshot."
+            )
+        shutil.rmtree(snapshot_root)
+    snapshot_root.mkdir(parents=True)
+
+    archive = subprocess.run(
+        ["git", "archive", "--format=tar", merge_base],
+        cwd=repo_root,
+        check=True,
+        capture_output=True,
+    ).stdout
+    with tarfile.open(fileobj=BytesIO(archive), mode="r:") as tar:
+        tar.extractall(snapshot_root)
+
+    old_skill_dir = snapshot_root / skill_dir.relative_to(repo_root)
+    if not (old_skill_dir / "SKILL.md").exists():
+        raise ValueError(f"Skill does not exist at merge base {merge_base}: {old_skill_dir}")
+    return snapshot_root, merge_base
 
 
 def create_isolated_baseline_repo(
@@ -234,13 +296,21 @@ def main() -> None:
     iteration_dir.mkdir(parents=True, exist_ok=True)
 
     baseline_repo_root = None
-    if args.isolate_baseline:
+    baseline_sha = None
+    if args.baseline == "old_skill":
+        baseline_repo_root, baseline_sha = create_old_skill_snapshot(
+            skill_dir, iteration_dir, args.baseline_ref, args.force
+        )
+    elif args.isolate_baseline:
         baseline_repo_root = create_isolated_baseline_repo(
             skill_dir,
             iteration_dir,
             args.baseline,
             args.force,
         )
+
+    repo_root = find_repo_root(skill_dir)
+    candidate_sha = run_git(repo_root, "rev-parse", "HEAD")
 
     for entry in selected:
         scaffold_eval_dir(
@@ -256,8 +326,18 @@ def main() -> None:
         "skill_name": manifest.get("skill_name"),
         "suite": args.suite,
         "baseline": args.baseline,
-        "baseline_isolated": bool(args.isolate_baseline and baseline_repo_root),
+        "baseline_isolated": bool(baseline_repo_root),
         "baseline_repo_root": str(baseline_repo_root.resolve()) if baseline_repo_root else None,
+        "baseline_ref": args.baseline_ref if args.baseline == "old_skill" else None,
+        "baseline_sha": baseline_sha,
+        "candidate_sha": candidate_sha,
+        "candidate_skill_hash": hash_directory(skill_dir),
+        "eval_manifest_hash": hashlib.sha256(args.evals.read_bytes()).hexdigest(),
+        "baseline_skill_hash": (
+            hash_directory(baseline_repo_root / skill_dir.relative_to(repo_root))
+            if baseline_repo_root and args.baseline == "old_skill"
+            else None
+        ),
         "iteration": iteration_number,
         "runs_per_config": args.runs_per_config,
         "eval_ids": [entry["id"] for entry in selected],

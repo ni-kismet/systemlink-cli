@@ -10,9 +10,9 @@ workspace preparation, grading, aggregation, and review rendering, but they do
 not execute the model runs themselves.
 
 Important: the parent chat is shared context. Do not execute both
-`with_skill` and `without_skill` runs directly in the same running thread of
+`with_skill` and `old_skill` runs directly in the same running thread of
 conversation if you want a meaningful baseline. Use fresh stateless subagents
-per run so `without_skill` stays isolated from any prior skill-loaded context.
+per run so the merge-base skill stays isolated from candidate context.
 
 Also use a fail-fast budget per run. Do not let one struggling eval burn the
 whole batch. A good default for the gating suite is a maximum of about 8 tool
@@ -25,7 +25,7 @@ first.
 - You already generated per-run `executor_prompt.txt` files with
   `prepare_eval_prompts.py`
 - You want one parent Copilot chat to orchestrate all prepared gating evals end
-   to end
+  to end
 
 ## What this does
 
@@ -35,10 +35,12 @@ In one parent chat, Copilot should:
 2. Find every `executor_prompt.txt` under the iteration directory.
 3. For each prepared run directory:
    - execute the prompt in a fresh stateless subagent
-   - load the `slcli` skill only for `with_skill` runs
-   - do not load the `slcli` skill for `without_skill` runs, and use the isolated baseline repo path when the prompt provides one
+   - load the candidate `slcli` skill for `with_skill` runs
+   - load the merge-base `slcli` skill from the isolated baseline repo for `old_skill` runs
    - stop early when the per-run budget is exhausted and record the failure
    - save the final answer to `outputs/response.txt`
+   - save executor identity, configuration, and completion status to `outputs/run_metadata.json`
+   - retry infrastructure failures once; after a second failure, set status to `infrastructure_error` and continue
    - optionally save `outputs/notes.txt` for assumptions
 4. Run `benchmark_iteration.py`.
 5. Run `render_eval_review.py`.
@@ -53,9 +55,8 @@ Use one parent conversation only as the orchestrator. For each executor prompt,
 spawn a fresh stateless subagent so the runs do not share prompt history.
 For `with_skill`, allow the subagent to read and use the skill at:
 <REPO_ROOT>/slcli/skills/slcli
-For `without_skill`, explicitly do not load that skill. If the executor prompt
-provides an isolated `baseline_repo/` path, use that repo view instead of the
-main checkout.
+For `old_skill`, load the skill path inside the isolated `baseline_repo/` named
+by the executor prompt instead of using the candidate checkout.
 Run independent evals in parallel when possible, but keep concurrency modest:
 typically 2 to 4 subagents at a time.
 
@@ -73,7 +74,7 @@ Instructions:
    - save optional outputs/notes.txt only if assumptions or caveats matter
 4. Do both configurations for every eval:
    - with_skill
-   - without_skill
+   - old_skill
 5. After all outputs are populated, run:
    - python slcli/skills/slcli/scripts/benchmark_iteration.py <ITERATION_DIR>
    - python slcli/skills/slcli/scripts/render_eval_review.py <ITERATION_DIR>
@@ -88,7 +89,7 @@ Execution rules:
 - Do not reuse a subagent across runs.
 - Parallelize independent runs when useful, but keep concurrency to roughly 2 to 4 subagents at a time.
 - For with_skill runs, the subagent may read the skill path named in the executor prompt.
-- For without_skill runs, the subagent must not load the skill and should use the isolated baseline repo path named in the executor prompt when present.
+- For old_skill runs, the subagent must load only the merge-base skill path named in the executor prompt.
 - If a run exceeds its budget without a grounded answer, declare it failed quickly, persist the best grounded partial result plus a short note, and continue.
 - Do not overwrite populated outputs unless the existing file is only a placeholder.
 - Keep each response grounded in supported slcli commands and workflows.
@@ -102,9 +103,9 @@ Execution rules:
   orchestrate the whole prepared gating suite if each run is delegated to a
   fresh stateless subagent.
 - Yes, the subagents can be parallelized because the prepared runs are
-   independent. Keep the batch size small so one bad run does not hide the rest.
+  independent. Keep the batch size small so one bad run does not hide the rest.
 - A plain single-thread conversation is not a clean `with_skill` versus
-  `without_skill` comparison because the parent chat shares context across
+  `old_skill` comparison because the parent chat shares context across
   turns.
 - You also do not need a repo script per eval. The intended split is:
   - repo scripts prepare, grade, aggregate, and render

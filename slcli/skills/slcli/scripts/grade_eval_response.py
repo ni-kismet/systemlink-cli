@@ -8,6 +8,8 @@ import re
 from pathlib import Path
 from typing import Any
 
+from slcli.skills.slcli.scripts.eval_manifest import load_manifest
+
 
 def read_text_artifact(path: Path) -> str:
     """Read a text artifact without failing on undecodable bytes."""
@@ -48,7 +50,7 @@ def parse_args() -> argparse.Namespace:
 
 def load_eval(manifest_path: Path, eval_id: int) -> dict[str, Any]:
     """Load one eval entry from the manifest."""
-    payload = json.loads(read_text_artifact(manifest_path))
+    payload = load_manifest(manifest_path)
     for entry in payload.get("evals", []):
         if entry.get("id") == eval_id:
             return entry
@@ -76,18 +78,46 @@ def gather_response_text(response_path: Path) -> tuple[str, list[str]]:
     return "\n\n".join(text_parts), sources
 
 
+def extract_slcli_commands(text: str) -> list[str]:
+    """Extract complete slcli command invocations from a response."""
+    commands: list[str] = []
+    pending = ""
+    for raw_line in text.splitlines():
+        line = raw_line.strip()
+        if pending:
+            pending += " " + line.removesuffix("\\").strip()
+            if not line.endswith("\\"):
+                commands.append(pending)
+                pending = ""
+            continue
+        match = re.search(r"(?:^|[;&|]\s*)(slcli\s+.+)$", line)
+        if match:
+            command = match.group(1).removesuffix("\\").strip()
+            if line.endswith("\\"):
+                pending = command
+            else:
+                commands.append(command)
+    if pending:
+        commands.append(pending)
+    return commands
+
+
 def evaluate_rule(text: str, rule: dict[str, Any]) -> tuple[bool, str]:
     """Evaluate one grading rule."""
     mode = rule["mode"]
     patterns = [re.compile(pattern, re.IGNORECASE | re.MULTILINE) for pattern in rule["patterns"]]
-    matches = [pattern.search(text) for pattern in patterns]
+    scope = rule.get("scope", "response")
+    candidates = extract_slcli_commands(text) if scope == "command" else [text]
+    candidate_matches = [
+        [pattern.search(candidate) for pattern in patterns] for candidate in candidates
+    ]
 
     if mode == "all_of":
-        passed = all(match is not None for match in matches)
+        passed = any(all(match is not None for match in matches) for matches in candidate_matches)
     elif mode == "any_of":
-        passed = any(match is not None for match in matches)
+        passed = any(any(match is not None for match in matches) for matches in candidate_matches)
     elif mode == "none_of":
-        passed = all(match is None for match in matches)
+        passed = all(all(match is None for match in matches) for matches in candidate_matches)
     else:
         raise ValueError(f"Unsupported grading rule mode: {mode}")
 
@@ -95,11 +125,21 @@ def evaluate_rule(text: str, rule: dict[str, Any]) -> tuple[bool, str]:
         if mode == "none_of":
             evidence = "None of the forbidden patterns were present in the response artifacts."
         else:
-            found = [match.group(0) for match in matches if match is not None]
+            found = [
+                match.group(0)
+                for matches in candidate_matches
+                for match in matches
+                if match is not None
+            ]
             evidence = f"Matched: {', '.join(found)}"
     else:
         if mode == "none_of":
-            found = [match.group(0) for match in matches if match is not None]
+            found = [
+                match.group(0)
+                for matches in candidate_matches
+                for match in matches
+                if match is not None
+            ]
             evidence = f"Found forbidden content: {', '.join(found)}"
         else:
             evidence = "Missing required patterns: " + ", ".join(rule["patterns"])
@@ -128,7 +168,16 @@ def grade_response(
     results: list[dict[str, Any]] = []
     for rule in eval_entry.get("grading_rules", []):
         passed, evidence = evaluate_rule(response_text, rule)
-        results.append({"text": rule["text"], "passed": passed, "evidence": evidence})
+        results.append(
+            {
+                "text": rule["text"],
+                "passed": passed,
+                "evidence": evidence,
+                "critical": rule["critical"],
+                "grader_type": "regex",
+                "scope": rule.get("scope", "response"),
+            }
+        )
 
     return build_output(eval_entry, results, sources, response_text, timing)
 

@@ -1,0 +1,34 @@
+[
+  {
+    "query": "Show failed SystemLink test measurements for product BAT-100 using slcli.",
+    "should_trigger": true
+  },
+  {
+    "query": "Create a SystemLink work item template and verify it from the command line.",
+    "should_trigger": true
+  },
+  {
+    "query": "Package and publish my hosted SystemLink webapp with slcli.",
+    "should_trigger": true
+  },
+  {
+    "query": "Why is my SystemLink Salt state.apply job stuck in progress?",
+    "should_trigger": true
+  },
+  {
+    "query": "Write a generic Python function that parses a CSV file.",
+    "should_trigger": false
+  },
+  {
+    "query": "Build an Angular landing page for a coffee shop.",
+    "should_trigger": false
+  },
+  {
+    "query": "Explain how OAuth 2.0 authorization code flow works.",
+    "should_trigger": false
+  },
+  {
+    "query": "Review this pull request for Python style issues.",
+    "should_trigger": false
+  }
+]

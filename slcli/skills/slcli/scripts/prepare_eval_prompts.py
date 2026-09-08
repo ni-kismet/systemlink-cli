@@ -88,6 +88,18 @@ def build_prompt(
                 "",
             ]
         )
+    elif configuration == "old_skill":
+        if not baseline_repo_root:
+            raise ValueError("old_skill runs require an isolated baseline repository")
+        baseline_skill_path = Path(baseline_repo_root) / "slcli" / "skills" / "slcli"
+        lines.extend(
+            [
+                f"Skill path: {baseline_skill_path}",
+                "Use the merge-base version of the skill from that path while solving the task.",
+                f"Use this isolated baseline repo root: {baseline_repo_root}",
+                "",
+            ]
+        )
     else:
         lines.extend(
             [
@@ -124,6 +136,7 @@ def build_prompt(
             "",
             "Required output artifacts:",
             f"- {artifact_name} containing the final user-facing answer",
+            "- run_metadata.json containing executor_provider, executor_model, harness, configuration, and status",
             "- optional notes.txt if you had to make assumptions or explain tradeoffs",
             "",
             "Requirements:",
@@ -131,6 +144,7 @@ def build_prompt(
             "- Reference attached files when relevant",
             "- Do not write outside the specified outputs directory",
             "- Prefer a concise answer, but include enough detail for the grader to inspect command choices",
+            "- Set run_metadata.json status to completed, or infrastructure_error if execution could not be completed",
         ]
     )
 

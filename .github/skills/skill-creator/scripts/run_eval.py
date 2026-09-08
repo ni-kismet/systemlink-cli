@@ -194,10 +194,14 @@ def run_eval(
     project_root: Path,
     runs_per_query: int = 1,
     trigger_threshold: float = 0.5,
+    negative_trigger_threshold: float | None = None,
     model: str | None = None,
 ) -> dict:
     """Run the full eval set and return results."""
     results = []
+    negative_threshold = (
+        trigger_threshold if negative_trigger_threshold is None else negative_trigger_threshold
+    )
 
     with ProcessPoolExecutor(max_workers=num_workers) as executor:
         future_to_info = {}
@@ -235,7 +239,7 @@ def run_eval(
         if should_trigger:
             did_pass = trigger_rate >= trigger_threshold
         else:
-            did_pass = trigger_rate < trigger_threshold
+            did_pass = trigger_rate < negative_threshold
         results.append(
             {
                 "query": query,
@@ -275,6 +279,11 @@ def main() -> None:
         "--trigger-threshold", type=float, default=0.5, help="Trigger rate threshold"
     )
     parser.add_argument(
+        "--negative-trigger-threshold",
+        type=float,
+        help="Maximum trigger rate for should-not-trigger queries (defaults to trigger threshold)",
+    )
+    parser.add_argument(
         "--model",
         default=None,
         help="Model to use for claude -p (default: user's configured model)",
@@ -305,6 +314,7 @@ def main() -> None:
         project_root=project_root,
         runs_per_query=args.runs_per_query,
         trigger_threshold=args.trigger_threshold,
+        negative_trigger_threshold=args.negative_trigger_threshold,
         model=args.model,
     )
 

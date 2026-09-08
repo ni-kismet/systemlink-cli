@@ -1,6 +1,6 @@
 ---
 name: eval-skill-gating
-description: Run the full slcli gating eval workflow end to end: prepare an iteration, generate prompts, execute with_skill and without_skill runs via isolated subagents, grade, benchmark, and regenerate the static review page.
+description: Run the full slcli gating eval workflow end to end: prepare an iteration, generate prompts, execute candidate and merge-base skill runs via isolated subagents, grade, apply the regression gate, and regenerate the static review page.
 argument-hint: Optional key=value args such as iteration_dir="..." max_parallel=3 max_tool_calls=8 max_minutes=3 force=true
 agent: agent
 ---
@@ -13,7 +13,7 @@ This prompt should:
 
 1. prepare or reuse a gating iteration workspace
 2. generate executor prompts
-3. execute all `with_skill` and `without_skill` runs with isolated subagents
+3. execute all `with_skill` and `old_skill` runs with isolated subagents
 4. grade and aggregate the iteration
 5. regenerate the static review page
 6. report the populated run directories, benchmark result, and `review.html` path
@@ -46,7 +46,7 @@ You are running the `slcli` gating eval workflow. Execute this sequence autonomo
 - Otherwise run:
 
 ```bash
-python slcli/skills/slcli/scripts/prepare_eval_workspace.py --suite gating --isolate-baseline
+python slcli/skills/slcli/scripts/prepare_eval_workspace.py --suite gating
 ```
 
 - Capture the printed iteration directory and use it for all later steps.
@@ -79,9 +79,11 @@ For each run:
 
 - Read that run's `executor_prompt.txt`.
 - For `with_skill`, allow the subagent to read and use the `slcli` skill.
-- For `without_skill`, do not load the skill and use the isolated baseline repo path named in the prompt when present.
+- For `old_skill`, load the merge-base skill path inside the isolated baseline repo named in the prompt.
 - Respect the fail-fast budget written into the executor prompt.
 - If the run converges, save the final answer to `outputs/response.txt`.
+- Save `outputs/run_metadata.json` with `executor_provider`, exact `executor_model`, `harness`, `configuration`, and `status`.
+- Retry an infrastructure failure once. If it fails again, set `status` to `infrastructure_error`, preserve partial artifacts, and continue.
 - If the run does not converge inside budget, save the best grounded partial answer to `outputs/response.txt` and add `outputs/notes.txt` with a brief failure reason.
 - Never write outside the run's `outputs/` directory.
 - Do not overwrite an already populated response unless it is obviously a placeholder.
@@ -111,7 +113,8 @@ Report:
 - any runs that failed to converge inside budget
 - whether benchmark generation succeeded
 - the `benchmark.json`, `benchmark.md`, and `review.html` paths
-- the overall with-skill versus baseline pass-rate summary when available
+- the `regression.json` and `regression.md` paths and gate status
+- the overall candidate versus merge-base pass-rate summary when available
 
 ## Constraints
 
