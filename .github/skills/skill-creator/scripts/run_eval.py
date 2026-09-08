@@ -185,6 +185,46 @@ def run_single_query(
             command_file.unlink()
 
 
+def summarize_query_result(
+    item: dict,
+    triggers: list[bool],
+    errors: int,
+    trigger_threshold: float,
+    negative_trigger_threshold: float | None,
+) -> dict:
+    """Summarize one query without treating execution errors as negative evidence."""
+    negative_threshold = (
+        trigger_threshold if negative_trigger_threshold is None else negative_trigger_threshold
+    )
+    if errors:
+        return {
+            "query": item["query"],
+            "should_trigger": item["should_trigger"],
+            "trigger_rate": None,
+            "triggers": sum(triggers),
+            "runs": len(triggers),
+            "errors": errors,
+            "status": "inconclusive",
+            "pass": None,
+        }
+
+    trigger_rate = sum(triggers) / len(triggers)
+    should_trigger = item["should_trigger"]
+    did_pass = (
+        trigger_rate >= trigger_threshold if should_trigger else trigger_rate < negative_threshold
+    )
+    return {
+        "query": item["query"],
+        "should_trigger": should_trigger,
+        "trigger_rate": trigger_rate,
+        "triggers": sum(triggers),
+        "runs": len(triggers),
+        "errors": 0,
+        "status": "pass" if did_pass else "fail",
+        "pass": did_pass,
+    }
+
+
 def run_eval(
     eval_set: list[dict],
     skill_name: str,
@@ -199,10 +239,6 @@ def run_eval(
 ) -> dict:
     """Run the full eval set and return results."""
     results = []
-    negative_threshold = (
-        trigger_threshold if negative_trigger_threshold is None else negative_trigger_threshold
-    )
-
     with ProcessPoolExecutor(max_workers=num_workers) as executor:
         future_to_info = {}
         for item in eval_set:
@@ -219,6 +255,7 @@ def run_eval(
                 future_to_info[future] = (item, run_idx)
 
         query_triggers: dict[str, list[bool]] = {}
+        query_errors: dict[str, int] = {}
         query_items: dict[str, dict] = {}
         for future in as_completed(future_to_info):
             item, _ = future_to_info[future]
@@ -226,32 +263,27 @@ def run_eval(
             query_items[query] = item
             if query not in query_triggers:
                 query_triggers[query] = []
+                query_errors[query] = 0
             try:
                 query_triggers[query].append(future.result())
             except Exception as e:
                 print(f"Warning: query failed: {e}", file=sys.stderr)
-                query_triggers[query].append(False)
+                query_errors[query] += 1
 
     for query, triggers in query_triggers.items():
-        item = query_items[query]
-        trigger_rate = sum(triggers) / len(triggers)
-        should_trigger = item["should_trigger"]
-        if should_trigger:
-            did_pass = trigger_rate >= trigger_threshold
-        else:
-            did_pass = trigger_rate < negative_threshold
         results.append(
-            {
-                "query": query,
-                "should_trigger": should_trigger,
-                "trigger_rate": trigger_rate,
-                "triggers": sum(triggers),
-                "runs": len(triggers),
-                "pass": did_pass,
-            }
+            summarize_query_result(
+                query_items[query],
+                triggers,
+                query_errors[query],
+                trigger_threshold,
+                negative_trigger_threshold,
+            )
         )
 
-    passed = sum(1 for r in results if r["pass"])
+    passed = sum(1 for r in results if r["status"] == "pass")
+    failed = sum(1 for r in results if r["status"] == "fail")
+    inconclusive = sum(1 for r in results if r["status"] == "inconclusive")
     total = len(results)
 
     return {
@@ -261,7 +293,8 @@ def run_eval(
         "summary": {
             "total": total,
             "passed": passed,
-            "failed": total - passed,
+            "failed": failed,
+            "inconclusive": inconclusive,
         },
     }
 
@@ -322,8 +355,8 @@ def main() -> None:
         summary = output["summary"]
         print(f"Results: {summary['passed']}/{summary['total']} passed", file=sys.stderr)
         for r in output["results"]:
-            status = "PASS" if r["pass"] else "FAIL"
-            rate_str = f"{r['triggers']}/{r['runs']}"
+            status = r["status"].upper()
+            rate_str = f"{r['triggers']}/{r['runs']} errors={r['errors']}"
             print(
                 f"  [{status}] rate={rate_str} expected={r['should_trigger']}: {r['query'][:70]}",
                 file=sys.stderr,

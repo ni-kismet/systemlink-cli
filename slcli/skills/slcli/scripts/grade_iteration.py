@@ -83,9 +83,13 @@ def grade_run(
     if output_path.exists() and not force:
         return f"skip {run_dir}: grading.json exists"
 
-    response_path = run_dir / "outputs" / "response.txt"
-    if not response_path.exists():
-        return f"skip {run_dir}: response.txt missing"
+    outputs_dir = run_dir / "outputs"
+    required_artifacts = ("response.txt", "transcript.jsonl", "run_metadata.json")
+    missing_artifacts = [name for name in required_artifacts if not (outputs_dir / name).exists()]
+    if missing_artifacts:
+        return f"skip {run_dir}: required outputs missing: {', '.join(missing_artifacts)}"
+
+    response_path = outputs_dir / "response.txt"
 
     try:
         gather_response_text(response_path)
@@ -94,7 +98,7 @@ def grade_run(
 
     timing_path = run_dir / "timing.json"
     graded = grade_response(manifest_path, eval_id, response_path, timing_path)
-    run_metadata_path = run_dir / "outputs" / "run_metadata.json"
+    run_metadata_path = outputs_dir / "run_metadata.json"
     run_metadata = load_json(run_metadata_path) if run_metadata_path.exists() else {}
     infrastructure_error = run_metadata.get("status") == "infrastructure_error"
     classification = (
@@ -120,7 +124,7 @@ def grade_run(
         "configuration": run_dir.parent.name,
         "executor": run_metadata,
         "timing": load_json(timing_path) if timing_path.exists() else {},
-        "outputs": file_manifest(run_dir / "outputs"),
+        "outputs": file_manifest(outputs_dir),
         "grading": graded,
         "classification": classification,
     }

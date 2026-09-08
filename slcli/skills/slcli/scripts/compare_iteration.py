@@ -13,13 +13,21 @@ REGRESSION_EXIT_CODE = 1
 INCONCLUSIVE_EXIT_CODE = 2
 
 
+def regression_margin(value: str) -> float:
+    """Parse a finite regression margin between zero and one."""
+    parsed = float(value)
+    if not math.isfinite(parsed) or not 0 <= parsed <= 1:
+        raise argparse.ArgumentTypeError("margin must be a finite value between 0 and 1")
+    return parsed
+
+
 def parse_args() -> argparse.Namespace:
     """Parse command-line arguments."""
     parser = argparse.ArgumentParser(description="Apply the paired skill regression gate.")
     parser.add_argument("iteration_dir", type=Path, help="Prepared and graded iteration directory.")
     parser.add_argument(
         "--margin",
-        type=float,
+        type=regression_margin,
         default=0.05,
         help="Maximum allowed candidate pass-rate decrease.",
     )

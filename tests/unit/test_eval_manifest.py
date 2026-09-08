@@ -1,6 +1,7 @@
 """Unit tests for the checked-in skill eval manifest."""
 
 import json
+from datetime import date
 from pathlib import Path
 
 import pytest
@@ -65,8 +66,17 @@ def test_all_checked_in_critical_graders_pass_their_controls() -> None:
         for rule in eval_entry["grading_rules"]:
             if not rule["critical"]:
                 continue
-            positive_passed, _ = evaluate_rule(rule["positive_control"], rule)
-            negative_passed, _ = evaluate_rule(rule["negative_control"], rule)
+            reference_date = (
+                date.fromisoformat(rule["control_reference_date"])
+                if "control_reference_date" in rule
+                else None
+            )
+            positive_passed, _ = evaluate_rule(
+                rule["positive_control"], rule, reference_date=reference_date
+            )
+            negative_passed, _ = evaluate_rule(
+                rule["negative_control"], rule, reference_date=reference_date
+            )
             assert (
                 positive_passed
             ), f"positive control failed: eval {eval_entry['id']} {rule['text']}"

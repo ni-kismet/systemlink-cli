@@ -7,6 +7,8 @@ import json
 from pathlib import Path
 from typing import Any
 
+PRIMARY_RESPONSE_ARTIFACT = "response.txt"
+
 
 def parse_args() -> argparse.Namespace:
     """Parse command-line arguments."""
@@ -25,11 +27,6 @@ def parse_args() -> argparse.Namespace:
         type=Path,
         default=skill_dir,
         help="Path to the slcli skill directory used for with_skill runs.",
-    )
-    parser.add_argument(
-        "--artifact-name",
-        default="response.txt",
-        help="Primary output artifact name to request and optionally stub.",
     )
     parser.add_argument(
         "--max-tool-calls",
@@ -71,20 +68,30 @@ def build_prompt(
     prompt_text: str,
     input_files: list[dict[str, str]],
     output_dir: Path,
-    artifact_name: str,
     configuration: str,
     max_tool_calls: int,
     max_minutes: float,
+    candidate_repo_root: str | None,
     baseline_repo_root: str | None,
 ) -> str:
     """Build the executor prompt text for one run."""
     lines = ["Execute this task.", ""]
 
     if configuration == "with_skill":
+        candidate_skill_path = (
+            Path(candidate_repo_root) / "slcli" / "skills" / "slcli"
+            if candidate_repo_root
+            else skill_path
+        )
         lines.extend(
             [
-                f"Skill path: {skill_path}",
+                f"Skill path: {candidate_skill_path}",
                 "Use the skill guidance from that path while solving the task.",
+                *(
+                    [f"Use this isolated candidate repo root: {candidate_repo_root}"]
+                    if candidate_repo_root
+                    else []
+                ),
                 "",
             ]
         )
@@ -135,7 +142,8 @@ def build_prompt(
             f"- {output_dir.resolve()}",
             "",
             "Required output artifacts:",
-            f"- {artifact_name} containing the final user-facing answer",
+            f"- {PRIMARY_RESPONSE_ARTIFACT} containing the final user-facing answer",
+            "- transcript.jsonl containing the complete executor trace",
             "- run_metadata.json containing executor_provider, executor_model, harness, configuration, and status",
             "- optional notes.txt if you had to make assumptions or explain tradeoffs",
             "",
@@ -175,11 +183,11 @@ def maybe_write(path: Path, content: str, force: bool) -> bool:
     return True
 
 
-def build_placeholder(configuration: str, artifact_name: str) -> str:
+def build_placeholder(configuration: str) -> str:
     """Build placeholder output content."""
     return (
         f"TODO: replace this placeholder with the saved model response for {configuration}.\n"
-        f"Expected artifact name: {artifact_name}\n"
+        f"Expected artifact name: {PRIMARY_RESPONSE_ARTIFACT}\n"
     )
 
 
@@ -204,10 +212,10 @@ def main() -> None:
             metadata["prompt"],
             inputs.get("files", []),
             output_dir,
-            args.artifact_name,
             configuration,
             args.max_tool_calls,
             args.max_minutes,
+            metadata.get("candidate_repo_root"),
             metadata.get("baseline_repo_root"),
         )
         prompt_path = run_dir / "executor_prompt.txt"
@@ -215,10 +223,10 @@ def main() -> None:
             written += 1
 
         if args.stub_output:
-            placeholder_path = output_dir / args.artifact_name
+            placeholder_path = output_dir / PRIMARY_RESPONSE_ARTIFACT
             if maybe_write(
                 placeholder_path,
-                build_placeholder(configuration, args.artifact_name),
+                build_placeholder(configuration),
                 args.force,
             ):
                 placeholders += 1

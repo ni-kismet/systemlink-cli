@@ -79,10 +79,11 @@ Append `--force` only when the parsed `force` value is `true`.
 For each run:
 
 - Read that run's `executor_prompt.txt`.
-- For `with_skill`, allow the subagent to read and use the `slcli` skill.
+- For `with_skill`, load the candidate skill path inside the isolated candidate repo named in the prompt.
 - For `old_skill`, load the merge-base skill path inside the isolated baseline repo named in the prompt.
 - Respect the fail-fast budget written into the executor prompt.
 - If the run converges, save the final answer to `outputs/response.txt`.
+- Save the complete executor trace to `outputs/transcript.jsonl`.
 - Save `outputs/run_metadata.json` with `executor_provider`, exact `executor_model`, `harness`, `configuration`, and `status`.
 - Retry an infrastructure failure once. If it fails again, set `status` to `infrastructure_error`, preserve partial artifacts, and continue.
 - If the run does not converge inside budget, save the best grounded partial answer to `outputs/response.txt` and add `outputs/notes.txt` with a brief failure reason.

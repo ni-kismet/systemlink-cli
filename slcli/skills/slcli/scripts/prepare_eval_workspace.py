@@ -110,6 +110,7 @@ def select_evals(
     by_id = {entry["id"]: entry for entry in evals}
 
     if explicit_ids:
+        explicit_ids = list(dict.fromkeys(explicit_ids))
         missing = [eval_id for eval_id in explicit_ids if eval_id not in by_id]
         if missing:
             raise ValueError(f"Unknown eval IDs: {missing}")
@@ -183,22 +184,31 @@ def create_old_skill_snapshot(
     skill_dir: Path,
     iteration_dir: Path,
     baseline_ref: str,
-    force: bool,
-) -> tuple[Path, str]:
-    """Export the merge-base repository containing the previous skill version."""
+) -> tuple[Path, Path, str]:
+    """Create paired candidate and old-skill sandboxes from the candidate state."""
     repo_root = find_repo_root(skill_dir)
     merge_base = run_git(repo_root, "merge-base", baseline_ref, "HEAD")
+    candidate_root = iteration_dir / "candidate_repo"
     snapshot_root = iteration_dir / "baseline_repo"
-    if snapshot_root.exists():
-        if not force:
-            raise FileExistsError(
-                f"{snapshot_root} already exists. Use --force to recreate the baseline snapshot."
-            )
-        shutil.rmtree(snapshot_root)
-    snapshot_root.mkdir(parents=True)
+    workspace_root = iteration_dir.parent.resolve()
+
+    def ignore_entries(directory: str, names: list[str]) -> set[str]:
+        ignored = {".git", ".venv", "__pycache__", ".mypy_cache", ".pytest_cache"}
+        return {
+            name
+            for name in names
+            if name in ignored or (Path(directory) / name).resolve() == workspace_root
+        }
+
+    shutil.copytree(repo_root, candidate_root, ignore=ignore_entries)
+    shutil.copytree(candidate_root, snapshot_root)
+
+    skill_relative_path = skill_dir.relative_to(repo_root)
+    old_skill_dir = snapshot_root / skill_relative_path
+    shutil.rmtree(old_skill_dir)
 
     archive = subprocess.run(
-        ["git", "archive", "--format=tar", merge_base],
+        ["git", "archive", "--format=tar", merge_base, "--", skill_relative_path.as_posix()],
         cwd=repo_root,
         check=True,
         capture_output=True,
@@ -206,10 +216,9 @@ def create_old_skill_snapshot(
     with tarfile.open(fileobj=BytesIO(archive), mode="r:") as tar:
         tar.extractall(snapshot_root)
 
-    old_skill_dir = snapshot_root / skill_dir.relative_to(repo_root)
     if not (old_skill_dir / "SKILL.md").exists():
         raise ValueError(f"Skill does not exist at merge base {merge_base}: {old_skill_dir}")
-    return snapshot_root, merge_base
+    return candidate_root, snapshot_root, merge_base
 
 
 def create_isolated_baseline_repo(
@@ -276,6 +285,7 @@ def scaffold_eval_dir(
     entry: dict[str, Any],
     baseline: str,
     runs_per_config: int,
+    candidate_repo_root: Path | None,
     baseline_repo_root: Path | None,
 ) -> None:
     """Create one eval directory and its metadata."""
@@ -289,6 +299,9 @@ def scaffold_eval_dir(
         "prompt": entry["prompt"],
         "assertions": entry.get("expectations", []),
         "tags": entry.get("tags", []),
+        "candidate_repo_root": (
+            str(candidate_repo_root.resolve()) if candidate_repo_root else None
+        ),
         "baseline_repo_root": str(baseline_repo_root.resolve()) if baseline_repo_root else None,
     }
     write_json(eval_dir / "eval_metadata.json", metadata)
@@ -320,11 +333,12 @@ def main() -> None:
     iteration_dir = workspace_root / f"iteration-{iteration_number}"
     prepare_iteration_directory(iteration_dir, args.force)
 
+    candidate_repo_root = None
     baseline_repo_root = None
     baseline_sha = None
     if args.baseline == "old_skill":
-        baseline_repo_root, baseline_sha = create_old_skill_snapshot(
-            skill_dir, iteration_dir, args.baseline_ref, args.force
+        candidate_repo_root, baseline_repo_root, baseline_sha = create_old_skill_snapshot(
+            skill_dir, iteration_dir, args.baseline_ref
         )
     elif args.isolate_baseline:
         baseline_repo_root = create_isolated_baseline_repo(
@@ -344,6 +358,7 @@ def main() -> None:
             entry,
             args.baseline,
             args.runs_per_config,
+            candidate_repo_root,
             baseline_repo_root,
         )
 
@@ -352,11 +367,18 @@ def main() -> None:
         "suite": args.suite,
         "baseline": args.baseline,
         "baseline_isolated": bool(baseline_repo_root),
+        "candidate_repo_root": (
+            str(candidate_repo_root.resolve()) if candidate_repo_root else None
+        ),
         "baseline_repo_root": str(baseline_repo_root.resolve()) if baseline_repo_root else None,
         "baseline_ref": args.baseline_ref if args.baseline == "old_skill" else None,
         "baseline_sha": baseline_sha,
         "candidate_sha": candidate_sha,
-        "candidate_skill_hash": hash_directory(skill_dir),
+        "candidate_skill_hash": hash_directory(
+            candidate_repo_root / skill_dir.relative_to(repo_root)
+            if candidate_repo_root
+            else skill_dir
+        ),
         "eval_manifest_hash": hashlib.sha256(args.evals.read_bytes()).hexdigest(),
         "baseline_skill_hash": (
             hash_directory(baseline_repo_root / skill_dir.relative_to(repo_root))

@@ -48,9 +48,11 @@ This prints a new iteration directory such as:
 slcli/skills/slcli-workspace/iteration-1
 ```
 
-The iteration contains a `baseline_repo/` exported from the merge base of
-`origin/main` and `HEAD`. Its `slcli` skill is the baseline for `old_skill`
-runs. Use `--baseline-ref` when comparing against another branch. Use
+The iteration contains paired `candidate_repo/` and `baseline_repo/` snapshots
+of the current candidate checkout. Only the `slcli` skill in `baseline_repo/`
+is replaced with its version from the merge base of `origin/main` and `HEAD`,
+so the experiment arms differ only in the skill under test. Use
+`--baseline-ref` when comparing against another branch. Use
 `--baseline without_skill --isolate-baseline` only when measuring whether a new
 skill adds value; that comparison is not a regression test.
 
@@ -74,7 +76,7 @@ Recommended execution pattern:
 
 1. Use one parent chat as the orchestrator.
 2. Run each prepared eval in a fresh stateless subagent.
-3. Let `with_skill` runs load the `slcli` skill.
+3. Point `with_skill` runs at the skill inside `candidate_repo/`.
 4. Point `old_skill` runs at the skill inside `baseline_repo/`.
 5. Keep concurrency modest, usually 2 to 4 runs at a time.
 6. If a run exceeds its budget, save the best grounded `response.txt`, add a short `notes.txt`, and continue.
@@ -83,6 +85,7 @@ Each run saves artifacts under its own `outputs/` directory. Every run must
 write:
 
 - `response.txt`: final user-facing response
+- `transcript.jsonl`: complete executor trace for audit and diagnosis
 - `run_metadata.json`: `executor_provider`, exact `executor_model`, `harness`,
   `configuration`, and `status` (`completed` or `infrastructure_error`)
 
@@ -138,7 +141,7 @@ This writes `review.html` in the iteration directory.
 - `evals.schema.json`: machine-readable corpus contract
 - `trigger_evals.json`: balanced should-trigger and should-not-trigger prompts
 - `files/`: input fixtures for file-backed evals
-- `../../../.github/prompts/eval-skill-gating.prompt.md`: one-shot gating eval prompt
+- `../../../../.github/prompts/eval-skill-gating.prompt.md`: one-shot gating eval prompt
 - `COPILOT_BATCH_RUN_PROMPT.md`: parent-chat orchestration prompt
 - `../scripts/prepare_eval_workspace.py`: scaffolds an iteration directory
 - `../scripts/prepare_eval_prompts.py`: writes executor prompts

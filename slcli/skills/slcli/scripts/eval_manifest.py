@@ -8,6 +8,7 @@ from typing import Any
 
 SUPPORTED_RULE_MODES = {"all_of", "any_of", "none_of"}
 SUPPORTED_RULE_SCOPES = {"response", "command"}
+SUPPORTED_RULE_VALIDATORS = {"previous_calendar_month"}
 
 
 def validate_manifest(payload: dict[str, Any], skill_dir: Path) -> None:
@@ -75,6 +76,9 @@ def validate_manifest(payload: dict[str, Any], skill_dir: Path) -> None:
                 raise ValueError(f"eval {eval_id} has unsupported rule mode: {rule.get('mode')}")
             if rule.get("scope", "response") not in SUPPORTED_RULE_SCOPES:
                 raise ValueError(f"eval {eval_id} has unsupported rule scope: {rule.get('scope')}")
+            validator = rule.get("validator")
+            if validator is not None and validator not in SUPPORTED_RULE_VALIDATORS:
+                raise ValueError(f"eval {eval_id} has unsupported rule validator: {validator}")
             if not rule.get("patterns"):
                 raise ValueError(f"eval {eval_id} grading rules require patterns")
             if rule["critical"] and (

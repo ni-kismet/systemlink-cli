@@ -3,9 +3,11 @@
 from __future__ import annotations
 
 import json
+from datetime import date
 from pathlib import Path
 
 from slcli.skills.slcli.scripts.grade_eval_response import (
+    evaluate_rule,
     extract_slcli_commands,
     gather_response_text,
     grade_response,
@@ -25,6 +27,16 @@ Then: echo ready && slcli system list --format json
         "slcli testmonitor result list --status FAILED",
         "slcli system list --format json",
     ]
+
+
+def test_extract_slcli_commands_ignores_prose_and_malformed_quotes() -> None:
+    response = """Don't forget to verify the output.
+Do not use slcli query results.
+- `slcli system list --format json`
+slcli system get 'unterminated
+"""
+
+    assert extract_slcli_commands(response) == ["slcli system list --format json"]
 
 
 def test_gather_response_text_replaces_invalid_utf8_bytes(tmp_path: Path) -> None:
@@ -155,6 +167,30 @@ def test_command_rule_splits_shell_command_lists(tmp_path: Path) -> None:
         "slcli testmonitor result list --part-number BATT",
         "slcli testmonitor result list --status FAILED",
     ]
-    from slcli.skills.slcli.scripts.grade_eval_response import evaluate_rule
-
     assert evaluate_rule(" && ".join(commands), rule)[0] is False
+
+
+def test_previous_calendar_month_validator_checks_exact_bounds() -> None:
+    rule = {
+        "mode": "all_of",
+        "scope": "command",
+        "validator": "previous_calendar_month",
+        "patterns": ["startedAt >=", "startedAt <", "--substitution"],
+    }
+    reference_date = date(2026, 9, 8)
+
+    valid, _ = evaluate_rule(
+        "slcli testmonitor result list --filter 'startedAt >= @0 && startedAt < @1' "
+        "--substitution 2026-08-01 --substitution 2026-09-01",
+        rule,
+        reference_date,
+    )
+    stale, _ = evaluate_rule(
+        "slcli testmonitor result list --filter 'startedAt >= @0 && startedAt < @1' "
+        "--substitution 2025-01-01 --substitution 2025-02-01",
+        rule,
+        reference_date,
+    )
+
+    assert valid is True
+    assert stale is False

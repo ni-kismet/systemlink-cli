@@ -6,10 +6,29 @@ import argparse
 import json
 import re
 import shlex
+from datetime import date, timedelta
 from pathlib import Path
 from typing import Any
 
 from slcli.skills.slcli.scripts.eval_manifest import load_manifest
+
+
+def previous_calendar_month_bounds(reference_date: date) -> tuple[str, str]:
+    """Return ISO date bounds for the calendar month before the reference date."""
+    current_month = reference_date.replace(day=1)
+    previous_month = (current_month - timedelta(days=1)).replace(day=1)
+    return previous_month.isoformat(), current_month.isoformat()
+
+
+def validate_candidate(candidate: str, rule: dict[str, Any], reference_date: date) -> bool:
+    """Apply an optional semantic validator to one response candidate."""
+    validator = rule.get("validator")
+    if validator is None:
+        return True
+    if validator == "previous_calendar_month":
+        lower_bound, upper_bound = previous_calendar_month_bounds(reference_date)
+        return lower_bound in candidate and upper_bound in candidate
+    raise ValueError(f"Unsupported grading rule validator: {validator}")
 
 
 def read_text_artifact(path: Path) -> str:
@@ -84,15 +103,19 @@ def extract_slcli_commands(text: str) -> list[str]:
         if line.endswith("\\"):
             pending = line.removesuffix("\\").strip()
             continue
-        lexer = shlex.shlex(line.strip("`"), posix=True, punctuation_chars=";&|")
+        command_line = re.sub(r"^(?:[-*+]\s+|\d+\.\s+|\$\s+)", "", line).strip("`")
+        lexer = shlex.shlex(command_line, posix=True, punctuation_chars=";&|")
         lexer.whitespace_split = True
         lexer.commenters = ""
-        tokens = list(lexer)
+        try:
+            tokens = list(lexer)
+        except ValueError:
+            continue
         segment: list[str] = []
         for token in [*tokens, ";"]:
             if token in {";", "&&", "||", "|", "&"}:
-                if "slcli" in segment:
-                    commands.append(" ".join(segment[segment.index("slcli") :]))
+                if segment and segment[0] == "slcli":
+                    commands.append(" ".join(segment))
                 segment = []
             else:
                 segment.append(token)
@@ -101,7 +124,9 @@ def extract_slcli_commands(text: str) -> list[str]:
     return commands
 
 
-def evaluate_rule(text: str, rule: dict[str, Any]) -> tuple[bool, str]:
+def evaluate_rule(
+    text: str, rule: dict[str, Any], reference_date: date | None = None
+) -> tuple[bool, str]:
     """Evaluate one grading rule."""
     mode = rule["mode"]
     patterns = [re.compile(pattern, re.IGNORECASE | re.MULTILINE) for pattern in rule["patterns"]]
@@ -110,13 +135,26 @@ def evaluate_rule(text: str, rule: dict[str, Any]) -> tuple[bool, str]:
     candidate_matches = [
         [pattern.search(candidate) for pattern in patterns] for candidate in candidates
     ]
+    reference_date = reference_date or date.today()
+    valid_candidates = [
+        validate_candidate(candidate, rule, reference_date) for candidate in candidates
+    ]
 
     if mode == "all_of":
-        passed = any(all(match is not None for match in matches) for matches in candidate_matches)
+        passed = any(
+            all(match is not None for match in matches) and valid
+            for matches, valid in zip(candidate_matches, valid_candidates)
+        )
     elif mode == "any_of":
-        passed = any(any(match is not None for match in matches) for matches in candidate_matches)
+        passed = any(
+            any(match is not None for match in matches) and valid
+            for matches, valid in zip(candidate_matches, valid_candidates)
+        )
     elif mode == "none_of":
-        passed = all(all(match is None for match in matches) for matches in candidate_matches)
+        passed = all(
+            all(match is None for match in matches) and valid
+            for matches, valid in zip(candidate_matches, valid_candidates)
+        )
     else:
         raise ValueError(f"Unsupported grading rule mode: {mode}")
 

@@ -15,6 +15,7 @@ from slcli.skills.slcli.scripts.prepare_eval_workspace import (
     hash_directory,
     positive_int,
     prepare_iteration_directory,
+    select_evals,
 )
 
 
@@ -39,11 +40,14 @@ def test_create_old_skill_snapshot_exports_merge_base(tmp_path: Path) -> None:
     run_git(repo, "add", ".")
     run_git(repo, "commit", "-m", "candidate")
 
-    snapshot_root, merge_base = create_old_skill_snapshot(
-        skill_dir, tmp_path / "iteration", "main", force=False
+    candidate_root, snapshot_root, merge_base = create_old_skill_snapshot(
+        skill_dir, tmp_path / "iteration", "main"
     )
 
     assert merge_base
+    assert (candidate_root / "slcli" / "skills" / "slcli" / "SKILL.md").read_text(
+        encoding="utf-8"
+    ) == "candidate skill\n"
     assert (snapshot_root / "slcli" / "skills" / "slcli" / "SKILL.md").read_text(
         encoding="utf-8"
     ) == "old skill\n"
@@ -57,15 +61,46 @@ def test_old_skill_prompt_loads_snapshot_skill(tmp_path: Path) -> None:
         prompt_text="Do the task",
         input_files=[],
         output_dir=tmp_path / "outputs",
-        artifact_name="response.txt",
         configuration="old_skill",
         max_tool_calls=8,
         max_minutes=3,
+        candidate_repo_root=None,
         baseline_repo_root=str(baseline_repo),
     )
 
     assert f"Skill path: {baseline_repo / 'slcli' / 'skills' / 'slcli'}" in prompt
     assert "Use the merge-base version of the skill" in prompt
+
+
+def test_with_skill_prompt_loads_isolated_candidate_skill(tmp_path: Path) -> None:
+    candidate_repo = tmp_path / "candidate_repo"
+
+    prompt = build_prompt(
+        skill_path=tmp_path / "working-skill",
+        prompt_text="Do the task",
+        input_files=[],
+        output_dir=tmp_path / "outputs",
+        configuration="with_skill",
+        max_tool_calls=8,
+        max_minutes=3,
+        candidate_repo_root=str(candidate_repo),
+        baseline_repo_root=None,
+    )
+
+    assert f"Skill path: {candidate_repo / 'slcli' / 'skills' / 'slcli'}" in prompt
+    assert f"Use this isolated candidate repo root: {candidate_repo}" in prompt
+    assert "transcript.jsonl containing the complete executor trace" in prompt
+
+
+def test_select_evals_deduplicates_explicit_ids() -> None:
+    manifest = {
+        "evals": [{"id": 1}, {"id": 2}],
+        "recommended_suites": {"gating": [1], "regression": [1, 2]},
+    }
+
+    selected = select_evals(manifest, "gating", [2, 1, 2])
+
+    assert [entry["id"] for entry in selected] == [2, 1]
 
 
 def test_positive_int_rejects_non_positive_values() -> None:

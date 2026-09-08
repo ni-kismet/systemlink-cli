@@ -1,0 +1,82 @@
+"""Unit tests for skill trigger evaluation semantics."""
+
+from __future__ import annotations
+
+import importlib.util
+import sys
+from pathlib import Path
+from types import ModuleType
+from typing import Any
+
+import pytest
+
+
+@pytest.fixture(scope="module")
+def run_eval_module() -> ModuleType:
+    """Load the skill-creator trigger evaluator from its script directory."""
+    script_dir = Path(".github/skills/skill-creator").resolve()
+    cached_scripts = {
+        name: sys.modules.pop(name)
+        for name in list(sys.modules)
+        if name == "scripts" or name.startswith("scripts.")
+    }
+    sys.path.insert(0, str(script_dir))
+    try:
+        spec = importlib.util.spec_from_file_location(
+            "skill_creator_run_eval", script_dir / "scripts" / "run_eval.py"
+        )
+        assert spec is not None and spec.loader is not None
+        module = importlib.util.module_from_spec(spec)
+        spec.loader.exec_module(module)
+        return module
+    finally:
+        sys.path.remove(str(script_dir))
+        for name in list(sys.modules):
+            if name == "scripts" or name.startswith("scripts."):
+                sys.modules.pop(name)
+        sys.modules.update(cached_scripts)
+
+
+@pytest.mark.parametrize(
+    ("item", "triggers", "positive_threshold", "negative_threshold", "expected"),
+    [
+        ({"query": "positive", "should_trigger": True}, [True, False], 0.5, 0.2, True),
+        ({"query": "positive", "should_trigger": True}, [False, False], 0.5, 0.2, False),
+        ({"query": "negative", "should_trigger": False}, [False] * 5, 0.8, 0.2, True),
+        (
+            {"query": "negative", "should_trigger": False},
+            [True, False, False, False, False],
+            0.8,
+            0.2,
+            False,
+        ),
+        ({"query": "fallback", "should_trigger": False}, [True, False], 0.5, None, False),
+    ],
+)
+def test_summarize_query_result_thresholds(
+    run_eval_module: ModuleType,
+    item: dict[str, Any],
+    triggers: list[bool],
+    positive_threshold: float,
+    negative_threshold: float | None,
+    expected: bool,
+) -> None:
+    result = run_eval_module.summarize_query_result(
+        item, triggers, 0, positive_threshold, negative_threshold
+    )
+
+    assert result["pass"] is expected
+    assert result["status"] == ("pass" if expected else "fail")
+
+
+def test_summarize_query_result_marks_executor_errors_inconclusive(
+    run_eval_module: ModuleType,
+) -> None:
+    result = run_eval_module.summarize_query_result(
+        {"query": "negative", "should_trigger": False}, [], 3, 0.8, 0.2
+    )
+
+    assert result["status"] == "inconclusive"
+    assert result["pass"] is None
+    assert result["trigger_rate"] is None
+    assert result["errors"] == 3

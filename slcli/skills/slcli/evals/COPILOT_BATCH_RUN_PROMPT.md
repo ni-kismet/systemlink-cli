@@ -35,10 +35,11 @@ In one parent chat, Copilot should:
 2. Find every `executor_prompt.txt` under the iteration directory.
 3. For each prepared run directory:
    - execute the prompt in a fresh stateless subagent
-   - load the candidate `slcli` skill for `with_skill` runs
+  - load the candidate `slcli` skill from the isolated candidate repo for `with_skill` runs
    - load the merge-base `slcli` skill from the isolated baseline repo for `old_skill` runs
    - stop early when the per-run budget is exhausted and record the failure
    - save the final answer to `outputs/response.txt`
+  - save the complete executor trace to `outputs/transcript.jsonl`
    - save executor identity, configuration, and completion status to `outputs/run_metadata.json`
    - retry infrastructure failures once; after a second failure, set status to `infrastructure_error` and continue
    - optionally save `outputs/notes.txt` for assumptions
@@ -53,8 +54,8 @@ Run the prepared gating eval iteration end to end.
 
 Use one parent conversation only as the orchestrator. For each executor prompt,
 spawn a fresh stateless subagent so the runs do not share prompt history.
-For `with_skill`, allow the subagent to read and use the skill at:
-<REPO_ROOT>/slcli/skills/slcli
+For `with_skill`, load the skill path inside the isolated `candidate_repo/`
+named by the executor prompt instead of using the working checkout.
 For `old_skill`, load the skill path inside the isolated `baseline_repo/` named
 by the executor prompt instead of using the candidate checkout.
 Run independent evals in parallel when possible, but keep concurrency modest:
@@ -71,6 +72,7 @@ Instructions:
    - use a maximum budget of about 8 tool calls or about 3 minutes of active work for that run, whichever comes first
    - if the run does not converge inside that budget, stop, write the best grounded response you have to response.txt, and write notes.txt explaining the failure briefly
    - save the final user-facing answer to the sibling outputs/response.txt path named in the prompt
+  - save the complete executor trace to the sibling outputs/transcript.jsonl path named in the prompt
    - save optional outputs/notes.txt only if assumptions or caveats matter
   - save outputs/run_metadata.json with executor_provider, exact executor_model, harness, configuration, and status
   - use status `completed` only for a completed model run; retry an infrastructure failure once, then use `infrastructure_error` and preserve partial artifacts
@@ -90,7 +92,7 @@ Execution rules:
 - Do not answer multiple eval runs in the parent chat context.
 - Do not reuse a subagent across runs.
 - Parallelize independent runs when useful, but keep concurrency to roughly 2 to 4 subagents at a time.
-- For with_skill runs, the subagent may read the skill path named in the executor prompt.
+- For with_skill runs, the subagent must load only the candidate skill path named in the executor prompt.
 - For old_skill runs, the subagent must load only the merge-base skill path named in the executor prompt.
 - If a run exceeds its budget without a grounded answer, declare it failed quickly, persist the best grounded partial result plus a short note, and continue.
 - Do not overwrite populated outputs unless the existing file is only a placeholder.
@@ -116,5 +118,5 @@ Execution rules:
 - If you want broader coverage, swap the iteration path to a prepared
   `regression` iteration.
 
-Replace `<REPO_ROOT>` with the repository root and `<ITERATION_DIR>` with the
-prepared iteration path before using the template.
+Replace `<ITERATION_DIR>` with the prepared iteration path before using the
+template.

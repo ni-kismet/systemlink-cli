@@ -2,11 +2,14 @@
 
 from __future__ import annotations
 
+import argparse
 import json
 from pathlib import Path
 from typing import Any
 
-from slcli.skills.slcli.scripts.compare_iteration import evaluate_iteration
+import pytest
+
+from slcli.skills.slcli.scripts.compare_iteration import evaluate_iteration, regression_margin
 
 
 def write_json(path: Path, payload: dict[str, Any]) -> None:
@@ -193,3 +196,14 @@ def test_evaluate_iteration_is_inconclusive_for_stale_provenance(tmp_path: Path)
 
     assert result["status"] == "inconclusive"
     assert str(eval_dir / "with_skill" / "run-1") in result["missing_or_inconclusive_runs"]
+
+
+@pytest.mark.parametrize("value", ["-0.1", "1.1", "nan", "inf"])
+def test_regression_margin_rejects_invalid_values(value: str) -> None:
+    with pytest.raises(argparse.ArgumentTypeError, match="finite value between 0 and 1"):
+        regression_margin(value)
+
+
+@pytest.mark.parametrize("value", ["0", "0.05", "1"])
+def test_regression_margin_accepts_unit_interval(value: str) -> None:
+    assert regression_margin(value) == float(value)

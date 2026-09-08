@@ -50,6 +50,7 @@ def test_grade_run_records_provenance_and_only_grades_response(tmp_path: Path) -
     outputs.mkdir(parents=True)
     (outputs / "response.txt").write_text("I could not determine the command.\n", encoding="utf-8")
     (outputs / "notes.txt").write_text("Expected: slcli system list\n", encoding="utf-8")
+    (outputs / "transcript.jsonl").write_text('{"event":"completed"}\n', encoding="utf-8")
     write_json(
         outputs / "run_metadata.json",
         {
@@ -83,4 +84,22 @@ def test_grade_run_records_provenance_and_only_grades_response(tmp_path: Path) -
         "notes.txt",
         "response.txt",
         "run_metadata.json",
+        "transcript.jsonl",
     }
+
+
+def test_grade_run_skips_run_without_transcript(tmp_path: Path) -> None:
+    outputs = tmp_path / "eval-1" / "with_skill" / "run-1" / "outputs"
+    outputs.mkdir(parents=True)
+    (outputs / "response.txt").write_text("A response\n", encoding="utf-8")
+    write_json(outputs / "run_metadata.json", {"status": "completed"})
+
+    message = grade_run(
+        tmp_path / "evals.json",
+        1,
+        outputs.parent,
+        False,
+        {},
+    )
+
+    assert message.endswith("required outputs missing: transcript.jsonl")
