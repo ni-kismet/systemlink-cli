@@ -12,11 +12,12 @@ from typing import Any, Dict, List, Optional, Tuple
 import click
 import questionary
 
-from .cli_utils import validate_output_format
+from .cli_utils import is_interactive_environment, validate_output_format
 from .universal_handlers import FilteredResponse, UniversalResponseHandler
 from .utils import (
     ExitCodes,
     check_readonly_mode,
+    escape_filter_value,
     format_success,
     get_base_url,
     get_workspace_map,
@@ -29,22 +30,12 @@ from .workspace_utils import (
     resolve_workspace_filter,
 )
 
+_escape_filter_value = escape_filter_value
+
 
 def _get_asset_base_url() -> str:
     """Get the base URL for the Asset Management API."""
     return f"{get_base_url()}/niapm/v1"
-
-
-def _escape_filter_value(value: str) -> str:
-    """Escape double quotes in filter values to prevent injection.
-
-    Args:
-        value: Raw filter value from user input.
-
-    Returns:
-        Escaped value safe for embedding in filter expressions.
-    """
-    return value.replace('"', '\\"')
 
 
 def _parse_properties(properties: Tuple[str, ...]) -> Dict[str, str]:
@@ -100,10 +91,10 @@ def _build_asset_filter(
     parts: List[str] = []
 
     if model:
-        escaped = _escape_filter_value(model)
+        escaped = escape_filter_value(model)
         parts.append(f'ModelName.Contains("{escaped}")')
     if serial_number:
-        escaped = _escape_filter_value(serial_number)
+        escaped = escape_filter_value(serial_number)
         parts.append(f'SerialNumber = "{escaped}"')
     if bus_type:
         parts.append(f'BusType = "{bus_type}"')
@@ -117,7 +108,7 @@ def _build_asset_filter(
             ' and Location.AssetState.AssetPresence = "PRESENT"'
         )
     if workspace_id:
-        escaped = _escape_filter_value(workspace_id)
+        escaped = escape_filter_value(workspace_id)
         parts.append(f'Workspace = "{escaped}"')
     if custom_filter:
         parts.append(custom_filter)
@@ -302,6 +293,9 @@ def _handle_asset_interactive_pagination(
         if shown_count >= total_count:
             break
 
+        if not is_interactive_environment():
+            break
+
         if not questionary.confirm("Show next set of results?", default=True).ask():
             break
 
@@ -468,7 +462,7 @@ def register_asset_commands(cli: Any) -> None:
         type=int,
         default=25,
         show_default=True,
-        help="Items per page (table output only)",
+        help="Maximum assets to return (table page size; JSON list total)",
     )
     @click.option("--model", help="Filter by model name (contains match)")
     @click.option("--serial-number", help="Filter by serial number (exact match)")
@@ -617,7 +611,11 @@ def register_asset_commands(cli: Any) -> None:
             if format_output.lower() == "json":
                 _warn_if_large_dataset(filter_expr, calibratable)
                 assets = _query_all_assets(
-                    filter_expr, order_by, descending, calibratable_only=calibratable
+                    filter_expr,
+                    order_by,
+                    descending,
+                    take=take,
+                    calibratable_only=calibratable,
                 )
 
                 if summary:

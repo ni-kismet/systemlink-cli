@@ -282,6 +282,39 @@ class TestInfoCommand:
         assert "API key unauthorized" in result.output
         assert "Unauthorized" in result.output
 
+    def test_info_command_bearer_unauthorized(self) -> None:
+        """Test info command labels rejected PKCE credentials as bearer tokens."""
+        from slcli.profiles import ProfileConfig
+
+        test_profile = Profile(
+            name="pkce",
+            server="https://api.example.com",
+            web_url="https://web.example.com",
+            auth_mode="pkce",
+            pkce_client_id="client-id",
+        )
+        platform_info = {
+            "logged_in": True,
+            "server_reachable": True,
+            "auth_valid": False,
+            "platform": "unknown",
+            "platform_display": "Unknown",
+            "api_url": "https://api.example.com",
+            "api_url_source": "profile:pkce",
+            "web_url": "https://web.example.com",
+            "web_url_source": "profile:pkce",
+            "api_key_source": "profile:pkce:pkce",
+            "services": {"Web Server": "unauthorized"},
+        }
+        config = ProfileConfig(current_profile="pkce", profiles={"pkce": test_profile})
+        with patch("slcli.main.get_platform_info", return_value=platform_info), patch(
+            "slcli.profiles.get_active_profile", return_value=test_profile
+        ), patch("slcli.profiles.ProfileConfig.load", return_value=config):
+            result = CliRunner().invoke(cli, ["info"])
+
+        assert result.exit_code == 0
+        assert "Bearer token unauthorized" in result.output
+
     def test_info_command_debug_outputs_connection_diagnostics(self) -> None:
         """Test info --debug emits structured connection diagnostics."""
         test_profile = Profile(

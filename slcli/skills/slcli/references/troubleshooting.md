@@ -2,6 +2,47 @@
 
 Common issues and workarounds when using `slcli` or scripting against SystemLink APIs.
 
+## Update preflight
+
+Before deeper troubleshooting, check the CLI and the active installed skill once per session:
+
+```bash
+slcli version check
+slcli skill check --client <CLIENT> --scope <SCOPE>
+```
+
+Use `--directory <PATH>` instead of `--client` and `--scope` for a custom skill location. If
+the CLI is outdated, recommend the manager-specific command printed by `version check`. If the
+skill check reports `missing`, `unversioned`, or `outdated`, recommend updating the same target:
+
+```bash
+slcli skill install --client <CLIENT> --scope <SCOPE> --force
+```
+
+Obtain the user's approval before running an update. If either check fails because the command
+is unavailable or the network cannot be reached, note that version status is unknown and
+continue troubleshooting. Give version skew more weight when the failure involves unknown
+commands, changed options, output shape, packaging, or skill instructions.
+
+## Effective profile and workspace scope
+
+Resolve the workspace and profile independently before querying resources. A
+workspace name is not a profile name. Use `slcli config list --format json` to
+find profiles mapped to the workspace, then pass the selected profile before
+each command with `slcli --profile NAME ...`.
+
+When `slcli info --format json` shows different values, use
+`active_profile_name` for the effective profile and `api_url_source` for the
+effective endpoint. `current_profile` is only the persisted config pointer and
+may be stale relative to a CLI or environment override.
+
+## Live-data snapshots
+
+Queries are live and may change between commands. Record the query time and
+avoid presenting counts from separate commands as one atomic snapshot. If
+multiple aggregations must agree exactly, fetch one bounded JSON result set and
+derive all aggregations locally.
+
 ## Workspace IDs vs names
 
 Some API endpoints (notably **file upload**) require the workspace **UUID**, not

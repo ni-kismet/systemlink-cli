@@ -13,13 +13,17 @@
 .master-detail__master {
   display: flex;
   flex-direction: column;
+  gap: var(--ni-nimble-medium-padding);
   min-height: 0;
   padding-right: var(--ni-nimble-large-padding);
   border-right: 1px solid var(--app-divider);
 }
 
+.master-detail__filter {
+  flex: 0 0 auto;
+}
+
 .master-detail__list {
-  display: block;
   flex: 1;
   min-height: 0;
 }

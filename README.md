@@ -6,7 +6,7 @@ SystemLink CLI (`slcli`) is a cross-platform Python CLI for SystemLink integrato
 
 ## Features
 
-- **20+ resource types** — test results, assets, systems, specifications, work items, notebooks, feeds, tags, files, users, policies, webapps, and more
+- **20+ resource types** — test results, assets, systems, alarms, specifications, work items, notebooks, feeds, tags, files, users, policies, webapps, and more
 - **DataFrame tables** — inspect schema, query rows, export CSV, append data, and manage DataFrame table metadata
 - **Systems state lifecycle** — list saved states, inspect versions, and import or export portable `.sls` content
 - **Multi-platform** — supports SystemLink Enterprise (SLE) and SystemLink Server (SLS) with automatic detection
@@ -55,28 +55,18 @@ slcli asset list --calibratable --summary
 slcli system list --state CONNECTED
 slcli spec list --product <product> --workspace all
 
+# Install bundled AI skills for this repo
+slcli skill install --client agents --scope project
+slcli skill check --client agents --scope project
+
+# Or install skills directly into a custom directory
+slcli skill install --directory ./my-agent/skills
+
 # Scaffold the recommended hosted Angular starter
 slcli webapp new my-dashboard
 
-# Low-level/manual starter path for custom framework setup
-slcli webapp init ./my-dashboard-manual
-
-# Install bundled AI skills for this repo
-slcli skill install --client agents --scope project
-
-# Create Plugin Manager packaging config
-slcli webapp manifest init ./my-dashboard \
-	--description "A dashboard for monitoring fleet health and calibration status." \
-	--section Dashboard \
-	--maintainer "Your Name <you@example.com>" \
-	--license MIT \
-	--icon-file ./icon.svg
-
-# Package the app and generate the thin submission manifest.json
-slcli webapp pack --config ./my-dashboard/nipkg.config.json
-
 # Provision a demo environment
-slcli example install demo-complete-workflow --workspace Training
+slcli example install demo-data-1 --workspace Training
 ```
 
 ## Color Output
@@ -95,6 +85,31 @@ slcli resolves runtime connection settings in this order:
 - API URL, API key, and Web URL: `SLCLI_API_URL` / `SLCLI_API_KEY` / `SLCLI_WEB_URL`, then the legacy `SYSTEMLINK_*` aliases, then the active profile, then legacy keyring fallbacks.
 
 Use `slcli info` to see the effective source for each value and whether environment overrides are active. Use `slcli config view` to inspect the stored profile values on disk.
+
+### Self-Signed Server Certificates
+
+TLS certificate verification remains enabled by default. When `slcli login` or `slcli config add` reaches a server with an untrusted certificate, it displays the certificate subject, issuer, validity, and SHA-256 fingerprint before asking for approval. The certificate is stored only after explicit approval and is then used as a verified PEM trust entry for that server origin.
+
+For non-interactive setup, provide the fingerprint explicitly:
+
+```bash
+slcli login --url https://systemlink.example.local \
+	--api-key "$SYSTEMLINK_API_KEY" \
+	--web-url https://systemlink.example.local \
+	--trust-fingerprint <sha256-fingerprint>
+```
+
+Trust entries can also be managed directly:
+
+```bash
+slcli config trust list
+slcli config trust add --url https://systemlink.example.local --fingerprint <sha256-fingerprint>
+slcli config trust remove --url https://systemlink.example.local
+```
+
+Managed certificates are stored under the `trust` directory next to the slcli configuration file. Hostname verification is still enforced. `SLCLI_SSL_VERIFY=false` disables certificate verification entirely and should only be used as a temporary diagnostic override; it does not add a trusted certificate.
+
+When the operating system trust store is available, it remains the default even if `SSL_CERT_FILE` points to a single corporate root certificate. Use `REQUESTS_CA_BUNDLE` when an explicit complete CA bundle is required.
 
 ## Documentation
 

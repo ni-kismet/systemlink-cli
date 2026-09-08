@@ -44,7 +44,9 @@ removed; import the public helpers directly from that module.
 
 
 def _query_all_workflows(
-    workspace_filter: Optional[str] = None, workspace_map: Optional[dict] = None
+    workspace_filter: Optional[str] = None,
+    workspace_map: Optional[dict] = None,
+    max_items: Optional[int] = None,
 ) -> List[Dict[str, Any]]:
     """Query all workflows using continuation token pagination.
 
@@ -56,13 +58,21 @@ def _query_all_workflows(
         List of all workflows, optionally filtered by workspace
     """
     url = f"{get_base_url()}/niworkorder/v1/query-workflows?ff-userdefinedworkflowsfortestplaninstances=true"
-    all_workflows = []
+    all_workflows: List[Dict[str, Any]] = []
     continuation_token = None
 
     while True:
+        if max_items is not None:
+            remaining = max_items - len(all_workflows)
+            if remaining <= 0:
+                break
+            page_size = min(100, remaining)
+        else:
+            page_size = 100
+
         # Build payload for the request
         payload: Dict[str, Union[int, str]] = {
-            "take": 100,  # Use smaller page size for efficient pagination
+            "take": page_size,
         }
 
         # Add workspace filter if specified
@@ -85,7 +95,7 @@ def _query_all_workflows(
         if not continuation_token:
             break
 
-    return all_workflows
+    return all_workflows[:max_items] if max_items is not None else all_workflows
 
 
 def register_workflows_commands(cli: Any) -> None:
@@ -386,8 +396,12 @@ def register_workflows_commands(cli: Any) -> None:
             if workspace:
                 workspace_id = resolve_workspace_filter(workspace, workspace_map)
 
-            # Use continuation token pagination to get all workflows
-            all_workflows = _query_all_workflows(workspace_id, workspace_map)
+            # Bound JSON output while retaining interactive table paging.
+            all_workflows = _query_all_workflows(
+                workspace_id,
+                workspace_map,
+                max_items=take if format_output.lower() == "json" else None,
+            )
 
             # Create a mock response with all data
             resp = FilteredResponse({"workflows": all_workflows})

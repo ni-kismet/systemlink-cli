@@ -1,6 +1,8 @@
 """Unit tests for slcli webapp commands."""
 
 import io
+import shutil
+import subprocess
 import tarfile
 from hashlib import sha256
 from json import dumps, loads
@@ -9,6 +11,7 @@ from typing import Any, Dict, List
 from unittest.mock import patch
 
 import pytest
+from click import unstyle
 from click.testing import CliRunner
 from pytest import MonkeyPatch
 
@@ -97,6 +100,60 @@ def _no_profile_workspace() -> Any:
     """Prevent profile workspace default from interfering with tests."""
     with patch("slcli.workspace_utils.get_default_workspace", return_value=None):
         yield
+
+
+def test_webapp_help_omits_legacy_init_command() -> None:
+    runner = CliRunner()
+
+    result = runner.invoke(cli, ["webapp", "--help"])
+    rendered_command_names = []
+    for line in unstyle(result.output).splitlines():
+        command_line = line.strip("\N{BOX DRAWINGS LIGHT VERTICAL} ")
+        command_name = command_line.split(maxsplit=1)[0] if command_line else ""
+        if command_name in {"init", "new"}:
+            rendered_command_names.append(command_name)
+
+    assert result.exit_code == 0
+    assert "init" not in rendered_command_names
+    assert "new" in rendered_command_names
+
+
+def test_webapp_init_help_points_to_new_command() -> None:
+    runner = CliRunner()
+
+    result = runner.invoke(cli, ["webapp", "init", "--help"])
+
+    assert result.exit_code == 0
+    assert "Compatibility-only" in result.output
+    assert "slcli webapp new" in result.output
+
+
+def test_webapp_list_accepts_short_format_alias(monkeypatch: MonkeyPatch) -> None:
+    runner = CliRunner()
+    monkeypatch.setattr(
+        "slcli.webapp_click._query_webapps_http",
+        lambda *_args, **_kwargs: [
+            {
+                "id": "webapp-1",
+                "name": "Dashboard",
+                "workspace": "workspace-1",
+                "type": "WebVI",
+            }
+        ],
+    )
+    monkeypatch.setattr("slcli.webapp_click.get_workspace_map", lambda: {})
+
+    result = runner.invoke(cli, ["webapp", "list", "-f", "json"])
+
+    assert result.exit_code == 0
+    assert loads(result.output) == [
+        {
+            "id": "webapp-1",
+            "name": "Dashboard",
+            "workspace": "workspace-1",
+            "type": "WebVI",
+        }
+    ]
 
 
 def test_webapp_init_creates_starter_files(tmp_path: Path, monkeypatch: MonkeyPatch) -> None:
@@ -225,17 +282,31 @@ def test_webapp_new_blank_creates_host_ready_workspace(
     app_shell = (target / "src" / "app" / "core" / "layout" / "app-shell.component.ts").read_text(
         encoding="utf-8"
     )
+    app_shell_template = (
+        target / "src" / "app" / "core" / "layout" / "app-shell.component.html"
+    ).read_text(encoding="utf-8")
     readme = (target / "README.md").read_text(encoding="utf-8")
 
-    assert package_json["dependencies"]["@ni/nimble-angular"] == "~33.2.0"
-    assert package_json["dependencies"]["@ni/ok-components"] == "1.6.0"
-    assert package_json["dependencies"]["@ni/systemlink-clients-ts"] == "2.2.0"
+    assert package_json["dependencies"]["@ni/nimble-angular"] == "~33.5.0"
+    assert package_json["dependencies"]["@ni/nimble-components"] == "~35.12.7"
+    assert package_json["dependencies"]["@ni/ok-angular"] == "2.5.4"
+    assert package_json["dependencies"]["@ni/systemlink-clients-ts"] == "3.0.2"
     assert "@angular/platform-browser-dynamic" not in package_json["dependencies"]
     assert "@angular/animations" not in package_json["dependencies"]
     assert package_json["engines"]["node"] == ">=24"
-    assert package_json["devDependencies"]["@angular/localize"] == "^20.3.0"
-    assert package_json["devDependencies"]["@angular/build"] == "^20.3.30"
+    assert package_json["devDependencies"]["@angular/localize"] == "^20.3.29"
+    assert package_json["devDependencies"]["@angular/build"] == "^20.3.34"
+    assert package_json["devDependencies"]["@cyclonedx/cyclonedx-npm"] == "~6.0.1"
     assert "@angular-devkit/build-angular" not in package_json["devDependencies"]
+    assert package_json["scripts"]["sbom"] == (
+        "cyclonedx-npm --omit dev --output-format JSON "
+        "--output-file sbom.cdx.json --validate --output-reproducible "
+        "&& node scripts/filter-sbom.js sbom.cdx.json"
+    )
+    development_build = angular_json["projects"]["coffee-roaster"]["architect"]["build"][
+        "configurations"
+    ]["development"]
+    assert not {"buildOptimizer", "vendorChunk"}.intersection(development_build)
     assert "test" not in package_json["scripts"]
     assert "<base" not in index_html
     assert "bootstrapApplication(AppComponent" in main_ts
@@ -245,13 +316,14 @@ def test_webapp_new_blank_creates_host_ready_workspace(
     assert "AppShellComponent" in app_component
     assert "APP_BASE_HREF" in app_module
     assert "bootstrap:" not in app_module
-    assert "CUSTOM_ELEMENTS_SCHEMA" in app_module
+    assert "CUSTOM_ELEMENTS_SCHEMA" not in app_module
     assert "CommonModule" in app_module
     assert "BrowserModule" not in app_module
     assert "MasterDetailPageComponent" in app_module
     assert "standalone: true" in app_shell
     assert "RouterModule" in app_shell
     assert "AppRoutingModule" not in app_shell
+    assert '<header class="shell__header">' not in app_shell_template
     assert "useHash: true" in app_routing
     assert "path: 'master-detail'" in app_routing
     assert (
@@ -280,8 +352,11 @@ def test_webapp_new_blank_creates_host_ready_workspace(
     assert "Node.js 24+ declared" in readme
     assert "standalone root bootstrap" in readme
     assert "warning budget tuned" in readme
+    assert "runtime-only CycloneDX document" in readme
+    assert "project-root" in readme
+    assert "outside `dist/`" in readme
     assert "omits a default test runner setup" in readme
-    assert "Skipped npm install and npm run build" in result.output
+    assert "Skipped npm install, npm run sbom, and npm run build" in result.output
 
 
 def test_webapp_new_blank_uses_supported_nimble_api_shapes(
@@ -344,7 +419,8 @@ def test_webapp_new_blank_uses_supported_nimble_api_shapes(
     assert "startResize" in operations_ts
     assert "toggleDetailPane" in operations_ts
     assert "isDetailCollapsed" in operations_ts
-    assert "@ni/ok-components/dist/esm/fv/master-detail-list" in master_detail_ts
+    assert "MasterDetailChangeDetail" in master_detail_ts
+    assert "filteredDevices" in master_detail_ts
     assert ".close();" in assets_ts
     assert ".hide();" not in assets_ts
     assert "selectedRecordIds[0]" in assets_ts
@@ -368,6 +444,8 @@ def test_webapp_new_blank_uses_supported_nimble_api_shapes(
     assert "nimble-text-area" in master_detail_html
     assert "ok-fv-master-detail-list" in master_detail_html
     assert "ok-fv-master-detail-list-item" in master_detail_html
+    assert "nimble-text-field" in master_detail_html
+    assert "Filter devices" in master_detail_html
     assert "nimble-chip" in assets_html
     assert "nimble-chip" in operations_html
     assert "nimble-chip" in master_detail_html
@@ -402,10 +480,172 @@ def test_webapp_new_with_nimble_only_keeps_template_base_dependencies(
     package_json = loads((target / "package.json").read_text(encoding="utf-8"))
     dependencies = package_json["dependencies"]
 
-    assert dependencies["@ni/nimble-angular"] == "~33.2.0"
-    assert dependencies["@ni/ok-components"] == "1.6.0"
+    assert dependencies["@ni/nimble-angular"] == "~33.5.0"
     assert "@ni/systemlink-clients-ts" not in dependencies
     assert "@ni/ok-angular" not in dependencies
+    assert "@ni/ok-components" not in dependencies
+
+    app_module = (target / "src" / "app" / "app.module.ts").read_text(encoding="utf-8")
+    master_detail_html = (
+        target / "src" / "app" / "features" / "master-detail" / "master-detail-page.component.html"
+    ).read_text(encoding="utf-8")
+
+    assert "@ni/ok-angular" not in app_module
+    assert "OkFvMasterDetailListModule" not in app_module
+    assert "ok-fv-master-detail-list" not in master_detail_html
+    assert "nimble-select" in master_detail_html
+    assert "nimble-list-option" in master_detail_html
+
+
+def test_webapp_new_accepts_ok_feature_pack(tmp_path: Path, monkeypatch: MonkeyPatch) -> None:
+    runner = CliRunner()
+    patch_keyring(monkeypatch)
+
+    target = tmp_path / "ok-pack"
+    result = runner.invoke(
+        cli,
+        [
+            "webapp",
+            "new",
+            "ok-pack",
+            "--directory",
+            str(target),
+            "--skip-install",
+            "--with",
+            "nimble,ok",
+        ],
+    )
+
+    assert result.exit_code == 0
+    package_json = loads((target / "package.json").read_text(encoding="utf-8"))
+
+    assert package_json["dependencies"]["@ni/ok-angular"] == "2.5.4"
+    assert "@ni/systemlink-clients-ts" not in package_json["dependencies"]
+
+
+def test_webapp_new_accepts_spright_feature_pack(tmp_path: Path, monkeypatch: MonkeyPatch) -> None:
+    runner = CliRunner()
+    patch_keyring(monkeypatch)
+
+    target = tmp_path / "spright-pack"
+    result = runner.invoke(
+        cli,
+        [
+            "webapp",
+            "new",
+            "spright-pack",
+            "--directory",
+            str(target),
+            "--skip-install",
+            "--with",
+            "nimble,spright",
+        ],
+    )
+
+    assert result.exit_code == 0
+    package_json = loads((target / "package.json").read_text(encoding="utf-8"))
+
+    assert package_json["dependencies"]["@ni/nimble-components"] == "~35.12.7"
+    assert package_json["dependencies"]["@ni/spright-angular"] == "9.5.9"
+
+
+def test_webapp_sbom_filter_removes_development_components(tmp_path: Path) -> None:
+    node_path = shutil.which("node")
+    if node_path is None:
+        pytest.skip("Node.js is required to test the generated SBOM filter")
+
+    nested_runtime = {
+        "type": "library",
+        "name": "rxjs",
+        "version": "7.8.2",
+        "bom-ref": "nested-runtime",
+    }
+    nested_development = {
+        "type": "library",
+        "name": "typescript",
+        "version": "5.9.3",
+        "bom-ref": "nested-development",
+        "properties": [{"name": "cdx:npm:package:development", "value": "true"}],
+    }
+    nested_development_child = {
+        "type": "library",
+        "name": "development-child",
+        "version": "1.0.0",
+        "bom-ref": "nested-development-child",
+    }
+    nested_development_parent = {
+        "type": "library",
+        "name": "development-parent",
+        "version": "1.0.0",
+        "bom-ref": "nested-development-parent",
+        "properties": [{"name": "cdx:npm:package:development", "value": "true"}],
+        "components": [nested_development_child],
+    }
+    runtime_component = {
+        "type": "library",
+        "name": "webapp",
+        "version": "0.1.0",
+        "bom-ref": "runtime",
+        "components": [nested_development, nested_runtime],
+    }
+    top_level_development = {
+        "type": "library",
+        "name": "@angular/build",
+        "version": "20.3.34",
+        "bom-ref": "top-level-development",
+        "properties": [{"name": "cdx:npm:package:development", "value": "true"}],
+    }
+    sbom_path = tmp_path / "sbom.cdx.json"
+    sbom_path.write_text(
+        dumps(
+            {
+                "bomFormat": "CycloneDX",
+                "specVersion": "1.6",
+                "version": 1,
+                "components": [runtime_component, top_level_development, nested_development_parent],
+                "dependencies": [
+                    {
+                        "ref": "runtime",
+                        "dependsOn": [
+                            "nested-development",
+                            "nested-runtime",
+                            "top-level-development",
+                            "nested-development-parent",
+                        ],
+                    },
+                    {"ref": "top-level-development", "dependsOn": []},
+                    {
+                        "ref": "nested-development-parent",
+                        "dependsOn": ["nested-development-child"],
+                    },
+                ],
+            }
+        ),
+        encoding="utf-8",
+    )
+
+    script_path = (
+        Path(__file__).parents[2]
+        / "slcli"
+        / "webapp_templates"
+        / "angular"
+        / "blank"
+        / "scripts"
+        / "filter-sbom.js"
+    )
+    subprocess.run([node_path, str(script_path), str(sbom_path)], check=True)
+
+    filtered = loads(sbom_path.read_text(encoding="utf-8"))
+    assert filtered["components"] == [
+        {
+            "type": "library",
+            "name": "webapp",
+            "version": "0.1.0",
+            "bom-ref": "runtime",
+            "components": [nested_runtime],
+        }
+    ]
+    assert filtered["dependencies"] == [{"ref": "runtime", "dependsOn": ["nested-runtime"]}]
 
 
 def test_webapp_new_dry_run_does_not_write_files(tmp_path: Path, monkeypatch: MonkeyPatch) -> None:
@@ -495,30 +735,92 @@ def test_webapp_new_plugin_manager_writes_packaging_metadata(
     assert "npm run pack:webapp" in result.output
 
 
-def test_webapp_new_rejects_unshipped_templates(tmp_path: Path, monkeypatch: MonkeyPatch) -> None:
+@pytest.mark.parametrize(
+    ("template", "present_routes", "absent_routes", "expected_pattern"),
+    [
+        (
+            "dashboard",
+            ["path: ''", "path: 'datasets'", "path: 'assets'"],
+            ["path: 'master-detail'", "path: 'operations'", "path: 'settings'"],
+            "Search-first Nimble table toolbar",
+        ),
+        (
+            "list-detail",
+            ["path: ''", "path: 'assets'", "path: 'master-detail'"],
+            ["path: 'datasets'", "path: 'operations'", "path: 'settings'"],
+            "Master/detail split pane",
+        ),
+        (
+            "admin",
+            ["path: ''", "path: 'operations'", "path: 'settings'"],
+            ["path: 'datasets'", "path: 'assets'", "path: 'master-detail'"],
+            "Grouped settings form",
+        ),
+    ],
+)
+def test_webapp_new_named_templates_render_focused_navigation(
+    tmp_path: Path,
+    monkeypatch: MonkeyPatch,
+    template: str,
+    present_routes: List[str],
+    absent_routes: List[str],
+    expected_pattern: str,
+) -> None:
     runner = CliRunner()
     patch_keyring(monkeypatch)
 
+    target = tmp_path / template
     result = runner.invoke(
         cli,
         [
             "webapp",
             "new",
-            "support-console",
+            template,
             "--directory",
-            str(tmp_path / "support"),
+            str(target),
             "--template",
-            "admin",
+            template,
+            "--skip-install",
         ],
     )
 
-    assert result.exit_code == ExitCodes.INVALID_INPUT
-    assert "Phase 1 currently supports only --template blank" in result.output
+    assert result.exit_code == 0
+
+    routing = (target / "src" / "app" / "app-routing.module.ts").read_text(encoding="utf-8")
+    shell = (target / "src" / "app" / "core" / "layout" / "app-shell.component.ts").read_text(
+        encoding="utf-8"
+    )
+    home_data = (
+        target / "src" / "app" / "core" / "systemlink" / "webapp-home-data.service.ts"
+    ).read_text(encoding="utf-8")
+    readme = (target / "README.md").read_text(encoding="utf-8")
+
+    for route in present_routes:
+        assert route in routing
+    for route in absent_routes:
+        assert route not in routing
+
+    assert "readonly tabs: readonly ShellTab[]" in shell
+    assert expected_pattern in home_data
+    assert expected_pattern in readme
+
+
+def test_resolve_webapp_template_directory_reports_selected_template_name(
+    monkeypatch: MonkeyPatch,
+) -> None:
+    monkeypatch.setattr(webapp_bootstrap, "_webapp_templates_dir_candidates", lambda: [])
+
+    with pytest.raises(FileNotFoundError) as exc_info:
+        webapp_bootstrap._resolve_webapp_template_directory("angular", "dashboard")
+
+    assert "selected template 'dashboard'" in str(exc_info.value)
+    assert "source template 'blank'" in str(exc_info.value)
 
 
 def test_webapp_new_runs_install_and_build(tmp_path: Path, monkeypatch: MonkeyPatch) -> None:
     runner = CliRunner()
     patch_keyring(monkeypatch)
+    monkeypatch.setattr(webapp_bootstrap.shutil, "which", lambda command: command)
 
     commands: List[List[str]] = []
 
@@ -531,6 +833,8 @@ def test_webapp_new_runs_install_and_build(tmp_path: Path, monkeypatch: MonkeyPa
     def fake_run(*args: Any, **kwargs: Any) -> Completed:
         commands.append(list(args[0]))
         assert kwargs["cwd"] == tmp_path / "build-check"
+        assert kwargs["encoding"] == "utf-8"
+        assert kwargs["errors"] == "replace"
         return Completed()
 
     monkeypatch.setattr("slcli.webapp_bootstrap.subprocess.run", fake_run)
@@ -541,8 +845,49 @@ def test_webapp_new_runs_install_and_build(tmp_path: Path, monkeypatch: MonkeyPa
     )
 
     assert result.exit_code == 0
-    assert commands == [["npm", "install"], ["npm", "run", "build"]]
-    assert "npm run build passed" in result.output
+    npm_executable = "npm.cmd" if webapp_bootstrap.sys.platform == "win32" else "npm"
+    assert commands == [
+        [npm_executable, "install"],
+        [npm_executable, "run", "sbom"],
+        [npm_executable, "run", "build"],
+    ]
+    assert "npm run sbom and npm run build passed" in result.output
+
+
+def test_webapp_new_reports_missing_prerequisites(tmp_path: Path, monkeypatch: MonkeyPatch) -> None:
+    runner = CliRunner()
+    patch_keyring(monkeypatch)
+    monkeypatch.setattr(webapp_bootstrap.shutil, "which", lambda command: None)
+
+    target = tmp_path / "missing-tools"
+    result = runner.invoke(cli, ["webapp", "new", "missing-tools", "--directory", str(target)])
+
+    assert result.exit_code == ExitCodes.GENERAL_ERROR
+    assert "Missing required webapp dependencies: Node.js, npm" in result.output
+    assert "Node.js 24+" in result.output
+    assert not target.exists()
+
+
+def test_webapp_local_command_uses_npm_cmd_on_windows(
+    tmp_path: Path, monkeypatch: MonkeyPatch
+) -> None:
+    commands: List[List[str]] = []
+
+    class Completed:
+        returncode = 0
+        stdout = ""
+        stderr = ""
+
+    def fake_run(*args: Any, **kwargs: Any) -> Completed:
+        commands.append(list(args[0]))
+        return Completed()
+
+    monkeypatch.setattr(webapp_bootstrap.sys, "platform", "win32")
+    monkeypatch.setattr("slcli.webapp_bootstrap.subprocess.run", fake_run)
+
+    webapp_bootstrap._run_webapp_local_command(tmp_path, ["npm", "install"], "npm install")
+
+    assert commands == [["npm.cmd", "install"]]
 
 
 def test_webapp_manifest_init_writes_pack_config_only(
@@ -1331,6 +1676,76 @@ def test_webapp_publish_creates_and_uploads(tmp_path: Path, monkeypatch: MonkeyP
     assert "https://web.example.test/webapps/app/Default/NewApp" in result.output
 
 
+@pytest.mark.parametrize("source_kind", ["package", "folder"])
+def test_webapp_publish_duplicate_name_shows_conflicting_webapp_details(
+    tmp_path: Path, monkeypatch: MonkeyPatch, source_kind: str
+) -> None:
+    runner = CliRunner()
+    patch_keyring(monkeypatch)
+    import requests
+    import slcli.webapp_click
+
+    if source_kind == "package":
+        source = tmp_path / "app.nipkg"
+        source.write_bytes(b"test")
+    else:
+        source = tmp_path / "site"
+        source.mkdir()
+        (source / "index.html").write_text("hi")
+
+    class MockPostResp:
+        status_code = 409
+
+        def json(self) -> Dict[str, Any]:
+            return {
+                "error": {
+                    "message": "The webapp name is already in use.",
+                }
+            }
+
+        def raise_for_status(self) -> None:
+            return None
+
+    class MockQueryResp:
+        def json(self) -> Dict[str, Any]:
+            return {
+                "webapps": [
+                    {
+                        "id": "conflicting-webapp-id",
+                        "name": "Existing App",
+                        "workspace": "ws1",
+                        "type": "WebVI",
+                        "properties": {},
+                    }
+                ]
+            }
+
+        def raise_for_status(self) -> None:
+            return None
+
+    def mock_post(url: str, **kwargs: Any) -> Any:
+        if url.endswith("/webapps"):
+            return MockPostResp()
+        return MockQueryResp()
+
+    monkeypatch.setattr(requests, "post", mock_post)
+    monkeypatch.setattr(slcli.webapp_click, "get_workspace_id_with_fallback", lambda _: "ws1")
+    monkeypatch.setattr(slcli.webapp_click, "get_workspace_map", lambda: {"ws1": "Default"})
+    monkeypatch.setattr(slcli.webapp_click, "get_web_url", lambda: "https://web.example.test")
+
+    result = runner.invoke(
+        cli, ["webapp", "publish", str(source), "--name", "Existing App", "--workspace", "Default"]
+    )
+
+    assert result.exit_code == ExitCodes.INVALID_INPUT
+    assert "The webapp name is already in use." in result.output
+    assert "Conflicting Webapp ID: conflicting-webapp-id" in result.output
+    assert (
+        "Conflicting Webapp URL: https://web.example.test/webapps/app/Default/Existing%20App"
+        in result.output
+    )
+
+
 def test_webapp_publish_existing_id_includes_published_url(
     tmp_path: Path, monkeypatch: MonkeyPatch
 ) -> None:
@@ -1465,4 +1880,48 @@ def test_webapp_open_uses_workspace_url(monkeypatch: MonkeyPatch) -> None:
 
     assert result.exit_code == 0
     assert opened[0] == "https://web.example.test/webapps/app/Workspace%20One/AppOne"
+    assert "Opening" in result.output
+
+
+def test_webapp_open_uses_server_hash_url(monkeypatch: MonkeyPatch) -> None:
+    """Ensure Server webapps use the WebVI host route instead of the cloud route."""
+    runner = CliRunner()
+    patch_keyring(monkeypatch)
+
+    import requests
+    import slcli.webapp_click
+    from slcli.platform import PLATFORM_SLS
+
+    class MockResp:
+        def json(self) -> Dict[str, Any]:
+            return {
+                "id": "cfb6266e-edbd-4ded-8a3b-9f15bd44abd8",
+                "name": "AppOne",
+                "workspace": "ws1",
+                "properties": {},
+                "type": "WebVI",
+            }
+
+        def raise_for_status(self) -> None:
+            return None
+
+    opened: list[str] = []
+
+    import webbrowser
+
+    monkeypatch.setattr(requests, "get", lambda *a, **k: MockResp())
+    monkeypatch.setattr(slcli.webapp_click, "get_platform", lambda: PLATFORM_SLS)
+    monkeypatch.setattr(slcli.webapp_click, "get_web_url", lambda: "https://base.systemlink.io")
+    monkeypatch.setattr(slcli.webapp_click, "get_workspace_map", lambda: {"ws1": "Default"})
+    monkeypatch.setattr(webbrowser, "open", lambda url: opened.append(url))
+
+    result = runner.invoke(
+        cli,
+        ["webapp", "open", "--id", "cfb6266e-edbd-4ded-8a3b-9f15bd44abd8"],
+    )
+
+    assert result.exit_code == 0
+    assert opened[0] == (
+        "https://base.systemlink.io/#/webvihost/view/webvi/" "cfb6266e-edbd-4ded-8a3b-9f15bd44abd8"
+    )
     assert "Opening" in result.output

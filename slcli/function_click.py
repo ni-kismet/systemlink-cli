@@ -96,6 +96,7 @@ def _query_all_functions(
     interface_filter: Optional[str] = None,
     custom_filter: Optional[str] = None,
     workspace_map: Optional[Dict[str, Any]] = None,
+    max_items: Optional[int] = None,
 ) -> List[Dict[str, Any]]:
     """Query all function definitions using continuation token pagination.
 
@@ -110,13 +111,21 @@ def _query_all_functions(
         List of all function definitions matching the filters
     """
     url = f"{get_unified_v2_base()}/query-functions"
-    all_functions = []
+    all_functions: List[Dict[str, Any]] = []
     continuation_token = None
 
     while True:
+        if max_items is not None:
+            remaining = max_items - len(all_functions)
+            if remaining <= 0:
+                break
+            page_size = min(100, remaining)
+        else:
+            page_size = 100
+
         # Build payload for the request
         payload: Dict[str, Union[int, str, List[str]]] = {
-            "take": 100,  # Use smaller page size for efficient pagination
+            "take": page_size,
         }
 
         # Build filter expression
@@ -162,7 +171,7 @@ def _query_all_functions(
         if not continuation_token:
             break
 
-    return all_functions
+    return all_functions[:max_items] if max_items is not None else all_functions
 
 
 def _query_all_executions(
@@ -170,6 +179,7 @@ def _query_all_executions(
     status_filter: Optional[str] = None,
     function_id_filter: Optional[str] = None,
     workspace_map: Optional[Dict[str, Any]] = None,
+    max_items: Optional[int] = None,
 ) -> List[Dict[str, Any]]:
     """Query all function executions using continuation token pagination.
 
@@ -183,13 +193,21 @@ def _query_all_executions(
         List of all function executions matching the filters
     """
     url = f"{get_unified_v2_base()}/query-executions"
-    all_executions = []
+    all_executions: List[Dict[str, Any]] = []
     continuation_token = None
 
     while True:
+        if max_items is not None:
+            remaining = max_items - len(all_executions)
+            if remaining <= 0:
+                break
+            page_size = min(100, remaining)
+        else:
+            page_size = 100
+
         # Build payload for the request
         payload: Dict[str, Union[int, str, List[str]]] = {
-            "take": 100,  # Use smaller page size for efficient pagination
+            "take": page_size,
         }
 
         # Build filter expression
@@ -223,7 +241,7 @@ def _query_all_executions(
         if not continuation_token:
             break
 
-    return all_executions
+    return all_executions[:max_items] if max_items is not None else all_executions
 
 
 def register_function_commands(cli: Any) -> None:
@@ -411,6 +429,7 @@ def register_function_commands(cli: Any) -> None:
                 interface_filter=interface_contains,
                 custom_filter=filter,
                 workspace_map=workspace_map,
+                max_items=take if format_output.lower() == "json" else None,
             )
 
             # Create a mock response with all data
@@ -1024,7 +1043,7 @@ def register_function_commands(cli: Any) -> None:
         type=int,
         default=25,
         show_default=True,
-        help="Maximum number of executions to return",
+        help="Maximum executions to return (table page size; JSON list total)",
     )
     @click.option(
         "--format",
@@ -1057,7 +1076,11 @@ def register_function_commands(cli: Any) -> None:
 
             # Use continuation token pagination to get all executions
             all_executions = _query_all_executions(
-                workspace_id, status_filter, function_id, workspace_map
+                workspace_id,
+                status_filter,
+                function_id,
+                workspace_map,
+                max_items=take if format_output.lower() == "json" else None,
             )
 
             # Create a mock response with all data

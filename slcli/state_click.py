@@ -280,6 +280,7 @@ def _fetch_all_states(
     workspace: Optional[str],
     architecture: Optional[str],
     distribution: Optional[str],
+    max_items: Optional[int] = None,
 ) -> Dict[str, Any]:
     """Fetch all matching states using API paging."""
     states: List[Dict[str, Any]] = []
@@ -288,7 +289,15 @@ def _fetch_all_states(
     total_count = 0
 
     while True:
-        params = [f"Skip={skip}", f"Take={DEFAULT_FETCH_BATCH_SIZE}"]
+        if max_items is not None:
+            remaining = max_items - len(states)
+            if remaining <= 0:
+                break
+            page_take = min(DEFAULT_FETCH_BATCH_SIZE, remaining)
+        else:
+            page_take = DEFAULT_FETCH_BATCH_SIZE
+
+        params = [f"Skip={skip}", f"Take={page_take}"]
         if workspace_id:
             params.append(f"Workspace={workspace_id}")
         if architecture:
@@ -309,7 +318,10 @@ def _fetch_all_states(
 
         skip += len(page_states)
 
-    return {"totalCount": total_count, "states": states}
+    return {
+        "totalCount": total_count,
+        "states": states[:max_items] if max_items is not None else states,
+    }
 
 
 def _fetch_state_history(state_id: str) -> Dict[str, Any]:
@@ -506,7 +518,7 @@ def register_state_commands(cli: Any) -> None:
         type=int,
         default=25,
         show_default=True,
-        help="Number of items per page in table output",
+        help="Maximum states to return (table page size; JSON list total)",
     )
     @click.option(
         "--format",
@@ -530,6 +542,7 @@ def register_state_commands(cli: Any) -> None:
                 workspace=workspace_name,
                 architecture=architecture,
                 distribution=distribution,
+                max_items=take if format_output.lower() == "json" else None,
             )
             workspace_map = get_workspace_map()
             filtered_resp: Any = FilteredResponse(response_data)

@@ -91,7 +91,7 @@ class TestWorkitemListE2E:
 
     def test_list_empty_filter(self, cli_runner: Any, cli_helper: Any) -> None:
         """Filter that matches nothing returns an empty list in JSON mode."""
-        nonexistent_name = f"nonexistent-wi-e2e-{uuid.uuid4().hex}"
+        nonexistent_id = "999999999999999"
         result = cli_runner(
             [
                 "workitem",
@@ -99,7 +99,9 @@ class TestWorkitemListE2E:
                 "--format",
                 "json",
                 "--filter",
-                f'name == "{nonexistent_name}"',
+                "id == @0",
+                "--substitution",
+                nonexistent_id,
                 "--take",
                 "5",
             ]
@@ -219,7 +221,9 @@ class TestWorkitemLifecycleE2E:
                     "--format",
                     "json",
                     "--filter",
-                    f'name == "{wi_name}"',
+                    "id == @0",
+                    "--substitution",
+                    wi_id,
                     "--take",
                     "10",
                 ]

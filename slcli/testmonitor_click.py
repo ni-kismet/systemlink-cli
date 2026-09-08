@@ -8,7 +8,7 @@ from typing import Any, Dict, Iterable, List, Optional, Tuple
 import click
 import questionary
 
-from .cli_utils import validate_output_format
+from .cli_utils import is_interactive_environment, validate_output_format
 from .universal_handlers import FilteredResponse, UniversalResponseHandler
 from .utils import (
     ExitCodes,
@@ -205,6 +205,9 @@ def _handle_interactive_pagination(
 
         # Ask if user wants to fetch the next page
         if not cont:
+            break
+
+        if not is_interactive_environment():
             break
 
         if not questionary.confirm("Show next set of results?", default=True).ask():
@@ -862,7 +865,7 @@ def register_testmonitor_commands(cli: Any) -> None:
                     item.get("id", ""),
                 ]
 
-            # If JSON output, fetch all pages
+            # If JSON output, fetch up to --take items.
             if format_output.lower() == "json":
                 # Check total count first to warn about large datasets
                 _warn_if_large_dataset(
@@ -874,7 +877,9 @@ def register_testmonitor_commands(cli: Any) -> None:
                     order_by=order_by,
                     descending=descending,
                 )
-                products = _query_all_products(filter_expr, merged_subs, order_by, descending)
+                products = _query_all_products(
+                    filter_expr, merged_subs, order_by, descending, take=take
+                )
 
                 # Handle --summary flag for JSON output
                 if summary:

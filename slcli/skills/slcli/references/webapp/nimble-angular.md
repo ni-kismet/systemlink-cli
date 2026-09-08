@@ -27,6 +27,8 @@ When building Angular apps with Nimble, use `@ni/nimble-angular` wrapper modules
 - Import the needed Angular module for each Nimble control instead of registering raw custom elements from `@ni/nimble-components`.
 - Do not add `CUSTOM_ELEMENTS_SCHEMA` just to silence unknown Nimble elements in templates. That usually hides a missing module import and weakens Angular's template validation.
 - If a Nimble icon or control is unknown, first look for the matching module in `@ni/nimble-angular` and import it.
+- If a Nimble wrapper does not exist, check `angular-ui-packages.md` and the Nimble Storybook before creating a custom HTML substitute.
+- Prefer a published NI component over styling a `div` to mimic the same interaction or surface.
 
 ## Fonts
 

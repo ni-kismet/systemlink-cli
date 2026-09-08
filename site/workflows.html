@@ -95,7 +95,7 @@ slcli skill install --client all --scope personal</code></pre>
 "Build me a fleet health dashboard for SystemLink"
 "Create a SystemLink notebook that reports daily yield by station"
 "Debug this stuck state.apply job from the Jobs API"
-"Install the demo-complete-workflow example in the Training workspace"</code></pre>
+"Install the demo-data-1 example in the Training workspace"</code></pre>
           </div>
         </div>
         <div class="step">
@@ -198,12 +198,12 @@ slcli webapp publish dist/&lt;app-name&gt; \
         <thead><tr><th>Example</th><th>Contents</th><th>Time</th></tr></thead>
         <tbody>
           <tr>
-            <td><strong>demo-complete-workflow</strong></td>
+            <td><strong>demo-data-1</strong></td>
             <td>Systems, assets, DUTs, templates, products, results</td>
             <td>~5 min</td>
           </tr>
           <tr>
-            <td><strong>demo-test-plans</strong></td>
+            <td><strong>demo-data-2</strong></td>
             <td>Locations, products, systems, assets, DUTs, test template</td>
             <td>~5 min</td>
           </tr>
@@ -230,19 +230,19 @@ slcli webapp publish dist/&lt;app-name&gt; \
 slcli example list
 
 # Inspect what will be created
-slcli example info demo-complete-workflow
+slcli example info demo-data-1
 
 # Dry-run (validate without creating)
-slcli example install demo-complete-workflow --workspace Training --dry-run
+slcli example install demo-data-1 --workspace Training --dry-run
 
 # Install with audit log
-slcli example install demo-complete-workflow \
+slcli example install demo-data-1 \
   --workspace Training \
   --audit-log install-log.json</code></pre>
 
       <h3>Clean Up</h3>
       <pre><code># Remove all resources from a previous install
-slcli example delete demo-complete-workflow \
+slcli example delete demo-data-1 \
   --workspace Training \
   --audit-log delete-log.json</code></pre>
 

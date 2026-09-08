@@ -1,0 +1,6 @@
+condition,expected,fixture_outcome,evidence
+Overvoltage margin at high temperature,at least 10%,gap: measured 7%,result_tr_xyz_ov_001;result_tr_xyz_ov_003;result_tr_xyz_ov_005
+Leakage current at 5 V standby,at most 2 mA,gap: measured 3.4 mA,result_tr_xyz_leakage
+Cold-start response time,at most 100 ms,gap: measured 142 ms,result_tr_xyz_cold_start
+Nominal output voltage,12 V +/- 0.5 V,pass,result_tr_xyz_traceability
+Thermal shutdown behavior,shutdown at 85 C,not run,

@@ -23,19 +23,28 @@
 
   <div class="master-detail__workspace">
     <aside class="master-detail__master">
+      <nimble-text-field
+        class="master-detail__filter"
+        [(ngModel)]="filterTerm"
+        placeholder="Search devices"
+        (ngModelChange)="applyFilter()"
+      >
+        Filter devices
+      </nimble-text-field>
+
       <ok-fv-master-detail-list
         class="master-detail__list"
         placeholder="Filter devices..."
         (change)="onSelectionChange($event)"
       >
         <ok-fv-master-detail-list-item
-          *ngFor="let device of devices"
+          *ngFor="let device of filteredDevices"
           [attr.title-text]="device.name"
           [attr.subtitle]="device.summary"
           [attr.value]="device.id"
           [attr.status-color]="device.statusColor || null"
           [attr.status-label]="device.statusLabel || null"
-          [attr.selected]="device.id === selectedDeviceId ? '' : null"
+          [selected]="device.id === selectedDeviceId"
         ></ok-fv-master-detail-list-item>
       </ok-fv-master-detail-list>
     </aside>

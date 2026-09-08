@@ -8,13 +8,14 @@ import ssl
 import tomllib
 from pathlib import Path
 from types import ModuleType
-from typing import List, Optional, Tuple
+from typing import List, Optional, Tuple, Union
 from urllib.parse import urlparse
 
 import click as base_click
 import keyring
 import questionary
 
+from .alarm_click import register_alarm_commands
 from .asset_click import register_asset_commands
 from .comment_click import register_comment_commands
 from .completion_click import register_completion_command
@@ -42,6 +43,7 @@ from .templates_click import register_templates_commands
 from .testmonitor_click import register_testmonitor_commands
 from .user_click import register_user_commands
 from .utils import describe_config_source
+from .version_click import register_version_commands
 from .webapp_click import register_webapp_commands
 from .workitem_click import register_workitem_commands
 from .workspace_click import register_workspace_commands
@@ -70,7 +72,15 @@ def _configure_rich_click_command_groups() -> None:
         "slcli": [
             {
                 "name": "Configure",
-                "commands": ["config", "login", "logout", "info", "completion", "example"],
+                "commands": [
+                    "config",
+                    "login",
+                    "logout",
+                    "info",
+                    "version",
+                    "completion",
+                    "example",
+                ],
             },
             {
                 "name": "Administer",
@@ -79,6 +89,7 @@ def _configure_rich_click_command_groups() -> None:
             {
                 "name": "Operate",
                 "commands": [
+                    "alarm",
                     "asset",
                     "system",
                     "state",
@@ -103,6 +114,16 @@ def _configure_rich_click_command_groups() -> None:
 
 def _get_ca_source_display() -> str:
     """Describe the CA source used for HTTPS verification."""
+    try:
+        from .ssl_trust import get_managed_trust_path
+        from .utils import get_base_url
+
+        managed_path = get_managed_trust_path(get_base_url())
+        if managed_path is not None:
+            return f"managed-pem ({managed_path})"
+    except (OSError, ValueError):
+        pass
+
     if OS_TRUST_INJECTED:
         return f"system (reason={OS_TRUST_REASON})"
 
@@ -113,13 +134,16 @@ def _get_ca_source_display() -> str:
     return f"certifi (reason={OS_TRUST_REASON})"
 
 
-def _build_tls_debug_context(ssl_verify: bool) -> ssl.SSLContext:
+def _build_tls_debug_context(ssl_verify: Union[bool, str]) -> ssl.SSLContext:
     """Build an SSL context aligned with the current CLI trust configuration."""
     if not ssl_verify:
         ctx = ssl.SSLContext(ssl.PROTOCOL_TLS_CLIENT)
         ctx.check_hostname = False
         ctx.verify_mode = ssl.CERT_NONE
         return ctx
+
+    if isinstance(ssl_verify, str):
+        return ssl.create_default_context(cafile=ssl_verify)
 
     verify_env = os.environ.get("REQUESTS_CA_BUNDLE") or os.environ.get("SSL_CERT_FILE")
     if verify_env:
@@ -204,7 +228,7 @@ def _get_proxy_debug_rows(api_url: str) -> List[Tuple[str, str]]:
     ]
 
 
-def _probe_tls_connection(api_url: str, ssl_verify: bool) -> List[Tuple[str, str]]:
+def _probe_tls_connection(api_url: str, ssl_verify: Union[bool, str]) -> List[Tuple[str, str]]:
     """Collect TLS handshake and leaf certificate details for the API host."""
     import requests
 
@@ -268,7 +292,7 @@ def _collect_info_debug_rows(api_url: str) -> List[Tuple[str, str]]:
     """Return structured connection diagnostics for info --debug."""
     from .utils import get_ssl_verify
 
-    ssl_verify = get_ssl_verify()
+    ssl_verify = get_ssl_verify(api_url)
     rows = [
         ("SSL Verify", "enabled" if ssl_verify else "disabled"),
         ("CA Source", _get_ca_source_display()),
@@ -348,7 +372,7 @@ def cli(ctx: base_click.Context, version: bool, profile: Optional[str]) -> None:
 
     # Check for mandatory migration BEFORE any command runs
     # Skip migration check only for version flag and config migrate command
-    if ctx.invoked_subcommand not in (None, "config"):
+    if ctx.invoked_subcommand not in (None, "config", "version"):
         from .profiles import ProfileConfig, has_keyring_credentials, migrate_from_keyring
 
         config_path = ProfileConfig.get_config_path()
@@ -400,6 +424,29 @@ def ca_info() -> None:
 @click.option("--url", help="SystemLink API URL")
 @click.option("--api-key", help="SystemLink API key")
 @click.option("--web-url", help="SystemLink Web UI base URL")
+@click.option(
+    "--auth",
+    "auth_mode",
+    type=click.Choice(["api-key", "pkce"]),
+    default="api-key",
+    show_default=True,
+    help="Authentication flow to use",
+)
+@click.option("--client-id", help="Public OAuth client ID for the PKCE prototype")
+@click.option(
+    "--callback-port",
+    type=click.IntRange(0, 65535),
+    help="Loopback callback port; use 0 for an ephemeral port",
+)
+@click.option(
+    "--scope",
+    "scopes",
+    multiple=True,
+    help=(
+        "OAuth scope to request; may be repeated "
+        "(defaults to openid profile email offline_access)"
+    ),
+)
 @click.option("--workspace", "-w", help="Default workspace for this profile")
 @click.option(
     "--set-current/--no-set-current",
@@ -414,14 +461,23 @@ def ca_info() -> None:
         "publish, and disable commands)"
     ),
 )
+@click.option(
+    "--trust-fingerprint",
+    help="Trust a certificate after its SHA-256 fingerprint matches exactly",
+)
 def login(
     profile: Optional[str],
     url: Optional[str],
     api_key: Optional[str],
     web_url: Optional[str],
+    auth_mode: str,
+    client_id: Optional[str],
+    callback_port: Optional[int],
+    scopes: tuple[str, ...],
     workspace: Optional[str],
     set_current: bool,
     readonly: bool,
+    trust_fingerprint: Optional[str],
 ) -> None:
     """Create or update a SystemLink profile with credentials.
 
@@ -444,9 +500,14 @@ def login(
         url=url,
         api_key=api_key,
         web_url=web_url,
+        auth_mode=auth_mode,
+        client_id=client_id,
+        callback_port=callback_port,
+        scopes=scopes,
         workspace=workspace,
         set_current=set_current,
         readonly=readonly,
+        trust_fingerprint=trust_fingerprint,
     )
 
 
@@ -465,6 +526,7 @@ def logout(profile: Optional[str], remove_all: bool, force: bool) -> None:
     from .profiles import ProfileConfig
 
     cfg = ProfileConfig.load()
+    removed_profiles: list[str] = []
 
     if remove_all:
         if not force:
@@ -476,6 +538,7 @@ def logout(profile: Optional[str], remove_all: bool, force: bool) -> None:
                 return
 
         # Clear all profiles
+        removed_profiles = list(cfg.profiles)
         cfg.profiles.clear()
         cfg.current_profile = None
         cfg.save()
@@ -496,6 +559,7 @@ def logout(profile: Optional[str], remove_all: bool, force: bool) -> None:
                 return
 
         cfg.delete_profile(profile)
+        removed_profiles = [profile]
         cfg.save()
         click.echo(f"✓ Profile '{profile}' removed.")
 
@@ -515,12 +579,20 @@ def logout(profile: Optional[str], remove_all: bool, force: bool) -> None:
                 return
 
         cfg.delete_profile(current)
+        removed_profiles = [current]
         cfg.save()
         click.echo(f"✓ Profile '{current}' removed.")
         if cfg.current_profile:
             click.echo(f"  Current profile is now: {cfg.current_profile}")
 
     # Also clean up legacy keyring entries
+    try:
+        from .pkce import delete_pkce_credentials
+
+        for removed_profile in removed_profiles:
+            delete_pkce_credentials(removed_profile)
+    except Exception:
+        pass
     try:
         keyring.delete_password("systemlink-cli", "SYSTEMLINK_API_KEY")
     except Exception:
@@ -585,7 +657,10 @@ def info(format: str, skip_health: bool, debug: bool) -> None:
     elif platform_info.get("server_reachable") is False:
         status = "✗ Server unreachable"
     elif platform_info.get("auth_valid") is False:
-        status = "✗ API key unauthorized"
+        credential_name = (
+            "Bearer token" if active_profile and active_profile.auth_mode == "pkce" else "API key"
+        )
+        status = f"✗ {credential_name} unauthorized"
     else:
         status = "✓ Connected"
 
@@ -680,6 +755,7 @@ def info(format: str, skip_health: bool, debug: bool) -> None:
 
 
 register_completion_command(cli)
+register_alarm_commands(cli)
 register_asset_commands(cli)
 register_comment_commands(cli)
 register_dataframe_commands(cli)
@@ -702,5 +778,6 @@ register_testmonitor_commands(cli)
 register_webapp_commands(cli)
 register_skill_commands(cli)
 register_user_commands(cli)
+register_version_commands(cli)
 register_workitem_commands(cli)
 register_workspace_commands(cli)

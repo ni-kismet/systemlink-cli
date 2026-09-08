@@ -5,6 +5,7 @@ Complete option reference for all `slcli` command groups.
 ## Contents
 
 - [testmonitor — Test data analysis](#testmonitor--test-data-analysis)
+- [alarm — Alarm monitoring and lifecycle management](#alarm--alarm-monitoring-and-lifecycle-management)
 - [spec — Specification management](#spec--specification-management)
 - [asset — Asset and calibration management](#asset--asset-and-calibration-management)
 - [system — System fleet management](#system--system-fleet-management)
@@ -25,8 +26,34 @@ Complete option reference for all `slcli` command groups.
 - [workitem — Work item, template, and workflow management](#workitem--work-item-template-and-workflow-management)
 - [workflow — Workflow management](#workflow--workflow-management)
 - [webapp — Web application management](#webapp--web-application-management)
+- [version — CLI update check](#version--cli-update-check)
 - [skill — AI skill installation](#skill--ai-skill-installation)
 - [example — Built-in example resource provisioning](#example--built-in-example-resource-provisioning)
+- [Scope and capability discovery](#scope-and-capability-discovery)
+
+## Scope and capability discovery
+
+Resolve a requested workspace before querying its resources. `--profile` is a
+global option and must precede the command group:
+
+```bash
+# Find profiles mapped to the requested workspace
+slcli config list --format json | \
+  jq -r --arg workspace "Fred" '.[] | select((.workspace // "") == $workspace) | .name'
+
+# Probe candidates one at a time without changing the active profile
+slcli --profile <PROFILE_NAME> info --skip-health --format json
+slcli --profile <PROFILE_NAME> workspace list --format json
+```
+
+In `info` JSON, `active_profile_name` is the effective profile for the command,
+while `current_profile` is the persisted config pointer. `api_url_source`
+identifies the source of the effective API URL. Use the effective fields when
+they disagree; `current_profile` alone is not a reliable query-scope signal.
+
+Consult `<command> --help` whenever a flag or alias is uncertain. Format aliases
+are command-specific, and the installed CLI help is authoritative. Generated
+commands should prefer the long form `--format json`.
 
 ## testmonitor — Test data analysis
 
@@ -77,7 +104,7 @@ slcli testmonitor product list [OPTIONS]
   --workspace, -w TEXT       # Filter by workspace name or ID
   --summary                  # Show summary statistics
   --take, -t INTEGER         # Items per page (default 25)
-  -f [table|json]
+  --format, -f [table|json]
 
 # Get a single product
 slcli testmonitor product get <PRODUCT_ID> [-f json]
@@ -172,6 +199,56 @@ slcli asset location-history <ASSET_ID> [-f json]   # Location/connection histor
 slcli asset create --model-name TEXT [OPTIONS]       # Create an asset
 slcli asset update <ASSET_ID> [OPTIONS]              # Update an asset
 slcli asset delete <ASSET_ID>                        # Delete an asset
+```
+
+## alarm — Alarm monitoring and lifecycle management
+
+Alarm list queries default to active alarms in the effective workspace. Use
+`--state all --workspace all` for an unrestricted history search.
+
+```bash
+# List active alarms or search alarm history with filters
+slcli alarm list [OPTIONS]
+
+  --state [active|inactive|all]  # Default: active
+  --alarm-id TEXT                # Exact alarm ID
+  --display-name TEXT            # Display name text
+  --channel TEXT                 # Channel text
+  --resource-type TEXT           # Exact resource type
+  --min-severity INTEGER         # Minimum current severity
+  --max-severity INTEGER         # Maximum current severity
+  --workspace, -w TEXT           # Workspace name/ID, or all
+  --filter TEXT                  # Dynamic LINQ filter
+  --substitution TEXT            # Value for --filter (repeatable)
+  --include-transitions          # Include all stored transitions
+  --most-recent-only             # Group by alarm ID and keep the latest instance
+  --take, -t INTEGER             # Default 25; maximum 1000
+  -f [table|json]
+
+# Inspect an alarm instance
+slcli alarm get <INSTANCE_ID> [-f json]
+
+# Acknowledge or force-clear alarm instances
+slcli alarm acknowledge <INSTANCE_ID>...
+slcli alarm force-clear <INSTANCE_ID>... [--yes]
+
+# Permanently remove alarm instances
+slcli alarm delete <INSTANCE_ID>... [--yes]
+
+# Create an alarm or report a SET/CLEAR transition
+slcli alarm transition <ALARM_ID> --transition [SET|CLEAR] [OPTIONS]
+  --severity INTEGER             # CLEAR defaults to -1
+  --workspace TEXT
+  --value TEXT --condition TEXT --short-text TEXT --detail-text TEXT
+  --channel TEXT --resource-type TEXT --display-name TEXT --description TEXT
+  --keyword TEXT                 # Repeatable
+  --property KEY=VALUE           # Repeatable
+
+# Leave a live active-alarm dashboard running in a terminal
+slcli alarm monitor [OPTIONS]
+  --interval FLOAT               # Seconds between refreshes, default 5.0
+  --once                         # Render one snapshot and exit
+  --no-clear                     # Keep prior snapshots in the terminal
 ```
 
 ## system — System fleet management
@@ -376,10 +453,11 @@ slcli dataframe delete <TABLE_ID>... [--yes]
 
 ```bash
 slcli tag list [OPTIONS]                            # List tags (filter by path glob, workspace)
-slcli tag get <TAG_PATH> [-f json]                  # Get tag metadata
+slcli tag get <TAG_PATH>                            # Get tag metadata
 slcli tag get-value <TAG_PATH>                      # Read current tag value
+slcli tag history <TAG_PATH> [-w WORKSPACE] [-t TAKE] [-f json] [--graph]  # Read or graph history
 slcli tag set-value <TAG_PATH> <VALUE>              # Write a tag value
-slcli tag create --path <PATH> --data-type <TYPE>   # Create a new tag
+slcli tag create <TAG_PATH> --type <TYPE> [OPTIONS]  # Create a new tag
 slcli tag update <TAG_PATH> [OPTIONS]               # Update tag metadata
 slcli tag delete <TAG_PATH>                         # Delete a tag
 ```
@@ -613,8 +691,9 @@ slcli comment delete <ID1> <ID2> <ID3>
 ## workspace — Workspace management
 
 ```bash
-slcli workspace list [-f json]
-slcli workspace get <WORKSPACE_ID> [-f json]
+slcli workspace list [--format json]
+slcli workspace get --workspace WORKSPACE_ID [--format json]
+slcli workspace disable --id WORKSPACE_ID [--yes]
 ```
 
 ## config — Profile and credential management
@@ -628,10 +707,10 @@ slcli logout [--profile NAME] [--all] [--force]
 slcli info [-f json] [--skip-health]            # Show active profile and service health
 slcli completion [--shell SHELL] [--install]    # Generate or install shell tab completion
 
-slcli config list [-f json]                     # List all profiles
+slcli config list [--format json]               # List all profiles
 slcli config current                            # Show the active profile name
 slcli config use <PROFILE>                      # Switch the active profile
-slcli config view [--profile NAME] [-f json]    # Show full profile details
+slcli config view [-f json] [--show-secrets]    # Show stored profile details
 slcli config add [--profile NAME] [OPTIONS]     # Add or update a profile
 slcli config delete <PROFILE> [--force]         # Delete a profile
 slcli config migrate                            # Migrate legacy keyring credentials
@@ -641,10 +720,10 @@ slcli config migrate                            # Migrate legacy keyring credent
 
 ```bash
 slcli user list [--workspace NAME] [-t INT] [-f json]
-slcli user get <USER_ID> [-f json]
+slcli user get [--id USER_ID | --email EMAIL] [-f json]
 slcli user create [OPTIONS]         # Create a new user
-slcli user update <USER_ID> [OPTIONS]
-slcli user delete <USER_ID>
+slcli user update --id USER_ID [OPTIONS]
+slcli user delete --id USER_ID [--yes]
 ```
 
 ## auth — Authorization policies and templates
@@ -653,10 +732,10 @@ slcli user delete <USER_ID>
 # Policies
 slcli auth policy list [--type CHOICE] [--builtin] [-t INT] [-f json]
 slcli auth policy get <POLICY_ID> [-f json]
-slcli auth policy create --name TEXT [OPTIONS]
+slcli auth policy create TEMPLATE_ID --name TEXT --workspace WORKSPACE [OPTIONS]
 slcli auth policy update <POLICY_ID> [OPTIONS]
 slcli auth policy delete <POLICY_ID>
-slcli auth policy diff <POLICY_ID>              # Show diff of a pending policy change
+slcli auth policy diff <POLICY_ID_1> <POLICY_ID_2>  # Compare two policies
 
 # Policy templates
 slcli auth template list [-t INT] [-f json]
@@ -671,28 +750,29 @@ Supports Windows (.nipkg) and NI Linux RT (.ipk/.deb).
 
 ```bash
 slcli feed list [-w WORKSPACE] [-t INT] [-f json]
-slcli feed get <FEED_ID> [-f json]
+slcli feed get --id FEED_ID [-f json]
 slcli feed create --name TEXT [--workspace NAME] [OPTIONS]
-slcli feed delete <FEED_ID>
-slcli feed replicate --source-id FEED_ID --target-workspace WORKSPACE [OPTIONS]
+slcli feed delete --id FEED_ID [--yes] [--wait] [--timeout INT]
+slcli feed replicate --name NAME --platform [windows|ni-linux-rt] --url URL [OPTIONS]
 
 # Packages within a feed
-slcli feed package list --feed-id FEED_ID [-f json]
+slcli feed package list --feed-id FEED_ID [--take INT] [--format json]
 slcli feed package upload --feed-id FEED_ID --file PATH
-slcli feed package delete --feed-id FEED_ID --package-name NAME
+slcli feed package delete --id PACKAGE_ID [--yes] [--wait] [--timeout INT]
 ```
 
 ## file — File Service management
 
 ```bash
-slcli file list [--workspace NAME] [--name TEXT] [-t INT] [-f json]
+slcli file list [--workspace NAME] [--filter TEXT] [--id-filter IDS] [-t INT] [-f json]
 slcli file get <FILE_ID> [-f json]
-slcli file upload --file PATH [--workspace NAME] [OPTIONS]
-slcli file download <FILE_ID> -o OUTPUT_PATH
-slcli file delete <FILE_ID>
+slcli file upload FILE_PATH [--workspace NAME] [--name NAME] [--properties JSON]
+slcli file download <FILE_ID> [-o OUTPUT_PATH] [--force]
+slcli file delete --id FILE_ID [--force]
 slcli file query [--filter TEXT] [-t INT] [-f json]      # Advanced filter query
 slcli file update-metadata <FILE_ID> [OPTIONS]
-slcli file watch [--workspace NAME] [--filter TEXT]      # Stream new file events
+slcli file watch WATCH_DIR [--workspace NAME] [--move-to DIRECTORY | --delete-after-upload]
+                         [--pattern GLOB] [--debounce SECONDS] [--recursive]
 ```
 
 ## notebook — Jupyter Notebook management and execution
@@ -702,21 +782,26 @@ slcli file watch [--workspace NAME] [--filter TEXT]      # Stream new file event
 slcli notebook init [--name NAME] [--directory DIR]      # Create a local .ipynb template
 
 # Remote notebook management
-slcli notebook manage list [-w WORKSPACE] [-t INT] [-f json]
-slcli notebook manage get <NOTEBOOK_ID> [-f json]
-slcli notebook manage create --file PATH [--workspace NAME]
-slcli notebook manage update <NOTEBOOK_ID> --file PATH
-slcli notebook manage set-interface <NOTEBOOK_ID> [OPTIONS]  # Define parameter interface
-slcli notebook manage download <NOTEBOOK_ID> -o PATH
-slcli notebook manage delete <NOTEBOOK_ID>
+slcli notebook manage list [-w WORKSPACE] [--filter TEXT] [-t INT] [-f json]
+slcli notebook manage get --id NOTEBOOK_ID [-f json]
+slcli notebook manage create [--file PATH] [--workspace NAME] --name NAME [--interface CHOICE]
+slcli notebook manage update --id NOTEBOOK_ID [--metadata FILE] [--content FILE] [--interface CHOICE]
+slcli notebook manage set-interface --id NOTEBOOK_ID --interface CHOICE
+slcli notebook manage download [--id NOTEBOOK_ID | --name NAME] [--workspace NAME]
+                                     [--output PATH] [--type CHOICE]
+slcli notebook manage delete --id NOTEBOOK_ID [--yes]
 
 # Notebook executions
-slcli notebook execute list [-w WORKSPACE] [-t INT] [-f json]
-slcli notebook execute get <EXECUTION_ID> [-f json]
-slcli notebook execute start <NOTEBOOK_ID> [--params JSON] [--workspace NAME]
-slcli notebook execute sync <EXECUTION_ID>               # Wait for completion
-slcli notebook execute cancel <EXECUTION_ID>
-slcli notebook execute retry <EXECUTION_ID>
+slcli notebook execute list [-w WORKSPACE] [--status STATUS] [--notebook-id NOTEBOOK_ID]
+                                  [-t INT] [-f json]
+slcli notebook execute get --id EXECUTION_ID [-f json]
+slcli notebook execute start --notebook-id NOTEBOOK_ID [--workspace NAME] [--parameters JSON]
+                                      [--timeout INT] [--no-cache] [--format table|json]
+slcli notebook execute sync --notebook-id NOTEBOOK_ID [--workspace NAME] [--parameters JSON]
+                                      [--timeout INT] [--poll-interval FLOAT] [--max-wait INT]
+                                      [--format table|json] [--no-cache]
+slcli notebook execute cancel --id EXECUTION_ID
+slcli notebook execute retry --id EXECUTION_ID
 ```
 
 ## customfield — Custom field (DFF) configuration
@@ -724,14 +809,15 @@ slcli notebook execute retry <EXECUTION_ID>
 Manage Dynamic Form Field definitions used to attach custom metadata to resources.
 
 ```bash
-slcli customfield list [-w WORKSPACE] [-t INT] [-f json]
-slcli customfield get <FIELD_ID> [-f json]
-slcli customfield create --name TEXT --entity-type TYPE [OPTIONS]
-slcli customfield update <FIELD_ID> [OPTIONS]
-slcli customfield delete <FIELD_ID>
-slcli customfield export [-o FILE]                       # Export all custom fields to JSON
-slcli customfield init [--directory DIR]                 # Scaffold a local config template
-slcli customfield edit [--directory DIR]                 # Interactively edit + push config
+slcli customfield list [-w WORKSPACE] [--take INT] [-f json]
+slcli customfield get --id FIELD_ID [-f json]
+slcli customfield create --file FILE
+slcli customfield update --file FILE
+slcli customfield delete --id CONFIG_ID [--group-id GROUP_ID] [--field-id FIELD_ID]
+                              [--no-recursive] [--yes]
+slcli customfield export --id CONFIG_ID [-o FILE]         # Export a configuration to JSON
+slcli customfield init [--name NAME] [--workspace NAME] [--resource-type TYPE] [-o FILE]
+slcli customfield edit [--file FILE] [--id CONFIG_ID] [--port INT] [--no-browser]
 ```
 
 ## template — Test plan template management
@@ -743,12 +829,12 @@ slcli customfield edit [--directory DIR]                 # Interactively edit + 
 > when provisioning new test plan instances.
 
 ```bash
-slcli template init [--name TEXT] [--directory DIR]      # Scaffold a local template file
+slcli template init [--name TEXT] [--template-group TEXT] [-o FILE]  # Scaffold a local template file
 slcli template list [-w WORKSPACE] [-t INT] [-f json]
-slcli template get <TEMPLATE_ID> [-f json]
-slcli template export [-o FILE] [-w WORKSPACE]           # Export all templates to JSON
-slcli template import --file PATH [--workspace NAME]     # Import templates from JSON
-slcli template delete <TEMPLATE_ID>
+slcli template get [--id TEMPLATE_ID | --name NAME] [-f json]
+slcli template export [--id TEMPLATE_ID | --name NAME] [-o FILE]  # Export templates to JSON
+slcli template import --file PATH                         # Import templates from JSON
+slcli template delete --id TEMPLATE_ID [--yes]
 ```
 
 ## workitem — Work item, template, and workflow management
@@ -794,13 +880,13 @@ slcli workitem template delete <TEMPLATE_ID>... [--yes]
 # Workflow subgroup
 slcli workitem workflow list [-w WORKSPACE] [-t INT] [-f json]
 slcli workitem workflow get [--id WORKFLOW_ID] [--name NAME] [-f json]
-slcli workitem workflow init [--name TEXT] [--directory DIR]   # Scaffold a local workflow file
-slcli workitem workflow create --file PATH [-w WORKSPACE]      # Create from JSON file
+slcli workitem workflow init [--name TEXT] [--description TEXT] [--workspace NAME] [-o FILE]
 slcli workitem workflow import --file PATH [-w WORKSPACE]      # Import workflow from JSON
 slcli workitem workflow export [--id WORKFLOW_ID] [--name NAME] [-o FILE]  # Export to JSON
 slcli workitem workflow update --id WORKFLOW_ID --file PATH    # Update from JSON file
 slcli workitem workflow delete --id WORKFLOW_ID [--yes]
-slcli workitem workflow preview [--file PATH] [--id WORKFLOW_ID] [--html] [--no-open] [-o FILE]
+slcli workitem workflow preview [--file PATH | --id WORKFLOW_ID] [--format html|mmd]
+                                [--no-emoji] [--no-legend] [--no-open] [-o FILE]
 ```
 
 **Create work item options:**
@@ -826,23 +912,33 @@ slcli workitem create \
 
 ## webapp — Web application management
 
-Scaffold, package, and publish custom web applications to SystemLink.
+Create, package, and publish custom web applications to SystemLink.
+
+For new applications, use `slcli webapp new <app-name>`. Treat the older
+`slcli webapp init` command as a compatibility-only manual bootstrap path; it
+is intentionally omitted from the recommended command sequence.
 
 ```bash
-slcli webapp init <DIRECTORY>                      # Scaffold the Angular starter
+slcli webapp new <APP_NAME> [OPTIONS]                # Generate a hosted Angular webapp
 slcli webapp manifest init <DIRECTORY> [OPTIONS]  # Create nipkg.config.json for packaging
-slcli webapp pack [FOLDER] [--config FILE] [-o OUTPUT_FILE]  # Package a webapp into a .nipkg
-slcli webapp list [-w WORKSPACE] [-t INT] [-f json]
-slcli webapp get <WEBAPP_ID> [-f json]
-slcli webapp publish PATH [--workspace NAME]             # Upload and publish a webapp
-slcli webapp delete <WEBAPP_ID>
-slcli webapp open <WEBAPP_ID>                            # Open webapp URL in browser
+slcli webapp pack [FOLDER] [--config FILE] [--output OUTPUT_FILE]  # Package a webapp into a .nipkg
+slcli webapp list [-w WORKSPACE] [--filter TEXT] [--take INT] [--format FORMAT] [-f FORMAT]
+slcli webapp get --id WEBAPP_ID [--format json]
+slcli webapp publish PATH --id WEBAPP_ID                # Update an existing webapp
+slcli webapp publish PATH --name NAME --workspace NAME  # Create metadata and upload
+slcli webapp delete --id WEBAPP_ID [--yes]
+slcli webapp open --id WEBAPP_ID                          # Open webapp URL in browser
 ```
 
-`webapp init` creates the SystemLink Angular starter, not a generic HTML app. The starter installs
-project-scoped skills into `.agents/skills/` and creates `PROMPTS.md` plus `START_HERE.md` so an
-AI assistant can bootstrap the Angular workspace in place with the same Nimble/SystemLink
-conventions described by the webapp overview inside the `slcli` skill.
+`webapp list` supports both `--format` and `-f` in the current CLI. Older
+installed versions may expose only the long form, so use `slcli webapp list
+--help` to verify the local command surface before scripting against it.
+`webapp publish` has no output-format option; use `webapp get --format json`
+after publishing when structured deployment metadata is needed.
+
+For an existing Angular project, work in that project directly and load the
+webapp references as needed. Do not introduce the legacy `webapp init` step
+into a new project workflow.
 
 `webapp manifest init` writes `nipkg.config.json` using the Plugin Manager field names
 (`section`, `maintainer`, `homepage`, `xbPlugin`, `slPluginManagerTags`,
@@ -851,12 +947,32 @@ metadata, carries the icon into the package, writes the matching control-file fi
 generated `.nipkg`, and emits a thin `manifest.json` with `schemaVersion`, `nipkgFile`,
 `sha256`, and any configured provenance fields.
 
+## version — CLI update check
+
+Compare the installed CLI with the latest PyPI release and identify the update command for
+its installation method.
+
+```bash
+slcli version                         # Show the installed version without a network request
+slcli version check                   # Check PyPI and show update guidance
+slcli version check --format json     # Structured output for automation
+slcli version check --fail-if-outdated
+```
+
+`version check` detects Homebrew, Scoop, pipx, uv, pip, standalone binaries, and development
+checkouts. By default, finding an update still exits successfully; use `--fail-if-outdated`
+when an outdated installation should fail automation. A lookup failure exits with the network
+error code and must not be interpreted as confirmation that the CLI is current.
+
 ## skill — AI skill installation
 
-Install bundled skills for supported AI clients.
+Install bundled skills for supported AI clients, or directly into a custom skills directory.
 
 ```bash
 slcli skill install --skill [slcli|all] --client [agents|claude|all] --scope [personal|project|both]
+slcli skill install --skill [slcli|all] --directory PATH
+slcli skill check --skill [slcli|all] --client [agents|claude|all] --scope [personal|project|both]
+slcli skill check --skill [slcli|all] --directory PATH
 ```
 
 Client paths:
@@ -868,8 +984,23 @@ Client paths:
 Notes:
 
 - `agents` is the default client in interactive mode.
+- `--directory` is the directory that directly contains skill folders and cannot be combined
+  with `--client` or `--scope`.
+- Installed skills carry the `slcli` release version. `skill check` exits nonzero if a skill is
+  missing, predates the bundled version, or was installed before version metadata was added.
+- Use `skill install --force` to update an existing installation.
+- For hygiene checks, specify the client and scope that contain the active skill, then use the
+  same target to update it:
+
+  ```bash
+  slcli skill check --client agents --scope project
+  slcli skill install --client agents --scope project --force
+  ```
+
+  Substitute `claude`, `personal`, or `--directory PATH` when that is where the active skill is
+  installed. Checking the wrong target can report a current skill as missing.
+
 - The bundled `slcli` skill now covers the previous standalone workflow skills.
-- `webapp init` installs project-scoped skills into `.agents/skills/` by default.
 
 ## example — Built-in example resource provisioning
 
@@ -878,7 +1009,14 @@ for training, testing, or evaluation.
 
 ```bash
 slcli example list [-f json]                             # List available examples
-slcli example info <EXAMPLE_ID>                          # Show example details
-slcli example install <EXAMPLE_ID> [--workspace NAME]    # Provision example resources
-slcli example delete <EXAMPLE_ID> [--workspace NAME]     # Remove provisioned resources
+slcli example info <EXAMPLE_NAME>                        # Show example details
+slcli example install [EXAMPLE_NAME] --workspace NAME    # Provision example resources
+slcli example install --file PATH --workspace NAME      # Install a local fixture
+slcli example delete <EXAMPLE_NAME> --workspace NAME     # Remove provisioned resources
 ```
+
+For a local fixture, `PATH` points to its `config.yaml`; referenced files are
+resolved relative to the directory containing that file.
+
+For the YAML contract and authoring workflow, load
+[example-authoring.md](./example-authoring.md).

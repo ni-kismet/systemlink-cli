@@ -38,7 +38,7 @@ Approximately **5 minutes** to provision all resources.
 ### 1. Preview the resources
 
 ```bash
-slcli example info demo-test-plans
+slcli example info demo-data-2
 ```
 
 This shows all 9 resources that will be created.
@@ -46,19 +46,19 @@ This shows all 9 resources that will be created.
 ### 2. Dry-run (validate without creating)
 
 ```bash
-slcli example install demo-test-plans -w <workspace-id> --dry-run
+slcli example install demo-data-2 -w <workspace-id> --dry-run
 ```
 
 ### 3. Install to a workspace
 
 ```bash
-slcli example install demo-test-plans -w <workspace>
+slcli example install demo-data-2 -w <workspace>
 ```
 
 Optionally write an audit log with JSON output:
 
 ```bash
-slcli example install demo-test-plans -w <workspace> --audit-log install-log.json --format json
+slcli example install demo-data-2 -w <workspace> --audit-log install-log.json --format json
 ```
 
 ### 4. Verify in SystemLink Web UI
@@ -82,13 +82,13 @@ To remove all example resources:
 
 ```bash
 # Preview what would be deleted
-slcli example delete demo-test-plans -w <workspace-id> --dry-run
+slcli example delete demo-data-2 -w <workspace-id> --dry-run
 
 # Delete all demo-tagged resources in a workspace
-slcli example delete demo-test-plans -w <workspace>
+slcli example delete demo-data-2 -w <workspace>
 
 # Write an audit log of deletion results
-slcli example delete demo-test-plans -w <workspace> --audit-log delete-log.json --format json
+slcli example delete demo-data-2 -w <workspace> --audit-log delete-log.json --format json
 ```
 
 **Important**: Cleanup only deletes resources tagged with "demo". Any resources you created or modified separately will not be deleted.

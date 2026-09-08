@@ -4,11 +4,14 @@ import json
 import os
 import subprocess
 import tempfile
+import time
 import uuid
 from pathlib import Path
 from typing import Any, Dict, Generator, List, Optional
 
 import pytest
+
+_RATE_LIMIT_RETRIES = 3
 
 
 def _get_requested_platform(pytest_config: Optional[Any] = None) -> str:
@@ -62,9 +65,9 @@ def _select_platform_config(
 
 def _load_config_file() -> Dict[str, Any]:
     """Load configuration from file if it exists."""
-    config_file = Path("tests/e2e/e2e_config.json")
+    config_file = Path(__file__).resolve().with_name("e2e_config.json")
     if config_file.exists():
-        with open(config_file) as f:
+        with open(config_file, encoding="utf-8") as f:
             return json.load(f)
     return {}
 
@@ -91,11 +94,17 @@ def e2e_config() -> Dict[str, Any]:
     # Check for new multi-platform config structure
     if "sle" in file_config or "sls" in file_config:
         # New format - return the whole config with platform sections
+        timeout = int(os.getenv("SLCLI_E2E_TIMEOUT", str(file_config.get("timeout", 60))))
+        cleanup_value = os.getenv("SLCLI_E2E_CLEANUP")
         return {
             "sle": file_config.get("sle", {}),
             "sls": file_config.get("sls", {}),
-            "timeout": file_config.get("timeout", 60),
-            "cleanup": file_config.get("cleanup", True),
+            "timeout": timeout,
+            "cleanup": (
+                cleanup_value.lower() == "true"
+                if cleanup_value is not None
+                else file_config.get("cleanup", True)
+            ),
         }
 
     # Legacy format - convert to new format for compatibility
@@ -240,15 +249,23 @@ def _make_cli_runner(config: Dict[str, Any], timeout: int = 60) -> Any:
         # Use explicit platform if specified in config (most reliable method)
         if config.get("platform"):
             env["SYSTEMLINK_PLATFORM"] = config["platform"]
+        env["PYTHONIOENCODING"] = "utf-8"
+        env["SLCLI_NON_INTERACTIVE"] = "true"
 
-        result = subprocess.run(
-            cmd,
-            input=input_data,
-            text=True,
-            capture_output=True,
-            timeout=timeout,
-            env=env,
-        )
+        for attempt in range(_RATE_LIMIT_RETRIES + 1):
+            result = subprocess.run(
+                cmd,
+                input=input_data,
+                text=True,
+                encoding="utf-8",
+                capture_output=True,
+                timeout=timeout,
+                env=env,
+            )
+            if "429 Client Error: Too Many Requests" not in result.stderr:
+                break
+            if attempt < _RATE_LIMIT_RETRIES:
+                time.sleep(2**attempt)
 
         if check and result.returncode != 0:
             pytest.fail(
@@ -299,17 +316,43 @@ def sls_cli_runner(sls_config: Dict[str, Any], e2e_config: Dict[str, Any]) -> An
     return _make_cli_runner(config, timeout)
 
 
-@pytest.fixture
+@pytest.fixture(scope="session")
 def configured_workspace(e2e_config: Dict[str, Any], selected_platform: str) -> str:
-    """Return the configured workspace name for E2E tests.
+    """Return a configured workspace name that exists in the target environment.
 
-    Generic tests use the workspace from the selected active platform.
+    Generic tests use the workspace from the selected active platform. If that workspace
+    is not present in the target tenant, use the first accessible workspace instead.
     For platform-specific tests, prefer `sle_workspace` or `sls_workspace`.
     """
     selected_config = _select_platform_config(e2e_config, selected_platform)
-    if selected_config is not None:
-        return selected_config.get("workspace", "Default")
-    return e2e_config.get("workspace", "Default")
+    configured_name = (
+        selected_config.get("workspace", "Default")
+        if selected_config is not None
+        else e2e_config.get("workspace", "Default")
+    )
+
+    runner_config = selected_config if selected_config is not None else e2e_config
+    runner = _make_cli_runner(runner_config, e2e_config.get("timeout", 60))
+    result = runner(["workspace", "list", "--format", "json"])
+    try:
+        workspaces = json.loads(result.stdout)
+    except json.JSONDecodeError as exc:
+        pytest.fail(f"Failed to parse workspace list response: {exc}")
+
+    if not isinstance(workspaces, list):
+        pytest.fail("Workspace list response was not a JSON array")
+
+    available_workspaces = [
+        workspace
+        for workspace in workspaces
+        if isinstance(workspace, dict) and workspace.get("name")
+    ]
+    if not available_workspaces:
+        pytest.skip("No accessible workspaces available in the target environment")
+
+    if any(workspace.get("name") == configured_name for workspace in available_workspaces):
+        return str(configured_name)
+    return str(available_workspaces[0]["name"])
 
 
 @pytest.fixture
@@ -509,6 +552,7 @@ def pytest_configure(config: Any) -> None:
     config.addinivalue_line("markers", "tag: mark test as tag service related")
     config.addinivalue_line("markers", "system: mark test as system management related")
     config.addinivalue_line("markers", "asset: mark test as asset management related")
+    config.addinivalue_line("markers", "alarm: mark test as alarm management related")
     config.addinivalue_line("markers", "testmonitor: mark test as test monitor related")
     config.addinivalue_line("markers", "comment: mark test as comment management related")
     config.addinivalue_line("markers", "routine: mark test as routine management related")

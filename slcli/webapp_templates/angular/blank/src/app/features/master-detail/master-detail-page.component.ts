@@ -1,7 +1,5 @@
 import { Component } from '@angular/core';
 
-import '@ni/ok-components/dist/esm/fv/master-detail-list';
-
 interface DeviceRecord {
   id: string;
   name: string;
@@ -129,11 +127,33 @@ const DEVICE_ROWS: readonly DeviceRecord[] = [
 export class MasterDetailPageComponent {
   readonly devices: DeviceRecord[] = DEVICE_ROWS.map((device: DeviceRecord) => ({ ...device }));
 
+  filteredDevices: readonly DeviceRecord[] = [...this.devices];
+  filterTerm = '';
+
   selectedDeviceId = this.devices[0]?.id ?? '';
   isEditing = false;
 
   get selectedDevice(): DeviceRecord | null {
     return this.devices.find((device: DeviceRecord) => device.id === this.selectedDeviceId) ?? null;
+  }
+
+  applyFilter(): void {
+    const search = this.filterTerm.trim().toLowerCase();
+    const filtered = this.devices.filter((device: DeviceRecord) => {
+      return (
+        search.length === 0 ||
+        device.name.toLowerCase().includes(search) ||
+        device.summary.toLowerCase().includes(search) ||
+        device.location.toLowerCase().includes(search) ||
+        device.model.toLowerCase().includes(search)
+      );
+    });
+
+    this.filteredDevices = filtered;
+    if (!filtered.some((device: DeviceRecord) => device.id === this.selectedDeviceId)) {
+      this.selectedDeviceId = filtered[0]?.id ?? '';
+      this.isEditing = false;
+    }
   }
 
   onSelectionChange(event: Event): void {
@@ -143,6 +163,10 @@ export class MasterDetailPageComponent {
     }
 
     this.selectedDeviceId = detail.value;
+    this.isEditing = false;
+  }
+
+  onSelectedDeviceIdChange(): void {
     this.isEditing = false;
   }
 

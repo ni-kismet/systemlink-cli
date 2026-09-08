@@ -11,9 +11,10 @@ from slcli.platform import clear_platform_cache
 
 
 @pytest.fixture(autouse=True)
-def clear_cache() -> None:
+def clear_cache(tmp_path: Any, monkeypatch: Any) -> None:
     """Clear the platform cache before each test."""
     clear_platform_cache()
+    monkeypatch.setenv("SLCLI_CONFIG", str(tmp_path / "config.json"))
 
 
 class TestFeatureGatingDFF:

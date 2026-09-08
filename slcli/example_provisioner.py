@@ -7,14 +7,26 @@ Supports dry-run mode for validation without creating resources.
 from __future__ import annotations
 
 import json as json_module
+import re
+import tempfile
+import urllib.parse
 from dataclasses import dataclass
 from enum import Enum
+from pathlib import Path
 from typing import Any, Dict, List, Optional, Tuple
 
 import click
 import requests
 
-from .utils import get_base_url, get_headers, make_api_request
+from .utils import (
+    escape_filter_value,
+    get_base_url,
+    get_headers,
+    get_ssl_verify,
+    make_api_request,
+    sanitize_filename,
+)
+from .webapp_click import pack_folder_to_nipkg
 
 
 class ProvisioningAction(Enum):
@@ -45,6 +57,7 @@ class ProvisioningResult:
     action: ProvisioningAction
     server_id: Optional[str] = None
     error: Optional[str] = None
+    details: Optional[Dict[str, Any]] = None
 
 
 class ExampleProvisioner:
@@ -59,6 +72,7 @@ class ExampleProvisioner:
         workspace_id: Optional[str] = None,
         example_name: Optional[str] = None,
         dry_run: bool = False,
+        example_dir: Optional[Path] = None,
     ) -> None:
         """Initialize the provisioner.
 
@@ -66,14 +80,17 @@ class ExampleProvisioner:
             workspace_id: Workspace identifier (ID).
             example_name: Example name for tagging resources.
             dry_run: When True, does not create any resources (SKIPPED).
+            example_dir: Directory containing an externally supplied example config.
         """
         self.workspace_id = workspace_id
         self.example_name = example_name
         self.dry_run = dry_run
+        self.example_dir = example_dir
         self.id_map: Dict[str, str] = {}
         self._test_results_deleted: bool = False
         self._files_deleted: bool = False
         self._notebooks_deleted: bool = False
+        self._last_resource_details: Optional[Dict[str, Any]] = None
 
     def provision(
         self, config: Dict[str, Any]
@@ -144,13 +161,42 @@ class ExampleProvisioner:
         if not isinstance(resources, list):
             return [], ValueError("Config 'resources' must be a list")
 
+        cleanup = config.get("cleanup", {})
+        if isinstance(cleanup, dict) and filter_tags is None:
+            configured_tags = cleanup.get("filter_tags")
+            if isinstance(configured_tags, list):
+                filter_tags = [str(tag) for tag in configured_tags]
+
+        deletion_resources = [resource for resource in resources if isinstance(resource, dict)]
+        if isinstance(cleanup, dict) and isinstance(cleanup.get("order"), list):
+            ordered_types = list(
+                dict.fromkeys(str(resource_type) for resource_type in cleanup["order"])
+            )
+            deletion_resources = [
+                resource
+                for resource_type in ordered_types
+                for resource in reversed(deletion_resources)
+                if str(resource.get("type", "unknown")) == resource_type
+            ] + [
+                resource
+                for resource in reversed(deletion_resources)
+                if str(resource.get("type", "unknown")) not in ordered_types
+            ]
+        else:
+            deletion_resources.reverse()
+
         # Reset per-run flags
         self._test_results_deleted = False
         self._files_deleted = False
         self._notebooks_deleted = False
+        resources_by_reference = {
+            str(resource.get("id_reference")): resource
+            for resource in resources
+            if isinstance(resource, dict) and resource.get("id_reference")
+        }
 
         try:
-            for resource in reversed([r for r in resources if isinstance(r, dict)]):
+            for resource in deletion_resources:
                 rtype = str(resource.get("type", "unknown"))
                 rname = str(resource.get("name", "unknown"))
                 rid = str(resource.get("id_reference", rname or rtype))
@@ -191,6 +237,7 @@ class ExampleProvisioner:
                     "product": self._delete_product,
                     "system": self._delete_system,
                     "asset": self._delete_asset,
+                    "fixture": self._delete_fixture,
                     "dut": self._delete_dut,
                     "testtemplate": self._delete_testtemplate,
                     "workflow": self._delete_workflow,
@@ -200,6 +247,12 @@ class ExampleProvisioner:
                     "data_table": self._delete_data_table,
                     "file": self._delete_file,
                     "notebook": self._delete_notebook,
+                    "state": self._delete_state,
+                    "tag": self._delete_tag,
+                    "specification": self._delete_specification,
+                    "feed": self._delete_feed,
+                    "package": self._delete_package,
+                    "alarm": self._delete_alarm,
                 }
                 delete_fn = delete_map.get(rtype)
                 if not delete_fn:
@@ -214,7 +267,25 @@ class ExampleProvisioner:
                     )
                     continue
 
-                server_id = delete_fn({"name": rname})
+                delete_props = resource.get("properties", {})
+                if not isinstance(delete_props, dict):
+                    delete_props = {}
+                delete_props = dict(delete_props)
+                delete_props["name"] = rname
+                delete_props = self._resolve_delete_props(delete_props, resources_by_reference)
+                try:
+                    server_id = delete_fn(delete_props)
+                except Exception as exc:
+                    results.append(
+                        ProvisioningResult(
+                            id_reference=rid,
+                            resource_type=rtype,
+                            resource_name=rname,
+                            action=ProvisioningAction.FAILED,
+                            error=str(exc),
+                        )
+                    )
+                    continue
                 # Determine action: DELETED if successful, SKIPPED if not found
                 action = ProvisioningAction.DELETED if server_id else ProvisioningAction.SKIPPED
                 results.append(
@@ -245,6 +316,7 @@ class ExampleProvisioner:
 
         # Substitute ${ref} tokens in properties with server IDs
         props_sub = self._resolve_props(properties, id_map)
+        self._last_resource_details = None
 
         if self.dry_run:
             return ProvisioningResult(
@@ -261,6 +333,7 @@ class ExampleProvisioner:
             "product": self._create_product,
             "system": self._create_system,
             "asset": self._create_asset,
+            "fixture": self._create_fixture,
             "dut": self._create_dut,
             "testtemplate": self._create_testtemplate,
             "workflow": self._create_workflow,
@@ -270,6 +343,12 @@ class ExampleProvisioner:
             "data_table": self._create_data_table,
             "file": self._create_file,
             "notebook": self._create_notebook,
+            "state": self._create_state,
+            "tag": self._create_tag,
+            "specification": self._create_specification,
+            "feed": self._create_feed,
+            "package": self._create_package,
+            "alarm": self._create_alarm,
         }
 
         create_fn = create_map.get(rtype)
@@ -297,6 +376,8 @@ class ExampleProvisioner:
                 existing_id = self._get_system_by_name(rname)
             elif rtype == "asset":
                 existing_id = self._get_asset_by_name(rname)
+            elif rtype == "fixture":
+                existing_id = self._get_fixture_by_name(rname)
             elif rtype == "dut":
                 existing_id = self._get_dut_by_name(rname)
             elif rtype == "testtemplate":
@@ -308,13 +389,89 @@ class ExampleProvisioner:
             elif rtype == "work_order":
                 existing_id = self._get_work_order_by_name(rname)
             elif rtype == "test_result":
-                existing_id = self._get_test_result_by_name(rname)
+                existing_id = self._get_test_result_by_properties(props_with_name)
             elif rtype == "data_table":
-                existing_id = self._get_data_table_by_name(rname)
+                ownership_marker = self._data_table_ownership_marker(props_with_name)
+                existing_id = self._get_data_table_by_name(
+                    rname,
+                    ownership_marker=ownership_marker,
+                )
+                if not existing_id and ownership_marker and self._get_data_table_by_name(rname):
+                    return ProvisioningResult(
+                        id_reference=rid,
+                        resource_type=rtype,
+                        resource_name=rname,
+                        action=ProvisioningAction.FAILED,
+                        error="Existing table does not have the expected ownership marker",
+                    )
             elif rtype == "file":
-                existing_id = self._get_file_by_name(rname)
+                existing_id = self._get_file_by_name(rname, props_with_name.get("file_path"))
+            elif rtype == "notebook":
+                existing_id = self._get_notebook_by_name(rname)
+            elif rtype == "state":
+                existing_id = self._get_state_by_name(
+                    rname,
+                    ownership_marker=self._resource_ownership_marker(props_with_name),
+                )
+            elif rtype == "tag":
+                existing_id = self._get_tag_by_path(
+                    rname,
+                    ownership_marker=self._resource_ownership_marker(props_with_name),
+                )
+            elif rtype == "specification":
+                existing_id = self._get_specification_by_key(props_with_name)
+            elif rtype == "feed":
+                existing_id = self._get_feed_by_name(
+                    rname,
+                    str(props_with_name.get("platform", "")) or None,
+                    ownership_marker=self._resource_ownership_marker(props_with_name),
+                )
+            elif rtype == "package":
+                existing_id = self._get_package_by_identity(props_with_name)
+            elif rtype == "alarm":
+                alarm_id = str(
+                    props_with_name.get("alarm_id", props_with_name.get("alarmId", rname))
+                )
+                existing_id = self._get_alarm_by_id(alarm_id)
 
             if existing_id:
+                if rtype == "data_table":
+                    try:
+                        self._ensure_data_table_rows(str(existing_id), props_with_name)
+                    except Exception as exc:
+                        return ProvisioningResult(
+                            id_reference=rid,
+                            resource_type=rtype,
+                            resource_name=rname,
+                            action=ProvisioningAction.FAILED,
+                            server_id=str(existing_id),
+                            error=str(exc),
+                            details=self._last_resource_details,
+                        )
+                elif rtype == "tag":
+                    try:
+                        self._write_tag_history(props_with_name)
+                    except Exception as exc:
+                        return ProvisioningResult(
+                            id_reference=rid,
+                            resource_type=rtype,
+                            resource_name=rname,
+                            action=ProvisioningAction.FAILED,
+                            server_id=str(existing_id),
+                            error=str(exc),
+                        )
+                elif rtype == "state":
+                    try:
+                        self._update_state(str(existing_id), props_with_name)
+                    except Exception as exc:
+                        return ProvisioningResult(
+                            id_reference=rid,
+                            resource_type=rtype,
+                            resource_name=rname,
+                            action=ProvisioningAction.FAILED,
+                            server_id=str(existing_id),
+                            error=str(exc),
+                        )
                 # Resource already exists, skip creation
                 return ProvisioningResult(
                     id_reference=rid,
@@ -323,8 +480,10 @@ class ExampleProvisioner:
                     action=ProvisioningAction.SKIPPED,
                     server_id=existing_id,
                     error="Resource already exists",
+                    details=self._last_resource_details,
                 )
 
+            self._last_resource_details = None
             server_id = create_fn(props_with_name)
             # Check for duplicate marker from create functions
             if server_id and server_id.startswith("__DUPLICATE_ID__"):
@@ -356,6 +515,7 @@ class ExampleProvisioner:
                     resource_name=rname,
                     action=ProvisioningAction.CREATED,
                     server_id=server_id,
+                    details=self._last_resource_details,
                 )
             else:
                 # Creation returned no valid ID - could be duplicate or actual failure
@@ -404,6 +564,45 @@ class ExampleProvisioner:
             return id_map.get(ref, obj)  # leave as-is if not yet defined
         return obj
 
+    def _resolve_delete_props(
+        self, props: Dict[str, Any], resources_by_reference: Dict[str, Dict[str, Any]]
+    ) -> Dict[str, Any]:
+        """Resolve resource references needed by property-dependent delete handlers."""
+        resolved = dict(props)
+        for key in ("product_id", "productId"):
+            value = resolved.get(key)
+            if not isinstance(value, str) or not value.startswith("${") or not value.endswith("}"):
+                continue
+            reference = value[2:-1]
+            referenced_resource = resources_by_reference.get(reference)
+            if not referenced_resource or referenced_resource.get("type") != "product":
+                continue
+            product_id = self._get_product_by_name(str(referenced_resource.get("name", "")))
+            if product_id:
+                resolved[key] = product_id
+
+        for key in ("feed_id", "feedId"):
+            value = resolved.get(key)
+            if not isinstance(value, str) or not value.startswith("${") or not value.endswith("}"):
+                continue
+            reference = value[2:-1]
+            referenced_resource = resources_by_reference.get(reference)
+            if not referenced_resource or referenced_resource.get("type") != "feed":
+                continue
+            feed_properties = referenced_resource.get("properties", {})
+            if not isinstance(feed_properties, dict):
+                feed_properties = {}
+            feed_properties = dict(feed_properties)
+            feed_properties["name"] = referenced_resource.get("name", "")
+            feed_id = self._get_feed_by_name(
+                str(feed_properties["name"]),
+                str(feed_properties.get("platform", "")) or None,
+                ownership_marker=self._resource_ownership_marker(feed_properties),
+            )
+            if feed_id:
+                resolved[key] = feed_id
+        return resolved
+
     @staticmethod
     def _deduplicate_keywords(keywords: List[str]) -> List[str]:
         """Return deduplicated keywords preserving insertion order."""
@@ -414,6 +613,995 @@ class ExampleProvisioner:
                 result.append(kw)
                 seen.add(kw)
         return result
+
+    def _resource_ownership_marker(self, props: Dict[str, Any]) -> Optional[str]:
+        """Return the configured or example-derived ownership marker."""
+        marker = props.get("ownership_marker")
+        resource_properties = props.get("properties")
+        if marker is None and isinstance(resource_properties, dict):
+            marker = resource_properties.get("ownership_marker")
+        if marker:
+            return str(marker)
+        if self.example_name:
+            return f"slcli-example:{self.example_name}"
+        return None
+
+    def _build_state_payload(self, props: Dict[str, Any]) -> Dict[str, Any]:
+        """Build a systems state payload, resolving fixture resource references."""
+        payload: Dict[str, Any] = {
+            "name": props.get("name", ""),
+            "distribution": props.get("distribution", ""),
+            "architecture": props.get("architecture", ""),
+        }
+        if self.workspace_id:
+            payload["workspace"] = self.workspace_id
+
+        for source_key, api_key in (
+            ("description", "description"),
+            ("system_image", "systemImage"),
+            ("systemImage", "systemImage"),
+        ):
+            if source_key in props:
+                payload[api_key] = props[source_key]
+
+        if "feeds" in props:
+            payload["feeds"] = self._materialize_state_feeds(props["feeds"])
+        if "packages" in props:
+            payload["packages"] = self._materialize_state_packages(props["packages"])
+
+        state_properties = props.get("properties")
+        if isinstance(state_properties, dict):
+            state_properties = dict(state_properties)
+        else:
+            state_properties = {}
+        ownership_marker = self._resource_ownership_marker(props)
+        if ownership_marker:
+            state_properties.setdefault("slcli-example", ownership_marker)
+        if state_properties:
+            payload["properties"] = state_properties
+
+        return payload
+
+    def _materialize_state_feeds(self, values: Any) -> Any:
+        """Resolve feed IDs into the structured feed objects required by states."""
+        if values is None:
+            return None
+        if not isinstance(values, list):
+            raise ValueError("State feeds must be a list")
+        return [self._materialize_state_feed(value) for value in values]
+
+    def _materialize_state_feed(self, value: Any) -> Dict[str, Any]:
+        """Resolve one state feed reference or preserve an explicit feed object."""
+        if isinstance(value, str):
+            return self._state_feed_from_id(value)
+        if not isinstance(value, dict):
+            raise ValueError("State feed entries must be references or objects")
+
+        reference = value.get("reference")
+        if reference is None:
+            return dict(value)
+        if not isinstance(reference, str) or not reference:
+            raise ValueError("State feed reference must be a non-empty string")
+
+        feed = self._state_feed_from_id(reference)
+        for key in ("name", "url", "enabled", "compressed"):
+            if key in value:
+                feed[key] = value[key]
+        return feed
+
+    def _state_feed_from_id(self, feed_id: str) -> Dict[str, Any]:
+        """Build a state feed object from a provisioned feed ID."""
+        from .feed_click import _get_feed, _get_feed_base_url
+
+        feed_data = _get_feed(feed_id)
+        feed_name = feed_data.get("name") or feed_data.get("feedName")
+        if not feed_name:
+            raise ValueError(f"Feed {feed_id} has no name")
+
+        feed_url = (
+            feed_data.get("url")
+            or feed_data.get("directoryUri")
+            or feed_data.get("directoryURI")
+            or f"{_get_feed_base_url()}/feeds/{urllib.parse.quote(feed_id, safe='')}/files"
+        )
+        return {
+            "name": str(feed_name),
+            "url": str(feed_url),
+            "enabled": True,
+            "compressed": False,
+        }
+
+    def _materialize_state_packages(self, values: Any) -> Any:
+        """Resolve package IDs into the structured package objects required by states."""
+        if values is None:
+            return None
+        if not isinstance(values, list):
+            raise ValueError("State packages must be a list")
+        return [self._materialize_state_package(value) for value in values]
+
+    def _materialize_state_package(self, value: Any) -> Dict[str, Any]:
+        """Resolve one state package reference or preserve an explicit package object."""
+        if isinstance(value, str):
+            return self._state_package_from_id(value)
+        if not isinstance(value, dict):
+            raise ValueError("State package entries must be references or objects")
+
+        reference = value.get("reference")
+        if reference is None:
+            return dict(value)
+        if not isinstance(reference, str) or not reference:
+            raise ValueError("State package reference must be a non-empty string")
+
+        package = self._state_package_from_id(reference)
+        if "installRecommends" in value:
+            package["installRecommends"] = value["installRecommends"]
+        return package
+
+    def _state_package_from_id(self, package_id: str) -> Dict[str, Any]:
+        """Build a state package object from a provisioned package ID."""
+        from .feed_click import _get_feed_base_url
+
+        package_url = f"{_get_feed_base_url()}/packages/{urllib.parse.quote(package_id, safe='')}"
+        resp = make_api_request("GET", package_url, payload=None, handle_errors=False)
+        data = resp.json()
+        if isinstance(data, dict) and isinstance(data.get("package"), dict):
+            data = data["package"]
+        if not isinstance(data, dict):
+            raise ValueError(f"Package {package_id} response is invalid")
+
+        metadata = data.get("metadata", {})
+        if not isinstance(metadata, dict):
+            metadata = {}
+        package_name = metadata.get("packageName") or metadata.get("name") or data.get("name")
+        version = metadata.get("version") or data.get("version")
+        if not package_name or not version:
+            raise ValueError(f"Package {package_id} has incomplete metadata")
+        return {
+            "name": str(package_name),
+            "version": str(version),
+            "installRecommends": True,
+        }
+
+    def _create_state(self, props: Dict[str, Any]) -> Optional[str]:
+        """Create a systems state and return its server ID."""
+        payload = self._build_state_payload(props)
+
+        resp = make_api_request(
+            "POST",
+            f"{get_base_url()}/nisystemsstate/v1/states",
+            payload,
+            handle_errors=False,
+        )
+        data = resp.json()
+        if not isinstance(data, dict) or not data.get("id"):
+            return None
+        return str(data["id"])
+
+    def _update_state(self, state_id: str, props: Dict[str, Any]) -> None:
+        """Update an existing systems state to match the fixture configuration."""
+        make_api_request(
+            "PATCH",
+            f"{get_base_url()}/nisystemsstate/v1/states/{state_id}",
+            self._build_state_payload(props),
+            handle_errors=False,
+        )
+
+    def _get_state_by_name(
+        self, name: str, ownership_marker: Optional[str] = None
+    ) -> Optional[str]:
+        """Find a state by exact name and workspace."""
+        if not ownership_marker:
+            return None
+
+        url = f"{get_base_url()}/nisystemsstate/v1/states?Skip=0&Take=1000"
+        if self.workspace_id:
+            url += f"&Workspace={self.workspace_id}"
+        resp = make_api_request("GET", url, payload=None, handle_errors=False)
+        data = resp.json()
+        states = data.get("states", []) if isinstance(data, dict) else []
+        if not isinstance(states, list):
+            return None
+
+        for state in states:
+            if not isinstance(state, dict) or state.get("name") != name:
+                continue
+            if self.workspace_id and state.get("workspace") != self.workspace_id:
+                continue
+            state_properties = state.get("properties", {})
+            if not isinstance(state_properties, dict):
+                continue
+            if str(state_properties.get("slcli-example", "")) != ownership_marker:
+                continue
+            state_id = state.get("id")
+            if state_id:
+                return str(state_id)
+        return None
+
+    def _delete_state(self, props: Dict[str, Any]) -> Optional[str]:
+        """Delete a state by exact name and return its server ID."""
+        state_id = self._get_state_by_name(
+            str(props.get("name", "")),
+            ownership_marker=self._resource_ownership_marker(props),
+        )
+        if not state_id:
+            return None
+
+        make_api_request(
+            "DELETE",
+            f"{get_base_url()}/nisystemsstate/v1/states/{state_id}",
+            payload=None,
+            handle_errors=False,
+        )
+        return state_id
+
+    @staticmethod
+    def _alarm_id(props: Dict[str, Any]) -> str:
+        """Read an alarm ID from resource properties, defaulting to its name."""
+        return str(props.get("alarm_id", props.get("alarmId", props.get("name", ""))))
+
+    def _alarm_items(self, data: Any) -> List[Dict[str, Any]]:
+        """Extract alarm instances from current and legacy response shapes."""
+        if isinstance(data, list):
+            return [item for item in data if isinstance(item, dict)]
+        if not isinstance(data, dict):
+            return []
+        for key in ("alarms", "alarmInstances", "filterMatches", "instances", "items"):
+            values = data.get(key)
+            if isinstance(values, list):
+                return [item for item in values if isinstance(item, dict)]
+        return []
+
+    def _get_alarm_by_id(self, alarm_id: str) -> Optional[str]:
+        """Find the most recently updated alarm instance by alarm ID."""
+        if not alarm_id:
+            return None
+
+        filter_parts = ["alarmId == @0"]
+        substitutions: List[Any] = [alarm_id]
+        if self.workspace_id:
+            filter_parts.append("workspace == @1")
+            substitutions.append(self.workspace_id)
+        ownership_marker = f"slcli-example:{self.example_name}" if self.example_name else None
+        if ownership_marker:
+            filter_parts.append(f"keywords.Any(x => x == @{len(substitutions)})")
+            substitutions.append(ownership_marker)
+        payload: Dict[str, Any] = {
+            "filter": " && ".join(filter_parts),
+            "substitutions": substitutions,
+            "take": 1000,
+            "returnCount": True,
+            "orderBy": "UPDATED_AT",
+            "orderByDescending": True,
+            "returnMostRecentlyOccurredOnly": True,
+        }
+        resp = make_api_request(
+            "POST",
+            f"{get_base_url()}/nialarm/v1/query-instances-with-filter",
+            payload=payload,
+            handle_errors=False,
+        )
+        for item in self._alarm_items(resp.json()):
+            if ownership_marker:
+                keywords = item.get("keywords", [])
+                if not isinstance(keywords, list) or ownership_marker not in keywords:
+                    continue
+            instance_id = item.get("instanceId") or item.get("id")
+            if instance_id:
+                return str(instance_id)
+        return None
+
+    def _create_alarm(self, props: Dict[str, Any]) -> Optional[str]:
+        """Create an alarm transition and return its instance ID."""
+        alarm_id = self._alarm_id(props)
+        if not alarm_id:
+            return None
+
+        transition_type = str(props.get("transition", "SET")).upper()
+        if transition_type not in {"SET", "CLEAR"}:
+            raise ValueError("Alarm transition must be SET or CLEAR")
+
+        transition: Dict[str, Any] = {"transitionType": transition_type}
+        severity = props.get("severity", props.get("severityLevel"))
+        if severity is not None:
+            transition["severityLevel"] = severity
+        elif transition_type == "CLEAR":
+            transition["severityLevel"] = -1
+        for api_key, source_keys in {
+            "value": ("value",),
+            "condition": ("condition",),
+            "shortText": ("short_text", "shortText"),
+            "detailText": ("detail_text", "detailText"),
+        }.items():
+            for source_key in source_keys:
+                if source_key in props and props[source_key] is not None:
+                    transition[api_key] = props[source_key]
+                    break
+
+        payload: Dict[str, Any] = {
+            "alarmId": alarm_id,
+            "transition": transition,
+        }
+        workspace = props.get("workspace") or self.workspace_id
+        if workspace:
+            payload["workspace"] = workspace
+        for api_key, source_keys in {
+            "channel": ("channel",),
+            "resourceType": ("resource_type", "resourceType"),
+            "displayName": ("display_name", "displayName"),
+            "description": ("description",),
+            "createdBy": ("created_by", "createdBy"),
+        }.items():
+            for source_key in source_keys:
+                if source_key in props and props[source_key] is not None:
+                    payload[api_key] = props[source_key]
+                    break
+
+        keywords = props.get("keywords", [])
+        if not isinstance(keywords, list):
+            raise ValueError("Alarm keywords must be a list")
+        alarm_keywords = [str(keyword) for keyword in keywords]
+        alarm_keywords.extend(["slcli-provisioner"])
+        if self.example_name:
+            alarm_keywords.append(f"slcli-example:{self.example_name}")
+        payload["keywords"] = self._deduplicate_keywords(alarm_keywords)
+
+        configured_properties = props.get("properties")
+        if configured_properties is not None:
+            if not isinstance(configured_properties, dict):
+                raise ValueError("Alarm properties must be an object")
+            payload["properties"] = configured_properties
+
+        resp = make_api_request(
+            "POST",
+            f"{get_base_url()}/nialarm/v1/instances",
+            payload=payload,
+            handle_errors=False,
+        )
+        data = resp.json()
+        if isinstance(data, dict):
+            instance_id = data.get("instanceId") or data.get("id")
+            if instance_id:
+                return str(instance_id)
+        return None
+
+    def _delete_alarm(self, props: Dict[str, Any]) -> Optional[str]:
+        """Delete the most recent alarm instance for an alarm ID."""
+        instance_id = self._get_alarm_by_id(self._alarm_id(props))
+        if not instance_id:
+            return None
+
+        make_api_request(
+            "POST",
+            f"{get_base_url()}/nialarm/v1/delete-instances-by-instance-id",
+            payload={"instanceIds": [instance_id]},
+            handle_errors=False,
+        )
+        return instance_id
+
+    def _tag_url(self, path: str) -> str:
+        """Build the metadata URL for a workspace-scoped tag path."""
+        workspace_path = f"{self.workspace_id}/" if self.workspace_id else ""
+        encoded_path = urllib.parse.quote(path, safe="")
+        return f"{get_base_url()}/nitag/v2/tags/{workspace_path}{encoded_path}"
+
+    def _create_tag(self, props: Dict[str, Any]) -> Optional[str]:
+        """Create tag metadata and return its path as the resource ID."""
+        path = str(props.get("name", ""))
+        payload: Dict[str, Any] = {
+            "path": path,
+            "type": props.get("type", props.get("tag_type", "")),
+            "workspace": self.workspace_id,
+            "collectAggregates": bool(props.get("collectAggregates", False)),
+        }
+        for key in ("keywords",):
+            if key in props:
+                payload[key] = props[key]
+        tag_properties: Dict[str, Any] = {}
+        if isinstance(props.get("properties"), dict):
+            tag_properties.update(props["properties"])
+        ownership_marker = self._resource_ownership_marker(props)
+        if ownership_marker:
+            tag_properties["slcli-example"] = ownership_marker
+        if props.get("history"):
+            tag_properties["nitagRetention"] = str(
+                props.get("retention", tag_properties.get("nitagRetention", "PERMANENT"))
+            ).upper()
+        if tag_properties:
+            payload["properties"] = tag_properties
+
+        make_api_request("PUT", self._tag_url(path), payload=payload, handle_errors=False)
+        self._write_tag_history(props)
+        return path or None
+
+    def _write_tag_history(self, props: Dict[str, Any]) -> None:
+        """Write configured timestamped values to a tag."""
+        history = props.get("history", [])
+        if history is None:
+            return
+        if not isinstance(history, list):
+            raise ValueError("Tag history must be a list")
+        if not history:
+            return
+
+        path = str(props.get("name", ""))
+        tag_type = str(props.get("type", props.get("tag_type", "")))
+        if not path or not tag_type:
+            raise ValueError("Tag history requires a tag name and type")
+
+        values: List[Dict[str, Any]] = []
+        for index, entry in enumerate(history):
+            if not isinstance(entry, dict):
+                raise ValueError(f"Tag history entry {index} must be an object")
+            timestamp = entry.get("timestamp")
+            if not timestamp:
+                raise ValueError(f"Tag history entry {index} is missing timestamp")
+            if "value" not in entry or entry["value"] is None:
+                raise ValueError(f"Tag history entry {index} is missing value")
+
+            value = entry["value"]
+            value_text = str(value).lower() if isinstance(value, bool) else str(value)
+            value_entry: Dict[str, Any] = {
+                "path": path,
+                "value": value_text,
+                "timestamp": str(timestamp),
+            }
+            if self.workspace_id:
+                value_entry["workspace"] = self.workspace_id
+            values.append(value_entry)
+
+        configured_properties = props.get("properties")
+        configured_retention = (
+            configured_properties.get("nitagRetention")
+            if isinstance(configured_properties, dict)
+            else None
+        )
+        retention = str(props.get("retention", configured_retention or "PERMANENT")).upper()
+        tag_metadata: Dict[str, Any] = {
+            "path": path,
+            "type": tag_type,
+            "workspace": self.workspace_id,
+            "properties": {"nitagRetention": retention},
+        }
+        ownership_marker = self._resource_ownership_marker(props)
+        if ownership_marker:
+            tag_metadata["properties"]["slcli-example"] = ownership_marker
+
+        base_url = get_base_url()
+        make_api_request(
+            "POST",
+            f"{base_url}/nitag/v2/tags",
+            payload=tag_metadata,
+            handle_errors=False,
+        )
+        query: Dict[str, Any] = {
+            "path": path,
+            "startTime": "0001-01-01T00:00:00Z",
+            "endTime": "9999-12-31T23:59:59Z",
+            "take": max(len(values), 1000),
+            "sortOrder": "ASCENDING",
+        }
+        if self.workspace_id:
+            query["workspace"] = self.workspace_id
+        history_url = f"{base_url}/nitaghistorian/v2/tags/query-history"
+        existing_response = make_api_request(
+            "POST", history_url, payload=query, handle_errors=False
+        )
+        existing_data = existing_response.json()
+        existing_values = existing_data.get("values", []) if isinstance(existing_data, dict) else []
+        existing_keys = {
+            (
+                str(item.get("timestamp", "")).replace(".000000", ""),
+                str(item.get("value")),
+            )
+            for item in existing_values
+            if isinstance(item, dict)
+        }
+        pending_values = [
+            item
+            for item in values
+            if (
+                item["timestamp"].replace(".000000", ""),
+                item["value"],
+            )
+            not in existing_keys
+        ]
+        timestamped_values: List[Dict[str, Any]] = []
+        for item in pending_values:
+            timestamped_values.append(
+                {
+                    "value": {"type": tag_type, "value": item["value"]},
+                    "timestamp": item["timestamp"],
+                }
+            )
+        update_url = f"{base_url}/nitag/v2/tags/{urllib.parse.quote(path, safe='')}/update-values"
+        if self.workspace_id:
+            update_url = f"{update_url}?workspace={urllib.parse.quote(self.workspace_id, safe='')}"
+        if timestamped_values:
+            make_api_request(
+                "POST",
+                update_url,
+                payload=timestamped_values,
+                handle_errors=False,
+            )
+
+        response = make_api_request("POST", history_url, payload=query, handle_errors=False)
+        response_data = response.json()
+        recorded_values = response_data.get("values", []) if isinstance(response_data, dict) else []
+        recorded = {
+            (
+                str(item.get("timestamp", "")).replace(".000000", ""),
+                str(item.get("value")),
+            )
+            for item in recorded_values
+            if isinstance(item, dict)
+        }
+        expected = {(item["timestamp"], item["value"]) for item in values}
+        if not expected.issubset(recorded):
+            raise RuntimeError(
+                "history: unsupported - Tag Historian did not retain all configured values"
+            )
+
+    def _get_tag_by_path(self, path: str, ownership_marker: Optional[str] = None) -> Optional[str]:
+        """Return an owned tag path when metadata exists, otherwise None."""
+        if not ownership_marker:
+            return None
+        try:
+            resp = make_api_request("GET", self._tag_url(path), payload=None, handle_errors=False)
+            data = resp.json()
+            if not isinstance(data, dict) or data.get("path") != path:
+                return None
+            properties = data.get("properties", {})
+            if not isinstance(properties, dict):
+                return None
+            return path if str(properties.get("slcli-example", "")) == ownership_marker else None
+        except Exception:
+            return None
+
+    def _delete_tag(self, props: Dict[str, Any]) -> Optional[str]:
+        """Delete tag metadata by path and return that path."""
+        path = str(props.get("name", ""))
+        if not self._get_tag_by_path(path, ownership_marker=self._resource_ownership_marker(props)):
+            return None
+        make_api_request("DELETE", self._tag_url(path), payload=None, handle_errors=False)
+        return path or None
+
+    @staticmethod
+    def _spec_product_id(props: Dict[str, Any]) -> Optional[str]:
+        """Read a specification product reference from config properties."""
+        product_id = props.get("productId", props.get("product_id"))
+        return str(product_id) if product_id else None
+
+    @staticmethod
+    def _spec_id(props: Dict[str, Any]) -> str:
+        """Read a specification identifier, defaulting to its resource name."""
+        return str(props.get("specId", props.get("spec_id", props.get("name", ""))))
+
+    def _create_specification(self, props: Dict[str, Any]) -> Optional[str]:
+        """Create one specification through the bulk specification endpoint."""
+        product_id = self._spec_product_id(props)
+        if not product_id:
+            return None
+
+        payload: Dict[str, Any] = {
+            "productId": product_id,
+            "specId": self._spec_id(props),
+            "type": str(props.get("type", props.get("spec_type", ""))).upper(),
+        }
+        for api_key, source_keys in {
+            "name": ("name",),
+            "category": ("category",),
+            "symbol": ("symbol",),
+            "block": ("block",),
+            "unit": ("unit",),
+            "limit": ("limit",),
+            "conditions": ("conditions",),
+            "keywords": ("keywords",),
+            "properties": ("properties",),
+            "workspace": ("workspace",),
+        }.items():
+            for source_key in source_keys:
+                if source_key in props:
+                    payload[api_key] = props[source_key]
+                    break
+        specification_properties = payload.get("properties")
+        if isinstance(specification_properties, dict):
+            specification_properties = dict(specification_properties)
+        else:
+            specification_properties = {}
+        ownership_marker = self._resource_ownership_marker(props)
+        if ownership_marker:
+            specification_properties["slcli-example"] = ownership_marker
+        if specification_properties:
+            payload["properties"] = specification_properties
+        if "workspace" not in payload and self.workspace_id:
+            payload["workspace"] = self.workspace_id
+
+        resp = make_api_request(
+            "POST",
+            f"{get_base_url()}/nispec/v1/specs",
+            payload={"specs": [payload]},
+            handle_errors=False,
+        )
+        data = resp.json()
+        created_specs = data.get("createdSpecs", []) if isinstance(data, dict) else []
+        if isinstance(created_specs, list) and created_specs:
+            created = created_specs[0]
+            if isinstance(created, dict) and created.get("id"):
+                return str(created["id"])
+            if isinstance(created, str) and created:
+                return created
+        return None
+
+    def _get_specification_by_key(self, props: Dict[str, Any]) -> Optional[str]:
+        """Find a specification by exact product ID and spec ID."""
+        product_id = self._spec_product_id(props)
+        spec_id = self._spec_id(props)
+        ownership_marker = self._resource_ownership_marker(props)
+        if not product_id or not spec_id or not ownership_marker:
+            return None
+
+        resp = make_api_request(
+            "POST",
+            f"{get_base_url()}/nispec/v1/query-specs",
+            payload={"productIds": [product_id], "take": 1000},
+            handle_errors=False,
+        )
+        data = resp.json()
+        specs = data.get("specs", []) if isinstance(data, dict) else []
+        if not isinstance(specs, list):
+            return None
+        for spec in specs:
+            if not isinstance(spec, dict):
+                continue
+            if str(spec.get("productId", "")) != product_id:
+                continue
+            if str(spec.get("specId", "")) != spec_id:
+                continue
+            specification_properties = spec.get("properties", {})
+            if not isinstance(specification_properties, dict):
+                continue
+            if str(specification_properties.get("slcli-example", "")) != ownership_marker:
+                continue
+            specification_id = spec.get("id")
+            if specification_id:
+                return str(specification_id)
+        return None
+
+    def _delete_specification(self, props: Dict[str, Any]) -> Optional[str]:
+        """Delete a specification by product/spec key and return its ID."""
+        specification_id = self._get_specification_by_key(props)
+        if not specification_id:
+            return None
+
+        resp = make_api_request(
+            "POST",
+            f"{get_base_url()}/nispec/v1/delete-specs",
+            payload={"ids": [specification_id]},
+            handle_errors=False,
+        )
+        if getattr(resp, "status_code", None) == 204:
+            return specification_id
+        data = resp.json()
+        if isinstance(data, dict):
+            failed_ids = data.get("failedSpecIds", [])
+            if isinstance(failed_ids, list) and specification_id in failed_ids:
+                return None
+            deleted_ids = data.get("deletedSpecIds")
+            if isinstance(deleted_ids, list) and specification_id not in deleted_ids:
+                return None
+        return specification_id
+
+    def _get_feed_by_name(
+        self,
+        name: str,
+        platform: Optional[str] = None,
+        ownership_marker: Optional[str] = None,
+    ) -> Optional[str]:
+        """Find a feed by exact name, platform, and workspace."""
+        from .feed_click import _get_feed_base_url, _normalize_platform
+
+        if not ownership_marker:
+            return None
+
+        params: List[str] = []
+        if platform:
+            params.append(f"platform={_normalize_platform(platform)}")
+        if self.workspace_id:
+            params.append(f"workspace={self.workspace_id}")
+        url = f"{_get_feed_base_url()}/feeds"
+        if params:
+            url += "?" + "&".join(params)
+
+        try:
+            resp = make_api_request("GET", url, payload=None, handle_errors=False)
+            data = resp.json()
+        except Exception:
+            return None
+        feeds = data.get("feeds", []) if isinstance(data, dict) else []
+        if not isinstance(feeds, list):
+            return None
+
+        for feed in feeds:
+            if not isinstance(feed, dict):
+                continue
+            feed_name = feed.get("name") or feed.get("feedName")
+            feed_workspace = feed.get("workspace", feed.get("workspaceId"))
+            if feed_name != name:
+                continue
+            if self.workspace_id and feed_workspace != self.workspace_id:
+                continue
+            if f"[{ownership_marker}]" not in str(feed.get("description", "")):
+                continue
+            feed_id = feed.get("id") or feed.get("feedId")
+            if feed_id:
+                return str(feed_id)
+        return None
+
+    def _create_feed(self, props: Dict[str, Any]) -> Optional[str]:
+        """Create a feed and wait for an asynchronous create job when needed."""
+        from .feed_click import _create_feed as create_feed, _wait_for_job
+
+        name = str(props.get("name", ""))
+        platform = str(props.get("platform", ""))
+        if not name or not platform:
+            return None
+
+        ownership_marker = self._resource_ownership_marker(props)
+        description = props.get("description")
+        if ownership_marker:
+            marker_text = f"[{ownership_marker}]"
+            description_text = "" if description is None else str(description)
+            if marker_text not in description_text:
+                description = (
+                    f"{description_text}\n{marker_text}" if description_text else marker_text
+                )
+
+        result = create_feed(
+            name=name,
+            platform=platform,
+            description=description,
+            workspace=self.workspace_id,
+        )
+        job = result.get("job", {}) if isinstance(result, dict) else {}
+        job_id = result.get("jobId") if isinstance(result, dict) else None
+        if not job_id and isinstance(job, dict):
+            job_id = job.get("id")
+        if job_id:
+            completed_job = _wait_for_job(str(job_id), timeout=int(props.get("timeout", 300)))
+            feed_id = completed_job.get("resourceId") or completed_job.get("feedId")
+        else:
+            feed_id = result.get("id") if isinstance(result, dict) else None
+        return str(feed_id) if feed_id else None
+
+    def _delete_feed(self, props: Dict[str, Any]) -> Optional[str]:
+        """Delete a feed by exact name and wait for an asynchronous job."""
+        from .feed_click import _delete_feed as delete_feed, _wait_for_job
+
+        name = str(props.get("name", ""))
+        platform = str(props.get("platform", "")) or None
+        feed_id = self._get_feed_by_name(
+            name,
+            platform,
+            ownership_marker=self._resource_ownership_marker(props),
+        )
+        if not feed_id:
+            return None
+
+        job_id = delete_feed(feed_id)
+        if job_id:
+            _wait_for_job(str(job_id), timeout=int(props.get("timeout", 300)))
+        return feed_id
+
+    def _package_identity(self, props: Dict[str, Any]) -> Tuple[str, str, str]:
+        """Return the feed, package name, and version used to identify a package."""
+        feed_id = str(props.get("feed_id", props.get("feedId", "")))
+        source = props.get("source", {})
+        if not isinstance(source, dict):
+            source = {}
+        package_name = sanitize_filename(
+            str(
+                source.get(
+                    "package_name",
+                    source.get(
+                        "package", props.get("package_name", props.get("name", "fixture-package"))
+                    ),
+                )
+            ),
+            "fixture-package",
+        )
+        version = self._safe_package_component(
+            str(source.get("version", props.get("version", "1.0.0"))), "1.0.0"
+        )
+        return feed_id, package_name, version
+
+    def _get_package_by_identity(self, props: Dict[str, Any]) -> Optional[str]:
+        """Find an example package by feed, package name, and version."""
+        from .feed_click import _list_packages
+
+        feed_id, package_name, version = self._package_identity(props)
+        if not feed_id or not package_name or not version:
+            return None
+
+        try:
+            packages = _list_packages(feed_id)
+        except Exception:
+            return None
+
+        for package in packages:
+            metadata = package.get("metadata", {})
+            if not isinstance(metadata, dict):
+                metadata = {}
+            actual_name = metadata.get("packageName", metadata.get("name", package.get("name")))
+            actual_version = metadata.get("version", package.get("version"))
+            if str(actual_name) == package_name and str(actual_version) == version:
+                package_id = package.get("id", package.get("packageId"))
+                if package_id:
+                    return str(package_id)
+        return None
+
+    @staticmethod
+    def _safe_package_component(value: str, fallback: str) -> str:
+        """Convert a package name component into a safe folder-name component."""
+        normalized = re.sub(r"[^A-Za-z0-9._-]+", "-", value).strip("-._")
+        return normalized or fallback
+
+    def _write_dummy_package_payload(self, folder: Path, files: Any) -> None:
+        """Write inline dummy package files while preventing path escapes."""
+        if files is None:
+            files = {"README.txt": "Package created by slcli example provisioner\n"}
+        if not isinstance(files, dict):
+            raise ValueError("Dummy package source 'files' must be an object")
+
+        root = folder.resolve()
+        for relative_name, content in files.items():
+            if not isinstance(relative_name, str) or not relative_name.strip():
+                raise ValueError("Dummy package file names must be non-empty strings")
+            destination = (root / relative_name).resolve()
+            try:
+                destination.relative_to(root)
+            except ValueError as exc:
+                raise ValueError(
+                    f"Dummy package file must remain inside the package folder: {relative_name}"
+                ) from exc
+            destination.parent.mkdir(parents=True, exist_ok=True)
+            if isinstance(content, str):
+                destination.write_text(content, encoding="utf-8")
+            elif isinstance(content, bytes):
+                destination.write_bytes(content)
+            else:
+                raise ValueError(f"Dummy package content must be text or bytes: {relative_name}")
+
+    def _materialize_package(self, props: Dict[str, Any], output_dir: Path) -> Path:
+        """Create or resolve the package file described by a package resource."""
+        source = props.get("source", {"type": "dummy"})
+        if not isinstance(source, dict):
+            raise ValueError("Package source must be an object")
+        source_type = str(source.get("type", "dummy")).lower()
+
+        if source_type == "file":
+            file_path = source.get("path", source.get("file"))
+            if not isinstance(file_path, str) or not file_path:
+                raise ValueError("File package source requires 'path'")
+            resolved_file = self._resolve_example_file(file_path)
+            if resolved_file is None or not resolved_file.is_file():
+                raise FileNotFoundError(f"Package file not found: {file_path}")
+            if resolved_file.suffix.lower() != ".nipkg":
+                raise ValueError("Package file source must point to a .nipkg file")
+            return resolved_file
+
+        if source_type == "repository":
+            package_url = source.get("url", source.get("package_url"))
+            if not isinstance(package_url, str) or not package_url:
+                raise ValueError("Repository package source requires 'url'")
+            parsed = urllib.parse.urlparse(package_url)
+            if parsed.scheme not in {"http", "https"} or not parsed.netloc:
+                raise ValueError("Repository package URL must use http or https")
+            filename = Path(parsed.path).name or "repository-package.nipkg"
+            if not filename.lower().endswith(".nipkg"):
+                raise ValueError("Repository package URL must point to a .nipkg file")
+            output_dir.mkdir(parents=True, exist_ok=True)
+            destination = output_dir / filename
+            max_size_bytes = int(source.get("max_size_bytes", 1024 * 1024 * 1024))
+            if max_size_bytes <= 0:
+                raise ValueError("Repository package 'max_size_bytes' must be positive")
+            response = requests.get(
+                package_url,
+                stream=True,
+                timeout=int(source.get("timeout", props.get("timeout", 300))),
+                verify=get_ssl_verify(package_url),
+            )
+            try:
+                response.raise_for_status()
+                content_length = response.headers.get("Content-Length")
+                if content_length and int(content_length) > max_size_bytes:
+                    raise ValueError("Repository package exceeds the configured size limit")
+                downloaded_bytes = 0
+                with open(destination, "wb") as package_file:
+                    for chunk in response.iter_content(chunk_size=8192):
+                        if chunk:
+                            downloaded_bytes += len(chunk)
+                            if downloaded_bytes > max_size_bytes:
+                                raise ValueError(
+                                    "Repository package exceeds the configured size limit"
+                                )
+                            package_file.write(chunk)
+            except Exception:
+                destination.unlink(missing_ok=True)
+                raise
+            finally:
+                response.close()
+            return destination
+
+        if source_type != "dummy":
+            raise ValueError(f"Unsupported package source type: {source_type}")
+
+        package_name = sanitize_filename(
+            str(
+                source.get(
+                    "package_name",
+                    source.get(
+                        "package", props.get("package_name", props.get("name", "fixture-package"))
+                    ),
+                )
+            ),
+            "fixture-package",
+        )
+        version = self._safe_package_component(
+            str(source.get("version", props.get("version", "1.0.0"))), "1.0.0"
+        )
+        architecture = self._safe_package_component(str(source.get("architecture", "all")), "all")
+        package_folder = output_dir / f"{package_name}_{version}_{architecture}"
+        package_folder.mkdir(parents=True, exist_ok=True)
+        self._write_dummy_package_payload(package_folder, source.get("files"))
+        return pack_folder_to_nipkg(package_folder)
+
+    def _create_package(self, props: Dict[str, Any]) -> Optional[str]:
+        """Create a package file and upload it to an existing feed."""
+        from .feed_click import _list_packages, _upload_package, _wait_for_job
+
+        feed_id = str(props.get("feed_id", props.get("feedId", "")))
+        if not feed_id:
+            return None
+
+        with tempfile.TemporaryDirectory(prefix="slcli-example-package-") as temp_dir:
+            package_path = self._materialize_package(props, Path(temp_dir))
+            upload_result = _upload_package(
+                feed_id,
+                str(package_path),
+                overwrite=bool(props.get("overwrite", False)),
+            )
+            job_id = upload_result.get("jobId", upload_result.get("job", {}).get("id", ""))
+            package_id = upload_result.get("id", upload_result.get("packageId", ""))
+            if job_id:
+                completed_job = _wait_for_job(
+                    str(job_id),
+                    timeout=int(props.get("timeout", 300)),
+                    feed_id=feed_id,
+                )
+                package_id = completed_job.get("resourceId", package_id)
+            if not package_id:
+                package_id = self._get_package_by_identity(props)
+            if not package_id:
+                for package in _list_packages(feed_id):
+                    if Path(str(package.get("fileName", ""))).name == package_path.name:
+                        package_id = package.get("id", package.get("packageId", ""))
+                        break
+            if not package_id:
+                return None
+            self._last_resource_details = {"file": package_path.name, "feed_id": feed_id}
+            return str(package_id)
+
+    def _delete_package(self, props: Dict[str, Any]) -> Optional[str]:
+        """Delete an example package by its feed identity."""
+        from .feed_click import _delete_package as delete_package, _wait_for_job
+
+        package_id = self._get_package_by_identity(props)
+        if not package_id:
+            return None
+        job_id = delete_package(package_id)
+        if job_id:
+            _wait_for_job(str(job_id), timeout=int(props.get("timeout", 300)))
+        return package_id
 
     # --- Create methods (real API calls) ---
     def _create_location(self, props: Dict[str, Any]) -> str:
@@ -635,7 +1823,7 @@ class ExampleProvisioner:
         """Create virtual system via Systems Management API and return server ID.
 
         Uses POST /nisysmgmt/v1/virtual with request body:
-        { alias, workspace }
+        { alias, workspace, locationId }
         """
         url = f"{get_base_url()}/nisysmgmt/v1/virtual"
         # Systems Management API uses 'alias' not 'name'
@@ -646,6 +1834,9 @@ class ExampleProvisioner:
         # Note: Systems API rejects empty string workspace
         if self.workspace_id and self.workspace_id.strip():
             payload["workspace"] = self.workspace_id
+        location_id = props.get("locationId") or props.get("location_id")
+        if isinstance(location_id, str) and location_id.strip():
+            payload["locationId"] = location_id.strip()
         resp = make_api_request("POST", url, payload, handle_errors=False)
         resp.raise_for_status()
         data = resp.json()
@@ -660,32 +1851,36 @@ class ExampleProvisioner:
         """
         try:
             url = f"{get_base_url()}/nisysmgmt/v1/query-systems"
-            filter_expr = f'alias = "{name}"'
-            payload = {
+            payload: Dict[str, Any] = {
                 "skip": 0,
                 "take": 100,
-                "filter": filter_expr,
                 "projection": "new(id,alias,workspace)",
                 "orderBy": "alias",
             }
-            resp = make_api_request("POST", url, payload, handle_errors=False)
-            data = resp.json()
-            systems: List[Dict[str, Any]] = []
-            if isinstance(data, dict) and isinstance(data.get("data"), list):
-                systems = data.get("data", [])
-            elif isinstance(data, list):
-                # Legacy shape: list of items with optional 'data' field
-                for item in data:
-                    sys = item.get("data", item) if isinstance(item, dict) else {}
-                    if sys:
-                        systems.append(sys)
-            for sys in systems:
-                alias = str(sys.get("alias", ""))
-                if alias != name:
-                    continue
-                if self.workspace_id and str(sys.get("workspace", "")) != str(self.workspace_id):
-                    continue
-                return str(sys.get("id", "")) or None
+            while True:
+                resp = make_api_request("POST", url, payload, handle_errors=False)
+                data = resp.json()
+                systems: List[Dict[str, Any]] = []
+                if isinstance(data, dict) and isinstance(data.get("data"), list):
+                    systems = data.get("data", [])
+                elif isinstance(data, list):
+                    # Legacy shape: list of items with optional 'data' field
+                    for item in data:
+                        system_item = item.get("data", item) if isinstance(item, dict) else {}
+                        if system_item:
+                            systems.append(system_item)
+                for system_item in systems:
+                    alias = str(system_item.get("alias", ""))
+                    if alias != name:
+                        continue
+                    if self.workspace_id and str(system_item.get("workspace", "")) != str(
+                        self.workspace_id
+                    ):
+                        continue
+                    return str(system_item.get("id", "")) or None
+                if len(systems) < 100:
+                    break
+                payload["skip"] += len(systems)
         except Exception:
             # API unavailable or malformed response; return None to allow fallback to creation
             pass
@@ -696,33 +1891,37 @@ class ExampleProvisioner:
         ids: List[str] = []
         try:
             url = f"{get_base_url()}/nisysmgmt/v1/query-systems"
-            filter_expr = f'alias = "{name}"'
-            payload = {
+            payload: Dict[str, Any] = {
                 "skip": 0,
                 "take": 200,
-                "filter": filter_expr,
                 "projection": "new(id,alias,workspace)",
                 "orderBy": "alias",
             }
-            resp = make_api_request("POST", url, payload, handle_errors=False)
-            data = resp.json()
-            systems: List[Dict[str, Any]] = []
-            if isinstance(data, dict) and isinstance(data.get("data"), list):
-                systems = data.get("data", [])
-            elif isinstance(data, list):
-                for item in data:
-                    sys = item.get("data", item) if isinstance(item, dict) else {}
-                    if sys:
-                        systems.append(sys)
-            for sys in systems:
-                alias = str(sys.get("alias", ""))
-                if alias != name:
-                    continue
-                if self.workspace_id and str(sys.get("workspace", "")) != str(self.workspace_id):
-                    continue
-                sid = str(sys.get("id", ""))
-                if sid:
-                    ids.append(sid)
+            while True:
+                resp = make_api_request("POST", url, payload, handle_errors=False)
+                data = resp.json()
+                systems: List[Dict[str, Any]] = []
+                if isinstance(data, dict) and isinstance(data.get("data"), list):
+                    systems = data.get("data", [])
+                elif isinstance(data, list):
+                    for item in data:
+                        system_item = item.get("data", item) if isinstance(item, dict) else {}
+                        if system_item:
+                            systems.append(system_item)
+                for system_item in systems:
+                    alias = str(system_item.get("alias", ""))
+                    if alias != name:
+                        continue
+                    if self.workspace_id and str(system_item.get("workspace", "")) != str(
+                        self.workspace_id
+                    ):
+                        continue
+                    system_id = str(system_item.get("id", ""))
+                    if system_id:
+                        ids.append(system_id)
+                if len(systems) < 200:
+                    break
+                payload["skip"] += len(systems)
         except Exception:
             # API unavailable or malformed response; return empty list to proceed with creation
             pass
@@ -762,9 +1961,38 @@ class ExampleProvisioner:
             "vendorName": ["vendorName", "vendor_name"],
             "vendorNumber": ["vendorNumber", "vendor_number"],
             "serialNumber": ["serialNumber", "serial_number"],
+            "firmwareVersion": ["firmwareVersion", "firmware_version"],
+            "hardwareVersion": ["hardwareVersion", "hardware_version"],
+            "visaResourceName": ["visaResourceName", "visa_resource_name"],
+            "temperatureSensors": ["temperatureSensors", "temperature_sensors"],
+            "supportsSelfCalibration": [
+                "supportsSelfCalibration",
+                "supports_self_calibration",
+            ],
+            "supportsExternalCalibration": [
+                "supportsExternalCalibration",
+                "supports_external_calibration",
+                "supportsexternalcalibration",
+            ],
+            "customCalibrationInterval": [
+                "customCalibrationInterval",
+                "custom_calibration_interval",
+            ],
+            "selfCalibration": ["selfCalibration", "self_calibration"],
+            "isNIAsset": ["isNIAsset", "is_ni_asset"],
+            "location": ["location"],
+            "externalCalibration": [
+                "externalCalibration",
+                "external_calibration",
+                "externalcalibration",
+            ],
+            "discoveryType": ["discoveryType", "discovery_type"],
             "partNumber": ["partNumber", "part_number"],
             "properties": ["properties"],
             "fileIds": ["fileIds", "file_ids"],
+            "supportsSelfTest": ["supportsSelfTest", "supports_self_test"],
+            "supportsReset": ["supportsReset", "supports_reset"],
+            "scanCode": ["scanCode", "scan_code"],
         }
         for target, candidates in field_map.items():
             # If the caller already set asset_type, skip the assetType field-map entry
@@ -783,7 +2011,7 @@ class ExampleProvisioner:
                 if trimmed == "" or trimmed == "0":
                     continue
             # Coerce numeric fields to integers when provided as strings
-            if target in ("modelNumber", "vendorNumber"):
+            if target in ("modelNumber", "vendorNumber", "customCalibrationInterval"):
                 if isinstance(val, str):
                     num = val.strip()
                     if num.isdigit():
@@ -817,15 +2045,155 @@ class ExampleProvisioner:
         if "vendorName" not in asset_obj:
             asset_obj["vendorName"] = "Unknown"
 
-        # If a system is provided via resolved "system_id", construct the location object
-        # using the system's minion ID per AssetLocationWithPresenceModel.
-        if "system_id" in props and isinstance(props["system_id"], str):
-            asset_obj["location"] = {
-                "minionId": props["system_id"],
-                "state": {"assetPresence": "UNKNOWN"},
-            }
+        # Build location object from provided location plus resolved relationship props.
+        location_obj: Dict[str, Any] = {}
+        if isinstance(asset_obj.get("location"), dict):
+            location_obj = dict(asset_obj["location"])
+
+        location_field_map: Dict[str, List[str]] = {
+            "minionId": ["minionId", "minion_id"],
+            "physicalLocation": ["physicalLocation", "physical_location"],
+            "parent": ["parent", "parent_id", "parentId", "parent_asset_id", "parentAssetId"],
+            "resourceUri": ["resourceUri", "resource_uri"],
+            "slotNumber": ["slotNumber", "slot_number"],
+        }
+        for target, candidates in location_field_map.items():
+            for cand in candidates:
+                if cand in location_obj and location_obj[cand] is not None:
+                    location_obj[target] = location_obj[cand]
+                    break
+        for key in (
+            "minion_id",
+            "physical_location",
+            "parent_id",
+            "parentId",
+            "parent_asset_id",
+            "parentAssetId",
+            "resource_uri",
+            "slot_number",
+        ):
+            location_obj.pop(key, None)
+
+        if "state" in location_obj and isinstance(location_obj["state"], dict):
+            state_obj = dict(location_obj["state"])
+            if "asset_presence" in state_obj and "assetPresence" not in state_obj:
+                state_obj["assetPresence"] = state_obj["asset_presence"]
+            state_obj.pop("asset_presence", None)
+            state_obj.pop("systemConnection", None)
+            state_obj.pop("system_connection", None)
+            location_obj["state"] = state_obj
+
+        slot_number = location_obj.get("slotNumber")
+        if isinstance(slot_number, str):
+            slot_number_trimmed = slot_number.strip()
+            if slot_number_trimmed.isdigit():
+                location_obj["slotNumber"] = int(slot_number_trimmed)
+
+        if not isinstance(location_obj.get("state"), dict):
+            location_obj["state"] = {"assetPresence": "UNKNOWN"}
+        else:
+            location_obj["state"].setdefault("assetPresence", "UNKNOWN")
+
+        system_id = None
+        for key in ("system_id", "systemId", "minion_id", "minionId"):
+            val = props.get(key)
+            if isinstance(val, str) and val.strip():
+                system_id = val.strip()
+                break
+        if system_id:
+            location_obj["minionId"] = system_id
+
+        parent_asset_id: Optional[str] = None
+        for key in ("parent_asset_id", "parent_id", "parentAssetId", "parentId"):
+            val = props.get(key)
+            if isinstance(val, str) and val.strip():
+                parent_asset_id = val.strip()
+                break
+        if parent_asset_id:
+            location_obj["parent"] = parent_asset_id
+
+        if location_obj:
+            asset_obj["location"] = location_obj
         elif "location" not in asset_obj:
             asset_obj["location"] = {"state": {"assetPresence": "UNKNOWN"}}
+
+        # Build externalCalibration object from provided data plus input aliases.
+        external_calibration_source: Dict[str, Any] = {}
+        if isinstance(asset_obj.get("externalCalibration"), dict):
+            external_calibration_source = dict(asset_obj["externalCalibration"])
+        asset_obj.pop("externalCalibration", None)
+        external_calibration_obj: Dict[str, Any] = {}
+
+        external_calibration_field_map: Dict[str, List[str]] = {
+            "temperatureSensors": [
+                "temperatureSensors",
+                "temperatureSensor",
+                "temperature_sensors",
+                "temperature_sensor",
+                "temperaturesensors",
+                "temperaturesensor",
+            ],
+            "isLimited": ["isLimited", "is_limited", "islimited"],
+            "date": ["date"],
+            "recommendedInterval": [
+                "recommendedInterval",
+                "recommended_interval",
+                "recommendedinterval",
+            ],
+            "nextRecommendedDate": [
+                "nextRecommendedDate",
+                "next_recommended_date",
+                "nextrecommendeddate",
+            ],
+            "nextCustomDueDate": [
+                "nextCustomDueDate",
+                "next_custom_due_date",
+                "nextcustomduedate",
+            ],
+            "comments": ["comments"],
+            "entryType": ["entryType", "entry_type", "entrytype"],
+            "checksum": ["checksum"],
+        }
+        for target, candidates in external_calibration_field_map.items():
+            for cand in candidates:
+                if (
+                    cand in external_calibration_source
+                    and external_calibration_source[cand] is not None
+                ):
+                    external_calibration_obj[target] = external_calibration_source[cand]
+                    break
+
+        recommended_interval = external_calibration_obj.get("recommendedInterval")
+        if isinstance(recommended_interval, str):
+            recommended_interval_trimmed = recommended_interval.strip()
+            if recommended_interval_trimmed.isdigit():
+                external_calibration_obj["recommendedInterval"] = int(recommended_interval_trimmed)
+
+        # Accept simplified config values but always emit array payload shape.
+        temperature_sensors = external_calibration_obj.get("temperatureSensors")
+        if isinstance(temperature_sensors, dict):
+            temperature_sensors = [temperature_sensors]
+        if isinstance(temperature_sensors, list):
+            normalized_sensors: List[Dict[str, Any]] = []
+            for sensor in temperature_sensors:
+                if not isinstance(sensor, dict):
+                    continue
+                normalized_sensor: Dict[str, Any] = {}
+                if "name" in sensor and sensor["name"] is not None:
+                    normalized_sensor["name"] = str(sensor["name"])
+                if "reading" in sensor and sensor["reading"] is not None:
+                    normalized_sensor["reading"] = sensor["reading"]
+                if normalized_sensor:
+                    normalized_sensors.append(normalized_sensor)
+            if normalized_sensors:
+                external_calibration_obj["temperatureSensors"] = normalized_sensors
+            else:
+                external_calibration_obj.pop("temperatureSensors", None)
+        elif temperature_sensors is not None:
+            external_calibration_obj.pop("temperatureSensors", None)
+
+        if external_calibration_obj:
+            asset_obj["externalCalibration"] = external_calibration_obj
 
         # Tag resource with example name for cleanup
         keywords: List[str] = []
@@ -864,6 +2232,20 @@ class ExampleProvisioner:
                     resource_id = err.get("resourceId")
                     if resource_id:
                         return str(resource_id)
+        error = data.get("error")
+        if isinstance(error, dict):
+            messages = [str(error.get("message", "")).strip()]
+            inner_errors = error.get("innerErrors", [])
+            if isinstance(inner_errors, list):
+                messages.extend(
+                    str(inner_error.get("message", "")).strip()
+                    for inner_error in inner_errors
+                    if isinstance(inner_error, dict)
+                )
+            detail = "; ".join(message for message in messages if message)
+            raise RuntimeError(f"Asset creation failed: {detail or 'unknown API error'}")
+        if data.get("failed"):
+            raise RuntimeError("Asset creation failed: request was returned in the failed list")
         return ""
 
     def _create_asset(self, props: Dict[str, Any]) -> str:
@@ -876,6 +2258,18 @@ class ExampleProvisioner:
         asset_obj = self._build_asset_obj(props, default_name="Unknown Asset")
         return self._post_asset(asset_obj)
 
+    def _create_fixture(self, props: Dict[str, Any]) -> str:
+        """Create fixture via Asset Management API and return server ID.
+
+        Fixtures are assets with assetType=FIXTURE. They can be linked as child
+        assets by specifying one of: parent_asset_id, parent_id, parentAssetId,
+        or parentId in resource properties.
+        """
+        asset_obj = self._build_asset_obj(
+            props, default_name="Unknown Fixture", asset_type="FIXTURE"
+        )
+        return self._post_asset(asset_obj)
+
     def _get_asset_by_name(self, name: str) -> Optional[str]:
         """Find an asset by exact `name` within workspace. Returns ID or None.
 
@@ -885,11 +2279,6 @@ class ExampleProvisioner:
         """
         try:
             url = f"{get_base_url()}/niapm/v1/query-assets"
-            filters = []
-            if self.workspace_id:
-                filters.append(f'Workspace = "{self.workspace_id}"')
-            filters.append(f'AssetName = "{name}"')
-            filter_expr = " and ".join(filters)
             projection = (
                 "new(id,name,modelName,modelNumber,vendorName,vendorNumber,serialNumber,"
                 "workspace,properties,keywords,location.minionId,location.parent,"
@@ -899,7 +2288,6 @@ class ExampleProvisioner:
                 "externalCalibration.resolvedDueDate,selfCalibration.date)"
             )
             payload = {
-                "filter": filter_expr,
                 "take": 1000,
                 "skip": 0,
                 "projection": projection,
@@ -909,6 +2297,10 @@ class ExampleProvisioner:
             assets = data.get("assets", [])
             example_tag = f"slcli-example:{self.example_name}" if self.example_name else None
             for asset in assets:
+                if str(asset.get("name", "")) != name:
+                    continue
+                if self.workspace_id and str(asset.get("workspace", "")) != str(self.workspace_id):
+                    continue
                 if example_tag:
                     keywords = asset.get("keywords", [])
                     if not (isinstance(keywords, list) and example_tag in keywords):
@@ -940,11 +2332,6 @@ class ExampleProvisioner:
         """
         try:
             url = f"{get_base_url()}/niapm/v1/query-assets"
-            filters = []
-            if self.workspace_id:
-                filters.append(f'Workspace = "{self.workspace_id}"')
-            filters.append(f'AssetName = "{name}"')
-            filter_expr = " and ".join(filters)
             projection = (
                 "new(id,name,modelName,modelNumber,vendorName,vendorNumber,serialNumber,"
                 "workspace,properties,keywords,location.minionId,location.parent,"
@@ -954,7 +2341,6 @@ class ExampleProvisioner:
                 "externalCalibration.resolvedDueDate,selfCalibration.date)"
             )
             payload = {
-                "filter": filter_expr,
                 "take": 1000,
                 "skip": 0,
                 "projection": projection,
@@ -964,6 +2350,10 @@ class ExampleProvisioner:
             assets = data.get("assets", [])
             example_tag = f"slcli-example:{self.example_name}" if self.example_name else None
             for asset in assets:
+                if str(asset.get("name", "")) != name:
+                    continue
+                if self.workspace_id and str(asset.get("workspace", "")) != str(self.workspace_id):
+                    continue
                 if example_tag:
                     keywords = asset.get("keywords", [])
                     if not (isinstance(keywords, list) and example_tag in keywords):
@@ -972,6 +2362,52 @@ class ExampleProvisioner:
         except Exception:
             # API unavailable or malformed response; return None to allow fallback to creation
             pass
+        return None
+
+    def _get_fixture_by_name(self, name: str) -> Optional[str]:
+        """Find a fixture by exact `name` within workspace. Returns ID or None.
+
+        Fixtures are managed as assets via Asset Management API: POST
+        /niapm/v1/query-assets which returns { assets: [...], totalCount }.
+        Filters via API on workspace/name and client-side on assetType and
+        example tag (keywords).
+        """
+        url = f"{get_base_url()}/niapm/v1/query-assets"
+        filters: List[str] = []
+        if self.workspace_id:
+            filters.append(f'Workspace = "{escape_filter_value(str(self.workspace_id))}"')
+        filters.append(f'AssetName = "{escape_filter_value(name)}"')
+        filter_expr = " and ".join(filters)
+        projection = (
+            "new(id,name,assetType,modelName,modelNumber,vendorName,vendorNumber,serialNumber,"
+            "workspace,properties,keywords,location.minionId,location.parent,"
+            "location.physicalLocation,location.state.assetPresence,location.state.systemConnection,"
+            "discoveryType,supportsSelfTest,supportsSelfCalibration,supportsReset,"
+            "supportsExternalCalibration,scanCode,temperatureSensors.reading,"
+            "externalCalibration.resolvedDueDate,selfCalibration.date)"
+        )
+        payload = {
+            "filter": filter_expr,
+            "take": 1000,
+            "skip": 0,
+            "projection": projection,
+        }
+        resp = make_api_request("POST", url, payload, handle_errors=False)
+        data = resp.json()
+        assets = data.get("assets", [])
+        example_tag = f"slcli-example:{self.example_name}" if self.example_name else None
+        for asset in assets:
+            if str(asset.get("assetType", "")) != "FIXTURE":
+                continue
+            if str(asset.get("name", "")) != name:
+                continue
+            if self.workspace_id and str(asset.get("workspace", "")) != str(self.workspace_id):
+                continue
+            if example_tag:
+                keywords = asset.get("keywords", [])
+                if not (isinstance(keywords, list) and example_tag in keywords):
+                    continue
+            return str(asset.get("id", "")) or None
         return None
 
     def _create_testtemplate(self, props: Dict[str, Any]) -> Optional[str]:
@@ -1084,16 +2520,23 @@ class ExampleProvisioner:
 
         try:
             # Build filter to match products tagged for cleanup
-            filter_parts = ['keywords.Any(x => x == "slcli-provisioner")']
+            filter_parts = ["keywords.Any(x => x == @0)"]
+            substitutions: List[str] = ["slcli-provisioner"]
             if example_tag:
-                filter_parts.append(f'keywords.Any(x => x == "{example_tag}")')
+                filter_parts.append(f"keywords.Any(x => x == @{len(substitutions)})")
+                substitutions.append(example_tag)
             if self.workspace_id:
-                filter_parts.append(f'workspace == "{self.workspace_id}"')
+                filter_parts.append(f"workspace == @{len(substitutions)}")
+                substitutions.append(self.workspace_id)
 
             filter_expr = " && ".join(filter_parts)
 
             query_url = f"{get_base_url()}/nitestmonitor/v2/query-products"
-            query_payload = {"filter": filter_expr, "take": 1000}
+            query_payload = {
+                "filter": filter_expr,
+                "substitutions": substitutions,
+                "take": 1000,
+            }
             query_resp = make_api_request("POST", query_url, query_payload, handle_errors=False)
             products = query_resp.json().get("products", [])
 
@@ -1153,14 +2596,7 @@ class ExampleProvisioner:
             # Asset doesn't exist
             return None
 
-        try:
-            url = f"{get_base_url()}/niapm/v1/delete-assets"
-            payload = {"ids": [asset_id]}
-            resp = make_api_request("POST", url, payload, handle_errors=False)
-            resp.raise_for_status()
-            return asset_id
-        except Exception:
-            return None
+        return self._delete_managed_asset(asset_id, "asset")
 
     def _delete_dut(self, props: Dict[str, Any]) -> Optional[str]:
         """Delete DUT via /niapm/v1/delete-assets.
@@ -1176,14 +2612,36 @@ class ExampleProvisioner:
             # DUT doesn't exist
             return None
 
-        try:
-            url = f"{get_base_url()}/niapm/v1/delete-assets"
-            payload = {"ids": [dut_id]}
-            resp = make_api_request("POST", url, payload, handle_errors=False)
-            resp.raise_for_status()
-            return dut_id
-        except Exception:
+        return self._delete_managed_asset(dut_id, "DUT")
+
+    def _delete_fixture(self, props: Dict[str, Any]) -> Optional[str]:
+        """Delete fixture via /niapm/v1/delete-assets.
+
+        Returns ID if deleted, None otherwise.
+        """
+        name = props.get("name", "")
+        if not name:
             return None
+
+        fixture_id = self._get_fixture_by_name(name)
+        if not fixture_id:
+            # Fixture doesn't exist
+            return None
+
+        return self._delete_managed_asset(fixture_id, "fixture")
+
+    def _delete_managed_asset(self, asset_id: str, resource_label: str) -> str:
+        """Delete one Asset Management resource and verify partial-success output."""
+        url = f"{get_base_url()}/niapm/v1/delete-assets"
+        payload = {"ids": [asset_id]}
+        resp = make_api_request("POST", url, payload, handle_errors=False)
+        resp.raise_for_status()
+        data = resp.json()
+        deleted_ids = data.get("ids", [])
+        failed_ids = data.get("failed", [])
+        if asset_id in deleted_ids and asset_id not in failed_ids:
+            return asset_id
+        raise RuntimeError(f"Asset Management failed to delete {resource_label} {asset_id}")
 
     def _delete_testtemplate(self, props: Dict[str, Any]) -> Optional[str]:
         """Delete test template via /niworkitem/v1/delete-workitem-templates.
@@ -1413,6 +2871,13 @@ class ExampleProvisioner:
                     },
                 ],
             }
+
+            configured_actions = props.get("actions")
+            if isinstance(configured_actions, list):
+                wf_obj["actions"] = configured_actions
+            configured_states = props.get("states")
+            if isinstance(configured_states, list):
+                wf_obj["states"] = configured_states
 
             payload = wf_obj
             resp = make_api_request("POST", url, payload, handle_errors=False)
@@ -2104,11 +3569,40 @@ class ExampleProvisioner:
                 if data_obj:
                     step_obj["data"] = data_obj
 
-            # inputs / outputs (list of {name, value})
+            # inputs / outputs (NamedValueObject list)
             for field in ("inputs", "outputs"):
                 vals = step_cfg.get(field)
-                if isinstance(vals, list):
-                    step_obj[field] = vals
+                named_values: List[Dict[str, str]] = []
+                if isinstance(vals, dict):
+                    named_values = [
+                        {"name": str(name), "value": str(value)}
+                        for name, value in vals.items()
+                        if value is not None
+                    ]
+                elif isinstance(vals, list):
+                    for item in vals:
+                        if not isinstance(item, dict):
+                            continue
+                        if "name" in item and item.get("name") is not None:
+                            value = item.get("value", "")
+                            if value is None:
+                                value = ""
+                            named_values.append(
+                                {
+                                    "name": str(item["name"]),
+                                    "value": str(value),
+                                }
+                            )
+                        else:
+                            named_values.extend(
+                                [
+                                    {"name": str(name), "value": str(value)}
+                                    for name, value in item.items()
+                                    if value is not None
+                                ]
+                            )
+                if named_values:
+                    step_obj[field] = named_values
 
             # properties (string key-value map)
             step_props = step_cfg.get("properties")
@@ -2143,12 +3637,10 @@ class ExampleProvisioner:
                 err=True,
             )
 
-    def _get_test_result_by_name(self, name: str) -> Optional[str]:
-        """Look up test results by programName via /nitestmonitor/v2/results.
-
-        Returns first matching result ID in the workspace, None otherwise.
-        """
-        if not name:
+    def _get_test_result_by_properties(self, props: Dict[str, Any]) -> Optional[str]:
+        """Look up a result by its stable fixture identity fields."""
+        program_name = props.get("program_name") or props.get("test_phase") or props.get("name")
+        if not program_name:
             return None
         try:
             url = f"{get_base_url()}/nitestmonitor/v2/results"
@@ -2157,15 +3649,33 @@ class ExampleProvisioner:
             results = data.get("results") or data
             if isinstance(results, list):
                 for r in results:
-                    if self.workspace_id and str(r.get("workspace", "")) != str(self.workspace_id):
+                    if not self._test_result_matches_properties(r, props):
                         continue
-                    if str(r.get("programName", "")) == name:
-                        rid = r.get("id")
-                        if rid:
-                            return str(rid)
+                    rid = r.get("id")
+                    if rid:
+                        return str(rid)
             return None
         except Exception:
             return None
+
+    def _test_result_matches_properties(
+        self, result: Dict[str, Any], props: Dict[str, Any]
+    ) -> bool:
+        """Return whether a result matches the stable identity used during creation."""
+        program_name = props.get("program_name") or props.get("test_phase") or props.get("name")
+        if self.workspace_id and str(result.get("workspace", "")) != str(self.workspace_id):
+            return False
+        if str(result.get("programName", "")) != str(program_name or ""):
+            return False
+        for property_name, response_name in (
+            ("start_time", "startedAt"),
+            ("serial_number", "serialNumber"),
+            ("part_number", "partNumber"),
+        ):
+            expected = props.get(property_name)
+            if expected is not None and str(result.get(response_name, "")) != str(expected):
+                return False
+        return True
 
     def _get_test_result_ids_by_name(self, name: str) -> List[str]:
         """Return all test result IDs with exact programName in current workspace."""
@@ -2201,19 +3711,26 @@ class ExampleProvisioner:
         try:
             # Build filter to match results with slcli-provisioner keyword
             # Also match example tag if set
-            filter_parts = ['keywords.Any(x => x == "slcli-provisioner")']
+            filter_parts = ["keywords.Any(x => x == @0)"]
+            substitutions: List[str] = ["slcli-provisioner"]
             if example_tag:
-                filter_parts.append(f'keywords.Any(x => x == "{example_tag}")')
+                filter_parts.append(f"keywords.Any(x => x == @{len(substitutions)})")
+                substitutions.append(example_tag)
+            program_name = props.get("program_name") or props.get("test_phase") or props.get("name")
+            filter_parts.append(f"programName == @{len(substitutions)}")
+            substitutions.append(str(program_name or ""))
 
             filter_expr = " && ".join(filter_parts)
 
             # Add workspace filter if set
             if self.workspace_id:
-                filter_expr += f' && workspace == "{self.workspace_id}"'
+                filter_expr += f" && workspace == @{len(substitutions)}"
+                substitutions.append(self.workspace_id)
 
             url = f"{get_base_url()}/nitestmonitor/v2/query-results"
             payload = {
                 "filter": filter_expr,
+                "substitutions": substitutions,
                 "take": 1000,
             }
 
@@ -2230,6 +3747,8 @@ class ExampleProvisioner:
             # Extract IDs from matching results
             result_ids: List[str] = []
             for r in results:
+                if not self._test_result_matches_properties(r, props):
+                    continue
                 rid = r.get("id")
                 if rid:
                     result_ids.append(str(rid))
@@ -2259,7 +3778,7 @@ class ExampleProvisioner:
     def _create_data_table(self, props: Dict[str, Any]) -> Optional[str]:
         """Create data table via /nidataframe/v1/tables.
 
-        Returns table ID if created, None on error.
+        Returns table ID if created, or None when the API returns no table ID.
         """
         name = props.get("name", "")
         if not name:
@@ -2267,12 +3786,10 @@ class ExampleProvisioner:
 
         try:
             url = f"{get_base_url()}/nidataframe/v1/tables"
-            # Transform columns: convert 'type' to 'dataType' and add first column as INDEX
             columns = props.get("columns", [])
             transformed_cols: list[Dict[str, Any]] = []
             for idx, col in enumerate(columns):
                 col_def: Dict[str, Any] = {"name": col.get("name", f"col_{idx}")}
-                # Map type -> dataType
                 col_type = col.get("type", "STRING").upper()
                 if col_type == "TIMESTAMP":
                     col_def["dataType"] = "TIMESTAMP"
@@ -2286,108 +3803,281 @@ class ExampleProvisioner:
                     col_def["dataType"] = "BOOL"
                 else:
                     col_def["dataType"] = "STRING"
-                # First column is INDEX; rest are NORMAL
                 if idx == 0:
                     col_def["columnType"] = "INDEX"
-                    # Ensure INDEX has valid type (not FLOAT64)
                     if col_def.get("dataType") == "FLOAT64":
-                        # Prefer INT64 for index when numeric
                         col_def["dataType"] = "INT64"
                 transformed_cols.append(col_def)
 
+            table_properties: Dict[str, str] = {}
+            configured_properties = props.get("properties", {})
+            if isinstance(configured_properties, dict):
+                table_properties = {
+                    str(key): "" if value is None else str(value)
+                    for key, value in configured_properties.items()
+                }
+            description = props.get("description")
+            if description:
+                table_properties.setdefault("description", str(description))
+            if self.example_name:
+                table_properties.setdefault("slcli-example", self.example_name)
+
             payload = {
                 "name": name,
-                "description": props.get("description", ""),
                 "columns": transformed_cols,
-                "properties": props.get("properties", {}),
+                "properties": table_properties,
             }
-            # Add keywords for precise cleanup
-            kw: List[str] = []
-            if isinstance(props.get("keywords"), list):
-                kw.extend([str(x) for x in props.get("keywords", [])])
-            if isinstance(props.get("tags"), list):
-                kw.extend([str(x) for x in props.get("tags", [])])
-            if self.example_name:
-                kw.append(f"slcli-example:{self.example_name}")
-            if kw:
-                payload["keywords"] = self._deduplicate_keywords(kw)
             if self.workspace_id:
                 payload["workspace"] = self.workspace_id
             resp = make_api_request("POST", url, payload, handle_errors=False)
             resp.raise_for_status()
             data = resp.json()
-            # Prefer ID from response if present
-            if data.get("id"):
-                return data.get("id")
-            # Fallback: lookup by name if ID not returned
-            looked_up_id = self._get_data_table_by_name(name)
-            if looked_up_id:
-                return looked_up_id
-            # If still no ID, return a generated reference (for audit purposes)
-            return str(abs(hash(name)) % (10**12))
+            table_id = data.get("id") if isinstance(data, dict) else None
+            if not table_id:
+                table_id = self._get_data_table_by_name(
+                    name,
+                    ownership_marker=self._data_table_ownership_marker(props),
+                )
+            if not table_id:
+                return None
+            self._ensure_data_table_rows(str(table_id), props)
+            return str(table_id)
         except Exception:
-            return None
+            raise
 
-    def _get_data_table_by_name(self, name: str) -> Optional[str]:
-        """Look up data table by name via /nidataframe/v1/query-tables.
+    @staticmethod
+    def _data_table_ownership_marker(props: Dict[str, Any]) -> Optional[str]:
+        """Return the configured ownership marker for a DataFrame table."""
+        marker = props.get("ownership_marker")
+        table_properties = props.get("properties")
+        if marker is None and isinstance(table_properties, dict):
+            marker = table_properties.get("ownership_marker")
+        return str(marker) if marker else None
 
-        Returns table ID if found, None otherwise.
-        """
+    def _get_data_table_candidates_by_name(self, name: str) -> List[Dict[str, Any]]:
+        """Return exact-name DataFrame table metadata in the current workspace."""
         if not name:
-            return None
+            return []
 
         try:
             url = f"{get_base_url()}/nidataframe/v1/query-tables"
-            filter_str = f"name == @0"
+            filter_str = "name == @0"
+            substitutions: List[str] = [name]
             if self.workspace_id:
-                filter_str += f" and workspace == @1"
+                filter_str += " and workspace == @1"
+                substitutions.append(self.workspace_id)
             payload = {
                 "filter": filter_str,
-                "substitutions": ([name, self.workspace_id] if self.workspace_id else [name]),
-                "projection": ["NAME", "WORKSPACE"],
+                "substitutions": substitutions,
+                "projection": ["ID", "NAME", "PROPERTIES", "WORKSPACE"],
                 "take": 100,
             }
             resp = make_api_request("POST", url, payload, handle_errors=False)
             resp.raise_for_status()
             data = resp.json()
-            if "tables" in data and len(data["tables"]) > 0:
-                # Find exact case-insensitive match
-                for table in data["tables"]:
-                    if table.get("name", "").lower() == name.lower():
-                        return table.get("id")
-            return None
+            tables = data.get("tables", []) if isinstance(data, dict) else []
+            return [
+                table
+                for table in tables
+                if isinstance(table, dict) and str(table.get("name", "")).lower() == name.lower()
+            ]
         except Exception:
-            return None
+            return []
 
-    def _get_data_table_ids_by_name(self, name: str) -> List[str]:
+    def _get_data_table_by_name(
+        self, name: str, ownership_marker: Optional[str] = None
+    ) -> Optional[str]:
+        """Look up data table by name via /nidataframe/v1/query-tables.
+
+        Returns table ID if found, None otherwise.
+        """
+        for table in self._get_data_table_candidates_by_name(name):
+            if ownership_marker:
+                table_properties = table.get("properties", {})
+                if not isinstance(table_properties, dict):
+                    continue
+                if str(table_properties.get("ownership_marker", "")) != ownership_marker:
+                    continue
+            table_id = table.get("id")
+            if table_id:
+                return str(table_id)
+        return None
+
+    def _get_data_table_ids_by_name(
+        self, name: str, ownership_marker: Optional[str] = None
+    ) -> List[str]:
         """Return all data table IDs with exact name in current workspace."""
         ids: List[str] = []
-        if not name:
-            return ids
-        try:
-            url = f"{get_base_url()}/nidataframe/v1/query-tables"
-            filter_str = f"name == @0"
-            subs: List[str] = [name]
-            if self.workspace_id:
-                filter_str += f" and workspace == @1"
-                subs.append(self.workspace_id)
-            payload = {
-                "filter": filter_str,
-                "substitutions": subs,
-                "projection": ["NAME", "WORKSPACE"],
-                "take": 500,
-            }
-            resp = make_api_request("POST", url, payload, handle_errors=False)
-            resp.raise_for_status()
-            data = resp.json()
-            for table in data.get("tables", []) or []:
-                if str(table.get("name", "")).lower() == name.lower():
-                    tid = table.get("id")
-                    if tid:
-                        ids.append(tid)
-        except Exception:
-            return ids
+        for table in self._get_data_table_candidates_by_name(name):
+            if ownership_marker:
+                table_properties = table.get("properties", {})
+                if not isinstance(table_properties, dict):
+                    continue
+                if str(table_properties.get("ownership_marker", "")) != ownership_marker:
+                    continue
+            table_id = table.get("id")
+            if table_id:
+                ids.append(str(table_id))
         return ids
+
+    def _load_data_table_append_payload(self, props: Dict[str, Any]) -> Optional[Dict[str, Any]]:
+        """Load and validate a DataFrame append payload from example properties."""
+        rows_file = props.get("rows_file") or props.get("data_file")
+        rows = props.get("rows")
+        if rows_file and rows is not None:
+            raise ValueError("DataFrame table cannot define both rows_file and rows")
+        if rows_file:
+            if not isinstance(rows_file, str):
+                raise ValueError("DataFrame rows_file must be a string")
+            file_content = self._read_example_file(rows_file)
+            if file_content is None:
+                raise ValueError(f"Unable to read DataFrame rows file: {rows_file}")
+            try:
+                source = json_module.loads(file_content.decode("utf-8"))
+            except (UnicodeDecodeError, json_module.JSONDecodeError) as exc:
+                raise ValueError(f"Invalid DataFrame rows JSON in {rows_file}: {exc}") from exc
+        elif rows is not None:
+            source = {"frame": {"data": rows}}
+        else:
+            return None
+
+        if isinstance(source, list):
+            source = {"frame": {"data": source}}
+        if not isinstance(source, dict):
+            raise ValueError("DataFrame rows must be a JSON object or array")
+
+        frame = source.get("frame")
+        if not isinstance(frame, dict):
+            raise ValueError("DataFrame rows must contain a frame object")
+
+        configured_columns = props.get("columns", [])
+        column_names = [
+            str(column.get("name", f"col_{index}"))
+            for index, column in enumerate(configured_columns)
+            if isinstance(column, dict)
+        ]
+        frame_columns = frame.get("columns")
+        if frame_columns is None:
+            frame_columns = column_names
+        if not isinstance(frame_columns, list) or not frame_columns:
+            raise ValueError("DataFrame rows must define a non-empty columns array")
+        frame_columns = [str(column) for column in frame_columns]
+        if column_names and frame_columns != column_names:
+            raise ValueError("DataFrame row columns do not match the table columns")
+
+        raw_rows = frame.get("data")
+        if not isinstance(raw_rows, list):
+            raise ValueError("DataFrame rows frame must contain a data array")
+        normalized_rows: List[List[Optional[str]]] = []
+        for index, row in enumerate(raw_rows):
+            if not isinstance(row, list) or len(row) != len(frame_columns):
+                raise ValueError(f"DataFrame row {index} must contain {len(frame_columns)} values")
+            normalized_rows.append([None if value is None else str(value) for value in row])
+
+        payload: Dict[str, Any] = {"frame": {"columns": frame_columns, "data": normalized_rows}}
+        if source.get("endOfData") is True or props.get("end_of_data") is True:
+            payload["endOfData"] = True
+        return payload
+
+    @staticmethod
+    def _data_table_row_signature(row: List[Optional[str]]) -> str:
+        """Create a stable comparison key for a DataFrame row."""
+        return json_module.dumps(row, ensure_ascii=True, separators=(",", ":"))
+
+    def _query_data_table_rows(
+        self, table_id: str, columns: List[str]
+    ) -> List[List[Optional[str]]]:
+        """Read all existing rows from a DataFrame table."""
+        rows: List[List[Optional[str]]] = []
+        continuation_token: Optional[str] = None
+        seen_tokens: set[str] = set()
+        while True:
+            payload: Dict[str, Any] = {"columns": columns, "take": 10000}
+            if continuation_token:
+                if continuation_token in seen_tokens:
+                    raise ValueError("DataFrame row query returned a repeated continuation token")
+                seen_tokens.add(continuation_token)
+                payload["continuationToken"] = continuation_token
+            response = make_api_request(
+                "POST",
+                f"{get_base_url()}/nidataframe/v1/tables/{table_id}/query-data",
+                payload,
+                handle_errors=False,
+            )
+            response.raise_for_status()
+            data = response.json()
+            frame = data.get("frame", {}) if isinstance(data, dict) else {}
+            page_rows = frame.get("data", []) if isinstance(frame, dict) else []
+            if isinstance(page_rows, list):
+                for row in page_rows:
+                    if isinstance(row, list):
+                        rows.append([None if value is None else str(value) for value in row])
+            next_token = data.get("continuationToken") if isinstance(data, dict) else None
+            if not next_token:
+                return rows
+            continuation_token = str(next_token)
+
+    def _ensure_data_table_rows(self, table_id: str, props: Dict[str, Any]) -> None:
+        """Append missing DataFrame rows without duplicating an installed fixture."""
+        append_payload = self._load_data_table_append_payload(props)
+        if append_payload is None:
+            return
+
+        frame = append_payload["frame"]
+        columns = frame["columns"]
+        rows = frame["data"]
+        if not rows and append_payload.get("endOfData") is not True:
+            self._last_resource_details = {
+                "rows_expected": 0,
+                "rows_existing": 0,
+                "rows_added": 0,
+            }
+            return
+
+        input_indexes: set[Optional[str]] = set()
+        for row in rows:
+            index_value = row[0]
+            if index_value in input_indexes:
+                raise ValueError(f"DataFrame rows contain duplicate index value: {index_value}")
+            input_indexes.add(index_value)
+
+        existing_rows = self._query_data_table_rows(table_id, columns)
+        existing_signatures = {self._data_table_row_signature(row) for row in existing_rows}
+        existing_indexes = {row[0] for row in existing_rows if row}
+        rows_to_append: List[List[Optional[str]]] = []
+        for row in rows:
+            signature = self._data_table_row_signature(row)
+            if signature in existing_signatures:
+                continue
+            if row[0] in existing_indexes:
+                raise ValueError(f"DataFrame index {row[0]} exists with different row contents")
+            rows_to_append.append(row)
+
+        if rows_to_append:
+            payload: Dict[str, Any] = {"frame": {"columns": columns, "data": rows_to_append}}
+            if append_payload.get("endOfData") is True:
+                payload["endOfData"] = True
+            response = make_api_request(
+                "POST",
+                f"{get_base_url()}/nidataframe/v1/tables/{table_id}/data",
+                payload,
+                handle_errors=False,
+            )
+            response.raise_for_status()
+        elif append_payload.get("endOfData") is True:
+            response = make_api_request(
+                "POST",
+                f"{get_base_url()}/nidataframe/v1/tables/{table_id}/data",
+                {"endOfData": True},
+                handle_errors=False,
+            )
+            response.raise_for_status()
+
+        self._last_resource_details = {
+            "rows_expected": len(rows),
+            "rows_existing": len(existing_rows),
+            "rows_added": len(rows_to_append),
+        }
 
     def _delete_data_table(self, props: Dict[str, Any]) -> Optional[str]:
         """Delete data table via /nidataframe/v1/delete-tables.
@@ -2398,7 +4088,10 @@ class ExampleProvisioner:
         if not name:
             return None
 
-        table_ids = self._get_data_table_ids_by_name(name)
+        table_ids = self._get_data_table_ids_by_name(
+            name,
+            ownership_marker=self._data_table_ownership_marker(props),
+        )
         if not table_ids:
             return None
 
@@ -2507,15 +4200,10 @@ class ExampleProvisioner:
         Returns:
             File contents as bytes, or None if not found.
         """
-        from pathlib import Path
-
         try:
-            if self.example_name:
-                # Path relative to slcli/examples/{example_name}/
-                example_dir = Path(__file__).parent / "examples" / self.example_name
-                full_path = example_dir / file_path
-            else:
-                full_path = Path(file_path)
+            full_path = self._resolve_example_file(file_path)
+            if full_path is None:
+                return None
 
             if not full_path.exists():
                 click.echo(
@@ -2545,6 +4233,61 @@ class ExampleProvisioner:
             )
             return None
 
+    def _resolve_example_file(self, file_path: str) -> Optional[Path]:
+        """Resolve a fixture file and contain it when a fixture directory is configured.
+
+        Without a fixture directory, return the path as provided for backwards
+        compatibility with callers that supply their own working-directory context.
+        """
+        if self.example_dir:
+            example_dir = self.example_dir
+        elif self.example_name:
+            example_dir = Path(__file__).parent / "examples" / self.example_name
+        else:
+            return Path(file_path)
+
+        try:
+            resolved_dir = example_dir.resolve()
+            resolved_path = (resolved_dir / file_path).resolve()
+            resolved_path.relative_to(resolved_dir)
+            return resolved_path
+        except (OSError, ValueError):
+            click.echo(
+                f"Warning: File path must remain inside the example directory: {file_path}",
+                err=True,
+            )
+            return None
+
+    def _get_notebook_by_name(self, name: str) -> Optional[str]:
+        """Look up an example-owned notebook by name and workspace."""
+        if not name:
+            return None
+
+        try:
+            resp = make_api_request(
+                "POST",
+                f"{get_base_url()}/ninotebook/v1/notebook/query",
+                payload={"take": 1000},
+                handle_errors=False,
+            )
+            data = resp.json()
+            notebooks = data.get("notebooks", []) if isinstance(data, dict) else []
+            expected_workspace = self.workspace_id or "Default"
+            for notebook in notebooks:
+                if str(notebook.get("name", "")).lower() != name.lower():
+                    continue
+                if str(notebook.get("workspace", "")) != expected_workspace:
+                    continue
+                properties = notebook.get("properties", {})
+                if self.example_name and properties.get("slcli-example") != self.example_name:
+                    continue
+                notebook_id = notebook.get("id")
+                if notebook_id:
+                    return str(notebook_id)
+        except Exception:
+            return None
+        return None
+
     def _create_notebook(self, props: Dict[str, Any]) -> Optional[str]:
         """Create a notebook from a file path and assign an interface.
 
@@ -2563,16 +4306,12 @@ class ExampleProvisioner:
 
         if not name or not file_path:
             return None
-        from pathlib import Path
 
         try:
-            # Resolve file path relative to example directory
-            if self.example_name:
-                # Path relative to slcli/examples/{example_name}/
-                example_dir = Path(__file__).parent / "examples" / self.example_name
-                notebook_file = example_dir / file_path
-            else:
-                notebook_file = Path(file_path)
+            # Resolve file path relative to the example directory
+            notebook_file = self._resolve_example_file(file_path)
+            if notebook_file is None:
+                return None
 
             if not notebook_file.exists():
                 return None
@@ -2659,14 +4398,43 @@ class ExampleProvisioner:
             )
             return None
 
-    def _get_file_by_name(self, name: str) -> Optional[str]:
-        """Look up file by name.
+    def _get_file_by_name(self, name: str, file_path: Optional[str] = None) -> Optional[str]:
+        """Look up an example-owned file by its uploaded name and workspace."""
+        if not name:
+            return None
 
-        Returns file ID if found, None otherwise.
-        Note: Files do not support name-based lookup; always returns None.
-        """
-        # Files endpoint doesn't support name filtering in LINQ;
-        # return None to skip lookups
+        upload_name = name
+        if file_path and "." not in upload_name:
+            file_extension = Path(file_path).suffix
+            if file_extension:
+                upload_name = f"{upload_name}{file_extension}"
+
+        try:
+            query_url = f"{get_base_url()}/nifile/v1/service-groups/Default/query-files"
+            query_params = {"take": "1000"}
+            if self.workspace_id:
+                query_params["workspace"] = self.workspace_id
+            query_url = f"{query_url}?{urllib.parse.urlencode(query_params)}"
+            resp = make_api_request("POST", query_url, payload={}, handle_errors=False)
+            data = resp.json()
+            files = data.get("availableFiles", []) if isinstance(data, dict) else []
+            example_tag = f"slcli-example:{self.example_name}" if self.example_name else None
+            for file_item in files:
+                properties = file_item.get("properties", {})
+                if str(properties.get("Name", "")).lower() != upload_name.lower():
+                    continue
+                file_workspace = file_item.get("workspace")
+                if file_workspace and str(file_workspace) != str(self.workspace_id):
+                    continue
+                if example_tag:
+                    tags = [tag.strip() for tag in str(properties.get("slcli-tags", "")).split(",")]
+                    if example_tag not in tags or "slcli-provisioner" not in tags:
+                        continue
+                file_id = file_item.get("id")
+                if file_id:
+                    return str(file_id)
+        except Exception:
+            return None
         return None
 
     def _delete_file(self, props: Dict[str, Any]) -> Optional[str]:
@@ -2675,6 +4443,10 @@ class ExampleProvisioner:
         Returns an ID summary if deleted, None otherwise.
         """
         example_tag = f"slcli-example:{self.example_name}" if self.example_name else None
+        upload_name = str(props.get("name", ""))
+        file_path = props.get("file_path")
+        if isinstance(file_path, str) and "." not in upload_name:
+            upload_name += Path(file_path).suffix
 
         try:
             deleted_ids: List[str] = []
@@ -2682,10 +4454,11 @@ class ExampleProvisioner:
             # Try to query files by workspace
             if self.workspace_id and example_tag:
                 # Simple query by workspace only - custom properties may not be queryable
-                filter_expr = f'workspace == "{self.workspace_id}"'
-
-                query_url = f"{get_base_url()}/nifile/v1/service-groups/Default/query-files-linq"
-                query_payload = {"filter": filter_expr, "take": 1000}
+                query_url = (
+                    f"{get_base_url()}/nifile/v1/service-groups/Default/query-files?"
+                    f"{urllib.parse.urlencode({'take': 1000, 'workspace': self.workspace_id})}"
+                )
+                query_payload: Dict[str, Any] = {}
                 query_resp = make_api_request("POST", query_url, query_payload, handle_errors=False)
                 files = query_resp.json().get("availableFiles", [])
 
@@ -2694,8 +4467,12 @@ class ExampleProvisioner:
                 for file_item in files:
                     # Check if this file has our example tag in metadata
                     props_meta = file_item.get("properties", {})
-                    tags_str = props_meta.get("slcli-tags", "")
-                    if example_tag in tags_str and "slcli-provisioner" in tags_str:
+                    tags = [tag.strip() for tag in str(props_meta.get("slcli-tags", "")).split(",")]
+                    if (
+                        str(props_meta.get("Name", "")).lower() == upload_name.lower()
+                        and example_tag in tags
+                        and "slcli-provisioner" in tags
+                    ):
                         fid = file_item.get("id")
                         if fid:
                             file_ids.append(str(fid))
@@ -2724,6 +4501,7 @@ class ExampleProvisioner:
         Returns an ID summary if deleted, None otherwise.
         """
         example_tag = f"slcli-example:{self.example_name}" if self.example_name else None
+        notebook_name = str(props.get("name", ""))
 
         try:
             deleted_ids: List[str] = []
@@ -2736,9 +4514,8 @@ class ExampleProvisioner:
                 # Extract example name from tag
                 example_name = example_tag.split(":")[-1]
 
-                # Query by workspace only
-                filter_str = f'workspace == "{self.workspace_id}"'
-                payload: Dict[str, Any] = {"filter": filter_str, "take": 100}
+                # Query all notebooks and filter workspace and ownership client-side.
+                payload: Dict[str, Any] = {"take": 100}
                 resp = make_api_request(
                     "POST",
                     f"{base_url}/ninotebook/v1/notebook/query",
@@ -2749,6 +4526,10 @@ class ExampleProvisioner:
 
                 # Filter client-side by checking properties for our example tag
                 for notebook in notebooks:
+                    if str(notebook.get("workspace", "")) != str(self.workspace_id):
+                        continue
+                    if str(notebook.get("name", "")).lower() != notebook_name.lower():
+                        continue
                     props_meta = notebook.get("properties", {})
                     if props_meta.get("slcli-example") == example_name:
                         nb_id = notebook.get("id")

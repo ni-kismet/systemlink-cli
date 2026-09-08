@@ -1,5 +1,5 @@
 import { APP_BASE_HREF, CommonModule } from '@angular/common';
-import { CUSTOM_ELEMENTS_SCHEMA, NgModule } from '@angular/core';
+import { NgModule } from '@angular/core';
 import { FormsModule } from '@angular/forms';
 
 import {
@@ -22,6 +22,8 @@ import { NimbleChipModule } from '@ni/nimble-angular/chip';
 import { NimbleLabelProviderCoreModule } from '@ni/nimble-angular/label-provider/core';
 import { NimbleTableModule } from '@ni/nimble-angular/table';
 import { NimbleTableColumnTextModule } from '@ni/nimble-angular/table-column/text';
+import { OkFvMasterDetailListItemModule } from '@ni/ok-angular/fv/master-detail-list-item';
+import { OkFvMasterDetailListModule } from '@ni/ok-angular/fv/master-detail-list';
 
 import { AppRoutingModule } from './app-routing.module';
 import { AssetsPageComponent } from './features/assets/assets-page.component';
@@ -68,8 +70,9 @@ import { LoadingStateComponent } from './shared/components/loading-state.compone
     NimbleTextFieldModule,
     NimbleTableModule,
     NimbleTableColumnTextModule,
+    OkFvMasterDetailListModule,
+    OkFvMasterDetailListItemModule,
   ],
   providers: [{ provide: APP_BASE_HREF, useValue: '/' }],
-  schemas: [CUSTOM_ELEMENTS_SCHEMA],
 })
 export class AppModule {}

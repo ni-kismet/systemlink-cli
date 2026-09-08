@@ -1,7 +1,7 @@
 ---
 # SLE Example Configuration: Demo Test Plans
 format_version: "1.0"
-name: "demo-test-plans"
+name: "demo-data-2"
 title: "Demo Test Plans"
 description: |
   A complete example demonstrating the end-to-end test planning workflow.

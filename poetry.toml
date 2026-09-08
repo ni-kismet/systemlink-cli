@@ -1,0 +1,4 @@
+[solver]
+# Match the release delay in ni/python-renovate-config.
+min-release-age = 14
+min-release-age-exclude = ["ni-python-styleguide"]

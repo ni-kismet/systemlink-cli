@@ -6,11 +6,14 @@ from pathlib import Path
 from typing import Any, Dict, List, Optional, Tuple
 
 import click
+from packaging.version import InvalidVersion, Version
 
+from ._version import __version__
 from .utils import ExitCodes, format_success
 
 SKILL_NAME = "slcli"
 _FALLBACK_SKILL_CHOICES = [SKILL_NAME]
+_VERSION_FILENAME = ".slcli-version"
 
 # Mapping of client name -> (personal skills dir, project subdir relative to repo root)
 # personal dir uses Path.home() so it's always resolved at call time via _personal_dir().
@@ -119,6 +122,23 @@ def _expand_skill_selection(skill_names: Optional[List[str]] = None) -> List[str
     return requested
 
 
+def _skill_installation_status(destination_root: Path, skill_name: str) -> str:
+    """Return the version status of an installed skill."""
+    destination_dir = destination_root / skill_name
+    if not destination_dir.exists():
+        return "missing"
+
+    version_file = destination_dir / _VERSION_FILENAME
+    if not version_file.exists():
+        return "unversioned"
+
+    try:
+        installed_version = version_file.read_text(encoding="utf-8").strip()
+        return "current" if Version(installed_version) >= Version(__version__) else "outdated"
+    except (InvalidVersion, OSError):
+        return "unversioned"
+
+
 def install_skills_to_directory(
     directory: Path,
     skill_names: Optional[List[str]] = None,
@@ -150,6 +170,7 @@ def install_skills_to_directory(
                 destination_dir.unlink()
 
         shutil.copytree(source_dir, destination_dir)
+        (destination_dir / _VERSION_FILENAME).write_text(f"{__version__}\n", encoding="utf-8")
 
     return len(selected_skills)
 
@@ -182,6 +203,19 @@ def _resolve_destinations(clients: List[str], scope: str) -> List[Path]:
         if d not in seen:
             seen.append(d)
     return seen
+
+
+def _requested_destinations(
+    directory: Optional[Path], client: Optional[str], scope: Optional[str]
+) -> List[Path]:
+    """Resolve either a custom skills directory or client-specific destinations."""
+    if directory is not None:
+        if client is not None or scope is not None:
+            raise ValueError("--directory cannot be combined with --client or --scope")
+        return [directory.expanduser()]
+
+    selected_clients = CLIENT_CHOICES if client == "all" else [client or "agents"]
+    return _resolve_destinations(selected_clients, scope or "project")
 
 
 def register_skill_commands(cli: Any) -> None:
@@ -218,6 +252,13 @@ def register_skill_commands(cli: Any) -> None:
         help="personal (~/ home dirs), project (current repo), or both.",
     )
     @click.option(
+        "--directory",
+        "-d",
+        type=click.Path(file_okay=False, path_type=Path),
+        default=None,
+        help="Install directly into this skills directory.",
+    )
+    @click.option(
         "--force",
         "-F",
         is_flag=True,
@@ -225,7 +266,11 @@ def register_skill_commands(cli: Any) -> None:
         help="Overwrite existing skill installation without prompting.",
     )
     def install_skill(
-        skill: Optional[str], client: Optional[str], scope: Optional[str], force: bool
+        skill: Optional[str],
+        client: Optional[str],
+        scope: Optional[str],
+        directory: Optional[Path],
+        force: bool,
     ) -> None:
         """Install bundled skills for supported AI clients."""
         requested_skills: Optional[List[str]]
@@ -235,11 +280,9 @@ def register_skill_commands(cli: Any) -> None:
             assert skill is not None
             requested_skills = [skill.lower()]
         selected_skill_names = _expand_skill_selection(requested_skills)
-        selected_clients = CLIENT_CHOICES if client == "all" else [client or "agents"]
-        selected_scope = scope or "project"
-        destinations = _resolve_destinations(selected_clients, selected_scope)
 
         try:
+            destinations = _requested_destinations(directory, client, scope)
             installed_count = 0
             for destination in destinations:
                 installed_count += install_skills_to_directory(
@@ -257,6 +300,9 @@ def register_skill_commands(cli: Any) -> None:
         except FileNotFoundError as exc:
             click.echo(f"✗ {exc}", err=True)
             sys.exit(ExitCodes.GENERAL_ERROR)
+        except OSError as exc:
+            click.echo(f"✗ Unable to install skills: {exc}", err=True)
+            sys.exit(ExitCodes.GENERAL_ERROR)
 
         format_success(
             "Installed bundled AI skills",
@@ -266,3 +312,60 @@ def register_skill_commands(cli: Any) -> None:
                 "Installed": str(installed_count),
             },
         )
+
+    @skill.command(name="check")
+    @click.option(
+        "--skill",
+        "-k",
+        type=click.Choice(SKILL_CHOICES + ["all"], case_sensitive=False),
+        default=None,
+        help=f"Skill to check ({', '.join(SKILL_CHOICES)}, or all).",
+    )
+    @click.option(
+        "--client",
+        "-c",
+        type=click.Choice(CLIENT_CHOICES + ["all"], case_sensitive=False),
+        default=None,
+        help="AI client installation to check (agents, claude, or all).",
+    )
+    @click.option(
+        "--scope",
+        "-s",
+        type=click.Choice(["personal", "project", "both"], case_sensitive=False),
+        default=None,
+        help="personal (~/ home dirs), project (current repo), or both.",
+    )
+    @click.option(
+        "--directory",
+        "-d",
+        type=click.Path(file_okay=False, path_type=Path),
+        default=None,
+        help="Check skills directly in this directory.",
+    )
+    def check_skills(
+        skill: Optional[str],
+        client: Optional[str],
+        scope: Optional[str],
+        directory: Optional[Path],
+    ) -> None:
+        """Check whether installed skills match the bundled version."""
+        requested_skills = None if skill in (None, "all") else [skill.lower()]
+
+        try:
+            selected_skill_names = _expand_skill_selection(requested_skills)
+            destinations = _requested_destinations(directory, client, scope)
+        except ValueError as exc:
+            click.echo(f"✗ {exc}", err=True)
+            sys.exit(ExitCodes.INVALID_INPUT)
+
+        needs_update = False
+        click.echo(f"Bundled skill version: {__version__}")
+        for destination in destinations:
+            for skill_name in selected_skill_names:
+                status = _skill_installation_status(destination, skill_name)
+                indicator = "✓" if status == "current" else "✗"
+                click.echo(f"{indicator} {destination / skill_name}: {status}")
+                needs_update = needs_update or status != "current"
+
+        if needs_update:
+            sys.exit(ExitCodes.GENERAL_ERROR)

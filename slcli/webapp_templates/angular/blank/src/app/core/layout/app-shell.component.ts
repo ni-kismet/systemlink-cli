@@ -5,8 +5,6 @@ import { NavigationEnd, Router, RouterModule } from '@angular/router';
 import { NimbleAnchorTabModule, NimbleAnchorTabsModule } from '@ni/nimble-angular';
 import { filter } from 'rxjs';
 
-import { SystemLinkContextService } from '../systemlink/systemlink-context.service';
-
 interface ShellTab {
   id: string;
   label: string;
@@ -37,10 +35,7 @@ export class AppShellComponent {
 
   activeTabId = 'overview';
 
-  constructor(
-    public readonly context: SystemLinkContextService,
-    router: Router,
-  ) {
+  constructor(router: Router) {
     this.updateActiveTab(router.url);
     router.events
       .pipe(filter((event): event is NavigationEnd => event instanceof NavigationEnd))

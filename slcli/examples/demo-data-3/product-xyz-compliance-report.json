@@ -1,0 +1,46 @@
+{
+  "example": "demo-data-3",
+  "product": "XYZ-2025-001",
+  "analysis_window": {
+    "start": "2025-01-01T00:00:00Z",
+    "end": "2025-06-30T23:59:59Z"
+  },
+  "gaps": [
+    {
+      "condition": "Overvoltage margin at high temperature",
+      "expected": "at least 10%",
+      "observed": "7%",
+      "status": "gap",
+      "evidence": ["result_tr_xyz_ov_001", "result_tr_xyz_ov_003", "result_tr_xyz_ov_005"]
+    },
+    {
+      "condition": "Leakage current at 5 V standby",
+      "expected": "at most 2 mA",
+      "observed": "3.4 mA",
+      "status": "gap",
+      "evidence": ["result_tr_xyz_leakage"]
+    },
+    {
+      "condition": "Cold-start response time",
+      "expected": "at most 100 ms",
+      "observed": "142 ms",
+      "status": "gap",
+      "evidence": ["result_tr_xyz_cold_start"]
+    },
+    {
+      "condition": "Nominal output voltage",
+      "expected": "12 V +/- 0.5 V",
+      "observed": "12.00 V",
+      "status": "pass",
+      "evidence": ["result_tr_xyz_traceability"]
+    },
+    {
+      "condition": "Thermal shutdown behavior",
+      "expected": "shutdown at 85 C",
+      "observed": null,
+      "status": "not-run",
+      "evidence": []
+    }
+  ],
+  "provisioning_note": "Specification metadata and five expected conditions are provisioned, and the three DataFrame tables contain populated rows. This JSON remains supporting evidence; structured condition outcomes and links to test-result evidence are unsupported by the specification API."
+}

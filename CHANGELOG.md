@@ -2,6 +2,252 @@
 
 <!-- towncrier release notes start -->
 
+## v1.27.7 (2026-09-04)
+
+### Other Changes
+
+- Adopt the shared NI Python Renovate configuration. (migrate-python-renovate-config)
+
+
+## v1.27.6 (2026-09-02)
+
+### Bug Fixes
+
+- Update Python runtime dependencies. (deps-python-runtime-dependencies)
+
+
+## v1.27.5 (2026-09-02)
+
+### Bug Fixes
+
+- Update dependency isort to v9. (deps-isort-9-x)
+- Update dependency mcp to v2.1.1. (deps-mcp-2-x-lockfile)
+
+
+## v1.27.4 (2026-09-02)
+
+### Bug Fixes
+
+- Remove the duplicate shell header and unsupported Angular development options from generated webapp templates. (webapp-template-duplicate-header)
+
+
+## v1.27.3 (2026-09-02)
+
+### Features
+
+- Add version checks and custom destination directories to the bundled AI skill installer. (skill-versioning)
+- Add `slcli version check` to compare the installed version with PyPI and show the update command for Homebrew, Scoop, pipx, uv, or pip installations. Update the bundled agent skill to check both the CLI and skill versions as routine workflow and troubleshooting hygiene. (version-check)
+
+### Bug Fixes
+
+- Build SystemLink Server webapp URLs using the WebVI host route. (webapp-server-url)
+
+
+## v1.27.2 (2026-09-01)
+
+### Bug Fixes
+
+- Expand the bundled SystemLink skill with a focused webapp deployment workflow and add the `-f` alias to `webapp list`. (focused-webapp-skill)
+
+
+## v1.27.1 (2026-08-31)
+
+### Bug Fixes
+
+- Refresh bundled CLI guidance to match current command behavior, recommend focused webapp scaffolds, and hide the legacy webapp init command from help. (focused-webapp-skill)
+
+
+## v1.27.0 (2026-08-28)
+
+### Features
+
+- Add external example fixture provisioning and deletion, including fixture assets and richer demo metadata. (#213)
+
+
+## v1.26.3 (2026-08-27)
+
+### Bug Fixes
+
+- Prevent interactive pagination prompts from blocking captured CLI output and improve Windows E2E subprocess configuration handling. (windows-e2e-noninteractive)
+
+
+## v1.26.2 (2026-08-27)
+
+### Bug Fixes
+
+- Run E2E tests against the SLE test tier and SLS base environment, while selecting only supported services and accepting empty collections. (sls-e2e-test-selection)
+
+
+## v1.26.1 (2026-08-21)
+
+### Bug Fixes
+
+- Update Python, JavaScript, and GitHub Actions dependencies flagged in issue #79. (deps-issue-79)
+
+
+## v1.26.0 (2026-08-21)
+
+### Features
+
+- Generate a runtime-only CycloneDX SBOM by default, removing development-marked components, and refresh compatible Angular and NI package dependencies for new Angular webapps. (webapp-sbom)
+
+
+## v1.25.1 (2026-08-20)
+
+### Bug Fixes
+
+- Use the Web URL service probes during PKCE login and health checks so the active SystemLink platform is detected correctly. (pkce-platform-detection)
+
+
+## v1.25.0 (2026-08-20)
+
+### Features
+
+- Add opt-in browser-based PKCE login for the Stratus Token Service, using direct bearer access tokens while preserving API-key login as the default. (pkce-login)
+
+
+## v1.24.0 (2026-08-18)
+
+### Features
+
+- Make the MCP server self-describing with client guidance resources, workflow prompts, tool metadata, and the first typed workspace response. (mcp-client-guidance)
+
+### Bug Fixes
+
+- Update dependency mcp to v2.0.0, support its server and streamable HTTP APIs,
+  and use modern MCP protocol discovery with a legacy handshake fallback. (deps-mcp-2-x-lockfile)
+
+
+## v1.23.0 (2026-08-18)
+
+### Features
+
+- Add package resources to example fixtures, including deterministic dummy `.nipkg` generation, local package files, and explicit repository package URLs. (example-package-resources)
+
+
+## v1.22.1 (2026-08-12)
+
+### Bug Fixes
+
+- Make `webapp new` reliably detect Node.js and npm on Windows and decode npm output without locale errors. (webapp-new-windows-bootstrap)
+
+
+## v1.22.0 (2026-08-08)
+
+### Features
+
+- Support installing example fixtures from an arbitrary local `config.yaml` with `slcli example install --file`; referenced files are resolved relative to the fixture directory. (arbitrary-example-install)
+
+
+## v1.21.0 (2026-08-08)
+
+### Features
+
+- Add the Nigel Systems and Products query fixture and extend example provisioning to support feeds, deployment states, tags, specifications, alarms, and populated DataFrame rows. (example-provisioner-resource-support)
+
+
+## v1.20.0 (2026-08-07)
+
+### Features
+
+- Add alarm listing, inspection, acknowledgment, force-clear, deletion, transition, and terminal monitoring commands. (alarm-support)
+
+
+## v1.19.0 (2026-08-07)
+
+### Features
+
+- Add a `--graph` option to render numeric tag history as a terminal sparkline. (tag-history-graph)
+
+
+## v1.18.2 (2026-08-06)
+
+### Bug Fixes
+
+- Update dependency cyclonedx-bom to v7.3.1. (deps-cyclonedx-bom-7-x-lockfile)
+- Update dependency mypy to v2.3.0. (deps-mypy-2-x-lockfile)
+
+
+## v1.18.1 (2026-08-03)
+
+### Bug Fixes
+
+- Update GitHub Actions to v7. (deps-major-github-actions)
+- Fix Windows release validation for self-signed certificate trust support. (windows-self-signed-trust)
+
+
+## v1.18.0 (2026-08-03)
+
+### Features
+
+- Add explicit trust-store support for SystemLink servers using self-signed TLS certificates. (self-signed-certificate-trust)
+
+
+## v1.17.4 (2026-07-28)
+
+### Bug Fixes
+
+- Add pipx-focused MCP dependency guidance and expose an install-time MCP extra (`systemlink-cli[mcp]`) so users can enable MCP support in one install. (mcp-pipx-install)
+
+
+## v1.17.3 (2026-07-28)
+
+### Bug Fixes
+
+- Include the conflicting webapp ID and published URL when publishing a duplicate webapp name. (webapp-conflict-details)
+
+
+## v1.17.2 (2026-07-21)
+
+### Bug Fixes
+
+- Prevent privileged workflows from checking out pull request-controlled code when generating dependency update fragments. (secure-bot-towncrier-checkout)
+
+
+## v1.17.1 (2026-07-21)
+
+### Bug Fixes
+
+- Update dependency mypy to v2.2.0. (deps-mypy-2-x-lockfile)
+
+
+## v1.17.0 (2026-07-16)
+
+### Features
+
+- Add `slcli system create` for registering virtual systems. (system-virtual-create)
+
+
+## v1.16.3 (2026-07-13)
+
+### Bug Fixes
+
+- Upgrade transitive dependencies to resolve open security advisories. (deps-security-alerts)
+
+
+## v1.16.2 (2026-07-13)
+
+### Bug Fixes
+
+- Update dependency pyinstaller to v6.21.0. (deps-pyinstaller-6-x-lockfile)
+- Update dependency pytest to v9.1.1. (deps-pytest-9-x-lockfile)
+
+
+## v1.16.1 (2026-07-13)
+
+### Bug Fixes
+
+- Update dependency lxml to v6.1.1. (deps-lxml-6-x-lockfile)
+- Update dependency mcp to v1.28.1. (deps-mcp-1-x-lockfile)
+
+
+## v1.16.0 (2026-07-10)
+
+### Features
+
+- Add OK feature-pack support and enable dashboard, list-detail, and admin hosted webapp templates. (webapp-template-support)
+
+
 ## v1.15.2 (2026-07-09)
 
 ### Bug Fixes

@@ -9,6 +9,8 @@ from typing import Any, Dict
 
 import pytest
 
+pytestmark = pytest.mark.sle
+
 _DATAFRAME_AVAILABLE: bool | None = None
 _DATAFRAME_SKIP_REASON: str | None = None
 

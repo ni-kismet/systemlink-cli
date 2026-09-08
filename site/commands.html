@@ -51,6 +51,7 @@
         <a href="#mcp" class="sidebar-link">mcp</a>
         <a href="#testmonitor" class="sidebar-link">testmonitor</a>
         <a href="#asset" class="sidebar-link">asset</a>
+        <a href="#alarm" class="sidebar-link">alarm</a>
         <a href="#system" class="sidebar-link">system</a>
         <a href="#state" class="sidebar-link">state</a>
         <a href="#dataframe" class="sidebar-link">dataframe</a>
@@ -68,6 +69,8 @@
         <a href="#webapp" class="sidebar-link">webapp</a>
         <a href="#comment" class="sidebar-link">comment</a>
         <a href="#customfield" class="sidebar-link">customfield</a>
+        <a href="#version" class="sidebar-link">version</a>
+        <a href="#skill" class="sidebar-link">skill</a>
         <a href="#example" class="sidebar-link">example</a>
       </div>
     </aside>
@@ -83,6 +86,7 @@
         <div class="cmd-group"><h3>mcp</h3><p>Model Context Protocol server install and serve commands</p><code>slcli mcp install</code></div>
         <div class="cmd-group"><h3>testmonitor</h3><p>Test results, products, steps, measurements</p><code>slcli testmonitor result list</code></div>
         <div class="cmd-group"><h3>asset</h3><p>Hardware assets, calibration, fleet summary</p><code>slcli asset list</code></div>
+        <div class="cmd-group"><h3>alarm</h3><p>Alarm listing, lifecycle actions, transitions, and monitoring</p><code>slcli alarm list</code></div>
         <div class="cmd-group"><h3>system</h3><p>Managed systems, package comparison, jobs, reports</p><code>slcli system list</code></div>
         <div class="cmd-group"><h3>state</h3><p>Saved software states, .sls import/export, history, versioning</p><code>slcli state list</code></div>
         <div class="cmd-group"><h3>dataframe</h3><p>DataFrame tables, schema inspection, row queries, CSV export</p><code>slcli dataframe schema &lt;table-id&gt;</code></div>
@@ -93,13 +97,15 @@
         <div class="cmd-group"><h3>routine</h3><p>Event-action routines (v1 &amp; v2)</p><code>slcli routine list</code></div>
         <div class="cmd-group"><h3>feed</h3><p>NI Package Manager feeds &amp; packages</p><code>slcli feed list</code></div>
         <div class="cmd-group"><h3>file</h3><p>File upload, download, query, watch</p><code>slcli file list</code></div>
-        <div class="cmd-group"><h3>tag</h3><p>Tags: create, read, set values</p><code>slcli tag list</code></div>
+        <div class="cmd-group"><h3>tag</h3><p>Tags: create, read, values, and value history</p><code>slcli tag list</code></div>
         <div class="cmd-group"><h3>user</h3><p>User &amp; service account management</p><code>slcli user list</code></div>
         <div class="cmd-group"><h3>auth</h3><p>Authorization policies &amp; templates</p><code>slcli auth policy list</code></div>
         <div class="cmd-group"><h3>workspace</h3><p>Workspace listing, info, disable</p><code>slcli workspace list</code></div>
         <div class="cmd-group"><h3>webapp</h3><p>Static web app lifecycle</p><code>slcli webapp list</code></div>
         <div class="cmd-group"><h3>comment</h3><p>Comments on any resource</p><code>slcli comment list</code></div>
         <div class="cmd-group"><h3>customfield</h3><p>Custom field configurations</p><code>slcli customfield list</code></div>
+        <div class="cmd-group"><h3>version</h3><p>CLI version and update guidance</p><code>slcli version check</code></div>
+        <div class="cmd-group"><h3>skill</h3><p>Bundled AI skill installation and version checks</p><code>slcli skill check</code></div>
         <div class="cmd-group"><h3>example</h3><p>Demo environment provisioning</p><code>slcli example list</code></div>
       </div>
 
@@ -152,16 +158,16 @@ slcli testmonitor result list --format json</code></pre>
     slcli mcp install --target all</code></pre>
 
       <h3>Serve The MCP Endpoint</h3>
-      <pre><code># Default stdio transport for AI clients that spawn the server directly
+      <pre><code># Default streamable HTTP transport for the MCP Inspector and browser tooling
     slcli mcp serve
 
-    # Streamable HTTP transport for the MCP Inspector and browser tooling
-    slcli mcp serve --transport streamable-http
+    # Stdio transport for AI clients that spawn the server directly
+    slcli mcp serve --transport stdio
 
     # Bind to a custom host and port
     slcli mcp serve --transport streamable-http --host 0.0.0.0 --port 9000</code></pre>
 
-      <p>Streamable HTTP serves the MCP endpoint at <code>http://127.0.0.1:8000/mcp</code> by default.</p>
+      <p>Streamable HTTP serves the MCP endpoint at <code>http://127.0.0.1:8765/mcp</code> by default.</p>
 
       <!-- ─── TEST MONITOR ─── -->
       <h2 id="testmonitor">testmonitor</h2>
@@ -241,6 +247,37 @@ slcli asset location-history &lt;asset-id&gt; \
 slcli asset update &lt;asset-id&gt; --name "Updated Name"
 slcli asset delete &lt;asset-id&gt; --force</code></pre>
 
+      <!-- ─── ALARM ─── -->
+      <h2 id="alarm">alarm</h2>
+      <p>Query alarm instances, inspect and acknowledge conditions, clear or delete records, report transitions, and monitor active alarms.</p>
+
+      <h3>List &amp; Filter</h3>
+      <pre><code># List active alarms in the effective workspace
+    slcli alarm list
+
+    # Search alarm history across all workspaces
+    slcli alarm list --state all --workspace all --format json
+
+    # Filter by severity and resource
+    slcli alarm list --min-severity 3 --resource-type Tag</code></pre>
+
+      <h3>Inspect &amp; Manage</h3>
+      <pre><code># Inspect one alarm instance
+    slcli alarm get &lt;instance-id&gt;
+
+    # Acknowledge, force-clear, or delete alarm instances
+    slcli alarm acknowledge &lt;instance-id&gt;
+    slcli alarm force-clear &lt;instance-id&gt; --yes
+    slcli alarm delete &lt;instance-id&gt; --yes
+
+    # Create an alarm or report a SET/CLEAR transition
+    slcli alarm transition &lt;alarm-id&gt; --severity 3 --display-name "High disk use"
+    slcli alarm transition &lt;alarm-id&gt; --transition CLEAR
+
+    # Render a live dashboard or a single snapshot
+    slcli alarm monitor
+    slcli alarm monitor --once --format json</code></pre>
+
       <!-- ─── SYSTEM ─── -->
       <h2 id="system">system</h2>
       <p>Manage registered systems, compare software and assets, inspect packages and jobs, and generate reports.</p>
@@ -273,6 +310,12 @@ slcli system compare "PXI Controller A" "PXI Controller B"
 # Compare by system ID with JSON output
 slcli system compare &lt;system-a&gt; &lt;system-b&gt; --format json</code></pre>
       <p>Compares installed software and connected assets across two systems. Accepts system IDs or aliases and highlights package-only differences, version differences, asset count mismatches, and slot differences.</p>
+
+      <h3>Create Virtual System</h3>
+      <pre><code>slcli system create --alias "Test System 01" --workspace Default
+slcli system create --alias "Test System 02" --location-id &lt;location-id&gt;
+slcli system create --alias "Test System 03" --format json</code></pre>
+      <p>Creates a virtual system that can report data without a physical Salt minion connection. The command returns the generated system ID and reports whether the system was activated.</p>
 
       <h3>Summary &amp; Reports</h3>
       <pre><code>slcli system summary
@@ -629,6 +672,12 @@ slcli tag create "sensor.temp" --type DOUBLE --keywords "lab" --collect-aggregat
 slcli tag set-value "sensor.temp" "42.5"
 slcli tag get-value "sensor.temp" --include-aggregates
 
+# View historical values
+slcli tag history "sensor.temp" --take 100 --format table
+
+# View numeric history as a terminal sparkline
+slcli tag history "sensor.temp" --take 100 --graph
+
 # View details with aggregates
 slcli tag get "sensor.temp" --include-aggregates
 
@@ -752,6 +801,39 @@ slcli customfield edit --id &lt;config-id&gt;
 slcli customfield init --name "My Config" --workspace "MyWorkspace" \
   --resource-type workorder:workorder</code></pre>
 
+  <!-- ─── VERSION ─── -->
+  <h2 id="version">version</h2>
+  <p>Show the installed slcli version or check PyPI for a newer release and display the update command for the detected installation method.</p>
+  <pre><code># Show the installed version without a network request
+slcli version
+
+# Check for a newer release and show update guidance
+slcli version check
+
+# Emit structured output for automation
+slcli version check --format json
+
+# Return exit code 1 when an update is available
+slcli version check --fail-if-outdated</code></pre>
+  <p>The check recognizes Homebrew, Scoop, pipx, uv, pip, standalone binaries, and development checkouts. Network lookup failures return exit code <code>5</code>.</p>
+
+  <!-- ─── SKILL ─── -->
+  <h2 id="skill">skill</h2>
+  <p>Install bundled AI assistant skills and check whether existing installations match the current slcli release.</p>
+  <pre><code># Install into the current project's standard agent directory
+slcli skill install --client agents --scope project
+
+# Check installed versions and return nonzero when an update is needed
+slcli skill check --client agents --scope project
+
+# Install or check a directory that directly contains skill folders
+slcli skill install --directory ./my-agent/skills
+slcli skill check --directory ./my-agent/skills
+
+# Replace an outdated or unversioned installation
+slcli skill install --directory ./my-agent/skills --force</code></pre>
+  <p><code>--directory</code> cannot be combined with <code>--client</code> or <code>--scope</code>.</p>
+
       <!-- ─── EXAMPLE ─── -->
       <h2 id="example">example</h2>
       <p>Provision complete demo environments for training and evaluation.</p>
@@ -759,27 +841,42 @@ slcli customfield init --name "My Config" --workspace "MyWorkspace" \
 slcli example list
 
 # Inspect an example
-slcli example info demo-complete-workflow
+slcli example info demo-data-1
 
 # Install (with audit log)
-slcli example install demo-complete-workflow \
+slcli example install demo-data-1 \
   --workspace Training --audit-log install-log.json
 
 # Dry-run
-slcli example install demo-complete-workflow --workspace Training --dry-run
+slcli example install demo-data-1 --workspace Training --dry-run
+
+# Install an external fixture; referenced files are resolved beside config.yaml
+slcli example install --file ./fixtures/example-resources/config.yaml \
+  --workspace Training
+
+# Delete resources from an external fixture
+slcli example delete --file ./fixtures/example-resources/config.yaml \
+  --workspace Training
+
+# Install the phase-one Nigel query fixture and write its completeness manifest
+slcli example install demo-data-3 \
+  --workspace Training --format json --audit-log nigel-fixture-manifest.json
 
 # Delete provisioned resources
-slcli example delete demo-complete-workflow \
+slcli example delete demo-data-1 \
   --workspace Training --audit-log delete-log.json</code></pre>
 
       <p>Available examples:</p>
+      <p>For local fixtures, use <code>--file PATH</code> with a <code>config.yaml</code> file. Relative <code>file_path</code>, <code>rows_file</code>, and <code>data_file</code> references resolve relative to that configuration file's directory.</p>
       <ul>
-        <li><strong>demo-complete-workflow</strong> — end-to-end workflow with systems, assets, DUTs, plans, and results</li>
-        <li><strong>demo-test-plans</strong> — focused test-plan setup with reusable assets and templates</li>
+        <li><strong>demo-data-1</strong> — end-to-end workflow with systems, assets, DUTs, plans, and results</li>
+        <li><strong>demo-data-2</strong> — focused test-plan setup with reusable assets and templates</li>
         <li><strong>exercise-5-1-parametric-insights</strong> — parametric test data for training exercises</li>
         <li><strong>exercise-7-1-test-plans</strong> — test plan creation and scheduling exercises</li>
         <li><strong>spec-compliance-notebooks</strong> — Jupyter notebooks for specification compliance analysis</li>
+        <li><strong>demo-data-3</strong> — phase-one Systems and Products query data with an explicit incomplete-install manifest</li>
       </ul>
+      <p>The Nigel fixture intentionally exits nonzero when its manifest reports unsupported acceptance capabilities. Use the JSON output and audit log to inspect the provisioned resource IDs and validation gaps.</p>
 
     </main>
   </div>

@@ -19,7 +19,8 @@ import click
 import questionary
 import requests
 
-from .cli_utils import validate_output_format
+from .cli_utils import is_interactive_environment, validate_output_format
+from .platform import PLATFORM_SLS, get_platform
 from .skill_click import install_skills_to_directory
 from .universal_handlers import UniversalResponseHandler
 from .utils import (
@@ -96,8 +97,9 @@ def _build_published_webapp_url(
 ) -> str:
     """Return the best available published URL for a webapp.
 
-    Prefers the friendly SystemLink web UI URL and falls back to any explicit
-    URL-like property returned by the service, then the raw content endpoint.
+    Uses the WebVI host route for SystemLink Server and otherwise prefers the
+    friendly SystemLink web UI URL. Falls back to any explicit URL-like property
+    returned by the service, then the raw content endpoint.
     """
     from urllib.parse import quote
 
@@ -133,6 +135,10 @@ def _build_published_webapp_url(
         if mapped_workspace_name:
             workspace_name = mapped_workspace_name
 
+    if get_platform() == PLATFORM_SLS and webapp_id:
+        web_base = get_web_url().rstrip("/")
+        return f"{web_base}/#/webvihost/view/webvi/{quote(webapp_id, safe='')}"
+
     if resolved_name and workspace_name:
         web_base = get_web_url().rstrip("/")
         return f"{web_base}/webapps/app/{quote(workspace_name)}/{quote(resolved_name)}"
@@ -149,6 +155,111 @@ def _build_published_webapp_url(
         return f"{_get_webapp_base_url()}/webapps/{webapp_id}/content"
 
     return ""
+
+
+def _find_conflicting_webapp_id(value: Any) -> str:
+    """Find a webapp ID in a duplicate-create response payload."""
+    if isinstance(value, dict):
+        for key in (
+            "id",
+            "webappId",
+            "webAppId",
+            "existingId",
+            "existingWebappId",
+            "existingWebAppId",
+            "resourceId",
+        ):
+            candidate = value.get(key)
+            if candidate:
+                return str(candidate)
+        for nested in value.values():
+            conflict_id = _find_conflicting_webapp_id(nested)
+            if conflict_id:
+                return conflict_id
+    elif isinstance(value, list):
+        for nested in value:
+            conflict_id = _find_conflicting_webapp_id(nested)
+            if conflict_id:
+                return conflict_id
+    return ""
+
+
+def _find_existing_webapp(webapp_name: str, workspace_id: str) -> Optional[Dict[str, Any]]:
+    """Find an existing WebVI with the requested name and workspace."""
+    escaped_name = webapp_name.replace("\\", "\\\\").replace('"', '\\"')
+    filter_parts = [f'type == "WebVI"', f'name.Contains("{escaped_name}")']
+    if workspace_id:
+        escaped_workspace = workspace_id.replace("\\", "\\\\").replace('"', '\\"')
+        filter_parts.append(f'workspace == "{escaped_workspace}"')
+
+    try:
+        webapps = _query_webapps_http(" and ".join(filter_parts), max_items=100)
+    except Exception:
+        return None
+
+    for webapp in webapps:
+        if (
+            webapp.get("type") == "WebVI"
+            and webapp.get("name") == webapp_name
+            and (not workspace_id or webapp.get("workspace") == workspace_id)
+        ):
+            return webapp
+    return None
+
+
+def _handle_webapp_create_conflict(
+    response: Any,
+    workspace_id: str,
+    workspace_name_hint: str,
+    webapp_name: str,
+) -> None:
+    """Display details for a webapp that conflicts with a create request."""
+    if response.status_code != 409:
+        return
+
+    try:
+        response_data = response.json()
+    except (ValueError, AttributeError):
+        response_data = {}
+
+    conflict_id = _find_conflicting_webapp_id(response_data)
+    conflict_record: Optional[Dict[str, Any]] = None
+    if not conflict_id:
+        conflict_record = _find_existing_webapp(webapp_name, workspace_id)
+        if conflict_record:
+            conflict_id = str(conflict_record.get("id", ""))
+    conflict_message = ""
+    if isinstance(response_data, dict):
+        error_data = response_data.get("error")
+        if isinstance(error_data, dict):
+            message = error_data.get("message")
+            if message:
+                conflict_message = str(message)
+        if not conflict_message:
+            message = response_data.get("message")
+            if message:
+                conflict_message = str(message)
+
+    if not conflict_message:
+        conflict_message = "A webapp with this name already exists."
+
+    click.echo(f"✗ {conflict_message}", err=True)
+    if conflict_id:
+        conflict_name = str(conflict_record.get("name", "")) if conflict_record else webapp_name
+        conflict_workspace_id = (
+            str(conflict_record.get("workspace", "")) if conflict_record else workspace_id
+        )
+        conflict_properties = conflict_record.get("properties", {}) if conflict_record else None
+        conflict_url = _build_published_webapp_url(
+            conflict_id,
+            webapp_name=conflict_name,
+            workspace_id=conflict_workspace_id,
+            workspace_name_hint=workspace_name_hint,
+            properties=conflict_properties,
+        )
+        click.echo(f"  Conflicting Webapp ID: {conflict_id}", err=True)
+        click.echo(f"  Conflicting Webapp URL: {conflict_url}", err=True)
+    sys.exit(ExitCodes.INVALID_INPUT)
 
 
 def _query_webapps_http(filter_str: str, max_items: int = 1000) -> List[Dict[str, Any]]:
@@ -462,7 +573,7 @@ def _validate_plugin_manager_metadata(
     return validated
 
 
-def _pack_folder_to_nipkg(
+def pack_folder_to_nipkg(
     folder: Path,
     output: Optional[Path] = None,
     metadata: Optional[Dict[str, Any]] = None,
@@ -626,6 +737,10 @@ def _pack_folder_to_nipkg(
             out_f.write(b"\n")
 
     return output
+
+
+# Keep the original private name for callers and tests that still use it.
+_pack_folder_to_nipkg = pack_folder_to_nipkg
 
 
 # ── Template scaffolding helpers ──────────────────────────────────────────
@@ -909,14 +1024,14 @@ def register_webapp_commands(cli: Any) -> None:
 
     register_webapp_bootstrap_commands(webapp)
 
-    @webapp.command(name="init")
+    @webapp.command(name="init", hidden=True)
     @click.argument(
         "directory",
         type=click.Path(file_okay=False, dir_okay=True, path_type=Path),
     )
     @click.option("--force", is_flag=True, help="Overwrite existing starter files")
     def init_webapp(directory: Path, force: bool) -> None:
-        """Scaffold the SystemLink Angular starter for a new webapp."""
+        """Compatibility-only bootstrap; use ``slcli webapp new`` for new apps."""
         try:
             _init_angular_template(directory, force)
         except SystemExit:
@@ -1160,9 +1275,17 @@ def register_webapp_commands(cli: Any) -> None:
         default="",
         help="Case-insensitive substring match on name",
     )
-    @click.option("--take", "take", type=int, default=25, show_default=True, help="Max rows/page")
+    @click.option(
+        "--take",
+        "take",
+        type=int,
+        default=25,
+        show_default=True,
+        help="Maximum webapps to return (table page size; JSON list total)",
+    )
     @click.option(
         "--format",
+        "-f",
         "format_output",
         type=click.Choice(["table", "json"]),
         default="table",
@@ -1176,14 +1299,9 @@ def register_webapp_commands(cli: Any) -> None:
             # Validate and normalize format option
             format_output = validate_output_format(format_output)
 
-            # Determine how many items to request from the API
-            if format_output.lower() == "json":
-                # For JSON output we want to return all matching items (no
-                # interactive pagination). Use a falsy api_take (0) to indicate
-                # "fetch all" to the helper.
-                api_take = 0
-            else:
-                api_take = take if take != 25 else 1000
+            # JSON uses --take as a total cap; table mode keeps fetching pages
+            # so the user can choose whether to continue after each page.
+            api_take = take if format_output.lower() == "json" else (take if take != 25 else 1000)
             # Use server-side query to only retrieve WebVI documents
             base_filter = 'type == "WebVI"'
             workspace = get_effective_workspace(workspace) or workspace
@@ -1211,11 +1329,8 @@ def register_webapp_commands(cli: Any) -> None:
                 name_clause = f"({' or '.join(variants)})"
                 base_filter = f"({base_filter}) and ({name_clause})"
 
-            # If the user requested JSON output or did not request a specific take,
-            # fetch all matching items (using server-side paging). Otherwise, if
-            # the user specified a take and wants table output, perform interactive
-            # server-side paging: fetch a page, show total (if available), and offer
-            # to fetch the next page(s).
+            # JSON is bounded by --take. Table output remains interactive and
+            # fetches the next page only after the user confirms.
             webapps: List[Dict[str, Any]] = []
             if format_output.lower() == "json" or take == 0:
                 webapps = _query_webapps_http(base_filter, max_items=api_take)
@@ -1307,6 +1422,9 @@ def register_webapp_commands(cli: Any) -> None:
                         break
 
                     # Ask the user if they want to fetch the next set
+                    if not is_interactive_environment():
+                        break
+
                     if not questionary.confirm("Show next set of results?", default=True).ask():
                         break
 
@@ -1518,6 +1636,12 @@ def register_webapp_commands(cli: Any) -> None:
                             json=payload,
                             verify=get_ssl_verify(),
                         )
+                        _handle_webapp_create_conflict(
+                            resp_create,
+                            workspace_id=created_workspace_id,
+                            workspace_name_hint=get_effective_workspace(workspace) or workspace,
+                            webapp_name=name,
+                        )
                         resp_create.raise_for_status()
                         created = resp_create.json()
                         webapp_id = created.get("id")
@@ -1589,6 +1713,12 @@ def register_webapp_commands(cli: Any) -> None:
                         headers=get_headers("application/json"),
                         json=payload,
                         verify=get_ssl_verify(),
+                    )
+                    _handle_webapp_create_conflict(
+                        resp_create,
+                        workspace_id=created_workspace_id,
+                        workspace_name_hint=get_effective_workspace(workspace) or workspace,
+                        webapp_name=name,
                     )
                     resp_create.raise_for_status()
                     created = resp_create.json()

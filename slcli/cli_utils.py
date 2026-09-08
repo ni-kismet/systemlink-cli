@@ -1,5 +1,6 @@
 """Common utility functions for all CLI commands."""
 
+import os
 import sys
 from typing import Any, Callable, Dict, List, Optional
 
@@ -9,6 +10,19 @@ import requests
 
 from .rich_output import print_json, render_table
 from .utils import ExitCodes, handle_api_error
+
+
+def is_interactive_environment() -> bool:
+    """Return whether interactive prompts should be displayed.
+
+    In-process pytest callers remain interactive so prompt behavior can be tested with mocks.
+    Captured E2E subprocesses set ``SLCLI_NON_INTERACTIVE`` explicitly.
+    """
+    if os.getenv("SLCLI_NON_INTERACTIVE", "").lower() == "true":
+        return False
+    if os.getenv("PYTEST_CURRENT_TEST") is not None:
+        return True
+    return sys.stdin.isatty() and sys.stdout.isatty() and os.getenv("CI", "").lower() != "true"
 
 
 def resolve_resource_by_name_or_id(
@@ -408,26 +422,13 @@ def paginate_list_output(
                 f"{remaining} more available."
             )
 
-            # Check if we're in an interactive environment
-            # If stdin is not a TTY or we're in a test environment, disable interactive pagination
-            import os
-            import sys
-
-            is_non_interactive = (
-                not sys.stdin.isatty()  # Piped input
-                or not sys.stdout.isatty()  # Piped output
-                or os.getenv("CI") == "true"  # CI environment
-                or os.getenv("PYTEST_CURRENT_TEST") is not None  # pytest
-                or os.getenv("SLCLI_NON_INTERACTIVE") == "true"  # Explicit override
-            )
-
-            if is_non_interactive:
+            if not is_interactive_environment():
                 click.echo("Non-interactive environment detected. Showing all remaining results...")
                 # Continue to show all remaining pages without prompting
                 current_page += 1
                 continue
 
-            if not questionary.confirm("Show next 25 results?", default=True).ask():
+            if not questionary.confirm(f"Show next {page_size} results?", default=True).ask():
                 break
 
             click.echo()  # Add blank line between pages
