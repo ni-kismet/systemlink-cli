@@ -11,6 +11,16 @@ SUPPORTED_RULE_SCOPES = {"response", "command"}
 SUPPORTED_RULE_VALIDATORS = {"previous_calendar_month"}
 
 
+def resolve_fixture_path(skill_dir: Path, relative_path: str) -> Path:
+    """Resolve a fixture path contained within the skill directory."""
+    path = Path(relative_path)
+    skill_root = skill_dir.resolve()
+    resolved = (skill_root / path).resolve()
+    if path.is_absolute() or ".." in path.parts or not resolved.is_relative_to(skill_root):
+        raise ValueError(f"fixture path must stay within the skill directory: {relative_path}")
+    return resolved
+
+
 def validate_manifest(payload: dict[str, Any], skill_dir: Path) -> None:
     """Validate invariants needed by the eval harness."""
     if payload.get("manifest_version") != 1:
@@ -55,7 +65,8 @@ def validate_manifest(payload: dict[str, Any], skill_dir: Path) -> None:
         for relative_path in entry["files"]:
             if not isinstance(relative_path, str):
                 raise ValueError(f"eval {eval_id} fixture paths must be strings")
-            if not (skill_dir / relative_path).is_file():
+            fixture_path = resolve_fixture_path(skill_dir, relative_path)
+            if not fixture_path.is_file():
                 raise ValueError(f"eval {eval_id} fixture does not exist: {relative_path}")
         rules = entry["grading_rules"]
         if not isinstance(rules, list):

@@ -40,6 +40,18 @@ def load_json(path: Path) -> dict[str, Any]:
     return json.loads(path.read_text(encoding="utf-8"))
 
 
+def file_manifest(output_dir: Path) -> list[dict[str, object]]:
+    """Describe output artifacts with stable content hashes."""
+    return [
+        {
+            "path": path.relative_to(output_dir).as_posix(),
+            "size": path.stat().st_size,
+            "sha256": hashlib.sha256(path.read_bytes()).hexdigest(),
+        }
+        for path in sorted(item for item in output_dir.rglob("*") if item.is_file())
+    ]
+
+
 def load_run(
     run_dir: Path,
     iteration: dict[str, Any],
@@ -62,7 +74,10 @@ def load_run(
         "status",
     }
     if (
-        not required_metadata.issubset(metadata)
+        any(
+            not isinstance(metadata.get(field), str) or not metadata[field].strip()
+            for field in required_metadata
+        )
         or metadata["configuration"] != run_dir.parent.name
         or metadata["status"] != "completed"
     ):
@@ -96,6 +111,8 @@ def load_run(
     if (
         record.get("classification") != grading.get("classification")
         or record.get("grading") != grading
+        or record.get("executor") != metadata
+        or record.get("outputs") != file_manifest(metadata_path.parent)
     ):
         return None
     return grading, metadata

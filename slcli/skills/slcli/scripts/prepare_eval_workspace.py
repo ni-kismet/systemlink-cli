@@ -17,7 +17,7 @@ from io import BytesIO
 from pathlib import Path
 from typing import Any
 
-from slcli.skills.slcli.scripts.eval_manifest import load_manifest
+from slcli.skills.slcli.scripts.eval_manifest import load_manifest, resolve_fixture_path
 
 
 def positive_int(value: str) -> int:
@@ -323,9 +323,12 @@ def scaffold_eval_dir(
     write_json(eval_dir / "eval_metadata.json", metadata)
 
     input_files = []
+    input_root = (eval_dir / "inputs").resolve()
     for relative_path in entry.get("files", []):
-        source_path = skill_dir / relative_path
-        input_path = eval_dir / "inputs" / relative_path
+        source_path = resolve_fixture_path(skill_dir, relative_path)
+        input_path = (input_root / relative_path).resolve()
+        if not input_path.is_relative_to(input_root):
+            raise ValueError(f"fixture destination must stay within inputs: {relative_path}")
         input_path.parent.mkdir(parents=True, exist_ok=True)
         shutil.copy2(source_path, input_path)
         input_files.append(

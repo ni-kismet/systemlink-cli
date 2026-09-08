@@ -82,6 +82,39 @@ def test_summarize_query_result_marks_executor_errors_inconclusive(
     assert result["errors"] == 3
 
 
+def test_require_conclusive_results_rejects_executor_errors(run_eval_module: ModuleType) -> None:
+    with pytest.raises(RuntimeError, match="inconclusive for: failed query"):
+        run_eval_module.require_conclusive_results(
+            {
+                "results": [
+                    {
+                        "query": "failed query",
+                        "status": "inconclusive",
+                        "pass": None,
+                    }
+                ]
+            }
+        )
+
+    with pytest.raises(RuntimeError, match="inconclusive for: null result"):
+        run_eval_module.require_conclusive_results(
+            {"results": [{"query": "null result", "status": "unknown", "pass": None}]}
+        )
+
+
+def test_require_conclusive_results_accepts_passes_and_failures(
+    run_eval_module: ModuleType,
+) -> None:
+    run_eval_module.require_conclusive_results(
+        {
+            "results": [
+                {"query": "passed", "status": "pass", "pass": True},
+                {"query": "failed", "status": "fail", "pass": False},
+            ]
+        }
+    )
+
+
 @pytest.mark.parametrize("value", ["-0.1", "1.1", "nan", "inf"])
 def test_unit_interval_rate_rejects_invalid_values(run_eval_module: ModuleType, value: str) -> None:
     with pytest.raises(

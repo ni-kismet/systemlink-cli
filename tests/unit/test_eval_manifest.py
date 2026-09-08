@@ -59,6 +59,30 @@ def test_manifest_requires_schema_entry_fields(tmp_path: Path) -> None:
         validate_manifest(payload, tmp_path)
 
 
+@pytest.mark.parametrize(
+    "fixture_path", ["../outside.txt", "nested/../fixture.txt", "/tmp/outside.txt"]
+)
+def test_manifest_rejects_fixture_paths_outside_skill(tmp_path: Path, fixture_path: str) -> None:
+    payload = {
+        "manifest_version": 1,
+        "skill_name": "test",
+        "recommended_suites": {"gating": [1], "regression": [1]},
+        "evals": [
+            {
+                "id": 1,
+                "prompt": "test",
+                "expected_output": "test",
+                "files": [fixture_path],
+                "expectations": [],
+                "grading_rules": [],
+            }
+        ],
+    }
+
+    with pytest.raises(ValueError, match="must stay within the skill directory"):
+        validate_manifest(payload, tmp_path)
+
+
 def test_all_checked_in_critical_graders_pass_their_controls() -> None:
     manifest = load_manifest(Path("slcli/skills/slcli/evals/evals.json"))
 
@@ -115,6 +139,17 @@ def test_eval_one_rejects_constraints_split_across_commands() -> None:
     )
 
     assert evaluate_rule(response, rule, reference_date=date(2026, 9, 8))[0] is False
+
+
+def test_eval_one_full_query_accepts_current_previous_month_bounds() -> None:
+    rule = checked_in_rule(1, "Combines product, status, and last-month filters in one invocation")
+    response = (
+        "slcli testmonitor result list --part-number BAT-MODEL-ABC-001 --status FAILED "
+        "--filter 'startedAt >= @0 and startedAt < @1' "
+        "--substitution 2026-09-01 --substitution 2026-10-01"
+    )
+
+    assert evaluate_rule(response, rule, reference_date=date(2026, 10, 8))[0] is True
 
 
 def test_dataframe_rule_requires_supported_case_sensitive_operation() -> None:

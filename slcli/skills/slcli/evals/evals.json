@@ -83,8 +83,7 @@
             "--status\\s+FAILED",
             "startedAt\\s*>=\\s*@\\d+",
             "startedAt\\s*<\\s*@\\d+",
-            "--substitution\\s+2026-08-01",
-            "--substitution\\s+2026-09-01"
+            "--substitution\\s+\\d{4}-\\d{2}-01"
           ]
         },
         {
@@ -584,7 +583,8 @@
       "expected_output": "Uses the attached packaging config as a file-backed input, packages the webapp with `slcli webapp pack --config ...`, and publishes the built app from the provided dist path.",
       "files": [
         "evals/files/webapp-package/nipkg.config.json",
-        "evals/files/webapp-package/icon.svg"
+        "evals/files/webapp-package/icon.svg",
+        "evals/files/webapp-package/webapp-content/index.html"
       ],
       "expectations": [
         "Uses `slcli webapp pack --config ...` with the attached config path",

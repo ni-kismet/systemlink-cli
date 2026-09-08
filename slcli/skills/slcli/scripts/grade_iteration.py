@@ -97,7 +97,13 @@ def grade_run(
         return f"skip {run_dir}: no readable response artifacts"
 
     timing_path = run_dir / "timing.json"
-    graded = grade_response(manifest_path, eval_id, response_path, timing_path)
+    graded = grade_response(
+        manifest_path,
+        eval_id,
+        response_path,
+        timing_path,
+        outputs_dir / "transcript.jsonl",
+    )
     input_manifest = load_json(run_dir.parents[1] / "inputs_manifest.json")
     run_metadata_path = outputs_dir / "run_metadata.json"
     run_metadata = load_json(run_metadata_path) if run_metadata_path.exists() else {}

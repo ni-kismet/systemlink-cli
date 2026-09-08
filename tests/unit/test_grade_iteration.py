@@ -84,6 +84,9 @@ def test_grade_run_records_provenance_and_only_grades_response(tmp_path: Path) -
     assert record["candidate_sha"] == "candidate"
     assert record["eval_manifest_hash"] == hashlib.sha256(manifest_path.read_bytes()).hexdigest()
     assert record["inputs"] == []
+    assert record["grading"]["execution_metrics"]["transcript_chars"] == len(
+        '{"event":"completed"}\n'
+    )
     assert {item["path"] for item in record["outputs"]} == {
         "notes.txt",
         "response.txt",

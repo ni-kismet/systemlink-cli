@@ -65,6 +65,11 @@ def parse_args() -> argparse.Namespace:
         type=Path,
         help="Optional timing.json to merge into the grading output.",
     )
+    parser.add_argument(
+        "--transcript",
+        type=Path,
+        help="Optional transcript artifact used for execution metrics.",
+    )
     return parser.parse_args()
 
 
@@ -196,11 +201,13 @@ def grade_response(
     eval_id: int,
     response_path: Path,
     timing_path: Path | None = None,
+    transcript_path: Path | None = None,
 ) -> dict[str, Any]:
     """Grade one response artifact path against one eval entry."""
     eval_entry = load_eval(manifest_path, eval_id)
     response_text, sources = gather_response_text(response_path)
     timing = load_timing(timing_path)
+    transcript_text = read_text_artifact(transcript_path) if transcript_path else None
 
     results: list[dict[str, Any]] = []
     for rule in eval_entry.get("grading_rules", []):
@@ -216,7 +223,7 @@ def grade_response(
             }
         )
 
-    return build_output(eval_entry, results, sources, response_text, timing)
+    return build_output(eval_entry, results, sources, response_text, timing, transcript_text)
 
 
 def build_output(
@@ -225,6 +232,7 @@ def build_output(
     sources: list[str],
     response_text: str,
     timing: dict[str, Any],
+    transcript_text: str | None,
 ) -> dict[str, Any]:
     """Build grading.json payload."""
     passed_count = sum(1 for result in results if result["passed"])
@@ -252,7 +260,7 @@ def build_output(
             "total_steps": 0,
             "errors_encountered": 0,
             "output_chars": len(response_text),
-            "transcript_chars": len(response_text),
+            "transcript_chars": len(transcript_text) if transcript_text is not None else None,
         },
         "timing": timing_block,
         "claims": [],
@@ -268,7 +276,7 @@ def build_output(
 def main() -> None:
     """Entry point."""
     args = parse_args()
-    output = grade_response(args.evals, args.eval_id, args.response, args.timing)
+    output = grade_response(args.evals, args.eval_id, args.response, args.timing, args.transcript)
     args.output.write_text(json.dumps(output, indent=2) + "\n", encoding="utf-8")
 
 

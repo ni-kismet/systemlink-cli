@@ -10,6 +10,7 @@ from pathlib import Path
 
 import pytest
 
+from slcli.skills.slcli.scripts.eval_manifest import load_manifest
 from slcli.skills.slcli.scripts.prepare_eval_prompts import build_prompt
 from slcli.skills.slcli.scripts.prepare_eval_workspace import (
     create_isolated_baseline_repo,
@@ -20,6 +21,7 @@ from slcli.skills.slcli.scripts.prepare_eval_workspace import (
     scaffold_eval_dir,
     select_evals,
 )
+from slcli.webapp_click import _validate_plugin_manager_metadata
 
 
 def run_git(repo: Path, *args: str) -> None:
@@ -155,6 +157,58 @@ def test_scaffold_eval_uses_independent_run_repos_and_neutral_inputs(tmp_path: P
     assert input_record["sha256"] == hashlib.sha256(input_path.read_bytes()).hexdigest()
     (candidate_roots[0] / "changed.txt").write_text("changed\n", encoding="utf-8")
     assert not (candidate_roots[1] / "changed.txt").exists()
+
+
+def test_scaffold_eval_rejects_fixture_path_traversal(tmp_path: Path) -> None:
+    skill_dir = tmp_path / "skill"
+    skill_dir.mkdir()
+    (tmp_path / "outside.txt").write_text("outside\n", encoding="utf-8")
+    iteration_dir = tmp_path / "iteration"
+    iteration_dir.mkdir()
+
+    with pytest.raises(ValueError, match="must stay within the skill directory"):
+        scaffold_eval_dir(
+            skill_dir,
+            iteration_dir,
+            {
+                "id": 1,
+                "prompt": "Use the fixture",
+                "expectations": [],
+                "tags": ["gating"],
+                "files": ["../outside.txt"],
+            },
+            "without_skill",
+            1,
+            None,
+            None,
+        )
+
+
+def test_scaffold_eval_copies_complete_webapp_fixture(tmp_path: Path) -> None:
+    skill_dir = Path("slcli/skills/slcli").resolve()
+    manifest = load_manifest(skill_dir / "evals" / "evals.json")
+    entry = next(item for item in manifest["evals"] if item["id"] == 11)
+    iteration_dir = tmp_path / "iteration"
+    iteration_dir.mkdir()
+
+    scaffold_eval_dir(
+        skill_dir,
+        iteration_dir,
+        entry,
+        "without_skill",
+        1,
+        None,
+        None,
+    )
+
+    eval_dir = next(iteration_dir.glob("eval-*"))
+    config_path = eval_dir / "inputs" / "evals/files/webapp-package/nipkg.config.json"
+    metadata = json.loads(config_path.read_text(encoding="utf-8"))
+    validated = _validate_plugin_manager_metadata(
+        metadata, require_build_dir=True, base_dir=config_path.parent
+    )
+
+    assert (config_path.parent / validated["buildDir"]).is_dir()
 
 
 def test_select_evals_deduplicates_explicit_ids() -> None:

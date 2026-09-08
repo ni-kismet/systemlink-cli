@@ -234,6 +234,17 @@ def summarize_query_result(
     }
 
 
+def require_conclusive_results(eval_results: dict) -> None:
+    """Abort optimization when any trigger query is inconclusive."""
+    inconclusive = [
+        result["query"]
+        for result in eval_results.get("results", [])
+        if result.get("status") == "inconclusive" or result.get("pass") is None
+    ]
+    if inconclusive:
+        raise RuntimeError("Trigger evaluation is inconclusive for: " + ", ".join(inconclusive))
+
+
 def run_eval(
     eval_set: list[dict],
     skill_name: str,

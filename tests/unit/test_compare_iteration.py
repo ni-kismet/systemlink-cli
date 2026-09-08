@@ -11,6 +11,7 @@ from typing import Any
 import pytest
 
 from slcli.skills.slcli.scripts.compare_iteration import evaluate_iteration, regression_margin
+from slcli.skills.slcli.scripts.grade_iteration import file_manifest
 
 
 def write_json(path: Path, payload: dict[str, Any]) -> None:
@@ -63,12 +64,19 @@ def prepare_iteration(tmp_path: Path) -> Path:
     for configuration in ("with_skill", "old_skill"):
         for run_number in range(1, 4):
             grading_payload = grading(1.0)
+            run_dir = eval_dir / configuration / f"run-{run_number}"
             write_json(
-                eval_dir / configuration / f"run-{run_number}" / "grading.json",
+                run_dir / "grading.json",
                 grading_payload,
             )
+            outputs_dir = run_dir / "outputs"
+            (outputs_dir / "response.txt").parent.mkdir(parents=True, exist_ok=True)
+            (outputs_dir / "response.txt").write_text("response\n", encoding="utf-8")
+            (outputs_dir / "transcript.jsonl").write_text("{}\n", encoding="utf-8")
+            metadata = run_metadata(configuration)
+            write_json(outputs_dir / "run_metadata.json", metadata)
             write_json(
-                eval_dir / configuration / f"run-{run_number}" / "run_record.json",
+                run_dir / "run_record.json",
                 {
                     "skill_name": "test",
                     "candidate_sha": "candidate",
@@ -80,13 +88,11 @@ def prepare_iteration(tmp_path: Path) -> Path:
                     "trial": run_number,
                     "configuration": configuration,
                     "classification": "pass",
+                    "executor": metadata,
                     "inputs": [],
+                    "outputs": file_manifest(outputs_dir),
                     "grading": grading_payload,
                 },
-            )
-            write_json(
-                eval_dir / configuration / f"run-{run_number}" / "outputs" / "run_metadata.json",
-                run_metadata(configuration),
             )
     return eval_dir
 
@@ -174,10 +180,14 @@ def test_evaluate_iteration_is_inconclusive_when_run_is_missing(tmp_path: Path) 
 
 def test_evaluate_iteration_is_inconclusive_for_different_models(tmp_path: Path) -> None:
     eval_dir = prepare_iteration(tmp_path)
-    write_json(
-        eval_dir / "old_skill" / "run-2" / "outputs" / "run_metadata.json",
-        run_metadata("old_skill", model="other-model"),
-    )
+    run_dir = eval_dir / "old_skill" / "run-2"
+    metadata = run_metadata("old_skill", model="other-model")
+    write_json(run_dir / "outputs" / "run_metadata.json", metadata)
+    record_path = run_dir / "run_record.json"
+    record = json.loads(record_path.read_text(encoding="utf-8"))
+    record["executor"] = metadata
+    record["outputs"] = file_manifest(run_dir / "outputs")
+    write_json(record_path, record)
 
     result = evaluate_iteration(tmp_path, margin=0.05)
 
@@ -193,6 +203,49 @@ def test_evaluate_iteration_is_inconclusive_for_infrastructure_error(tmp_path: P
         eval_dir / "with_skill" / "run-1" / "outputs" / "run_metadata.json",
         metadata,
     )
+
+    result = evaluate_iteration(tmp_path, margin=0.05)
+
+    assert result["status"] == "inconclusive"
+
+
+@pytest.mark.parametrize("field", ["executor_provider", "executor_model", "harness"])
+@pytest.mark.parametrize("value", ["", None])
+def test_evaluate_iteration_requires_non_empty_executor_metadata(
+    tmp_path: Path, field: str, value: str | None
+) -> None:
+    eval_dir = prepare_iteration(tmp_path)
+    metadata_path = eval_dir / "with_skill" / "run-1" / "outputs" / "run_metadata.json"
+    metadata = json.loads(metadata_path.read_text(encoding="utf-8"))
+    metadata[field] = value
+    write_json(metadata_path, metadata)
+
+    result = evaluate_iteration(tmp_path, margin=0.05)
+
+    assert result["status"] == "inconclusive"
+
+
+@pytest.mark.parametrize("artifact", ["response.txt", "transcript.jsonl"])
+def test_evaluate_iteration_is_inconclusive_for_modified_output(
+    tmp_path: Path, artifact: str
+) -> None:
+    eval_dir = prepare_iteration(tmp_path)
+    output_path = eval_dir / "with_skill" / "run-1" / "outputs" / artifact
+    output_path.write_text("modified\n", encoding="utf-8")
+
+    result = evaluate_iteration(tmp_path, margin=0.05)
+
+    assert result["status"] == "inconclusive"
+
+
+def test_evaluate_iteration_is_inconclusive_for_modified_executor_metadata(
+    tmp_path: Path,
+) -> None:
+    eval_dir = prepare_iteration(tmp_path)
+    metadata_path = eval_dir / "with_skill" / "run-1" / "outputs" / "run_metadata.json"
+    metadata = json.loads(metadata_path.read_text(encoding="utf-8"))
+    metadata["executor_model"] = "modified-model"
+    write_json(metadata_path, metadata)
 
     result = evaluate_iteration(tmp_path, margin=0.05)
 
