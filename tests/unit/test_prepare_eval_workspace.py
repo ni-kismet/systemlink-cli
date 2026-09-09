@@ -93,9 +93,8 @@ def test_with_skill_prompt_loads_isolated_candidate_skill(tmp_path: Path) -> Non
     assert f"Skill path: {candidate_repo / 'slcli' / 'skills' / 'slcli'}" in prompt
     assert f"Use this isolated candidate repo root: {candidate_repo}" in prompt
     assert "transcript.jsonl containing the complete executor trace" in prompt
-    assert (
-        f"{tmp_path / 'timing.json'} containing total_duration_seconds and total_tokens" in prompt
-    )
+    assert f"{tmp_path / 'timing.json'} containing duration_ms and total_tokens" in prompt
+    assert "Write timing.json only to the run-root path specified above" in prompt
 
 
 def test_scaffold_eval_uses_independent_run_repos_and_neutral_inputs(tmp_path: Path) -> None:

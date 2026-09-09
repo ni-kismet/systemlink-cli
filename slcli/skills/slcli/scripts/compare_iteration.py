@@ -39,7 +39,10 @@ def parse_args() -> argparse.Namespace:
 
 def load_json(path: Path) -> dict[str, Any]:
     """Load one JSON object."""
-    return json.loads(path.read_text(encoding="utf-8"))
+    payload = json.loads(path.read_text(encoding="utf-8"))
+    if not isinstance(payload, dict):
+        raise ValueError(f"Expected a JSON object in {path}")
+    return payload
 
 
 def file_manifest(output_dir: Path) -> list[dict[str, object]]:

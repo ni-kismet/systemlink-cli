@@ -39,7 +39,7 @@ If you need to run the flow manually, these are the underlying steps.
 #### Prepare a fresh gating workspace
 
 ```bash
-python slcli/skills/slcli/scripts/prepare_eval_workspace.py --suite gating
+poetry run python -m slcli.skills.slcli.scripts.prepare_eval_workspace --suite gating
 ```
 
 This prints a new iteration directory such as:
@@ -61,7 +61,7 @@ skill adds value; that comparison is not a regression test.
 #### Generate executor prompts
 
 ```bash
-python slcli/skills/slcli/scripts/prepare_eval_prompts.py \
+poetry run python -m slcli.skills.slcli.scripts.prepare_eval_prompts \
   slcli/skills/slcli-workspace/iteration-1 \
   --max-tool-calls 8 \
   --max-minutes 3
@@ -118,7 +118,7 @@ trial as inconclusive instead of scoring it as a skill failure.
 #### Grade and aggregate the iteration
 
 ```bash
-python slcli/skills/slcli/scripts/benchmark_iteration.py --force \
+poetry run python -m slcli.skills.slcli.scripts.benchmark_iteration --force \
   slcli/skills/slcli-workspace/iteration-1
 ```
 
@@ -140,7 +140,7 @@ percentage points.
 #### Regenerate the review page
 
 ```bash
-python slcli/skills/slcli/scripts/render_eval_review.py \
+poetry run python -m slcli.skills.slcli.scripts.render_eval_review \
   slcli/skills/slcli-workspace/iteration-1
 ```
 
@@ -172,7 +172,7 @@ This writes `review.html` in the iteration directory.
 Use `regression` with five trials before a release:
 
 ```bash
-python slcli/skills/slcli/scripts/prepare_eval_workspace.py \
+poetry run python -m slcli.skills.slcli.scripts.prepare_eval_workspace \
   --suite regression \
   --runs-per-config 5
 ```

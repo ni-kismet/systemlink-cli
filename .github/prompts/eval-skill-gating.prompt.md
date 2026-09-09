@@ -46,7 +46,7 @@ You are running the `slcli` gating eval workflow. Execute this sequence autonomo
 - Otherwise run:
 
 ```bash
-python slcli/skills/slcli/scripts/prepare_eval_workspace.py --suite gating
+poetry run python -m slcli.skills.slcli.scripts.prepare_eval_workspace --suite gating
 ```
 
 - Capture the printed iteration directory and use it for all later steps.
@@ -56,7 +56,7 @@ python slcli/skills/slcli/scripts/prepare_eval_workspace.py --suite gating
 Run:
 
 ```bash
-python slcli/skills/slcli/scripts/prepare_eval_prompts.py <ITERATION_DIR> \
+poetry run python -m slcli.skills.slcli.scripts.prepare_eval_prompts <ITERATION_DIR> \
   --max-tool-calls <MAX_TOOL_CALLS> \
   --max-minutes <MAX_MINUTES>
 ```
@@ -86,9 +86,10 @@ For each run:
 - If the run converges, save the final answer to `outputs/response.txt`.
 - Save the complete executor trace to `outputs/transcript.jsonl`.
 - Save `outputs/run_metadata.json` with `executor_provider`, exact `executor_model`, `harness`, `configuration`, and `status`.
+- When the subagent completion notification arrives, save its `duration_ms` and `total_tokens` plus derived `total_duration_seconds` to the run-root `timing.json` path named in the executor prompt. Do not estimate these values.
 - Retry an infrastructure failure once. If it fails again, set `status` to `infrastructure_error`, preserve partial artifacts, and continue.
 - If the run does not converge inside budget, save the best grounded partial answer to `outputs/response.txt` and add `outputs/notes.txt` with a brief failure reason.
-- Never write outside the run's `outputs/` directory.
+- Write response artifacts only inside the run's `outputs/` directory; write `timing.json` only to the run-root path named in the executor prompt.
 - Do not overwrite an already populated response unless it is obviously a placeholder.
 
 ### 5. Grade and aggregate
@@ -96,7 +97,7 @@ For each run:
 After all runs are attempted, run:
 
 ```bash
-python slcli/skills/slcli/scripts/benchmark_iteration.py <ITERATION_DIR>
+poetry run python -m slcli.skills.slcli.scripts.benchmark_iteration <ITERATION_DIR>
 ```
 
 Append `--force` only when the parsed `force` value is `true`.
@@ -106,7 +107,7 @@ Append `--force` only when the parsed `force` value is `true`.
 Run:
 
 ```bash
-python slcli/skills/slcli/scripts/render_eval_review.py <ITERATION_DIR>
+poetry run python -m slcli.skills.slcli.scripts.render_eval_review <ITERATION_DIR>
 ```
 
 ### 7. Final report

@@ -85,8 +85,8 @@ Instructions:
    - with_skill
    - old_skill
 5. After all outputs are populated, run:
-   - python slcli/skills/slcli/scripts/benchmark_iteration.py <ITERATION_DIR>
-   - python slcli/skills/slcli/scripts/render_eval_review.py <ITERATION_DIR>
+  - poetry run python -m slcli.skills.slcli.scripts.benchmark_iteration <ITERATION_DIR>
+  - poetry run python -m slcli.skills.slcli.scripts.render_eval_review <ITERATION_DIR>
 6. Report:
    - which run directories were populated
    - whether grading and benchmark generation succeeded

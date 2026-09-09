@@ -277,6 +277,18 @@ def test_evaluate_iteration_is_inconclusive_for_modified_executor_metadata(
     assert result["status"] == "inconclusive"
 
 
+def test_evaluate_iteration_is_inconclusive_for_non_object_executor_metadata(
+    tmp_path: Path,
+) -> None:
+    eval_dir = prepare_iteration(tmp_path)
+    metadata_path = eval_dir / "with_skill" / "run-1" / "outputs" / "run_metadata.json"
+    metadata_path.write_text("[]", encoding="utf-8")
+
+    result = evaluate_iteration(tmp_path, margin=0.05)
+
+    assert result["status"] == "inconclusive"
+
+
 def test_evaluate_iteration_is_inconclusive_for_stale_provenance(tmp_path: Path) -> None:
     eval_dir = prepare_iteration(tmp_path)
     record_path = eval_dir / "with_skill" / "run-1" / "run_record.json"
