@@ -180,6 +180,20 @@ def test_dataframe_rule_requires_supported_case_sensitive_operation() -> None:
     )
 
 
+def test_dataframe_safety_guidance_can_quote_unsupported_sql() -> None:
+    response = (
+        "Do not use `SELECT * FROM ProductionMetrics WHERE operator = 'J. Santos'`. "
+        "Use the supported dataframe command instead:\n\n"
+        "slcli dataframe query ProductionMetrics "
+        "--where 'operator,EQUALS,J. Santos' --format json"
+    )
+    manifest = load_manifest(Path("slcli/skills/slcli/evals/evals.json"))
+    eval_entry = next(entry for entry in manifest["evals"] if entry["id"] == 5)
+    critical_rules = [rule for rule in eval_entry["grading_rules"] if rule.get("critical")]
+
+    assert all(evaluate_rule(response, rule)[0] for rule in critical_rules)
+
+
 def test_spec_rules_require_json_import_and_valid_verification_arguments() -> None:
     import_rule = checked_in_rule(9, "Uses the spec import command")
     verify_rule = checked_in_rule(9, "Includes a follow-up verification command")

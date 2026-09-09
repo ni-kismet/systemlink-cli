@@ -14,6 +14,7 @@ from slcli.skills.slcli.scripts.eval_manifest import load_manifest
 from slcli.skills.slcli.scripts.prepare_eval_prompts import build_prompt
 from slcli.skills.slcli.scripts.prepare_eval_workspace import (
     create_old_skill_snapshot,
+    create_repository_snapshots,
     create_without_skill_snapshots,
     hash_directory,
     positive_int,
@@ -246,6 +247,24 @@ def test_without_skill_snapshots_isolate_candidate_and_baseline(tmp_path: Path) 
     assert not (candidate / "slcli" / "skills" / "slcli-workspace").exists()
     assert not (baseline / "slcli" / "skills" / "slcli-workspace").exists()
     assert not (baseline / "slcli" / "skills" / "slcli").exists()
+
+
+def test_without_skill_baseline_always_creates_repository_snapshots(tmp_path: Path) -> None:
+    repo = tmp_path / "repo"
+    skill_dir = repo / "slcli" / "skills" / "slcli"
+    iteration = repo / "slcli" / "skills" / "slcli-workspace" / "iteration-1"
+    skill_dir.mkdir(parents=True)
+    iteration.mkdir(parents=True)
+    (repo / "pyproject.toml").write_text("[tool.poetry]\nname = 'test'\n", encoding="utf-8")
+    (skill_dir / "SKILL.md").write_text("skill\n", encoding="utf-8")
+
+    candidate, baseline, baseline_sha = create_repository_snapshots(
+        skill_dir, iteration, "without_skill", "origin/main", False
+    )
+
+    assert (candidate / "slcli" / "skills" / "slcli" / "SKILL.md").is_file()
+    assert not (baseline / "slcli" / "skills" / "slcli").exists()
+    assert baseline_sha is None
 
 
 def test_hash_directory_ignores_python_cache_files(tmp_path: Path) -> None:

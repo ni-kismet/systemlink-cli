@@ -312,17 +312,6 @@
             "DataFrame service",
             "SystemLink Enterprise"
           ]
-        },
-        {
-          "text": "Avoids inventing SQL-only syntax",
-          "critical": true,
-          "positive_control": "Use slcli dataframe query with a filter.",
-          "negative_control": "SELECT * FROM ProductionMetrics WHERE operator = 'J. Santos'",
-          "mode": "none_of",
-          "patterns": [
-            "SELECT\\s+\\*\\s+FROM",
-            "WHERE\\s+operator"
-          ]
         }
       ]
     },

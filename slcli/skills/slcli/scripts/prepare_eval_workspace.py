@@ -91,7 +91,7 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument(
         "--isolate-baseline",
         action="store_true",
-        help="Create an isolated repo for without_skill runs; old_skill is always isolated.",
+        help="Deprecated compatibility option; baselines are always isolated.",
     )
     return parser.parse_args()
 
@@ -260,6 +260,20 @@ def create_without_skill_snapshots(
     return candidate_root, baseline_root
 
 
+def create_repository_snapshots(
+    skill_dir: Path,
+    iteration_dir: Path,
+    baseline: str,
+    baseline_ref: str,
+    force: bool,
+) -> tuple[Path, Path, str | None]:
+    """Create paired repository snapshots for the selected baseline."""
+    if baseline == "old_skill":
+        return create_old_skill_snapshot(skill_dir, iteration_dir, baseline_ref)
+    candidate_root, baseline_root = create_without_skill_snapshots(skill_dir, iteration_dir, force)
+    return candidate_root, baseline_root, None
+
+
 def make_run_dirs(
     eval_dir: Path,
     configurations: list[str],
@@ -362,19 +376,13 @@ def main() -> None:
     iteration_dir = workspace_root / f"iteration-{iteration_number}"
     prepare_iteration_directory(iteration_dir, args.force)
 
-    candidate_repo_root = None
-    baseline_repo_root = None
-    baseline_sha = None
-    if args.baseline == "old_skill":
-        candidate_repo_root, baseline_repo_root, baseline_sha = create_old_skill_snapshot(
-            skill_dir, iteration_dir, args.baseline_ref
-        )
-    elif args.isolate_baseline:
-        candidate_repo_root, baseline_repo_root = create_without_skill_snapshots(
-            skill_dir,
-            iteration_dir,
-            args.force,
-        )
+    candidate_repo_root, baseline_repo_root, baseline_sha = create_repository_snapshots(
+        skill_dir,
+        iteration_dir,
+        args.baseline,
+        args.baseline_ref,
+        args.force,
+    )
 
     repo_root = find_repo_root(skill_dir)
     candidate_sha = run_git(repo_root, "rev-parse", "HEAD")

@@ -55,8 +55,9 @@ Each trial receives its own copy of the appropriate template, so parallel runs
 cannot modify another trial's repository. File-backed fixtures are copied into
 a neutral `inputs/` directory shared by both arms. Use
 `--baseline-ref` when comparing against another branch. Use
-`--baseline without_skill --isolate-baseline` only when measuring whether a new
-skill adds value; that comparison is not a regression test.
+`--baseline without_skill` only when measuring whether a new skill adds value;
+that comparison is not a regression test. The legacy `--isolate-baseline` option
+is accepted but no longer needed because both configurations are always isolated.
 
 #### Generate executor prompts
 
