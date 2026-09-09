@@ -9,6 +9,7 @@ from pathlib import Path
 from typing import Any
 
 from slcli.skills.slcli.scripts.grade_eval_response import gather_response_text, grade_response
+from slcli.skills.slcli.scripts.prepare_eval_workspace import hash_directory
 
 
 def parse_args() -> argparse.Namespace:
@@ -71,6 +72,21 @@ def file_manifest(output_dir: Path) -> list[dict[str, object]]:
     return files
 
 
+def run_skill_hash(run_dir: Path) -> str | None:
+    """Hash the skill in a run's isolated repository, or return None when absent."""
+    run_config = load_json(run_dir / "run_config.json")
+    repository_root = run_config.get("repository_root")
+    if repository_root is None:
+        return None
+    if not isinstance(repository_root, str):
+        raise ValueError("run repository_root must be a string or null")
+    repository_path = Path(repository_root).resolve()
+    if repository_path != (run_dir / "repo").resolve():
+        raise ValueError("run repository_root must identify the run's isolated repository")
+    skill_dir = repository_path / "slcli" / "skills" / "slcli"
+    return hash_directory(skill_dir) if skill_dir.is_dir() else None
+
+
 def grade_run(
     manifest_path: Path,
     eval_id: int,
@@ -86,6 +102,8 @@ def grade_run(
     outputs_dir = run_dir / "outputs"
     required_artifacts = ("response.txt", "transcript.jsonl", "run_metadata.json")
     missing_artifacts = [name for name in required_artifacts if not (outputs_dir / name).exists()]
+    if not (run_dir / "timing.json").exists():
+        missing_artifacts.append("timing.json")
     if missing_artifacts:
         return f"skip {run_dir}: required outputs missing: {', '.join(missing_artifacts)}"
 
@@ -93,10 +111,35 @@ def grade_run(
 
     try:
         gather_response_text(response_path)
-    except ValueError:
-        return f"skip {run_dir}: no readable response artifacts"
+        actual_skill_hash = run_skill_hash(run_dir)
+    except (json.JSONDecodeError, OSError, TypeError, ValueError):
+        return f"skip {run_dir}: invalid response or run configuration"
 
     timing_path = run_dir / "timing.json"
+    run_metadata_path = outputs_dir / "run_metadata.json"
+    try:
+        run_metadata = load_json(run_metadata_path)
+        timing = load_json(timing_path)
+        if not isinstance(run_metadata, dict) or not isinstance(timing, dict):
+            raise ValueError("run metadata and timing must be JSON objects")
+        duration_ms = timing.get("duration_ms")
+        duration_seconds = timing.get("total_duration_seconds")
+        total_tokens = timing.get("total_tokens")
+        if (
+            not isinstance(duration_ms, (int, float))
+            or isinstance(duration_ms, bool)
+            or duration_ms < 0
+            or not isinstance(duration_seconds, (int, float))
+            or isinstance(duration_seconds, bool)
+            or duration_seconds < 0
+            or abs(duration_seconds - duration_ms / 1000) > 0.1
+        ):
+            raise ValueError("timing requires consistent nonnegative duration values")
+        if not isinstance(total_tokens, int) or isinstance(total_tokens, bool) or total_tokens < 0:
+            raise ValueError("timing requires a nonnegative total_tokens value")
+    except (json.JSONDecodeError, OSError, TypeError, ValueError):
+        return f"skip {run_dir}: invalid run metadata or timing"
+
     graded = grade_response(
         manifest_path,
         eval_id,
@@ -105,8 +148,6 @@ def grade_run(
         outputs_dir / "transcript.jsonl",
     )
     input_manifest = load_json(run_dir.parents[1] / "inputs_manifest.json")
-    run_metadata_path = outputs_dir / "run_metadata.json"
-    run_metadata = load_json(run_metadata_path) if run_metadata_path.exists() else {}
     infrastructure_error = run_metadata.get("status") == "infrastructure_error"
     classification = (
         "inconclusive"
@@ -129,9 +170,10 @@ def grade_run(
         "eval_id": eval_id,
         "trial": int(run_dir.name.removeprefix("run-")),
         "configuration": run_dir.parent.name,
+        "run_skill_hash": actual_skill_hash,
         "executor": run_metadata,
         "inputs": input_manifest.get("files", []),
-        "timing": load_json(timing_path) if timing_path.exists() else {},
+        "timing": timing,
         "outputs": file_manifest(outputs_dir),
         "grading": graded,
         "classification": classification,

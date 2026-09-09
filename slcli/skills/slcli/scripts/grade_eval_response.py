@@ -27,7 +27,19 @@ def validate_candidate(candidate: str, rule: dict[str, Any], reference_date: dat
         return True
     if validator == "previous_calendar_month":
         lower_bound, upper_bound = previous_calendar_month_bounds(reference_date)
-        return lower_bound in candidate and upper_bound in candidate
+        lower_match = re.search(r"startedAt\s*>=\s*@(\d+)", candidate, re.IGNORECASE)
+        upper_match = re.search(r"startedAt\s*<\s*@(\d+)", candidate, re.IGNORECASE)
+        substitutions = re.findall(r"--substitution(?:=|\s+)(\S+)", candidate)
+        if lower_match is None or upper_match is None:
+            return False
+        lower_index = int(lower_match.group(1))
+        upper_index = int(upper_match.group(1))
+        if lower_index >= len(substitutions) or upper_index >= len(substitutions):
+            return False
+        return (
+            substitutions[lower_index].removesuffix("T00:00:00Z") == lower_bound
+            and substitutions[upper_index].removesuffix("T00:00:00Z") == upper_bound
+        )
     raise ValueError(f"Unsupported grading rule validator: {validator}")
 
 
@@ -120,7 +132,12 @@ def extract_slcli_commands(text: str) -> list[str]:
         for token in [*tokens, ";"]:
             if token in {";", "&&", "||", "|", "&"}:
                 if segment and segment[0] == "slcli":
-                    commands.append(" ".join(segment))
+                    command_tokens = segment.copy()
+                    if len(command_tokens) > 2 and command_tokens[1] in {"--profile", "-p"}:
+                        del command_tokens[1:3]
+                    elif len(command_tokens) > 1 and command_tokens[1].startswith("--profile="):
+                        del command_tokens[1]
+                    commands.append(" ".join(command_tokens))
                 segment = []
             else:
                 segment.append(token)
@@ -259,6 +276,7 @@ def build_output(
             "total_tool_calls": 0,
             "total_steps": 0,
             "errors_encountered": 0,
+            "total_tokens": timing.get("total_tokens") if timing else None,
             "output_chars": len(response_text),
             "transcript_chars": len(transcript_text) if transcript_text is not None else None,
         },

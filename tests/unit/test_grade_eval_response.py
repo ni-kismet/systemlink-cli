@@ -39,6 +39,14 @@ slcli system get 'unterminated
     assert extract_slcli_commands(response) == ["slcli system list --format json"]
 
 
+def test_extract_slcli_commands_normalizes_global_profile_options() -> None:
+    assert extract_slcli_commands(
+        "slcli --profile prod system list\n"
+        "slcli -p test asset list\n"
+        "slcli --profile=dev tag list"
+    ) == ["slcli system list", "slcli asset list", "slcli tag list"]
+
+
 def test_gather_response_text_replaces_invalid_utf8_bytes(tmp_path: Path) -> None:
     response_path = tmp_path / "response.txt"
     response_path.write_bytes(b"before\xffafter")
@@ -194,3 +202,27 @@ def test_previous_calendar_month_validator_checks_exact_bounds() -> None:
 
     assert valid is True
     assert stale is False
+
+
+def test_previous_calendar_month_validator_checks_referenced_substitution_positions() -> None:
+    rule = {
+        "mode": "all_of",
+        "scope": "command",
+        "validator": "previous_calendar_month",
+        "patterns": ["startedAt >=", "startedAt <", "--substitution"],
+    }
+    response = (
+        "slcli testmonitor result list --filter 'startedAt >= @0 && startedAt < @1' "
+        "--substitution 2025-01-01 --substitution 2025-02-01 "
+        "--substitution 2026-08-01 --substitution 2026-09-01"
+    )
+
+    assert evaluate_rule(response, rule, date(2026, 9, 8))[0] is False
+
+
+def test_profile_normalization_applies_to_required_and_forbidden_rules() -> None:
+    required = {"mode": "any_of", "scope": "command", "patterns": [r"slcli\s+system\s+list"]}
+    forbidden = {"mode": "none_of", "scope": "command", "patterns": [r"slcli\s+asset\s+list"]}
+
+    assert evaluate_rule("slcli --profile prod system list", required)[0] is True
+    assert evaluate_rule("slcli -p prod asset list", forbidden)[0] is False

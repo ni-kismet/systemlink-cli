@@ -142,6 +142,7 @@ def build_prompt(
             f"- {PRIMARY_RESPONSE_ARTIFACT} containing the final user-facing answer",
             "- transcript.jsonl containing the complete executor trace",
             "- run_metadata.json containing executor_provider, executor_model, harness, configuration, and status",
+            f"- {output_dir.parent.resolve() / 'timing.json'} containing total_duration_seconds and total_tokens from the subagent completion notification; do not estimate either value",
             "- optional notes.txt if you had to make assumptions or explain tradeoffs",
             "",
             "Requirements:",

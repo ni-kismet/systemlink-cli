@@ -47,6 +47,13 @@ def test_grade_run_records_provenance_and_only_grades_response(tmp_path: Path) -
         },
     )
     run_dir = tmp_path / "iteration" / "eval-1" / "with_skill" / "run-1"
+    skill_dir = run_dir / "repo" / "slcli" / "skills" / "slcli"
+    skill_dir.mkdir(parents=True)
+    (skill_dir / "SKILL.md").write_text("candidate skill\n", encoding="utf-8")
+    write_json(
+        run_dir / "run_config.json",
+        {"configuration": "with_skill", "repository_root": str(run_dir / "repo")},
+    )
     write_json(run_dir.parents[1] / "inputs_manifest.json", {"files": []})
     outputs = run_dir / "outputs"
     outputs.mkdir(parents=True)
@@ -62,6 +69,10 @@ def test_grade_run_records_provenance_and_only_grades_response(tmp_path: Path) -
             "configuration": "with_skill",
             "status": "completed",
         },
+    )
+    write_json(
+        run_dir / "timing.json",
+        {"duration_ms": 2500, "total_duration_seconds": 2.5, "total_tokens": 42},
     )
     iteration_metadata = {
         "skill_name": "test",
@@ -82,11 +93,14 @@ def test_grade_run_records_provenance_and_only_grades_response(tmp_path: Path) -
         == "fail"
     )
     assert record["candidate_sha"] == "candidate"
+    assert record["run_skill_hash"] == hashlib.sha256(b"SKILL.md\0candidate skill\n\0").hexdigest()
     assert record["eval_manifest_hash"] == hashlib.sha256(manifest_path.read_bytes()).hexdigest()
     assert record["inputs"] == []
     assert record["grading"]["execution_metrics"]["transcript_chars"] == len(
         '{"event":"completed"}\n'
     )
+    assert record["grading"]["execution_metrics"]["total_tokens"] == 42
+    assert record["grading"]["timing"]["total_duration_seconds"] == 2.5
     assert {item["path"] for item in record["outputs"]} == {
         "notes.txt",
         "response.txt",
@@ -100,6 +114,10 @@ def test_grade_run_skips_run_without_transcript(tmp_path: Path) -> None:
     outputs.mkdir(parents=True)
     (outputs / "response.txt").write_text("A response\n", encoding="utf-8")
     write_json(outputs / "run_metadata.json", {"status": "completed"})
+    write_json(
+        outputs.parent / "timing.json",
+        {"duration_ms": 1000, "total_duration_seconds": 1.0, "total_tokens": 1},
+    )
 
     message = grade_run(
         tmp_path / "evals.json",
@@ -110,3 +128,39 @@ def test_grade_run_skips_run_without_transcript(tmp_path: Path) -> None:
     )
 
     assert message.endswith("required outputs missing: transcript.jsonl")
+
+
+def test_grade_run_skips_invalid_executor_metadata(tmp_path: Path) -> None:
+    run_dir = tmp_path / "eval-1" / "with_skill" / "run-1"
+    outputs = run_dir / "outputs"
+    outputs.mkdir(parents=True)
+    (outputs / "response.txt").write_text("A response\n", encoding="utf-8")
+    (outputs / "transcript.jsonl").write_text("{}\n", encoding="utf-8")
+    (outputs / "run_metadata.json").write_text("{", encoding="utf-8")
+    write_json(
+        run_dir / "timing.json",
+        {"duration_ms": 1000, "total_duration_seconds": 1.0, "total_tokens": 1},
+    )
+    write_json(run_dir / "run_config.json", {"repository_root": None})
+
+    message = grade_run(tmp_path / "evals.json", 1, run_dir, False, {})
+
+    assert message.endswith("invalid run metadata or timing")
+
+
+def test_grade_run_skips_inconsistent_timing(tmp_path: Path) -> None:
+    run_dir = tmp_path / "eval-1" / "with_skill" / "run-1"
+    outputs = run_dir / "outputs"
+    outputs.mkdir(parents=True)
+    (outputs / "response.txt").write_text("A response\n", encoding="utf-8")
+    (outputs / "transcript.jsonl").write_text("{}\n", encoding="utf-8")
+    write_json(outputs / "run_metadata.json", {"status": "completed"})
+    write_json(
+        run_dir / "timing.json",
+        {"duration_ms": 1000, "total_duration_seconds": 99.0, "total_tokens": 1},
+    )
+    write_json(run_dir / "run_config.json", {"repository_root": None})
+
+    message = grade_run(tmp_path / "evals.json", 1, run_dir, False, {})
+
+    assert message.endswith("invalid run metadata or timing")

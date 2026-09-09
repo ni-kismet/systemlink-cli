@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import importlib.util
+import io
 import sys
 from pathlib import Path
 from types import ModuleType
@@ -80,6 +81,50 @@ def test_summarize_query_result_marks_executor_errors_inconclusive(
     assert result["pass"] is None
     assert result["trigger_rate"] is None
     assert result["errors"] == 3
+
+
+def test_run_single_query_raises_for_nonzero_executor_exit(
+    run_eval_module: ModuleType, monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    class FailedProcess:
+        stdout = io.BytesIO()
+        returncode = 2
+
+        def poll(self) -> int:
+            return 2
+
+    monkeypatch.setattr(
+        run_eval_module.subprocess, "Popen", lambda *args, **kwargs: FailedProcess()
+    )
+
+    with pytest.raises(run_eval_module.ExecutionError, match="exited with status 2"):
+        run_eval_module.run_single_query("query", "skill", "description", 30, str(tmp_path))
+
+
+def test_run_single_query_raises_for_timeout(
+    run_eval_module: ModuleType, monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    class TimedOutProcess:
+        stdout = io.BytesIO()
+        returncode = None
+
+        def poll(self) -> None:
+            return None
+
+        def kill(self) -> None:
+            self.returncode = -9
+
+        def wait(self) -> None:
+            return None
+
+    timestamps = iter([0.0, 31.0])
+    monkeypatch.setattr(
+        run_eval_module.subprocess, "Popen", lambda *args, **kwargs: TimedOutProcess()
+    )
+    monkeypatch.setattr(run_eval_module.time, "time", lambda: next(timestamps))
+
+    with pytest.raises(run_eval_module.ExecutionError, match="timed out after 30 seconds"):
+        run_eval_module.run_single_query("query", "skill", "description", 30, str(tmp_path))
 
 
 def test_require_conclusive_results_rejects_executor_errors(run_eval_module: ModuleType) -> None:

@@ -12,6 +12,7 @@ import pytest
 
 from slcli.skills.slcli.scripts.compare_iteration import evaluate_iteration, regression_margin
 from slcli.skills.slcli.scripts.grade_iteration import file_manifest
+from slcli.skills.slcli.scripts.prepare_eval_workspace import hash_directory
 
 
 def write_json(path: Path, payload: dict[str, Any]) -> None:
@@ -44,6 +45,14 @@ def run_metadata(configuration: str, model: str = "test-model") -> dict[str, str
 
 def prepare_iteration(tmp_path: Path) -> Path:
     """Create a complete three-trial paired iteration."""
+    candidate_template = tmp_path / "candidate-skill"
+    baseline_template = tmp_path / "baseline-skill"
+    candidate_template.mkdir()
+    baseline_template.mkdir()
+    (candidate_template / "SKILL.md").write_text("candidate\n", encoding="utf-8")
+    (baseline_template / "SKILL.md").write_text("baseline\n", encoding="utf-8")
+    candidate_hash = hash_directory(candidate_template)
+    baseline_hash = hash_directory(baseline_template)
     write_json(
         tmp_path / "iteration_manifest.json",
         {
@@ -53,8 +62,8 @@ def prepare_iteration(tmp_path: Path) -> Path:
             "eval_ids": [1],
             "candidate_sha": "candidate",
             "baseline_sha": "baseline",
-            "candidate_skill_hash": "candidate-hash",
-            "baseline_skill_hash": "baseline-hash",
+            "candidate_skill_hash": candidate_hash,
+            "baseline_skill_hash": baseline_hash,
             "eval_manifest_hash": "manifest-hash",
         },
     )
@@ -65,6 +74,18 @@ def prepare_iteration(tmp_path: Path) -> Path:
         for run_number in range(1, 4):
             grading_payload = grading(1.0)
             run_dir = eval_dir / configuration / f"run-{run_number}"
+            run_skill_dir = run_dir / "repo" / "slcli" / "skills" / "slcli"
+            run_skill_dir.mkdir(parents=True)
+            source_skill = (
+                candidate_template if configuration == "with_skill" else baseline_template
+            )
+            (run_skill_dir / "SKILL.md").write_bytes((source_skill / "SKILL.md").read_bytes())
+            write_json(
+                run_dir / "run_config.json",
+                {"configuration": configuration, "repository_root": str(run_dir / "repo")},
+            )
+            timing = {"duration_ms": 1000, "total_duration_seconds": 1.0, "total_tokens": 10}
+            write_json(run_dir / "timing.json", timing)
             write_json(
                 run_dir / "grading.json",
                 grading_payload,
@@ -81,16 +102,20 @@ def prepare_iteration(tmp_path: Path) -> Path:
                     "skill_name": "test",
                     "candidate_sha": "candidate",
                     "baseline_sha": "baseline",
-                    "candidate_skill_hash": "candidate-hash",
-                    "baseline_skill_hash": "baseline-hash",
+                    "candidate_skill_hash": candidate_hash,
+                    "baseline_skill_hash": baseline_hash,
                     "eval_manifest_hash": "manifest-hash",
                     "eval_id": 1,
                     "trial": run_number,
                     "configuration": configuration,
+                    "run_skill_hash": (
+                        candidate_hash if configuration == "with_skill" else baseline_hash
+                    ),
                     "classification": "pass",
                     "executor": metadata,
                     "inputs": [],
                     "outputs": file_manifest(outputs_dir),
+                    "timing": timing,
                     "grading": grading_payload,
                 },
             )
@@ -263,6 +288,26 @@ def test_evaluate_iteration_is_inconclusive_for_stale_provenance(tmp_path: Path)
 
     assert result["status"] == "inconclusive"
     assert str(eval_dir / "with_skill" / "run-1") in result["missing_or_inconclusive_runs"]
+
+
+def test_evaluate_iteration_is_inconclusive_for_modified_run_skill(tmp_path: Path) -> None:
+    eval_dir = prepare_iteration(tmp_path)
+    skill_path = eval_dir / "with_skill" / "run-1" / "repo/slcli/skills/slcli/SKILL.md"
+    skill_path.write_text("modified\n", encoding="utf-8")
+
+    result = evaluate_iteration(tmp_path, margin=0.05)
+
+    assert result["status"] == "inconclusive"
+
+
+def test_evaluate_iteration_is_inconclusive_for_invalid_run_config(tmp_path: Path) -> None:
+    eval_dir = prepare_iteration(tmp_path)
+    run_config = eval_dir / "with_skill" / "run-1" / "run_config.json"
+    run_config.write_text("{", encoding="utf-8")
+
+    result = evaluate_iteration(tmp_path, margin=0.05)
+
+    assert result["status"] == "inconclusive"
 
 
 def test_evaluate_iteration_is_inconclusive_for_modified_grading(tmp_path: Path) -> None:

@@ -221,24 +221,23 @@ def create_old_skill_snapshot(
     return candidate_root, snapshot_root, merge_base
 
 
-def create_isolated_baseline_repo(
+def create_without_skill_snapshots(
     skill_dir: Path,
     iteration_dir: Path,
-    baseline: str,
     force: bool,
-) -> Path | None:
-    """Create a baseline repo snapshot with the skill directory removed."""
-    if baseline != "without_skill":
-        return None
-
+) -> tuple[Path, Path]:
+    """Create paired candidate and skill-free repository snapshots."""
     repo_root = find_repo_root(skill_dir)
-    snapshot_root = iteration_dir / "baseline_repo"
-    if snapshot_root.exists():
+    candidate_root = iteration_dir / "candidate_repo"
+    baseline_root = iteration_dir / "baseline_repo"
+    existing = [path for path in (candidate_root, baseline_root) if path.exists()]
+    if existing:
         if not force:
             raise FileExistsError(
-                f"{snapshot_root} already exists. Use --force to recreate the baseline snapshot."
+                f"{existing[0]} already exists. Use --force to recreate repository snapshots."
             )
-        shutil.rmtree(snapshot_root)
+        for path in existing:
+            shutil.rmtree(path)
 
     workspace_root = iteration_dir.parent.resolve()
 
@@ -250,14 +249,15 @@ def create_isolated_baseline_repo(
             if name in ignored or (Path(directory) / name).resolve() == workspace_root
         }
 
-    shutil.copytree(repo_root, snapshot_root, ignore=ignore_entries)
+    shutil.copytree(repo_root, candidate_root, ignore=ignore_entries)
+    shutil.copytree(candidate_root, baseline_root)
 
     skill_relative_path = skill_dir.relative_to(repo_root)
-    isolated_skill_dir = snapshot_root / skill_relative_path
+    isolated_skill_dir = baseline_root / skill_relative_path
     if isolated_skill_dir.exists():
         shutil.rmtree(isolated_skill_dir)
 
-    return snapshot_root
+    return candidate_root, baseline_root
 
 
 def make_run_dirs(
@@ -370,10 +370,9 @@ def main() -> None:
             skill_dir, iteration_dir, args.baseline_ref
         )
     elif args.isolate_baseline:
-        baseline_repo_root = create_isolated_baseline_repo(
+        candidate_repo_root, baseline_repo_root = create_without_skill_snapshots(
             skill_dir,
             iteration_dir,
-            args.baseline,
             args.force,
         )
 

@@ -83,13 +83,15 @@ Recommended execution pattern:
 5. Keep concurrency modest, usually 2 to 4 runs at a time.
 6. If a run exceeds its budget, save the best grounded `response.txt`, add a short `notes.txt`, and continue.
 
-Each run saves artifacts under its own `outputs/` directory. Every run must
-write:
+Each run saves response artifacts under its own `outputs/` directory and timing
+metadata at the run root. Every run must write:
 
 - `response.txt`: final user-facing response
 - `transcript.jsonl`: complete executor trace for audit and diagnosis
 - `run_metadata.json`: `executor_provider`, exact `executor_model`, `harness`,
   `configuration`, and `status` (`completed` or `infrastructure_error`)
+- `../timing.json`: `total_tokens` and `duration_ms` from the subagent completion
+  notification plus derived `total_duration_seconds`; these values must not be estimated
 
 Candidate and baseline trials are incomparable when provider, model, or harness
 metadata differs.

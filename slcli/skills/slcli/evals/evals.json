@@ -215,13 +215,14 @@
         {
           "text": "Uses substitutions for a complex filter",
           "critical": true,
-          "positive_control": "slcli testmonitor result list --filter \"operator.Contains(@0)\" --substitution xli",
+          "positive_control": "slcli testmonitor result list --operator xli --filter \"startedAt >= @0 and startedAt < @1\" --substitution 2022-06-01 --substitution 2022-07-01",
           "negative_control": "slcli testmonitor result list --filter operator=xli",
           "scope": "command",
           "mode": "all_of",
           "patterns": [
             "--filter\\s+[^;\\n]*@0",
-            "--substitution\\s+xli"
+            "--substitution\\s+2022-06-01",
+            "--substitution\\s+2022-07-01"
           ]
         },
         {
@@ -240,7 +241,7 @@
         {
           "text": "Combines the full June failure query in one invocation",
           "critical": true,
-          "positive_control": "slcli testmonitor result list --part-number BATT-8 --status FAILED --filter \"operator.Contains(@0) and startedAt >= @1 and startedAt < @2\" --substitution xli --substitution 2022-06-01T00:00:00Z --substitution 2022-07-01T00:00:00Z",
+          "positive_control": "slcli testmonitor result list --part-number BATT-8 --operator xli --status FAILED --filter \"startedAt >= @0 and startedAt < @1\" --substitution 2022-06-01T00:00:00Z --substitution 2022-07-01T00:00:00Z",
           "negative_control": "slcli testmonitor result list --part-number BATT-8\nslcli testmonitor result list --status FAILED --filter \"operator.Contains(@0) and startedAt >= @1 and startedAt < @2\" --substitution xli --substitution 2022-06-01T00:00:00Z --substitution 2022-07-01T00:00:00Z",
           "scope": "command",
           "mode": "all_of",
@@ -248,10 +249,9 @@
             "slcli\\s+testmonitor\\s+result\\s+list",
             "--part-number\\s+BATT-8",
             "--status\\s+FAILED",
-            "operator\\.Contains\\(@\\d+\\)",
+            "(?:--operator\\s+xli|--substitution\\s+xli)",
             "startedAt\\s*>=\\s*@\\d+",
             "startedAt\\s*<\\s*@\\d+",
-            "--substitution\\s+xli",
             "--substitution\\s+2022-06-01",
             "--substitution\\s+2022-07-01"
           ]
@@ -446,7 +446,7 @@
       "files": [],
       "expectations": [
         "Selects the `webapp` command group",
-        "Uses `webapp init` or `webapp new` before packaging-related steps",
+        "Uses `webapp new` before packaging-related steps",
         "Uses the package or manifest workflow rather than generic archive commands",
         "Keeps the response in terms of supported `slcli` webapp commands"
       ],
@@ -459,8 +459,7 @@
           "scope": "command",
           "mode": "any_of",
           "patterns": [
-            "slcli\\s+webapp\\s+new",
-            "slcli\\s+webapp\\s+init"
+            "slcli\\s+webapp\\s+new"
           ]
         },
         {

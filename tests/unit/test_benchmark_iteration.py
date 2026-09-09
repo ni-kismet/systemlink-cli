@@ -88,3 +88,23 @@ def test_aggregate_skips_inconclusive_grading(tmp_path: Path) -> None:
     results = aggregate_module["load_run_results"](tmp_path)
 
     assert results == {"with_skill": []}
+
+
+def test_aggregate_uses_measured_tokens_instead_of_output_characters(tmp_path: Path) -> None:
+    grading_path = tmp_path / "eval-1" / "with_skill" / "run-1" / "grading.json"
+    write_json(
+        grading_path,
+        {
+            "classification": "pass",
+            "summary": {"pass_rate": 1.0, "passed": 1, "failed": 0, "total": 1},
+            "timing": {"total_duration_seconds": 2.5},
+            "execution_metrics": {"total_tokens": 42, "output_chars": 1000},
+            "expectations": [],
+        },
+    )
+    aggregate_module = runpy.run_path(".github/skills/skill-creator/scripts/aggregate_benchmark.py")
+
+    results = aggregate_module["load_run_results"](tmp_path)
+
+    assert results["with_skill"][0]["tokens"] == 42
+    assert results["with_skill"][0]["time_seconds"] == 2.5

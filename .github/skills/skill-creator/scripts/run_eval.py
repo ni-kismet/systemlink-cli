@@ -20,6 +20,10 @@ from pathlib import Path
 from scripts.utils import parse_skill_md
 
 
+class ExecutionError(RuntimeError):
+    """Raised when a trigger-evaluation executor does not complete successfully."""
+
+
 def unit_interval_rate(value: str) -> float:
     """Parse a finite trigger rate between zero and one."""
     parsed = float(value)
@@ -107,6 +111,7 @@ def run_single_query(
         # Track state for stream event detection
         pending_tool_name = None
         accumulated_json = ""
+        timed_out = False
 
         try:
             while time.time() - start_time < timeout:
@@ -182,12 +187,18 @@ def run_single_query(
 
                     elif event.get("type") == "result":
                         return triggered
+            else:
+                timed_out = True
         finally:
             # Clean up process on any exit path (return, exception, timeout)
             if process.poll() is None:
                 process.kill()
                 process.wait()
 
+        if timed_out:
+            raise ExecutionError(f"Claude CLI timed out after {timeout} seconds")
+        if process.returncode != 0:
+            raise ExecutionError(f"Claude CLI exited with status {process.returncode}")
         return triggered
     finally:
         if command_file.exists():

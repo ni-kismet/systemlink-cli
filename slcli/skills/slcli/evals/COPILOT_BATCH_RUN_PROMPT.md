@@ -42,6 +42,7 @@ In one parent chat, Copilot should:
 - save the final answer to `outputs/response.txt`
 - save the complete executor trace to `outputs/transcript.jsonl`
 - save executor identity, configuration, and completion status to `outputs/run_metadata.json`
+- save `total_tokens`, `duration_ms`, and derived `total_duration_seconds` from the subagent completion notification to the run's `timing.json`; do not estimate these values
 - retry infrastructure failures once; after a second failure, set status to `infrastructure_error` and continue
 - optionally save `outputs/notes.txt` for assumptions
 
@@ -78,6 +79,7 @@ Instructions:
   - save the complete executor trace to the sibling outputs/transcript.jsonl path named in the prompt
    - save optional outputs/notes.txt only if assumptions or caveats matter
   - save outputs/run_metadata.json with executor_provider, exact executor_model, harness, configuration, and status
+  - when the subagent completion notification arrives, immediately save its total_tokens and duration_ms plus derived total_duration_seconds to the sibling timing.json named in the executor prompt
   - use status `completed` only for a completed model run; retry an infrastructure failure once, then use `infrastructure_error` and preserve partial artifacts
 4. Do both configurations for every eval:
    - with_skill
@@ -100,7 +102,7 @@ Execution rules:
 - If a run exceeds its budget without a grounded answer, declare it failed quickly, persist the best grounded partial result plus a short note, and continue.
 - Do not overwrite populated outputs unless the existing file is only a placeholder.
 - Keep each response grounded in supported slcli commands and workflows.
-- Save artifacts only inside the specified outputs/ directories.
+- Save response artifacts only inside the specified outputs/ directories; save timing.json at the run path named in the executor prompt.
 - If a single run fails, continue with the remaining runs and report the failure at the end.
 ```
 

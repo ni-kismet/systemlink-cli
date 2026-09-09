@@ -10,6 +10,8 @@ import sys
 from pathlib import Path
 from typing import Any
 
+from slcli.skills.slcli.scripts.grade_iteration import run_skill_hash
+
 REGRESSION_EXIT_CODE = 1
 INCONCLUSIVE_EXIT_CODE = 2
 
@@ -63,9 +65,21 @@ def load_run(
     metadata_path = run_dir / "outputs" / "run_metadata.json"
     record_path = run_dir / "run_record.json"
     inputs_path = run_dir.parents[1] / "inputs_manifest.json"
-    if not all(path.exists() for path in (grading_path, metadata_path, record_path, inputs_path)):
+    timing_path = run_dir / "timing.json"
+    if not all(
+        path.exists()
+        for path in (grading_path, metadata_path, record_path, inputs_path, timing_path)
+    ):
         return None
-    metadata = load_json(metadata_path)
+    try:
+        metadata = load_json(metadata_path)
+        grading = load_json(grading_path)
+        record = load_json(record_path)
+        expected_inputs = load_json(inputs_path).get("files", [])
+        timing = load_json(timing_path)
+        actual_skill_hash = run_skill_hash(run_dir)
+    except (json.JSONDecodeError, OSError, TypeError, ValueError):
+        return None
     required_metadata = {
         "executor_provider",
         "executor_model",
@@ -82,11 +96,8 @@ def load_run(
         or metadata["status"] != "completed"
     ):
         return None
-    grading = load_json(grading_path)
     if grading.get("classification") == "inconclusive":
         return None
-    record = load_json(record_path)
-    expected_inputs = load_json(inputs_path).get("files", [])
     inputs_match = record.get("inputs") == expected_inputs and all(
         Path(item["absolute_path"]).is_file()
         and hashlib.sha256(Path(item["absolute_path"]).read_bytes()).hexdigest() == item["sha256"]
@@ -103,8 +114,15 @@ def load_run(
         "trial": run_number,
         "configuration": run_dir.parent.name,
     }
+    expected_skill_hash = (
+        iteration.get("candidate_skill_hash")
+        if run_dir.parent.name == "with_skill"
+        else iteration.get("baseline_skill_hash")
+    )
     if (
         any(record.get(field) != value for field, value in expected_provenance.items())
+        or record.get("run_skill_hash") != expected_skill_hash
+        or actual_skill_hash != expected_skill_hash
         or not inputs_match
     ):
         return None
@@ -112,6 +130,7 @@ def load_run(
         record.get("classification") != grading.get("classification")
         or record.get("grading") != grading
         or record.get("executor") != metadata
+        or record.get("timing") != timing
         or record.get("outputs") != file_manifest(metadata_path.parent)
     ):
         return None

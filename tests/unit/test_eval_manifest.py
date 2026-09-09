@@ -152,6 +152,17 @@ def test_eval_one_full_query_accepts_current_previous_month_bounds() -> None:
     assert evaluate_rule(response, rule, reference_date=date(2026, 10, 8))[0] is True
 
 
+def test_eval_four_accepts_operator_convenience_filter() -> None:
+    rule = checked_in_rule(4, "Combines the full June failure query in one invocation")
+    response = (
+        "slcli testmonitor result list --part-number BATT-8 --operator xli --status FAILED "
+        "--filter 'startedAt >= @0 and startedAt < @1' "
+        "--substitution 2022-06-01 --substitution 2022-07-01"
+    )
+
+    assert evaluate_rule(response, rule)[0] is True
+
+
 def test_dataframe_rule_requires_supported_case_sensitive_operation() -> None:
     rule = checked_in_rule(5, "Queries ProductionMetrics with the requested operator constraint")
 
@@ -191,3 +202,10 @@ def test_webapp_packaging_rule_is_name_agnostic_and_option_order_independent() -
     )
 
     assert evaluate_rule(response, rule)[0] is True
+
+
+def test_webapp_scaffold_rule_rejects_legacy_init_command() -> None:
+    rule = checked_in_rule(8, "Uses a supported webapp scaffold command")
+
+    assert evaluate_rule("slcli webapp new dashboard", rule)[0] is True
+    assert evaluate_rule("slcli webapp init dashboard", rule)[0] is False

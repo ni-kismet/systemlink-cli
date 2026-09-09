@@ -13,8 +13,8 @@ import pytest
 from slcli.skills.slcli.scripts.eval_manifest import load_manifest
 from slcli.skills.slcli.scripts.prepare_eval_prompts import build_prompt
 from slcli.skills.slcli.scripts.prepare_eval_workspace import (
-    create_isolated_baseline_repo,
     create_old_skill_snapshot,
+    create_without_skill_snapshots,
     hash_directory,
     positive_int,
     prepare_iteration_directory,
@@ -93,6 +93,9 @@ def test_with_skill_prompt_loads_isolated_candidate_skill(tmp_path: Path) -> Non
     assert f"Skill path: {candidate_repo / 'slcli' / 'skills' / 'slcli'}" in prompt
     assert f"Use this isolated candidate repo root: {candidate_repo}" in prompt
     assert "transcript.jsonl containing the complete executor trace" in prompt
+    assert (
+        f"{tmp_path / 'timing.json'} containing total_duration_seconds and total_tokens" in prompt
+    )
 
 
 def test_scaffold_eval_uses_independent_run_repos_and_neutral_inputs(tmp_path: Path) -> None:
@@ -227,7 +230,7 @@ def test_positive_int_rejects_non_positive_values() -> None:
         positive_int("0")
 
 
-def test_isolated_baseline_excludes_workspace_root(tmp_path: Path) -> None:
+def test_without_skill_snapshots_isolate_candidate_and_baseline(tmp_path: Path) -> None:
     repo = tmp_path / "repo"
     skill_dir = repo / "slcli" / "skills" / "slcli"
     workspace = repo / "slcli" / "skills" / "slcli-workspace"
@@ -238,11 +241,12 @@ def test_isolated_baseline_excludes_workspace_root(tmp_path: Path) -> None:
     (skill_dir / "SKILL.md").write_text("skill\n", encoding="utf-8")
     (iteration / "stale.txt").write_text("stale\n", encoding="utf-8")
 
-    snapshot = create_isolated_baseline_repo(skill_dir, iteration, "without_skill", False)
+    candidate, baseline = create_without_skill_snapshots(skill_dir, iteration, False)
 
-    assert snapshot is not None
-    assert not (snapshot / "slcli" / "skills" / "slcli-workspace").exists()
-    assert not (snapshot / "slcli" / "skills" / "slcli").exists()
+    assert (candidate / "slcli" / "skills" / "slcli" / "SKILL.md").is_file()
+    assert not (candidate / "slcli" / "skills" / "slcli-workspace").exists()
+    assert not (baseline / "slcli" / "skills" / "slcli-workspace").exists()
+    assert not (baseline / "slcli" / "skills" / "slcli").exists()
 
 
 def test_hash_directory_ignores_python_cache_files(tmp_path: Path) -> None:
