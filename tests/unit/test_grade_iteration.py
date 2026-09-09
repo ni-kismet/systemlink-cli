@@ -18,6 +18,19 @@ def write_json(path: Path, payload: dict[str, Any]) -> None:
     path.write_text(json.dumps(payload), encoding="utf-8")
 
 
+def bind_executor_prompt(run_dir: Path) -> dict[str, Any]:
+    """Create a prompt and return its iteration manifest binding."""
+    prompt_path = run_dir / "executor_prompt.txt"
+    prompt_path.write_text("Execute this task.\n", encoding="utf-8")
+    return {
+        "executor_prompt_hashes": {
+            run_dir.relative_to(run_dir.parents[2])
+            .as_posix(): hashlib.sha256(prompt_path.read_bytes())
+            .hexdigest()
+        }
+    }
+
+
 def test_grade_run_records_provenance_and_only_grades_response(tmp_path: Path) -> None:
     manifest_path = tmp_path / "skill" / "evals" / "evals.json"
     write_json(
@@ -62,6 +75,9 @@ def test_grade_run_records_provenance_and_only_grades_response(tmp_path: Path) -
     (outputs / "response.txt").write_text("I could not determine the command.\n", encoding="utf-8")
     (outputs / "notes.txt").write_text("Expected: slcli system list\n", encoding="utf-8")
     (outputs / "transcript.jsonl").write_text('{"event":"completed"}\n', encoding="utf-8")
+    prompt_path = run_dir / "executor_prompt.txt"
+    prompt_path.write_text("Execute this task.\n", encoding="utf-8")
+    prompt_hash = hashlib.sha256(prompt_path.read_bytes()).hexdigest()
     write_json(
         outputs / "run_metadata.json",
         {
@@ -83,6 +99,7 @@ def test_grade_run_records_provenance_and_only_grades_response(tmp_path: Path) -
         "candidate_skill_hash": "candidate-hash",
         "baseline_skill_hash": "baseline-hash",
         "eval_manifest_hash": "manifest-hash",
+        "executor_prompt_hashes": {"eval-1/with_skill/run-1": prompt_hash},
     }
 
     message = grade_run(manifest_path, 1, run_dir, False, iteration_metadata)
@@ -96,6 +113,7 @@ def test_grade_run_records_provenance_and_only_grades_response(tmp_path: Path) -
     )
     assert record["candidate_sha"] == "candidate"
     assert record["run_skill_hash"] == hashlib.sha256(b"SKILL.md\0candidate skill\n\0").hexdigest()
+    assert record["executor_prompt_hash"] == prompt_hash
     assert record["eval_manifest_hash"] == hashlib.sha256(manifest_path.read_bytes()).hexdigest()
     assert record["inputs"] == []
     assert record["grading"]["execution_metrics"]["transcript_chars"] == len(
@@ -145,7 +163,7 @@ def test_grade_run_skips_invalid_executor_metadata(tmp_path: Path) -> None:
     )
     write_json(run_dir / "run_config.json", {"repository_root": None})
 
-    message = grade_run(tmp_path / "evals.json", 1, run_dir, False, {})
+    message = grade_run(tmp_path / "evals.json", 1, run_dir, False, bind_executor_prompt(run_dir))
 
     assert message.endswith("invalid run metadata or timing")
 
@@ -163,7 +181,7 @@ def test_grade_run_skips_inconsistent_timing(tmp_path: Path) -> None:
     )
     write_json(run_dir / "run_config.json", {"repository_root": None})
 
-    message = grade_run(tmp_path / "evals.json", 1, run_dir, False, {})
+    message = grade_run(tmp_path / "evals.json", 1, run_dir, False, bind_executor_prompt(run_dir))
 
     assert message.endswith("invalid run metadata or timing")
 
@@ -186,6 +204,6 @@ def test_grade_run_skips_non_finite_timing(tmp_path: Path, invalid_duration: flo
     )
     write_json(run_dir / "run_config.json", {"repository_root": None})
 
-    message = grade_run(tmp_path / "evals.json", 1, run_dir, False, {})
+    message = grade_run(tmp_path / "evals.json", 1, run_dir, False, bind_executor_prompt(run_dir))
 
     assert message.endswith("invalid run metadata or timing")

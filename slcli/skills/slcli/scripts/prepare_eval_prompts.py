@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import argparse
+import hashlib
 import json
 from pathlib import Path
 from typing import Any
@@ -182,6 +183,16 @@ def maybe_write(path: Path, content: str, force: bool) -> bool:
     return True
 
 
+def write_prompt(path: Path, content: str, force: bool) -> bool:
+    """Write a prompt, rejecting stale content unless replacement is allowed."""
+    if path.exists() and not force:
+        if path.read_text(encoding="utf-8") != content:
+            raise FileExistsError(f"{path} is stale. Use --force to regenerate prompts.")
+        return False
+    path.write_text(content, encoding="utf-8")
+    return True
+
+
 def build_placeholder(configuration: str) -> str:
     """Build placeholder output content."""
     return (
@@ -200,6 +211,7 @@ def main() -> None:
 
     written = 0
     placeholders = 0
+    prompt_hashes: dict[str, str] = {}
 
     for metadata_path, inputs_path, run_dir in iter_run_dirs(args.iteration_dir):
         metadata = load_json(metadata_path)
@@ -218,8 +230,11 @@ def main() -> None:
             run_config.get("repository_root"),
         )
         prompt_path = run_dir / "executor_prompt.txt"
-        if maybe_write(prompt_path, prompt_text, args.force):
+        if write_prompt(prompt_path, prompt_text, args.force):
             written += 1
+        prompt_hashes[run_dir.relative_to(args.iteration_dir).as_posix()] = hashlib.sha256(
+            prompt_path.read_bytes()
+        ).hexdigest()
 
         if args.stub_output:
             placeholder_path = output_dir / PRIMARY_RESPONSE_ARTIFACT
@@ -229,6 +244,13 @@ def main() -> None:
                 args.force,
             ):
                 placeholders += 1
+
+    iteration_manifest_path = args.iteration_dir / "iteration_manifest.json"
+    iteration_manifest = load_json(iteration_manifest_path)
+    iteration_manifest["executor_prompt_hashes"] = prompt_hashes
+    iteration_manifest_path.write_text(
+        json.dumps(iteration_manifest, indent=2) + "\n", encoding="utf-8"
+    )
 
     print(f"prompts_written={written}")
     if args.stub_output:

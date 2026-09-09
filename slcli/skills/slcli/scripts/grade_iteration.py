@@ -88,6 +88,16 @@ def run_skill_hash(run_dir: Path) -> str | None:
     return hash_directory(skill_dir) if skill_dir.is_dir() else None
 
 
+def executor_prompt_hash(run_dir: Path) -> str:
+    """Hash the executor prompt for one run."""
+    return hashlib.sha256((run_dir / "executor_prompt.txt").read_bytes()).hexdigest()
+
+
+def run_manifest_key(run_dir: Path) -> str:
+    """Return the iteration-relative manifest key for one run."""
+    return run_dir.relative_to(run_dir.parents[2]).as_posix()
+
+
 def grade_run(
     manifest_path: Path,
     eval_id: int,
@@ -113,6 +123,15 @@ def grade_run(
     try:
         gather_response_text(response_path)
         actual_skill_hash = run_skill_hash(run_dir)
+        actual_prompt_hash = executor_prompt_hash(run_dir)
+        prompt_hashes = iteration_metadata.get("executor_prompt_hashes")
+        expected_prompt_hash = (
+            prompt_hashes.get(run_manifest_key(run_dir))
+            if isinstance(prompt_hashes, dict)
+            else None
+        )
+        if actual_prompt_hash != expected_prompt_hash:
+            raise ValueError("executor prompt does not match iteration manifest")
     except (json.JSONDecodeError, OSError, TypeError, ValueError):
         return f"skip {run_dir}: invalid response or run configuration"
 
@@ -174,6 +193,7 @@ def grade_run(
         "trial": int(run_dir.name.removeprefix("run-")),
         "configuration": run_dir.parent.name,
         "run_skill_hash": actual_skill_hash,
+        "executor_prompt_hash": actual_prompt_hash,
         "executor": run_metadata,
         "inputs": input_manifest.get("files", []),
         "timing": timing,

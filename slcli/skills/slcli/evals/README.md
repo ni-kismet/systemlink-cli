@@ -98,8 +98,10 @@ Candidate and baseline trials are incomparable when provider, model, or harness
 metadata differs.
 
 The gate also treats a run as inconclusive when its candidate/baseline hashes,
-eval manifest hash, run identity, classification, or detailed grading payload
 does not match the immutable provenance captured in `run_record.json`.
+eval manifest hash, executor prompt hash, run identity, classification, or
+detailed grading payload does not match the immutable provenance captured in
+the iteration manifest and `run_record.json`.
 
 Retry an infrastructure failure once. If the retry also fails, preserve the
 partial artifacts with `status: infrastructure_error`; the gate reports that
@@ -112,6 +114,7 @@ trial as inconclusive instead of scoring it as a skill failure.
   only the baseline skill directory differs.
 - Input fixtures live outside both skill trees and are identical for both arms.
 - Copied fixture hashes must match their preparation-time input manifest.
+- Executor prompt hashes must match both the iteration manifest and live prompt files.
 - Critical compound workflows must pass within one command invocation.
 - Positive controls must use supported command paths and required arguments.
 - Executor errors and provenance mismatches are inconclusive, never passing evidence.

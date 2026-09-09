@@ -194,6 +194,21 @@ def test_dataframe_safety_guidance_can_quote_unsupported_sql() -> None:
     assert all(evaluate_rule(response, rule)[0] for rule in critical_rules)
 
 
+def test_workitem_template_create_rule_requires_valid_arguments() -> None:
+    rule = checked_in_rule(7, "Uses the workitem template create command")
+
+    assert evaluate_rule("slcli workitem template create", rule)[0] is False
+    assert evaluate_rule("slcli workitem template create --file battery.json", rule)[0] is True
+    assert (
+        evaluate_rule(
+            "slcli workitem template create --name cycle --type TestPlan "
+            "--template-group battery",
+            rule,
+        )[0]
+        is True
+    )
+
+
 def test_spec_rules_require_json_import_and_valid_verification_arguments() -> None:
     import_rule = checked_in_rule(9, "Uses the spec import command")
     verify_rule = checked_in_rule(9, "Includes a follow-up verification command")

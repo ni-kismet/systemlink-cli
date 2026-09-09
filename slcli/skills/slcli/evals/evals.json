@@ -401,7 +401,8 @@
           "scope": "command",
           "mode": "any_of",
           "patterns": [
-            "slcli\\s+workitem\\s+template\\s+create"
+            "^slcli\\s+workitem\\s+template\\s+create\\b(?=[^\\n]*--file\\s+\\S+)",
+            "^slcli\\s+workitem\\s+template\\s+create\\b(?=[^\\n]*--name\\s+\\S+)(?=[^\\n]*--type\\s+\\S+)(?=[^\\n]*--template-group\\s+\\S+)"
           ]
         },
         {

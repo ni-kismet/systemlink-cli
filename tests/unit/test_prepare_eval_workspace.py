@@ -10,8 +10,9 @@ from pathlib import Path
 
 import pytest
 
+from slcli.skills.slcli.scripts import prepare_eval_prompts
 from slcli.skills.slcli.scripts.eval_manifest import load_manifest
-from slcli.skills.slcli.scripts.prepare_eval_prompts import build_prompt
+from slcli.skills.slcli.scripts.prepare_eval_prompts import build_prompt, write_prompt
 from slcli.skills.slcli.scripts.prepare_eval_workspace import (
     create_old_skill_snapshot,
     create_repository_snapshots,
@@ -228,6 +229,43 @@ def test_select_evals_deduplicates_explicit_ids() -> None:
 def test_positive_int_rejects_non_positive_values() -> None:
     with pytest.raises(argparse.ArgumentTypeError, match="greater than zero"):
         positive_int("0")
+
+
+def test_write_prompt_rejects_stale_content_without_force(tmp_path: Path) -> None:
+    prompt_path = tmp_path / "executor_prompt.txt"
+    prompt_path.write_text("old task\n", encoding="utf-8")
+
+    with pytest.raises(FileExistsError, match="stale"):
+        write_prompt(prompt_path, "new task\n", force=False)
+
+
+def test_prepare_prompts_records_prompt_hashes(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    iteration = tmp_path / "iteration-1"
+    eval_dir = iteration / "eval-1-example"
+    run_dir = eval_dir / "with_skill" / "run-1"
+    (run_dir / "outputs").mkdir(parents=True)
+    (eval_dir / "eval_metadata.json").write_text(
+        json.dumps({"prompt": "List systems"}), encoding="utf-8"
+    )
+    (eval_dir / "inputs_manifest.json").write_text(json.dumps({"files": []}), encoding="utf-8")
+    (run_dir / "run_config.json").write_text(
+        json.dumps({"configuration": "with_skill", "repository_root": None}),
+        encoding="utf-8",
+    )
+    (iteration / "iteration_manifest.json").write_text(
+        json.dumps({"skill_name": "slcli"}), encoding="utf-8"
+    )
+    monkeypatch.setattr("sys.argv", ["prepare_eval_prompts", str(iteration)])
+
+    prepare_eval_prompts.main()
+
+    prompt_path = run_dir / "executor_prompt.txt"
+    manifest = json.loads((iteration / "iteration_manifest.json").read_text(encoding="utf-8"))
+    assert manifest["executor_prompt_hashes"]["eval-1-example/with_skill/run-1"] == (
+        hashlib.sha256(prompt_path.read_bytes()).hexdigest()
+    )
 
 
 def test_without_skill_snapshots_isolate_candidate_and_baseline(tmp_path: Path) -> None:

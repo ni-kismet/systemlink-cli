@@ -12,6 +12,8 @@ from typing import Any
 
 from slcli.skills.slcli.scripts.eval_manifest import load_manifest
 
+UNQUOTED_WINDOWS_PATH = re.compile(r"(?<![\w\"'])([A-Za-z]:\\[^\s;&|]+)")
+
 
 def previous_calendar_month_bounds(reference_date: date) -> tuple[str, str]:
     """Return ISO date bounds for the calendar month before the reference date."""
@@ -121,6 +123,9 @@ def extract_slcli_commands(text: str) -> list[str]:
             pending = line.removesuffix("\\").strip()
             continue
         command_line = re.sub(r"^(?:[-*+]\s+|\d+\.\s+|\$\s+)", "", line).strip("`")
+        command_line = UNQUOTED_WINDOWS_PATH.sub(
+            lambda match: match.group(1).replace("\\", "/"), command_line
+        )
         lexer = shlex.shlex(command_line, posix=True, punctuation_chars=";&|")
         lexer.whitespace_split = True
         lexer.commenters = ""

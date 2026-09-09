@@ -10,7 +10,11 @@ import sys
 from pathlib import Path
 from typing import Any
 
-from slcli.skills.slcli.scripts.grade_iteration import run_skill_hash
+from slcli.skills.slcli.scripts.grade_iteration import (
+    executor_prompt_hash,
+    run_manifest_key,
+    run_skill_hash,
+)
 
 REGRESSION_EXIT_CODE = 1
 INCONCLUSIVE_EXIT_CODE = 2
@@ -81,6 +85,7 @@ def load_run(
         expected_inputs = load_json(inputs_path).get("files", [])
         timing = load_json(timing_path)
         actual_skill_hash = run_skill_hash(run_dir)
+        actual_prompt_hash = executor_prompt_hash(run_dir)
     except (json.JSONDecodeError, OSError, TypeError, ValueError):
         return None
     required_metadata = {
@@ -122,10 +127,16 @@ def load_run(
         if run_dir.parent.name == "with_skill"
         else iteration.get("baseline_skill_hash")
     )
+    prompt_hashes = iteration.get("executor_prompt_hashes")
+    expected_prompt_hash = (
+        prompt_hashes.get(run_manifest_key(run_dir)) if isinstance(prompt_hashes, dict) else None
+    )
     if (
         any(record.get(field) != value for field, value in expected_provenance.items())
         or record.get("run_skill_hash") != expected_skill_hash
         or actual_skill_hash != expected_skill_hash
+        or record.get("executor_prompt_hash") != expected_prompt_hash
+        or actual_prompt_hash != expected_prompt_hash
         or not inputs_match
     ):
         return None

@@ -47,6 +47,14 @@ def test_extract_slcli_commands_normalizes_global_profile_options() -> None:
     ) == ["slcli system list", "slcli asset list", "slcli tag list"]
 
 
+def test_extract_slcli_commands_normalizes_unquoted_windows_paths() -> None:
+    response = r"slcli webapp pack --config C:\repo\evals\files\nipkg.config.json"
+
+    assert extract_slcli_commands(response) == [
+        "slcli webapp pack --config C:/repo/evals/files/nipkg.config.json"
+    ]
+
+
 def test_gather_response_text_replaces_invalid_utf8_bytes(tmp_path: Path) -> None:
     response_path = tmp_path / "response.txt"
     response_path.write_bytes(b"before\xffafter")

@@ -65,6 +65,7 @@ def prepare_iteration(tmp_path: Path) -> Path:
             "candidate_skill_hash": candidate_hash,
             "baseline_skill_hash": baseline_hash,
             "eval_manifest_hash": "manifest-hash",
+            "executor_prompt_hashes": {},
         },
     )
     eval_dir = tmp_path / "eval-1-example"
@@ -84,6 +85,15 @@ def prepare_iteration(tmp_path: Path) -> Path:
                 run_dir / "run_config.json",
                 {"configuration": configuration, "repository_root": str(run_dir / "repo")},
             )
+            prompt_path = run_dir / "executor_prompt.txt"
+            prompt_path.write_text("Execute this task.\n", encoding="utf-8")
+            prompt_hash = hashlib.sha256(prompt_path.read_bytes()).hexdigest()
+            manifest_path = tmp_path / "iteration_manifest.json"
+            manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
+            manifest["executor_prompt_hashes"][
+                run_dir.relative_to(tmp_path).as_posix()
+            ] = prompt_hash
+            write_json(manifest_path, manifest)
             timing = {"duration_ms": 1000, "total_duration_seconds": 1.0, "total_tokens": 10}
             write_json(run_dir / "timing.json", timing)
             write_json(
@@ -111,6 +121,7 @@ def prepare_iteration(tmp_path: Path) -> Path:
                     "run_skill_hash": (
                         candidate_hash if configuration == "with_skill" else baseline_hash
                     ),
+                    "executor_prompt_hash": prompt_hash,
                     "classification": "pass",
                     "executor": metadata,
                     "inputs": [],
@@ -306,6 +317,16 @@ def test_evaluate_iteration_is_inconclusive_for_modified_run_skill(tmp_path: Pat
     eval_dir = prepare_iteration(tmp_path)
     skill_path = eval_dir / "with_skill" / "run-1" / "repo/slcli/skills/slcli/SKILL.md"
     skill_path.write_text("modified\n", encoding="utf-8")
+
+    result = evaluate_iteration(tmp_path, margin=0.05)
+
+    assert result["status"] == "inconclusive"
+
+
+def test_evaluate_iteration_is_inconclusive_for_modified_executor_prompt(tmp_path: Path) -> None:
+    eval_dir = prepare_iteration(tmp_path)
+    prompt_path = eval_dir / "with_skill" / "run-1" / "executor_prompt.txt"
+    prompt_path.write_text("Modified task.\n", encoding="utf-8")
 
     result = evaluate_iteration(tmp_path, margin=0.05)
 
