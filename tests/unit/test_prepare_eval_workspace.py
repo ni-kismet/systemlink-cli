@@ -287,6 +287,18 @@ def test_without_skill_snapshots_isolate_candidate_and_baseline(tmp_path: Path) 
     assert not (baseline / "slcli" / "skills" / "slcli").exists()
 
 
+def test_without_skill_snapshots_exclude_iteration_inside_repo(tmp_path: Path) -> None:
+    repo = tmp_path / "repo"
+    skill_dir = repo / "slcli" / "skills" / "slcli"
+    iteration = repo / "iteration-1"
+    skill_dir.mkdir(parents=True)
+    iteration.mkdir()
+    (repo / "pyproject.toml").write_text("[tool.poetry]\nname = 'test'\n", encoding="utf-8")
+
+    with pytest.raises(ValueError, match="recursively copy"):
+        create_without_skill_snapshots(skill_dir, iteration, False)
+
+
 def test_without_skill_baseline_always_creates_repository_snapshots(tmp_path: Path) -> None:
     repo = tmp_path / "repo"
     skill_dir = repo / "slcli" / "skills" / "slcli"

@@ -232,6 +232,29 @@ def test_webapp_packaging_rule_is_name_agnostic_and_option_order_independent() -
 
     assert evaluate_rule(response, rule)[0] is True
 
+    @pytest.mark.parametrize(
+        "config_path",
+        [
+            "/Users/QA Workspace/evals/files/webapp-package/nipkg.config.json",
+            r"C:\QA Workspace\evals\files\webapp-package\nipkg.config.json",
+        ],
+    )
+    def test_webapp_packaging_rule_accepts_spaced_unix_and_windows_paths(config_path: str) -> None:
+        rule = checked_in_rule(11, "Uses the attached nipkg config for packaging")
+
+        assert evaluate_rule(f'slcli webapp pack --config "{config_path}"', rule)[0] is True
+
+    def test_webapp_packaging_rule_rejects_unrelated_config_path() -> None:
+        rule = checked_in_rule(11, "Uses the attached nipkg config for packaging")
+
+        assert (
+            evaluate_rule(
+                'slcli webapp pack --config "/Users/QA Workspace/evals/files/other-app/nipkg.config.json"',
+                rule,
+            )[0]
+            is False
+        )
+
 
 def test_webapp_scaffold_rule_rejects_legacy_init_command() -> None:
     rule = checked_in_rule(8, "Uses a supported webapp scaffold command")

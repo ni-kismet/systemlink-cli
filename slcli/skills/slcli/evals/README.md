@@ -97,11 +97,10 @@ metadata at the run root. Every run must write:
 Candidate and baseline trials are incomparable when provider, model, or harness
 metadata differs.
 
-The gate also treats a run as inconclusive when its candidate/baseline hashes,
-does not match the immutable provenance captured in `run_record.json`.
-eval manifest hash, executor prompt hash, run identity, classification, or
-detailed grading payload does not match the immutable provenance captured in
-the iteration manifest and `run_record.json`.
+The gate treats a run as inconclusive when candidate/baseline hashes, the eval
+manifest hash, executor prompt hash, run identity, classification, detailed
+grading payload, or other recorded evidence differs from the preparation-time
+provenance in the iteration manifest or `run_record.json`.
 
 Retry an infrastructure failure once. If the retry also fails, preserve the
 partial artifacts with `status: infrastructure_error`; the gate reports that
