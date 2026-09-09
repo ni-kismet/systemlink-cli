@@ -48,6 +48,20 @@ def test_extract_slcli_commands_handles_inline_commands_but_not_warning_examples
     assert extract_slcli_commands(response) == ["slcli system list --format json"]
 
 
+def test_extract_slcli_commands_ignores_warning_fenced_commands() -> None:
+    response = """Do not use:
+```bash
+slcli query results
+```
+Use this instead:
+```bash
+slcli system list
+```
+"""
+
+    assert extract_slcli_commands(response) == ["slcli system list"]
+
+
 def test_extract_slcli_commands_normalizes_global_profile_options() -> None:
     assert extract_slcli_commands(
         "slcli --profile prod system list\n"

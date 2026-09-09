@@ -48,7 +48,7 @@
           "scope": "command",
           "mode": "all_of",
           "patterns": [
-            "--part-number\\s+\"?BAT-MODEL-ABC-001\"?",
+            "(?:--part-number\\s+\"?(?:BATT|BAT-MODEL-ABC-001)\"?|(?=[^\\n]*--product-filter\\s+[^\\n]*@\\d+)(?=[^\\n]*--product-substitution\\s+\"?BAT-MODEL-ABC-001\"?))",
             "--status\\s+FAILED"
           ]
         },

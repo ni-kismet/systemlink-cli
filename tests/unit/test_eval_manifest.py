@@ -176,6 +176,23 @@ def test_eval_one_full_query_accepts_current_previous_month_bounds() -> None:
     assert evaluate_rule(response, rule, reference_date=date(2026, 10, 8))[0] is True
 
 
+def test_eval_one_accepts_supported_product_filter_forms() -> None:
+    rule = checked_in_rule(1, "Includes product and failed-status filters")
+
+    assert (
+        evaluate_rule("slcli testmonitor result list --part-number BATT --status FAILED", rule)[0]
+        is True
+    )
+    assert (
+        evaluate_rule(
+            "slcli testmonitor result list --status FAILED --product-filter "
+            "partNumber.Contains(@0) --product-substitution BAT-MODEL-ABC-001",
+            rule,
+        )[0]
+        is True
+    )
+
+
 def test_eval_four_accepts_operator_convenience_filter() -> None:
     rule = checked_in_rule(4, "Combines the full June failure query in one invocation")
     response = (

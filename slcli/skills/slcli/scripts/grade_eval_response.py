@@ -15,7 +15,8 @@ from slcli.skills.slcli.scripts.eval_manifest import load_manifest
 UNQUOTED_WINDOWS_PATH = re.compile(r"(?<![\w\"'])([A-Za-z]:\\[^\s;&|]+)")
 INLINE_COMMAND = re.compile(r"`(?P<command>slcli(?:\s+[^`]*)?)`", re.IGNORECASE)
 WARNING_COMMAND_PREFIX = re.compile(
-    r"\b(?:do not|don't|never|avoid)\s+(?:use|run|execute)\s*$", re.IGNORECASE
+    r"\b(?:do not|don't|never|avoid)\s+(?:use|run|execute)" r"(?:\s+the following)?\s*:?\s*$",
+    re.IGNORECASE,
 )
 
 
@@ -115,8 +116,18 @@ def extract_slcli_commands(text: str) -> list[str]:
     """Extract complete slcli command invocations from a response."""
     commands: list[str] = []
     pending = ""
+    warning_context = False
+    ignored_warning_fence = False
     for raw_line in text.splitlines():
         line = raw_line.strip()
+        if ignored_warning_fence:
+            if line.startswith("```"):
+                ignored_warning_fence = False
+            continue
+        if warning_context and line.startswith("```"):
+            warning_context = False
+            ignored_warning_fence = True
+            continue
         if pending:
             pending += " " + line.removesuffix("\\").strip()
             if not line.endswith("\\"):
@@ -126,13 +137,19 @@ def extract_slcli_commands(text: str) -> list[str]:
         if line.endswith("\\"):
             pending = line.removesuffix("\\").strip()
             continue
+        if WARNING_COMMAND_PREFIX.search(line):
+            warning_context = True
         inline_matches = list(INLINE_COMMAND.finditer(line))
         if inline_matches:
             for match in inline_matches:
                 prefix = line[: match.start()].strip()
-                if WARNING_COMMAND_PREFIX.search(prefix):
+                if warning_context or WARNING_COMMAND_PREFIX.search(prefix):
                     continue
                 commands.extend(extract_slcli_commands(match.group("command")))
+            warning_context = False
+            continue
+        if warning_context and line.startswith(("slcli ", "slcli\t", "- `slcli")):
+            warning_context = False
             continue
         command_line = re.sub(r"^(?:[-*+]\s+|\d+\.\s+|\$\s+)", "", line).strip("`")
         command_line = UNQUOTED_WINDOWS_PATH.sub(
