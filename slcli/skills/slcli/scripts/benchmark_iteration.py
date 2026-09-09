@@ -82,14 +82,31 @@ def metric_delta(run_summary: dict[str, Any], candidate: str, baseline: str, met
     return float(candidate_mean) - float(baseline_mean)
 
 
+def load_executor_metadata(path: Path) -> dict[str, str] | None:
+    """Load usable executor identity metadata without aborting report generation."""
+    try:
+        payload = json.loads(path.read_text(encoding="utf-8"))
+    except (json.JSONDecodeError, OSError):
+        return None
+    if not isinstance(payload, dict):
+        return None
+    fields = ("executor_model", "executor_provider", "harness")
+    if any(
+        not isinstance(payload.get(field), str) or not payload[field].strip() for field in fields
+    ):
+        return None
+    return {field: payload[field] for field in fields}
+
+
 def enrich_benchmark(iteration_dir: Path, aggregate_script: Path) -> None:
     """Apply recorded metadata and regenerate both benchmark artifacts."""
     benchmark_path = iteration_dir / "benchmark.json"
     benchmark = json.loads(benchmark_path.read_text(encoding="utf-8"))
     iteration = json.loads((iteration_dir / "iteration_manifest.json").read_text(encoding="utf-8"))
     run_metadata = [
-        json.loads(path.read_text(encoding="utf-8"))
+        metadata
         for path in iteration_dir.glob("eval-*/*/run-*/outputs/run_metadata.json")
+        if (metadata := load_executor_metadata(path)) is not None
     ]
     models = sorted({item["executor_model"] for item in run_metadata if "executor_model" in item})
     providers = sorted(

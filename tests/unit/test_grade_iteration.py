@@ -7,6 +7,8 @@ import json
 from pathlib import Path
 from typing import Any
 
+import pytest
+
 from slcli.skills.slcli.scripts.grade_iteration import grade_run
 
 
@@ -158,6 +160,29 @@ def test_grade_run_skips_inconsistent_timing(tmp_path: Path) -> None:
     write_json(
         run_dir / "timing.json",
         {"duration_ms": 1000, "total_duration_seconds": 99.0, "total_tokens": 1},
+    )
+    write_json(run_dir / "run_config.json", {"repository_root": None})
+
+    message = grade_run(tmp_path / "evals.json", 1, run_dir, False, {})
+
+    assert message.endswith("invalid run metadata or timing")
+
+
+@pytest.mark.parametrize("invalid_duration", [float("nan"), float("inf")])
+def test_grade_run_skips_non_finite_timing(tmp_path: Path, invalid_duration: float) -> None:
+    run_dir = tmp_path / "eval-1" / "with_skill" / "run-1"
+    outputs = run_dir / "outputs"
+    outputs.mkdir(parents=True)
+    (outputs / "response.txt").write_text("A response\n", encoding="utf-8")
+    (outputs / "transcript.jsonl").write_text("{}\n", encoding="utf-8")
+    write_json(outputs / "run_metadata.json", {"status": "completed"})
+    write_json(
+        run_dir / "timing.json",
+        {
+            "duration_ms": invalid_duration,
+            "total_duration_seconds": invalid_duration,
+            "total_tokens": 1,
+        },
     )
     write_json(run_dir / "run_config.json", {"repository_root": None})
 

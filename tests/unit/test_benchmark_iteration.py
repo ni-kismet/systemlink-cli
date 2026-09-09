@@ -7,6 +7,8 @@ import runpy
 from pathlib import Path
 from typing import Any
 
+import pytest
+
 from slcli.skills.slcli.scripts.benchmark_iteration import enrich_benchmark
 
 
@@ -72,6 +74,37 @@ def test_enrich_benchmark_uses_candidate_delta_and_updates_markdown(tmp_path: Pa
     assert "| Pass Rate | 50%" in markdown
     assert "| 75%" in markdown
     assert "| +0.25 |" in markdown
+
+
+@pytest.mark.parametrize("metadata_content", ["{", "[]", '{"executor_model": null}'])
+def test_enrich_benchmark_ignores_invalid_executor_metadata(
+    tmp_path: Path, metadata_content: str
+) -> None:
+    write_json(
+        tmp_path / "benchmark.json",
+        {
+            "metadata": {
+                "skill_name": "slcli",
+                "timestamp": "2026-09-08T00:00:00Z",
+                "evals_run": [1],
+            },
+            "run_summary": {"with_skill": {}, "old_skill": {}},
+        },
+    )
+    write_json(
+        tmp_path / "iteration_manifest.json",
+        {"baseline": "old_skill", "runs_per_config": 1},
+    )
+    metadata_path = tmp_path / "eval-1" / "with_skill" / "run-1" / "outputs" / "run_metadata.json"
+    metadata_path.parent.mkdir(parents=True)
+    metadata_path.write_text(metadata_content, encoding="utf-8")
+
+    enrich_benchmark(tmp_path, Path(".github/skills/skill-creator/scripts/aggregate_benchmark.py"))
+
+    benchmark = json.loads((tmp_path / "benchmark.json").read_text(encoding="utf-8"))
+    assert benchmark["metadata"]["executor_model"] == "unknown"
+    assert benchmark["metadata"]["executor_provider"] == "unknown"
+    assert benchmark["metadata"]["executor_harness"] == "unknown"
 
 
 def test_aggregate_skips_inconclusive_grading(tmp_path: Path) -> None:

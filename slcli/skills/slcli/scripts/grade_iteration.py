@@ -5,6 +5,7 @@ from __future__ import annotations
 import argparse
 import hashlib
 import json
+import math
 from pathlib import Path
 from typing import Any
 
@@ -128,9 +129,11 @@ def grade_run(
         if (
             not isinstance(duration_ms, (int, float))
             or isinstance(duration_ms, bool)
+            or not math.isfinite(duration_ms)
             or duration_ms < 0
             or not isinstance(duration_seconds, (int, float))
             or isinstance(duration_seconds, bool)
+            or not math.isfinite(duration_seconds)
             or duration_seconds < 0
             or abs(duration_seconds - duration_ms / 1000) > 0.1
         ):
