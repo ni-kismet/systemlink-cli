@@ -268,6 +268,37 @@ def test_prepare_prompts_records_prompt_hashes(
     )
 
 
+def test_force_rejects_changed_prompt_when_run_has_artifacts(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    iteration = tmp_path / "iteration-1"
+    eval_dir = iteration / "eval-1-example"
+    run_dir = eval_dir / "with_skill" / "run-1"
+    (run_dir / "outputs").mkdir(parents=True)
+    (eval_dir / "eval_metadata.json").write_text(
+        json.dumps({"prompt": "List systems"}), encoding="utf-8"
+    )
+    (eval_dir / "inputs_manifest.json").write_text(json.dumps({"files": []}), encoding="utf-8")
+    (run_dir / "run_config.json").write_text(
+        json.dumps({"configuration": "with_skill", "repository_root": None}),
+        encoding="utf-8",
+    )
+    (iteration / "iteration_manifest.json").write_text(
+        json.dumps({"skill_name": "slcli"}), encoding="utf-8"
+    )
+
+    monkeypatch.setattr("sys.argv", ["prepare_eval_prompts", str(iteration)])
+    prepare_eval_prompts.main()
+    (run_dir / "outputs" / "response.txt").write_text("old response\n", encoding="utf-8")
+    (eval_dir / "eval_metadata.json").write_text(
+        json.dumps({"prompt": "List assets"}), encoding="utf-8"
+    )
+
+    monkeypatch.setattr("sys.argv", ["prepare_eval_prompts", str(iteration), "--force"])
+    with pytest.raises(FileExistsError, match="contains generated artifacts"):
+        prepare_eval_prompts.main()
+
+
 def test_without_skill_snapshots_isolate_candidate_and_baseline(tmp_path: Path) -> None:
     repo = tmp_path / "repo"
     skill_dir = repo / "slcli" / "skills" / "slcli"

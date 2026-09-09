@@ -39,6 +39,15 @@ slcli system get 'unterminated
     assert extract_slcli_commands(response) == ["slcli system list --format json"]
 
 
+def test_extract_slcli_commands_handles_inline_commands_but_not_warning_examples() -> None:
+    response = (
+        "Run `slcli system list --format json`.\n"
+        "Do not use `slcli asset list`; use the system command instead."
+    )
+
+    assert extract_slcli_commands(response) == ["slcli system list --format json"]
+
+
 def test_extract_slcli_commands_normalizes_global_profile_options() -> None:
     assert extract_slcli_commands(
         "slcli --profile prod system list\n"

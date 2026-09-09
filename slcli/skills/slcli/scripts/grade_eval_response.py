@@ -13,6 +13,10 @@ from typing import Any
 from slcli.skills.slcli.scripts.eval_manifest import load_manifest
 
 UNQUOTED_WINDOWS_PATH = re.compile(r"(?<![\w\"'])([A-Za-z]:\\[^\s;&|]+)")
+INLINE_COMMAND = re.compile(r"`(?P<command>slcli(?:\s+[^`]*)?)`", re.IGNORECASE)
+WARNING_COMMAND_PREFIX = re.compile(
+    r"\b(?:do not|don't|never|avoid)\s+(?:use|run|execute)\s*$", re.IGNORECASE
+)
 
 
 def previous_calendar_month_bounds(reference_date: date) -> tuple[str, str]:
@@ -121,6 +125,14 @@ def extract_slcli_commands(text: str) -> list[str]:
             continue
         if line.endswith("\\"):
             pending = line.removesuffix("\\").strip()
+            continue
+        inline_matches = list(INLINE_COMMAND.finditer(line))
+        if inline_matches:
+            for match in inline_matches:
+                prefix = line[: match.start()].strip()
+                if WARNING_COMMAND_PREFIX.search(prefix):
+                    continue
+                commands.extend(extract_slcli_commands(match.group("command")))
             continue
         command_line = re.sub(r"^(?:[-*+]\s+|\d+\.\s+|\$\s+)", "", line).strip("`")
         command_line = UNQUOTED_WINDOWS_PATH.sub(

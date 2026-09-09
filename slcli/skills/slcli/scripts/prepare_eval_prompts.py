@@ -9,6 +9,7 @@ from pathlib import Path
 from typing import Any
 
 PRIMARY_RESPONSE_ARTIFACT = "response.txt"
+RUN_ARTIFACTS = ("grading.json", "run_record.json", "timing.json")
 
 
 def parse_args() -> argparse.Namespace:
@@ -193,6 +194,14 @@ def write_prompt(path: Path, content: str, force: bool) -> bool:
     return True
 
 
+def has_run_artifacts(run_dir: Path) -> bool:
+    """Return whether a run already contains generated execution artifacts."""
+    outputs_dir = run_dir / "outputs"
+    if any(path.is_file() for path in outputs_dir.rglob("*")):
+        return True
+    return any((run_dir / artifact).is_file() for artifact in RUN_ARTIFACTS)
+
+
 def build_placeholder(configuration: str) -> str:
     """Build placeholder output content."""
     return (
@@ -230,6 +239,14 @@ def main() -> None:
             run_config.get("repository_root"),
         )
         prompt_path = run_dir / "executor_prompt.txt"
+        prompt_changed = prompt_path.exists() and (
+            prompt_path.read_text(encoding="utf-8") != prompt_text
+        )
+        if prompt_changed and args.force and has_run_artifacts(run_dir):
+            raise FileExistsError(
+                f"{prompt_path} changed, but {run_dir} contains generated artifacts; "
+                "discard the run before regenerating its prompt."
+            )
         if write_prompt(prompt_path, prompt_text, args.force):
             written += 1
         prompt_hashes[run_dir.relative_to(args.iteration_dir).as_posix()] = hashlib.sha256(
