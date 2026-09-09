@@ -60,6 +60,22 @@ def test_create_old_skill_snapshot_exports_merge_base(tmp_path: Path) -> None:
     ) == "old skill\n"
 
 
+def test_create_old_skill_snapshot_rejects_repository_root_workspace(tmp_path: Path) -> None:
+    repo = tmp_path / "repo"
+    skill_dir = repo / "slcli" / "skills" / "slcli"
+    skill_dir.mkdir(parents=True)
+    (repo / "pyproject.toml").write_text("[tool.poetry]\nname = 'test'\n", encoding="utf-8")
+    (skill_dir / "SKILL.md").write_text("skill\n", encoding="utf-8")
+    run_git(repo, "init", "-b", "main")
+    run_git(repo, "config", "user.email", "eval@example.invalid")
+    run_git(repo, "config", "user.name", "Eval Test")
+    run_git(repo, "add", ".")
+    run_git(repo, "commit", "-m", "baseline")
+
+    with pytest.raises(ValueError, match="recursively copy"):
+        create_old_skill_snapshot(skill_dir, repo / "iteration-1", "main")
+
+
 def test_old_skill_prompt_loads_snapshot_skill(tmp_path: Path) -> None:
     baseline_repo = tmp_path / "baseline_repo"
 

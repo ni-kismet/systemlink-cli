@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import json
+import re
 from pathlib import Path
 from typing import Any
 
@@ -90,8 +91,22 @@ def validate_manifest(payload: dict[str, Any], skill_dir: Path) -> None:
             validator = rule.get("validator")
             if validator is not None and validator not in SUPPORTED_RULE_VALIDATORS:
                 raise ValueError(f"eval {eval_id} has unsupported rule validator: {validator}")
-            if not rule.get("patterns"):
-                raise ValueError(f"eval {eval_id} grading rules require patterns")
+            patterns = rule.get("patterns")
+            if (
+                not isinstance(patterns, list)
+                or not patterns
+                or any(not isinstance(pattern, str) or not pattern for pattern in patterns)
+            ):
+                raise ValueError(
+                    f"eval {eval_id} grading rules require a non-empty list of patterns"
+                )
+            for pattern in patterns:
+                try:
+                    re.compile(pattern)
+                except re.error as error:
+                    raise ValueError(
+                        f"eval {eval_id} grading rule has invalid pattern: {pattern}"
+                    ) from error
             if rule["critical"] and (
                 not rule.get("positive_control") or not rule.get("negative_control")
             ):

@@ -191,6 +191,11 @@ def create_old_skill_snapshot(
     candidate_root = iteration_dir / "candidate_repo"
     snapshot_root = iteration_dir / "baseline_repo"
     workspace_root = iteration_dir.parent.resolve()
+    if workspace_root == repo_root.resolve():
+        raise ValueError(
+            "Iteration directory must be inside a workspace directory within the repository; "
+            "using the repository root as its workspace would recursively copy the destination."
+        )
 
     def ignore_entries(directory: str, names: list[str]) -> set[str]:
         ignored = {".git", ".venv", "__pycache__", ".mypy_cache", ".pytest_cache"}

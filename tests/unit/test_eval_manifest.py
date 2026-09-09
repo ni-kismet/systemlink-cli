@@ -59,6 +59,30 @@ def test_manifest_requires_schema_entry_fields(tmp_path: Path) -> None:
         validate_manifest(payload, tmp_path)
 
 
+@pytest.mark.parametrize("patterns", ["expected", [], [""], ["["]])
+def test_manifest_rejects_invalid_grading_patterns(tmp_path: Path, patterns: object) -> None:
+    payload = {
+        "manifest_version": 1,
+        "skill_name": "test",
+        "recommended_suites": {"gating": [1], "regression": [1]},
+        "evals": [
+            {
+                "id": 1,
+                "prompt": "test",
+                "expected_output": "test",
+                "files": [],
+                "expectations": [],
+                "grading_rules": [
+                    {"text": "rule", "critical": False, "mode": "any_of", "patterns": patterns}
+                ],
+            }
+        ],
+    }
+
+    with pytest.raises(ValueError, match="pattern"):
+        validate_manifest(payload, tmp_path)
+
+
 @pytest.mark.parametrize(
     "fixture_path", ["../outside.txt", "nested/../fixture.txt", "/tmp/outside.txt"]
 )
