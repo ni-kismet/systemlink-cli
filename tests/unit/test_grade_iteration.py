@@ -150,6 +150,45 @@ def test_grade_run_skips_run_without_transcript(tmp_path: Path) -> None:
     assert message.endswith("required outputs missing: transcript.jsonl")
 
 
+@pytest.mark.parametrize("artifact_path", ["transcript.jsonl", "response.txt", "run_metadata.json"])
+def test_grade_run_skips_directory_artifact(tmp_path: Path, artifact_path: str) -> None:
+    run_dir = tmp_path / "eval-1" / "with_skill" / "run-1"
+    outputs = run_dir / "outputs"
+    outputs.mkdir(parents=True)
+    for artifact in ("response.txt", "transcript.jsonl", "run_metadata.json"):
+        path = outputs / artifact
+        if artifact == artifact_path:
+            path.mkdir()
+        elif artifact == "run_metadata.json":
+            write_json(path, {"status": "completed"})
+        else:
+            path.write_text("content\n", encoding="utf-8")
+    write_json(
+        run_dir / "timing.json",
+        {"duration_ms": 1000, "total_duration_seconds": 1.0, "total_tokens": 1},
+    )
+    write_json(run_dir / "run_config.json", {"repository_root": None})
+
+    message = grade_run(tmp_path / "evals.json", 1, run_dir, False, bind_executor_prompt(run_dir))
+
+    assert message.endswith(f"required outputs missing: {artifact_path}")
+
+
+def test_grade_run_skips_directory_timing_artifact(tmp_path: Path) -> None:
+    run_dir = tmp_path / "eval-1" / "with_skill" / "run-1"
+    outputs = run_dir / "outputs"
+    outputs.mkdir(parents=True)
+    (outputs / "response.txt").write_text("A response\n", encoding="utf-8")
+    (outputs / "transcript.jsonl").write_text("{}\n", encoding="utf-8")
+    write_json(outputs / "run_metadata.json", {"status": "completed"})
+    (run_dir / "timing.json").mkdir()
+    write_json(run_dir / "run_config.json", {"repository_root": None})
+
+    message = grade_run(tmp_path / "evals.json", 1, run_dir, False, bind_executor_prompt(run_dir))
+
+    assert message.endswith("required outputs missing: timing.json")
+
+
 def test_grade_run_skips_invalid_executor_metadata(tmp_path: Path) -> None:
     run_dir = tmp_path / "eval-1" / "with_skill" / "run-1"
     outputs = run_dir / "outputs"

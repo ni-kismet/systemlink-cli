@@ -193,8 +193,15 @@ def test_eval_one_accepts_supported_product_filter_forms() -> None:
     rule = checked_in_rule(1, "Includes product and failed-status filters")
 
     assert (
-        evaluate_rule("slcli testmonitor result list --part-number BATT --status FAILED", rule)[0]
+        evaluate_rule(
+            "slcli testmonitor result list --part-number BAT-MODEL-ABC-001 --status FAILED",
+            rule,
+        )[0]
         is True
+    )
+    assert (
+        evaluate_rule("slcli testmonitor result list --part-number BATT --status FAILED", rule)[0]
+        is False
     )
     assert (
         evaluate_rule(
@@ -204,6 +211,13 @@ def test_eval_one_accepts_supported_product_filter_forms() -> None:
         )[0]
         is True
     )
+
+
+def test_eval_one_compound_query_accepts_both_system_orders() -> None:
+    rule = checked_in_rule(2, "Uses the system compare command")
+
+    assert evaluate_rule("slcli system compare apm-pxi-2 formation-station-REAL", rule)[0] is True
+    assert evaluate_rule("slcli system compare formation-station-REAL apm-pxi-2", rule)[0] is True
 
 
 def test_eval_four_accepts_operator_convenience_filter() -> None:

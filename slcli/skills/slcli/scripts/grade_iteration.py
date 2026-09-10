@@ -112,8 +112,8 @@ def grade_run(
 
     outputs_dir = run_dir / "outputs"
     required_artifacts = ("response.txt", "transcript.jsonl", "run_metadata.json")
-    missing_artifacts = [name for name in required_artifacts if not (outputs_dir / name).exists()]
-    if not (run_dir / "timing.json").exists():
+    missing_artifacts = [name for name in required_artifacts if not (outputs_dir / name).is_file()]
+    if not (run_dir / "timing.json").is_file():
         missing_artifacts.append("timing.json")
     if missing_artifacts:
         return f"skip {run_dir}: required outputs missing: {', '.join(missing_artifacts)}"
