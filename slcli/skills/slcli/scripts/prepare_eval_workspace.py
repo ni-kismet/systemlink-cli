@@ -165,6 +165,53 @@ def run_git(repo_root: Path, *args: str) -> str:
     return result.stdout.strip()
 
 
+def git_file_paths(repo_root: Path, *args: str) -> list[Path]:
+    """Return repository file paths from Git as relative paths."""
+    result = subprocess.run(
+        ["git", "ls-files", "-z", *args],
+        cwd=repo_root,
+        check=True,
+        capture_output=True,
+    )
+    return [Path(path) for path in result.stdout.decode("utf-8").split("\0") if path]
+
+
+def copy_worktree_file(source: Path, destination: Path) -> None:
+    """Copy one worktree file while preserving symbolic links."""
+    destination.parent.mkdir(parents=True, exist_ok=True)
+    if source.is_symlink():
+        destination.symlink_to(source.readlink())
+    elif source.is_file():
+        shutil.copy2(source, destination)
+
+
+def create_candidate_snapshot(
+    repo_root: Path,
+    skill_dir: Path,
+    destination: Path,
+    workspace_root: Path,
+) -> None:
+    """Copy tracked worktree files and non-ignored untracked candidate-skill files."""
+    repo_root = repo_root.resolve()
+    skill_relative_path = skill_dir.resolve().relative_to(repo_root)
+    destination.mkdir(parents=True, exist_ok=True)
+    exclude_workspace = repo_root in workspace_root.parents
+
+    for relative_path in git_file_paths(repo_root):
+        source = repo_root / relative_path
+        if exclude_workspace and (workspace_root in source.parents or source == workspace_root):
+            continue
+        if source.exists() or source.is_symlink():
+            copy_worktree_file(source, destination / relative_path)
+
+    for relative_path in git_file_paths(
+        repo_root, "--others", "--exclude-standard", "--", skill_relative_path.as_posix()
+    ):
+        source = repo_root / relative_path
+        if source.exists() or source.is_symlink():
+            copy_worktree_file(source, destination / relative_path)
+
+
 def hash_directory(directory: Path) -> str:
     """Return a stable SHA-256 hash for a directory tree."""
     digest = hashlib.sha256()
@@ -197,15 +244,7 @@ def create_old_skill_snapshot(
             "using the repository root as its workspace would recursively copy the destination."
         )
 
-    def ignore_entries(directory: str, names: list[str]) -> set[str]:
-        ignored = {".git", ".venv", "__pycache__", ".mypy_cache", ".pytest_cache"}
-        return {
-            name
-            for name in names
-            if name in ignored or (Path(directory) / name).resolve() == workspace_root
-        }
-
-    shutil.copytree(repo_root, candidate_root, ignore=ignore_entries)
+    create_candidate_snapshot(repo_root, skill_dir, candidate_root, workspace_root)
     shutil.copytree(candidate_root, snapshot_root)
 
     skill_relative_path = skill_dir.relative_to(repo_root)
@@ -251,15 +290,7 @@ def create_without_skill_snapshots(
             "using the repository root as its workspace would recursively copy the destination."
         )
 
-    def ignore_entries(directory: str, names: list[str]) -> set[str]:
-        ignored = {".git", ".venv", "__pycache__", ".mypy_cache", ".pytest_cache"}
-        return {
-            name
-            for name in names
-            if name in ignored or (Path(directory) / name).resolve() == workspace_root
-        }
-
-    shutil.copytree(repo_root, candidate_root, ignore=ignore_entries)
+    create_candidate_snapshot(repo_root, skill_dir, candidate_root, workspace_root)
     shutil.copytree(candidate_root, baseline_root)
 
     skill_relative_path = skill_dir.relative_to(repo_root)

@@ -36,6 +36,7 @@ def test_create_old_skill_snapshot_exports_merge_base(tmp_path: Path) -> None:
     skill_dir = repo / "slcli" / "skills" / "slcli"
     skill_dir.mkdir(parents=True)
     (repo / "pyproject.toml").write_text("[tool.poetry]\nname = 'test'\n", encoding="utf-8")
+    (repo / ".gitignore").write_text(".env\n", encoding="utf-8")
     (skill_dir / "SKILL.md").write_text("old skill\n", encoding="utf-8")
     run_git(repo, "init", "-b", "main")
     run_git(repo, "config", "user.email", "eval@example.invalid")
@@ -46,6 +47,7 @@ def test_create_old_skill_snapshot_exports_merge_base(tmp_path: Path) -> None:
     (skill_dir / "SKILL.md").write_text("candidate skill\n", encoding="utf-8")
     run_git(repo, "add", ".")
     run_git(repo, "commit", "-m", "candidate")
+    (repo / ".env").write_text("secret\n", encoding="utf-8")
 
     candidate_root, snapshot_root, merge_base = create_old_skill_snapshot(
         skill_dir, tmp_path / "iteration", "main"
@@ -58,6 +60,7 @@ def test_create_old_skill_snapshot_exports_merge_base(tmp_path: Path) -> None:
     assert (snapshot_root / "slcli" / "skills" / "slcli" / "SKILL.md").read_text(
         encoding="utf-8"
     ) == "old skill\n"
+    assert not (candidate_root / ".env").exists()
 
 
 def test_create_old_skill_snapshot_rejects_repository_root_workspace(tmp_path: Path) -> None:
@@ -325,6 +328,11 @@ def test_without_skill_snapshots_isolate_candidate_and_baseline(tmp_path: Path) 
     (repo / "pyproject.toml").write_text("[tool.poetry]\nname = 'test'\n", encoding="utf-8")
     (skill_dir / "SKILL.md").write_text("skill\n", encoding="utf-8")
     (iteration / "stale.txt").write_text("stale\n", encoding="utf-8")
+    run_git(repo, "init", "-b", "main")
+    run_git(repo, "config", "user.email", "eval@example.invalid")
+    run_git(repo, "config", "user.name", "Eval Test")
+    run_git(repo, "add", ".")
+    run_git(repo, "commit", "-m", "baseline")
 
     candidate, baseline = create_without_skill_snapshots(skill_dir, iteration, False)
 
@@ -354,6 +362,11 @@ def test_without_skill_baseline_always_creates_repository_snapshots(tmp_path: Pa
     iteration.mkdir(parents=True)
     (repo / "pyproject.toml").write_text("[tool.poetry]\nname = 'test'\n", encoding="utf-8")
     (skill_dir / "SKILL.md").write_text("skill\n", encoding="utf-8")
+    run_git(repo, "init", "-b", "main")
+    run_git(repo, "config", "user.email", "eval@example.invalid")
+    run_git(repo, "config", "user.name", "Eval Test")
+    run_git(repo, "add", ".")
+    run_git(repo, "commit", "-m", "baseline")
 
     candidate, baseline, baseline_sha = create_repository_snapshots(
         skill_dir, iteration, "without_skill", "origin/main", False
@@ -362,6 +375,33 @@ def test_without_skill_baseline_always_creates_repository_snapshots(tmp_path: Pa
     assert (candidate / "slcli" / "skills" / "slcli" / "SKILL.md").is_file()
     assert not (baseline / "slcli" / "skills" / "slcli").exists()
     assert baseline_sha is None
+
+
+def test_snapshots_exclude_ignored_files_and_include_new_skill_files(tmp_path: Path) -> None:
+    repo = tmp_path / "repo"
+    skill_dir = repo / "slcli" / "skills" / "slcli"
+    iteration = repo / "slcli" / "skills" / "slcli-workspace" / "iteration-1"
+    skill_dir.mkdir(parents=True)
+    iteration.mkdir(parents=True)
+    (repo / "pyproject.toml").write_text("[tool.poetry]\nname = 'test'\n", encoding="utf-8")
+    (repo / ".gitignore").write_text(".env\ntests/e2e/e2e_config.json\n", encoding="utf-8")
+    (skill_dir / "SKILL.md").write_text("skill\n", encoding="utf-8")
+    run_git(repo, "init", "-b", "main")
+    run_git(repo, "config", "user.email", "eval@example.invalid")
+    run_git(repo, "config", "user.name", "Eval Test")
+    run_git(repo, "add", ".")
+    run_git(repo, "commit", "-m", "baseline")
+    (repo / ".env").write_text("secret\n", encoding="utf-8")
+    ignored_config = repo / "tests" / "e2e" / "e2e_config.json"
+    ignored_config.parent.mkdir(parents=True)
+    ignored_config.write_text("secret\n", encoding="utf-8")
+    (skill_dir / "new.md").write_text("candidate addition\n", encoding="utf-8")
+
+    candidate, _ = create_without_skill_snapshots(skill_dir, iteration, False)
+
+    assert (candidate / "slcli" / "skills" / "slcli" / "new.md").is_file()
+    assert not (candidate / ".env").exists()
+    assert not (candidate / "tests" / "e2e" / "e2e_config.json").exists()
 
 
 def test_hash_directory_ignores_python_cache_files(tmp_path: Path) -> None:

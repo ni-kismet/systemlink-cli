@@ -176,6 +176,19 @@ def test_eval_one_full_query_accepts_current_previous_month_bounds() -> None:
     assert evaluate_rule(response, rule, reference_date=date(2026, 10, 8))[0] is True
 
 
+def test_eval_one_compound_query_accepts_product_filter_substitution() -> None:
+    rule = checked_in_rule(1, "Combines product, status, and last-month filters in one invocation")
+    response = (
+        "slcli testmonitor result list --status FAILED "
+        "--product-filter 'partNumber.Contains(@0)' "
+        "--product-substitution BAT-MODEL-ABC-001 "
+        "--filter 'startedAt >= @1 and startedAt < @2' "
+        "--substitution unused --substitution 2026-09-01 --substitution 2026-10-01"
+    )
+
+    assert evaluate_rule(response, rule, reference_date=date(2026, 10, 8))[0] is True
+
+
 def test_eval_one_accepts_supported_product_filter_forms() -> None:
     rule = checked_in_rule(1, "Includes product and failed-status filters")
 

@@ -79,7 +79,7 @@
           "mode": "all_of",
           "patterns": [
             "slcli\\s+testmonitor\\s+result\\s+list",
-            "--part-number\\s+BAT-MODEL-ABC-001",
+            "(?:--part-number\\s+\"?(?:BATT|BAT-MODEL-ABC-001)\"?|(?=[^\\n]*--product-filter\\s+[^\\n]*@\\d+)(?=[^\\n]*--product-substitution\\s+\"?BAT-MODEL-ABC-001\"?))",
             "--status\\s+FAILED",
             "startedAt\\s*>=\\s*@\\d+",
             "startedAt\\s*<\\s*@\\d+",
