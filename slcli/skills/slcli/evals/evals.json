@@ -401,8 +401,8 @@
           "scope": "command",
           "mode": "any_of",
           "patterns": [
-            "^slcli\\s+workitem\\s+template\\s+create\\b(?=[^\\n]*--file\\s+\\S+)",
-            "^slcli\\s+workitem\\s+template\\s+create\\b(?=[^\\n]*--name\\s+\\S+)(?=[^\\n]*--type\\s+\\S+)(?=[^\\n]*--template-group\\s+\\S+)"
+            "^slcli\\s+workitem\\s+template\\s+create\\b(?=[^\\n]*--file\\s+(?!-)\\S+)",
+            "^slcli\\s+workitem\\s+template\\s+create\\b(?=[^\\n]*--name\\s+(?!-)\\S+)(?=[^\\n]*--type\\s+(?!-)\\S+)(?=[^\\n]*--template-group\\s+(?!-)\\S+)"
           ]
         },
         {
@@ -449,7 +449,7 @@
           "scope": "command",
           "mode": "any_of",
           "patterns": [
-            "slcli\\s+webapp\\s+new"
+            "slcli\\s+webapp\\s+new\\s+(?!-)\\S+"
           ]
         },
         {
@@ -460,7 +460,7 @@
           "scope": "command",
           "mode": "any_of",
           "patterns": [
-            "^slcli\\s+webapp\\s+manifest\\s+init\\s+\\S+(?=[^\\n]*--description\\s+)(?=[^\\n]*--section\\s+)(?=[^\\n]*--maintainer\\s+)(?=[^\\n]*--license\\s+)(?=[^\\n]*--icon-file\\s+)"
+            "^slcli\\s+webapp\\s+manifest\\s+init\\s+(?!-)\\S+(?=[^\\n]*--description\\s+)(?=[^\\n]*--section\\s+)(?=[^\\n]*--maintainer\\s+)(?=[^\\n]*--license\\s+)(?=[^\\n]*--icon-file\\s+)"
           ]
         },
         {
@@ -471,7 +471,7 @@
           "scope": "command",
           "mode": "any_of",
           "patterns": [
-            "^slcli\\s+webapp\\s+pack\\b(?=[^\\n]*--config\\s+\\S*nipkg\\.config\\.json)"
+            "^slcli\\s+webapp\\s+pack\\b(?=[^\\n]*--config\\s+(?!-)\\S*nipkg\\.config\\.json)"
           ]
         }
       ]
@@ -497,7 +497,7 @@
           "scope": "command",
           "mode": "any_of",
           "patterns": [
-            "slcli\\s+spec\\s+import\\b(?=[^\\n]*--file\\s+\\S+\\.json\\b)"
+            "slcli\\s+spec\\s+import\\b(?=[^\\n]*--file\\s+(?!-)\\S+\\.json\\b)"
           ]
         },
         {
@@ -508,9 +508,9 @@
           "scope": "command",
           "mode": "any_of",
           "patterns": [
-            "slcli\\s+spec\\s+list\\b(?=[^\\n]*--product\\s+\\S+)",
-            "slcli\\s+spec\\s+export\\b(?=[^\\n]*--product\\s+\\S+)",
-            "slcli\\s+spec\\s+get\\b(?=[^\\n]*--id\\s+\\S+)"
+            "slcli\\s+spec\\s+list\\b(?=[^\\n]*--product\\s+(?!-)\\S+)",
+            "slcli\\s+spec\\s+export\\b(?=[^\\n]*--product\\s+(?!-)\\S+)",
+            "slcli\\s+spec\\s+get\\b(?=[^\\n]*--id\\s+(?!-)\\S+)"
           ]
         }
       ]
@@ -556,7 +556,7 @@
           "scope": "command",
           "mode": "any_of",
           "patterns": [
-            "^slcli\\s+spec\\s+import\\b(?=[^\\n]*--file\\s+[^\\s]+\\.json)"
+            "^slcli\\s+spec\\s+import\\b(?=[^\\n]*--file\\s+(?!-)[^\\s]+\\.json)"
           ]
         },
         {
@@ -579,9 +579,9 @@
           "scope": "command",
           "mode": "any_of",
           "patterns": [
-            "slcli\\s+spec\\s+list\\b(?=[^\\n]*--product\\s+\\S+)",
-            "slcli\\s+spec\\s+export\\b(?=[^\\n]*--product\\s+\\S+)",
-            "slcli\\s+spec\\s+get\\b(?=[^\\n]*--id\\s+\\S+)"
+            "slcli\\s+spec\\s+list\\b(?=[^\\n]*--product\\s+(?!-)\\S+)",
+            "slcli\\s+spec\\s+export\\b(?=[^\\n]*--product\\s+(?!-)\\S+)",
+            "slcli\\s+spec\\s+get\\b(?=[^\\n]*--id\\s+(?!-)\\S+)"
           ]
         }
       ]
@@ -624,7 +624,7 @@
           "mode": "all_of",
           "patterns": [
             "slcli\\s+webapp\\s+publish\\s+dist/fleet-dashboard/",
-            "--(?:id|name)\\s+"
+            "--(?:id|name)\\s+(?!-)\\S+"
           ]
         },
         {

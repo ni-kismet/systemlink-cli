@@ -266,6 +266,9 @@ def test_workitem_template_create_rule_requires_valid_arguments() -> None:
     rule = checked_in_rule(7, "Uses the workitem template create command")
 
     assert evaluate_rule("slcli workitem template create", rule)[0] is False
+    assert (
+        evaluate_rule("slcli workitem template create --file --workspace Default", rule)[0] is False
+    )
     assert evaluate_rule("slcli workitem template create --file battery.json", rule)[0] is True
     assert (
         evaluate_rule(
@@ -283,6 +286,49 @@ def test_workitem_template_get_rule_requires_template_id() -> None:
     assert evaluate_rule("slcli workitem template get", rule)[0] is False
     assert evaluate_rule("slcli workitem template get --format json", rule)[0] is False
     assert evaluate_rule("slcli workitem template get template-id", rule)[0] is True
+
+
+def test_webapp_rules_require_required_arguments() -> None:
+    new_rule = checked_in_rule(8, "Uses a supported webapp scaffold command")
+    manifest_rule = checked_in_rule(8, "Initializes the webapp manifest for packaging")
+    pack_rule = checked_in_rule(8, "Packages the webapp with a nipkg config")
+    publish_rule = checked_in_rule(
+        11, "Publishes the built app directory rather than the package file"
+    )
+
+    assert evaluate_rule("slcli webapp new", new_rule)[0] is False
+    assert evaluate_rule("slcli webapp new fleet-dashboard", new_rule)[0] is True
+    assert (
+        evaluate_rule(
+            "slcli webapp manifest init --description Dashboard --section Dashboard "
+            "--maintainer Team --license MIT --icon-file icon.svg",
+            manifest_rule,
+        )[0]
+        is False
+    )
+    assert (
+        evaluate_rule("slcli webapp pack --config --output dashboard.nipkg", pack_rule)[0] is False
+    )
+    assert (
+        evaluate_rule("slcli webapp publish dist/fleet-dashboard/ --name", publish_rule)[0] is False
+    )
+    assert (
+        evaluate_rule(
+            "slcli webapp publish dist/fleet-dashboard/ --name fleet-dashboard", publish_rule
+        )[0]
+        is True
+    )
+
+
+def test_spec_rules_reject_option_only_required_values() -> None:
+    import_rule = checked_in_rule(9, "Uses the spec import command")
+    file_import_rule = checked_in_rule(10, "Uses a supported JSON-based import command")
+    verify_rule = checked_in_rule(10, "Includes a verification command after import")
+
+    assert evaluate_rule("slcli spec import --file --format json", import_rule)[0] is False
+    assert evaluate_rule("slcli spec import --file --format json", file_import_rule)[0] is False
+    assert evaluate_rule("slcli spec get --id --format json", verify_rule)[0] is False
+    assert evaluate_rule("slcli spec list --product --format json", verify_rule)[0] is False
 
 
 def test_spec_rules_require_json_import_and_valid_verification_arguments() -> None:
