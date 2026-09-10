@@ -289,16 +289,20 @@ def test_spec_rules_require_json_import_and_valid_verification_arguments() -> No
     assert evaluate_rule("slcli spec list --product BAT-MODEL-ABC-001", verify_rule)[0] is True
 
 
-def test_webapp_packaging_rule_is_name_agnostic_and_option_order_independent() -> None:
-    rule = checked_in_rule(8, "Includes the packaging workflow")
-    response = (
+def test_webapp_packaging_rules_are_name_agnostic_and_option_order_independent() -> None:
+    manifest_rule = checked_in_rule(8, "Initializes the webapp manifest for packaging")
+    pack_rule = checked_in_rule(8, "Packages the webapp with a nipkg config")
+    manifest_command = (
         "slcli webapp manifest init another-app --license MIT --icon-file icon.svg "
         "--description 'A dashboard' --maintainer 'Team <team@example.com>' "
-        "--section Dashboard\n"
-        "slcli webapp pack --output app.nipkg --config another-app/nipkg.config.json"
+        "--section Dashboard"
     )
+    pack_command = "slcli webapp pack --output app.nipkg --config another-app/nipkg.config.json"
 
-    assert evaluate_rule(response, rule)[0] is True
+    assert evaluate_rule(manifest_command, manifest_rule)[0] is True
+    assert evaluate_rule(pack_command, pack_rule)[0] is True
+    assert evaluate_rule(f"Do not use `{manifest_command}`.", manifest_rule)[0] is False
+    assert evaluate_rule(f"Do not run `{pack_command}`.", pack_rule)[0] is False
 
 
 @pytest.mark.parametrize(
@@ -324,6 +328,13 @@ def test_webapp_packaging_rule_rejects_unrelated_config_path() -> None:
         )[0]
         is False
     )
+
+
+def test_spec_import_rule_rejects_warning_prose() -> None:
+    rule = checked_in_rule(10, "Uses a supported JSON-based import command")
+    response = "Do not use `slcli spec import --file specifications.json` for BAT-MODEL-ABC-001."
+
+    assert evaluate_rule(response, rule)[0] is False
 
 
 def test_webapp_scaffold_rule_rejects_legacy_init_command() -> None:

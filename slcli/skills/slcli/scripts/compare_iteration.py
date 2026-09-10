@@ -71,7 +71,7 @@ def load_run(
     grading_path = run_dir / "grading.json"
     metadata_path = run_dir / "outputs" / "run_metadata.json"
     record_path = run_dir / "run_record.json"
-    inputs_path = run_dir.parents[1] / "inputs_manifest.json"
+    inputs_path = run_dir / "inputs_manifest.json"
     timing_path = run_dir / "timing.json"
     if not all(
         path.exists()

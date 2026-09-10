@@ -70,11 +70,11 @@ def prepare_iteration(tmp_path: Path) -> Path:
     )
     eval_dir = tmp_path / "eval-1-example"
     write_json(eval_dir / "eval_metadata.json", {"eval_id": 1})
-    write_json(eval_dir / "inputs_manifest.json", {"files": []})
     for configuration in ("with_skill", "old_skill"):
         for run_number in range(1, 4):
             grading_payload = grading(1.0)
             run_dir = eval_dir / configuration / f"run-{run_number}"
+            write_json(run_dir / "inputs_manifest.json", {"files": []})
             run_skill_dir = run_dir / "repo" / "slcli" / "skills" / "slcli"
             run_skill_dir.mkdir(parents=True)
             source_skill = (
@@ -358,22 +358,25 @@ def test_evaluate_iteration_is_inconclusive_for_modified_grading(tmp_path: Path)
 
 def test_evaluate_iteration_is_inconclusive_for_modified_input(tmp_path: Path) -> None:
     eval_dir = prepare_iteration(tmp_path)
-    input_path = eval_dir / "inputs" / "fixture.txt"
-    input_path.parent.mkdir()
-    input_path.write_text("original\n", encoding="utf-8")
-    input_record = {
-        "relative_path": "fixture.txt",
-        "absolute_path": str(input_path),
-        "sha256": hashlib.sha256(input_path.read_bytes()).hexdigest(),
-    }
-    write_json(eval_dir / "inputs_manifest.json", {"files": [input_record]})
+    input_paths: list[Path] = []
     for configuration in ("with_skill", "old_skill"):
         for run_number in range(1, 4):
-            record_path = eval_dir / configuration / f"run-{run_number}" / "run_record.json"
+            run_dir = eval_dir / configuration / f"run-{run_number}"
+            input_path = run_dir / "inputs" / "fixture.txt"
+            input_path.parent.mkdir()
+            input_path.write_text("original\n", encoding="utf-8")
+            input_paths.append(input_path)
+            input_record = {
+                "relative_path": "fixture.txt",
+                "absolute_path": str(input_path),
+                "sha256": hashlib.sha256(input_path.read_bytes()).hexdigest(),
+            }
+            write_json(run_dir / "inputs_manifest.json", {"files": [input_record]})
+            record_path = run_dir / "run_record.json"
             record = json.loads(record_path.read_text(encoding="utf-8"))
             record["inputs"] = [input_record]
             write_json(record_path, record)
-    input_path.write_text("modified\n", encoding="utf-8")
+    input_paths[0].write_text("modified\n", encoding="utf-8")
 
     result = evaluate_iteration(tmp_path, margin=0.05)
 

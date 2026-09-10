@@ -453,14 +453,25 @@
           ]
         },
         {
-          "text": "Includes the packaging workflow",
+          "text": "Initializes the webapp manifest for packaging",
           "critical": true,
-          "positive_control": "slcli webapp manifest init dashboard-app --license MIT --maintainer \"Team <team@example.com>\" --section Dashboard --description \"Hosted SystemLink dashboard\" --icon-file dashboard-app/src/favicon.ico\nslcli webapp pack --config dashboard-app/nipkg.config.json",
-          "negative_control": "slcli webapp pack",
-          "mode": "all_of",
+          "positive_control": "slcli webapp manifest init dashboard-app --license MIT --maintainer \"Team <team@example.com>\" --section Dashboard --description \"Hosted SystemLink dashboard\" --icon-file dashboard-app/src/favicon.ico",
+          "negative_control": "Do not use slcli webapp manifest init for this workflow.",
+          "scope": "command",
+          "mode": "any_of",
           "patterns": [
-            "slcli\\s+webapp\\s+manifest\\s+init\\s+\\S+(?=[^\\n]*--description\\s+)(?=[^\\n]*--section\\s+)(?=[^\\n]*--maintainer\\s+)(?=[^\\n]*--license\\s+)(?=[^\\n]*--icon-file\\s+)",
-            "slcli\\s+webapp\\s+pack\\b(?=[^\\n]*--config\\s+\\S*nipkg\\.config\\.json)"
+            "^slcli\\s+webapp\\s+manifest\\s+init\\s+\\S+(?=[^\\n]*--description\\s+)(?=[^\\n]*--section\\s+)(?=[^\\n]*--maintainer\\s+)(?=[^\\n]*--license\\s+)(?=[^\\n]*--icon-file\\s+)"
+          ]
+        },
+        {
+          "text": "Packages the webapp with a nipkg config",
+          "critical": true,
+          "positive_control": "slcli webapp pack --config dashboard-app/nipkg.config.json",
+          "negative_control": "Do not run slcli webapp pack --config dashboard-app/nipkg.config.json.",
+          "scope": "command",
+          "mode": "any_of",
+          "patterns": [
+            "^slcli\\s+webapp\\s+pack\\b(?=[^\\n]*--config\\s+\\S*nipkg\\.config\\.json)"
           ]
         }
       ]
@@ -528,14 +539,24 @@
           ]
         },
         {
-          "text": "Uses a supported JSON-based import workflow",
+          "text": "Targets product BAT-MODEL-ABC-001 during conversion",
           "critical": true,
-          "positive_control": "Create specifications for BAT-MODEL-ABC-001 in JSON, then run slcli spec import --file specifications.json",
-          "negative_control": "slcli spec import battery-specs.csv",
-          "mode": "all_of",
+          "positive_control": "Convert the CSV rows into JSON specifications for BAT-MODEL-ABC-001.",
+          "negative_control": "Convert the CSV rows into JSON specifications for BAT-MODEL-ABC-002.",
+          "mode": "any_of",
           "patterns": [
-            "slcli\\s+spec\\s+import\\s+--file\\s+[^\\s]+\\.json",
             "BAT-MODEL-ABC-001"
+          ]
+        },
+        {
+          "text": "Uses a supported JSON-based import command",
+          "critical": true,
+          "positive_control": "slcli spec import --file specifications.json",
+          "negative_control": "Do not use slcli spec import --file specifications.json.",
+          "scope": "command",
+          "mode": "any_of",
+          "patterns": [
+            "^slcli\\s+spec\\s+import\\b(?=[^\\n]*--file\\s+[^\\s]+\\.json)"
           ]
         },
         {

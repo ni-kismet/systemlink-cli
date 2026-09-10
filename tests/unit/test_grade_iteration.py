@@ -69,7 +69,7 @@ def test_grade_run_records_provenance_and_only_grades_response(tmp_path: Path) -
         run_dir / "run_config.json",
         {"configuration": "with_skill", "repository_root": str(run_dir / "repo")},
     )
-    write_json(run_dir.parents[1] / "inputs_manifest.json", {"files": []})
+    write_json(run_dir / "inputs_manifest.json", {"files": []})
     outputs = run_dir / "outputs"
     outputs.mkdir(parents=True)
     (outputs / "response.txt").write_text("I could not determine the command.\n", encoding="utf-8")

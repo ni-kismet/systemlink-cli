@@ -165,13 +165,15 @@ def iter_run_dirs(iteration_dir: Path) -> list[tuple[Path, Path, Path]]:
     triples: list[tuple[Path, Path, Path]] = []
     for eval_dir in sorted(iteration_dir.glob("eval-*")):
         metadata_path = eval_dir / "eval_metadata.json"
-        inputs_path = eval_dir / "inputs_manifest.json"
-        if not metadata_path.exists() or not inputs_path.exists():
+        if not metadata_path.exists():
             continue
         for config_dir in sorted(eval_dir.iterdir()):
             if not config_dir.is_dir():
                 continue
             for run_dir in sorted(config_dir.glob("run-*")):
+                inputs_path = run_dir / "inputs_manifest.json"
+                if not inputs_path.exists():
+                    continue
                 triples.append((metadata_path, inputs_path, run_dir))
     return triples
 

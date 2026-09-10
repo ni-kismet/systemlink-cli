@@ -167,19 +167,37 @@ def test_scaffold_eval_uses_independent_run_repos_and_neutral_inputs(tmp_path: P
             (eval_dir / "old_skill" / "run-1" / "run_config.json").read_text(encoding="utf-8")
         )["repository_root"]
     )
-    input_record = json.loads((eval_dir / "inputs_manifest.json").read_text(encoding="utf-8"))[
-        "files"
-    ][0]
-    input_path = Path(input_record["absolute_path"])
+    input_records = []
+    for configuration, run_number in (("with_skill", 1), ("with_skill", 2), ("old_skill", 1)):
+        input_records.append(
+            json.loads(
+                (eval_dir / configuration / f"run-{run_number}" / "inputs_manifest.json").read_text(
+                    encoding="utf-8"
+                )
+            )["files"][0]
+        )
 
     assert candidate_roots[0] != candidate_roots[1]
     assert candidate_roots[0].is_relative_to(eval_dir)
     assert baseline_root.is_relative_to(eval_dir)
-    assert input_path.is_relative_to(eval_dir / "inputs")
-    assert not input_path.is_relative_to(skill_dir)
-    assert input_record["sha256"] == hashlib.sha256(input_path.read_bytes()).hexdigest()
+    input_paths = [Path(record["absolute_path"]) for record in input_records]
+    assert len(set(input_paths)) == len(input_paths)
+    assert all(
+        path.is_relative_to(eval_dir / configuration / f"run-{run_number}" / "inputs")
+        for path, (configuration, run_number) in zip(
+            input_paths, (("with_skill", 1), ("with_skill", 2), ("old_skill", 1))
+        )
+    )
+    assert all(not path.is_relative_to(skill_dir) for path in input_paths)
+    assert all(
+        record["sha256"] == hashlib.sha256(path.read_bytes()).hexdigest()
+        for record, path in zip(input_records, input_paths)
+    )
     (candidate_roots[0] / "changed.txt").write_text("changed\n", encoding="utf-8")
     assert not (candidate_roots[1] / "changed.txt").exists()
+    input_paths[0].write_text("changed fixture\n", encoding="utf-8")
+    assert input_paths[1].read_text(encoding="utf-8") == "fixture\n"
+    assert input_paths[2].read_text(encoding="utf-8") == "fixture\n"
 
 
 def test_scaffold_eval_rejects_fixture_path_traversal(tmp_path: Path) -> None:
@@ -225,7 +243,13 @@ def test_scaffold_eval_copies_complete_webapp_fixture(tmp_path: Path) -> None:
     )
 
     eval_dir = next(iteration_dir.glob("eval-*"))
-    config_path = eval_dir / "inputs" / "evals/files/webapp-package/nipkg.config.json"
+    config_path = (
+        eval_dir
+        / "without_skill"
+        / "run-1"
+        / "inputs"
+        / "evals/files/webapp-package/nipkg.config.json"
+    )
     metadata = json.loads(config_path.read_text(encoding="utf-8"))
     validated = _validate_plugin_manager_metadata(
         metadata, require_build_dir=True, base_dir=config_path.parent
@@ -268,7 +292,7 @@ def test_prepare_prompts_records_prompt_hashes(
     (eval_dir / "eval_metadata.json").write_text(
         json.dumps({"prompt": "List systems"}), encoding="utf-8"
     )
-    (eval_dir / "inputs_manifest.json").write_text(json.dumps({"files": []}), encoding="utf-8")
+    (run_dir / "inputs_manifest.json").write_text(json.dumps({"files": []}), encoding="utf-8")
     (run_dir / "run_config.json").write_text(
         json.dumps({"configuration": "with_skill", "repository_root": None}),
         encoding="utf-8",
@@ -297,7 +321,7 @@ def test_force_rejects_changed_prompt_when_run_has_artifacts(
     (eval_dir / "eval_metadata.json").write_text(
         json.dumps({"prompt": "List systems"}), encoding="utf-8"
     )
-    (eval_dir / "inputs_manifest.json").write_text(json.dumps({"files": []}), encoding="utf-8")
+    (run_dir / "inputs_manifest.json").write_text(json.dumps({"files": []}), encoding="utf-8")
     (run_dir / "run_config.json").write_text(
         json.dumps({"configuration": "with_skill", "repository_root": None}),
         encoding="utf-8",

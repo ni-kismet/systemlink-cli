@@ -377,24 +377,6 @@ def scaffold_eval_dir(
     }
     write_json(eval_dir / "eval_metadata.json", metadata)
 
-    input_files = []
-    input_root = (eval_dir / "inputs").resolve()
-    for relative_path in entry.get("files", []):
-        source_path = resolve_fixture_path(skill_dir, relative_path)
-        input_path = (input_root / relative_path).resolve()
-        if not input_path.is_relative_to(input_root):
-            raise ValueError(f"fixture destination must stay within inputs: {relative_path}")
-        input_path.parent.mkdir(parents=True, exist_ok=True)
-        shutil.copy2(source_path, input_path)
-        input_files.append(
-            {
-                "relative_path": relative_path,
-                "absolute_path": str(input_path.resolve()),
-                "sha256": hashlib.sha256(input_path.read_bytes()).hexdigest(),
-            }
-        )
-    write_json(eval_dir / "inputs_manifest.json", {"files": input_files})
-
     (eval_dir / "prompt.txt").write_text(entry["prompt"] + "\n", encoding="utf-8")
     make_run_dirs(
         eval_dir,
@@ -402,6 +384,29 @@ def scaffold_eval_dir(
         runs_per_config,
         {"with_skill": candidate_repo_root, baseline: baseline_repo_root},
     )
+
+    for configuration in ["with_skill", baseline]:
+        for run_number in range(1, runs_per_config + 1):
+            run_dir = eval_dir / configuration / f"run-{run_number}"
+            input_files = []
+            input_root = (run_dir / "inputs").resolve()
+            for relative_path in entry.get("files", []):
+                source_path = resolve_fixture_path(skill_dir, relative_path)
+                input_path = (input_root / relative_path).resolve()
+                if not input_path.is_relative_to(input_root):
+                    raise ValueError(
+                        f"fixture destination must stay within inputs: {relative_path}"
+                    )
+                input_path.parent.mkdir(parents=True, exist_ok=True)
+                shutil.copy2(source_path, input_path)
+                input_files.append(
+                    {
+                        "relative_path": relative_path,
+                        "absolute_path": str(input_path.resolve()),
+                        "sha256": hashlib.sha256(input_path.read_bytes()).hexdigest(),
+                    }
+                )
+            write_json(run_dir / "inputs_manifest.json", {"files": input_files})
 
 
 def main() -> None:

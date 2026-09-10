@@ -154,20 +154,26 @@ def run_single_query(
                                     pending_tool_name = tool_name
                                     accumulated_json = ""
                                 else:
-                                    return False
+                                    pending_tool_name = None
+                                    accumulated_json = ""
 
                         elif se_type == "content_block_delta" and pending_tool_name:
                             delta = se.get("delta", {})
                             if delta.get("type") == "input_json_delta":
                                 accumulated_json += delta.get("partial_json", "")
                                 if clean_name in accumulated_json:
-                                    return True
+                                    triggered = True
 
-                        elif se_type in ("content_block_stop", "message_stop"):
+                        elif se_type == "content_block_stop":
                             if pending_tool_name:
-                                return clean_name in accumulated_json
-                            if se_type == "message_stop":
-                                return False
+                                triggered = triggered or clean_name in accumulated_json
+                                pending_tool_name = None
+                                accumulated_json = ""
+
+                        elif se_type == "message_stop" and pending_tool_name:
+                            triggered = triggered or clean_name in accumulated_json
+                            pending_tool_name = None
+                            accumulated_json = ""
 
                     # Fallback: full assistant message
                     elif event.get("type") == "assistant":
@@ -183,14 +189,19 @@ def run_single_query(
                                 "file_path", ""
                             ):
                                 triggered = True
-                            return triggered
-
-                    elif event.get("type") == "result":
-                        return triggered
             else:
                 timed_out = True
+
+            if not timed_out and process.poll() is None:
+                try:
+                    process.wait(timeout=max(0, timeout - (time.time() - start_time)))
+                except subprocess.TimeoutExpired:
+                    timed_out = True
+            if timed_out and process.poll() is None:
+                process.kill()
+                process.wait()
         finally:
-            # Clean up process on any exit path (return, exception, timeout)
+            # Clean up the process on exceptions and timeouts.
             if process.poll() is None:
                 process.kill()
                 process.wait()

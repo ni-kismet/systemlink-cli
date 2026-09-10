@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import importlib.util
 import io
+import json
 import sys
 from pathlib import Path
 from types import ModuleType
@@ -96,6 +97,50 @@ def test_run_single_query_raises_for_nonzero_executor_exit(
     monkeypatch.setattr(
         run_eval_module.subprocess, "Popen", lambda *args, **kwargs: FailedProcess()
     )
+
+    with pytest.raises(run_eval_module.ExecutionError, match="exited with status 2"):
+        run_eval_module.run_single_query("query", "skill", "description", 30, str(tmp_path))
+
+
+def test_run_single_query_validates_exit_after_detecting_trigger(
+    run_eval_module: ModuleType, monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    clean_name = "skill-skill-12345678"
+    event = json.dumps(
+        {
+            "type": "assistant",
+            "message": {
+                "content": [{"type": "tool_use", "name": "Skill", "input": {"skill": clean_name}}]
+            },
+        }
+    ).encode()
+
+    class FakeStdout:
+        def fileno(self) -> int:
+            return 0
+
+        def read(self) -> bytes:
+            return b""
+
+    class FailedAfterDetectionProcess:
+        stdout = FakeStdout()
+        returncode = 2
+        poll_count = 0
+
+        def poll(self) -> int | None:
+            self.poll_count += 1
+            return None if self.poll_count == 1 else self.returncode
+
+    monkeypatch.setattr(
+        run_eval_module.uuid,
+        "uuid4",
+        lambda: type("Uuid", (), {"hex": "12345678abcdef"})(),
+    )
+    monkeypatch.setattr(
+        run_eval_module.subprocess, "Popen", lambda *args, **kwargs: FailedAfterDetectionProcess()
+    )
+    monkeypatch.setattr(run_eval_module.select, "select", lambda *args: ([0], [], []))
+    monkeypatch.setattr(run_eval_module.os, "read", lambda *args: event)
 
     with pytest.raises(run_eval_module.ExecutionError, match="exited with status 2"):
         run_eval_module.run_single_query("query", "skill", "description", 30, str(tmp_path))

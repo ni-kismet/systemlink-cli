@@ -169,7 +169,7 @@ def grade_run(
         timing_path,
         outputs_dir / "transcript.jsonl",
     )
-    input_manifest = load_json(run_dir.parents[1] / "inputs_manifest.json")
+    input_manifest = load_json(run_dir / "inputs_manifest.json")
     infrastructure_error = run_metadata.get("status") == "infrastructure_error"
     classification = (
         "inconclusive"
