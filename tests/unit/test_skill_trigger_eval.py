@@ -102,6 +102,39 @@ def test_run_single_query_raises_for_nonzero_executor_exit(
         run_eval_module.run_single_query("query", "skill", "description", 30, str(tmp_path))
 
 
+def test_run_single_query_uses_isolated_command_discovery_root(
+    run_eval_module: ModuleType, monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    observed: dict[str, Any] = {}
+
+    class CompletedProcess:
+        stdout = io.BytesIO()
+        returncode = 0
+
+        def poll(self) -> int:
+            return 0
+
+    def fake_popen(*args: Any, **kwargs: Any) -> CompletedProcess:
+        isolated_root = Path(kwargs["cwd"])
+        observed["cwd"] = isolated_root
+        observed["command_files"] = [
+            path.name for path in (isolated_root / ".claude" / "commands").glob("*.md")
+        ]
+        return CompletedProcess()
+
+    monkeypatch.setattr(run_eval_module.subprocess, "Popen", fake_popen)
+
+    assert (
+        run_eval_module.run_single_query("query", "skill", "description", 30, str(tmp_path))
+        is False
+    )
+    isolated_root = observed["cwd"]
+    assert isolated_root != tmp_path
+    assert isolated_root.is_relative_to(tmp_path)
+    assert len(observed["command_files"]) == 1
+    assert not (tmp_path / ".claude" / "commands").exists()
+
+
 def test_run_single_query_validates_exit_after_detecting_trigger(
     run_eval_module: ModuleType, monkeypatch: pytest.MonkeyPatch, tmp_path: Path
 ) -> None:

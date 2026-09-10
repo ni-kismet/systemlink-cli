@@ -277,6 +277,14 @@ def test_workitem_template_create_rule_requires_valid_arguments() -> None:
     )
 
 
+def test_workitem_template_get_rule_requires_template_id() -> None:
+    rule = checked_in_rule(7, "Includes a verification step")
+
+    assert evaluate_rule("slcli workitem template get", rule)[0] is False
+    assert evaluate_rule("slcli workitem template get --format json", rule)[0] is False
+    assert evaluate_rule("slcli workitem template get template-id", rule)[0] is True
+
+
 def test_spec_rules_require_json_import_and_valid_verification_arguments() -> None:
     import_rule = checked_in_rule(9, "Uses the spec import command")
     verify_rule = checked_in_rule(9, "Includes a follow-up verification command")

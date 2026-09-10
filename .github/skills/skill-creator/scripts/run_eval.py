@@ -12,6 +12,7 @@ import os
 import select
 import subprocess
 import sys
+import tempfile
 import time
 import uuid
 from concurrent.futures import ProcessPoolExecutor, as_completed
@@ -63,7 +64,9 @@ def run_single_query(
     """
     unique_id = uuid.uuid4().hex[:8]
     clean_name = f"{skill_name}-skill-{unique_id}"
-    project_commands_dir = Path(project_root) / ".claude" / "commands"
+    isolated_project = tempfile.TemporaryDirectory(prefix=f".{clean_name}-", dir=project_root)
+    isolated_project_root = Path(isolated_project.name)
+    project_commands_dir = isolated_project_root / ".claude" / "commands"
     command_file = project_commands_dir / f"{clean_name}.md"
 
     try:
@@ -101,7 +104,7 @@ def run_single_query(
             cmd,
             stdout=subprocess.PIPE,
             stderr=subprocess.DEVNULL,
-            cwd=project_root,
+            cwd=isolated_project_root,
             env=env,
         )
 
@@ -214,6 +217,7 @@ def run_single_query(
     finally:
         if command_file.exists():
             command_file.unlink()
+        isolated_project.cleanup()
 
 
 def summarize_query_result(

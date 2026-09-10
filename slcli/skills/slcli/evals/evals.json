@@ -414,7 +414,7 @@
           "mode": "any_of",
           "patterns": [
             "slcli\\s+workitem\\s+template\\s+list",
-            "slcli\\s+workitem\\s+template\\s+get"
+            "slcli\\s+workitem\\s+template\\s+get\\s+(?!-)\\S+"
           ]
         },
         {
