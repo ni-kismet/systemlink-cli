@@ -6,6 +6,7 @@ import argparse
 import hashlib
 import json
 import math
+from datetime import date
 from pathlib import Path
 from typing import Any
 
@@ -162,14 +163,29 @@ def grade_run(
     except (json.JSONDecodeError, OSError, TypeError, ValueError):
         return f"skip {run_dir}: invalid run metadata or timing"
 
+    reference_date_value = iteration_metadata.get("reference_date")
+    if not isinstance(reference_date_value, str):
+        return f"skip {run_dir}: invalid iteration reference date"
+    try:
+        reference_date = date.fromisoformat(reference_date_value)
+    except ValueError:
+        return f"skip {run_dir}: invalid iteration reference date"
+
+    try:
+        input_manifest = load_json(run_dir / "inputs_manifest.json")
+        input_files = input_manifest.get("files")
+        if not isinstance(input_files, list):
+            raise ValueError("input manifest files must be a list")
+    except (json.JSONDecodeError, OSError, TypeError, ValueError, AttributeError):
+        return f"skip {run_dir}: invalid input manifest"
     graded = grade_response(
         manifest_path,
         eval_id,
         response_path,
         timing_path,
         outputs_dir / "transcript.jsonl",
+        reference_date,
     )
-    input_manifest = load_json(run_dir / "inputs_manifest.json")
     infrastructure_error = run_metadata.get("status") == "infrastructure_error"
     classification = (
         "inconclusive"
@@ -189,13 +205,14 @@ def grade_run(
         "candidate_skill_hash": iteration_metadata.get("candidate_skill_hash"),
         "baseline_skill_hash": iteration_metadata.get("baseline_skill_hash"),
         "eval_manifest_hash": hashlib.sha256(manifest_path.read_bytes()).hexdigest(),
+        "reference_date": reference_date.isoformat(),
         "eval_id": eval_id,
         "trial": int(run_dir.name.removeprefix("run-")),
         "configuration": run_dir.parent.name,
         "run_skill_hash": actual_skill_hash,
         "executor_prompt_hash": actual_prompt_hash,
         "executor": run_metadata,
-        "inputs": input_manifest.get("files", []),
+        "inputs": input_files,
         "timing": timing,
         "outputs": file_manifest(outputs_dir),
         "grading": graded,

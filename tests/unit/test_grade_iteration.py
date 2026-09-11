@@ -99,6 +99,7 @@ def test_grade_run_records_provenance_and_only_grades_response(tmp_path: Path) -
         "candidate_skill_hash": "candidate-hash",
         "baseline_skill_hash": "baseline-hash",
         "eval_manifest_hash": "manifest-hash",
+        "reference_date": "2026-09-08",
         "executor_prompt_hashes": {"eval-1/with_skill/run-1": prompt_hash},
     }
 
@@ -115,6 +116,10 @@ def test_grade_run_records_provenance_and_only_grades_response(tmp_path: Path) -
     assert record["run_skill_hash"] == hashlib.sha256(b"SKILL.md\0candidate skill\n\0").hexdigest()
     assert record["executor_prompt_hash"] == prompt_hash
     assert record["eval_manifest_hash"] == hashlib.sha256(manifest_path.read_bytes()).hexdigest()
+    assert record["reference_date"] == "2026-09-08"
+    assert json.loads((run_dir / "grading.json").read_text(encoding="utf-8"))["reference_date"] == (
+        "2026-09-08"
+    )
     assert record["inputs"] == []
     assert record["grading"]["execution_metrics"]["transcript_chars"] == len(
         '{"event":"completed"}\n'
@@ -148,6 +153,27 @@ def test_grade_run_skips_run_without_transcript(tmp_path: Path) -> None:
     )
 
     assert message.endswith("required outputs missing: transcript.jsonl")
+
+
+def test_grade_run_skips_invalid_input_manifest(tmp_path: Path) -> None:
+    run_dir = tmp_path / "eval-1" / "with_skill" / "run-1"
+    outputs = run_dir / "outputs"
+    outputs.mkdir(parents=True)
+    (outputs / "response.txt").write_text("A response\n", encoding="utf-8")
+    (outputs / "transcript.jsonl").write_text("{}\n", encoding="utf-8")
+    write_json(outputs / "run_metadata.json", {"status": "completed"})
+    write_json(
+        run_dir / "timing.json",
+        {"duration_ms": 1000, "total_duration_seconds": 1.0, "total_tokens": 1},
+    )
+    write_json(run_dir / "inputs_manifest.json", {"files": {}})
+    write_json(run_dir / "run_config.json", {"repository_root": None})
+    iteration_metadata = bind_executor_prompt(run_dir)
+    iteration_metadata["reference_date"] = "2026-09-08"
+
+    message = grade_run(tmp_path / "evals.json", 1, run_dir, False, iteration_metadata)
+
+    assert message.endswith("invalid input manifest")
 
 
 @pytest.mark.parametrize("artifact_path", ["transcript.jsonl", "response.txt", "run_metadata.json"])

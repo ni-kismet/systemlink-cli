@@ -53,7 +53,7 @@ the current candidate checkout. Only the `slcli` skill in the baseline template
 is replaced with its version from the merge base of `origin/main` and `HEAD`.
 Each trial receives its own copy of the appropriate template, so parallel runs
 cannot modify another trial's repository. File-backed fixtures are copied into
-a neutral `inputs/` directory shared by both arms. Use
+a neutral `inputs/` directory for each run. Use
 `--baseline-ref` when comparing against another branch. Use
 `--baseline without_skill` only when measuring whether a new skill adds value;
 that comparison is not a regression test. The legacy `--isolate-baseline` option
@@ -112,6 +112,7 @@ trial as inconclusive instead of scoring it as a skill failure.
 - Candidate and baseline sandboxes begin from the same candidate repository;
   only the baseline skill directory differs.
 - Input fixtures live outside both skill trees and are identical for both arms.
+- Each trial receives its own fixture copy so one executor cannot mutate another trial's input.
 - Copied fixture hashes must match their preparation-time input manifest.
 - Executor prompt hashes must match both the iteration manifest and live prompt files.
 - Critical compound workflows must pass within one command invocation.

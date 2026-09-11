@@ -13,6 +13,7 @@ import re
 import shutil
 import subprocess
 import tarfile
+from datetime import date
 from io import BytesIO
 from pathlib import Path
 from typing import Any
@@ -469,6 +470,7 @@ def main() -> None:
             if baseline_repo_root and args.baseline == "old_skill"
             else None
         ),
+        "reference_date": date.today().isoformat(),
         "iteration": iteration_number,
         "runs_per_config": args.runs_per_config,
         "eval_ids": [entry["id"] for entry in selected],

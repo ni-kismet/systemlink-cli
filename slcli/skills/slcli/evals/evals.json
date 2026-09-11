@@ -360,12 +360,10 @@
           "mode": "all_of",
           "patterns": [
             "slcli\\s+testmonitor\\s+result\\s+list",
-            "--filter\\s+",
-            "FAILED",
-            "ERRORED",
+            "--filter\\s+[^;\\n]*status\\.statusType\\s*==\\s*@0[^;\\n]*status\\.statusType\\s*==\\s*@1",
             "--substitution\\s+FAILED",
             "--substitution\\s+ERRORED",
-            "--product-filter\\s+[^;\\n]*partNumber",
+            "--product-filter\\s+[^;\\n]*partNumber(?:\\.Contains)?\\s*\\(\\s*@0\\s*\\)",
             "--product-substitution\\s+BATT"
           ]
         },
@@ -497,7 +495,7 @@
           "scope": "command",
           "mode": "any_of",
           "patterns": [
-            "slcli\\s+spec\\s+import\\b(?=[^\\n]*--file\\s+(?!-)\\S+\\.json\\b)"
+            "slcli\\s+spec\\s+import\\b(?=[^\\n]*--file\\s+(?!-)[^;\\n]*\\.json\\b)"
           ]
         },
         {
@@ -556,7 +554,7 @@
           "scope": "command",
           "mode": "any_of",
           "patterns": [
-            "^slcli\\s+spec\\s+import\\b(?=[^\\n]*--file\\s+(?!-)[^\\s]+\\.json)"
+            "^slcli\\s+spec\\s+import\\b(?=[^\\n]*--file\\s+(?!-)[^;\\n]*\\.json)"
           ]
         },
         {
@@ -623,7 +621,7 @@
           "scope": "command",
           "mode": "all_of",
           "patterns": [
-            "slcli\\s+webapp\\s+publish\\s+dist/fleet-dashboard/",
+            "slcli\\s+webapp\\s+publish\\s+dist/fleet-dashboard/?",
             "--(?:id|name)\\s+(?!-)\\S+"
           ]
         },

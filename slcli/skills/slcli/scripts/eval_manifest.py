@@ -33,7 +33,9 @@ def validate_manifest(payload: dict[str, Any], skill_dir: Path) -> None:
     if not isinstance(entries, list) or not entries:
         raise ValueError("eval manifest requires a non-empty evals list")
     ids = [entry.get("id") for entry in entries]
-    if any(not isinstance(eval_id, int) for eval_id in ids) or len(ids) != len(set(ids)):
+    if any(not isinstance(eval_id, int) or isinstance(eval_id, bool) for eval_id in ids) or len(
+        ids
+    ) != len(set(ids)):
         raise ValueError("eval IDs must be unique integers")
 
     by_id = set(ids)
@@ -41,6 +43,14 @@ def validate_manifest(payload: dict[str, Any], skill_dir: Path) -> None:
     if set(suites) != {"gating", "regression"}:
         raise ValueError("recommended_suites must define gating and regression")
     for suite, suite_ids in suites.items():
+        if (
+            not isinstance(suite_ids, list)
+            or any(
+                not isinstance(eval_id, int) or isinstance(eval_id, bool) for eval_id in suite_ids
+            )
+            or len(suite_ids) != len(set(suite_ids))
+        ):
+            raise ValueError(f"suite {suite} IDs must be a unique list of integers")
         unknown = set(suite_ids) - by_id
         if unknown:
             raise ValueError(f"suite {suite} references unknown eval IDs: {sorted(unknown)}")

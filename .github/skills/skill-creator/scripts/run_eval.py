@@ -115,6 +115,75 @@ def run_single_query(
         pending_tool_name = None
         accumulated_json = ""
         timed_out = False
+        terminal_result_received = False
+
+        def process_line(line: str) -> None:
+            """Process one decoded Claude stream event."""
+            nonlocal accumulated_json, pending_tool_name, terminal_result_received, triggered
+            line = line.strip()
+            if not line:
+                return
+            try:
+                event = json.loads(line)
+            except json.JSONDecodeError:
+                return
+
+            if event.get("type") == "result":
+                terminal_result_received = True
+
+            if event.get("type") == "stream_event":
+                stream_event = event.get("event", {})
+                stream_event_type = stream_event.get("type", "")
+
+                if stream_event_type == "content_block_start":
+                    content_block = stream_event.get("content_block", {})
+                    tool_name = content_block.get("name", "")
+                    if tool_name in ("Skill", "Read"):
+                        pending_tool_name = tool_name
+                        accumulated_json = ""
+                    else:
+                        pending_tool_name = None
+                        accumulated_json = ""
+
+                elif stream_event_type == "content_block_delta" and pending_tool_name:
+                    delta = stream_event.get("delta", {})
+                    if delta.get("type") == "input_json_delta":
+                        accumulated_json += delta.get("partial_json", "")
+                        if clean_name in accumulated_json:
+                            triggered = True
+
+                elif stream_event_type == "content_block_stop":
+                    if pending_tool_name:
+                        triggered = triggered or clean_name in accumulated_json
+                        pending_tool_name = None
+                        accumulated_json = ""
+
+                elif stream_event_type == "message_stop" and pending_tool_name:
+                    triggered = triggered or clean_name in accumulated_json
+                    pending_tool_name = None
+                    accumulated_json = ""
+
+            elif event.get("type") == "assistant":
+                message = event.get("message", {})
+                for content_item in message.get("content", []):
+                    if content_item.get("type") != "tool_use":
+                        continue
+                    tool_name = content_item.get("name", "")
+                    tool_input = content_item.get("input", {})
+                    if tool_name == "Skill" and clean_name in tool_input.get("skill", ""):
+                        triggered = True
+                    elif tool_name == "Read" and clean_name in tool_input.get("file_path", ""):
+                        triggered = True
+
+        def process_buffer(final: bool = False) -> None:
+            """Process complete lines and one final unterminated line when requested."""
+            nonlocal buffer
+            while "\n" in buffer:
+                line, buffer = buffer.split("\n", 1)
+                process_line(line)
+            if final and buffer.strip():
+                process_line(buffer)
+                buffer = ""
 
         try:
             while time.time() - start_time < timeout:
@@ -132,68 +201,11 @@ def run_single_query(
                 if not chunk:
                     break
                 buffer += chunk.decode("utf-8", errors="replace")
-
-                while "\n" in buffer:
-                    line, buffer = buffer.split("\n", 1)
-                    line = line.strip()
-                    if not line:
-                        continue
-
-                    try:
-                        event = json.loads(line)
-                    except json.JSONDecodeError:
-                        continue
-
-                    # Early detection via stream events
-                    if event.get("type") == "stream_event":
-                        se = event.get("event", {})
-                        se_type = se.get("type", "")
-
-                        if se_type == "content_block_start":
-                            cb = se.get("content_block", {})
-                            if cb.get("type") == "tool_use":
-                                tool_name = cb.get("name", "")
-                                if tool_name in ("Skill", "Read"):
-                                    pending_tool_name = tool_name
-                                    accumulated_json = ""
-                                else:
-                                    pending_tool_name = None
-                                    accumulated_json = ""
-
-                        elif se_type == "content_block_delta" and pending_tool_name:
-                            delta = se.get("delta", {})
-                            if delta.get("type") == "input_json_delta":
-                                accumulated_json += delta.get("partial_json", "")
-                                if clean_name in accumulated_json:
-                                    triggered = True
-
-                        elif se_type == "content_block_stop":
-                            if pending_tool_name:
-                                triggered = triggered or clean_name in accumulated_json
-                                pending_tool_name = None
-                                accumulated_json = ""
-
-                        elif se_type == "message_stop" and pending_tool_name:
-                            triggered = triggered or clean_name in accumulated_json
-                            pending_tool_name = None
-                            accumulated_json = ""
-
-                    # Fallback: full assistant message
-                    elif event.get("type") == "assistant":
-                        message = event.get("message", {})
-                        for content_item in message.get("content", []):
-                            if content_item.get("type") != "tool_use":
-                                continue
-                            tool_name = content_item.get("name", "")
-                            tool_input = content_item.get("input", {})
-                            if tool_name == "Skill" and clean_name in tool_input.get("skill", ""):
-                                triggered = True
-                            elif tool_name == "Read" and clean_name in tool_input.get(
-                                "file_path", ""
-                            ):
-                                triggered = True
+                process_buffer()
             else:
                 timed_out = True
+
+            process_buffer(final=True)
 
             if not timed_out and process.poll() is None:
                 try:
@@ -213,6 +225,8 @@ def run_single_query(
             raise ExecutionError(f"Claude CLI timed out after {timeout} seconds")
         if process.returncode != 0:
             raise ExecutionError(f"Claude CLI exited with status {process.returncode}")
+        if not terminal_result_received:
+            raise ExecutionError("Claude CLI produced no terminal result event")
         return triggered
     finally:
         if command_file.exists():

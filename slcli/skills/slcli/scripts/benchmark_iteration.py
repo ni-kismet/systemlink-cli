@@ -70,9 +70,9 @@ def parse_args() -> argparse.Namespace:
     return parser.parse_args()
 
 
-def run_command(command: list[str]) -> None:
-    """Run a subprocess command and stream output."""
-    subprocess.run(command, check=True)
+def run_command(command: list[str], check: bool = True) -> int:
+    """Run a subprocess command, optionally raising for nonzero status."""
+    return subprocess.run(command, check=check).returncode
 
 
 def metric_delta(run_summary: dict[str, Any], candidate: str, baseline: str, metric: str) -> float:
@@ -172,7 +172,11 @@ def main() -> None:
 
     if not args.skip_gate:
         compare_script = script_dir / "compare_iteration.py"
-        run_command([args.python, str(compare_script), str(args.iteration_dir)])
+        compare_status = run_command(
+            [args.python, str(compare_script), str(args.iteration_dir)], check=False
+        )
+        if compare_status:
+            raise SystemExit(compare_status)
 
 
 if __name__ == "__main__":

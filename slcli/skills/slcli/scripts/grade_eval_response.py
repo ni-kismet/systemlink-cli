@@ -15,7 +15,7 @@ from slcli.skills.slcli.scripts.eval_manifest import load_manifest
 UNQUOTED_WINDOWS_PATH = re.compile(r"(?<![\w\"'])([A-Za-z]:\\[^\s;&|]+)")
 INLINE_COMMAND = re.compile(r"`(?P<command>slcli(?:\s+[^`]*)?)`", re.IGNORECASE)
 WARNING_COMMAND_PREFIX = re.compile(
-    r"\b(?:do not|don't|never|avoid)\s+(?:use|run|execute)" r"(?:\s+the following)?\s*:?\s*$",
+    r"\b(?:do not|don't|never|avoid)(?:\s+(?:use|run|execute))?" r"(?:\s+the following)?\s*:?\s*$",
     re.IGNORECASE,
 )
 
@@ -129,13 +129,19 @@ def extract_slcli_commands(text: str) -> list[str]:
             ignored_warning_fence = True
             continue
         if pending:
-            pending += " " + line.removesuffix("\\").strip()
-            if not line.endswith("\\"):
+            continuation = line.endswith("\\") or (line.endswith("`") and not line.endswith("```"))
+            pending += " " + line.removesuffix("\\").removesuffix("`").strip()
+            if not continuation:
                 commands.extend(extract_slcli_commands(pending))
                 pending = ""
             continue
-        if line.endswith("\\"):
-            pending = line.removesuffix("\\").strip()
+        powershell_continuation = (
+            line.endswith("`")
+            and not line.startswith("```")
+            and re.match(r"^(?:[-*+]\s+|\d+\.\s+|\$\s+)?slcli\b", line, re.IGNORECASE) is not None
+        )
+        if line.endswith("\\") or powershell_continuation:
+            pending = line.removesuffix("\\").removesuffix("`").strip()
             continue
         if WARNING_COMMAND_PREFIX.search(line):
             warning_context = True
@@ -253,16 +259,18 @@ def grade_response(
     response_path: Path,
     timing_path: Path | None = None,
     transcript_path: Path | None = None,
+    reference_date: date | None = None,
 ) -> dict[str, Any]:
     """Grade one response artifact path against one eval entry."""
     eval_entry = load_eval(manifest_path, eval_id)
     response_text, sources = gather_response_text(response_path)
     timing = load_timing(timing_path)
     transcript_text = read_text_artifact(transcript_path) if transcript_path else None
+    reference_date = reference_date or date.today()
 
     results: list[dict[str, Any]] = []
     for rule in eval_entry.get("grading_rules", []):
-        passed, evidence = evaluate_rule(response_text, rule)
+        passed, evidence = evaluate_rule(response_text, rule, reference_date=reference_date)
         results.append(
             {
                 "text": rule["text"],
@@ -274,7 +282,15 @@ def grade_response(
             }
         )
 
-    return build_output(eval_entry, results, sources, response_text, timing, transcript_text)
+    return build_output(
+        eval_entry,
+        results,
+        sources,
+        response_text,
+        timing,
+        transcript_text,
+        reference_date,
+    )
 
 
 def build_output(
@@ -284,6 +300,7 @@ def build_output(
     response_text: str,
     timing: dict[str, Any],
     transcript_text: str | None,
+    reference_date: date,
 ) -> dict[str, Any]:
     """Build grading.json payload."""
     passed_count = sum(1 for result in results if result["passed"])
@@ -298,6 +315,7 @@ def build_output(
         }
 
     return {
+        "reference_date": reference_date.isoformat(),
         "expectations": results,
         "summary": {
             "passed": passed_count,

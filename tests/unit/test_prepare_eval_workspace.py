@@ -311,6 +311,38 @@ def test_prepare_prompts_records_prompt_hashes(
     )
 
 
+def test_force_stub_output_does_not_overwrite_existing_response(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    iteration = tmp_path / "iteration-1"
+    eval_dir = iteration / "eval-1-example"
+    run_dir = eval_dir / "with_skill" / "run-1"
+    (run_dir / "outputs").mkdir(parents=True)
+    (eval_dir / "eval_metadata.json").write_text(
+        json.dumps({"prompt": "List systems"}), encoding="utf-8"
+    )
+    (run_dir / "inputs_manifest.json").write_text(json.dumps({"files": []}), encoding="utf-8")
+    (run_dir / "run_config.json").write_text(
+        json.dumps({"configuration": "with_skill", "repository_root": None}),
+        encoding="utf-8",
+    )
+    (iteration / "iteration_manifest.json").write_text(
+        json.dumps({"skill_name": "slcli"}), encoding="utf-8"
+    )
+
+    monkeypatch.setattr("sys.argv", ["prepare_eval_prompts", str(iteration), "--stub-output"])
+    prepare_eval_prompts.main()
+    response_path = run_dir / "outputs" / "response.txt"
+    response_path.write_text("completed response\n", encoding="utf-8")
+
+    monkeypatch.setattr(
+        "sys.argv", ["prepare_eval_prompts", str(iteration), "--force", "--stub-output"]
+    )
+    prepare_eval_prompts.main()
+
+    assert response_path.read_text(encoding="utf-8") == "completed response\n"
+
+
 def test_force_rejects_changed_prompt_when_run_has_artifacts(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:

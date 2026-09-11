@@ -1,10 +1,12 @@
 """Unit tests for the checked-in skill eval manifest."""
 
 import json
+from copy import deepcopy
 from datetime import date
 from pathlib import Path
 
 import pytest
+from jsonschema import Draft202012Validator, FormatChecker  # type: ignore[import-untyped]
 
 from slcli.skills.slcli.scripts.eval_manifest import load_manifest, validate_manifest
 from slcli.skills.slcli.scripts.grade_eval_response import evaluate_rule
@@ -17,6 +19,27 @@ def test_checked_in_eval_manifest_is_valid() -> None:
     payload = load_manifest(manifest)
 
     assert payload["manifest_version"] == 1
+
+
+def test_checked_in_eval_manifest_matches_schema_and_rejects_bad_dates() -> None:
+    manifest_path = Path("slcli/skills/slcli/evals/evals.json")
+    schema_path = Path("slcli/skills/slcli/evals/evals.schema.json")
+    payload = json.loads(manifest_path.read_text(encoding="utf-8"))
+    schema = json.loads(schema_path.read_text(encoding="utf-8"))
+    validator = Draft202012Validator(schema, format_checker=FormatChecker())
+
+    assert list(validator.iter_errors(payload)) == []
+
+    invalid_payload = deepcopy(payload)
+    dated_rule = next(
+        rule
+        for entry in invalid_payload["evals"]
+        for rule in entry["grading_rules"]
+        if "control_reference_date" in rule
+    )
+    dated_rule["control_reference_date"] = "not-a-date"
+
+    assert list(validator.iter_errors(invalid_payload))
 
 
 def test_manifest_requires_explicit_critical_flags(tmp_path: Path) -> None:
@@ -56,6 +79,30 @@ def test_manifest_requires_schema_entry_fields(tmp_path: Path) -> None:
     }
 
     with pytest.raises(ValueError, match="missing required fields"):
+        validate_manifest(payload, tmp_path)
+
+
+@pytest.mark.parametrize("suite_ids", [[1, 1], [1, "1"], "1"])
+def test_manifest_rejects_invalid_suite_ids(tmp_path: Path, suite_ids: object) -> None:
+    payload = {
+        "manifest_version": 1,
+        "skill_name": "test",
+        "recommended_suites": {"gating": suite_ids, "regression": [1]},
+        "evals": [
+            {
+                "id": 1,
+                "prompt": "test",
+                "expected_output": "test",
+                "files": [],
+                "expectations": [],
+                "grading_rules": [
+                    {"text": "rule", "critical": False, "mode": "any_of", "patterns": ["test"]}
+                ],
+            }
+        ],
+    }
+
+    with pytest.raises(ValueError, match="suite gating IDs"):
         validate_manifest(payload, tmp_path)
 
 
@@ -262,6 +309,29 @@ def test_dataframe_safety_guidance_can_quote_unsupported_sql() -> None:
     assert all(evaluate_rule(response, rule)[0] for rule in critical_rules)
 
 
+def test_eval_six_requires_parameterized_status_and_product_filters() -> None:
+    rule = checked_in_rule(6, "Combines product and status constraints safely in one invocation")
+
+    assert (
+        evaluate_rule(
+            "slcli testmonitor result list --filter 'status.statusType == @0 or "
+            "status.statusType == @1' --substitution FAILED --substitution ERRORED "
+            "--product-filter 'partNumber.Contains(@0)' --product-substitution BATT",
+            rule,
+        )[0]
+        is True
+    )
+    assert (
+        evaluate_rule(
+            "slcli testmonitor result list --filter 'status.statusType == FAILED or "
+            "status.statusType == ERRORED' --product-filter 'partNumber.Contains(@0)' "
+            "--product-substitution BATT",
+            rule,
+        )[0]
+        is False
+    )
+
+
 def test_workitem_template_create_rule_requires_valid_arguments() -> None:
     rule = checked_in_rule(7, "Uses the workitem template create command")
 
@@ -341,6 +411,20 @@ def test_spec_rules_require_json_import_and_valid_verification_arguments() -> No
         assert evaluate_rule(invalid, verify_rule)[0] is False
     assert evaluate_rule("slcli spec get --id imported-spec-id", verify_rule)[0] is True
     assert evaluate_rule("slcli spec list --product BAT-MODEL-ABC-001", verify_rule)[0] is True
+
+
+def test_spec_import_rule_accepts_quoted_spaced_json_path() -> None:
+    rule = checked_in_rule(9, "Uses the spec import command")
+
+    assert evaluate_rule('slcli spec import --file "QA Workspace/specifications.json"', rule)[0]
+
+
+def test_webapp_publish_rule_accepts_optional_trailing_slash() -> None:
+    rule = checked_in_rule(11, "Publishes the built app directory rather than the package file")
+
+    assert evaluate_rule("slcli webapp publish dist/fleet-dashboard --name fleet-dashboard", rule)[
+        0
+    ]
 
 
 def test_webapp_packaging_rules_are_name_agnostic_and_option_order_independent() -> None:

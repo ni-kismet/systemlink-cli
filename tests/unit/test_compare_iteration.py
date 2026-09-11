@@ -65,6 +65,7 @@ def prepare_iteration(tmp_path: Path) -> Path:
             "candidate_skill_hash": candidate_hash,
             "baseline_skill_hash": baseline_hash,
             "eval_manifest_hash": "manifest-hash",
+            "reference_date": "2026-09-08",
             "executor_prompt_hashes": {},
         },
     )
@@ -115,6 +116,7 @@ def prepare_iteration(tmp_path: Path) -> Path:
                     "candidate_skill_hash": candidate_hash,
                     "baseline_skill_hash": baseline_hash,
                     "eval_manifest_hash": "manifest-hash",
+                    "reference_date": "2026-09-08",
                     "eval_id": 1,
                     "trial": run_number,
                     "configuration": configuration,
@@ -377,6 +379,18 @@ def test_evaluate_iteration_is_inconclusive_for_modified_input(tmp_path: Path) -
             record["inputs"] = [input_record]
             write_json(record_path, record)
     input_paths[0].write_text("modified\n", encoding="utf-8")
+
+    result = evaluate_iteration(tmp_path, margin=0.05)
+
+    assert result["status"] == "inconclusive"
+
+
+def test_evaluate_iteration_is_inconclusive_for_malformed_input_manifest(tmp_path: Path) -> None:
+    eval_dir = prepare_iteration(tmp_path)
+    write_json(
+        eval_dir / "with_skill" / "run-1" / "inputs_manifest.json",
+        {"files": [{}]},
+    )
 
     result = evaluate_iteration(tmp_path, margin=0.05)
 

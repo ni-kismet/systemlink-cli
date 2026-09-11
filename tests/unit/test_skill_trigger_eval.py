@@ -108,7 +108,7 @@ def test_run_single_query_uses_isolated_command_discovery_root(
     observed: dict[str, Any] = {}
 
     class CompletedProcess:
-        stdout = io.BytesIO()
+        stdout = io.BytesIO('{"type":"result"}\n'.encode())
         returncode = 0
 
         def poll(self) -> int:
@@ -133,6 +133,73 @@ def test_run_single_query_uses_isolated_command_discovery_root(
     assert isolated_root.is_relative_to(tmp_path)
     assert len(observed["command_files"]) == 1
     assert not (tmp_path / ".claude" / "commands").exists()
+
+
+def test_run_single_query_rejects_success_without_terminal_result(
+    run_eval_module: ModuleType, monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    class CompletedProcess:
+        stdout = io.BytesIO()
+        returncode = 0
+
+        def poll(self) -> int:
+            return 0
+
+    monkeypatch.setattr(
+        run_eval_module.subprocess, "Popen", lambda *args, **kwargs: CompletedProcess()
+    )
+
+    with pytest.raises(run_eval_module.ExecutionError, match="no terminal result event"):
+        run_eval_module.run_single_query("query", "skill", "description", 30, str(tmp_path))
+
+
+def test_run_single_query_parses_final_buffer_after_process_exit(
+    run_eval_module: ModuleType, monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    clean_name = "skill-skill-12345678"
+    output = (
+        json.dumps(
+            {
+                "type": "assistant",
+                "message": {
+                    "content": [
+                        {"type": "tool_use", "name": "Skill", "input": {"skill": clean_name}}
+                    ]
+                },
+            }
+        )
+        + "\n"
+        + json.dumps({"type": "result"})
+    ).encode()
+
+    class FakeStdout:
+        def fileno(self) -> int:
+            return 0
+
+        def read(self) -> bytes:
+            return b""
+
+    class CompletedProcess:
+        stdout = FakeStdout()
+        returncode = 0
+        poll_count = 0
+
+        def poll(self) -> int | None:
+            self.poll_count += 1
+            return None if self.poll_count == 1 else 0
+
+    monkeypatch.setattr(
+        run_eval_module.uuid,
+        "uuid4",
+        lambda: type("Uuid", (), {"hex": "12345678abcdef"})(),
+    )
+    monkeypatch.setattr(
+        run_eval_module.subprocess, "Popen", lambda *args, **kwargs: CompletedProcess()
+    )
+    monkeypatch.setattr(run_eval_module.select, "select", lambda *args: ([0], [], []))
+    monkeypatch.setattr(run_eval_module.os, "read", lambda *args: output)
+
+    assert run_eval_module.run_single_query("query", "skill", "description", 30, str(tmp_path))
 
 
 def test_run_single_query_validates_exit_after_detecting_trigger(

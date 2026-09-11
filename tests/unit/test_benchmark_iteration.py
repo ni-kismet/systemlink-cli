@@ -4,11 +4,13 @@ from __future__ import annotations
 
 import json
 import runpy
+import sys
 from pathlib import Path
 from typing import Any
 
 import pytest
 
+from slcli.skills.slcli.scripts import benchmark_iteration
 from slcli.skills.slcli.scripts.benchmark_iteration import enrich_benchmark
 
 
@@ -141,3 +143,24 @@ def test_aggregate_uses_measured_tokens_instead_of_output_characters(tmp_path: P
 
     assert results["with_skill"][0]["tokens"] == 42
     assert results["with_skill"][0]["time_seconds"] == 2.5
+
+
+@pytest.mark.parametrize("exit_code", [1, 2])
+def test_main_propagates_regression_gate_exit_code(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, exit_code: int
+) -> None:
+    calls: list[tuple[list[str], bool]] = []
+
+    def fake_run_command(command: list[str], check: bool = True) -> int:
+        calls.append((command, check))
+        return exit_code if not check else 0
+
+    monkeypatch.setattr(benchmark_iteration, "run_command", fake_run_command)
+    monkeypatch.setattr(benchmark_iteration, "enrich_benchmark", lambda *args: None)
+    monkeypatch.setattr(sys, "argv", ["benchmark_iteration", str(tmp_path)])
+
+    with pytest.raises(SystemExit) as raised:
+        benchmark_iteration.main()
+
+    assert raised.value.code == exit_code
+    assert calls[-1][1] is False

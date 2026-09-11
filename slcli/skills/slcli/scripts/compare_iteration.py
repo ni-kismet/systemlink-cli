@@ -82,7 +82,7 @@ def load_run(
         metadata = load_json(metadata_path)
         grading = load_json(grading_path)
         record = load_json(record_path)
-        expected_inputs = load_json(inputs_path).get("files", [])
+        expected_inputs = load_json(inputs_path).get("files")
         timing = load_json(timing_path)
         actual_skill_hash = run_skill_hash(run_dir)
         actual_prompt_hash = executor_prompt_hash(run_dir)
@@ -106,11 +106,25 @@ def load_run(
         return None
     if grading.get("classification") == "inconclusive":
         return None
-    inputs_match = record.get("inputs") == expected_inputs and all(
-        Path(item["absolute_path"]).is_file()
-        and hashlib.sha256(Path(item["absolute_path"]).read_bytes()).hexdigest() == item["sha256"]
-        for item in expected_inputs
-    )
+    inputs_match = record.get("inputs") == expected_inputs and isinstance(expected_inputs, list)
+    input_root = (run_dir / "inputs").resolve()
+    if inputs_match and isinstance(expected_inputs, list):
+        for item in expected_inputs:
+            if not isinstance(item, dict):
+                inputs_match = False
+                break
+            absolute_path = item.get("absolute_path")
+            expected_hash = item.get("sha256")
+            if not isinstance(absolute_path, str) or not isinstance(expected_hash, str):
+                inputs_match = False
+                break
+            input_path = Path(absolute_path).resolve()
+            if not input_path.is_relative_to(input_root) or not input_path.is_file():
+                inputs_match = False
+                break
+            if hashlib.sha256(input_path.read_bytes()).hexdigest() != expected_hash:
+                inputs_match = False
+                break
     expected_provenance = {
         "skill_name": iteration.get("skill_name"),
         "candidate_sha": iteration.get("candidate_sha"),
@@ -118,6 +132,7 @@ def load_run(
         "candidate_skill_hash": iteration.get("candidate_skill_hash"),
         "baseline_skill_hash": iteration.get("baseline_skill_hash"),
         "eval_manifest_hash": iteration.get("eval_manifest_hash"),
+        "reference_date": iteration.get("reference_date"),
         "eval_id": eval_id,
         "trial": run_number,
         "configuration": run_dir.parent.name,

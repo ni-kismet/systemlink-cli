@@ -178,9 +178,9 @@ def iter_run_dirs(iteration_dir: Path) -> list[tuple[Path, Path, Path]]:
     return triples
 
 
-def maybe_write(path: Path, content: str, force: bool) -> bool:
-    """Write content when allowed and report whether a write happened."""
-    if path.exists() and not force:
+def maybe_write(path: Path, content: str) -> bool:
+    """Write content only when the destination does not already exist."""
+    if path.exists():
         return False
     path.write_text(content, encoding="utf-8")
     return True
@@ -260,7 +260,6 @@ def main() -> None:
             if maybe_write(
                 placeholder_path,
                 build_placeholder(configuration),
-                args.force,
             ):
                 placeholders += 1
 

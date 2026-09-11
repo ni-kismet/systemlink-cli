@@ -16,19 +16,19 @@
     "should_trigger": true
   },
   {
-    "query": "Write a generic Python function that parses a CSV file.",
+    "query": "Use the NI SystemLink Python SDK to list test results for product BAT-100.",
     "should_trigger": false
   },
   {
-    "query": "Build an Angular landing page for a coffee shop.",
+    "query": "In the SystemLink web UI, create a work item template and verify it.",
     "should_trigger": false
   },
   {
-    "query": "Explain how OAuth 2.0 authorization code flow works.",
+    "query": "Build an Angular SystemLink dashboard with @ni/systemlink-clients-ts.",
     "should_trigger": false
   },
   {
-    "query": "Review this pull request for Python style issues.",
+    "query": "Call the SystemLink REST API directly to publish a hosted webapp.",
     "should_trigger": false
   }
 ]

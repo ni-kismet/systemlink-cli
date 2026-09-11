@@ -6,6 +6,8 @@ import json
 from datetime import date
 from pathlib import Path
 
+import pytest
+
 from slcli.skills.slcli.scripts.grade_eval_response import (
     evaluate_rule,
     extract_slcli_commands,
@@ -60,6 +62,19 @@ slcli system list
 """
 
     assert extract_slcli_commands(response) == ["slcli system list"]
+
+
+@pytest.mark.parametrize("prefix", ["Avoid", "Never", "Do not use"])
+def test_extract_slcli_commands_ignores_direct_warning_commands(prefix: str) -> None:
+    response = f"{prefix} `slcli query results`; use `slcli system list` instead."
+
+    assert extract_slcli_commands(response) == ["slcli system list"]
+
+
+def test_extract_slcli_commands_handles_powershell_continuation() -> None:
+    response = "slcli system `\n  list `\n  --format json\n"
+
+    assert extract_slcli_commands(response) == ["slcli system list --format json"]
 
 
 def test_extract_slcli_commands_normalizes_global_profile_options() -> None:
