@@ -79,6 +79,20 @@ def hash_file(path: Path) -> str:
     return hashlib.sha256(path.read_bytes()).hexdigest()
 
 
+def validate_transcript(path: Path) -> None:
+    """Require a non-empty JSONL transcript containing only JSON objects."""
+    events = 0
+    for line in path.read_text(encoding="utf-8", errors="replace").splitlines():
+        if not line.strip():
+            continue
+        event = json.loads(line)
+        if not isinstance(event, dict):
+            raise ValueError("transcript events must be JSON objects")
+        events += 1
+    if events == 0:
+        raise ValueError("transcript must contain at least one JSON event")
+
+
 def run_skill_hash(run_dir: Path) -> str | None:
     """Hash the skill in a run's isolated repository, or return None when absent."""
     run_config = load_json(run_dir / "run_config.json")
@@ -125,6 +139,10 @@ def grade_run(
         return f"skip {run_dir}: required outputs missing: {', '.join(missing_artifacts)}"
 
     response_path = outputs_dir / "response.txt"
+    try:
+        validate_transcript(outputs_dir / "transcript.jsonl")
+    except (OSError, TypeError, ValueError, json.JSONDecodeError):
+        return f"skip {run_dir}: invalid transcript"
 
     try:
         gather_response_text(response_path)

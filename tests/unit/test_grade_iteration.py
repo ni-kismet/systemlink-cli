@@ -10,6 +10,7 @@ from typing import Any
 import pytest
 
 from slcli.skills.slcli.scripts.grade_iteration import grade_run
+from slcli.skills.slcli.scripts.prepare_eval_workspace import build_input_manifest_hashes
 
 
 def write_json(path: Path, payload: dict[str, Any]) -> None:
@@ -103,7 +104,7 @@ def test_grade_run_records_provenance_and_only_grades_response(tmp_path: Path) -
         "baseline_skill_hash": "baseline-hash",
         "eval_manifest_hash": "manifest-hash",
         "reference_date": "2026-09-08",
-        "input_manifest_hashes": {"eval-1/with_skill/run-1": input_manifest_hash},
+        "input_manifest_hashes": build_input_manifest_hashes(run_dir.parents[2]),
         "executor_prompt_hashes": {"eval-1/with_skill/run-1": prompt_hash},
     }
 
@@ -158,6 +159,30 @@ def test_grade_run_skips_run_without_transcript(tmp_path: Path) -> None:
     )
 
     assert message.endswith("required outputs missing: transcript.jsonl")
+
+
+@pytest.mark.parametrize("transcript", ["", "not json\n", "[]\n"])
+def test_grade_run_skips_empty_or_invalid_transcript(tmp_path: Path, transcript: str) -> None:
+    run_dir = tmp_path / "eval-1" / "with_skill" / "run-1"
+    outputs = run_dir / "outputs"
+    outputs.mkdir(parents=True)
+    (outputs / "response.txt").write_text("A response\n", encoding="utf-8")
+    (outputs / "transcript.jsonl").write_text(transcript, encoding="utf-8")
+    write_json(outputs / "run_metadata.json", {"status": "completed"})
+    write_json(
+        run_dir / "timing.json",
+        {"duration_ms": 1000, "total_duration_seconds": 1.0, "total_tokens": 1},
+    )
+
+    message = grade_run(
+        tmp_path / "evals.json",
+        1,
+        run_dir,
+        False,
+        bind_executor_prompt(run_dir),
+    )
+
+    assert message.endswith("invalid transcript")
 
 
 def test_grade_run_skips_invalid_input_manifest(tmp_path: Path) -> None:

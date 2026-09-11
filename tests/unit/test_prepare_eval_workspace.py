@@ -17,6 +17,7 @@ from slcli.skills.slcli.scripts.prepare_eval_workspace import (
     create_old_skill_snapshot,
     create_repository_snapshots,
     create_without_skill_snapshots,
+    build_input_manifest_hashes,
     hash_directory,
     positive_int,
     prepare_iteration_directory,
@@ -223,6 +224,18 @@ def test_scaffold_eval_uses_independent_run_repos_and_neutral_inputs(tmp_path: P
     assert all(
         record["sha256"] == hashlib.sha256(path.read_bytes()).hexdigest()
         for record, path in zip(input_records, input_paths)
+    )
+    input_manifest_hashes = build_input_manifest_hashes(iteration_dir)
+    assert set(input_manifest_hashes) == {
+        f"{eval_dir.name}/with_skill/run-1",
+        f"{eval_dir.name}/with_skill/run-2",
+        f"{eval_dir.name}/old_skill/run-1",
+        f"{eval_dir.name}/old_skill/run-2",
+    }
+    assert all(
+        input_manifest_hashes[key]
+        == hashlib.sha256((iteration_dir / key / "inputs_manifest.json").read_bytes()).hexdigest()
+        for key in input_manifest_hashes
     )
     (candidate_roots[0] / "changed.txt").write_text("changed\n", encoding="utf-8")
     assert not (candidate_roots[1] / "changed.txt").exists()
