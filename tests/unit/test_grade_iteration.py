@@ -70,6 +70,9 @@ def test_grade_run_records_provenance_and_only_grades_response(tmp_path: Path) -
         {"configuration": "with_skill", "repository_root": str(run_dir / "repo")},
     )
     write_json(run_dir / "inputs_manifest.json", {"files": []})
+    input_manifest_hash = hashlib.sha256(
+        (run_dir / "inputs_manifest.json").read_bytes()
+    ).hexdigest()
     outputs = run_dir / "outputs"
     outputs.mkdir(parents=True)
     (outputs / "response.txt").write_text("I could not determine the command.\n", encoding="utf-8")
@@ -100,6 +103,7 @@ def test_grade_run_records_provenance_and_only_grades_response(tmp_path: Path) -
         "baseline_skill_hash": "baseline-hash",
         "eval_manifest_hash": "manifest-hash",
         "reference_date": "2026-09-08",
+        "input_manifest_hashes": {"eval-1/with_skill/run-1": input_manifest_hash},
         "executor_prompt_hashes": {"eval-1/with_skill/run-1": prompt_hash},
     }
 
@@ -121,6 +125,7 @@ def test_grade_run_records_provenance_and_only_grades_response(tmp_path: Path) -
         "2026-09-08"
     )
     assert record["inputs"] == []
+    assert record["input_manifest_hash"] == input_manifest_hash
     assert record["grading"]["execution_metrics"]["transcript_chars"] == len(
         '{"event":"completed"}\n'
     )

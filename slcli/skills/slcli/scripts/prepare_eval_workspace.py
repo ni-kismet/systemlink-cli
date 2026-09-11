@@ -241,6 +241,11 @@ def hash_directory(directory: Path) -> str:
     return digest.hexdigest()
 
 
+def hash_file(path: Path) -> str:
+    """Return a SHA-256 hash for one file."""
+    return hashlib.sha256(path.read_bytes()).hexdigest()
+
+
 def remove_eval_workflow_files(repository_root: Path, skill_relative_path: Path) -> None:
     """Remove the eval corpus and harness from a runtime skill snapshot."""
     skill_snapshot = repository_root / skill_relative_path
@@ -430,7 +435,7 @@ def scaffold_eval_dir(
                     {
                         "relative_path": relative_path,
                         "absolute_path": str(input_path.resolve()),
-                        "sha256": hashlib.sha256(input_path.read_bytes()).hexdigest(),
+                        "sha256": hash_file(input_path),
                     }
                 )
             write_json(run_dir / "inputs_manifest.json", {"files": input_files})
@@ -471,6 +476,11 @@ def main() -> None:
             baseline_repo_root,
         )
 
+    input_manifest_hashes = {
+        path.relative_to(iteration_dir).as_posix(): hash_file(path)
+        for path in sorted(iteration_dir.rglob("inputs_manifest.json"))
+    }
+
     summary = {
         "skill_name": manifest.get("skill_name"),
         "suite": args.suite,
@@ -500,6 +510,7 @@ def main() -> None:
         "iteration": iteration_number,
         "runs_per_config": args.runs_per_config,
         "eval_ids": [entry["id"] for entry in selected],
+        "input_manifest_hashes": input_manifest_hashes,
     }
     write_json(iteration_dir / "iteration_manifest.json", summary)
     print(iteration_dir)

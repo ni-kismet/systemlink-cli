@@ -83,6 +83,13 @@ def load_run(
         grading = load_json(grading_path)
         record = load_json(record_path)
         expected_inputs = load_json(inputs_path).get("files")
+        input_manifest_hashes = iteration.get("input_manifest_hashes")
+        expected_input_manifest_hash = (
+            input_manifest_hashes.get(run_manifest_key(run_dir))
+            if isinstance(input_manifest_hashes, dict)
+            else None
+        )
+        actual_input_manifest_hash = hashlib.sha256(inputs_path.read_bytes()).hexdigest()
         timing = load_json(timing_path)
         actual_skill_hash = run_skill_hash(run_dir)
         actual_prompt_hash = executor_prompt_hash(run_dir)
@@ -136,6 +143,7 @@ def load_run(
         "eval_id": eval_id,
         "trial": run_number,
         "configuration": run_dir.parent.name,
+        "input_manifest_hash": expected_input_manifest_hash,
     }
     expected_skill_hash = (
         iteration.get("candidate_skill_hash")
@@ -150,6 +158,8 @@ def load_run(
         any(record.get(field) != value for field, value in expected_provenance.items())
         or record.get("run_skill_hash") != expected_skill_hash
         or actual_skill_hash != expected_skill_hash
+        or not isinstance(expected_input_manifest_hash, str)
+        or actual_input_manifest_hash != expected_input_manifest_hash
         or record.get("executor_prompt_hash") != expected_prompt_hash
         or actual_prompt_hash != expected_prompt_hash
         or not inputs_match

@@ -74,6 +74,11 @@ def file_manifest(output_dir: Path) -> list[dict[str, object]]:
     return files
 
 
+def hash_file(path: Path) -> str:
+    """Return a SHA-256 hash for one file."""
+    return hashlib.sha256(path.read_bytes()).hexdigest()
+
+
 def run_skill_hash(run_dir: Path) -> str | None:
     """Hash the skill in a run's isolated repository, or return None when absent."""
     run_config = load_json(run_dir / "run_config.json")
@@ -176,6 +181,18 @@ def grade_run(
         input_files = input_manifest.get("files")
         if not isinstance(input_files, list):
             raise ValueError("input manifest files must be a list")
+        input_manifest_hashes = iteration_metadata.get("input_manifest_hashes")
+        expected_input_manifest_hash = (
+            input_manifest_hashes.get(run_manifest_key(run_dir))
+            if isinstance(input_manifest_hashes, dict)
+            else None
+        )
+        actual_input_manifest_hash = hash_file(run_dir / "inputs_manifest.json")
+        if (
+            not isinstance(expected_input_manifest_hash, str)
+            or actual_input_manifest_hash != expected_input_manifest_hash
+        ):
+            raise ValueError("input manifest does not match iteration manifest")
     except (json.JSONDecodeError, OSError, TypeError, ValueError, AttributeError):
         return f"skip {run_dir}: invalid input manifest"
     graded = grade_response(
@@ -211,6 +228,7 @@ def grade_run(
         "configuration": run_dir.parent.name,
         "run_skill_hash": actual_skill_hash,
         "executor_prompt_hash": actual_prompt_hash,
+        "input_manifest_hash": actual_input_manifest_hash,
         "executor": run_metadata,
         "inputs": input_files,
         "timing": timing,

@@ -66,6 +66,7 @@ def prepare_iteration(tmp_path: Path) -> Path:
             "baseline_skill_hash": baseline_hash,
             "eval_manifest_hash": "manifest-hash",
             "reference_date": "2026-09-08",
+            "input_manifest_hashes": {},
             "executor_prompt_hashes": {},
         },
     )
@@ -76,6 +77,9 @@ def prepare_iteration(tmp_path: Path) -> Path:
             grading_payload = grading(1.0)
             run_dir = eval_dir / configuration / f"run-{run_number}"
             write_json(run_dir / "inputs_manifest.json", {"files": []})
+            input_manifest_hash = hashlib.sha256(
+                (run_dir / "inputs_manifest.json").read_bytes()
+            ).hexdigest()
             run_skill_dir = run_dir / "repo" / "slcli" / "skills" / "slcli"
             run_skill_dir.mkdir(parents=True)
             source_skill = (
@@ -91,6 +95,9 @@ def prepare_iteration(tmp_path: Path) -> Path:
             prompt_hash = hashlib.sha256(prompt_path.read_bytes()).hexdigest()
             manifest_path = tmp_path / "iteration_manifest.json"
             manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
+            manifest["input_manifest_hashes"][
+                run_dir.relative_to(tmp_path).as_posix()
+            ] = input_manifest_hash
             manifest["executor_prompt_hashes"][
                 run_dir.relative_to(tmp_path).as_posix()
             ] = prompt_hash
@@ -124,6 +131,7 @@ def prepare_iteration(tmp_path: Path) -> Path:
                         candidate_hash if configuration == "with_skill" else baseline_hash
                     ),
                     "executor_prompt_hash": prompt_hash,
+                    "input_manifest_hash": input_manifest_hash,
                     "classification": "pass",
                     "executor": metadata,
                     "inputs": [],
@@ -358,27 +366,25 @@ def test_evaluate_iteration_is_inconclusive_for_modified_grading(tmp_path: Path)
     assert str(eval_dir / "with_skill" / "run-1") in result["missing_or_inconclusive_runs"]
 
 
-def test_evaluate_iteration_is_inconclusive_for_modified_input(tmp_path: Path) -> None:
+def test_evaluate_iteration_rejects_tampered_input_and_manifest(tmp_path: Path) -> None:
     eval_dir = prepare_iteration(tmp_path)
-    input_paths: list[Path] = []
-    for configuration in ("with_skill", "old_skill"):
-        for run_number in range(1, 4):
-            run_dir = eval_dir / configuration / f"run-{run_number}"
-            input_path = run_dir / "inputs" / "fixture.txt"
-            input_path.parent.mkdir()
-            input_path.write_text("original\n", encoding="utf-8")
-            input_paths.append(input_path)
-            input_record = {
-                "relative_path": "fixture.txt",
-                "absolute_path": str(input_path),
-                "sha256": hashlib.sha256(input_path.read_bytes()).hexdigest(),
-            }
-            write_json(run_dir / "inputs_manifest.json", {"files": [input_record]})
-            record_path = run_dir / "run_record.json"
-            record = json.loads(record_path.read_text(encoding="utf-8"))
-            record["inputs"] = [input_record]
-            write_json(record_path, record)
-    input_paths[0].write_text("modified\n", encoding="utf-8")
+    run_dir = eval_dir / "with_skill" / "run-1"
+    input_path = run_dir / "inputs" / "fixture.txt"
+    input_path.parent.mkdir()
+    input_path.write_text("modified\n", encoding="utf-8")
+    input_record = {
+        "relative_path": "fixture.txt",
+        "absolute_path": str(input_path),
+        "sha256": hashlib.sha256(input_path.read_bytes()).hexdigest(),
+    }
+    write_json(run_dir / "inputs_manifest.json", {"files": [input_record]})
+    record_path = run_dir / "run_record.json"
+    record = json.loads(record_path.read_text(encoding="utf-8"))
+    record["inputs"] = [input_record]
+    record["input_manifest_hash"] = hashlib.sha256(
+        (run_dir / "inputs_manifest.json").read_bytes()
+    ).hexdigest()
+    write_json(record_path, record)
 
     result = evaluate_iteration(tmp_path, margin=0.05)
 
