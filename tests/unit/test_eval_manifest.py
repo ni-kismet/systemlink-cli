@@ -4,6 +4,7 @@ import json
 from copy import deepcopy
 from datetime import date
 from pathlib import Path
+from typing import Any
 
 import pytest
 from jsonschema import Draft202012Validator, FormatChecker  # type: ignore[import-untyped]
@@ -79,6 +80,29 @@ def test_manifest_requires_schema_entry_fields(tmp_path: Path) -> None:
     }
 
     with pytest.raises(ValueError, match="missing required fields"):
+        validate_manifest(payload, tmp_path)
+
+
+@pytest.mark.parametrize("field", ["prompt", "expected_output"])
+def test_manifest_requires_string_prompt_fields(tmp_path: Path, field: str) -> None:
+    payload: dict[str, Any] = {
+        "manifest_version": 1,
+        "skill_name": "test",
+        "recommended_suites": {"gating": [1], "regression": [1]},
+        "evals": [
+            {
+                "id": 1,
+                "prompt": "test",
+                "expected_output": "test",
+                "files": [],
+                "expectations": [],
+                "grading_rules": [],
+            }
+        ],
+    }
+    payload["evals"][0][field] = ["invalid"]
+
+    with pytest.raises(ValueError, match="must be strings"):
         validate_manifest(payload, tmp_path)
 
 

@@ -20,6 +20,19 @@ from typing import Any
 
 from slcli.skills.slcli.scripts.eval_manifest import load_manifest, resolve_fixture_path
 
+EVAL_WORKFLOW_SCRIPTS = frozenset(
+    {
+        "benchmark_iteration.py",
+        "compare_iteration.py",
+        "eval_manifest.py",
+        "grade_eval_response.py",
+        "grade_iteration.py",
+        "prepare_eval_prompts.py",
+        "prepare_eval_workspace.py",
+        "render_eval_review.py",
+    }
+)
+
 
 def positive_int(value: str) -> int:
     """Parse a positive integer argument."""
@@ -228,6 +241,14 @@ def hash_directory(directory: Path) -> str:
     return digest.hexdigest()
 
 
+def remove_eval_workflow_files(repository_root: Path, skill_relative_path: Path) -> None:
+    """Remove the eval corpus and harness from a runtime skill snapshot."""
+    skill_snapshot = repository_root / skill_relative_path
+    shutil.rmtree(skill_snapshot / "evals", ignore_errors=True)
+    for script_name in EVAL_WORKFLOW_SCRIPTS:
+        (skill_snapshot / "scripts" / script_name).unlink(missing_ok=True)
+
+
 def create_old_skill_snapshot(
     skill_dir: Path,
     iteration_dir: Path,
@@ -249,6 +270,8 @@ def create_old_skill_snapshot(
     shutil.copytree(candidate_root, snapshot_root)
 
     skill_relative_path = skill_dir.relative_to(repo_root)
+    remove_eval_workflow_files(candidate_root, skill_relative_path)
+    remove_eval_workflow_files(snapshot_root, skill_relative_path)
     old_skill_dir = snapshot_root / skill_relative_path
     shutil.rmtree(old_skill_dir)
 
@@ -260,6 +283,7 @@ def create_old_skill_snapshot(
     ).stdout
     with tarfile.open(fileobj=BytesIO(archive), mode="r:") as tar:
         tar.extractall(snapshot_root)
+    remove_eval_workflow_files(snapshot_root, skill_relative_path)
 
     if not (old_skill_dir / "SKILL.md").exists():
         raise ValueError(f"Skill does not exist at merge base {merge_base}: {old_skill_dir}")
@@ -295,6 +319,8 @@ def create_without_skill_snapshots(
     shutil.copytree(candidate_root, baseline_root)
 
     skill_relative_path = skill_dir.relative_to(repo_root)
+    remove_eval_workflow_files(candidate_root, skill_relative_path)
+    remove_eval_workflow_files(baseline_root, skill_relative_path)
     isolated_skill_dir = baseline_root / skill_relative_path
     if isolated_skill_dir.exists():
         shutil.rmtree(isolated_skill_dir)

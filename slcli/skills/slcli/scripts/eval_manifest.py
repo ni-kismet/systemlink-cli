@@ -69,6 +69,8 @@ def validate_manifest(payload: dict[str, Any], skill_dir: Path) -> None:
             raise ValueError(
                 f"eval {eval_id} is missing required fields: {sorted(missing_entry_fields)}"
             )
+        if not isinstance(entry["prompt"], str) or not isinstance(entry["expected_output"], str):
+            raise ValueError(f"eval {eval_id} prompt and expected_output must be strings")
         if not entry["prompt"] or not entry["expected_output"]:
             raise ValueError(f"eval {eval_id} requires prompt and expected_output")
         if not isinstance(entry["files"], list) or not isinstance(entry["expectations"], list):

@@ -63,6 +63,37 @@ def test_create_old_skill_snapshot_exports_merge_base(tmp_path: Path) -> None:
     assert not (candidate_root / ".env").exists()
 
 
+def test_create_old_skill_snapshot_excludes_eval_workflow_from_runtime_skills(
+    tmp_path: Path,
+) -> None:
+    repo = tmp_path / "repo"
+    skill_dir = repo / "slcli" / "skills" / "slcli"
+    (skill_dir / "evals").mkdir(parents=True)
+    (skill_dir / "scripts").mkdir()
+    (repo / "pyproject.toml").write_text("[tool.poetry]\nname = 'test'\n", encoding="utf-8")
+    (skill_dir / "SKILL.md").write_text("skill\n", encoding="utf-8")
+    (skill_dir / "evals" / "evals.json").write_text("{}\n", encoding="utf-8")
+    (skill_dir / "scripts" / "grade_eval_response.py").write_text("answer key\n", encoding="utf-8")
+    (skill_dir / "scripts" / "spec_import_helper.py").write_text(
+        "runtime helper\n", encoding="utf-8"
+    )
+    run_git(repo, "init", "-b", "main")
+    run_git(repo, "config", "user.email", "eval@example.invalid")
+    run_git(repo, "config", "user.name", "Eval Test")
+    run_git(repo, "add", ".")
+    run_git(repo, "commit", "-m", "baseline")
+
+    candidate_root, snapshot_root, _ = create_old_skill_snapshot(
+        skill_dir, tmp_path / "iteration", "main"
+    )
+
+    for root in (candidate_root, snapshot_root):
+        runtime_skill = root / "slcli" / "skills" / "slcli"
+        assert not (runtime_skill / "evals").exists()
+        assert not (runtime_skill / "scripts" / "grade_eval_response.py").exists()
+        assert (runtime_skill / "scripts" / "spec_import_helper.py").exists()
+
+
 def test_create_old_skill_snapshot_rejects_repository_root_workspace(tmp_path: Path) -> None:
     repo = tmp_path / "repo"
     skill_dir = repo / "slcli" / "skills" / "slcli"

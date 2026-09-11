@@ -113,6 +113,8 @@ trial as inconclusive instead of scoring it as a skill failure.
   only the baseline skill directory differs.
 - Input fixtures live outside both skill trees and are identical for both arms.
 - Each trial receives its own fixture copy so one executor cannot mutate another trial's input.
+- The eval corpus and grading harness are excluded from both runtime skill snapshots so
+  executor agents cannot use the answer key while comparing candidate and baseline skills.
 - Copied fixture hashes must match their preparation-time input manifest.
 - Executor prompt hashes must match both the iteration manifest and live prompt files.
 - Critical compound workflows must pass within one command invocation.
