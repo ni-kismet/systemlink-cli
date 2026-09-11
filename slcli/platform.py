@@ -200,6 +200,7 @@ def get_platform() -> str:
         ):
             pass
 
+    # Priority 3: Stored platform from keyring config (legacy fallback)
     cfg = _get_keyring_config()
     if cfg:
         platform = str(cfg.get("platform", "")).upper()
@@ -438,7 +439,7 @@ def _get_service_status_snapshot(force_refresh: bool = False) -> Optional[Dict[s
 
     _, api_url, credential, auth_scheme = api_context
     if auth_scheme == "bearer":
-        status = check_service_status(api_url, credential, auth_scheme)
+        status = check_web_server_auth(api_url, credential, auth_scheme)
     else:
         status = check_service_status(api_url, credential)
     _save_service_status_snapshot(api_context, status)
