@@ -101,3 +101,6 @@ tests/e2e/e2e_config.json
 
 # Playwright test artifacts
 .playwright-cli/
+
+# Skill eval run artifacts
+slcli/skills/slcli-workspace/

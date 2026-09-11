@@ -18,7 +18,7 @@ from pathlib import Path
 import anthropic
 from scripts.generate_report import generate_html
 from scripts.improve_description import improve_description
-from scripts.run_eval import find_project_root, run_eval
+from scripts.run_eval import find_project_root, require_conclusive_results, run_eval
 from scripts.utils import parse_skill_md
 
 
@@ -104,6 +104,7 @@ def run_loop(
             trigger_threshold=trigger_threshold,
             model=model,
         )
+        require_conclusive_results(all_results)
         eval_elapsed = time.time() - t0
 
         # Split results back into train/test by matching queries

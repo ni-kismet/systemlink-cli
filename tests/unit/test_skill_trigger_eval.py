@@ -1,0 +1,319 @@
+"""Unit tests for skill trigger evaluation semantics."""
+
+from __future__ import annotations
+
+import importlib.util
+import io
+import json
+import sys
+from pathlib import Path
+from types import ModuleType
+from typing import Any
+
+import pytest
+
+
+@pytest.fixture(scope="module")
+def run_eval_module() -> ModuleType:
+    """Load the skill-creator trigger evaluator from its script directory."""
+    script_dir = Path(".github/skills/skill-creator").resolve()
+    cached_scripts = {
+        name: sys.modules.pop(name)
+        for name in list(sys.modules)
+        if name == "scripts" or name.startswith("scripts.")
+    }
+    sys.path.insert(0, str(script_dir))
+    try:
+        spec = importlib.util.spec_from_file_location(
+            "skill_creator_run_eval", script_dir / "scripts" / "run_eval.py"
+        )
+        assert spec is not None and spec.loader is not None
+        module = importlib.util.module_from_spec(spec)
+        spec.loader.exec_module(module)
+        return module
+    finally:
+        sys.path.remove(str(script_dir))
+        for name in list(sys.modules):
+            if name == "scripts" or name.startswith("scripts."):
+                sys.modules.pop(name)
+        sys.modules.update(cached_scripts)
+
+
+@pytest.mark.parametrize(
+    ("item", "triggers", "positive_threshold", "negative_threshold", "expected"),
+    [
+        ({"query": "positive", "should_trigger": True}, [True, False], 0.5, 0.2, True),
+        ({"query": "positive", "should_trigger": True}, [False, False], 0.5, 0.2, False),
+        ({"query": "negative", "should_trigger": False}, [False] * 5, 0.8, 0.2, True),
+        (
+            {"query": "negative", "should_trigger": False},
+            [True, False, False, False, False],
+            0.8,
+            0.2,
+            False,
+        ),
+        ({"query": "fallback", "should_trigger": False}, [True, False], 0.5, None, False),
+    ],
+)
+def test_summarize_query_result_thresholds(
+    run_eval_module: ModuleType,
+    item: dict[str, Any],
+    triggers: list[bool],
+    positive_threshold: float,
+    negative_threshold: float | None,
+    expected: bool,
+) -> None:
+    result = run_eval_module.summarize_query_result(
+        item, triggers, 0, positive_threshold, negative_threshold
+    )
+
+    assert result["pass"] is expected
+    assert result["status"] == ("pass" if expected else "fail")
+
+
+def test_summarize_query_result_marks_executor_errors_inconclusive(
+    run_eval_module: ModuleType,
+) -> None:
+    result = run_eval_module.summarize_query_result(
+        {"query": "negative", "should_trigger": False}, [], 3, 0.8, 0.2
+    )
+
+    assert result["status"] == "inconclusive"
+    assert result["pass"] is None
+    assert result["trigger_rate"] is None
+    assert result["errors"] == 3
+
+
+def test_run_single_query_raises_for_nonzero_executor_exit(
+    run_eval_module: ModuleType, monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    class FailedProcess:
+        stdout = io.BytesIO()
+        returncode = 2
+
+        def poll(self) -> int:
+            return 2
+
+    monkeypatch.setattr(
+        run_eval_module.subprocess, "Popen", lambda *args, **kwargs: FailedProcess()
+    )
+
+    with pytest.raises(run_eval_module.ExecutionError, match="exited with status 2"):
+        run_eval_module.run_single_query("query", "skill", "description", 30, str(tmp_path))
+
+
+def test_run_single_query_uses_isolated_command_discovery_root(
+    run_eval_module: ModuleType, monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    observed: dict[str, Any] = {}
+
+    class CompletedProcess:
+        stdout = io.BytesIO('{"type":"result"}\n'.encode())
+        returncode = 0
+
+        def poll(self) -> int:
+            return 0
+
+    def fake_popen(*args: Any, **kwargs: Any) -> CompletedProcess:
+        isolated_root = Path(kwargs["cwd"])
+        observed["cwd"] = isolated_root
+        observed["command_files"] = [
+            path.name for path in (isolated_root / ".claude" / "commands").glob("*.md")
+        ]
+        return CompletedProcess()
+
+    monkeypatch.setattr(run_eval_module.subprocess, "Popen", fake_popen)
+
+    assert (
+        run_eval_module.run_single_query("query", "skill", "description", 30, str(tmp_path))
+        is False
+    )
+    isolated_root = observed["cwd"]
+    assert isolated_root != tmp_path
+    assert isolated_root.is_relative_to(tmp_path)
+    assert len(observed["command_files"]) == 1
+    assert not (tmp_path / ".claude" / "commands").exists()
+
+
+def test_run_single_query_rejects_success_without_terminal_result(
+    run_eval_module: ModuleType, monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    class CompletedProcess:
+        stdout = io.BytesIO()
+        returncode = 0
+
+        def poll(self) -> int:
+            return 0
+
+    monkeypatch.setattr(
+        run_eval_module.subprocess, "Popen", lambda *args, **kwargs: CompletedProcess()
+    )
+
+    with pytest.raises(run_eval_module.ExecutionError, match="no terminal result event"):
+        run_eval_module.run_single_query("query", "skill", "description", 30, str(tmp_path))
+
+
+def test_run_single_query_parses_final_buffer_after_process_exit(
+    run_eval_module: ModuleType, monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    clean_name = "skill-skill-12345678"
+    output = (
+        json.dumps(
+            {
+                "type": "assistant",
+                "message": {
+                    "content": [
+                        {"type": "tool_use", "name": "Skill", "input": {"skill": clean_name}}
+                    ]
+                },
+            }
+        )
+        + "\n"
+        + json.dumps({"type": "result"})
+    ).encode()
+
+    class FakeStdout:
+        def fileno(self) -> int:
+            return 0
+
+        def read(self) -> bytes:
+            return b""
+
+    class CompletedProcess:
+        stdout = FakeStdout()
+        returncode = 0
+        poll_count = 0
+
+        def poll(self) -> int | None:
+            self.poll_count += 1
+            return None if self.poll_count == 1 else 0
+
+    monkeypatch.setattr(
+        run_eval_module.uuid,
+        "uuid4",
+        lambda: type("Uuid", (), {"hex": "12345678abcdef"})(),
+    )
+    monkeypatch.setattr(
+        run_eval_module.subprocess, "Popen", lambda *args, **kwargs: CompletedProcess()
+    )
+    monkeypatch.setattr(run_eval_module.select, "select", lambda *args: ([0], [], []))
+    monkeypatch.setattr(run_eval_module.os, "read", lambda *args: output)
+
+    assert run_eval_module.run_single_query("query", "skill", "description", 30, str(tmp_path))
+
+
+def test_run_single_query_validates_exit_after_detecting_trigger(
+    run_eval_module: ModuleType, monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    clean_name = "skill-skill-12345678"
+    event = json.dumps(
+        {
+            "type": "assistant",
+            "message": {
+                "content": [{"type": "tool_use", "name": "Skill", "input": {"skill": clean_name}}]
+            },
+        }
+    ).encode()
+
+    class FakeStdout:
+        def fileno(self) -> int:
+            return 0
+
+        def read(self) -> bytes:
+            return b""
+
+    class FailedAfterDetectionProcess:
+        stdout = FakeStdout()
+        returncode = 2
+        poll_count = 0
+
+        def poll(self) -> int | None:
+            self.poll_count += 1
+            return None if self.poll_count == 1 else self.returncode
+
+    monkeypatch.setattr(
+        run_eval_module.uuid,
+        "uuid4",
+        lambda: type("Uuid", (), {"hex": "12345678abcdef"})(),
+    )
+    monkeypatch.setattr(
+        run_eval_module.subprocess, "Popen", lambda *args, **kwargs: FailedAfterDetectionProcess()
+    )
+    monkeypatch.setattr(run_eval_module.select, "select", lambda *args: ([0], [], []))
+    monkeypatch.setattr(run_eval_module.os, "read", lambda *args: event)
+
+    with pytest.raises(run_eval_module.ExecutionError, match="exited with status 2"):
+        run_eval_module.run_single_query("query", "skill", "description", 30, str(tmp_path))
+
+
+def test_run_single_query_raises_for_timeout(
+    run_eval_module: ModuleType, monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    class TimedOutProcess:
+        stdout = io.BytesIO()
+        returncode = None
+
+        def poll(self) -> None:
+            return None
+
+        def kill(self) -> None:
+            self.returncode = -9
+
+        def wait(self) -> None:
+            return None
+
+    timestamps = iter([0.0, 31.0])
+    monkeypatch.setattr(
+        run_eval_module.subprocess, "Popen", lambda *args, **kwargs: TimedOutProcess()
+    )
+    monkeypatch.setattr(run_eval_module.time, "time", lambda: next(timestamps))
+
+    with pytest.raises(run_eval_module.ExecutionError, match="timed out after 30 seconds"):
+        run_eval_module.run_single_query("query", "skill", "description", 30, str(tmp_path))
+
+
+def test_require_conclusive_results_rejects_executor_errors(run_eval_module: ModuleType) -> None:
+    with pytest.raises(RuntimeError, match="inconclusive for: failed query"):
+        run_eval_module.require_conclusive_results(
+            {
+                "results": [
+                    {
+                        "query": "failed query",
+                        "status": "inconclusive",
+                        "pass": None,
+                    }
+                ]
+            }
+        )
+
+    with pytest.raises(RuntimeError, match="inconclusive for: null result"):
+        run_eval_module.require_conclusive_results(
+            {"results": [{"query": "null result", "status": "unknown", "pass": None}]}
+        )
+
+
+def test_require_conclusive_results_accepts_passes_and_failures(
+    run_eval_module: ModuleType,
+) -> None:
+    run_eval_module.require_conclusive_results(
+        {
+            "results": [
+                {"query": "passed", "status": "pass", "pass": True},
+                {"query": "failed", "status": "fail", "pass": False},
+            ]
+        }
+    )
+
+
+@pytest.mark.parametrize("value", ["-0.1", "1.1", "nan", "inf"])
+def test_unit_interval_rate_rejects_invalid_values(run_eval_module: ModuleType, value: str) -> None:
+    with pytest.raises(
+        run_eval_module.argparse.ArgumentTypeError,
+        match="finite value between 0 and 1",
+    ):
+        run_eval_module.unit_interval_rate(value)
+
+
+@pytest.mark.parametrize("value", ["0", "0.5", "1"])
+def test_unit_interval_rate_accepts_boundaries(run_eval_module: ModuleType, value: str) -> None:
+    assert run_eval_module.unit_interval_rate(value) == float(value)

@@ -1,0 +1,279 @@
+"""Generate executor prompts for each run in an slcli eval iteration workspace."""
+
+from __future__ import annotations
+
+import argparse
+import hashlib
+import json
+from pathlib import Path
+from typing import Any
+
+PRIMARY_RESPONSE_ARTIFACT = "response.txt"
+RUN_ARTIFACTS = ("grading.json", "run_record.json", "timing.json")
+
+
+def parse_args() -> argparse.Namespace:
+    """Parse command-line arguments."""
+    script_dir = Path(__file__).resolve().parent
+    skill_dir = script_dir.parent
+    parser = argparse.ArgumentParser(
+        description="Write executor prompts for every prepared run directory."
+    )
+    parser.add_argument(
+        "iteration_dir",
+        type=Path,
+        help="Path to an iteration-N directory created by prepare_eval_workspace.py.",
+    )
+    parser.add_argument(
+        "--skill-path",
+        type=Path,
+        default=skill_dir,
+        help="Path to the slcli skill directory used for with_skill runs.",
+    )
+    parser.add_argument(
+        "--max-tool-calls",
+        type=int,
+        default=8,
+        help="Fail-fast budget for one eval run before the orchestrator should stop it.",
+    )
+    parser.add_argument(
+        "--max-minutes",
+        type=float,
+        default=3.0,
+        help="Fail-fast wall-clock budget in minutes for one eval run.",
+    )
+    parser.add_argument(
+        "--stub-output",
+        action="store_true",
+        help="Create placeholder output files in empty outputs directories.",
+    )
+    parser.add_argument(
+        "--force",
+        action="store_true",
+        help="Overwrite existing executor prompt files and placeholder output files.",
+    )
+    return parser.parse_args()
+
+
+def load_json(path: Path) -> dict[str, Any]:
+    """Load a JSON file."""
+    return json.loads(path.read_text(encoding="utf-8"))
+
+
+def relative_or_absolute(path_str: str) -> str:
+    """Return a normalized display string for a path."""
+    return str(Path(path_str))
+
+
+def build_prompt(
+    skill_path: Path,
+    prompt_text: str,
+    input_files: list[dict[str, str]],
+    output_dir: Path,
+    configuration: str,
+    max_tool_calls: int,
+    max_minutes: float,
+    repository_root: str | None,
+) -> str:
+    """Build the executor prompt text for one run."""
+    lines = ["Execute this task.", ""]
+
+    if configuration == "with_skill":
+        candidate_skill_path = (
+            Path(repository_root) / "slcli" / "skills" / "slcli" if repository_root else skill_path
+        )
+        lines.extend(
+            [
+                f"Skill path: {candidate_skill_path}",
+                "Use the skill guidance from that path while solving the task.",
+                *(
+                    [f"Use this isolated candidate repo root: {repository_root}"]
+                    if repository_root
+                    else []
+                ),
+                "",
+            ]
+        )
+    elif configuration == "old_skill":
+        if not repository_root:
+            raise ValueError("old_skill runs require an isolated baseline repository")
+        baseline_skill_path = Path(repository_root) / "slcli" / "skills" / "slcli"
+        lines.extend(
+            [
+                f"Skill path: {baseline_skill_path}",
+                "Use the merge-base version of the skill from that path while solving the task.",
+                f"Use this isolated baseline repo root: {repository_root}",
+                "",
+            ]
+        )
+    else:
+        lines.extend(
+            [
+                "Baseline run: do not load the slcli skill for this execution.",
+                "Solve the task without relying on the skill instructions.",
+                (
+                    f"Use this isolated baseline repo root: {repository_root}"
+                    if repository_root
+                    else "No isolated baseline repo was prepared; do not load the skill from the current checkout."
+                ),
+                "",
+            ]
+        )
+
+    lines.extend([f"Task: {prompt_text}", ""])
+
+    if input_files:
+        lines.append("Input files:")
+        for input_file in input_files:
+            lines.append(f"- {relative_or_absolute(input_file['absolute_path'])}")
+    else:
+        lines.append("Input files: none")
+    lines.append("")
+
+    lines.extend(
+        [
+            "Execution budget:",
+            f"- maximum of {max_tool_calls} tool calls for this run",
+            f"- maximum of {max_minutes:g} minutes of active work for this run",
+            "- if you do not converge inside that budget, stop early, save the best grounded response you have, and write notes.txt with a brief failure reason",
+            "",
+            "Save outputs to:",
+            f"- {output_dir.resolve()}",
+            "",
+            "Required output artifacts:",
+            f"- {PRIMARY_RESPONSE_ARTIFACT} containing the final user-facing answer",
+            "- transcript.jsonl containing the complete executor trace",
+            "- run_metadata.json containing executor_provider, executor_model, harness, configuration, and status",
+            f"- {output_dir.parent.resolve() / 'timing.json'} containing duration_ms and total_tokens from the subagent completion notification plus derived total_duration_seconds; do not estimate these values",
+            "- optional notes.txt if you had to make assumptions or explain tradeoffs",
+            "",
+            "Requirements:",
+            "- Keep the answer grounded in supported slcli commands and workflows",
+            "- Reference attached files when relevant",
+            "- Write response artifacts only inside the specified outputs directory",
+            "- Write timing.json only to the run-root path specified above",
+            "- Prefer a concise answer, but include enough detail for the grader to inspect command choices",
+            "- Set run_metadata.json status to completed, or infrastructure_error if execution could not be completed",
+        ]
+    )
+
+    return "\n".join(lines) + "\n"
+
+
+def iter_run_dirs(iteration_dir: Path) -> list[tuple[Path, Path, Path]]:
+    """Yield eval metadata, inputs manifest, and run directory paths."""
+    triples: list[tuple[Path, Path, Path]] = []
+    for eval_dir in sorted(iteration_dir.glob("eval-*")):
+        metadata_path = eval_dir / "eval_metadata.json"
+        if not metadata_path.exists():
+            continue
+        for config_dir in sorted(eval_dir.iterdir()):
+            if not config_dir.is_dir():
+                continue
+            for run_dir in sorted(config_dir.glob("run-*")):
+                inputs_path = run_dir / "inputs_manifest.json"
+                if not inputs_path.exists():
+                    continue
+                triples.append((metadata_path, inputs_path, run_dir))
+    return triples
+
+
+def maybe_write(path: Path, content: str) -> bool:
+    """Write content only when the destination does not already exist."""
+    if path.exists():
+        return False
+    path.write_text(content, encoding="utf-8")
+    return True
+
+
+def write_prompt(path: Path, content: str, force: bool) -> bool:
+    """Write a prompt, rejecting stale content unless replacement is allowed."""
+    if path.exists() and not force:
+        if path.read_text(encoding="utf-8") != content:
+            raise FileExistsError(f"{path} is stale. Use --force to regenerate prompts.")
+        return False
+    path.write_text(content, encoding="utf-8")
+    return True
+
+
+def has_run_artifacts(run_dir: Path) -> bool:
+    """Return whether a run already contains generated execution artifacts."""
+    outputs_dir = run_dir / "outputs"
+    if any(path.is_file() for path in outputs_dir.rglob("*")):
+        return True
+    return any((run_dir / artifact).is_file() for artifact in RUN_ARTIFACTS)
+
+
+def build_placeholder(configuration: str) -> str:
+    """Build placeholder output content."""
+    return (
+        f"TODO: replace this placeholder with the saved model response for {configuration}.\n"
+        f"Expected artifact name: {PRIMARY_RESPONSE_ARTIFACT}\n"
+    )
+
+
+def main() -> None:
+    """Entry point."""
+    args = parse_args()
+    if args.max_tool_calls <= 0:
+        raise SystemExit("--max-tool-calls must be greater than 0")
+    if args.max_minutes <= 0:
+        raise SystemExit("--max-minutes must be greater than 0")
+
+    written = 0
+    placeholders = 0
+    prompt_hashes: dict[str, str] = {}
+
+    for metadata_path, inputs_path, run_dir in iter_run_dirs(args.iteration_dir):
+        metadata = load_json(metadata_path)
+        inputs = load_json(inputs_path)
+        run_config = load_json(run_dir / "run_config.json")
+        configuration = run_dir.parent.name
+        output_dir = run_dir / "outputs"
+        prompt_text = build_prompt(
+            args.skill_path,
+            metadata["prompt"],
+            inputs.get("files", []),
+            output_dir,
+            configuration,
+            args.max_tool_calls,
+            args.max_minutes,
+            run_config.get("repository_root"),
+        )
+        prompt_path = run_dir / "executor_prompt.txt"
+        prompt_changed = prompt_path.exists() and (
+            prompt_path.read_text(encoding="utf-8") != prompt_text
+        )
+        if prompt_changed and args.force and has_run_artifacts(run_dir):
+            raise FileExistsError(
+                f"{prompt_path} changed, but {run_dir} contains generated artifacts; "
+                "discard the run before regenerating its prompt."
+            )
+        if write_prompt(prompt_path, prompt_text, args.force):
+            written += 1
+        prompt_hashes[run_dir.relative_to(args.iteration_dir).as_posix()] = hashlib.sha256(
+            prompt_path.read_bytes()
+        ).hexdigest()
+
+        if args.stub_output:
+            placeholder_path = output_dir / PRIMARY_RESPONSE_ARTIFACT
+            if maybe_write(
+                placeholder_path,
+                build_placeholder(configuration),
+            ):
+                placeholders += 1
+
+    iteration_manifest_path = args.iteration_dir / "iteration_manifest.json"
+    iteration_manifest = load_json(iteration_manifest_path)
+    iteration_manifest["executor_prompt_hashes"] = prompt_hashes
+    iteration_manifest_path.write_text(
+        json.dumps(iteration_manifest, indent=2) + "\n", encoding="utf-8"
+    )
+
+    print(f"prompts_written={written}")
+    if args.stub_output:
+        print(f"placeholders_written={placeholders}")
+
+
+if __name__ == "__main__":
+    main()
