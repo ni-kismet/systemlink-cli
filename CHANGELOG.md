@@ -2,6 +2,13 @@
 
 <!-- towncrier release notes start -->
 
+## v1.28.0 (2026-09-11)
+
+### Features
+
+- Add slcli skill eval workflow prompts, scripts, and docs for gated benchmarking. (slcli-skill-eval-workflow)
+
+
 ## v1.27.7 (2026-09-04)
 
 ### Other Changes
