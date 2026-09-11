@@ -577,6 +577,34 @@ class TestGetPlatform:
 
             assert result == PLATFORM_SLS
 
+    def test_get_platform_from_active_profile(self) -> None:
+        """Test getting platform from the active profile."""
+        from slcli.profiles import Profile
+
+        profile = Profile(
+            name="default",
+            server="https://demo.systemlink.io",
+            platform="sle",
+        )
+
+        with patch("slcli.platform.keyring.get_password", return_value=None), patch(
+            "slcli.profiles.get_active_profile", return_value=profile
+        ):
+            result = get_platform()
+
+        assert result == PLATFORM_SLE
+
+    def test_get_platform_from_keyring_is_case_insensitive(self) -> None:
+        """Test getting platform from keyring config regardless of casing."""
+        config = {"api_url": "https://demo.systemlink.io", "platform": "sle"}
+
+        with patch("slcli.platform.keyring.get_password") as mock_keyring:
+            mock_keyring.return_value = json.dumps(config)
+
+            result = get_platform()
+
+            assert result == PLATFORM_SLE
+
     def test_get_platform_unknown_when_not_configured(self) -> None:
         """Test that UNKNOWN is returned when keyring has no config."""
         with patch("slcli.platform.keyring.get_password") as mock_keyring:
