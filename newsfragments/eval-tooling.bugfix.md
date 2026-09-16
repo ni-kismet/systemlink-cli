@@ -1,0 +1,1 @@
+Make skill benchmarks use symmetric candidate/baseline pairs, controller-owned executor metadata, reproducible baseline snapshots, and enforced offline execution boundaries.

@@ -74,6 +74,11 @@ def build_prompt(
     max_tool_calls: int,
     max_minutes: float,
     repository_root: str | None,
+    execution_mode: str = "offline",
+    fixture: dict[str, Any] | None = None,
+    mutation_policy: str = "forbidden",
+    fixture_scope: str = "shared_readonly",
+    cleanup: dict[str, Any] | None = None,
 ) -> str:
     """Build the executor prompt text for one run."""
     lines = ["Execute this task.", ""]
@@ -122,6 +127,50 @@ def build_prompt(
 
     lines.extend([f"Task: {prompt_text}", ""])
 
+    if execution_mode != "offline" and fixture_scope != "local":
+        if not fixture:
+            raise ValueError("live and hybrid prompts require fixture metadata")
+        lines.extend(
+            [
+                "Live fixture execution:",
+                f"- execution mode: {execution_mode}",
+                f"- profile: {fixture['profile']}",
+                f"- workspace: {fixture['workspace']}",
+                f"- mutation policy: {mutation_policy}",
+                *(
+                    [f"- assigned namespace: {fixture['namespace']}"]
+                    if fixture.get("namespace")
+                    else []
+                ),
+                *(
+                    [f"- ownership marker: {fixture['ownership_marker']}"]
+                    if fixture.get("ownership_marker")
+                    else []
+                ),
+                "- use only read-only commands unless the manifest explicitly permits an isolated mutation",
+                "- record every slcli invocation in execution_records.json with command, exit_code, stdout, stderr, and parsed stdout_json",
+                "- capture fixture_snapshot_before.json before the task and fixture_snapshot_after.json after the task",
+                "- keep fixture_snapshot.json as the final readiness snapshot; do not claim live readiness without it",
+                "",
+            ]
+        )
+        if fixture_scope == "isolated" and cleanup and cleanup.get("required"):
+            lines.extend(
+                [
+                    "- this run owns its fixture namespace; do not use resources outside it",
+                    "- record each created resource in created_resources.json with resource_type, resource_id, workspace, and the assigned ownership_marker",
+                    "- stop after the requested task; the parent harness performs cleanup",
+                    "",
+                ]
+            )
+    elif execution_mode != "offline":
+        lines.extend(
+            [
+                "Local full-suite execution:",
+                "- this task is local-only; do not claim remote SystemLink results",
+                "",
+            ]
+        )
     if input_files:
         lines.append("Input files:")
         for input_file in input_files:
@@ -143,8 +192,26 @@ def build_prompt(
             "Required output artifacts:",
             f"- {PRIMARY_RESPONSE_ARTIFACT} containing the final user-facing answer",
             "- transcript.jsonl containing the complete executor trace",
-            "- run_metadata.json containing executor_provider, executor_model, harness, configuration, and status",
             f"- {output_dir.parent.resolve() / 'timing.json'} containing duration_ms and total_tokens from the subagent completion notification plus derived total_duration_seconds; do not estimate these values",
+        ]
+    )
+    if execution_mode != "offline" and fixture_scope != "local":
+        lines.extend(
+            [
+                "- execution_records.json with every slcli invocation and parsed JSON output",
+                "- fixture_snapshot.json with the final fixture readiness classification",
+                "- fixture_snapshot_before.json and fixture_snapshot_after.json for unchanged-state grading",
+            ]
+        )
+        if fixture_scope == "isolated" and cleanup and cleanup.get("required"):
+            lines.extend(
+                [
+                    "- created_resources.json listing every resource created by this run",
+                    "- cleanup_report.json proving the assigned fixture was cleaned",
+                ]
+            )
+    lines.extend(
+        [
             "- optional notes.txt if you had to make assumptions or explain tradeoffs",
             "",
             "Requirements:",
@@ -153,9 +220,15 @@ def build_prompt(
             "- Write response artifacts only inside the specified outputs directory",
             "- Write timing.json only to the run-root path specified above",
             "- Prefer a concise answer, but include enough detail for the grader to inspect command choices",
-            "- Set run_metadata.json status to completed, or infrastructure_error if execution could not be completed",
         ]
     )
+    if execution_mode == "offline":
+        lines.extend(
+            [
+                "- Offline evaluation: do not invoke operational slcli commands or any SystemLink API",
+                "- You may inspect local source and use slcli --help, but present operational commands as instructions rather than claiming you ran them",
+            ]
+        )
 
     return "\n".join(lines) + "\n"
 
@@ -229,6 +302,17 @@ def main() -> None:
         inputs = load_json(inputs_path)
         run_config = load_json(run_dir / "run_config.json")
         configuration = run_dir.parent.name
+        fixture_assignment = run_config.get("fixture_assignment", {})
+        run_fixture = fixture_assignment.get("fixture", metadata.get("fixture"))
+        if isinstance(run_fixture, dict):
+            run_fixture = {
+                **run_fixture,
+                **{
+                    key: fixture_assignment[key]
+                    for key in ("namespace", "ownership_marker")
+                    if key in fixture_assignment
+                },
+            }
         output_dir = run_dir / "outputs"
         prompt_text = build_prompt(
             args.skill_path,
@@ -239,6 +323,11 @@ def main() -> None:
             args.max_tool_calls,
             args.max_minutes,
             run_config.get("repository_root"),
+            metadata.get("execution_mode", "offline"),
+            run_fixture,
+            metadata.get("mutation_policy", "forbidden"),
+            metadata.get("fixture_scope", "local"),
+            metadata.get("cleanup"),
         )
         prompt_path = run_dir / "executor_prompt.txt"
         prompt_changed = prompt_path.exists() and (

@@ -25,6 +25,9 @@ EVAL_WORKFLOW_SCRIPTS = frozenset(
         "benchmark_iteration.py",
         "compare_iteration.py",
         "eval_manifest.py",
+        "execution_records.py",
+        "fixture_lifecycle.py",
+        "fixture_snapshot.py",
         "grade_eval_response.py",
         "grade_iteration.py",
         "prepare_eval_prompts.py",
@@ -69,7 +72,7 @@ def parse_args() -> argparse.Namespace:
     )
     parser.add_argument(
         "--suite",
-        choices=["gating", "regression"],
+        choices=["gating", "regression", "live_readonly", "online"],
         default="gating",
         help="Recommended suite to scaffold.",
     )
@@ -79,6 +82,18 @@ def parse_args() -> argparse.Namespace:
         action="append",
         dest="eval_ids",
         help="Specific eval ID to include. Repeat to include multiple evals.",
+    )
+    parser.add_argument(
+        "--fixture-profile",
+        help="Profile used for online runs when an eval does not define its own fixture.",
+    )
+    parser.add_argument(
+        "--fixture-workspace",
+        help="Workspace used for online runs when an eval does not define its own fixture.",
+    )
+    parser.add_argument(
+        "--fixture-workspace-id",
+        help="Optional expected workspace ID for the online fixture.",
     )
     parser.add_argument(
         "--runs-per-config",
@@ -96,6 +111,21 @@ def parse_args() -> argparse.Namespace:
         "--baseline-ref",
         default="origin/main",
         help="Git ref used to find the merge-base skill snapshot.",
+    )
+    parser.add_argument(
+        "--executor-provider",
+        required=True,
+        help="Normalized provider identity used for every run in the iteration.",
+    )
+    parser.add_argument(
+        "--executor-model",
+        required=True,
+        help="Exact model identity used for every run in the iteration.",
+    )
+    parser.add_argument(
+        "--harness",
+        required=True,
+        help="Normalized harness identity used for every run in the iteration.",
     )
     parser.add_argument(
         "--force",
@@ -152,6 +182,32 @@ def build_eval_name(entry: dict[str, Any]) -> str:
     tags = entry.get("tags", [])
     prefix = tags[0] if tags else "eval"
     return f"{prefix}-{entry['id']}-{slugify(entry['prompt'])[:48]}"
+
+
+def fixture_scope(entry: dict[str, Any], execution_mode: str) -> str:
+    """Return the fixture lifecycle scope for one prepared eval."""
+    return entry.get(
+        "fixture_scope",
+        "local" if execution_mode == "offline" else "shared_readonly",
+    )
+
+
+def build_fixture_assignment(
+    fixture: dict[str, Any] | None,
+    scope: str,
+    eval_id: int,
+    configuration: str,
+    run_number: int,
+) -> dict[str, Any]:
+    """Build the run-owned fixture and cleanup assignment."""
+    assignment: dict[str, Any] = {"scope": scope}
+    if fixture is not None:
+        assignment["fixture"] = dict(fixture)
+    if scope == "isolated":
+        namespace = f"slcli-eval-{eval_id}-{slugify(configuration)}-run-{run_number}"
+        assignment["namespace"] = namespace
+        assignment["ownership_marker"] = namespace
+    return assignment
 
 
 def write_json(path: Path, payload: dict[str, Any]) -> None:
@@ -360,6 +416,9 @@ def make_run_dirs(
     configurations: list[str],
     runs_per_config: int,
     repo_templates: dict[str, Path | None],
+    fixture: dict[str, Any] | None = None,
+    scope: str = "local",
+    cleanup: dict[str, Any] | None = None,
 ) -> None:
     """Create run directories with independent repository sandboxes."""
     for configuration in configurations:
@@ -379,6 +438,10 @@ def make_run_dirs(
                     "repository_root": (
                         str(repository_root.resolve()) if repository_root else None
                     ),
+                    "fixture_assignment": {
+                        **build_fixture_assignment(fixture, scope, 0, configuration, run_number),
+                        "cleanup": cleanup,
+                    },
                 },
             )
 
@@ -402,18 +465,30 @@ def scaffold_eval_dir(
     runs_per_config: int,
     candidate_repo_root: Path | None,
     baseline_repo_root: Path | None,
+    execution_mode: str | None = None,
+    fixture: dict[str, Any] | None = None,
 ) -> None:
     """Create one eval directory and its metadata."""
     eval_name = build_eval_name(entry)
     eval_dir = iteration_dir / f"eval-{entry['id']}-{slugify(eval_name)}"
     eval_dir.mkdir(parents=True, exist_ok=True)
 
+    resolved_execution_mode = execution_mode or entry.get("execution_mode", "offline")
+    resolved_fixture = fixture if fixture is not None else entry.get("fixture")
+    resolved_scope = fixture_scope(entry, resolved_execution_mode)
+    cleanup = entry.get("cleanup")
     metadata = {
         "eval_id": entry["id"],
         "eval_name": eval_name,
         "prompt": entry["prompt"],
         "assertions": entry.get("expectations", []),
         "tags": entry.get("tags", []),
+        "execution_mode": resolved_execution_mode,
+        "fixture": resolved_fixture,
+        "fixture_scope": resolved_scope,
+        "mutation_policy": entry.get("mutation_policy", "forbidden"),
+        "cleanup": cleanup,
+        "resource_prerequisites": entry.get("resource_prerequisites", []),
     }
     write_json(eval_dir / "eval_metadata.json", metadata)
 
@@ -423,7 +498,23 @@ def scaffold_eval_dir(
         ["with_skill", baseline],
         runs_per_config,
         {"with_skill": candidate_repo_root, baseline: baseline_repo_root},
+        resolved_fixture,
+        resolved_scope,
+        cleanup,
     )
+
+    for configuration in ["with_skill", baseline]:
+        for run_number in range(1, runs_per_config + 1):
+            run_dir = eval_dir / configuration / f"run-{run_number}"
+            run_config_path = run_dir / "run_config.json"
+            run_config = json.loads(run_config_path.read_text(encoding="utf-8"))
+            run_config["fixture_assignment"] = {
+                **build_fixture_assignment(
+                    resolved_fixture, resolved_scope, entry["id"], configuration, run_number
+                ),
+                "cleanup": cleanup,
+            }
+            write_json(run_config_path, run_config)
 
     for configuration in ["with_skill", baseline]:
         for run_number in range(1, runs_per_config + 1):
@@ -456,6 +547,18 @@ def main() -> None:
     selected = select_evals(manifest, args.suite, args.eval_ids)
     skill_dir = args.evals.parent.parent
 
+    online_fixture = None
+    if args.suite == "online":
+        if not args.fixture_profile or not args.fixture_workspace:
+            raise SystemExit("--suite online requires --fixture-profile and --fixture-workspace")
+        online_fixture = {
+            "example": "external",
+            "profile": args.fixture_profile,
+            "workspace": args.fixture_workspace,
+        }
+        if args.fixture_workspace_id:
+            online_fixture["workspace_id"] = args.fixture_workspace_id
+
     workspace_root = args.workspace_root
     workspace_root.mkdir(parents=True, exist_ok=True)
     iteration_number = args.iteration or next_iteration_number(workspace_root)
@@ -472,8 +575,15 @@ def main() -> None:
 
     repo_root = find_repo_root(skill_dir)
     candidate_sha = run_git(repo_root, "rev-parse", "HEAD")
+    if args.baseline == "without_skill":
+        baseline_sha = candidate_sha
 
     for entry in selected:
+        execution_mode = entry.get("execution_mode", "offline")
+        fixture = entry.get("fixture")
+        if args.suite == "online":
+            execution_mode = "online"
+            fixture = online_fixture
         scaffold_eval_dir(
             skill_dir,
             iteration_dir,
@@ -482,6 +592,8 @@ def main() -> None:
             args.runs_per_config,
             candidate_repo_root,
             baseline_repo_root,
+            execution_mode,
+            fixture,
         )
 
     summary = {
@@ -495,7 +607,9 @@ def main() -> None:
         "baseline_repo_template": (
             str(baseline_repo_root.resolve()) if baseline_repo_root else None
         ),
-        "baseline_ref": args.baseline_ref if args.baseline == "old_skill" else None,
+        "baseline_ref": (
+            args.baseline_ref if args.baseline == "old_skill" else f"skill-absent@{candidate_sha}"
+        ),
         "baseline_sha": baseline_sha,
         "candidate_sha": candidate_sha,
         "candidate_skill_hash": hash_directory(
@@ -509,10 +623,50 @@ def main() -> None:
             if baseline_repo_root and args.baseline == "old_skill"
             else None
         ),
+        "candidate_snapshot_hash": hash_directory(candidate_repo_root),
+        "baseline_snapshot_hash": hash_directory(baseline_repo_root),
+        "executor": {
+            "executor_provider": args.executor_provider.strip(),
+            "executor_model": args.executor_model.strip(),
+            "harness": args.harness.strip(),
+        },
         "reference_date": date.today().isoformat(),
         "iteration": iteration_number,
         "runs_per_config": args.runs_per_config,
         "eval_ids": [entry["id"] for entry in selected],
+        "live_eval_ids": [
+            entry["id"]
+            for entry in selected
+            if args.suite == "online" or entry.get("execution_mode", "offline") != "offline"
+        ],
+        "online_eval_ids": [entry["id"] for entry in selected if args.suite == "online"],
+        "lifecycle_by_eval": {
+            str(entry["id"]): {
+                "execution_mode": (
+                    "online" if args.suite == "online" else entry.get("execution_mode", "offline")
+                ),
+                "fixture_scope": fixture_scope(
+                    entry,
+                    "online" if args.suite == "online" else entry.get("execution_mode", "offline"),
+                ),
+                "mutation_policy": entry.get("mutation_policy", "forbidden"),
+                "cleanup": entry.get("cleanup"),
+                "fixture": online_fixture if args.suite == "online" else entry.get("fixture"),
+            }
+            for entry in selected
+        },
+        "live_fixtures": [
+            {
+                "eval_id": entry["id"],
+                "execution_mode": (
+                    "online" if args.suite == "online" else entry.get("execution_mode", "offline")
+                ),
+                "fixture": entry.get("fixture") or online_fixture,
+                "mutation_policy": entry.get("mutation_policy", "forbidden"),
+            }
+            for entry in selected
+            if args.suite == "online" or entry.get("execution_mode", "offline") != "offline"
+        ],
         "input_manifest_hashes": build_input_manifest_hashes(iteration_dir),
     }
     write_json(iteration_dir / "iteration_manifest.json", summary)

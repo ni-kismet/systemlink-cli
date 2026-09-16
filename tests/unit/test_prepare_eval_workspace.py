@@ -75,6 +75,8 @@ def test_create_old_skill_snapshot_excludes_eval_workflow_from_runtime_skills(
     (skill_dir / "SKILL.md").write_text("skill\n", encoding="utf-8")
     (skill_dir / "evals" / "evals.json").write_text("{}\n", encoding="utf-8")
     (skill_dir / "scripts" / "grade_eval_response.py").write_text("answer key\n", encoding="utf-8")
+    (skill_dir / "scripts" / "execution_records.py").write_text("answer key\n", encoding="utf-8")
+    (skill_dir / "scripts" / "fixture_snapshot.py").write_text("answer key\n", encoding="utf-8")
     (skill_dir / "scripts" / "spec_import_helper.py").write_text(
         "runtime helper\n", encoding="utf-8"
     )
@@ -92,6 +94,8 @@ def test_create_old_skill_snapshot_excludes_eval_workflow_from_runtime_skills(
         runtime_skill = root / "slcli" / "skills" / "slcli"
         assert not (runtime_skill / "evals").exists()
         assert not (runtime_skill / "scripts" / "grade_eval_response.py").exists()
+        assert not (runtime_skill / "scripts" / "execution_records.py").exists()
+        assert not (runtime_skill / "scripts" / "fixture_snapshot.py").exists()
         assert (runtime_skill / "scripts" / "spec_import_helper.py").exists()
 
 
@@ -148,6 +152,26 @@ def test_with_skill_prompt_loads_isolated_candidate_skill(tmp_path: Path) -> Non
     assert "transcript.jsonl containing the complete executor trace" in prompt
     assert f"{tmp_path / 'timing.json'} containing duration_ms and total_tokens" in prompt
     assert "Write timing.json only to the run-root path specified above" in prompt
+
+
+def test_live_prompt_requires_records_and_snapshot_lifecycle(tmp_path: Path) -> None:
+    prompt = build_prompt(
+        skill_path=tmp_path / "skill",
+        prompt_text="List the fixture system",
+        input_files=[],
+        output_dir=tmp_path / "outputs",
+        configuration="with_skill",
+        max_tool_calls=8,
+        max_minutes=3,
+        repository_root=None,
+        execution_mode="live_readonly",
+        fixture={"profile": "test", "workspace": "fixture"},
+    )
+
+    assert "execution_records.json" in prompt
+    assert "fixture_snapshot_before.json" in prompt
+    assert "fixture_snapshot_after.json" in prompt
+    assert "fixture_snapshot.json" in prompt
 
 
 def test_scaffold_eval_uses_independent_run_repos_and_neutral_inputs(tmp_path: Path) -> None:
@@ -305,12 +329,76 @@ def test_scaffold_eval_copies_complete_webapp_fixture(tmp_path: Path) -> None:
 def test_select_evals_deduplicates_explicit_ids() -> None:
     manifest = {
         "evals": [{"id": 1}, {"id": 2}],
-        "recommended_suites": {"gating": [1], "regression": [1, 2]},
+        "recommended_suites": {
+            "gating": [1],
+            "regression": [1, 2],
+            "live_readonly": [2],
+        },
     }
 
     selected = select_evals(manifest, "gating", [2, 1, 2])
 
     assert [entry["id"] for entry in selected] == [2, 1]
+
+
+def test_select_evals_supports_live_readonly_suite() -> None:
+    manifest = {
+        "evals": [{"id": 12}],
+        "recommended_suites": {"gating": [12], "regression": [12], "live_readonly": [12]},
+    }
+
+    selected = select_evals(manifest, "live_readonly", None)
+
+    assert [entry["id"] for entry in selected] == [12]
+
+
+def test_select_evals_supports_full_online_suite() -> None:
+    manifest = {
+        "evals": [{"id": 1}, {"id": 2}],
+        "recommended_suites": {"gating": [1], "regression": [1], "online": [1, 2]},
+    }
+
+    selected = select_evals(manifest, "online", None)
+
+    assert [entry["id"] for entry in selected] == [1, 2]
+
+
+def test_scaffold_eval_assigns_isolated_fixture_namespace(tmp_path: Path) -> None:
+    skill_dir = tmp_path / "skill"
+    skill_dir.mkdir()
+    iteration_dir = tmp_path / "iteration"
+    iteration_dir.mkdir()
+
+    scaffold_eval_dir(
+        skill_dir,
+        iteration_dir,
+        {
+            "id": 7,
+            "prompt": "Create a resource",
+            "expectations": [],
+            "tags": ["online"],
+            "files": [],
+            "fixture_scope": "isolated",
+            "mutation_policy": "allow_with_cleanup",
+            "cleanup": {"required": True, "strategy": "ownership_marker"},
+        },
+        "without_skill",
+        1,
+        None,
+        None,
+        "online",
+        {"profile": "test", "workspace": "fixture"},
+    )
+
+    run_config = json.loads(
+        (
+            next(iteration_dir.glob("eval-*")) / "without_skill" / "run-1" / "run_config.json"
+        ).read_text(encoding="utf-8")
+    )
+    assignment = run_config["fixture_assignment"]
+    assert assignment["scope"] == "isolated"
+    assert assignment["namespace"] == "slcli-eval-7-without-skill-run-1"
+    assert assignment["ownership_marker"] == assignment["namespace"]
 
 
 def test_positive_int_rejects_non_positive_values() -> None:

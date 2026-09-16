@@ -46,7 +46,11 @@ You are running the `slcli` gating eval workflow. Execute this sequence autonomo
 - Otherwise run:
 
 ```bash
-poetry run python -m slcli.skills.slcli.scripts.prepare_eval_workspace --suite gating
+poetry run python -m slcli.skills.slcli.scripts.prepare_eval_workspace \
+  --suite gating \
+  --executor-provider github-copilot \
+  --executor-model '<exact-model-id>' \
+  --harness vscode-copilot-chat
 ```
 
 - Capture the printed iteration directory and use it for all later steps.

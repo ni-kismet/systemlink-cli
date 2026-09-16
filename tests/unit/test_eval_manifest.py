@@ -47,7 +47,7 @@ def test_manifest_requires_explicit_critical_flags(tmp_path: Path) -> None:
     payload = {
         "manifest_version": 1,
         "skill_name": "test",
-        "recommended_suites": {"gating": [1], "regression": [1]},
+        "recommended_suites": {"gating": [], "regression": [1]},
         "evals": [
             {
                 "id": 1,
@@ -80,6 +80,111 @@ def test_manifest_requires_schema_entry_fields(tmp_path: Path) -> None:
     }
 
     with pytest.raises(ValueError, match="missing required fields"):
+        validate_manifest(payload, tmp_path)
+
+
+def test_manifest_defaults_existing_entries_to_offline(tmp_path: Path) -> None:
+    payload = {
+        "manifest_version": 1,
+        "skill_name": "test",
+        "recommended_suites": {"gating": [], "regression": [1]},
+        "evals": [
+            {
+                "id": 1,
+                "prompt": "test",
+                "expected_output": "test",
+                "files": [],
+                "expectations": [],
+                "grading_rules": [],
+            }
+        ],
+    }
+
+    validate_manifest(payload, tmp_path)
+
+
+def test_live_manifest_requires_fixture_identity(tmp_path: Path) -> None:
+    payload = {
+        "manifest_version": 1,
+        "skill_name": "test",
+        "recommended_suites": {"gating": [1], "regression": [1]},
+        "evals": [
+            {
+                "id": 1,
+                "prompt": "test",
+                "expected_output": "test",
+                "files": [],
+                "expectations": [],
+                "execution_mode": "live_readonly",
+                "grading_rules": [],
+            }
+        ],
+    }
+
+    with pytest.raises(ValueError, match="requires fixture metadata"):
+        validate_manifest(payload, tmp_path)
+
+
+def test_manifest_accepts_structured_grader_metadata(tmp_path: Path) -> None:
+    payload = {
+        "manifest_version": 1,
+        "skill_name": "test",
+        "recommended_suites": {"gating": [1], "regression": [1]},
+        "evals": [
+            {
+                "id": 1,
+                "prompt": "test",
+                "expected_output": "test",
+                "files": [],
+                "expectations": [],
+                "execution_mode": "hybrid",
+                "fixture": {
+                    "example": "demo-data-3",
+                    "profile": "test",
+                    "workspace": "nigel-test-workspace",
+                },
+                "mutation_policy": "forbidden",
+                "resource_prerequisites": [{"type": "system", "match": {"name": "Station-1"}}],
+                "grading_rules": [
+                    {
+                        "text": "returns the system",
+                        "critical": False,
+                        "mode": "any_of",
+                        "patterns": ["slcli"],
+                        "grader_type": "resource_query",
+                        "grader_config": {
+                            "resource_type": "system",
+                            "minimum_count": 1,
+                        },
+                    }
+                ],
+            }
+        ],
+    }
+
+    validate_manifest(payload, tmp_path)
+
+
+def test_manifest_requires_isolated_cleanup_for_mutating_eval(tmp_path: Path) -> None:
+    payload = {
+        "manifest_version": 1,
+        "skill_name": "test",
+        "recommended_suites": {"gating": [1], "regression": [1]},
+        "evals": [
+            {
+                "id": 1,
+                "prompt": "test",
+                "expected_output": "test",
+                "files": [],
+                "expectations": [],
+                "fixture_scope": "shared_readonly",
+                "mutation_policy": "allow_with_cleanup",
+                "grading_rules": [],
+            }
+        ],
+    }
+
+    with pytest.raises(ValueError, match="isolated fixture"):
         validate_manifest(payload, tmp_path)
 
 
@@ -184,6 +289,8 @@ def test_all_checked_in_critical_graders_pass_their_controls() -> None:
     for eval_entry in manifest["evals"]:
         for rule in eval_entry["grading_rules"]:
             if not rule["critical"]:
+                continue
+            if rule.get("grader_type", "regex") != "regex":
                 continue
             reference_date = (
                 date.fromisoformat(rule["control_reference_date"])

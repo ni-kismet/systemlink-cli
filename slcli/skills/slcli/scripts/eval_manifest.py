@@ -10,6 +10,20 @@ from typing import Any
 SUPPORTED_RULE_MODES = {"all_of", "any_of", "none_of"}
 SUPPORTED_RULE_SCOPES = {"response", "command"}
 SUPPORTED_RULE_VALIDATORS = {"previous_calendar_month"}
+SUPPORTED_EXECUTION_MODES = {"offline", "online", "live_readonly", "hybrid"}
+SUPPORTED_SUITES = {"gating", "regression", "live_readonly", "online"}
+SUPPORTED_MUTATION_POLICIES = {"forbidden", "isolated_only", "allow_with_cleanup"}
+SUPPORTED_FIXTURE_SCOPES = {"local", "shared_readonly", "isolated"}
+SUPPORTED_GRADER_TYPES = {
+    "regex",
+    "resource_query",
+    "resource_set",
+    "relationship",
+    "negative_query",
+    "snapshot",
+    "mutation_safety",
+    "cleanup",
+}
 
 
 def resolve_fixture_path(skill_dir: Path, relative_path: str) -> Path:
@@ -40,8 +54,11 @@ def validate_manifest(payload: dict[str, Any], skill_dir: Path) -> None:
 
     by_id = set(ids)
     suites = payload.get("recommended_suites", {})
-    if set(suites) != {"gating", "regression"}:
+    if not isinstance(suites, dict) or not {"gating", "regression"}.issubset(suites):
         raise ValueError("recommended_suites must define gating and regression")
+    unknown_suites = set(suites) - SUPPORTED_SUITES
+    if unknown_suites:
+        raise ValueError(f"recommended_suites has unsupported suites: {sorted(unknown_suites)}")
     for suite, suite_ids in suites.items():
         if (
             not isinstance(suite_ids, list)
@@ -75,6 +92,53 @@ def validate_manifest(payload: dict[str, Any], skill_dir: Path) -> None:
             raise ValueError(f"eval {eval_id} requires prompt and expected_output")
         if not isinstance(entry["files"], list) or not isinstance(entry["expectations"], list):
             raise ValueError(f"eval {eval_id} files and expectations must be lists")
+        execution_mode = entry.get("execution_mode", "offline")
+        if execution_mode not in SUPPORTED_EXECUTION_MODES:
+            raise ValueError(f"eval {eval_id} has unsupported execution mode: {execution_mode}")
+        fixture = entry.get("fixture")
+        if execution_mode != "offline":
+            if not isinstance(fixture, dict):
+                raise ValueError(f"eval {eval_id} requires fixture metadata for live execution")
+            missing_fixture_fields = {"example", "profile", "workspace"} - fixture.keys()
+            if missing_fixture_fields:
+                raise ValueError(
+                    f"eval {eval_id} fixture is missing fields: {sorted(missing_fixture_fields)}"
+                )
+            if any(
+                not isinstance(fixture[field], str) or not fixture[field]
+                for field in ("example", "profile", "workspace")
+            ):
+                raise ValueError(
+                    f"eval {eval_id} fixture identity fields must be non-empty strings"
+                )
+        mutation_policy = entry.get("mutation_policy", "forbidden")
+        if mutation_policy not in SUPPORTED_MUTATION_POLICIES:
+            raise ValueError(f"eval {eval_id} has unsupported mutation policy: {mutation_policy}")
+        fixture_scope = entry.get(
+            "fixture_scope", "local" if execution_mode == "offline" else "shared_readonly"
+        )
+        if fixture_scope not in SUPPORTED_FIXTURE_SCOPES:
+            raise ValueError(f"eval {eval_id} has unsupported fixture scope: {fixture_scope}")
+        cleanup = entry.get("cleanup")
+        if mutation_policy in {"isolated_only", "allow_with_cleanup"}:
+            if fixture_scope != "isolated":
+                raise ValueError(f"eval {eval_id} mutating runs require an isolated fixture")
+            if not isinstance(cleanup, dict) or cleanup.get("required") is not True:
+                raise ValueError(f"eval {eval_id} mutating runs require cleanup metadata")
+            if cleanup.get("strategy") not in {"ownership_marker", "workspace"}:
+                raise ValueError(f"eval {eval_id} has unsupported cleanup strategy")
+        elif cleanup is not None and not isinstance(cleanup, dict):
+            raise ValueError(f"eval {eval_id} cleanup metadata must be an object")
+        prerequisites = entry.get("resource_prerequisites", [])
+        if not isinstance(prerequisites, list):
+            raise ValueError(f"eval {eval_id} resource_prerequisites must be a list")
+        for prerequisite in prerequisites:
+            if not isinstance(prerequisite, dict) or not isinstance(prerequisite.get("type"), str):
+                raise ValueError(f"eval {eval_id} resource prerequisites require a type")
+            if not isinstance(prerequisite.get("match"), dict) or not prerequisite["match"]:
+                raise ValueError(
+                    f"eval {eval_id} resource prerequisites require a non-empty match object"
+                )
         for relative_path in entry["files"]:
             if not isinstance(relative_path, str):
                 raise ValueError(f"eval {eval_id} fixture paths must be strings")
@@ -89,42 +153,66 @@ def validate_manifest(payload: dict[str, Any], skill_dir: Path) -> None:
         for rule in rules:
             if not isinstance(rule.get("critical"), bool):
                 raise ValueError(f"eval {eval_id} grading rules require an explicit critical flag")
-            missing_rule_fields = {"text", "mode", "patterns"} - rule.keys()
+            required_in_modes = rule.get("required_in_modes")
+            if required_in_modes is not None and (
+                not isinstance(required_in_modes, list)
+                or not required_in_modes
+                or any(mode not in SUPPORTED_EXECUTION_MODES for mode in required_in_modes)
+            ):
+                raise ValueError(
+                    f"eval {eval_id} grading rules require supported required_in_modes"
+                )
+            missing_rule_fields = {"text"} - rule.keys()
             if missing_rule_fields:
                 raise ValueError(
                     f"eval {eval_id} grading rule is missing fields: {sorted(missing_rule_fields)}"
                 )
             if not isinstance(rule["text"], str) or not rule["text"]:
                 raise ValueError(f"eval {eval_id} grading rule text must be non-empty")
-            if rule.get("mode") not in SUPPORTED_RULE_MODES:
-                raise ValueError(f"eval {eval_id} has unsupported rule mode: {rule.get('mode')}")
             if rule.get("scope", "response") not in SUPPORTED_RULE_SCOPES:
                 raise ValueError(f"eval {eval_id} has unsupported rule scope: {rule.get('scope')}")
+            grader_type = rule.get("grader_type", "regex")
+            if grader_type not in SUPPORTED_GRADER_TYPES:
+                raise ValueError(f"eval {eval_id} has unsupported grader type: {grader_type}")
+            if grader_type == "regex":
+                if rule.get("mode") not in SUPPORTED_RULE_MODES:
+                    raise ValueError(
+                        f"eval {eval_id} has unsupported rule mode: {rule.get('mode')}"
+                    )
+                missing_regex_fields = {"mode", "patterns"} - rule.keys()
+                if missing_regex_fields:
+                    raise ValueError(
+                        f"eval {eval_id} regex grading rule is missing fields: "
+                        f"{sorted(missing_regex_fields)}"
+                    )
+            elif not isinstance(rule.get("grader_config"), dict):
+                raise ValueError(f"eval {eval_id} structured graders require grader_config")
             validator = rule.get("validator")
             if validator is not None and validator not in SUPPORTED_RULE_VALIDATORS:
                 raise ValueError(f"eval {eval_id} has unsupported rule validator: {validator}")
             patterns = rule.get("patterns")
-            if (
-                not isinstance(patterns, list)
-                or not patterns
-                or any(not isinstance(pattern, str) or not pattern for pattern in patterns)
-            ):
-                raise ValueError(
-                    f"eval {eval_id} grading rules require a non-empty list of patterns"
-                )
-            for pattern in patterns:
-                try:
-                    re.compile(pattern)
-                except re.error as error:
+            if grader_type == "regex":
+                if (
+                    not isinstance(patterns, list)
+                    or not patterns
+                    or any(not isinstance(pattern, str) or not pattern for pattern in patterns)
+                ):
                     raise ValueError(
-                        f"eval {eval_id} grading rule has invalid pattern: {pattern}"
-                    ) from error
-            if rule["critical"] and (
-                not rule.get("positive_control") or not rule.get("negative_control")
-            ):
-                raise ValueError(
-                    f"eval {eval_id} critical rules require positive and negative controls"
-                )
+                        f"eval {eval_id} grading rules require a non-empty list of patterns"
+                    )
+                for pattern in patterns:
+                    try:
+                        re.compile(pattern)
+                    except re.error as error:
+                        raise ValueError(
+                            f"eval {eval_id} grading rule has invalid pattern: {pattern}"
+                        ) from error
+                if rule["critical"] and (
+                    not rule.get("positive_control") or not rule.get("negative_control")
+                ):
+                    raise ValueError(
+                        f"eval {eval_id} critical rules require positive and negative controls"
+                    )
 
 
 def load_manifest(path: Path) -> dict[str, Any]:

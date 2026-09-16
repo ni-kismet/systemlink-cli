@@ -58,12 +58,15 @@ def prepare_iteration(tmp_path: Path) -> Path:
         {
             "skill_name": "test",
             "baseline": "old_skill",
+            "baseline_ref": "origin/main",
             "runs_per_config": 3,
             "eval_ids": [1],
             "candidate_sha": "candidate",
             "baseline_sha": "baseline",
             "candidate_skill_hash": candidate_hash,
             "baseline_skill_hash": baseline_hash,
+            "candidate_snapshot_hash": "candidate-snapshot",
+            "baseline_snapshot_hash": "baseline-snapshot",
             "eval_manifest_hash": "manifest-hash",
             "reference_date": "2026-09-08",
             "input_manifest_hashes": {},
@@ -119,9 +122,12 @@ def prepare_iteration(tmp_path: Path) -> Path:
                 {
                     "skill_name": "test",
                     "candidate_sha": "candidate",
+                    "baseline_ref": "origin/main",
                     "baseline_sha": "baseline",
                     "candidate_skill_hash": candidate_hash,
                     "baseline_skill_hash": baseline_hash,
+                    "candidate_snapshot_hash": "candidate-snapshot",
+                    "baseline_snapshot_hash": "baseline-snapshot",
                     "eval_manifest_hash": "manifest-hash",
                     "reference_date": "2026-09-08",
                     "eval_id": 1,
@@ -222,6 +228,21 @@ def test_evaluate_iteration_is_inconclusive_when_run_is_missing(tmp_path: Path) 
 
     assert result["status"] == "inconclusive"
     assert result["missing_or_inconclusive_runs"]
+    assert result["candidate_mean_pass_rate"] == 1.0
+    assert result["baseline_mean_pass_rate"] == 1.0
+
+
+def test_evaluate_iteration_uses_null_metrics_when_no_pair_is_usable(tmp_path: Path) -> None:
+    eval_dir = prepare_iteration(tmp_path)
+    for run_number in range(1, 4):
+        (eval_dir / "with_skill" / f"run-{run_number}" / "grading.json").unlink()
+
+    result = evaluate_iteration(tmp_path, margin=0.05)
+
+    assert result["status"] == "inconclusive"
+    assert result["candidate_mean_pass_rate"] is None
+    assert result["baseline_mean_pass_rate"] is None
+    assert result["delta"] is None
 
 
 def test_evaluate_iteration_is_inconclusive_for_different_models(tmp_path: Path) -> None:

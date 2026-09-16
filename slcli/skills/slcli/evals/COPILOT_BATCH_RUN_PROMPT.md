@@ -41,10 +41,43 @@ In one parent chat, Copilot should:
 - stop early when the per-run budget is exhausted and record the failure
 - save the final answer to `outputs/response.txt`
 - save the complete executor trace to `outputs/transcript.jsonl`
-- save executor identity, configuration, and completion status to `outputs/run_metadata.json`
+- have the parent orchestrator write normalized executor identity, configuration, and completion status to `outputs/run_metadata.json` from the iteration contract
+- preserve any executor-authored identity or environment details separately in `outputs/executor_metadata_raw.json`
 - save `total_tokens`, `duration_ms`, and derived `total_duration_seconds` from the subagent completion notification to the run's `timing.json`; do not estimate these values
 - retry infrastructure failures once; after a second failure, set status to `infrastructure_error` and continue
 - optionally save `outputs/notes.txt` for assumptions
+
+For an iteration prepared with `--suite live_readonly` or `--suite online`, also do the following
+for every live run:
+
+- capture `fixture_snapshot_before.json` before the subagent starts;
+- require `outputs/execution_records.json` with every `slcli` command, exit code,
+  stdout, stderr, and parsed JSON output;
+- capture `fixture_snapshot_after.json` after the subagent finishes;
+- keep `fixture_snapshot.json` as the final readiness snapshot;
+- treat `fixture_drift`, `unsupported`, and `inconclusive` readiness as
+  capability-test evidence that is not an offline skill failure.
+
+For `--suite online`, additionally follow the lifecycle assignment in each
+run's `run_config.json`:
+
+- local runs do not require remote fixture artifacts;
+- before every remote run, invoke `fixture_lifecycle provision --run-dir` and
+  require a `ready` lifecycle report;
+- shared read-only runs must use the assigned fixture and must not mutate it;
+- isolated runs must use only the assigned namespace and record every created
+  resource in `outputs/created_resources.json`;
+- after every remote run, invoke `fixture_lifecycle cleanup --run-dir`; for
+  isolated runs it performs typed, ownership-checked deletes, and for shared
+  runs it captures the final snapshot.
+
+The lifecycle adapter validates an externally provisioned workspace. It does
+not create a workspace implicitly, so the online fixture workspace must exist
+before the batch starts.
+
+Use `without_skill` as the baseline directory when the iteration was prepared
+with `--baseline without_skill`; do not substitute `old_skill` for that
+comparison.
 
 4. Run `benchmark_iteration.py`.
 5. Run `render_eval_review.py`.
@@ -78,7 +111,8 @@ Instructions:
    - save the final user-facing answer to the sibling outputs/response.txt path named in the prompt
   - save the complete executor trace to the sibling outputs/transcript.jsonl path named in the prompt
    - save optional outputs/notes.txt only if assumptions or caveats matter
-  - save outputs/run_metadata.json with executor_provider, exact executor_model, harness, configuration, and status
+  - as the parent orchestrator, save outputs/run_metadata.json using the provider, exact model, and harness from iteration_manifest.json plus the run-directory configuration and observed completion status
+  - preserve model-authored identity or environment details separately in outputs/executor_metadata_raw.json when present
   - when the subagent completion notification arrives, immediately save its total_tokens and duration_ms plus derived total_duration_seconds to the sibling timing.json named in the executor prompt
   - use status `completed` only for a completed model run; retry an infrastructure failure once, then use `infrastructure_error` and preserve partial artifacts
 4. Do both configurations for every eval:
@@ -94,6 +128,7 @@ Instructions:
 
 Execution rules:
 - Use the existing executor_prompt.txt files as the source of truth for each run.
+- Do not ask executor subagents to author run_metadata.json; normalized run identity belongs to the parent orchestrator.
 - Do not answer multiple eval runs in the parent chat context.
 - Do not reuse a subagent across runs.
 - Parallelize independent runs when useful, but keep concurrency to roughly 2 to 4 subagents at a time.

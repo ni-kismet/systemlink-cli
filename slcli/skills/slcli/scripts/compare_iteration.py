@@ -135,9 +135,12 @@ def load_run(
     expected_provenance = {
         "skill_name": iteration.get("skill_name"),
         "candidate_sha": iteration.get("candidate_sha"),
+        "baseline_ref": iteration.get("baseline_ref"),
         "baseline_sha": iteration.get("baseline_sha"),
         "candidate_skill_hash": iteration.get("candidate_skill_hash"),
         "baseline_skill_hash": iteration.get("baseline_skill_hash"),
+        "candidate_snapshot_hash": iteration.get("candidate_snapshot_hash"),
+        "baseline_snapshot_hash": iteration.get("baseline_snapshot_hash"),
         "eval_manifest_hash": iteration.get("eval_manifest_hash"),
         "reference_date": iteration.get("reference_date"),
         "eval_id": eval_id,
@@ -193,8 +196,18 @@ def evaluate_iteration(iteration_dir: Path, margin: float) -> dict[str, Any]:
     all_baseline_rates: list[float] = []
     missing_runs: list[str] = []
     incompatible_runs: list[str] = []
+    provenance_errors: list[str] = []
     critical_regressions: list[int] = []
     candidate_only_failures: list[dict[str, int]] = []
+
+    for field in (
+        "baseline_ref",
+        "baseline_sha",
+        "candidate_snapshot_hash",
+        "baseline_snapshot_hash",
+    ):
+        if not isinstance(manifest.get(field), str) or not manifest[field].strip():
+            provenance_errors.append(f"iteration manifest requires {field}")
 
     eval_dirs = {
         int(load_json(path / "eval_metadata.json")["eval_id"]): path
@@ -210,17 +223,6 @@ def evaluate_iteration(iteration_dir: Path, margin: float) -> dict[str, Any]:
         candidate_gradings: list[dict[str, Any]] = []
         baseline_gradings: list[dict[str, Any]] = []
         for run_number in range(1, runs_per_config + 1):
-            for configuration, destination in (
-                ("with_skill", candidate_gradings),
-                (baseline, baseline_gradings),
-            ):
-                run_dir = eval_dir / configuration / f"run-{run_number}"
-                run = load_run(run_dir, manifest, int(eval_id), run_number)
-                if run is None:
-                    missing_runs.append(str(run_dir))
-                else:
-                    destination.append(run[0])
-
             candidate_run = load_run(
                 eval_dir / "with_skill" / f"run-{run_number}",
                 manifest,
@@ -233,19 +235,24 @@ def evaluate_iteration(iteration_dir: Path, margin: float) -> dict[str, Any]:
                 int(eval_id),
                 run_number,
             )
-            if candidate_run and baseline_run:
-                candidate_metadata = candidate_run[1]
-                baseline_metadata = baseline_run[1]
-                comparable_fields = ("executor_provider", "executor_model", "harness")
-                if any(
-                    candidate_metadata[field] != baseline_metadata[field]
-                    for field in comparable_fields
-                ):
-                    incompatible_runs.append(f"eval {eval_id} run {run_number}")
-                if critical_passed(baseline_run[0]) and not critical_passed(candidate_run[0]):
-                    candidate_only_failures.append(
-                        {"eval_id": int(eval_id), "run_number": run_number}
-                    )
+            if candidate_run is None:
+                missing_runs.append(str(eval_dir / "with_skill" / f"run-{run_number}"))
+            if baseline_run is None:
+                missing_runs.append(str(eval_dir / baseline / f"run-{run_number}"))
+            if candidate_run is None or baseline_run is None:
+                continue
+            candidate_metadata = candidate_run[1]
+            baseline_metadata = baseline_run[1]
+            comparable_fields = ("executor_provider", "executor_model", "harness")
+            if any(
+                candidate_metadata[field] != baseline_metadata[field] for field in comparable_fields
+            ):
+                incompatible_runs.append(f"eval {eval_id} run {run_number}")
+                continue
+            candidate_gradings.append(candidate_run[0])
+            baseline_gradings.append(baseline_run[0])
+            if critical_passed(baseline_run[0]) and not critical_passed(candidate_run[0]):
+                candidate_only_failures.append({"eval_id": int(eval_id), "run_number": run_number})
 
         candidate_critical = sum(critical_passed(item) for item in candidate_gradings)
         baseline_critical = sum(critical_passed(item) for item in baseline_gradings)
@@ -272,12 +279,24 @@ def evaluate_iteration(iteration_dir: Path, margin: float) -> dict[str, Any]:
         )
 
     candidate_mean = (
-        sum(all_candidate_rates) / len(all_candidate_rates) if all_candidate_rates else 0.0
+        sum(all_candidate_rates) / len(all_candidate_rates) if all_candidate_rates else None
     )
-    baseline_mean = sum(all_baseline_rates) / len(all_baseline_rates) if all_baseline_rates else 0.0
-    delta = candidate_mean - baseline_mean
-    aggregate_regression = not missing_runs and not incompatible_runs and delta < -margin
-    if missing_runs or incompatible_runs:
+    baseline_mean = (
+        sum(all_baseline_rates) / len(all_baseline_rates) if all_baseline_rates else None
+    )
+    delta = (
+        candidate_mean - baseline_mean
+        if candidate_mean is not None and baseline_mean is not None
+        else None
+    )
+    aggregate_regression = (
+        not missing_runs
+        and not incompatible_runs
+        and not provenance_errors
+        and delta is not None
+        and delta < -margin
+    )
+    if missing_runs or incompatible_runs or provenance_errors:
         status = "inconclusive"
     elif critical_regressions or aggregate_regression:
         status = "regression"
@@ -287,27 +306,41 @@ def evaluate_iteration(iteration_dir: Path, margin: float) -> dict[str, Any]:
     return {
         "status": status,
         "margin": margin,
-        "candidate_mean_pass_rate": round(candidate_mean, 4),
-        "baseline_mean_pass_rate": round(baseline_mean, 4),
-        "delta": round(delta, 4),
+        "candidate_mean_pass_rate": (
+            round(candidate_mean, 4) if candidate_mean is not None else None
+        ),
+        "baseline_mean_pass_rate": round(baseline_mean, 4) if baseline_mean is not None else None,
+        "delta": round(delta, 4) if delta is not None else None,
         "critical_regressions": critical_regressions,
         "candidate_only_critical_failures": candidate_only_failures,
         "aggregate_regression": aggregate_regression,
         "missing_or_inconclusive_runs": missing_runs,
         "incompatible_run_metadata": incompatible_runs,
+        "provenance_errors": provenance_errors,
         "evals": eval_results,
     }
 
 
 def render_markdown(result: dict[str, Any]) -> str:
     """Render a concise regression report."""
+    candidate_rate = result["candidate_mean_pass_rate"]
+    baseline_rate = result["baseline_mean_pass_rate"]
+    delta = result["delta"]
     lines = [
         "# Skill Regression Gate",
         "",
         f"**Status**: {result['status']}",
-        f"**Candidate pass rate**: {result['candidate_mean_pass_rate']:.1%}",
-        f"**Baseline pass rate**: {result['baseline_mean_pass_rate']:.1%}",
-        f"**Delta**: {result['delta']:+.1%}",
+        (
+            f"**Candidate pass rate**: {candidate_rate:.1%}"
+            if candidate_rate is not None
+            else "**Candidate pass rate**: not measured"
+        ),
+        (
+            f"**Baseline pass rate**: {baseline_rate:.1%}"
+            if baseline_rate is not None
+            else "**Baseline pass rate**: not measured"
+        ),
+        f"**Delta**: {delta:+.1%}" if delta is not None else "**Delta**: not measured",
         f"**Allowed decrease**: {result['margin']:.1%}",
         "",
     ]
@@ -328,6 +361,9 @@ def render_markdown(result: dict[str, Any]) -> str:
     if result["incompatible_run_metadata"]:
         lines.extend(["Incompatible paired run metadata:", ""])
         lines.extend(f"- {run}" for run in result["incompatible_run_metadata"])
+    if result["provenance_errors"]:
+        lines.extend(["Provenance errors:", ""])
+        lines.extend(f"- {error}" for error in result["provenance_errors"])
     return "\n".join(lines) + "\n"
 
 

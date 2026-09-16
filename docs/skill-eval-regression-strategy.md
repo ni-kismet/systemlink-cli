@@ -16,6 +16,25 @@ framework now. The difficult part is producing controlled agent runs and trustwo
 graders, not calculating summary statistics. A provider-specific executor can be added behind a
 small interface when a non-interactive Copilot runner is available.
 
+## Implemented Evaluation Model
+
+The repository now keeps deterministic offline gating separate from optional fixture capability
+evaluation:
+
+- `offline` evals grade response and command behavior without credentials and remain the regression
+   gate.
+- `live_readonly` evals run bounded, workspace-scoped inventory queries against the Nigel fixture.
+- `hybrid` evals combine command grading with live end-state validation.
+- Live runs carry fixture identity, mutation policy, resource prerequisites, normalized command
+   records, and readiness snapshots as provenance.
+- Fixture readiness is classified as `ready`, `fixture_drift`, `unsupported`, or `inconclusive`.
+   The last three classifications are excluded from skill pass/fail scoring.
+- Read-only live evals capture before and after snapshots and require matching canonical hashes;
+   missing command records or snapshot artifacts cannot produce a live success.
+
+The shared Nigel workspace is never mutated by this workflow. Any future mutation eval must use an
+isolated fixture and declare an explicit cleanup policy.
+
 ## Branch Review
 
 The branch provides a useful exploratory workflow:

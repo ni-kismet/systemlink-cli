@@ -6,6 +6,7 @@ import argparse
 import hashlib
 import json
 import math
+import re
 from datetime import date
 from pathlib import Path
 from typing import Any
@@ -79,18 +80,78 @@ def hash_file(path: Path) -> str:
     return hashlib.sha256(path.read_bytes()).hexdigest()
 
 
-def validate_transcript(path: Path) -> None:
-    """Require a non-empty JSONL transcript containing only JSON objects."""
-    events = 0
+def load_raw_executor_metadata(path: Path) -> Any:
+    """Preserve executor-authored metadata without trusting its structure."""
+    if not path.is_file():
+        return None
+    text = path.read_text(encoding="utf-8", errors="replace")
+    try:
+        return json.loads(text)
+    except json.JSONDecodeError:
+        return text
+
+
+def load_transcript(path: Path) -> list[dict[str, Any]]:
+    """Load a non-empty JSONL transcript containing only JSON objects."""
+    events: list[dict[str, Any]] = []
     for line in path.read_text(encoding="utf-8", errors="replace").splitlines():
         if not line.strip():
             continue
         event = json.loads(line)
         if not isinstance(event, dict):
             raise ValueError("transcript events must be JSON objects")
-        events += 1
-    if events == 0:
+        events.append(event)
+    if not events:
         raise ValueError("transcript must contain at least one JSON event")
+    return events
+
+
+def _string_values(value: Any) -> list[str]:
+    """Return all string values nested in a JSON-compatible value."""
+    if isinstance(value, str):
+        return [value]
+    if isinstance(value, dict):
+        return [text for item in value.values() for text in _string_values(item)]
+    if isinstance(value, list):
+        return [text for item in value for text in _string_values(item)]
+    return []
+
+
+def _named_string_values(value: Any, field: str) -> list[str]:
+    """Return string values for a named field at any nesting depth."""
+    if isinstance(value, dict):
+        direct = value.get(field)
+        values = [direct] if isinstance(direct, str) else []
+        return values + [
+            text for item in value.values() for text in _named_string_values(item, field)
+        ]
+    if isinstance(value, list):
+        return [text for item in value for text in _named_string_values(item, field)]
+    return []
+
+
+def offline_evidence_error(
+    transcript: list[dict[str, Any]], response_text: str, outputs_dir: Path
+) -> str | None:
+    """Reject operational execution and unsupported live-result claims in offline runs."""
+    if (outputs_dir / "execution_records.json").exists():
+        return "offline run contains execution records"
+    commands = [
+        command for event in transcript for command in _named_string_values(event, "command")
+    ]
+    for command in commands:
+        if re.search(r"(?:^|\s)slcli\s+", command) and "--help" not in command:
+            return "offline run invoked an operational slcli command"
+    evidence_text = "\n".join([response_text, *(_string_values(transcript))])
+    unsupported_claim = re.search(
+        r"\b(?:I|we)?\s*(?:queried|executed|ran|created|updated|deleted)\b|"
+        r"\b(?:found|returned)\s+(?:no\s+)?(?:matching\s+)?(?:results?|resources?|templates?)\b",
+        evidence_text,
+        re.IGNORECASE,
+    )
+    if unsupported_claim:
+        return "offline run claims live execution without captured evidence"
+    return None
 
 
 def run_skill_hash(run_dir: Path) -> str | None:
@@ -118,6 +179,21 @@ def run_manifest_key(run_dir: Path) -> str:
     return run_dir.relative_to(run_dir.parents[2]).as_posix()
 
 
+def eval_lifecycle(iteration_metadata: dict[str, Any], eval_id: int) -> dict[str, Any]:
+    """Return lifecycle metadata, including compatibility for older iterations."""
+    lifecycle = iteration_metadata.get("lifecycle_by_eval", {})
+    if isinstance(lifecycle, dict) and isinstance(lifecycle.get(str(eval_id)), dict):
+        return lifecycle[str(eval_id)]
+    live_eval_ids = iteration_metadata.get("live_eval_ids", [])
+    if isinstance(live_eval_ids, list) and eval_id in live_eval_ids:
+        return {
+            "execution_mode": "live_readonly",
+            "fixture_scope": "shared_readonly",
+            "mutation_policy": "forbidden",
+        }
+    return {"execution_mode": "offline", "fixture_scope": "local"}
+
+
 def grade_run(
     manifest_path: Path,
     eval_id: int,
@@ -133,6 +209,32 @@ def grade_run(
     outputs_dir = run_dir / "outputs"
     required_artifacts = ("response.txt", "transcript.jsonl", "run_metadata.json")
     missing_artifacts = [name for name in required_artifacts if not (outputs_dir / name).is_file()]
+    lifecycle = eval_lifecycle(iteration_metadata, eval_id)
+    execution_mode = lifecycle.get("execution_mode", "offline")
+    fixture_scope = lifecycle.get("fixture_scope", "local")
+    is_online = execution_mode != "offline"
+    requires_remote_fixture = is_online and fixture_scope != "local"
+    if requires_remote_fixture:
+        missing_artifacts.extend(
+            name
+            for name in (
+                "execution_records.json",
+                "fixture_snapshot.json",
+                "fixture_snapshot_before.json",
+                "fixture_snapshot_after.json",
+            )
+            if not (outputs_dir / name).is_file()
+        )
+    if (
+        fixture_scope == "isolated"
+        and isinstance(lifecycle.get("cleanup"), dict)
+        and lifecycle["cleanup"].get("required")
+    ):
+        missing_artifacts.extend(
+            name
+            for name in ("created_resources.json", "cleanup_report.json")
+            if not (outputs_dir / name).is_file()
+        )
     if not (run_dir / "timing.json").is_file():
         missing_artifacts.append("timing.json")
     if missing_artifacts:
@@ -140,12 +242,12 @@ def grade_run(
 
     response_path = outputs_dir / "response.txt"
     try:
-        validate_transcript(outputs_dir / "transcript.jsonl")
+        transcript = load_transcript(outputs_dir / "transcript.jsonl")
     except (OSError, TypeError, ValueError, json.JSONDecodeError):
         return f"skip {run_dir}: invalid transcript"
 
     try:
-        gather_response_text(response_path)
+        response_text, _ = gather_response_text(response_path)
         actual_skill_hash = run_skill_hash(run_dir)
         actual_prompt_hash = executor_prompt_hash(run_dir)
         prompt_hashes = iteration_metadata.get("executor_prompt_hashes")
@@ -158,6 +260,10 @@ def grade_run(
             raise ValueError("executor prompt does not match iteration manifest")
     except (json.JSONDecodeError, OSError, TypeError, ValueError):
         return f"skip {run_dir}: invalid response or run configuration"
+
+    offline_error = (
+        None if is_online else offline_evidence_error(transcript, response_text, outputs_dir)
+    )
 
     timing_path = run_dir / "timing.json"
     run_metadata_path = outputs_dir / "run_metadata.json"
@@ -220,25 +326,50 @@ def grade_run(
         timing_path,
         outputs_dir / "transcript.jsonl",
         reference_date,
+        {
+            "execution_mode": execution_mode,
+            "fixture": lifecycle.get("fixture"),
+            "fixture_scope": fixture_scope,
+            "mutation_policy": lifecycle.get("mutation_policy", "forbidden"),
+            "cleanup": lifecycle.get("cleanup"),
+        },
     )
+    expected_executor = iteration_metadata.get("executor")
+    if isinstance(expected_executor, dict):
+        expected_metadata = {
+            **expected_executor,
+            "configuration": run_dir.parent.name,
+            "status": run_metadata.get("status"),
+        }
+        if run_metadata != expected_metadata:
+            return f"skip {run_dir}: executor metadata does not match iteration manifest"
     infrastructure_error = run_metadata.get("status") == "infrastructure_error"
+    critical_results = [item for item in graded["expectations"] if item.get("critical", True)]
+    readiness = graded.get("evaluation", {}).get("fixture_readiness", "not_applicable")
+    inconclusive_statuses = {"inconclusive", "fixture_drift", "unsupported"}
     classification = (
         "inconclusive"
-        if infrastructure_error
+        if infrastructure_error or offline_error
         else (
-            "pass"
-            if all(item["passed"] for item in graded["expectations"] if item.get("critical", True))
-            else "fail"
+            "inconclusive"
+            if readiness in inconclusive_statuses
+            or any(item.get("status") == "inconclusive" for item in critical_results)
+            else "pass" if all(item["passed"] for item in critical_results) else "fail"
         )
     )
     graded["classification"] = classification
+    if offline_error:
+        graded["validation_errors"] = [offline_error]
     output_path.write_text(json.dumps(graded, indent=2) + "\n", encoding="utf-8")
     record = {
         "skill_name": iteration_metadata.get("skill_name"),
         "candidate_sha": iteration_metadata.get("candidate_sha"),
+        "baseline_ref": iteration_metadata.get("baseline_ref"),
         "baseline_sha": iteration_metadata.get("baseline_sha"),
         "candidate_skill_hash": iteration_metadata.get("candidate_skill_hash"),
         "baseline_skill_hash": iteration_metadata.get("baseline_skill_hash"),
+        "candidate_snapshot_hash": iteration_metadata.get("candidate_snapshot_hash"),
+        "baseline_snapshot_hash": iteration_metadata.get("baseline_snapshot_hash"),
         "eval_manifest_hash": hashlib.sha256(manifest_path.read_bytes()).hexdigest(),
         "reference_date": reference_date.isoformat(),
         "eval_id": eval_id,
@@ -248,6 +379,7 @@ def grade_run(
         "executor_prompt_hash": actual_prompt_hash,
         "input_manifest_hash": actual_input_manifest_hash,
         "executor": run_metadata,
+        "executor_raw": load_raw_executor_metadata(outputs_dir / "executor_metadata_raw.json"),
         "inputs": input_files,
         "timing": timing,
         "outputs": file_manifest(outputs_dir),

@@ -3,7 +3,9 @@
   "skill_name": "slcli",
   "recommended_suites": {
     "gating": [1, 4, 5, 7, 10],
-    "regression": [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11]
+    "regression": [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11],
+    "live_readonly": [12, 13],
+    "online": [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13]
   },
   "evals": [
     {
@@ -12,6 +14,7 @@
       "prompt": "Show me all failed measurements on product BAT-MODEL-ABC-001 for the last month.",
       "expected_output": "Uses the testmonitor results surface to query recent failed results for a specific product and returns a command-oriented analysis path.",
       "files": [],
+      "resource_prerequisites": [{"type": "test_result", "match": {"part_number": "BAT-MODEL-ABC-001"}}],
       "expectations": [
         "Selects the `testmonitor` command group rather than an unrelated resource group",
         "Uses JSON output when the result is intended for analysis or filtering",
@@ -106,6 +109,10 @@
       "prompt": "Compare systems apm-pxi-2 and formation-station-REAL.",
       "expected_output": "Uses the system comparison workflow and provides a direct command or short sequence for comparing two systems.",
       "files": [],
+      "resource_prerequisites": [
+        {"type": "system", "match": {"name": "apm-pxi-2"}},
+        {"type": "system", "match": {"name": "formation-station-REAL"}}
+      ],
       "expectations": [
         "Selects the `system` command group",
         "Uses the compare-oriented system workflow instead of a generic list command",
@@ -143,6 +150,7 @@
       "prompt": "Give me a summary of system WinDev2302Eval measurement capabilities.",
       "expected_output": "Uses the system resource workflow to inspect one system and summarize capabilities without drifting into unrelated resource types.",
       "files": [],
+      "resource_prerequisites": [{"type": "system", "match": {"name": "WinDev2302Eval"}}],
       "expectations": [
         "Selects the `system` command group",
         "Uses a get or inspection-oriented command before summarizing",
@@ -182,6 +190,7 @@
       "prompt": "Show me failed BATT-8 tests from operator xli in June 2022.",
       "expected_output": "Builds a filtered testmonitor query that combines convenience filters and safe parameterized filtering for compound conditions.",
       "files": [],
+      "resource_prerequisites": [{"type": "test_result", "match": {"part_number": "BATT-8"}}],
       "expectations": [
         "Selects the `testmonitor` command group",
         "Combines multiple conditions instead of suggesting manual post-processing only",
@@ -274,6 +283,7 @@
       "prompt": "Query dataframe table ProductionMetrics for rows where operator is J. Santos and export the results to JSON.",
       "expected_output": "Uses the dataframe workflow, includes a service-availability check if needed, and produces an exportable JSON-oriented command path.",
       "files": [],
+      "resource_prerequisites": [{"type": "data_table", "match": {"name": "ProductionMetrics"}}],
       "expectations": [
         "Selects the `dataframe` command group",
         "Uses JSON output for export or downstream processing",
@@ -321,6 +331,7 @@
       "prompt": "I need all tests that are either FAILED or ERRORED for BATT products. Build the safest slcli command you can.",
       "expected_output": "Produces a safety-conscious testmonitor command that handles multi-status filtering without unsafe interpolation or invented syntax.",
       "files": [],
+      "resource_prerequisites": [{"type": "test_result", "match": {"part_number": "BATT-8"}}],
       "expectations": [
         "Selects the `testmonitor` command group",
         "Represents the multi-status condition in a valid CLI-friendly way",
@@ -381,6 +392,9 @@
     {
       "id": 7,
       "tags": ["gating", "workitem", "workflow"],
+      "fixture_scope": "isolated",
+      "mutation_policy": "allow_with_cleanup",
+      "cleanup": {"required": true, "strategy": "ownership_marker"},
       "prompt": "Create a work item template for a battery cycle test in workspace Default, then show me how to verify it was created.",
       "expected_output": "Provides a multi-step workitem template workflow covering creation followed by a verification step.",
       "files": [],
@@ -391,6 +405,13 @@
         "Does not collapse the task into a single unverifiable command"
       ],
       "grading_rules": [
+        {
+          "text": "Cleans the isolated work-item fixture",
+          "critical": true,
+          "grader_type": "cleanup",
+          "grader_config": {"expected_status": "clean"},
+          "required_in_modes": ["online"]
+        },
         {
           "text": "Uses the workitem template create command",
           "critical": true,
@@ -429,6 +450,7 @@
     {
       "id": 8,
       "tags": ["regression", "webapp", "packaging"],
+      "fixture_scope": "local",
       "prompt": "Scaffold a hosted Angular webapp for SystemLink and then package it as a nipkg.",
       "expected_output": "Uses the webapp workflow to initialize and package a SystemLink-hosted webapp with the correct command family sequence.",
       "files": [],
@@ -477,6 +499,9 @@
     {
       "id": 9,
       "tags": ["regression", "spec", "workflow"],
+      "fixture_scope": "isolated",
+      "mutation_policy": "allow_with_cleanup",
+      "cleanup": {"required": true, "strategy": "ownership_marker"},
       "prompt": "Import a datasheet into specifications from a local CSV file and give me the follow-up command to inspect the imported spec.",
       "expected_output": "Provides a spec import workflow followed by an inspection step, with the sequence grounded in supported specification commands.",
       "files": [],
@@ -487,6 +512,13 @@
         "Keeps the workflow compatible with local file input"
       ],
       "grading_rules": [
+        {
+          "text": "Cleans the isolated specification fixture",
+          "critical": true,
+          "grader_type": "cleanup",
+          "grader_config": {"expected_status": "clean"},
+          "required_in_modes": ["online"]
+        },
         {
           "text": "Uses the spec import command",
           "critical": true,
@@ -516,6 +548,9 @@
     {
       "id": 10,
       "tags": ["gating", "spec", "file-backed", "import"],
+      "fixture_scope": "isolated",
+      "mutation_policy": "allow_with_cleanup",
+      "cleanup": {"required": true, "strategy": "ownership_marker"},
       "prompt": "Using the attached CSV fixture, show me the supported slcli workflow to turn it into importable specifications for product BAT-MODEL-ABC-001 and then verify the import.",
       "expected_output": "Uses the attached CSV as a file-backed input, converts it into a create-compatible JSON payload or helper-generated payload, imports it with the spec workflow, and includes a verification step.",
       "files": [
@@ -528,6 +563,13 @@
         "Includes a follow-up verification command"
       ],
       "grading_rules": [
+        {
+          "text": "Cleans the isolated specification import fixture",
+          "critical": true,
+          "grader_type": "cleanup",
+          "grader_config": {"expected_status": "clean"},
+          "required_in_modes": ["online"]
+        },
         {
           "text": "References the attached CSV fixture",
           "critical": false,
@@ -587,6 +629,9 @@
     {
       "id": 11,
       "tags": ["regression", "webapp", "file-backed", "packaging"],
+      "fixture_scope": "isolated",
+      "mutation_policy": "allow_with_cleanup",
+      "cleanup": {"required": true, "strategy": "ownership_marker"},
       "prompt": "Using the attached Plugin Manager config, give me the exact slcli commands to package the webapp and then publish the built app from dist/fleet-dashboard/.",
       "expected_output": "Uses the attached packaging config as a file-backed input, packages the webapp with `slcli webapp pack --config ...`, and publishes the built app from the provided dist path.",
       "files": [
@@ -601,6 +646,13 @@
         "Keeps both steps inside supported `slcli webapp` commands"
       ],
       "grading_rules": [
+        {
+          "text": "Cleans the isolated webapp publication fixture",
+          "critical": true,
+          "grader_type": "cleanup",
+          "grader_config": {"expected_status": "clean"},
+          "required_in_modes": ["online"]
+        },
         {
           "text": "Uses the attached nipkg config for packaging",
           "critical": true,
@@ -635,6 +687,122 @@
           "patterns": [
             "slcli\\s+webapp\\s+manifest\\s+init"
           ]
+        }
+      ]
+    },
+    {
+      "id": 12,
+      "tags": ["live_readonly", "nigel", "system"],
+      "execution_mode": "live_readonly",
+      "fixture_scope": "shared_readonly",
+      "fixture": {
+        "example": "demo-data-3",
+        "profile": "test",
+        "workspace": "nigel-test-workspace",
+        "workspace_id": "5855f712-c5b1-4dd3-94b4-c4a6e4a8d0bd"
+      },
+      "mutation_policy": "forbidden",
+      "resource_prerequisites": [
+        {
+          "type": "system",
+          "match": {"name": "PXI-Rack-07"},
+          "required": true
+        }
+      ],
+      "prompt": "Using the Nigel fixture workspace, list the primary fixture system as JSON and report the exact returned name and ID.",
+      "expected_output": "Runs a read-only, workspace-scoped system inventory query and reports the matching PXI-Rack-07 resource from parsed JSON output.",
+      "files": [],
+      "expectations": [
+        "Uses a workspace-scoped system list command",
+        "Reports the resource from command output rather than inventing an ID",
+        "Does not mutate the shared fixture workspace"
+      ],
+      "grading_rules": [
+        {
+          "text": "Finds the primary fixture system in structured command output",
+          "critical": true,
+          "grader_type": "resource_query",
+          "grader_config": {
+            "command_pattern": "slcli\\s+system\\s+list",
+            "resource_type": "system",
+            "match": {"name": "PXI-Rack-07"},
+            "minimum_count": 1
+          }
+        },
+        {
+          "text": "Uses only read-only commands",
+          "critical": true,
+          "grader_type": "mutation_safety",
+          "grader_config": {}
+        },
+        {
+          "text": "Leaves the shared fixture unchanged",
+          "critical": true,
+          "grader_type": "snapshot",
+          "grader_config": {"comparison": "unchanged", "expected_status": "ready"}
+        }
+      ]
+    },
+    {
+      "id": 13,
+      "tags": ["hybrid", "nigel", "product", "relationship"],
+      "execution_mode": "hybrid",
+      "fixture_scope": "shared_readonly",
+      "fixture": {
+        "example": "demo-data-3",
+        "profile": "test",
+        "workspace": "nigel-test-workspace",
+        "workspace_id": "5855f712-c5b1-4dd3-94b4-c4a6e4a8d0bd"
+      },
+      "mutation_policy": "forbidden",
+      "resource_prerequisites": [
+        {
+          "type": "product",
+          "match": {"part_number": "XYZ-2025-001"},
+          "required": true
+        }
+      ],
+      "prompt": "Using the Nigel fixture workspace, find Product XYZ by part number and return its structured JSON record without changing the workspace.",
+      "expected_output": "Uses the testmonitor product list workflow with a workspace scope and verifies Product XYZ by its fixture part number from parsed JSON output.",
+      "files": [],
+      "expectations": [
+        "Uses the testmonitor product inventory surface",
+        "Scopes the query to the Nigel fixture workspace",
+        "Returns the fixture product from structured output",
+        "Does not mutate the shared fixture workspace"
+      ],
+      "grading_rules": [
+        {
+          "text": "Uses the supported product inventory command",
+          "critical": true,
+          "positive_control": "slcli testmonitor product list",
+          "negative_control": "slcli system list",
+          "scope": "command",
+          "mode": "any_of",
+          "patterns": ["slcli\\s+testmonitor\\s+product\\s+list"]
+        },
+        {
+          "text": "Finds Product XYZ by part number in structured output",
+          "critical": true,
+          "grader_type": "resource_query",
+          "grader_config": {
+            "command_pattern": "slcli\\s+testmonitor\\s+product\\s+list",
+            "resource_type": "product",
+            "match": {"part_number": "XYZ-2025-001"},
+            "minimum_count": 1
+          }
+        },
+        {
+          "text": "Uses only read-only commands",
+          "critical": true,
+          "grader_type": "mutation_safety",
+          "grader_config": {}
+        },
+        {
+          "text": "Leaves the shared fixture unchanged",
+          "critical": true,
+          "grader_type": "snapshot",
+          "grader_config": {"comparison": "unchanged", "expected_status": "ready"}
         }
       ]
     }

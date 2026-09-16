@@ -9,7 +9,7 @@ from typing import Any
 
 import pytest
 
-from slcli.skills.slcli.scripts.grade_iteration import grade_run
+from slcli.skills.slcli.scripts.grade_iteration import grade_run, offline_evidence_error
 from slcli.skills.slcli.scripts.prepare_eval_workspace import build_input_manifest_hashes
 
 
@@ -159,6 +159,127 @@ def test_grade_run_skips_run_without_transcript(tmp_path: Path) -> None:
     )
 
     assert message.endswith("required outputs missing: transcript.jsonl")
+
+
+def test_offline_run_rejects_operational_slcli_command(tmp_path: Path) -> None:
+    transcript = [
+        {
+            "action": "create_template",
+            "command": "poetry run slcli workitem template create --name Test",
+            "result": "success",
+        }
+    ]
+
+    error = offline_evidence_error(transcript, "Created the template.", tmp_path)
+
+    assert error == "offline run invoked an operational slcli command"
+
+
+def test_offline_run_rejects_nested_operational_command(tmp_path: Path) -> None:
+    transcript = [
+        {
+            "type": "tool_call",
+            "tool": "run_in_terminal",
+            "arguments": {"command": "poetry run slcli testmonitor result list --format json"},
+        }
+    ]
+
+    error = offline_evidence_error(transcript, "No results.", tmp_path)
+
+    assert error == "offline run invoked an operational slcli command"
+
+
+def test_offline_run_rejects_unsupported_live_result_claim(tmp_path: Path) -> None:
+    transcript = [
+        {
+            "type": "assistant",
+            "content": "Queried the TestMonitor API and found no matching results.",
+        }
+    ]
+
+    error = offline_evidence_error(transcript, "No matching results were found.", tmp_path)
+
+    assert error == "offline run claims live execution without captured evidence"
+
+
+def test_offline_run_allows_help_and_instructional_commands(tmp_path: Path) -> None:
+    transcript = [{"command": "poetry run slcli testmonitor result list --help"}]
+
+    error = offline_evidence_error(
+        transcript,
+        "Run `slcli testmonitor result list --format json` to query the results.",
+        tmp_path,
+    )
+
+    assert error is None
+
+
+def test_grade_run_requires_live_records_and_snapshot(tmp_path: Path) -> None:
+    run_dir = tmp_path / "eval-12" / "with_skill" / "run-1"
+    outputs = run_dir / "outputs"
+    outputs.mkdir(parents=True)
+    (outputs / "response.txt").write_text("A response\n", encoding="utf-8")
+    (outputs / "transcript.jsonl").write_text("{}\n", encoding="utf-8")
+    write_json(outputs / "run_metadata.json", {"status": "completed"})
+    write_json(run_dir / "inputs_manifest.json", {"files": []})
+    write_json(run_dir / "run_config.json", {"repository_root": None})
+    write_json(
+        run_dir / "timing.json",
+        {"duration_ms": 1000, "total_duration_seconds": 1.0, "total_tokens": 1},
+    )
+    iteration_metadata = bind_executor_prompt(run_dir)
+    iteration_metadata.update(
+        {
+            "live_eval_ids": [12],
+            "reference_date": "2026-09-08",
+            "input_manifest_hashes": build_input_manifest_hashes(run_dir.parents[2]),
+        }
+    )
+
+    message = grade_run(tmp_path / "evals.json", 12, run_dir, False, iteration_metadata)
+
+    assert message.endswith(
+        "required outputs missing: execution_records.json, fixture_snapshot.json, "
+        "fixture_snapshot_before.json, fixture_snapshot_after.json"
+    )
+
+
+def test_grade_run_requires_isolated_cleanup_artifacts(tmp_path: Path) -> None:
+    run_dir = tmp_path / "eval-7" / "with_skill" / "run-1"
+    outputs = run_dir / "outputs"
+    outputs.mkdir(parents=True)
+    (outputs / "response.txt").write_text("A response\n", encoding="utf-8")
+    (outputs / "transcript.jsonl").write_text("{}\n", encoding="utf-8")
+    write_json(outputs / "run_metadata.json", {"status": "completed"})
+    write_json(run_dir / "inputs_manifest.json", {"files": []})
+    write_json(run_dir / "run_config.json", {"repository_root": None})
+    write_json(
+        run_dir / "timing.json",
+        {"duration_ms": 1000, "total_duration_seconds": 1.0, "total_tokens": 1},
+    )
+    iteration_metadata = bind_executor_prompt(run_dir)
+    iteration_metadata.update(
+        {
+            "lifecycle_by_eval": {
+                "7": {
+                    "execution_mode": "online",
+                    "fixture_scope": "isolated",
+                    "mutation_policy": "allow_with_cleanup",
+                    "cleanup": {"required": True, "strategy": "ownership_marker"},
+                }
+            },
+            "reference_date": "2026-09-08",
+            "input_manifest_hashes": build_input_manifest_hashes(run_dir.parents[2]),
+        }
+    )
+
+    message = grade_run(tmp_path / "evals.json", 7, run_dir, False, iteration_metadata)
+
+    assert message.endswith(
+        "required outputs missing: execution_records.json, fixture_snapshot.json, "
+        "fixture_snapshot_before.json, fixture_snapshot_after.json, "
+        "created_resources.json, cleanup_report.json"
+    )
 
 
 @pytest.mark.parametrize("transcript", ["", "not json\n", "[]\n"])

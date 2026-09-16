@@ -54,6 +54,11 @@ def test_enrich_benchmark_uses_candidate_delta_and_updates_markdown(tmp_path: Pa
             "candidate_skill_hash": "candidate-hash",
             "baseline_skill_hash": "baseline-hash",
             "eval_manifest_hash": "manifest-hash",
+            "executor": {
+                "executor_model": "test-model",
+                "executor_provider": "test-provider",
+                "harness": "test-harness",
+            },
         },
     )
     write_json(
@@ -109,20 +114,35 @@ def test_enrich_benchmark_ignores_invalid_executor_metadata(
     assert benchmark["metadata"]["executor_harness"] == "unknown"
 
 
-def test_aggregate_skips_inconclusive_grading(tmp_path: Path) -> None:
-    grading_path = tmp_path / "eval-1" / "with_skill" / "run-1" / "grading.json"
+def test_aggregate_excludes_inconclusive_pair_symmetrically(tmp_path: Path) -> None:
+    candidate_path = tmp_path / "eval-1" / "with_skill" / "run-1" / "grading.json"
     write_json(
-        grading_path,
+        candidate_path,
         {
             "classification": "inconclusive",
             "summary": {"pass_rate": 1.0, "passed": 1, "failed": 0, "total": 1},
         },
     )
+    write_json(
+        tmp_path / "eval-1" / "without_skill" / "run-1" / "grading.json",
+        {
+            "classification": "fail",
+            "summary": {"pass_rate": 0.0, "passed": 0, "failed": 1, "total": 1},
+        },
+    )
     aggregate_module = runpy.run_path(".github/skills/skill-creator/scripts/aggregate_benchmark.py")
 
     results = aggregate_module["load_run_results"](tmp_path)
+    summary = aggregate_module["aggregate_results"](results)
 
-    assert results == {"with_skill": []}
+    assert len(results["with_skill"]) == 1
+    assert len(results["without_skill"]) == 1
+    assert summary["with_skill"]["pass_rate"]["mean"] == 0.0
+    assert summary["without_skill"]["pass_rate"]["mean"] == 0.0
+    assert summary["pairing"] == {
+        "included": [],
+        "excluded": [{"eval_id": 1, "run_number": 1}],
+    }
 
 
 def test_aggregate_uses_measured_tokens_instead_of_output_characters(tmp_path: Path) -> None:

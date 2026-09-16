@@ -39,7 +39,11 @@ If you need to run the flow manually, these are the underlying steps.
 #### Prepare a fresh gating workspace
 
 ```bash
-poetry run python -m slcli.skills.slcli.scripts.prepare_eval_workspace --suite gating
+poetry run python -m slcli.skills.slcli.scripts.prepare_eval_workspace \
+  --suite gating \
+  --executor-provider github-copilot \
+  --executor-model '<exact-model-id>' \
+  --harness vscode-copilot-chat
 ```
 
 This prints a new iteration directory such as:
@@ -106,6 +110,125 @@ Retry an infrastructure failure once. If the retry also fails, preserve the
 partial artifacts with `status: infrastructure_error`; the gate reports that
 trial as inconclusive instead of scoring it as a skill failure.
 
+## Live Fixture Workflow
+
+The optional `live_readonly` suite evaluates structured command behavior against
+the shared Nigel fixture. It is capability evidence, not part of the
+deterministic offline regression gate. The suite includes a read-only system
+query and a hybrid product query; both have a `forbidden` mutation policy.
+
+Prepare one-trial live workspaces explicitly:
+
+```bash
+poetry run python -m slcli.skills.slcli.scripts.prepare_eval_workspace \
+  --suite live_readonly \
+  --runs-per-config 1 \
+  --executor-provider github-copilot \
+  --executor-model '<exact-model-id>' \
+  --harness copilot-chat-subagent-v1
+```
+
+Before each live run, capture the fixture state into that run's `outputs/`
+directory:
+
+```bash
+poetry run python -m slcli.skills.slcli.scripts.fixture_snapshot \
+  --evals slcli/skills/slcli/evals/evals.json \
+  --eval-id 12 \
+  --phase before \
+  --output <RUN_DIR>/outputs/fixture_snapshot_before.json
+```
+
+The executor must record every CLI invocation in
+`outputs/execution_records.json`. After it completes, capture the same fixture
+again with `--phase after` and the matching eval ID. The snapshot helper also
+updates `outputs/fixture_snapshot.json`, which is the readiness artifact used by
+the grader. A live run is gradeable only when all three snapshots, execution
+records, and the normal response artifacts are present.
+
+Readiness has four explicit outcomes:
+
+- `ready`: the workspace and all required resources matched the manifest.
+- `fixture_drift`: the workspace resolved, but a required resource or identity
+  did not match.
+- `unsupported`: the manifest requests an inventory surface without a bounded
+  read-only `slcli` query.
+- `inconclusive`: authentication, transport, command, or JSON parsing failed.
+
+The last three outcomes are reported as inconclusive rather than counted as
+skill failures. The snapshot grader still requires a `ready` before/after pair
+with identical canonical hashes, so a live success cannot silently omit fixture
+identity or mutation evidence.
+
+## Full Online Comparison
+
+Use the `online` suite to compare `with_skill` and `without_skill` across all
+13 evals. Supply a dedicated fixture profile and workspace; these values
+override the shared Nigel fixture so the comparison is reproducible and does
+not write to the drifted workspace:
+
+```bash
+poetry run python -m slcli.skills.slcli.scripts.prepare_eval_workspace \
+  --suite online \
+  --baseline without_skill \
+  --runs-per-config 1 \
+  --fixture-profile eval-test \
+  --fixture-workspace slcli-eval-fixture \
+  --executor-provider github-copilot \
+  --executor-model '<exact-model-id>' \
+  --harness vscode-copilot-chat
+```
+
+The full suite keeps local packaging evals local-only. Read-only remote evals
+use the assigned shared fixture and require bounded readiness and before/after
+snapshots. Mutating evals use a run-specific namespace and ownership marker;
+they require `created_resources.json` and a clean `cleanup_report.json` before
+they can be graded. Run the lifecycle adapter before and after each remote
+executor:
+
+```bash
+poetry run python -m slcli.skills.slcli.scripts.fixture_lifecycle \
+  provision --run-dir <RUN_DIR>
+poetry run python -m slcli.skills.slcli.scripts.fixture_lifecycle \
+  cleanup --run-dir <RUN_DIR>
+```
+
+The adapter validates an externally provisioned workspace, captures readiness
+and before/after snapshots, and performs typed ownership-checked deletes for
+isolated resources. It never creates a workspace implicitly, so the assigned
+online workspace must exist before the batch starts.
+
+Generate prompts as usual, execute both configurations with fresh stateless
+subagents, and capture exact completion telemetry in `timing.json`. Grade and
+aggregate this iteration separately from offline regression results:
+
+```bash
+poetry run python -m slcli.skills.slcli.scripts.prepare_eval_prompts \
+  slcli/skills/slcli-workspace/iteration-1 \
+  --max-tool-calls 8 --max-minutes 3
+poetry run python -m slcli.skills.slcli.scripts.benchmark_iteration \
+  --skip-gate --force slcli/skills/slcli-workspace/iteration-1
+```
+
+Online fixture drift, unsupported inventories, cleanup failures, and
+infrastructure errors are reported as capability evidence or inconclusive
+results. They must not be interpreted as offline skill regressions.
+
+Once both configurations have artifacts, generate the report without treating
+an unavailable or drifting shared fixture as an offline regression:
+
+```bash
+poetry run python -m slcli.skills.slcli.scripts.benchmark_iteration \
+  --skip-gate \
+  --force \
+  <ITERATION_DIR>
+```
+
+The benchmark records execution mode, fixture identity, readiness counts,
+structured command totals, API latency, and JSON parse successes. Never write
+to the shared Nigel workspace; use an isolated fixture for any future mutation
+eval.
+
 ## Harness Invariants
 
 - Every trial uses a fresh repository sandbox and a fresh stateless subagent.
@@ -120,6 +243,12 @@ trial as inconclusive instead of scoring it as a skill failure.
 - Critical compound workflows must pass within one command invocation.
 - Positive controls must use supported command paths and required arguments.
 - Executor errors and provenance mismatches are inconclusive, never passing evidence.
+- The parent controller writes normalized run metadata from the iteration contract; executor-authored metadata is retained only as raw evidence.
+- Offline runs may inspect local source and help text, but operational `slcli` execution and unsupported claims of live results invalidate the run.
+- Live runs require normalized `execution_records.json`, a readiness snapshot,
+  and before/after snapshots when state preservation is graded.
+- Live fixture drift, unsupported inventory, and infrastructure failures are
+  reported separately from offline skill regressions.
 
 #### Grade and aggregate the iteration
 
@@ -180,7 +309,10 @@ Use `regression` with five trials before a release:
 ```bash
 poetry run python -m slcli.skills.slcli.scripts.prepare_eval_workspace \
   --suite regression \
-  --runs-per-config 5
+  --runs-per-config 5 \
+  --executor-provider github-copilot \
+  --executor-model '<exact-model-id>' \
+  --harness vscode-copilot-chat
 ```
 
 ## Trigger Evaluation

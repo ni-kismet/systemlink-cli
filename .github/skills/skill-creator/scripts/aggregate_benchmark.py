@@ -120,14 +120,11 @@ def load_run_results(benchmark_dir: Path) -> dict:
                 except json.JSONDecodeError as e:
                     print(f"Warning: Invalid JSON in {grading_file}: {e}")
                     continue
-                if grading.get("classification") == "inconclusive":
-                    print(f"Warning: skipping inconclusive run in {run_dir}")
-                    continue
-
                 # Extract metrics
                 result = {
                     "eval_id": eval_id,
                     "run_number": run_number,
+                    "classification": grading.get("classification"),
                     "pass_rate": grading.get("summary", {}).get("pass_rate", 0.0),
                     "passed": grading.get("summary", {}).get("passed", 0),
                     "failed": grading.get("summary", {}).get("failed", 0),
@@ -143,6 +140,8 @@ def load_run_results(benchmark_dir: Path) -> dict:
                 result["tool_calls"] = metrics.get("total_tool_calls", 0)
                 result["tokens"] = metrics.get("total_tokens", 0)
                 result["errors"] = metrics.get("errors_encountered", 0)
+                result["api_latency_seconds"] = metrics.get("api_latency_seconds", 0.0)
+                result["json_parse_successes"] = metrics.get("json_parse_successes", 0)
 
                 # Extract expectations — viewer requires fields: text, passed, evidence
                 raw_expectations = grading.get("expectations", [])
@@ -174,9 +173,24 @@ def aggregate_results(results: dict) -> dict:
     """
     run_summary = {}
     configs = list(results.keys())
+    run_maps = {
+        config: {(run["eval_id"], run["run_number"]): run for run in runs}
+        for config, runs in results.items()
+    }
+    all_pair_keys = sorted(set().union(*(set(runs) for runs in run_maps.values())))
+    included_pair_keys = [
+        key
+        for key in all_pair_keys
+        if all(
+            key in run_maps[config]
+            and run_maps[config][key].get("classification") in {"pass", "fail"}
+            for config in configs
+        )
+    ]
+    excluded_pair_keys = [key for key in all_pair_keys if key not in included_pair_keys]
 
     for config in configs:
-        runs = results.get(config, [])
+        runs = [run_maps[config][key] for key in included_pair_keys]
 
         if not runs:
             run_summary[config] = {
@@ -219,6 +233,16 @@ def aggregate_results(results: dict) -> dict:
         "time_seconds": f"{delta_time:+.1f}",
         "tokens": f"{delta_tokens:+.0f}",
     }
+    run_summary["pairing"] = {
+        "included": [
+            {"eval_id": eval_id, "run_number": run_number}
+            for eval_id, run_number in included_pair_keys
+        ],
+        "excluded": [
+            {"eval_id": eval_id, "run_number": run_number}
+            for eval_id, run_number in excluded_pair_keys
+        ],
+    }
 
     return run_summary
 
@@ -229,9 +253,15 @@ def generate_benchmark(benchmark_dir: Path, skill_name: str = "", skill_path: st
     run_summary = aggregate_results(results)
 
     # Build runs array for benchmark.json
+    included_pairs = {
+        (pair["eval_id"], pair["run_number"])
+        for pair in run_summary.get("pairing", {}).get("included", [])
+    }
     runs = []
     for config in results:
         for result in results[config]:
+            if (result["eval_id"], result["run_number"]) not in included_pairs:
+                continue
             runs.append(
                 {
                     "eval_id": result["eval_id"],
@@ -246,6 +276,8 @@ def generate_benchmark(benchmark_dir: Path, skill_name: str = "", skill_path: st
                         "tokens": result.get("tokens", 0),
                         "tool_calls": result.get("tool_calls", 0),
                         "errors": result.get("errors", 0),
+                        "api_latency_seconds": result.get("api_latency_seconds", 0.0),
+                        "json_parse_successes": result.get("json_parse_successes", 0),
                     },
                     "expectations": result["expectations"],
                     "notes": result["notes"],
@@ -279,7 +311,7 @@ def generate_markdown(benchmark: dict) -> str:
     run_summary = benchmark["run_summary"]
 
     # Determine config names (excluding "delta")
-    configs = [k for k in run_summary if k != "delta"]
+    configs = [k for k in run_summary if k not in {"delta", "pairing"}]
     config_a = configs[0] if len(configs) >= 1 else "config_a"
     config_b = configs[1] if len(configs) >= 2 else "config_b"
     label_a = config_a.replace("_", " ").title()
@@ -391,7 +423,7 @@ def main() -> None:
 
     # Print summary
     run_summary = benchmark["run_summary"]
-    configs = [k for k in run_summary if k != "delta"]
+    configs = [k for k in run_summary if k not in {"delta", "pairing"}]
     delta = run_summary.get("delta", {})
 
     print(f"\nSummary:")
