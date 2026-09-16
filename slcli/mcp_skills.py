@@ -14,6 +14,7 @@ from urllib.parse import unquote, urlsplit
 import yaml  # type: ignore[import-untyped]
 from mcp.server.context import ServerRequestContext
 from mcp.server.extension import Extension, MethodBinding, ResourceBinding
+from mcp.server.mcpserver import require_client_extension
 from mcp.server.mcpserver.resources import BinaryResource, Resource, TextResource
 from mcp.shared.exceptions import MCPError
 from mcp.types import (
@@ -166,6 +167,7 @@ def _modern_only(
     async def gated(context: ServerRequestContext[Any, Any], params: Any) -> Any:
         if not is_version_at_least(context.protocol_version, SKILLS_PROTOCOL_VERSION):
             raise MCPError(code=METHOD_NOT_FOUND, message="Method not found")
+        require_client_extension(context, SKILLS_EXTENSION_IDENTIFIER)
         return await handler(context, params)
 
     return gated

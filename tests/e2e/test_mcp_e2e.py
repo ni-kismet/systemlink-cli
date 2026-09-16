@@ -18,6 +18,7 @@ from typing import Any, Dict, List, Optional, Tuple
 import httpx2 as httpx
 import pytest
 from mcp import Client, ClientSession
+from mcp.client import advertise
 from mcp.client.streamable_http import streamable_http_client
 from mcp.types import LATEST_PROTOCOL_VERSION, CallToolResult, ListToolsResult, Request, TextContent
 
@@ -504,6 +505,7 @@ async def _exercise_mcp_skills(mcp_url: str, timeout_seconds: int) -> None:
             mcp_url,
             mode="auto",
             read_timeout_seconds=float(timeout_seconds),
+            extensions=[advertise(SKILLS_EXTENSION_IDENTIFIER)],
         ) as session:
             assert session.protocol_version == SKILLS_PROTOCOL_VERSION
             capabilities = session.server_capabilities

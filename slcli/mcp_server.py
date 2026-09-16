@@ -48,30 +48,6 @@ class WorkspaceQueryResponse(BaseModel):
     count: int = Field(description="Number of workspaces in items.")
 
 
-_CAPABILITIES = """# slcli MCP capabilities
-
-The server exposes query-oriented tools for the main SystemLink resource types.
-
-Core discovery tools:
-- query_workspaces, query_users
-- search_tags, read_tag_values, get_tag_by_path, query_tag_history
-- query_systems, query_assets, query_alarms
-- query_test_results, get_test_steps
-- query_files, query_notebooks
-- query_workitems, query_workitem_templates, query_workflows
-- query_feeds, query_feed_packages
-- query_webapps
-- query_policies, query_comments
-
-Use the corresponding get_* tool when you already know the resource ID/path.
-Most query tools support a small set of structured filters plus a raw service
-filter when the underlying API supports it.
-
-The bundled slcli Agent Skill provides detailed command and filtering references
-when the client supports the MCP Skills extension.
-"""
-
-
 @server.prompt(
     name="investigate_failed_test_results",
     title="Investigate failed test results",

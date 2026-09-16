@@ -1,6 +1,7 @@
 """Unit tests for the slcli MCP Skills extension."""
 
 import asyncio
+import base64
 import hashlib
 from pathlib import Path
 from typing import Any, Dict, cast
@@ -145,27 +146,53 @@ def test_server_lists_and_reads_all_skill_resources() -> None:
 
     catalog = build_skill_catalog(_find_skill_root())
 
-    async def read_skill() -> ReadResourceResult:
-        async with Client(server, mode=SKILLS_PROTOCOL_VERSION) as client:
+    async def read_skills() -> Dict[str, ReadResourceResult]:
+        from mcp.client import advertise
+
+        async with Client(
+            server,
+            mode=SKILLS_PROTOCOL_VERSION,
+            extensions=[advertise(SKILLS_EXTENSION_IDENTIFIER)],
+        ) as client:
             resources = await client.list_resources()
             assert {resource.uri for resource in resources.resources} == {
                 file.uri for file in catalog.files.values()
             }
-            return await client.read_resource(SKILL_URI)
+            return {
+                relative_path: await client.read_resource(file.uri)
+                for relative_path, file in catalog.files.items()
+            }
 
-    result = asyncio.run(read_skill())
-    content = result.contents[0]
-    assert getattr(content, "text", None) == catalog.files["SKILL.md"].content.decode("utf-8")
+    results = asyncio.run(read_skills())
+    for relative_path, result in results.items():
+        content = result.contents[0]
+        text = getattr(content, "text", None)
+        if text is not None:
+            assert text.encode("utf-8") == catalog.files[relative_path].content
+        else:
+            blob = getattr(content, "blob", None)
+            assert blob is not None
+            assert base64.b64decode(blob) == catalog.files[relative_path].content
 
 
-def test_modern_custom_request_is_served_and_legacy_request_is_gated() -> None:
-    """Skills methods are available on the target revision and absent on legacy wire."""
+def test_modern_custom_request_requires_client_opt_in() -> None:
+    """Skills methods require client opt-in on the target revision."""
     from mcp import Client
+    from mcp.client import advertise
 
     async def call_modern() -> ListSkillsResult:
-        async with Client(server, mode=SKILLS_PROTOCOL_VERSION) as client:
+        async with Client(
+            server,
+            mode=SKILLS_PROTOCOL_VERSION,
+            extensions=[advertise(SKILLS_EXTENSION_IDENTIFIER)],
+        ) as client:
             request = Request(method="skills/list", params=ListSkillsParams())
             return await client.session.send_request(request, ListSkillsResult)
+
+    async def call_without_opt_in() -> None:
+        async with Client(server, mode=SKILLS_PROTOCOL_VERSION, raise_exceptions=True) as client:
+            request = Request(method="skills/list", params=ListSkillsParams())
+            await client.session.send_request(request, ListSkillsResult)
 
     async def call_legacy() -> None:
         async with Client(server, mode="legacy", raise_exceptions=True) as client:
@@ -176,6 +203,19 @@ def test_modern_custom_request_is_served_and_legacy_request_is_gated() -> None:
 
     result = asyncio.run(call_modern())
     assert result.skills[0].uri == SKILL_URI
+
+    with pytest.raises(ExceptionGroup) as error:
+        asyncio.run(call_without_opt_in())
+
+    def contains_error_code(exception: BaseException, code: int) -> bool:
+        if isinstance(exception, MCPError):
+            return exception.code == code
+        if isinstance(exception, BaseExceptionGroup):
+            return any(contains_error_code(child, code) for child in exception.exceptions)
+        return False
+
+    assert contains_error_code(error.value, -32021)
+
     with pytest.raises(ExceptionGroup) as error:
         asyncio.run(call_legacy())
 
