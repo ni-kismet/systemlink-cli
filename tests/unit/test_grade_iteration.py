@@ -65,7 +65,7 @@ def test_grade_run_records_provenance_and_only_grades_response(tmp_path: Path) -
     run_dir = tmp_path / "iteration" / "eval-1" / "with_skill" / "run-1"
     skill_dir = run_dir / "repo" / "slcli" / "skills" / "slcli"
     skill_dir.mkdir(parents=True)
-    (skill_dir / "SKILL.md").write_text("candidate skill\n", encoding="utf-8")
+    (skill_dir / "SKILL.md").write_bytes(b"candidate skill\n")
     write_json(
         run_dir / "run_config.json",
         {"configuration": "with_skill", "repository_root": str(run_dir / "repo")},
