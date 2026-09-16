@@ -53,8 +53,11 @@ def test_catalog_directories_contain_sorted_unique_direct_children() -> None:
     catalog = build_skill_catalog(_find_skill_root())
 
     root_children = catalog.directory_children(SKILL_ROOT_URI)
-    assert [child.name for child in root_children] == ["SKILL.md", "references", "scripts"]
+    assert [child.name for child in root_children] == ["references", "scripts", "slcli"]
     assert len({child.uri for child in root_children}) == len(root_children)
+    skill_child = next(child for child in root_children if child.uri == SKILL_URI)
+    assert skill_child.name == catalog.entry.frontmatter["name"]
+    assert skill_child.description == catalog.entry.frontmatter["description"]
 
     reference_children = catalog.directory_children("skill://slcli/references")
     assert [child.name for child in reference_children] == sorted(
@@ -80,6 +83,9 @@ def test_catalog_directories_contain_sorted_unique_direct_children() -> None:
         "skill://slcli/references\\commands.md",
         "skill://slcli/SKILL.md?query=1",
         "skill://slcli/SKILL.md#fragment",
+        "SKILL://slcli",
+        "skill://slcli?",
+        "skill://slcli#",
         "skill://[invalid/SKILL.md",
     ],
 )
@@ -158,6 +164,11 @@ def test_server_lists_and_reads_all_skill_resources() -> None:
             assert {resource.uri for resource in resources.resources} == {
                 file.uri for file in catalog.files.values()
             }
+            skill_resource = next(
+                resource for resource in resources.resources if resource.uri == SKILL_URI
+            )
+            assert skill_resource.name == catalog.entry.frontmatter["name"]
+            assert skill_resource.description == catalog.entry.frontmatter["description"]
             return {
                 relative_path: await client.read_resource(file.uri)
                 for relative_path, file in catalog.files.items()

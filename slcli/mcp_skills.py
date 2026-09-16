@@ -277,13 +277,31 @@ def _mime_type(path: Path) -> str:
         raise ValueError(f"Unsupported published skill file type: {path}") from exc
 
 
-def _resource(uri: str, name: str, mime_type: str, content: bytes) -> Resource:
+def _resource(
+    uri: str,
+    name: str,
+    mime_type: str,
+    content: bytes,
+    description: Optional[str] = None,
+) -> Resource:
     """Build a resource whose served content matches the indexed bytes."""
     try:
         text = content.decode("utf-8")
     except UnicodeDecodeError:
-        return BinaryResource(uri=uri, name=name, mime_type=mime_type, data=content)
-    return TextResource(uri=uri, name=name, mime_type=mime_type, text=text)
+        return BinaryResource(
+            uri=uri,
+            name=name,
+            description=description,
+            mime_type=mime_type,
+            data=content,
+        )
+    return TextResource(
+        uri=uri,
+        name=name,
+        description=description,
+        mime_type=mime_type,
+        text=text,
+    )
 
 
 def _uri_for(relative_path: str) -> str:
@@ -304,6 +322,7 @@ def _relative_path_for_uri(uri: str) -> str:
         and not parsed.query
         and not parsed.fragment
         and decoded_path == ""
+        and uri == SKILL_ROOT_URI
     ):
         return ""
     if (
@@ -350,12 +369,19 @@ def build_skill_catalog(root: Path) -> SkillCatalog:
             digest=f"sha256:{hashlib.sha256(content).hexdigest()}",
             size=len(content),
         )
+        is_skill_file = relative_path == "SKILL.md"
         files[relative_path] = SkillFile(
             relative_path=relative_path,
             uri=uri,
             content=content,
             mime_type=mime_type,
-            resource=_resource(uri, path.name, mime_type, content),
+            resource=_resource(
+                uri,
+                frontmatter["name"] if is_skill_file else path.name,
+                mime_type,
+                content,
+                frontmatter["description"] if is_skill_file else None,
+            ),
             manifest=manifest,
         )
 
@@ -376,7 +402,12 @@ def build_skill_catalog(root: Path) -> SkillCatalog:
             )
             if parent == directory_uri:
                 children[path.name] = MCPResource(
-                    uri=file.uri, name=path.name, mime_type=file.mime_type
+                    uri=file.uri,
+                    name=frontmatter["name"] if relative_path == "SKILL.md" else path.name,
+                    description=(
+                        frontmatter["description"] if relative_path == "SKILL.md" else None
+                    ),
+                    mime_type=file.mime_type,
                 )
             elif relative_directory and relative_path.startswith(f"{relative_directory}/"):
                 child_name = relative_path[len(relative_directory) + 1 :].split("/", 1)[0]

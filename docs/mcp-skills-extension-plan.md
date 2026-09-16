@@ -1,7 +1,7 @@
 # Hosting the bundled slcli skill over MCP
 
 **Decision date:** 2026-09-16
-**Status:** Decisions resolved; ready for implementation
+**Status:** Implemented
 **Scope:** Publish the existing `slcli` Agent Skill from the existing `slcli-mcp` server.
 
 ## Recommendation
