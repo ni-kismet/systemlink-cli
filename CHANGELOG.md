@@ -2,6 +2,13 @@
 
 <!-- towncrier release notes start -->
 
+## v1.29.3 (2026-09-17)
+
+### Bug Fixes
+
+- Use Web Server identity validation for PKCE logins while preserving SLE/SLS platform metadata during login and bearer health checks. Update generated Angular webapps to use TypeScript's current module resolution and source directory settings without deprecated compiler options. (webapp-typescript-config)
+
+
 ## v1.29.2 (2026-09-17)
 
 ### Documentation
