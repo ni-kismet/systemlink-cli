@@ -2,6 +2,13 @@
 
 <!-- towncrier release notes start -->
 
+## v1.29.2 (2026-09-17)
+
+### Documentation
+
+- Expand the slcli agent skill with domain concepts, command-routing guidance, analysis recipes, and regression evaluations. (slcli-skill-guidance)
+
+
 ## v1.29.1 (2026-09-17)
 
 ### Bug Fixes
