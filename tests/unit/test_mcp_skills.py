@@ -34,7 +34,10 @@ def test_catalog_matches_publish_policy() -> None:
     catalog = build_skill_catalog(_find_skill_root())
 
     assert len(catalog.files) == 31
-    assert sum(len(file.content) for file in catalog.files.values()) == 347451
+    normalized_size = sum(
+        len(file.content.replace(b"\r\n", b"\n")) for file in catalog.files.values()
+    )
+    assert normalized_size == 347451
     assert catalog.entry.uri == SKILL_URI
     assert catalog.entry.frontmatter["name"] == "slcli"
     assert catalog.entry.frontmatter["description"]
