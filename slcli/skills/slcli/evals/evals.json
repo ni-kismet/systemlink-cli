@@ -3,7 +3,7 @@
   "skill_name": "slcli",
   "recommended_suites": {
     "gating": [1, 4, 5, 7, 10],
-    "regression": [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11]
+    "regression": [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16]
   },
   "evals": [
     {
@@ -673,7 +673,10 @@
           "patterns": [
             "--substitution\\s+FAILED",
             "--substitution\\s+ERRORED",
-            "--substitution\\s+TERMINATED"
+            "--substitution\\s+TERMINATED",
+            "--filter\\s+[^\\n]*status\\.statusType\\s*==\\s*@0",
+            "--filter\\s+[^\\n]*status\\.statusType\\s*==\\s*@1",
+            "--filter\\s+[^\\n]*status\\.statusType\\s*==\\s*@2"
           ]
         },
         {
@@ -695,9 +698,12 @@
           "negative_control": "slcli testmonitor result list --filter 'status.statusType == @0 or status.statusType == @1 or status.statusType == @2' --substitution FAILED --substitution ERRORED --substitution TERMINATED",
           "scope": "command",
           "mode": "all_of",
+          "validator": "last_n_days",
+          "days": 7,
+          "control_reference_date": "2026-09-17",
           "patterns": [
             "startedAt\\s*>=\\s*@\\d+",
-            "--substitution\\s+2026-09-10T00:00:00Z"
+            "--substitution\\s+\\d{4}-\\d{2}-\\d{2}T00:00:00Z"
           ]
         }
       ]
@@ -749,6 +755,18 @@
           "patterns": [
             "slcli\\s+state\\s+get\\s+STATE-1"
           ]
+        },
+        {
+          "text": "Keeps package views independent",
+          "critical": true,
+          "positive_control": "slcli feed package list --feed-id FEED-1 --format json\nslcli system get SYS-1 --include-packages --format json\nslcli state get STATE-1 --format json\nThese are independent facts; do not infer one from another.",
+          "negative_control": "slcli feed package list --feed-id FEED-1 --format json\nslcli system get SYS-1 --include-packages --format json\nslcli state get STATE-1 --format json",
+          "scope": "response",
+          "mode": "all_of",
+          "patterns": [
+            "independent facts",
+            "do not infer"
+          ]
         }
       ]
     },
@@ -782,12 +800,34 @@
           "critical": true,
           "positive_control": "slcli tag get-value SYS-1.Health.CPU.MeanUsePercentage\nslcli tag get-value SYS-1.Health.Memory.UsePercentage\nslcli tag get-value SYS-1.Health.Disk.UsePercentage",
           "negative_control": "slcli tag get-value SYS-1.Health.CPU.MeanUsePercentage",
-          "scope": "response",
+          "scope": "commands",
           "mode": "all_of",
           "patterns": [
             "SYS-1\\.Health\\.CPU\\.MeanUsePercentage",
             "SYS-1\\.Health\\.Memory\\.UsePercentage",
             "SYS-1\\.Health\\.Disk\\.UsePercentage"
+          ]
+        },
+        {
+          "text": "Treats incomplete evidence as inconclusive",
+          "critical": true,
+          "positive_control": "slcli system get SYS-1 --include-alarms --format json\nslcli tag get-value SYS-1.Health.CPU.MeanUsePercentage\nMissing or stale evidence makes the health conclusion incomplete.",
+          "negative_control": "slcli system get SYS-1 --include-alarms --format json\nslcli tag get-value SYS-1.Health.CPU.MeanUsePercentage",
+          "scope": "response",
+          "mode": "any_of",
+          "patterns": [
+            "(?:missing|stale).{0,80}(?:incomplete|insufficient|cannot|can't|not definitive)"
+          ]
+        },
+        {
+          "text": "Does not invent utilization thresholds",
+          "critical": true,
+          "positive_control": "slcli system get SYS-1 --include-alarms --format json\nslcli tag get-value SYS-1.Health.CPU.MeanUsePercentage",
+          "negative_control": "slcli system get SYS-1 --include-alarms --format json\nCPU above 80% means the system is unhealthy.",
+          "scope": "response",
+          "mode": "none_of",
+          "patterns": [
+            "(?:cpu|memory|disk|utilization|usage).{0,50}(?:above|below|greater than|less than|[<>]\\s*\\d+%?)"
           ]
         }
       ]
@@ -834,12 +874,13 @@
       "id": 16,
       "tags": ["regression", "assets", "instrument-intent"],
       "prompt": "Show me all connected DMM instruments in SystemLink.",
-      "expected_output": "Interprets DMM as NI 40xx asset models and uses the connected asset inventory query.",
+      "expected_output": "Uses the connected asset inventory query as a 40xx candidate search, then verifies that returned model names contain a standalone 40xx family before presenting them as DMMs.",
       "files": [],
       "expectations": [
         "Uses the asset list command",
         "Maps DMM to the 40xx model family",
-        "Limits results to connected assets"
+        "Limits results to connected assets",
+        "Verifies the returned model names match the standalone 40xx family"
       ],
       "grading_rules": [
         {
@@ -857,13 +898,16 @@
         {
           "text": "Maps DMM to the 40xx model family",
           "critical": true,
-          "positive_control": "slcli asset list --model 40 --connected",
+          "positive_control": "slcli asset list --model 40 --connected --format json | jq '[.[] | select(.modelName | test(\"(^|[^0-9])40[0-9]{2}([^0-9]|$)\"))]'",
           "negative_control": "slcli asset list --model DMM --connected",
-          "scope": "command",
-          "mode": "any_of",
+          "scope": "response",
+          "mode": "all_of",
           "patterns": [
-            "--model\\s+['\"]?(?:NI[^\\n]*-)?40(?:xx|\\*|[0-9]*)?['\"]?",
-            "ModelName[^\\n]*(?:-40|40xx)"
+            "--model\\s+40",
+            "jq\\s+",
+            "test\\(\\\"",
+            "40\\[0-9\\]\\{2\\}",
+            "\\[\\^0-9\\]"
           ]
         }
       ]

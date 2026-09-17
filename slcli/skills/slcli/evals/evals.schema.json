@@ -37,8 +37,9 @@
                 "critical": {"type": "boolean"},
                 "positive_control": {"type": "string", "minLength": 1},
                 "negative_control": {"type": "string", "minLength": 1},
-                "scope": {"enum": ["response", "command"]},
-                "validator": {"enum": ["previous_calendar_month"]},
+                "scope": {"enum": ["response", "command", "commands"]},
+                "validator": {"enum": ["previous_calendar_month", "last_n_days"]},
+                "days": {"type": "integer", "minimum": 1},
                 "control_reference_date": {"type": "string", "format": "date"},
                 "mode": {"enum": ["all_of", "any_of", "none_of"]},
                 "patterns": {"type": "array", "minItems": 1, "items": {"type": "string"}}

@@ -35,7 +35,7 @@ Common NI instrument model families:
 
 | User intent | Model families |
 | --- | --- |
-| DMM or digital multimeter | 40xx |
+| DMM or digital multimeter | standalone 40xx family |
 | SMU or power supply | 41xx |
 | Oscilloscope or scope | 51xx, 59xx |
 | Waveform, signal, or function generator | 54xx |
@@ -47,7 +47,15 @@ Common NI instrument model families:
 NI model names commonly contain a hyphen before the family, such as
 `NI PXIe-5422`. Prefer the `asset list --model` convenience filter; use an
 Asset API expression only when the convenience filter cannot express the
-request.
+request. Because `--model` is a contains match, use it as a candidate
+prefilter for a model family and verify the returned names before treating
+every result as that instrument class. For example, keep only model names
+containing a standalone 40xx family when answering an all-DMM query:
+
+```bash
+slcli asset list --model 40 --connected --format json | \
+  jq '[.[] | select(.modelName | test("(^|[^0-9])40[0-9]{2}([^0-9]|$)"))]'
+```
 
 ## Test data
 

@@ -266,6 +266,53 @@ def test_previous_calendar_month_validator_checks_referenced_substitution_positi
     assert evaluate_rule(response, rule, date(2026, 9, 8))[0] is False
 
 
+def test_last_n_days_validator_uses_reference_date_and_referenced_substitution() -> None:
+    rule = {
+        "mode": "all_of",
+        "scope": "command",
+        "validator": "last_n_days",
+        "days": 7,
+        "patterns": ["startedAt >=", "--substitution"],
+    }
+    reference_date = date(2026, 9, 17)
+
+    valid, _ = evaluate_rule(
+        "slcli testmonitor result list --filter 'startedAt >= @0' "
+        "--substitution 2026-09-10T00:00:00Z",
+        rule,
+        reference_date,
+    )
+    stale, _ = evaluate_rule(
+        "slcli testmonitor result list --filter 'startedAt >= @0' "
+        "--substitution 2026-09-09T00:00:00Z",
+        rule,
+        reference_date,
+    )
+
+    assert valid is True
+    assert stale is False
+
+
+def test_commands_scope_combines_commands_before_matching() -> None:
+    rule = {
+        "mode": "all_of",
+        "scope": "commands",
+        "patterns": [
+            r"slcli\s+tag\s+get-value SYS-1\.Health\.CPU",
+            r"SYS-1\.Health\.Memory",
+        ],
+    }
+
+    assert evaluate_rule(
+        "slcli tag get-value SYS-1.Health.CPU\n" "slcli tag get-value SYS-1.Health.Memory",
+        rule,
+    )[0]
+    assert not evaluate_rule(
+        "The CPU and memory paths are SYS-1.Health.CPU and SYS-1.Health.Memory.",
+        rule,
+    )[0]
+
+
 def test_profile_normalization_applies_to_required_and_forbidden_rules() -> None:
     required = {"mode": "any_of", "scope": "command", "patterns": [r"slcli\s+system\s+list"]}
     forbidden = {"mode": "none_of", "scope": "command", "patterns": [r"slcli\s+asset\s+list"]}

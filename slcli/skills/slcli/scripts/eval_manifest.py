@@ -8,8 +8,8 @@ from pathlib import Path
 from typing import Any
 
 SUPPORTED_RULE_MODES = {"all_of", "any_of", "none_of"}
-SUPPORTED_RULE_SCOPES = {"response", "command"}
-SUPPORTED_RULE_VALIDATORS = {"previous_calendar_month"}
+SUPPORTED_RULE_SCOPES = {"response", "command", "commands"}
+SUPPORTED_RULE_VALIDATORS = {"previous_calendar_month", "last_n_days"}
 
 
 def resolve_fixture_path(skill_dir: Path, relative_path: str) -> Path:
@@ -103,6 +103,10 @@ def validate_manifest(payload: dict[str, Any], skill_dir: Path) -> None:
             validator = rule.get("validator")
             if validator is not None and validator not in SUPPORTED_RULE_VALIDATORS:
                 raise ValueError(f"eval {eval_id} has unsupported rule validator: {validator}")
+            if validator == "last_n_days":
+                days = rule.get("days")
+                if not isinstance(days, int) or isinstance(days, bool) or days <= 0:
+                    raise ValueError(f"eval {eval_id} last_n_days validator requires positive days")
             patterns = rule.get("patterns")
             if (
                 not isinstance(patterns, list)
