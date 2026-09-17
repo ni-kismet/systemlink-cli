@@ -1,1 +1,0 @@
-Expose the bundled slcli Agent Skill through the experimental MCP Skills extension.
