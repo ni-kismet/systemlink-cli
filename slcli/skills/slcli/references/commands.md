@@ -341,6 +341,9 @@ slcli state list [OPTIONS]
 # Get state details
 slcli state get <STATE_ID> [-f json]
 
+# `state list` is for discovery metadata. Use `state get` to inspect the full
+# desired configuration, including packages, feeds, and system image details.
+
 # Create or update a package/feed-defined state
 slcli state create --name TEXT --distribution CHOICE --architecture CHOICE [OPTIONS]
   --workspace, -w TEXT
@@ -747,6 +750,15 @@ slcli auth template delete <TEMPLATE_ID>
 
 Manage package repository feeds used to install software on test systems.
 Supports Windows (.nipkg) and NI Linux RT (.ipk/.deb).
+
+Choose the package view that matches the user's intent:
+
+- Available from a repository: `slcli feed package list --feed-id <FEED_ID>`
+- Installed on one managed system: `slcli system get <SYSTEM_ID> --include-packages`
+- Declared in a desired configuration: `slcli state get <STATE_ID>`
+
+Feed availability, observed installation, and desired-state membership are
+independent facts. Do not infer one from another.
 
 ```bash
 slcli feed list [-w WORKSPACE] [-t INT] [-f json]

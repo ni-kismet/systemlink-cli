@@ -36,6 +36,7 @@ Load only what the current task needs.
 | Datasheet-to-spec workflow | [datasheet-workflow.md](./references/datasheet-workflow.md) | Importing specifications from PDF, CSV, or structured text |
 | Minimal spec import payload | [import-specs.min.json](./references/import-specs.min.json) | Need a bundled create-compatible starter payload or conditions |
 | Spec import helper | [spec_import_helper.py](./scripts/spec_import_helper.py) | Scaffold or validate a datasheet spec import payload |
+| Domain concepts | [domain-concepts.md](./references/domain-concepts.md) | Interpreting resource terminology, relationships, identifiers, status intent, or availability |
 | Filtering guide | [filtering.md](./references/filtering.md) | Advanced filters, LINQ syntax, and query composition |
 | Analysis recipes | [analysis-recipes.md](./references/analysis-recipes.md) | Multi-step analysis workflows and reporting patterns |
 | Troubleshooting | [troubleshooting.md](./references/troubleshooting.md) | SSL, workspace IDs, encoding, or scripting pitfalls |

@@ -17,6 +17,7 @@ Each recipe maps to a real-world scenario and shows the exact commands needed.
 - [Recipe 9: Product family workload distribution](#recipe-9-product-family-workload-distribution)
 - [Recipe 10: Environmental condition failure patterns](#recipe-10-environmental-condition-failure-patterns)
 - [Recipe 11: Create and schedule a work item on a specific fixture/slot and system](#recipe-11-create-and-schedule-a-work-item-on-a-specific-fixtureslot-and-system)
+- [Recipe 12: Find files attached to a resource](#recipe-12-find-files-attached-to-a-resource)
 - [Product discovery and overview](#product-discovery-and-overview)
 - [General tips](#general-tips)
 
@@ -260,6 +261,11 @@ slcli system get <SYSTEM_ID> --include-all -t 5 --workitem-days 60
 # Machine-readable JSON — all sections embedded
 slcli system get <SYSTEM_ID> --include-all -f json
 
+# Read the three current health signals. Tag paths use the system/minion ID.
+slcli tag get-value '<SYSTEM_ID>.Health.CPU.MeanUsePercentage' -f json
+slcli tag get-value '<SYSTEM_ID>.Health.Memory.UsePercentage' -f json
+slcli tag get-value '<SYSTEM_ID>.Health.Disk.UsePercentage' -f json
+
 # Extract just the active alarms
 slcli system get <SYSTEM_ID> --include-alarms -f json | jq '._alarms.items'
 
@@ -286,6 +292,11 @@ slcli system list --state CONNECTED -f json --take 200 | \
 
 > If a service is unavailable, `"error"` contains the error message and the
 > other sections still render normally.
+
+Report connection state, the three values and their timestamps, and alarm
+state together. Missing or stale metrics make the health conclusion
+incomplete. Report raw values and configured alarms; do not invent CPU,
+memory, or disk thresholds.
 
 ---
 
@@ -558,6 +569,54 @@ slcli workitem schedule wi-12345 \
 - `--dut` takes an _asset_ ID of type DEVICE_UNDER_TEST.
 - All three flags are repeatable for multi-resource scheduling.
 - Time and resource flags can be combined in a single `workitem schedule` call.
+
+---
+
+## Recipe 12: Find files attached to a resource
+
+**Question:** Which files are attached to this system, asset, product, work
+item, or test result?
+
+First resolve one canonical resource. File associations then follow one of two
+directions.
+
+**The file references the resource:**
+
+```bash
+# Systems use a property containing the system/minion ID.
+slcli file query \
+  --filter 'properties.minionId:("<SYSTEM_ID>")' \
+  --format json
+```
+
+**The resource contains file IDs:**
+
+```bash
+# Retrieve the resource and retain its fileIds field.
+slcli asset get <ASSET_ID> --format json
+slcli testmonitor product get <PRODUCT_ID> --format json
+slcli testmonitor result get <RESULT_ID> --format json
+slcli workitem get <WORK_ITEM_ID> --format json
+
+# Query the returned IDs together. Add every returned file ID as an OR clause.
+slcli file query \
+  --filter 'id:("<FILE_ID_1>") OR id:("<FILE_ID_2>")' \
+  --format json
+```
+
+Some work items also have files whose properties contain the work-item ID.
+Combine both association directions when the resource data exposes template
+file IDs:
+
+```bash
+slcli file query \
+  --filter 'properties.workItemId:("<WORK_ITEM_ID>") OR id:("<TEMPLATE_FILE_ID>")' \
+  --format json
+```
+
+An empty `fileIds` field proves only that the resource does not reference files
+in that direction. Never substitute the resource ID where a file ID is
+required.
 
 ---
 
