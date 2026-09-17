@@ -8,7 +8,6 @@ import asyncio
 import json
 import sys
 import urllib.parse
-from pathlib import Path
 from typing import Annotated, Any, Callable, Dict, List, Literal, Optional, TypeVar
 
 from mcp.server.mcpserver import MCPServer
@@ -16,6 +15,7 @@ from mcp.types import ToolAnnotations
 from pydantic import BaseModel, Field
 
 from ._version import __version__
+from .mcp_skills import SlcliSkillsExtension
 
 server = MCPServer(
     name="slcli",
@@ -29,6 +29,7 @@ server = MCPServer(
         "visible data was found; it does not prove that a resource does not exist."
     ),
     version=__version__,
+    extensions=[SlcliSkillsExtension()],
 )
 T = TypeVar("T")
 
@@ -40,82 +41,11 @@ _READ_ONLY_TOOL_ANNOTATIONS = ToolAnnotations(
 )
 
 
-def _reference_root_candidates() -> List[Path]:
-    """Return candidate packaged-reference directories for source and frozen layouts."""
-    candidates: List[Path] = []
-
-    meipass = getattr(sys, "_MEIPASS", None)
-    if meipass:
-        candidates.append(Path(meipass) / "skills" / "slcli" / "references")
-
-    if getattr(sys, "frozen", False):
-        candidates.append(Path(sys.executable).resolve().parent / "skills" / "slcli" / "references")
-
-    candidates.append(Path(__file__).resolve().parent / "skills" / "slcli" / "references")
-    return candidates
-
-
-def _find_reference_root() -> Path:
-    """Locate the packaged MCP reference directory."""
-    for candidate in _reference_root_candidates():
-        if candidate.is_dir():
-            return candidate
-    raise FileNotFoundError("Bundled MCP reference files not found.")
-
-
 class WorkspaceQueryResponse(BaseModel):
     """Structured response returned by workspace discovery."""
 
     items: List[Dict[str, Any]] = Field(description="Workspaces matching the supplied filters.")
     count: int = Field(description="Number of workspaces in items.")
-
-
-_CAPABILITIES = """# slcli MCP capabilities
-
-The server exposes query-oriented tools for the main SystemLink resource types.
-
-Core discovery tools:
-- query_workspaces, query_users
-- search_tags, read_tag_values, get_tag_by_path, query_tag_history
-- query_systems, query_assets, query_alarms
-- query_test_results, get_test_steps
-- query_files, query_notebooks
-- query_workitems, query_workitem_templates, query_workflows
-- query_feeds, query_feed_packages
-- query_webapps
-- query_policies, query_comments
-
-Use the corresponding get_* tool when you already know the resource ID/path.
-Most query tools support a small set of structured filters plus a raw service
-filter when the underlying API supports it.
-
-Detailed references are available as read-only resources:
-- slcli://docs/commands
-- slcli://docs/filtering
-"""
-
-
-@server.resource("slcli://capabilities")
-def capabilities() -> str:
-    """Return the tool-selection rules and reference resource index."""
-    return _CAPABILITIES
-
-
-def _read_reference(filename: str) -> str:
-    """Read a packaged slcli skill reference for an MCP resource."""
-    return (_find_reference_root() / filename).read_text(encoding="utf-8")
-
-
-@server.resource("slcli://docs/commands", mime_type="text/markdown")
-def commands_reference() -> str:
-    """Return the complete slcli command and resource reference."""
-    return _read_reference("commands.md")
-
-
-@server.resource("slcli://docs/filtering", mime_type="text/markdown")
-def filtering_reference() -> str:
-    """Return filtering and substitution guidance for SystemLink services."""
-    return _read_reference("filtering.md")
 
 
 @server.prompt(

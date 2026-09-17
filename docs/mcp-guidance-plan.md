@@ -40,16 +40,20 @@ Every tool should have:
 Tool metadata is the primary model-facing contract. Critical routing information
 must not exist only in a resource.
 
-### Reference resources
+### MCP Skills extension
 
-Keep `slcli://capabilities` as a small index. Expose detailed, read-only Markdown
-references for topics that are too large for initialization or tool descriptions:
+Expose the bundled `slcli` Agent Skill through the final
+`io.modelcontextprotocol/skills` extension. Publish the complete static manifest
+and serve its approved files through normal `resources/read` calls:
 
-- `slcli://docs/commands`
-- `slcli://docs/filtering`
+- `skill://slcli/SKILL.md`
+- `skill://slcli/references/...`
+- `skill://slcli/scripts/...`
 
-These resources are backed by the packaged slcli skill references, so the MCP
-server and the installed skill use the same source material.
+The extension also supports `skills/list`, `skills/get`, and
+`resources/directory/read`, and advertises `{ "directoryRead": true }`. The
+three experimental `slcli://` resources are intentionally removed when this
+extension ships.
 
 ### Prompts
 
@@ -76,7 +80,7 @@ Do not claim fields in an output schema that the upstream service does not guara
 ## Implementation status
 
 - [x] Add server initialization guidance and version metadata.
-- [x] Add a capabilities index and packaged Markdown reference resources.
+- [x] Add the bundled slcli skill through the MCP Skills extension.
 - [x] Add read-only/idempotent annotations and richer input metadata to the core
   discovery tools.
 - [x] Document the contract and test expectations.
