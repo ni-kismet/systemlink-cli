@@ -2,6 +2,13 @@
 
 <!-- towncrier release notes start -->
 
+## v1.28.1 (2026-09-17)
+
+### Bug Fixes
+
+- Make the skill evaluation grader fixture platform-independent so Windows release builds can publish. (windows-release-test-fixture)
+
+
 ## v1.28.0 (2026-09-11)
 
 ### Features
