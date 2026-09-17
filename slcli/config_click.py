@@ -179,7 +179,10 @@ def _trust_certificate_if_requested(
 
     try:
         save_managed_certificate(certificate)
-        retry_status = check_service_status(url, credential, auth_scheme=auth_scheme)
+        if auth_scheme == "bearer":
+            retry_status = check_web_server_auth(url, credential, auth_scheme=auth_scheme)
+        else:
+            retry_status = check_service_status(url, credential, auth_scheme=auth_scheme)
     except (OSError, ValueError) as exc:
         _exit_with_validation_error(
             f"Could not save the trusted certificate: {exc}. Profile was not saved.",
@@ -303,10 +306,10 @@ def _add_profile_impl(
 
     assert isinstance(api_key, str)
 
-    # PKCE uses the Web URL for bearer service probes; API-key login uses the API URL.
+    # Validate PKCE against the Web Server identity route; API-key login retains API probes.
     click.echo("Checking server connectivity and services...")
     if auth_mode == "pkce":
-        status = check_service_status(web_url, api_key, auth_scheme="bearer")
+        status = check_web_server_auth(web_url, api_key, auth_scheme="bearer")
     else:
         status = check_service_status(url, api_key)
 
@@ -321,6 +324,11 @@ def _add_profile_impl(
         )
 
     platform = status["platform"]
+    if auth_mode == "pkce":
+        platform_status = check_service_status(web_url, api_key, auth_scheme="bearer")
+        detected_platform = platform_status.get("platform")
+        if detected_platform in (PLATFORM_SLE, PLATFORM_SLS):
+            platform = detected_platform
     services = status.get("services", {})
 
     if not status["server_reachable"]:

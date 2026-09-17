@@ -1,0 +1,1 @@
+Use Web Server identity validation for PKCE logins while preserving SLE/SLS platform metadata during login and bearer health checks. Update generated Angular webapps to use TypeScript's current module resolution and source directory settings without deprecated compiler options.
