@@ -324,6 +324,11 @@ def _add_profile_impl(
         )
 
     platform = status["platform"]
+    if auth_mode == "pkce":
+        platform_status = check_service_status(web_url, api_key, auth_scheme="bearer")
+        detected_platform = platform_status.get("platform")
+        if detected_platform in (PLATFORM_SLE, PLATFORM_SLS):
+            platform = detected_platform
     services = status.get("services", {})
 
     if not status["server_reachable"]:

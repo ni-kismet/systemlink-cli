@@ -882,6 +882,10 @@ class TestPkceProfileVerification:
         monkeypatch.setattr("slcli.config_click._trust_certificate_if_requested", trust_certificate)
         monkeypatch.setattr("slcli.pkce.perform_pkce_login", perform_login)
         monkeypatch.setattr("slcli.pkce.save_pkce_credentials", lambda *args: None)
+        monkeypatch.setattr(
+            "slcli.config_click.check_service_status",
+            lambda *_args, **_kwargs: {"platform": "SLE"},
+        )
 
         _add_profile_impl(
             profile="pkce",
@@ -924,6 +928,8 @@ class TestPkceProfileVerification:
             }
         )
         monkeypatch.setattr("slcli.config_click.check_web_server_auth", mock_web_probe)
+        mock_service_probe = MagicMock(return_value={"platform": "SLE"})
+        monkeypatch.setattr("slcli.config_click.check_service_status", mock_service_probe)
         monkeypatch.setattr("slcli.pkce.save_pkce_credentials", lambda *args: None)
 
         _add_profile_impl(
@@ -946,8 +952,12 @@ class TestPkceProfileVerification:
             ("https://web.example.com", "access-token"),
             {"auth_scheme": "bearer"},
         )
+        mock_service_probe.assert_called_once_with(
+            "https://web.example.com", "access-token", auth_scheme="bearer"
+        )
         saved = json.loads(config_file.read_text())
         assert saved["profiles"]["pkce"]["server"] == "https://api.example.com"
+        assert saved["profiles"]["pkce"]["platform"] == "SLE"
 
     def test_pkce_credential_failure_restores_existing_profile(
         self, tmp_path: Path, monkeypatch: Any
@@ -986,6 +996,10 @@ class TestPkceProfileVerification:
                 "services": {"Web Server": "ok"},
                 "platform": "unknown",
             },
+        )
+        monkeypatch.setattr(
+            "slcli.config_click.check_service_status",
+            lambda *_args, **_kwargs: {"platform": "unknown"},
         )
         monkeypatch.setattr(
             "slcli.pkce.perform_pkce_login",

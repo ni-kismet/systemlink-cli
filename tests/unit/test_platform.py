@@ -1155,6 +1155,42 @@ class TestGetPlatformInfo:
         mock_web_probe.assert_called_once_with("https://web.example.com", "access-token", "bearer")
         mock_api_probe.assert_not_called()
 
+    def test_get_platform_info_preserves_profile_platform_for_bearer_snapshot(self) -> None:
+        """Bearer identity snapshots do not replace a known profile platform."""
+        from slcli.profiles import Profile
+        from slcli.utils import ResolvedConfigValue
+
+        profile = Profile(
+            name="test",
+            server="https://api.example.com",
+            web_url="https://web.example.com",
+            platform=PLATFORM_SLE,
+            auth_mode="pkce",
+        )
+        status = {
+            "server_reachable": True,
+            "auth_valid": True,
+            "services": {"Web Server": "ok"},
+            "platform": PLATFORM_UNKNOWN,
+        }
+
+        with patch("slcli.profiles.get_active_profile", return_value=profile), patch(
+            "slcli.utils.get_base_url_resolution",
+            return_value=ResolvedConfigValue("https://api.example.com", "profile:test"),
+        ), patch(
+            "slcli.utils.get_web_url_resolution",
+            return_value=ResolvedConfigValue("https://web.example.com", "profile:test"),
+        ), patch(
+            "slcli.utils.get_api_key_resolution",
+            return_value=ResolvedConfigValue("access-token", "profile:test:pkce"),
+        ), patch(
+            "slcli.platform._get_service_status_snapshot", return_value=status
+        ):
+            result = get_platform_info()
+
+        assert result["platform"] == PLATFORM_SLE
+        assert result["platform_display"] == "SystemLink Enterprise"
+
     def test_get_platform_info_unauthorized(self) -> None:
         """Test that auth_valid=False is reported when API key is unauthorized."""
         from slcli.profiles import Profile
