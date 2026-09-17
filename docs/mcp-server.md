@@ -45,6 +45,10 @@ slcli mcp install --target all
 The server uses the active slcli profile and stored credentials. No API key is
 copied into the MCP client configuration.
 
+The bundled MCP Skills extension is enabled by default and is experimental.
+Client support is still limited, so use `slcli skill install` for clients that
+do not advertise Skills support.
+
 ## Run the server
 
 Streamable HTTP is the default transport for the local server:
@@ -80,28 +84,30 @@ The server provides guidance through several MCP layers:
    Dynamic LINQ values.
 2. **Tool metadata** contains each tool's description, typed input schema,
    pagination bounds, enum values, and read-only/idempotency annotations.
-3. **Reference resources** provide detailed Markdown documentation when a
-   client needs command syntax or service-specific filters.
+3. **The MCP Skills extension** advertises the bundled `slcli` skill, its
+  complete digest-backed manifest, and the optional virtual directory tree.
 4. **The bundled slcli skill** remains the long-form workflow reference for
-   clients that support installed skills.
+  clients that support Skills or installed skills.
 
 Critical tool-selection rules are included in initialization instructions and
 tool descriptions. Clients are not required to read a resource or install the
 slcli skill.
 
-### Reference resources
+### MCP Skills resources
 
-The server exposes these read-only resources:
+The server exposes every approved file in the bundled skill through normal
+`resources/read` calls:
 
 | URI | Purpose |
 | --- | --- |
-| `slcli://capabilities` | Short tool-selection index |
-| `slcli://docs/commands` | Packaged command and resource reference |
-| `slcli://docs/filtering` | Service filter and substitution reference |
+| `skill://slcli/SKILL.md` | Skill instructions and metadata |
+| `skill://slcli/references/...` | Command, API, and workflow references |
+| `skill://slcli/scripts/...` | Published Python helper scripts |
 
-The detailed resources are read from the packaged files under
-`slcli/skills/slcli/references/`, keeping MCP documentation and the bundled
-skill aligned.
+Clients that implement `io.modelcontextprotocol/skills` can call `skills/list`,
+`skills/get`, and `resources/directory/read`. The server publishes the static
+manifest with SHA-256 digests and byte sizes, excludes `evals/` and generated
+files, and never exposes user configuration or credentials.
 
 ## Tool surface
 
@@ -214,7 +220,8 @@ Dynamic LINQ expression:
 ```
 
 Filtering syntax differs between SystemLink services. Read
-`slcli://docs/filtering` when the service-specific expression is unclear.
+the bundled skill's filtering reference when the service-specific expression is
+unclear.
 
 ## Workflow prompts
 

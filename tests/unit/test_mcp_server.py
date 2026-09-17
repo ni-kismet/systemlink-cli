@@ -40,20 +40,6 @@ def test_server_publishes_client_guidance() -> None:
     assert "substitutions" in instructions
 
 
-def test_server_lists_reference_resources() -> None:
-    """The server exposes the capabilities index and detailed packaged references."""
-    from slcli.mcp_server import server
-
-    resources = asyncio.run(server.list_resources())
-    resource_uris = {resource.uri for resource in resources}
-
-    assert resource_uris == {
-        "slcli://capabilities",
-        "slcli://docs/commands",
-        "slcli://docs/filtering",
-    }
-
-
 def test_server_lists_workflow_prompts() -> None:
     """The server exposes repeatable, user-selected investigation workflows."""
     from slcli.mcp_server import server
@@ -172,33 +158,6 @@ def test_workspace_tool_returns_structured_content(monkeypatch: Any) -> None:
 
     assert result.structured_content == {"items": workspaces, "count": 1}
     assert json.loads(result.content[0].text) == {"items": workspaces, "count": 1}
-
-
-def test_reference_resources_read_packaged_skill_content() -> None:
-    """Reference resources use the packaged skill files as their source of truth."""
-    from slcli.mcp_server import commands_reference, filtering_reference
-
-    assert commands_reference().startswith("# CLI Command Reference")
-    assert filtering_reference().startswith("# Filtering Reference")
-
-
-def test_reference_resources_use_frozen_layout_candidates(monkeypatch: Any, tmp_path: Any) -> None:
-    """Reference resources resolve correctly from the frozen packaged layout."""
-    import slcli.mcp_server as mcp_server
-
-    references_dir = tmp_path / "skills" / "slcli" / "references"
-    references_dir.mkdir(parents=True)
-    (references_dir / "commands.md").write_text("# Frozen Commands", encoding="utf-8")
-    (references_dir / "filtering.md").write_text("# Frozen Filtering", encoding="utf-8")
-
-    monkeypatch.setattr(
-        mcp_server,
-        "_reference_root_candidates",
-        lambda: [references_dir],
-    )
-
-    assert mcp_server.commands_reference() == "# Frozen Commands"
-    assert mcp_server.filtering_reference() == "# Frozen Filtering"
 
 
 def test_run_streamable_http_passes_host_and_port_to_mcp_2() -> None:

@@ -2,6 +2,20 @@
 
 <!-- towncrier release notes start -->
 
+## v1.29.1 (2026-09-17)
+
+### Bug Fixes
+
+- Make the MCP Skills catalog test independent of Windows line-ending conversion. (windows-mcp-skills-catalog)
+
+
+## v1.29.0 (2026-09-17)
+
+### Features
+
+- Expose the bundled slcli Agent Skill through the experimental MCP Skills extension. (mcp-skills-extension)
+
+
 ## v1.28.1 (2026-09-17)
 
 ### Bug Fixes
