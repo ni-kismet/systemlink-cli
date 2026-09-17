@@ -27,6 +27,11 @@ def previous_calendar_month_bounds(reference_date: date) -> tuple[str, str]:
     return previous_month.isoformat(), current_month.isoformat()
 
 
+def rolling_window_lower_bound(reference_date: date, days: int) -> str:
+    """Return the ISO lower bound for a rolling date window."""
+    return (reference_date - timedelta(days=days)).isoformat()
+
+
 def validate_candidate(candidate: str, rule: dict[str, Any], reference_date: date) -> bool:
     """Apply an optional semantic validator to one response candidate."""
     validator = rule.get("validator")
@@ -47,6 +52,19 @@ def validate_candidate(candidate: str, rule: dict[str, Any], reference_date: dat
             substitutions[lower_index].removesuffix("T00:00:00Z") == lower_bound
             and substitutions[upper_index].removesuffix("T00:00:00Z") == upper_bound
         )
+    if validator == "last_n_days":
+        days = rule.get("days")
+        if not isinstance(days, int) or isinstance(days, bool) or days <= 0:
+            return False
+        lower_bound = rolling_window_lower_bound(reference_date, days)
+        lower_match = re.search(r"startedAt\s*>=\s*@(?P<index>\d+)", candidate, re.IGNORECASE)
+        substitutions = re.findall(r"--substitution(?:=|\s+)(\S+)", candidate)
+        if lower_match is None:
+            return False
+        lower_index = int(lower_match.group("index"))
+        if lower_index >= len(substitutions):
+            return False
+        return substitutions[lower_index].removesuffix("T00:00:00Z") == lower_bound
     raise ValueError(f"Unsupported grading rule validator: {validator}")
 
 
@@ -193,7 +211,12 @@ def evaluate_rule(
     mode = rule["mode"]
     patterns = [re.compile(pattern, re.IGNORECASE | re.MULTILINE) for pattern in rule["patterns"]]
     scope = rule.get("scope", "response")
-    candidates = extract_slcli_commands(text) if scope == "command" else [text]
+    if scope == "command":
+        candidates = extract_slcli_commands(text)
+    elif scope == "commands":
+        candidates = ["\n".join(extract_slcli_commands(text))]
+    else:
+        candidates = [text]
     candidate_matches = [
         [pattern.search(candidate) for pattern in patterns] for candidate in candidates
     ]

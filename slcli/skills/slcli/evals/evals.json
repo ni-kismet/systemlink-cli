@@ -3,7 +3,7 @@
   "skill_name": "slcli",
   "recommended_suites": {
     "gating": [1, 4, 5, 7, 10],
-    "regression": [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11]
+    "regression": [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16]
   },
   "evals": [
     {
@@ -634,6 +634,280 @@
           "mode": "none_of",
           "patterns": [
             "slcli\\s+webapp\\s+manifest\\s+init"
+          ]
+        }
+      ]
+    },
+    {
+      "id": 12,
+      "tags": ["regression", "testmonitor", "status-intent"],
+      "prompt": "Show me failed SystemLink tests from the last seven days. Treat every terminal failure outcome as a failure.",
+      "expected_output": "Uses one parameterized testmonitor query covering FAILED, ERRORED, and TERMINATED, constrained to results started during the last seven days without matching unrelated statuses.",
+      "files": [],
+      "expectations": [
+        "Uses the testmonitor result list command",
+        "Expands broad failure intent to FAILED, ERRORED, and TERMINATED",
+        "Uses substitutions rather than interpolating status values",
+        "Adds a parameterized startedAt lower bound for the last seven days",
+        "Does not implement failure as everything other than PASSED"
+      ],
+      "grading_rules": [
+        {
+          "text": "Queries test results",
+          "critical": true,
+          "positive_control": "slcli testmonitor result list --format json",
+          "negative_control": "slcli testmonitor product list --format json",
+          "scope": "command",
+          "mode": "any_of",
+          "patterns": [
+            "slcli\\s+testmonitor\\s+result\\s+list"
+          ]
+        },
+        {
+          "text": "Includes all terminal failure statuses",
+          "critical": true,
+          "positive_control": "slcli testmonitor result list --filter 'status.statusType == @0 or status.statusType == @1 or status.statusType == @2' --substitution FAILED --substitution ERRORED --substitution TERMINATED",
+          "negative_control": "slcli testmonitor result list --status FAILED",
+          "scope": "command",
+          "mode": "all_of",
+          "patterns": [
+            "--substitution\\s+FAILED",
+            "--substitution\\s+ERRORED",
+            "--substitution\\s+TERMINATED",
+            "--filter\\s+[^\\n]*status\\.statusType\\s*==\\s*@0",
+            "--filter\\s+[^\\n]*status\\.statusType\\s*==\\s*@1",
+            "--filter\\s+[^\\n]*status\\.statusType\\s*==\\s*@2"
+          ]
+        },
+        {
+          "text": "Avoids not-passed filtering",
+          "critical": true,
+          "positive_control": "slcli testmonitor result list --filter 'status.statusType == @0' --substitution FAILED",
+          "negative_control": "slcli testmonitor result list --filter 'status.statusType != @0' --substitution PASSED",
+          "scope": "command",
+          "mode": "none_of",
+          "patterns": [
+            "status\\.statusType\\s*!=",
+            "NOT\\s+PASSED"
+          ]
+        },
+        {
+          "text": "Constrains results to the last seven days",
+          "critical": true,
+          "positive_control": "slcli testmonitor result list --filter '(status.statusType == @0 or status.statusType == @1 or status.statusType == @2) and startedAt >= @3' --substitution FAILED --substitution ERRORED --substitution TERMINATED --substitution 2026-09-10T00:00:00Z",
+          "negative_control": "slcli testmonitor result list --filter 'status.statusType == @0 or status.statusType == @1 or status.statusType == @2' --substitution FAILED --substitution ERRORED --substitution TERMINATED",
+          "scope": "command",
+          "mode": "all_of",
+          "validator": "last_n_days",
+          "days": 7,
+          "control_reference_date": "2026-09-17",
+          "patterns": [
+            "startedAt\\s*>=\\s*@\\d+",
+            "--substitution\\s+\\d{4}-\\d{2}-\\d{2}T00:00:00Z"
+          ]
+        }
+      ]
+    },
+    {
+      "id": 13,
+      "tags": ["regression", "packages", "routing"],
+      "prompt": "Show the commands to check packages available in feed FEED-1, packages installed on system SYS-1, and packages declared by desired state STATE-1.",
+      "expected_output": "Routes repository availability, observed installation, and desired-state membership to three distinct slcli command surfaces.",
+      "files": [],
+      "expectations": [
+        "Uses feed package list for available packages",
+        "Uses system details with installed packages for observed installation",
+        "Uses state details for desired packages",
+        "Does not imply that any one package view proves another"
+      ],
+      "grading_rules": [
+        {
+          "text": "Queries available feed packages",
+          "critical": true,
+          "positive_control": "slcli feed package list --feed-id FEED-1 --format json",
+          "negative_control": "slcli feed list --format json",
+          "scope": "command",
+          "mode": "all_of",
+          "patterns": [
+            "slcli\\s+feed\\s+package\\s+list",
+            "--feed-id\\s+FEED-1"
+          ]
+        },
+        {
+          "text": "Queries installed system packages",
+          "critical": true,
+          "positive_control": "slcli system get SYS-1 --include-packages --format json",
+          "negative_control": "slcli system get SYS-1 --format json",
+          "scope": "command",
+          "mode": "all_of",
+          "patterns": [
+            "slcli\\s+system\\s+get\\s+SYS-1",
+            "--include-packages"
+          ]
+        },
+        {
+          "text": "Queries desired-state packages",
+          "critical": true,
+          "positive_control": "slcli state get STATE-1 --format json",
+          "negative_control": "slcli state list --format json",
+          "scope": "command",
+          "mode": "any_of",
+          "patterns": [
+            "slcli\\s+state\\s+get\\s+STATE-1"
+          ]
+        },
+        {
+          "text": "Keeps package views independent",
+          "critical": true,
+          "positive_control": "slcli feed package list --feed-id FEED-1 --format json\nslcli system get SYS-1 --include-packages --format json\nslcli state get STATE-1 --format json\nThese are independent facts; do not infer one from another.",
+          "negative_control": "slcli feed package list --feed-id FEED-1 --format json\nslcli system get SYS-1 --include-packages --format json\nslcli state get STATE-1 --format json",
+          "scope": "response",
+          "mode": "all_of",
+          "patterns": [
+            "independent facts",
+            "do not infer"
+          ]
+        }
+      ]
+    },
+    {
+      "id": 14,
+      "tags": ["regression", "systems", "health"],
+      "prompt": "Check the current health of SystemLink system SYS-1, including current health signals and active alarm instances.",
+      "expected_output": "Combines system state, active alarm instances, and current CPU, memory, and disk health-tag values without inventing thresholds or claiming that an empty instance query means no alarm rule is configured.",
+      "files": [],
+      "expectations": [
+        "Retrieves system details and active alarm instances",
+        "Reads the three standard current health tags",
+        "Treats missing or stale evidence as an incomplete health conclusion",
+        "Does not invent utilization thresholds"
+      ],
+      "grading_rules": [
+        {
+          "text": "Includes system and alarm state",
+          "critical": true,
+          "positive_control": "slcli system get SYS-1 --include-alarms --format json",
+          "negative_control": "slcli system get SYS-1 --format json",
+          "scope": "command",
+          "mode": "all_of",
+          "patterns": [
+            "slcli\\s+system\\s+get\\s+SYS-1",
+            "--include-(?:alarms|all)"
+          ]
+        },
+        {
+          "text": "Reads CPU, memory, and disk health tags",
+          "critical": true,
+          "positive_control": "slcli tag get-value SYS-1.Health.CPU.MeanUsePercentage\nslcli tag get-value SYS-1.Health.Memory.UsePercentage\nslcli tag get-value SYS-1.Health.Disk.UsePercentage",
+          "negative_control": "slcli tag get-value SYS-1.Health.CPU.MeanUsePercentage",
+          "scope": "commands",
+          "mode": "all_of",
+          "patterns": [
+            "SYS-1\\.Health\\.CPU\\.MeanUsePercentage",
+            "SYS-1\\.Health\\.Memory\\.UsePercentage",
+            "SYS-1\\.Health\\.Disk\\.UsePercentage"
+          ]
+        },
+        {
+          "text": "Treats incomplete evidence as inconclusive",
+          "critical": true,
+          "positive_control": "slcli system get SYS-1 --include-alarms --format json\nslcli tag get-value SYS-1.Health.CPU.MeanUsePercentage\nMissing or stale evidence makes the health conclusion incomplete.",
+          "negative_control": "slcli system get SYS-1 --include-alarms --format json\nslcli tag get-value SYS-1.Health.CPU.MeanUsePercentage",
+          "scope": "response",
+          "mode": "any_of",
+          "patterns": [
+            "(?:missing|stale).{0,80}(?:incomplete|insufficient|cannot|can't|not definitive)"
+          ]
+        },
+        {
+          "text": "Does not invent utilization thresholds",
+          "critical": true,
+          "positive_control": "slcli system get SYS-1 --include-alarms --format json\nslcli tag get-value SYS-1.Health.CPU.MeanUsePercentage",
+          "negative_control": "slcli system get SYS-1 --include-alarms --format json\nCPU above 80% means the system is unhealthy.",
+          "scope": "response",
+          "mode": "none_of",
+          "patterns": [
+            "(?:cpu|memory|disk|utilization|usage).{0,50}(?:above|below|greater than|less than|[<>]\\s*\\d+%?)"
+          ]
+        }
+      ]
+    },
+    {
+      "id": 15,
+      "tags": ["regression", "files", "relationships"],
+      "prompt": "Find files attached to SystemLink system SYS-1 in workspace WORKSPACE-1. SYS-1 is the exact system ID.",
+      "expected_output": "Lists files in the resolved workspace and filters the system-reference property locally rather than treating the system ID as a file ID.",
+      "files": [],
+      "expectations": [
+        "Uses the file list command with the resolved workspace",
+        "Filters properties.minionId with the supplied system ID",
+        "Does not use SYS-1 as a file ID"
+      ],
+      "grading_rules": [
+        {
+          "text": "Queries the system file-reference property",
+          "critical": true,
+          "positive_control": "slcli file list --workspace WORKSPACE-1 --take 1000 --format json | jq --arg system_id SYS-1 '[.[] | select(.properties.minionId == $system_id)]'",
+          "negative_control": "slcli file list --workspace WORKSPACE-1 --id-filter SYS-1 --format json",
+          "scope": "response",
+          "mode": "all_of",
+          "patterns": [
+            "slcli\\s+file\\s+list",
+            "--workspace\\s+WORKSPACE-1",
+            "properties\\.minionId[^\\n]*system_id"
+          ]
+        },
+        {
+          "text": "Does not treat the system ID as a file ID",
+          "critical": true,
+          "positive_control": "select(.properties.minionId == $system_id)",
+          "negative_control": "select(.id == $system_id)",
+          "scope": "response",
+          "mode": "none_of",
+          "patterns": [
+            "select\\(\\.id\\s*=="
+          ]
+        }
+      ]
+    },
+    {
+      "id": 16,
+      "tags": ["regression", "assets", "instrument-intent"],
+      "prompt": "Show me all connected DMM instruments in SystemLink.",
+      "expected_output": "Uses the connected asset inventory query as a 40xx candidate search, then verifies that returned model names contain a standalone 40xx family before presenting them as DMMs.",
+      "files": [],
+      "expectations": [
+        "Uses the asset list command",
+        "Maps DMM to the 40xx model family",
+        "Limits results to connected assets",
+        "Verifies the returned model names match the standalone 40xx family"
+      ],
+      "grading_rules": [
+        {
+          "text": "Queries connected assets",
+          "critical": true,
+          "positive_control": "slcli asset list --model 40 --connected --format json",
+          "negative_control": "slcli system list --has-package DAQmx --format json",
+          "scope": "command",
+          "mode": "all_of",
+          "patterns": [
+            "slcli\\s+asset\\s+list",
+            "--connected"
+          ]
+        },
+        {
+          "text": "Maps DMM to the 40xx model family",
+          "critical": true,
+          "positive_control": "slcli asset list --model 40 --connected --format json | jq '[.[] | select(.modelName | test(\"(^|[^0-9])40[0-9]{2}([^0-9]|$)\"))]'",
+          "negative_control": "slcli asset list --model DMM --connected",
+          "scope": "response",
+          "mode": "all_of",
+          "patterns": [
+            "--model\\s+40",
+            "jq\\s+",
+            "test\\(\\\"",
+            "40\\[0-9\\]\\{2\\}",
+            "\\[\\^0-9\\]"
           ]
         }
       ]

@@ -33,15 +33,15 @@ def test_catalog_matches_publish_policy() -> None:
     """The static catalog contains exactly the approved bundled skill files."""
     catalog = build_skill_catalog(_find_skill_root())
 
-    assert len(catalog.files) == 31
+    assert len(catalog.files) == 32
     normalized_size = sum(
         len(file.content.replace(b"\r\n", b"\n")) for file in catalog.files.values()
     )
-    assert normalized_size == 347451
+    assert normalized_size == 358560
     assert catalog.entry.uri == SKILL_URI
     assert catalog.entry.frontmatter["name"] == "slcli"
     assert catalog.entry.frontmatter["description"]
-    assert len(catalog.entry.resources) == 31
+    assert len(catalog.entry.resources) == 32
     assert all("evals/" not in path for path in catalog.files)
     assert all("__pycache__" not in path and not path.endswith(".pyc") for path in catalog.files)
 

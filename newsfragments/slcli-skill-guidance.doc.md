@@ -1,0 +1,1 @@
+Expand the slcli agent skill with domain concepts, command-routing guidance, analysis recipes, and regression evaluations.
