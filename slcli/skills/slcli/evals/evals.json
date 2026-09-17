@@ -642,12 +642,13 @@
       "id": 12,
       "tags": ["regression", "testmonitor", "status-intent"],
       "prompt": "Show me failed SystemLink tests from the last seven days. Treat every terminal failure outcome as a failure.",
-      "expected_output": "Uses one parameterized testmonitor query covering FAILED, ERRORED, and TERMINATED without matching unrelated statuses.",
+      "expected_output": "Uses one parameterized testmonitor query covering FAILED, ERRORED, and TERMINATED, constrained to results started during the last seven days without matching unrelated statuses.",
       "files": [],
       "expectations": [
         "Uses the testmonitor result list command",
         "Expands broad failure intent to FAILED, ERRORED, and TERMINATED",
         "Uses substitutions rather than interpolating status values",
+        "Adds a parameterized startedAt lower bound for the last seven days",
         "Does not implement failure as everything other than PASSED"
       ],
       "grading_rules": [
@@ -685,6 +686,18 @@
           "patterns": [
             "status\\.statusType\\s*!=",
             "NOT\\s+PASSED"
+          ]
+        },
+        {
+          "text": "Constrains results to the last seven days",
+          "critical": true,
+          "positive_control": "slcli testmonitor result list --filter '(status.statusType == @0 or status.statusType == @1 or status.statusType == @2) and startedAt >= @3' --substitution FAILED --substitution ERRORED --substitution TERMINATED --substitution 2026-09-10T00:00:00Z",
+          "negative_control": "slcli testmonitor result list --filter 'status.statusType == @0 or status.statusType == @1 or status.statusType == @2' --substitution FAILED --substitution ERRORED --substitution TERMINATED",
+          "scope": "command",
+          "mode": "all_of",
+          "patterns": [
+            "startedAt\\s*>=\\s*@\\d+",
+            "--substitution\\s+2026-09-10T00:00:00Z"
           ]
         }
       ]
@@ -742,11 +755,11 @@
     {
       "id": 14,
       "tags": ["regression", "systems", "health"],
-      "prompt": "Check the current health of SystemLink system SYS-1, including configured health signals and alarms.",
-      "expected_output": "Combines system state, active alarms, and current CPU, memory, and disk health-tag values without inventing thresholds.",
+      "prompt": "Check the current health of SystemLink system SYS-1, including current health signals and active alarm instances.",
+      "expected_output": "Combines system state, active alarm instances, and current CPU, memory, and disk health-tag values without inventing thresholds or claiming that an empty instance query means no alarm rule is configured.",
       "files": [],
       "expectations": [
-        "Retrieves system details and alarms",
+        "Retrieves system details and active alarm instances",
         "Reads the three standard current health tags",
         "Treats missing or stale evidence as an incomplete health conclusion",
         "Does not invent utilization thresholds"
@@ -782,11 +795,11 @@
     {
       "id": 15,
       "tags": ["regression", "files", "relationships"],
-      "prompt": "Find files attached to SystemLink system SYS-1. SYS-1 is the exact system ID.",
-      "expected_output": "Queries files through the system-reference property rather than treating the system ID as a file ID.",
+      "prompt": "Find files attached to SystemLink system SYS-1 in workspace WORKSPACE-1. SYS-1 is the exact system ID.",
+      "expected_output": "Lists files in the resolved workspace and filters the system-reference property locally rather than treating the system ID as a file ID.",
       "files": [],
       "expectations": [
-        "Uses the file query command",
+        "Uses the file list command with the resolved workspace",
         "Filters properties.minionId with the supplied system ID",
         "Does not use SYS-1 as a file ID"
       ],
@@ -794,24 +807,25 @@
         {
           "text": "Queries the system file-reference property",
           "critical": true,
-          "positive_control": "slcli file query --filter 'properties.minionId:(\"SYS-1\")' --format json",
-          "negative_control": "slcli file query --filter 'id:(\"SYS-1\")' --format json",
-          "scope": "command",
+          "positive_control": "slcli file list --workspace WORKSPACE-1 --take 1000 --format json | jq --arg system_id SYS-1 '[.[] | select(.properties.minionId == $system_id)]'",
+          "negative_control": "slcli file list --workspace WORKSPACE-1 --id-filter SYS-1 --format json",
+          "scope": "response",
           "mode": "all_of",
           "patterns": [
-            "slcli\\s+file\\s+query",
-            "properties\\.minionId[^\\n]*SYS-1"
+            "slcli\\s+file\\s+list",
+            "--workspace\\s+WORKSPACE-1",
+            "properties\\.minionId[^\\n]*system_id"
           ]
         },
         {
           "text": "Does not treat the system ID as a file ID",
           "critical": true,
-          "positive_control": "properties.minionId:(\"SYS-1\")",
-          "negative_control": "id:(\"SYS-1\")",
+          "positive_control": "select(.properties.minionId == $system_id)",
+          "negative_control": "select(.id == $system_id)",
           "scope": "response",
           "mode": "none_of",
           "patterns": [
-            "(?:^|\\s)id:\\(?.{0,4}SYS-1"
+            "select\\(\\.id\\s*=="
           ]
         }
       ]

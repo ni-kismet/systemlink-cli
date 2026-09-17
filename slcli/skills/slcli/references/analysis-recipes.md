@@ -262,9 +262,13 @@ slcli system get <SYSTEM_ID> --include-all -t 5 --workitem-days 60
 slcli system get <SYSTEM_ID> --include-all -f json
 
 # Read the three current health signals. Tag paths use the system/minion ID.
-slcli tag get-value '<SYSTEM_ID>.Health.CPU.MeanUsePercentage' -f json
-slcli tag get-value '<SYSTEM_ID>.Health.Memory.UsePercentage' -f json
-slcli tag get-value '<SYSTEM_ID>.Health.Disk.UsePercentage' -f json
+# Use the workspace resolved for this system, not only the active profile workspace.
+slcli tag get-value '<SYSTEM_ID>.Health.CPU.MeanUsePercentage' \
+  --workspace "$WORKSPACE_ID" -f json
+slcli tag get-value '<SYSTEM_ID>.Health.Memory.UsePercentage' \
+  --workspace "$WORKSPACE_ID" -f json
+slcli tag get-value '<SYSTEM_ID>.Health.Disk.UsePercentage' \
+  --workspace "$WORKSPACE_ID" -f json
 
 # Extract just the active alarms
 slcli system get <SYSTEM_ID> --include-alarms -f json | jq '._alarms.items'
@@ -293,10 +297,12 @@ slcli system list --state CONNECTED -f json --take 200 | \
 > If a service is unavailable, `"error"` contains the error message and the
 > other sections still render normally.
 
-Report connection state, the three values and their timestamps, and alarm
-state together. Missing or stale metrics make the health conclusion
-incomplete. Report raw values and configured alarms; do not invent CPU,
-memory, or disk thresholds.
+Report connection state, the three values and their timestamps, and active alarm
+instances together. `--include-alarms` does not enumerate configured alarm
+rules, so an empty instance query does not prove that no rule is configured.
+Missing or stale metrics make the health conclusion incomplete. Report raw
+values and active alarm instances; do not invent CPU, memory, or disk
+thresholds.
 
 ---
 
@@ -580,13 +586,18 @@ item, or test result?
 First resolve one canonical resource. File associations then follow one of two
 directions.
 
+Resolve the resource's workspace first and retain it as `WORKSPACE_ID` for every
+file command below.
+
 **The file references the resource:**
 
 ```bash
-# Systems use a property containing the system/minion ID.
-slcli file query \
-  --filter 'properties.minionId:("<SYSTEM_ID>")' \
-  --format json
+# Systems use a property containing the system/minion ID. List the workspace
+# and apply the property filter locally so the workflow also works when the
+# search-files endpoint is unavailable.
+slcli file list --workspace "$WORKSPACE_ID" --take 1000 --format json | \
+  jq --arg system_id "<SYSTEM_ID>" \
+    '[.[] | select(.properties.minionId == $system_id)]'
 ```
 
 **The resource contains file IDs:**
@@ -598,9 +609,10 @@ slcli testmonitor product get <PRODUCT_ID> --format json
 slcli testmonitor result get <RESULT_ID> --format json
 slcli workitem get <WORK_ITEM_ID> --format json
 
-# Query the returned IDs together. Add every returned file ID as an OR clause.
-slcli file query \
-  --filter 'id:("<FILE_ID_1>") OR id:("<FILE_ID_2>")' \
+# Query the returned IDs together with the portable ID filter.
+slcli file list \
+  --workspace "$WORKSPACE_ID" \
+  --id-filter "<FILE_ID_1>,<FILE_ID_2>" \
   --format json
 ```
 
@@ -609,14 +621,18 @@ Combine both association directions when the resource data exposes template
 file IDs:
 
 ```bash
-slcli file query \
-  --filter 'properties.workItemId:("<WORK_ITEM_ID>") OR id:("<TEMPLATE_FILE_ID>")' \
-  --format json
+slcli file list --workspace "$WORKSPACE_ID" --take 1000 --format json | \
+  jq --arg work_item_id "<WORK_ITEM_ID>" \
+     --arg template_file_id "<TEMPLATE_FILE_ID>" \
+    '[.[] | select(
+      .properties.workItemId == $work_item_id or .id == $template_file_id
+    )]'
 ```
 
 An empty `fileIds` field proves only that the resource does not reference files
 in that direction. Never substitute the resource ID where a file ID is
-required.
+required. Increase the bounded workspace listing when the workspace contains
+more than 1000 files.
 
 ---
 

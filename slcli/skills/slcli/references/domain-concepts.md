@@ -19,8 +19,9 @@ references for supported syntax.
 ## Assets and systems
 
 - In hardware questions, treat "asset", "device", and "instrument" as asset
-  inventory. Treat DAQmx as an instrument class unless the user asks about the
-  installed driver, package, software, or version.
+  inventory. Treat DMM and device aliases as asset classes. Treat DAQmx as
+  software/package data, including when the user asks about its installation,
+  capabilities, or version.
 - Asset types are `GENERIC`, `DEVICE_UNDER_TEST`, `FIXTURE`, and `SYSTEM`.
   Fixtures are also called slots in scheduling workflows. A DUT or UUT is a
   `DEVICE_UNDER_TEST` asset associated with a product part number.
@@ -76,8 +77,8 @@ request.
 ## Work items and users
 
 - A work item describes test or maintenance work, assignment, schedule, target
-  product, and reserved resources. A work order is a work item whose type is
-  `workorder`.
+  product, and reserved resources. Use the `slcli workitem` command group for
+  work-item discovery, creation, scheduling, and lifecycle operations.
 - "Free" means no scheduled work item overlaps the requested interval. It does
   not mean connected, present, or unlocked.
 - Fields such as `assignedTo`, `requestedBy`, `createdBy`, and `updatedBy`
