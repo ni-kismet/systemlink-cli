@@ -536,7 +536,7 @@ async def _exercise_mcp_skills(mcp_url: str, timeout_seconds: int) -> None:
             )
             assert directory.result_type == "complete"
             assert {resource.name for resource in directory.resources} == {
-                "SKILL.md",
+                "slcli",
                 "references",
                 "scripts",
             }
