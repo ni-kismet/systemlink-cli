@@ -389,6 +389,8 @@ def test_login_pkce_uses_bearer_token_and_stores_metadata(monkeypatch: Any, tmp_
         }
     )
     monkeypatch.setattr(config_click, "check_web_server_auth", mock_web_probe)
+    mock_service_probe = MagicMock(return_value={"platform": "SLE"})
+    monkeypatch.setattr(config_click, "check_service_status", mock_service_probe)
 
     result = CliRunner().invoke(
         cli,
@@ -416,6 +418,10 @@ def test_login_pkce_uses_bearer_token_and_stores_metadata(monkeypatch: Any, tmp_
     assert "api-key" not in profile
     assert "PKCE bearer token:  ✓ Authorized" in result.output
     assert mock_web_probe.call_args_list[-1] == (
+        ("https://web.example", "access-token"),
+        {"auth_scheme": "bearer"},
+    )
+    assert mock_service_probe.call_args_list[-1] == (
         ("https://web.example", "access-token"),
         {"auth_scheme": "bearer"},
     )
