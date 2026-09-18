@@ -1,1 +1,1 @@
-Return exit code PERMISSION_DENIED when any service probe returns unauthorized instead of GENERAL_ERROR
+Return exit code PERMISSION_DENIED when any service probe returns unauthorized instead of GENERAL_ERROR for SystemLink Server platforms.
