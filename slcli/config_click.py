@@ -109,6 +109,11 @@ def _all_service_probes_unauthorized(services: dict[str, str]) -> bool:
     return bool(services) and all(status == "unauthorized" for status in services.values())
 
 
+def _any_service_probes_unauthorized(services: dict[str, str]) -> bool:
+    """Return True if any recorded service probe failed with authorization."""
+    return bool(services) and any(status == "unauthorized" for status in services.values())
+
+
 def _normalize_fingerprint(fingerprint: str) -> str:
     """Normalize a SHA-256 certificate fingerprint supplied by a user."""
     normalized = fingerprint.replace(":", "").replace(" ", "").strip().upper()
@@ -330,7 +335,10 @@ def _add_profile_impl(
             ExitCodes.NETWORK_ERROR,
         )
 
-    if status["auth_valid"] is False and _all_service_probes_unauthorized(services):
+    if status["auth_valid"] is False and (
+        _all_service_probes_unauthorized(services)
+        or (_any_service_probes_unauthorized(services) and platform == PLATFORM_SLS)
+    ):
         auth_failure_message = (
             "PKCE bearer token validation failed. The server responded, but the token was not authorized. "
             if auth_mode == "pkce"
