@@ -351,7 +351,8 @@ slcli system remove &lt;system-id&gt; --force</code></pre>
       <p>When a Salt job is received or returned, the command also prints its job ID, function name(s), target, and return status. Job arguments, tokens, and encrypted payloads are not displayed.</p>
       <pre><code>RUNNING_JOB: Received Salt job (jid=20260919123456789012, functions=nisysmgmt.state_apply, target=slcli-test-001)
     CONNECTED: Sent Salt job return (jid=20260919123456789012, functions=nisysmgmt.state_apply, target=slcli-test-001, retcode=0, success=True)</code></pre>
-      <p>After the key is approved, the minion reconnects, registers on the Salt publish channel, receives allowlisted deterministic test jobs, and returns their results. Reconnects reuse the same identity. Keep the state directory private and use a distinct directory for each test minion.</p>
+      <p>After the key is approved, the minion reconnects, registers on the Salt publish channel, receives allowlisted deterministic test jobs, and returns their results. Reconnects reuse the same identity and stop after the configured retry limit. Keep the state directory private and use a distinct directory for each test minion.</p>
+      <p>The managed client supports Windows, macOS, and Linux when a compatible OpenSSL <code>libcrypto</code> provider exposes the legacy RSA symbols required for Salt's X9.31 signatures. It fails with a clear error when that provider is unavailable. POSIX state directories and keys use owner-only permissions; Windows removes inherited ACLs and grants access only to the current user.</p>
 
       <h3>Run Options</h3>
       <pre><code>slcli managed-client run [OPTIONS]
@@ -362,7 +363,10 @@ slcli system remove &lt;system-id&gt; --force</code></pre>
   --request-port INTEGER        Salt request-channel TCP port. [default: 4506]
   --request-timeout FLOAT       Socket timeout in seconds. [default: 10.0]
   --reconnect-interval FLOAT    Delay between auth/reconnect attempts.
-                                [default: 1.0]</code></pre>
+                                [default: 1.0]
+  --max-reconnect-attempts INTEGER
+                                Maximum retries before the minion fails.
+                                [default: 5]</code></pre>
 
       <h3>Reset Local Identity</h3>
       <p>Reset removes only <code>metadata.json</code>, <code>minion-key.pem</code>, and <code>minion-key.pub.pem</code> from the supplied state directory. It does not remove server-side keys, systems, jobs, or other files in that directory. Stop the foreground minion before resetting.</p>

@@ -37,16 +37,18 @@ def test_list_key_states_parses_optional_categories() -> None:
 
 
 def test_approve_and_delete_use_scoped_key_actions() -> None:
-    """Approval includes the key and workspace; deletion remains scoped."""
+    """Approval includes the key and deletion verifies the approved key."""
     calls: list[dict[str, Any]] = []
 
     def request(method: str, url: str, **kwargs: Any) -> FakeResponse:
+        if kwargs["payload"] == {"systemIds": ["minion-1"]}:
+            return FakeResponse({"systemsApproved": {"minion-1": "public-key"}})
         calls.append(kwargs["payload"])
         return FakeResponse({})
 
     adapter = ManagedClientRestAdapter(base_url="https://example.test", request=request)
     adapter.approve_pending_key("minion-1", "public-key", "workspace-1")
-    adapter.delete_managed_system("minion-1", "workspace-1")
+    adapter.delete_managed_system("minion-1", "workspace-1", "public-key")
 
     assert calls == [
         {
@@ -61,6 +63,39 @@ def test_approve_and_delete_use_scoped_key_actions() -> None:
         },
         {"keyActions": [{"id": "minion-1", "action": "DELETE", "workspace": "workspace-1"}]},
     ]
+
+
+def test_delete_rejects_a_different_approved_key() -> None:
+    """Cleanup refuses to delete a system whose approved key does not match."""
+    methods: list[str] = []
+
+    def request(method: str, url: str, **kwargs: Any) -> FakeResponse:
+        methods.append(method)
+        return FakeResponse({"systemsApproved": {"other-minion": "other-key"}})
+
+    adapter = ManagedClientRestAdapter(
+        base_url="https://example.test",
+        request=request,
+    )
+
+    with pytest.raises(ManagedClientError, match="public key does not match"):
+        adapter.delete_managed_system("minion-1", "workspace-1", "public-key")
+    assert methods == ["POST"]
+
+
+def test_delete_rejects_a_pending_key() -> None:
+    """Cleanup refuses to delete a system that has not been approved."""
+    methods: list[str] = []
+
+    def request(method: str, url: str, **kwargs: Any) -> FakeResponse:
+        methods.append(method)
+        return FakeResponse({"systemsPending": {"minion-1": "public-key"}})
+
+    adapter = ManagedClientRestAdapter(base_url="https://example.test", request=request)
+
+    with pytest.raises(ManagedClientError, match="public key does not match"):
+        adapter.delete_managed_system("minion-1", "workspace-1", "public-key")
+    assert methods == ["POST"]
 
 
 def test_invalid_key_state_response_fails_closed() -> None:

@@ -30,6 +30,10 @@ class UnsupportedCryptoError(ManagedClientError):
     """Raised when a required cryptographic operation has no approved adapter."""
 
 
+class ReconnectLimitExceededError(ManagedClientError):
+    """Raised when a minion exceeds its configured reconnect attempts."""
+
+
 class TransportError(ManagedClientError):
     """Raised when a Salt socket cannot send or receive a frame."""
 
@@ -63,6 +67,7 @@ class MinionConfiguration:
     protocol_version: int = 3
     request_timeout: float = 10.0
     reconnect_interval: float = 1.0
+    max_reconnect_attempts: int = 5
     request_port: int = 4506
     api_key: Optional[str] = None
 
@@ -78,6 +83,8 @@ class MinionConfiguration:
             raise ConfigurationError("The request timeout must be positive.")
         if self.reconnect_interval <= 0:
             raise ConfigurationError("The reconnect interval must be positive.")
+        if self.max_reconnect_attempts < 1:
+            raise ConfigurationError("The maximum reconnect attempts must be positive.")
         if not 1 <= self.request_port <= 65535:
             raise ConfigurationError("The request port must be between 1 and 65535.")
 

@@ -25,6 +25,7 @@ from .models import (
     MinionEvent,
     MinionPhase,
     ProtocolError,
+    ReconnectLimitExceededError,
     StateError,
     TransportError,
     UnsupportedCryptoError,
@@ -83,6 +84,7 @@ class TestMinion:
         self._events: list[MinionEvent] = []
         self._channels: set[SaltChannel] = set()
         self._last_error: str | None = None
+        self._reconnect_attempts = 0
 
     @property
     def minion_id(self) -> str:
@@ -213,6 +215,7 @@ class TestMinion:
                             signer=self._token_signer,
                         )
                     )
+                    self._reconnect_attempts = 0
                     self._set_phase(MinionPhase.CONNECTED, "Publish channel connected")
                     self._run_connected(
                         request_channel,
@@ -372,14 +375,24 @@ class TestMinion:
             self._channels.discard(channel)
 
     def _record_reconnect(self, error: Exception) -> None:
-        """Record a safe reconnect event and wait for the next attempt."""
+        """Record a reconnect event and wait for the next bounded attempt."""
         self._close_channels()
+        self._reconnect_attempts += 1
+        if self._reconnect_attempts > self.configuration.max_reconnect_attempts:
+            raise ReconnectLimitExceededError(
+                "The Salt reconnect limit was exceeded after "
+                f"{self.configuration.max_reconnect_attempts} attempts."
+            )
         with self._condition:
             self._last_error = type(error).__name__
         self._set_phase(
             MinionPhase.RECONNECTING,
             "Salt channel interrupted; retrying",
-            details={"error_type": type(error).__name__},
+            details={
+                "error_type": type(error).__name__,
+                "retry_count": str(self._reconnect_attempts),
+            },
+            retry_count=self._reconnect_attempts,
         )
         self._stop_event.wait(self.configuration.reconnect_interval)
 
@@ -398,22 +411,25 @@ class TestMinion:
         phase: MinionPhase,
         message: str,
         details: dict[str, str] | None = None,
+        retry_count: int = 0,
     ) -> None:
         """Publish a phase transition and notify state waiters."""
         with self._condition:
-            self._set_phase_locked(phase, message, details)
+            self._set_phase_locked(phase, message, details, retry_count)
 
     def _set_phase_locked(
         self,
         phase: MinionPhase,
         message: str,
         details: dict[str, str] | None = None,
+        retry_count: int = 0,
     ) -> None:
         """Set phase while the condition lock is held."""
         self._phase = phase
         event = MinionEvent(
             phase=phase,
             message=message,
+            retry_count=retry_count,
             endpoint=self._endpoint.host,
             details=details or {},
         )

@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import base64
+import hashlib
 import queue
 import socket
 import threading
@@ -16,6 +17,9 @@ from slcli.managed_client.crypto import (
     encrypt_aes_192_cbc_hmac,
     encrypt_rsa_oaep,
     generate_rsa_key_pair,
+    rsa_x931_decrypt,
+    rsa_x931_sign,
+    sign_rsa_pkcs1_sha1,
     serialize_public_key,
 )
 from slcli.managed_client.protocol import SaltMessage, decrypt_message_load, pack_inner_load
@@ -39,6 +43,7 @@ class FixtureSaltServer:
         self.reconnected = threading.Event()
         self._shutdown = threading.Event()
         self.public_keys: list[str] = []
+        self._minion_public_key: RSAPublicKey | None = None
         self.result: queue.Queue[MutableMapping[str, Any]] = queue.Queue()
         self.errors: queue.Queue[Exception] = queue.Queue()
         self._thread = threading.Thread(target=self._run, daemon=True)
@@ -77,10 +82,16 @@ class FixtureSaltServer:
             publish_channel = SaltChannel(publish_socket)
             registration = decrypt_message_load(publish_channel.receive(), self._shared_secret)
             assert registration["id"] == self._minion_id
+            assert self._minion_public_key is not None
+            assert isinstance(registration["tok"], bytes)
+            assert rsa_x931_decrypt(registration["tok"], self._minion_public_key) == b"salt"
             self.registration_ready.set()
             assert self.release_job.wait(5)
             self._send_job(publish_channel, "fixture-jid-001")
             returned = decrypt_message_load(request_channel.receive(), self._shared_secret)
+            assert self._minion_public_key is not None
+            assert isinstance(returned["tok"], bytes)
+            assert rsa_x931_decrypt(returned["tok"], self._minion_public_key) == b"salt"
             self.result.put(returned)
             if self._reconnect:
                 publish_channel.close()
@@ -92,9 +103,14 @@ class FixtureSaltServer:
                 publish_channel = SaltChannel(publish_socket)
                 registration = decrypt_message_load(publish_channel.receive(), self._shared_secret)
                 assert registration["id"] == self._minion_id
+                assert self._minion_public_key is not None
+                assert isinstance(registration["tok"], bytes)
+                assert rsa_x931_decrypt(registration["tok"], self._minion_public_key) == b"salt"
                 self.reconnected.set()
                 self._send_job(publish_channel, "fixture-jid-002")
                 returned = decrypt_message_load(request_channel.receive(), self._shared_secret)
+                assert isinstance(returned["tok"], bytes)
+                assert rsa_x931_decrypt(returned["tok"], self._minion_public_key) == b"salt"
                 self.result.put(returned)
             self._shutdown.wait(5)
         except Exception as error:
@@ -146,6 +162,9 @@ class FixtureSaltServer:
         self._nonce = load["nonce"]
         public_key_value = load["pub"]
         assert isinstance(public_key_value, str)
+        public_key = serialization.load_pem_public_key(public_key_value.encode("utf-8"))
+        assert isinstance(public_key, RSAPublicKey)
+        self._minion_public_key = public_key
         self.public_keys.append(public_key_value)
         if not hasattr(self, "_shared_secret"):
             self._shared_secret = bytes(range(56))
@@ -164,33 +183,29 @@ class FixtureSaltServer:
             assert self.approve.wait(5)
             return channel
 
-        public_key = serialization.load_pem_public_key(public_key_value.encode("utf-8"))
-        assert isinstance(public_key, RSAPublicKey)
         if not hasattr(self, "_master_key"):
             self._master_key = generate_rsa_key_pair()
         master_public_key = serialize_public_key(self._master_key.public_key).decode("utf-8")
         accepted_load = {
             "pub_key": master_public_key,
             "publish_port": self.publish_port,
-            "sig": b"fixture-session",
+            "sig": rsa_x931_sign(
+                hashlib.sha256(base64.b64encode(self._shared_secret)).hexdigest().encode("ascii"),
+                self._master_key.private_key,
+            ),
             "aes": encrypt_rsa_oaep(base64.b64encode(self._shared_secret), public_key),
             "nonce": self._nonce,
         }
+        raw_load = pack_inner_load(accepted_load)
         channel.send(
             SaltMessage(
                 body={
                     "enc": "clear",
                     "version": 2,
-                    "load": pack_inner_load(accepted_load),
-                    "sig": b"fixture-load",
+                    "load": raw_load,
+                    "sig": sign_rsa_pkcs1_sha1(raw_load, self._master_key.private_key),
                 },
                 head={"mid": request.head["mid"]},
             )
         )
         return channel
-
-
-def fixture_token_signer(message: bytes, private_key: Any) -> bytes:
-    """Provide a deliberately test-only token for the local fixture."""
-    del private_key
-    return b"fixture-token:" + message

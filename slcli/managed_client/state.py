@@ -2,9 +2,12 @@
 
 from __future__ import annotations
 
+import getpass
 import hashlib
 import json
+import os
 import stat
+import subprocess
 from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any, Dict, Union
@@ -51,10 +54,7 @@ class StateStore:
     def ensure_directory(self) -> None:
         """Create the state directory with owner-only permissions where supported."""
         self.state_dir.mkdir(parents=True, exist_ok=True)
-        try:
-            self.state_dir.chmod(STATE_DIRECTORY_MODE)
-        except OSError:
-            pass
+        self._restrict_permissions(self.state_dir, STATE_DIRECTORY_MODE)
 
     def load_or_create_identity(self, minion_id: str) -> MinionIdentity:
         """Load a stable identity or create it on the first run."""
@@ -119,10 +119,37 @@ class StateStore:
         try:
             self._private_key_path.write_bytes(serialize_private_key(key_pair.private_key))
             self._public_key_path.write_bytes(serialize_public_key(key_pair.public_key))
-            self._private_key_path.chmod(STATE_FILE_MODE)
-            self._public_key_path.chmod(STATE_FILE_MODE)
+            self._restrict_permissions(self._private_key_path, STATE_FILE_MODE)
+            self._restrict_permissions(self._public_key_path, STATE_FILE_MODE)
         except OSError as error:
             raise StateError("Unable to write isolated minion identity state.") from error
+
+    @staticmethod
+    def _restrict_permissions(path: Path, mode: int) -> None:
+        """Restrict a state path to the current user on every supported OS."""
+        if os.name == "nt":
+            try:
+                username = getpass.getuser()
+                subprocess.run(
+                    [
+                        "icacls",
+                        str(path),
+                        "/inheritance:r",
+                        "/grant:r",
+                        f"{username}:F",
+                    ],
+                    check=True,
+                    capture_output=True,
+                    text=True,
+                )
+            except (KeyError, OSError, subprocess.CalledProcessError) as error:
+                raise StateError(f"Unable to protect isolated state at {path}.") from error
+            return
+
+        try:
+            path.chmod(mode)
+        except OSError as error:
+            raise StateError(f"Unable to protect isolated state at {path}.") from error
 
     def _read_metadata(self) -> Dict[str, Any]:
         if not self._metadata_path.exists():
@@ -140,6 +167,6 @@ class StateStore:
             self._metadata_path.write_text(
                 json.dumps(metadata, indent=2, sort_keys=True) + "\n", encoding="utf-8"
             )
-            self._metadata_path.chmod(STATE_FILE_MODE)
+            self._restrict_permissions(self._metadata_path, STATE_FILE_MODE)
         except OSError as error:
             raise StateError("Unable to write isolated minion metadata.") from error

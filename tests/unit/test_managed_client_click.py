@@ -9,6 +9,7 @@ from click.testing import CliRunner
 
 from slcli.managed_client.state import StateStore
 from slcli.managed_client_click import register_managed_client_commands
+from slcli.utils import ExitCodes
 
 
 @pytest.fixture
@@ -30,6 +31,12 @@ def test_managed_client_help_lists_commands(cli: Any) -> None:
     assert result.exit_code == 0
     assert "run" in result.output
     assert "reset" in result.output
+
+    result = CliRunner().invoke(cli, ["managed-client", "run", "--help"])
+
+    assert result.exit_code == 0
+    assert "--max-reconnect-attempts INTEGER" in result.output
+    assert "[default: 5" in result.output
 
 
 def test_reset_removes_only_identity_state(cli: Any, tmp_path: Path) -> None:
@@ -60,3 +67,24 @@ def test_reset_requires_confirmation(cli: Any, tmp_path: Path) -> None:
     assert result.exit_code != 0
     assert "Aborted" in result.output
     assert list(tmp_path.iterdir())
+
+
+def test_run_reports_invalid_master_without_traceback(cli: Any, tmp_path: Path) -> None:
+    """Malformed master endpoints use the standard invalid-input exit code."""
+    result = CliRunner().invoke(
+        cli,
+        [
+            "managed-client",
+            "run",
+            "--master",
+            "://",
+            "--minion-id",
+            "slcli-invalid-master",
+            "--state-dir",
+            str(tmp_path),
+        ],
+    )
+
+    assert result.exit_code == ExitCodes.INVALID_INPUT
+    assert "✗" in result.output
+    assert "Traceback" not in result.output

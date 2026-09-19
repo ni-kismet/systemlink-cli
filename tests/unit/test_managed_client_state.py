@@ -2,10 +2,13 @@
 
 import json
 import stat
+import subprocess
 from pathlib import Path
+from typing import Any
 
 import pytest
 
+from slcli.managed_client import state as state_module
 from slcli.managed_client.models import MasterIdentityChangedError, StateError
 from slcli.managed_client.state import StateStore
 
@@ -54,3 +57,48 @@ def test_state_store_reset_removes_only_managed_files(tmp_path: Path) -> None:
     assert unrelated.exists()
     assert not (tmp_path / "minion" / "metadata.json").exists()
     assert not (tmp_path / "minion" / "minion-key.pem").exists()
+
+
+def test_windows_state_permissions_remove_inheritance(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """Windows state paths grant access only to the current user."""
+    calls: list[tuple[list[str], dict[str, Any]]] = []
+
+    def run(command: list[str], **kwargs: Any) -> None:
+        calls.append((command, kwargs))
+
+    monkeypatch.setattr(state_module.os, "name", "nt")
+    monkeypatch.setattr(state_module.getpass, "getuser", lambda: "test-user")
+    monkeypatch.setattr(state_module.subprocess, "run", run)
+
+    StateStore._restrict_permissions(tmp_path / "state", 0o700)
+
+    assert calls == [
+        (
+            [
+                "icacls",
+                str(tmp_path / "state"),
+                "/inheritance:r",
+                "/grant:r",
+                "test-user:F",
+            ],
+            {"check": True, "capture_output": True, "text": True},
+        )
+    ]
+
+
+def test_windows_state_permissions_fail_closed(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """An ACL failure prevents use of unprotected state."""
+    monkeypatch.setattr(state_module.os, "name", "nt")
+    monkeypatch.setattr(state_module.getpass, "getuser", lambda: "test-user")
+
+    def run(command: list[str], **kwargs: Any) -> None:
+        raise subprocess.CalledProcessError(1, command)
+
+    monkeypatch.setattr(state_module.subprocess, "run", run)
+
+    with pytest.raises(StateError, match="Unable to protect isolated state"):
+        StateStore._restrict_permissions(tmp_path / "state", 0o700)

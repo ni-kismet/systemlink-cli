@@ -100,8 +100,21 @@ class ManagedClientRestAdapter:
         """Reject one pending key in the requested workspace."""
         self._manage_key(system_id, "REJECT", public_key, workspace)
 
-    def delete_managed_system(self, system_id: str, workspace: str) -> None:
-        """Delete one managed system during scoped test cleanup."""
+    def delete_managed_system(
+        self,
+        system_id: str,
+        workspace: str,
+        expected_public_key: str,
+    ) -> None:
+        """Delete one managed system after verifying its approved public key."""
+        if not expected_public_key.strip():
+            raise ValueError("The expected public key is required for managed-system cleanup.")
+        states = self.list_key_states([system_id])
+        if states.approved.get(system_id) != expected_public_key:
+            raise ManagedClientError(
+                "Refusing to delete the managed system because its approved public key "
+                "does not match."
+            )
         self._manage_key(system_id, "DELETE", None, workspace)
 
     def wait_for_key_state(

@@ -5,9 +5,12 @@ from __future__ import annotations
 from pathlib import Path
 from typing import Any
 
+import pytest
+
 from slcli.managed_client import MinionConfiguration, MinionEvent, TestMinion as ManagedTestMinion
+from slcli.managed_client.models import ReconnectLimitExceededError, TransportError
 from slcli.managed_client.rest import ManagedClientRestAdapter
-from tests.unit.managed_client_fixture import FixtureSaltServer, fixture_token_signer
+from tests.unit.managed_client_fixture import FixtureSaltServer
 
 
 class JsonResponse:
@@ -35,8 +38,6 @@ def test_minion_completes_pending_publish_and_refresh_job_return(tmp_path: Path)
             request_timeout=5,
             reconnect_interval=0.05,
         ),
-        token_signer=fixture_token_signer,
-        verify_auth_signatures=False,
         on_event=events.append,
     )
     try:
@@ -111,16 +112,15 @@ def test_minion_rest_approval_orchestration(tmp_path: Path) -> None:
             request_timeout=5,
             reconnect_interval=0.05,
         ),
-        token_signer=fixture_token_signer,
-        verify_auth_signatures=False,
     )
     try:
         minion.start()
         assert server.pending.wait(5)
         states = adapter.list_key_states([minion.minion_id])
+        public_key = states.pending[minion.minion_id]
         adapter.approve_pending_key(
             minion.minion_id,
-            states.pending[minion.minion_id],
+            public_key,
             "workspace-1",
         )
         adapter.wait_for_key_state(
@@ -132,7 +132,7 @@ def test_minion_rest_approval_orchestration(tmp_path: Path) -> None:
         minion.wait_for_state("connected", timeout=5)
         server.release_job.set()
         assert server.result.get(timeout=5)["return"] == [True, True, None, None, None]
-        adapter.delete_managed_system(minion.minion_id, "workspace-1")
+        adapter.delete_managed_system(minion.minion_id, "workspace-1", public_key)
     finally:
         minion.stop(timeout=5)
         server.close()
@@ -154,8 +154,6 @@ def test_minion_reconnects_with_the_same_identity(tmp_path: Path) -> None:
             request_timeout=5,
             reconnect_interval=0.05,
         ),
-        token_signer=fixture_token_signer,
-        verify_auth_signatures=False,
     )
     try:
         minion.start()
@@ -174,3 +172,23 @@ def test_minion_reconnects_with_the_same_identity(tmp_path: Path) -> None:
     finally:
         minion.stop(timeout=5)
         server.close()
+
+
+def test_minion_fails_after_reconnect_limit(tmp_path: Path) -> None:
+    """Reconnect attempts stop after the configured limit."""
+    minion = ManagedTestMinion(
+        MinionConfiguration(
+            master="127.0.0.1",
+            minion_id="slcli-reconnect-limit",
+            state_dir=tmp_path / "state",
+            reconnect_interval=0.01,
+            max_reconnect_attempts=1,
+        )
+    )
+
+    minion._record_reconnect(TransportError("connection interrupted"))
+
+    assert minion.phase.value == "RECONNECTING"
+    assert minion.events[-1].retry_count == 1
+    with pytest.raises(ReconnectLimitExceededError, match="reconnect limit"):
+        minion._record_reconnect(TransportError("connection interrupted"))
