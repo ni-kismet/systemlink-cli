@@ -53,6 +53,7 @@
         <a href="#asset" class="sidebar-link">asset</a>
         <a href="#alarm" class="sidebar-link">alarm</a>
         <a href="#system" class="sidebar-link">system</a>
+        <a href="#managed-client" class="sidebar-link">managed-client</a>
         <a href="#state" class="sidebar-link">state</a>
         <a href="#dataframe" class="sidebar-link">dataframe</a>
         <a href="#spec" class="sidebar-link">spec</a>
@@ -88,6 +89,7 @@
         <div class="cmd-group"><h3>asset</h3><p>Hardware assets, calibration, fleet summary</p><code>slcli asset list</code></div>
         <div class="cmd-group"><h3>alarm</h3><p>Alarm listing, lifecycle actions, transitions, and monitoring</p><code>slcli alarm list</code></div>
         <div class="cmd-group"><h3>system</h3><p>Managed systems, package comparison, jobs, reports</p><code>slcli system list</code></div>
+        <div class="cmd-group"><h3>managed-client</h3><p>Foreground Salt test-minion lifecycle and isolated identity state</p><code>slcli managed-client run</code></div>
         <div class="cmd-group"><h3>state</h3><p>Saved software states, .sls import/export, history, versioning</p><code>slcli state list</code></div>
         <div class="cmd-group"><h3>dataframe</h3><p>DataFrame tables, schema inspection, row queries, CSV export</p><code>slcli dataframe schema &lt;table-id&gt;</code></div>
         <div class="cmd-group"><h3>spec</h3><p>Product specifications, limits, conditions, bulk import/export</p><code>slcli spec list</code></div>
@@ -331,6 +333,49 @@ slcli system job cancel &lt;job-id&gt;</code></pre>
       <h3>Update &amp; Remove</h3>
       <pre><code>slcli system update &lt;system-id&gt; --alias "New Name" --workspace "Production"
 slcli system remove &lt;system-id&gt; --force</code></pre>
+
+      <!-- ─── MANAGED CLIENT ─── -->
+      <h2 id="managed-client">managed-client</h2>
+      <p>Run an opt-in, foreground Salt test minion for managed-client interoperability testing. This is a test feature and is separate from <code>slcli system</code> REST commands and virtual systems.</p>
+
+      <h3>Prerequisites and Lifecycle</h3>
+      <p>The Salt master endpoint and request port must be reachable from the machine running slcli. The <code>run</code> command creates or reuses a stable RSA identity in the supplied state directory. A separate REST control-plane operation must approve the pending public key; <code>managed-client run</code> does not approve keys or create server-side systems.</p>
+      <pre><code># Start the foreground test minion
+    slcli managed-client run \
+      --master salt-master.example.com \
+      --minion-id slcli-test-001 \
+      --state-dir ./.slcli-managed-client/slcli-test-001
+
+    # The command reports phases such as PENDING_APPROVAL, CONNECTED,
+    # RUNNING_JOB, RECONNECTING, and FAILED. Stop it with Ctrl+C.</code></pre>
+      <p>When a Salt job is received or returned, the command also prints its job ID, function name(s), target, and return status. Job arguments, tokens, and encrypted payloads are not displayed.</p>
+      <pre><code>RUNNING_JOB: Received Salt job (jid=20260919123456789012, functions=nisysmgmt.state_apply, target=slcli-test-001)
+    CONNECTED: Sent Salt job return (jid=20260919123456789012, functions=nisysmgmt.state_apply, target=slcli-test-001, retcode=0, success=True)</code></pre>
+      <p>After the key is approved, the minion reconnects, registers on the Salt publish channel, receives allowlisted deterministic test jobs, and returns their results. Reconnects reuse the same identity. Keep the state directory private and use a distinct directory for each test minion.</p>
+
+      <h3>Run Options</h3>
+      <pre><code>slcli managed-client run [OPTIONS]
+
+  --master TEXT                 Salt master hostname or endpoint. [required]
+  --minion-id TEXT              Stable test-minion identity. [required]
+  --state-dir DIRECTORY         Isolated identity state directory. [required]
+  --request-port INTEGER        Salt request-channel TCP port. [default: 4506]
+  --request-timeout FLOAT       Socket timeout in seconds. [default: 10.0]
+  --reconnect-interval FLOAT    Delay between auth/reconnect attempts.
+                                [default: 1.0]</code></pre>
+
+      <h3>Reset Local Identity</h3>
+      <p>Reset removes only <code>metadata.json</code>, <code>minion-key.pem</code>, and <code>minion-key.pub.pem</code> from the supplied state directory. It does not remove server-side keys, systems, jobs, or other files in that directory. Stop the foreground minion before resetting.</p>
+      <pre><code>slcli managed-client reset [OPTIONS]
+
+  --state-dir DIRECTORY         Isolated identity state directory. [required]
+  --yes                         Skip the destructive-operation confirmation.</code></pre>
+      <pre><code># Confirm before deleting the isolated identity files
+    slcli managed-client reset --state-dir ./.slcli-managed-client/slcli-test-001
+
+    # Use in a scripted cleanup step
+    slcli managed-client reset \
+      --state-dir ./.slcli-managed-client/slcli-test-001 --yes</code></pre>
 
       <!-- ─── STATE ─── -->
       <h2 id="state">state</h2>

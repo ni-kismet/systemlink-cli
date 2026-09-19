@@ -26,6 +26,7 @@ from .example_click import register_example_commands
 from .feed_click import register_feed_commands
 from .file_click import register_file_commands
 from .function_click import register_function_commands
+from .managed_client_click import register_managed_client_commands
 from .mcp_click import register_mcp_commands
 from .notebook_click import register_notebook_commands
 from .platform import get_platform_info
@@ -106,7 +107,7 @@ def _configure_rich_click_command_groups() -> None:
             },
             {
                 "name": "Validate & Plan",
-                "commands": ["testmonitor", "template", "spec", "workitem"],
+                "commands": ["testmonitor", "template", "spec", "workitem", "managed-client"],
             },
         ]
     }
@@ -765,6 +766,7 @@ register_example_commands(cli)
 register_feed_commands(cli)
 register_file_commands(cli)
 register_function_commands(cli)
+register_managed_client_commands(cli)
 register_mcp_commands(cli)
 register_templates_commands(cli)
 register_notebook_commands(cli)

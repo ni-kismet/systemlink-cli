@@ -38,9 +38,11 @@ rich = ">=15,<16"
 rich-click = ">=1.8,<2"
 cryptography = ">=49.0.0"
 pygments = ">=2.20.0"
+msgpack = { version = ">=1.1,<2", optional = true }
 mcp = { version = ">=2,<3", optional = true }
 
 [tool.poetry.extras]
+managed-client = ["msgpack"]
 mcp = ["mcp"]
 
 
