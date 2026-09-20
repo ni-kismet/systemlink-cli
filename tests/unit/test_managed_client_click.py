@@ -1,5 +1,7 @@
 """Tests for the opt-in managed-client CLI commands."""
 
+import subprocess
+import sys
 from pathlib import Path
 from typing import Any
 
@@ -10,6 +12,25 @@ from click.testing import CliRunner
 from slcli.managed_client.state import StateStore
 from slcli.managed_client_click import register_managed_client_commands
 from slcli.utils import ExitCodes
+
+
+def test_importing_cli_does_not_load_managed_client_protocol() -> None:
+    """Importing the base CLI keeps optional protocol modules unloaded."""
+    result = subprocess.run(
+        [
+            sys.executable,
+            "-c",
+            (
+                "import sys; import slcli.main; "
+                "assert 'slcli.managed_client.protocol' not in sys.modules"
+            ),
+        ],
+        check=False,
+        capture_output=True,
+        text=True,
+    )
+
+    assert result.returncode == 0, result.stderr
 
 
 @pytest.fixture

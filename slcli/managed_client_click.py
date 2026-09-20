@@ -5,16 +5,21 @@ from __future__ import annotations
 import sys
 import time
 from pathlib import Path
-from typing import Any, NoReturn
+from typing import TYPE_CHECKING, Any, NoReturn
 
 import click
 
-from .managed_client.models import ConfigurationError, ManagedClientError, TransportError
 from .utils import ExitCodes
+
+if TYPE_CHECKING:
+    from .managed_client.minion import TestMinion as TestMinionType
+    from .managed_client.models import ManagedClientError
 
 
 def _exit_with_managed_client_error(error: ManagedClientError) -> NoReturn:
     """Print a managed-client error and exit with the appropriate CLI code."""
+    from .managed_client.models import ConfigurationError, TransportError
+
     click.echo(f"✗ {error}", err=True)
     if isinstance(error, (ConfigurationError, TransportError)):
         sys.exit(ExitCodes.INVALID_INPUT)
@@ -76,7 +81,7 @@ def register_managed_client_commands(cli: Any) -> None:
     ) -> None:
         """Run the test minion until interrupted or a lifecycle failure occurs."""
         from .managed_client import MinionConfiguration, TestMinion
-        from .managed_client.models import MinionEvent, MinionPhase
+        from .managed_client.models import ManagedClientError, MinionEvent, MinionPhase
 
         def report_event(event: MinionEvent) -> None:
             message = f"{event.phase.value}: {event.message}"
@@ -85,7 +90,7 @@ def register_managed_client_commands(cli: Any) -> None:
                 message = f"{message} ({details})"
             click.echo(message)
 
-        minion: Any = None
+        minion: TestMinionType | None = None
         try:
             minion = TestMinion(
                 MinionConfiguration(
