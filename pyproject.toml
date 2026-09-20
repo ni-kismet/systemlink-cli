@@ -75,7 +75,7 @@ types-requests = "*"
 types-tabulate = "*"
 
 # Changelog and release management
-towncrier = "^25.8.0"
+towncrier = "^26.0.0"
 pytest-xdist = "^3.8.0"
 
 # Excel file generation
