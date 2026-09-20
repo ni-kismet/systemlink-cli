@@ -9,6 +9,7 @@ import click
 import pytest
 from click.testing import CliRunner
 
+from slcli.managed_client.models import TransportError
 from slcli.managed_client.state import StateStore
 from slcli.managed_client_click import register_managed_client_commands
 from slcli.utils import ExitCodes
@@ -130,3 +131,31 @@ def test_run_reports_invalid_configuration_without_traceback(cli: Any, tmp_path:
     assert result.exit_code == ExitCodes.INVALID_INPUT
     assert "✗" in result.output
     assert "Traceback" not in result.output
+
+
+def test_run_reports_transport_failure_as_network_error(
+    cli: Any, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """Runtime transport failures use the standard network exit code."""
+
+    def fail_to_start(*args: Any, **kwargs: Any) -> None:
+        del args, kwargs
+        raise TransportError("network unavailable")
+
+    monkeypatch.setattr("slcli.managed_client.TestMinion", fail_to_start)
+    result = CliRunner().invoke(
+        cli,
+        [
+            "managed-client",
+            "run",
+            "--master",
+            "localhost",
+            "--minion-id",
+            "slcli-network-error",
+            "--state-dir",
+            str(tmp_path),
+        ],
+    )
+
+    assert result.exit_code == ExitCodes.NETWORK_ERROR
+    assert "network unavailable" in result.output

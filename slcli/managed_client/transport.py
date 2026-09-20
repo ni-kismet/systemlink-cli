@@ -7,7 +7,7 @@ from collections import deque
 from dataclasses import dataclass
 from urllib.parse import urlsplit
 
-from .models import TransportError
+from .models import ConfigurationError, TransportError
 from .protocol import MAX_FRAME_SIZE, MessagePackStream, SaltMessage
 
 DEFAULT_REQUEST_PORT = 4506
@@ -25,18 +25,18 @@ class MasterEndpoint:
     def parse(cls, value: str, request_port: int = DEFAULT_REQUEST_PORT) -> "MasterEndpoint":
         """Parse a hostname, host:port, or tcp://host:port endpoint."""
         if not value.strip():
-            raise TransportError("The Salt master endpoint is required.")
+            raise ConfigurationError("The Salt master endpoint is required.")
         candidate = value if "://" in value else f"//{value}"
         parsed = urlsplit(candidate)
         if not parsed.hostname:
-            raise TransportError("The Salt master endpoint has no hostname.")
+            raise ConfigurationError("The Salt master endpoint has no hostname.")
         try:
             explicit_port = parsed.port
         except ValueError as error:
-            raise TransportError("The Salt master endpoint has an invalid port.") from error
+            raise ConfigurationError("The Salt master endpoint has an invalid port.") from error
         selected_port = request_port if explicit_port is None else explicit_port
         if not 1 <= selected_port <= 65535:
-            raise TransportError("The Salt master port must be between 1 and 65535.")
+            raise ConfigurationError("The Salt master port must be between 1 and 65535.")
         return cls(host=parsed.hostname, request_port=selected_port)
 
 
@@ -75,7 +75,7 @@ class SaltChannel:
         except OSError as error:
             raise TransportError("Unable to send a Salt message.") from error
 
-    def receive(self) -> SaltMessage:
+    def receive(self, *, ignore_timeout: bool = False) -> SaltMessage:
         """Read until one complete Salt MessagePack message is available."""
         if self._closed:
             raise TransportError("The Salt channel is closed.")
@@ -84,8 +84,10 @@ class SaltChannel:
         while True:
             try:
                 data = self._connection.recv(65536)
-            except socket.timeout:
-                continue
+            except socket.timeout as error:
+                if ignore_timeout:
+                    continue
+                raise TransportError("Timed out waiting for a Salt message.") from error
             except OSError as error:
                 raise TransportError("Unable to receive a Salt message.") from error
             if not data:

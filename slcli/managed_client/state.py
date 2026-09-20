@@ -111,8 +111,9 @@ class StateStore:
 
     def _load_existing_key(self) -> RsaKeyPair:
         try:
+            self._restrict_permissions(self._private_key_path, STATE_FILE_MODE)
             return load_rsa_private_key(self._private_key_path.read_bytes())
-        except OSError as error:
+        except (OSError, StateError) as error:
             raise StateError("Unable to read the isolated minion key.") from error
 
     def _write_key_files(self, key_pair: RsaKeyPair) -> None:

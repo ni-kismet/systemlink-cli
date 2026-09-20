@@ -72,6 +72,9 @@ jobs:
       - name: Build PyInstaller binary
         run: poetry run python scripts/build_pyinstaller.py
 
+      - name: Smoke test managed-client binary
+        run: dist/slcli/slcli managed-client run --help
+
       - name: Upload PyInstaller binary artifact
         uses: actions/upload-artifact@v7
         with:

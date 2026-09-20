@@ -303,7 +303,7 @@ class TestMinion:
             raise ProtocolError("Connected authentication has no shared secret.")
         while not self._stop_event.is_set():
             self._set_phase(MinionPhase.RUNNING_JOB, "Waiting for a Salt job")
-            job_message = publish_channel.receive()
+            job_message = publish_channel.receive(ignore_timeout=True)
             job = decrypt_message_load(job_message, auth_response.shared_secret)
             self._set_phase(
                 MinionPhase.RUNNING_JOB,

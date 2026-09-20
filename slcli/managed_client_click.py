@@ -21,8 +21,10 @@ def _exit_with_managed_client_error(error: ManagedClientError) -> NoReturn:
     from .managed_client.models import ConfigurationError, TransportError
 
     click.echo(f"✗ {error}", err=True)
-    if isinstance(error, (ConfigurationError, TransportError)):
+    if isinstance(error, ConfigurationError):
         sys.exit(ExitCodes.INVALID_INPUT)
+    if isinstance(error, TransportError):
+        sys.exit(ExitCodes.NETWORK_ERROR)
     sys.exit(ExitCodes.GENERAL_ERROR)
 
 

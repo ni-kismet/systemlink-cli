@@ -28,6 +28,20 @@ def test_state_store_preserves_identity_and_restricts_files(tmp_path: Path) -> N
         assert stat.S_IMODE((tmp_path / "minion" / "minion-key.pem").stat().st_mode) == 0o600
 
 
+def test_state_store_restricts_existing_private_key(tmp_path: Path) -> None:
+    """Reloading an identity restores owner-only private-key permissions."""
+    if os.name == "nt":
+        pytest.skip("POSIX mode bits are not available on Windows")
+    store = StateStore(tmp_path / "minion")
+    store.load_or_create_identity("slcli-test-001")
+    private_key_path = tmp_path / "minion" / "minion-key.pem"
+    private_key_path.chmod(0o644)
+
+    store.load_or_create_identity("slcli-test-001")
+
+    assert stat.S_IMODE(private_key_path.stat().st_mode) == 0o600
+
+
 def test_state_store_rejects_different_minion_id(tmp_path: Path) -> None:
     """A state directory cannot be reused for another identity."""
     store = StateStore(tmp_path / "minion")

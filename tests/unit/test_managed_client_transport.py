@@ -5,7 +5,7 @@ import threading
 
 import pytest
 
-from slcli.managed_client.models import TransportError
+from slcli.managed_client.models import ConfigurationError, TransportError
 from slcli.managed_client.protocol import SaltMessage
 from slcli.managed_client.transport import MasterEndpoint, SaltChannel
 
@@ -19,9 +19,9 @@ def test_master_endpoint_parses_host_and_port() -> None:
 
 def test_master_endpoint_rejects_invalid_explicit_ports() -> None:
     """Explicit zero and non-numeric ports fail instead of using a fallback."""
-    with pytest.raises(TransportError, match="between 1 and 65535"):
+    with pytest.raises(ConfigurationError, match="between 1 and 65535"):
         MasterEndpoint.parse("tcp://salt.example.com:0")
-    with pytest.raises(TransportError, match="invalid port"):
+    with pytest.raises(ConfigurationError, match="invalid port"):
         MasterEndpoint.parse("tcp://salt.example.com:not-a-port")
 
 
@@ -78,6 +78,26 @@ def test_salt_channel_rejects_closed_socket() -> None:
     channel.close()
 
 
+def test_salt_channel_raises_auth_socket_timeout() -> None:
+    """An authentication channel timeout becomes a bounded transport error."""
+
+    class TimeoutSocket:
+        def recv(self, _: int) -> bytes:
+            raise socket.timeout()
+
+        def shutdown(self, _: socket.SocketKind) -> None:
+            return None
+
+        def close(self) -> None:
+            return None
+
+    channel = SaltChannel(TimeoutSocket())  # type: ignore[arg-type]
+
+    with pytest.raises(TransportError, match="Timed out"):
+        channel.receive()
+    channel.close()
+
+
 def test_salt_channel_ignores_idle_socket_timeout() -> None:
     """An idle publish channel remains available for a later job."""
     message = SaltMessage(body={"enc": "clear", "load": {}}, head={"mid": 1})
@@ -101,6 +121,6 @@ def test_salt_channel_ignores_idle_socket_timeout() -> None:
     channel = SaltChannel(TimeoutThenMessageSocket())  # type: ignore[arg-type]
 
     try:
-        assert channel.receive() == message
+        assert channel.receive(ignore_timeout=True) == message
     finally:
         channel.close()
