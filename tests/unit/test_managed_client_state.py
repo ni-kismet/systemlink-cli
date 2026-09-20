@@ -95,6 +95,7 @@ def test_windows_state_permissions_remove_inheritance(
             [
                 "icacls",
                 str(tmp_path / "state"),
+                "/reset",
                 "/inheritance:r",
                 "/grant:r",
                 "test-user:F",

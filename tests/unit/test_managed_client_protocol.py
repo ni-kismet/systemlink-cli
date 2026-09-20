@@ -198,6 +198,34 @@ def test_auth_accepted_verifies_outer_load_signature() -> None:
         )
 
 
+@pytest.mark.parametrize("publish_port", [True, 0, 65536])
+def test_auth_accepted_rejects_invalid_publish_ports(publish_port: object) -> None:
+    """Accepted auth rejects boolean and out-of-range publish ports."""
+    minion_key = generate_private_key(public_exponent=65537, key_size=2048)
+    master_key = generate_private_key(public_exponent=65537, key_size=2048)
+    shared_secret = bytes(range(56))
+    load = pack_frame(
+        {
+            "pub_key": serialize_public_key(master_key.public_key()).decode("utf-8"),
+            "publish_port": publish_port,
+            "sig": b"x931-session-signature",
+            "aes": encrypt_rsa_oaep(base64.b64encode(shared_secret), minion_key.public_key()),
+            "nonce": "nonce-1",
+        }
+    )
+    message = SaltMessage(
+        body={"enc": "clear", "load": load, "sig": b"master-signature"},
+        head={"mid": 1},
+    )
+
+    with pytest.raises(ProtocolError, match="invalid publish port"):
+        parse_auth_response(
+            message,
+            minion_private_key=minion_key,
+            verify_master_signature=False,
+        )
+
+
 def test_publish_and_job_return_use_salt_field_names() -> None:
     """Registration and returns preserve the observed Salt payload fields."""
     key_pair = generate_private_key(public_exponent=65537, key_size=2048)

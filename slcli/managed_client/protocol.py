@@ -312,7 +312,11 @@ def parse_auth_response(
         raise ProtocolError("The accepted auth response has no master public key.")
     if not isinstance(encrypted_secret, bytes) or not isinstance(encrypted_signature, bytes):
         raise ProtocolError("The accepted auth response has invalid session material.")
-    if not isinstance(publish_port, int) or publish_port <= 0:
+    if (
+        isinstance(publish_port, bool)
+        or not isinstance(publish_port, int)
+        or not 1 <= publish_port <= 65535
+    ):
         raise ProtocolError("The accepted auth response has an invalid publish port.")
 
     outer_signature = message.body.get("sig")

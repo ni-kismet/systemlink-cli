@@ -135,6 +135,7 @@ class StateStore:
                     [
                         "icacls",
                         str(path),
+                        "/reset",
                         "/inheritance:r",
                         "/grant:r",
                         f"{username}:F",
