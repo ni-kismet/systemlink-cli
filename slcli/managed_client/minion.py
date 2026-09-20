@@ -84,6 +84,7 @@ class TestMinion:
         self._events: list[MinionEvent] = []
         self._channels: set[SaltChannel] = set()
         self._last_error: str | None = None
+        self._minion_token: bytes | None = None
         self._reconnect_attempts = 0
 
     @property
@@ -228,7 +229,10 @@ class TestMinion:
                     raise
                 except MasterIdentityChangedError:
                     raise
-                except (CryptoError, OSError, ProtocolError, TransportError) as error:
+                except ProtocolError as error:
+                    self._fail(error)
+                    break
+                except (CryptoError, OSError, TransportError) as error:
                     if self._stop_event.is_set():
                         break
                     self._record_reconnect(error)
@@ -260,6 +264,7 @@ class TestMinion:
                 public_key=serialize_public_key(identity.public_key).decode("utf-8"),
                 nonce=nonce,
                 api_key=self.configuration.api_key,
+                token=self._minion_token,
             ).to_message()
         )
         response = parse_auth_response(
@@ -271,6 +276,8 @@ class TestMinion:
         )
         if response.nonce != nonce:
             raise ProtocolError("The Salt auth response nonce does not match the request.")
+        if response.minion_token is not None:
+            self._minion_token = response.minion_token
         return response
 
     @staticmethod

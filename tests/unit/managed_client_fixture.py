@@ -44,6 +44,8 @@ class FixtureSaltServer:
         self._shutdown = threading.Event()
         self.public_keys: list[str] = []
         self._minion_public_key: RSAPublicKey | None = None
+        self._minion_token = b"fixture-minion-token"
+        self._token_issued = False
         self.result: queue.Queue[MutableMapping[str, Any]] = queue.Queue()
         self.errors: queue.Queue[Exception] = queue.Queue()
         self._thread = threading.Thread(target=self._run, daemon=True)
@@ -160,6 +162,10 @@ class FixtureSaltServer:
         assert isinstance(load, Mapping)
         self._minion_id = load["id"]
         self._nonce = load["nonce"]
+        if self._token_issued:
+            assert load.get("token") == self._minion_token
+        else:
+            assert "token" not in load
         public_key_value = load["pub"]
         assert isinstance(public_key_value, str)
         public_key = serialization.load_pem_public_key(public_key_value.encode("utf-8"))
@@ -195,7 +201,9 @@ class FixtureSaltServer:
             ),
             "aes": encrypt_rsa_oaep(base64.b64encode(self._shared_secret), public_key),
             "nonce": self._nonce,
+            "token": encrypt_rsa_oaep(self._minion_token, public_key),
         }
+        self._token_issued = True
         raw_load = pack_inner_load(accepted_load)
         channel.send(
             SaltMessage(

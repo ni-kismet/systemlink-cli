@@ -30,7 +30,11 @@ class MasterEndpoint:
         parsed = urlsplit(candidate)
         if not parsed.hostname:
             raise TransportError("The Salt master endpoint has no hostname.")
-        selected_port = parsed.port or request_port
+        try:
+            explicit_port = parsed.port
+        except ValueError as error:
+            raise TransportError("The Salt master endpoint has an invalid port.") from error
+        selected_port = request_port if explicit_port is None else explicit_port
         if not 1 <= selected_port <= 65535:
             raise TransportError("The Salt master port must be between 1 and 65535.")
         return cls(host=parsed.hostname, request_port=selected_port)

@@ -1,6 +1,7 @@
 """Unit tests for isolated managed-client state."""
 
 import json
+import os
 import stat
 import subprocess
 from pathlib import Path
@@ -22,8 +23,9 @@ def test_state_store_preserves_identity_and_restricts_files(tmp_path: Path) -> N
 
     assert first.public_key.public_numbers() == second.public_key.public_numbers()
     assert "api-key" not in metadata
-    assert stat.S_IMODE((tmp_path / "minion").stat().st_mode) == 0o700
-    assert stat.S_IMODE((tmp_path / "minion" / "minion-key.pem").stat().st_mode) == 0o600
+    if os.name != "nt":
+        assert stat.S_IMODE((tmp_path / "minion").stat().st_mode) == 0o700
+        assert stat.S_IMODE((tmp_path / "minion" / "minion-key.pem").stat().st_mode) == 0o600
 
 
 def test_state_store_rejects_different_minion_id(tmp_path: Path) -> None:

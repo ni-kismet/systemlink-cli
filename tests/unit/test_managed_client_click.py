@@ -109,3 +109,24 @@ def test_run_reports_invalid_master_without_traceback(cli: Any, tmp_path: Path) 
     assert result.exit_code == ExitCodes.INVALID_INPUT
     assert "✗" in result.output
     assert "Traceback" not in result.output
+
+
+def test_run_reports_invalid_configuration_without_traceback(cli: Any, tmp_path: Path) -> None:
+    """Invalid configuration values are handled as normal CLI errors."""
+    result = CliRunner().invoke(
+        cli,
+        [
+            "managed-client",
+            "run",
+            "--master",
+            "localhost",
+            "--minion-id",
+            "",
+            "--state-dir",
+            str(tmp_path),
+        ],
+    )
+
+    assert result.exit_code == ExitCodes.INVALID_INPUT
+    assert "✗" in result.output
+    assert "Traceback" not in result.output

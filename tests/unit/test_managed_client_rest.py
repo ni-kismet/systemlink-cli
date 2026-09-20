@@ -107,3 +107,19 @@ def test_invalid_key_state_response_fails_closed() -> None:
 
     with pytest.raises(ManagedClientError, match="systemsPending"):
         adapter.list_key_states()
+
+
+def test_invalid_json_response_fails_with_typed_error() -> None:
+    """A non-JSON control-plane response becomes a managed-client error."""
+
+    class InvalidJsonResponse:
+        def json(self) -> Any:
+            raise ValueError("not JSON")
+
+    adapter = ManagedClientRestAdapter(
+        base_url="https://example.test",
+        request=lambda *args, **kwargs: InvalidJsonResponse(),
+    )
+
+    with pytest.raises(ManagedClientError, match="invalid JSON"):
+        adapter.list_key_states()

@@ -10,6 +10,7 @@ from cryptography.hazmat.primitives.asymmetric.rsa import generate_private_key
 from slcli.managed_client.crypto import encrypt_rsa_oaep, sign_rsa_pkcs1_sha1, serialize_public_key
 from slcli.managed_client.models import ProtocolError
 from slcli.managed_client.protocol import (
+    AuthRequest,
     AuthState,
     MessagePackStream,
     SaltMessage,
@@ -127,6 +128,20 @@ def test_auth_pending_does_not_require_master_signature() -> None:
     )
 
     assert response.state is AuthState.PENDING
+
+
+def test_auth_request_includes_reconnect_token() -> None:
+    """A Salt-issued token is sent on subsequent authentication requests."""
+    request = AuthRequest(
+        minion_id="minion-1",
+        public_key="public-key",
+        nonce="nonce-1",
+        token=b"issued-token",
+    )
+
+    message = request.to_message()
+
+    assert message.body["load"]["token"] == b"issued-token"
 
 
 def test_auth_accepted_verifies_outer_load_signature() -> None:

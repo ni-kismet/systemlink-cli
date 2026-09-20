@@ -17,6 +17,14 @@ def test_master_endpoint_parses_host_and_port() -> None:
     assert MasterEndpoint.parse("[::1]:4511").host == "::1"
 
 
+def test_master_endpoint_rejects_invalid_explicit_ports() -> None:
+    """Explicit zero and non-numeric ports fail instead of using a fallback."""
+    with pytest.raises(TransportError, match="between 1 and 65535"):
+        MasterEndpoint.parse("tcp://salt.example.com:0")
+    with pytest.raises(TransportError, match="invalid port"):
+        MasterEndpoint.parse("tcp://salt.example.com:not-a-port")
+
+
 def test_salt_channel_receives_partial_message() -> None:
     """The channel delegates partial TCP reads to the stream decoder."""
     client_socket, server_socket = socket.socketpair()

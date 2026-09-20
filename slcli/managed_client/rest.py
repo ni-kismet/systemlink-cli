@@ -82,7 +82,10 @@ class ManagedClientRestAdapter:
         if system_ids is not None:
             payload = {"systemIds": system_ids}
         response = self._call("POST" if payload is not None else "GET", KEYS_PATH, payload)
-        data = response.json()
+        try:
+            data = response.json()
+        except ValueError as error:
+            raise ManagedClientError("REST key listing returned invalid JSON.") from error
         if not isinstance(data, Mapping):
             raise ManagedClientError("REST key listing returned an invalid response.")
         return SystemKeyStates(

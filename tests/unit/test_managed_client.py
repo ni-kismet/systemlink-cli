@@ -8,7 +8,7 @@ from typing import Any
 import pytest
 
 from slcli.managed_client import MinionConfiguration, MinionEvent, TestMinion as ManagedTestMinion
-from slcli.managed_client.models import ReconnectLimitExceededError, TransportError
+from slcli.managed_client.models import ProtocolError, ReconnectLimitExceededError, TransportError
 from slcli.managed_client.rest import ManagedClientRestAdapter
 from tests.unit.managed_client_fixture import FixtureSaltServer
 
@@ -192,3 +192,23 @@ def test_minion_fails_after_reconnect_limit(tmp_path: Path) -> None:
     assert minion.events[-1].retry_count == 1
     with pytest.raises(ReconnectLimitExceededError, match="reconnect limit"):
         minion._record_reconnect(TransportError("connection interrupted"))
+
+
+def test_minion_fails_on_protocol_error(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    """Malformed or unsupported protocol data does not trigger endless reconnects."""
+    minion = ManagedTestMinion(
+        MinionConfiguration(
+            master="127.0.0.1",
+            minion_id="slcli-protocol-error",
+            state_dir=tmp_path / "state",
+        )
+    )
+
+    def fail_to_open(_: int) -> object:
+        raise ProtocolError("unsupported protocol frame")
+
+    monkeypatch.setattr(minion, "_open_channel", fail_to_open)
+    minion._run()
+
+    assert minion.phase.value == "FAILED"
+    assert minion.last_error == "unsupported protocol frame"
