@@ -113,3 +113,22 @@ def test_systemlink_refresh_job_returns_normal_multi_function_result() -> None:
         "retcode": [0, 0, 0, 0, 0],
         "success": [True, True, True, True, True],
     }
+
+
+def test_systemlink_restart_job_returns_success() -> None:
+    """The SystemLink restart operation receives a successful Salt return."""
+    registry = FixtureHandlerRegistry()
+
+    result = registry.dispatch(
+        {"jid": "restart-001", "fun": registry.RESTART},
+        "slcli-test-001",
+    )
+
+    assert result == {
+        "jid": "restart-001",
+        "id": "slcli-test-001",
+        "fun": registry.RESTART,
+        "return": True,
+        "retcode": 0,
+        "success": True,
+    }

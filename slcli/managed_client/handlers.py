@@ -88,6 +88,7 @@ class FixtureHandlerRegistry:
     REFRESH = "slcli.test.refresh"
     REFRESH_PILLAR = "saltutil.refresh_pillar"
     STATE_APPLY = "nisysmgmt.state_apply"
+    RESTART = "nisysmgmt.restart"
     LIST_REPOS = "pkg.list_repos"
     GRAINS_ITEMS = "nisysmgmt.grains_items"
     INFO_INSTALLED = "pkg.info_installed"
@@ -101,6 +102,7 @@ class FixtureHandlerRegistry:
             self.REFRESH: self._refresh,
             self.REFRESH_PILLAR: self._return_true,
             self.STATE_APPLY: self._return_true,
+            self.RESTART: self._return_true,
             self.LIST_REPOS: self._return_none,
             self.GRAINS_ITEMS: self._return_none,
             self.INFO_INSTALLED: self._info_installed,
