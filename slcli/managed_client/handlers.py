@@ -270,10 +270,13 @@ class FixtureHandlerRegistry:
         return HandlerResult(True, 0, True)
 
     def _set_blackout(self, job: FixtureJob) -> HandlerResult:
-        """Persist a boolean Salt blackout request and return its new state."""
+        """Persist a Salt blackout request and return its new state."""
+        blackout: Any
         if job.kwargs and job.args:
             return HandlerResult(False, 2, error="set_blackout-arguments-are-ambiguous")
-        if len(job.args) == 1:
+        if not job.args and not job.kwargs:
+            blackout = True
+        elif len(job.args) == 1:
             blackout = job.args[0]
         elif not job.args and set(job.kwargs) == {"blackout"}:
             blackout = job.kwargs["blackout"]

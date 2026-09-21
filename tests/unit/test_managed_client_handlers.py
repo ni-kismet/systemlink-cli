@@ -143,7 +143,7 @@ def test_systemlink_set_blackout_persists_lock_and_unlock(tmp_path: Path) -> Non
     registry = FixtureHandlerRegistry(state_store=state_store)
 
     locked = registry.dispatch(
-        {"jid": "lock-001", "fun": registry.SET_BLACKOUT, "arg": [True]},
+        {"jid": "lock-001", "fun": registry.SET_BLACKOUT, "arg": []},
         "slcli-test-001",
     )
     assert locked["return"] is True
@@ -170,7 +170,7 @@ def test_systemlink_lock_batch_returns_success_for_each_function(tmp_path: Path)
         {
             "jid": "lock-batch-001",
             "fun": [registry.SET_BLACKOUT, registry.GRAINS_ITEMS],
-            "arg": [[True], []],
+            "arg": [[], []],
         },
         "slcli-test-001",
     )
