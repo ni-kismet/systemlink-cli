@@ -1,1 +1,1 @@
-Return exit code PERMISSION_DENIED when any service probe returns unauthorized instead of GENERAL_ERROR for SystemLink Server platforms.
+Use the SystemLink Server Tag Rule Engine versioning endpoint to positively identify SLS installations and return exit code PERMISSION_DENIED when any authenticated service probe returns unauthorized.
