@@ -904,6 +904,7 @@ def _check_service_status(
 
     # Determine platform from positive capability probes.
     platform = _detect_platform_from_services(services, sls_platform_status)
+    initial_auth_valid = any(status == "ok" for status in services.values())
 
     file_capability = get_file_query_capability(api_url, credential, auth_scheme)
     services["File"] = file_capability["status"]
@@ -911,7 +912,9 @@ def _check_service_status(
     services["Systems"] = system_capability["status"]
 
     # Recompute auth after capability probes add their final service statuses.
-    auth_valid = any(status in ("ok", "fallback") for status in services.values())
+    auth_valid = initial_auth_valid or any(
+        status in ("ok", "fallback") for status in services.values()
+    )
 
     return {
         "server_reachable": True,

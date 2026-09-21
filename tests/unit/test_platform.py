@@ -630,6 +630,46 @@ class TestCheckServiceStatus:
         assert result["auth_valid"] is True
         assert result["platform"] == PLATFORM_SLS
 
+    def test_initial_authorized_probe_survives_capability_failure(self) -> None:
+        """Test capability failures do not erase an earlier authorized probe."""
+        mock_get, mock_post = self._mock_requests(
+            {
+                "/niauth/": 404,
+                "/nitestmonitor/": 404,
+                "/niapm/": 404,
+                "/nisysmgmt/": 200,
+                "/nitag/": 404,
+                "/nifile/": 404,
+                "/nidataframe/": 404,
+                "/ninotebook/": 404,
+                "/nicomments/": 404,
+                "/niroutine/v2/": 404,
+                "/niapp/": 404,
+                "/nidynamicformfields/": 404,
+                "/niworkorder/": 404,
+                SLS_PLATFORM_PROBE_PATH: 200,
+            }
+        )
+        not_found_file = {
+            "status": "not_found",
+            "file_query_endpoint": None,
+            "elasticsearch_available": False,
+        }
+        not_found_system = {
+            "status": "not_found",
+            "system_query_endpoint": None,
+            "materialized_search_available": False,
+        }
+        with patch("slcli.platform.requests.get", mock_get), patch(
+            "slcli.platform.requests.post", mock_post
+        ), patch("slcli.platform.get_file_query_capability", return_value=not_found_file), patch(
+            "slcli.platform.get_system_query_capability", return_value=not_found_system
+        ):
+            result = check_service_status("https://my-server.local", "valid-key")
+
+        assert result["auth_valid"] is True
+        assert result["platform"] == PLATFORM_SLS
+
     def test_reports_sls_query_files_capability(self) -> None:
         """Test file service health reports query-files for SLS servers."""
         mock_get, mock_post = self._mock_requests(
