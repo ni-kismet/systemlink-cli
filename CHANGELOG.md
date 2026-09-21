@@ -2,6 +2,13 @@
 
 <!-- towncrier release notes start -->
 
+## v1.29.4 (2026-09-21)
+
+### Bug Fixes
+
+- Use the SystemLink Server Tag Rule Engine versioning endpoint to positively identify SLS installations and return exit code PERMISSION_DENIED when no authenticated service probe succeeds and service verification returns mixed unauthorized and not-found responses. (config-sls-api-key-verification)
+
+
 ## v1.29.3 (2026-09-17)
 
 ### Bug Fixes
