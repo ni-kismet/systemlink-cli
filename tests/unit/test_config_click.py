@@ -603,7 +603,7 @@ class TestTrustedCertificates:
 
         result = CliRunner().invoke(
             make_cli(),
-            ["config", "trust", "show", "--url", "https://example.com", "--format", "json"],
+            ["config", "trust", "show", "--url", "https://example.com", "-f", "json"],
         )
 
         assert result.exit_code == 0, result.output

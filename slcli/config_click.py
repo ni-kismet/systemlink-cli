@@ -693,6 +693,7 @@ def register_config_commands(cli: Any) -> None:
     @click.option(
         "--format",
         "output_format",
+        "-f",
         type=click.Choice(["table", "json"]),
         default="table",
         show_default=True,
