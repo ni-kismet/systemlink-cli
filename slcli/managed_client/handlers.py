@@ -101,6 +101,8 @@ class FixtureHandlerRegistry:
     SET_BLACKOUT = "nisysmgmt.set_blackout"
     UNSET_BLACKOUT = "nisysmgmt.unset_blackout"
     ADD_ASSET = "ni_asset.add_asset"
+    REMOVE_ASSET = "ni_asset.remove_asset"
+    REFRESH_ASSET = "ni_asset.refresh"
     LIST_REPOS = "pkg.list_repos"
     GRAINS_ITEMS = "nisysmgmt.grains_items"
     INFO_INSTALLED = "pkg.info_installed"
@@ -120,6 +122,8 @@ class FixtureHandlerRegistry:
             self.SET_BLACKOUT: self._set_blackout,
             self.UNSET_BLACKOUT: self._unset_blackout,
             self.ADD_ASSET: self._add_asset,
+            self.REMOVE_ASSET: self._remove_asset,
+            self.REFRESH_ASSET: self._refresh_asset,
             self.LIST_REPOS: self._return_none,
             self.GRAINS_ITEMS: self._grains_items,
             self.INFO_INSTALLED: self._info_installed,
@@ -354,6 +358,30 @@ class FixtureHandlerRegistry:
             self._state_store.record_asset_names(names)
         except ManagedClientError:
             return HandlerResult(False, 2, error="unable-to-persist-asset-names")
+        return HandlerResult(True, 0, True)
+
+    @staticmethod
+    def _remove_asset(job: FixtureJob) -> HandlerResult:
+        """Acknowledge removal of an asset identified by its hardware fields."""
+        identification = job.kwargs.get("identification")
+        required_fields = {
+            "model_name",
+            "model_number",
+            "vendor_name",
+            "vendor_number",
+            "serial_number",
+        }
+        if job.args or set(job.kwargs) != {"identification"}:
+            return HandlerResult(False, 2, error="remove_asset-requires-identification")
+        if not isinstance(identification, Mapping) or not required_fields.issubset(identification):
+            return HandlerResult(False, 2, error="remove_asset-requires-identification")
+        return HandlerResult(True, 0, True)
+
+    @staticmethod
+    def _refresh_asset(job: FixtureJob) -> HandlerResult:
+        """Acknowledge an asset refresh without creating server-side state."""
+        if job.args or job.kwargs:
+            return HandlerResult(False, 2, error="refresh-takes-no-arguments")
         return HandlerResult(True, 0, True)
 
     def _grains_items(self, job: FixtureJob) -> HandlerResult:

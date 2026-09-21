@@ -279,6 +279,74 @@ def test_systemlink_add_asset_records_multiple_names(tmp_path: Path) -> None:
     assert metadata["asset_names"] == ["asset-one", "asset-two"]
 
 
+def test_systemlink_remove_asset_accepts_identification_kwargs() -> None:
+    """The asset removal handler accepts Salt's identification payload."""
+    registry = FixtureHandlerRegistry()
+
+    result = registry.dispatch(
+        {
+            "jid": "asset-remove-001",
+            "fun": registry.REMOVE_ASSET,
+            "arg": [
+                {
+                    "__kwarg__": True,
+                    "identification": {
+                        "model_name": "fixture-model",
+                        "model_number": 0,
+                        "vendor_name": "fixture-vendor",
+                        "vendor_number": 0,
+                        "serial_number": "fixture-serial",
+                    },
+                }
+            ],
+        },
+        "slcli-test-001",
+    )
+
+    assert result["return"] is True
+    assert result["retcode"] == 0
+    assert result["success"] is True
+
+
+def test_systemlink_refresh_asset_returns_success() -> None:
+    """The asset refresh handler accepts a no-argument Salt job."""
+    registry = FixtureHandlerRegistry()
+
+    result = registry.dispatch(
+        {"jid": "asset-refresh-001", "fun": registry.REFRESH_ASSET},
+        "slcli-test-001",
+    )
+
+    assert result["return"] is True
+    assert result["retcode"] == 0
+    assert result["success"] is True
+
+
+def test_systemlink_remove_asset_batch_returns_success() -> None:
+    """A batch of identified asset removals returns one success per asset."""
+    registry = FixtureHandlerRegistry()
+    identification = {
+        "model_name": "fixture-model",
+        "model_number": 0,
+        "vendor_name": "fixture-vendor",
+        "vendor_number": 0,
+        "serial_number": "fixture-serial",
+    }
+
+    result = registry.dispatch(
+        {
+            "jid": "asset-remove-batch-001",
+            "fun": [registry.REMOVE_ASSET] * 3,
+            "arg": [[{"__kwarg__": True, "identification": identification}]] * 3,
+        },
+        "slcli-test-001",
+    )
+
+    assert result["return"] == [True, True, True]
+    assert result["retcode"] == [0, 0, 0]
+    assert result["success"] == [True, True, True]
+
+
 def test_systemlink_lock_batch_returns_success_for_each_function(tmp_path: Path) -> None:
     """A lock job can be combined with the normal grains refresh."""
     state_store = StateStore(tmp_path / "minion")
