@@ -48,6 +48,14 @@ class FixtureJob:
             raise HandlerError("Fixture job args must be a list.")
         if not isinstance(kwargs, Mapping):
             raise HandlerError("Fixture job kwargs must be a map.")
+        if (
+            len(args) == 1
+            and isinstance(args[0], (list, tuple))
+            and len(args[0]) == 1
+            and isinstance(args[0][0], Mapping)
+            and args[0][0].get("__kwarg__") is True
+        ):
+            args = args[0]
         if args and isinstance(args[0], Mapping) and args[0].get("__kwarg__") is True:
             if len(args) != 1:
                 raise HandlerError("Fixture keyword arguments must be the only argument.")
@@ -91,13 +99,16 @@ class FixtureHandlerRegistry:
     STATE_APPLY = "nisysmgmt.state_apply"
     RESTART = "nisysmgmt.restart"
     SET_BLACKOUT = "nisysmgmt.set_blackout"
+    UNSET_BLACKOUT = "nisysmgmt.unset_blackout"
+    ADD_ASSET = "ni_asset.add_asset"
     LIST_REPOS = "pkg.list_repos"
     GRAINS_ITEMS = "nisysmgmt.grains_items"
     INFO_INSTALLED = "pkg.info_installed"
 
-    def __init__(self, state_store: StateStore | None = None) -> None:
+    def __init__(self, state_store: StateStore | None = None, boot_time: str | None = None) -> None:
         """Create a registry with the built-in deterministic handlers."""
         self._state_store = state_store
+        self._boot_time = boot_time
         self._handlers: Dict[str, FixtureHandler] = {
             self.RETURN_SUCCESS: self._return_success,
             self.RETURN_FIXTURE: self._return_fixture,
@@ -107,8 +118,10 @@ class FixtureHandlerRegistry:
             self.STATE_APPLY: self._return_true,
             self.RESTART: self._return_true,
             self.SET_BLACKOUT: self._set_blackout,
+            self.UNSET_BLACKOUT: self._unset_blackout,
+            self.ADD_ASSET: self._add_asset,
             self.LIST_REPOS: self._return_none,
-            self.GRAINS_ITEMS: self._return_none,
+            self.GRAINS_ITEMS: self._grains_items,
             self.INFO_INSTALLED: self._info_installed,
         }
 
@@ -151,9 +164,19 @@ class FixtureHandlerRegistry:
             or not functions
             or any(not isinstance(function, str) or not function.strip() for function in functions)
             or not isinstance(args, list)
-            or len(args) != len(functions)
             or not isinstance(kwargs, (list, tuple, Mapping))
         ):
+            return {
+                "id": minion_id,
+                "return": None,
+                "retcode": 2,
+                "success": False,
+                "error": "malformed-job",
+                "error_message": "Multi-function fixture jobs have mismatched fields.",
+            }
+        if not args:
+            args = [[] for _ in functions]
+        elif len(args) != len(functions):
             return {
                 "id": minion_id,
                 "return": None,
@@ -291,6 +314,60 @@ class FixtureHandlerRegistry:
         except ManagedClientError:
             return HandlerResult(False, 2, error="unable-to-persist-blackout-state")
         return HandlerResult(True, 0, blackout)
+
+    def _unset_blackout(self, job: FixtureJob) -> HandlerResult:
+        """Persist the cleared Salt blackout state and return it."""
+        if job.args or job.kwargs:
+            return HandlerResult(False, 2, error="unset_blackout-takes-no-arguments")
+        if self._state_store is None:
+            return HandlerResult(False, 2, error="unset_blackout-requires-state-store")
+        try:
+            self._state_store.record_blackout_state(False)
+        except ManagedClientError:
+            return HandlerResult(False, 2, error="unable-to-persist-blackout-state")
+        return HandlerResult(True, 0, False)
+
+    def _add_asset(self, job: FixtureJob) -> HandlerResult:
+        """Persist asset names without creating host or server state."""
+        asset_kwargs: list[Mapping[str, Any]]
+        if not job.args and job.kwargs:
+            asset_kwargs = [job.kwargs]
+        elif len(job.args) == 1 and isinstance(job.args[0], (list, tuple)):
+            raw_assets = job.args[0]
+            if not raw_assets or any(
+                not isinstance(asset, Mapping) or asset.get("__kwarg__") is not True
+                for asset in raw_assets
+            ):
+                return HandlerResult(False, 2, error="add_asset-requires-keyword-arguments")
+            asset_kwargs = list(raw_assets)
+        else:
+            return HandlerResult(False, 2, error="add_asset-requires-keyword-arguments")
+        names: list[str] = []
+        for asset in asset_kwargs:
+            name = asset.get("name")
+            if not isinstance(name, str) or not name.strip():
+                return HandlerResult(False, 2, error="add_asset-requires-keyword-arguments")
+            names.append(name)
+        if self._state_store is None:
+            return HandlerResult(False, 2, error="add_asset-requires-state-store")
+        try:
+            self._state_store.record_asset_names(names)
+        except ManagedClientError:
+            return HandlerResult(False, 2, error="unable-to-persist-asset-names")
+        return HandlerResult(True, 0, True)
+
+    def _grains_items(self, job: FixtureJob) -> HandlerResult:
+        """Return the SystemLink grain that represents the lock state."""
+        if job.args or job.kwargs:
+            return HandlerResult(False, 2, error="grains_items-takes-no-arguments")
+        try:
+            blackout = self._state_store.get_blackout_state() if self._state_store else False
+        except ManagedClientError:
+            return HandlerResult(False, 2, error="unable-to-read-blackout-state")
+        grains: Dict[str, Any] = {"minion_blackout": blackout}
+        if self._boot_time is not None:
+            grains["boottime"] = self._boot_time
+        return HandlerResult(True, 0, grains)
 
     @staticmethod
     def _return_none(job: FixtureJob) -> HandlerResult:

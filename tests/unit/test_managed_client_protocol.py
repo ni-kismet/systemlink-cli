@@ -15,6 +15,7 @@ from slcli.managed_client.protocol import (
     MessagePackStream,
     SaltMessage,
     build_job_return,
+    build_pillar_request,
     build_publish_registration,
     decrypt_message_load,
     parse_auth_response,
@@ -252,6 +253,22 @@ def test_publish_and_job_return_use_salt_field_names() -> None:
         "tok": b"token:salt",
     }
 
+    pillar = build_pillar_request(
+        grains={"minion_blackout": True},
+        minion_id="minion-1",
+        shared_secret=shared_secret,
+        private_key=key_pair,
+        nonce="nonce-1",
+        signer=signer,
+    )
+    assert decrypt_message_load(pillar, shared_secret) == {
+        "cmd": "_pillar",
+        "id": "minion-1",
+        "grains": {"minion_blackout": True},
+        "tok": b"token:salt",
+        "nonce": "nonce-1",
+    }
+
     returned = build_job_return(
         job=job,
         result={"return": {"value": "success"}, "retcode": 0, "success": True},
@@ -298,7 +315,7 @@ def test_job_return_preserves_multi_function_refresh_arrays() -> None:
     returned = build_job_return(
         job=job,
         result={
-            "return": [True, True, None, None, None],
+            "return": [True, True, None, {"minion_blackout": False}, None],
             "retcode": [0, 0, 0, 0, 0],
             "success": [True, True, True, True, True],
         },
@@ -314,7 +331,7 @@ def test_job_return_preserves_multi_function_refresh_arrays() -> None:
         "jid": "refresh-001",
         "id": "minion-1",
         "tok": b"token:salt",
-        "return": [True, True, None, None, None],
+        "return": [True, True, None, {"minion_blackout": False}, None],
         "retcode": [0, 0, 0, 0, 0],
         "success": [True, True, True, True, True],
         "fun": [

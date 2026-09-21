@@ -10,7 +10,7 @@ import stat
 import subprocess
 from dataclasses import dataclass, field
 from pathlib import Path
-from typing import Any, Dict, Union
+from typing import Any, Dict, Sequence, Union
 
 from cryptography.hazmat.primitives.asymmetric.rsa import RSAPublicKey
 
@@ -113,6 +113,31 @@ class StateStore:
         self.ensure_directory()
         metadata = self._read_metadata()
         metadata["blackout"] = blackout
+        self._write_metadata(metadata)
+
+    def record_asset_name(self, name: str) -> None:
+        """Persist the managed asset name in the isolated metadata file."""
+        self.record_asset_names([name])
+
+    def record_asset_names(self, names: Sequence[str]) -> None:
+        """Persist managed asset names in the isolated metadata file."""
+        if not names or any(not isinstance(name, str) or not name.strip() for name in names):
+            raise StateError("The asset names must be non-empty strings.")
+        self.ensure_directory()
+        metadata = self._read_metadata()
+        stored_names = metadata.get("asset_names", [])
+        if not isinstance(stored_names, list) or any(
+            not isinstance(name, str) for name in stored_names
+        ):
+            stored_names = []
+        legacy_name = metadata.get("asset_name")
+        if not stored_names and isinstance(legacy_name, str) and legacy_name.strip():
+            stored_names.append(legacy_name)
+        for name in names:
+            if name not in stored_names:
+                stored_names.append(name)
+        metadata["asset_names"] = stored_names
+        metadata.pop("asset_name", None)
         self._write_metadata(metadata)
 
     def reset(self) -> None:

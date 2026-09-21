@@ -16,6 +16,7 @@ from slcli.managed_client.models import (
     TransportError,
 )
 from slcli.managed_client.rest import ManagedClientRestAdapter
+from slcli.managed_client.state import StateStore
 from tests.unit.managed_client_fixture import FixtureSaltServer
 
 
@@ -63,10 +64,11 @@ def test_event_callback_can_observe_minion_state(tmp_path: Path) -> None:
 
 
 def test_minion_completes_pending_publish_and_refresh_job_return(tmp_path: Path) -> None:
-    """The minion returns the normal multi-function refresh result."""
+    """The minion publishes the persisted blackout grain and returns the refresh result."""
     server = FixtureSaltServer()
     server.start()
     events: list[MinionEvent] = []
+    StateStore(tmp_path / "state").record_blackout_state(True)
     minion = ManagedTestMinion(
         MinionConfiguration(
             master=f"127.0.0.1:{server.request_port}",
@@ -86,9 +88,13 @@ def test_minion_completes_pending_publish_and_refresh_job_return(tmp_path: Path)
         minion.wait_for_state("connected", timeout=5)
         server.release_job.set()
         result = server.result.get(timeout=5)
-        assert result["return"] == [True, True, None, None, None]
+        assert result["return"][3]["minion_blackout"] is True
+        assert result["return"][3]["boottime"] == server.projected_grains["boottime"]
         assert result["retcode"] == [0, 0, 0, 0, 0]
         assert result["success"] == [True, True, True, True, True]
+        assert server.projected_grains["minion_blackout"] is True
+        assert isinstance(server.projected_grains["boottime"], str)
+        assert server.projected_grains["boottime"].endswith("Z")
         received = next(event for event in events if event.message == "Received Salt job")
         returned = next(event for event in events if event.message == "Sent Salt job return")
         assert received.details == {
@@ -168,7 +174,9 @@ def test_minion_rest_approval_orchestration(tmp_path: Path) -> None:
         )
         minion.wait_for_state("connected", timeout=5)
         server.release_job.set()
-        assert server.result.get(timeout=5)["return"] == [True, True, None, None, None]
+        result = server.result.get(timeout=5)
+        assert result["return"][3]["minion_blackout"] is False
+        assert result["return"][3]["boottime"] == server.projected_grains["boottime"]
         adapter.delete_managed_system(minion.minion_id, "workspace-1", public_key)
     finally:
         minion.stop(timeout=5)
@@ -203,8 +211,13 @@ def test_minion_reconnects_with_the_same_identity(tmp_path: Path) -> None:
         first_result = server.result.get(timeout=5)
         second_result = server.result.get(timeout=5)
         assert server.reconnected.wait(5)
-        assert first_result["return"] == [True, True, None, None, None]
-        assert second_result["return"] == [True, True, None, None, None]
+        assert first_result["return"][3]["minion_blackout"] is False
+        assert second_result["return"][3]["minion_blackout"] is False
+        assert first_result["return"][3]["boottime"] == second_result["return"][3]["boottime"]
+        first_grains, second_grains = server.projected_grains_history
+        assert first_grains["minion_blackout"] is False
+        assert second_grains["minion_blackout"] is False
+        assert first_grains["boottime"] == second_grains["boottime"]
         assert server.public_keys[0] == server.public_keys[1]
     finally:
         minion.stop(timeout=5)

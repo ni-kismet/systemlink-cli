@@ -43,6 +43,8 @@ class FixtureSaltServer:
         self.reconnected = threading.Event()
         self._shutdown = threading.Event()
         self.public_keys: list[str] = []
+        self.projected_grains: dict[str, Any] = {}
+        self.projected_grains_history: list[dict[str, Any]] = []
         self._minion_public_key: RSAPublicKey | None = None
         self._minion_token = b"fixture-minion-token"
         self._token_issued = False
@@ -87,6 +89,7 @@ class FixtureSaltServer:
             assert self._minion_public_key is not None
             assert isinstance(registration["tok"], bytes)
             assert rsa_x931_decrypt(registration["tok"], self._minion_public_key) == b"salt"
+            self._receive_grains(request_channel)
             self.registration_ready.set()
             assert self.release_job.wait(5)
             self._send_job(publish_channel, "fixture-jid-001")
@@ -108,6 +111,7 @@ class FixtureSaltServer:
                 assert self._minion_public_key is not None
                 assert isinstance(registration["tok"], bytes)
                 assert rsa_x931_decrypt(registration["tok"], self._minion_public_key) == b"salt"
+                self._receive_grains(request_channel)
                 self.reconnected.set()
                 self._send_job(publish_channel, "fixture-jid-002")
                 returned = decrypt_message_load(request_channel.receive(), self._shared_secret)
@@ -122,6 +126,20 @@ class FixtureSaltServer:
                 request_channel.close()
             if publish_channel is not None:
                 publish_channel.close()
+
+    def _receive_grains(self, request_channel: SaltChannel) -> None:
+        """Validate and retain the grains projected by an authenticated request."""
+        request = decrypt_message_load(request_channel.receive(), self._shared_secret)
+        assert request["cmd"] == "_pillar"
+        assert request["id"] == self._minion_id
+        assert self._minion_public_key is not None
+        assert isinstance(request["tok"], bytes)
+        assert rsa_x931_decrypt(request["tok"], self._minion_public_key) == b"salt"
+        assert isinstance(request["nonce"], str)
+        grains = request["grains"]
+        assert isinstance(grains, Mapping)
+        self.projected_grains = dict(grains)
+        self.projected_grains_history.append(self.projected_grains.copy())
 
     def _send_job(self, publish_channel: SaltChannel, jid: str) -> None:
         """Send the observed multi-function refresh job."""

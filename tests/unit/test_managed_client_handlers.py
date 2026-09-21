@@ -1,5 +1,6 @@
 """Unit tests for deterministic managed-client job handlers."""
 
+import json
 from pathlib import Path
 
 from slcli.managed_client.handlers import FixtureHandlerRegistry
@@ -112,7 +113,7 @@ def test_systemlink_refresh_job_returns_normal_multi_function_result() -> None:
             registry.GRAINS_ITEMS,
             registry.INFO_INSTALLED,
         ],
-        "return": [True, True, None, None, None],
+        "return": [True, True, None, {"minion_blackout": False}, None],
         "retcode": [0, 0, 0, 0, 0],
         "success": [True, True, True, True, True],
     }
@@ -134,6 +135,25 @@ def test_systemlink_restart_job_returns_success() -> None:
         "return": True,
         "retcode": 0,
         "success": True,
+    }
+
+
+def test_systemlink_restart_job_accepts_single_function_list_without_args() -> None:
+    """A no-argument single-function Salt job can omit its argument list."""
+    registry = FixtureHandlerRegistry()
+
+    result = registry.dispatch(
+        {"jid": "restart-002", "fun": [registry.RESTART]},
+        "slcli-test-001",
+    )
+
+    assert result == {
+        "jid": "restart-002",
+        "id": "slcli-test-001",
+        "fun": [registry.RESTART],
+        "return": [True],
+        "retcode": [0],
+        "success": [True],
     }
 
 
@@ -161,6 +181,104 @@ def test_systemlink_set_blackout_persists_lock_and_unlock(tmp_path: Path) -> Non
     assert StateStore(tmp_path / "minion").get_blackout_state() is False
 
 
+def test_systemlink_unset_blackout_persists_unlock(tmp_path: Path) -> None:
+    """The SystemLink unlock operation clears the persisted blackout state."""
+    state_store = StateStore(tmp_path / "minion")
+    state_store.record_blackout_state(True)
+    registry = FixtureHandlerRegistry(state_store=state_store)
+
+    result = registry.dispatch(
+        {
+            "jid": "unlock-002",
+            "fun": [registry.UNSET_BLACKOUT, registry.GRAINS_ITEMS],
+            "arg": [[], []],
+        },
+        "slcli-test-001",
+    )
+
+    assert result["return"] == [False, {"minion_blackout": False}]
+    assert result["retcode"] == [0, 0]
+    assert result["success"] == [True, True]
+    assert StateStore(tmp_path / "minion").get_blackout_state() is False
+
+
+def test_systemlink_add_asset_accepts_nested_keyword_arguments(tmp_path: Path) -> None:
+    """The asset job accepts Salt's nested keyword argument shape."""
+    state_store = StateStore(tmp_path / "minion")
+    registry = FixtureHandlerRegistry(state_store=state_store)
+
+    result = registry.dispatch(
+        {
+            "jid": "asset-001",
+            "fun": "ni_asset.add_asset",
+            "arg": [
+                [
+                    {
+                        "__kwarg__": True,
+                        "name": "xxc",
+                        "model_name": "zxc",
+                        "model_number": 0,
+                        "vendor_name": "zxc",
+                        "vendor_number": 0,
+                        "serial_number": "zxc",
+                        "bus_type": "USB",
+                        "asset_type": "GENERIC",
+                        "keywords": [],
+                        "properties": {
+                            "asset_reserved": "false",
+                            "asset_assigned_to": "",
+                        },
+                        "part_number": "",
+                        "firmware_version": "",
+                        "hardware_version": "",
+                        "supports_external_calibration": None,
+                        "is_ni_asset": False,
+                        "location": {
+                            "minionId": "slcli-test-001",
+                            "physicalLocation": "",
+                            "parent": "",
+                            "slot_number": -1,
+                            "state": {"asset_presence": "PRESENT"},
+                        },
+                        "external_calibration": None,
+                    }
+                ]
+            ],
+        },
+        "slcli-test-001",
+    )
+
+    assert result["retcode"] == 0
+    assert result["success"] is True
+    metadata = json.loads((tmp_path / "minion" / "metadata.json").read_text())
+    assert metadata["asset_names"] == ["xxc"]
+
+
+def test_systemlink_add_asset_records_multiple_names(tmp_path: Path) -> None:
+    """The asset job records all names from one multi-asset request."""
+    state_store = StateStore(tmp_path / "minion")
+    registry = FixtureHandlerRegistry(state_store=state_store)
+
+    result = registry.dispatch(
+        {
+            "jid": "asset-002",
+            "fun": registry.ADD_ASSET,
+            "arg": [
+                [
+                    {"__kwarg__": True, "name": "asset-one"},
+                    {"__kwarg__": True, "name": "asset-two"},
+                ]
+            ],
+        },
+        "slcli-test-001",
+    )
+
+    assert result["retcode"] == 0
+    assert result["success"] is True
+    metadata = json.loads((tmp_path / "minion" / "metadata.json").read_text())
+    assert metadata["asset_names"] == ["asset-one", "asset-two"]
+
+
 def test_systemlink_lock_batch_returns_success_for_each_function(tmp_path: Path) -> None:
     """A lock job can be combined with the normal grains refresh."""
     state_store = StateStore(tmp_path / "minion")
@@ -175,7 +293,7 @@ def test_systemlink_lock_batch_returns_success_for_each_function(tmp_path: Path)
         "slcli-test-001",
     )
 
-    assert result["return"] == [True, None]
+    assert result["return"] == [True, {"minion_blackout": True}]
     assert result["retcode"] == [0, 0]
     assert result["success"] == [True, True]
     assert StateStore(tmp_path / "minion").get_blackout_state() is True

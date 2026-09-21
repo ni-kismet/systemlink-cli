@@ -6,6 +6,7 @@ import threading
 import time
 import uuid
 from collections.abc import Callable, Mapping
+from datetime import datetime, timezone
 from typing import Any
 
 from cryptography.hazmat.primitives.asymmetric.rsa import RSAPrivateKey
@@ -35,6 +36,7 @@ from .protocol import (
     AuthResponse,
     AuthState,
     build_job_return,
+    build_pillar_request,
     build_publish_registration,
     decrypt_message_load,
     parse_auth_response,
@@ -68,7 +70,13 @@ class TestMinion:
             configuration.master, request_port=configuration.request_port
         )
         self._state_store = StateStore(configuration.state_dir)
-        self._handlers = handlers or FixtureHandlerRegistry(state_store=self._state_store)
+        self._boot_time = (
+            datetime.now(timezone.utc).isoformat(timespec="milliseconds").replace("+00:00", "Z")
+        )
+        self._handlers = handlers or FixtureHandlerRegistry(
+            state_store=self._state_store,
+            boot_time=self._boot_time,
+        )
         self._on_event = on_event
         self._token_signer = token_signer
         self._verify_load_signature = verify_load_signature
@@ -189,7 +197,7 @@ class TestMinion:
                         request_channel = None
                         self._set_phase(
                             MinionPhase.PENDING_APPROVAL,
-                            "Waiting for Salt key approval",
+                            "Waiting for SystemLink approval",
                         )
                         self._stop_event.wait(self.configuration.reconnect_interval)
                         if not self._stop_event.is_set():
@@ -218,6 +226,7 @@ class TestMinion:
                             signer=self._token_signer,
                         )
                     )
+                    self._publish_grains(request_channel, auth_response.shared_secret)
                     self._reconnect_attempts = 0
                     self._set_phase(MinionPhase.CONNECTED, "Publish channel connected")
                     self._run_connected(
@@ -281,6 +290,22 @@ class TestMinion:
         if response.minion_token is not None:
             self._minion_token = response.minion_token
         return response
+
+    def _publish_grains(self, request_channel: SaltChannel, shared_secret: bytes) -> None:
+        """Publish the locally persisted grains through Salt's cache path."""
+        request_channel.send(
+            build_pillar_request(
+                grains={
+                    "boottime": self._boot_time,
+                    "minion_blackout": self._state_store.get_blackout_state(),
+                },
+                minion_id=self.minion_id,
+                shared_secret=shared_secret,
+                private_key=self._require_identity().key_pair.private_key,
+                api_key=self.configuration.api_key,
+                signer=self._token_signer,
+            )
+        )
 
     @staticmethod
     def _verify_session_signature(digest: bytes, signature: bytes, public_key: str) -> bool:

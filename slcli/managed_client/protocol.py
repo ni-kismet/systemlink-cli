@@ -387,6 +387,35 @@ def build_publish_registration(
     )
 
 
+def build_pillar_request(
+    *,
+    grains: Mapping[str, Any],
+    minion_id: str,
+    shared_secret: bytes,
+    private_key: RSAPrivateKey,
+    nonce: str | None = None,
+    message_id: int | str = 1,
+    api_key: str | None = None,
+    signer: Any = rsa_x931_sign,
+) -> SaltMessage:
+    """Build the authenticated encrypted v3 `_pillar` request."""
+    token = signer(b"salt", private_key)
+    request_nonce = nonce if nonce is not None else uuid.uuid4().hex
+    load = {
+        "cmd": "_pillar",
+        "id": minion_id,
+        "grains": dict(grains),
+        "tok": token,
+        "nonce": request_nonce,
+    }
+    return build_message(
+        encrypt_aes_192_cbc_hmac(pack_inner_load(load), shared_secret).to_bytes(),
+        encoding="aes",
+        message_id=message_id,
+        api_key=api_key,
+    )
+
+
 def decrypt_message_load(message: SaltMessage, shared_secret: bytes) -> MutableMapping[str, Any]:
     """Decrypt and unpack an AES message load."""
     if message.body.get("enc") != "aes":
