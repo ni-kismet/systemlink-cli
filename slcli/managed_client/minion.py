@@ -125,13 +125,14 @@ class TestMinion:
             self._identity = identity
             self._stop_event.clear()
             self._last_error = None
-            self._set_phase_locked(MinionPhase.INITIALIZING, "Minion initialized")
+            event = self._set_phase_locked(MinionPhase.INITIALIZING, "Minion initialized")
             self._thread = threading.Thread(
                 target=self._run,
                 name=f"slcli-test-minion-{self.minion_id}",
                 daemon=True,
             )
             self._thread.start()
+        self._notify_event(event)
 
     def stop(self, timeout: float | None = None) -> None:
         """Stop sockets and the lifecycle thread deterministically."""
@@ -143,7 +144,8 @@ class TestMinion:
             if thread.is_alive():
                 raise LifecycleTimeoutError("The test minion did not stop in time.")
         with self._condition:
-            self._set_phase_locked(MinionPhase.STOPPING, "Minion stopped")
+            event = self._set_phase_locked(MinionPhase.STOPPING, "Minion stopped")
+        self._notify_event(event)
 
     def wait_for_state(self, state: MinionPhase | str, timeout: float = 30.0) -> None:
         """Wait until a phase is reached or raise a typed timeout."""
@@ -422,7 +424,8 @@ class TestMinion:
     ) -> None:
         """Publish a phase transition and notify state waiters."""
         with self._condition:
-            self._set_phase_locked(phase, message, details, retry_count)
+            event = self._set_phase_locked(phase, message, details, retry_count)
+        self._notify_event(event)
 
     def _set_phase_locked(
         self,
@@ -430,7 +433,7 @@ class TestMinion:
         message: str,
         details: dict[str, str] | None = None,
         retry_count: int = 0,
-    ) -> None:
+    ) -> MinionEvent:
         """Set phase while the condition lock is held."""
         self._phase = phase
         event = MinionEvent(
@@ -442,6 +445,10 @@ class TestMinion:
         )
         self._events.append(event)
         self._condition.notify_all()
+        return event
+
+    def _notify_event(self, event: MinionEvent) -> None:
+        """Invoke the observer after releasing the lifecycle condition lock."""
         if self._on_event is not None:
             try:
                 self._on_event(event)

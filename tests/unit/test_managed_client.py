@@ -2,13 +2,19 @@
 
 from __future__ import annotations
 
+import threading
 from pathlib import Path
 from typing import Any
 
 import pytest
 
 from slcli.managed_client import MinionConfiguration, MinionEvent, TestMinion as ManagedTestMinion
-from slcli.managed_client.models import ProtocolError, ReconnectLimitExceededError, TransportError
+from slcli.managed_client.models import (
+    MinionPhase,
+    ProtocolError,
+    ReconnectLimitExceededError,
+    TransportError,
+)
 from slcli.managed_client.rest import ManagedClientRestAdapter
 from tests.unit.managed_client_fixture import FixtureSaltServer
 
@@ -23,6 +29,37 @@ class JsonResponse:
     def json(self) -> Any:
         """Return the stored response value."""
         return self.value
+
+
+def test_event_callback_can_observe_minion_state(tmp_path: Path) -> None:
+    """An event callback can inspect state without reacquiring the condition lock."""
+    callback_finished = threading.Event()
+    observed: list[tuple[MinionPhase, tuple[MinionEvent, ...]]] = []
+    minion: ManagedTestMinion
+
+    def on_event(_: MinionEvent) -> None:
+        observed.append((minion.phase, minion.events))
+        callback_finished.set()
+
+    minion = ManagedTestMinion(
+        MinionConfiguration(
+            master="127.0.0.1",
+            minion_id="slcli-callback",
+            state_dir=tmp_path / "state",
+        ),
+        on_event=on_event,
+    )
+    callback_thread = threading.Thread(
+        target=minion._set_phase,
+        args=(MinionPhase.CONNECTED, "Connected"),
+        daemon=True,
+    )
+    callback_thread.start()
+
+    assert callback_finished.wait(timeout=1)
+    callback_thread.join(timeout=1)
+    assert not callback_thread.is_alive()
+    assert observed[0][0] is MinionPhase.CONNECTED
 
 
 def test_minion_completes_pending_publish_and_refresh_job_return(tmp_path: Path) -> None:

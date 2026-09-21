@@ -339,6 +339,7 @@ slcli system remove &lt;system-id&gt; --force</code></pre>
       <p>Run an opt-in, foreground Salt test minion for managed-client interoperability testing. This is a test feature and is separate from <code>slcli system</code> REST commands and virtual systems.</p>
 
       <h3>Prerequisites and Lifecycle</h3>
+      <p>Install the optional managed-client dependency before using this command: <code>pip install "systemlink-cli[managed-client]"</code>. With Poetry, use <code>poetry install --extras managed-client</code>.</p>
       <p>The Salt master endpoint and request port must be reachable from the machine running slcli. The <code>run</code> command creates or reuses a stable RSA identity in the supplied state directory. A separate REST control-plane operation must approve the pending public key; <code>managed-client run</code> does not approve keys or create server-side systems.</p>
       <pre><code># Start the foreground test minion
     slcli managed-client run \
