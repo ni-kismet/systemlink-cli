@@ -28,7 +28,7 @@ from .ssl_trust import (
     save_managed_certificate,
 )
 from .table_utils import output_formatted_list
-from .utils import ExitCodes, get_base_url
+from .utils import ExitCodes, get_base_url, get_base_url_resolution
 
 API_KEY_LENGTH = 42
 API_KEY_PATTERN = re.compile(rf"^[A-Za-z0-9_-]{{{API_KEY_LENGTH}}}$")
@@ -701,7 +701,7 @@ def register_config_commands(cli: Any) -> None:
     )
     def show_server_certificate(url: Optional[str], output_format: str) -> None:
         """Inspect and display the current server certificate without trusting it."""
-        server_url = url or get_base_url()
+        server_url = url or get_base_url_resolution().value
         try:
             certificate = inspect_server_certificate(server_url)
         except (OSError, ValueError, ssl.SSLError) as exc:

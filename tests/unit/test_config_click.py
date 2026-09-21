@@ -613,8 +613,9 @@ class TestTrustedCertificates:
     def test_show_server_certificate_table_uses_active_url_without_saving(
         self, monkeypatch: Any
     ) -> None:
-        """Trust show should use the active URL and leave managed trust unchanged."""
+        """Trust show should use the active API URL and leave managed trust unchanged."""
         from slcli.ssl_trust import ServerCertificate
+        from slcli.utils import ResolvedConfigValue
 
         certificate = ServerCertificate(
             origin="https://active.example.com:443",
@@ -629,7 +630,14 @@ class TestTrustedCertificates:
         )
         inspect = MagicMock(return_value=certificate)
         save = MagicMock()
-        monkeypatch.setattr("slcli.config_click.get_base_url", lambda: "https://active.example.com")
+        monkeypatch.setattr(
+            "slcli.config_click.get_base_url",
+            lambda: "https://active-web.example.com",
+        )
+        monkeypatch.setattr(
+            "slcli.config_click.get_base_url_resolution",
+            lambda: ResolvedConfigValue("https://active-api.example.com", "profile:active"),
+        )
         monkeypatch.setattr("slcli.config_click.inspect_server_certificate", inspect)
         monkeypatch.setattr("slcli.config_click.save_managed_certificate", save)
 
@@ -637,7 +645,7 @@ class TestTrustedCertificates:
 
         assert result.exit_code == 0, result.output
         assert "SHA-256: " + "B" * 64 in result.output
-        inspect.assert_called_once_with("https://active.example.com")
+        inspect.assert_called_once_with("https://active-api.example.com")
         save.assert_not_called()
 
     def test_show_server_certificate_reports_inspection_failure(self, monkeypatch: Any) -> None:
