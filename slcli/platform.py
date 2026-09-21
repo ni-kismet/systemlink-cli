@@ -824,8 +824,6 @@ def _check_service_status(
 
     services: Dict[str, str] = {}
     any_responded = False
-    any_authorized = False
-    all_unauthorized = True
     certificate_error = False
 
     for display_name, method, url_path in SERVICE_CHECKS:
@@ -850,18 +848,14 @@ def _check_service_status(
 
             if resp.status_code in (200, 400):
                 services[display_name] = "ok"
-                any_authorized = True
-                all_unauthorized = False
             elif resp.status_code == 401:
                 services[display_name] = "unauthorized"
             elif resp.status_code == 403:
                 services[display_name] = "unauthorized"
             elif resp.status_code == 404:
                 services[display_name] = "not_found"
-                all_unauthorized = False
             else:
                 services[display_name] = "error"
-                all_unauthorized = False
         except requests.exceptions.SSLError:
             services[display_name] = "certificate_error"
             certificate_error = True
@@ -908,12 +902,6 @@ def _check_service_status(
             "platform": PLATFORM_UNREACHABLE,
         }
 
-    # Determine auth status: valid if any service accepted the key
-    # If all responding services returned 401/403, the key is invalid
-    auth_valid = any_authorized if any_responded else None
-    if all_unauthorized and any_responded:
-        auth_valid = False
-
     # Determine platform from positive capability probes.
     platform = _detect_platform_from_services(services, sls_platform_status)
 
@@ -921,6 +909,9 @@ def _check_service_status(
     services["File"] = file_capability["status"]
     system_capability = get_system_query_capability(api_url, credential, auth_scheme)
     services["Systems"] = system_capability["status"]
+
+    # Recompute auth after capability probes add their final service statuses.
+    auth_valid = any(status in ("ok", "fallback") for status in services.values())
 
     return {
         "server_reachable": True,
