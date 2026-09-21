@@ -68,7 +68,7 @@ class TestMinion:
             configuration.master, request_port=configuration.request_port
         )
         self._state_store = StateStore(configuration.state_dir)
-        self._handlers = handlers or FixtureHandlerRegistry()
+        self._handlers = handlers or FixtureHandlerRegistry(state_store=self._state_store)
         self._on_event = on_event
         self._token_signer = token_signer
         self._verify_load_signature = verify_load_signature

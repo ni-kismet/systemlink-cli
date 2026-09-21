@@ -99,6 +99,22 @@ class StateStore:
         self._write_metadata(metadata)
         return fingerprint
 
+    def get_blackout_state(self) -> bool:
+        """Return the locally persisted Salt blackout state."""
+        value = self._read_metadata().get("blackout", False)
+        if not isinstance(value, bool):
+            raise StateError("The stored blackout state must be a boolean.")
+        return value
+
+    def record_blackout_state(self, blackout: bool) -> None:
+        """Persist the Salt blackout state in the isolated metadata file."""
+        if not isinstance(blackout, bool):
+            raise StateError("The blackout state must be a boolean.")
+        self.ensure_directory()
+        metadata = self._read_metadata()
+        metadata["blackout"] = blackout
+        self._write_metadata(metadata)
+
     def reset(self) -> None:
         """Delete only this minion's identity and metadata files."""
         for path in (self._metadata_path, self._private_key_path, self._public_key_path):

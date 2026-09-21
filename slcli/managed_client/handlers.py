@@ -6,6 +6,7 @@ from dataclasses import dataclass, field
 from typing import Any, Callable, Dict, Mapping, Optional, Tuple
 
 from .models import ManagedClientError
+from .state import StateStore
 
 FixtureHandler = Callable[["FixtureJob"], "HandlerResult"]
 
@@ -89,12 +90,14 @@ class FixtureHandlerRegistry:
     REFRESH_PILLAR = "saltutil.refresh_pillar"
     STATE_APPLY = "nisysmgmt.state_apply"
     RESTART = "nisysmgmt.restart"
+    SET_BLACKOUT = "nisysmgmt.set_blackout"
     LIST_REPOS = "pkg.list_repos"
     GRAINS_ITEMS = "nisysmgmt.grains_items"
     INFO_INSTALLED = "pkg.info_installed"
 
-    def __init__(self) -> None:
+    def __init__(self, state_store: StateStore | None = None) -> None:
         """Create a registry with the built-in deterministic handlers."""
+        self._state_store = state_store
         self._handlers: Dict[str, FixtureHandler] = {
             self.RETURN_SUCCESS: self._return_success,
             self.RETURN_FIXTURE: self._return_fixture,
@@ -103,6 +106,7 @@ class FixtureHandlerRegistry:
             self.REFRESH_PILLAR: self._return_true,
             self.STATE_APPLY: self._return_true,
             self.RESTART: self._return_true,
+            self.SET_BLACKOUT: self._set_blackout,
             self.LIST_REPOS: self._return_none,
             self.GRAINS_ITEMS: self._return_none,
             self.INFO_INSTALLED: self._info_installed,
@@ -264,6 +268,26 @@ class FixtureHandlerRegistry:
         if job.args or job.kwargs:
             return HandlerResult(False, 2, error=f"{job.function}-takes-no-arguments")
         return HandlerResult(True, 0, True)
+
+    def _set_blackout(self, job: FixtureJob) -> HandlerResult:
+        """Persist a boolean Salt blackout request and return its new state."""
+        if job.kwargs and job.args:
+            return HandlerResult(False, 2, error="set_blackout-arguments-are-ambiguous")
+        if len(job.args) == 1:
+            blackout = job.args[0]
+        elif not job.args and set(job.kwargs) == {"blackout"}:
+            blackout = job.kwargs["blackout"]
+        else:
+            return HandlerResult(False, 2, error="set_blackout-requires-one-boolean")
+        if not isinstance(blackout, bool):
+            return HandlerResult(False, 2, error="set_blackout-requires-one-boolean")
+        if self._state_store is None:
+            return HandlerResult(False, 2, error="set_blackout-requires-state-store")
+        try:
+            self._state_store.record_blackout_state(blackout)
+        except ManagedClientError:
+            return HandlerResult(False, 2, error="unable-to-persist-blackout-state")
+        return HandlerResult(True, 0, blackout)
 
     @staticmethod
     def _return_none(job: FixtureJob) -> HandlerResult:

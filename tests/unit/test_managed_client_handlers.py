@@ -1,6 +1,9 @@
 """Unit tests for deterministic managed-client job handlers."""
 
+from pathlib import Path
+
 from slcli.managed_client.handlers import FixtureHandlerRegistry
+from slcli.managed_client.state import StateStore
 
 
 def test_success_handler_returns_stable_payload() -> None:
@@ -132,3 +135,47 @@ def test_systemlink_restart_job_returns_success() -> None:
         "retcode": 0,
         "success": True,
     }
+
+
+def test_systemlink_set_blackout_persists_lock_and_unlock(tmp_path: Path) -> None:
+    """The blackout job persists lock state and supports unlocking it."""
+    state_store = StateStore(tmp_path / "minion")
+    registry = FixtureHandlerRegistry(state_store=state_store)
+
+    locked = registry.dispatch(
+        {"jid": "lock-001", "fun": registry.SET_BLACKOUT, "arg": [True]},
+        "slcli-test-001",
+    )
+    assert locked["return"] is True
+    assert locked["retcode"] == 0
+    assert locked["success"] is True
+    assert StateStore(tmp_path / "minion").get_blackout_state() is True
+
+    unlocked = registry.dispatch(
+        {"jid": "unlock-001", "fun": registry.SET_BLACKOUT, "arg": [False]},
+        "slcli-test-001",
+    )
+    assert unlocked["return"] is False
+    assert unlocked["retcode"] == 0
+    assert unlocked["success"] is True
+    assert StateStore(tmp_path / "minion").get_blackout_state() is False
+
+
+def test_systemlink_lock_batch_returns_success_for_each_function(tmp_path: Path) -> None:
+    """A lock job can be combined with the normal grains refresh."""
+    state_store = StateStore(tmp_path / "minion")
+    registry = FixtureHandlerRegistry(state_store=state_store)
+
+    result = registry.dispatch(
+        {
+            "jid": "lock-batch-001",
+            "fun": [registry.SET_BLACKOUT, registry.GRAINS_ITEMS],
+            "arg": [[True], []],
+        },
+        "slcli-test-001",
+    )
+
+    assert result["return"] == [True, None]
+    assert result["retcode"] == [0, 0]
+    assert result["success"] == [True, True]
+    assert StateStore(tmp_path / "minion").get_blackout_state() is True
