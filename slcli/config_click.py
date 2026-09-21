@@ -119,19 +119,24 @@ def _normalize_fingerprint(fingerprint: str) -> str:
     return normalized
 
 
-def _show_certificate_warning(certificate: dict[str, Any]) -> None:
-    """Display the identity of a certificate before it is trusted."""
-    click.echo("\n⚠️  TLS certificate verification failed.", err=True)
-    click.echo(f"  Server: {certificate.get('origin', 'unknown')}", err=True)
-    click.echo(f"  Subject: {certificate.get('subject', 'unknown')}", err=True)
-    click.echo(f"  Issuer: {certificate.get('issuer', 'unknown')}", err=True)
-    click.echo(f"  SHA-256: {certificate.get('fingerprint', 'unknown')}", err=True)
-    click.echo(f"  Self-signed: {'yes' if certificate.get('self-signed') else 'no'}", err=True)
+def _show_certificate_details(certificate: dict[str, Any], err: bool = False) -> None:
+    """Display certificate identity and validity details."""
+    click.echo(f"  Server: {certificate.get('origin', 'unknown')}", err=err)
+    click.echo(f"  Subject: {certificate.get('subject', 'unknown')}", err=err)
+    click.echo(f"  Issuer: {certificate.get('issuer', 'unknown')}", err=err)
+    click.echo(f"  SHA-256: {certificate.get('fingerprint', 'unknown')}", err=err)
+    click.echo(f"  Self-signed: {'yes' if certificate.get('self-signed') else 'no'}", err=err)
     click.echo(
         f"  Valid: {certificate.get('not-before', 'unknown')} to "
         f"{certificate.get('not-after', 'unknown')}",
-        err=True,
+        err=err,
     )
+
+
+def _show_certificate_warning(certificate: dict[str, Any]) -> None:
+    """Display the identity of a certificate before it is trusted."""
+    click.echo("\n⚠️  TLS certificate verification failed.", err=True)
+    _show_certificate_details(certificate, err=True)
 
 
 def _trust_certificate_if_requested(
@@ -682,6 +687,34 @@ def register_config_commands(cli: Any) -> None:
     def trust() -> None:
         """Manage explicitly trusted server certificates."""
         pass
+
+    @trust.command(name="show")
+    @click.option("--url", help="HTTPS server URL (defaults to the active API URL)")
+    @click.option(
+        "--format",
+        "output_format",
+        type=click.Choice(["table", "json"]),
+        default="table",
+        show_default=True,
+        help="Output format",
+    )
+    def show_server_certificate(url: Optional[str], output_format: str) -> None:
+        """Inspect and display the current server certificate without trusting it."""
+        server_url = url or get_base_url()
+        try:
+            certificate = inspect_server_certificate(server_url)
+        except (OSError, ValueError, ssl.SSLError) as exc:
+            _exit_with_validation_error(
+                f"Could not inspect the server certificate: {exc}.", ExitCodes.NETWORK_ERROR
+            )
+
+        certificate_details = certificate.to_dict()
+        if output_format == "json":
+            click.echo(json.dumps(certificate_details, indent=2))
+            return
+
+        click.echo(f"Server certificate for {certificate_details.get('origin', 'unknown')}")
+        _show_certificate_details(certificate_details)
 
     @trust.command(name="list")
     @click.option(
