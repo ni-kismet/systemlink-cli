@@ -6,7 +6,7 @@ from dataclasses import dataclass, field
 from typing import Any, Callable, Dict, Mapping, Optional, Tuple
 
 from .models import ManagedClientError
-from .state import StateStore
+from .state import ASSET_IDENTIFICATION_FIELDS, StateStore
 
 FixtureHandler = Callable[["FixtureJob"], "HandlerResult"]
 
@@ -355,26 +355,26 @@ class FixtureHandlerRegistry:
         if self._state_store is None:
             return HandlerResult(False, 2, error="add_asset-requires-state-store")
         try:
-            self._state_store.record_asset_names(names)
+            self._state_store.record_asset_records(asset_kwargs)
         except ManagedClientError:
             return HandlerResult(False, 2, error="unable-to-persist-asset-names")
         return HandlerResult(True, 0, True)
 
-    @staticmethod
-    def _remove_asset(job: FixtureJob) -> HandlerResult:
+    def _remove_asset(self, job: FixtureJob) -> HandlerResult:
         """Acknowledge removal of an asset identified by its hardware fields."""
         identification = job.kwargs.get("identification")
-        required_fields = {
-            "model_name",
-            "model_number",
-            "vendor_name",
-            "vendor_number",
-            "serial_number",
-        }
         if job.args or set(job.kwargs) != {"identification"}:
             return HandlerResult(False, 2, error="remove_asset-requires-identification")
-        if not isinstance(identification, Mapping) or not required_fields.issubset(identification):
+        if not isinstance(identification, Mapping) or not all(
+            field in identification for field in ASSET_IDENTIFICATION_FIELDS
+        ):
             return HandlerResult(False, 2, error="remove_asset-requires-identification")
+        if self._state_store is None:
+            return HandlerResult(False, 2, error="remove_asset-requires-state-store")
+        try:
+            self._state_store.remove_asset(identification)
+        except ManagedClientError:
+            return HandlerResult(False, 2, error="unable-to-remove-asset")
         return HandlerResult(True, 0, True)
 
     @staticmethod

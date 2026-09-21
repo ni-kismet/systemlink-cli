@@ -10,7 +10,7 @@ import stat
 import subprocess
 from dataclasses import dataclass, field
 from pathlib import Path
-from typing import Any, Dict, Sequence, Union
+from typing import Any, Dict, Mapping, Sequence, Union
 
 from cryptography.hazmat.primitives.asymmetric.rsa import RSAPublicKey
 
@@ -26,6 +26,13 @@ from .models import MasterIdentityChangedError, StateError
 
 STATE_DIRECTORY_MODE = stat.S_IRWXU
 STATE_FILE_MODE = stat.S_IRUSR | stat.S_IWUSR
+ASSET_IDENTIFICATION_FIELDS = (
+    "model_name",
+    "model_number",
+    "vendor_name",
+    "vendor_number",
+    "serial_number",
+)
 
 
 @dataclass(frozen=True)
@@ -115,30 +122,72 @@ class StateStore:
         metadata["blackout"] = blackout
         self._write_metadata(metadata)
 
-    def record_asset_name(self, name: str) -> None:
-        """Persist the managed asset name in the isolated metadata file."""
-        self.record_asset_names([name])
+    def record_asset_records(self, assets: Sequence[Mapping[str, Any]]) -> None:
+        """Persist asset records with their names and hardware identification."""
+        if not assets:
+            raise StateError("At least one asset record is required.")
+        records: list[Dict[str, Any]] = []
+        for asset in assets:
+            name = asset.get("name")
+            if not isinstance(name, str) or not name.strip():
+                raise StateError("The asset names must be non-empty strings.")
+            records.append(
+                {
+                    "name": name,
+                    "identification": {
+                        field: asset[field]
+                        for field in ASSET_IDENTIFICATION_FIELDS
+                        if field in asset
+                    },
+                }
+            )
 
-    def record_asset_names(self, names: Sequence[str]) -> None:
-        """Persist managed asset names in the isolated metadata file."""
-        if not names or any(not isinstance(name, str) or not name.strip() for name in names):
-            raise StateError("The asset names must be non-empty strings.")
         self.ensure_directory()
         metadata = self._read_metadata()
-        stored_names = metadata.get("asset_names", [])
-        if not isinstance(stored_names, list) or any(
-            not isinstance(name, str) for name in stored_names
+        stored_records = metadata.get("asset_records", [])
+        if not isinstance(stored_records, list) or any(
+            not isinstance(record, Mapping) for record in stored_records
         ):
-            stored_names = []
-        legacy_name = metadata.get("asset_name")
-        if not stored_names and isinstance(legacy_name, str) and legacy_name.strip():
-            stored_names.append(legacy_name)
-        for name in names:
-            if name not in stored_names:
-                stored_names.append(name)
-        metadata["asset_names"] = stored_names
-        metadata.pop("asset_name", None)
+            stored_records = []
+        for record in records:
+            if record not in stored_records:
+                stored_records.append(record)
+
+        metadata["asset_records"] = stored_records
         self._write_metadata(metadata)
+
+    def remove_asset(self, identification: Mapping[str, Any]) -> bool:
+        """Remove an identified asset record from isolated metadata."""
+        if not isinstance(identification, Mapping) or any(
+            field not in identification for field in ASSET_IDENTIFICATION_FIELDS
+        ):
+            raise StateError("The asset identification is incomplete.")
+
+        metadata = self._read_metadata()
+        stored_records = metadata.get("asset_records", [])
+        if not isinstance(stored_records, list):
+            stored_records = []
+        matching_index = next(
+            (
+                index
+                for index, record in enumerate(stored_records)
+                if isinstance(record, Mapping)
+                and isinstance(record.get("identification"), Mapping)
+                and all(
+                    record["identification"].get(field) == identification[field]
+                    for field in ASSET_IDENTIFICATION_FIELDS
+                )
+            ),
+            None,
+        )
+
+        if matching_index is None:
+            return False
+
+        stored_records.pop(matching_index)
+        metadata["asset_records"] = stored_records
+        self._write_metadata(metadata)
+        return True
 
     def reset(self) -> None:
         """Delete only this minion's identity and metadata files."""

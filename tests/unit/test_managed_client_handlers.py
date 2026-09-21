@@ -251,7 +251,18 @@ def test_systemlink_add_asset_accepts_nested_keyword_arguments(tmp_path: Path) -
     assert result["retcode"] == 0
     assert result["success"] is True
     metadata = json.loads((tmp_path / "minion" / "metadata.json").read_text())
-    assert metadata["asset_names"] == ["xxc"]
+    assert metadata["asset_records"] == [
+        {
+            "name": "xxc",
+            "identification": {
+                "model_name": "zxc",
+                "model_number": 0,
+                "vendor_name": "zxc",
+                "vendor_number": 0,
+                "serial_number": "zxc",
+            },
+        }
+    ]
 
 
 def test_systemlink_add_asset_records_multiple_names(tmp_path: Path) -> None:
@@ -276,12 +287,24 @@ def test_systemlink_add_asset_records_multiple_names(tmp_path: Path) -> None:
     assert result["retcode"] == 0
     assert result["success"] is True
     metadata = json.loads((tmp_path / "minion" / "metadata.json").read_text())
-    assert metadata["asset_names"] == ["asset-one", "asset-two"]
+    assert [record["name"] for record in metadata["asset_records"]] == [
+        "asset-one",
+        "asset-two",
+    ]
 
 
-def test_systemlink_remove_asset_accepts_identification_kwargs() -> None:
-    """The asset removal handler accepts Salt's identification payload."""
-    registry = FixtureHandlerRegistry()
+def test_systemlink_remove_asset_removes_matching_asset_record(tmp_path: Path) -> None:
+    """The asset removal handler removes the name for the identified asset."""
+    state_store = StateStore(tmp_path / "minion")
+    registry = FixtureHandlerRegistry(state_store=state_store)
+    identification = {
+        "model_name": "fixture-model",
+        "model_number": 0,
+        "vendor_name": "fixture-vendor",
+        "vendor_number": 0,
+        "serial_number": "fixture-serial",
+    }
+    state_store.record_asset_records([{"name": "fixture-asset", **identification}])
 
     result = registry.dispatch(
         {
@@ -290,13 +313,7 @@ def test_systemlink_remove_asset_accepts_identification_kwargs() -> None:
             "arg": [
                 {
                     "__kwarg__": True,
-                    "identification": {
-                        "model_name": "fixture-model",
-                        "model_number": 0,
-                        "vendor_name": "fixture-vendor",
-                        "vendor_number": 0,
-                        "serial_number": "fixture-serial",
-                    },
+                    "identification": identification,
                 }
             ],
         },
@@ -306,6 +323,8 @@ def test_systemlink_remove_asset_accepts_identification_kwargs() -> None:
     assert result["return"] is True
     assert result["retcode"] == 0
     assert result["success"] is True
+    metadata = json.loads((tmp_path / "minion" / "metadata.json").read_text())
+    assert metadata["asset_records"] == []
 
 
 def test_systemlink_refresh_asset_returns_success() -> None:
@@ -322,9 +341,10 @@ def test_systemlink_refresh_asset_returns_success() -> None:
     assert result["success"] is True
 
 
-def test_systemlink_remove_asset_batch_returns_success() -> None:
+def test_systemlink_remove_asset_batch_returns_success(tmp_path: Path) -> None:
     """A batch of identified asset removals returns one success per asset."""
-    registry = FixtureHandlerRegistry()
+    state_store = StateStore(tmp_path / "minion")
+    registry = FixtureHandlerRegistry(state_store=state_store)
     identification = {
         "model_name": "fixture-model",
         "model_number": 0,
@@ -332,6 +352,9 @@ def test_systemlink_remove_asset_batch_returns_success() -> None:
         "vendor_number": 0,
         "serial_number": "fixture-serial",
     }
+    state_store.record_asset_records(
+        [{"name": f"asset-{index}", **identification} for index in range(3)]
+    )
 
     result = registry.dispatch(
         {
@@ -345,6 +368,8 @@ def test_systemlink_remove_asset_batch_returns_success() -> None:
     assert result["return"] == [True, True, True]
     assert result["retcode"] == [0, 0, 0]
     assert result["success"] == [True, True, True]
+    metadata = json.loads((tmp_path / "minion" / "metadata.json").read_text())
+    assert metadata["asset_records"] == []
 
 
 def test_systemlink_lock_batch_returns_success_for_each_function(tmp_path: Path) -> None:
