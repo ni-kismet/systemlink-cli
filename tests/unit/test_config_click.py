@@ -10,6 +10,7 @@ import pytest
 from click.testing import CliRunner
 
 from slcli.config_click import _normalize_base_url, register_config_commands
+from slcli.platform import PLATFORM_SLS
 from slcli.utils import ExitCodes
 
 VALID_API_KEY = "4LpbauiNA-UI9IhjqZoS4UeikZtExLK9Q_Q77d1bJd"
@@ -1029,6 +1030,44 @@ class TestPkceProfileVerification:
         assert saved["current-profile"] == "other"
         assert saved["profiles"]["pkce"]["server"] == "https://old-api.example.com"
         assert saved["profiles"]["pkce"]["api-key"] == "old-api-key"
+
+
+class TestSlsProfileVerification:
+    """Tests for SLS-specific API-key verification."""
+
+    def test_rejects_mixed_unauthorized_and_not_found_services(
+        self, tmp_path: Path, monkeypatch: Any
+    ) -> None:
+        """SLS verification rejects a key when no service accepts it."""
+        from slcli.config_click import _add_profile_impl
+
+        config_file = tmp_path / "config.json"
+        monkeypatch.setattr(
+            "slcli.profiles.ProfileConfig.get_config_path", classmethod(lambda cls: config_file)
+        )
+        monkeypatch.setattr(
+            "slcli.config_click.check_service_status",
+            lambda *_args, **_kwargs: {
+                "server_reachable": True,
+                "auth_valid": False,
+                "services": {"Auth": "unauthorized", "Comments": "not_found"},
+                "platform": PLATFORM_SLS,
+            },
+        )
+
+        with pytest.raises(SystemExit) as exc_info:
+            _add_profile_impl(
+                profile="sls",
+                url="https://api.example.com",
+                api_key=VALID_API_KEY,
+                web_url="https://web.example.com",
+                workspace="",
+                set_current=True,
+                readonly=False,
+            )
+
+        assert exc_info.value.code == ExitCodes.PERMISSION_DENIED
+        assert not config_file.exists()
 
 
 class TestAddProfileUrlValidation:
