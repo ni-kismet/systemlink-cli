@@ -1,6 +1,7 @@
 """Tests for the opt-in managed-client CLI commands."""
 
 import io
+import json
 import subprocess
 import sys
 from pathlib import Path
@@ -10,7 +11,12 @@ import click
 import pytest
 from click.testing import CliRunner
 
-from slcli.managed_client.models import MinionEvent, MinionPhase, TransportError
+from slcli.managed_client.models import (
+    LifecycleTimeoutError,
+    MinionEvent,
+    MinionPhase,
+    TransportError,
+)
 from slcli.managed_client.state import StateStore
 from slcli.managed_client_click import (
     _PendingApprovalIndicator,
@@ -64,6 +70,7 @@ def test_managed_client_help_lists_commands(cli: Any) -> None:
     assert result.exit_code == 0
     assert "--max-reconnect-attempts INTEGER" in result.output
     assert "[default: 5" in result.output
+    assert "--format [table|json]" in result.output
 
 
 def test_managed_client_smoke_exercises_protocol_and_crypto(cli: Any) -> None:
@@ -195,6 +202,57 @@ def test_run_keeps_only_pending_indicator_during_approval_retries(
     assert "AUTHENTICATING" not in result.output
 
 
+def test_run_supports_json_event_output(
+    cli: Any, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """JSON mode emits parseable records for lifecycle events and failures."""
+
+    class FailedMinion:
+        phase = MinionPhase.FAILED
+        last_error = "test complete"
+        failure = None
+
+        def __init__(self, *args: Any, on_event: Any, **kwargs: Any) -> None:
+            del args, kwargs
+            self._on_event = on_event
+
+        def start(self) -> None:
+            self._on_event(
+                MinionEvent(
+                    phase=MinionPhase.RUNNING_JOB,
+                    message="Received Salt job",
+                    details={"jid": "job-1"},
+                )
+            )
+
+        def stop(self) -> None:
+            return None
+
+    monkeypatch.setattr("slcli.managed_client.TestMinion", FailedMinion)
+    result = CliRunner().invoke(
+        cli,
+        [
+            "managed-client",
+            "run",
+            "--format",
+            "json",
+            "--master",
+            "localhost",
+            "--minion-id",
+            "slcli-json-output",
+            "--state-dir",
+            str(tmp_path),
+        ],
+    )
+
+    records = [json.loads(line) for line in result.output.splitlines()]
+    assert result.exit_code == ExitCodes.GENERAL_ERROR
+    assert all(isinstance(record, dict) for record in records)
+    assert any(record["type"] == "event" for record in records)
+    assert any(record["type"] == "error" for record in records)
+    assert all("Running managed-client" not in line for line in result.output.splitlines())
+
+
 def test_reset_removes_only_identity_state(cli: Any, tmp_path: Path) -> None:
     """Reset removes identity files while preserving the state directory."""
     StateStore(tmp_path).load_or_create_identity("slcli-test")
@@ -312,7 +370,7 @@ def test_run_reports_background_transport_failure_as_network_error(
             return None
 
         def stop(self) -> None:
-            return None
+            raise LifecycleTimeoutError("shutdown timed out")
 
     monkeypatch.setattr("slcli.managed_client.TestMinion", FailedMinion)
     result = CliRunner().invoke(
@@ -331,6 +389,7 @@ def test_run_reports_background_transport_failure_as_network_error(
 
     assert result.exit_code == ExitCodes.NETWORK_ERROR
     assert "network unavailable" in result.output
+    assert "shutdown timed out" not in result.output
 
 
 def test_run_sanitizes_remote_job_details(

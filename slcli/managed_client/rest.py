@@ -15,6 +15,7 @@ from ..utils import get_base_url, make_api_request
 
 KEYS_PATH = "/nisysmgmt/v1/get-systems-keys"
 MANAGE_KEYS_PATH = "/nisysmgmt/v1/manage-systems-keys"
+_DEFAULT_REQUEST_TIMEOUT = 30.0
 
 
 class KeyAction(str, Enum):
@@ -99,30 +100,47 @@ class ManagedClientRestAdapter:
             rejected=self._read_key_map(data, "systemsRejected"),
         )
 
-    def approve_pending_key(self, system_id: str, public_key: str, workspace: str) -> None:
+    def approve_pending_key(
+        self,
+        system_id: str,
+        public_key: str,
+        workspace: str,
+        *,
+        timeout: float = _DEFAULT_REQUEST_TIMEOUT,
+    ) -> None:
         """Accept one pending key into the requested workspace."""
-        self._manage_key(system_id, "ACCEPT", public_key, workspace)
+        self._manage_key(system_id, "ACCEPT", public_key, workspace, timeout)
 
-    def reject_pending_key(self, system_id: str, public_key: str, workspace: str) -> None:
+    def reject_pending_key(
+        self,
+        system_id: str,
+        public_key: str,
+        workspace: str,
+        *,
+        timeout: float = _DEFAULT_REQUEST_TIMEOUT,
+    ) -> None:
         """Reject one pending key in the requested workspace."""
-        self._manage_key(system_id, "REJECT", public_key, workspace)
+        self._manage_key(system_id, "REJECT", public_key, workspace, timeout)
 
     def delete_managed_system(
         self,
         system_id: str,
         workspace: str,
         expected_public_key: str,
+        *,
+        timeout: float = _DEFAULT_REQUEST_TIMEOUT,
     ) -> None:
         """Delete one managed system after verifying its approved public key."""
         if not expected_public_key.strip():
             raise ValueError("The expected public key is required for managed-system cleanup.")
-        states = self.list_key_states([system_id])
+        self._validate_timeout(timeout)
+        states = self.list_key_states([system_id], timeout=timeout)
         if states.approved.get(system_id) != expected_public_key:
             raise ManagedClientError(
                 "Refusing to delete the managed system because its approved public key "
                 "does not match."
             )
-        self._manage_key(system_id, "DELETE", expected_public_key, workspace)
+        self._manage_key(system_id, "DELETE", expected_public_key, workspace, timeout)
 
     def wait_for_key_state(
         self,
@@ -152,10 +170,12 @@ class ManagedClientRestAdapter:
         action: ActionName,
         public_key: str | None,
         workspace: str,
+        timeout: float,
     ) -> None:
         """Send one allowlisted key action to Systems Management."""
         if not system_id.strip() or not workspace.strip():
             raise ValueError("A system ID and workspace are required for key management.")
+        self._validate_timeout(timeout)
         action_payload: dict[str, str] = {
             "id": system_id,
             "action": action,
@@ -167,8 +187,15 @@ class ManagedClientRestAdapter:
             "POST",
             MANAGE_KEYS_PATH,
             {"keyActions": [action_payload]},
+            timeout=timeout,
         )
         self._check_manage_key_response(response, system_id, action)
+
+    @staticmethod
+    def _validate_timeout(timeout: float) -> None:
+        """Require a positive timeout for a bounded REST operation."""
+        if timeout <= 0:
+            raise ValueError("The REST request timeout must be positive.")
 
     @staticmethod
     def _check_manage_key_response(

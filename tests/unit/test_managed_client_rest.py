@@ -40,8 +40,10 @@ def test_list_key_states_parses_optional_categories() -> None:
 def test_approve_and_delete_use_scoped_key_actions() -> None:
     """Approval includes the key and deletion verifies the approved key."""
     calls: list[dict[str, Any]] = []
+    timeouts: list[float] = []
 
     def request(method: str, url: str, **kwargs: Any) -> FakeResponse:
+        timeouts.append(kwargs["timeout"])
         if kwargs["payload"] == {"systemIds": ["minion-1"]}:
             return FakeResponse({"systemsApproved": {"minion-1": "public-key"}})
         calls.append(kwargs["payload"])
@@ -73,6 +75,26 @@ def test_approve_and_delete_use_scoped_key_actions() -> None:
             ]
         },
     ]
+    assert timeouts == [30.0, 30.0, 30.0]
+
+
+def test_key_management_forwards_explicit_timeout() -> None:
+    """Key-management requests use the caller's bounded timeout."""
+    timeouts: list[float] = []
+
+    def request(method: str, url: str, **kwargs: Any) -> FakeResponse:
+        del method, url
+        timeouts.append(kwargs["timeout"])
+        if kwargs["payload"] == {"systemIds": ["minion-1"]}:
+            return FakeResponse({"systemsApproved": {"minion-1": "public-key"}})
+        return FakeResponse({}, status_code=204)
+
+    adapter = ManagedClientRestAdapter(base_url="https://example.test", request=request)
+    adapter.approve_pending_key("minion-1", "public-key", "workspace-1", timeout=2.5)
+    adapter.reject_pending_key("minion-1", "public-key", "workspace-1", timeout=3.5)
+    adapter.delete_managed_system("minion-1", "workspace-1", "public-key", timeout=4.5)
+
+    assert timeouts == [2.5, 3.5, 4.5, 4.5]
 
 
 def test_manage_key_raises_matching_partial_action_error() -> None:

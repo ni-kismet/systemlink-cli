@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import json
 import sys
 import threading
 import time
@@ -10,11 +11,12 @@ from typing import TYPE_CHECKING, Any, NoReturn, TextIO
 
 import click
 
+from .cli_utils import validate_output_format
 from .utils import ExitCodes
 
 if TYPE_CHECKING:
     from .managed_client.minion import TestMinion as TestMinionType
-    from .managed_client.models import ManagedClientError
+    from .managed_client.models import ManagedClientError, MinionEvent
 
 
 _MAX_EVENT_DETAIL_LENGTH = 256
@@ -74,7 +76,9 @@ class _PendingApprovalIndicator:
             self._reported_noninteractive = False
 
 
-def _exit_with_managed_client_error(error: ManagedClientError) -> NoReturn:
+def _exit_with_managed_client_error(
+    error: ManagedClientError, *, output_format: str = "table"
+) -> NoReturn:
     """Print a managed-client error and exit with the appropriate CLI code."""
     from .managed_client.models import (
         ConfigurationError,
@@ -82,12 +86,27 @@ def _exit_with_managed_client_error(error: ManagedClientError) -> NoReturn:
         TransportError,
     )
 
-    click.echo(f"✗ {error}", err=True)
+    if output_format == "json":
+        click.echo(json.dumps({"type": "error", "error": str(error)}), err=True)
+    else:
+        click.echo(f"✗ {error}", err=True)
     if isinstance(error, ConfigurationError):
         sys.exit(ExitCodes.INVALID_INPUT)
     if isinstance(error, (TransportError, ReconnectLimitExceededError)):
         sys.exit(ExitCodes.NETWORK_ERROR)
     sys.exit(ExitCodes.GENERAL_ERROR)
+
+
+def _event_record(event: MinionEvent) -> dict[str, Any]:
+    """Return a bounded lifecycle event record for JSON output."""
+    return {
+        "type": "event",
+        "phase": event.phase.value,
+        "message": _safe_event_detail(event.message),
+        "retry_count": event.retry_count,
+        "endpoint": _safe_event_detail(event.endpoint) if event.endpoint is not None else None,
+        "details": {key: _safe_event_detail(value) for key, value in event.details.items()},
+    }
 
 
 def _safe_event_detail(value: object) -> str:
@@ -133,6 +152,14 @@ def register_managed_client_commands(cli: Any) -> None:
         click.echo("Managed-client smoke test passed.")
 
     @managed_client.command(name="run")
+    @click.option(
+        "--format",
+        "-f",
+        type=click.Choice(["table", "json"]),
+        default="table",
+        show_default=True,
+        help="Output format",
+    )
     @click.option("--master", required=True, help="Salt master hostname or endpoint.")
     @click.option("--minion-id", required=True, help="Stable test-minion identity.")
     @click.option(
@@ -170,6 +197,7 @@ def register_managed_client_commands(cli: Any) -> None:
         help="Maximum reconnect attempts before the minion fails.",
     )
     def run(
+        format: str,
         master: str,
         minion_id: str,
         state_dir: Path,
@@ -182,9 +210,13 @@ def register_managed_client_commands(cli: Any) -> None:
         from .managed_client import MinionConfiguration, TestMinion
         from .managed_client.models import ManagedClientError, MinionEvent, MinionPhase
 
+        output_format = validate_output_format(format)
         pending_indicator = _PendingApprovalIndicator()
 
         def report_event(event: MinionEvent) -> None:
+            if output_format == "json":
+                click.echo(json.dumps(_event_record(event)))
+                return
             if event.phase is MinionPhase.PENDING_APPROVAL:
                 pending_indicator.start(event.message)
                 return
@@ -203,6 +235,8 @@ def register_managed_client_commands(cli: Any) -> None:
             click.echo(message)
 
         minion: TestMinionType | None = None
+        command_error: ManagedClientError | None = None
+        interrupted = False
         try:
             minion = TestMinion(
                 MinionConfiguration(
@@ -217,30 +251,51 @@ def register_managed_client_commands(cli: Any) -> None:
                 on_event=report_event,
             )
             minion.start()
-            click.echo(f"Running managed-client test minion {minion_id}.")
+            if output_format == "json":
+                click.echo(
+                    json.dumps(
+                        {
+                            "type": "started",
+                            "minion_id": _safe_event_detail(minion_id),
+                        }
+                    )
+                )
+            else:
+                click.echo(f"Running managed-client test minion {minion_id}.")
             while True:
                 if minion.phase is MinionPhase.FAILED:
                     pending_indicator.stop()
                     failure = getattr(minion, "failure", None)
                     if isinstance(failure, ManagedClientError):
-                        _exit_with_managed_client_error(failure)
-                    click.echo(
-                        f"✗ {_safe_event_detail(minion.last_error or 'The test minion failed.')}",
-                        err=True,
-                    )
-                    sys.exit(ExitCodes.GENERAL_ERROR)
+                        command_error = failure
+                    else:
+                        command_error = ManagedClientError(
+                            _safe_event_detail(minion.last_error or "The test minion failed.")
+                        )
+                    break
                 pending_indicator.tick()
                 time.sleep(0.1)
         except KeyboardInterrupt:
+            interrupted = True
             pending_indicator.stop()
-            click.echo("Stopping managed-client test minion.")
+            if output_format == "json":
+                click.echo(json.dumps({"type": "interrupted"}))
+            else:
+                click.echo("Stopping managed-client test minion.")
         except ManagedClientError as error:
+            command_error = error
             pending_indicator.stop()
-            _exit_with_managed_client_error(error)
         finally:
             pending_indicator.stop()
             if minion is not None:
-                minion.stop()
+                try:
+                    minion.stop()
+                except ManagedClientError as cleanup_error:
+                    if command_error is None and not interrupted:
+                        command_error = cleanup_error
+
+        if command_error is not None:
+            _exit_with_managed_client_error(command_error, output_format=output_format)
 
     @managed_client.command(name="reset")
     @click.option(
