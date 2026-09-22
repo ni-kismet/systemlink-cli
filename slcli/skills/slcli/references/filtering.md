@@ -220,6 +220,43 @@ slcli testmonitor result list --take 10
 `PASSED`, `FAILED`, `RUNNING`, `ERRORED`, `TERMINATED`, `TIMEDOUT`, `WAITING`,
 `SKIPPED`, `CUSTOM`
 
+Map broad failure wording to every applicable terminal failure status:
+
+```bash
+slcli testmonitor result list \
+  --filter 'status.statusType == @0 or status.statusType == @1 or status.statusType == @2' \
+  --substitution FAILED \
+  --substitution ERRORED \
+  --substitution TERMINATED \
+  --format json
+```
+
+Use `--status FAILED` only when the user explicitly requests that one status.
+Do not translate "failed" into `status.statusType != @0` with `PASSED`; that
+also matches active, skipped, timed-out, and custom outcomes.
+
+### Work item states and user IDs
+
+Prefer the `--state` convenience option with the uppercase value shown by the
+CLI: `NEW`, `DEFINED`, `REVIEWED`, `SCHEDULED`, `IN_PROGRESS`,
+`PENDING_APPROVAL`, `CLOSED`, or `CANCELED`. For example:
+
+```bash
+slcli workitem list --state IN_PROGRESS --format json
+```
+
+Work-item fields such as `assignedTo`, `requestedBy`, `createdBy`, and
+`updatedBy` contain user IDs rather than names. Resolve the account first, then
+parameterize the ID in an advanced filter:
+
+```bash
+slcli user list --filter '<NAME_OR_EMAIL>' --format json
+slcli workitem list \
+  --filter 'assignedTo == @0' \
+  --substitution '<USER_ID>' \
+  --format json
+```
+
 ### Calibration status (Assets)
 
 `OK`, `APPROACHING_RECOMMENDED_DUE_DATE`, `PAST_RECOMMENDED_DUE_DATE`,

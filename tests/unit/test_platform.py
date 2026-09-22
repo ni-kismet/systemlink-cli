@@ -14,6 +14,7 @@ from slcli.platform import (
     PLATFORM_SLS,
     PLATFORM_UNKNOWN,
     PLATFORM_UNREACHABLE,
+    SLS_PLATFORM_PROBE_PATH,
     check_service_status,
     clear_platform_cache,
     detect_platform,
@@ -74,6 +75,7 @@ def _make_mock_response(status_code: int) -> MagicMock:
     """Helper to create a mock requests response."""
     resp = MagicMock()
     resp.status_code = status_code
+    resp.json.return_value = {"v1": {}, "version": "1"}
     return resp
 
 
@@ -93,7 +95,11 @@ class TestCheckServiceStatus:
                 if pattern in url:
                     if isinstance(result, Exception):
                         raise result
+                    if isinstance(result, MagicMock):
+                        return result
                     return _make_mock_response(result)
+            if SLS_PLATFORM_PROBE_PATH in url:
+                return _make_mock_response(404)
             return _make_mock_response(200)
 
         def side_effect_post(url: str, **kwargs: Any) -> MagicMock:
@@ -222,6 +228,7 @@ class TestCheckServiceStatus:
                 "/niapp/": 200,
                 "/nidynamicformfields/": 404,
                 "/niworkorder/": 404,
+                SLS_PLATFORM_PROBE_PATH: 200,
             }
         )
         with patch("slcli.platform.requests.get", mock_get), patch(
@@ -236,6 +243,106 @@ class TestCheckServiceStatus:
         assert result["services"]["DataFrame"] == "not_found"
         assert result["services"]["Routine v2"] == "not_found"
         assert result["services"]["Work Order"] == "not_found"
+
+    def test_missing_sls_probe_returns_unknown(self) -> None:
+        """Test that missing SLE services do not prove the server is SLS."""
+        mock_get, mock_post = self._mock_requests(
+            {
+                "/niauth/": 200,
+                "/nitestmonitor/": 200,
+                "/niapm/": 200,
+                "/nisysmgmt/": 200,
+                "/nitag/": 200,
+                "/nifile/": 200,
+                "/nidataframe/": 404,
+                "/ninotebook/": 404,
+                "/nicomments/": 404,
+                "/niroutine/v2/": 404,
+                "/niapp/": 200,
+                "/nidynamicformfields/": 404,
+                "/niworkorder/": 404,
+            }
+        )
+        with patch("slcli.platform.requests.get", mock_get), patch(
+            "slcli.platform.requests.post", mock_post
+        ):
+            result = check_service_status("https://my-server.local", "valid-key")
+
+        assert result["server_reachable"] is True
+        assert result["platform"] == PLATFORM_UNKNOWN
+
+    def test_malformed_sls_probe_payload_returns_unknown(self) -> None:
+        """Test that malformed SLS probe JSON does not identify SLS."""
+        response = _make_mock_response(200)
+        response.json.side_effect = ValueError("invalid JSON")
+        mock_get, mock_post = self._mock_requests(
+            {
+                "/nidataframe/": 404,
+                "/ninotebook/": 404,
+                "/nicomments/": 404,
+                "/niroutine/v2/": 404,
+                "/nidynamicformfields/": 404,
+                "/niworkorder/": 404,
+                SLS_PLATFORM_PROBE_PATH: response,
+            }
+        )
+        with patch("slcli.platform.requests.get", mock_get), patch(
+            "slcli.platform.requests.post", mock_post
+        ):
+            result = check_service_status("https://my-server.local", "valid-key")
+
+        assert result["platform"] == PLATFORM_UNKNOWN
+
+    def test_nonmatching_sls_probe_payload_returns_unknown(self) -> None:
+        """Test that unrelated SLS probe JSON does not identify SLS."""
+        response = _make_mock_response(200)
+        response.json.return_value = {"status": "ok"}
+        mock_get, mock_post = self._mock_requests(
+            {
+                "/nidataframe/": 404,
+                "/ninotebook/": 404,
+                "/nicomments/": 404,
+                "/niroutine/v2/": 404,
+                "/nidynamicformfields/": 404,
+                "/niworkorder/": 404,
+                SLS_PLATFORM_PROBE_PATH: response,
+            }
+        )
+        with patch("slcli.platform.requests.get", mock_get), patch(
+            "slcli.platform.requests.post", mock_post
+        ):
+            result = check_service_status("https://my-server.local", "valid-key")
+
+        assert result["platform"] == PLATFORM_UNKNOWN
+
+    def test_sls_probe_does_not_validate_api_key(self) -> None:
+        """Test that the unauthenticated SLS probe does not affect auth status."""
+        mock_get, mock_post = self._mock_requests(
+            {
+                "/niauth/": 401,
+                "/nitestmonitor/": 401,
+                "/niapm/": 401,
+                "/nisysmgmt/": 401,
+                "/nitag/": 401,
+                "/nifile/": 401,
+                "/nidataframe/": 401,
+                "/ninotebook/": 401,
+                "/nicomments/": 401,
+                "/niroutine/v2/": 401,
+                "/niapp/": 401,
+                "/nidynamicformfields/": 401,
+                "/niworkorder/": 401,
+                SLS_PLATFORM_PROBE_PATH: 200,
+            }
+        )
+        with patch("slcli.platform.requests.get", mock_get), patch(
+            "slcli.platform.requests.post", mock_post
+        ):
+            result = check_service_status("https://my-server.local", "bad-key")
+
+        assert result["server_reachable"] is True
+        assert result["auth_valid"] is False
+        assert result["platform"] == PLATFORM_SLS
 
     def test_all_services_unauthorized(self) -> None:
         """Test invalid API key — all services return 401."""
@@ -315,6 +422,7 @@ class TestCheckServiceStatus:
                 "/niapp/": conn_err,
                 "/nidynamicformfields/": conn_err,
                 "/niworkorder/": conn_err,
+                SLS_PLATFORM_PROBE_PATH: conn_err,
             }
         )
         with patch("slcli.platform.requests.get", mock_get), patch(
@@ -422,6 +530,8 @@ class TestCheckServiceStatus:
             return _make_mock_response(200)
 
         def side_effect_get(url: str, **kwargs: Any) -> MagicMock:
+            if SLS_PLATFORM_PROBE_PATH in url:
+                return _make_mock_response(404)
             for pattern, result in {
                 "/niauth/": 200,
                 "/nitestmonitor/": 200,
@@ -477,6 +587,88 @@ class TestCheckServiceStatus:
         assert result["services"]["File"] == "fallback"
         assert result["file_query_endpoint"] == "query-files-linq"
         assert result["elasticsearch_available"] is False
+
+    def test_file_query_fallback_counts_as_authorized(self) -> None:
+        """Test an authenticated file fallback prevents a false auth failure."""
+        mock_get, mock_post = self._mock_requests(
+            {
+                "/niauth/": 401,
+                "/nitestmonitor/": 404,
+                "/niapm/": 401,
+                "/nisysmgmt/": 404,
+                "/nitag/": 404,
+                "/nifile/": 401,
+                "/nidataframe/": 404,
+                "/ninotebook/": 404,
+                "/nicomments/": 404,
+                "/niroutine/v2/": 404,
+                "/niapp/": 404,
+                "/nidynamicformfields/": 404,
+                "/niworkorder/": 404,
+                SLS_PLATFORM_PROBE_PATH: 200,
+            }
+        )
+        with patch("slcli.platform.requests.get", mock_get), patch(
+            "slcli.platform.requests.post", mock_post
+        ), patch(
+            "slcli.platform.get_file_query_capability",
+            return_value={
+                "status": "fallback",
+                "file_query_endpoint": "query-files-linq",
+                "elasticsearch_available": False,
+            },
+        ), patch(
+            "slcli.platform.get_system_query_capability",
+            return_value={
+                "status": "not_found",
+                "system_query_endpoint": None,
+                "materialized_search_available": False,
+            },
+        ):
+            result = check_service_status("https://my-server.local", "valid-key")
+
+        assert result["auth_valid"] is True
+        assert result["platform"] == PLATFORM_SLS
+
+    def test_initial_authorized_probe_survives_capability_failure(self) -> None:
+        """Test capability failures do not erase an earlier authorized probe."""
+        mock_get, mock_post = self._mock_requests(
+            {
+                "/niauth/": 404,
+                "/nitestmonitor/": 404,
+                "/niapm/": 404,
+                "/nisysmgmt/": 200,
+                "/nitag/": 404,
+                "/nifile/": 404,
+                "/nidataframe/": 404,
+                "/ninotebook/": 404,
+                "/nicomments/": 404,
+                "/niroutine/v2/": 404,
+                "/niapp/": 404,
+                "/nidynamicformfields/": 404,
+                "/niworkorder/": 404,
+                SLS_PLATFORM_PROBE_PATH: 200,
+            }
+        )
+        not_found_file = {
+            "status": "not_found",
+            "file_query_endpoint": None,
+            "elasticsearch_available": False,
+        }
+        not_found_system = {
+            "status": "not_found",
+            "system_query_endpoint": None,
+            "materialized_search_available": False,
+        }
+        with patch("slcli.platform.requests.get", mock_get), patch(
+            "slcli.platform.requests.post", mock_post
+        ), patch("slcli.platform.get_file_query_capability", return_value=not_found_file), patch(
+            "slcli.platform.get_system_query_capability", return_value=not_found_system
+        ):
+            result = check_service_status("https://my-server.local", "valid-key")
+
+        assert result["auth_valid"] is True
+        assert result["platform"] == PLATFORM_SLS
 
     def test_reports_sls_query_files_capability(self) -> None:
         """Test file service health reports query-files for SLS servers."""
@@ -578,21 +770,32 @@ class TestGetPlatform:
             assert result == PLATFORM_SLS
 
     def test_get_platform_from_active_profile(self) -> None:
-        """Test getting the platform stored on the active profile."""
+        """Test getting platform from the active profile."""
         from slcli.profiles import Profile
 
         profile = Profile(
-            name="server",
-            server="https://my-server.local",
-            platform="SLS",
+            name="default",
+            server="https://demo.systemlink.io",
+            platform="sle",
         )
 
-        with patch("slcli.profiles.get_active_profile", return_value=profile), patch(
-            "slcli.platform.keyring.get_password", return_value=None
+        with patch("slcli.platform.keyring.get_password", return_value=None), patch(
+            "slcli.profiles.get_active_profile", return_value=profile
         ):
             result = get_platform()
 
-        assert result == PLATFORM_SLS
+        assert result == PLATFORM_SLE
+
+    def test_get_platform_from_keyring_is_case_insensitive(self) -> None:
+        """Test getting platform from keyring config regardless of casing."""
+        config = {"api_url": "https://demo.systemlink.io", "platform": "sle"}
+
+        with patch("slcli.platform.keyring.get_password") as mock_keyring:
+            mock_keyring.return_value = json.dumps(config)
+
+            result = get_platform()
+
+            assert result == PLATFORM_SLE
 
     def test_get_platform_unknown_when_not_configured(self) -> None:
         """Test that UNKNOWN is returned when keyring has no config."""
@@ -1120,31 +1323,65 @@ class TestGetPlatformInfo:
             assert result["auth_valid"] is None
             assert "features" not in result
 
-    def test_bearer_snapshot_uses_service_probe(self) -> None:
-        """Bearer health checks use service routes to detect the platform."""
+    def test_bearer_snapshot_uses_web_server_probe(self) -> None:
+        """Bearer health checks use the Web Server identity route."""
         from slcli.platform import _get_service_status_snapshot
 
         status = {
             "server_reachable": True,
             "auth_valid": True,
-            "services": {"Auth": "ok", "Work Order": "ok"},
-            "platform": PLATFORM_SLE,
+            "services": {"Web Server": "ok"},
+            "platform": PLATFORM_UNKNOWN,
         }
         with patch(
             "slcli.platform._get_current_api_context",
             return_value=("pkce", "https://web.example.com", "access-token", "bearer"),
         ), patch("slcli.platform._save_service_status_snapshot"), patch(
-            "slcli.platform.check_service_status", return_value=status
-        ) as mock_service_probe, patch(
-            "slcli.platform.check_web_server_auth"
-        ) as mock_web_probe:
+            "slcli.platform.check_web_server_auth", return_value=status
+        ) as mock_web_probe, patch(
+            "slcli.platform.check_service_status"
+        ) as mock_api_probe:
             result = _get_service_status_snapshot(force_refresh=True)
 
         assert result == status
-        mock_service_probe.assert_called_once_with(
-            "https://web.example.com", "access-token", "bearer"
+        mock_web_probe.assert_called_once_with("https://web.example.com", "access-token", "bearer")
+        mock_api_probe.assert_not_called()
+
+    def test_get_platform_info_preserves_profile_platform_for_bearer_snapshot(self) -> None:
+        """Bearer identity snapshots do not replace a known profile platform."""
+        from slcli.profiles import Profile
+        from slcli.utils import ResolvedConfigValue
+
+        profile = Profile(
+            name="test",
+            server="https://api.example.com",
+            web_url="https://web.example.com",
+            platform=PLATFORM_SLE,
+            auth_mode="pkce",
         )
-        mock_web_probe.assert_not_called()
+        status = {
+            "server_reachable": True,
+            "auth_valid": True,
+            "services": {"Web Server": "ok"},
+            "platform": PLATFORM_UNKNOWN,
+        }
+
+        with patch("slcli.profiles.get_active_profile", return_value=profile), patch(
+            "slcli.utils.get_base_url_resolution",
+            return_value=ResolvedConfigValue("https://api.example.com", "profile:test"),
+        ), patch(
+            "slcli.utils.get_web_url_resolution",
+            return_value=ResolvedConfigValue("https://web.example.com", "profile:test"),
+        ), patch(
+            "slcli.utils.get_api_key_resolution",
+            return_value=ResolvedConfigValue("access-token", "profile:test:pkce"),
+        ), patch(
+            "slcli.platform._get_service_status_snapshot", return_value=status
+        ):
+            result = get_platform_info()
+
+        assert result["platform"] == PLATFORM_SLE
+        assert result["platform_display"] == "SystemLink Enterprise"
 
     def test_get_platform_info_unauthorized(self) -> None:
         """Test that auth_valid=False is reported when API key is unauthorized."""

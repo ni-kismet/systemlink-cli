@@ -28,7 +28,7 @@ from .ssl_trust import (
     save_managed_certificate,
 )
 from .table_utils import output_formatted_list
-from .utils import ExitCodes, get_base_url
+from .utils import ExitCodes, get_base_url, get_base_url_resolution
 
 API_KEY_LENGTH = 42
 API_KEY_PATTERN = re.compile(rf"^[A-Za-z0-9_-]{{{API_KEY_LENGTH}}}$")
@@ -109,6 +109,11 @@ def _all_service_probes_unauthorized(services: dict[str, str]) -> bool:
     return bool(services) and all(status == "unauthorized" for status in services.values())
 
 
+def _any_service_probes_unauthorized(services: dict[str, str]) -> bool:
+    """Return True if any recorded service probe failed with authorization."""
+    return bool(services) and any(status == "unauthorized" for status in services.values())
+
+
 def _normalize_fingerprint(fingerprint: str) -> str:
     """Normalize a SHA-256 certificate fingerprint supplied by a user."""
     normalized = fingerprint.replace(":", "").replace(" ", "").strip().upper()
@@ -119,19 +124,24 @@ def _normalize_fingerprint(fingerprint: str) -> str:
     return normalized
 
 
-def _show_certificate_warning(certificate: dict[str, Any]) -> None:
-    """Display the identity of a certificate before it is trusted."""
-    click.echo("\n⚠️  TLS certificate verification failed.", err=True)
-    click.echo(f"  Server: {certificate.get('origin', 'unknown')}", err=True)
-    click.echo(f"  Subject: {certificate.get('subject', 'unknown')}", err=True)
-    click.echo(f"  Issuer: {certificate.get('issuer', 'unknown')}", err=True)
-    click.echo(f"  SHA-256: {certificate.get('fingerprint', 'unknown')}", err=True)
-    click.echo(f"  Self-signed: {'yes' if certificate.get('self-signed') else 'no'}", err=True)
+def _show_certificate_details(certificate: dict[str, Any], err: bool = False) -> None:
+    """Display certificate identity and validity details."""
+    click.echo(f"  Server: {certificate.get('origin', 'unknown')}", err=err)
+    click.echo(f"  Subject: {certificate.get('subject', 'unknown')}", err=err)
+    click.echo(f"  Issuer: {certificate.get('issuer', 'unknown')}", err=err)
+    click.echo(f"  SHA-256: {certificate.get('fingerprint', 'unknown')}", err=err)
+    click.echo(f"  Self-signed: {'yes' if certificate.get('self-signed') else 'no'}", err=err)
     click.echo(
         f"  Valid: {certificate.get('not-before', 'unknown')} to "
         f"{certificate.get('not-after', 'unknown')}",
-        err=True,
+        err=err,
     )
+
+
+def _show_certificate_warning(certificate: dict[str, Any]) -> None:
+    """Display the identity of a certificate before it is trusted."""
+    click.echo("\n⚠️  TLS certificate verification failed.", err=True)
+    _show_certificate_details(certificate, err=True)
 
 
 def _trust_certificate_if_requested(
@@ -179,7 +189,10 @@ def _trust_certificate_if_requested(
 
     try:
         save_managed_certificate(certificate)
-        retry_status = check_service_status(url, credential, auth_scheme=auth_scheme)
+        if auth_scheme == "bearer":
+            retry_status = check_web_server_auth(url, credential, auth_scheme=auth_scheme)
+        else:
+            retry_status = check_service_status(url, credential, auth_scheme=auth_scheme)
     except (OSError, ValueError) as exc:
         _exit_with_validation_error(
             f"Could not save the trusted certificate: {exc}. Profile was not saved.",
@@ -303,10 +316,10 @@ def _add_profile_impl(
 
     assert isinstance(api_key, str)
 
-    # PKCE uses the Web URL for bearer service probes; API-key login uses the API URL.
+    # Validate PKCE against the Web Server identity route; API-key login retains API probes.
     click.echo("Checking server connectivity and services...")
     if auth_mode == "pkce":
-        status = check_service_status(web_url, api_key, auth_scheme="bearer")
+        status = check_web_server_auth(web_url, api_key, auth_scheme="bearer")
     else:
         status = check_service_status(url, api_key)
 
@@ -321,6 +334,11 @@ def _add_profile_impl(
         )
 
     platform = status["platform"]
+    if auth_mode == "pkce":
+        platform_status = check_service_status(web_url, api_key, auth_scheme="bearer")
+        detected_platform = platform_status.get("platform")
+        if detected_platform in (PLATFORM_SLE, PLATFORM_SLS):
+            platform = detected_platform
     services = status.get("services", {})
 
     if not status["server_reachable"]:
@@ -330,7 +348,10 @@ def _add_profile_impl(
             ExitCodes.NETWORK_ERROR,
         )
 
-    if status["auth_valid"] is False and _all_service_probes_unauthorized(services):
+    if status["auth_valid"] is False and (
+        _all_service_probes_unauthorized(services)
+        or (_any_service_probes_unauthorized(services) and platform == PLATFORM_SLS)
+    ):
         auth_failure_message = (
             "PKCE bearer token validation failed. The server responded, but the token was not authorized. "
             if auth_mode == "pkce"
@@ -674,6 +695,35 @@ def register_config_commands(cli: Any) -> None:
     def trust() -> None:
         """Manage explicitly trusted server certificates."""
         pass
+
+    @trust.command(name="show")
+    @click.option("--url", help="HTTPS server URL (defaults to the active API URL)")
+    @click.option(
+        "--format",
+        "output_format",
+        "-f",
+        type=click.Choice(["table", "json"]),
+        default="table",
+        show_default=True,
+        help="Output format",
+    )
+    def show_server_certificate(url: Optional[str], output_format: str) -> None:
+        """Inspect and display the current server certificate without trusting it."""
+        server_url = url or get_base_url_resolution().value
+        try:
+            certificate = inspect_server_certificate(server_url)
+        except (OSError, ValueError, ssl.SSLError) as exc:
+            _exit_with_validation_error(
+                f"Could not inspect the server certificate: {exc}.", ExitCodes.NETWORK_ERROR
+            )
+
+        certificate_details = certificate.to_dict()
+        if output_format == "json":
+            click.echo(json.dumps(certificate_details, indent=2))
+            return
+
+        click.echo(f"Server certificate for {certificate_details.get('origin', 'unknown')}")
+        _show_certificate_details(certificate_details)
 
     @trust.command(name="list")
     @click.option(

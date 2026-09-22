@@ -62,6 +62,7 @@ You are a professional code reviewer for the SystemLink CLI project. Your role i
 - ✅ No flaky or intermittent test failures
 - ✅ No coverage regression
 - ✅ Security standards met (parameterized queries, no hardcoded secrets)
+- ✅ Cross-platform test fixtures and snapshots do not assume Unix line endings or path formats; normalize text bytes or use platform-independent expectations where Windows can convert LF to CRLF
 
 ### Review Checklist
 
@@ -102,6 +103,7 @@ Please review the PR systematically:
 - [ ] Configuration properly managed
 - [ ] No hardcoded secrets or URLs
 - [ ] Cross-platform compatible
+- [ ] Byte-count and content snapshots remain stable across Windows LF/CRLF conversion and platform-specific path representations
 
 **5. Safety & Security**
 - [ ] No credentials hardcoded

@@ -7,16 +7,30 @@ for a set of queries. Outputs results as JSON.
 
 import argparse
 import json
+import math
 import os
 import select
 import subprocess
 import sys
+import tempfile
 import time
 import uuid
 from concurrent.futures import ProcessPoolExecutor, as_completed
 from pathlib import Path
 
 from scripts.utils import parse_skill_md
+
+
+class ExecutionError(RuntimeError):
+    """Raised when a trigger-evaluation executor does not complete successfully."""
+
+
+def unit_interval_rate(value: str) -> float:
+    """Parse a finite trigger rate between zero and one."""
+    parsed = float(value)
+    if not math.isfinite(parsed) or not 0 <= parsed <= 1:
+        raise argparse.ArgumentTypeError("rate must be a finite value between 0 and 1")
+    return parsed
 
 
 def find_project_root() -> Path:
@@ -50,7 +64,9 @@ def run_single_query(
     """
     unique_id = uuid.uuid4().hex[:8]
     clean_name = f"{skill_name}-skill-{unique_id}"
-    project_commands_dir = Path(project_root) / ".claude" / "commands"
+    isolated_project = tempfile.TemporaryDirectory(prefix=f".{clean_name}-", dir=project_root)
+    isolated_project_root = Path(isolated_project.name)
+    project_commands_dir = isolated_project_root / ".claude" / "commands"
     command_file = project_commands_dir / f"{clean_name}.md"
 
     try:
@@ -88,7 +104,7 @@ def run_single_query(
             cmd,
             stdout=subprocess.PIPE,
             stderr=subprocess.DEVNULL,
-            cwd=project_root,
+            cwd=isolated_project_root,
             env=env,
         )
 
@@ -98,6 +114,76 @@ def run_single_query(
         # Track state for stream event detection
         pending_tool_name = None
         accumulated_json = ""
+        timed_out = False
+        terminal_result_received = False
+
+        def process_line(line: str) -> None:
+            """Process one decoded Claude stream event."""
+            nonlocal accumulated_json, pending_tool_name, terminal_result_received, triggered
+            line = line.strip()
+            if not line:
+                return
+            try:
+                event = json.loads(line)
+            except json.JSONDecodeError:
+                return
+
+            if event.get("type") == "result":
+                terminal_result_received = True
+
+            if event.get("type") == "stream_event":
+                stream_event = event.get("event", {})
+                stream_event_type = stream_event.get("type", "")
+
+                if stream_event_type == "content_block_start":
+                    content_block = stream_event.get("content_block", {})
+                    tool_name = content_block.get("name", "")
+                    if tool_name in ("Skill", "Read"):
+                        pending_tool_name = tool_name
+                        accumulated_json = ""
+                    else:
+                        pending_tool_name = None
+                        accumulated_json = ""
+
+                elif stream_event_type == "content_block_delta" and pending_tool_name:
+                    delta = stream_event.get("delta", {})
+                    if delta.get("type") == "input_json_delta":
+                        accumulated_json += delta.get("partial_json", "")
+                        if clean_name in accumulated_json:
+                            triggered = True
+
+                elif stream_event_type == "content_block_stop":
+                    if pending_tool_name:
+                        triggered = triggered or clean_name in accumulated_json
+                        pending_tool_name = None
+                        accumulated_json = ""
+
+                elif stream_event_type == "message_stop" and pending_tool_name:
+                    triggered = triggered or clean_name in accumulated_json
+                    pending_tool_name = None
+                    accumulated_json = ""
+
+            elif event.get("type") == "assistant":
+                message = event.get("message", {})
+                for content_item in message.get("content", []):
+                    if content_item.get("type") != "tool_use":
+                        continue
+                    tool_name = content_item.get("name", "")
+                    tool_input = content_item.get("input", {})
+                    if tool_name == "Skill" and clean_name in tool_input.get("skill", ""):
+                        triggered = True
+                    elif tool_name == "Read" and clean_name in tool_input.get("file_path", ""):
+                        triggered = True
+
+        def process_buffer(final: bool = False) -> None:
+            """Process complete lines and one final unterminated line when requested."""
+            nonlocal buffer
+            while "\n" in buffer:
+                line, buffer = buffer.split("\n", 1)
+                process_line(line)
+            if final and buffer.strip():
+                process_line(buffer)
+                buffer = ""
 
         try:
             while time.time() - start_time < timeout:
@@ -115,74 +201,88 @@ def run_single_query(
                 if not chunk:
                     break
                 buffer += chunk.decode("utf-8", errors="replace")
+                process_buffer()
+            else:
+                timed_out = True
 
-                while "\n" in buffer:
-                    line, buffer = buffer.split("\n", 1)
-                    line = line.strip()
-                    if not line:
-                        continue
+            process_buffer(final=True)
 
-                    try:
-                        event = json.loads(line)
-                    except json.JSONDecodeError:
-                        continue
-
-                    # Early detection via stream events
-                    if event.get("type") == "stream_event":
-                        se = event.get("event", {})
-                        se_type = se.get("type", "")
-
-                        if se_type == "content_block_start":
-                            cb = se.get("content_block", {})
-                            if cb.get("type") == "tool_use":
-                                tool_name = cb.get("name", "")
-                                if tool_name in ("Skill", "Read"):
-                                    pending_tool_name = tool_name
-                                    accumulated_json = ""
-                                else:
-                                    return False
-
-                        elif se_type == "content_block_delta" and pending_tool_name:
-                            delta = se.get("delta", {})
-                            if delta.get("type") == "input_json_delta":
-                                accumulated_json += delta.get("partial_json", "")
-                                if clean_name in accumulated_json:
-                                    return True
-
-                        elif se_type in ("content_block_stop", "message_stop"):
-                            if pending_tool_name:
-                                return clean_name in accumulated_json
-                            if se_type == "message_stop":
-                                return False
-
-                    # Fallback: full assistant message
-                    elif event.get("type") == "assistant":
-                        message = event.get("message", {})
-                        for content_item in message.get("content", []):
-                            if content_item.get("type") != "tool_use":
-                                continue
-                            tool_name = content_item.get("name", "")
-                            tool_input = content_item.get("input", {})
-                            if tool_name == "Skill" and clean_name in tool_input.get("skill", ""):
-                                triggered = True
-                            elif tool_name == "Read" and clean_name in tool_input.get(
-                                "file_path", ""
-                            ):
-                                triggered = True
-                            return triggered
-
-                    elif event.get("type") == "result":
-                        return triggered
+            if not timed_out and process.poll() is None:
+                try:
+                    process.wait(timeout=max(0, timeout - (time.time() - start_time)))
+                except subprocess.TimeoutExpired:
+                    timed_out = True
+            if timed_out and process.poll() is None:
+                process.kill()
+                process.wait()
         finally:
-            # Clean up process on any exit path (return, exception, timeout)
+            # Clean up the process on exceptions and timeouts.
             if process.poll() is None:
                 process.kill()
                 process.wait()
 
+        if timed_out:
+            raise ExecutionError(f"Claude CLI timed out after {timeout} seconds")
+        if process.returncode != 0:
+            raise ExecutionError(f"Claude CLI exited with status {process.returncode}")
+        if not terminal_result_received:
+            raise ExecutionError("Claude CLI produced no terminal result event")
         return triggered
     finally:
         if command_file.exists():
             command_file.unlink()
+        isolated_project.cleanup()
+
+
+def summarize_query_result(
+    item: dict,
+    triggers: list[bool],
+    errors: int,
+    trigger_threshold: float,
+    negative_trigger_threshold: float | None,
+) -> dict:
+    """Summarize one query without treating execution errors as negative evidence."""
+    negative_threshold = (
+        trigger_threshold if negative_trigger_threshold is None else negative_trigger_threshold
+    )
+    if errors:
+        return {
+            "query": item["query"],
+            "should_trigger": item["should_trigger"],
+            "trigger_rate": None,
+            "triggers": sum(triggers),
+            "runs": len(triggers),
+            "errors": errors,
+            "status": "inconclusive",
+            "pass": None,
+        }
+
+    trigger_rate = sum(triggers) / len(triggers)
+    should_trigger = item["should_trigger"]
+    did_pass = (
+        trigger_rate >= trigger_threshold if should_trigger else trigger_rate < negative_threshold
+    )
+    return {
+        "query": item["query"],
+        "should_trigger": should_trigger,
+        "trigger_rate": trigger_rate,
+        "triggers": sum(triggers),
+        "runs": len(triggers),
+        "errors": 0,
+        "status": "pass" if did_pass else "fail",
+        "pass": did_pass,
+    }
+
+
+def require_conclusive_results(eval_results: dict) -> None:
+    """Abort optimization when any trigger query is inconclusive."""
+    inconclusive = [
+        result["query"]
+        for result in eval_results.get("results", [])
+        if result.get("status") == "inconclusive" or result.get("pass") is None
+    ]
+    if inconclusive:
+        raise RuntimeError("Trigger evaluation is inconclusive for: " + ", ".join(inconclusive))
 
 
 def run_eval(
@@ -194,11 +294,11 @@ def run_eval(
     project_root: Path,
     runs_per_query: int = 1,
     trigger_threshold: float = 0.5,
+    negative_trigger_threshold: float | None = None,
     model: str | None = None,
 ) -> dict:
     """Run the full eval set and return results."""
     results = []
-
     with ProcessPoolExecutor(max_workers=num_workers) as executor:
         future_to_info = {}
         for item in eval_set:
@@ -215,6 +315,7 @@ def run_eval(
                 future_to_info[future] = (item, run_idx)
 
         query_triggers: dict[str, list[bool]] = {}
+        query_errors: dict[str, int] = {}
         query_items: dict[str, dict] = {}
         for future in as_completed(future_to_info):
             item, _ = future_to_info[future]
@@ -222,32 +323,27 @@ def run_eval(
             query_items[query] = item
             if query not in query_triggers:
                 query_triggers[query] = []
+                query_errors[query] = 0
             try:
                 query_triggers[query].append(future.result())
             except Exception as e:
                 print(f"Warning: query failed: {e}", file=sys.stderr)
-                query_triggers[query].append(False)
+                query_errors[query] += 1
 
     for query, triggers in query_triggers.items():
-        item = query_items[query]
-        trigger_rate = sum(triggers) / len(triggers)
-        should_trigger = item["should_trigger"]
-        if should_trigger:
-            did_pass = trigger_rate >= trigger_threshold
-        else:
-            did_pass = trigger_rate < trigger_threshold
         results.append(
-            {
-                "query": query,
-                "should_trigger": should_trigger,
-                "trigger_rate": trigger_rate,
-                "triggers": sum(triggers),
-                "runs": len(triggers),
-                "pass": did_pass,
-            }
+            summarize_query_result(
+                query_items[query],
+                triggers,
+                query_errors[query],
+                trigger_threshold,
+                negative_trigger_threshold,
+            )
         )
 
-    passed = sum(1 for r in results if r["pass"])
+    passed = sum(1 for r in results if r["status"] == "pass")
+    failed = sum(1 for r in results if r["status"] == "fail")
+    inconclusive = sum(1 for r in results if r["status"] == "inconclusive")
     total = len(results)
 
     return {
@@ -257,7 +353,8 @@ def run_eval(
         "summary": {
             "total": total,
             "passed": passed,
-            "failed": total - passed,
+            "failed": failed,
+            "inconclusive": inconclusive,
         },
     }
 
@@ -272,7 +369,15 @@ def main() -> None:
     parser.add_argument("--timeout", type=int, default=30, help="Timeout per query in seconds")
     parser.add_argument("--runs-per-query", type=int, default=3, help="Number of runs per query")
     parser.add_argument(
-        "--trigger-threshold", type=float, default=0.5, help="Trigger rate threshold"
+        "--trigger-threshold",
+        type=unit_interval_rate,
+        default=0.5,
+        help="Trigger rate threshold",
+    )
+    parser.add_argument(
+        "--negative-trigger-threshold",
+        type=unit_interval_rate,
+        help="Maximum trigger rate for should-not-trigger queries (defaults to trigger threshold)",
     )
     parser.add_argument(
         "--model",
@@ -305,6 +410,7 @@ def main() -> None:
         project_root=project_root,
         runs_per_query=args.runs_per_query,
         trigger_threshold=args.trigger_threshold,
+        negative_trigger_threshold=args.negative_trigger_threshold,
         model=args.model,
     )
 
@@ -312,8 +418,8 @@ def main() -> None:
         summary = output["summary"]
         print(f"Results: {summary['passed']}/{summary['total']} passed", file=sys.stderr)
         for r in output["results"]:
-            status = "PASS" if r["pass"] else "FAIL"
-            rate_str = f"{r['triggers']}/{r['runs']}"
+            status = r["status"].upper()
+            rate_str = f"{r['triggers']}/{r['runs']} errors={r['errors']}"
             print(
                 f"  [{status}] rate={rate_str} expected={r['should_trigger']}: {r['query'][:70]}",
                 file=sys.stderr,

@@ -111,8 +111,9 @@ def build_run(root: Path, run_dir: Path) -> dict | None:
     prompt = ""
     eval_id = None
 
-    # Try eval_metadata.json
-    for candidate in [run_dir / "eval_metadata.json", run_dir.parent / "eval_metadata.json"]:
+    # Try eval_metadata.json from the run through the eval ancestor.
+    for directory in [run_dir, *run_dir.parents]:
+        candidate = directory / "eval_metadata.json"
         if candidate.exists():
             try:
                 metadata = json.loads(candidate.read_text())
@@ -122,6 +123,8 @@ def build_run(root: Path, run_dir: Path) -> dict | None:
                 pass
             if prompt:
                 break
+        if directory == root:
+            break
 
     # Fall back to transcript.md
     if not prompt:

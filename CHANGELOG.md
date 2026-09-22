@@ -2,6 +2,76 @@
 
 <!-- towncrier release notes start -->
 
+## v1.30.1 (2026-09-22)
+
+### Bug Fixes
+
+- Update GitHub Actions. (deps-renovate-github-actions)
+
+
+## v1.30.0 (2026-09-22)
+
+### Features
+
+- Add `slcli config trust show` to inspect a server certificate without trusting it. (trust-show)
+
+
+## v1.29.4 (2026-09-21)
+
+### Bug Fixes
+
+- Use the SystemLink Server Tag Rule Engine versioning endpoint to positively identify SLS installations and return exit code PERMISSION_DENIED when no authenticated service probe succeeds and service verification returns mixed unauthorized and not-found responses. (config-sls-api-key-verification)
+
+
+## v1.29.3 (2026-09-17)
+
+### Bug Fixes
+
+- Use Web Server identity validation for PKCE logins while preserving SLE/SLS platform metadata during login and bearer health checks. Update generated Angular webapps to use TypeScript's current module resolution and source directory settings without deprecated compiler options. (webapp-typescript-config)
+
+
+## v1.29.2 (2026-09-17)
+
+### Documentation
+
+- Expand the slcli agent skill with domain concepts, command-routing guidance, analysis recipes, and regression evaluations. (slcli-skill-guidance)
+
+
+## v1.29.1 (2026-09-17)
+
+### Bug Fixes
+
+- Make the MCP Skills catalog test independent of Windows line-ending conversion. (windows-mcp-skills-catalog)
+
+
+## v1.29.0 (2026-09-17)
+
+### Features
+
+- Expose the bundled slcli Agent Skill through the experimental MCP Skills extension. (mcp-skills-extension)
+
+
+## v1.28.1 (2026-09-17)
+
+### Bug Fixes
+
+- Make the skill evaluation grader fixture platform-independent so Windows release builds can publish. (windows-release-test-fixture)
+
+
+## v1.28.0 (2026-09-11)
+
+### Features
+
+- Add slcli skill eval workflow prompts, scripts, and docs for gated benchmarking. (slcli-skill-eval-workflow)
+
+
+## v1.27.7 (2026-09-04)
+
+### Other Changes
+
+- Adopt the shared NI Python Renovate configuration. (migrate-python-renovate-config)
+
+
 ## v1.27.6 (2026-09-02)
 
 ### Bug Fixes

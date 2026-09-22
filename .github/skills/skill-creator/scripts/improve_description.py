@@ -12,6 +12,7 @@ import sys
 from pathlib import Path
 
 import anthropic
+from scripts.run_eval import require_conclusive_results
 from scripts.utils import parse_skill_md
 
 
@@ -28,9 +29,15 @@ def improve_description(
     iteration: int | None = None,
 ) -> str:
     """Call Claude to improve the description based on eval results."""
-    failed_triggers = [r for r in eval_results["results"] if r["should_trigger"] and not r["pass"]]
+    require_conclusive_results(eval_results)
+    if test_results:
+        require_conclusive_results(test_results)
+
+    failed_triggers = [
+        r for r in eval_results["results"] if r["should_trigger"] and r["status"] == "fail"
+    ]
     false_triggers = [
-        r for r in eval_results["results"] if not r["should_trigger"] and not r["pass"]
+        r for r in eval_results["results"] if not r["should_trigger"] and r["status"] == "fail"
     ]
 
     # Build scores summary

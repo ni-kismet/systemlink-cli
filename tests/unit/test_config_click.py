@@ -10,6 +10,7 @@ import pytest
 from click.testing import CliRunner
 
 from slcli.config_click import _normalize_base_url, register_config_commands
+from slcli.platform import PLATFORM_SLS
 from slcli.utils import ExitCodes
 
 VALID_API_KEY = "4LpbauiNA-UI9IhjqZoS4UeikZtExLK9Q_Q77d1bJd"
@@ -506,7 +507,7 @@ class TestTrustedCertificates:
             "slcli.config_click.inspect_server_certificate", lambda _url: certificate
         )
         monkeypatch.setattr("slcli.config_click.save_managed_certificate", lambda _cert: None)
-        monkeypatch.setattr("slcli.config_click.check_service_status", mock_check)
+        monkeypatch.setattr("slcli.config_click.check_web_server_auth", mock_check)
 
         result = _trust_certificate_if_requested(
             "https://web.example.com",
@@ -582,6 +583,85 @@ class TestTrustedCertificates:
 
         assert result.exit_code == 0, result.output
         assert json.loads(result.output)[0]["fingerprint"] == "A" * 64
+
+    def test_show_server_certificate_json(self, monkeypatch: Any) -> None:
+        """Trust show should inspect and expose the current certificate as JSON."""
+        from slcli.ssl_trust import ServerCertificate
+
+        certificate = ServerCertificate(
+            origin="https://example.com:443",
+            pem=b"pem",
+            fingerprint="A" * 64,
+            subject="subject",
+            issuer="issuer",
+            sans=["example.com"],
+            not_before="before",
+            not_after="after",
+            self_signed=True,
+        )
+        inspect = MagicMock(return_value=certificate)
+        monkeypatch.setattr("slcli.config_click.inspect_server_certificate", inspect)
+
+        result = CliRunner().invoke(
+            make_cli(),
+            ["config", "trust", "show", "--url", "https://example.com", "-f", "json"],
+        )
+
+        assert result.exit_code == 0, result.output
+        assert json.loads(result.output)["fingerprint"] == "A" * 64
+        inspect.assert_called_once_with("https://example.com")
+
+    def test_show_server_certificate_table_uses_active_url_without_saving(
+        self, monkeypatch: Any
+    ) -> None:
+        """Trust show should use the active API URL and leave managed trust unchanged."""
+        from slcli.ssl_trust import ServerCertificate
+        from slcli.utils import ResolvedConfigValue
+
+        certificate = ServerCertificate(
+            origin="https://active.example.com:443",
+            pem=b"pem",
+            fingerprint="B" * 64,
+            subject="subject",
+            issuer="issuer",
+            sans=[],
+            not_before="before",
+            not_after="after",
+            self_signed=False,
+        )
+        inspect = MagicMock(return_value=certificate)
+        save = MagicMock()
+        monkeypatch.setattr(
+            "slcli.config_click.get_base_url",
+            lambda: "https://active-web.example.com",
+        )
+        monkeypatch.setattr(
+            "slcli.config_click.get_base_url_resolution",
+            lambda: ResolvedConfigValue("https://active-api.example.com", "profile:active"),
+        )
+        monkeypatch.setattr("slcli.config_click.inspect_server_certificate", inspect)
+        monkeypatch.setattr("slcli.config_click.save_managed_certificate", save)
+
+        result = CliRunner().invoke(make_cli(), ["config", "trust", "show"])
+
+        assert result.exit_code == 0, result.output
+        assert "SHA-256: " + "B" * 64 in result.output
+        inspect.assert_called_once_with("https://active-api.example.com")
+        save.assert_not_called()
+
+    def test_show_server_certificate_reports_inspection_failure(self, monkeypatch: Any) -> None:
+        """Trust show should report network failures without changing trust state."""
+        monkeypatch.setattr(
+            "slcli.config_click.inspect_server_certificate",
+            MagicMock(side_effect=OSError("connection failed")),
+        )
+
+        result = CliRunner().invoke(
+            make_cli(), ["config", "trust", "show", "--url", "https://example.com"]
+        )
+
+        assert result.exit_code == ExitCodes.NETWORK_ERROR
+        assert "Could not inspect the server certificate" in result.output
 
     def test_add_trusted_certificate_rejects_fingerprint_mismatch(self, monkeypatch: Any) -> None:
         """Trust add must reject a certificate that differs from the supplied fingerprint."""
@@ -835,7 +915,7 @@ class TestAddProfileTrailingSlash:
 
 
 class TestPkceProfileVerification:
-    """Tests for PKCE verification against Web Server and service routes."""
+    """Tests for PKCE verification against Web Server routes."""
 
     def test_pkce_trusts_web_certificate_before_browser_login(
         self, tmp_path: Path, monkeypatch: Any
@@ -879,21 +959,13 @@ class TestPkceProfileVerification:
             events.append("login")
             return PkceLoginResult("access-token", "refresh-token")
 
-        def mock_service_probe(
-            url: str, credential: str, auth_scheme: str = "bearer"
-        ) -> dict[str, Any]:
-            events.append(f"service-probe:{credential}")
-            return {
-                "server_reachable": True,
-                "auth_valid": True,
-                "services": {"Auth": "ok", "Work Order": "ok"},
-                "platform": "SLE",
-            }
-
         monkeypatch.setattr("slcli.config_click._trust_certificate_if_requested", trust_certificate)
         monkeypatch.setattr("slcli.pkce.perform_pkce_login", perform_login)
         monkeypatch.setattr("slcli.pkce.save_pkce_credentials", lambda *args: None)
-        monkeypatch.setattr("slcli.config_click.check_service_status", mock_service_probe)
+        monkeypatch.setattr(
+            "slcli.config_click.check_service_status",
+            lambda *_args, **_kwargs: {"platform": "SLE"},
+        )
 
         _add_profile_impl(
             profile="pkce",
@@ -908,16 +980,12 @@ class TestPkceProfileVerification:
             client_id="client-id",
         )
 
-        assert events == [
-            "probe:",
-            "trust",
-            "probe:trusted",
-            "login",
-            "service-probe:access-token",
-        ]
+        assert events == ["probe:", "trust", "probe:trusted", "login", "probe:access-token"]
 
-    def test_pkce_login_uses_web_service_probe(self, tmp_path: Path, monkeypatch: Any) -> None:
-        """PKCE login detects the platform through the Web URL service routes."""
+    def test_pkce_login_uses_web_server_identity_probe(
+        self, tmp_path: Path, monkeypatch: Any
+    ) -> None:
+        """PKCE login must not probe the separate API host during the prototype."""
         from slcli.config_click import _add_profile_impl
         from slcli.pkce import PkceLoginResult
 
@@ -940,14 +1008,7 @@ class TestPkceProfileVerification:
             }
         )
         monkeypatch.setattr("slcli.config_click.check_web_server_auth", mock_web_probe)
-        mock_service_probe = MagicMock(
-            return_value={
-                "server_reachable": True,
-                "platform": "SLE",
-                "auth_valid": True,
-                "services": {"Auth": "ok", "Work Order": "ok"},
-            }
-        )
+        mock_service_probe = MagicMock(return_value={"platform": "SLE"})
         monkeypatch.setattr("slcli.config_click.check_service_status", mock_service_probe)
         monkeypatch.setattr("slcli.pkce.save_pkce_credentials", lambda *args: None)
 
@@ -963,7 +1024,14 @@ class TestPkceProfileVerification:
             client_id="client-id",
         )
 
-        mock_web_probe.assert_called_once_with("https://web.example.com", "", auth_scheme="bearer")
+        assert mock_web_probe.call_args_list[0] == (
+            ("https://web.example.com", ""),
+            {"auth_scheme": "bearer"},
+        )
+        assert mock_web_probe.call_args_list[-1] == (
+            ("https://web.example.com", "access-token"),
+            {"auth_scheme": "bearer"},
+        )
         mock_service_probe.assert_called_once_with(
             "https://web.example.com", "access-token", auth_scheme="bearer"
         )
@@ -1011,12 +1079,7 @@ class TestPkceProfileVerification:
         )
         monkeypatch.setattr(
             "slcli.config_click.check_service_status",
-            lambda *_args, **_kwargs: {
-                "server_reachable": True,
-                "auth_valid": True,
-                "services": {"Auth": "ok", "Work Order": "ok"},
-                "platform": "SLE",
-            },
+            lambda *_args, **_kwargs: {"platform": "unknown"},
         )
         monkeypatch.setattr(
             "slcli.pkce.perform_pkce_login",
@@ -1046,6 +1109,44 @@ class TestPkceProfileVerification:
         assert saved["current-profile"] == "other"
         assert saved["profiles"]["pkce"]["server"] == "https://old-api.example.com"
         assert saved["profiles"]["pkce"]["api-key"] == "old-api-key"
+
+
+class TestSlsProfileVerification:
+    """Tests for SLS-specific API-key verification."""
+
+    def test_rejects_mixed_unauthorized_and_not_found_services(
+        self, tmp_path: Path, monkeypatch: Any
+    ) -> None:
+        """SLS verification rejects a key when no service accepts it."""
+        from slcli.config_click import _add_profile_impl
+
+        config_file = tmp_path / "config.json"
+        monkeypatch.setattr(
+            "slcli.profiles.ProfileConfig.get_config_path", classmethod(lambda cls: config_file)
+        )
+        monkeypatch.setattr(
+            "slcli.config_click.check_service_status",
+            lambda *_args, **_kwargs: {
+                "server_reachable": True,
+                "auth_valid": False,
+                "services": {"Auth": "unauthorized", "Comments": "not_found"},
+                "platform": PLATFORM_SLS,
+            },
+        )
+
+        with pytest.raises(SystemExit) as exc_info:
+            _add_profile_impl(
+                profile="sls",
+                url="https://api.example.com",
+                api_key=VALID_API_KEY,
+                web_url="https://web.example.com",
+                workspace="",
+                set_current=True,
+                readonly=False,
+            )
+
+        assert exc_info.value.code == ExitCodes.PERMISSION_DENIED
+        assert not config_file.exists()
 
 
 class TestAddProfileUrlValidation:

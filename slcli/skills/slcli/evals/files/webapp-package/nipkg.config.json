@@ -1,0 +1,15 @@
+{
+  "package": "fleet-dashboard-webapp",
+  "version": "0.1.0",
+  "displayName": "Fleet Dashboard",
+  "description": "Hosted SystemLink dashboard for fleet health and calibration overview.",
+  "section": "Dashboard",
+  "maintainer": "SystemLink CLI Team <slcli@example.com>",
+  "license": "MIT",
+  "homepage": "https://example.invalid/fleet-dashboard",
+  "xbPlugin": "webapp",
+  "slPluginManagerTags": "dashboard,fleet,calibration",
+  "slPluginManagerMinServerVersion": "2025 R1",
+  "buildDir": "webapp-content",
+  "iconFile": "icon.svg"
+}

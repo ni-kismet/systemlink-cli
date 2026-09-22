@@ -18,10 +18,23 @@ from typing import Any, Dict, List, Optional, Tuple
 import httpx2 as httpx
 import pytest
 from mcp import Client, ClientSession
+from mcp.client import advertise
 from mcp.client.streamable_http import streamable_http_client
-from mcp.types import LATEST_PROTOCOL_VERSION, CallToolResult, ListToolsResult, TextContent
+from mcp.types import LATEST_PROTOCOL_VERSION, CallToolResult, ListToolsResult, Request, TextContent
 
 from slcli.mcp_reachability import is_reachability_failure
+from slcli.mcp_skills import (
+    SKILL_ROOT_URI,
+    SKILL_URI,
+    SKILLS_EXTENSION_IDENTIFIER,
+    SKILLS_PROTOCOL_VERSION,
+    GetSkillParams,
+    GetSkillResult,
+    ListSkillsParams,
+    ListSkillsResult,
+    ReadDirectoryParams,
+    ReadDirectoryResult,
+)
 
 DEFAULT_MCP_URL = "http://127.0.0.1:8765/mcp"
 DEFAULT_TIMEOUT_SECONDS = 5
@@ -485,6 +498,58 @@ async def _exercise_mcp_tools(mcp_url: str, timeout_seconds: int) -> None:
         raise
 
 
+async def _exercise_mcp_skills(mcp_url: str, timeout_seconds: int) -> None:
+    """Verify the account-independent MCP Skills protocol over streamable HTTP."""
+    try:
+        async with Client(
+            mcp_url,
+            mode="auto",
+            read_timeout_seconds=float(timeout_seconds),
+            extensions=[advertise(SKILLS_EXTENSION_IDENTIFIER)],
+        ) as session:
+            assert session.protocol_version == SKILLS_PROTOCOL_VERSION
+            capabilities = session.server_capabilities
+            assert capabilities is not None
+            extensions = capabilities.extensions or {}
+            assert SKILLS_EXTENSION_IDENTIFIER in extensions
+            assert extensions[SKILLS_EXTENSION_IDENTIFIER] == {"directoryRead": True}
+
+            listed = await session.session.send_request(
+                Request(method="skills/list", params=ListSkillsParams()),
+                ListSkillsResult,
+            )
+            assert listed.result_type == "complete"
+            assert [skill.uri for skill in listed.skills] == [SKILL_URI]
+
+            fetched = await session.session.send_request(
+                Request(method="skills/get", params=GetSkillParams(uri=SKILL_URI)),
+                GetSkillResult,
+            )
+            assert fetched.skill == listed.skills[0]
+
+            directory = await session.session.send_request(
+                Request(
+                    method="resources/directory/read",
+                    params=ReadDirectoryParams(uri=SKILL_ROOT_URI),
+                ),
+                ReadDirectoryResult,
+            )
+            assert directory.result_type == "complete"
+            assert {resource.name for resource in directory.resources} == {
+                "slcli",
+                "references",
+                "scripts",
+            }
+
+            resource = await session.read_resource(SKILL_URI)
+            assert resource.contents
+            assert getattr(resource.contents[0], "text", None)
+    except Exception as exc:
+        if is_reachability_failure(exc):
+            pytest.skip(f"Local MCP server is not reachable at {mcp_url}: {exc}")
+        raise
+
+
 @pytest.mark.e2e
 @pytest.mark.slow
 class TestMcpStreamableHttpE2E:
@@ -502,3 +567,9 @@ class TestMcpStreamableHttpE2E:
         mcp_url = _env("SLCLI_MCP_E2E_URL", DEFAULT_MCP_URL) or DEFAULT_MCP_URL
         timeout_seconds = int(_env("SLCLI_MCP_E2E_TIMEOUT", str(DEFAULT_TIMEOUT_SECONDS)) or 5)
         asyncio.run(_exercise_mcp_tools(mcp_url, timeout_seconds))
+
+    def test_exercise_skills_protocol(self) -> None:
+        """Connect to the local streamable HTTP server and exercise MCP Skills."""
+        mcp_url = _env("SLCLI_MCP_E2E_URL", DEFAULT_MCP_URL) or DEFAULT_MCP_URL
+        timeout_seconds = int(_env("SLCLI_MCP_E2E_TIMEOUT", str(DEFAULT_TIMEOUT_SECONDS)) or 5)
+        asyncio.run(_exercise_mcp_skills(mcp_url, timeout_seconds))
