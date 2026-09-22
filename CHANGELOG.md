@@ -2,6 +2,14 @@
 
 <!-- towncrier release notes start -->
 
+## v1.30.3 (2026-09-22)
+
+### Bug Fixes
+
+- Update dependency lxml to v6.1.3. (deps-renovate-python)
+- Update dependency rich-click to v1.9.9. (deps-renovate-python-runtime-dependencies)
+
+
 ## v1.30.2 (2026-09-22)
 
 ### Bug Fixes
