@@ -2,6 +2,13 @@
 
 <!-- towncrier release notes start -->
 
+## v1.30.1 (2026-09-22)
+
+### Bug Fixes
+
+- Update GitHub Actions. (deps-renovate-github-actions)
+
+
 ## v1.30.0 (2026-09-22)
 
 ### Features
