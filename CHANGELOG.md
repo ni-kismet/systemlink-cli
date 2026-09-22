@@ -2,6 +2,32 @@
 
 <!-- towncrier release notes start -->
 
+## v1.31.0 (2026-09-22)
+
+### Features
+
+- Add an opt-in Python managed-client test minion with isolated Salt identity state, deterministic fixture handlers, and REST key-management support. (managed-client)
+
+### Bug Fixes
+
+- Persist asset identification records so managed-client asset removal can delete the matching record. (managed-client-asset-records)
+- Support deterministic `ni_asset.remove_asset` and `ni_asset.refresh` jobs in the managed-client fixture. (managed-client-assets)
+- Harden the managed-client test minion with bounded reconnects, verified destructive cleanup, real Salt-compatible RSA X9.31 lifecycle signatures, cross-platform protected state permissions, and standard CLI error handling. (managed-client-hardening)
+- Show safe Salt job identifiers, functions, targets, and return statuses in managed-client lifecycle output. (managed-client-job-details)
+- Keep managed-client pending-approval output on a single updating terminal line instead of repeatedly adding console log lines. (managed-client-pending-approval)
+- Publish managed-client blackout state through Salt's authenticated grain cache update path. (managed-client-publish-grains)
+- Accept no-argument single-function Salt jobs such as `nisysmgmt.restart` and publish the managed client's boot time for restart tracking. (managed-client-restart)
+- Generate a fresh Salt request nonce for every managed-client job return instead of reusing the authentication nonce. (managed-client-return-nonce)
+
+
+## v1.30.3 (2026-09-22)
+
+### Bug Fixes
+
+- Update dependency lxml to v6.1.3. (deps-renovate-python)
+- Update dependency rich-click to v1.9.9. (deps-renovate-python-runtime-dependencies)
+
+
 ## v1.30.2 (2026-09-22)
 
 ### Bug Fixes

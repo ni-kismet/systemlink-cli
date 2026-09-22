@@ -1,0 +1,415 @@
+"""Allowlisted deterministic handlers for managed-client integration jobs."""
+
+from __future__ import annotations
+
+from dataclasses import dataclass, field
+from typing import Any, Callable, Dict, Mapping, Optional, Tuple
+
+from .models import ManagedClientError
+from .state import ASSET_IDENTIFICATION_FIELDS, StateStore
+
+FixtureHandler = Callable[["FixtureJob"], "HandlerResult"]
+
+
+class HandlerError(ManagedClientError):
+    """Raised for malformed fixture jobs during direct validation."""
+
+
+@dataclass(frozen=True)
+class FixtureJob:
+    """The safe subset of a server-dispatched fixture job."""
+
+    jid: str
+    function: str
+    args: Tuple[Any, ...] = ()
+    kwargs: Mapping[str, Any] = field(default_factory=dict)
+
+    def __post_init__(self) -> None:
+        """Validate the fields used by deterministic handlers."""
+        if not self.jid.strip():
+            raise HandlerError("A fixture job ID is required.")
+        if not self.function.strip():
+            raise HandlerError("A fixture function is required.")
+        if not isinstance(self.args, tuple):
+            raise HandlerError("Fixture job args must be a tuple.")
+        if not isinstance(self.kwargs, Mapping):
+            raise HandlerError("Fixture job kwargs must be a map.")
+
+    @classmethod
+    def from_mapping(cls, job: Mapping[str, Any]) -> "FixtureJob":
+        """Parse a job without accepting shell or evaluation fields."""
+        jid = job.get("jid")
+        function = job.get("fun", job.get("function"))
+        args = job.get("args", job.get("arg", ()))
+        kwargs = job.get("kwargs", job.get("kwarg", {}))
+        if not isinstance(jid, str) or not isinstance(function, str):
+            raise HandlerError("Fixture jobs require string jid and fun fields.")
+        if not isinstance(args, (list, tuple)):
+            raise HandlerError("Fixture job args must be a list.")
+        if not isinstance(kwargs, Mapping):
+            raise HandlerError("Fixture job kwargs must be a map.")
+        if (
+            len(args) == 1
+            and isinstance(args[0], (list, tuple))
+            and len(args[0]) == 1
+            and isinstance(args[0][0], Mapping)
+            and args[0][0].get("__kwarg__") is True
+        ):
+            args = args[0]
+        if args and isinstance(args[0], Mapping) and args[0].get("__kwarg__") is True:
+            if len(args) != 1:
+                raise HandlerError("Fixture keyword arguments must be the only argument.")
+            kwargs = {key: value for key, value in args[0].items() if key != "__kwarg__"}
+            args = ()
+        return cls(jid=jid, function=function, args=tuple(args), kwargs=kwargs)
+
+
+@dataclass(frozen=True)
+class HandlerResult:
+    """Deterministic result returned by an allowlisted fixture handler."""
+
+    success: bool
+    return_code: int
+    value: Any = None
+    error: Optional[str] = None
+
+    def to_payload(self, job: FixtureJob, minion_id: str) -> Dict[str, Any]:
+        """Build a stable Salt-style return payload without secrets."""
+        payload: Dict[str, Any] = {
+            "jid": job.jid,
+            "id": minion_id,
+            "fun": job.function,
+            "return": self.value,
+            "retcode": self.return_code,
+            "success": self.success,
+        }
+        if self.error is not None:
+            payload["error"] = self.error
+        return payload
+
+
+class FixtureHandlerRegistry:
+    """Dispatch only explicitly registered deterministic test handlers."""
+
+    RETURN_SUCCESS = "slcli.test.return_success"
+    RETURN_FIXTURE = "slcli.test.return_fixture"
+    FAIL = "slcli.test.fail"
+    REFRESH = "slcli.test.refresh"
+    REFRESH_PILLAR = "saltutil.refresh_pillar"
+    STATE_APPLY = "nisysmgmt.state_apply"
+    RESTART = "nisysmgmt.restart"
+    SET_BLACKOUT = "nisysmgmt.set_blackout"
+    UNSET_BLACKOUT = "nisysmgmt.unset_blackout"
+    ADD_ASSET = "ni_asset.add_asset"
+    REMOVE_ASSET = "ni_asset.remove_asset"
+    REFRESH_ASSET = "ni_asset.refresh"
+    LIST_REPOS = "pkg.list_repos"
+    GRAINS_ITEMS = "nisysmgmt.grains_items"
+    INFO_INSTALLED = "pkg.info_installed"
+
+    def __init__(self, state_store: StateStore | None = None, boot_time: str | None = None) -> None:
+        """Create a registry with the built-in deterministic handlers."""
+        self._state_store = state_store
+        self._boot_time = boot_time
+        self._handlers: Dict[str, FixtureHandler] = {
+            self.RETURN_SUCCESS: self._return_success,
+            self.RETURN_FIXTURE: self._return_fixture,
+            self.FAIL: self._fail,
+            self.REFRESH: self._refresh,
+            self.REFRESH_PILLAR: self._return_true,
+            self.STATE_APPLY: self._return_true,
+            self.RESTART: self._return_true,
+            self.SET_BLACKOUT: self._set_blackout,
+            self.UNSET_BLACKOUT: self._unset_blackout,
+            self.ADD_ASSET: self._add_asset,
+            self.REMOVE_ASSET: self._remove_asset,
+            self.REFRESH_ASSET: self._refresh_asset,
+            self.LIST_REPOS: self._return_none,
+            self.GRAINS_ITEMS: self._grains_items,
+            self.INFO_INSTALLED: self._info_installed,
+        }
+
+    def dispatch(self, job: Mapping[str, Any], minion_id: str) -> Dict[str, Any]:
+        """Dispatch a job or return a deterministic unsupported/error payload."""
+        functions = job.get("fun", job.get("function"))
+        if isinstance(functions, list):
+            return self._dispatch_batch(job, minion_id)
+        try:
+            fixture_job = FixtureJob.from_mapping(job)
+        except HandlerError as error:
+            return {
+                "id": minion_id,
+                "return": None,
+                "retcode": 2,
+                "success": False,
+                "error": "malformed-job",
+                "error_message": str(error),
+            }
+
+        handler = self._handlers.get(fixture_job.function)
+        if handler is None:
+            return HandlerResult(
+                success=False,
+                return_code=2,
+                value=None,
+                error="unsupported-operation",
+            ).to_payload(fixture_job, minion_id)
+        return handler(fixture_job).to_payload(fixture_job, minion_id)
+
+    def _dispatch_batch(self, job: Mapping[str, Any], minion_id: str) -> Dict[str, Any]:
+        """Dispatch a multi-function Salt job and aggregate its scalar results."""
+        jid = job.get("jid")
+        functions = job.get("fun", job.get("function"))
+        args = job.get("arg", job.get("args", []))
+        kwargs = job.get("kwarg", job.get("kwargs", []))
+        if (
+            not isinstance(jid, str)
+            or not jid.strip()
+            or not functions
+            or any(not isinstance(function, str) or not function.strip() for function in functions)
+            or not isinstance(args, list)
+            or not isinstance(kwargs, (list, tuple, Mapping))
+        ):
+            return {
+                "id": minion_id,
+                "return": None,
+                "retcode": 2,
+                "success": False,
+                "error": "malformed-job",
+                "error_message": "Multi-function fixture jobs have mismatched fields.",
+            }
+        if not args:
+            args = [[] for _ in functions]
+        elif len(args) != len(functions):
+            return {
+                "id": minion_id,
+                "return": None,
+                "retcode": 2,
+                "success": False,
+                "error": "malformed-job",
+                "error_message": "Multi-function fixture jobs have mismatched fields.",
+            }
+
+        values: list[Any] = []
+        return_codes: list[int] = []
+        successes: list[bool] = []
+        for index, function in enumerate(functions):
+            function_kwargs: Mapping[str, Any]
+            if isinstance(kwargs, Mapping):
+                function_kwargs = kwargs
+            else:
+                if len(kwargs) not in (0, len(functions)):
+                    return {
+                        "id": minion_id,
+                        "return": None,
+                        "retcode": 2,
+                        "success": False,
+                        "error": "malformed-job",
+                        "error_message": "Multi-function kwargs have the wrong length.",
+                    }
+                function_kwargs = kwargs[index] if kwargs else {}
+                if not isinstance(function_kwargs, Mapping):
+                    return {
+                        "id": minion_id,
+                        "return": None,
+                        "retcode": 2,
+                        "success": False,
+                        "error": "malformed-job",
+                        "error_message": "Multi-function kwargs must be maps.",
+                    }
+            try:
+                fixture_job = FixtureJob.from_mapping(
+                    {
+                        "jid": jid,
+                        "fun": function,
+                        "arg": args[index],
+                        "kwarg": function_kwargs,
+                    }
+                )
+            except HandlerError as error:
+                return {
+                    "id": minion_id,
+                    "return": None,
+                    "retcode": 2,
+                    "success": False,
+                    "error": "malformed-job",
+                    "error_message": str(error),
+                }
+            handler = self._handlers.get(function)
+            handler_result = (
+                handler(fixture_job)
+                if handler is not None
+                else HandlerResult(False, 2, error="unsupported-operation")
+            )
+            values.append(handler_result.value)
+            return_codes.append(handler_result.return_code)
+            successes.append(handler_result.success)
+
+        return {
+            "jid": jid,
+            "id": minion_id,
+            "fun": functions,
+            "return": values,
+            "retcode": return_codes,
+            "success": successes,
+        }
+
+    def register(self, function: str, handler: FixtureHandler) -> None:
+        """Register an explicit deterministic handler for test code."""
+        if not function.strip():
+            raise HandlerError("A handler function name is required.")
+        self._handlers[function] = handler
+
+    @staticmethod
+    def _return_success(job: FixtureJob) -> HandlerResult:
+        if job.args or job.kwargs:
+            return HandlerResult(False, 2, error="return_success-takes-no-arguments")
+        return HandlerResult(True, 0, {"value": "success"})
+
+    @staticmethod
+    def _return_fixture(job: FixtureJob) -> HandlerResult:
+        if "payload" not in job.kwargs or job.args:
+            return HandlerResult(False, 2, error="return_fixture-requires-payload")
+        return HandlerResult(True, 0, job.kwargs["payload"])
+
+    @staticmethod
+    def _fail(job: FixtureJob) -> HandlerResult:
+        if job.args:
+            return HandlerResult(False, 2, error="fail-takes-keyword-arguments")
+        code = job.kwargs.get("code", 1)
+        message = job.kwargs.get("message", "controlled failure")
+        if isinstance(code, bool) or not isinstance(code, int) or code < 1:
+            return HandlerResult(False, 2, error="fail-code-must-be-a-positive-integer")
+        if not isinstance(message, str):
+            return HandlerResult(False, 2, error="fail-message-must-be-a-string")
+        return HandlerResult(False, code, {"message": message}, error=message)
+
+    @staticmethod
+    def _refresh(job: FixtureJob) -> HandlerResult:
+        if job.args or job.kwargs:
+            return HandlerResult(False, 2, error="refresh-takes-no-arguments")
+        return HandlerResult(True, 0, {"refreshed": True})
+
+    @staticmethod
+    def _return_true(job: FixtureJob) -> HandlerResult:
+        if job.args or job.kwargs:
+            return HandlerResult(False, 2, error=f"{job.function}-takes-no-arguments")
+        return HandlerResult(True, 0, True)
+
+    def _set_blackout(self, job: FixtureJob) -> HandlerResult:
+        """Persist a Salt blackout request and return its new state."""
+        blackout: Any
+        if job.kwargs and job.args:
+            return HandlerResult(False, 2, error="set_blackout-arguments-are-ambiguous")
+        if not job.args and not job.kwargs:
+            blackout = True
+        elif len(job.args) == 1:
+            blackout = job.args[0]
+        elif not job.args and set(job.kwargs) == {"blackout"}:
+            blackout = job.kwargs["blackout"]
+        else:
+            return HandlerResult(False, 2, error="set_blackout-requires-one-boolean")
+        if not isinstance(blackout, bool):
+            return HandlerResult(False, 2, error="set_blackout-requires-one-boolean")
+        if self._state_store is None:
+            return HandlerResult(False, 2, error="set_blackout-requires-state-store")
+        try:
+            self._state_store.record_blackout_state(blackout)
+        except ManagedClientError:
+            return HandlerResult(False, 2, error="unable-to-persist-blackout-state")
+        return HandlerResult(True, 0, blackout)
+
+    def _unset_blackout(self, job: FixtureJob) -> HandlerResult:
+        """Persist the cleared Salt blackout state and return it."""
+        if job.args or job.kwargs:
+            return HandlerResult(False, 2, error="unset_blackout-takes-no-arguments")
+        if self._state_store is None:
+            return HandlerResult(False, 2, error="unset_blackout-requires-state-store")
+        try:
+            self._state_store.record_blackout_state(False)
+        except ManagedClientError:
+            return HandlerResult(False, 2, error="unable-to-persist-blackout-state")
+        return HandlerResult(True, 0, False)
+
+    def _add_asset(self, job: FixtureJob) -> HandlerResult:
+        """Persist asset names without creating host or server state."""
+        asset_kwargs: list[Mapping[str, Any]]
+        if not job.args and job.kwargs:
+            asset_kwargs = [job.kwargs]
+        elif len(job.args) == 1 and isinstance(job.args[0], (list, tuple)):
+            raw_assets = job.args[0]
+            if not raw_assets or any(
+                not isinstance(asset, Mapping) or asset.get("__kwarg__") is not True
+                for asset in raw_assets
+            ):
+                return HandlerResult(False, 2, error="add_asset-requires-keyword-arguments")
+            asset_kwargs = list(raw_assets)
+        else:
+            return HandlerResult(False, 2, error="add_asset-requires-keyword-arguments")
+        names: list[str] = []
+        for asset in asset_kwargs:
+            name = asset.get("name")
+            if not isinstance(name, str) or not name.strip():
+                return HandlerResult(False, 2, error="add_asset-requires-keyword-arguments")
+            names.append(name)
+        if self._state_store is None:
+            return HandlerResult(False, 2, error="add_asset-requires-state-store")
+        try:
+            self._state_store.record_asset_records(asset_kwargs)
+        except ManagedClientError:
+            return HandlerResult(False, 2, error="unable-to-persist-asset-names")
+        return HandlerResult(True, 0, True)
+
+    def _remove_asset(self, job: FixtureJob) -> HandlerResult:
+        """Acknowledge removal of an asset identified by its hardware fields."""
+        identification = job.kwargs.get("identification")
+        if job.args or set(job.kwargs) != {"identification"}:
+            return HandlerResult(False, 2, error="remove_asset-requires-identification")
+        if not isinstance(identification, Mapping) or not all(
+            field in identification for field in ASSET_IDENTIFICATION_FIELDS
+        ):
+            return HandlerResult(False, 2, error="remove_asset-requires-identification")
+        if self._state_store is None:
+            return HandlerResult(False, 2, error="remove_asset-requires-state-store")
+        try:
+            self._state_store.remove_asset(identification)
+        except ManagedClientError:
+            return HandlerResult(False, 2, error="unable-to-remove-asset")
+        return HandlerResult(True, 0, True)
+
+    @staticmethod
+    def _refresh_asset(job: FixtureJob) -> HandlerResult:
+        """Acknowledge an asset refresh without creating server-side state."""
+        if job.args or job.kwargs:
+            return HandlerResult(False, 2, error="refresh-takes-no-arguments")
+        return HandlerResult(True, 0, True)
+
+    def _grains_items(self, job: FixtureJob) -> HandlerResult:
+        """Return the SystemLink grain that represents the lock state."""
+        if job.args or job.kwargs:
+            return HandlerResult(False, 2, error="grains_items-takes-no-arguments")
+        try:
+            blackout = self._state_store.get_blackout_state() if self._state_store else False
+        except ManagedClientError:
+            return HandlerResult(False, 2, error="unable-to-read-blackout-state")
+        grains: Dict[str, Any] = {"minion_blackout": blackout}
+        if self._boot_time is not None:
+            grains["boottime"] = self._boot_time
+        return HandlerResult(True, 0, grains)
+
+    @staticmethod
+    def _return_none(job: FixtureJob) -> HandlerResult:
+        if job.args or job.kwargs:
+            return HandlerResult(False, 2, error=f"{job.function}-takes-no-arguments")
+        return HandlerResult(True, 0, None)
+
+    @staticmethod
+    def _info_installed(job: FixtureJob) -> HandlerResult:
+        attributes = job.kwargs.get("attr")
+        if (
+            job.args
+            or not isinstance(attributes, list)
+            or any(not isinstance(attribute, str) for attribute in attributes)
+        ):
+            return HandlerResult(False, 2, error="pkg.info_installed-requires-attribute-list")
+        return HandlerResult(True, 0, None)

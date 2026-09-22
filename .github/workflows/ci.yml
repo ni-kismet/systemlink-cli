@@ -25,7 +25,7 @@ jobs:
         run: pip install poetry
 
       - name: Install dependencies
-        run: poetry install
+        run: poetry install --extras managed-client
 
       - name: Set up Node.js
         uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7
@@ -71,6 +71,9 @@ jobs:
 
       - name: Build PyInstaller binary
         run: poetry run python scripts/build_pyinstaller.py
+
+      - name: Smoke test managed-client binary
+        run: dist/slcli/slcli managed-client smoke
 
       - name: Upload PyInstaller binary artifact
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1

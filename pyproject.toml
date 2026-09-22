@@ -1,6 +1,6 @@
 [tool.poetry]
 name = "systemlink-cli"
-version = "1.30.2"
+version = "1.31.0"
 description = "SystemLink Integrator CLI - cross-platform CLI for SystemLink workflows and templates."
 authors = ["Fred Visser <fred.visser@emerson.com>"]
 packages = [{ include = "slcli" }]
@@ -38,9 +38,11 @@ rich = ">=15,<16"
 rich-click = ">=1.8,<2"
 cryptography = ">=49.0.0"
 pygments = ">=2.20.0"
+msgpack = { version = ">=1.1,<2", optional = true }
 mcp = { version = ">=2,<3", optional = true }
 
 [tool.poetry.extras]
+managed-client = ["msgpack"]
 mcp = ["mcp"]
 
 
@@ -69,6 +71,7 @@ pytest-cov = ">=3.0"
 pytest-timeout = ">=2.1.0"
 pyinstaller = "^6.14.2"
 jsonschema = ">=4.0"
+msgpack = ">=1.1,<2"
 
 # Typed stubs for third-party libraries used by mypy in CI
 types-requests = "*"

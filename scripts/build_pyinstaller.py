@@ -63,6 +63,11 @@ def _optional_data_args(source_dir: Path, target_dir: str) -> list[str]:
     return ["--add-data", f"{source_dir}{os.pathsep}{target_dir}"]
 
 
+def _hidden_import_args(*modules: str) -> list[str]:
+    """Return PyInstaller hidden-import args for runtime-loaded modules."""
+    return [f"--hidden-import={module}" for module in modules]
+
+
 def main() -> None:
     """Build the slcli binary using PyInstaller."""
     # Generate version file first
@@ -84,6 +89,7 @@ def main() -> None:
         "--noconfirm",
         "--collect-submodules=shellingham",
         "--collect-data=rfc3987_syntax",
+        *_hidden_import_args("msgpack"),
         *_required_data_file_args(logo_file, "slcli"),
         *_required_data_args(examples_dir, "slcli/examples"),
         *_required_data_args(editor_assets_dir, "dff-editor"),

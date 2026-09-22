@@ -26,6 +26,7 @@ from .example_click import register_example_commands
 from .feed_click import register_feed_commands
 from .file_click import register_file_commands
 from .function_click import register_function_commands
+from .managed_client_click import register_managed_client_commands
 from .mcp_click import register_mcp_commands
 from .notebook_click import register_notebook_commands
 from .platform import get_platform_info
@@ -106,7 +107,7 @@ def _configure_rich_click_command_groups() -> None:
             },
             {
                 "name": "Validate & Plan",
-                "commands": ["testmonitor", "template", "spec", "workitem"],
+                "commands": ["testmonitor", "template", "spec", "workitem", "managed-client"],
             },
         ]
     }
@@ -210,7 +211,21 @@ def _get_proxy_debug_rows(api_url: str) -> List[Tuple[str, str]]:
     """Return a compact view of proxy environment state for the target URL."""
     import requests
 
-    effective_proxies = requests.utils.get_environ_proxies(api_url)
+    no_proxy = os.environ.get("NO_PROXY") or os.environ.get("no_proxy")
+    proxies: dict[str, str] = {}
+    for scheme, env_vars in (
+        ("http", ("HTTP_PROXY", "http_proxy")),
+        ("https", ("HTTPS_PROXY", "https_proxy")),
+        ("all", ("ALL_PROXY", "all_proxy")),
+    ):
+        proxy_value = next(
+            (os.environ.get(env_var) for env_var in env_vars if os.environ.get(env_var)), None
+        )
+        if proxy_value:
+            proxies[scheme] = proxy_value
+    proxy_active = not requests.utils.should_bypass_proxies(api_url, no_proxy=no_proxy) and bool(
+        requests.utils.select_proxy(api_url, proxies)
+    )
     return [
         (
             "Proxy HTTPS",
@@ -224,7 +239,7 @@ def _get_proxy_debug_rows(api_url: str) -> List[Tuple[str, str]]:
             "Proxy NO_PROXY",
             "set" if os.environ.get("NO_PROXY") or os.environ.get("no_proxy") else "unset",
         ),
-        ("Proxy Active", "yes" if effective_proxies else "no"),
+        ("Proxy Active", "yes" if proxy_active else "no"),
     ]
 
 
@@ -243,7 +258,21 @@ def _probe_tls_connection(api_url: str, ssl_verify: Union[bool, str]) -> List[Tu
     if not hostname:
         return [("TLS Probe", "Skipped (unable to parse host)")]
 
-    if requests.utils.get_environ_proxies(api_url):
+    no_proxy = os.environ.get("NO_PROXY") or os.environ.get("no_proxy")
+    proxies: dict[str, str] = {}
+    for scheme, env_vars in (
+        ("http", ("HTTP_PROXY", "http_proxy")),
+        ("https", ("HTTPS_PROXY", "https_proxy")),
+        ("all", ("ALL_PROXY", "all_proxy")),
+    ):
+        proxy_value = next(
+            (os.environ.get(env_var) for env_var in env_vars if os.environ.get(env_var)), None
+        )
+        if proxy_value:
+            proxies[scheme] = proxy_value
+    if not requests.utils.should_bypass_proxies(api_url, no_proxy=no_proxy) and bool(
+        requests.utils.select_proxy(api_url, proxies)
+    ):
         return [("TLS Probe", "Skipped (proxy-configured environment)")]
 
     port = parsed.port or 443
@@ -765,6 +794,7 @@ register_example_commands(cli)
 register_feed_commands(cli)
 register_file_commands(cli)
 register_function_commands(cli)
+register_managed_client_commands(cli)
 register_mcp_commands(cli)
 register_templates_commands(cli)
 register_notebook_commands(cli)
