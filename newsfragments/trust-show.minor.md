@@ -1,0 +1,1 @@
+Add `slcli config trust show` to inspect a server certificate without trusting it.

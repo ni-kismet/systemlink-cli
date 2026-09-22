@@ -584,6 +584,85 @@ class TestTrustedCertificates:
         assert result.exit_code == 0, result.output
         assert json.loads(result.output)[0]["fingerprint"] == "A" * 64
 
+    def test_show_server_certificate_json(self, monkeypatch: Any) -> None:
+        """Trust show should inspect and expose the current certificate as JSON."""
+        from slcli.ssl_trust import ServerCertificate
+
+        certificate = ServerCertificate(
+            origin="https://example.com:443",
+            pem=b"pem",
+            fingerprint="A" * 64,
+            subject="subject",
+            issuer="issuer",
+            sans=["example.com"],
+            not_before="before",
+            not_after="after",
+            self_signed=True,
+        )
+        inspect = MagicMock(return_value=certificate)
+        monkeypatch.setattr("slcli.config_click.inspect_server_certificate", inspect)
+
+        result = CliRunner().invoke(
+            make_cli(),
+            ["config", "trust", "show", "--url", "https://example.com", "-f", "json"],
+        )
+
+        assert result.exit_code == 0, result.output
+        assert json.loads(result.output)["fingerprint"] == "A" * 64
+        inspect.assert_called_once_with("https://example.com")
+
+    def test_show_server_certificate_table_uses_active_url_without_saving(
+        self, monkeypatch: Any
+    ) -> None:
+        """Trust show should use the active API URL and leave managed trust unchanged."""
+        from slcli.ssl_trust import ServerCertificate
+        from slcli.utils import ResolvedConfigValue
+
+        certificate = ServerCertificate(
+            origin="https://active.example.com:443",
+            pem=b"pem",
+            fingerprint="B" * 64,
+            subject="subject",
+            issuer="issuer",
+            sans=[],
+            not_before="before",
+            not_after="after",
+            self_signed=False,
+        )
+        inspect = MagicMock(return_value=certificate)
+        save = MagicMock()
+        monkeypatch.setattr(
+            "slcli.config_click.get_base_url",
+            lambda: "https://active-web.example.com",
+        )
+        monkeypatch.setattr(
+            "slcli.config_click.get_base_url_resolution",
+            lambda: ResolvedConfigValue("https://active-api.example.com", "profile:active"),
+        )
+        monkeypatch.setattr("slcli.config_click.inspect_server_certificate", inspect)
+        monkeypatch.setattr("slcli.config_click.save_managed_certificate", save)
+
+        result = CliRunner().invoke(make_cli(), ["config", "trust", "show"])
+
+        assert result.exit_code == 0, result.output
+        assert "SHA-256: " + "B" * 64 in result.output
+        inspect.assert_called_once_with("https://active-api.example.com")
+        save.assert_not_called()
+
+    def test_show_server_certificate_reports_inspection_failure(self, monkeypatch: Any) -> None:
+        """Trust show should report network failures without changing trust state."""
+        monkeypatch.setattr(
+            "slcli.config_click.inspect_server_certificate",
+            MagicMock(side_effect=OSError("connection failed")),
+        )
+
+        result = CliRunner().invoke(
+            make_cli(), ["config", "trust", "show", "--url", "https://example.com"]
+        )
+
+        assert result.exit_code == ExitCodes.NETWORK_ERROR
+        assert "Could not inspect the server certificate" in result.output
+
     def test_add_trusted_certificate_rejects_fingerprint_mismatch(self, monkeypatch: Any) -> None:
         """Trust add must reject a certificate that differs from the supplied fingerprint."""
         from slcli.ssl_trust import ServerCertificate
