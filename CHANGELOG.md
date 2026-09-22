@@ -2,6 +2,42 @@
 
 <!-- towncrier release notes start -->
 
+## v1.30.3 (2026-09-22)
+
+### Bug Fixes
+
+- Update dependency lxml to v6.1.3. (deps-renovate-python)
+- Update dependency rich-click to v1.9.9. (deps-renovate-python-runtime-dependencies)
+
+
+## v1.30.2 (2026-09-22)
+
+### Bug Fixes
+
+- Update dependency setuptools to v83 [SECURITY]. (deps-renovate-pypi-setuptools-vulnerability)
+
+
+## v1.30.1 (2026-09-22)
+
+### Bug Fixes
+
+- Update GitHub Actions. (deps-renovate-github-actions)
+
+
+## v1.30.0 (2026-09-22)
+
+### Features
+
+- Add `slcli config trust show` to inspect a server certificate without trusting it. (trust-show)
+
+
+## v1.29.4 (2026-09-21)
+
+### Bug Fixes
+
+- Use the SystemLink Server Tag Rule Engine versioning endpoint to positively identify SLS installations and return exit code PERMISSION_DENIED when no authenticated service probe succeeds and service verification returns mixed unauthorized and not-found responses. (config-sls-api-key-verification)
+
+
 ## v1.29.3 (2026-09-17)
 
 ### Bug Fixes

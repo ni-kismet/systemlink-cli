@@ -10,7 +10,8 @@ from click.testing import CliRunner
 
 import slcli
 from slcli.main import cli, get_version
-from slcli.platform import PLATFORM_SLE
+from slcli.platform import PLATFORM_SLE, PLATFORM_SLS
+from slcli.utils import ExitCodes
 
 VALID_API_KEY = "4LpbauiNA-UI9IhjqZoS4UeikZtExLK9Q_Q77d1bJd"
 
@@ -231,7 +232,46 @@ def test_login_rejects_unauthorized_api_key(monkeypatch: Any, tmp_path: Any) -> 
         input="\n\n",
     )
 
-    assert result.exit_code != 0
+    assert result.exit_code == ExitCodes.PERMISSION_DENIED
+    assert "API key validation failed" in result.output
+    assert "Profile was not saved" in result.output
+    assert not config_file.exists()
+
+
+def test_login_rejects_unauthorized_api_key_for_sls(monkeypatch: Any, tmp_path: Any) -> None:
+    """Ensure an unauthorized SLS probe returns a permission error."""
+    config_file = tmp_path / "config.json"
+    monkeypatch.setattr(
+        "slcli.profiles.ProfileConfig.get_config_path", classmethod(lambda cls: config_file)
+    )
+    monkeypatch.setattr(
+        "slcli.config_click.check_service_status",
+        lambda *a, **kw: {
+            "server_reachable": True,
+            "auth_valid": False,
+            "services": {"Auth": "unauthorized", "Comments": "not_found"},
+            "platform": PLATFORM_SLS,
+        },
+    )
+    monkeypatch.setattr("slcli.main.keyring.get_password", lambda *a, **kw: None)
+
+    result = CliRunner().invoke(
+        cli,
+        [
+            "login",
+            "--profile",
+            "test",
+            "--url",
+            "https://example.test",
+            "--api-key",
+            VALID_API_KEY,
+            "--web-url",
+            "https://web.example.test",
+        ],
+        input="\n\n",
+    )
+
+    assert result.exit_code == ExitCodes.PERMISSION_DENIED
     assert "API key validation failed" in result.output
     assert "Profile was not saved" in result.output
     assert not config_file.exists()

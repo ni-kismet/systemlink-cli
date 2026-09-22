@@ -88,6 +88,7 @@ FILE_QUERY_LINQ_PATH = "/nifile/v1/service-groups/Default/query-files-linq"
 SYSTEM_SEARCH_PATH = "/nisysmgmt/v1/materialized/search-systems"
 SYSTEM_QUERY_PATH = "/nisysmgmt/v1/query-systems"
 WEB_SERVER_AUTH_PATH = "/niauth/v1/auth"
+SLS_PLATFORM_PROBE_PATH = "/nitagrule/"
 
 SLE_ONLY_SERVICE_NAMES = (
     "Dynamic Form Fields",
@@ -97,17 +98,22 @@ SLE_ONLY_SERVICE_NAMES = (
 )
 
 
-def _detect_platform_from_services(services: Dict[str, str]) -> str:
-    """Infer the platform from SLE-only service probes.
+def _detect_platform_from_services(
+    services: Dict[str, str], sls_platform_status: Optional[str] = None
+) -> str:
+    """Infer the platform from positive platform capability probes.
 
     Args:
         services: Mapping of service display name to probe status.
 
     Returns:
         PLATFORM_SLE when any SLE-only service is reachable or explicitly
-        unauthorized, PLATFORM_SLS when all SLE-only services are missing,
+        unauthorized, PLATFORM_SLS when the SLS-only platform probe succeeds,
         otherwise PLATFORM_UNKNOWN.
     """
+    if sls_platform_status == "ok":
+        return PLATFORM_SLS
+
     sle_statuses = [services.get(name) for name in SLE_ONLY_SERVICE_NAMES if name in services]
     if not sle_statuses:
         return PLATFORM_UNKNOWN
@@ -115,10 +121,45 @@ def _detect_platform_from_services(services: Dict[str, str]) -> str:
     if any(status in ("ok", "unauthorized") for status in sle_statuses):
         return PLATFORM_SLE
 
-    if all(status == "not_found" for status in sle_statuses):
-        return PLATFORM_SLS
-
     return PLATFORM_UNKNOWN
+
+
+def _is_valid_sls_platform_probe(response: requests.Response) -> bool:
+    """Return whether a Tag Rule Engine response identifies an SLS instance."""
+    try:
+        payload = response.json()
+    except ValueError:
+        return False
+
+    return isinstance(payload, dict) and (
+        isinstance(payload.get("v1"), dict) and "version" in payload
+    )
+
+
+def _probe_sls_platform(api_url: str, credential: str, auth_scheme: str = "api-key") -> str:
+    """Probe the unauthenticated Tag Rule Engine versioning endpoint."""
+    headers = get_auth_headers(credential, auth_scheme, "application/json")
+    ssl_verify = get_ssl_verify(api_url)
+
+    try:
+        response = requests.get(
+            f"{api_url}{SLS_PLATFORM_PROBE_PATH}",
+            headers=headers,
+            verify=ssl_verify,
+            timeout=10,
+        )
+    except requests.exceptions.SSLError:
+        return "certificate_error"
+    except requests.RequestException:
+        return "unreachable"
+
+    if response.status_code == 200:
+        return "ok" if _is_valid_sls_platform_probe(response) else "error"
+    if response.status_code in (401, 403):
+        return "unauthorized"
+    if response.status_code in (404, 501):
+        return "not_found"
+    return "error"
 
 
 def _get_keyring_config() -> Dict[str, Any]:
@@ -784,8 +825,6 @@ def _check_service_status(
 
     services: Dict[str, str] = {}
     any_responded = False
-    any_authorized = False
-    all_unauthorized = True
     certificate_error = False
 
     for display_name, method, url_path in SERVICE_CHECKS:
@@ -810,26 +849,39 @@ def _check_service_status(
 
             if resp.status_code in (200, 400):
                 services[display_name] = "ok"
-                any_authorized = True
-                all_unauthorized = False
             elif resp.status_code == 401:
                 services[display_name] = "unauthorized"
             elif resp.status_code == 403:
                 services[display_name] = "unauthorized"
             elif resp.status_code == 404:
                 services[display_name] = "not_found"
-                all_unauthorized = False
             else:
                 services[display_name] = "error"
-                all_unauthorized = False
         except requests.exceptions.SSLError:
             services[display_name] = "certificate_error"
             certificate_error = True
         except requests.RequestException:
             services[display_name] = "unreachable"
 
+    sls_platform_status = _probe_sls_platform(api_url, credential, auth_scheme)
+    certificate_error = certificate_error or sls_platform_status == "certificate_error"
+
     # Determine overall status
     if not any_responded:
+        if sls_platform_status not in ("unreachable", "certificate_error"):
+            return {
+                "server_reachable": True,
+                "auth_valid": None,
+                "services": services,
+                "certificate_error": certificate_error,
+                "certificate": None,
+                "file_query_endpoint": None,
+                "elasticsearch_available": None,
+                "system_query_endpoint": None,
+                "materialized_search_available": None,
+                "platform": _detect_platform_from_services(services, sls_platform_status),
+            }
+
         certificate_details: Optional[Dict[str, Any]] = None
         if certificate_error:
             try:
@@ -851,19 +903,19 @@ def _check_service_status(
             "platform": PLATFORM_UNREACHABLE,
         }
 
-    # Determine auth status: valid if any service accepted the key
-    # If all responding services returned 401/403, the key is invalid
-    auth_valid = any_authorized if any_responded else None
-    if all_unauthorized and any_responded:
-        auth_valid = False
-
-    # Determine platform from multiple SLE-only service responses.
-    platform = _detect_platform_from_services(services)
+    # Determine platform from positive capability probes.
+    platform = _detect_platform_from_services(services, sls_platform_status)
+    initial_auth_valid = any(status == "ok" for status in services.values())
 
     file_capability = get_file_query_capability(api_url, credential, auth_scheme)
     services["File"] = file_capability["status"]
     system_capability = get_system_query_capability(api_url, credential, auth_scheme)
     services["Systems"] = system_capability["status"]
+
+    # Recompute auth after capability probes add their final service statuses.
+    auth_valid = initial_auth_valid or any(
+        status in ("ok", "fallback") for status in services.values()
+    )
 
     return {
         "server_reachable": True,
