@@ -2,6 +2,13 @@
 
 <!-- towncrier release notes start -->
 
+## v1.30.0 (2026-09-22)
+
+### Features
+
+- Add `slcli config trust show` to inspect a server certificate without trusting it. (trust-show)
+
+
 ## v1.29.4 (2026-09-21)
 
 ### Bug Fixes
