@@ -1,1 +1,0 @@
-Accept no-argument single-function Salt jobs such as `nisysmgmt.restart` and publish the managed client's boot time for restart tracking.

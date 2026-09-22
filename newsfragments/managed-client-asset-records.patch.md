@@ -1,1 +1,0 @@
-Persist asset identification records so managed-client asset removal can delete the matching record.

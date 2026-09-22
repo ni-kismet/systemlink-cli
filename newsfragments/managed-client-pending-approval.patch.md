@@ -1,1 +1,0 @@
-Keep managed-client pending-approval output on a single updating terminal line instead of repeatedly adding console log lines.
