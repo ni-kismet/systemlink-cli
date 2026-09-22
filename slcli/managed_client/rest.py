@@ -118,7 +118,7 @@ class ManagedClientRestAdapter:
                 "Refusing to delete the managed system because its approved public key "
                 "does not match."
             )
-        self._manage_key(system_id, "DELETE", None, workspace)
+        self._manage_key(system_id, "DELETE", expected_public_key, workspace)
 
     def wait_for_key_state(
         self,
@@ -159,10 +159,54 @@ class ManagedClientRestAdapter:
         }
         if public_key is not None:
             action_payload["key"] = public_key
-        self._call(
+        response = self._call(
             "POST",
             MANAGE_KEYS_PATH,
             {"keyActions": [action_payload]},
+        )
+        self._check_manage_key_response(response, system_id, action)
+
+    @staticmethod
+    def _check_manage_key_response(
+        response: ResponseLike,
+        system_id: str,
+        action: ActionName,
+    ) -> None:
+        """Raise a typed error when a successful response contains an action failure."""
+        status_code = getattr(response, "status_code", None)
+        if status_code == 204:
+            return
+        try:
+            data = response.json()
+        except ValueError as error:
+            raise ManagedClientError("REST key management returned invalid JSON.") from error
+        if not isinstance(data, Mapping):
+            raise ManagedClientError("REST key management returned an invalid response.")
+
+        action_error = data.get("error")
+        if action_error is None:
+            return
+        if not isinstance(action_error, Mapping):
+            raise ManagedClientError("REST key management returned an invalid response.")
+        messages: list[str] = []
+        pending_errors: list[Mapping[str, Any]] = [action_error]
+        while pending_errors:
+            nested_error = pending_errors.pop(0)
+            message = nested_error.get("message")
+            if isinstance(message, str) and message:
+                messages.append(message)
+            inner_errors = nested_error.get("innerErrors", [])
+            if inner_errors is None:
+                continue
+            if not isinstance(inner_errors, list):
+                raise ManagedClientError("REST key management returned an invalid response.")
+            for inner_error in inner_errors:
+                if not isinstance(inner_error, Mapping):
+                    raise ManagedClientError("REST key management returned an invalid response.")
+                pending_errors.append(inner_error)
+        message = "; ".join(messages) or "unknown action error"
+        raise ManagedClientError(
+            f"REST key management failed for {action} on {system_id}: {message}"
         )
 
     def _call(

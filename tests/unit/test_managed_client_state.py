@@ -61,6 +61,31 @@ def test_state_store_rejects_master_identity_change(tmp_path: Path) -> None:
         store.record_master_identity("master-b")
 
 
+def test_state_store_replaces_metadata_atomically(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """Metadata updates replace a flushed temporary file in the state directory."""
+    store = StateStore(tmp_path / "minion")
+    store.load_or_create_identity("slcli-test-001")
+    calls: list[tuple[Path, Path]] = []
+    replace = state_module.os.replace
+
+    def record_replace(source: str | os.PathLike[str], target: str | os.PathLike[str]) -> None:
+        calls.append((Path(source), Path(target)))
+        replace(source, target)
+
+    monkeypatch.setattr(state_module.os, "replace", record_replace)
+    store.record_blackout_state(True)
+
+    assert len(calls) == 1
+    source, target = calls[0]
+    assert source.parent == target.parent == tmp_path / "minion"
+    assert source.name.startswith(".metadata-")
+    assert source.suffix == ".tmp"
+    assert target.name == "metadata.json"
+    assert json.loads(target.read_text())["blackout"] is True
+
+
 def test_state_store_reset_removes_only_managed_files(tmp_path: Path) -> None:
     """Reset clears identity material without deleting unrelated state."""
     store = StateStore(tmp_path / "minion")

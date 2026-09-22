@@ -152,6 +152,8 @@ class TestMinion:
             if thread.is_alive():
                 raise LifecycleTimeoutError("The test minion did not stop in time.")
         with self._condition:
+            if self._phase is MinionPhase.STOPPING:
+                return
             event = self._set_phase_locked(MinionPhase.STOPPING, "Minion stopped")
         self._notify_event(event)
 

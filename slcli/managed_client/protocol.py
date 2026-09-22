@@ -57,22 +57,42 @@ def _validate_value(value: Any) -> None:
     raise ProtocolError("The message contains an unsupported value type.")
 
 
-def _restore_binary_field(value: Any, field_name: str | None = None) -> Any:
-    """Restore binary Salt fields decoded from raw MessagePack strings."""
+def _validate_decoded_value(value: Any) -> None:
+    """Validate decoded map keys without changing application values."""
     if isinstance(value, Mapping):
-        restored: dict[str, Any] = {}
         for key, item in value.items():
             if not isinstance(key, str) or any(
                 0xD800 <= ord(character) <= 0xDFFF for character in key
             ):
                 raise ProtocolError("The MessagePack frame must contain a string-keyed map.")
-            restored[key] = _restore_binary_field(item, key)
+            _validate_decoded_value(item)
+    elif isinstance(value, list):
+        for item in value:
+            _validate_decoded_value(item)
+
+
+def _restore_binary_map(value: Mapping[str, Any], fields: frozenset[str]) -> dict[str, Any]:
+    """Restore only direct wire fields from raw MessagePack strings."""
+    return {
+        key: (
+            item.encode("utf-8", errors="surrogateescape")
+            if key in fields and isinstance(item, str)
+            else item
+        )
+        for key, item in value.items()
+    }
+
+
+def _restore_binary_field(value: Any) -> Any:
+    """Restore binary Salt fields without rewriting nested application data."""
+    _validate_decoded_value(value)
+    if not isinstance(value, Mapping):
+        return value
+    if isinstance(value.get("body"), Mapping) and isinstance(value.get("head"), Mapping):
+        restored = dict(value)
+        restored["body"] = _restore_binary_map(value["body"], frozenset({"load", "sig"}))
         return restored
-    if isinstance(value, list):
-        return [_restore_binary_field(item, field_name) for item in value]
-    if field_name in _BINARY_FIELDS and isinstance(value, str):
-        return value.encode("utf-8", errors="surrogateescape")
-    return value
+    return _restore_binary_map(value, _BINARY_FIELDS)
 
 
 def pack_frame(payload: Mapping[str, Any]) -> bytes:

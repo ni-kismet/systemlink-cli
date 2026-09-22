@@ -8,6 +8,7 @@ import json
 import os
 import stat
 import subprocess
+import tempfile
 from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any, Dict, Mapping, Sequence, Union
@@ -255,10 +256,29 @@ class StateStore:
         return value
 
     def _write_metadata(self, metadata: Dict[str, Any]) -> None:
+        temporary_path: Path | None = None
         try:
-            self._metadata_path.write_text(
-                json.dumps(metadata, indent=2, sort_keys=True) + "\n", encoding="utf-8"
-            )
-            self._restrict_permissions(self._metadata_path, STATE_FILE_MODE)
-        except OSError as error:
+            self.ensure_directory()
+            with tempfile.NamedTemporaryFile(
+                mode="w",
+                encoding="utf-8",
+                dir=self.state_dir,
+                prefix=".metadata-",
+                suffix=".tmp",
+                delete=False,
+            ) as temporary_file:
+                temporary_path = Path(temporary_file.name)
+                temporary_file.write(json.dumps(metadata, indent=2, sort_keys=True) + "\n")
+                temporary_file.flush()
+                os.fsync(temporary_file.fileno())
+            self._restrict_permissions(temporary_path, STATE_FILE_MODE)
+            os.replace(temporary_path, self._metadata_path)
+            temporary_path = None
+        except (OSError, StateError) as error:
             raise StateError("Unable to write isolated minion metadata.") from error
+        finally:
+            if temporary_path is not None:
+                try:
+                    temporary_path.unlink()
+                except OSError:
+                    pass

@@ -51,6 +51,22 @@ def test_messagepack_frame_accepts_salt_raw_strings_and_binary_fields() -> None:
     }
 
 
+def test_messagepack_frame_does_not_restore_nested_application_fields() -> None:
+    """Only direct protocol fields are restored from raw MessagePack strings."""
+    frame = msgpack.packb(
+        {
+            "token": "wire-token",
+            "payload": {"token": "application-text", "sig": "application-signature"},
+        },
+        use_bin_type=False,
+    )
+
+    assert unpack_frame(frame) == {
+        "token": b"wire-token",
+        "payload": {"token": "application-text", "sig": "application-signature"},
+    }
+
+
 def test_messagepack_frame_rejects_non_string_map_keys() -> None:
     """Protocol maps cannot rely on ambiguous integer or binary keys."""
     with pytest.raises(ProtocolError, match="map keys must be strings"):

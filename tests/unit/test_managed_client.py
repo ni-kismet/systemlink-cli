@@ -63,6 +63,25 @@ def test_event_callback_can_observe_minion_state(tmp_path: Path) -> None:
     assert observed[0][0] is MinionPhase.CONNECTED
 
 
+def test_minion_stop_does_not_duplicate_worker_stopping_event(tmp_path: Path) -> None:
+    """Public stop does not repeat the worker's STOPPING transition."""
+    events: list[MinionEvent] = []
+    minion = ManagedTestMinion(
+        MinionConfiguration(
+            master="127.0.0.1",
+            minion_id="slcli-stop-event",
+            state_dir=tmp_path / "state",
+        ),
+        on_event=events.append,
+    )
+
+    minion._stop_event.set()
+    minion._run()
+    minion.stop()
+
+    assert [event.phase for event in events].count(MinionPhase.STOPPING) == 1
+
+
 def test_minion_completes_pending_publish_and_refresh_job_return(tmp_path: Path) -> None:
     """The minion publishes the persisted blackout grain and returns the refresh result."""
     server = FixtureSaltServer()
@@ -183,7 +202,14 @@ def test_minion_rest_approval_orchestration(tmp_path: Path) -> None:
         server.close()
 
     assert calls[-1][2] == {
-        "keyActions": [{"id": "slcli-fixture-rest", "action": "DELETE", "workspace": "workspace-1"}]
+        "keyActions": [
+            {
+                "id": "slcli-fixture-rest",
+                "action": "DELETE",
+                "key": public_key,
+                "workspace": "workspace-1",
+            }
+        ]
     }
 
 
