@@ -474,7 +474,7 @@ def build_job_return(
         "retcode": result.get("retcode"),
         "success": result.get("success"),
         "fun": job.get("fun", job.get("function")),
-        "fun_args": job.get("arg", job.get("args", ())),
+        "fun_args": job.get("arg", job.get("args", [])),
         "nonce": request_nonce,
     }
     return build_message(

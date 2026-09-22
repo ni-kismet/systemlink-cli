@@ -144,6 +144,8 @@ class TestMinion:
             self._stop_event.clear()
             self._last_error = None
             self._failure = None
+            self._events.clear()
+            self._reconnect_attempts = 0
             event = self._set_phase_locked(MinionPhase.INITIALIZING, "Minion initialized")
             self._thread = threading.Thread(
                 target=self._run,

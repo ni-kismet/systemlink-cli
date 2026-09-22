@@ -128,6 +128,21 @@ def test_pending_approval_indicator_logs_once_when_not_interactive() -> None:
     assert stream.getvalue() == "PENDING_APPROVAL: Waiting for SystemLink approval\n"
 
 
+def test_pending_approval_indicator_reports_each_noninteractive_episode() -> None:
+    """A later approval episode emits a fresh redirected-output status line."""
+    stream = io.StringIO()
+    indicator = _PendingApprovalIndicator(stream)
+
+    indicator.start("Waiting for SystemLink approval")
+    indicator.stop()
+    indicator.start("Waiting for SystemLink approval")
+
+    assert stream.getvalue() == (
+        "PENDING_APPROVAL: Waiting for SystemLink approval\n"
+        "PENDING_APPROVAL: Waiting for SystemLink approval\n"
+    )
+
+
 def test_run_keeps_only_pending_indicator_during_approval_retries(
     cli: Any, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:

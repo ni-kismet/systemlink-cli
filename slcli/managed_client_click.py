@@ -71,6 +71,7 @@ class _PendingApprovalIndicator:
                 self._stream.flush()
             self._active = False
             self._last_line = ""
+            self._reported_noninteractive = False
 
 
 def _exit_with_managed_client_error(error: ManagedClientError) -> NoReturn:

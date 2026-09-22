@@ -60,13 +60,18 @@ Click wrapper without coupling protocol state to terminal output.
 Example shape:
 
 ```python
-from slcli.managed_client import TestMinion
+from pathlib import Path
 
-with TestMinion(
-    master="systemlink.example.com",
-    minion_id="slcli-test-001",
-    state_dir=".test-state/slcli-test-001",
-) as minion:
+from slcli.managed_client import MinionConfiguration, TestMinion
+
+minion = TestMinion(
+    MinionConfiguration(
+        master="systemlink.example.com",
+        minion_id="slcli-test-001",
+        state_dir=Path(".test-state/slcli-test-001"),
+    )
+)
+try:
     minion.start()
     minion.wait_for_state("pending", timeout=30)
 
@@ -75,6 +80,8 @@ with TestMinion(
 
     minion.wait_for_state("connected", timeout=60)
     assert minion.connected
+finally:
+    minion.stop()
 ```
 
 The exact public names are provisional. The implementation should expose typed

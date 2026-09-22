@@ -319,6 +319,22 @@ def test_publish_and_job_return_use_salt_field_names() -> None:
     }
 
 
+def test_job_return_defaults_missing_arguments_to_a_list() -> None:
+    """No-argument jobs produce a strict MessagePack-compatible return."""
+    key_pair = generate_private_key(public_exponent=65537, key_size=2048)
+    shared_secret = bytes(range(56))
+
+    returned = build_job_return(
+        job={"jid": "restart-001", "fun": "slcli.test.restart"},
+        result={"return": True, "retcode": 0, "success": True},
+        minion_id="minion-1",
+        shared_secret=shared_secret,
+        private_key=key_pair,
+    )
+
+    assert decrypt_message_load(returned, shared_secret)["fun_args"] == []
+
+
 def test_job_return_preserves_multi_function_refresh_arrays() -> None:
     """A multi-function refresh uses array-valued Salt return fields."""
     key_pair = generate_private_key(public_exponent=65537, key_size=2048)

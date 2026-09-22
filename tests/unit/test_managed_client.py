@@ -97,6 +97,27 @@ def test_minion_matches_supported_publication_targets(
     assert ManagedTestMinion._target_matches(job, "slcli-test-001") is expected
 
 
+def test_minion_start_resets_per_run_state(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    """A restarted minion does not reuse old events or reconnect attempts."""
+    minion = ManagedTestMinion(
+        MinionConfiguration(
+            master="127.0.0.1",
+            minion_id="slcli-restart-state",
+            state_dir=tmp_path / "state",
+        )
+    )
+    minion._events.append(MinionEvent(MinionPhase.CONNECTED, "Stale connection"))
+    minion._reconnect_attempts = 4
+    monkeypatch.setattr(minion, "_run", lambda: None)
+
+    minion.start()
+    assert minion._thread is not None
+    minion._thread.join(timeout=1)
+
+    assert [event.phase for event in minion.events] == [MinionPhase.INITIALIZING]
+    assert minion._reconnect_attempts == 0
+
+
 def test_minion_stop_does_not_duplicate_worker_stopping_event(tmp_path: Path) -> None:
     """Public stop does not repeat the worker's STOPPING transition."""
     events: list[MinionEvent] = []
