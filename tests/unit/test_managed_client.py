@@ -63,6 +63,22 @@ def test_event_callback_can_observe_minion_state(tmp_path: Path) -> None:
     assert observed[0][0] is MinionPhase.CONNECTED
 
 
+def test_minion_connected_snapshots_phase(monkeypatch: pytest.MonkeyPatch) -> None:
+    """The connected property evaluates one consistent lifecycle phase."""
+    phase_reads = 0
+
+    def read_phase(_: ManagedTestMinion) -> MinionPhase:
+        nonlocal phase_reads
+        phase_reads += 1
+        return MinionPhase.CONNECTED if phase_reads == 1 else MinionPhase.FAILED
+
+    monkeypatch.setattr(ManagedTestMinion, "phase", property(read_phase))
+    minion = object.__new__(ManagedTestMinion)
+
+    assert minion.connected
+    assert phase_reads == 1
+
+
 def test_minion_stop_does_not_duplicate_worker_stopping_event(tmp_path: Path) -> None:
     """Public stop does not repeat the worker's STOPPING transition."""
     events: list[MinionEvent] = []

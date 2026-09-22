@@ -17,6 +17,9 @@ if TYPE_CHECKING:
     from .managed_client.models import ManagedClientError
 
 
+_MAX_EVENT_DETAIL_LENGTH = 256
+
+
 class _PendingApprovalIndicator:
     """Render pending approval without adding repeated terminal log lines."""
 
@@ -72,14 +75,33 @@ class _PendingApprovalIndicator:
 
 def _exit_with_managed_client_error(error: ManagedClientError) -> NoReturn:
     """Print a managed-client error and exit with the appropriate CLI code."""
-    from .managed_client.models import ConfigurationError, TransportError
+    from .managed_client.models import (
+        ConfigurationError,
+        ReconnectLimitExceededError,
+        TransportError,
+    )
 
     click.echo(f"✗ {error}", err=True)
     if isinstance(error, ConfigurationError):
         sys.exit(ExitCodes.INVALID_INPUT)
-    if isinstance(error, TransportError):
+    if isinstance(error, (TransportError, ReconnectLimitExceededError)):
         sys.exit(ExitCodes.NETWORK_ERROR)
     sys.exit(ExitCodes.GENERAL_ERROR)
+
+
+def _safe_event_detail(value: object) -> str:
+    """Escape terminal controls and cap remote lifecycle detail values."""
+    escaped = "".join(
+        (
+            f"\\x{ord(character):02x}"
+            if ord(character) < 0x20 or 0x7F <= ord(character) <= 0x9F
+            else character
+        )
+        for character in str(value)
+    )
+    if len(escaped) > _MAX_EVENT_DETAIL_LENGTH:
+        return escaped[: _MAX_EVENT_DETAIL_LENGTH - 3] + "..."
+    return escaped
 
 
 def register_managed_client_commands(cli: Any) -> None:
@@ -88,6 +110,22 @@ def register_managed_client_commands(cli: Any) -> None:
     @cli.group(name="managed-client")
     def managed_client() -> None:
         """Run and reset an isolated SystemLink managed-client test minion."""
+
+    @managed_client.command(name="smoke", hidden=True)
+    def smoke() -> None:
+        """Exercise packaged MessagePack and RSA X9.31 support without a network."""
+        from .managed_client.crypto import generate_rsa_key_pair, rsa_x931_decrypt, rsa_x931_sign
+        from .managed_client.protocol import pack_frame, unpack_frame
+
+        payload = {"smoke": "managed-client"}
+        if unpack_frame(pack_frame(payload)) != payload:
+            raise click.ClickException("Managed-client MessagePack smoke test failed.")
+        key_pair = generate_rsa_key_pair()
+        message = b"slcli-managed-client-smoke"
+        signature = rsa_x931_sign(message, key_pair.private_key)
+        if rsa_x931_decrypt(signature, key_pair.public_key) != message:
+            raise click.ClickException("Managed-client RSA X9.31 smoke test failed.")
+        click.echo("Managed-client smoke test passed.")
 
     @managed_client.command(name="run")
     @click.option("--master", required=True, help="Salt master hostname or endpoint.")
@@ -153,7 +191,9 @@ def register_managed_client_commands(cli: Any) -> None:
             pending_indicator.stop()
             message = f"{event.phase.value}: {event.message}"
             if event.details:
-                details = ", ".join(f"{key}={value}" for key, value in event.details.items())
+                details = ", ".join(
+                    f"{key}={_safe_event_detail(value)}" for key, value in event.details.items()
+                )
                 message = f"{message} ({details})"
             click.echo(message)
 
@@ -176,8 +216,11 @@ def register_managed_client_commands(cli: Any) -> None:
             while True:
                 if minion.phase is MinionPhase.FAILED:
                     pending_indicator.stop()
+                    failure = getattr(minion, "failure", None)
+                    if isinstance(failure, ManagedClientError):
+                        _exit_with_managed_client_error(failure)
                     click.echo(
-                        f"✗ {minion.last_error or 'The test minion failed.'}",
+                        f"✗ {_safe_event_detail(minion.last_error or 'The test minion failed.')}",
                         err=True,
                     )
                     sys.exit(ExitCodes.GENERAL_ERROR)

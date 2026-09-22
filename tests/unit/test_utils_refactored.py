@@ -265,3 +265,18 @@ class TestMakeApiRequestHttpMethods:
 
         _, call_kwargs = mock_patch.call_args
         assert call_kwargs.get("json") == payload
+
+    def test_request_timeout_is_forwarded(self, monkeypatch: Any) -> None:
+        """make_api_request forwards an explicit timeout to Requests."""
+        self._patch_keyring(monkeypatch)
+
+        mock_response = MagicMock()
+        mock_response.raise_for_status = MagicMock()
+
+        with patch("requests.get", return_value=mock_response) as mock_get:
+            from slcli.utils import make_api_request
+
+            make_api_request("GET", "http://localhost:8000/api/v1/resource", timeout=3.5)
+
+        _, call_kwargs = mock_get.call_args
+        assert call_kwargs["timeout"] == 3.5

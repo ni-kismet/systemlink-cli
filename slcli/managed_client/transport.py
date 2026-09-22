@@ -27,8 +27,12 @@ class MasterEndpoint:
         if not value.strip():
             raise ConfigurationError("The Salt master endpoint is required.")
         candidate = value if "://" in value else f"//{value}"
-        parsed = urlsplit(candidate)
-        if not parsed.hostname:
+        try:
+            parsed = urlsplit(candidate)
+            hostname = parsed.hostname
+        except ValueError as error:
+            raise ConfigurationError("The Salt master endpoint is invalid.") from error
+        if not hostname:
             raise ConfigurationError("The Salt master endpoint has no hostname.")
         try:
             explicit_port = parsed.port
@@ -37,7 +41,7 @@ class MasterEndpoint:
         selected_port = request_port if explicit_port is None else explicit_port
         if not 1 <= selected_port <= 65535:
             raise ConfigurationError("The Salt master port must be between 1 and 65535.")
-        return cls(host=parsed.hostname, request_port=selected_port)
+        return cls(host=hostname, request_port=selected_port)
 
 
 class SaltChannel:

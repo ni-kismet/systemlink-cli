@@ -62,6 +62,14 @@ def test_managed_client_help_lists_commands(cli: Any) -> None:
     assert "[default: 5" in result.output
 
 
+def test_managed_client_smoke_exercises_protocol_and_crypto(cli: Any) -> None:
+    """The packaged smoke command loads the optional protocol dependencies."""
+    result = CliRunner().invoke(cli, ["managed-client", "smoke"])
+
+    assert result.exit_code == 0
+    assert "smoke test passed" in result.output
+
+
 class _InteractiveStringIO(io.StringIO):
     """String buffer that behaves like an interactive terminal."""
 
@@ -266,3 +274,91 @@ def test_run_reports_transport_failure_as_network_error(
 
     assert result.exit_code == ExitCodes.NETWORK_ERROR
     assert "network unavailable" in result.output
+
+
+def test_run_reports_background_transport_failure_as_network_error(
+    cli: Any, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """Transport failures from the lifecycle thread use the network exit code."""
+
+    class FailedMinion:
+        phase = MinionPhase.FAILED
+        last_error = "network unavailable"
+        failure = TransportError("network unavailable")
+
+        def __init__(self, *args: Any, **kwargs: Any) -> None:
+            del args, kwargs
+
+        def start(self) -> None:
+            return None
+
+        def stop(self) -> None:
+            return None
+
+    monkeypatch.setattr("slcli.managed_client.TestMinion", FailedMinion)
+    result = CliRunner().invoke(
+        cli,
+        [
+            "managed-client",
+            "run",
+            "--master",
+            "localhost",
+            "--minion-id",
+            "slcli-background-network-error",
+            "--state-dir",
+            str(tmp_path),
+        ],
+    )
+
+    assert result.exit_code == ExitCodes.NETWORK_ERROR
+    assert "network unavailable" in result.output
+
+
+def test_run_sanitizes_remote_job_details(
+    cli: Any, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """Remote job details cannot inject terminal controls or unbounded output."""
+
+    class FailedMinion:
+        phase = MinionPhase.FAILED
+        last_error = "test complete"
+        failure = None
+
+        def __init__(self, *args: Any, on_event: Any, **kwargs: Any) -> None:
+            del args, kwargs
+            self._on_event = on_event
+
+        def start(self) -> None:
+            self._on_event(
+                MinionEvent(
+                    phase=MinionPhase.RUNNING_JOB,
+                    message="Received Salt job",
+                    details={
+                        "jid": "job\n\x1b[31m" + "x" * 300,
+                        "function": "ni_asset.add_asset",
+                    },
+                )
+            )
+
+        def stop(self) -> None:
+            return None
+
+    monkeypatch.setattr("slcli.managed_client.TestMinion", FailedMinion)
+    result = CliRunner().invoke(
+        cli,
+        [
+            "managed-client",
+            "run",
+            "--master",
+            "localhost",
+            "--minion-id",
+            "slcli-output-safety",
+            "--state-dir",
+            str(tmp_path),
+        ],
+    )
+
+    assert result.exit_code == ExitCodes.GENERAL_ERROR
+    assert "\x1b" not in result.output
+    assert "\\x0a" in result.output
+    assert "x" * 257 not in result.output

@@ -21,6 +21,7 @@ from .crypto import (
 from .handlers import FixtureHandlerRegistry
 from .models import (
     LifecycleTimeoutError,
+    ManagedClientError,
     MasterIdentityChangedError,
     MinionConfiguration,
     MinionEvent,
@@ -92,6 +93,7 @@ class TestMinion:
         self._events: list[MinionEvent] = []
         self._channels: set[SaltChannel] = set()
         self._last_error: str | None = None
+        self._failure: ManagedClientError | None = None
         self._minion_token: bytes | None = None
         self._reconnect_attempts = 0
 
@@ -109,7 +111,8 @@ class TestMinion:
     @property
     def connected(self) -> bool:
         """Return whether the publish channel is currently active."""
-        return self.phase is MinionPhase.CONNECTED or self.phase is MinionPhase.RUNNING_JOB
+        phase = self.phase
+        return phase is MinionPhase.CONNECTED or phase is MinionPhase.RUNNING_JOB
 
     @property
     def events(self) -> tuple[MinionEvent, ...]:
@@ -123,6 +126,12 @@ class TestMinion:
         with self._condition:
             return self._last_error
 
+    @property
+    def failure(self) -> ManagedClientError | None:
+        """Return the typed terminal failure, if the lifecycle has failed."""
+        with self._condition:
+            return self._failure
+
     def start(self) -> None:
         """Create or load identity and start the lifecycle thread."""
         with self._condition:
@@ -133,6 +142,7 @@ class TestMinion:
             self._identity = identity
             self._stop_event.clear()
             self._last_error = None
+            self._failure = None
             event = self._set_phase_locked(MinionPhase.INITIALIZING, "Minion initialized")
             self._thread = threading.Thread(
                 target=self._run,
@@ -434,8 +444,10 @@ class TestMinion:
 
     def _fail(self, error: Exception) -> None:
         """Stop on a non-retryable lifecycle error without exposing secrets."""
+        failure = error if isinstance(error, ManagedClientError) else ManagedClientError(str(error))
         with self._condition:
             self._last_error = str(error) or type(error).__name__
+            self._failure = failure
         self._set_phase(
             MinionPhase.FAILED,
             "Managed-client lifecycle failed",

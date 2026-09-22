@@ -51,6 +51,15 @@ def test_state_store_rejects_different_minion_id(tmp_path: Path) -> None:
         store.load_or_create_identity("slcli-test-002")
 
 
+def test_state_store_wraps_directory_creation_failure(tmp_path: Path) -> None:
+    """A path that is already a file becomes a typed state error."""
+    state_path = tmp_path / "not-a-directory"
+    state_path.write_text("occupied")
+
+    with pytest.raises(StateError, match="state directory"):
+        StateStore(state_path).ensure_directory()
+
+
 def test_state_store_rejects_master_identity_change(tmp_path: Path) -> None:
     """A changed master identity requires an explicit reset."""
     store = StateStore(tmp_path / "minion")
@@ -106,16 +115,23 @@ def test_windows_state_permissions_remove_inheritance(
     """Windows state paths grant access only to the current user."""
     calls: list[tuple[list[str], dict[str, Any]]] = []
 
-    def run(command: list[str], **kwargs: Any) -> None:
-        calls.append((command, kwargs))
-
     monkeypatch.setattr(state_module.os, "name", "nt")
-    monkeypatch.setattr(state_module.getpass, "getuser", lambda: "test-user")
-    monkeypatch.setattr(state_module.subprocess, "run", run)
+
+    def completed_run(command: list[str], **kwargs: Any) -> subprocess.CompletedProcess[str]:
+        calls.append((command, kwargs))
+        if command[0] == "whoami":
+            return subprocess.CompletedProcess(command, 0, '"test-user","S-1-5-21-123"\n', "")
+        return subprocess.CompletedProcess(command, 0, "", "")
+
+    monkeypatch.setattr(state_module.subprocess, "run", completed_run)
 
     StateStore._restrict_permissions(tmp_path / "state", 0o700)
 
     assert calls == [
+        (
+            ["whoami", "/user", "/fo", "csv", "/nh"],
+            {"check": True, "capture_output": True, "text": True},
+        ),
         (
             [
                 "icacls",
@@ -123,10 +139,10 @@ def test_windows_state_permissions_remove_inheritance(
                 "/reset",
                 "/inheritance:r",
                 "/grant:r",
-                "test-user:F",
+                "*S-1-5-21-123:F",
             ],
             {"check": True, "capture_output": True, "text": True},
-        )
+        ),
     ]
 
 
@@ -135,7 +151,6 @@ def test_windows_state_permissions_fail_closed(
 ) -> None:
     """An ACL failure prevents use of unprotected state."""
     monkeypatch.setattr(state_module.os, "name", "nt")
-    monkeypatch.setattr(state_module.getpass, "getuser", lambda: "test-user")
 
     def run(command: list[str], **kwargs: Any) -> None:
         raise subprocess.CalledProcessError(1, command)
@@ -144,3 +159,11 @@ def test_windows_state_permissions_fail_closed(
 
     with pytest.raises(StateError, match="Unable to protect isolated state"):
         StateStore._restrict_permissions(tmp_path / "state", 0o700)
+
+
+def test_state_store_wraps_non_json_asset_values(tmp_path: Path) -> None:
+    """MessagePack-valid bytes cannot escape metadata serialization as TypeError."""
+    store = StateStore(tmp_path / "minion")
+
+    with pytest.raises(StateError, match="Unable to write isolated minion metadata"):
+        store.record_asset_records([{"name": "asset-1", "model_name": b"binary"}])

@@ -355,7 +355,7 @@ slcli system remove &lt;system-id&gt; --force</code></pre>
       <pre><code>RUNNING_JOB: Received Salt job (jid=20260919123456789012, functions=nisysmgmt.state_apply, target=slcli-test-001)
     CONNECTED: Sent Salt job return (jid=20260919123456789012, functions=nisysmgmt.state_apply, target=slcli-test-001, retcode=0, success=True)</code></pre>
       <p>After the key is approved, the minion reconnects, registers on the Salt publish channel, receives allowlisted deterministic test jobs, and returns their results. Reconnects reuse the same identity and stop after the configured retry limit. Keep the state directory private and use a distinct directory for each test minion.</p>
-      <p>The managed client supports Windows, macOS, and Linux when a compatible OpenSSL <code>libcrypto</code> provider exposes the legacy RSA symbols required for Salt's X9.31 signatures. It fails with a clear error when that provider is unavailable. POSIX state directories and keys use owner-only permissions; Windows removes inherited ACLs and grants access only to the current user.</p>
+      <p>Linux CI validates the packaged protocol and RSA X9.31 smoke path. Windows and macOS remain experimental until their complete managed-client lifecycle is validated; live Salt job dispatch has not been confirmed on those platforms. A compatible OpenSSL <code>libcrypto</code> provider must expose the legacy RSA symbols required for Salt's X9.31 signatures. POSIX state directories and keys use owner-only permissions; Windows removes inherited ACLs and grants access only to the current user.</p>
 
       <h3>Run Options</h3>
       <pre><code>slcli managed-client run [OPTIONS]

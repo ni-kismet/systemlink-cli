@@ -244,14 +244,16 @@ def build_message(
     communication_version: int | None = COMMUNICATION_VERSION,
     api_key: str | None = None,
 ) -> SaltMessage:
-    """Build an observed Salt message with explicit version and API fields."""
+    """Build an observed Salt message without sending credentials over raw TCP."""
+    if api_key is not None:
+        raise ProtocolError(
+            "API keys are not supported over the unauthenticated raw Salt TCP channel."
+        )
     body: dict[str, Any] = {"enc": encoding, "load": load}
     if communication_version is not None:
         if communication_version != COMMUNICATION_VERSION:
             raise ProtocolError("Only communication version 2 is supported for v3.")
         body["version"] = communication_version
-    if api_key is not None:
-        body["x-ni-api-key"] = api_key
     return SaltMessage(body=body, head={"mid": message_id})
 
 

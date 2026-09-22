@@ -25,6 +25,12 @@ def test_master_endpoint_rejects_invalid_explicit_ports() -> None:
         MasterEndpoint.parse("tcp://salt.example.com:not-a-port")
 
 
+def test_master_endpoint_rejects_malformed_ipv6_endpoint() -> None:
+    """Malformed bracketed IPv6 endpoints use the typed configuration error."""
+    with pytest.raises(ConfigurationError, match="invalid"):
+        MasterEndpoint.parse("tcp://[::1")
+
+
 def test_salt_channel_receives_partial_message() -> None:
     """The channel delegates partial TCP reads to the stream decoder."""
     client_socket, server_socket = socket.socketpair()

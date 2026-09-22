@@ -73,6 +73,17 @@ def test_messagepack_frame_rejects_non_string_map_keys() -> None:
         pack_frame({"nested": {1: "invalid"}})
 
 
+def test_build_message_rejects_api_keys_on_raw_tcp() -> None:
+    """Credentials cannot be placed in an unencrypted Salt envelope."""
+    with pytest.raises(ProtocolError, match="API keys are not supported"):
+        AuthRequest(
+            minion_id="minion-1",
+            public_key="public-key",
+            nonce="nonce-1",
+            api_key="secret-api-key",
+        ).to_message()
+
+
 def test_messagepack_frame_rejects_malformed_bytes() -> None:
     """Truncated MessagePack never reaches a handler."""
     with pytest.raises(ProtocolError, match="malformed"):

@@ -76,12 +76,16 @@ class ManagedClientRestAdapter:
         self._auth_scheme = auth_scheme
         self._request = request
 
-    def list_key_states(self, system_ids: list[str] | None = None) -> SystemKeyStates:
+    def list_key_states(
+        self, system_ids: list[str] | None = None, timeout: float | None = None
+    ) -> SystemKeyStates:
         """List organization-scoped pending, denied, approved, and rejected keys."""
         payload: dict[str, Any] | None = None
         if system_ids is not None:
             payload = {"systemIds": system_ids}
-        response = self._call("POST" if payload is not None else "GET", KEYS_PATH, payload)
+        response = self._call(
+            "POST" if payload is not None else "GET", KEYS_PATH, payload, timeout=timeout
+        )
         try:
             data = response.json()
         except ValueError as error:
@@ -132,14 +136,14 @@ class ManagedClientRestAdapter:
             raise ValueError("REST polling timeout and interval must be positive.")
         deadline = time.monotonic() + timeout
         while True:
-            state = self.list_key_states([system_id]).state_for(system_id)
-            if state == expected_state:
-                return
             remaining = deadline - time.monotonic()
             if remaining <= 0:
                 raise ManagedClientError(
                     f"REST key state for {system_id} did not reach {expected_state}."
                 )
+            state = self.list_key_states([system_id], timeout=remaining).state_for(system_id)
+            if state == expected_state:
+                return
             time.sleep(min(poll_interval, remaining))
 
     def _manage_key(
@@ -214,12 +218,15 @@ class ManagedClientRestAdapter:
         method: str,
         path: str,
         payload: dict[str, Any] | None,
+        timeout: float | None = None,
     ) -> ResponseLike:
         """Call a configured REST route with the active authentication model."""
         kwargs: dict[str, Any] = {"payload": payload, "handle_errors": False}
         if self._credential is not None:
             kwargs["credential"] = self._credential
             kwargs["auth_scheme"] = self._auth_scheme
+        if timeout is not None:
+            kwargs["timeout"] = timeout
         try:
             return self._request(method, f"{self._base_url}{path}", **kwargs)
         except requests.RequestException as error:

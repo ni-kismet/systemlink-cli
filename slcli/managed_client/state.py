@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-import getpass
+import csv
 import hashlib
 import json
 import os
@@ -61,8 +61,11 @@ class StateStore:
 
     def ensure_directory(self) -> None:
         """Create the state directory with owner-only permissions where supported."""
-        self.state_dir.mkdir(parents=True, exist_ok=True)
-        self._restrict_permissions(self.state_dir, STATE_DIRECTORY_MODE)
+        try:
+            self.state_dir.mkdir(parents=True, exist_ok=True)
+            self._restrict_permissions(self.state_dir, STATE_DIRECTORY_MODE)
+        except (OSError, StateError) as error:
+            raise StateError("Unable to create the isolated minion state directory.") from error
 
     def load_or_create_identity(self, minion_id: str) -> MinionIdentity:
         """Load a stable identity or create it on the first run."""
@@ -221,7 +224,16 @@ class StateStore:
         """Restrict a state path to the current user on every supported OS."""
         if os.name == "nt":
             try:
-                username = getpass.getuser()
+                result = subprocess.run(
+                    ["whoami", "/user", "/fo", "csv", "/nh"],
+                    check=True,
+                    capture_output=True,
+                    text=True,
+                )
+                rows = list(csv.reader(line for line in result.stdout.splitlines() if line.strip()))
+                if len(rows) != 1 or len(rows[0]) < 2 or not rows[0][1].startswith("S-1-"):
+                    raise StateError("Unable to resolve the current Windows user SID.")
+                sid = rows[0][1]
                 subprocess.run(
                     [
                         "icacls",
@@ -229,13 +241,13 @@ class StateStore:
                         "/reset",
                         "/inheritance:r",
                         "/grant:r",
-                        f"{username}:F",
+                        f"*{sid}:F",
                     ],
                     check=True,
                     capture_output=True,
                     text=True,
                 )
-            except (KeyError, OSError, subprocess.CalledProcessError) as error:
+            except (OSError, StateError, subprocess.CalledProcessError) as error:
                 raise StateError(f"Unable to protect isolated state at {path}.") from error
             return
 
@@ -274,7 +286,7 @@ class StateStore:
             self._restrict_permissions(temporary_path, STATE_FILE_MODE)
             os.replace(temporary_path, self._metadata_path)
             temporary_path = None
-        except (OSError, StateError) as error:
+        except (OSError, StateError, TypeError) as error:
             raise StateError("Unable to write isolated minion metadata.") from error
         finally:
             if temporary_path is not None:

@@ -161,3 +161,26 @@ def test_invalid_json_response_fails_with_typed_error() -> None:
 
     with pytest.raises(ManagedClientError, match="invalid JSON"):
         adapter.list_key_states()
+
+
+def test_wait_for_key_state_passes_remaining_timeout_to_request() -> None:
+    """Polling gives each HTTP request the remaining overall deadline."""
+    timeouts: list[float] = []
+    responses = iter(
+        [
+            {"systemsPending": {"minion-1": "public-key"}},
+            {"systemsApproved": {"minion-1": "public-key"}},
+        ]
+    )
+
+    def request(method: str, url: str, **kwargs: Any) -> FakeResponse:
+        del method, url
+        timeouts.append(kwargs["timeout"])
+        return FakeResponse(next(responses))
+
+    adapter = ManagedClientRestAdapter(base_url="https://example.test", request=request)
+    adapter.wait_for_key_state("minion-1", "approved", timeout=1, poll_interval=0.001)
+
+    assert len(timeouts) == 2
+    assert all(timeout > 0 for timeout in timeouts)
+    assert timeouts[1] < timeouts[0]
