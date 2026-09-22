@@ -64,6 +64,7 @@
         <a href="#file" class="sidebar-link">file</a>
         <a href="#tag" class="sidebar-link">tag</a>
         <a href="#user" class="sidebar-link">user</a>
+        <a href="#config" class="sidebar-link">config</a>
         <a href="#auth" class="sidebar-link">auth</a>
         <a href="#workspace" class="sidebar-link">workspace</a>
         <a href="#webapp" class="sidebar-link">webapp</a>
@@ -99,6 +100,7 @@
         <div class="cmd-group"><h3>file</h3><p>File upload, download, query, watch</p><code>slcli file list</code></div>
         <div class="cmd-group"><h3>tag</h3><p>Tags: create, read, values, and value history</p><code>slcli tag list</code></div>
         <div class="cmd-group"><h3>user</h3><p>User &amp; service account management</p><code>slcli user list</code></div>
+        <div class="cmd-group"><h3>config</h3><p>Profiles, settings, and certificate trust inspection</p><code>slcli config trust show</code></div>
         <div class="cmd-group"><h3>auth</h3><p>Authorization policies &amp; templates</p><code>slcli auth policy list</code></div>
         <div class="cmd-group"><h3>workspace</h3><p>Workspace listing, info, disable</p><code>slcli workspace list</code></div>
         <div class="cmd-group"><h3>webapp</h3><p>Static web app lifecycle</p><code>slcli webapp list</code></div>
@@ -705,6 +707,29 @@ slcli user create --type service --first-name "CI Bot"
 # Update and delete
 slcli user update --id &lt;user-id&gt; --email "new@example.com"
 slcli user delete --id &lt;user-id&gt;</code></pre>
+
+  <!-- ─── CONFIG ─── -->
+  <h2 id="config">config</h2>
+  <p>Inspect local profiles, settings, and explicitly trusted server certificates.</p>
+
+  <h3>Trust</h3>
+  <pre><code># Inspect the certificate at the active API URL
+slcli config trust show
+
+# Inspect a specific server
+slcli config trust show --url https://systemlink.example.local
+
+# Capture certificate metadata as JSON
+slcli config trust show --url https://systemlink.example.local --format json
+slcli config trust show --url https://systemlink.example.local -f json</code></pre>
+  <table>
+    <thead><tr><th>Option</th><th>Description</th></tr></thead>
+    <tbody>
+      <tr><td><code>--url URL</code></td><td>HTTPS server URL; defaults to the active API URL.</td></tr>
+      <tr><td><code>--format/-f</code></td><td>Output format: <code>table</code> (default) or <code>json</code>.</td></tr>
+    </tbody>
+  </table>
+  <p>Table output shows the server, subject, issuer, SHA-256 fingerprint, self-signed status, and validity period. JSON returns one object containing <code>origin</code>, <code>fingerprint</code>, <code>subject</code>, <code>issuer</code>, <code>sans</code>, <code>not-before</code>, <code>not-after</code>, and <code>self-signed</code>; the certificate PEM is omitted. Inspection does not trust or save the certificate.</p>
 
       <!-- ─── AUTH ─── -->
       <h2 id="auth">auth</h2>

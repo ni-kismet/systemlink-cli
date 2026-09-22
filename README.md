@@ -102,6 +102,13 @@ slcli login --url https://systemlink.example.local \
 Trust entries can also be managed directly:
 
 ```bash
+slcli config trust show --url https://systemlink.example.local
+slcli config trust show --url https://systemlink.example.local --format json
+```
+
+The `show` command inspects the current server certificate without trusting or saving it.
+
+```bash
 slcli config trust list
 slcli config trust add --url https://systemlink.example.local --fingerprint <sha256-fingerprint>
 slcli config trust remove --url https://systemlink.example.local

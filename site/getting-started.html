@@ -374,6 +374,13 @@ slcli mcp serve</code></pre>
 slcli _ca-info</code></pre>
       <p>Use this command when troubleshooting TLS failures or confirming that corporate roots are in use. It produces no network traffic and is safe to run any time.</p>
 
+      <pre><code># Inspect a server certificate without trusting or saving it
+    slcli config trust show --url https://systemlink.example.local
+
+    # Use structured output to capture the SHA-256 fingerprint
+    slcli config trust show --url https://systemlink.example.local --format json</code></pre>
+      <p>Use <code>slcli config trust add</code> with the displayed fingerprint when you are ready to explicitly trust the certificate.</p>
+
     </main>
   </div>
 </div>
