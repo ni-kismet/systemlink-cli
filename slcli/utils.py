@@ -825,6 +825,7 @@ def make_api_request(
     stream: bool = False,
     credential: Optional[str] = None,
     auth_scheme: Optional[str] = None,
+    timeout: Optional[float] = None,
 ) -> requests.Response:
     """Make API request with consistent error handling and configuration.
 
@@ -840,6 +841,7 @@ def make_api_request(
         credential: Optional explicit credential for this request. When omitted, the active
             credential is resolved from configuration.
         auth_scheme: Authentication scheme for an explicit credential.
+        timeout: Optional request timeout in seconds.
 
     Returns:
         Response object
@@ -865,7 +867,13 @@ def make_api_request(
 
         with use_standard_ssl_context(ssl_verify):
             if method.upper() == "GET":
-                resp = requests.get(url, headers=default_headers, verify=ssl_verify, stream=stream)
+                resp = requests.get(
+                    url,
+                    headers=default_headers,
+                    verify=ssl_verify,
+                    stream=stream,
+                    timeout=timeout,
+                )
             elif method.upper() == "POST":
                 if files:
                     # Multipart file upload
@@ -876,6 +884,7 @@ def make_api_request(
                         data=data,
                         verify=ssl_verify,
                         stream=stream,
+                        timeout=timeout,
                     )
                 else:
                     resp = requests.post(
@@ -884,13 +893,20 @@ def make_api_request(
                         json=payload,
                         verify=ssl_verify,
                         stream=stream,
+                        timeout=timeout,
                     )
             elif method.upper() == "PUT":
-                resp = requests.put(url, headers=default_headers, json=payload, verify=ssl_verify)
+                resp = requests.put(
+                    url, headers=default_headers, json=payload, verify=ssl_verify, timeout=timeout
+                )
             elif method.upper() == "PATCH":
-                resp = requests.patch(url, headers=default_headers, json=payload, verify=ssl_verify)
+                resp = requests.patch(
+                    url, headers=default_headers, json=payload, verify=ssl_verify, timeout=timeout
+                )
             elif method.upper() == "DELETE":
-                resp = requests.delete(url, headers=default_headers, verify=ssl_verify)
+                resp = requests.delete(
+                    url, headers=default_headers, verify=ssl_verify, timeout=timeout
+                )
             else:
                 raise ValueError(f"Unsupported HTTP method: {method}")
 

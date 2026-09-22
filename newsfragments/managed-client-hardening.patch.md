@@ -1,0 +1,1 @@
+Harden the managed-client test minion with bounded reconnects, verified destructive cleanup, real Salt-compatible RSA X9.31 lifecycle signatures, cross-platform protected state permissions, and standard CLI error handling.

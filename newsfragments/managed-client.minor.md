@@ -1,0 +1,1 @@
+Add an opt-in Python managed-client test minion with isolated Salt identity state, deterministic fixture handlers, and REST key-management support.

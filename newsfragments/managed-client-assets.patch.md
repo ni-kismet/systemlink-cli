@@ -1,0 +1,1 @@
+Support deterministic `ni_asset.remove_asset` and `ni_asset.refresh` jobs in the managed-client fixture.

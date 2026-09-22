@@ -84,6 +84,11 @@ def test_required_data_args_includes_existing_directory(tmp_path: Path) -> None:
     assert args == ["--add-data", f"{templates_dir}{os.pathsep}slcli/webapp_templates"]
 
 
+def test_pyinstaller_includes_runtime_loaded_managed_client_dependency() -> None:
+    """The packaged binary includes MessagePack loaded by the protocol module."""
+    assert build_pyinstaller._hidden_import_args("msgpack") == ["--hidden-import=msgpack"]
+
+
 def test_pyproject_includes_bundled_skills_and_templates() -> None:
     """Wheel and sdist packaging should include bundled skills and webapp templates."""
     pyproject_path = Path(__file__).resolve().parents[2] / "pyproject.toml"
