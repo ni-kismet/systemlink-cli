@@ -7,6 +7,7 @@ import time
 import uuid
 from collections.abc import Callable, Mapping
 from datetime import datetime, timezone
+from fnmatch import fnmatchcase
 from typing import Any
 
 from cryptography.hazmat.primitives.asymmetric.rsa import RSAPrivateKey
@@ -344,6 +345,8 @@ class TestMinion:
             self._set_phase(MinionPhase.RUNNING_JOB, "Waiting for a Salt job")
             job_message = publish_channel.receive(ignore_timeout=True)
             job = decrypt_message_load(job_message, auth_response.shared_secret)
+            if not self._target_matches(job, self.minion_id):
+                continue
             self._set_phase(
                 MinionPhase.RUNNING_JOB,
                 "Received Salt job",
@@ -366,6 +369,20 @@ class TestMinion:
                 "Sent Salt job return",
                 details=self._job_details(job, result),
             )
+
+    @staticmethod
+    def _target_matches(job: Mapping[str, Any], minion_id: str) -> bool:
+        """Return whether a publication target selects this minion."""
+        target = job.get("tgt", job.get("target"))
+        target_type = job.get("tgt_type")
+        if target_type is None:
+            target_type = "list" if isinstance(target, list) else "glob"
+
+        if target_type == "glob" and isinstance(target, str):
+            return fnmatchcase(minion_id, target)
+        if target_type == "list" and isinstance(target, list):
+            return all(isinstance(item, str) for item in target) and minion_id in target
+        return False
 
     @staticmethod
     def _job_details(

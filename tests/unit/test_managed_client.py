@@ -79,6 +79,24 @@ def test_minion_connected_snapshots_phase(monkeypatch: pytest.MonkeyPatch) -> No
     assert phase_reads == 1
 
 
+@pytest.mark.parametrize(
+    ("job", "expected"),
+    [
+        ({"tgt": "slcli-*"}, True),
+        ({"tgt": "other-*"}, False),
+        ({"tgt": ["other", "slcli-test-001"]}, True),
+        ({"tgt": ["other"], "tgt_type": "list"}, False),
+        ({"tgt": "slcli-test-001", "tgt_type": "list"}, False),
+        ({"tgt": "slcli-test-001", "tgt_type": "compound"}, False),
+    ],
+)
+def test_minion_matches_supported_publication_targets(
+    job: dict[str, object], expected: bool
+) -> None:
+    """Only supported Salt target forms that select this minion are accepted."""
+    assert ManagedTestMinion._target_matches(job, "slcli-test-001") is expected
+
+
 def test_minion_stop_does_not_duplicate_worker_stopping_event(tmp_path: Path) -> None:
     """Public stop does not repeat the worker's STOPPING transition."""
     events: list[MinionEvent] = []
