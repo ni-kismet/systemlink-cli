@@ -12,7 +12,11 @@ from click.testing import CliRunner
 
 from slcli.managed_client.models import MinionEvent, MinionPhase, TransportError
 from slcli.managed_client.state import StateStore
-from slcli.managed_client_click import _PendingApprovalIndicator, register_managed_client_commands
+from slcli.managed_client_click import (
+    _PendingApprovalIndicator,
+    _safe_event_detail,
+    register_managed_client_commands,
+)
 from slcli.utils import ExitCodes
 
 
@@ -377,3 +381,8 @@ def test_run_sanitizes_remote_job_details(
     assert "\x1b" not in result.output
     assert "\\x0a" in result.output
     assert "x" * 257 not in result.output
+
+
+def test_safe_event_detail_escapes_surrogate_controls() -> None:
+    """Surrogate-escaped bytes cannot become terminal controls on output."""
+    assert _safe_event_detail("prefix\udc9b") == r"prefix\xdc9b"

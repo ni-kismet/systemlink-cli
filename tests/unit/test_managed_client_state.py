@@ -116,10 +116,12 @@ def test_windows_state_permissions_remove_inheritance(
     calls: list[tuple[list[str], dict[str, Any]]] = []
 
     monkeypatch.setattr(state_module.os, "name", "nt")
+    system_root = tmp_path / "Windows"
+    monkeypatch.setenv("SystemRoot", str(system_root))
 
     def completed_run(command: list[str], **kwargs: Any) -> subprocess.CompletedProcess[str]:
         calls.append((command, kwargs))
-        if command[0] == "whoami":
+        if command[0].endswith("whoami.exe"):
             return subprocess.CompletedProcess(command, 0, '"test-user","S-1-5-21-123"\n', "")
         return subprocess.CompletedProcess(command, 0, "", "")
 
@@ -129,12 +131,12 @@ def test_windows_state_permissions_remove_inheritance(
 
     assert calls == [
         (
-            ["whoami", "/user", "/fo", "csv", "/nh"],
+            [str(system_root / "System32" / "whoami.exe"), "/user", "/fo", "csv", "/nh"],
             {"check": True, "capture_output": True, "text": True},
         ),
         (
             [
-                "icacls",
+                str(system_root / "System32" / "icacls.exe"),
                 str(tmp_path / "state"),
                 "/reset",
                 "/inheritance:r",
@@ -151,6 +153,7 @@ def test_windows_state_permissions_fail_closed(
 ) -> None:
     """An ACL failure prevents use of unprotected state."""
     monkeypatch.setattr(state_module.os, "name", "nt")
+    monkeypatch.setenv("SystemRoot", str(tmp_path / "Windows"))
 
     def run(command: list[str], **kwargs: Any) -> None:
         raise subprocess.CalledProcessError(1, command)

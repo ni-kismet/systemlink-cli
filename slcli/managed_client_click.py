@@ -95,7 +95,11 @@ def _safe_event_detail(value: object) -> str:
     escaped = "".join(
         (
             f"\\x{ord(character):02x}"
-            if ord(character) < 0x20 or 0x7F <= ord(character) <= 0x9F
+            if (
+                ord(character) < 0x20
+                or 0x7F <= ord(character) <= 0x9F
+                or 0xD800 <= ord(character) <= 0xDFFF
+            )
             else character
         )
         for character in str(value)

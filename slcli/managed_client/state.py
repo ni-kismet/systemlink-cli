@@ -36,6 +36,16 @@ ASSET_IDENTIFICATION_FIELDS = (
 )
 
 
+def _windows_system_command(executable: str) -> str:
+    """Return an absolute path to a Windows System32 executable."""
+    system_root = os.environ.get("SystemRoot")
+    if not system_root:
+        raise StateError("Unable to resolve the Windows system directory.")
+    if not os.path.isabs(system_root):
+        raise StateError("Unable to resolve the Windows system directory.")
+    return os.path.join(system_root, "System32", executable)
+
+
 @dataclass(frozen=True)
 class MinionIdentity:
     """A stable minion ID and its private key loaded from isolated state."""
@@ -224,8 +234,10 @@ class StateStore:
         """Restrict a state path to the current user on every supported OS."""
         if os.name == "nt":
             try:
+                whoami = _windows_system_command("whoami.exe")
+                icacls = _windows_system_command("icacls.exe")
                 result = subprocess.run(
-                    ["whoami", "/user", "/fo", "csv", "/nh"],
+                    [whoami, "/user", "/fo", "csv", "/nh"],
                     check=True,
                     capture_output=True,
                     text=True,
@@ -236,7 +248,7 @@ class StateStore:
                 sid = rows[0][1]
                 subprocess.run(
                     [
-                        "icacls",
+                        icacls,
                         str(path),
                         "/reset",
                         "/inheritance:r",
