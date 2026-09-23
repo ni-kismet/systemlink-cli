@@ -1,0 +1,1 @@
+Raise the MCP extra's minimum versions of AnyIO, HTTPX2, and HTTPCore2 to include the Dependabot security fixes.
