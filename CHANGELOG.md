@@ -2,6 +2,13 @@
 
 <!-- towncrier release notes start -->
 
+## v1.31.2 (2026-09-23)
+
+### Bug Fixes
+
+- Raise the MCP extra's minimum versions of AnyIO, HTTPX2, and HTTPCore2 to include the Dependabot security fixes. (dependabot-mcp-security)
+
+
 ## v1.31.1 (2026-09-23)
 
 ### Bug Fixes
