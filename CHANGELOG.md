@@ -2,6 +2,13 @@
 
 <!-- towncrier release notes start -->
 
+## v1.31.1 (2026-09-23)
+
+### Bug Fixes
+
+- Update dependency towncrier to v26. (deps-renovate-major-python)
+
+
 ## v1.31.0 (2026-09-22)
 
 ### Features
