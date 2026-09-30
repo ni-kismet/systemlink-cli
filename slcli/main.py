@@ -547,6 +547,7 @@ def logout(profile: Optional[str], remove_all: bool, force: bool) -> None:
 
     from .credentials import CredentialStoreError, delete_profile_credentials
 
+    cleaned_profiles = 0
     for removed_profile in removed_profiles:
         try:
             delete_profile_credentials(
@@ -555,13 +556,27 @@ def logout(profile: Optional[str], remove_all: bool, force: bool) -> None:
                 removed_profile.name if removed_profile.auth_mode == "pkce" else None,
             )
         except CredentialStoreError as exc:
+            if remove_all:
+                if cleaned_profiles == 0:
+                    progress = "No profiles were removed. "
+                elif cleaned_profiles == 1:
+                    progress = "One earlier profile was removed. "
+                else:
+                    progress = f"{cleaned_profiles} earlier profiles were removed. "
+                raise click.ClickException(
+                    f"Could not remove credentials for '{removed_profile.name}': {exc}. "
+                    f"{progress}The failed and remaining profiles are still configured."
+                ) from exc
             raise click.ClickException(
                 f"Could not remove credentials for '{removed_profile.name}': {exc}. "
                 "Profiles were not removed; resolve the credential-store issue and retry."
             ) from exc
+        if remove_all:
+            cfg.delete_profile(removed_profile.name)
+            cfg.save()
+            cleaned_profiles += 1
 
     if remove_all:
-        cfg.profiles.clear()
         cfg.current_profile = None
         cfg.save()
         click.echo("✓ All profiles removed.")

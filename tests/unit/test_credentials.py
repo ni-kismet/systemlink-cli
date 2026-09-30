@@ -202,12 +202,27 @@ def test_delete_profile_credentials_removes_legacy_pkce_items(monkeypatch: Any) 
 
     deleted_accounts = [call.args[1] for call in backend.delete_password.call_args_list]
     assert deleted_accounts == [
-        "profile:profile-id:api-key",
-        "profile:profile-id:pkce",
         "PKCE:dev:access-token",
         "PKCE:dev:refresh-token",
         "PKCE:dev:access-expires-at",
         "PKCE:dev:session-key",
         "PKCE:dev:session-expires-at",
+        "profile:profile-id:api-key",
+        "profile:profile-id:pkce",
     ]
     backend.get_password.assert_not_called()
+
+
+def test_delete_api_key_profile_removes_active_credential_last(monkeypatch: Any) -> None:
+    """API-key profile cleanup removes inactive PKCE data before the API key."""
+    backend = MagicMock()
+    monkeypatch.setattr(credentials.platform, "system", lambda: "Linux")
+    monkeypatch.setattr(credentials, "_get_keyring_module", lambda: backend)
+
+    credentials.delete_profile_credentials("profile-id", "os")
+
+    deleted_accounts = [call.args[1] for call in backend.delete_password.call_args_list]
+    assert deleted_accounts == [
+        "profile:profile-id:pkce",
+        "profile:profile-id:api-key",
+    ]

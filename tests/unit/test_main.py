@@ -511,6 +511,61 @@ def test_logout_keeps_profile_when_credential_cleanup_fails(
     assert "test" in json.loads(config_file.read_text())["profiles"]
 
 
+def test_logout_all_persists_successful_cleanup_before_later_failure(
+    monkeypatch: Any, tmp_path: Any
+) -> None:
+    """A later cleanup failure preserves only profiles whose credentials remain."""
+    import json
+    from unittest.mock import MagicMock
+
+    import click
+
+    from slcli.credentials import CredentialStoreError
+
+    config_file = tmp_path / "config.json"
+    config_file.write_text(
+        json.dumps(
+            {
+                "current-profile": "first",
+                "profiles": {
+                    "first": {
+                        "id": "first-id",
+                        "server": "https://first.example.test",
+                        "credential-store": "os",
+                    },
+                    "second": {
+                        "id": "second-id",
+                        "server": "https://second.example.test",
+                        "credential-store": "os",
+                    },
+                },
+            }
+        )
+    )
+    monkeypatch.setattr(
+        "slcli.profiles.ProfileConfig.get_config_path", classmethod(lambda cls: config_file)
+    )
+    delete_credentials = MagicMock(side_effect=[None, CredentialStoreError("store locked")])
+    monkeypatch.setattr("slcli.credentials.delete_profile_credentials", delete_credentials)
+    error_messages: list[str] = []
+
+    class RecordingClickException(click.ClickException):
+        def __init__(self, message: str) -> None:
+            error_messages.append(message)
+            super().__init__(message)
+
+    monkeypatch.setattr("slcli.main.click.ClickException", RecordingClickException)
+
+    result = CliRunner().invoke(cli, ["logout", "--all", "--force"], terminal_width=200)
+
+    saved = json.loads(config_file.read_text())
+    assert result.exit_code != 0
+    assert "One earlier profile was removed" in error_messages[0]
+    assert saved["profiles"].keys() == {"second"}
+    assert saved["current-profile"] == "second"
+    assert delete_credentials.call_count == 2
+
+
 def test_info_json(monkeypatch: Any, tmp_path: Any) -> None:
     """Ensure info emits JSON when requested."""
     import json as json_mod
