@@ -1112,6 +1112,9 @@ def register_config_commands(cli: Any) -> None:
     @click.option("--all", "secure_all", is_flag=True, help="Secure every file-backed profile")
     def secure_profiles(profile_name: Optional[str], secure_all: bool) -> None:
         """Move plaintext API keys and PKCE credentials into the OS store."""
+        from .utils import check_readonly_mode
+
+        check_readonly_mode("secure profile credentials")
         if profile_name and secure_all:
             _exit_with_validation_error("Choose either --profile or --all, not both.")
 

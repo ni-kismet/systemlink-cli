@@ -617,6 +617,28 @@ class TestSecureProfiles:
         assert saved_profile["credential-store"] == "os"
         assert saved_profile["id"]
 
+    def test_secure_rejects_readonly_profile(self, tmp_path: Path, monkeypatch: Any) -> None:
+        """Readonly mode prevents credential staging and config mutation."""
+        config_file = tmp_path / "config.json"
+        original = {
+            "current-profile": "dev",
+            "profiles": {"dev": {"server": "https://dev.example.com", "api-key": VALID_API_KEY}},
+        }
+        config_file.write_text(json.dumps(original))
+        monkeypatch.setattr(
+            "slcli.profiles.ProfileConfig.get_config_path", classmethod(lambda cls: config_file)
+        )
+        monkeypatch.setattr("slcli.profiles.is_active_profile_readonly", lambda: True)
+        store_secret = MagicMock()
+        monkeypatch.setattr("slcli.config_click.set_credential", store_secret)
+
+        result = CliRunner().invoke(make_cli(), ["config", "secure"])
+
+        assert result.exit_code == ExitCodes.PERMISSION_DENIED
+        assert "profile is in readonly mode" in result.output
+        store_secret.assert_not_called()
+        assert json.loads(config_file.read_text()) == original
+
     def test_secure_leaves_plaintext_when_os_store_write_fails(
         self, tmp_path: Path, monkeypatch: Any
     ) -> None:

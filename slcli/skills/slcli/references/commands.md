@@ -718,6 +718,7 @@ slcli config use <PROFILE>                      # Switch the active profile
 slcli config view [-f json] [--show-secrets]    # Show stored profile details
 slcli config add [--profile NAME] [OPTIONS]     # Add or update a profile
 slcli config delete <PROFILE> [--force]         # Delete a profile
+slcli config cleanup                            # Retry pending credential cleanup
 slcli config secure [--profile NAME | --all]    # Move plaintext credentials to the OS store
 ```
 
