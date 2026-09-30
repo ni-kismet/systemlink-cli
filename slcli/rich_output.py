@@ -52,6 +52,26 @@ _STDERR_CONSOLE: Optional[Console] = None
 _LABEL_RE = re.compile(r"^(\s*)([A-Za-z0-9][A-Za-z0-9 _./()'-]{0,60}:)(\s+.*)?$")
 
 
+def _encoding_safe_message(message: str, encoding: str) -> str:
+    """Keep representable text and escape unsupported characters for display."""
+    try:
+        message.encode(encoding)
+        return message
+    except UnicodeEncodeError:
+        replacements = {
+            "\u2713": "[OK]",
+            "\u2717": "[X]",
+            "\u2192": "->",
+            "\u26a0": "[!]",
+        }
+        for symbol, replacement in replacements.items():
+            try:
+                symbol.encode(encoding)
+            except UnicodeEncodeError:
+                message = message.replace(symbol, replacement)
+        return message.encode(encoding, errors="backslashreplace").decode(encoding)
+
+
 def install_rich_output() -> None:
     """Patch Click output once for the current process."""
     global _PATCH_INSTALLED
@@ -161,6 +181,7 @@ def _rich_echo(
             _ORIGINAL_CLICK_ECHO(message=message, file=file, nl=nl, err=err)
         return
 
+    message = _encoding_safe_message(message, console.encoding)
     if "\x1b[" in message:
         console.print(Text.from_ansi(message), end=end)
         return
@@ -182,7 +203,7 @@ def _rich_secho(
 
 
 def _configure_consoles() -> None:
-    """Create stdout and stderr consoles from environment policy."""
+    """Use stream-based rendering rather than the legacy Windows ANSI writer."""
     global _STDOUT_CONSOLE, _STDERR_CONSOLE
 
     color_mode = os.environ.get("SLCLI_COLOR", "auto").strip().lower()
@@ -195,6 +216,7 @@ def _configure_consoles() -> None:
     _STDOUT_CONSOLE = Console(
         theme=_THEME,
         stderr=False,
+        legacy_windows=False,
         no_color=no_color,
         force_terminal=force_stdout_terminal,
         highlight=False,
@@ -204,6 +226,7 @@ def _configure_consoles() -> None:
     _STDERR_CONSOLE = Console(
         theme=_THEME,
         stderr=True,
+        legacy_windows=False,
         no_color=no_color,
         force_terminal=force_stderr_terminal,
         highlight=False,
@@ -320,8 +343,11 @@ def _style_status_line(line: str) -> Optional[Text]:
     """Style common status-line prefixes."""
     for symbol, symbol_style, message_style in (
         ("✓", "success.symbol", "success.message"),
+        ("[OK]", "success.symbol", "success.message"),
         ("✗", "error.symbol", "error.message"),
+        ("[X]", "error.symbol", "error.message"),
         ("⚠", "warning.symbol", "warning.message"),
+        ("[!]", "warning.symbol", "warning.message"),
     ):
         if line.startswith(symbol):
             rest = line[len(symbol) :]
