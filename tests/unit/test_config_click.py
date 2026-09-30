@@ -478,6 +478,42 @@ class TestViewConfig:
         assert "effective" not in data
 
 
+@pytest.mark.parametrize("output_format", ["table", "json"])
+@pytest.mark.parametrize("show_secrets", [False, True])
+def test_view_os_profile_honors_plaintext_override(
+    tmp_path: Path, monkeypatch: Any, output_format: str, show_secrets: bool
+) -> None:
+    """Viewing a plaintext override never reads the profile's unused OS credential."""
+    config_file = tmp_path / "config.json"
+    config_file.write_text(
+        json.dumps(
+            {
+                "current-profile": "test",
+                "profiles": {
+                    "test": {
+                        "server": "https://example.com",
+                        "credential-store": "os",
+                        "api-key": "override1234",
+                    }
+                },
+            }
+        )
+    )
+    monkeypatch.setattr(
+        "slcli.profiles.ProfileConfig.get_config_path", classmethod(lambda cls: config_file)
+    )
+    read_secret = MagicMock(side_effect=CredentialStoreError("locked"))
+    monkeypatch.setattr("slcli.config_click.get_credential", read_secret)
+    args = ["config", "view", "--format", output_format]
+    if show_secrets:
+        args.append("--show-secrets")
+    result = CliRunner().invoke(make_cli(), args)
+
+    assert result.exit_code == 0, result.output
+    assert ("override1234" if show_secrets else "****1234") in result.output
+    read_secret.assert_not_called()
+
+
 def test_view_config_json_show_secrets_decodes_pkce_bundle(
     tmp_path: Path, monkeypatch: Any
 ) -> None:
@@ -605,8 +641,16 @@ class TestSecureProfiles:
         saved_profile = json.loads(config_file.read_text())["profiles"]["dev"]
         assert saved_profile["api-key"] == VALID_API_KEY
 
+    @pytest.mark.parametrize("original_store", ["file", "os"])
+    @pytest.mark.parametrize("cleanup_fails", [False, True])
+    @pytest.mark.parametrize("auth_mode", ["api-key", "pkce"])
     def test_secure_cleans_staged_credentials_when_save_fails(
-        self, tmp_path: Path, monkeypatch: Any
+        self,
+        tmp_path: Path,
+        monkeypatch: Any,
+        original_store: str,
+        cleanup_fails: bool,
+        auth_mode: str,
     ) -> None:
         """A failed config save preserves plaintext and removes staged OS credentials."""
         from slcli.profiles import ProfileConfig
@@ -617,15 +661,36 @@ class TestSecureProfiles:
                 {
                     "current-profile": "dev",
                     "profiles": {
-                        "dev": {"server": "https://dev.example.com", "api-key": VALID_API_KEY}
+                        "dev": {
+                            "id": "original-id",
+                            "credential-store": original_store,
+                            "server": "https://dev.example.com",
+                            "api-key": VALID_API_KEY,
+                        }
                     },
                 }
             )
         )
+        if auth_mode == "pkce":
+            data = json.loads(config_file.read_text())
+            data["profiles"]["dev"].pop("api-key")
+            data["profiles"]["dev"]["auth-mode"] = "pkce"
+            data["profiles"]["dev"]["pkce-credentials"] = {"access-token": "original-token"}
+            config_file.write_text(json.dumps(data))
         monkeypatch.setattr(ProfileConfig, "get_config_path", classmethod(lambda cls: config_file))
-        monkeypatch.setattr(ProfileConfig, "save", MagicMock(side_effect=RuntimeError("disk full")))
+        original_save = ProfileConfig.save
+        save_calls = 0
+
+        def save(config: ProfileConfig) -> None:
+            nonlocal save_calls
+            save_calls += 1
+            if save_calls == 1:
+                raise RuntimeError("disk full")
+            original_save(config)
+
+        monkeypatch.setattr(ProfileConfig, "save", save)
         staged = MagicMock()
-        cleanup = MagicMock()
+        cleanup = MagicMock(side_effect=CredentialStoreError("locked") if cleanup_fails else None)
         monkeypatch.setattr("slcli.config_click.set_credential", staged)
         monkeypatch.setattr("slcli.credentials.delete_credential", cleanup)
 
@@ -633,8 +698,27 @@ class TestSecureProfiles:
 
         assert result.exit_code != 0
         assert "Could not save secured profiles" in result.output
-        assert json.loads(config_file.read_text())["profiles"]["dev"]["api-key"] == VALID_API_KEY
-        cleanup.assert_called_once_with(staged.call_args.args[0], "api-key")
+        saved = json.loads(config_file.read_text())
+        if auth_mode == "pkce":
+            assert saved["profiles"]["dev"]["pkce-credentials"] == {
+                "access-token": "original-token"
+            }
+        else:
+            assert saved["profiles"]["dev"]["api-key"] == VALID_API_KEY
+        assert saved["profiles"]["dev"]["credential-store"] == original_store
+        assert saved["profiles"]["dev"]["id"] == "original-id"
+        staged_id = staged.call_args.args[0]
+        assert staged_id != "original-id"
+        cleanup.assert_called_once_with(staged_id, "pkce" if auth_mode == "pkce" else "api-key")
+        if cleanup_fails:
+            assert saved["pending-credential-deletions"][0]["id"] == staged_id
+            cleanup.side_effect = None
+            monkeypatch.setattr("slcli.credentials.delete_legacy_pkce_credentials", MagicMock())
+            retry = CliRunner().invoke(make_cli(), ["config", "cleanup"])
+            assert retry.exit_code == 0, retry.output
+            saved = json.loads(config_file.read_text())
+            assert saved["profiles"]["dev"]["id"] == "original-id"
+            assert "pending-credential-deletions" not in saved
 
     def test_secure_cleans_earlier_staged_credentials_on_later_failure(
         self, tmp_path: Path, monkeypatch: Any
@@ -753,13 +837,15 @@ def test_file_to_os_profile_transition_stages_credential_before_metadata_save(
     )
 
     saved_profile = json.loads(config_file.read_text())["profiles"]["dev"]
-    assert stored_credentials == [("profile-id", "api-key", VALID_API_KEY, "os")]
+    assert saved_profile["id"] != "profile-id"
+    assert stored_credentials == [(saved_profile["id"], "api-key", VALID_API_KEY, "os")]
     assert saved_profile["credential-store"] == "os"
     assert "api-key" not in saved_profile
 
 
+@pytest.mark.parametrize("cleanup_fails", [False, True])
 def test_file_to_os_profile_transition_cleans_staged_credential_when_save_fails(
-    tmp_path: Path, monkeypatch: Any
+    tmp_path: Path, monkeypatch: Any, cleanup_fails: bool
 ) -> None:
     """A failed OS-metadata save removes the staged secret and restores the file profile."""
     from slcli.config_click import _add_profile_impl
@@ -805,7 +891,9 @@ def test_file_to_os_profile_transition_cleans_staged_credential_when_save_fails(
 
     monkeypatch.setattr(ProfileConfig, "save", fail_first_save)
     store_credential = MagicMock()
-    delete_credential = MagicMock()
+    delete_credential = MagicMock(
+        side_effect=CredentialStoreError("Keychain locked") if cleanup_fails else None
+    )
     monkeypatch.setattr("slcli.config_click.set_credential", store_credential)
     monkeypatch.setattr("slcli.credentials.delete_credential", delete_credential)
 
@@ -822,11 +910,23 @@ def test_file_to_os_profile_transition_cleans_staged_credential_when_save_fails(
 
     saved_profile = json.loads(config_file.read_text())["profiles"]["dev"]
     assert exc_info.value.code == ExitCodes.GENERAL_ERROR
-    store_credential.assert_called_once_with("profile-id", "api-key", VALID_API_KEY, "os")
-    delete_credential.assert_called_once_with("profile-id", "api-key")
+    staged_id = store_credential.call_args.args[0]
+    assert staged_id != "profile-id"
+    store_credential.assert_called_once_with(staged_id, "api-key", VALID_API_KEY, "os")
+    delete_credential.assert_called_once_with(staged_id, "api-key")
     assert saved_profile["server"] == "https://old.example.com"
     assert saved_profile["credential-store"] == "file"
     assert saved_profile["api-key"] == "old-file-key"
+    saved = json.loads(config_file.read_text())
+    if cleanup_fails:
+        assert saved["pending-credential-deletions"][0]["id"] == staged_id
+        delete_credential.side_effect = None
+        monkeypatch.setattr("slcli.credentials.delete_legacy_pkce_credentials", MagicMock())
+        cleanup = CliRunner().invoke(make_cli(), ["config", "cleanup"])
+        assert cleanup.exit_code == 0, cleanup.output
+        assert "pending-credential-deletions" not in json.loads(config_file.read_text())
+    else:
+        assert "pending-credential-deletions" not in saved
 
 
 def test_os_profile_update_stages_new_id_before_metadata_swap(
@@ -1303,7 +1403,7 @@ def test_file_store_transition_retains_pending_cleanup_when_store_fails(
     assert secure.exit_code == 0, secure.output
     saved = json.loads(config_file.read_text())
     assert saved["profiles"]["dev"]["credential-store"] == "os"
-    assert saved["profiles"]["dev"]["id"] == new_credential_id
+    new_credential_id = saved["profiles"]["dev"]["id"]
     assert os_credentials[(new_credential_id, "api-key")] == VALID_API_KEY
 
     fail_old_cleanup = False

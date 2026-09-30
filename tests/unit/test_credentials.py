@@ -85,6 +85,19 @@ def test_macos_reads_and_deletes_existing_credential(monkeypatch: Any) -> None:
     assert run.call_args.args[0][-1] == "profile:profile-id:api-key"
 
 
+@pytest.mark.parametrize("operation", ["_macos_get", "_macos_set", "_macos_delete"])
+def test_macos_launch_failure_uses_store_error(monkeypatch: Any, operation: str) -> None:
+    """OS launch errors follow the same controlled error path as backend failures."""
+    monkeypatch.setattr(credentials, "_security_executable", lambda: "/usr/bin/security")
+    monkeypatch.setattr(credentials.subprocess, "run", MagicMock(side_effect=PermissionError()))
+
+    with pytest.raises(credentials.CredentialStoreUnavailable, match="Could not launch"):
+        if operation == "_macos_set":
+            credentials._macos_set("profile-id", "api-key", "secret")
+        else:
+            getattr(credentials, operation)("profile-id", "api-key")
+
+
 def test_macos_delete_ignores_missing_credential(monkeypatch: Any) -> None:
     """Deleting an already absent Keychain item is idempotent."""
     monkeypatch.setattr(credentials, "_security_executable", lambda: "/usr/bin/security")
@@ -127,6 +140,20 @@ def test_file_rejects_invalid_pkce_bundle(monkeypatch: Any, value: str) -> None:
     with pytest.raises(credentials.CredentialStoreError, match="bundle is invalid"):
         credentials.set_credential("profile-id", "pkce", value, "file")
     config.save.assert_not_called()
+
+
+@pytest.mark.parametrize("operation", ["set", "delete"])
+def test_file_save_failure_uses_store_error(monkeypatch: Any, operation: str) -> None:
+    """File persistence errors do not escape the credential-store error contract."""
+    config = MagicMock()
+    config.save.side_effect = RuntimeError("disk full")
+    monkeypatch.setattr(credentials, "_find_profile", lambda _profile_id: (config, MagicMock()))
+
+    with pytest.raises(credentials.CredentialStoreError, match="config file"):
+        if operation == "set":
+            credentials.set_credential("profile-id", "pkce", "{}", "file")
+        else:
+            credentials.delete_credential("profile-id", "pkce", "file")
 
 
 def test_get_credential_is_cached_and_invalidated_after_set(monkeypatch: Any) -> None:
@@ -274,3 +301,24 @@ def test_delete_file_profile_without_legacy_os_store(monkeypatch: Any) -> None:
 
     with pytest.raises(credentials.CredentialStoreUnavailable):
         credentials.delete_profile_credentials("profile-id", "os", "dev")
+
+
+def test_pending_cleanup_preserves_active_profile_credential(monkeypatch: Any) -> None:
+    """A stale deletion record cannot remove credentials still used by a profile."""
+    from slcli.profiles import Profile, ProfileConfig
+
+    record = {"id": "active-id", "name": "dev", "store": "os", "auth-mode": "api-key"}
+    config = ProfileConfig(
+        profiles={
+            "dev": Profile(name="dev", server="https://example.com", credential_id="active-id")
+        },
+        settings={credentials.PENDING_DELETIONS_SETTING: [record]},
+    )
+    delete = MagicMock()
+    monkeypatch.setattr(credentials, "delete_profile_credentials", delete)
+
+    with pytest.raises(credentials.CredentialStoreError, match="active profile"):
+        credentials.finish_pending_profile_deletion(config, record)
+
+    delete.assert_not_called()
+    assert config.settings[credentials.PENDING_DELETIONS_SETTING] == [record]

@@ -510,10 +510,16 @@ def get_pkce_access_token(profile_id: str, store: str = "os") -> Optional[str]:
         if access_token is not None and not isinstance(access_token, str):
             raise ValueError("PKCE access token must be a string")
         expires_at = bundle.get("access-expires-at")
-        if access_token and expires_at is not None and float(expires_at) <= time.time() + 60:
-            return None
+        if expires_at is not None:
+            import math
+
+            expiry = float(expires_at)
+            if isinstance(expires_at, bool) or not math.isfinite(expiry):
+                raise ValueError("PKCE expiry must be finite")
+            if access_token and expiry <= time.time() + 60:
+                return None
         return access_token
-    except (TypeError, ValueError, json.JSONDecodeError) as exc:
+    except (TypeError, ValueError, OverflowError, json.JSONDecodeError) as exc:
         raise PkceError(
             "Stored PKCE credentials are invalid. Run 'slcli login --auth pkce'."
         ) from exc

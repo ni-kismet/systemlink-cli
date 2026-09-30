@@ -64,7 +64,7 @@ class Profile:
                 result["pkce-client-id"] = self.pkce_client_id
             if self.pkce_scopes:
                 result["pkce-scopes"] = self.pkce_scopes
-            if self.credential_store == "file" and self.pkce_credentials:
+            if self.pkce_credentials:
                 result["pkce-credentials"] = self.pkce_credentials
         elif self.credential_store == "file" or self.api_key:
             result["api-key"] = self.api_key

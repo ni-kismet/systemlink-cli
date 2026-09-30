@@ -295,6 +295,16 @@ def test_refresh_pkce_credentials_rejects_non_object_bundle(
         refresh_pkce_credentials("test", "https://web.example", "client-id")
 
 
+@pytest.mark.parametrize("expiry", ["NaN", "Infinity", "-Infinity", 10**400, True])
+def test_get_pkce_access_token_rejects_invalid_expiry(monkeypatch: Any, expiry: Any) -> None:
+    """Non-finite, overflowing, and boolean expiries cannot bypass token validation."""
+    bundle = json.dumps({"access-token": "token", "access-expires-at": expiry})
+    monkeypatch.setattr("slcli.pkce.get_credential", lambda *_args: bundle)
+
+    with pytest.raises(PkceError, match="Stored PKCE credentials are invalid"):
+        get_pkce_access_token("test")
+
+
 def test_save_pkce_credentials_reports_store_failure(monkeypatch: Any) -> None:
     """A failed bundle write is reported as a PKCE storage error."""
     import slcli.pkce as pkce

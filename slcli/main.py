@@ -505,7 +505,8 @@ def logout(profile: Optional[str], remove_all: bool, force: bool) -> None:
     )
 
     try:
-        completed = retry_pending_profile_deletions(cfg, None if remove_all else profile)
+        retry_name = None if remove_all else (profile or cfg.current_profile)
+        completed = retry_pending_profile_deletions(cfg, retry_name)
     except (CredentialStoreError, RuntimeError) as exc:
         raise click.ClickException(f"Could not finish pending credential deletion: {exc}.") from exc
     removed_profiles: list[Profile] = []
@@ -551,6 +552,17 @@ def logout(profile: Optional[str], remove_all: bool, force: bool) -> None:
             return
 
         current = cfg.current_profile
+        current_profile = cfg.get_profile(current)
+        if current_profile is None:
+            import sys
+            from .utils import ExitCodes
+
+            click.echo(
+                f"✗ Current profile '{current}' not found. "
+                "Use 'slcli config use' to select an existing profile or 'slcli logout --all'.",
+                err=True,
+            )
+            sys.exit(ExitCodes.NOT_FOUND)
         if not force:
             if not questionary.confirm(
                 f"Remove current profile '{current}'?",
@@ -559,7 +571,7 @@ def logout(profile: Optional[str], remove_all: bool, force: bool) -> None:
                 click.echo("Aborted.")
                 return
 
-        removed_profiles = [cfg.profiles[current]]
+        removed_profiles = [current_profile]
 
     cleaned_profiles = 0
     for removed_profile in removed_profiles:
@@ -590,8 +602,12 @@ def logout(profile: Optional[str], remove_all: bool, force: bool) -> None:
             cleaned_profiles += 1
 
     if remove_all:
-        cfg.current_profile = None
-        cfg.save()
+        if cfg.current_profile is not None:
+            cfg.current_profile = None
+            try:
+                cfg.save()
+            except RuntimeError as exc:
+                raise click.ClickException(f"Could not clear the current profile: {exc}.") from exc
         click.echo("✓ All profiles removed.")
     else:
         removed_profile = removed_profiles[0]
@@ -602,7 +618,12 @@ def logout(profile: Optional[str], remove_all: bool, force: bool) -> None:
 
 @cli.command()
 @click.option("--format", "-f", type=click.Choice(["table", "json"]), default="table")
-@click.option("--skip-health", is_flag=True, default=False, help="Skip live service health checks.")
+@click.option(
+    "--skip-health",
+    is_flag=True,
+    default=False,
+    help="Show configured status without reading credentials or checking live service health.",
+)
 @click.option(
     "--debug", is_flag=True, default=False, help="Show HTTP request/response debug output."
 )

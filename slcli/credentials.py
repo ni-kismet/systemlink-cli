@@ -74,7 +74,7 @@ def _security_error(result: subprocess.CompletedProcess[str]) -> str:
 def _macos_get(profile_id: str, credential: str) -> Optional[str]:
     """Read one generic password using the macOS Security CLI."""
     executable = _security_executable()
-    result = subprocess.run(
+    result = _run_security(
         [
             executable,
             "find-generic-password",
@@ -113,7 +113,7 @@ def _macos_set(profile_id: str, credential: str, value: str) -> None:
             value,
         )
     )
-    result = subprocess.run(
+    result = _run_security(
         [executable, "-i"],
         capture_output=True,
         check=False,
@@ -126,7 +126,7 @@ def _macos_set(profile_id: str, credential: str, value: str) -> None:
 
 def _macos_delete_account(account: str) -> None:
     """Delete a generic password account from the macOS Keychain."""
-    result = subprocess.run(
+    result = _run_security(
         [
             _security_executable(),
             "delete-generic-password",
@@ -152,6 +152,17 @@ def _macos_delete_account(account: str) -> None:
 def _macos_delete(profile_id: str, credential: str) -> None:
     """Delete a profile credential from the macOS Keychain."""
     _macos_delete_account(credential_account(profile_id, credential))
+
+
+def _run_security(*args: Any, **kwargs: Any) -> subprocess.CompletedProcess[str]:
+    """Run the native credential command using the credential-store error contract."""
+    try:
+        return subprocess.run(*args, **kwargs)
+    except OSError as exc:
+        raise CredentialStoreUnavailable(
+            "Could not launch the macOS credential store command. "
+            "Use --credential-store file or set SLCLI_API_KEY."
+        ) from exc
 
 
 def _get_keyring_module() -> Any:
@@ -244,7 +255,10 @@ def set_credential(profile_id: str, credential: str, value: str, store: str = "o
             profile.pkce_credentials = credentials
         else:
             raise CredentialStoreError(f"Unsupported file credential: {credential}")
-        config.save()
+        try:
+            config.save()
+        except RuntimeError as exc:
+            raise CredentialStoreError("Could not save the credential to the config file.") from exc
     elif platform.system() == "Darwin":
         _macos_set(profile_id, credential, value)
     else:
@@ -269,7 +283,12 @@ def delete_credential(profile_id: str, credential: str, store: str = "os") -> No
             profile.api_key = ""
         elif credential == "pkce":
             profile.pkce_credentials = {}
-        config.save()
+        try:
+            config.save()
+        except RuntimeError as exc:
+            raise CredentialStoreError(
+                "Could not remove the credential from the config file."
+            ) from exc
     elif platform.system() == "Darwin":
         _macos_delete(profile_id, credential)
     else:
@@ -330,6 +349,11 @@ def delete_profile_credentials(
 
 def finish_pending_profile_deletion(config: ProfileConfig, record: dict[str, str]) -> None:
     """Finish credential cleanup, retaining its record until removal is saved."""
+    if any(profile.credential_id == record["id"] for profile in config.profiles.values()):
+        raise CredentialStoreError(
+            "Pending cleanup references an active profile. Run 'slcli login' for that "
+            "profile to replace its credential before retrying cleanup."
+        )
     delete_profile_credentials(record["id"], record["store"], record["name"], record["auth-mode"])
     pending = config.settings[PENDING_DELETIONS_SETTING]
     pending.remove(record)

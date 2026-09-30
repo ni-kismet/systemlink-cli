@@ -473,6 +473,94 @@ def test_logout_removes_os_credentials(monkeypatch: Any, tmp_path: Any) -> None:
     delete_credentials.assert_called_once_with("profile-id", "os", "test", "api-key")
 
 
+def test_logout_current_ignores_unrelated_pending_cleanup(monkeypatch: Any, tmp_path: Any) -> None:
+    """Default logout does not retry a different profile's pending cleanup."""
+    import json
+    from unittest.mock import MagicMock
+    from slcli.credentials import CredentialStoreError
+
+    record = {"id": "old-id", "name": "other", "store": "os", "auth-mode": "api-key"}
+    config_file = tmp_path / "config.json"
+    config_file.write_text(
+        json.dumps(
+            {
+                "current-profile": "dev",
+                "profiles": {"dev": {"id": "dev-id", "server": "https://example.com"}},
+                "pending-credential-deletions": [record],
+            }
+        )
+    )
+    monkeypatch.setattr(
+        "slcli.profiles.ProfileConfig.get_config_path", classmethod(lambda cls: config_file)
+    )
+
+    def delete(profile_id: str, *_args: Any) -> None:
+        if profile_id == "old-id":
+            raise CredentialStoreError("locked")
+
+    delete_mock = MagicMock(side_effect=delete)
+    monkeypatch.setattr("slcli.credentials.delete_profile_credentials", delete_mock)
+    result = CliRunner().invoke(cli, ["logout", "--force"])
+
+    assert result.exit_code == 0, result.output
+    delete_mock.assert_called_once_with("dev-id", "os", "dev", "api-key")
+    assert json.loads(config_file.read_text())["pending-credential-deletions"] == [record]
+
+
+def test_logout_stale_current_profile_reports_error(monkeypatch: Any, tmp_path: Any) -> None:
+    """A stale current selection returns guidance instead of raising KeyError."""
+    import json
+    from unittest.mock import MagicMock
+
+    config_file = tmp_path / "config.json"
+    config_file.write_text(json.dumps({"current-profile": "missing", "profiles": {}}))
+    monkeypatch.setattr(
+        "slcli.profiles.ProfileConfig.get_config_path", classmethod(lambda cls: config_file)
+    )
+    confirm = MagicMock()
+    monkeypatch.setattr("slcli.main.questionary.confirm", confirm)
+    result = CliRunner().invoke(cli, ["logout"])
+
+    assert result.exit_code == ExitCodes.NOT_FOUND
+    assert "Current profile 'missing' not found" in result.output
+    confirm.assert_not_called()
+
+
+def test_logout_all_does_not_save_after_completed_deletion(monkeypatch: Any, tmp_path: Any) -> None:
+    """Removing the last profile needs only the two transactional writes."""
+    import json
+    from unittest.mock import MagicMock
+    from slcli.profiles import ProfileConfig
+
+    config_file = tmp_path / "config.json"
+    config_file.write_text(
+        json.dumps(
+            {
+                "current-profile": "dev",
+                "profiles": {"dev": {"id": "dev-id", "server": "https://example.com"}},
+            }
+        )
+    )
+    monkeypatch.setattr(ProfileConfig, "get_config_path", classmethod(lambda cls: config_file))
+    original_save = ProfileConfig.save
+    saves = 0
+
+    def save(config: ProfileConfig) -> None:
+        nonlocal saves
+        saves += 1
+        if saves > 2:
+            raise RuntimeError("disk unavailable")
+        original_save(config)
+
+    monkeypatch.setattr(ProfileConfig, "save", save)
+    monkeypatch.setattr("slcli.credentials.delete_profile_credentials", MagicMock())
+    result = CliRunner().invoke(cli, ["logout", "--all", "--force"])
+
+    assert result.exit_code == 0, result.output
+    assert saves == 2
+    assert json.loads(config_file.read_text()).get("current-profile") is None
+
+
 def test_logout_file_api_key_profile_cleans_legacy_tokens(monkeypatch: Any, tmp_path: Any) -> None:
     """Logout supplies the old PKCE account name even for a current API-key profile."""
     import json

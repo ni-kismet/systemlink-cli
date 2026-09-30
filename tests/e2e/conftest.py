@@ -200,6 +200,14 @@ def selected_platform(pytestconfig: Any) -> str:
     return _get_requested_platform(pytestconfig)
 
 
+@pytest.fixture(scope="session")
+def selected_platform_config(
+    e2e_config: Dict[str, Any], selected_platform: str
+) -> Optional[Dict[str, Any]]:
+    """Return the configured server selected for generic E2E workflows."""
+    return _select_platform_config(e2e_config, selected_platform)
+
+
 @pytest.fixture(scope="session", autouse=True)
 def setup_e2e_environment(e2e_config: Dict[str, Any]) -> Generator[None, None, None]:
     """Set up environment for E2E tests.

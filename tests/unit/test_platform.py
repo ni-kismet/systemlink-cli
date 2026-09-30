@@ -1020,6 +1020,40 @@ class TestRequireFeature:
 class TestGetPlatformInfo:
     """Tests for get_platform_info function."""
 
+    @pytest.mark.parametrize("auth_mode", ["api-key", "pkce"])
+    @pytest.mark.parametrize("env_override", [False, True])
+    def test_skip_health_does_not_resolve_credentials(
+        self, monkeypatch: Any, auth_mode: str, env_override: bool
+    ) -> None:
+        """Metadata-only info cannot unlock a store or refresh an expired PKCE token."""
+        from slcli.profiles import Profile
+
+        profile = Profile(
+            name="team:os",
+            server="https://example.com",
+            auth_mode=auth_mode,
+            credential_store="os",
+        )
+        monkeypatch.delenv("SLCLI_API_KEY", raising=False)
+        monkeypatch.delenv("SYSTEMLINK_API_KEY", raising=False)
+        if env_override:
+            monkeypatch.setenv("SLCLI_API_KEY", "env-key")
+        monkeypatch.setattr("slcli.profiles.get_active_profile", lambda: profile)
+        resolve = MagicMock(side_effect=AssertionError("credential read"))
+        monkeypatch.setattr("slcli.utils.get_api_key_resolution", resolve)
+        health = MagicMock(side_effect=AssertionError("network health check"))
+        monkeypatch.setattr("slcli.platform._get_service_status_snapshot", health)
+
+        result = get_platform_info(skip_health=True)
+
+        suffix = "os:pkce" if auth_mode == "pkce" else "os"
+        expected_source = "env:SLCLI_API_KEY" if env_override else f"profile:team%3Aos:{suffix}"
+        assert result["api_key_source"] == expected_source
+        assert result["logged_in"] is True
+        assert result["auth_valid"] is None
+        resolve.assert_not_called()
+        health.assert_not_called()
+
     def test_get_platform_info_sle(self) -> None:
         """Test getting platform info for SLE with service details."""
         from slcli.profiles import Profile

@@ -902,12 +902,15 @@ def get_platform_info(skip_health: bool = False) -> Dict[str, Any]:
     """Get detailed information about the current platform configuration.
 
     Args:
-        skip_health: If True, skip live service health checks.
+        skip_health: If True, report configured status without reading credentials or
+            performing live service health checks. Stored credentials are not verified.
 
     Returns:
         Dictionary with platform info including URL, platform type, and services.
     """
     from .utils import (
+        _get_env_override,
+        _profile_source,
         get_api_key_resolution,
         get_base_url_resolution,
         get_web_url_resolution,
@@ -930,19 +933,35 @@ def get_platform_info(skip_health: bool = False) -> Dict[str, Any]:
         web_url = "Not configured"
         web_url_source = "unresolved"
 
-    try:
-        api_key_resolution = get_api_key_resolution(emit_error=False)
-        api_key = api_key_resolution.value
-        api_key_source = api_key_resolution.source
-        logged_in = bool(api_key)
-    except Exception:
-        api_key_source = "unresolved"
-        logged_in = False
-
     # Get the platform stored on the active profile.
     from .profiles import get_active_profile
 
     active_profile = get_active_profile()
+    api_key_source = "unresolved"
+    logged_in = False
+    if skip_health:
+        override = _get_env_override(("SLCLI_API_KEY", "SYSTEMLINK_API_KEY"))
+        if override is not None:
+            api_key_source = override.source
+            logged_in = True
+        elif active_profile:
+            store = active_profile.credential_store
+            if active_profile.auth_mode == "pkce":
+                logged_in = store == "os" or bool(active_profile.pkce_credentials)
+                suffix = f"{store}:pkce"
+            else:
+                logged_in = bool(active_profile.api_key) or store == "os"
+                suffix = "file" if active_profile.api_key else store
+            if logged_in:
+                api_key_source = _profile_source(active_profile.name, suffix)
+    else:
+        try:
+            api_key_resolution = get_api_key_resolution(emit_error=False)
+            api_key_source = api_key_resolution.source
+            logged_in = bool(api_key_resolution.value)
+        except Exception:
+            pass
+
     if active_profile and active_profile.platform:
         stored_platform = active_profile.platform
     else:
