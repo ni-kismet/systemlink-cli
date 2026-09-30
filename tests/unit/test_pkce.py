@@ -269,22 +269,26 @@ def test_pkce_credentials_are_stored_as_one_bundle(monkeypatch: Any) -> None:
     assert "api-key" not in json.dumps({"auth-mode": "pkce"})
 
 
-@pytest.mark.parametrize("bundle_text", ['["not an object"]', '"not an object"'])
+@pytest.mark.parametrize(
+    "bundle_text", ['["not an object"]', '"not an object"', '{"access-token": []}']
+)
 def test_get_pkce_access_token_rejects_non_object_bundle(
     monkeypatch: Any, bundle_text: str
 ) -> None:
-    """Valid JSON arrays and strings are rejected as malformed credential bundles."""
+    """Invalid shapes and token types are rejected as malformed bundles."""
     monkeypatch.setattr("slcli.pkce.get_credential", lambda *_args, **_kwargs: bundle_text)
 
     with pytest.raises(PkceError, match="Stored PKCE credentials are invalid"):
         get_pkce_access_token("test")
 
 
-@pytest.mark.parametrize("bundle_text", ['["not an object"]', '"not an object"'])
+@pytest.mark.parametrize(
+    "bundle_text", ['["not an object"]', '"not an object"', '{"refresh-token": []}']
+)
 def test_refresh_pkce_credentials_rejects_non_object_bundle(
     monkeypatch: Any, bundle_text: str
 ) -> None:
-    """Refresh reports a controlled PKCE error for non-object JSON bundles."""
+    """Refresh reports a controlled PKCE error for invalid bundles."""
     monkeypatch.setattr("slcli.pkce.get_credential", lambda *_args, **_kwargs: bundle_text)
 
     with pytest.raises(PkceError, match="Stored PKCE credentials are invalid"):

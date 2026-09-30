@@ -507,6 +507,8 @@ def get_pkce_access_token(profile_id: str, store: str = "os") -> Optional[str]:
         if not isinstance(bundle, dict):
             raise ValueError("PKCE credential bundle must be an object")
         access_token = bundle.get("access-token")
+        if access_token is not None and not isinstance(access_token, str):
+            raise ValueError("PKCE access token must be a string")
         expires_at = bundle.get("access-expires-at")
         if access_token and expires_at is not None and float(expires_at) <= time.time() + 60:
             return None
@@ -530,6 +532,8 @@ def refresh_pkce_credentials(
         if not isinstance(bundle, dict):
             raise ValueError("PKCE credential bundle must be an object")
         refresh_token = bundle.get("refresh-token")
+        if refresh_token is not None and not isinstance(refresh_token, str):
+            raise ValueError("PKCE refresh token must be a string")
     except (TypeError, ValueError, json.JSONDecodeError) as exc:
         raise PkceError(
             "Stored PKCE credentials are invalid. Run 'slcli login --auth pkce'."

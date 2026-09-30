@@ -507,10 +507,10 @@ def test_logout_file_api_key_profile_cleans_legacy_tokens(monkeypatch: Any, tmp_
     cleanup.assert_called_once_with("profile-id", "file", "test", "api-key")
 
 
-def test_logout_keeps_profile_when_credential_cleanup_fails(
+def test_logout_keeps_pending_record_when_credential_cleanup_fails(
     monkeypatch: Any, tmp_path: Any
 ) -> None:
-    """A cleanup failure leaves profile metadata so the operation can be retried."""
+    """A cleanup failure leaves a persisted credential ID for retry."""
     import json
     from unittest.mock import MagicMock
 
@@ -542,7 +542,9 @@ def test_logout_keeps_profile_when_credential_cleanup_fails(
     result = CliRunner().invoke(cli, ["logout", "--force"])
 
     assert result.exit_code != 0
-    assert "test" in json.loads(config_file.read_text())["profiles"]
+    saved = json.loads(config_file.read_text())
+    assert "test" not in saved.get("profiles", {})
+    assert saved["pending-credential-deletions"][0]["id"] == "profile-id"
 
 
 def test_logout_does_not_delete_credentials_when_config_save_fails(
@@ -635,9 +637,16 @@ def test_logout_all_persists_successful_cleanup_before_later_failure(
     saved = json.loads(config_file.read_text())
     assert result.exit_code != 0
     assert "One earlier profile was removed" in error_messages[0]
-    assert saved["profiles"].keys() == {"second"}
-    assert saved["current-profile"] == "second"
+    assert "profiles" not in saved
+    assert saved["pending-credential-deletions"][0]["id"] == "second-id"
     assert delete_credentials.call_count == 2
+
+    delete_credentials.side_effect = None
+    retry = CliRunner().invoke(cli, ["logout", "--all", "--force"])
+
+    assert retry.exit_code == 0
+    assert "pending-credential-deletions" not in json.loads(config_file.read_text())
+    assert delete_credentials.call_count == 3
 
 
 def test_info_json(monkeypatch: Any, tmp_path: Any) -> None:

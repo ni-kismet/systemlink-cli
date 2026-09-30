@@ -498,6 +498,16 @@ def logout(profile: Optional[str], remove_all: bool, force: bool) -> None:
     from .profiles import Profile, ProfileConfig
 
     cfg = ProfileConfig.load()
+    from .credentials import (
+        CredentialStoreError,
+        delete_profile_with_credentials,
+        retry_pending_profile_deletions,
+    )
+
+    try:
+        completed = retry_pending_profile_deletions(cfg, None if remove_all else profile)
+    except (CredentialStoreError, RuntimeError) as exc:
+        raise click.ClickException(f"Could not finish pending credential deletion: {exc}.") from exc
     removed_profiles: list[Profile] = []
 
     if remove_all:
@@ -515,6 +525,9 @@ def logout(profile: Optional[str], remove_all: bool, force: bool) -> None:
     elif profile:
         # Remove specific profile
         if profile not in cfg.profiles:
+            if profile in completed:
+                click.echo(f"✓ Profile '{profile}' removed.")
+                return
             click.echo(f"✗ Profile '{profile}' not found.", err=True)
             return
 
@@ -531,6 +544,9 @@ def logout(profile: Optional[str], remove_all: bool, force: bool) -> None:
     else:
         # Remove current profile
         if not cfg.current_profile:
+            if completed:
+                click.echo("✓ Pending profile removal completed.")
+                return
             click.echo("No current profile set.", err=True)
             return
 
@@ -545,40 +561,11 @@ def logout(profile: Optional[str], remove_all: bool, force: bool) -> None:
 
         removed_profiles = [cfg.profiles[current]]
 
-    from .credentials import CredentialStoreError, delete_profile_credentials
-
     cleaned_profiles = 0
     for removed_profile in removed_profiles:
-        previous_current_profile = cfg.current_profile
-        cfg.delete_profile(removed_profile.name)
         try:
-            cfg.save()
-        except RuntimeError as exc:
-            cfg.profiles[removed_profile.name] = removed_profile
-            cfg.current_profile = previous_current_profile
-            raise click.ClickException(
-                f"Could not save profile removal for '{removed_profile.name}': {exc}. "
-                "Credentials were not removed."
-            ) from exc
-
-        try:
-            delete_profile_credentials(
-                removed_profile.credential_id,
-                removed_profile.credential_store,
-                removed_profile.name,
-                removed_profile.auth_mode,
-            )
+            delete_profile_with_credentials(cfg, removed_profile)
         except CredentialStoreError as exc:
-            cfg.profiles[removed_profile.name] = removed_profile
-            cfg.current_profile = previous_current_profile
-            try:
-                cfg.save()
-            except RuntimeError as rollback_exc:
-                raise click.ClickException(
-                    f"Could not remove credentials for '{removed_profile.name}': {exc}. "
-                    f"Could not restore its profile metadata: {rollback_exc}. "
-                    f"Credential ID: {removed_profile.credential_id}."
-                ) from rollback_exc
             if remove_all:
                 if cleaned_profiles == 0:
                     progress = "No profiles were removed. "
@@ -588,11 +575,16 @@ def logout(profile: Optional[str], remove_all: bool, force: bool) -> None:
                     progress = f"{cleaned_profiles} earlier profiles were removed. "
                 raise click.ClickException(
                     f"Could not remove credentials for '{removed_profile.name}': {exc}. "
-                    f"{progress}The failed and remaining profiles were restored."
+                    f"{progress}Deletion is pending; retry logout --all."
                 ) from exc
             raise click.ClickException(
                 f"Could not remove credentials for '{removed_profile.name}': {exc}. "
-                "Profile metadata was restored; resolve the credential-store issue and retry."
+                "Deletion is pending; resolve the credential-store issue and retry logout."
+            ) from exc
+        except RuntimeError as exc:
+            raise click.ClickException(
+                f"Could not save profile removal for '{removed_profile.name}': {exc}. "
+                "Retry logout to finish any pending cleanup."
             ) from exc
         if remove_all:
             cleaned_profiles += 1

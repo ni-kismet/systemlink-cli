@@ -21,6 +21,7 @@ LEGACY_PKCE_CREDENTIALS = (
     "session-key",
     "session-expires-at",
 )
+PENDING_DELETIONS_SETTING = "pending-credential-deletions"
 
 
 class CredentialStoreError(RuntimeError):
@@ -325,3 +326,50 @@ def delete_profile_credentials(
         )
         delete_credential(profile_id, inactive_credential)
         delete_credential(profile_id, active_credential)
+
+
+def finish_pending_profile_deletion(config: ProfileConfig, record: dict[str, str]) -> None:
+    """Finish credential cleanup, retaining its record until removal is saved."""
+    delete_profile_credentials(record["id"], record["store"], record["name"], record["auth-mode"])
+    pending = config.settings[PENDING_DELETIONS_SETTING]
+    pending.remove(record)
+    if not pending:
+        config.settings.pop(PENDING_DELETIONS_SETTING)
+    try:
+        config.save()
+    except RuntimeError:
+        config.settings.setdefault(PENDING_DELETIONS_SETTING, []).append(record)
+        raise
+
+
+def retry_pending_profile_deletions(config: ProfileConfig, name: Optional[str] = None) -> list[str]:
+    """Retry persisted removals after an interrupted cleanup."""
+    completed = []
+    for record in list(config.settings.get(PENDING_DELETIONS_SETTING, [])):
+        if name is None or record["name"] == name:
+            finish_pending_profile_deletion(config, record)
+            completed.append(record["name"])
+    return completed
+
+
+def delete_profile_with_credentials(config: ProfileConfig, profile: Profile) -> None:
+    """Persist a recoverable profile deletion before removing its credentials."""
+    record = {
+        "id": profile.credential_id,
+        "name": profile.name,
+        "store": profile.credential_store,
+        "auth-mode": profile.auth_mode,
+    }
+    previous_current_profile = config.current_profile
+    config.settings.setdefault(PENDING_DELETIONS_SETTING, []).append(record)
+    config.delete_profile(profile.name)
+    try:
+        config.save()
+    except RuntimeError:
+        config.profiles[profile.name] = profile
+        config.current_profile = previous_current_profile
+        config.settings[PENDING_DELETIONS_SETTING].remove(record)
+        if not config.settings[PENDING_DELETIONS_SETTING]:
+            config.settings.pop(PENDING_DELETIONS_SETTING)
+        raise
+    finish_pending_profile_deletion(config, record)

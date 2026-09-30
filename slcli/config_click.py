@@ -435,7 +435,12 @@ def _add_profile_impl(
         credential_store=credential_store,
     )
     if previous_profile:
-        new_profile.credential_id = previous_profile.credential_id
+        if previous_profile.credential_store == "os" and credential_store == "os":
+            from uuid import uuid4
+
+            new_profile.credential_id = str(uuid4())
+        else:
+            new_profile.credential_id = previous_profile.credential_id
 
     def restore_previous_profile(reason: str, error: Exception) -> NoReturn:
         if previous_profile is None:
@@ -476,13 +481,8 @@ def _add_profile_impl(
             isinstance(error, PkceError) and isinstance(error.__cause__, CredentialStoreError)
         )
 
-    moving_file_credentials_to_os = (
-        previous_profile is not None
-        and previous_profile.credential_store == "file"
-        and new_profile.credential_store == "os"
-    )
     staged_os_credentials = False
-    if moving_file_credentials_to_os:
+    if new_profile.credential_store == "os":
         try:
             store_profile_credentials("os")
             staged_os_credentials = True
@@ -507,6 +507,25 @@ def _add_profile_impl(
                 err=True,
             )
 
+    if new_profile.credential_store == "file" and auth_mode == "pkce" and pkce_result is not None:
+        new_profile.pkce_credentials = {
+            "access-token": pkce_result.access_token,
+            "refresh-token": pkce_result.refresh_token,
+            "access-expires-at": pkce_result.expires_at,
+        }
+
+    replacement_record = None
+    if previous_profile and previous_profile.credential_store == "os":
+        from .credentials import PENDING_DELETIONS_SETTING
+
+        replacement_record = {
+            "id": previous_profile.credential_id,
+            "name": previous_profile.name,
+            "store": "os",
+            "auth-mode": previous_profile.auth_mode,
+        }
+        cfg.settings.setdefault(PENDING_DELETIONS_SETTING, []).append(replacement_record)
+
     cfg.add_profile(new_profile, set_current=set_current)
     if staged_os_credentials:
         try:
@@ -526,6 +545,10 @@ def _add_profile_impl(
             else:
                 cfg.profiles[profile] = previous_profile
             cfg.current_profile = previous_current_profile
+            if replacement_record:
+                cfg.settings[PENDING_DELETIONS_SETTING].remove(replacement_record)
+                if not cfg.settings[PENDING_DELETIONS_SETTING]:
+                    cfg.settings.pop(PENDING_DELETIONS_SETTING)
             try:
                 cfg.save()
             except RuntimeError as rollback_exc:
@@ -546,59 +569,32 @@ def _add_profile_impl(
                 ExitCodes.GENERAL_ERROR,
             )
     else:
-        cfg.save()
-
-    try:
-        if not staged_os_credentials:
-            store_profile_credentials(new_profile.credential_store)
-    except Exception as exc:
-        if new_profile.credential_store != "os" or not is_os_store_error(exc):
-            restore_previous_profile("Could not store credentials", exc)
-
-        click.echo(
-            f"⚠️  OS credential store unavailable ({exc}); storing this profile in the config file.",
-            err=True,
-        )
-        new_profile.credential_store = "file"
         try:
             cfg.save()
-        except RuntimeError as fallback_save_exc:
-            restore_previous_profile("Could not save file-backed profile", fallback_save_exc)
+        except RuntimeError as exc:
+            if replacement_record:
+                cfg.settings[PENDING_DELETIONS_SETTING].remove(replacement_record)
+                if not cfg.settings[PENDING_DELETIONS_SETTING]:
+                    cfg.settings.pop(PENDING_DELETIONS_SETTING)
+            restore_previous_profile("Could not save the profile", exc)
+
+    if replacement_record:
+        from .credentials import finish_pending_profile_deletion
+
         try:
-            if auth_mode == "pkce" and pkce_result is not None:
-                from .pkce import save_pkce_credentials
+            finish_pending_profile_deletion(cfg, replacement_record)
+        except (CredentialStoreError, RuntimeError) as exc:
+            click.echo(
+                f"⚠️  Could not remove replaced credentials: {exc}. Retry cleanup with 'slcli logout'.",
+                err=True,
+            )
 
-                save_pkce_credentials(
-                    new_profile.credential_id,
-                    pkce_result.access_token,
-                    pkce_result.refresh_token,
-                    pkce_result.expires_at,
-                    "file",
-                )
-            elif auth_mode == "api-key":
-                set_credential(new_profile.credential_id, "api-key", api_key, "file")
-        except Exception as fallback_exc:
-            restore_previous_profile("Could not store credentials in the config file", fallback_exc)
-
-    if previous_profile and previous_profile.credential_store == "os":
-        from .credentials import delete_credential
-
-        if new_profile.credential_store == "file":
-            active_credential = "pkce" if previous_profile.auth_mode == "pkce" else "api-key"
-            obsolete_credentials = tuple(
-                credential for credential in ("api-key", "pkce") if credential != active_credential
-            ) + (active_credential,)
-        else:
-            obsolete_credentials = ("pkce",) if auth_mode == "api-key" else ("api-key",)
-        for obsolete in obsolete_credentials:
-            try:
-                delete_credential(previous_profile.credential_id, obsolete)
-            except CredentialStoreError as exc:
-                if new_profile.credential_store == "file":
-                    restore_previous_profile("Could not remove replaced credentials", exc)
-                click.echo(f"⚠️  Could not remove replaced credentials: {exc}", err=True)
-
-    if previous_profile and previous_profile.auth_mode == "pkce" and auth_mode == "api-key":
+    if (
+        previous_profile
+        and previous_profile.credential_store != "os"
+        and previous_profile.auth_mode == "pkce"
+        and auth_mode == "api-key"
+    ):
         from .credentials import delete_legacy_pkce_credentials
 
         try:
@@ -1023,12 +1019,28 @@ def register_config_commands(cli: Any) -> None:
     def delete_profile(name: str, force: bool) -> None:
         """Delete a profile."""
         from .utils import check_readonly_mode
+        from .credentials import (
+            CredentialStoreError,
+            delete_profile_with_credentials,
+            retry_pending_profile_deletions,
+        )
 
         check_readonly_mode("delete a profile")
 
         cfg = ProfileConfig.load()
 
+        try:
+            completed = retry_pending_profile_deletions(cfg, name)
+        except (CredentialStoreError, RuntimeError) as exc:
+            _exit_with_validation_error(
+                f"Could not finish deleting profile '{name}': {exc}. Retry when the store is available.",
+                ExitCodes.GENERAL_ERROR,
+            )
+
         if name not in cfg.profiles:
+            if completed:
+                click.echo(f"✓ Profile '{name}' deleted.")
+                return
             click.echo(f"✗ Profile '{name}' not found.", err=True)
             sys.exit(ExitCodes.NOT_FOUND)
 
@@ -1041,44 +1053,19 @@ def register_config_commands(cli: Any) -> None:
                 sys.exit(ExitCodes.GENERAL_ERROR)
 
         profile_to_delete = cfg.profiles[name]
-        previous_current_profile = cfg.current_profile
         was_current = cfg.current_profile == name
-        cfg.delete_profile(name)
         try:
-            cfg.save()
-        except RuntimeError as exc:
-            cfg.profiles[name] = profile_to_delete
-            cfg.current_profile = previous_current_profile
+            delete_profile_with_credentials(cfg, profile_to_delete)
+        except CredentialStoreError as exc:
             _exit_with_validation_error(
-                f"Could not save profile removal for '{name}': {exc}. "
-                "Credentials were not removed.",
+                f"Could not remove stored credentials: {exc}. Deletion is pending; "
+                f"retry 'slcli config delete {name} --force'.",
                 ExitCodes.GENERAL_ERROR,
             )
-
-        from .credentials import delete_profile_credentials
-
-        try:
-            delete_profile_credentials(
-                profile_to_delete.credential_id,
-                profile_to_delete.credential_store,
-                profile_to_delete.name,
-                profile_to_delete.auth_mode,
-            )
-        except CredentialStoreError as exc:
-            cfg.profiles[name] = profile_to_delete
-            cfg.current_profile = previous_current_profile
-            try:
-                cfg.save()
-            except RuntimeError as rollback_exc:
-                _exit_with_validation_error(
-                    f"Could not remove stored credentials: {exc}. "
-                    f"Could not restore profile metadata: {rollback_exc}. "
-                    f"Credential ID: {profile_to_delete.credential_id}.",
-                    ExitCodes.GENERAL_ERROR,
-                )
+        except RuntimeError as exc:
             _exit_with_validation_error(
-                f"Could not remove stored credentials: {exc}. Profile was not deleted; "
-                "resolve the credential-store issue and retry.",
+                f"Could not save profile removal for '{name}': {exc}. "
+                "Credentials were not removed or deletion is pending; retry the command.",
                 ExitCodes.GENERAL_ERROR,
             )
 
