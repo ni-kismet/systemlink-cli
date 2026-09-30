@@ -435,7 +435,7 @@ def _add_profile_impl(
         credential_store=credential_store,
     )
     if previous_profile:
-        if previous_profile.credential_store == "os" and credential_store == "os":
+        if previous_profile.credential_store == "os":
             from uuid import uuid4
 
             new_profile.credential_id = str(uuid4())

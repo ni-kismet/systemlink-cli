@@ -1219,7 +1219,7 @@ def test_profile_rollback_save_failure_reports_credential_id(
     assert exc_info.value.code == ExitCodes.GENERAL_ERROR
     output = capsys.readouterr()
     assert "Could not restore previous profile" in output.err
-    assert "Credential ID: existing-id" in output.err
+    assert "Credential ID: " in output.err
 
 
 def test_file_store_transition_retains_pending_cleanup_when_store_fails(
@@ -1259,14 +1259,22 @@ def test_file_store_transition_retains_pending_cleanup_when_store_fails(
             "services": {},
         },
     )
-    deleted: list[str] = []
+    deleted: list[tuple[str, str]] = []
+    os_credentials = {("profile-id", "api-key"): "old-os-key"}
+    fail_old_cleanup = True
 
-    def delete_credential(_profile_id: str, credential: str) -> None:
-        deleted.append(credential)
-        if credential == "api-key":
+    def delete_credential(profile_id: str, credential: str) -> None:
+        deleted.append((profile_id, credential))
+        if fail_old_cleanup and profile_id == "profile-id" and credential == "api-key":
             raise CredentialStoreError("Keychain locked")
+        os_credentials.pop((profile_id, credential), None)
+
+    def set_credential(profile_id: str, credential: str, value: str, store: str) -> None:
+        assert store == "os"
+        os_credentials[(profile_id, credential)] = value
 
     monkeypatch.setattr("slcli.credentials.delete_credential", delete_credential)
+    monkeypatch.setattr("slcli.config_click.set_credential", set_credential)
     monkeypatch.setattr("slcli.credentials.delete_legacy_pkce_credentials", MagicMock())
 
     _add_profile_impl(
@@ -1281,12 +1289,33 @@ def test_file_store_transition_retains_pending_cleanup_when_store_fails(
     )
 
     saved = json.loads(config_file.read_text())
-    assert deleted == ["pkce", "api-key"]
+    assert deleted == [("profile-id", "pkce"), ("profile-id", "api-key")]
     assert saved["current-profile"] == "dev"
     assert saved["profiles"]["dev"]["server"] == "https://new.example.com"
     assert saved["profiles"]["dev"]["credential-store"] == "file"
     assert saved["profiles"]["dev"]["api-key"] == VALID_API_KEY
     assert saved["pending-credential-deletions"][0]["id"] == "profile-id"
+    new_credential_id = saved["profiles"]["dev"]["id"]
+    assert new_credential_id != "profile-id"
+
+    secure = CliRunner().invoke(make_cli(), ["config", "secure", "--profile", "dev"])
+
+    assert secure.exit_code == 0, secure.output
+    saved = json.loads(config_file.read_text())
+    assert saved["profiles"]["dev"]["credential-store"] == "os"
+    assert saved["profiles"]["dev"]["id"] == new_credential_id
+    assert os_credentials[(new_credential_id, "api-key")] == VALID_API_KEY
+
+    fail_old_cleanup = False
+    cleanup = CliRunner().invoke(make_cli(), ["config", "cleanup"])
+
+    assert cleanup.exit_code == 0, cleanup.output
+    saved = json.loads(config_file.read_text())
+    assert saved["profiles"]["dev"]["id"] == new_credential_id
+    assert saved["profiles"]["dev"]["credential-store"] == "os"
+    assert "pending-credential-deletions" not in saved
+    assert os_credentials == {(new_credential_id, "api-key"): VALID_API_KEY}
+    assert all(profile_id == "profile-id" for profile_id, _ in deleted)
 
 
 class TestTrustedCertificates:
