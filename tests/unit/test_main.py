@@ -511,6 +511,46 @@ def test_logout_keeps_profile_when_credential_cleanup_fails(
     assert "test" in json.loads(config_file.read_text())["profiles"]
 
 
+def test_logout_does_not_delete_credentials_when_config_save_fails(
+    monkeypatch: Any, tmp_path: Any
+) -> None:
+    """A config write failure prevents destructive credential cleanup."""
+    import json
+    from unittest.mock import MagicMock
+
+    config_file = tmp_path / "config.json"
+    config_file.write_text(
+        json.dumps(
+            {
+                "current-profile": "test",
+                "profiles": {
+                    "test": {
+                        "id": "profile-id",
+                        "server": "https://example.test",
+                        "credential-store": "os",
+                    }
+                },
+            }
+        )
+    )
+    monkeypatch.setattr(
+        "slcli.profiles.ProfileConfig.get_config_path", classmethod(lambda cls: config_file)
+    )
+
+    def fail_save(_self: Any) -> None:
+        raise RuntimeError("config is read-only")
+
+    monkeypatch.setattr("slcli.profiles.ProfileConfig.save", fail_save)
+    delete_credentials = MagicMock()
+    monkeypatch.setattr("slcli.credentials.delete_profile_credentials", delete_credentials)
+
+    result = CliRunner().invoke(cli, ["logout", "--force"])
+
+    assert result.exit_code != 0
+    assert "test" in json.loads(config_file.read_text())["profiles"]
+    delete_credentials.assert_not_called()
+
+
 def test_logout_all_persists_successful_cleanup_before_later_failure(
     monkeypatch: Any, tmp_path: Any
 ) -> None:

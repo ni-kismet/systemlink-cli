@@ -549,6 +549,18 @@ def logout(profile: Optional[str], remove_all: bool, force: bool) -> None:
 
     cleaned_profiles = 0
     for removed_profile in removed_profiles:
+        previous_current_profile = cfg.current_profile
+        cfg.delete_profile(removed_profile.name)
+        try:
+            cfg.save()
+        except RuntimeError as exc:
+            cfg.profiles[removed_profile.name] = removed_profile
+            cfg.current_profile = previous_current_profile
+            raise click.ClickException(
+                f"Could not save profile removal for '{removed_profile.name}': {exc}. "
+                "Credentials were not removed."
+            ) from exc
+
         try:
             delete_profile_credentials(
                 removed_profile.credential_id,
@@ -556,6 +568,16 @@ def logout(profile: Optional[str], remove_all: bool, force: bool) -> None:
                 removed_profile.name if removed_profile.auth_mode == "pkce" else None,
             )
         except CredentialStoreError as exc:
+            cfg.profiles[removed_profile.name] = removed_profile
+            cfg.current_profile = previous_current_profile
+            try:
+                cfg.save()
+            except RuntimeError as rollback_exc:
+                raise click.ClickException(
+                    f"Could not remove credentials for '{removed_profile.name}': {exc}. "
+                    f"Could not restore its profile metadata: {rollback_exc}. "
+                    f"Credential ID: {removed_profile.credential_id}."
+                ) from rollback_exc
             if remove_all:
                 if cleaned_profiles == 0:
                     progress = "No profiles were removed. "
@@ -565,15 +587,13 @@ def logout(profile: Optional[str], remove_all: bool, force: bool) -> None:
                     progress = f"{cleaned_profiles} earlier profiles were removed. "
                 raise click.ClickException(
                     f"Could not remove credentials for '{removed_profile.name}': {exc}. "
-                    f"{progress}The failed and remaining profiles are still configured."
+                    f"{progress}The failed and remaining profiles were restored."
                 ) from exc
             raise click.ClickException(
                 f"Could not remove credentials for '{removed_profile.name}': {exc}. "
-                "Profiles were not removed; resolve the credential-store issue and retry."
+                "Profile metadata was restored; resolve the credential-store issue and retry."
             ) from exc
         if remove_all:
-            cfg.delete_profile(removed_profile.name)
-            cfg.save()
             cleaned_profiles += 1
 
     if remove_all:
@@ -582,8 +602,6 @@ def logout(profile: Optional[str], remove_all: bool, force: bool) -> None:
         click.echo("✓ All profiles removed.")
     else:
         removed_profile = removed_profiles[0]
-        cfg.delete_profile(removed_profile.name)
-        cfg.save()
         click.echo(f"✓ Profile '{removed_profile.name}' removed.")
         if cfg.current_profile:
             click.echo(f"  Current profile is now: {cfg.current_profile}")
