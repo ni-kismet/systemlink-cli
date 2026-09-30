@@ -538,7 +538,28 @@ def _add_profile_impl(
             err=True,
         )
         new_profile.credential_store = "file"
-        cfg.save()
+        try:
+            cfg.save()
+        except RuntimeError as fallback_save_exc:
+            if previous_profile is None:
+                cfg.profiles.pop(profile, None)
+            else:
+                cfg.profiles[profile] = previous_profile
+            cfg.current_profile = previous_current_profile
+            try:
+                cfg.save()
+            except RuntimeError as rollback_exc:
+                _exit_with_validation_error(
+                    f"Could not save file-backed profile: {fallback_save_exc}. "
+                    f"Could not restore previous profile: {rollback_exc}. "
+                    f"Credential ID: {new_profile.credential_id}.",
+                    ExitCodes.GENERAL_ERROR,
+                )
+            _exit_with_validation_error(
+                f"Could not save file-backed profile: {fallback_save_exc}. "
+                "The previous profile was restored.",
+                ExitCodes.GENERAL_ERROR,
+            )
         try:
             if auth_mode == "pkce" and pkce_result is not None:
                 from .pkce import save_pkce_credentials
@@ -1108,17 +1129,56 @@ def register_config_commands(cli: Any) -> None:
             click.echo("All selected profile credentials are already secured.")
             return
 
+        staged: list[tuple[Profile, str]] = []
+
+        def remove_staged_credentials() -> list[str]:
+            failures = []
+            from .credentials import delete_credential
+
+            for staged_profile, staged_credential in staged:
+                try:
+                    delete_credential(staged_profile.credential_id, staged_credential)
+                except CredentialStoreError as cleanup_exc:
+                    failures.append(f"{staged_profile.credential_id}: {cleanup_exc}")
+            return failures
+
         try:
             for profile_to_secure, credential, value in pending:
+                staged.append((profile_to_secure, credential))
                 set_credential(profile_to_secure.credential_id, credential, value, "os")
         except CredentialStoreError as exc:
-            _exit_with_validation_error(f"Could not secure profile credentials: {exc}.")
+            failures = remove_staged_credentials()
+            _exit_with_validation_error(
+                f"Could not secure profile credentials: {exc}. "
+                + (
+                    f"Could not remove staged credentials: {', '.join(failures)}."
+                    if failures
+                    else ""
+                )
+            )
 
         for profile_to_secure, _credential, _value in pending:
             profile_to_secure.credential_store = "os"
             profile_to_secure.api_key = ""
             profile_to_secure.pkce_credentials = {}
-        cfg.save()
+        try:
+            cfg.save()
+        except RuntimeError as exc:
+            for profile_to_secure, credential, value in pending:
+                profile_to_secure.credential_store = "file"
+                if credential == "api-key":
+                    profile_to_secure.api_key = value
+                else:
+                    profile_to_secure.pkce_credentials = json.loads(value)
+            failures = remove_staged_credentials()
+            _exit_with_validation_error(
+                f"Could not save secured profiles: {exc}. "
+                + (
+                    f"Could not remove staged credentials: {', '.join(failures)}."
+                    if failures
+                    else ""
+                )
+            )
         secured_names = sorted({profile_to_secure.name for profile_to_secure, _, _ in pending})
         click.echo(f"✓ Secured credentials for: {', '.join(secured_names)}")
 

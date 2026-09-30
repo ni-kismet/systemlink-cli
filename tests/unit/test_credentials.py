@@ -91,7 +91,7 @@ def test_macos_delete_ignores_missing_credential(monkeypatch: Any) -> None:
     monkeypatch.setattr(
         credentials.subprocess,
         "run",
-        lambda *_args, **_kwargs: subprocess.CompletedProcess([], 44, "", "item not found"),
+        lambda *_args, **_kwargs: subprocess.CompletedProcess([], 44, "", ""),
     )
 
     credentials._macos_delete("profile-id", "api-key")
@@ -156,6 +156,24 @@ def test_linux_rejects_non_secret_service_backend(monkeypatch: Any) -> None:
 
     with pytest.raises(credentials.CredentialStoreUnavailable, match="Secret Service"):
         credentials._get_keyring_module()
+
+
+def test_linux_selects_secret_service_from_chainer(monkeypatch: Any) -> None:
+    """An encrypted backend in a chain is selected without using plaintext fallbacks."""
+    import keyring
+    from keyring.backends.SecretService import Keyring
+    from keyring.backends.chainer import ChainerBackend
+
+    secret_service = object.__new__(Keyring)
+    chainer = object.__new__(ChainerBackend)
+    monkeypatch.setattr(ChainerBackend, "backends", [object(), secret_service])
+    monkeypatch.setattr(credentials.platform, "system", lambda: "Linux")
+    monkeypatch.setattr(keyring, "get_keyring", lambda: chainer)
+    select = MagicMock()
+    monkeypatch.setattr(keyring, "set_keyring", select)
+
+    assert credentials._get_keyring_module() is keyring
+    select.assert_called_once_with(secret_service)
 
 
 def test_keyring_read_and_delete_errors(monkeypatch: Any) -> None:
@@ -226,3 +244,18 @@ def test_delete_api_key_profile_removes_active_credential_last(monkeypatch: Any)
         "profile:profile-id:pkce",
         "profile:profile-id:api-key",
     ]
+
+
+def test_delete_file_profile_without_legacy_os_store(monkeypatch: Any) -> None:
+    """A file-backed profile can be removed when legacy OS storage is unavailable."""
+    monkeypatch.setattr(credentials.platform, "system", lambda: "Linux")
+    monkeypatch.setattr(
+        credentials,
+        "_get_keyring_module",
+        MagicMock(side_effect=credentials.CredentialStoreUnavailable("no store")),
+    )
+
+    credentials.delete_profile_credentials("profile-id", "file", "dev")
+
+    with pytest.raises(credentials.CredentialStoreUnavailable):
+        credentials.delete_profile_credentials("profile-id", "os", "dev")

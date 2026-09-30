@@ -141,6 +141,7 @@ def _macos_delete_account(account: str) -> None:
     details = result.stderr.lower()
     if (
         result.returncode
+        and result.returncode != 44
         and "could not be found" not in details
         and "item not found" not in details
     ):
@@ -165,6 +166,15 @@ def _get_keyring_module() -> Any:
 
     system = platform.system()
     backend_name = type(backend).__module__
+    if system == "Linux" and backend_name == "keyring.backends.chainer":
+        from keyring.backends.chainer import ChainerBackend
+
+        assert isinstance(backend, ChainerBackend)
+        for candidate in backend.backends:
+            if "SecretService" in type(candidate).__module__:
+                keyring.set_keyring(candidate)
+                backend_name = type(candidate).__module__
+                break
     if system == "Linux" and "SecretService" not in backend_name:
         raise CredentialStoreUnavailable(
             "Linux Secret Service is unavailable. Install and unlock a Secret Service, "
@@ -295,7 +305,12 @@ def delete_profile_credentials(
     """Delete current profile credentials and obsolete PKCE items when applicable."""
     if legacy_pkce_profile:
         for credential in LEGACY_PKCE_CREDENTIALS:
-            _delete_legacy_pkce_account(f"PKCE:{legacy_pkce_profile}:{credential}")
+            try:
+                _delete_legacy_pkce_account(f"PKCE:{legacy_pkce_profile}:{credential}")
+            except CredentialStoreUnavailable:
+                if store == "os":
+                    raise
+                break
     if store == "os":
         inactive_credential, active_credential = (
             ("api-key", "pkce") if legacy_pkce_profile else ("pkce", "api-key")

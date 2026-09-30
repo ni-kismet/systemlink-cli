@@ -605,6 +605,66 @@ class TestSecureProfiles:
         saved_profile = json.loads(config_file.read_text())["profiles"]["dev"]
         assert saved_profile["api-key"] == VALID_API_KEY
 
+    def test_secure_cleans_staged_credentials_when_save_fails(
+        self, tmp_path: Path, monkeypatch: Any
+    ) -> None:
+        """A failed config save preserves plaintext and removes staged OS credentials."""
+        from slcli.profiles import ProfileConfig
+
+        config_file = tmp_path / "config.json"
+        config_file.write_text(
+            json.dumps(
+                {
+                    "current-profile": "dev",
+                    "profiles": {
+                        "dev": {"server": "https://dev.example.com", "api-key": VALID_API_KEY}
+                    },
+                }
+            )
+        )
+        monkeypatch.setattr(ProfileConfig, "get_config_path", classmethod(lambda cls: config_file))
+        monkeypatch.setattr(ProfileConfig, "save", MagicMock(side_effect=RuntimeError("disk full")))
+        staged = MagicMock()
+        cleanup = MagicMock()
+        monkeypatch.setattr("slcli.config_click.set_credential", staged)
+        monkeypatch.setattr("slcli.credentials.delete_credential", cleanup)
+
+        result = CliRunner().invoke(make_cli(), ["config", "secure"])
+
+        assert result.exit_code != 0
+        assert "Could not save secured profiles" in result.output
+        assert json.loads(config_file.read_text())["profiles"]["dev"]["api-key"] == VALID_API_KEY
+        cleanup.assert_called_once_with(staged.call_args.args[0], "api-key")
+
+    def test_secure_cleans_earlier_staged_credentials_on_later_failure(
+        self, tmp_path: Path, monkeypatch: Any
+    ) -> None:
+        """A failed second write does not leave the first profile's OS entry behind."""
+        config_file = tmp_path / "config.json"
+        config_file.write_text(
+            json.dumps(
+                {
+                    "profiles": {
+                        "dev": {"server": "https://dev.example.com", "api-key": VALID_API_KEY},
+                        "prod": {"server": "https://prod.example.com", "api-key": VALID_API_KEY},
+                    }
+                }
+            )
+        )
+        monkeypatch.setattr(
+            "slcli.profiles.ProfileConfig.get_config_path", classmethod(lambda cls: config_file)
+        )
+        staged = MagicMock(side_effect=[None, CredentialStoreError("locked")])
+        cleanup = MagicMock()
+        monkeypatch.setattr("slcli.config_click.set_credential", staged)
+        monkeypatch.setattr("slcli.credentials.delete_credential", cleanup)
+
+        result = CliRunner().invoke(make_cli(), ["config", "secure", "--all"])
+
+        assert result.exit_code != 0
+        assert cleanup.call_count == 2
+        assert json.loads(config_file.read_text())["profiles"]["dev"]["api-key"] == VALID_API_KEY
+
     def test_view_of_os_profile_does_not_read_secret(
         self, tmp_path: Path, monkeypatch: Any
     ) -> None:
@@ -848,6 +908,69 @@ def test_add_profile_falls_back_to_file_when_os_write_fails(
     else:
         assert saved_profile["pkce-credentials"]["access-token"] == "access-token"
         assert saved_profile["pkce-credentials"]["refresh-token"] == "refresh-token"
+
+
+def test_fallback_save_failure_restores_previous_profile(tmp_path: Path, monkeypatch: Any) -> None:
+    """A failed fallback save restores the old profile instead of keeping an unusable OS one."""
+    from slcli.config_click import _add_profile_impl
+    from slcli.profiles import ProfileConfig
+
+    config_file = tmp_path / "config.json"
+    config_file.write_text(
+        json.dumps(
+            {
+                "current-profile": "dev",
+                "profiles": {
+                    "dev": {
+                        "id": "old-id",
+                        "server": "https://old.example.com",
+                        "credential-store": "os",
+                    }
+                },
+            }
+        )
+    )
+    monkeypatch.setattr(ProfileConfig, "get_config_path", classmethod(lambda cls: config_file))
+    monkeypatch.setattr(
+        "slcli.config_click.check_service_status",
+        lambda *_args, **_kwargs: {
+            "server_reachable": True,
+            "platform": "unknown",
+            "auth_valid": True,
+            "services": {},
+        },
+    )
+    monkeypatch.setattr(
+        "slcli.config_click.set_credential",
+        MagicMock(side_effect=CredentialStoreError("OS store unavailable")),
+    )
+    original_save = ProfileConfig.save
+    save_calls = 0
+
+    def fail_fallback_save(config: ProfileConfig) -> None:
+        nonlocal save_calls
+        save_calls += 1
+        if save_calls == 2:
+            raise RuntimeError("disk full")
+        original_save(config)
+
+    monkeypatch.setattr(ProfileConfig, "save", fail_fallback_save)
+
+    with pytest.raises(SystemExit) as exc_info:
+        _add_profile_impl(
+            profile="dev",
+            url="https://new.example.com",
+            api_key=VALID_API_KEY,
+            web_url="https://web.example.com",
+            workspace="",
+            set_current=True,
+            readonly=False,
+        )
+
+    assert exc_info.value.code == ExitCodes.GENERAL_ERROR
+    saved = json.loads(config_file.read_text())
+    assert saved["profiles"]["dev"]["server"] == "https://old.example.com"
+    assert saved["profiles"]["dev"]["credential-store"] == "os"
 
 
 def test_file_store_transition_restores_os_profile_when_cleanup_fails(
