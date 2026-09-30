@@ -243,12 +243,8 @@ def test_version_check_invalid_installed_version(monkeypatch: Any) -> None:
     assert "Invalid version" in result.output
 
 
-def test_version_command_skips_credential_migration(monkeypatch: Any) -> None:
-    """Version commands do not inspect SystemLink credentials."""
-    monkeypatch.setattr(
-        "slcli.profiles.has_keyring_credentials",
-        lambda: (_ for _ in ()).throw(AssertionError("credentials should not be inspected")),
-    )
+def test_version_command_does_not_require_credentials() -> None:
+    """Version commands work without configured SystemLink credentials."""
     runner = CliRunner()
 
     result = runner.invoke(cli, ["version"])

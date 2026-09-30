@@ -1,8 +1,7 @@
 """Unit test configuration - runs before any test collection or imports.
 
-Forces the keyring null backend to prevent macOS Keychain access on CI runners.
-Without this, macOS GitHub Actions runners hang for minutes per keyring call
-because the Keychain is locked and no user session exists.
+Forces the keyring null backend and blocks macOS Keychain subprocess calls in
+unit tests. Tests that cover credential storage explicitly mock the backend.
 
 Also patches network utilities to prevent real HTTP calls during tests.
 """
@@ -17,6 +16,17 @@ from keyring.backends.null import Keyring as NullKeyring
 # triggers a real keyring call. This is critical for macOS CI where
 # the default macOS Keychain backend blocks on a locked keychain.
 keyring.set_keyring(NullKeyring())
+
+
+@pytest.fixture(autouse=True)
+def prevent_macos_keychain_access(monkeypatch: pytest.MonkeyPatch) -> None:
+    """Prevent unit tests from reading or writing the developer's Keychain."""
+    from slcli import credentials
+
+    def unavailable() -> str:
+        raise credentials.CredentialStoreUnavailable("Keychain access is disabled in unit tests.")
+
+    monkeypatch.setattr(credentials, "_security_executable", unavailable)
 
 
 class MockResponse:

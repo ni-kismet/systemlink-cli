@@ -12,7 +12,6 @@ from typing import List, Optional, Tuple, Union
 from urllib.parse import urlparse
 
 import click as base_click
-import keyring
 import questionary
 
 from .alarm_click import register_alarm_commands
@@ -371,44 +370,6 @@ def cli(ctx: base_click.Context, version: bool, profile: Optional[str]) -> None:
     if profile:
         set_profile_override(profile)
 
-    # Check for mandatory migration BEFORE any command runs
-    # Skip migration check only for version flag and config migrate command
-    if ctx.invoked_subcommand not in (None, "config", "version"):
-        from .profiles import ProfileConfig, has_keyring_credentials, migrate_from_keyring
-
-        config_path = ProfileConfig.get_config_path()
-        if not config_path.exists() and has_keyring_credentials():
-            click.echo("⚠️  Migration Required")
-            click.echo("")
-            click.echo("slcli now uses profile-based configuration.")
-            click.echo("Existing keyring credentials detected and will be migrated to:")
-            click.echo(f"  {config_path}")
-            click.echo("")
-            click.echo("Migrating credentials...")
-
-            try:
-                migrated_profile = migrate_from_keyring(profile_name="default", delete_keyring=True)
-                if migrated_profile:
-                    click.echo(f"✓ Migrated credentials to profile 'default'")
-                    click.echo(f"  Server: {migrated_profile.server}")
-                    if migrated_profile.web_url:
-                        click.echo(f"  Web URL: {migrated_profile.web_url}")
-                    if migrated_profile.platform:
-                        click.echo(f"  Platform: {migrated_profile.platform}")
-                    click.echo("✓ Deleted keyring entries")
-                    click.echo("")
-                    click.echo("Migration complete! Continuing with your command...")
-                    click.echo("")
-                else:
-                    click.echo(
-                        "✗ Migration failed: No valid credentials found in keyring.", err=True
-                    )
-                    ctx.exit(1)
-            except Exception as e:
-                click.echo(f"✗ Migration failed: {e}", err=True)
-                click.echo("Run 'slcli config migrate' to try again.", err=True)
-                ctx.exit(1)
-
     if ctx.invoked_subcommand is None:
         click.echo(get_ascii_art())
         click.echo(ctx.get_help())
@@ -448,6 +409,14 @@ def ca_info() -> None:
         "(defaults to openid profile email offline_access)"
     ),
 )
+@click.option(
+    "--credential-store",
+    type=click.Choice(["os", "file"]),
+    default="os",
+    envvar="SLCLI_CREDENTIAL_STORE",
+    show_default=True,
+    help="Store credentials in the OS store or config file",
+)
 @click.option("--workspace", "-w", help="Default workspace for this profile")
 @click.option(
     "--set-current/--no-set-current",
@@ -475,6 +444,7 @@ def login(
     client_id: Optional[str],
     callback_port: Optional[int],
     scopes: tuple[str, ...],
+    credential_store: str,
     workspace: Optional[str],
     set_current: bool,
     readonly: bool,
@@ -486,7 +456,7 @@ def login(
     for the same functionality and more configuration options.
 
     Profiles allow you to configure multiple SystemLink environments and switch
-    between them. Credentials are stored in ~/.config/slcli/config.json.
+    between them. Credentials use the OS store by default.
 
     Examples:
         slcli login --profile dev
@@ -505,6 +475,7 @@ def login(
         client_id=client_id,
         callback_port=callback_port,
         scopes=scopes,
+        credential_store=credential_store,
         workspace=workspace,
         set_current=set_current,
         readonly=readonly,
@@ -522,24 +493,24 @@ def logout(profile: Optional[str], remove_all: bool, force: bool) -> None:
     By default, removes the current profile. Use --profile to remove a specific
     profile, or --all to remove all profiles.
 
-    Also cleans up any legacy keyring entries.
+    Removes API keys and PKCE credentials from the operating-system store.
     """
-    from .profiles import ProfileConfig
+    from .profiles import Profile, ProfileConfig
 
     cfg = ProfileConfig.load()
-    removed_profiles: list[str] = []
+    removed_profiles: list[Profile] = []
 
     if remove_all:
         if not force:
             if not questionary.confirm(
-                "Remove all profiles and legacy keyring entries?",
+                "Remove all profiles and their stored credentials?",
                 default=False,
             ).ask():
                 click.echo("Aborted.")
                 return
 
         # Clear all profiles
-        removed_profiles = list(cfg.profiles)
+        removed_profiles = list(cfg.profiles.values())
         cfg.profiles.clear()
         cfg.current_profile = None
         cfg.save()
@@ -559,8 +530,8 @@ def logout(profile: Optional[str], remove_all: bool, force: bool) -> None:
                 click.echo("Aborted.")
                 return
 
+        removed_profiles = [cfg.profiles[profile]]
         cfg.delete_profile(profile)
-        removed_profiles = [profile]
         cfg.save()
         click.echo(f"✓ Profile '{profile}' removed.")
 
@@ -579,33 +550,26 @@ def logout(profile: Optional[str], remove_all: bool, force: bool) -> None:
                 click.echo("Aborted.")
                 return
 
+        removed_profiles = [cfg.profiles[current]]
         cfg.delete_profile(current)
-        removed_profiles = [current]
         cfg.save()
         click.echo(f"✓ Profile '{current}' removed.")
         if cfg.current_profile:
             click.echo(f"  Current profile is now: {cfg.current_profile}")
 
-    # Also clean up legacy keyring entries
-    try:
-        from .pkce import delete_pkce_credentials
+    from .credentials import CredentialStoreError, delete_profile_credentials
 
-        for removed_profile in removed_profiles:
-            delete_pkce_credentials(removed_profile)
-    except Exception:
-        pass
-    try:
-        keyring.delete_password("systemlink-cli", "SYSTEMLINK_API_KEY")
-    except Exception:
-        pass
-    try:
-        keyring.delete_password("systemlink-cli", "SYSTEMLINK_API_URL")
-    except Exception:
-        pass
-    try:
-        keyring.delete_password("systemlink-cli", "SYSTEMLINK_CONFIG")
-    except Exception:
-        pass
+    for removed_profile in removed_profiles:
+        try:
+            delete_profile_credentials(
+                removed_profile.credential_id,
+                removed_profile.credential_store,
+                removed_profile.name if removed_profile.auth_mode == "pkce" else None,
+            )
+        except CredentialStoreError as exc:
+            click.echo(
+                f"⚠️  Could not remove credentials for '{removed_profile.name}': {exc}", err=True
+            )
 
 
 @cli.command()

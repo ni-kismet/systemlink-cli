@@ -80,7 +80,7 @@ def get_function_service_base_url() -> str:
             function_url if function_url.endswith("/nifunction") else f"{function_url}/nifunction"
         )
 
-    # Fallback to global SYSTEMLINK_API_URL (handled by get_base_url)
+    # Fall back to the active profile or API URL environment override.
     base_url = get_base_url()
     return f"{base_url}/nifunction"
 

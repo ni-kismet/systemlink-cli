@@ -1,10 +1,9 @@
 """Unit tests for policy CLI commands."""
 
 import json
-from typing import Any, Optional
+from typing import Any
 from unittest.mock import patch
 
-import keyring
 from click.testing import CliRunner
 
 from slcli.main import cli
@@ -38,13 +37,8 @@ class TestPolicyList:
 
     def test_list_policies_success(self, monkeypatch: Any) -> None:
         """Test successful policy listing."""
-
-        def mock_get_password(service: str, key: str) -> Optional[str]:
-            if key == "SYSTEMLINK_CONFIG":
-                return json.dumps({"api_url": "http://localhost", "api_key": "test"})
-            return None
-
-        monkeypatch.setattr(keyring, "get_password", mock_get_password)
+        monkeypatch.setenv("SLCLI_API_URL", "http://localhost")
+        monkeypatch.setenv("SLCLI_API_KEY", "test")
 
         cli_instance = make_cli()
         runner = CliRunner()
@@ -80,13 +74,8 @@ class TestPolicyList:
 
     def test_list_policies_json_format(self, monkeypatch: Any) -> None:
         """Test policy listing with JSON output."""
-
-        def mock_get_password(service: str, key: str) -> Optional[str]:
-            if key == "SYSTEMLINK_CONFIG":
-                return json.dumps({"api_url": "http://localhost", "api_key": "test"})
-            return None
-
-        monkeypatch.setattr(keyring, "get_password", mock_get_password)
+        monkeypatch.setenv("SLCLI_API_URL", "http://localhost")
+        monkeypatch.setenv("SLCLI_API_KEY", "test")
 
         cli_instance = make_cli()
         runner = CliRunner()
@@ -111,13 +100,8 @@ class TestPolicyList:
 
     def test_list_policies_with_type_filter(self, monkeypatch: Any) -> None:
         """Test policy listing with type filter."""
-
-        def mock_get_password(service: str, key: str) -> Optional[str]:
-            if key == "SYSTEMLINK_CONFIG":
-                return json.dumps({"api_url": "http://localhost", "api_key": "test"})
-            return None
-
-        monkeypatch.setattr(keyring, "get_password", mock_get_password)
+        monkeypatch.setenv("SLCLI_API_URL", "http://localhost")
+        monkeypatch.setenv("SLCLI_API_KEY", "test")
 
         cli_instance = make_cli()
         runner = CliRunner()
@@ -134,13 +118,8 @@ class TestPolicyList:
 
     def test_list_policies_empty(self, monkeypatch: Any) -> None:
         """Test policy listing when no policies exist."""
-
-        def mock_get_password(service: str, key: str) -> Optional[str]:
-            if key == "SYSTEMLINK_CONFIG":
-                return json.dumps({"api_url": "http://localhost", "api_key": "test"})
-            return None
-
-        monkeypatch.setattr(keyring, "get_password", mock_get_password)
+        monkeypatch.setenv("SLCLI_API_URL", "http://localhost")
+        monkeypatch.setenv("SLCLI_API_KEY", "test")
 
         cli_instance = make_cli()
         runner = CliRunner()
@@ -158,13 +137,8 @@ class TestPolicyGet:
 
     def test_get_policy_success(self, monkeypatch: Any) -> None:
         """Test successful policy retrieval."""
-
-        def mock_get_password(service: str, key: str) -> Optional[str]:
-            if key == "SYSTEMLINK_CONFIG":
-                return json.dumps({"api_url": "http://localhost", "api_key": "test"})
-            return None
-
-        monkeypatch.setattr(keyring, "get_password", mock_get_password)
+        monkeypatch.setenv("SLCLI_API_URL", "http://localhost")
+        monkeypatch.setenv("SLCLI_API_KEY", "test")
 
         cli_instance = make_cli()
         runner = CliRunner()
@@ -198,13 +172,8 @@ class TestPolicyGet:
 
     def test_get_policy_json_format(self, monkeypatch: Any) -> None:
         """Test policy get with JSON output."""
-
-        def mock_get_password(service: str, key: str) -> Optional[str]:
-            if key == "SYSTEMLINK_CONFIG":
-                return json.dumps({"api_url": "http://localhost", "api_key": "test"})
-            return None
-
-        monkeypatch.setattr(keyring, "get_password", mock_get_password)
+        monkeypatch.setenv("SLCLI_API_URL", "http://localhost")
+        monkeypatch.setenv("SLCLI_API_KEY", "test")
 
         cli_instance = make_cli()
         runner = CliRunner()
@@ -232,13 +201,8 @@ class TestPolicyCreate:
 
     def test_create_policy_from_template(self, monkeypatch: Any) -> None:
         """Test policy creation from a template with workspace."""
-
-        def mock_get_password(service: str, key: str) -> Optional[str]:
-            if key == "SYSTEMLINK_CONFIG":
-                return json.dumps({"api_url": "http://localhost", "api_key": "test"})
-            return None
-
-        monkeypatch.setattr(keyring, "get_password", mock_get_password)
+        monkeypatch.setenv("SLCLI_API_URL", "http://localhost")
+        monkeypatch.setenv("SLCLI_API_KEY", "test")
 
         cli_instance = make_cli()
         runner = CliRunner()
@@ -271,13 +235,8 @@ class TestPolicyDelete:
 
     def test_delete_policy_with_confirmation(self, monkeypatch: Any) -> None:
         """Test policy deletion with user confirmation."""
-
-        def mock_get_password(service: str, key: str) -> Optional[str]:
-            if key == "SYSTEMLINK_CONFIG":
-                return json.dumps({"api_url": "http://localhost", "api_key": "test"})
-            return None
-
-        monkeypatch.setattr(keyring, "get_password", mock_get_password)
+        monkeypatch.setenv("SLCLI_API_URL", "http://localhost")
+        monkeypatch.setenv("SLCLI_API_KEY", "test")
 
         cli_instance = make_cli()
         runner = CliRunner()
@@ -294,13 +253,8 @@ class TestPolicyDelete:
 
     def test_delete_policy_force(self, monkeypatch: Any) -> None:
         """Test policy deletion with --force flag."""
-
-        def mock_get_password(service: str, key: str) -> Optional[str]:
-            if key == "SYSTEMLINK_CONFIG":
-                return json.dumps({"api_url": "http://localhost", "api_key": "test"})
-            return None
-
-        monkeypatch.setattr(keyring, "get_password", mock_get_password)
+        monkeypatch.setenv("SLCLI_API_URL", "http://localhost")
+        monkeypatch.setenv("SLCLI_API_KEY", "test")
 
         cli_instance = make_cli()
         runner = CliRunner()
@@ -321,13 +275,8 @@ class TestTemplateList:
 
     def test_list_templates_success(self, monkeypatch: Any) -> None:
         """Test successful template listing."""
-
-        def mock_get_password(service: str, key: str) -> Optional[str]:
-            if key == "SYSTEMLINK_CONFIG":
-                return json.dumps({"api_url": "http://localhost", "api_key": "test"})
-            return None
-
-        monkeypatch.setattr(keyring, "get_password", mock_get_password)
+        monkeypatch.setenv("SLCLI_API_URL", "http://localhost")
+        monkeypatch.setenv("SLCLI_API_KEY", "test")
 
         cli_instance = make_cli()
         runner = CliRunner()
@@ -355,13 +304,8 @@ class TestTemplateList:
 
     def test_list_templates_json_format(self, monkeypatch: Any) -> None:
         """Test template listing with JSON output."""
-
-        def mock_get_password(service: str, key: str) -> Optional[str]:
-            if key == "SYSTEMLINK_CONFIG":
-                return json.dumps({"api_url": "http://localhost", "api_key": "test"})
-            return None
-
-        monkeypatch.setattr(keyring, "get_password", mock_get_password)
+        monkeypatch.setenv("SLCLI_API_URL", "http://localhost")
+        monkeypatch.setenv("SLCLI_API_KEY", "test")
 
         cli_instance = make_cli()
         runner = CliRunner()
@@ -390,13 +334,8 @@ class TestTemplateGet:
 
     def test_get_template_success(self, monkeypatch: Any) -> None:
         """Test successful template retrieval."""
-
-        def mock_get_password(service: str, key: str) -> Optional[str]:
-            if key == "SYSTEMLINK_CONFIG":
-                return json.dumps({"api_url": "http://localhost", "api_key": "test"})
-            return None
-
-        monkeypatch.setattr(keyring, "get_password", mock_get_password)
+        monkeypatch.setenv("SLCLI_API_URL", "http://localhost")
+        monkeypatch.setenv("SLCLI_API_KEY", "test")
 
         cli_instance = make_cli()
         runner = CliRunner()
@@ -432,12 +371,8 @@ class TestPolicyExportImportDiff:
     """Tests for policy diff command."""
 
     def test_diff_policies_basic(self, monkeypatch: Any) -> None:
-        def mock_get_password(service: str, key: str) -> Optional[str]:
-            if key == "SYSTEMLINK_CONFIG":
-                return json.dumps({"api_url": "http://localhost", "api_key": "test"})
-            return None
-
-        monkeypatch.setattr(keyring, "get_password", mock_get_password)
+        monkeypatch.setenv("SLCLI_API_URL", "http://localhost")
+        monkeypatch.setenv("SLCLI_API_KEY", "test")
 
         cli_instance = make_cli()
         runner = CliRunner()
@@ -475,13 +410,8 @@ class TestPolicyUpdate:
         self, monkeypatch: Any
     ) -> None:
         """Update should use current statements if none provided."""
-
-        def mock_get_password(service: str, key: str) -> Optional[str]:
-            if key == "SYSTEMLINK_CONFIG":
-                return json.dumps({"api_url": "http://localhost", "api_key": "test"})
-            return None
-
-        monkeypatch.setattr(keyring, "get_password", mock_get_password)
+        monkeypatch.setenv("SLCLI_API_URL", "http://localhost")
+        monkeypatch.setenv("SLCLI_API_KEY", "test")
 
         cli_instance = make_cli()
         runner = CliRunner()
@@ -520,13 +450,8 @@ class TestTemplateDelete:
 
     def test_delete_template_with_confirmation(self, monkeypatch: Any) -> None:
         """Delete template asks for confirmation."""
-
-        def mock_get_password(service: str, key: str) -> Optional[str]:
-            if key == "SYSTEMLINK_CONFIG":
-                return json.dumps({"api_url": "http://localhost", "api_key": "test"})
-            return None
-
-        monkeypatch.setattr(keyring, "get_password", mock_get_password)
+        monkeypatch.setenv("SLCLI_API_URL", "http://localhost")
+        monkeypatch.setenv("SLCLI_API_KEY", "test")
 
         cli_instance = make_cli()
         runner = CliRunner()

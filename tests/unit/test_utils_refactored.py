@@ -1,6 +1,5 @@
 """Tests for refactored utility functions."""
 
-import json
 from typing import Any
 from unittest.mock import MagicMock, patch
 
@@ -222,16 +221,10 @@ class TestMakeApiRequestHttpMethods:
     """Tests for make_api_request HTTP method dispatch."""
 
     def _patch_keyring(self, monkeypatch: Any) -> None:
-        """Patch keyring to return a minimal config."""
-        import keyring
-
-        config = {"api_url": "http://localhost:8000", "api_key": "dummy-key", "platform": "SLE"}
-
-        monkeypatch.setattr(
-            keyring,
-            "get_password",
-            lambda *a, **kw: json.dumps(config),
-        )
+        """Set environment credentials for API request tests."""
+        monkeypatch.setenv("SLCLI_API_URL", "http://localhost:8000")
+        monkeypatch.setenv("SLCLI_API_KEY", "dummy-key")
+        monkeypatch.setenv("SYSTEMLINK_PLATFORM", "SLE")
 
     def test_patch_method_dispatches_to_requests_patch(self, monkeypatch: Any) -> None:
         """make_api_request with PATCH calls requests.patch."""

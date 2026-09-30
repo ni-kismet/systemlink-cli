@@ -4,7 +4,6 @@ This module provides utilities to detect and manage the target platform
 (SystemLink Enterprise vs SystemLink Server) and gate features accordingly.
 """
 
-import json
 import os
 import ssl
 import sys
@@ -13,7 +12,6 @@ from functools import lru_cache
 from typing import Any, Dict, List, Optional, Tuple
 
 import click
-import keyring
 import requests
 
 from .ssl_trust import use_standard_ssl_context
@@ -162,27 +160,6 @@ def _probe_sls_platform(api_url: str, credential: str, auth_scheme: str = "api-k
     return "error"
 
 
-def _get_keyring_config() -> Dict[str, Any]:
-    """Attempt to read a single JSON config entry from keyring.
-
-    Returns:
-        Dictionary with config values or empty dict on failure.
-    """
-    try:
-        cfg_text = keyring.get_password("systemlink-cli", "SYSTEMLINK_CONFIG")
-        if not cfg_text:
-            return {}
-        parsed = json.loads(cfg_text)
-        if isinstance(parsed, dict):
-            return parsed
-    except Exception:  # noqa: BLE001
-        # Intentionally catch all exceptions: keyring access can fail for many reasons
-        # (missing backend, corrupted data, permission issues, JSON decode errors).
-        # None of these should prevent CLI operation - we just return empty config.
-        pass
-    return {}
-
-
 def detect_platform(api_url: str, credential: str, auth_scheme: str = "api-key") -> str:
     """Detect the SystemLink platform type by probing endpoints.
 
@@ -210,7 +187,6 @@ def get_platform() -> str:
     Detection priority:
     1. SYSTEMLINK_PLATFORM environment variable (explicit, most reliable)
     2. Platform stored on the active profile (set during login via endpoint probing)
-    3. Stored platform from keyring config (legacy fallback)
     4. Return PLATFORM_UNKNOWN if no explicit or stored platform is available
 
     Note: Results are cached for performance. Use clear_platform_cache() to reset.
@@ -234,19 +210,11 @@ def get_platform() -> str:
                 return profile_platform
         except (
             FileNotFoundError,
-            json.JSONDecodeError,
             KeyError,
             AttributeError,
             click.ClickException,
         ):
             pass
-
-    # Priority 3: Stored platform from keyring config (legacy fallback)
-    cfg = _get_keyring_config()
-    if cfg:
-        platform = str(cfg.get("platform", "")).upper()
-        if platform in (PLATFORM_SLE, PLATFORM_SLS):
-            return platform
 
     return PLATFORM_UNKNOWN
 
@@ -971,16 +939,14 @@ def get_platform_info(skip_health: bool = False) -> Dict[str, Any]:
         api_key_source = "unresolved"
         logged_in = False
 
-    # Get platform from profile or keyring config
+    # Get the platform stored on the active profile.
     from .profiles import get_active_profile
 
     active_profile = get_active_profile()
     if active_profile and active_profile.platform:
         stored_platform = active_profile.platform
     else:
-        # Fall back to keyring config
-        cfg = _get_keyring_config()
-        stored_platform = cfg.get("platform", PLATFORM_UNKNOWN)
+        stored_platform = PLATFORM_UNKNOWN
 
     # Live service health check when logged in
     server_reachable: Optional[bool] = None

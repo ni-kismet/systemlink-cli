@@ -747,27 +747,15 @@ class TestCheckServiceStatus:
 class TestGetPlatform:
     """Tests for get_platform function."""
 
-    def test_get_platform_from_keyring_sle(self) -> None:
-        """Test getting SLE platform from keyring config."""
-        config = {"api_url": "https://demo.systemlink.io", "platform": "SLE"}
+    def test_get_platform_from_env_sle(self) -> None:
+        """Test getting SLE platform from the explicit platform environment variable."""
+        with patch.dict("os.environ", {"SYSTEMLINK_PLATFORM": "SLE"}):
+            assert get_platform() == PLATFORM_SLE
 
-        with patch("slcli.platform.keyring.get_password") as mock_keyring:
-            mock_keyring.return_value = json.dumps(config)
-
-            result = get_platform()
-
-            assert result == PLATFORM_SLE
-
-    def test_get_platform_from_keyring_sls(self) -> None:
-        """Test getting SLS platform from keyring config."""
-        config = {"api_url": "https://my-server.local", "platform": "SLS"}
-
-        with patch("slcli.platform.keyring.get_password") as mock_keyring:
-            mock_keyring.return_value = json.dumps(config)
-
-            result = get_platform()
-
-            assert result == PLATFORM_SLS
+    def test_get_platform_from_env_sls(self) -> None:
+        """Test getting SLS platform from the explicit platform environment variable."""
+        with patch.dict("os.environ", {"SYSTEMLINK_PLATFORM": "SLS"}):
+            assert get_platform() == PLATFORM_SLS
 
     def test_get_platform_from_active_profile(self) -> None:
         """Test getting platform from the active profile."""
@@ -779,40 +767,32 @@ class TestGetPlatform:
             platform="sle",
         )
 
-        with patch("slcli.platform.keyring.get_password", return_value=None), patch(
+        with patch.dict("os.environ", {"SYSTEMLINK_PLATFORM": ""}), patch(
             "slcli.profiles.get_active_profile", return_value=profile
         ):
             result = get_platform()
 
         assert result == PLATFORM_SLE
 
-    def test_get_platform_from_keyring_is_case_insensitive(self) -> None:
-        """Test getting platform from keyring config regardless of casing."""
-        config = {"api_url": "https://demo.systemlink.io", "platform": "sle"}
-
-        with patch("slcli.platform.keyring.get_password") as mock_keyring:
-            mock_keyring.return_value = json.dumps(config)
-
-            result = get_platform()
-
-            assert result == PLATFORM_SLE
+    def test_get_platform_from_env_is_case_insensitive(self) -> None:
+        """Test getting platform from the environment regardless of casing."""
+        with patch.dict("os.environ", {"SYSTEMLINK_PLATFORM": "sle"}):
+            assert get_platform() == PLATFORM_SLE
 
     def test_get_platform_unknown_when_not_configured(self) -> None:
-        """Test that UNKNOWN is returned when keyring has no config."""
-        with patch("slcli.platform.keyring.get_password") as mock_keyring:
-            mock_keyring.return_value = None
-
+        """Test that UNKNOWN is returned when no platform is configured."""
+        with patch.dict("os.environ", {"SYSTEMLINK_PLATFORM": ""}), patch(
+            "slcli.profiles.get_active_profile", return_value=None
+        ):
             result = get_platform()
 
             assert result == PLATFORM_UNKNOWN
 
     def test_get_platform_unknown_when_platform_not_in_config(self) -> None:
-        """Test that UNKNOWN is returned when platform not in config."""
-        config = {"api_url": "https://demo.systemlink.io"}
-
-        with patch("slcli.platform.keyring.get_password") as mock_keyring:
-            mock_keyring.return_value = json.dumps(config)
-
+        """Test that UNKNOWN is returned when the active profile has no platform."""
+        with patch.dict("os.environ", {"SYSTEMLINK_PLATFORM": ""}), patch(
+            "slcli.profiles.get_active_profile", return_value=None
+        ):
             result = get_platform()
 
             assert result == PLATFORM_UNKNOWN
@@ -821,11 +801,11 @@ class TestGetPlatform:
         """Test that API URL alone does not trigger hostname-based platform guessing."""
         with patch.dict(
             "os.environ",
-            {"SYSTEMLINK_API_URL": "https://demo-api.lifecyclesolutions.ni.com"},
-            clear=True,
-        ), patch("slcli.platform.keyring.get_password") as mock_keyring:
-            mock_keyring.return_value = None
-
+            {
+                "SYSTEMLINK_API_URL": "https://demo-api.lifecyclesolutions.ni.com",
+                "SYSTEMLINK_PLATFORM": "",
+            },
+        ):
             result = get_platform()
 
             assert result == PLATFORM_UNKNOWN
@@ -836,55 +816,39 @@ class TestHasFeature:
 
     def test_has_feature_sle_dff_available(self) -> None:
         """Test that DFF is available on SLE."""
-        config = {"platform": "SLE"}
-
-        with patch("slcli.platform.keyring.get_password") as mock_keyring:
-            mock_keyring.return_value = json.dumps(config)
-
+        with patch.dict("os.environ", {"SYSTEMLINK_PLATFORM": "SLE"}):
             result = has_feature("dynamic_form_fields")
 
             assert result is True
 
     def test_has_feature_sls_dff_not_available(self) -> None:
         """Test that DFF is not available on SLS."""
-        config = {"platform": "SLS"}
-
-        with patch("slcli.platform.keyring.get_password") as mock_keyring:
-            mock_keyring.return_value = json.dumps(config)
-
+        with patch.dict("os.environ", {"SYSTEMLINK_PLATFORM": "SLS"}):
             result = has_feature("dynamic_form_fields")
 
             assert result is False
 
     def test_has_feature_unknown_platform_returns_true(self) -> None:
         """Test that features are allowed when platform is unknown (graceful degradation)."""
-        with patch("slcli.platform.keyring.get_password") as mock_keyring:
-            mock_keyring.return_value = None
-
+        with patch.dict("os.environ", {"SYSTEMLINK_PLATFORM": ""}), patch(
+            "slcli.profiles.get_active_profile", return_value=None
+        ):
             result = has_feature("dynamic_form_fields")
 
             assert result is True
 
     def test_has_feature_unknown_feature_returns_true(self) -> None:
         """Test that unknown features default to available."""
-        config = {"platform": "SLE"}
-
-        with patch("slcli.platform.keyring.get_password") as mock_keyring:
-            mock_keyring.return_value = json.dumps(config)
-
+        with patch.dict("os.environ", {"SYSTEMLINK_PLATFORM": "SLE"}):
             result = has_feature("unknown_feature")
 
             assert result is True
 
     def test_has_feature_templates_uses_workorder_service_probe(self) -> None:
         """Test templates/workflows follow the Work Order service capability."""
-        config = {"platform": "SLS"}
-
-        with patch("slcli.platform.keyring.get_password") as mock_keyring, patch(
+        with patch.dict("os.environ", {"SYSTEMLINK_PLATFORM": "SLS"}), patch(
             "slcli.platform._get_service_status", return_value="ok"
         ):
-            mock_keyring.return_value = json.dumps(config)
-
             assert has_feature("templates") is True
             assert has_feature("workflows") is True
 
@@ -924,13 +888,9 @@ class TestHasFeature:
 
     def test_has_feature_workorder_not_found_overrides_sle_platform(self) -> None:
         """Test Work Order-backed features are disabled when the service is missing."""
-        config = {"platform": "SLE"}
-
-        with patch("slcli.platform.keyring.get_password") as mock_keyring, patch(
+        with patch.dict("os.environ", {"SYSTEMLINK_PLATFORM": "SLE"}), patch(
             "slcli.platform._get_service_status", return_value="not_found"
         ):
-            mock_keyring.return_value = json.dumps(config)
-
             assert has_feature("workorder_service") is False
             assert has_feature("templates") is False
             assert has_feature("workflows") is False
@@ -1030,21 +990,13 @@ class TestRequireFeature:
 
     def test_require_feature_available_does_not_exit(self) -> None:
         """Test that require_feature does not exit when feature is available."""
-        config = {"platform": "SLE"}
-
-        with patch("slcli.platform.keyring.get_password") as mock_keyring:
-            mock_keyring.return_value = json.dumps(config)
-
+        with patch.dict("os.environ", {"SYSTEMLINK_PLATFORM": "SLE"}):
             # Should not raise
             require_feature("dynamic_form_fields")
 
     def test_require_feature_not_available_exits(self) -> None:
         """Test that require_feature exits when feature is not available."""
-        config = {"platform": "SLS"}
-
-        with patch("slcli.platform.keyring.get_password") as mock_keyring:
-            mock_keyring.return_value = json.dumps(config)
-
+        with patch.dict("os.environ", {"SYSTEMLINK_PLATFORM": "SLS"}):
             with pytest.raises(SystemExit) as exc_info:
                 require_feature("dynamic_form_fields")
 
@@ -1052,13 +1004,9 @@ class TestRequireFeature:
 
     def test_require_feature_templates_reports_workorder_requirement(self, capsys: Any) -> None:
         """Test Work Order-backed features mention the service-specific requirement."""
-        config = {"platform": "SLS"}
-
-        with patch("slcli.platform.keyring.get_password") as mock_keyring, patch(
+        with patch.dict("os.environ", {"SYSTEMLINK_PLATFORM": "SLS"}), patch(
             "slcli.platform._get_service_status", return_value="not_found"
         ):
-            mock_keyring.return_value = json.dumps(config)
-
             with pytest.raises(SystemExit) as exc_info:
                 require_feature("templates")
 
@@ -1263,14 +1211,11 @@ class TestGetPlatformInfo:
             "slcli.utils.get_base_url_resolution"
         ) as mock_base_url, patch("slcli.utils.get_web_url_resolution") as mock_web_url, patch(
             "slcli.utils.get_api_key_resolution"
-        ) as mock_api_key, patch(
-            "slcli.platform._get_keyring_config"
-        ) as mock_keyring:
+        ) as mock_api_key:
             mock_profile.return_value = None
             mock_base_url.side_effect = Exception("Not configured")
             mock_web_url.side_effect = Exception("Not configured")
             mock_api_key.side_effect = Exception("Not configured")
-            mock_keyring.return_value = {}
 
             result = get_platform_info()
 

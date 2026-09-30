@@ -8,7 +8,6 @@ from dataclasses import dataclass
 from typing import Any, Callable, Dict, List, Literal, Optional, Sequence, Union
 
 import click
-import keyring
 import requests
 
 from . import ssl_trust
@@ -318,12 +317,11 @@ def filter_by_workspace(
 
 # --- SystemLink HTTP Configuration ---
 def get_http_configuration() -> SystemLinkConfig:
-    """Return a configured SystemLink configuration using profiles, environment, or keyring.
+    """Return a configured SystemLink configuration using profiles or environment.
 
     Preference order:
-    1. Environment variables (SYSTEMLINK_API_URL, SYSTEMLINK_API_KEY)
+    1. Environment variables (SLCLI_* or SYSTEMLINK_* aliases)
     2. Active profile from config file
-    3. Keyring (legacy fallback)
     """
     server_uri = get_base_url()
     api_key = get_api_key()
@@ -356,9 +354,18 @@ def describe_config_source(source: str) -> str:
     if source.startswith("env:"):
         return f"Environment ({source.split(':', 1)[1]})"
     if source.startswith("profile:"):
-        return f"Profile '{source.split(':', 1)[1]}'"
-    if source.startswith("keyring:"):
-        return f"Legacy keyring ({source.split(':', 1)[1]})"
+        parts = source.split(":", 2)
+        if len(parts) == 3 and parts[2] == "os":
+            from .credentials import describe_credential_store
+
+            return f"Profile '{parts[1]}' ({describe_credential_store('os')})"
+        if len(parts) == 3 and parts[2] == "file":
+            return f"Profile '{parts[1]}' (config file)"
+        if len(parts) == 3 and parts[2] == "pkce":
+            return f"Profile '{parts[1]}' (PKCE bearer token)"
+        if len(parts) == 3 and parts[2] == "pkce-refresh":
+            return f"Profile '{parts[1]}' (refreshed PKCE token)"
+        return f"Profile '{parts[1]}'"
     if source.startswith("default:"):
         return f"Default ({source.split(':', 1)[1]})"
     if source.startswith("derived:"):
@@ -373,9 +380,7 @@ def get_base_url_resolution() -> ResolvedConfigValue:
     Preference order:
     1. Environment variable SLCLI_API_URL (preferred) or SYSTEMLINK_API_URL
     2. Active profile from config file
-    3. Combined keyring config (legacy)
-    4. Legacy keyring entry SYSTEMLINK_API_URL
-    5. Default fallback to localhost
+    3. Default fallback to localhost
     """
     override = _get_env_override(("SLCLI_API_URL", "SYSTEMLINK_API_URL"))
     if override is not None:
@@ -390,19 +395,6 @@ def get_base_url_resolution() -> ResolvedConfigValue:
     except (FileNotFoundError, json.JSONDecodeError, KeyError, AttributeError):
         pass
 
-    cfg = _get_keyring_config()
-    if cfg and isinstance(cfg, dict):
-        config_url = cfg.get("api_url")
-        if config_url:
-            return ResolvedConfigValue(str(config_url).rstrip("/"), "keyring:SYSTEMLINK_CONFIG")
-
-    try:
-        url = keyring.get_password("systemlink-cli", "SYSTEMLINK_API_URL")
-    except Exception:
-        url = None
-    if url:
-        return ResolvedConfigValue(url.rstrip("/"), "keyring:SYSTEMLINK_API_URL")
-
     return ResolvedConfigValue("http://localhost:8000", "default:localhost")
 
 
@@ -412,9 +404,7 @@ def get_web_url_resolution() -> ResolvedConfigValue:
     Preference order:
     1. Environment variable SLCLI_WEB_URL (preferred) or SYSTEMLINK_WEB_URL
     2. Active profile from config file
-    3. Combined keyring config (legacy)
-    4. Legacy keyring entry SYSTEMLINK_WEB_URL
-    5. Derived from the effective API base URL
+    3. Derived from the effective API base URL
     """
     override = _get_env_override(("SLCLI_WEB_URL", "SYSTEMLINK_WEB_URL"))
     if override is not None:
@@ -428,19 +418,6 @@ def get_web_url_resolution() -> ResolvedConfigValue:
             return ResolvedConfigValue(profile.web_url.rstrip("/"), f"profile:{profile.name}")
     except (FileNotFoundError, json.JSONDecodeError, KeyError, AttributeError):
         pass
-
-    cfg = _get_keyring_config()
-    if cfg and isinstance(cfg, dict):
-        maybe = cfg.get("web_url") or cfg.get("webUrl") or cfg.get("web_ui_url")
-        if maybe:
-            return ResolvedConfigValue(str(maybe).rstrip("/"), "keyring:SYSTEMLINK_CONFIG")
-
-    try:
-        url = keyring.get_password("systemlink-cli", "SYSTEMLINK_WEB_URL")
-    except Exception:
-        url = None
-    if url:
-        return ResolvedConfigValue(url.rstrip("/"), "keyring:SYSTEMLINK_WEB_URL")
 
     base_resolution = get_base_url_resolution()
     base = base_resolution.value
@@ -465,8 +442,7 @@ def get_auth_resolution(emit_error: bool = True) -> ResolvedAuth:
     Preference order:
     1. Environment variable SLCLI_API_KEY (preferred) or SYSTEMLINK_API_KEY
     2. Active profile from config file
-    3. Combined keyring config (legacy)
-    4. Legacy keyring entry SYSTEMLINK_API_KEY
+    3. Error with login guidance when no credential is configured
     """
     override = _get_env_override(("SLCLI_API_KEY", "SYSTEMLINK_API_KEY"))
     if override is not None:
@@ -478,17 +454,25 @@ def get_auth_resolution(emit_error: bool = True) -> ResolvedAuth:
         profile = get_active_profile()
         if profile:
             if profile.auth_mode == "pkce":
-                from .pkce import get_pkce_access_token
+                from .pkce import PkceError, get_pkce_access_token
 
-                access_token = get_pkce_access_token(profile.name)
+                try:
+                    access_token = get_pkce_access_token(
+                        profile.credential_id, profile.credential_store
+                    )
+                except PkceError as exc:
+                    raise click.ClickException(str(exc)) from exc
                 if access_token:
                     return ResolvedAuth(access_token, f"profile:{profile.name}:pkce", "bearer")
                 if profile.web_url and profile.pkce_client_id:
-                    from .pkce import PkceError, refresh_pkce_credentials
+                    from .pkce import refresh_pkce_credentials
 
                     try:
                         refreshed = refresh_pkce_credentials(
-                            profile.name, profile.web_url, profile.pkce_client_id
+                            profile.credential_id,
+                            profile.web_url,
+                            profile.pkce_client_id,
+                            profile.credential_store,
                         )
                     except PkceError:
                         pass
@@ -505,29 +489,45 @@ def get_auth_resolution(emit_error: bool = True) -> ResolvedAuth:
                     )
                 raise click.ClickException("PKCE bearer token not found.")
             if profile.api_key:
-                return ResolvedAuth(profile.api_key, f"profile:{profile.name}", "api-key")
+                _warn_plaintext_credential()
+                return ResolvedAuth(profile.api_key, f"profile:{profile.name}:file", "api-key")
+            if profile.credential_store == "os":
+                from .credentials import CredentialStoreError, get_credential
+
+                try:
+                    api_key = get_credential(profile.credential_id, "api-key")
+                except CredentialStoreError as exc:
+                    raise click.ClickException(str(exc)) from exc
+                if api_key:
+                    return ResolvedAuth(api_key, f"profile:{profile.name}:os", "api-key")
     except (FileNotFoundError, json.JSONDecodeError, KeyError, AttributeError):
         pass
-
-    cfg = _get_keyring_config()
-    if cfg and isinstance(cfg, dict):
-        maybe = cfg.get("api_key") or cfg.get("apiKey") or cfg.get("apiToken")
-        if maybe:
-            return ResolvedAuth(str(maybe), "keyring:SYSTEMLINK_CONFIG", "api-key")
-
-    try:
-        api_key = keyring.get_password("systemlink-cli", "SYSTEMLINK_API_KEY")
-    except Exception:
-        api_key = None
-    if api_key:
-        return ResolvedAuth(api_key, "keyring:SYSTEMLINK_API_KEY", "api-key")
 
     if emit_error:
         raise click.ClickException(
             "API key not found. Please set the SLCLI_API_KEY environment variable "
-            "(or legacy SYSTEMLINK_API_KEY) or run 'slcli login --profile <name>'."
+            "or run 'slcli login --profile <name>'."
         )
     raise click.ClickException("API key not found.")
+
+
+def _warn_plaintext_credential() -> None:
+    """Warn interactive users about plaintext credentials at most once per day."""
+    if not sys.stderr.isatty():
+        return
+    from .profiles import ProfileConfig
+
+    config = ProfileConfig.load()
+    today = datetime.date.today().isoformat()
+    if config.settings.get("plaintext-credential-warning-date") == today:
+        return
+    click.echo(
+        "⚠️  This profile stores its credential in config.json. Run 'slcli config secure' "
+        "to move it to the OS credential store.",
+        err=True,
+    )
+    config.settings["plaintext-credential-warning-date"] = today
+    config.save()
 
 
 def get_api_key_resolution(emit_error: bool = True) -> ResolvedConfigValue:
@@ -568,9 +568,7 @@ def get_base_url() -> str:
     Preference order:
     1. Environment variable SLCLI_API_URL (preferred) or SYSTEMLINK_API_URL
     2. Active profile from config file
-    3. Combined keyring config (legacy)
-    4. Legacy keyring entry SYSTEMLINK_API_URL
-    5. Default fallback to localhost
+    3. Default fallback to localhost
 
     PKCE profiles use their Web UI URL because bearer tokens are supported by
     the Web Server route family. ``get_base_url_resolution()`` remains the
@@ -586,32 +584,9 @@ def get_web_url() -> str:
     Preference order:
     1. Environment variable SLCLI_WEB_URL (preferred) or SYSTEMLINK_WEB_URL
     2. Active profile from config file
-    3. Combined keyring config (legacy)
-    4. Legacy keyring entry SYSTEMLINK_WEB_URL
-    5. Derived from get_base_url()
+    3. Derived from get_base_url()
     """
     return get_web_url_resolution().value
-
-
-def _get_keyring_config() -> Dict[str, Any]:
-    """Attempt to read a single JSON config entry from keyring.
-
-    This allows storing a combined config (api_url, api_key, web_url) under
-    one key (e.g. SERVICE='systemlink-cli', key='SYSTEMLINK_CONFIG'). The
-    function returns a dict on success or an empty dict on failure.
-    """
-    try:
-        cfg_text = keyring.get_password("systemlink-cli", "SYSTEMLINK_CONFIG")
-        if not cfg_text:
-            return {}
-        import json
-
-        parsed = json.loads(cfg_text)
-        if isinstance(parsed, dict):
-            return parsed
-    except Exception:
-        pass
-    return {}
 
 
 def get_api_key() -> str:
@@ -619,9 +594,7 @@ def get_api_key() -> str:
 
     Preference order:
     1. Environment variable SLCLI_API_KEY (preferred) or SYSTEMLINK_API_KEY
-    2. Active profile from config file
-    3. Combined keyring config (legacy)
-    4. Legacy keyring entry SYSTEMLINK_API_KEY
+    2. Active profile and its selected credential store
     """
     return get_api_key_resolution().value
 

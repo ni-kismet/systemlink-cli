@@ -197,14 +197,11 @@ class TestInfoCommand:
             "slcli.utils.get_base_url"
         ) as mock_base_url, patch("slcli.utils.get_web_url") as mock_web_url, patch(
             "slcli.utils.get_api_key"
-        ) as mock_api_key, patch(
-            "slcli.platform._get_keyring_config"
-        ) as mock_keyring:
+        ) as mock_api_key:
             mock_profile.return_value = None
             mock_base_url.side_effect = Exception("Not configured")
             mock_web_url.side_effect = Exception("Not configured")
             mock_api_key.side_effect = Exception("Not configured")
-            mock_keyring.return_value = {}
 
             runner = CliRunner()
             result = runner.invoke(cli, ["info"])

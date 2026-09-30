@@ -245,71 +245,62 @@ def test_perform_pkce_login_rejects_state_mismatch(monkeypatch: Any) -> None:
         raise AssertionError("Expected state mismatch")
 
 
-def test_pkce_credentials_are_keyring_backed(monkeypatch: Any) -> None:
+def test_pkce_credentials_are_stored_as_one_bundle(monkeypatch: Any) -> None:
     """PKCE access and refresh secrets are never serialized in a profile."""
     import slcli.pkce as pkce
 
-    values: dict[str, str] = {}
+    values: dict[tuple[str, str], str] = {}
     monkeypatch.setattr(
-        pkce.keyring,
-        "set_password",
-        lambda _s, key, value: values.__setitem__(key, value),
+        pkce,
+        "set_credential",
+        lambda profile_id, name, value, _store: values.__setitem__((profile_id, name), value),
     )
-    monkeypatch.setattr(pkce.keyring, "get_password", lambda _s, key: values.get(key))
+    monkeypatch.setattr(
+        pkce,
+        "get_credential",
+        lambda profile_id, name, _store: values.get((profile_id, name)),
+    )
 
     save_pkce_credentials("test", "access-token", "refresh-token")
 
     assert get_pkce_access_token("test") == "access-token"
-    assert values["PKCE:test:refresh-token"] == "refresh-token"
+    bundle = json.loads(values[("test", "pkce")])
+    assert bundle["refresh-token"] == "refresh-token"
     assert "api-key" not in json.dumps({"auth-mode": "pkce"})
 
 
-def test_save_pkce_credentials_restores_previous_values_on_failure(monkeypatch: Any) -> None:
-    """A partial keyring update must not replace the existing credentials."""
+def test_save_pkce_credentials_reports_store_failure(monkeypatch: Any) -> None:
+    """A failed bundle write is reported as a PKCE storage error."""
     import slcli.pkce as pkce
 
-    values = {
-        "PKCE:test:access-token": "old-access-token",
-        "PKCE:test:refresh-token": "old-refresh-token",
-        "PKCE:test:access-expires-at": "100.0",
-        "PKCE:test:session-key": "old-session-key",
-        "PKCE:test:session-expires-at": "200.0",
-    }
-    previous_values = values.copy()
+    from slcli.credentials import CredentialStoreError
 
-    monkeypatch.setattr(pkce.keyring, "get_password", lambda _service, key: values.get(key))
-
-    def set_password(_service: str, key: str, value: str) -> None:
-        if key == "PKCE:test:access-expires-at" and value == "300.0":
-            raise RuntimeError("keyring unavailable")
-        values[key] = value
-
-    monkeypatch.setattr(pkce.keyring, "set_password", set_password)
     monkeypatch.setattr(
-        pkce.keyring, "delete_password", lambda _service, key: values.pop(key, None)
+        pkce,
+        "set_credential",
+        lambda *_args: (_ for _ in ()).throw(CredentialStoreError("store unavailable")),
     )
 
-    with pytest.raises(RuntimeError, match="keyring unavailable"):
+    with pytest.raises(PkceError, match="store unavailable"):
         save_pkce_credentials("test", "new-access-token", "new-refresh-token", 300.0)
-
-    assert values == previous_values
 
 
 def test_refresh_pkce_credentials_rotates_tokens(monkeypatch: Any) -> None:
     """Refreshing credentials replaces the old refresh and access tokens."""
     import slcli.pkce as pkce
 
-    values = {
-        "PKCE:test:refresh-token": "old-refresh-token",
-    }
+    values = {("test", "pkce"): json.dumps({"refresh-token": "old-refresh-token"})}
     monkeypatch.setattr(pkce, "get_ssl_verify", lambda _url: True)
-    monkeypatch.setattr(pkce.keyring, "get_password", lambda _s, key: values.get(key))
     monkeypatch.setattr(
-        pkce.keyring,
-        "set_password",
-        lambda _s, key, value: values.__setitem__(key, value),
+        pkce,
+        "get_credential",
+        lambda profile_id, name, _store: values.get((profile_id, name)),
     )
-    monkeypatch.setattr(pkce.keyring, "delete_password", lambda *_args: None)
+    monkeypatch.setattr(
+        pkce,
+        "set_credential",
+        lambda profile_id, name, value, _store: values.__setitem__((profile_id, name), value),
+    )
 
     requests_seen: list[tuple[str, Any]] = []
 
@@ -333,9 +324,10 @@ def test_refresh_pkce_credentials_rotates_tokens(monkeypatch: Any) -> None:
     result = refresh_pkce_credentials("test", "https://web.example", "client-id")
 
     assert result.access_token == "new-access-token"
-    assert values["PKCE:test:access-token"] == "new-access-token"
-    assert values["PKCE:test:refresh-token"] == "new-refresh-token"
-    assert "PKCE:test:access-expires-at" in values
+    bundle = json.loads(values[("test", "pkce")])
+    assert bundle["access-token"] == "new-access-token"
+    assert bundle["refresh-token"] == "new-refresh-token"
+    assert bundle["access-expires-at"] is not None
     assert [item[0] for item in requests_seen] == ["https://web.example/nitoken/v1/token"]
 
 
@@ -345,15 +337,18 @@ def test_refresh_pkce_credentials_keeps_existing_refresh_token_when_omitted(
     """A refresh response may omit a replacement while retaining the old token."""
     import slcli.pkce as pkce
 
-    values = {"PKCE:test:refresh-token": "old-refresh-token"}
+    values = {("test", "pkce"): json.dumps({"refresh-token": "old-refresh-token"})}
     monkeypatch.setattr(pkce, "get_ssl_verify", lambda _url: True)
-    monkeypatch.setattr(pkce.keyring, "get_password", lambda _s, key: values.get(key))
     monkeypatch.setattr(
-        pkce.keyring,
-        "set_password",
-        lambda _s, key, value: values.__setitem__(key, value),
+        pkce,
+        "get_credential",
+        lambda profile_id, name, _store: values.get((profile_id, name)),
     )
-    monkeypatch.setattr(pkce.keyring, "delete_password", lambda *_args: None)
+    monkeypatch.setattr(
+        pkce,
+        "set_credential",
+        lambda profile_id, name, value, _store: values.__setitem__((profile_id, name), value),
+    )
     monkeypatch.setattr(
         pkce.requests,
         "post",
@@ -362,7 +357,7 @@ def test_refresh_pkce_credentials_keeps_existing_refresh_token_when_omitted(
 
     refresh_pkce_credentials("test", "https://web.example", "client-id")
 
-    assert values["PKCE:test:refresh-token"] == "old-refresh-token"
+    assert json.loads(values[("test", "pkce")])["refresh-token"] == "old-refresh-token"
 
 
 def test_login_pkce_uses_bearer_token_and_stores_metadata(monkeypatch: Any, tmp_path: Any) -> None:

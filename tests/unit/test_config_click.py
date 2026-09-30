@@ -10,6 +10,7 @@ import pytest
 from click.testing import CliRunner
 
 from slcli.config_click import _normalize_base_url, register_config_commands
+from slcli.credentials import CredentialStoreError
 from slcli.platform import PLATFORM_SLS
 from slcli.utils import ExitCodes
 
@@ -474,8 +475,99 @@ class TestViewConfig:
         assert "env-overrides" in data
         assert "API Key" in data["env-overrides"]
         assert "Web URL" in data["env-overrides"]
-        # Should not contain effective/source keys
         assert "effective" not in data
+
+
+class TestSecureProfiles:
+    """Tests for moving plaintext credentials into the OS store."""
+
+    def test_secure_moves_plaintext_api_key_to_os_store(
+        self, tmp_path: Path, monkeypatch: Any
+    ) -> None:
+        """The plaintext key is removed only after its OS-store write succeeds."""
+        config_file = tmp_path / "config.json"
+        config_file.write_text(
+            json.dumps(
+                {
+                    "current-profile": "dev",
+                    "profiles": {
+                        "dev": {
+                            "server": "https://dev.example.com",
+                            "api-key": VALID_API_KEY,
+                        }
+                    },
+                }
+            )
+        )
+        monkeypatch.setattr(
+            "slcli.profiles.ProfileConfig.get_config_path", classmethod(lambda cls: config_file)
+        )
+        store_secret = MagicMock()
+        monkeypatch.setattr("slcli.config_click.set_credential", store_secret)
+
+        result = CliRunner().invoke(make_cli(), ["config", "secure"])
+
+        assert result.exit_code == 0, result.output
+        store_secret.assert_called_once()
+        saved_profile = json.loads(config_file.read_text())["profiles"]["dev"]
+        assert "api-key" not in saved_profile
+        assert saved_profile["credential-store"] == "os"
+        assert saved_profile["id"]
+
+    def test_secure_leaves_plaintext_when_os_store_write_fails(
+        self, tmp_path: Path, monkeypatch: Any
+    ) -> None:
+        """A failed secure migration does not discard the original credential."""
+        config_file = tmp_path / "config.json"
+        original = {
+            "current-profile": "dev",
+            "profiles": {"dev": {"server": "https://dev.example.com", "api-key": VALID_API_KEY}},
+        }
+        config_file.write_text(json.dumps(original))
+        monkeypatch.setattr(
+            "slcli.profiles.ProfileConfig.get_config_path", classmethod(lambda cls: config_file)
+        )
+        monkeypatch.setattr(
+            "slcli.config_click.set_credential",
+            MagicMock(side_effect=CredentialStoreError("store unavailable")),
+        )
+
+        result = CliRunner().invoke(make_cli(), ["config", "secure"])
+
+        assert result.exit_code == ExitCodes.INVALID_INPUT
+        saved_profile = json.loads(config_file.read_text())["profiles"]["dev"]
+        assert saved_profile["api-key"] == VALID_API_KEY
+
+    def test_view_of_os_profile_does_not_read_secret(
+        self, tmp_path: Path, monkeypatch: Any
+    ) -> None:
+        """Normal config view reports the backend without reading its secret."""
+        config_file = tmp_path / "config.json"
+        config_file.write_text(
+            json.dumps(
+                {
+                    "current-profile": "dev",
+                    "profiles": {
+                        "dev": {
+                            "id": "profile-id",
+                            "server": "https://dev.example.com",
+                            "credential-store": "os",
+                        }
+                    },
+                }
+            )
+        )
+        monkeypatch.setattr(
+            "slcli.profiles.ProfileConfig.get_config_path", classmethod(lambda cls: config_file)
+        )
+        read_secret = MagicMock(side_effect=AssertionError("must stay lazy"))
+        monkeypatch.setattr("slcli.config_click.get_credential", read_secret)
+
+        result = CliRunner().invoke(make_cli(), ["config", "view"])
+
+        assert result.exit_code == 0, result.output
+        assert "macOS Keychain" in result.output
+        read_secret.assert_not_called()
 
 
 class TestTrustedCertificates:
@@ -700,6 +792,39 @@ class TestTrustedCertificates:
 class TestDeleteProfile:
     """Tests for the delete command."""
 
+    def test_delete_file_pkce_profile_removes_legacy_tokens(
+        self, tmp_path: Path, monkeypatch: Any
+    ) -> None:
+        """Deleting a file-backed PKCE profile also removes its old OS token items."""
+        config_file = tmp_path / "config.json"
+        config_file.write_text(
+            json.dumps(
+                {
+                    "current-profile": "dev",
+                    "profiles": {
+                        "dev": {
+                            "id": "dev-id",
+                            "server": "https://example.com",
+                            "auth-mode": "pkce",
+                            "credential-store": "file",
+                            "pkce-credentials": {"access-token": "token"},
+                        }
+                    },
+                }
+            )
+        )
+        monkeypatch.setattr(
+            "slcli.profiles.ProfileConfig.get_config_path", classmethod(lambda cls: config_file)
+        )
+        cleanup = MagicMock()
+        monkeypatch.setattr("slcli.credentials.delete_profile_credentials", cleanup)
+
+        result = CliRunner().invoke(make_cli(), ["config", "delete", "dev", "--force"])
+
+        assert result.exit_code == 0
+        cleanup.assert_called_once_with("dev-id", "file", "dev")
+        assert "dev" not in json.loads(config_file.read_text()).get("profiles", {})
+
     def test_delete_profile_success(self, tmp_path: Path, monkeypatch: Any) -> None:
         """Test deleting a profile with force flag."""
         config_file = tmp_path / "config.json"
@@ -770,7 +895,7 @@ class TestAddProfileTrailingSlash:
                 "services": {"Auth": "ok"},
             },
         )
-        monkeypatch.setattr("slcli.main.keyring.get_password", lambda *a, **kw: None)
+        monkeypatch.setattr("slcli.config_click.set_credential", lambda *a, **kw: None)
 
         from slcli.main import cli
 
@@ -812,7 +937,7 @@ class TestAddProfileTrailingSlash:
                 "services": {"Auth": "ok"},
             },
         )
-        monkeypatch.setattr("slcli.main.keyring.get_password", lambda *a, **kw: None)
+        monkeypatch.setattr("slcli.config_click.set_credential", lambda *a, **kw: None)
 
         from slcli.main import cli
 

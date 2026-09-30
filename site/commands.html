@@ -762,6 +762,26 @@ slcli user delete --id &lt;user-id&gt;</code></pre>
   <h2 id="config">config</h2>
   <p>Inspect local profiles, settings, and explicitly trusted server certificates.</p>
 
+  <h3>Profiles and credentials</h3>
+  <pre><code># Add a profile (OS credential store is the default)
+slcli login --profile dev --url https://systemlink.example.com
+
+# Choose config-file storage explicitly
+slcli login --profile dev --credential-store file
+
+# Secure the current profile, one profile, or every file-backed profile
+slcli config secure
+slcli config secure --profile dev
+slcli config secure --all
+
+# View store metadata; secrets are not read unless explicitly requested
+slcli config view
+slcli config view --show-secrets
+
+# Remove a profile and its stored credentials
+slcli config delete dev --force</code></pre>
+  <p>Credentials use the OS credential store by default. If it is unavailable, login warns and falls back to the config file. Set <code>SLCLI_CREDENTIAL_STORE=file</code> or pass <code>--credential-store file</code> to opt into file storage. The CLI no longer reads legacy global keyring entries.</p>
+
   <h3>Trust</h3>
   <pre><code># Inspect the certificate at the active API URL
 slcli config trust show

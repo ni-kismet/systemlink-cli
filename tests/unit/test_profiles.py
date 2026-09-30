@@ -58,6 +58,8 @@ class TestProfile:
         result = profile.to_dict()
         assert result == {
             "server": "https://example.com",
+            "id": profile.credential_id,
+            "credential-store": "file",
             "api-key": "secret",
         }
 
@@ -74,6 +76,8 @@ class TestProfile:
         result = profile.to_dict()
         assert result == {
             "server": "https://api.example.com",
+            "id": profile.credential_id,
+            "credential-store": "file",
             "api-key": "secret",
             "web-url": "https://web.example.com",
             "platform": "SLS",

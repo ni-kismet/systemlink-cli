@@ -22,6 +22,7 @@ Configuration is stored in ~/.config/slcli/config.json with the following struct
 import json
 import os
 import stat
+import uuid
 from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any, Dict, List, Optional
@@ -45,17 +46,26 @@ class Profile:
     auth_mode: str = "api-key"
     pkce_client_id: Optional[str] = None
     pkce_scopes: Optional[List[str]] = None
+    credential_id: str = field(default_factory=lambda: str(uuid.uuid4()))
+    credential_store: str = "file"
+    pkce_credentials: Dict[str, Any] = field(default_factory=dict)
 
     def to_dict(self) -> Dict[str, Any]:
         """Convert profile to dictionary for serialization."""
-        result: Dict[str, Any] = {"server": self.server}
+        result: Dict[str, Any] = {
+            "server": self.server,
+            "id": self.credential_id,
+            "credential-store": self.credential_store,
+        }
         if self.auth_mode == "pkce":
             result["auth-mode"] = self.auth_mode
             if self.pkce_client_id:
                 result["pkce-client-id"] = self.pkce_client_id
             if self.pkce_scopes:
                 result["pkce-scopes"] = self.pkce_scopes
-        else:
+            if self.credential_store == "file" and self.pkce_credentials:
+                result["pkce-credentials"] = self.pkce_credentials
+        elif self.credential_store == "file" or self.api_key:
             result["api-key"] = self.api_key
         if self.web_url:
             result["web-url"] = self.web_url
@@ -81,6 +91,9 @@ class Profile:
             auth_mode=data.get("auth-mode", "api-key"),
             pkce_client_id=data.get("pkce-client-id"),
             pkce_scopes=data.get("pkce-scopes"),
+            credential_id=data.get("id") or str(uuid.uuid4()),
+            credential_store=data.get("credential-store", "file" if data.get("api-key") else "os"),
+            pkce_credentials=data.get("pkce-credentials", {}),
         )
 
 
@@ -129,7 +142,12 @@ class ProfileConfig:
         profiles: Dict[str, Profile] = {}
         profiles_data = data.get("profiles", {})
         for name, profile_data in profiles_data.items():
-            profiles[name] = Profile.from_dict(name, profile_data)
+            profile = Profile.from_dict(name, profile_data)
+            if not profile_data.get("id"):
+                profile.credential_id = str(
+                    uuid.uuid5(uuid.NAMESPACE_URL, f"{config_path.resolve()}:{name}")
+                )
+            profiles[name] = profile
 
         # Extract settings (non-profile data)
         settings: Dict[str, Any] = {}
@@ -315,105 +333,6 @@ def has_profiles_configured() -> bool:
     """Check if any profiles are configured."""
     config = ProfileConfig.load()
     return bool(config.profiles)
-
-
-def migrate_from_keyring(
-    profile_name: str = "default", delete_keyring: bool = False
-) -> Optional[Profile]:
-    """Migrate credentials from keyring to config file.
-
-    Args:
-        profile_name: Name for the migrated profile.
-        delete_keyring: If True, delete keyring entries after migration.
-
-    Returns:
-        The migrated Profile if successful, None if no credentials found.
-
-    Raises:
-        json.JSONDecodeError: If keyring config is invalid JSON.
-    """
-    import keyring
-
-    api_url: Optional[str] = None
-    api_key: Optional[str] = None
-    web_url: Optional[str] = None
-    platform: Optional[str] = None
-
-    # Try combined config first
-    try:
-        combined = keyring.get_password("systemlink-cli", "SYSTEMLINK_CONFIG")
-        if combined:
-            data = json.loads(combined)
-            api_url = data.get("api_url")
-            api_key = data.get("api_key")
-            web_url = data.get("web_url")
-            platform = data.get("platform")
-    except (json.JSONDecodeError, Exception):
-        # Ignore keyring read errors or invalid JSON
-        pass
-
-    # Fall back to individual entries
-    if not api_url:
-        api_url = keyring.get_password("systemlink-cli", "SYSTEMLINK_API_URL")
-    if not api_key:
-        api_key = keyring.get_password("systemlink-cli", "SYSTEMLINK_API_KEY")
-    if not web_url:
-        web_url = keyring.get_password("systemlink-cli", "SYSTEMLINK_WEB_URL")
-
-    if not api_url or not api_key:
-        return None
-
-    # Create profile
-    profile = Profile(
-        name=profile_name,
-        server=api_url,
-        api_key=api_key,
-        web_url=web_url,
-        platform=platform,
-    )
-
-    # Load config and add profile
-    cfg = ProfileConfig.load()
-    cfg.add_profile(profile, set_current=True)
-    cfg.save()
-
-    # Optionally delete keyring entries
-    if delete_keyring:
-        try:
-            keyring.delete_password("systemlink-cli", "SYSTEMLINK_API_KEY")
-        except Exception:
-            pass
-        try:
-            keyring.delete_password("systemlink-cli", "SYSTEMLINK_API_URL")
-        except Exception:
-            pass
-        try:
-            keyring.delete_password("systemlink-cli", "SYSTEMLINK_WEB_URL")
-        except Exception:
-            pass
-        try:
-            keyring.delete_password("systemlink-cli", "SYSTEMLINK_CONFIG")
-        except Exception:
-            pass
-
-    return profile
-
-
-def has_keyring_credentials() -> bool:
-    """Check if credentials exist in the system keyring.
-
-    Returns:
-        True if keyring credentials are found, False otherwise.
-    """
-    import keyring
-
-    try:
-        keyring_config = keyring.get_password("systemlink-cli", "SYSTEMLINK_CONFIG")
-        keyring_url = keyring.get_password("systemlink-cli", "SYSTEMLINK_API_URL")
-        keyring_key = keyring.get_password("systemlink-cli", "SYSTEMLINK_API_KEY")
-        return bool(keyring_config or (keyring_url and keyring_key))
-    except Exception:
-        return False
 
 
 def check_config_file_permissions() -> Optional[str]:
