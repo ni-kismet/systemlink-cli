@@ -1511,6 +1511,48 @@ class TestTrustedCertificates:
 class TestDeleteProfile:
     """Tests for the delete command."""
 
+    def test_config_cleanup_preserves_replacement_profile(
+        self, tmp_path: Path, monkeypatch: Any
+    ) -> None:
+        """Retrying an old credential cleanup does not log out the replacement profile."""
+        config_file = tmp_path / "config.json"
+        config_file.write_text(
+            json.dumps(
+                {
+                    "current-profile": "dev",
+                    "profiles": {
+                        "dev": {
+                            "id": "new-id",
+                            "server": "https://dev.example.com",
+                            "credential-store": "os",
+                        }
+                    },
+                    "pending-credential-deletions": [
+                        {
+                            "id": "old-id",
+                            "name": "dev",
+                            "store": "os",
+                            "auth-mode": "api-key",
+                        }
+                    ],
+                }
+            )
+        )
+        monkeypatch.setattr(
+            "slcli.profiles.ProfileConfig.get_config_path", classmethod(lambda cls: config_file)
+        )
+        cleanup = MagicMock()
+        monkeypatch.setattr("slcli.credentials.delete_profile_credentials", cleanup)
+
+        result = CliRunner().invoke(make_cli(), ["config", "cleanup"])
+
+        assert result.exit_code == 0
+        cleanup.assert_called_once_with("old-id", "os", "dev", "api-key")
+        saved = json.loads(config_file.read_text())
+        assert saved["current-profile"] == "dev"
+        assert saved["profiles"]["dev"]["id"] == "new-id"
+        assert "pending-credential-deletions" not in saved
+
     def test_delete_file_pkce_profile_removes_legacy_tokens(
         self, tmp_path: Path, monkeypatch: Any
     ) -> None:

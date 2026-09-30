@@ -6,6 +6,10 @@ This directory contains end-to-end (E2E) tests for the SystemLink CLI that run a
 
 The E2E testing framework validates that CLI commands work correctly against non-mocked SystemLink services. This provides confidence that the CLI integrates properly with the actual SystemLink APIs.
 
+Native operating-system credential storage requires manual validation on each
+supported platform. Follow the [credential-store manual E2E plan](../../docs/credential-store-manual-test-plan.md)
+for macOS and Windows, and for Linux when validating Linux credential-store support.
+
 ## Test Structure
 
 ```

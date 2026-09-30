@@ -585,7 +585,8 @@ def _add_profile_impl(
             finish_pending_profile_deletion(cfg, replacement_record)
         except (CredentialStoreError, RuntimeError) as exc:
             click.echo(
-                f"⚠️  Could not remove replaced credentials: {exc}. Retry cleanup with 'slcli logout'.",
+                f"⚠️  Could not remove replaced credentials: {exc}. "
+                "Retry cleanup with 'slcli config cleanup'.",
                 err=True,
             )
 
@@ -1012,6 +1013,27 @@ def register_config_commands(cli: Any) -> None:
                 f"No trusted certificate found for {origin}.", ExitCodes.NOT_FOUND
             )
         click.echo(f"✓ Removed trusted certificate for {origin}")
+
+    @config.command(name="cleanup")
+    def cleanup_pending_credentials() -> None:
+        """Retry pending credential cleanup without deleting profiles."""
+        from .utils import check_readonly_mode
+        from .credentials import CredentialStoreError, retry_pending_profile_deletions
+
+        check_readonly_mode("clean up pending credentials")
+        cfg = ProfileConfig.load()
+        try:
+            completed = retry_pending_profile_deletions(cfg)
+        except (CredentialStoreError, RuntimeError) as exc:
+            _exit_with_validation_error(
+                f"Could not finish pending credential cleanup: {exc}. "
+                "Resolve the credential-store issue and retry 'slcli config cleanup'.",
+                ExitCodes.GENERAL_ERROR,
+            )
+        if not completed:
+            click.echo("No pending credential cleanup.")
+            return
+        click.echo(f"✓ Finished pending credential cleanup for: {', '.join(completed)}")
 
     @config.command(name="delete")
     @click.argument("name")

@@ -774,13 +774,16 @@ slcli config secure
 slcli config secure --profile dev
 slcli config secure --all
 
+# Retry saved credential cleanup without deleting profiles
+slcli config cleanup
+
 # View store metadata; secrets are not read unless explicitly requested
 slcli config view
 slcli config view --show-secrets
 
 # Remove a profile and its stored credentials
 slcli config delete dev --force</code></pre>
-  <p>Credentials use the OS credential store by default. If it is unavailable, login warns and falls back to the config file. Set <code>SLCLI_CREDENTIAL_STORE=file</code> or pass <code>--credential-store file</code> to opt into file storage. The CLI no longer reads legacy global keyring entries.</p>
+  <p>Credentials use the OS credential store by default. If it is unavailable, login warns and falls back to the config file. Set <code>SLCLI_CREDENTIAL_STORE=file</code> or pass <code>--credential-store file</code> to opt into file storage. Use <code>slcli config cleanup</code> to retry persisted credential removals without deleting active profiles. The CLI no longer reads legacy global keyring entries.</p>
 
   <h3>Trust</h3>
   <pre><code># Inspect the certificate at the active API URL
