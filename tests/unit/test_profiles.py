@@ -4,6 +4,8 @@ import json
 from pathlib import Path
 from typing import Any, Dict
 
+import pytest
+
 from slcli.profiles import (
     Profile,
     ProfileConfig,
@@ -203,6 +205,36 @@ class TestProfileConfig:
         saved = json.loads(config_file.read_text())
         assert saved["current-profile"] == "test"
         assert "test" in saved["profiles"]
+
+    def test_save_config_preserves_original_when_replace_fails(
+        self, tmp_path: Path, monkeypatch: Any
+    ) -> None:
+        """A failed config replacement leaves the previous file intact."""
+        config_file = tmp_path / "config.json"
+        original = json.dumps(
+            {
+                "current-profile": "dev",
+                "profiles": {"dev": {"server": "https://old.example.com", "api-key": "key"}},
+            }
+        )
+        config_file.write_text(original)
+        monkeypatch.setattr(
+            "slcli.profiles.ProfileConfig.get_config_path", classmethod(lambda cls: config_file)
+        )
+
+        config = ProfileConfig.load()
+        config.profiles["dev"].server = "https://new.example.com"
+
+        def fail_replace(_source: Any, _destination: Any) -> None:
+            raise OSError("replace failed")
+
+        monkeypatch.setattr("slcli.profiles.os.replace", fail_replace)
+
+        with pytest.raises(RuntimeError, match="Failed to save configuration"):
+            config.save()
+
+        assert config_file.read_text() == original
+        assert list(tmp_path.iterdir()) == [config_file]
 
     def test_service_probe_cache_entry_round_trip(self, tmp_path: Path, monkeypatch: Any) -> None:
         """Test persisted service probe cache entries survive save/load."""

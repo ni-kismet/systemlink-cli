@@ -478,6 +478,73 @@ class TestViewConfig:
         assert "effective" not in data
 
 
+def test_view_config_json_show_secrets_decodes_pkce_bundle(
+    tmp_path: Path, monkeypatch: Any
+) -> None:
+    """JSON output should expose PKCE credentials as an object when requested."""
+    config_file = tmp_path / "config.json"
+    credentials = {"access-token": "access-token", "refresh-token": "refresh-token"}
+    config_data: Dict[str, Any] = {
+        "current-profile": "test",
+        "profiles": {
+            "test": {
+                "server": "https://test.com",
+                "auth-mode": "pkce",
+                "credential-store": "file",
+                "pkce-credentials": credentials,
+            },
+        },
+    }
+    config_file.write_text(json.dumps(config_data))
+    config_file.chmod(0o600)
+    monkeypatch.setattr(
+        "slcli.profiles.ProfileConfig.get_config_path", classmethod(lambda cls: config_file)
+    )
+
+    result = CliRunner().invoke(
+        make_cli(), ["config", "view", "--format", "json", "--show-secrets"]
+    )
+
+    assert result.exit_code == 0
+    data = json.loads(result.output)
+    assert data["profiles"]["test"]["pkce-credentials"] == credentials
+
+
+@pytest.mark.parametrize("secret_value", ["not-json", "[]"])
+def test_view_config_json_rejects_malformed_pkce_bundle(
+    secret_value: str, tmp_path: Path, monkeypatch: Any
+) -> None:
+    """Malformed PKCE data should produce a CLI error, not a traceback."""
+    config_file = tmp_path / "config.json"
+    config_file.write_text(
+        json.dumps(
+            {
+                "current-profile": "test",
+                "profiles": {
+                    "test": {
+                        "server": "https://test.com",
+                        "auth-mode": "pkce",
+                        "credential-store": "os",
+                    }
+                },
+            }
+        )
+    )
+    config_file.chmod(0o600)
+    monkeypatch.setattr(
+        "slcli.profiles.ProfileConfig.get_config_path", classmethod(lambda cls: config_file)
+    )
+    monkeypatch.setattr("slcli.config_click._get_profile_secret", lambda *_args: secret_value)
+
+    result = CliRunner().invoke(
+        make_cli(), ["config", "view", "--format", "json", "--show-secrets"]
+    )
+
+    assert result.exit_code == ExitCodes.GENERAL_ERROR
+    assert "Stored PKCE credentials for profile 'test' are invalid" in result.output
+    assert "Traceback" not in result.output
+
+
 class TestSecureProfiles:
     """Tests for moving plaintext credentials into the OS store."""
 
@@ -1165,6 +1232,91 @@ class TestDeleteProfile:
         assert result.exit_code == ExitCodes.GENERAL_ERROR
         assert "Profile was not deleted" in result.output
         assert "dev" in json.loads(config_file.read_text())["profiles"]
+
+    def test_delete_profile_does_not_clean_credentials_when_save_fails(
+        self, tmp_path: Path, monkeypatch: Any
+    ) -> None:
+        """A failed profile-removal save must leave credentials untouched."""
+        config_file = tmp_path / "config.json"
+        config_file.write_text(
+            json.dumps(
+                {
+                    "current-profile": "dev",
+                    "profiles": {
+                        "dev": {
+                            "id": "profile-id",
+                            "server": "https://dev.example.com",
+                            "credential-store": "os",
+                        }
+                    },
+                }
+            )
+        )
+        monkeypatch.setattr(
+            "slcli.profiles.ProfileConfig.get_config_path", classmethod(lambda cls: config_file)
+        )
+        cleanup = MagicMock()
+        monkeypatch.setattr("slcli.credentials.delete_profile_credentials", cleanup)
+
+        def fail_save(_config: Any) -> None:
+            raise RuntimeError("config is read-only")
+
+        monkeypatch.setattr("slcli.profiles.ProfileConfig.save", fail_save)
+
+        result = CliRunner().invoke(make_cli(), ["config", "delete", "dev", "--force"])
+
+        assert result.exit_code != 0
+        assert "Credentials were not removed" in result.output
+        cleanup.assert_not_called()
+        assert "dev" in json.loads(config_file.read_text())["profiles"]
+
+    def test_delete_profile_reports_id_when_metadata_rollback_fails(
+        self, tmp_path: Path, monkeypatch: Any
+    ) -> None:
+        """A failed metadata rollback reports the credential ID for recovery."""
+        from slcli.profiles import ProfileConfig
+
+        config_file = tmp_path / "config.json"
+        config_file.write_text(
+            json.dumps(
+                {
+                    "current-profile": "dev",
+                    "profiles": {
+                        "dev": {
+                            "id": "profile-id",
+                            "server": "https://dev.example.com",
+                            "credential-store": "os",
+                        }
+                    },
+                }
+            )
+        )
+        monkeypatch.setattr(
+            "slcli.profiles.ProfileConfig.get_config_path", classmethod(lambda cls: config_file)
+        )
+        original_save = ProfileConfig.save
+        save_calls = 0
+
+        def fail_rollback(config: Any) -> None:
+            nonlocal save_calls
+            save_calls += 1
+            if save_calls == 2:
+                raise RuntimeError("config is read-only")
+            original_save(config)
+
+        monkeypatch.setattr(ProfileConfig, "save", fail_rollback)
+        monkeypatch.setattr(
+            "slcli.credentials.delete_profile_credentials",
+            MagicMock(side_effect=CredentialStoreError("store locked")),
+        )
+
+        result = CliRunner().invoke(make_cli(), ["config", "delete", "dev", "--force"])
+
+        assert result.exit_code == ExitCodes.GENERAL_ERROR
+        assert "Could not remove stored credentials: store locked" in result.output
+        assert "Could not restore profile metadata: config is read-only" in result.output
+        assert "Credential ID: profile-id" in result.output
+        assert "dev" not in json.loads(config_file.read_text()).get("profiles", {})
 
     def test_delete_profile_not_found(self, tmp_path: Path, monkeypatch: Any) -> None:
         """Test deleting a non-existent profile."""

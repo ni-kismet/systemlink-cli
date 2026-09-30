@@ -22,6 +22,7 @@ Configuration is stored in ~/.config/slcli/config.json with the following struct
 import json
 import os
 import stat
+import tempfile
 import uuid
 from dataclasses import dataclass, field
 from pathlib import Path
@@ -176,20 +177,27 @@ class ProfileConfig:
         # Include additional settings
         data.update(self.settings)
 
+        temporary_path: Optional[Path] = None
         try:
-            with open(config_path, "w", encoding="utf-8") as f:
-                json.dump(data, f, indent=2)
+            with tempfile.NamedTemporaryFile(
+                mode="w", encoding="utf-8", dir=config_path.parent, delete=False
+            ) as temporary_file:
+                temporary_path = Path(temporary_file.name)
+                json.dump(data, temporary_file, indent=2)
 
-            # Set restrictive permissions (600 - owner read/write only)
-            # This is important because the file contains API keys
             try:
-                config_path.chmod(stat.S_IRUSR | stat.S_IWUSR)
+                temporary_path.chmod(stat.S_IRUSR | stat.S_IWUSR)
             except OSError:
-                # On some systems (e.g., Windows), chmod may not work as expected
                 pass
-
+            os.replace(temporary_path, config_path)
         except OSError as e:
-            raise RuntimeError(f"Failed to save configuration: {e}")
+            raise RuntimeError(f"Failed to save configuration: {e}") from e
+        finally:
+            if temporary_path is not None:
+                try:
+                    temporary_path.unlink()
+                except OSError:
+                    pass
 
     def get_profile(self, name: str) -> Optional[Profile]:
         """Get a profile by name."""

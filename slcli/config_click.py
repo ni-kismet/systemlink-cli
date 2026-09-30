@@ -774,7 +774,23 @@ def register_config_commands(cli: Any) -> None:
                     profile_dict = profile.to_dict()
                     if profile.auth_mode == "pkce":
                         if show_secrets:
-                            profile_dict["pkce-credentials"] = _get_profile_secret(profile, "pkce")
+                            try:
+                                pkce_credentials = json.loads(
+                                    _get_profile_secret(profile, "pkce") or "{}"
+                                )
+                            except json.JSONDecodeError:
+                                _exit_with_validation_error(
+                                    f"Stored PKCE credentials for profile '{name}' are invalid. "
+                                    f"Run 'slcli login --profile {name}' to authenticate again.",
+                                    ExitCodes.GENERAL_ERROR,
+                                )
+                            if not isinstance(pkce_credentials, dict):
+                                _exit_with_validation_error(
+                                    f"Stored PKCE credentials for profile '{name}' are invalid. "
+                                    f"Run 'slcli login --profile {name}' to authenticate again.",
+                                    ExitCodes.GENERAL_ERROR,
+                                )
+                            profile_dict["pkce-credentials"] = pkce_credentials
                         else:
                             profile_dict["pkce-credentials"] = (
                                 f"stored in {describe_credential_store(profile.credential_store)}"
@@ -1008,6 +1024,20 @@ def register_config_commands(cli: Any) -> None:
                 sys.exit(ExitCodes.GENERAL_ERROR)
 
         profile_to_delete = cfg.profiles[name]
+        previous_current_profile = cfg.current_profile
+        was_current = cfg.current_profile == name
+        cfg.delete_profile(name)
+        try:
+            cfg.save()
+        except RuntimeError as exc:
+            cfg.profiles[name] = profile_to_delete
+            cfg.current_profile = previous_current_profile
+            _exit_with_validation_error(
+                f"Could not save profile removal for '{name}': {exc}. "
+                "Credentials were not removed.",
+                ExitCodes.GENERAL_ERROR,
+            )
+
         if profile_to_delete.credential_store == "os" or profile_to_delete.auth_mode == "pkce":
             from .credentials import delete_profile_credentials
 
@@ -1018,15 +1048,22 @@ def register_config_commands(cli: Any) -> None:
                     profile_to_delete.name if profile_to_delete.auth_mode == "pkce" else None,
                 )
             except CredentialStoreError as exc:
+                cfg.profiles[name] = profile_to_delete
+                cfg.current_profile = previous_current_profile
+                try:
+                    cfg.save()
+                except RuntimeError as rollback_exc:
+                    _exit_with_validation_error(
+                        f"Could not remove stored credentials: {exc}. "
+                        f"Could not restore profile metadata: {rollback_exc}. "
+                        f"Credential ID: {profile_to_delete.credential_id}.",
+                        ExitCodes.GENERAL_ERROR,
+                    )
                 _exit_with_validation_error(
                     f"Could not remove stored credentials: {exc}. Profile was not deleted; "
                     "resolve the credential-store issue and retry.",
                     ExitCodes.GENERAL_ERROR,
                 )
-
-        was_current = cfg.current_profile == name
-        cfg.delete_profile(name)
-        cfg.save()
 
         click.echo(f"✓ Profile '{name}' deleted.")
         if was_current and cfg.current_profile:

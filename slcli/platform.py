@@ -187,7 +187,7 @@ def get_platform() -> str:
     Detection priority:
     1. SYSTEMLINK_PLATFORM environment variable (explicit, most reliable)
     2. Platform stored on the active profile (set during login via endpoint probing)
-    4. Return PLATFORM_UNKNOWN if no explicit or stored platform is available
+    3. Return PLATFORM_UNKNOWN if no explicit or stored platform is available
 
     Note: Results are cached for performance. Use clear_platform_cache() to reset.
 
