@@ -437,6 +437,24 @@ def _add_profile_impl(
     if previous_profile:
         new_profile.credential_id = previous_profile.credential_id
 
+    def restore_previous_profile(reason: str, error: Exception) -> NoReturn:
+        if previous_profile is None:
+            cfg.profiles.pop(profile, None)
+        else:
+            cfg.profiles[profile] = previous_profile
+        cfg.current_profile = previous_current_profile
+        try:
+            cfg.save()
+        except RuntimeError as rollback_exc:
+            _exit_with_validation_error(
+                f"{reason}: {error}. Could not restore previous profile: {rollback_exc}. "
+                f"Credential ID: {new_profile.credential_id}.",
+                ExitCodes.GENERAL_ERROR,
+            )
+        _exit_with_validation_error(
+            f"{reason}: {error}. The previous profile was restored.", ExitCodes.GENERAL_ERROR
+        )
+
     def store_profile_credentials(store: str) -> None:
         if auth_mode == "pkce" and pkce_result is not None:
             from .pkce import save_pkce_credentials
@@ -523,15 +541,7 @@ def _add_profile_impl(
             store_profile_credentials(new_profile.credential_store)
     except Exception as exc:
         if new_profile.credential_store != "os":
-            if previous_profile is None:
-                cfg.profiles.pop(profile, None)
-            else:
-                cfg.profiles[profile] = previous_profile
-            cfg.current_profile = previous_current_profile
-            cfg.save()
-            _exit_with_validation_error(
-                f"Could not store credentials: {exc}.", ExitCodes.GENERAL_ERROR
-            )
+            restore_previous_profile("Could not store credentials", exc)
 
         click.echo(
             f"⚠️  OS credential store unavailable ({exc}); storing this profile in the config file.",
@@ -541,25 +551,7 @@ def _add_profile_impl(
         try:
             cfg.save()
         except RuntimeError as fallback_save_exc:
-            if previous_profile is None:
-                cfg.profiles.pop(profile, None)
-            else:
-                cfg.profiles[profile] = previous_profile
-            cfg.current_profile = previous_current_profile
-            try:
-                cfg.save()
-            except RuntimeError as rollback_exc:
-                _exit_with_validation_error(
-                    f"Could not save file-backed profile: {fallback_save_exc}. "
-                    f"Could not restore previous profile: {rollback_exc}. "
-                    f"Credential ID: {new_profile.credential_id}.",
-                    ExitCodes.GENERAL_ERROR,
-                )
-            _exit_with_validation_error(
-                f"Could not save file-backed profile: {fallback_save_exc}. "
-                "The previous profile was restored.",
-                ExitCodes.GENERAL_ERROR,
-            )
+            restore_previous_profile("Could not save file-backed profile", fallback_save_exc)
         try:
             if auth_mode == "pkce" and pkce_result is not None:
                 from .pkce import save_pkce_credentials
@@ -574,16 +566,7 @@ def _add_profile_impl(
             elif auth_mode == "api-key":
                 set_credential(new_profile.credential_id, "api-key", api_key, "file")
         except Exception as fallback_exc:
-            if previous_profile is None:
-                cfg.profiles.pop(profile, None)
-            else:
-                cfg.profiles[profile] = previous_profile
-            cfg.current_profile = previous_current_profile
-            cfg.save()
-            _exit_with_validation_error(
-                f"Could not store credentials in the config file: {fallback_exc}.",
-                ExitCodes.GENERAL_ERROR,
-            )
+            restore_previous_profile("Could not store credentials in the config file", fallback_exc)
 
     if previous_profile and previous_profile.credential_store == "os":
         from .credentials import delete_credential
@@ -600,14 +583,7 @@ def _add_profile_impl(
                 delete_credential(previous_profile.credential_id, obsolete)
             except CredentialStoreError as exc:
                 if new_profile.credential_store == "file":
-                    cfg.profiles[profile] = previous_profile
-                    cfg.current_profile = previous_current_profile
-                    cfg.save()
-                    _exit_with_validation_error(
-                        f"Could not remove replaced credentials: {exc}. The previous profile "
-                        "was restored; resolve the credential-store issue and retry.",
-                        ExitCodes.GENERAL_ERROR,
-                    )
+                    restore_previous_profile("Could not remove replaced credentials", exc)
                 click.echo(f"⚠️  Could not remove replaced credentials: {exc}", err=True)
 
     click.echo(f"\n✓ Profile '{profile}' saved successfully.")
@@ -1059,32 +1035,32 @@ def register_config_commands(cli: Any) -> None:
                 ExitCodes.GENERAL_ERROR,
             )
 
-        if profile_to_delete.credential_store == "os" or profile_to_delete.auth_mode == "pkce":
-            from .credentials import delete_profile_credentials
+        from .credentials import delete_profile_credentials
 
+        try:
+            delete_profile_credentials(
+                profile_to_delete.credential_id,
+                profile_to_delete.credential_store,
+                profile_to_delete.name,
+                profile_to_delete.auth_mode,
+            )
+        except CredentialStoreError as exc:
+            cfg.profiles[name] = profile_to_delete
+            cfg.current_profile = previous_current_profile
             try:
-                delete_profile_credentials(
-                    profile_to_delete.credential_id,
-                    profile_to_delete.credential_store,
-                    profile_to_delete.name if profile_to_delete.auth_mode == "pkce" else None,
-                )
-            except CredentialStoreError as exc:
-                cfg.profiles[name] = profile_to_delete
-                cfg.current_profile = previous_current_profile
-                try:
-                    cfg.save()
-                except RuntimeError as rollback_exc:
-                    _exit_with_validation_error(
-                        f"Could not remove stored credentials: {exc}. "
-                        f"Could not restore profile metadata: {rollback_exc}. "
-                        f"Credential ID: {profile_to_delete.credential_id}.",
-                        ExitCodes.GENERAL_ERROR,
-                    )
+                cfg.save()
+            except RuntimeError as rollback_exc:
                 _exit_with_validation_error(
-                    f"Could not remove stored credentials: {exc}. Profile was not deleted; "
-                    "resolve the credential-store issue and retry.",
+                    f"Could not remove stored credentials: {exc}. "
+                    f"Could not restore profile metadata: {rollback_exc}. "
+                    f"Credential ID: {profile_to_delete.credential_id}.",
                     ExitCodes.GENERAL_ERROR,
                 )
+            _exit_with_validation_error(
+                f"Could not remove stored credentials: {exc}. Profile was not deleted; "
+                "resolve the credential-store issue and retry.",
+                ExitCodes.GENERAL_ERROR,
+            )
 
         click.echo(f"✓ Profile '{name}' deleted.")
         if was_current and cfg.current_profile:

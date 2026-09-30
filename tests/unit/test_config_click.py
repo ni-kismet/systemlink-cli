@@ -973,6 +973,82 @@ def test_fallback_save_failure_restores_previous_profile(tmp_path: Path, monkeyp
     assert saved["profiles"]["dev"]["credential-store"] == "os"
 
 
+@pytest.mark.parametrize("failure_path", ["file-write", "fallback-write", "os-cleanup"])
+def test_profile_rollback_save_failure_reports_credential_id(
+    failure_path: str, tmp_path: Path, monkeypatch: Any, capsys: Any
+) -> None:
+    """A second save failure is reported with recovery details, not a traceback."""
+    from slcli.config_click import _add_profile_impl
+    from slcli.profiles import ProfileConfig
+
+    config_file = tmp_path / "config.json"
+    config_file.write_text(
+        json.dumps(
+            {
+                "current-profile": "dev",
+                "profiles": {
+                    "dev": {
+                        "id": "existing-id",
+                        "server": "https://old.example.com",
+                        "credential-store": "os",
+                    }
+                },
+            }
+        )
+    )
+    monkeypatch.setattr(ProfileConfig, "get_config_path", classmethod(lambda cls: config_file))
+    monkeypatch.setattr(
+        "slcli.config_click.check_service_status",
+        lambda *_args, **_kwargs: {
+            "server_reachable": True,
+            "platform": "unknown",
+            "auth_valid": True,
+            "services": {},
+        },
+    )
+    original_save = ProfileConfig.save
+    save_calls = 0
+
+    def fail_rollback_save(config: ProfileConfig) -> None:
+        nonlocal save_calls
+        save_calls += 1
+        if save_calls == (3 if failure_path == "fallback-write" else 2):
+            raise RuntimeError("disk full")
+        original_save(config)
+
+    monkeypatch.setattr(ProfileConfig, "save", fail_rollback_save)
+
+    def store_credential(_id: str, _credential: str, _value: str, store: str) -> None:
+        if failure_path == "file-write" or (failure_path == "fallback-write" and store == "os"):
+            raise CredentialStoreError("write failed")
+        if failure_path == "fallback-write" and store == "file":
+            raise CredentialStoreError("file write failed")
+
+    monkeypatch.setattr("slcli.config_click.set_credential", store_credential)
+    if failure_path == "os-cleanup":
+        monkeypatch.setattr(
+            "slcli.credentials.delete_credential",
+            MagicMock(side_effect=CredentialStoreError("cleanup failed")),
+        )
+
+    with pytest.raises(SystemExit) as exc_info:
+        _add_profile_impl(
+            profile="dev",
+            url="https://new.example.com",
+            api_key=VALID_API_KEY,
+            web_url="https://web.example.com",
+            workspace="",
+            set_current=True,
+            readonly=False,
+            credential_store="os" if failure_path == "fallback-write" else "file",
+        )
+
+    assert exc_info.value.code == ExitCodes.GENERAL_ERROR
+    output = capsys.readouterr()
+    assert "Could not restore previous profile" in output.err
+    assert "Credential ID: existing-id" in output.err
+
+
 def test_file_store_transition_restores_os_profile_when_cleanup_fails(
     tmp_path: Path, monkeypatch: Any
 ) -> None:
@@ -1292,8 +1368,40 @@ class TestDeleteProfile:
         result = CliRunner().invoke(make_cli(), ["config", "delete", "dev", "--force"])
 
         assert result.exit_code == 0
-        cleanup.assert_called_once_with("dev-id", "file", "dev")
+        cleanup.assert_called_once_with("dev-id", "file", "dev", "pkce")
         assert "dev" not in json.loads(config_file.read_text()).get("profiles", {})
+
+    def test_delete_file_api_key_profile_removes_legacy_tokens(
+        self, tmp_path: Path, monkeypatch: Any
+    ) -> None:
+        """Old PKCE tokens are removed even after switching to file-backed API keys."""
+        config_file = tmp_path / "config.json"
+        config_file.write_text(
+            json.dumps(
+                {
+                    "current-profile": "dev",
+                    "profiles": {
+                        "dev": {
+                            "id": "dev-id",
+                            "server": "https://example.com",
+                            "auth-mode": "api-key",
+                            "credential-store": "file",
+                            "api-key": VALID_API_KEY,
+                        }
+                    },
+                }
+            )
+        )
+        monkeypatch.setattr(
+            "slcli.profiles.ProfileConfig.get_config_path", classmethod(lambda cls: config_file)
+        )
+        cleanup = MagicMock()
+        monkeypatch.setattr("slcli.credentials.delete_profile_credentials", cleanup)
+
+        result = CliRunner().invoke(make_cli(), ["config", "delete", "dev", "--force"])
+
+        assert result.exit_code == 0
+        cleanup.assert_called_once_with("dev-id", "file", "dev", "api-key")
 
     def test_delete_profile_success(self, tmp_path: Path, monkeypatch: Any) -> None:
         """Test deleting a profile with force flag."""

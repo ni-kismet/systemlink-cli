@@ -300,7 +300,10 @@ def _delete_legacy_pkce_account(account: str) -> None:
 
 
 def delete_profile_credentials(
-    profile_id: str, store: str, legacy_pkce_profile: Optional[str] = None
+    profile_id: str,
+    store: str,
+    legacy_pkce_profile: Optional[str] = None,
+    auth_mode: str = "api-key",
 ) -> None:
     """Delete current profile credentials and obsolete PKCE items when applicable."""
     if legacy_pkce_profile:
@@ -313,7 +316,7 @@ def delete_profile_credentials(
                 break
     if store == "os":
         inactive_credential, active_credential = (
-            ("api-key", "pkce") if legacy_pkce_profile else ("pkce", "api-key")
+            ("api-key", "pkce") if auth_mode == "pkce" else ("pkce", "api-key")
         )
         delete_credential(profile_id, inactive_credential)
         delete_credential(profile_id, active_credential)

@@ -68,7 +68,8 @@ def test_api_key_resolution_prefers_slcli_env_alias(monkeypatch: Any, tmp_path: 
     assert resolved.source == "env:SLCLI_API_KEY"
 
 
-def test_pkce_auth_resolution_returns_bearer_scheme(monkeypatch: Any) -> None:
+@pytest.mark.parametrize("store", ["os", "file"])
+def test_pkce_auth_resolution_returns_bearer_scheme(monkeypatch: Any, store: str) -> None:
     """PKCE profiles resolve to an access token and bearer scheme."""
     from slcli.profiles import Profile
     from slcli.utils import get_auth_resolution
@@ -80,6 +81,7 @@ def test_pkce_auth_resolution_returns_bearer_scheme(monkeypatch: Any) -> None:
             server="https://api.example.com",
             auth_mode="pkce",
             pkce_client_id="client-id",
+            credential_store=store,
         ),
     )
     monkeypatch.setattr(
@@ -89,8 +91,37 @@ def test_pkce_auth_resolution_returns_bearer_scheme(monkeypatch: Any) -> None:
     resolved = get_auth_resolution()
 
     assert resolved.value == "access-token"
-    assert resolved.source == "profile:pkce:pkce"
+    assert resolved.source == f"profile:pkce:{store}:pkce"
     assert resolved.scheme == "bearer"
+
+
+@pytest.mark.parametrize("store", ["os", "file"])
+def test_pkce_refresh_source_includes_store(monkeypatch: Any, store: str) -> None:
+    """Refreshed PKCE tokens retain the source store in their label."""
+    from slcli.profiles import Profile
+    from slcli.utils import get_auth_resolution
+
+    monkeypatch.setattr(
+        "slcli.profiles.get_active_profile",
+        lambda: Profile(
+            name="pkce",
+            server="https://api.example.com",
+            web_url="https://web.example.com",
+            auth_mode="pkce",
+            pkce_client_id="client-id",
+            credential_store=store,
+        ),
+    )
+    monkeypatch.setattr("slcli.pkce.get_pkce_access_token", lambda *_args: None)
+    monkeypatch.setattr(
+        "slcli.pkce.refresh_pkce_credentials",
+        lambda *_args: MagicMock(access_token="refreshed-token"),
+    )
+
+    resolved = get_auth_resolution()
+
+    assert resolved.value == "refreshed-token"
+    assert resolved.source == f"profile:pkce:{store}:pkce-refresh"
 
 
 def test_get_auth_headers_uses_only_bearer_header() -> None:

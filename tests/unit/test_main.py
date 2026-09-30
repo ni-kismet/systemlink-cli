@@ -470,7 +470,41 @@ def test_logout_removes_os_credentials(monkeypatch: Any, tmp_path: Any) -> None:
 
     assert result.exit_code == 0
     assert "Profile 'test' removed" in result.output
-    delete_credentials.assert_called_once_with("profile-id", "os", None)
+    delete_credentials.assert_called_once_with("profile-id", "os", "test", "api-key")
+
+
+def test_logout_file_api_key_profile_cleans_legacy_tokens(monkeypatch: Any, tmp_path: Any) -> None:
+    """Logout supplies the old PKCE account name even for a current API-key profile."""
+    import json
+    from unittest.mock import MagicMock
+
+    config_file = tmp_path / "config.json"
+    config_file.write_text(
+        json.dumps(
+            {
+                "current-profile": "test",
+                "profiles": {
+                    "test": {
+                        "id": "profile-id",
+                        "server": "https://example.test",
+                        "api-key": "file-key",
+                        "credential-store": "file",
+                        "auth-mode": "api-key",
+                    }
+                },
+            }
+        )
+    )
+    monkeypatch.setattr(
+        "slcli.profiles.ProfileConfig.get_config_path", classmethod(lambda cls: config_file)
+    )
+    cleanup = MagicMock()
+    monkeypatch.setattr("slcli.credentials.delete_profile_credentials", cleanup)
+
+    result = CliRunner().invoke(cli, ["logout", "--force"])
+
+    assert result.exit_code == 0
+    cleanup.assert_called_once_with("profile-id", "file", "test", "api-key")
 
 
 def test_logout_keeps_profile_when_credential_cleanup_fails(

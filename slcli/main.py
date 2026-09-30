@@ -565,7 +565,8 @@ def logout(profile: Optional[str], remove_all: bool, force: bool) -> None:
             delete_profile_credentials(
                 removed_profile.credential_id,
                 removed_profile.credential_store,
-                removed_profile.name if removed_profile.auth_mode == "pkce" else None,
+                removed_profile.name,
+                removed_profile.auth_mode,
             )
         except CredentialStoreError as exc:
             cfg.profiles[removed_profile.name] = removed_profile

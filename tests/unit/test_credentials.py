@@ -216,7 +216,7 @@ def test_delete_profile_credentials_removes_legacy_pkce_items(monkeypatch: Any) 
     monkeypatch.setattr(credentials.platform, "system", lambda: "Linux")
     monkeypatch.setattr(credentials, "_get_keyring_module", lambda: backend)
 
-    credentials.delete_profile_credentials("profile-id", "os", "dev")
+    credentials.delete_profile_credentials("profile-id", "os", "dev", "pkce")
 
     deleted_accounts = [call.args[1] for call in backend.delete_password.call_args_list]
     assert deleted_accounts == [
@@ -229,6 +229,21 @@ def test_delete_profile_credentials_removes_legacy_pkce_items(monkeypatch: Any) 
         "profile:profile-id:pkce",
     ]
     backend.get_password.assert_not_called()
+
+
+def test_delete_api_key_profile_also_removes_legacy_pkce_items(monkeypatch: Any) -> None:
+    """A PKCE-to-API-key transition does not skip old per-token accounts."""
+    backend = MagicMock()
+    monkeypatch.setattr(credentials.platform, "system", lambda: "Linux")
+    monkeypatch.setattr(credentials, "_get_keyring_module", lambda: backend)
+
+    credentials.delete_profile_credentials("profile-id", "os", "dev", "api-key")
+
+    deleted = [call.args[1] for call in backend.delete_password.call_args_list]
+    assert deleted[:5] == [
+        f"PKCE:dev:{credential}" for credential in credentials.LEGACY_PKCE_CREDENTIALS
+    ]
+    assert deleted[-2:] == ["profile:profile-id:pkce", "profile:profile-id:api-key"]
 
 
 def test_delete_api_key_profile_removes_active_credential_last(monkeypatch: Any) -> None:

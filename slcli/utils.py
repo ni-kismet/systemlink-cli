@@ -472,7 +472,9 @@ def get_auth_resolution(emit_error: bool = True) -> ResolvedAuth:
                     raise click.ClickException(str(exc)) from exc
                 if access_token:
                     return ResolvedAuth(
-                        access_token, _profile_source(profile.name, "pkce"), "bearer"
+                        access_token,
+                        _profile_source(profile.name, f"{profile.credential_store}:pkce"),
+                        "bearer",
                     )
                 if profile.web_url and profile.pkce_client_id:
                     from .pkce import refresh_pkce_credentials
@@ -489,7 +491,9 @@ def get_auth_resolution(emit_error: bool = True) -> ResolvedAuth:
                     else:
                         return ResolvedAuth(
                             refreshed.access_token,
-                            _profile_source(profile.name, "pkce-refresh"),
+                            _profile_source(
+                                profile.name, f"{profile.credential_store}:pkce-refresh"
+                            ),
                             "bearer",
                         )
                 if emit_error:
