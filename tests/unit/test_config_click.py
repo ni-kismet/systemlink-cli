@@ -570,6 +570,138 @@ class TestSecureProfiles:
         read_secret.assert_not_called()
 
 
+def test_file_to_os_profile_transition_stages_credential_before_metadata_save(
+    tmp_path: Path, monkeypatch: Any
+) -> None:
+    """The old file credential remains usable until its OS replacement is written."""
+    from slcli.config_click import _add_profile_impl
+
+    config_file = tmp_path / "config.json"
+    config_file.write_text(
+        json.dumps(
+            {
+                "current-profile": "dev",
+                "profiles": {
+                    "dev": {
+                        "id": "profile-id",
+                        "server": "https://old.example.com",
+                        "api-key": "old-file-key",
+                        "credential-store": "file",
+                    }
+                },
+            }
+        )
+    )
+    monkeypatch.setattr(
+        "slcli.profiles.ProfileConfig.get_config_path", classmethod(lambda cls: config_file)
+    )
+    monkeypatch.setattr(
+        "slcli.config_click.check_service_status",
+        lambda *_args, **_kwargs: {
+            "server_reachable": True,
+            "platform": "unknown",
+            "auth_valid": True,
+            "services": {},
+        },
+    )
+    stored_credentials: list[tuple[str, str, str, str]] = []
+
+    def store_credential(profile_id: str, credential: str, value: str, store: str) -> None:
+        stored_credentials.append((profile_id, credential, value, store))
+        if store == "os":
+            on_disk = json.loads(config_file.read_text())["profiles"]["dev"]
+            assert on_disk["credential-store"] == "file"
+            assert on_disk["api-key"] == "old-file-key"
+
+    monkeypatch.setattr("slcli.config_click.set_credential", store_credential)
+
+    _add_profile_impl(
+        profile="dev",
+        url="https://new.example.com",
+        api_key=VALID_API_KEY,
+        web_url="https://web.example.com",
+        workspace="",
+        set_current=True,
+        readonly=False,
+    )
+
+    saved_profile = json.loads(config_file.read_text())["profiles"]["dev"]
+    assert stored_credentials == [("profile-id", "api-key", VALID_API_KEY, "os")]
+    assert saved_profile["credential-store"] == "os"
+    assert "api-key" not in saved_profile
+
+
+def test_file_to_os_profile_transition_cleans_staged_credential_when_save_fails(
+    tmp_path: Path, monkeypatch: Any
+) -> None:
+    """A failed OS-metadata save removes the staged secret and restores the file profile."""
+    from slcli.config_click import _add_profile_impl
+    from slcli.profiles import ProfileConfig
+
+    config_file = tmp_path / "config.json"
+    config_file.write_text(
+        json.dumps(
+            {
+                "current-profile": "dev",
+                "profiles": {
+                    "dev": {
+                        "id": "profile-id",
+                        "server": "https://old.example.com",
+                        "api-key": "old-file-key",
+                        "credential-store": "file",
+                    }
+                },
+            }
+        )
+    )
+    monkeypatch.setattr(
+        "slcli.profiles.ProfileConfig.get_config_path", classmethod(lambda cls: config_file)
+    )
+    monkeypatch.setattr(
+        "slcli.config_click.check_service_status",
+        lambda *_args, **_kwargs: {
+            "server_reachable": True,
+            "platform": "unknown",
+            "auth_valid": True,
+            "services": {},
+        },
+    )
+    original_save = ProfileConfig.save
+    save_calls = 0
+
+    def fail_first_save(config: ProfileConfig) -> None:
+        nonlocal save_calls
+        save_calls += 1
+        if save_calls == 1:
+            raise RuntimeError("config is read-only")
+        original_save(config)
+
+    monkeypatch.setattr(ProfileConfig, "save", fail_first_save)
+    store_credential = MagicMock()
+    delete_credential = MagicMock()
+    monkeypatch.setattr("slcli.config_click.set_credential", store_credential)
+    monkeypatch.setattr("slcli.credentials.delete_credential", delete_credential)
+
+    with pytest.raises(SystemExit) as exc_info:
+        _add_profile_impl(
+            profile="dev",
+            url="https://new.example.com",
+            api_key=VALID_API_KEY,
+            web_url="https://web.example.com",
+            workspace="",
+            set_current=True,
+            readonly=False,
+        )
+
+    saved_profile = json.loads(config_file.read_text())["profiles"]["dev"]
+    assert exc_info.value.code == ExitCodes.GENERAL_ERROR
+    store_credential.assert_called_once_with("profile-id", "api-key", VALID_API_KEY, "os")
+    delete_credential.assert_called_once_with("profile-id", "api-key")
+    assert saved_profile["server"] == "https://old.example.com"
+    assert saved_profile["credential-store"] == "file"
+    assert saved_profile["api-key"] == "old-file-key"
+
+
 @pytest.mark.parametrize("auth_mode", ["api-key", "pkce"])
 def test_add_profile_falls_back_to_file_when_os_write_fails(
     auth_mode: str, tmp_path: Path, monkeypatch: Any, capsys: Any

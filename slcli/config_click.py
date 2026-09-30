@@ -437,10 +437,7 @@ def _add_profile_impl(
     if previous_profile:
         new_profile.credential_id = previous_profile.credential_id
 
-    cfg.add_profile(new_profile, set_current=set_current)
-    cfg.save()
-
-    try:
+    def store_profile_credentials(store: str) -> None:
         if auth_mode == "pkce" and pkce_result is not None:
             from .pkce import save_pkce_credentials
 
@@ -449,12 +446,81 @@ def _add_profile_impl(
                 pkce_result.access_token,
                 pkce_result.refresh_token,
                 pkce_result.expires_at,
-                new_profile.credential_store,
+                store,
             )
         elif auth_mode == "api-key":
-            set_credential(
-                new_profile.credential_id, "api-key", api_key, new_profile.credential_store
+            set_credential(new_profile.credential_id, "api-key", api_key, store)
+
+    moving_file_credentials_to_os = (
+        previous_profile is not None
+        and previous_profile.credential_store == "file"
+        and new_profile.credential_store == "os"
+    )
+    staged_os_credentials = False
+    if moving_file_credentials_to_os:
+        try:
+            store_profile_credentials("os")
+            staged_os_credentials = True
+        except Exception as exc:
+            new_profile.credential_store = "file"
+            if auth_mode == "api-key":
+                new_profile.api_key = api_key
+            elif pkce_result is not None:
+                new_profile.pkce_credentials = {
+                    "access-token": pkce_result.access_token,
+                    "refresh-token": pkce_result.refresh_token,
+                    "access-expires-at": pkce_result.expires_at,
+                }
+            click.echo(
+                f"⚠️  OS credential store unavailable ({exc}); "
+                "storing this profile in the config file.",
+                err=True,
             )
+
+    cfg.add_profile(new_profile, set_current=set_current)
+    if staged_os_credentials:
+        try:
+            cfg.save()
+        except RuntimeError as save_exc:
+            from .credentials import delete_credential
+
+            credential_name = "pkce" if auth_mode == "pkce" else "api-key"
+            cleanup_error: Optional[CredentialStoreError] = None
+            try:
+                delete_credential(new_profile.credential_id, credential_name)
+            except CredentialStoreError as exc:
+                cleanup_error = exc
+
+            if previous_profile is None:
+                cfg.profiles.pop(profile, None)
+            else:
+                cfg.profiles[profile] = previous_profile
+            cfg.current_profile = previous_current_profile
+            try:
+                cfg.save()
+            except RuntimeError as rollback_exc:
+                _exit_with_validation_error(
+                    f"Could not save the profile or restore the previous config: "
+                    f"{save_exc}; {rollback_exc}. Credential ID: "
+                    f"{new_profile.credential_id}.",
+                    ExitCodes.GENERAL_ERROR,
+                )
+            if cleanup_error:
+                _exit_with_validation_error(
+                    f"Could not save the profile: {save_exc}. The previous profile was "
+                    f"restored, but staged credentials could not be removed: {cleanup_error}.",
+                    ExitCodes.GENERAL_ERROR,
+                )
+            _exit_with_validation_error(
+                f"Could not save the profile: {save_exc}. The previous profile was restored.",
+                ExitCodes.GENERAL_ERROR,
+            )
+    else:
+        cfg.save()
+
+    try:
+        if not staged_os_credentials:
+            store_profile_credentials(new_profile.credential_store)
     except Exception as exc:
         if new_profile.credential_store != "os":
             if previous_profile is None:
