@@ -10,7 +10,7 @@ import pytest
 from click.testing import CliRunner
 
 from slcli.config_click import _normalize_base_url, register_config_commands
-from slcli.credentials import CredentialStoreError
+from slcli.credentials import CredentialStoreError, describe_credential_store
 from slcli.platform import PLATFORM_SLS
 from slcli.utils import ExitCodes
 
@@ -566,7 +566,7 @@ class TestSecureProfiles:
         result = CliRunner().invoke(make_cli(), ["config", "view"])
 
         assert result.exit_code == 0, result.output
-        assert "macOS Keychain" in result.output
+        assert describe_credential_store("os") in result.output
         read_secret.assert_not_called()
 
 

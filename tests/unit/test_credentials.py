@@ -1,5 +1,6 @@
 """Unit tests for operating-system credential storage."""
 
+import json
 import subprocess
 from typing import Any
 from unittest.mock import MagicMock
@@ -56,6 +57,78 @@ def test_macos_locked_keychain_error_suggests_unlock(monkeypatch: Any) -> None:
         credentials._macos_get("profile-id", "api-key")
 
 
+@pytest.mark.parametrize("operation", ["_macos_get", "_macos_set", "_macos_delete"])
+def test_macos_operations_report_keychain_errors(monkeypatch: Any, operation: str) -> None:
+    """Security command failures are surfaced without exposing credential values."""
+    monkeypatch.setattr(credentials, "_security_executable", lambda: "/usr/bin/security")
+    monkeypatch.setattr(
+        credentials.subprocess,
+        "run",
+        lambda *_args, **_kwargs: subprocess.CompletedProcess([], 1, "", "access denied"),
+    )
+
+    with pytest.raises(credentials.CredentialStoreError, match="access denied"):
+        if operation == "_macos_set":
+            credentials._macos_set("profile-id", "api-key", "secret")
+        else:
+            getattr(credentials, operation)("profile-id", "api-key")
+
+
+def test_macos_reads_and_deletes_existing_credential(monkeypatch: Any) -> None:
+    """A successful Keychain read strips only the command's trailing newline."""
+    run = MagicMock(return_value=subprocess.CompletedProcess([], 0, "secret value\n", ""))
+    monkeypatch.setattr(credentials, "_security_executable", lambda: "/usr/bin/security")
+    monkeypatch.setattr(credentials.subprocess, "run", run)
+
+    assert credentials._macos_get("profile-id", "api-key") == "secret value"
+    credentials._macos_delete("profile-id", "api-key")
+    assert run.call_args.args[0][-1] == "profile:profile-id:api-key"
+
+
+def test_macos_delete_ignores_missing_credential(monkeypatch: Any) -> None:
+    """Deleting an already absent Keychain item is idempotent."""
+    monkeypatch.setattr(credentials, "_security_executable", lambda: "/usr/bin/security")
+    monkeypatch.setattr(
+        credentials.subprocess,
+        "run",
+        lambda *_args, **_kwargs: subprocess.CompletedProcess([], 44, "", "item not found"),
+    )
+
+    credentials._macos_delete("profile-id", "api-key")
+
+
+def test_file_credentials_round_trip(monkeypatch: Any) -> None:
+    """File storage reads and updates both API keys and bundled PKCE credentials."""
+    config = MagicMock()
+    profile = MagicMock(api_key="", pkce_credentials={})
+    monkeypatch.setattr(credentials, "_find_profile", lambda _profile_id: (config, profile))
+
+    assert credentials.get_credential("profile-id", "api-key", "file") is None
+    assert credentials.get_credential("profile-id", "pkce", "file") is None
+    credentials.set_credential("profile-id", "api-key", "secret", "file")
+    credentials.set_credential("profile-id", "pkce", '{"access_token": "token"}', "file")
+    assert credentials.get_credential("profile-id", "api-key", "file") == "secret"
+    assert json.loads(credentials.get_credential("profile-id", "pkce", "file") or "") == {
+        "access_token": "token"
+    }
+    credentials.delete_credential("profile-id", "api-key", "file")
+    credentials.delete_credential("profile-id", "pkce", "file")
+    assert profile.api_key == ""
+    assert profile.pkce_credentials == {}
+    assert config.save.call_count == 4
+
+
+@pytest.mark.parametrize("value", ["not json", "[]"])
+def test_file_rejects_invalid_pkce_bundle(monkeypatch: Any, value: str) -> None:
+    """Only JSON objects can be saved as file-backed PKCE credentials."""
+    config = MagicMock()
+    monkeypatch.setattr(credentials, "_find_profile", lambda _profile_id: (config, MagicMock()))
+
+    with pytest.raises(credentials.CredentialStoreError, match="bundle is invalid"):
+        credentials.set_credential("profile-id", "pkce", value, "file")
+    config.save.assert_not_called()
+
+
 def test_get_credential_is_cached_and_invalidated_after_set(monkeypatch: Any) -> None:
     """Repeated reads avoid backend calls and writes clear cached values."""
     backend = MagicMock()
@@ -83,6 +156,40 @@ def test_linux_rejects_non_secret_service_backend(monkeypatch: Any) -> None:
 
     with pytest.raises(credentials.CredentialStoreUnavailable, match="Secret Service"):
         credentials._get_keyring_module()
+
+
+def test_keyring_read_and_delete_errors(monkeypatch: Any) -> None:
+    """Backend failures distinguish missing credentials from other failures."""
+    import keyring.errors
+
+    backend = MagicMock()
+    backend.errors.PasswordDeleteError = keyring.errors.PasswordDeleteError
+    monkeypatch.setattr(credentials.platform, "system", lambda: "Linux")
+    monkeypatch.setattr(credentials, "_get_keyring_module", lambda: backend)
+    credentials._cached_get.cache_clear()
+    backend.get_password.side_effect = RuntimeError("backend read failure")
+    with pytest.raises(credentials.CredentialStoreError, match="Could not read"):
+        credentials.get_credential("profile-id", "api-key")
+
+    backend.delete_password.side_effect = keyring.errors.PasswordDeleteError()
+    credentials.delete_credential("profile-id", "api-key")
+    backend.delete_password.side_effect = RuntimeError("backend delete failure")
+    with pytest.raises(credentials.CredentialStoreError, match="Could not delete"):
+        credentials.delete_credential("profile-id", "api-key")
+
+
+def test_keyring_unavailable_on_write(monkeypatch: Any) -> None:
+    """A missing keyring backend suggests file storage instead of leaking a traceback."""
+    import keyring.errors
+
+    backend = MagicMock()
+    backend.errors.NoKeyringError = keyring.errors.NoKeyringError
+    backend.set_password.side_effect = keyring.errors.NoKeyringError()
+    monkeypatch.setattr(credentials.platform, "system", lambda: "Linux")
+    monkeypatch.setattr(credentials, "_get_keyring_module", lambda: backend)
+
+    with pytest.raises(credentials.CredentialStoreUnavailable, match="--credential-store file"):
+        credentials.set_credential("profile-id", "api-key", "secret")
 
 
 def test_delete_profile_credentials_removes_legacy_pkce_items(monkeypatch: Any) -> None:
