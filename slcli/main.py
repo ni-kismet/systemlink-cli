@@ -511,10 +511,6 @@ def logout(profile: Optional[str], remove_all: bool, force: bool) -> None:
 
         # Clear all profiles
         removed_profiles = list(cfg.profiles.values())
-        cfg.profiles.clear()
-        cfg.current_profile = None
-        cfg.save()
-        click.echo("✓ All profiles removed.")
 
     elif profile:
         # Remove specific profile
@@ -531,9 +527,6 @@ def logout(profile: Optional[str], remove_all: bool, force: bool) -> None:
                 return
 
         removed_profiles = [cfg.profiles[profile]]
-        cfg.delete_profile(profile)
-        cfg.save()
-        click.echo(f"✓ Profile '{profile}' removed.")
 
     else:
         # Remove current profile
@@ -551,11 +544,6 @@ def logout(profile: Optional[str], remove_all: bool, force: bool) -> None:
                 return
 
         removed_profiles = [cfg.profiles[current]]
-        cfg.delete_profile(current)
-        cfg.save()
-        click.echo(f"✓ Profile '{current}' removed.")
-        if cfg.current_profile:
-            click.echo(f"  Current profile is now: {cfg.current_profile}")
 
     from .credentials import CredentialStoreError, delete_profile_credentials
 
@@ -567,9 +555,23 @@ def logout(profile: Optional[str], remove_all: bool, force: bool) -> None:
                 removed_profile.name if removed_profile.auth_mode == "pkce" else None,
             )
         except CredentialStoreError as exc:
-            click.echo(
-                f"⚠️  Could not remove credentials for '{removed_profile.name}': {exc}", err=True
-            )
+            raise click.ClickException(
+                f"Could not remove credentials for '{removed_profile.name}': {exc}. "
+                "Profiles were not removed; resolve the credential-store issue and retry."
+            ) from exc
+
+    if remove_all:
+        cfg.profiles.clear()
+        cfg.current_profile = None
+        cfg.save()
+        click.echo("✓ All profiles removed.")
+    else:
+        removed_profile = removed_profiles[0]
+        cfg.delete_profile(removed_profile.name)
+        cfg.save()
+        click.echo(f"✓ Profile '{removed_profile.name}' removed.")
+        if cfg.current_profile:
+            click.echo(f"  Current profile is now: {cfg.current_profile}")
 
 
 @cli.command()

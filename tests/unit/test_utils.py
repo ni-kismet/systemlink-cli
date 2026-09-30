@@ -252,6 +252,48 @@ def test_base_url_resolution_reports_profile_source(monkeypatch: Any, tmp_path: 
     assert resolved.source == "profile:dev"
 
 
+def test_profile_source_encoding_disambiguates_colon_in_profile_name(monkeypatch: Any) -> None:
+    """A colon in the profile name cannot be mistaken for a credential-store suffix."""
+    from slcli.profiles import Profile
+    from slcli.utils import describe_config_source, get_base_url_resolution
+
+    monkeypatch.delenv("SLCLI_API_URL", raising=False)
+    monkeypatch.delenv("SYSTEMLINK_API_URL", raising=False)
+    monkeypatch.setattr(
+        "slcli.profiles.get_active_profile",
+        lambda: Profile(name="team:os", server="https://api.example.com"),
+    )
+
+    resolved = get_base_url_resolution()
+
+    assert resolved.source == "profile:team%3Aos"
+    assert describe_config_source(resolved.source) == "Profile 'team:os'"
+
+
+def test_plaintext_warning_save_failure_does_not_block_auth(monkeypatch: Any) -> None:
+    """Failure to persist the advisory warning does not prevent credential use."""
+    from types import SimpleNamespace
+
+    from slcli.profiles import Profile
+    from slcli.utils import get_auth_resolution
+
+    config = MagicMock(settings={})
+    config.save.side_effect = RuntimeError("config is read-only")
+    monkeypatch.setattr("slcli.profiles.ProfileConfig.load", lambda: config)
+    monkeypatch.setattr(
+        "slcli.profiles.get_active_profile",
+        lambda: Profile(name="dev", server="https://api.example.com", api_key="plain-key"),
+    )
+    monkeypatch.setattr(
+        "slcli.utils.sys", SimpleNamespace(stderr=SimpleNamespace(isatty=lambda: True))
+    )
+
+    resolved = get_auth_resolution()
+
+    assert resolved.value == "plain-key"
+    config.save.assert_called_once()
+
+
 def test_api_key_resolution_raises_single_click_exception_when_missing(monkeypatch: Any) -> None:
     """Missing API keys should raise one ClickException with the full guidance message."""
     from slcli.utils import get_api_key_resolution

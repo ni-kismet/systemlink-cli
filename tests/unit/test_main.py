@@ -473,6 +473,44 @@ def test_logout_removes_os_credentials(monkeypatch: Any, tmp_path: Any) -> None:
     delete_credentials.assert_called_once_with("profile-id", "os", None)
 
 
+def test_logout_keeps_profile_when_credential_cleanup_fails(
+    monkeypatch: Any, tmp_path: Any
+) -> None:
+    """A cleanup failure leaves profile metadata so the operation can be retried."""
+    import json
+    from unittest.mock import MagicMock
+
+    from slcli.credentials import CredentialStoreError
+
+    config_file = tmp_path / "config.json"
+    config_file.write_text(
+        json.dumps(
+            {
+                "current-profile": "test",
+                "profiles": {
+                    "test": {
+                        "id": "profile-id",
+                        "server": "https://example.test",
+                        "credential-store": "os",
+                    }
+                },
+            }
+        )
+    )
+    monkeypatch.setattr(
+        "slcli.profiles.ProfileConfig.get_config_path", classmethod(lambda cls: config_file)
+    )
+    monkeypatch.setattr(
+        "slcli.credentials.delete_profile_credentials",
+        MagicMock(side_effect=CredentialStoreError("store locked")),
+    )
+
+    result = CliRunner().invoke(cli, ["logout", "--force"])
+
+    assert result.exit_code != 0
+    assert "test" in json.loads(config_file.read_text())["profiles"]
+
+
 def test_info_json(monkeypatch: Any, tmp_path: Any) -> None:
     """Ensure info emits JSON when requested."""
     import json as json_mod

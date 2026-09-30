@@ -570,6 +570,154 @@ class TestSecureProfiles:
         read_secret.assert_not_called()
 
 
+@pytest.mark.parametrize("auth_mode", ["api-key", "pkce"])
+def test_add_profile_falls_back_to_file_when_os_write_fails(
+    auth_mode: str, tmp_path: Path, monkeypatch: Any, capsys: Any
+) -> None:
+    """API-key and PKCE credentials persist to file after an OS-store failure."""
+    from slcli.config_click import _add_profile_impl
+    from slcli.credentials import set_credential as real_set_credential
+
+    config_file = tmp_path / "config.json"
+    monkeypatch.setattr(
+        "slcli.profiles.ProfileConfig.get_config_path", classmethod(lambda cls: config_file)
+    )
+    writes: list[str] = []
+    web_url = "https://web.example.com"
+    client_id = None
+
+    def set_credential(profile_id: str, credential: str, value: str, store: str) -> None:
+        writes.append(store)
+        if store == "os":
+            raise CredentialStoreError("OS store unavailable")
+        real_set_credential(profile_id, credential, value, store)
+
+    if auth_mode == "api-key":
+        monkeypatch.setattr("slcli.config_click.set_credential", set_credential)
+        monkeypatch.setattr(
+            "slcli.config_click.check_service_status",
+            lambda *_args, **_kwargs: {
+                "server_reachable": True,
+                "platform": "unknown",
+                "auth_valid": True,
+                "services": {},
+            },
+        )
+        api_key = VALID_API_KEY
+    else:
+        from slcli.pkce import PkceLoginResult
+
+        monkeypatch.setattr("slcli.pkce.set_credential", set_credential)
+        monkeypatch.setattr(
+            "slcli.config_click.check_web_server_auth",
+            lambda *_args, **_kwargs: {
+                "server_reachable": True,
+                "platform": "unknown",
+                "auth_valid": True,
+                "services": {"Web Server": "ok"},
+            },
+        )
+        monkeypatch.setattr(
+            "slcli.config_click.check_service_status", lambda *_args, **_kwargs: {"platform": "SLE"}
+        )
+        monkeypatch.setattr(
+            "slcli.pkce.perform_pkce_login",
+            lambda *_args, **_kwargs: PkceLoginResult("access-token", "refresh-token"),
+        )
+        api_key = None
+        client_id = "client-id"
+
+    _add_profile_impl(
+        profile="dev",
+        url="https://api.example.com",
+        api_key=api_key,
+        web_url=web_url,
+        workspace="",
+        set_current=True,
+        readonly=False,
+        auth_mode=auth_mode,
+        client_id=client_id,
+    )
+
+    output = capsys.readouterr()
+    saved_profile = json.loads(config_file.read_text())["profiles"]["dev"]
+    assert writes == ["os", "file"]
+    assert saved_profile["credential-store"] == "file"
+    assert "OS credential store unavailable" in output.err
+    if auth_mode == "api-key":
+        assert saved_profile["api-key"] == VALID_API_KEY
+    else:
+        assert saved_profile["pkce-credentials"]["access-token"] == "access-token"
+        assert saved_profile["pkce-credentials"]["refresh-token"] == "refresh-token"
+
+
+def test_file_store_transition_restores_os_profile_when_cleanup_fails(
+    tmp_path: Path, monkeypatch: Any
+) -> None:
+    """A failed OS cleanup rolls back file-backed metadata and removes its plaintext copy."""
+    from slcli.config_click import _add_profile_impl
+
+    config_file = tmp_path / "config.json"
+    config_file.write_text(
+        json.dumps(
+            {
+                "current-profile": "other",
+                "profiles": {
+                    "dev": {
+                        "id": "profile-id",
+                        "server": "https://old.example.com",
+                        "credential-store": "os",
+                    },
+                    "other": {
+                        "server": "https://other.example.com",
+                        "api-key": "other-key",
+                    },
+                },
+            }
+        )
+    )
+    monkeypatch.setattr(
+        "slcli.profiles.ProfileConfig.get_config_path", classmethod(lambda cls: config_file)
+    )
+    monkeypatch.setattr(
+        "slcli.config_click.check_service_status",
+        lambda *_args, **_kwargs: {
+            "server_reachable": True,
+            "platform": "unknown",
+            "auth_valid": True,
+            "services": {},
+        },
+    )
+    deleted: list[str] = []
+
+    def delete_credential(_profile_id: str, credential: str) -> None:
+        deleted.append(credential)
+        if credential == "api-key":
+            raise CredentialStoreError("Keychain locked")
+
+    monkeypatch.setattr("slcli.credentials.delete_credential", delete_credential)
+
+    with pytest.raises(SystemExit) as exc_info:
+        _add_profile_impl(
+            profile="dev",
+            url="https://new.example.com",
+            api_key=VALID_API_KEY,
+            web_url="https://web.example.com",
+            workspace="",
+            set_current=True,
+            readonly=False,
+            credential_store="file",
+        )
+
+    saved = json.loads(config_file.read_text())
+    assert exc_info.value.code == ExitCodes.GENERAL_ERROR
+    assert deleted == ["pkce", "api-key"]
+    assert saved["current-profile"] == "other"
+    assert saved["profiles"]["dev"]["server"] == "https://old.example.com"
+    assert saved["profiles"]["dev"]["credential-store"] == "os"
+    assert "api-key" not in saved["profiles"]["dev"]
+
+
 class TestTrustedCertificates:
     """Tests for managed certificate trust commands."""
 
@@ -852,6 +1000,39 @@ class TestDeleteProfile:
         saved = json.loads(config_file.read_text())
         assert "todelete" not in saved["profiles"]
         assert "keep" in saved["profiles"]
+
+    def test_delete_profile_keeps_metadata_when_cleanup_fails(
+        self, tmp_path: Path, monkeypatch: Any
+    ) -> None:
+        """A failed credential cleanup leaves profile metadata available for retry."""
+        config_file = tmp_path / "config.json"
+        config_file.write_text(
+            json.dumps(
+                {
+                    "current-profile": "dev",
+                    "profiles": {
+                        "dev": {
+                            "id": "profile-id",
+                            "server": "https://dev.example.com",
+                            "credential-store": "os",
+                        }
+                    },
+                }
+            )
+        )
+        monkeypatch.setattr(
+            "slcli.profiles.ProfileConfig.get_config_path", classmethod(lambda cls: config_file)
+        )
+        monkeypatch.setattr(
+            "slcli.credentials.delete_profile_credentials",
+            MagicMock(side_effect=CredentialStoreError("store locked")),
+        )
+
+        result = CliRunner().invoke(make_cli(), ["config", "delete", "dev", "--force"])
+
+        assert result.exit_code == ExitCodes.GENERAL_ERROR
+        assert "Profile was not deleted" in result.output
+        assert "dev" in json.loads(config_file.read_text())["profiles"]
 
     def test_delete_profile_not_found(self, tmp_path: Path, monkeypatch: Any) -> None:
         """Test deleting a non-existent profile."""

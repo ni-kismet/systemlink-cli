@@ -501,15 +501,26 @@ def _add_profile_impl(
     if previous_profile and previous_profile.credential_store == "os":
         from .credentials import delete_credential
 
-        obsolete_credentials = (
-            ("api-key", "pkce")
-            if new_profile.credential_store == "file"
-            else (("pkce",) if auth_mode == "api-key" else ("api-key",))
-        )
+        if new_profile.credential_store == "file":
+            active_credential = "pkce" if previous_profile.auth_mode == "pkce" else "api-key"
+            obsolete_credentials = tuple(
+                credential for credential in ("api-key", "pkce") if credential != active_credential
+            ) + (active_credential,)
+        else:
+            obsolete_credentials = ("pkce",) if auth_mode == "api-key" else ("api-key",)
         for obsolete in obsolete_credentials:
             try:
                 delete_credential(previous_profile.credential_id, obsolete)
             except CredentialStoreError as exc:
+                if new_profile.credential_store == "file":
+                    cfg.profiles[profile] = previous_profile
+                    cfg.current_profile = previous_current_profile
+                    cfg.save()
+                    _exit_with_validation_error(
+                        f"Could not remove replaced credentials: {exc}. The previous profile "
+                        "was restored; resolve the credential-store issue and retry.",
+                        ExitCodes.GENERAL_ERROR,
+                    )
                 click.echo(f"⚠️  Could not remove replaced credentials: {exc}", err=True)
 
     click.echo(f"\n✓ Profile '{profile}' saved successfully.")
@@ -941,7 +952,11 @@ def register_config_commands(cli: Any) -> None:
                     profile_to_delete.name if profile_to_delete.auth_mode == "pkce" else None,
                 )
             except CredentialStoreError as exc:
-                click.echo(f"⚠️  Could not remove stored credentials: {exc}", err=True)
+                _exit_with_validation_error(
+                    f"Could not remove stored credentials: {exc}. Profile was not deleted; "
+                    "resolve the credential-store issue and retry.",
+                    ExitCodes.GENERAL_ERROR,
+                )
 
         was_current = cfg.current_profile == name
         cfg.delete_profile(name)

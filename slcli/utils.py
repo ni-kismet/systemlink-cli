@@ -6,6 +6,7 @@ import os
 import sys
 from dataclasses import dataclass
 from typing import Any, Callable, Dict, List, Literal, Optional, Sequence, Union
+from urllib.parse import quote, unquote
 
 import click
 import requests
@@ -349,23 +350,30 @@ def source_is_env(source: str) -> bool:
     return source.startswith("env:")
 
 
+def _profile_source(profile_name: str, source_type: Optional[str] = None) -> str:
+    """Build a source label with an unambiguous encoded profile name."""
+    encoded_name = quote(profile_name, safe="")
+    return f"profile:{encoded_name}:{source_type}" if source_type else f"profile:{encoded_name}"
+
+
 def describe_config_source(source: str) -> str:
     """Return a user-facing description of a resolved configuration source."""
     if source.startswith("env:"):
         return f"Environment ({source.split(':', 1)[1]})"
     if source.startswith("profile:"):
         parts = source.split(":", 2)
+        profile_name = unquote(parts[1])
         if len(parts) == 3 and parts[2] == "os":
             from .credentials import describe_credential_store
 
-            return f"Profile '{parts[1]}' ({describe_credential_store('os')})"
+            return f"Profile '{profile_name}' ({describe_credential_store('os')})"
         if len(parts) == 3 and parts[2] == "file":
-            return f"Profile '{parts[1]}' (config file)"
+            return f"Profile '{profile_name}' (config file)"
         if len(parts) == 3 and parts[2] == "pkce":
-            return f"Profile '{parts[1]}' (PKCE bearer token)"
+            return f"Profile '{profile_name}' (PKCE bearer token)"
         if len(parts) == 3 and parts[2] == "pkce-refresh":
-            return f"Profile '{parts[1]}' (refreshed PKCE token)"
-        return f"Profile '{parts[1]}'"
+            return f"Profile '{profile_name}' (refreshed PKCE token)"
+        return f"Profile '{profile_name}'"
     if source.startswith("default:"):
         return f"Default ({source.split(':', 1)[1]})"
     if source.startswith("derived:"):
@@ -391,7 +399,7 @@ def get_base_url_resolution() -> ResolvedConfigValue:
 
         profile = get_active_profile()
         if profile and profile.server:
-            return ResolvedConfigValue(profile.server.rstrip("/"), f"profile:{profile.name}")
+            return ResolvedConfigValue(profile.server.rstrip("/"), _profile_source(profile.name))
     except (FileNotFoundError, json.JSONDecodeError, KeyError, AttributeError):
         pass
 
@@ -415,7 +423,7 @@ def get_web_url_resolution() -> ResolvedConfigValue:
 
         profile = get_active_profile()
         if profile and profile.web_url:
-            return ResolvedConfigValue(profile.web_url.rstrip("/"), f"profile:{profile.name}")
+            return ResolvedConfigValue(profile.web_url.rstrip("/"), _profile_source(profile.name))
     except (FileNotFoundError, json.JSONDecodeError, KeyError, AttributeError):
         pass
 
@@ -463,7 +471,9 @@ def get_auth_resolution(emit_error: bool = True) -> ResolvedAuth:
                 except PkceError as exc:
                     raise click.ClickException(str(exc)) from exc
                 if access_token:
-                    return ResolvedAuth(access_token, f"profile:{profile.name}:pkce", "bearer")
+                    return ResolvedAuth(
+                        access_token, _profile_source(profile.name, "pkce"), "bearer"
+                    )
                 if profile.web_url and profile.pkce_client_id:
                     from .pkce import refresh_pkce_credentials
 
@@ -479,7 +489,7 @@ def get_auth_resolution(emit_error: bool = True) -> ResolvedAuth:
                     else:
                         return ResolvedAuth(
                             refreshed.access_token,
-                            f"profile:{profile.name}:pkce-refresh",
+                            _profile_source(profile.name, "pkce-refresh"),
                             "bearer",
                         )
                 if emit_error:
@@ -490,7 +500,9 @@ def get_auth_resolution(emit_error: bool = True) -> ResolvedAuth:
                 raise click.ClickException("PKCE bearer token not found.")
             if profile.api_key:
                 _warn_plaintext_credential()
-                return ResolvedAuth(profile.api_key, f"profile:{profile.name}:file", "api-key")
+                return ResolvedAuth(
+                    profile.api_key, _profile_source(profile.name, "file"), "api-key"
+                )
             if profile.credential_store == "os":
                 from .credentials import CredentialStoreError, get_credential
 
@@ -499,7 +511,7 @@ def get_auth_resolution(emit_error: bool = True) -> ResolvedAuth:
                 except CredentialStoreError as exc:
                     raise click.ClickException(str(exc)) from exc
                 if api_key:
-                    return ResolvedAuth(api_key, f"profile:{profile.name}:os", "api-key")
+                    return ResolvedAuth(api_key, _profile_source(profile.name, "os"), "api-key")
     except (FileNotFoundError, json.JSONDecodeError, KeyError, AttributeError):
         pass
 
@@ -527,7 +539,10 @@ def _warn_plaintext_credential() -> None:
         err=True,
     )
     config.settings["plaintext-credential-warning-date"] = today
-    config.save()
+    try:
+        config.save()
+    except RuntimeError:
+        pass
 
 
 def get_api_key_resolution(emit_error: bool = True) -> ResolvedConfigValue:

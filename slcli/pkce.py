@@ -504,6 +504,8 @@ def get_pkce_access_token(profile_id: str, store: str = "os") -> Optional[str]:
         return None
     try:
         bundle = json.loads(bundle_text)
+        if not isinstance(bundle, dict):
+            raise ValueError("PKCE credential bundle must be an object")
         access_token = bundle.get("access-token")
         expires_at = bundle.get("access-expires-at")
         if access_token and expires_at is not None and float(expires_at) <= time.time() + 60:
@@ -525,6 +527,8 @@ def refresh_pkce_credentials(
         raise PkceError("Could not read PKCE credentials from the configured store.") from exc
     try:
         bundle = json.loads(bundle_text) if bundle_text else {}
+        if not isinstance(bundle, dict):
+            raise ValueError("PKCE credential bundle must be an object")
         refresh_token = bundle.get("refresh-token")
     except (TypeError, ValueError, json.JSONDecodeError) as exc:
         raise PkceError(
