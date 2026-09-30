@@ -124,6 +124,19 @@ def test_pkce_refresh_source_includes_store(monkeypatch: Any, store: str) -> Non
     assert resolved.source == f"profile:pkce:{store}:pkce-refresh"
 
 
+@pytest.mark.parametrize("store", ["os", "file"])
+@pytest.mark.parametrize("token_type", ["pkce", "pkce-refresh"])
+def test_pkce_source_description_includes_store(store: str, token_type: str) -> None:
+    """Info labels identify both token type and credential storage."""
+    from slcli.credentials import describe_credential_store
+    from slcli.utils import describe_config_source
+
+    label = "refreshed PKCE token" if token_type == "pkce-refresh" else "PKCE bearer token"
+    assert describe_config_source(f"profile:dev:{store}:{token_type}") == (
+        f"Profile 'dev' ({label} in {describe_credential_store(store)})"
+    )
+
+
 def test_get_auth_headers_uses_only_bearer_header() -> None:
     """Bearer requests must not also send the API-key header."""
     from slcli.utils import get_auth_headers

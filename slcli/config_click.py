@@ -469,6 +469,13 @@ def _add_profile_impl(
         elif auth_mode == "api-key":
             set_credential(new_profile.credential_id, "api-key", api_key, store)
 
+    from .pkce import PkceError
+
+    def is_os_store_error(error: Exception) -> bool:
+        return isinstance(error, CredentialStoreError) or (
+            isinstance(error, PkceError) and isinstance(error.__cause__, CredentialStoreError)
+        )
+
     moving_file_credentials_to_os = (
         previous_profile is not None
         and previous_profile.credential_store == "file"
@@ -480,6 +487,11 @@ def _add_profile_impl(
             store_profile_credentials("os")
             staged_os_credentials = True
         except Exception as exc:
+            if not is_os_store_error(exc):
+                _exit_with_validation_error(
+                    f"Could not store credentials in the OS store: {exc}.",
+                    ExitCodes.GENERAL_ERROR,
+                )
             new_profile.credential_store = "file"
             if auth_mode == "api-key":
                 new_profile.api_key = api_key
@@ -540,7 +552,7 @@ def _add_profile_impl(
         if not staged_os_credentials:
             store_profile_credentials(new_profile.credential_store)
     except Exception as exc:
-        if new_profile.credential_store != "os":
+        if new_profile.credential_store != "os" or not is_os_store_error(exc):
             restore_previous_profile("Could not store credentials", exc)
 
         click.echo(
@@ -585,6 +597,14 @@ def _add_profile_impl(
                 if new_profile.credential_store == "file":
                     restore_previous_profile("Could not remove replaced credentials", exc)
                 click.echo(f"⚠️  Could not remove replaced credentials: {exc}", err=True)
+
+    if previous_profile and previous_profile.auth_mode == "pkce" and auth_mode == "api-key":
+        from .credentials import delete_legacy_pkce_credentials
+
+        try:
+            delete_legacy_pkce_credentials(profile, new_profile.credential_store)
+        except CredentialStoreError as exc:
+            click.echo(f"⚠️  Could not remove obsolete PKCE credentials: {exc}", err=True)
 
     click.echo(f"\n✓ Profile '{profile}' saved successfully.")
     click.echo(f"  Server: {url}")

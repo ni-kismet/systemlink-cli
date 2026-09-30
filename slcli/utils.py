@@ -373,6 +373,15 @@ def describe_config_source(source: str) -> str:
             return f"Profile '{profile_name}' (PKCE bearer token)"
         if len(parts) == 3 and parts[2] == "pkce-refresh":
             return f"Profile '{profile_name}' (refreshed PKCE token)"
+        if len(parts) == 3:
+            store, _, token_type = parts[2].partition(":")
+            if store in ("os", "file") and token_type in ("pkce", "pkce-refresh"):
+                from .credentials import describe_credential_store
+
+                label = (
+                    "refreshed PKCE token" if token_type == "pkce-refresh" else "PKCE bearer token"
+                )
+                return f"Profile '{profile_name}' ({label} in {describe_credential_store(store)})"
         return f"Profile '{profile_name}'"
     if source.startswith("default:"):
         return f"Default ({source.split(':', 1)[1]})"

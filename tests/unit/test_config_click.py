@@ -910,6 +910,132 @@ def test_add_profile_falls_back_to_file_when_os_write_fails(
         assert saved_profile["pkce-credentials"]["refresh-token"] == "refresh-token"
 
 
+@pytest.mark.parametrize("previous_store", ["os", "file"])
+def test_unexpected_os_write_failure_does_not_fall_back_to_plaintext(
+    previous_store: str, tmp_path: Path, monkeypatch: Any, capsys: Any
+) -> None:
+    """A non-store failure leaves the previous profile intact and reports an error."""
+    from slcli.config_click import _add_profile_impl
+
+    config_file = tmp_path / "config.json"
+    config_file.write_text(
+        json.dumps(
+            {
+                "current-profile": "dev",
+                "profiles": {
+                    "dev": {
+                        "id": "dev-id",
+                        "server": "https://old.example.com",
+                        "credential-store": previous_store,
+                        **({"api-key": "old-key"} if previous_store == "file" else {}),
+                    }
+                },
+            }
+        )
+    )
+    monkeypatch.setattr(
+        "slcli.profiles.ProfileConfig.get_config_path", classmethod(lambda cls: config_file)
+    )
+    monkeypatch.setattr(
+        "slcli.config_click.check_service_status",
+        lambda *_args, **_kwargs: {
+            "server_reachable": True,
+            "platform": "unknown",
+            "auth_valid": True,
+            "services": {},
+        },
+    )
+    monkeypatch.setattr(
+        "slcli.config_click.set_credential", MagicMock(side_effect=RuntimeError("unexpected bug"))
+    )
+
+    with pytest.raises(SystemExit) as exc_info:
+        _add_profile_impl(
+            profile="dev",
+            url="https://new.example.com",
+            api_key=VALID_API_KEY,
+            web_url="https://web.example.com",
+            workspace="",
+            set_current=True,
+            readonly=False,
+        )
+
+    assert exc_info.value.code == ExitCodes.GENERAL_ERROR
+    assert "storing this profile in the config file" not in capsys.readouterr().err
+    saved = json.loads(config_file.read_text())["profiles"]["dev"]
+    assert saved["server"] == "https://old.example.com"
+    assert saved["credential-store"] == previous_store
+
+
+@pytest.mark.parametrize("previous_store", ["os", "file"])
+@pytest.mark.parametrize("new_store", ["os", "file"])
+def test_pkce_to_api_key_migration_removes_legacy_tokens(
+    previous_store: str, new_store: str, tmp_path: Path, monkeypatch: Any
+) -> None:
+    """Switching auth mode cleans old per-token items for either storage transition."""
+    from slcli.config_click import _add_profile_impl
+    from slcli.credentials import set_credential as real_set_credential
+
+    config_file = tmp_path / "config.json"
+    config_file.write_text(
+        json.dumps(
+            {
+                "current-profile": "dev",
+                "profiles": {
+                    "dev": {
+                        "id": "dev-id",
+                        "server": "https://old.example.com",
+                        "auth-mode": "pkce",
+                        "credential-store": previous_store,
+                        **(
+                            {"pkce-credentials": {"access-token": "old-token"}}
+                            if previous_store == "file"
+                            else {}
+                        ),
+                    }
+                },
+            }
+        )
+    )
+    monkeypatch.setattr(
+        "slcli.profiles.ProfileConfig.get_config_path", classmethod(lambda cls: config_file)
+    )
+    monkeypatch.setattr(
+        "slcli.config_click.check_service_status",
+        lambda *_args, **_kwargs: {
+            "server_reachable": True,
+            "platform": "unknown",
+            "auth_valid": True,
+            "services": {},
+        },
+    )
+
+    def store_credential(profile_id: str, credential: str, value: str, store: str) -> None:
+        if store == "file":
+            real_set_credential(profile_id, credential, value, store)
+
+    monkeypatch.setattr("slcli.config_click.set_credential", store_credential)
+    monkeypatch.setattr("slcli.credentials.delete_credential", MagicMock())
+    delete_legacy = MagicMock()
+    monkeypatch.setattr("slcli.credentials.delete_legacy_pkce_credentials", delete_legacy)
+
+    _add_profile_impl(
+        profile="dev",
+        url="https://new.example.com",
+        api_key=VALID_API_KEY,
+        web_url="https://web.example.com",
+        workspace="",
+        set_current=True,
+        readonly=False,
+        credential_store=new_store,
+    )
+
+    assert json.loads(config_file.read_text())["profiles"]["dev"]["server"] == (
+        "https://new.example.com"
+    )
+    delete_legacy.assert_called_once_with("dev", new_store)
+
+
 def test_fallback_save_failure_restores_previous_profile(tmp_path: Path, monkeypatch: Any) -> None:
     """A failed fallback save restores the old profile instead of keeping an unusable OS one."""
     from slcli.config_click import _add_profile_impl

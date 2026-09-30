@@ -299,6 +299,17 @@ def _delete_legacy_pkce_account(account: str) -> None:
         raise CredentialStoreError("Could not delete an obsolete PKCE credential.") from exc
 
 
+def delete_legacy_pkce_credentials(profile_name: str, store: str) -> None:
+    """Remove obsolete per-token items for a profile from the OS store."""
+    for credential in LEGACY_PKCE_CREDENTIALS:
+        try:
+            _delete_legacy_pkce_account(f"PKCE:{profile_name}:{credential}")
+        except CredentialStoreUnavailable:
+            if store == "os":
+                raise
+            break
+
+
 def delete_profile_credentials(
     profile_id: str,
     store: str,
@@ -307,13 +318,7 @@ def delete_profile_credentials(
 ) -> None:
     """Delete current profile credentials and obsolete PKCE items when applicable."""
     if legacy_pkce_profile:
-        for credential in LEGACY_PKCE_CREDENTIALS:
-            try:
-                _delete_legacy_pkce_account(f"PKCE:{legacy_pkce_profile}:{credential}")
-            except CredentialStoreUnavailable:
-                if store == "os":
-                    raise
-                break
+        delete_legacy_pkce_credentials(legacy_pkce_profile, store)
     if store == "os":
         inactive_credential, active_credential = (
             ("api-key", "pkce") if auth_mode == "pkce" else ("pkce", "api-key")
