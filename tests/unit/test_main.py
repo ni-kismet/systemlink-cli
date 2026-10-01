@@ -107,7 +107,6 @@ def test_login_with_flags(monkeypatch: Any, tmp_path: Any) -> None:
             "platform": PLATFORM_SLE,
         },
     )
-    monkeypatch.setattr("slcli.profile_credentials.set_credential", lambda *a, **kw: None)
 
     runner = CliRunner()
     result = runner.invoke(
@@ -122,6 +121,8 @@ def test_login_with_flags(monkeypatch: Any, tmp_path: Any) -> None:
             VALID_API_KEY,
             "--web-url",
             "https://web.example.test",
+            "--credential-store",
+            "file",
         ],
         input="\n\n",  # Skip optional workspace prompt and readonly confirmation
     )
@@ -167,7 +168,6 @@ def test_login_prompts_to_trust_certificate_and_retries(monkeypatch: Any, tmp_pa
         "services": {"Auth": "ok"},
         "platform": PLATFORM_SLE,
     }
-    monkeypatch.setattr("slcli.profile_credentials.set_credential", lambda *a, **kw: None)
 
     with patch(
         "slcli.config_click.check_service_status", side_effect=[failed_status, verified_status]
@@ -186,6 +186,8 @@ def test_login_prompts_to_trust_certificate_and_retries(monkeypatch: Any, tmp_pa
                 VALID_API_KEY,
                 "--web-url",
                 "https://web.example.test",
+                "--credential-store",
+                "file",
             ],
             input="y\n\n",
         )
@@ -211,7 +213,6 @@ def test_login_rejects_unauthorized_api_key(monkeypatch: Any, tmp_path: Any) -> 
             "platform": PLATFORM_SLE,
         },
     )
-    monkeypatch.setattr("slcli.profile_credentials.set_credential", lambda *a, **kw: None)
 
     runner = CliRunner()
     result = runner.invoke(
@@ -251,7 +252,6 @@ def test_login_rejects_unauthorized_api_key_for_sls(monkeypatch: Any, tmp_path: 
             "platform": PLATFORM_SLS,
         },
     )
-    monkeypatch.setattr("slcli.profile_credentials.set_credential", lambda *a, **kw: None)
 
     result = CliRunner().invoke(
         cli,
@@ -290,7 +290,6 @@ def test_login_rejects_inconclusive_profile_verification(monkeypatch: Any, tmp_p
             "platform": PLATFORM_SLE,
         },
     )
-    monkeypatch.setattr("slcli.profile_credentials.set_credential", lambda *a, **kw: None)
 
     runner = CliRunner()
     result = runner.invoke(
@@ -330,7 +329,6 @@ def test_login_rejects_unknown_auth_verification_state(monkeypatch: Any, tmp_pat
             "platform": PLATFORM_SLE,
         },
     )
-    monkeypatch.setattr("slcli.profile_credentials.set_credential", lambda *a, **kw: None)
 
     runner = CliRunner()
     result = runner.invoke(
@@ -372,7 +370,6 @@ def test_login_reports_file_query_fallback(monkeypatch: Any, tmp_path: Any) -> N
             "platform": PLATFORM_SLE,
         },
     )
-    monkeypatch.setattr("slcli.profile_credentials.set_credential", lambda *a, **kw: None)
 
     runner = CliRunner()
     result = runner.invoke(
@@ -387,6 +384,8 @@ def test_login_reports_file_query_fallback(monkeypatch: Any, tmp_path: Any) -> N
             VALID_API_KEY,
             "--web-url",
             "https://web.example.test",
+            "--credential-store",
+            "file",
         ],
         input="\n\n",
     )
@@ -413,7 +412,6 @@ def test_login_reports_sls_query_files(monkeypatch: Any, tmp_path: Any) -> None:
             "platform": "SLS",
         },
     )
-    monkeypatch.setattr("slcli.profile_credentials.set_credential", lambda *a, **kw: None)
 
     runner = CliRunner()
     result = runner.invoke(
@@ -428,6 +426,8 @@ def test_login_reports_sls_query_files(monkeypatch: Any, tmp_path: Any) -> None:
             VALID_API_KEY,
             "--web-url",
             "https://web.example.test",
+            "--credential-store",
+            "file",
         ],
         input="\n\n",
     )

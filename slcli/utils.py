@@ -471,46 +471,15 @@ def get_auth_resolution(emit_error: bool = True) -> ResolvedAuth:
         profile = get_active_profile()
         if profile:
             if profile.auth_mode == "pkce":
-                from .pkce import PkceError, get_pkce_access_token
+                from .pkce import PkceError, resolve_pkce_token
 
                 try:
-                    access_token = get_pkce_access_token(
-                        profile.credential_id, profile.credential_store
-                    )
+                    token = resolve_pkce_token(profile, emit_error=emit_error)
                 except PkceError as exc:
                     raise click.ClickException(str(exc)) from exc
-                if access_token:
-                    return ResolvedAuth(
-                        access_token,
-                        _profile_source(profile.name, f"{profile.credential_store}:pkce"),
-                        "bearer",
-                    )
-                if profile.web_url and profile.pkce_client_id:
-                    from .pkce import refresh_pkce_credentials
-
-                    try:
-                        refreshed = refresh_pkce_credentials(
-                            profile.credential_id,
-                            profile.web_url,
-                            profile.pkce_client_id,
-                            profile.credential_store,
-                        )
-                    except PkceError:
-                        pass
-                    else:
-                        return ResolvedAuth(
-                            refreshed.access_token,
-                            _profile_source(
-                                profile.name, f"{profile.credential_store}:pkce-refresh"
-                            ),
-                            "bearer",
-                        )
-                if emit_error:
-                    raise click.ClickException(
-                        f"PKCE bearer token for profile '{profile.name}' is unavailable. "
-                        f"Run 'slcli login --profile {profile.name} --auth pkce' again."
-                    )
-                raise click.ClickException("PKCE bearer token not found.")
+                return ResolvedAuth(
+                    token.access_token, _profile_source(profile.name, token.source), "bearer"
+                )
             if profile.api_key:
                 _warn_plaintext_credential()
                 return ResolvedAuth(

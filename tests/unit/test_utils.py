@@ -85,7 +85,8 @@ def test_pkce_auth_resolution_returns_bearer_scheme(monkeypatch: Any, store: str
         ),
     )
     monkeypatch.setattr(
-        "slcli.pkce.get_pkce_access_token", lambda _profile_id, _store: "access-token"
+        "slcli.pkce.resolve_pkce_token",
+        lambda _profile, **_kwargs: MagicMock(access_token="access-token", source=f"{store}:pkce"),
     )
 
     resolved = get_auth_resolution()
@@ -112,10 +113,11 @@ def test_pkce_refresh_source_includes_store(monkeypatch: Any, store: str) -> Non
             credential_store=store,
         ),
     )
-    monkeypatch.setattr("slcli.pkce.get_pkce_access_token", lambda *_args: None)
     monkeypatch.setattr(
-        "slcli.pkce.refresh_pkce_credentials",
-        lambda *_args: MagicMock(access_token="refreshed-token"),
+        "slcli.pkce.resolve_pkce_token",
+        lambda _profile, **_kwargs: MagicMock(
+            access_token="refreshed-token", source=f"{store}:pkce-refresh"
+        ),
     )
 
     resolved = get_auth_resolution()
@@ -135,6 +137,40 @@ def test_pkce_source_description_includes_store(store: str, token_type: str) -> 
     assert describe_config_source(f"profile:dev:{store}:{token_type}") == (
         f"Profile 'dev' ({label} in {describe_credential_store(store)})"
     )
+
+
+def test_api_key_override_does_not_resolve_pkce(monkeypatch: Any) -> None:
+    """Environment authentication leaves profile credentials entirely untouched."""
+    from slcli.utils import get_auth_resolution
+
+    resolver = MagicMock(side_effect=AssertionError("PKCE must remain lazy"))
+    monkeypatch.setenv("SLCLI_API_KEY", "override")
+    monkeypatch.setattr("slcli.pkce.resolve_pkce_token", resolver)
+    monkeypatch.setattr("slcli.profiles.get_active_profile", resolver)
+
+    result = get_auth_resolution()
+
+    assert result.value == "override"
+    assert result.scheme == "api-key"
+    resolver.assert_not_called()
+
+
+@pytest.mark.parametrize("emit_error", [True, False])
+def test_pkce_resolution_error_is_translated(monkeypatch: Any, emit_error: bool) -> None:
+    """The auth caller preserves PKCE errors and forwards the guidance preference."""
+    from slcli.pkce import PkceError
+    from slcli.profiles import Profile
+    from slcli.utils import get_auth_resolution
+
+    profile = Profile(name="test", server="https://api.example", auth_mode="pkce")
+    resolver = MagicMock(side_effect=PkceError("login guidance"))
+    monkeypatch.setattr("slcli.profiles.get_active_profile", lambda: profile)
+    monkeypatch.setattr("slcli.pkce.resolve_pkce_token", resolver)
+
+    with pytest.raises(click.ClickException, match="login guidance"):
+        get_auth_resolution(emit_error=emit_error)
+
+    resolver.assert_called_once_with(profile, emit_error=emit_error)
 
 
 def test_get_auth_headers_uses_only_bearer_header() -> None:

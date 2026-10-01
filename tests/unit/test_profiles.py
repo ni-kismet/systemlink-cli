@@ -1,6 +1,7 @@
 """Unit tests for the profiles module."""
 
 import json
+import os
 from pathlib import Path
 from typing import Any, Dict
 
@@ -235,6 +236,42 @@ class TestProfileConfig:
 
         assert config_file.read_text() == original
         assert list(tmp_path.iterdir()) == [config_file]
+
+    @pytest.mark.parametrize("replace_fails", [False, True])
+    def test_save_preserves_symlink(
+        self, tmp_path: Path, monkeypatch: Any, replace_fails: bool
+    ) -> None:
+        """Atomic saves update the link target and preserve it when replacement fails."""
+        target_dir = tmp_path / "managed"
+        target_dir.mkdir()
+        target = target_dir / "config.json"
+        target.write_text("{}")
+        link = tmp_path / "config.json"
+        try:
+            link.symlink_to(Path("managed") / "config.json")
+        except OSError:
+            pytest.skip("Symlink creation is not available")
+        monkeypatch.setattr(ProfileConfig, "get_config_path", classmethod(lambda cls: link))
+        config = ProfileConfig(settings={"test-setting": True})
+        replace = os.replace
+
+        def replace_target(source: Path, destination: Path) -> None:
+            assert source.parent == target_dir
+            assert destination == target
+            if replace_fails:
+                raise OSError("replace failed")
+            replace(source, destination)
+
+        monkeypatch.setattr("slcli.profiles.os.replace", replace_target)
+        if replace_fails:
+            with pytest.raises(RuntimeError, match="Failed to save configuration"):
+                config.save()
+            assert target.read_text() == "{}"
+        else:
+            config.save()
+            assert json.loads(target.read_text()) == {"test-setting": True}
+        assert link.is_symlink()
+        assert list(target_dir.iterdir()) == [target]
 
     def test_service_probe_cache_entry_round_trip(self, tmp_path: Path, monkeypatch: Any) -> None:
         """Test persisted service probe cache entries survive save/load."""

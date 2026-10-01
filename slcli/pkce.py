@@ -10,7 +10,7 @@ import webbrowser
 from dataclasses import dataclass
 from http.server import BaseHTTPRequestHandler, HTTPServer
 from pathlib import Path
-from typing import Any, Dict, Mapping, Optional, Sequence
+from typing import TYPE_CHECKING, Any, Dict, Mapping, Optional, Sequence
 from urllib.parse import parse_qs, quote, urlencode, urlparse
 
 import requests
@@ -18,6 +18,9 @@ import requests
 from .credentials import CredentialStoreError, delete_credential, get_credential, set_credential
 from .ssl_trust import use_standard_ssl_context
 from .utils import get_ssl_verify
+
+if TYPE_CHECKING:
+    from .profiles import Profile
 
 TOKEN_SERVICE_PATH = "/nitoken/v1"
 DEFAULT_SCOPES = ("openid", "profile", "email", "offline_access")
@@ -238,6 +241,14 @@ class PkceLoginResult:
     access_token: str
     refresh_token: Optional[str]
     expires_at: Optional[float] = None
+
+
+@dataclass(frozen=True)
+class PkceTokenResolution:
+    """A usable bearer token and its credential-store provenance."""
+
+    access_token: str
+    source: str
 
 
 class _CallbackServer(HTTPServer):
@@ -564,6 +575,44 @@ def refresh_pkce_credentials(
         profile_id, result.access_token, refresh_token_to_save, result.expires_at, store
     )
     return result
+
+
+def resolve_pkce_token(profile: "Profile", emit_error: bool = True) -> PkceTokenResolution:
+    """Resolve a cached bearer token or refresh and persist its replacement.
+
+    Args:
+        profile: Profile owning the credentials and refresh configuration.
+        emit_error: Include profile-specific login guidance when unavailable.
+
+    Returns:
+        A usable access token with its store and cached or refreshed provenance.
+
+    Raises:
+        PkceError: Credentials cannot be read or no usable token can be resolved.
+    """
+    access_token = get_pkce_access_token(profile.credential_id, profile.credential_store)
+    if access_token:
+        return PkceTokenResolution(access_token, f"{profile.credential_store}:pkce")
+    if profile.web_url and profile.pkce_client_id:
+        try:
+            refreshed = refresh_pkce_credentials(
+                profile.credential_id,
+                profile.web_url,
+                profile.pkce_client_id,
+                profile.credential_store,
+            )
+        except PkceError:
+            pass
+        else:
+            return PkceTokenResolution(
+                refreshed.access_token, f"{profile.credential_store}:pkce-refresh"
+            )
+    if emit_error:
+        raise PkceError(
+            f"PKCE bearer token for profile '{profile.name}' is unavailable. "
+            f"Run 'slcli login --profile {profile.name} --auth pkce' again."
+        )
+    raise PkceError("PKCE bearer token not found.")
 
 
 def delete_pkce_credentials(profile_id: str, store: str = "os") -> None:

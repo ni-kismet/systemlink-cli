@@ -163,7 +163,11 @@ class ProfileConfig:
         )
 
     def save(self) -> None:
-        """Save configuration to file with secure permissions."""
+        """Save configuration atomically with secure permissions.
+
+        Replacement preserves the previous file on ordinary write failures, but
+        does not guarantee durability across power loss.
+        """
         config_path = self.get_config_path()
 
         data: Dict[str, Any] = {}
@@ -179,6 +183,7 @@ class ProfileConfig:
 
         temporary_path: Optional[Path] = None
         try:
+            config_path = config_path.resolve()
             with tempfile.NamedTemporaryFile(
                 mode="w", encoding="utf-8", dir=config_path.parent, delete=False
             ) as temporary_file:

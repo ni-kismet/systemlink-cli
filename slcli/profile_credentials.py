@@ -87,8 +87,7 @@ def _persist_replacements(
     config: ProfileConfig,
     replacements: dict[str, Profile],
     staged: list[tuple[Profile, str]],
-    login: bool = False,
-    set_current: bool = False,
+    current_profile: Optional[str],
 ) -> list[str]:
     originals = {name: config.get_profile(name) for name in replacements}
     previous_current = config.current_profile
@@ -98,13 +97,11 @@ def _persist_replacements(
         if original and original.credential_store == "os":
             record = _deletion_record(original)
             records = config.settings.setdefault(PENDING_DELETIONS_SETTING, [])
-            if login or record not in records:
+            if record not in records:
                 records.append(record)
                 replacement_records.append(record)
-        if login:
-            config.add_profile(profile, set_current=set_current)
-        else:
-            config.profiles[name] = profile
+        config.profiles[name] = profile
+    config.current_profile = current_profile
     try:
         config.save()
     except RuntimeError as exc:
@@ -118,13 +115,12 @@ def _persist_replacements(
             config.settings[PENDING_DELETIONS_SETTING].remove(record)
         if not config.settings.get(PENDING_DELETIONS_SETTING):
             config.settings.pop(PENDING_DELETIONS_SETTING, None)
-        failures = _remove_staged_credentials(config, staged, persist_failures=not login)
+        failures = _remove_staged_credentials(config, staged, persist_failures=False)
         rollback_error = None
-        if login:
-            try:
-                config.save()
-            except RuntimeError as rollback_exc:
-                rollback_error = rollback_exc
+        try:
+            config.save()
+        except RuntimeError as rollback_exc:
+            rollback_error = rollback_exc
         raise _ProfileSaveError(exc, failures, rollback_error) from exc
     return _finish_replacements(config, replacement_records)
 
@@ -158,6 +154,7 @@ def save_profile_credentials(
     staged: list[tuple[Profile, str]] = []
     if profile.credential_store == "os":
         credential = "pkce" if profile.auth_mode == "pkce" else "api-key"
+        staged.append((replace(profile), credential))
         try:
             if profile.auth_mode == "pkce" and profile.pkce_credentials:
                 bundle = profile.pkce_credentials
@@ -170,27 +167,51 @@ def save_profile_credentials(
                 )
             elif profile.auth_mode == "api-key":
                 set_credential(profile.credential_id, "api-key", profile.api_key, "os")
-            staged.append((profile, credential))
         except Exception as exc:
+            failures = _remove_staged_credentials(config, staged, persist_failures=False)
+            staged.clear()
             if not (
                 isinstance(exc, CredentialStoreError)
                 or (isinstance(exc, PkceError) and isinstance(exc.__cause__, CredentialStoreError))
             ):
+                if failures:
+                    try:
+                        config.save()
+                    except RuntimeError as save_exc:
+                        failures.append(f"Could not persist cleanup records: {save_exc}")
                 raise ProfileCredentialError(
                     f"Could not store credentials in the OS store: {exc}."
+                    + (
+                        f" Could not remove staged credentials: {', '.join(failures)}."
+                        if failures
+                        else ""
+                    )
                 ) from exc
             profile.credential_store = "file"
+            profile.credential_id = str(uuid4())
             warnings.append(
                 f"OS credential store unavailable ({exc}); "
                 "storing this profile in the config file."
             )
+            if failures:
+                warnings.append(
+                    f"Could not remove staged credentials: {', '.join(failures)}. "
+                    "Retry cleanup with 'slcli config cleanup'."
+                )
         else:
             profile.api_key = ""
             profile.pkce_credentials = {}
     try:
         warnings.extend(
             _persist_replacements(
-                config, {profile.name: profile}, staged, login=True, set_current=set_current
+                config,
+                {profile.name: profile},
+                staged,
+                (
+                    profile.name
+                    if set_current or not config.current_profile
+                    else config.current_profile
+                ),
             )
         )
     except _ProfileSaveError as exc:
@@ -275,13 +296,18 @@ def secure_profile_credentials(
         profile.api_key = ""
         profile.pkce_credentials = {}
     try:
-        warnings = _persist_replacements(config, replacements, staged)
+        warnings = _persist_replacements(config, replacements, staged, config.current_profile)
     except _ProfileSaveError as exc:
         raise ProfileCredentialError(
             f"Could not save secured profiles: {exc.error}. "
             + (
                 f"Could not remove staged credentials: {', '.join(exc.cleanup_failures)}."
                 if exc.cleanup_failures
+                else ""
+            )
+            + (
+                f" Could not restore previous config: {exc.rollback_error}."
+                if exc.rollback_error
                 else ""
             )
         ) from exc
