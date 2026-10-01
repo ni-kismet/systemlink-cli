@@ -606,7 +606,7 @@ class TestSecureProfiles:
             "slcli.profiles.ProfileConfig.get_config_path", classmethod(lambda cls: config_file)
         )
         store_secret = MagicMock()
-        monkeypatch.setattr("slcli.config_click.set_credential", store_secret)
+        monkeypatch.setattr("slcli.profile_credentials.set_credential", store_secret)
 
         result = CliRunner().invoke(make_cli(), ["config", "secure"])
 
@@ -630,7 +630,7 @@ class TestSecureProfiles:
         )
         monkeypatch.setattr("slcli.profiles.is_active_profile_readonly", lambda: True)
         store_secret = MagicMock()
-        monkeypatch.setattr("slcli.config_click.set_credential", store_secret)
+        monkeypatch.setattr("slcli.profile_credentials.set_credential", store_secret)
 
         result = CliRunner().invoke(make_cli(), ["config", "secure"])
 
@@ -653,7 +653,7 @@ class TestSecureProfiles:
             "slcli.profiles.ProfileConfig.get_config_path", classmethod(lambda cls: config_file)
         )
         monkeypatch.setattr(
-            "slcli.config_click.set_credential",
+            "slcli.profile_credentials.set_credential",
             MagicMock(side_effect=CredentialStoreError("store unavailable")),
         )
 
@@ -713,7 +713,7 @@ class TestSecureProfiles:
         monkeypatch.setattr(ProfileConfig, "save", save)
         staged = MagicMock()
         cleanup = MagicMock(side_effect=CredentialStoreError("locked") if cleanup_fails else None)
-        monkeypatch.setattr("slcli.config_click.set_credential", staged)
+        monkeypatch.setattr("slcli.profile_credentials.set_credential", staged)
         monkeypatch.setattr("slcli.credentials.delete_credential", cleanup)
 
         result = CliRunner().invoke(make_cli(), ["config", "secure"])
@@ -762,7 +762,7 @@ class TestSecureProfiles:
         )
         staged = MagicMock(side_effect=[None, CredentialStoreError("locked")])
         cleanup = MagicMock()
-        monkeypatch.setattr("slcli.config_click.set_credential", staged)
+        monkeypatch.setattr("slcli.profile_credentials.set_credential", staged)
         monkeypatch.setattr("slcli.credentials.delete_credential", cleanup)
 
         result = CliRunner().invoke(make_cli(), ["config", "secure", "--all"])
@@ -846,7 +846,7 @@ def test_file_to_os_profile_transition_stages_credential_before_metadata_save(
             assert on_disk["credential-store"] == "file"
             assert on_disk["api-key"] == "old-file-key"
 
-    monkeypatch.setattr("slcli.config_click.set_credential", store_credential)
+    monkeypatch.setattr("slcli.profile_credentials.set_credential", store_credential)
 
     _add_profile_impl(
         profile="dev",
@@ -916,7 +916,7 @@ def test_file_to_os_profile_transition_cleans_staged_credential_when_save_fails(
     delete_credential = MagicMock(
         side_effect=CredentialStoreError("Keychain locked") if cleanup_fails else None
     )
-    monkeypatch.setattr("slcli.config_click.set_credential", store_credential)
+    monkeypatch.setattr("slcli.profile_credentials.set_credential", store_credential)
     monkeypatch.setattr("slcli.credentials.delete_credential", delete_credential)
 
     with pytest.raises(SystemExit) as exc_info:
@@ -991,7 +991,7 @@ def test_os_profile_update_stages_new_id_before_metadata_swap(
         assert store == "os"
         staged_ids.append(profile_id)
 
-    monkeypatch.setattr("slcli.config_click.set_credential", stage)
+    monkeypatch.setattr("slcli.profile_credentials.set_credential", stage)
     monkeypatch.setattr("slcli.credentials.delete_profile_credentials", MagicMock())
 
     _add_profile_impl(
@@ -1033,7 +1033,7 @@ def test_add_profile_falls_back_to_file_when_os_write_fails(
         real_set_credential(profile_id, credential, value, store)
 
     if auth_mode == "api-key":
-        monkeypatch.setattr("slcli.config_click.set_credential", set_credential)
+        monkeypatch.setattr("slcli.profile_credentials.set_credential", set_credential)
         monkeypatch.setattr(
             "slcli.config_click.check_service_status",
             lambda *_args, **_kwargs: {
@@ -1127,7 +1127,8 @@ def test_unexpected_os_write_failure_does_not_fall_back_to_plaintext(
         },
     )
     monkeypatch.setattr(
-        "slcli.config_click.set_credential", MagicMock(side_effect=RuntimeError("unexpected bug"))
+        "slcli.profile_credentials.set_credential",
+        MagicMock(side_effect=RuntimeError("unexpected bug")),
     )
 
     with pytest.raises(SystemExit) as exc_info:
@@ -1195,7 +1196,7 @@ def test_pkce_to_api_key_migration_removes_legacy_tokens(
         if store == "file":
             real_set_credential(profile_id, credential, value, store)
 
-    monkeypatch.setattr("slcli.config_click.set_credential", store_credential)
+    monkeypatch.setattr("slcli.profile_credentials.set_credential", store_credential)
     monkeypatch.setattr("slcli.credentials.delete_credential", MagicMock())
     delete_legacy = MagicMock()
     monkeypatch.setattr("slcli.credentials.delete_legacy_pkce_credentials", delete_legacy)
@@ -1250,7 +1251,7 @@ def test_fallback_save_failure_restores_previous_profile(tmp_path: Path, monkeyp
         },
     )
     monkeypatch.setattr(
-        "slcli.config_click.set_credential",
+        "slcli.profile_credentials.set_credential",
         MagicMock(side_effect=CredentialStoreError("OS store unavailable")),
     )
     original_save = ProfileConfig.save
@@ -1396,7 +1397,7 @@ def test_file_store_transition_retains_pending_cleanup_when_store_fails(
         os_credentials[(profile_id, credential)] = value
 
     monkeypatch.setattr("slcli.credentials.delete_credential", delete_credential)
-    monkeypatch.setattr("slcli.config_click.set_credential", set_credential)
+    monkeypatch.setattr("slcli.profile_credentials.set_credential", set_credential)
     monkeypatch.setattr("slcli.credentials.delete_legacy_pkce_credentials", MagicMock())
 
     _add_profile_impl(
@@ -1949,7 +1950,7 @@ class TestAddProfileTrailingSlash:
                 "services": {"Auth": "ok"},
             },
         )
-        monkeypatch.setattr("slcli.config_click.set_credential", lambda *a, **kw: None)
+        monkeypatch.setattr("slcli.profile_credentials.set_credential", lambda *a, **kw: None)
 
         from slcli.main import cli
 
@@ -1991,7 +1992,7 @@ class TestAddProfileTrailingSlash:
                 "services": {"Auth": "ok"},
             },
         )
-        monkeypatch.setattr("slcli.config_click.set_credential", lambda *a, **kw: None)
+        monkeypatch.setattr("slcli.profile_credentials.set_credential", lambda *a, **kw: None)
 
         from slcli.main import cli
 
