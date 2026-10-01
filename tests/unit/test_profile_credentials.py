@@ -352,11 +352,13 @@ def test_partial_login_write_is_removed_or_reachable_for_retry(
 
 
 @pytest.mark.parametrize("operation", ["login", "secure"])
+@pytest.mark.parametrize("auth_mode", ["api-key", "pkce"])
 def test_unavailable_store_preserves_each_operation_policy(
     config: ProfileConfig,
     credential_store: dict[tuple[str, str], str],
     monkeypatch: pytest.MonkeyPatch,
     operation: str,
+    auth_mode: str,
 ) -> None:
     """Login permits warned file fallback while secure preserves plaintext on failure."""
     original = Profile(name="dev", server="https://old.example.com", api_key="old")
@@ -366,18 +368,82 @@ def test_unavailable_store_preserves_each_operation_policy(
     def unavailable(profile_id: str, credential: str, value: str) -> None:
         raise credentials.CredentialStoreUnavailable("unavailable")
 
+    def unavailable_delete(profile_id: str, credential: str) -> None:
+        pytest.fail("A never-written credential must not be deleted")
+
     monkeypatch.setattr(credentials, "_macos_set", unavailable)
+    monkeypatch.setattr(credentials, "_macos_delete", unavailable_delete)
+    profile = Profile(
+        name="dev",
+        server="https://new.example.com",
+        api_key="new" if auth_mode == "api-key" else "",
+        auth_mode=auth_mode,
+        credential_store="os",
+        pkce_credentials=(
+            {"access-token": "new-token", "refresh-token": None, "access-expires-at": None}
+            if auth_mode == "pkce"
+            else {}
+        ),
+    )
     if operation == "login":
-        profile = Profile(
-            name="dev", server="https://new.example.com", api_key="new", credential_store="os"
-        )
         warnings = save_profile_credentials(config, profile)
         assert len(warnings) == 1
         assert "storing this profile in the config file" in warnings[0]
-        assert ProfileConfig.load().profiles["dev"].api_key == "new"
+        assert ProfileConfig.load().profiles["dev"].api_key == profile.api_key
+        assert ProfileConfig.load().profiles["dev"].pkce_credentials == profile.pkce_credentials
         assert ProfileConfig.load().profiles["dev"].credential_store == "file"
     else:
+        original.api_key = profile.api_key
+        original.auth_mode = auth_mode
+        original.pkce_credentials = profile.pkce_credentials
+        config.save()
         with pytest.raises(ProfileCredentialError, match="Could not secure"):
             secure_profile_credentials(config, [original])
         assert ProfileConfig.load().profiles["dev"] == original
+    saved = ProfileConfig.load()
+    assert credentials.PENDING_DELETIONS_SETTING not in saved.settings
+    credentials.delete_profile_with_credentials(saved, saved.profiles["dev"])
+    assert "dev" not in ProfileConfig.load().profiles
     assert credential_store == {}
+
+
+@pytest.mark.parametrize("cleanup_fails", [False, True])
+def test_secure_unavailable_later_write_cleans_only_earlier_entries(
+    config: ProfileConfig,
+    credential_store: dict[tuple[str, str], str],
+    monkeypatch: pytest.MonkeyPatch,
+    cleanup_fails: bool,
+) -> None:
+    """Unavailable writes do not hide earlier entries that still require cleanup."""
+    selected = [
+        Profile(name=name, server="https://example.com", api_key=name) for name in ("dev", "prod")
+    ]
+    for profile in selected:
+        config.add_profile(profile)
+    config.save()
+    attempted: list[str] = []
+    deleted: list[str] = []
+
+    def stage(profile_id: str, credential: str, value: str) -> None:
+        attempted.append(profile_id)
+        if len(attempted) == 2:
+            raise credentials.CredentialStoreUnavailable("unavailable")
+        credential_store[(profile_id, credential)] = value
+
+    def cleanup(profile_id: str, credential: str) -> None:
+        deleted.append(profile_id)
+        if cleanup_fails:
+            raise credentials.CredentialStoreUnavailable("unavailable")
+        credential_store.pop((profile_id, credential), None)
+
+    monkeypatch.setattr(credentials, "_macos_set", stage)
+    monkeypatch.setattr(credentials, "_macos_delete", cleanup)
+    with pytest.raises(ProfileCredentialError, match="Could not secure"):
+        secure_profile_credentials(config, selected)
+
+    assert deleted == [attempted[0]]
+    saved = ProfileConfig.load()
+    assert saved.current_profile == "other"
+    assert all(saved.profiles[profile.name] == profile for profile in selected)
+    pending = saved.settings.get(credentials.PENDING_DELETIONS_SETTING, [])
+    assert [record["id"] for record in pending] == ([attempted[0]] if cleanup_fails else [])

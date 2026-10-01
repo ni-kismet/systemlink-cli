@@ -1,0 +1,1 @@
+Avoid pending cleanup for credentials never written to an unavailable OS store, while retaining cleanup of earlier staged entries and partial writes.

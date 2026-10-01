@@ -8,6 +8,7 @@ from uuid import uuid4
 from .credentials import (
     PENDING_DELETIONS_SETTING,
     CredentialStoreError,
+    CredentialStoreUnavailable,
     finish_pending_profile_deletion,
     set_credential,
 )
@@ -168,6 +169,10 @@ def save_profile_credentials(
             elif profile.auth_mode == "api-key":
                 set_credential(profile.credential_id, "api-key", profile.api_key, "os")
         except Exception as exc:
+            if isinstance(exc, CredentialStoreUnavailable) or (
+                isinstance(exc, PkceError) and isinstance(exc.__cause__, CredentialStoreUnavailable)
+            ):
+                staged.pop()
             failures = _remove_staged_credentials(config, staged, persist_failures=False)
             staged.clear()
             if not (
@@ -286,6 +291,8 @@ def secure_profile_credentials(
             staged.append((profile, credential))
             set_credential(profile.credential_id, credential, value, "os")
     except CredentialStoreError as exc:
+        if isinstance(exc, CredentialStoreUnavailable):
+            staged.pop()
         failures = _remove_staged_credentials(config, staged)
         raise ProfileCredentialError(
             f"Could not secure profile credentials: {exc}. "
