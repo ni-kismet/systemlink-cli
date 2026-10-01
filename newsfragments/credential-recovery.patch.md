@@ -1,1 +1,0 @@
-Clean up partial OS credential writes before file fallback, retain failed cleanup under a separate retryable ID, and preserve symlinked configuration paths during atomic saves.

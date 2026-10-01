@@ -82,7 +82,7 @@ slcli auto-detects terminal color support for tables, status lines, and JSON out
 slcli resolves runtime connection settings in this order:
 
 - Profile selection: `--profile`, then `SLCLI_PROFILE`, then the current profile in config.
-- API URL, API key, and Web URL: `SLCLI_API_URL` / `SLCLI_API_KEY` / `SLCLI_WEB_URL`, then the legacy `SYSTEMLINK_*` aliases, then the active profile. Profile credentials come from its configured OS store or config file; legacy global keyring entries are not read.
+- API URL, API key, and Web URL: `SLCLI_API_URL` / `SLCLI_API_KEY` / `SLCLI_WEB_URL`, then the active profile. Profile credentials come from its configured OS store or config file; legacy environment aliases and global keyring entries are not read.
 
 Use `slcli info` to see the effective source for each value and whether environment overrides are active. Use `slcli config view` to inspect the stored profile values on disk.
 
@@ -94,7 +94,7 @@ For non-interactive setup, provide the fingerprint explicitly:
 
 ```bash
 slcli login --url https://systemlink.example.local \
-	--api-key "$SYSTEMLINK_API_KEY" \
+	--api-key "$SLCLI_API_KEY" \
 	--web-url https://systemlink.example.local \
 	--trust-fingerprint <sha256-fingerprint>
 ```

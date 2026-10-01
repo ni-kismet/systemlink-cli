@@ -224,7 +224,7 @@ class TestMakeApiRequestHttpMethods:
         """Set environment credentials for API request tests."""
         monkeypatch.setenv("SLCLI_API_URL", "http://localhost:8000")
         monkeypatch.setenv("SLCLI_API_KEY", "dummy-key")
-        monkeypatch.setenv("SYSTEMLINK_PLATFORM", "SLE")
+        monkeypatch.setenv("SLCLI_PLATFORM", "SLE")
 
     def test_patch_method_dispatches_to_requests_patch(self, monkeypatch: Any) -> None:
         """make_api_request with PATCH calls requests.patch."""

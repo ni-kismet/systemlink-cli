@@ -31,12 +31,9 @@ def _isolated_environment(config_file: Path) -> dict[str, str]:
     for name in (
         "SLCLI_PROFILE",
         "SLCLI_API_KEY",
-        "SYSTEMLINK_API_KEY",
         "SLCLI_API_URL",
-        "SYSTEMLINK_API_URL",
-        "SYSTEMLINK_BASE_URL",
         "SLCLI_WEB_URL",
-        "SYSTEMLINK_WEB_URL",
+        "SLCLI_PLATFORM",
         "SLCLI_CREDENTIAL_STORE",
         "SLCLI_READONLY",
     ):

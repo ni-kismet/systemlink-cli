@@ -2,8 +2,11 @@
 
 import json
 from dataclasses import replace
-from typing import Optional
+from functools import wraps
+from typing import Callable, Concatenate, Optional, ParamSpec, TypeVar
 from uuid import uuid4
+
+from filelock import FileLock
 
 from . import credentials
 from .credentials import (
@@ -14,8 +17,33 @@ from .credentials import (
 from .profiles import Profile, ProfileConfig
 
 PENDING_DELETIONS_SETTING = "pending-credential-deletions"
+_Parameters = ParamSpec("_Parameters")
+_Result = TypeVar("_Result")
 
 
+def _credential_transaction(
+    operation: Callable[Concatenate[ProfileConfig, _Parameters], _Result],
+) -> Callable[Concatenate[ProfileConfig, _Parameters], _Result]:
+    @wraps(operation)
+    def locked(
+        config: ProfileConfig, *args: _Parameters.args, **kwargs: _Parameters.kwargs
+    ) -> _Result:
+        path = ProfileConfig.get_config_path().resolve()
+        path.parent.mkdir(parents=True, exist_ok=True)
+        lock = FileLock(str(path) + ".lock", is_singleton=True)
+        nested = lock.is_locked
+        with lock:
+            if not nested:
+                fresh = ProfileConfig.load()
+                config.current_profile = fresh.current_profile
+                config.profiles = fresh.profiles
+                config.settings = fresh.settings
+            return operation(config, *args, **kwargs)
+
+    return locked
+
+
+@_credential_transaction
 def finish_pending_profile_deletion(config: ProfileConfig, record: dict[str, str]) -> None:
     """Finish credential cleanup, retaining its record until removal is saved.
 
@@ -32,6 +60,8 @@ def finish_pending_profile_deletion(config: ProfileConfig, record: dict[str, str
             "Pending cleanup references an active profile. Run 'slcli login' for that "
             "profile to replace its credential before retrying cleanup."
         )
+    if record not in config.settings.get(PENDING_DELETIONS_SETTING, []):
+        return
     credentials.delete_profile_credentials(
         record["id"], record["store"], record["name"], record["auth-mode"]
     )
@@ -46,6 +76,7 @@ def finish_pending_profile_deletion(config: ProfileConfig, record: dict[str, str
         raise
 
 
+@_credential_transaction
 def retry_pending_profile_deletions(config: ProfileConfig, name: Optional[str] = None) -> list[str]:
     """Retry persisted removals after interrupted credential cleanup.
 
@@ -68,6 +99,7 @@ def retry_pending_profile_deletions(config: ProfileConfig, name: Optional[str] =
     return completed
 
 
+@_credential_transaction
 def delete_profile_with_credentials(config: ProfileConfig, profile: Profile) -> None:
     """Persist a recoverable profile deletion before removing its credentials.
 
@@ -79,6 +111,10 @@ def delete_profile_with_credentials(config: ProfileConfig, profile: Profile) -> 
         CredentialStoreError: Removal is persisted but credential cleanup is pending.
         RuntimeError: Profile removal or completed cleanup could not be persisted.
     """
+    current = config.get_profile(profile.name)
+    if current is None:
+        return
+    profile = current
     record = {
         "id": profile.credential_id,
         "name": profile.name,
@@ -211,6 +247,7 @@ def _persist_replacements(
     return _finish_replacements(config, replacement_records)
 
 
+@_credential_transaction
 def save_profile_credentials(
     config: ProfileConfig, profile: Profile, set_current: bool = False
 ) -> list[str]:
@@ -348,6 +385,7 @@ def save_profile_credentials(
     return warnings
 
 
+@_credential_transaction
 def secure_profile_credentials(
     config: ProfileConfig, profiles: list[Profile]
 ) -> tuple[list[str], list[str]]:
@@ -364,7 +402,10 @@ def secure_profile_credentials(
         ProfileCredentialError: Staging or metadata persistence failed.
     """
     pending: list[tuple[Profile, str, str]] = []
-    for profile in profiles:
+    for requested in profiles:
+        profile = config.get_profile(requested.name)
+        if profile is None:
+            continue
         if profile.api_key:
             pending.append((profile, "api-key", profile.api_key))
         if profile.pkce_credentials:

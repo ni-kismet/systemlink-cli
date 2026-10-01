@@ -29,7 +29,7 @@ class TestFeatureGatingDFF:
 
         monkeypatch.setenv("SLCLI_API_URL", config["api_url"])
         monkeypatch.setenv("SLCLI_API_KEY", config["api_key"])
-        monkeypatch.setenv("SYSTEMLINK_PLATFORM", config["platform"])
+        monkeypatch.setenv("SLCLI_PLATFORM", config["platform"])
 
         runner = CliRunner()
         result = runner.invoke(cli, ["customfield", "list"])
@@ -48,7 +48,7 @@ class TestFeatureGatingDFF:
 
         monkeypatch.setenv("SLCLI_API_URL", config["api_url"])
         monkeypatch.setenv("SLCLI_API_KEY", config["api_key"])
-        monkeypatch.setenv("SYSTEMLINK_PLATFORM", config["platform"])
+        monkeypatch.setenv("SLCLI_PLATFORM", config["platform"])
 
         runner = CliRunner()
         result = runner.invoke(cli, ["customfield", "--help"])
@@ -70,7 +70,7 @@ class TestFeatureGatingTemplates:
 
         monkeypatch.setenv("SLCLI_API_URL", config["api_url"])
         monkeypatch.setenv("SLCLI_API_KEY", config["api_key"])
-        monkeypatch.setenv("SYSTEMLINK_PLATFORM", config["platform"])
+        monkeypatch.setenv("SLCLI_PLATFORM", config["platform"])
         monkeypatch.setattr("slcli.platform._get_service_status", lambda _service: "not_found")
 
         runner = CliRunner()
@@ -93,7 +93,7 @@ class TestFeatureGatingWorkflows:
 
         monkeypatch.setenv("SLCLI_API_URL", config["api_url"])
         monkeypatch.setenv("SLCLI_API_KEY", config["api_key"])
-        monkeypatch.setenv("SYSTEMLINK_PLATFORM", config["platform"])
+        monkeypatch.setenv("SLCLI_PLATFORM", config["platform"])
         monkeypatch.setattr("slcli.platform._get_service_status", lambda _service: "not_found")
 
         runner = CliRunner()
@@ -116,7 +116,7 @@ class TestFeatureGatingWorkitemTemplates:
 
         monkeypatch.setenv("SLCLI_API_URL", config["api_url"])
         monkeypatch.setenv("SLCLI_API_KEY", config["api_key"])
-        monkeypatch.setenv("SYSTEMLINK_PLATFORM", config["platform"])
+        monkeypatch.setenv("SLCLI_PLATFORM", config["platform"])
         monkeypatch.setattr("slcli.platform._get_service_status", lambda _service: "not_found")
 
         runner = CliRunner()
@@ -139,7 +139,7 @@ class TestFeatureGatingComments:
 
         monkeypatch.setenv("SLCLI_API_URL", config["api_url"])
         monkeypatch.setenv("SLCLI_API_KEY", config["api_key"])
-        monkeypatch.setenv("SYSTEMLINK_PLATFORM", config["platform"])
+        monkeypatch.setenv("SLCLI_PLATFORM", config["platform"])
         monkeypatch.setattr("slcli.platform._get_service_status", lambda _service: "not_found")
 
         runner = CliRunner()
@@ -163,7 +163,7 @@ class TestFeatureGatingDataFrame:
 
         monkeypatch.setenv("SLCLI_API_URL", config["api_url"])
         monkeypatch.setenv("SLCLI_API_KEY", config["api_key"])
-        monkeypatch.setenv("SYSTEMLINK_PLATFORM", config["platform"])
+        monkeypatch.setenv("SLCLI_PLATFORM", config["platform"])
         monkeypatch.setattr("slcli.platform._get_service_status", lambda _service: "not_found")
 
         runner = CliRunner()
@@ -213,7 +213,7 @@ class TestFeatureGatingFunctions:
 
         monkeypatch.setenv("SLCLI_API_URL", config["api_url"])
         monkeypatch.setenv("SLCLI_API_KEY", config["api_key"])
-        monkeypatch.setenv("SYSTEMLINK_PLATFORM", config["platform"])
+        monkeypatch.setenv("SLCLI_PLATFORM", config["platform"])
 
         runner = CliRunner()
         # Use 'init' command which exists
@@ -236,7 +236,7 @@ class TestFeatureGatingSLE:
 
         monkeypatch.setenv("SLCLI_API_URL", config["api_url"])
         monkeypatch.setenv("SLCLI_API_KEY", config["api_key"])
-        monkeypatch.setenv("SYSTEMLINK_PLATFORM", config["platform"])
+        monkeypatch.setenv("SLCLI_PLATFORM", config["platform"])
 
         # Mock the API request to avoid actual network call
         def mock_make_api_request(*args: Any, **kwargs: Any) -> Any:

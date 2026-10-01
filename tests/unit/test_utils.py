@@ -2,7 +2,7 @@
 
 import json
 from pathlib import Path
-from typing import Any, Dict
+from typing import Any, Callable, Dict
 from unittest.mock import MagicMock, patch
 
 import click
@@ -16,9 +16,9 @@ def patch_keyring(monkeypatch: Any, platform: str = "SLE") -> None:
         monkeypatch: pytest monkeypatch fixture
         platform: Platform type - "SLE" (default) or "SLS"
     """
-    monkeypatch.setenv("SYSTEMLINK_API_URL", "http://localhost:8000")
-    monkeypatch.setenv("SYSTEMLINK_API_KEY", "dummy-api-key")
-    monkeypatch.setenv("SYSTEMLINK_PLATFORM", platform)
+    monkeypatch.setenv("SLCLI_API_URL", "http://localhost:8000")
+    monkeypatch.setenv("SLCLI_API_KEY", "dummy-api-key")
+    monkeypatch.setenv("SLCLI_PLATFORM", platform)
 
 
 def test_escape_filter_value_escapes_backslashes_before_quotes() -> None:
@@ -34,14 +34,83 @@ def test_get_web_url_derives_from_api_url_without_profile(monkeypatch: Any) -> N
     """get_web_url derives the web URL when no profile provides one."""
     from slcli.utils import get_web_url
 
-    monkeypatch.setenv("SYSTEMLINK_API_URL", "https://dev-api.lifecyclesolutions.ni.com")
-    monkeypatch.delenv("SYSTEMLINK_WEB_URL", raising=False)
+    monkeypatch.setenv("SLCLI_API_URL", "https://dev-api.lifecyclesolutions.ni.com")
+    monkeypatch.delenv("SLCLI_WEB_URL", raising=False)
     monkeypatch.setattr("slcli.profiles.get_active_profile", lambda: None)
     assert get_web_url() == "https://dev-api.lifecyclesolutions.ni.com"
 
 
-def test_api_key_resolution_prefers_slcli_env_alias(monkeypatch: Any, tmp_path: Path) -> None:
-    """SLCLI_API_KEY should win over legacy env vars and profile values."""
+@pytest.mark.parametrize(
+    "legacy_env", ["SYSTEMLINK_API_URL", "SYSTEMLINK_WEB_URL", "SYSTEMLINK_API_KEY"]
+)
+def test_legacy_environment_aliases_do_not_override_profiles(
+    monkeypatch: pytest.MonkeyPatch, legacy_env: str
+) -> None:
+    """Removed environment aliases cannot supply URLs or authentication credentials."""
+    from slcli.profiles import Profile
+    from slcli.utils import (
+        ResolvedAuth,
+        ResolvedConfigValue,
+        get_auth_resolution,
+        get_base_url_resolution,
+        get_web_url_resolution,
+    )
+
+    for name in ("SLCLI_API_URL", "SLCLI_WEB_URL", "SLCLI_API_KEY"):
+        monkeypatch.delenv(name, raising=False)
+    monkeypatch.setenv(legacy_env, "legacy-value")
+    monkeypatch.setattr(
+        "slcli.profiles.get_active_profile",
+        lambda: Profile(
+            name="saved",
+            server="https://api.example.com",
+            web_url="https://web.example.com",
+            api_key="profile-key",
+            credential_store="file",
+        ),
+    )
+    resolvers: dict[str, Callable[[], ResolvedAuth | ResolvedConfigValue]] = {
+        "SYSTEMLINK_API_URL": get_base_url_resolution,
+        "SYSTEMLINK_WEB_URL": get_web_url_resolution,
+        "SYSTEMLINK_API_KEY": get_auth_resolution,
+    }
+    expected = {
+        "SYSTEMLINK_API_URL": "https://api.example.com",
+        "SYSTEMLINK_WEB_URL": "https://web.example.com",
+        "SYSTEMLINK_API_KEY": "profile-key",
+    }
+
+    resolved = resolvers[legacy_env]()
+
+    assert resolved.value == expected[legacy_env]
+    assert resolved.source == (
+        "profile:saved:file" if legacy_env.endswith("API_KEY") else "profile:saved"
+    )
+
+
+def test_legacy_api_key_does_not_override_pkce_routes(monkeypatch: pytest.MonkeyPatch) -> None:
+    """Ignored legacy API keys cannot switch a PKCE profile to API-key routes."""
+    from slcli.profiles import Profile
+    from slcli.utils import get_base_url
+
+    for name in ("SLCLI_API_URL", "SLCLI_WEB_URL", "SLCLI_API_KEY"):
+        monkeypatch.delenv(name, raising=False)
+    monkeypatch.setenv("SYSTEMLINK_API_KEY", "legacy-value")
+    monkeypatch.setattr(
+        "slcli.profiles.get_active_profile",
+        lambda: Profile(
+            name="saved",
+            server="https://api.example.com",
+            web_url="https://web.example.com",
+            auth_mode="pkce",
+        ),
+    )
+
+    assert get_base_url() == "https://web.example.com"
+
+
+def test_api_key_resolution_prefers_slcli_env_override(monkeypatch: Any, tmp_path: Path) -> None:
+    """SLCLI_API_KEY overrides profile values regardless of removed aliases."""
     from slcli.utils import get_api_key_resolution
 
     config_file = tmp_path / "config.json"

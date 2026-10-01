@@ -1,1 +1,0 @@
-Run synthetic native credential lifecycle tests on macOS, Windows, and Linux in CI, including PKCE bundles larger than the Windows single-item limit.

@@ -20,8 +20,8 @@ command.
 - The project environment installed with `poetry install`.
 - A fresh temporary config path for each run. Do not use a production slcli
   config or a profile containing credentials you need to keep.
-- Ensure `SLCLI_API_KEY`, `SYSTEMLINK_API_KEY`, `SLCLI_API_URL`,
-   `SYSTEMLINK_API_URL`, `SLCLI_WEB_URL`, and `SYSTEMLINK_WEB_URL` are unset so
+- Ensure `SLCLI_API_KEY`, `SLCLI_API_URL`, `SLCLI_WEB_URL`, and
+   `SLCLI_PLATFORM` are unset so
    the authenticated command must use the test profile and its stored
    credential.
 

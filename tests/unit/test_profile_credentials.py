@@ -1,9 +1,13 @@
 """Behavior tests through the profile credential module's interface."""
 
+import multiprocessing
+import os
+from multiprocessing.synchronize import Event
 from pathlib import Path
 from typing import Iterator, Optional
 
 import pytest
+from filelock import FileLock
 
 from slcli import credentials
 from slcli.profile_credentials import (
@@ -16,6 +20,104 @@ from slcli.profile_credentials import (
     secure_profile_credentials,
 )
 from slcli.profiles import Profile, ProfileConfig
+
+
+def _run_credential_transaction(
+    config_path: str, operation: str, ready: Event, proceed: Event, completed: Event
+) -> None:
+    os.environ["SLCLI_CONFIG"] = config_path
+    config = ProfileConfig.load()
+    original = config.profiles["dev"]
+    store = Path(config_path).parent / "store"
+
+    def set_value(profile_id: str, credential: str, value: str) -> None:
+        (store / f"{profile_id}-{credential}").write_text(value, encoding="utf-8")
+
+    def delete(profile_id: str, credential: str) -> None:
+        (store / f"{profile_id}-{credential}").unlink(missing_ok=True)
+
+    ready.set()
+    assert proceed.wait(20), "Transaction was not started"
+    with pytest.MonkeyPatch.context() as monkeypatch:
+        monkeypatch.setattr(credentials.platform, "system", lambda: "Darwin")
+        monkeypatch.setattr(credentials, "_macos_set", set_value)
+        monkeypatch.setattr(credentials, "_macos_delete", delete)
+        monkeypatch.setattr(credentials, "_macos_delete_account", lambda account: None)
+        if operation == "login":
+            save_profile_credentials(
+                config,
+                Profile(
+                    name="dev",
+                    server="https://new.example.com",
+                    api_key="new-key",
+                    credential_store="os",
+                ),
+            )
+        elif operation == "secure":
+            secure_profile_credentials(config, [original])
+        elif operation == "logout":
+            delete_profile_with_credentials(config, original)
+        else:
+            retry_pending_profile_deletions(config)
+    completed.set()
+
+
+@pytest.mark.parametrize("second_operation", ["login", "secure", "logout", "cleanup"])
+def test_process_transactions_reload_stale_snapshots_under_lock(
+    config: ProfileConfig, second_operation: str
+) -> None:
+    """Concurrent lifecycle operations leave only credentials referenced by metadata."""
+    config.add_profile(Profile(name="dev", server="https://old.example.com", api_key="old-key"))
+    path = ProfileConfig.get_config_path().resolve()
+    store = path.parent / "store"
+    store.mkdir()
+    if second_operation == "cleanup":
+        config.settings[PENDING_DELETIONS_SETTING] = [
+            {"id": "obsolete", "name": "dev", "store": "os", "auth-mode": "api-key"}
+        ]
+        (store / "obsolete-api-key").write_text("obsolete-key", encoding="utf-8")
+    config.save()
+    context = multiprocessing.get_context("spawn")
+    proceed = context.Event()
+    ready = [context.Event(), context.Event()]
+    completed = [context.Event(), context.Event()]
+    processes = [
+        context.Process(
+            target=_run_credential_transaction,
+            args=(str(path), operation, ready[index], proceed, completed[index]),
+        )
+        for index, operation in enumerate(["login", second_operation])
+    ]
+    try:
+        with FileLock(str(path) + ".lock"):
+            for process in processes:
+                process.start()
+            assert all(event.wait(20) for event in ready)
+            proceed.set()
+            assert not any(event.wait(0.25) for event in completed)
+            assert not list(store.glob("*-api-key")) or second_operation == "cleanup"
+        for process in processes:
+            process.join(20)
+            assert process.exitcode == 0
+    finally:
+        for process in processes:
+            if process.is_alive():
+                process.terminate()
+                process.join(20)
+
+    saved = ProfileConfig.load()
+    assert saved.profiles["other"].api_key == "other"
+    assert saved.current_profile == "other"
+    assert PENDING_DELETIONS_SETTING not in saved.settings
+    current = saved.get_profile("dev")
+    if current is None:
+        assert second_operation == "logout"
+        assert list(store.iterdir()) == []
+    else:
+        assert current.credential_store == "os"
+        assert current.api_key == ""
+        assert [item.name for item in store.iterdir()] == [f"{current.credential_id}-api-key"]
+        assert (store / f"{current.credential_id}-api-key").read_text() == "new-key"
 
 
 @pytest.fixture
@@ -529,6 +631,7 @@ def test_pending_cleanup_preserves_active_profile_credential(
         "auth-mode": "api-key",
     }
     config.settings[PENDING_DELETIONS_SETTING] = [record]
+    config.save()
 
     def delete(profile_id: str, store: str, name: str, auth_mode: str) -> None:
         pytest.fail("Cleanup must not delete an active credential")

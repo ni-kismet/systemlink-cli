@@ -350,6 +350,7 @@ def set_credential(profile_id: str, credential: str, value: str, store: str = "o
             windows_pkce_bundle = parsed_bundle
 
         keyring = _get_keyring_module()
+        windows_pkce_write_attempted = False
         try:
             if windows_pkce_bundle is None:
                 keyring.set_password(
@@ -364,6 +365,7 @@ def set_credential(profile_id: str, credential: str, value: str, store: str = "o
                 )
                 generation = str(uuid4())
                 staged_pending = list(dict.fromkeys([*pending, generation]))
+                windows_pkce_write_attempted = True
                 keyring.set_password(
                     KEYRING_SERVICE,
                     active_account,
@@ -397,7 +399,7 @@ def set_credential(profile_id: str, credential: str, value: str, store: str = "o
                 _retry_windows_pkce_cleanup(profile_id, generation, retired, keyring)
         except Exception as exc:
             _cached_get.cache_clear()
-            if isinstance(exc, keyring.errors.NoKeyringError):
+            if isinstance(exc, keyring.errors.NoKeyringError) and not windows_pkce_write_attempted:
                 raise CredentialStoreUnavailable(
                     "No operating-system credential store is available. "
                     "Use --credential-store file."

@@ -91,9 +91,9 @@ Behavior:
 
 ### 3. Resolution order
 
-Unchanged from the user's point of view:
+Only canonical `SLCLI_*` environment overrides are supported:
 
-1. `SLCLI_API_KEY` / `SYSTEMLINK_API_KEY` env (the store is never touched)
+1. `SLCLI_API_KEY` env (the store is never touched)
 2. Active profile:
    1. plaintext `api-key` in `config.json`, if present (backward compatibility)
    2. otherwise the credential store per `credential-store`

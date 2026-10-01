@@ -430,6 +430,9 @@ class TestViewConfig:
             "slcli.profiles.ProfileConfig.get_config_path", classmethod(lambda cls: config_file)
         )
 
+        for name in ("SYSTEMLINK_API_URL", "SYSTEMLINK_API_KEY", "SYSTEMLINK_WEB_URL"):
+            monkeypatch.setenv(name, "legacy-value")
+
         cli = make_cli()
         runner = CliRunner()
         result = runner.invoke(cli, ["config", "view", "--format", "json"])
@@ -464,7 +467,7 @@ class TestViewConfig:
             "slcli.profiles.ProfileConfig.get_config_path", classmethod(lambda cls: config_file)
         )
         monkeypatch.setenv("SLCLI_API_KEY", "env-secret")
-        monkeypatch.setenv("SYSTEMLINK_WEB_URL", "https://override.com")
+        monkeypatch.setenv("SLCLI_WEB_URL", "https://override.com")
 
         cli = make_cli()
         runner = CliRunner()

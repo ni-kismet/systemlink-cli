@@ -395,11 +395,11 @@ def get_base_url_resolution() -> ResolvedConfigValue:
     """Resolve the SystemLink API base URL and record where it came from.
 
     Preference order:
-    1. Environment variable SLCLI_API_URL (preferred) or SYSTEMLINK_API_URL
+    1. Environment variable SLCLI_API_URL
     2. Active profile from config file
     3. Default fallback to localhost
     """
-    override = _get_env_override(("SLCLI_API_URL", "SYSTEMLINK_API_URL"))
+    override = _get_env_override(("SLCLI_API_URL",))
     if override is not None:
         return ResolvedConfigValue(override.value.rstrip("/"), override.source)
 
@@ -419,11 +419,11 @@ def get_web_url_resolution() -> ResolvedConfigValue:
     """Resolve the SystemLink web UI URL and record where it came from.
 
     Preference order:
-    1. Environment variable SLCLI_WEB_URL (preferred) or SYSTEMLINK_WEB_URL
+    1. Environment variable SLCLI_WEB_URL
     2. Active profile from config file
     3. Derived from the effective API base URL
     """
-    override = _get_env_override(("SLCLI_WEB_URL", "SYSTEMLINK_WEB_URL"))
+    override = _get_env_override(("SLCLI_WEB_URL",))
     if override is not None:
         return ResolvedConfigValue(override.value.rstrip("/"), override.source)
 
@@ -457,11 +457,11 @@ def get_auth_resolution(emit_error: bool = True) -> ResolvedAuth:
     """Resolve the active credential and its HTTP authentication scheme.
 
     Preference order:
-    1. Environment variable SLCLI_API_KEY (preferred) or SYSTEMLINK_API_KEY
+    1. Environment variable SLCLI_API_KEY
     2. Active profile from config file
     3. Error with login guidance when no credential is configured
     """
-    override = _get_env_override(("SLCLI_API_KEY", "SYSTEMLINK_API_KEY"))
+    override = _get_env_override(("SLCLI_API_KEY",))
     if override is not None:
         return ResolvedAuth(override.value, override.source, "api-key")
 
@@ -540,7 +540,7 @@ def _uses_web_routes() -> bool:
         ``True`` for an active PKCE profile without an API-key environment
         override; otherwise ``False``.
     """
-    if _get_env_override(("SLCLI_API_KEY", "SYSTEMLINK_API_KEY")) is not None:
+    if _get_env_override(("SLCLI_API_KEY",)) is not None:
         return False
 
     try:
@@ -563,7 +563,7 @@ def get_base_url() -> str:
     """Retrieve the effective SystemLink command base URL.
 
     Preference order:
-    1. Environment variable SLCLI_API_URL (preferred) or SYSTEMLINK_API_URL
+    1. Environment variable SLCLI_API_URL
     2. Active profile from config file
     3. Default fallback to localhost
 
@@ -579,7 +579,7 @@ def get_web_url() -> str:
     """Return the SystemLink primary web UI URL.
 
     Preference order:
-    1. Environment variable SLCLI_WEB_URL (preferred) or SYSTEMLINK_WEB_URL
+    1. Environment variable SLCLI_WEB_URL
     2. Active profile from config file
     3. Derived from get_base_url()
     """
@@ -590,7 +590,7 @@ def get_api_key() -> str:
     """Retrieve the active credential using the legacy API-key helper name.
 
     Preference order:
-    1. Environment variable SLCLI_API_KEY (preferred) or SYSTEMLINK_API_KEY
+    1. Environment variable SLCLI_API_KEY
     2. Active profile and its selected credential store
     """
     return get_api_key_resolution().value

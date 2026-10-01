@@ -38,9 +38,9 @@ from .utils import ExitCodes, get_base_url, get_base_url_resolution
 API_KEY_LENGTH = 42
 API_KEY_PATTERN = re.compile(rf"^[A-Za-z0-9_-]{{{API_KEY_LENGTH}}}$")
 ENV_OVERRIDE_FIELDS = (
-    ("API URL", ("SLCLI_API_URL", "SYSTEMLINK_API_URL")),
-    ("API Key", ("SLCLI_API_KEY", "SYSTEMLINK_API_KEY")),
-    ("Web URL", ("SLCLI_WEB_URL", "SYSTEMLINK_WEB_URL")),
+    ("API URL", ("SLCLI_API_URL",)),
+    ("API Key", ("SLCLI_API_KEY",)),
+    ("Web URL", ("SLCLI_WEB_URL",)),
 )
 
 

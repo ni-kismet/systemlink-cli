@@ -747,14 +747,29 @@ class TestCheckServiceStatus:
 class TestGetPlatform:
     """Tests for get_platform function."""
 
+    def test_get_platform_ignores_legacy_environment_variables(self, monkeypatch: Any) -> None:
+        """Legacy platform and URL variables cannot suppress the stored platform."""
+        from slcli.profiles import Profile
+
+        monkeypatch.delenv("SLCLI_PLATFORM", raising=False)
+        monkeypatch.delenv("SLCLI_API_URL", raising=False)
+        monkeypatch.setenv("SYSTEMLINK_PLATFORM", "SLS")
+        monkeypatch.setenv("SYSTEMLINK_API_URL", "https://legacy.example.com")
+        monkeypatch.setattr(
+            "slcli.profiles.get_active_profile",
+            lambda: Profile(name="saved", server="https://api.example.com", platform="SLE"),
+        )
+
+        assert get_platform() == PLATFORM_SLE
+
     def test_get_platform_from_env_sle(self) -> None:
         """Test getting SLE platform from the explicit platform environment variable."""
-        with patch.dict("os.environ", {"SYSTEMLINK_PLATFORM": "SLE"}):
+        with patch.dict("os.environ", {"SLCLI_PLATFORM": "SLE"}):
             assert get_platform() == PLATFORM_SLE
 
     def test_get_platform_from_env_sls(self) -> None:
         """Test getting SLS platform from the explicit platform environment variable."""
-        with patch.dict("os.environ", {"SYSTEMLINK_PLATFORM": "SLS"}):
+        with patch.dict("os.environ", {"SLCLI_PLATFORM": "SLS"}):
             assert get_platform() == PLATFORM_SLS
 
     def test_get_platform_from_active_profile(self) -> None:
@@ -767,7 +782,7 @@ class TestGetPlatform:
             platform="sle",
         )
 
-        with patch.dict("os.environ", {"SYSTEMLINK_PLATFORM": ""}), patch(
+        with patch.dict("os.environ", {"SLCLI_PLATFORM": ""}), patch(
             "slcli.profiles.get_active_profile", return_value=profile
         ):
             result = get_platform()
@@ -776,12 +791,12 @@ class TestGetPlatform:
 
     def test_get_platform_from_env_is_case_insensitive(self) -> None:
         """Test getting platform from the environment regardless of casing."""
-        with patch.dict("os.environ", {"SYSTEMLINK_PLATFORM": "sle"}):
+        with patch.dict("os.environ", {"SLCLI_PLATFORM": "sle"}):
             assert get_platform() == PLATFORM_SLE
 
     def test_get_platform_unknown_when_not_configured(self) -> None:
         """Test that UNKNOWN is returned when no platform is configured."""
-        with patch.dict("os.environ", {"SYSTEMLINK_PLATFORM": ""}), patch(
+        with patch.dict("os.environ", {"SLCLI_PLATFORM": ""}), patch(
             "slcli.profiles.get_active_profile", return_value=None
         ):
             result = get_platform()
@@ -790,7 +805,7 @@ class TestGetPlatform:
 
     def test_get_platform_unknown_when_platform_not_in_config(self) -> None:
         """Test that UNKNOWN is returned when the active profile has no platform."""
-        with patch.dict("os.environ", {"SYSTEMLINK_PLATFORM": ""}), patch(
+        with patch.dict("os.environ", {"SLCLI_PLATFORM": ""}), patch(
             "slcli.profiles.get_active_profile", return_value=None
         ):
             result = get_platform()
@@ -802,8 +817,8 @@ class TestGetPlatform:
         with patch.dict(
             "os.environ",
             {
-                "SYSTEMLINK_API_URL": "https://demo-api.lifecyclesolutions.ni.com",
-                "SYSTEMLINK_PLATFORM": "",
+                "SLCLI_API_URL": "https://demo-api.lifecyclesolutions.ni.com",
+                "SLCLI_PLATFORM": "",
             },
         ):
             result = get_platform()
@@ -816,21 +831,21 @@ class TestHasFeature:
 
     def test_has_feature_sle_dff_available(self) -> None:
         """Test that DFF is available on SLE."""
-        with patch.dict("os.environ", {"SYSTEMLINK_PLATFORM": "SLE"}):
+        with patch.dict("os.environ", {"SLCLI_PLATFORM": "SLE"}):
             result = has_feature("dynamic_form_fields")
 
             assert result is True
 
     def test_has_feature_sls_dff_not_available(self) -> None:
         """Test that DFF is not available on SLS."""
-        with patch.dict("os.environ", {"SYSTEMLINK_PLATFORM": "SLS"}):
+        with patch.dict("os.environ", {"SLCLI_PLATFORM": "SLS"}):
             result = has_feature("dynamic_form_fields")
 
             assert result is False
 
     def test_has_feature_unknown_platform_returns_true(self) -> None:
         """Test that features are allowed when platform is unknown (graceful degradation)."""
-        with patch.dict("os.environ", {"SYSTEMLINK_PLATFORM": ""}), patch(
+        with patch.dict("os.environ", {"SLCLI_PLATFORM": ""}), patch(
             "slcli.profiles.get_active_profile", return_value=None
         ):
             result = has_feature("dynamic_form_fields")
@@ -839,14 +854,14 @@ class TestHasFeature:
 
     def test_has_feature_unknown_feature_returns_true(self) -> None:
         """Test that unknown features default to available."""
-        with patch.dict("os.environ", {"SYSTEMLINK_PLATFORM": "SLE"}):
+        with patch.dict("os.environ", {"SLCLI_PLATFORM": "SLE"}):
             result = has_feature("unknown_feature")
 
             assert result is True
 
     def test_has_feature_templates_uses_workorder_service_probe(self) -> None:
         """Test templates/workflows follow the Work Order service capability."""
-        with patch.dict("os.environ", {"SYSTEMLINK_PLATFORM": "SLS"}), patch(
+        with patch.dict("os.environ", {"SLCLI_PLATFORM": "SLS"}), patch(
             "slcli.platform._get_service_status", return_value="ok"
         ):
             assert has_feature("templates") is True
@@ -888,7 +903,7 @@ class TestHasFeature:
 
     def test_has_feature_workorder_not_found_overrides_sle_platform(self) -> None:
         """Test Work Order-backed features are disabled when the service is missing."""
-        with patch.dict("os.environ", {"SYSTEMLINK_PLATFORM": "SLE"}), patch(
+        with patch.dict("os.environ", {"SLCLI_PLATFORM": "SLE"}), patch(
             "slcli.platform._get_service_status", return_value="not_found"
         ):
             assert has_feature("workorder_service") is False
@@ -990,13 +1005,13 @@ class TestRequireFeature:
 
     def test_require_feature_available_does_not_exit(self) -> None:
         """Test that require_feature does not exit when feature is available."""
-        with patch.dict("os.environ", {"SYSTEMLINK_PLATFORM": "SLE"}):
+        with patch.dict("os.environ", {"SLCLI_PLATFORM": "SLE"}):
             # Should not raise
             require_feature("dynamic_form_fields")
 
     def test_require_feature_not_available_exits(self) -> None:
         """Test that require_feature exits when feature is not available."""
-        with patch.dict("os.environ", {"SYSTEMLINK_PLATFORM": "SLS"}):
+        with patch.dict("os.environ", {"SLCLI_PLATFORM": "SLS"}):
             with pytest.raises(SystemExit) as exc_info:
                 require_feature("dynamic_form_fields")
 
@@ -1004,7 +1019,7 @@ class TestRequireFeature:
 
     def test_require_feature_templates_reports_workorder_requirement(self, capsys: Any) -> None:
         """Test Work Order-backed features mention the service-specific requirement."""
-        with patch.dict("os.environ", {"SYSTEMLINK_PLATFORM": "SLS"}), patch(
+        with patch.dict("os.environ", {"SLCLI_PLATFORM": "SLS"}), patch(
             "slcli.platform._get_service_status", return_value="not_found"
         ):
             with pytest.raises(SystemExit) as exc_info:

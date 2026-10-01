@@ -264,15 +264,14 @@ export SLCLI_CREDENTIAL_STORE=file</code></pre>
         <tbody>
           <tr><td><code>SLCLI_PROFILE</code></td><td>Profile to use (default: current profile)</td></tr>
           <tr><td><code>SLCLI_CONFIG</code></td><td>Custom config file path</td></tr>
-          <tr><td><code>SLCLI_API_URL</code></td><td>Preferred API URL override</td></tr>
-          <tr><td><code>SLCLI_API_KEY</code></td><td>Preferred API key override</td></tr>
-          <tr><td><code>SLCLI_WEB_URL</code></td><td>Preferred web UI URL override</td></tr>
+          <tr><td><code>SLCLI_API_URL</code></td><td>API URL override</td></tr>
+          <tr><td><code>SLCLI_API_KEY</code></td><td>API key override</td></tr>
+          <tr><td><code>SLCLI_WEB_URL</code></td><td>Web UI URL override</td></tr>
+          <tr><td><code>SLCLI_PLATFORM</code></td><td>Explicit platform override: <code>SLE</code> or <code>SLS</code></td></tr>
           <tr><td><code>SLCLI_CREDENTIAL_STORE</code></td><td>Default credential store for new profiles: <code>os</code> or <code>file</code></td></tr>
-          <tr><td><code>SYSTEMLINK_API_URL</code></td><td>Legacy alias for <code>SLCLI_API_URL</code></td></tr>
-          <tr><td><code>SYSTEMLINK_API_KEY</code></td><td>Legacy alias for <code>SLCLI_API_KEY</code></td></tr>
-          <tr><td><code>SYSTEMLINK_WEB_URL</code></td><td>Legacy alias for <code>SLCLI_WEB_URL</code></td></tr>
         </tbody>
       </table>
+      <p>The legacy <code>SYSTEMLINK_API_URL</code>, <code>SYSTEMLINK_API_KEY</code>, and <code>SYSTEMLINK_WEB_URL</code> aliases are no longer supported. Replace <code>SYSTEMLINK_PLATFORM</code> with <code>SLCLI_PLATFORM</code>.</p>
       <p>Use <code>slcli info</code> to see the effective source for each connection setting and any active overrides.</p>
 
       <!-- ─── READONLY MODE ─── -->

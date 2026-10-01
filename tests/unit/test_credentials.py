@@ -342,6 +342,41 @@ def test_keyring_unavailable_on_write(monkeypatch: Any) -> None:
         credentials.set_credential("profile-id", "api-key", "secret")
 
 
+@pytest.mark.parametrize("failure_stage", ["read", "journal", "field", "commit"])
+def test_windows_pkce_backend_loss_preserves_possible_partial_writes(
+    monkeypatch: pytest.MonkeyPatch, failure_stage: str
+) -> None:
+    """Only backend failure before the first write proves no cleanup is needed."""
+    import keyring.errors
+
+    backend = MagicMock()
+    backend.errors = keyring.errors
+    backend.get_password.return_value = None
+    if failure_stage == "read":
+        backend.get_password.side_effect = keyring.errors.NoKeyringError("unavailable")
+    write_attempts = 0
+    failing_attempt = {"journal": 1, "field": 2, "commit": 3}.get(failure_stage)
+
+    def write(service: str, account: str, value: str) -> None:
+        nonlocal write_attempts
+        write_attempts += 1
+        if write_attempts == failing_attempt:
+            raise keyring.errors.NoKeyringError("unavailable")
+
+    backend.set_password.side_effect = write
+    backend.delete_password.side_effect = keyring.errors.NoKeyringError("unavailable")
+    monkeypatch.setattr(credentials.platform, "system", lambda: "Windows")
+    monkeypatch.setattr(credentials, "_get_keyring_module", lambda: backend)
+
+    with pytest.raises(credentials.CredentialStoreError) as error:
+        credentials.set_credential("profile-id", "pkce", '{"access-token": "token"}')
+
+    assert isinstance(error.value, credentials.CredentialStoreUnavailable) == (
+        failure_stage == "read"
+    )
+    assert write_attempts == (0 if failure_stage == "read" else failing_attempt)
+
+
 def test_delete_profile_credentials_removes_legacy_pkce_items(monkeypatch: Any) -> None:
     """Profile cleanup deletes old token entries without reading them."""
     backend = MagicMock()

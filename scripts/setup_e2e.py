@@ -85,8 +85,8 @@ def setup_e2e_environment():
     # Set environment variables temporarily
     original_env = {}
     test_env_vars = {
-        "SYSTEMLINK_BASE_URL": config["base_url"],
-        "SYSTEMLINK_API_KEY": config["api_key"],
+        "SLCLI_API_URL": config["base_url"],
+        "SLCLI_API_KEY": config["api_key"],
     }
 
     for key, value in test_env_vars.items():

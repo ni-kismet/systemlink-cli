@@ -185,7 +185,7 @@ def get_platform() -> str:
     """Get the current platform from stored configuration or environment.
 
     Detection priority:
-    1. SYSTEMLINK_PLATFORM environment variable (explicit, most reliable)
+    1. SLCLI_PLATFORM environment variable (explicit, most reliable)
     2. Platform stored on the active profile (set during login via endpoint probing)
     3. Return PLATFORM_UNKNOWN if no explicit or stored platform is available
 
@@ -196,11 +196,11 @@ def get_platform() -> str:
     """
     # Priority 1: Explicit platform environment variable (most reliable)
     # This allows users/tests to explicitly specify the platform
-    env_platform = os.environ.get("SYSTEMLINK_PLATFORM", "").upper()
+    env_platform = os.environ.get("SLCLI_PLATFORM", "").upper()
     if env_platform in (PLATFORM_SLE, PLATFORM_SLS):
         return env_platform
 
-    if not any(os.environ.get(name) for name in ("SLCLI_API_URL", "SYSTEMLINK_API_URL")):
+    if not os.environ.get("SLCLI_API_URL"):
         try:
             from .profiles import get_active_profile
 
@@ -940,7 +940,7 @@ def get_platform_info(skip_health: bool = False) -> Dict[str, Any]:
     api_key_source = "unresolved"
     logged_in = False
     if skip_health:
-        override = _get_env_override(("SLCLI_API_KEY", "SYSTEMLINK_API_KEY"))
+        override = _get_env_override(("SLCLI_API_KEY",))
         if override is not None:
             api_key_source = override.source
             logged_in = True

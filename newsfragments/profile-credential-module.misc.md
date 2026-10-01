@@ -1,1 +1,0 @@
-Concentrate login and `config secure` credential replacement and persistence in a shared module, preserving file fallback and existing cleanup behavior.
