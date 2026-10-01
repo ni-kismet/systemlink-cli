@@ -355,6 +355,70 @@ def test_partial_login_write_is_removed_or_reachable_for_retry(
     assert credential_store == {}
 
 
+@pytest.mark.parametrize("auth_mode", ["api-key", "pkce"])
+@pytest.mark.parametrize("rollback_fails", [False, True])
+def test_partial_login_write_save_failure_reports_abandoned_os_id(
+    config: ProfileConfig,
+    credential_store: dict[tuple[str, str], str],
+    monkeypatch: pytest.MonkeyPatch,
+    auth_mode: str,
+    rollback_fails: bool,
+) -> None:
+    """Fallback errors identify abandoned OS credentials even when recovery saves fail."""
+    original = Profile(name="dev", server="https://example.com", api_key="old")
+    config.add_profile(original)
+    config.save()
+    save = ProfileConfig.save
+    save_attempts = 0
+
+    def partial_write(profile_id: str, credential: str, value: str) -> None:
+        credential_store[(profile_id, credential)] = value
+        raise credentials.CredentialStoreError("partial write")
+
+    def fail_cleanup(profile_id: str, credential: str) -> None:
+        raise credentials.CredentialStoreError("locked")
+
+    def fail_save(config: ProfileConfig) -> None:
+        nonlocal save_attempts
+        save_attempts += 1
+        if save_attempts == 1 or rollback_fails:
+            raise RuntimeError("disk full")
+        save(config)
+
+    monkeypatch.setattr(credentials, "_macos_set", partial_write)
+    monkeypatch.setattr(credentials, "_macos_delete", fail_cleanup)
+    monkeypatch.setattr(ProfileConfig, "save", fail_save)
+    profile = Profile(
+        name="dev",
+        server="https://example.com",
+        api_key="new-key" if auth_mode == "api-key" else "",
+        auth_mode=auth_mode,
+        credential_store="os",
+        pkce_credentials=(
+            {"access-token": "new-token", "refresh-token": None, "access-expires-at": None}
+            if auth_mode == "pkce"
+            else {}
+        ),
+    )
+
+    with pytest.raises(ProfileCredentialError) as error:
+        save_profile_credentials(config, profile, set_current=True)
+
+    stranded_id = next(iter(credential_store))[0]
+    assert profile.credential_store == "file"
+    assert profile.credential_id != stranded_id
+    assert stranded_id in str(error.value)
+    assert "locked" in str(error.value)
+    assert "Retry cleanup" in str(error.value)
+    assert save_attempts == 2
+    assert config.settings[PENDING_DELETIONS_SETTING][0]["id"] == stranded_id
+    assert config.profiles["dev"] == original
+    assert config.current_profile == "other"
+    saved = ProfileConfig.load()
+    assert saved.profiles["dev"] == original
+    assert saved.current_profile == "other"
+
+
 @pytest.mark.parametrize("operation", ["login", "secure"])
 @pytest.mark.parametrize("auth_mode", ["api-key", "pkce"])
 def test_unavailable_store_preserves_each_operation_policy(

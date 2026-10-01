@@ -42,6 +42,7 @@ def _isolated_environment(config_file: Path) -> dict[str, str]:
     ):
         env.pop(name, None)
     env["SLCLI_CONFIG"] = str(config_file)
+    env["PYTHONIOENCODING"] = "utf-8"
     return env
 
 
@@ -54,6 +55,7 @@ def _run_cli(
         env=env,
         capture_output=True,
         text=True,
+        encoding="utf-8",
         input=input_data,
         timeout=90,
         check=False,
@@ -74,6 +76,7 @@ def _assert_native_item_absent(profile_id: str, credential: str, env: dict[str, 
         env=env,
         capture_output=True,
         text=True,
+        encoding="utf-8",
         timeout=30,
         check=False,
     )

@@ -237,6 +237,7 @@ def save_profile_credentials(
             else previous.credential_id
         )
     warnings: list[str] = []
+    staging_cleanup_failures: list[str] = []
     staged: list[tuple[Profile, str]] = []
     if profile.credential_store == "os":
         credential = "pkce" if profile.auth_mode == "pkce" else "api-key"
@@ -259,6 +260,7 @@ def save_profile_credentials(
             ):
                 staged.pop()
             failures = _remove_staged_credentials(config, staged, persist_failures=False)
+            staging_cleanup_failures = failures
             staged.clear()
             if not (
                 isinstance(exc, CredentialStoreError)
@@ -305,6 +307,7 @@ def save_profile_credentials(
             )
         )
     except _ProfileSaveError as exc:
+        cleanup_failures = [*staging_cleanup_failures, *exc.cleanup_failures]
         if exc.rollback_error:
             if staged:
                 message = (
@@ -316,13 +319,18 @@ def save_profile_credentials(
                     f"Could not save the profile: {exc.error}. Could not restore previous profile: "
                     f"{exc.rollback_error}. Credential ID: {profile.credential_id}."
                 )
+            if cleanup_failures:
+                message += (
+                    f" Could not remove staged credentials: {', '.join(cleanup_failures)}. "
+                    "Retry cleanup with 'slcli config cleanup'."
+                )
         else:
             message = f"Could not save the profile: {exc.error}. The previous profile was restored."
-            if exc.cleanup_failures:
+            if cleanup_failures:
                 message = (
                     f"Could not save the profile: {exc.error}. The previous profile was "
                     "restored, but staged credentials could not be removed: "
-                    f"{', '.join(exc.cleanup_failures)}. Retry cleanup with 'slcli config cleanup'."
+                    f"{', '.join(cleanup_failures)}. Retry cleanup with 'slcli config cleanup'."
                 )
         raise ProfileCredentialError(message, warnings) from exc
     if (
