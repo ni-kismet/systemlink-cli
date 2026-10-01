@@ -4,6 +4,7 @@ import json
 from io import BytesIO, StringIO, TextIOWrapper
 from pathlib import Path
 from subprocess import CompletedProcess
+from types import SimpleNamespace
 from typing import Any, cast
 
 import click
@@ -327,21 +328,30 @@ def test_encoding_fallback_preserves_representable_text() -> None:
     assert rich_output._encoding_safe_message("caf\u00e9 \u6e2c", "cp1252") == "caf\u00e9 \\u6e2c"
 
 
-def test_rich_echo_restricted_json_preserves_values(monkeypatch: Any) -> None:
+@pytest.mark.parametrize("encoding", ["cp1252", "cp437", "utf-8"])
+@pytest.mark.parametrize("err", [False, True])
+@pytest.mark.parametrize("color_mode", ["auto", "always", "never"])
+@pytest.mark.parametrize("ensure_ascii", [False, True])
+def test_rich_echo_restricted_json_preserves_values(
+    monkeypatch: Any, encoding: str, err: bool, color_mode: str, ensure_ascii: bool
+) -> None:
     """Machine-readable JSON retains Unicode values instead of status substitutions."""
     buffer = BytesIO()
-    stream = TextIOWrapper(buffer, encoding="cp1252", errors="strict", newline="\n")
-    monkeypatch.setattr(rich_output.sys, "stdout", stream)
+    stream = TextIOWrapper(buffer, encoding=encoding, errors="strict", newline="\n")
+    monkeypatch.setattr(rich_output.sys, "stderr" if err else "stdout", stream)
     monkeypatch.setattr(rich_output, "_STDOUT_CONSOLE", None)
-    monkeypatch.setenv("SLCLI_COLOR", "never")
+    monkeypatch.setattr(rich_output, "_STDERR_CONSOLE", None)
+    monkeypatch.setattr(rich_output, "_stream_is_tty", lambda err=False: True)
+    monkeypatch.setenv("SLCLI_COLOR", color_mode)
+    monkeypatch.delenv("NO_COLOR", raising=False)
     data = {"status": "\u2713", "name": "\u6e2c"}
 
-    _rich_echo(json.dumps(data))
-    print_json(data)
+    _rich_echo(json.dumps(data, ensure_ascii=ensure_ascii), err=err)
+    print_json(data, err=err)
     stream.flush()
 
     decoder = json.JSONDecoder()
-    output = buffer.getvalue().decode("cp1252")
+    output = click.unstyle(buffer.getvalue().decode(encoding))
     first, end = decoder.raw_decode(output)
     assert first == data
     assert json.loads(output[end:]) == data
@@ -382,6 +392,7 @@ def test_get_console_refreshes_when_tty_becomes_available(monkeypatch: Any) -> N
     monkeypatch.setattr(rich_output, "_STDOUT_CONSOLE", cast(Any, FakeConsole(False)))
     monkeypatch.setattr(rich_output, "_STDERR_CONSOLE", cast(Any, FakeConsole(False)))
     monkeypatch.setattr(rich_output, "_stream_is_tty", lambda err=False: True)
+    monkeypatch.setattr(rich_output, "detect_legacy_windows", lambda: False)
 
     recreated = FakeConsole(True)
 
@@ -428,11 +439,44 @@ def test_rich_secho_uses_click_styling(monkeypatch: Any) -> None:
     assert "\x1b[" in recorded[0]["message"]
 
 
+@pytest.mark.parametrize("vt", [False, True])
+@pytest.mark.parametrize("err", [False, True])
+@pytest.mark.parametrize("color_mode", ["auto", "always"])
+def test_windows_terminal_styling_requires_vt(
+    monkeypatch: Any, vt: bool, err: bool, color_mode: str
+) -> None:
+    """Stream rendering emits ANSI only on VT-capable Windows terminals."""
+    buffer = BytesIO()
+    stream = TextIOWrapper(buffer, encoding="cp1252", errors="strict", newline="\n")
+    monkeypatch.setattr(rich_output.sys, "stderr" if err else "stdout", stream)
+    monkeypatch.setattr(rich_output, "_STDOUT_CONSOLE", None)
+    monkeypatch.setattr(rich_output, "_STDERR_CONSOLE", None)
+    monkeypatch.setattr(rich_output, "_stream_is_tty", lambda err=False: True)
+    monkeypatch.setattr("rich.console.WINDOWS", True)
+    monkeypatch.setattr(
+        "rich.console.get_windows_console_features",
+        lambda: SimpleNamespace(vt=vt, truecolor=vt),
+    )
+    monkeypatch.setenv("SLCLI_COLOR", color_mode)
+    monkeypatch.setenv("TERM", "xterm-256color")
+    monkeypatch.delenv("NO_COLOR", raising=False)
+
+    _rich_echo("\u2713 done", err=err)
+    stream.flush()
+
+    output = buffer.getvalue().decode("cp1252")
+    assert ("\x1b[" in output) is vt
+    assert click.unstyle(output) == "[OK] done\n"
+    assert rich_output._get_console(err=err).is_terminal is vt
+    assert rich_output._console_needs_refresh(err=err) is False
+
+
 def test_configure_consoles_respects_terminal_detection(monkeypatch: Any) -> None:
     """Console construction should follow per-stream terminal detection."""
     monkeypatch.setenv("SLCLI_COLOR", "auto")
     monkeypatch.delenv("NO_COLOR", raising=False)
     monkeypatch.setattr(rich_output, "_stream_is_tty", lambda err=False: not err)
+    monkeypatch.setattr(rich_output, "detect_legacy_windows", lambda: False)
 
     rich_output._configure_consoles()
 
