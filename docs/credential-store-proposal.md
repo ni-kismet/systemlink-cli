@@ -60,7 +60,8 @@ A macOS keychain item has an access list that names the programs allowed to read
 }
 ```
 
-- Keyring service is `systemlink-cli`. Account is `profile:<id>:api-key` or `profile:<id>:pkce`.
+- Keyring service is `systemlink-cli`. Accounts are `profile:<id>:api-key` or
+  `profile:<id>:pkce:<field>` for Windows PKCE fields.
 - Keying by `id` instead of name:
   - A profile rename doesn't need a secret move.
   - Separate configs selected through `SLCLI_CONFIG` (for example e2e) can't overwrite each other's secrets. PKCE keys by profile name today, so it has this collision problem.
@@ -73,7 +74,7 @@ Small interface: `get(profile)`, `set(profile, secret)`, `delete(profile)`, `des
 | Platform | Backend | Notes |
 |---|---|---|
 | macOS | `/usr/bin/security` subprocess | Read: `find-generic-password -s systemlink-cli -a <account> -w`. Write: `add-generic-password -U` via `security -i` on stdin. Delete: `delete-generic-password`. |
-| Windows | `keyring` → Credential Manager (DPAPI) | No prompts. Blob limit is 2560 bytes, which is fine for API keys; measure PKCE tokens. |
+| Windows | `keyring` → Credential Manager (DPAPI) | No prompts. Each PKCE field is stored separately to stay within the 2560-byte blob limit. |
 | Linux | `keyring` → Secret Service | Uses `file` when no D-Bus or unlocked collection is available (headless, WSL, containers). |
 | Any | `file` | Plaintext in `config.json` (today's behavior). Explicit opt-in or fallback. |
 
@@ -113,9 +114,11 @@ The same order applies to URL and web URL, minus the store step (they aren't sec
 
 ### 5. PKCE consolidation
 
-- Store PKCE credentials as one JSON item per profile (`access-token`, `refresh-token`, `access-expires-at`), so each run does one read instead of three.
+- Store PKCE credentials as one JSON item on macOS and Linux. On Windows, store
+  `access-token`, `refresh-token`, and `access-expires-at` as separate items to
+  stay within Credential Manager's per-item blob limit; reassemble the JSON at
+  the credential-store interface.
 - Stop writing the obsolete `session-key` and `session-expires-at` items, and delete them on logout.
-- If Windows blob size is a problem for combined JWTs, keep separate items on Windows only.
 
 ### 6. Legacy keyring removal
 
@@ -153,7 +156,7 @@ Confirm the exact Windows target names before publishing: `keyring` stores them 
 
 | Phase | Scope | Default for new profiles |
 |---|---|---|
-| **1-3** | Implemented: OS-store default, warned file fallback, explicit file selection, secure migration command, profile source display, PKCE bundle storage, and removal of legacy global keyring reads and migration. | `os` |
+| **1-3** | Implemented: OS-store default, warned file fallback, explicit file selection, secure migration command, profile source display, platform-appropriate PKCE storage, and removal of legacy global keyring reads and migration. | `os` |
 | **4 (optional)** | Developer ID signing and notarization of the macOS PyInstaller binary with a stable identifier. This is not part of the credential-store implementation. | — |
 
 ## Testing
@@ -164,6 +167,5 @@ Confirm the exact Windows target names before publishing: `keyring` stores them 
 
 ## Open Questions
 
-1. Windows blob size for consolidated PKCE tokens (measure against real tokens).
-2. Linux fallback: should falling back to `file` warn every time or once per profile?
-3. Is Phase 4 (Developer ID signing) worth doing for Gatekeeper alone?
+1. Linux fallback: should falling back to `file` warn every time or once per profile?
+2. Is Phase 4 (Developer ID signing) worth doing for Gatekeeper alone?

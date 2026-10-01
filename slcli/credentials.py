@@ -22,6 +22,7 @@ LEGACY_PKCE_CREDENTIALS = (
     "session-expires-at",
 )
 PENDING_DELETIONS_SETTING = "pending-credential-deletions"
+WINDOWS_PKCE_FIELDS = ("access-token", "refresh-token", "access-expires-at")
 
 
 class CredentialStoreError(RuntimeError):
@@ -236,6 +237,16 @@ def get_credential(profile_id: str, credential: str, store: str = "os") -> Optio
         if credential == "pkce":
             return json.dumps(profile.pkce_credentials) if profile.pkce_credentials else None
         return None
+    if platform.system() == "Windows" and credential == "pkce":
+        bundle: dict[str, Any] = {}
+        for field in WINDOWS_PKCE_FIELDS:
+            value = _cached_get(profile_id, f"pkce:{field}")
+            if value is not None:
+                try:
+                    bundle[field] = json.loads(value)
+                except json.JSONDecodeError as exc:
+                    raise CredentialStoreError("Could not read the PKCE credential.") from exc
+        return json.dumps(bundle) if bundle else None
     return _cached_get(profile_id, credential)
 
 
@@ -262,15 +273,41 @@ def set_credential(profile_id: str, credential: str, value: str, store: str = "o
     elif platform.system() == "Darwin":
         _macos_set(profile_id, credential, value)
     else:
+        windows_pkce_bundle: Optional[dict[str, Any]] = None
+        if platform.system() == "Windows" and credential == "pkce":
+            try:
+                parsed_bundle = json.loads(value)
+            except json.JSONDecodeError as exc:
+                raise CredentialStoreError("The PKCE credential bundle is invalid.") from exc
+            if not isinstance(parsed_bundle, dict) or set(parsed_bundle) - set(WINDOWS_PKCE_FIELDS):
+                raise CredentialStoreError("The PKCE credential bundle is invalid.")
+            windows_pkce_bundle = parsed_bundle
+
         keyring = _get_keyring_module()
         try:
-            keyring.set_password(KEYRING_SERVICE, credential_account(profile_id, credential), value)
+            if windows_pkce_bundle is None:
+                keyring.set_password(
+                    KEYRING_SERVICE, credential_account(profile_id, credential), value
+                )
+            else:
+                for field in WINDOWS_PKCE_FIELDS:
+                    account = credential_account(profile_id, f"pkce:{field}")
+                    field_value = windows_pkce_bundle.get(field)
+                    if field_value is None:
+                        try:
+                            keyring.delete_password(KEYRING_SERVICE, account)
+                        except keyring.errors.PasswordDeleteError:
+                            pass
+                    else:
+                        keyring.set_password(KEYRING_SERVICE, account, json.dumps(field_value))
         except Exception as exc:
             if isinstance(exc, keyring.errors.NoKeyringError):
                 raise CredentialStoreUnavailable(
                     "No operating-system credential store is available. "
                     "Use --credential-store file."
                 ) from exc
+            if isinstance(exc, CredentialStoreError):
+                raise
             raise CredentialStoreError("Could not write the credential to the OS store.") from exc
     _cached_get.cache_clear()
 
@@ -294,9 +331,18 @@ def delete_credential(profile_id: str, credential: str, store: str = "os") -> No
     else:
         keyring = _get_keyring_module()
         try:
-            keyring.delete_password(KEYRING_SERVICE, credential_account(profile_id, credential))
-        except keyring.errors.PasswordDeleteError:
-            pass
+            credentials = (
+                (f"pkce:{field}" for field in reversed(WINDOWS_PKCE_FIELDS))
+                if platform.system() == "Windows" and credential == "pkce"
+                else (credential,)
+            )
+            for stored_credential in credentials:
+                try:
+                    keyring.delete_password(
+                        KEYRING_SERVICE, credential_account(profile_id, stored_credential)
+                    )
+                except keyring.errors.PasswordDeleteError:
+                    pass
         except Exception as exc:
             raise CredentialStoreError(
                 "Could not delete the credential from the OS store."

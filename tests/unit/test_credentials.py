@@ -174,6 +174,60 @@ def test_get_credential_is_cached_and_invalidated_after_set(monkeypatch: Any) ->
     assert backend.get_password.call_count == 2
 
 
+def test_windows_pkce_credentials_use_split_size_limited_items(monkeypatch: Any) -> None:
+    """Windows PKCE values fit Credential Manager's per-item blob limit."""
+    import keyring.errors
+
+    class SizeLimitedKeyring:
+        errors = keyring.errors
+
+        def __init__(self) -> None:
+            self.values: dict[tuple[str, str], str] = {}
+
+        def set_password(self, service: str, account: str, password: str) -> None:
+            if len(password.encode("utf-16-le")) > 2560:
+                raise ValueError("credential blob exceeds 2560 bytes")
+            self.values[(service, account)] = password
+
+        def get_password(self, service: str, account: str) -> str | None:
+            return self.values.get((service, account))
+
+        def delete_password(self, service: str, account: str) -> None:
+            try:
+                del self.values[(service, account)]
+            except KeyError as exc:
+                raise keyring.errors.PasswordDeleteError() from exc
+
+    backend = SizeLimitedKeyring()
+    monkeypatch.setattr(credentials.platform, "system", lambda: "Windows")
+    monkeypatch.setattr(credentials, "_get_keyring_module", lambda: backend)
+    credentials._cached_get.cache_clear()
+    bundle = {
+        "access-token": "a" * 1250,
+        "refresh-token": "r" * 1250,
+        "access-expires-at": 1780000000.0,
+    }
+    serialized_bundle = json.dumps(bundle)
+    assert len(serialized_bundle.encode("utf-16-le")) > 2560
+
+    credentials.set_credential("profile-id", "pkce", serialized_bundle)
+
+    assert len(backend.values) == 3
+    assert all(len(value.encode("utf-16-le")) <= 2560 for value in backend.values.values())
+    assert json.loads(credentials.get_credential("profile-id", "pkce") or "") == bundle
+
+    credentials.delete_credential("profile-id", "pkce")
+    assert backend.values == {}
+    assert credentials.get_credential("profile-id", "pkce") is None
+
+    credentials.set_credential("profile-id", "pkce", '{"access-token": "token"}')
+    assert json.loads(credentials.get_credential("profile-id", "pkce") or "") == {
+        "access-token": "token"
+    }
+    credentials.delete_credential("profile-id", "pkce")
+    assert backend.values == {}
+
+
 def test_linux_rejects_non_secret_service_backend(monkeypatch: Any) -> None:
     """Linux never selects an unencrypted fallback keyring backend implicitly."""
     import keyring
