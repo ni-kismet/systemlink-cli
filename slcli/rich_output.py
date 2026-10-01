@@ -10,10 +10,10 @@ import json
 import os
 import re
 import sys
-from typing import Any, Iterable, Optional, Sequence
+from typing import Any, Iterable, Literal, Optional, Sequence
 
 import click
-from rich.box import ROUNDED
+from rich.box import ASCII, ROUNDED
 from rich.console import Console, detect_legacy_windows
 from rich.json import JSON
 from rich.table import Table
@@ -62,6 +62,7 @@ def _encoding_safe_message(message: str, encoding: str) -> str:
             "\u2713": "[OK]",
             "\u2717": "[X]",
             "\u2192": "->",
+            "\u26a0\ufe0f": "[!]",
             "\u26a0": "[!]",
         }
         for symbol, replacement in replacements.items():
@@ -124,8 +125,17 @@ def render_table(
         total_label: Label for the total footer.
         total_count: Optional explicit total count for the footer.
     """
+    console = _get_console()
+    table_box = ROUNDED
+    try:
+        str(table_box).encode(console.encoding)
+    except UnicodeEncodeError:
+        table_box = ASCII
+    overflow: Literal["ellipsis", "crop"] = (
+        "ellipsis" if _encoding_safe_message("\u2026", console.encoding) == "\u2026" else "crop"
+    )
     table = Table(
-        box=ROUNDED,
+        box=table_box,
         header_style="table.header",
         border_style="table.border",
         show_lines=False,
@@ -134,24 +144,35 @@ def render_table(
 
     for header, width in zip(headers, column_widths):
         table.add_column(
-            header,
-            overflow="ellipsis",
+            Text(_encoding_safe_message(header, console.encoding)),
+            overflow=overflow,
             width=width,
             no_wrap=True,
         )
 
     row_count = 0
     for row in rows:
-        styled_row = [_style_table_cell(value) for value in row]
+        styled_row = []
+        for value in row:
+            cell = _style_table_cell(value)
+            styled_row.append(
+                Text(_encoding_safe_message(cell.plain, console.encoding), style=cell.style)
+            )
         table.add_row(*styled_row)
         row_count += 1
 
-    _get_console().print(table)
+    console.print(table)
 
     if show_total:
         count = total_count if total_count is not None else row_count
-        _get_console().print()
-        _get_console().print(Text.assemble(("Total: ", "summary"), str(count), f" {total_label}"))
+        console.print()
+        console.print(
+            Text.assemble(
+                ("Total: ", "summary"),
+                str(count),
+                _encoding_safe_message(f" {total_label}", console.encoding),
+            )
+        )
 
 
 def _rich_echo(

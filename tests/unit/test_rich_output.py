@@ -139,6 +139,69 @@ def test_render_table_prints_table_and_total(monkeypatch: Any) -> None:
     assert console.calls[2]["args"][0].plain == "Total: 1 item(s)"
 
 
+@pytest.mark.parametrize("encoding", ["cp1252", "cp437", "ascii", "utf-8"])
+@pytest.mark.parametrize("color_mode", ["auto", "always", "never"])
+def test_render_table_handles_restricted_stream_encoding(
+    monkeypatch: Any, encoding: str, color_mode: str
+) -> None:
+    """Real table output safely renders borders, headers, cells, and totals."""
+    buffer = BytesIO()
+    stream = TextIOWrapper(buffer, encoding=encoding, errors="strict", newline="\n")
+    monkeypatch.setattr(rich_output.sys, "stdout", stream)
+    monkeypatch.setattr(rich_output, "_STDOUT_CONSOLE", None)
+    monkeypatch.setattr(rich_output, "_STDERR_CONSOLE", None)
+    monkeypatch.setenv("SLCLI_COLOR", color_mode)
+
+    render_table(
+        ["Name \u6e2c", "Status"],
+        [24, 12],
+        iter([["caf\u00e9 \u6e2c", "\u2713"], ["example", "\u2717"]]),
+        show_total=True,
+        total_label="\u6e2c item(s)",
+    )
+    stream.flush()
+    output = click.unstyle(buffer.getvalue().decode(encoding))
+
+    if encoding == "utf-8":
+        assert "\u256d" in output
+        assert "\u2713" in output and "\u2717" in output
+        assert "caf\u00e9 \u6e2c" in output
+        assert "Total: 2 \u6e2c item(s)" in output
+    else:
+        assert "+" in output and "|" in output
+        assert "[OK]" in output and "[X]" in output
+        assert "Name \\u6e2c" in output
+        assert "Total: 2 \\u6e2c item(s)" in output
+        assert "caf" in output and "\\u6e2c" in output
+
+
+@pytest.mark.parametrize("encoding", ["cp1252", "cp437", "ascii", "utf-8"])
+def test_render_table_truncation_handles_restricted_encoding(
+    monkeypatch: Any, encoding: str
+) -> None:
+    """Narrow table columns never introduce an unsupported ellipsis character."""
+    buffer = BytesIO()
+    stream = TextIOWrapper(buffer, encoding=encoding, errors="strict", newline="\n")
+    monkeypatch.setattr(rich_output.sys, "stdout", stream)
+    monkeypatch.setattr(rich_output, "_STDOUT_CONSOLE", None)
+    monkeypatch.setattr(rich_output, "_STDERR_CONSOLE", None)
+    monkeypatch.setenv("SLCLI_COLOR", "never")
+
+    render_table(["Name"], [5], [["long example name"]], show_total=True, total_count=7)
+    stream.flush()
+
+    assert "Total: 7 item(s)" in buffer.getvalue().decode(encoding)
+
+
+@pytest.mark.parametrize("encoding", ["cp1252", "cp437", "ascii", "utf-8"])
+def test_encoding_fallback_handles_warning_variation_selector(encoding: str) -> None:
+    """Warning emoji become one readable fallback without escaped selectors."""
+    message = "\u26a0\ufe0f warning"
+    expected = message if encoding == "utf-8" else "[!] warning"
+
+    assert rich_output._encoding_safe_message(message, encoding) == expected
+
+
 def test_rich_echo_uses_original_echo_for_non_stream_file(monkeypatch: Any) -> None:
     """Explicit file objects should bypass Rich rendering."""
     recorded: list[dict[str, Any]] = []
