@@ -419,16 +419,22 @@ def test_profile_source_encoding_disambiguates_colon_in_profile_name(monkeypatch
     assert describe_config_source(resolved.source) == "Profile 'team:os'"
 
 
-def test_plaintext_warning_save_failure_does_not_block_auth(monkeypatch: Any) -> None:
+def test_plaintext_warning_save_failure_does_not_block_auth(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
     """Failure to persist the advisory warning does not prevent credential use."""
     from types import SimpleNamespace
 
-    from slcli.profiles import Profile
+    from slcli.profiles import Profile, ProfileConfig
     from slcli.utils import get_auth_resolution
 
-    config = MagicMock(settings={})
-    config.save.side_effect = RuntimeError("config is read-only")
-    monkeypatch.setattr("slcli.profiles.ProfileConfig.load", lambda: config)
+    config = ProfileConfig()
+    save = MagicMock(side_effect=RuntimeError("config is read-only"))
+    monkeypatch.setattr(
+        ProfileConfig, "get_config_path", classmethod(lambda cls: tmp_path / "config.json")
+    )
+    monkeypatch.setattr(ProfileConfig, "load", classmethod(lambda cls: config))
+    monkeypatch.setattr(ProfileConfig, "save", save)
     monkeypatch.setattr(
         "slcli.profiles.get_active_profile",
         lambda: Profile(name="dev", server="https://api.example.com", api_key="plain-key"),
@@ -440,7 +446,7 @@ def test_plaintext_warning_save_failure_does_not_block_auth(monkeypatch: Any) ->
     resolved = get_auth_resolution()
 
     assert resolved.value == "plain-key"
-    config.save.assert_called_once()
+    save.assert_called_once()
 
 
 def test_api_key_resolution_raises_single_click_exception_when_missing(monkeypatch: Any) -> None:

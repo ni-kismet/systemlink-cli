@@ -321,7 +321,7 @@ def get_http_configuration() -> SystemLinkConfig:
     """Return a configured SystemLink configuration using profiles or environment.
 
     Preference order:
-    1. Environment variables (SLCLI_* or SYSTEMLINK_* aliases)
+    1. Environment variables (SLCLI_* only)
     2. Active profile from config file
     """
     server_uri = get_base_url()
@@ -511,19 +511,19 @@ def _warn_plaintext_credential() -> None:
         return
     from .profiles import ProfileConfig
 
-    config = ProfileConfig.load()
     today = datetime.date.today().isoformat()
-    if config.settings.get("plaintext-credential-warning-date") == today:
-        return
-    click.echo(
-        "⚠️  This profile stores its credential in config.json. Run 'slcli config secure' "
-        "to move it to the OS credential store.",
-        err=True,
-    )
-    config.settings["plaintext-credential-warning-date"] = today
     try:
-        config.save()
-    except RuntimeError:
+        with ProfileConfig().transaction() as config:
+            if config.settings.get("plaintext-credential-warning-date") == today:
+                return
+            click.echo(
+                "⚠️  This profile stores its credential in config.json. Run 'slcli config secure' "
+                "to move it to the OS credential store.",
+                err=True,
+            )
+            config.settings["plaintext-credential-warning-date"] = today
+            config.save()
+    except (OSError, RuntimeError):
         pass
 
 

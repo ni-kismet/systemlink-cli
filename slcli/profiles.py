@@ -24,11 +24,13 @@ import os
 import stat
 import tempfile
 import uuid
+from contextlib import contextmanager
 from dataclasses import dataclass, field
 from pathlib import Path
-from typing import Any, Dict, List, Optional
+from typing import Any, Dict, Iterator, List, Optional
 
 import click
+from filelock import FileLock
 
 SERVICE_PROBE_CACHE_SETTING = "service-probe-cache"
 
@@ -107,6 +109,7 @@ class ProfileConfig:
 
     # Additional non-profile settings (e.g., function_service_url)
     settings: Dict[str, Any] = field(default_factory=dict)
+    _transaction_depth: int = field(default=0, init=False, repr=False, compare=False)
 
     @classmethod
     def get_config_path(cls) -> Path:
@@ -162,11 +165,37 @@ class ProfileConfig:
             settings=settings,
         )
 
+    @contextmanager
+    def transaction(self) -> Iterator["ProfileConfig"]:
+        """Reload configuration under the shared lock for a complete mutation.
+
+        Hold this context through all related saves and credential side effects.
+        Nested transactions on this instance keep its in-memory state.
+
+        Yields:
+            This configuration refreshed from disk for the outermost transaction.
+        """
+        path = self.get_config_path().resolve()
+        path.parent.mkdir(parents=True, exist_ok=True)
+        lock = FileLock(str(path) + ".lock", is_singleton=True)
+        with lock:
+            if self._transaction_depth == 0:
+                fresh = type(self).load()
+                self.current_profile = fresh.current_profile
+                self.profiles = fresh.profiles
+                self.settings = fresh.settings
+            self._transaction_depth += 1
+            try:
+                yield self
+            finally:
+                self._transaction_depth -= 1
+
     def save(self) -> None:
         """Save configuration atomically with secure permissions.
 
         Replacement preserves the previous file on ordinary write failures, but
-        does not guarantee durability across power loss.
+        does not guarantee durability across power loss. Use ``transaction`` for
+        load-modify-save operations to avoid overwriting concurrent changes.
         """
         config_path = self.get_config_path()
 
@@ -322,12 +351,12 @@ def get_service_probe_cache_entry(cache_key: str) -> Optional[Dict[str, Any]]:
 
 def save_service_probe_cache_entry(cache_key: str, entry: Dict[str, Any]) -> None:
     """Save a persisted service probe cache entry."""
-    config = ProfileConfig.load()
-    cache = config.settings.get(SERVICE_PROBE_CACHE_SETTING, {})
-    normalized_cache = cache.copy() if isinstance(cache, dict) else {}
-    normalized_cache[cache_key] = entry
-    config.settings[SERVICE_PROBE_CACHE_SETTING] = normalized_cache
-    config.save()
+    with ProfileConfig().transaction() as config:
+        cache = config.settings.get(SERVICE_PROBE_CACHE_SETTING, {})
+        normalized_cache = cache.copy() if isinstance(cache, dict) else {}
+        normalized_cache[cache_key] = entry
+        config.settings[SERVICE_PROBE_CACHE_SETTING] = normalized_cache
+        config.save()
 
 
 def get_default_workspace() -> Optional[str]:

@@ -6,8 +6,6 @@ from functools import wraps
 from typing import Callable, Concatenate, Optional, ParamSpec, TypeVar
 from uuid import uuid4
 
-from filelock import FileLock
-
 from . import credentials
 from .credentials import (
     CredentialStoreError,
@@ -28,16 +26,7 @@ def _credential_transaction(
     def locked(
         config: ProfileConfig, *args: _Parameters.args, **kwargs: _Parameters.kwargs
     ) -> _Result:
-        path = ProfileConfig.get_config_path().resolve()
-        path.parent.mkdir(parents=True, exist_ok=True)
-        lock = FileLock(str(path) + ".lock", is_singleton=True)
-        nested = lock.is_locked
-        with lock:
-            if not nested:
-                fresh = ProfileConfig.load()
-                config.current_profile = fresh.current_profile
-                config.profiles = fresh.profiles
-                config.settings = fresh.settings
+        with config.transaction():
             return operation(config, *args, **kwargs)
 
     return locked

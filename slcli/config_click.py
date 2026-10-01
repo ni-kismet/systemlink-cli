@@ -587,16 +587,15 @@ def register_config_commands(cli: Any) -> None:
     @click.argument("name")
     def use_profile(name: str) -> None:
         """Switch to a different profile."""
-        cfg = ProfileConfig.load()
+        with ProfileConfig().transaction() as cfg:
+            if name not in cfg.profiles:
+                click.echo(f"✗ Profile '{name}' not found.", err=True)
+                if cfg.profiles:
+                    click.echo(f"Available profiles: {', '.join(cfg.profiles.keys())}", err=True)
+                sys.exit(ExitCodes.NOT_FOUND)
 
-        if name not in cfg.profiles:
-            click.echo(f"✗ Profile '{name}' not found.", err=True)
-            if cfg.profiles:
-                click.echo(f"Available profiles: {', '.join(cfg.profiles.keys())}", err=True)
-            sys.exit(ExitCodes.NOT_FOUND)
-
-        cfg.set_current_profile(name)
-        cfg.save()
+            cfg.set_current_profile(name)
+            cfg.save()
 
         profile = cfg.get_profile(name)
         click.echo(f"✓ Switched to profile '{name}'")

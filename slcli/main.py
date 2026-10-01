@@ -602,12 +602,13 @@ def logout(profile: Optional[str], remove_all: bool, force: bool) -> None:
             cleaned_profiles += 1
 
     if remove_all:
-        if cfg.current_profile is not None:
-            cfg.current_profile = None
-            try:
-                cfg.save()
-            except RuntimeError as exc:
-                raise click.ClickException(f"Could not clear the current profile: {exc}.") from exc
+        try:
+            with cfg.transaction():
+                if not cfg.profiles and cfg.current_profile is not None:
+                    cfg.current_profile = None
+                    cfg.save()
+        except RuntimeError as exc:
+            raise click.ClickException(f"Could not clear the current profile: {exc}.") from exc
         click.echo("✓ All profiles removed.")
     else:
         removed_profile = removed_profiles[0]

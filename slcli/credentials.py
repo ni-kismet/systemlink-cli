@@ -217,11 +217,14 @@ def _cached_get(profile_id: str, credential: str) -> Optional[str]:
         raise CredentialStoreError("Could not read the credential from the OS store.") from exc
 
 
-def _find_profile(profile_id: str) -> tuple[ProfileConfig, Profile]:
+def _find_profile(
+    profile_id: str, config: Optional[ProfileConfig] = None
+) -> tuple[ProfileConfig, Profile]:
     """Find the configured profile associated with a stable credential ID."""
     from .profiles import ProfileConfig
 
-    config = ProfileConfig.load()
+    if config is None:
+        config = ProfileConfig.load()
     for profile in config.profiles.values():
         if profile.credential_id == profile_id:
             return config, profile
@@ -319,23 +322,28 @@ def get_credential(profile_id: str, credential: str, store: str = "os") -> Optio
 def set_credential(profile_id: str, credential: str, value: str, store: str = "os") -> None:
     """Store a credential in the selected store."""
     if store == "file":
-        config, profile = _find_profile(profile_id)
-        if credential == "api-key":
-            profile.api_key = value
-        elif credential == "pkce":
+        from .profiles import ProfileConfig
+
+        with ProfileConfig().transaction() as config:
+            _, profile = _find_profile(profile_id, config)
+            if credential == "api-key":
+                profile.api_key = value
+            elif credential == "pkce":
+                try:
+                    credentials = json.loads(value)
+                except json.JSONDecodeError as exc:
+                    raise CredentialStoreError("The PKCE credential bundle is invalid.") from exc
+                if not isinstance(credentials, dict):
+                    raise CredentialStoreError("The PKCE credential bundle is invalid.")
+                profile.pkce_credentials = credentials
+            else:
+                raise CredentialStoreError(f"Unsupported file credential: {credential}")
             try:
-                credentials = json.loads(value)
-            except json.JSONDecodeError as exc:
-                raise CredentialStoreError("The PKCE credential bundle is invalid.") from exc
-            if not isinstance(credentials, dict):
-                raise CredentialStoreError("The PKCE credential bundle is invalid.")
-            profile.pkce_credentials = credentials
-        else:
-            raise CredentialStoreError(f"Unsupported file credential: {credential}")
-        try:
-            config.save()
-        except RuntimeError as exc:
-            raise CredentialStoreError("Could not save the credential to the config file.") from exc
+                config.save()
+            except RuntimeError as exc:
+                raise CredentialStoreError(
+                    "Could not save the credential to the config file."
+                ) from exc
     elif platform.system() == "Darwin":
         _macos_set(profile_id, credential, value)
     else:
@@ -413,17 +421,20 @@ def set_credential(profile_id: str, credential: str, value: str, store: str = "o
 def delete_credential(profile_id: str, credential: str, store: str = "os") -> None:
     """Remove a credential from the selected store if it exists."""
     if store == "file":
-        config, profile = _find_profile(profile_id)
-        if credential == "api-key":
-            profile.api_key = ""
-        elif credential == "pkce":
-            profile.pkce_credentials = {}
-        try:
-            config.save()
-        except RuntimeError as exc:
-            raise CredentialStoreError(
-                "Could not remove the credential from the config file."
-            ) from exc
+        from .profiles import ProfileConfig
+
+        with ProfileConfig().transaction() as config:
+            _, profile = _find_profile(profile_id, config)
+            if credential == "api-key":
+                profile.api_key = ""
+            elif credential == "pkce":
+                profile.pkce_credentials = {}
+            try:
+                config.save()
+            except RuntimeError as exc:
+                raise CredentialStoreError(
+                    "Could not remove the credential from the config file."
+                ) from exc
     elif platform.system() == "Darwin":
         _macos_delete(profile_id, credential)
     else:

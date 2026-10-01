@@ -19,6 +19,39 @@ from slcli.profiles import (
 )
 
 
+def test_transaction_refreshes_metadata_and_keeps_nested_edits(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """Stale configs reload once, while nested contexts preserve unsaved edits."""
+    monkeypatch.setenv("SLCLI_CONFIG", str(tmp_path / "config.json"))
+    ProfileConfig(settings={"latest": True}).save()
+    config = ProfileConfig(settings={"stale": True})
+
+    with config.transaction():
+        assert config.settings == {"latest": True}
+        config.settings["unsaved"] = True
+        with config.transaction():
+            assert config.settings["unsaved"]
+        config.save()
+        with ProfileConfig().transaction() as fresh:
+            assert fresh.settings == {"latest": True, "unsaved": True}
+
+
+def test_transaction_reloads_after_exception(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """Exceptions release the lock and reset nesting before the next mutation."""
+    monkeypatch.setenv("SLCLI_CONFIG", str(tmp_path / "config.json"))
+    config = ProfileConfig()
+    config.save()
+    with pytest.raises(RuntimeError, match="interrupted"):
+        with config.transaction():
+            config.settings["unsaved"] = True
+            raise RuntimeError("interrupted")
+    with config.transaction():
+        assert "unsaved" not in config.settings
+
+
 class TestProfile:
     """Tests for the Profile dataclass."""
 

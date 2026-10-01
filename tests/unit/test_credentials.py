@@ -2,12 +2,32 @@
 
 import json
 import subprocess
+from pathlib import Path
 from typing import Any
 from unittest.mock import MagicMock
 
 import pytest
 
 from slcli import credentials
+from slcli.profiles import Profile, ProfileConfig
+
+
+@pytest.fixture
+def file_config(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> ProfileConfig:
+    """Persist isolated profiles for both supported file credential types."""
+    monkeypatch.setattr(
+        ProfileConfig, "get_config_path", classmethod(lambda cls: tmp_path / "config.json")
+    )
+    config = ProfileConfig(
+        profiles={
+            "api": Profile(name="api", server="https://example.com", credential_id="profile-id"),
+            "pkce": Profile(
+                name="pkce", server="https://example.com", credential_id="pkce-id", auth_mode="pkce"
+            ),
+        }
+    )
+    config.save()
+    return config
 
 
 def test_macos_set_keeps_secret_out_of_process_arguments(monkeypatch: Any) -> None:
@@ -110,50 +130,45 @@ def test_macos_delete_ignores_missing_credential(monkeypatch: Any) -> None:
     credentials._macos_delete("profile-id", "api-key")
 
 
-def test_file_credentials_round_trip(monkeypatch: Any) -> None:
+def test_file_credentials_round_trip(file_config: ProfileConfig) -> None:
     """File storage reads and updates both API keys and bundled PKCE credentials."""
-    config = MagicMock()
-    profile = MagicMock(api_key="", pkce_credentials={})
-    monkeypatch.setattr(credentials, "_find_profile", lambda _profile_id: (config, profile))
-
     assert credentials.get_credential("profile-id", "api-key", "file") is None
-    assert credentials.get_credential("profile-id", "pkce", "file") is None
+    assert credentials.get_credential("pkce-id", "pkce", "file") is None
     credentials.set_credential("profile-id", "api-key", "secret", "file")
-    credentials.set_credential("profile-id", "pkce", '{"access_token": "token"}', "file")
+    credentials.set_credential("pkce-id", "pkce", '{"access_token": "token"}', "file")
     assert credentials.get_credential("profile-id", "api-key", "file") == "secret"
-    assert json.loads(credentials.get_credential("profile-id", "pkce", "file") or "") == {
+    assert json.loads(credentials.get_credential("pkce-id", "pkce", "file") or "") == {
         "access_token": "token"
     }
     credentials.delete_credential("profile-id", "api-key", "file")
-    credentials.delete_credential("profile-id", "pkce", "file")
-    assert profile.api_key == ""
-    assert profile.pkce_credentials == {}
-    assert config.save.call_count == 4
+    credentials.delete_credential("pkce-id", "pkce", "file")
+    saved = ProfileConfig.load()
+    assert saved.profiles["api"].api_key == ""
+    assert saved.profiles["pkce"].pkce_credentials == {}
 
 
 @pytest.mark.parametrize("value", ["not json", "[]"])
-def test_file_rejects_invalid_pkce_bundle(monkeypatch: Any, value: str) -> None:
+def test_file_rejects_invalid_pkce_bundle(file_config: ProfileConfig, value: str) -> None:
     """Only JSON objects can be saved as file-backed PKCE credentials."""
-    config = MagicMock()
-    monkeypatch.setattr(credentials, "_find_profile", lambda _profile_id: (config, MagicMock()))
+    before = ProfileConfig.get_config_path().read_text()
 
     with pytest.raises(credentials.CredentialStoreError, match="bundle is invalid"):
-        credentials.set_credential("profile-id", "pkce", value, "file")
-    config.save.assert_not_called()
+        credentials.set_credential("pkce-id", "pkce", value, "file")
+    assert ProfileConfig.get_config_path().read_text() == before
 
 
 @pytest.mark.parametrize("operation", ["set", "delete"])
-def test_file_save_failure_uses_store_error(monkeypatch: Any, operation: str) -> None:
+def test_file_save_failure_uses_store_error(
+    file_config: ProfileConfig, monkeypatch: pytest.MonkeyPatch, operation: str
+) -> None:
     """File persistence errors do not escape the credential-store error contract."""
-    config = MagicMock()
-    config.save.side_effect = RuntimeError("disk full")
-    monkeypatch.setattr(credentials, "_find_profile", lambda _profile_id: (config, MagicMock()))
+    monkeypatch.setattr(ProfileConfig, "save", MagicMock(side_effect=RuntimeError("disk full")))
 
     with pytest.raises(credentials.CredentialStoreError, match="config file"):
         if operation == "set":
-            credentials.set_credential("profile-id", "pkce", "{}", "file")
+            credentials.set_credential("pkce-id", "pkce", "{}", "file")
         else:
-            credentials.delete_credential("profile-id", "pkce", "file")
+            credentials.delete_credential("pkce-id", "pkce", "file")
 
 
 def test_get_credential_is_cached_and_invalidated_after_set(monkeypatch: Any) -> None:

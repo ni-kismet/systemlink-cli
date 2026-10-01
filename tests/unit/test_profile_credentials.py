@@ -57,12 +57,42 @@ def _run_credential_transaction(
             secure_profile_credentials(config, [original])
         elif operation == "logout":
             delete_profile_with_credentials(config, original)
+        elif operation == "use":
+            from click.testing import CliRunner
+
+            from slcli.main import cli
+
+            result = CliRunner().invoke(cli, ["config", "use", "other"])
+            assert result.exit_code == 0, result.output
+        elif operation == "cache":
+            from slcli.profiles import save_service_probe_cache_entry
+
+            save_service_probe_cache_entry("probe", {"available": True})
+        elif operation == "warning":
+            from types import SimpleNamespace
+
+            from slcli import utils
+
+            monkeypatch.delenv("SLCLI_API_KEY", raising=False)
+            monkeypatch.setattr(
+                utils, "sys", SimpleNamespace(stderr=SimpleNamespace(isatty=lambda: True))
+            )
+            assert utils.get_auth_resolution().value == "other"
+        elif operation == "file-set":
+            credentials.set_credential(
+                config.profiles["other"].credential_id, "api-key", "updated", "file"
+            )
+        elif operation == "file-delete":
+            credentials.delete_credential(config.profiles["other"].credential_id, "api-key", "file")
         else:
             retry_pending_profile_deletions(config)
     completed.set()
 
 
-@pytest.mark.parametrize("second_operation", ["login", "secure", "logout", "cleanup"])
+@pytest.mark.parametrize(
+    "second_operation",
+    ["login", "secure", "logout", "cleanup", "use", "cache", "warning", "file-set", "file-delete"],
+)
 def test_process_transactions_reload_stale_snapshots_under_lock(
     config: ProfileConfig, second_operation: str
 ) -> None:
@@ -71,10 +101,10 @@ def test_process_transactions_reload_stale_snapshots_under_lock(
     path = ProfileConfig.get_config_path().resolve()
     store = path.parent / "store"
     store.mkdir()
-    if second_operation == "cleanup":
-        config.settings[PENDING_DELETIONS_SETTING] = [
-            {"id": "obsolete", "name": "dev", "store": "os", "auth-mode": "api-key"}
-        ]
+    pending = []
+    if second_operation not in {"login", "secure", "logout"}:
+        pending = [{"id": "obsolete", "name": "dev", "store": "os", "auth-mode": "api-key"}]
+        config.settings[PENDING_DELETIONS_SETTING] = pending
         (store / "obsolete-api-key").write_text("obsolete-key", encoding="utf-8")
     config.save()
     context = multiprocessing.get_context("spawn")
@@ -95,7 +125,9 @@ def test_process_transactions_reload_stale_snapshots_under_lock(
             assert all(event.wait(20) for event in ready)
             proceed.set()
             assert not any(event.wait(0.25) for event in completed)
-            assert not list(store.glob("*-api-key")) or second_operation == "cleanup"
+            assert [item.name for item in store.iterdir()] == (
+                ["obsolete-api-key"] if pending else []
+            )
         for process in processes:
             process.join(20)
             assert process.exitcode == 0
@@ -106,9 +138,17 @@ def test_process_transactions_reload_stale_snapshots_under_lock(
                 process.join(20)
 
     saved = ProfileConfig.load()
-    assert saved.profiles["other"].api_key == "other"
+    assert saved.profiles["other"].api_key == {"file-set": "updated", "file-delete": ""}.get(
+        second_operation, "other"
+    )
     assert saved.current_profile == "other"
-    assert PENDING_DELETIONS_SETTING not in saved.settings
+    if second_operation == "cleanup":
+        pending = []
+    assert saved.settings.get(PENDING_DELETIONS_SETTING, []) == pending
+    if second_operation == "cache":
+        assert saved.settings["service-probe-cache"]["probe"] == {"available": True}
+    if second_operation == "warning":
+        assert saved.settings["plaintext-credential-warning-date"]
     current = saved.get_profile("dev")
     if current is None:
         assert second_operation == "logout"
@@ -116,7 +156,10 @@ def test_process_transactions_reload_stale_snapshots_under_lock(
     else:
         assert current.credential_store == "os"
         assert current.api_key == ""
-        assert [item.name for item in store.iterdir()] == [f"{current.credential_id}-api-key"]
+        expected = [f"{current.credential_id}-api-key"]
+        if pending:
+            expected.append("obsolete-api-key")
+        assert sorted(item.name for item in store.iterdir()) == sorted(expected)
         assert (store / f"{current.credential_id}-api-key").read_text() == "new-key"
 
 
