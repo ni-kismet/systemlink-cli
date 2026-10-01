@@ -23,6 +23,7 @@ LEGACY_PKCE_CREDENTIALS = (
 )
 PENDING_DELETIONS_SETTING = "pending-credential-deletions"
 WINDOWS_PKCE_FIELDS = ("access-token", "refresh-token", "access-expires-at")
+WINDOWS_PKCE_ACTIVE_ACCOUNT = "pkce:active"
 
 
 class CredentialStoreError(RuntimeError):
@@ -228,6 +229,26 @@ def _find_profile(profile_id: str) -> tuple[ProfileConfig, Profile]:
     raise CredentialStoreError("The profile for this credential no longer exists.")
 
 
+def _windows_pkce_generation_account(profile_id: str, generation: str, field: str) -> str:
+    """Return the keyring account for one field in a Windows PKCE generation."""
+    return credential_account(profile_id, f"pkce:{generation}:{field}")
+
+
+def _delete_windows_pkce_generation(
+    profile_id: str, generation: str, keyring: Any, ignore_errors: bool = False
+) -> None:
+    """Delete all fields in a Windows PKCE generation."""
+    for field in WINDOWS_PKCE_FIELDS:
+        account = _windows_pkce_generation_account(profile_id, generation, field)
+        try:
+            keyring.delete_password(KEYRING_SERVICE, account)
+        except keyring.errors.PasswordDeleteError:
+            pass
+        except Exception:
+            if not ignore_errors:
+                raise
+
+
 def get_credential(profile_id: str, credential: str, store: str = "os") -> Optional[str]:
     """Return a cached credential from the selected store."""
     if store == "file":
@@ -238,9 +259,12 @@ def get_credential(profile_id: str, credential: str, store: str = "os") -> Optio
             return json.dumps(profile.pkce_credentials) if profile.pkce_credentials else None
         return None
     if platform.system() == "Windows" and credential == "pkce":
+        generation = _cached_get(profile_id, WINDOWS_PKCE_ACTIVE_ACCOUNT)
+        if generation is None:
+            return None
         bundle: dict[str, Any] = {}
         for field in WINDOWS_PKCE_FIELDS:
-            value = _cached_get(profile_id, f"pkce:{field}")
+            value = _cached_get(profile_id, f"pkce:{generation}:{field}")
             if value is not None:
                 try:
                     bundle[field] = json.loads(value)
@@ -290,16 +314,25 @@ def set_credential(profile_id: str, credential: str, value: str, store: str = "o
                     KEYRING_SERVICE, credential_account(profile_id, credential), value
                 )
             else:
-                for field in WINDOWS_PKCE_FIELDS:
-                    account = credential_account(profile_id, f"pkce:{field}")
-                    field_value = windows_pkce_bundle.get(field)
-                    if field_value is None:
-                        try:
-                            keyring.delete_password(KEYRING_SERVICE, account)
-                        except keyring.errors.PasswordDeleteError:
-                            pass
-                    else:
-                        keyring.set_password(KEYRING_SERVICE, account, json.dumps(field_value))
+                from uuid import uuid4
+
+                active_account = credential_account(profile_id, WINDOWS_PKCE_ACTIVE_ACCOUNT)
+                active_generation = keyring.get_password(KEYRING_SERVICE, active_account)
+                generation = str(uuid4())
+                try:
+                    for field in WINDOWS_PKCE_FIELDS:
+                        field_value = windows_pkce_bundle.get(field)
+                        if field_value is not None:
+                            account = _windows_pkce_generation_account(
+                                profile_id, generation, field
+                            )
+                            keyring.set_password(KEYRING_SERVICE, account, json.dumps(field_value))
+                    keyring.set_password(KEYRING_SERVICE, active_account, generation)
+                except Exception:
+                    _delete_windows_pkce_generation(profile_id, generation, keyring, True)
+                    raise
+                if active_generation:
+                    _delete_windows_pkce_generation(profile_id, active_generation, keyring, True)
         except Exception as exc:
             if isinstance(exc, keyring.errors.NoKeyringError):
                 raise CredentialStoreUnavailable(
@@ -331,15 +364,19 @@ def delete_credential(profile_id: str, credential: str, store: str = "os") -> No
     else:
         keyring = _get_keyring_module()
         try:
-            credentials = (
-                (f"pkce:{field}" for field in reversed(WINDOWS_PKCE_FIELDS))
-                if platform.system() == "Windows" and credential == "pkce"
-                else (credential,)
-            )
-            for stored_credential in credentials:
+            if platform.system() == "Windows" and credential == "pkce":
+                active_account = credential_account(profile_id, WINDOWS_PKCE_ACTIVE_ACCOUNT)
+                generation = keyring.get_password(KEYRING_SERVICE, active_account)
+                if generation:
+                    _delete_windows_pkce_generation(profile_id, generation, keyring)
+                try:
+                    keyring.delete_password(KEYRING_SERVICE, active_account)
+                except keyring.errors.PasswordDeleteError:
+                    pass
+            else:
                 try:
                     keyring.delete_password(
-                        KEYRING_SERVICE, credential_account(profile_id, stored_credential)
+                        KEYRING_SERVICE, credential_account(profile_id, credential)
                     )
                 except keyring.errors.PasswordDeleteError:
                     pass

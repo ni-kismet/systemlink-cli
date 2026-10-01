@@ -174,7 +174,10 @@ def test_get_credential_is_cached_and_invalidated_after_set(monkeypatch: Any) ->
     assert backend.get_password.call_count == 2
 
 
-def test_windows_pkce_credentials_use_split_size_limited_items(monkeypatch: Any) -> None:
+@pytest.mark.parametrize("fail_suffix", [":refresh-token", ":pkce:active"])
+def test_windows_pkce_credentials_use_split_size_limited_items(
+    monkeypatch: Any, fail_suffix: str
+) -> None:
     """Windows PKCE values fit Credential Manager's per-item blob limit."""
     import keyring.errors
 
@@ -183,8 +186,12 @@ def test_windows_pkce_credentials_use_split_size_limited_items(monkeypatch: Any)
 
         def __init__(self) -> None:
             self.values: dict[tuple[str, str], str] = {}
+            self.fail_suffix: str | None = None
 
         def set_password(self, service: str, account: str, password: str) -> None:
+            if self.fail_suffix and account.endswith(self.fail_suffix):
+                self.fail_suffix = None
+                raise ValueError("simulated keyring write failure")
             if len(password.encode("utf-16-le")) > 2560:
                 raise ValueError("credential blob exceeds 2560 bytes")
             self.values[(service, account)] = password
@@ -212,9 +219,25 @@ def test_windows_pkce_credentials_use_split_size_limited_items(monkeypatch: Any)
 
     credentials.set_credential("profile-id", "pkce", serialized_bundle)
 
-    assert len(backend.values) == 3
-    assert all(len(value.encode("utf-16-le")) <= 2560 for value in backend.values.values())
+    assert len(backend.values) == 4
+    assert all(
+        len(value.encode("utf-16-le")) <= 2560
+        for account, value in backend.values.items()
+        if account[1] != credentials.credential_account("profile-id", "pkce:active")
+    )
     assert json.loads(credentials.get_credential("profile-id", "pkce") or "") == bundle
+
+    committed_values = backend.values.copy()
+    updated_bundle = {**bundle, "access-token": "new-access-token"}
+    backend.fail_suffix = fail_suffix
+    with pytest.raises(credentials.CredentialStoreError, match="Could not write"):
+        credentials.set_credential("profile-id", "pkce", json.dumps(updated_bundle))
+    assert backend.values == committed_values
+    assert json.loads(credentials.get_credential("profile-id", "pkce") or "") == bundle
+
+    credentials.set_credential("profile-id", "pkce", json.dumps(updated_bundle))
+    assert len(backend.values) == 4
+    assert json.loads(credentials.get_credential("profile-id", "pkce") or "") == updated_bundle
 
     credentials.delete_credential("profile-id", "pkce")
     assert backend.values == {}

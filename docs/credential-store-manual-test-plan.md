@@ -110,10 +110,16 @@ poetry run slcli login --profile cred-e2e-pkce --url https://<test-api-url> --we
 
 Complete the browser sign-in. Confirm the temporary profile has
 `credential-store: os` and no `pkce-credentials`; verify an authenticated
-`poetry run slcli info` succeeds. The native account is
-`profile:<id>:pkce` under service `systemlink-cli`. Log out that profile and
-confirm the account and profile metadata are absent. Never query or print the
-stored token value.
+`poetry run slcli info` succeeds. Under service `systemlink-cli`, Credential
+Manager stores a `profile:<id>:pkce:active` account containing the active
+generation ID and separate accounts named
+`profile:<id>:pkce:<generation>:access-token`,
+`profile:<id>:pkce:<generation>:refresh-token`, and
+`profile:<id>:pkce:<generation>:access-expires-at` for fields present in the
+bundle. Confirm these accounts exist without opening or displaying their
+values. Log out that profile and confirm the active pointer, generation
+accounts, and profile metadata are absent. Never query or print a stored token
+value.
 
 ## Results
 

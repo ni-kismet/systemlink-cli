@@ -61,7 +61,8 @@ A macOS keychain item has an access list that names the programs allowed to read
 ```
 
 - Keyring service is `systemlink-cli`. Accounts are `profile:<id>:api-key` or
-  `profile:<id>:pkce:<field>` for Windows PKCE fields.
+  `profile:<id>:pkce:active` and
+  `profile:<id>:pkce:<generation>:<field>` for Windows PKCE fields.
 - Keying by `id` instead of name:
   - A profile rename doesn't need a secret move.
   - Separate configs selected through `SLCLI_CONFIG` (for example e2e) can't overwrite each other's secrets. PKCE keys by profile name today, so it has this collision problem.
@@ -114,10 +115,11 @@ The same order applies to URL and web URL, minus the store step (they aren't sec
 
 ### 5. PKCE consolidation
 
-- Store PKCE credentials as one JSON item on macOS and Linux. On Windows, store
-  `access-token`, `refresh-token`, and `access-expires-at` as separate items to
-  stay within Credential Manager's per-item blob limit; reassemble the JSON at
-  the credential-store interface.
+- Store PKCE credentials as one JSON item on macOS and Linux. On Windows, write
+  `access-token`, `refresh-token`, and `access-expires-at` under a new generation
+  ID, then switch the active-generation account only after all fields succeed.
+  Reassemble the JSON at the credential-store interface and delete the prior
+  generation after the switch.
 - Stop writing the obsolete `session-key` and `session-expires-at` items, and delete them on logout.
 
 ### 6. Legacy keyring removal
