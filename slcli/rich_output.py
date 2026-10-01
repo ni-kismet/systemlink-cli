@@ -10,11 +10,11 @@ import json
 import os
 import re
 import sys
-from typing import Any, Iterable, Optional, Sequence
+from typing import Any, Iterable, Literal, Optional, Sequence
 
 import click
-from rich.box import ROUNDED
-from rich.console import Console
+from rich.box import ASCII, ROUNDED
+from rich.console import Console, detect_legacy_windows
 from rich.json import JSON
 from rich.table import Table
 from rich.text import Text
@@ -52,6 +52,37 @@ _STDERR_CONSOLE: Optional[Console] = None
 _LABEL_RE = re.compile(r"^(\s*)([A-Za-z0-9][A-Za-z0-9 _./()'-]{0,60}:)(\s+.*)?$")
 
 
+def _encoding_safe_message(message: str, encoding: str) -> str:
+    """Keep representable text and escape unsupported characters for display."""
+    try:
+        message.encode(encoding)
+        return message
+    except UnicodeEncodeError:
+        replacements = {
+            "\u2713": "[OK]",
+            "\u2717": "[X]",
+            "\u2192": "->",
+            "\u26a0\ufe0f": "[!]",
+            "\u26a0": "[!]",
+        }
+        for symbol, replacement in replacements.items():
+            try:
+                symbol.encode(encoding)
+            except UnicodeEncodeError:
+                message = message.replace(symbol, replacement)
+        return message.encode(encoding, errors="backslashreplace").decode(encoding)
+
+
+def _encoding_safe_json(data: Any, encoding: str) -> JSON:
+    """Escape unsupported JSON characters without changing decoded values."""
+    ensure_ascii = False
+    try:
+        json.dumps(data, ensure_ascii=False).encode(encoding)
+    except UnicodeEncodeError:
+        ensure_ascii = True
+    return JSON.from_data(data, ensure_ascii=ensure_ascii)
+
+
 def install_rich_output() -> None:
     """Patch Click output once for the current process."""
     global _PATCH_INSTALLED
@@ -68,7 +99,8 @@ def install_rich_output() -> None:
 def print_json(data: Any, err: bool = False) -> None:
     """Render JSON data through Rich."""
     if _should_use_rich_json(err=err):
-        _get_console(err=err).print(JSON.from_data(data))
+        console = _get_console(err=err)
+        console.print(_encoding_safe_json(data, console.encoding))
         return
 
     _ORIGINAL_CLICK_ECHO(message=json.dumps(data, indent=2), err=err)
@@ -93,8 +125,17 @@ def render_table(
         total_label: Label for the total footer.
         total_count: Optional explicit total count for the footer.
     """
+    console = _get_console()
+    table_box = ROUNDED
+    try:
+        str(table_box).encode(console.encoding)
+    except UnicodeEncodeError:
+        table_box = ASCII
+    overflow: Literal["ellipsis", "crop"] = (
+        "ellipsis" if _encoding_safe_message("\u2026", console.encoding) == "\u2026" else "crop"
+    )
     table = Table(
-        box=ROUNDED,
+        box=table_box,
         header_style="table.header",
         border_style="table.border",
         show_lines=False,
@@ -103,24 +144,35 @@ def render_table(
 
     for header, width in zip(headers, column_widths):
         table.add_column(
-            header,
-            overflow="ellipsis",
+            Text(_encoding_safe_message(header, console.encoding)),
+            overflow=overflow,
             width=width,
             no_wrap=True,
         )
 
     row_count = 0
     for row in rows:
-        styled_row = [_style_table_cell(value) for value in row]
+        styled_row = []
+        for value in row:
+            cell = _style_table_cell(value)
+            styled_row.append(
+                Text(_encoding_safe_message(cell.plain, console.encoding), style=cell.style)
+            )
         table.add_row(*styled_row)
         row_count += 1
 
-    _get_console().print(table)
+    console.print(table)
 
     if show_total:
         count = total_count if total_count is not None else row_count
-        _get_console().print()
-        _get_console().print(Text.assemble(("Total: ", "summary"), str(count), f" {total_label}"))
+        console.print()
+        console.print(
+            Text.assemble(
+                ("Total: ", "summary"),
+                str(count),
+                _encoding_safe_message(f" {total_label}", console.encoding),
+            )
+        )
 
 
 def _rich_echo(
@@ -156,11 +208,16 @@ def _rich_echo(
     json_data = _try_parse_json(message)
     if json_data is not None:
         if _should_use_rich_json(err=err):
-            console.print(JSON.from_data(json_data), end=end)
+            console.print(_encoding_safe_json(json_data, console.encoding), end=end)
         else:
+            try:
+                message.encode(console.encoding)
+            except UnicodeEncodeError:
+                message = json.dumps(json_data, indent=2, ensure_ascii=True)
             _ORIGINAL_CLICK_ECHO(message=message, file=file, nl=nl, err=err)
         return
 
+    message = _encoding_safe_message(message, console.encoding)
     if "\x1b[" in message:
         console.print(Text.from_ansi(message), end=end)
         return
@@ -181,20 +238,28 @@ def _rich_secho(
     _rich_echo(message=styled, file=file, nl=nl, err=err, color=color)
 
 
+def _should_force_terminal(err: bool = False) -> bool:
+    """Enable ANSI rendering only when the target terminal can display it."""
+    stream_is_tty = _stream_is_tty(err=err)
+    if stream_is_tty and detect_legacy_windows():
+        return False
+    color_mode = os.environ.get("SLCLI_COLOR", "auto").strip().lower()
+    return color_mode == "always" or stream_is_tty
+
+
 def _configure_consoles() -> None:
-    """Create stdout and stderr consoles from environment policy."""
+    """Use stream-based rendering rather than the legacy Windows ANSI writer."""
     global _STDOUT_CONSOLE, _STDERR_CONSOLE
 
     color_mode = os.environ.get("SLCLI_COLOR", "auto").strip().lower()
     no_color = os.environ.get("NO_COLOR") is not None or color_mode == "never"
-    stdout_is_tty = _stream_is_tty(err=False)
-    stderr_is_tty = _stream_is_tty(err=True)
-    force_stdout_terminal = color_mode == "always" or stdout_is_tty
-    force_stderr_terminal = color_mode == "always" or stderr_is_tty
+    force_stdout_terminal = _should_force_terminal(err=False)
+    force_stderr_terminal = _should_force_terminal(err=True)
 
     _STDOUT_CONSOLE = Console(
         theme=_THEME,
         stderr=False,
+        legacy_windows=False,
         no_color=no_color,
         force_terminal=force_stdout_terminal,
         highlight=False,
@@ -204,6 +269,7 @@ def _configure_consoles() -> None:
     _STDERR_CONSOLE = Console(
         theme=_THEME,
         stderr=True,
+        legacy_windows=False,
         no_color=no_color,
         force_terminal=force_stderr_terminal,
         highlight=False,
@@ -229,8 +295,7 @@ def _console_needs_refresh(err: bool = False) -> bool:
     if color_mode in {"always", "never"}:
         return False
 
-    stream_is_tty = _stream_is_tty(err=err)
-    return bool(stream_is_tty != console.is_terminal)
+    return bool(_should_force_terminal(err=err) != console.is_terminal)
 
 
 def _try_parse_json(message: str) -> Optional[Any]:
@@ -320,8 +385,11 @@ def _style_status_line(line: str) -> Optional[Text]:
     """Style common status-line prefixes."""
     for symbol, symbol_style, message_style in (
         ("✓", "success.symbol", "success.message"),
+        ("[OK]", "success.symbol", "success.message"),
         ("✗", "error.symbol", "error.message"),
+        ("[X]", "error.symbol", "error.message"),
         ("⚠", "warning.symbol", "warning.message"),
+        ("[!]", "warning.symbol", "warning.message"),
     ):
         if line.startswith(symbol):
             rest = line[len(symbol) :]
