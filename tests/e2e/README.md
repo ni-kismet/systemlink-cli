@@ -19,6 +19,13 @@ command/logout case requires the E2E server and API key configured below and ski
 when they are absent. Native access is opt-in; an unavailable or locked store
 fails enabled tests rather than silently falling back to file storage.
 
+The `native-credentials` CI matrix runs the synthetic API-key and PKCE lifecycle
+cases on macOS, Windows, and Linux without live server credentials. Linux runs an
+unlocked GNOME Keyring inside an isolated D-Bus session. The PKCE case uses a
+bundle larger than Windows Credential Manager's single-item limit to exercise
+split-token storage. Live login and authenticated-command validation still require
+the server configuration below.
+
 Follow the [credential-store manual E2E plan](../../docs/credential-store-manual-test-plan.md)
 for installation upgrades and interactive behavior not covered by these tests.
 

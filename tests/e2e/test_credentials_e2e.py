@@ -86,7 +86,7 @@ def test_native_secure_read_logout(tmp_path: Path, auth_mode: str) -> None:
     config_file = tmp_path / "config.json"
     env = _isolated_environment(config_file)
     name = f"slcli-e2e-{uuid.uuid4()}"
-    secret = secrets.token_urlsafe(32)
+    secret = secrets.token_urlsafe(768 if auth_mode == "pkce" else 32)
     credential = "pkce" if auth_mode == "pkce" else "api-key"
     profile: dict[str, Any] = {
         "id": str(uuid.uuid4()),
@@ -96,6 +96,8 @@ def test_native_secure_read_logout(tmp_path: Path, auth_mode: str) -> None:
     }
     if auth_mode == "pkce":
         profile["pkce-credentials"] = {"access-token": secret, "refresh-token": secret}
+        assert len(json.dumps(profile["pkce-credentials"]).encode("utf-16-le")) > 2560
+        assert len(json.dumps(secret).encode("utf-16-le")) <= 2560
     else:
         profile["api-key"] = secret
     config_file.write_text(json.dumps({"current-profile": name, "profiles": {name: profile}}))
