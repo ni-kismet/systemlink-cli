@@ -117,9 +117,10 @@ The same order applies to URL and web URL, minus the store step (they aren't sec
 
 - Store PKCE credentials as one JSON item on macOS and Linux. On Windows, write
   `access-token`, `refresh-token`, and `access-expires-at` under a new generation
-  ID, then switch the active-generation account only after all fields succeed.
-  Reassemble the JSON at the credential-store interface and delete the prior
-  generation after the switch.
+  ID, recording it as pending in the pointer before writing fields. Switch the
+  active generation only after all fields succeed, and keep retired generations
+  in the pointer until deletion succeeds. Reassemble the JSON at the
+  credential-store interface; retries and logout clean up pending generations.
 - Stop writing the obsolete `session-key` and `session-expires-at` items, and delete them on logout.
 
 ### 6. Legacy keyring removal

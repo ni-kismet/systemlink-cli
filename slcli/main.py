@@ -668,6 +668,8 @@ def info(format: str, skip_health: bool, debug: bool) -> None:
 
     if not platform_info["logged_in"]:
         status = "✗ Not logged in"
+    elif skip_health:
+        status = "✓ Configured (not verified)"
     elif platform_info.get("server_reachable") is False:
         status = "✗ Server unreachable"
     elif platform_info.get("auth_valid") is False:

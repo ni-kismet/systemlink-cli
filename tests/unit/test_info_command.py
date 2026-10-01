@@ -387,6 +387,8 @@ class TestInfoCommand:
 
         assert result.exit_code == 0
         assert "SystemLink Enterprise" in result.output
+        assert "Configured (not verified)" in result.output
+        assert "Connected" not in result.output
         assert "Service Health" not in result.output
         mock_check.assert_not_called()
 

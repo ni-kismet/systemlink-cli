@@ -111,15 +111,17 @@ poetry run slcli login --profile cred-e2e-pkce --url https://<test-api-url> --we
 Complete the browser sign-in. Confirm the temporary profile has
 `credential-store: os` and no `pkce-credentials`; verify an authenticated
 `poetry run slcli info` succeeds. Under service `systemlink-cli`, Credential
-Manager stores a `profile:<id>:pkce:active` account containing the active
-generation ID and separate accounts named
+Manager stores a `profile:<id>:pkce:active` account containing a JSON pointer
+with the active generation ID and any generations awaiting cleanup, plus
+separate accounts named
 `profile:<id>:pkce:<generation>:access-token`,
 `profile:<id>:pkce:<generation>:refresh-token`, and
 `profile:<id>:pkce:<generation>:access-expires-at` for fields present in the
 bundle. Confirm these accounts exist without opening or displaying their
 values. Log out that profile and confirm the active pointer, generation
 accounts, and profile metadata are absent. Never query or print a stored token
-value.
+value. If cleanup is interrupted, confirm the retired generation remains
+listed in the pointer until a later credential update or logout retries cleanup.
 
 ## Results
 

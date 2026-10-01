@@ -187,9 +187,16 @@ def test_windows_pkce_credentials_use_split_size_limited_items(
         def __init__(self) -> None:
             self.values: dict[tuple[str, str], str] = {}
             self.fail_suffix: str | None = None
+            self.fail_delete_suffix: str | None = None
 
         def set_password(self, service: str, account: str, password: str) -> None:
-            if self.fail_suffix and account.endswith(self.fail_suffix):
+            should_fail = bool(self.fail_suffix and account.endswith(self.fail_suffix))
+            if self.fail_suffix == "commit-pointer" and account.endswith(":pkce:active"):
+                previous_value = self.values.get((service, account))
+                previous = json.loads(previous_value) if previous_value else {"active": None}
+                current = json.loads(password)
+                should_fail = previous.get("active") != current.get("active")
+            if should_fail:
                 self.fail_suffix = None
                 raise ValueError("simulated keyring write failure")
             if len(password.encode("utf-16-le")) > 2560:
@@ -200,6 +207,9 @@ def test_windows_pkce_credentials_use_split_size_limited_items(
             return self.values.get((service, account))
 
         def delete_password(self, service: str, account: str) -> None:
+            if self.fail_delete_suffix and account.endswith(self.fail_delete_suffix):
+                self.fail_delete_suffix = None
+                raise ValueError("simulated keyring delete failure")
             try:
                 del self.values[(service, account)]
             except KeyError as exc:
@@ -228,16 +238,34 @@ def test_windows_pkce_credentials_use_split_size_limited_items(
     assert json.loads(credentials.get_credential("profile-id", "pkce") or "") == bundle
 
     committed_values = backend.values.copy()
+    pointer_account = (
+        credentials.KEYRING_SERVICE,
+        credentials.credential_account("profile-id", credentials.WINDOWS_PKCE_ACTIVE_ACCOUNT),
+    )
+    active_generation = json.loads(backend.values[pointer_account])["active"]
     updated_bundle = {**bundle, "access-token": "new-access-token"}
-    backend.fail_suffix = fail_suffix
+    backend.fail_suffix = "commit-pointer" if fail_suffix == ":pkce:active" else fail_suffix
     with pytest.raises(credentials.CredentialStoreError, match="Could not write"):
         credentials.set_credential("profile-id", "pkce", json.dumps(updated_bundle))
-    assert backend.values == committed_values
+    if fail_suffix == ":pkce:active":
+        failed_state = json.loads(backend.values[pointer_account])
+        assert failed_state["active"] == active_generation
+        assert len(failed_state["pending"]) == 1
+    else:
+        assert backend.values == committed_values
     assert json.loads(credentials.get_credential("profile-id", "pkce") or "") == bundle
 
     credentials.set_credential("profile-id", "pkce", json.dumps(updated_bundle))
     assert len(backend.values) == 4
     assert json.loads(credentials.get_credential("profile-id", "pkce") or "") == updated_bundle
+
+    old_generation = json.loads(backend.values[pointer_account])["active"]
+    cleanup_bundle = {**updated_bundle, "access-token": "cleanup-test-token"}
+    backend.fail_delete_suffix = f":{old_generation}:access-token"
+    credentials.set_credential("profile-id", "pkce", json.dumps(cleanup_bundle))
+    pending_state = json.loads(backend.values[pointer_account])
+    assert old_generation in pending_state["pending"]
+    assert json.loads(credentials.get_credential("profile-id", "pkce") or "") == cleanup_bundle
 
     credentials.delete_credential("profile-id", "pkce")
     assert backend.values == {}

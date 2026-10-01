@@ -234,6 +234,30 @@ def _windows_pkce_generation_account(profile_id: str, generation: str, field: st
     return credential_account(profile_id, f"pkce:{generation}:{field}")
 
 
+def _parse_windows_pkce_state(value: Optional[str]) -> tuple[Optional[str], list[str]]:
+    """Read the active generation and durable cleanup list from the pointer item."""
+    if value is None:
+        return None, []
+    try:
+        state = json.loads(value)
+    except json.JSONDecodeError as exc:
+        raise CredentialStoreError("The Windows PKCE credential pointer is invalid.") from exc
+    if not isinstance(state, dict):
+        raise CredentialStoreError("The Windows PKCE credential pointer is invalid.")
+    active = state.get("active")
+    pending = state.get("pending", [])
+    if (active is not None and not isinstance(active, str)) or not isinstance(pending, list):
+        raise CredentialStoreError("The Windows PKCE credential pointer is invalid.")
+    if not all(isinstance(generation, str) for generation in pending):
+        raise CredentialStoreError("The Windows PKCE credential pointer is invalid.")
+    return active, list(dict.fromkeys(pending))
+
+
+def _windows_pkce_state_value(active: Optional[str], pending: list[str]) -> str:
+    """Serialize the active generation and cleanup journal for Windows PKCE storage."""
+    return json.dumps({"active": active, "pending": pending})
+
+
 def _delete_windows_pkce_generation(
     profile_id: str, generation: str, keyring: Any, ignore_errors: bool = False
 ) -> None:
@@ -249,6 +273,24 @@ def _delete_windows_pkce_generation(
                 raise
 
 
+def _retry_windows_pkce_cleanup(
+    profile_id: str, active: Optional[str], pending: list[str], keyring: Any
+) -> None:
+    """Delete retired generations and clear the journal only when all deletes succeed."""
+    if not pending:
+        return
+    try:
+        for generation in pending:
+            _delete_windows_pkce_generation(profile_id, generation, keyring)
+        keyring.set_password(
+            KEYRING_SERVICE,
+            credential_account(profile_id, WINDOWS_PKCE_ACTIVE_ACCOUNT),
+            _windows_pkce_state_value(active, []),
+        )
+    except Exception:
+        pass
+
+
 def get_credential(profile_id: str, credential: str, store: str = "os") -> Optional[str]:
     """Return a cached credential from the selected store."""
     if store == "file":
@@ -259,7 +301,8 @@ def get_credential(profile_id: str, credential: str, store: str = "os") -> Optio
             return json.dumps(profile.pkce_credentials) if profile.pkce_credentials else None
         return None
     if platform.system() == "Windows" and credential == "pkce":
-        generation = _cached_get(profile_id, WINDOWS_PKCE_ACTIVE_ACCOUNT)
+        state_value = _cached_get(profile_id, WINDOWS_PKCE_ACTIVE_ACCOUNT)
+        generation, _pending = _parse_windows_pkce_state(state_value)
         if generation is None:
             return None
         bundle: dict[str, Any] = {}
@@ -317,8 +360,16 @@ def set_credential(profile_id: str, credential: str, value: str, store: str = "o
                 from uuid import uuid4
 
                 active_account = credential_account(profile_id, WINDOWS_PKCE_ACTIVE_ACCOUNT)
-                active_generation = keyring.get_password(KEYRING_SERVICE, active_account)
+                active_generation, pending = _parse_windows_pkce_state(
+                    keyring.get_password(KEYRING_SERVICE, active_account)
+                )
                 generation = str(uuid4())
+                staged_pending = list(dict.fromkeys([*pending, generation]))
+                keyring.set_password(
+                    KEYRING_SERVICE,
+                    active_account,
+                    _windows_pkce_state_value(active_generation, staged_pending),
+                )
                 try:
                     for field in WINDOWS_PKCE_FIELDS:
                         field_value = windows_pkce_bundle.get(field)
@@ -327,13 +378,26 @@ def set_credential(profile_id: str, credential: str, value: str, store: str = "o
                                 profile_id, generation, field
                             )
                             keyring.set_password(KEYRING_SERVICE, account, json.dumps(field_value))
-                    keyring.set_password(KEYRING_SERVICE, active_account, generation)
                 except Exception:
-                    _delete_windows_pkce_generation(profile_id, generation, keyring, True)
+                    _retry_windows_pkce_cleanup(
+                        profile_id, active_generation, staged_pending, keyring
+                    )
                     raise
-                if active_generation:
-                    _delete_windows_pkce_generation(profile_id, active_generation, keyring, True)
+                retired = list(pending)
+                if active_generation and active_generation not in retired:
+                    retired.append(active_generation)
+                try:
+                    keyring.set_password(
+                        KEYRING_SERVICE,
+                        active_account,
+                        _windows_pkce_state_value(generation, retired),
+                    )
+                except Exception:
+                    _cached_get.cache_clear()
+                    raise
+                _retry_windows_pkce_cleanup(profile_id, generation, retired, keyring)
         except Exception as exc:
+            _cached_get.cache_clear()
             if isinstance(exc, keyring.errors.NoKeyringError):
                 raise CredentialStoreUnavailable(
                     "No operating-system credential store is available. "
@@ -366,9 +430,14 @@ def delete_credential(profile_id: str, credential: str, store: str = "os") -> No
         try:
             if platform.system() == "Windows" and credential == "pkce":
                 active_account = credential_account(profile_id, WINDOWS_PKCE_ACTIVE_ACCOUNT)
-                generation = keyring.get_password(KEYRING_SERVICE, active_account)
-                if generation:
-                    _delete_windows_pkce_generation(profile_id, generation, keyring)
+                generation, pending = _parse_windows_pkce_state(
+                    keyring.get_password(KEYRING_SERVICE, active_account)
+                )
+                generations = list(pending)
+                if generation and generation not in generations:
+                    generations.append(generation)
+                for stored_generation in generations:
+                    _delete_windows_pkce_generation(profile_id, stored_generation, keyring)
                 try:
                     keyring.delete_password(KEYRING_SERVICE, active_account)
                 except keyring.errors.PasswordDeleteError:

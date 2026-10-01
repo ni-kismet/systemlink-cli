@@ -45,14 +45,16 @@ def _isolated_environment(config_file: Path) -> dict[str, str]:
     return env
 
 
-def _run_cli(args: list[str], env: dict[str, str]) -> subprocess.CompletedProcess[str]:
+def _run_cli(
+    args: list[str], env: dict[str, str], input_data: str = ""
+) -> subprocess.CompletedProcess[str]:
     """Run a fresh CLI process without exposing command output on assertion failures."""
     return subprocess.run(
         [sys.executable, "-m", "slcli", *args],
         env=env,
         capture_output=True,
         text=True,
-        input="",
+        input=input_data,
         timeout=90,
         check=False,
     )
@@ -141,14 +143,13 @@ def test_native_login_authenticated_command_logout(
                 server["base_url"],
                 "--web-url",
                 server.get("web_url") or server["base_url"],
-                "--api-key",
-                server["api_key"],
                 "--workspace",
                 server.get("workspace") or "Default",
                 "--credential-store",
                 "os",
             ],
             env,
+            input_data=f"{server['api_key']}\n",
         )
         assert login.returncode == 0, "Live native-store login failed."
         saved_text = config_file.read_text()
