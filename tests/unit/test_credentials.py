@@ -406,24 +406,3 @@ def test_delete_file_profile_without_legacy_os_store(monkeypatch: Any) -> None:
 
     with pytest.raises(credentials.CredentialStoreUnavailable):
         credentials.delete_profile_credentials("profile-id", "os", "dev")
-
-
-def test_pending_cleanup_preserves_active_profile_credential(monkeypatch: Any) -> None:
-    """A stale deletion record cannot remove credentials still used by a profile."""
-    from slcli.profiles import Profile, ProfileConfig
-
-    record = {"id": "active-id", "name": "dev", "store": "os", "auth-mode": "api-key"}
-    config = ProfileConfig(
-        profiles={
-            "dev": Profile(name="dev", server="https://example.com", credential_id="active-id")
-        },
-        settings={credentials.PENDING_DELETIONS_SETTING: [record]},
-    )
-    delete = MagicMock()
-    monkeypatch.setattr(credentials, "delete_profile_credentials", delete)
-
-    with pytest.raises(credentials.CredentialStoreError, match="active profile"):
-        credentials.finish_pending_profile_deletion(config, record)
-
-    delete.assert_not_called()
-    assert config.settings[credentials.PENDING_DELETIONS_SETTING] == [record]

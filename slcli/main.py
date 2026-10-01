@@ -498,8 +498,8 @@ def logout(profile: Optional[str], remove_all: bool, force: bool) -> None:
     from .profiles import Profile, ProfileConfig
 
     cfg = ProfileConfig.load()
-    from .credentials import (
-        CredentialStoreError,
+    from .credentials import CredentialStoreError
+    from .profile_credentials import (
         delete_profile_with_credentials,
         retry_pending_profile_deletions,
     )

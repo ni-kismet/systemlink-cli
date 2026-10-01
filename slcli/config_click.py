@@ -864,7 +864,8 @@ def register_config_commands(cli: Any) -> None:
     def cleanup_pending_credentials() -> None:
         """Retry pending credential cleanup without deleting profiles."""
         from .utils import check_readonly_mode
-        from .credentials import CredentialStoreError, retry_pending_profile_deletions
+        from .credentials import CredentialStoreError
+        from .profile_credentials import retry_pending_profile_deletions
 
         check_readonly_mode("clean up pending credentials")
         cfg = ProfileConfig.load()
@@ -887,8 +888,8 @@ def register_config_commands(cli: Any) -> None:
     def delete_profile(name: str, force: bool) -> None:
         """Delete a profile."""
         from .utils import check_readonly_mode
-        from .credentials import (
-            CredentialStoreError,
+        from .credentials import CredentialStoreError
+        from .profile_credentials import (
             delete_profile_with_credentials,
             retry_pending_profile_deletions,
         )

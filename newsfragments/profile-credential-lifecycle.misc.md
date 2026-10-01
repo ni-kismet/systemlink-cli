@@ -1,0 +1,1 @@
+Centralize profile deletion and recoverable credential cleanup alongside profile replacement, keeping native-store mechanics separate from metadata transactions.

@@ -1,18 +1,103 @@
-"""Profile credential replacement and persistence."""
+"""Profile credential replacement, deletion, and recoverable persistence."""
 
 import json
 from dataclasses import replace
 from typing import Optional
 from uuid import uuid4
 
+from . import credentials
 from .credentials import (
-    PENDING_DELETIONS_SETTING,
     CredentialStoreError,
     CredentialStoreUnavailable,
-    finish_pending_profile_deletion,
     set_credential,
 )
 from .profiles import Profile, ProfileConfig
+
+PENDING_DELETIONS_SETTING = "pending-credential-deletions"
+
+
+def finish_pending_profile_deletion(config: ProfileConfig, record: dict[str, str]) -> None:
+    """Finish credential cleanup, retaining its record until removal is saved.
+
+    Args:
+        config: Configuration owning the pending cleanup records.
+        record: Obsolete credential identity and storage metadata.
+
+    Raises:
+        CredentialStoreError: Cleanup references active or inaccessible credentials.
+        RuntimeError: Completed cleanup could not be persisted.
+    """
+    if any(profile.credential_id == record["id"] for profile in config.profiles.values()):
+        raise CredentialStoreError(
+            "Pending cleanup references an active profile. Run 'slcli login' for that "
+            "profile to replace its credential before retrying cleanup."
+        )
+    credentials.delete_profile_credentials(
+        record["id"], record["store"], record["name"], record["auth-mode"]
+    )
+    pending = config.settings[PENDING_DELETIONS_SETTING]
+    pending.remove(record)
+    if not pending:
+        config.settings.pop(PENDING_DELETIONS_SETTING)
+    try:
+        config.save()
+    except RuntimeError:
+        config.settings.setdefault(PENDING_DELETIONS_SETTING, []).append(record)
+        raise
+
+
+def retry_pending_profile_deletions(config: ProfileConfig, name: Optional[str] = None) -> list[str]:
+    """Retry persisted removals after interrupted credential cleanup.
+
+    Args:
+        config: Configuration owning the pending cleanup records.
+        name: Limit cleanup to this profile name, or retry all pending records.
+
+    Returns:
+        Profile names whose pending credential cleanup completed.
+
+    Raises:
+        CredentialStoreError: A credential could not be removed safely.
+        RuntimeError: Completed cleanup could not be persisted.
+    """
+    completed = []
+    for record in list(config.settings.get(PENDING_DELETIONS_SETTING, [])):
+        if name is None or record["name"] == name:
+            finish_pending_profile_deletion(config, record)
+            completed.append(record["name"])
+    return completed
+
+
+def delete_profile_with_credentials(config: ProfileConfig, profile: Profile) -> None:
+    """Persist a recoverable profile deletion before removing its credentials.
+
+    Args:
+        config: Configuration owning the profile and pending cleanup.
+        profile: Profile whose metadata and credentials should be removed.
+
+    Raises:
+        CredentialStoreError: Removal is persisted but credential cleanup is pending.
+        RuntimeError: Profile removal or completed cleanup could not be persisted.
+    """
+    record = {
+        "id": profile.credential_id,
+        "name": profile.name,
+        "store": profile.credential_store,
+        "auth-mode": profile.auth_mode,
+    }
+    previous_current_profile = config.current_profile
+    config.settings.setdefault(PENDING_DELETIONS_SETTING, []).append(record)
+    config.delete_profile(profile.name)
+    try:
+        config.save()
+    except RuntimeError:
+        config.profiles[profile.name] = profile
+        config.current_profile = previous_current_profile
+        config.settings[PENDING_DELETIONS_SETTING].remove(record)
+        if not config.settings.get(PENDING_DELETIONS_SETTING):
+            config.settings.pop(PENDING_DELETIONS_SETTING)
+        raise
+    finish_pending_profile_deletion(config, record)
 
 
 class ProfileCredentialError(RuntimeError):

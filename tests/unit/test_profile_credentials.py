@@ -7,7 +7,11 @@ import pytest
 
 from slcli import credentials
 from slcli.profile_credentials import (
+    PENDING_DELETIONS_SETTING,
     ProfileCredentialError,
+    delete_profile_with_credentials,
+    finish_pending_profile_deletion,
+    retry_pending_profile_deletions,
     save_profile_credentials,
     secure_profile_credentials,
 )
@@ -105,7 +109,7 @@ def test_login_replaces_credentials_and_selects_profile(
     assert not any(profile_id == original.credential_id for profile_id, _ in credential_store)
     credential = "pkce" if auth_mode == "pkce" else "api-key"
     assert credentials.get_credential(profile.credential_id, credential) is not None
-    assert credentials.PENDING_DELETIONS_SETTING not in saved.settings
+    assert PENDING_DELETIONS_SETTING not in saved.settings
 
 
 def test_secure_batch_keeps_selection_and_stages_before_metadata(
@@ -210,7 +214,7 @@ def test_failed_save_preserves_profile_and_tracks_failed_cleanup(
     assert saved.current_profile == "other"
     assert saved.profiles["dev"] == original
     assert config.profiles["dev"] == original
-    pending = saved.settings.get(credentials.PENDING_DELETIONS_SETTING, [])
+    pending = saved.settings.get(PENDING_DELETIONS_SETTING, [])
     if cleanup_fails:
         assert len(pending) == 1
         assert pending[0]["id"] != original.credential_id
@@ -260,7 +264,7 @@ def test_failed_rollback_reports_stranded_id_and_preserves_original(
     stranded_id = next(iter(credential_store))[0]
     assert stranded_id in str(error.value)
     assert "restore" in str(error.value)
-    assert config.settings[credentials.PENDING_DELETIONS_SETTING][0]["id"] == stranded_id
+    assert config.settings[PENDING_DELETIONS_SETTING][0]["id"] == stranded_id
 
 
 def test_retirement_failure_keeps_successful_replacement(
@@ -288,7 +292,7 @@ def test_retirement_failure_keeps_successful_replacement(
     assert "Could not remove replaced credentials" in warnings[0]
     saved = ProfileConfig.load()
     assert saved.profiles["dev"].credential_id == profile.credential_id
-    assert saved.settings[credentials.PENDING_DELETIONS_SETTING][0]["id"] == original.credential_id
+    assert saved.settings[PENDING_DELETIONS_SETTING][0]["id"] == original.credential_id
     assert credentials.get_credential(profile.credential_id, "api-key") == "new"
 
 
@@ -337,17 +341,17 @@ def test_partial_login_write_is_removed_or_reachable_for_retry(
     assert saved.profiles["dev"].api_key == profile.api_key
     assert saved.profiles["dev"].pkce_credentials == profile.pkce_credentials
     if cleanup_fails:
-        assert saved.settings[credentials.PENDING_DELETIONS_SETTING][0]["id"] == attempted[0]
+        assert saved.settings[PENDING_DELETIONS_SETTING][0]["id"] == attempted[0]
         assert "Retry cleanup" in warnings[1]
         monkeypatch.setattr(
             credentials,
             "_macos_delete",
             lambda profile_id, credential: credential_store.pop((profile_id, credential), None),
         )
-        assert credentials.retry_pending_profile_deletions(saved) == ["dev"]
+        assert retry_pending_profile_deletions(saved) == ["dev"]
         assert ProfileConfig.load().profiles["dev"] == profile
     else:
-        assert credentials.PENDING_DELETIONS_SETTING not in saved.settings
+        assert PENDING_DELETIONS_SETTING not in saved.settings
     assert credential_store == {}
 
 
@@ -401,8 +405,8 @@ def test_unavailable_store_preserves_each_operation_policy(
             secure_profile_credentials(config, [original])
         assert ProfileConfig.load().profiles["dev"] == original
     saved = ProfileConfig.load()
-    assert credentials.PENDING_DELETIONS_SETTING not in saved.settings
-    credentials.delete_profile_with_credentials(saved, saved.profiles["dev"])
+    assert PENDING_DELETIONS_SETTING not in saved.settings
+    delete_profile_with_credentials(saved, saved.profiles["dev"])
     assert "dev" not in ProfileConfig.load().profiles
     assert credential_store == {}
 
@@ -445,5 +449,27 @@ def test_secure_unavailable_later_write_cleans_only_earlier_entries(
     saved = ProfileConfig.load()
     assert saved.current_profile == "other"
     assert all(saved.profiles[profile.name] == profile for profile in selected)
-    pending = saved.settings.get(credentials.PENDING_DELETIONS_SETTING, [])
+    pending = saved.settings.get(PENDING_DELETIONS_SETTING, [])
     assert [record["id"] for record in pending] == ([attempted[0]] if cleanup_fails else [])
+
+
+def test_pending_cleanup_preserves_active_profile_credential(
+    config: ProfileConfig, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """A stale deletion record cannot remove credentials still used by a profile."""
+    profile = config.profiles["other"]
+    record = {
+        "id": profile.credential_id,
+        "name": profile.name,
+        "store": "os",
+        "auth-mode": "api-key",
+    }
+    config.settings[PENDING_DELETIONS_SETTING] = [record]
+
+    def delete(profile_id: str, store: str, name: str, auth_mode: str) -> None:
+        pytest.fail("Cleanup must not delete an active credential")
+
+    monkeypatch.setattr(credentials, "delete_profile_credentials", delete)
+    with pytest.raises(credentials.CredentialStoreError, match="active profile"):
+        finish_pending_profile_deletion(config, record)
+    assert config.settings[PENDING_DELETIONS_SETTING] == [record]
