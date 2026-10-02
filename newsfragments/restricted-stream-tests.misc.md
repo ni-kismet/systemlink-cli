@@ -1,1 +1,0 @@
-Update restricted-output command tests for the credential-store migration and isolate their configuration.
