@@ -247,14 +247,13 @@ class StateStore:
                     raise StateError("Unable to resolve the current Windows user SID.")
                 sid = rows[0][1]
                 subprocess.run(
-                    [
-                        icacls,
-                        str(path),
-                        "/reset",
-                        "/inheritance:r",
-                        "/grant:r",
-                        f"*{sid}:F",
-                    ],
+                    [icacls, str(path), "/reset"],
+                    check=True,
+                    capture_output=True,
+                    text=True,
+                )
+                subprocess.run(
+                    [icacls, str(path), "/inheritance:r", "/grant:r", f"*{sid}:F"],
                     check=True,
                     capture_output=True,
                     text=True,

@@ -115,9 +115,7 @@ def test_windows_state_permissions_remove_inheritance(
     """Windows state paths grant access only to the current user."""
     calls: list[tuple[list[str], dict[str, Any]]] = []
 
-    monkeypatch.setattr(state_module.os, "name", "nt")
     system_root = tmp_path / "Windows"
-    monkeypatch.setenv("SystemRoot", str(system_root))
 
     def completed_run(command: list[str], **kwargs: Any) -> subprocess.CompletedProcess[str]:
         calls.append((command, kwargs))
@@ -125,9 +123,11 @@ def test_windows_state_permissions_remove_inheritance(
             return subprocess.CompletedProcess(command, 0, '"test-user","S-1-5-21-123"\n', "")
         return subprocess.CompletedProcess(command, 0, "", "")
 
-    monkeypatch.setattr(state_module.subprocess, "run", completed_run)
-
-    StateStore._restrict_permissions(tmp_path / "state", 0o700)
+    with monkeypatch.context() as windows:
+        windows.setattr(state_module.os, "name", "nt")
+        windows.setenv("SystemRoot", str(system_root))
+        windows.setattr(state_module.subprocess, "run", completed_run)
+        StateStore._restrict_permissions(tmp_path / "state", 0o700)
 
     assert calls == [
         (
@@ -139,6 +139,13 @@ def test_windows_state_permissions_remove_inheritance(
                 str(system_root / "System32" / "icacls.exe"),
                 str(tmp_path / "state"),
                 "/reset",
+            ],
+            {"check": True, "capture_output": True, "text": True},
+        ),
+        (
+            [
+                str(system_root / "System32" / "icacls.exe"),
+                str(tmp_path / "state"),
                 "/inheritance:r",
                 "/grant:r",
                 "*S-1-5-21-123:F",
