@@ -104,7 +104,7 @@ jobs:
         run: brew install openssl@3
 
       - name: Test managed-client crypto and authentication
-        run: poetry run pytest tests/unit/test_managed_client_crypto.py tests/unit/test_managed_client.py --no-cov -q
+        run: poetry run pytest tests/unit/test_managed_client_crypto.py tests/unit/test_managed_client_transport.py tests/unit/test_managed_client.py --no-cov -q
 
   native-credentials:
     name: Native credentials (${{ matrix.os }})
