@@ -1,1 +1,1 @@
-Avoid Apple's aborting system libcrypto shim when selecting the managed-client RSA X9.31 provider on macOS.
+Avoid Apple's aborting system libcrypto shim when selecting the managed-client RSA X9.31 provider on macOS, with Python 3.14 macOS crypto and authentication CI coverage.
