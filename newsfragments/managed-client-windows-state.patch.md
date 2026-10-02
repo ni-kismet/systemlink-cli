@@ -1,1 +1,1 @@
-Restrict Windows managed-client state to the current user without temporarily restoring inherited ACL permissions.
+Replace Windows managed-client state ACLs with protected current-user-only permissions, removing inherited and explicit grants.

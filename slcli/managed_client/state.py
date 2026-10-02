@@ -2,7 +2,6 @@
 
 from __future__ import annotations
 
-import csv
 import hashlib
 import json
 import os
@@ -34,6 +33,27 @@ ASSET_IDENTIFICATION_FIELDS = (
     "vendor_number",
     "serial_number",
 )
+_WINDOWS_ACL_SCRIPT = """$ErrorActionPreference = 'Stop'
+$statePath = $env:SLCLI_MANAGED_CLIENT_STATE_PATH
+try {
+    $identity = [System.Security.Principal.WindowsIdentity]::GetCurrent()
+    $acl = Get-Acl -LiteralPath $statePath
+    $acl.SetAccessRuleProtection($true, $false)
+    foreach ($existingRule in @($acl.Access)) {
+        $acl.RemoveAccessRuleAll($existingRule)
+    }
+    $accessRule = [System.Security.AccessControl.FileSystemAccessRule]::new(
+        $identity.User,
+        [System.Security.AccessControl.FileSystemRights]::FullControl,
+        [System.Security.AccessControl.AccessControlType]::Allow
+    )
+    $acl.AddAccessRule($accessRule)
+    Set-Acl -LiteralPath $statePath -AclObject $acl
+} catch {
+    [Console]::Error.WriteLine('Unable to set managed-client state ACL.')
+    exit 1
+}
+"""
 
 
 def _windows_system_command(executable: str) -> str:
@@ -234,23 +254,18 @@ class StateStore:
         """Restrict a state path to the current user on every supported OS."""
         if os.name == "nt":
             try:
-                whoami = _windows_system_command("whoami.exe")
-                icacls = _windows_system_command("icacls.exe")
-                result = subprocess.run(
-                    [whoami, "/user", "/fo", "csv", "/nh"],
-                    check=True,
-                    capture_output=True,
-                    text=True,
+                powershell = _windows_system_command(
+                    os.path.join("WindowsPowerShell", "v1.0", "powershell.exe")
                 )
-                rows = list(csv.reader(line for line in result.stdout.splitlines() if line.strip()))
-                if len(rows) != 1 or len(rows[0]) < 2 or not rows[0][1].startswith("S-1-"):
-                    raise StateError("Unable to resolve the current Windows user SID.")
-                sid = rows[0][1]
+                environment = os.environ.copy()
+                environment["SLCLI_MANAGED_CLIENT_STATE_PATH"] = os.fspath(path)
                 subprocess.run(
-                    [icacls, str(path), "/inheritance:r", "/grant:r", f"*{sid}:F"],
+                    [powershell, "-NoProfile", "-NonInteractive", "-Command", "-"],
                     check=True,
                     capture_output=True,
                     text=True,
+                    input=_WINDOWS_ACL_SCRIPT,
+                    env=environment,
                 )
             except (OSError, StateError, subprocess.CalledProcessError) as error:
                 raise StateError(f"Unable to protect isolated state at {path}.") from error

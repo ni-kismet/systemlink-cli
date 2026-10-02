@@ -109,18 +109,16 @@ def test_state_store_reset_removes_only_managed_files(tmp_path: Path) -> None:
     assert not (tmp_path / "minion" / "minion-key.pem").exists()
 
 
-def test_windows_state_permissions_remove_inheritance(
+def test_windows_state_permissions_replace_acl(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
-    """Windows state paths grant access only to the current user."""
+    """Windows state paths use a protected ACL for the current user."""
     calls: list[tuple[list[str], dict[str, Any]]] = []
 
     system_root = tmp_path / "Windows"
 
     def completed_run(command: list[str], **kwargs: Any) -> subprocess.CompletedProcess[str]:
         calls.append((command, kwargs))
-        if command[0].endswith("whoami.exe"):
-            return subprocess.CompletedProcess(command, 0, '"test-user","S-1-5-21-123"\n', "")
         return subprocess.CompletedProcess(command, 0, "", "")
 
     with monkeypatch.context() as windows:
@@ -129,59 +127,40 @@ def test_windows_state_permissions_remove_inheritance(
         windows.setattr(state_module.subprocess, "run", completed_run)
         StateStore._restrict_permissions(tmp_path / "state", 0o700)
 
-    assert calls == [
-        (
-            [str(system_root / "System32" / "whoami.exe"), "/user", "/fo", "csv", "/nh"],
-            {"check": True, "capture_output": True, "text": True},
-        ),
-        (
-            [
-                str(system_root / "System32" / "icacls.exe"),
-                str(tmp_path / "state"),
-                "/inheritance:r",
-                "/grant:r",
-                "*S-1-5-21-123:F",
-            ],
-            {"check": True, "capture_output": True, "text": True},
-        ),
+    assert len(calls) == 1
+    command, kwargs = calls[0]
+    assert command == [
+        str(system_root / "System32" / "WindowsPowerShell" / "v1.0" / "powershell.exe"),
+        "-NoProfile",
+        "-NonInteractive",
+        "-Command",
+        "-",
     ]
+    assert kwargs["check"] is True
+    assert kwargs["capture_output"] is True
+    assert kwargs["text"] is True
+    assert kwargs["input"] == state_module._WINDOWS_ACL_SCRIPT
+    assert kwargs["env"]["SLCLI_MANAGED_CLIENT_STATE_PATH"] == str(tmp_path / "state")
+    assert "$acl.SetAccessRuleProtection($true, $false)" in kwargs["input"]
+    assert "$acl.RemoveAccessRuleAll($existingRule)" in kwargs["input"]
 
 
-@pytest.mark.parametrize(
-    "failed_operation,expected_operations",
-    [
-        ("/user", ["/user"]),
-        ("/inheritance:r", ["/user", "/inheritance:r"]),
-        ("/grant:r", ["/user", "/inheritance:r", "/grant:r"]),
-    ],
-)
 @pytest.mark.parametrize("initialize_identity", [False, True])
 def test_windows_state_permissions_fail_closed(
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,
-    failed_operation: str,
-    expected_operations: list[str],
     initialize_identity: bool,
 ) -> None:
-    """Each permission failure stops subsequent commands and identity writes."""
+    """A failed ACL replacement stops identity writes."""
     store = StateStore(tmp_path / "state")
-    operations: list[str] = []
+    commands: list[list[str]] = []
 
     def run(command: list[str], **kwargs: Any) -> subprocess.CompletedProcess[str]:
-        assert kwargs == {"check": True, "capture_output": True, "text": True}
-        if command[0].endswith("whoami.exe"):
-            operations.append("/user")
-            if failed_operation == "/user":
-                raise subprocess.CalledProcessError(1, command)
-            return subprocess.CompletedProcess(command, 0, '"test-user","S-1-5-21-123"\n', "")
-
-        for operation in command[2:]:
-            if not operation.startswith("/"):
-                continue
-            operations.append(operation)
-            if operation == failed_operation:
-                raise subprocess.CalledProcessError(1, command)
-        return subprocess.CompletedProcess(command, 0, '"test-user","S-1-5-21-123"\n', "")
+        commands.append(command)
+        assert kwargs["check"] is True
+        assert kwargs["capture_output"] is True
+        assert kwargs["text"] is True
+        raise subprocess.CalledProcessError(1, command)
 
     message = "state directory" if initialize_identity else "Unable to protect isolated state"
     with monkeypatch.context() as windows:
@@ -201,7 +180,65 @@ def test_windows_state_permissions_fail_closed(
         assert store.state_dir.exists()
         assert list(store.state_dir.iterdir()) == []
     assert isinstance(cause, subprocess.CalledProcessError)
-    assert operations == expected_operations
+    assert len(commands) == 1
+    assert commands[0][-2:] == ["-Command", "-"]
+
+
+@pytest.mark.skipif(os.name != "nt", reason="Windows ACLs require Windows")
+def test_windows_state_permissions_remove_explicit_grants(tmp_path: Path) -> None:
+    """Replacing the ACL removes unrelated explicit grants on Windows."""
+    state_path = tmp_path / "state"
+    state_path.mkdir()
+    system_root = os.environ["SystemRoot"]
+    icacls = os.path.join(system_root, "System32", "icacls.exe")
+    powershell = os.path.join(
+        system_root, "System32", "WindowsPowerShell", "v1.0", "powershell.exe"
+    )
+    environment = os.environ.copy()
+    environment["SLCLI_MANAGED_CLIENT_STATE_PATH"] = str(state_path)
+
+    subprocess.run(
+        [icacls, str(state_path), "/grant", "*S-1-1-0:(R)"],
+        check=True,
+        capture_output=True,
+        text=True,
+    )
+    inspect_command = [powershell, "-NoProfile", "-NonInteractive", "-Command", "-"]
+    explicit_grant_check = """
+$acl = Get-Acl -LiteralPath $env:SLCLI_MANAGED_CLIENT_STATE_PATH
+$rules = @($acl.GetAccessRules($true, $false, [System.Security.Principal.SecurityIdentifier]))
+$everyone = @($rules | Where-Object { $_.IdentityReference.Value -eq 'S-1-1-0' })
+if ($everyone.Count -eq 0) { exit 1 }
+"""
+    subprocess.run(
+        inspect_command,
+        check=True,
+        capture_output=True,
+        text=True,
+        input=explicit_grant_check,
+        env=environment,
+    )
+
+    StateStore._restrict_permissions(state_path, 0o700)
+
+    protected_acl_check = """
+$acl = Get-Acl -LiteralPath $env:SLCLI_MANAGED_CLIENT_STATE_PATH
+$sid = [System.Security.Principal.WindowsIdentity]::GetCurrent().User.Value
+$rules = @($acl.GetAccessRules($true, $true, [System.Security.Principal.SecurityIdentifier]))
+if (-not $acl.AreAccessRulesProtected -or $rules.Count -ne 1) { exit 1 }
+if ($rules[0].IdentityReference.Value -ne $sid) { exit 2 }
+if ($rules[0].FileSystemRights -ne [System.Security.AccessControl.FileSystemRights]::FullControl) {
+    exit 3
+}
+"""
+    subprocess.run(
+        inspect_command,
+        check=True,
+        capture_output=True,
+        text=True,
+        input=protected_acl_check,
+        env=environment,
+    )
 
 
 def test_state_store_wraps_non_json_asset_values(tmp_path: Path) -> None:
