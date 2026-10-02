@@ -131,6 +131,10 @@ jobs:
       - name: Install dependencies
         run: poetry install
 
+      - name: Test managed-client state ACLs on Windows
+        if: runner.os == 'Windows'
+        run: poetry run pytest tests/unit/test_managed_client_state.py --no-cov -q
+
       - name: Install Linux credential service
         if: runner.os == 'Linux'
         run: |
