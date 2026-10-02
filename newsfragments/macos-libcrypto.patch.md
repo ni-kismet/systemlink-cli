@@ -1,0 +1,1 @@
+Avoid Apple's aborting system libcrypto shim when selecting the managed-client RSA X9.31 provider on macOS.

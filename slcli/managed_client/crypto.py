@@ -375,11 +375,12 @@ class _OpenSSLX931Provider:
 
 
 def _x931_library_candidates() -> tuple[str, ...]:
-    """Return platform-specific libcrypto names in discovery order."""
+    """Return OpenSSL candidates without discovering Apple's aborting libcrypto shim."""
     candidates: list[str] = []
-    discovered = ctypes.util.find_library("crypto")
-    if discovered:
-        candidates.append(discovered)
+    if sys.platform != "darwin":
+        discovered = ctypes.util.find_library("crypto")
+        if discovered:
+            candidates.append(discovered)
 
     if sys.platform == "darwin":
         candidates.extend(
