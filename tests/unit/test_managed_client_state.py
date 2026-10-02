@@ -141,9 +141,13 @@ def test_windows_state_permissions_replace_acl(
     assert kwargs["text"] is True
     assert kwargs["input"] == state_module._WINDOWS_ACL_SCRIPT
     assert kwargs["input"].endswith("\n\n")
+    assert kwargs["env"]["PSModulePath"] == str(
+        system_root / "System32" / "WindowsPowerShell" / "v1.0" / "Modules"
+    )
     assert kwargs["env"]["SLCLI_MANAGED_CLIENT_STATE_PATH"] == str(tmp_path / "state")
-    assert "$acl.SetAccessRuleProtection($true, $false)" in kwargs["input"]
-    assert "$acl.RemoveAccessRuleAll($existingRule)" in kwargs["input"]
+    assert "$icacls $statePath /reset" in kwargs["input"]
+    assert "$icacls $statePath /inheritance:r" in kwargs["input"]
+    assert '$icacls $statePath /grant:r ("*{0}:(F)" -f $identity)' in kwargs["input"]
 
 
 @pytest.mark.parametrize("initialize_identity", [False, True])
@@ -195,7 +199,7 @@ def test_windows_state_permissions_remove_explicit_grants(tmp_path: Path) -> Non
     powershell = os.path.join(
         system_root, "System32", "WindowsPowerShell", "v1.0", "powershell.exe"
     )
-    environment = os.environ.copy()
+    environment = state_module._windows_powershell_environment()
     environment["SLCLI_MANAGED_CLIENT_STATE_PATH"] = str(state_path)
 
     subprocess.run(

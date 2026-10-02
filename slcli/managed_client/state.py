@@ -36,19 +36,14 @@ ASSET_IDENTIFICATION_FIELDS = (
 _WINDOWS_ACL_SCRIPT = """$ErrorActionPreference = 'Stop'
 $statePath = $env:SLCLI_MANAGED_CLIENT_STATE_PATH
 try {
-    $identity = [System.Security.Principal.WindowsIdentity]::GetCurrent()
-    $acl = Get-Acl -LiteralPath $statePath
-    $acl.SetAccessRuleProtection($true, $false)
-    foreach ($existingRule in @($acl.Access)) {
-        $acl.RemoveAccessRuleAll($existingRule)
-    }
-    $accessRule = [System.Security.AccessControl.FileSystemAccessRule]::new(
-        $identity.User,
-        [System.Security.AccessControl.FileSystemRights]::FullControl,
-        [System.Security.AccessControl.AccessControlType]::Allow
-    )
-    $acl.AddAccessRule($accessRule)
-    Set-Acl -LiteralPath $statePath -AclObject $acl
+    $icacls = Join-Path $env:SystemRoot 'System32\\icacls.exe'
+    $identity = [System.Security.Principal.WindowsIdentity]::GetCurrent().User.Value
+    & $icacls $statePath /reset
+    if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+    & $icacls $statePath /inheritance:r
+    if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+    & $icacls $statePath /grant:r ("*{0}:(F)" -f $identity)
+    if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
 } catch {
     [Console]::Error.WriteLine('Unable to set managed-client state ACL.')
     exit 1
@@ -65,6 +60,18 @@ def _windows_system_command(executable: str) -> str:
     if not os.path.isabs(system_root):
         raise StateError("Unable to resolve the Windows system directory.")
     return os.path.join(system_root, "System32", executable)
+
+
+def _windows_powershell_environment() -> Dict[str, str]:
+    """Return an environment with the Windows PowerShell 5.1 module path."""
+    system_root = os.environ.get("SystemRoot")
+    if not system_root or not os.path.isabs(system_root):
+        raise StateError("Unable to resolve the Windows system directory.")
+    environment = os.environ.copy()
+    environment["PSModulePath"] = os.path.join(
+        system_root, "System32", "WindowsPowerShell", "v1.0", "Modules"
+    )
+    return environment
 
 
 @dataclass(frozen=True)
@@ -258,7 +265,7 @@ class StateStore:
                 powershell = _windows_system_command(
                     os.path.join("WindowsPowerShell", "v1.0", "powershell.exe")
                 )
-                environment = os.environ.copy()
+                environment = _windows_powershell_environment()
                 environment["SLCLI_MANAGED_CLIENT_STATE_PATH"] = os.fspath(path)
                 subprocess.run(
                     [powershell, "-NoProfile", "-NonInteractive", "-Command", "-"],
