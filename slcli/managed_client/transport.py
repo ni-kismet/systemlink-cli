@@ -86,6 +86,8 @@ class SaltChannel:
         if self._pending:
             return self._pending.popleft()
         while True:
+            if self._closed:
+                raise TransportError("The Salt channel is closed.")
             try:
                 data = self._connection.recv(65536)
             except socket.timeout as error:

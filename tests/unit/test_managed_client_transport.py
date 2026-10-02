@@ -104,6 +104,32 @@ def test_salt_channel_raises_auth_socket_timeout() -> None:
     channel.close()
 
 
+def test_salt_channel_stops_retrying_timeouts_after_close() -> None:
+    """Closing during an idle receive timeout prevents another socket read."""
+
+    class ClosingTimeoutSocket:
+        def __init__(self) -> None:
+            self._attempts = 0
+
+        def recv(self, _: int) -> bytes:
+            self._attempts += 1
+            if self._attempts > 1:
+                pytest.fail("A closed channel must not retry an idle receive timeout.")
+            channel.close()
+            raise socket.timeout()
+
+        def shutdown(self, _: int) -> None:
+            return None
+
+        def close(self) -> None:
+            return None
+
+    channel = SaltChannel(ClosingTimeoutSocket())  # type: ignore[arg-type]
+
+    with pytest.raises(TransportError, match="closed"):
+        channel.receive(ignore_timeout=True)
+
+
 def test_salt_channel_ignores_idle_socket_timeout() -> None:
     """An idle publish channel remains available for a later job."""
     message = SaltMessage(body={"enc": "clear", "load": {}}, head={"mid": 1})

@@ -81,6 +81,31 @@ jobs:
           name: slcli-binary
           path: dist/slcli/
 
+  managed-client-macos:
+    name: Managed-client crypto (macOS)
+    runs-on: macos-latest
+    timeout-minutes: 10
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+
+      - name: Set up Python
+        uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7
+        with:
+          python-version: '3.14'
+
+      - name: Install Poetry
+        run: pip install poetry
+
+      - name: Install dependencies
+        run: poetry install --extras managed-client
+
+      - name: Install OpenSSL provider
+        run: brew install openssl@3
+
+      - name: Test managed-client crypto and authentication
+        run: poetry run pytest tests/unit/test_managed_client_crypto.py tests/unit/test_managed_client_transport.py tests/unit/test_managed_client.py --no-cov -q
+
   native-credentials:
     name: Native credentials (${{ matrix.os }})
     runs-on: ${{ matrix.os }}
