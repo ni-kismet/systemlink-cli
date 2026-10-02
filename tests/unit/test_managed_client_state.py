@@ -140,6 +140,7 @@ def test_windows_state_permissions_replace_acl(
     assert kwargs["capture_output"] is True
     assert kwargs["text"] is True
     assert kwargs["input"] == state_module._WINDOWS_ACL_SCRIPT
+    assert kwargs["input"].endswith("\n\n")
     assert kwargs["env"]["SLCLI_MANAGED_CLIENT_STATE_PATH"] == str(tmp_path / "state")
     assert "$acl.SetAccessRuleProtection($true, $false)" in kwargs["input"]
     assert "$acl.RemoveAccessRuleAll($existingRule)" in kwargs["input"]
@@ -214,6 +215,7 @@ $everyone = @($rules | Where-Object {
     $_.IdentityReference.Translate([System.Security.Principal.SecurityIdentifier]).Value -eq 'S-1-1-0'
 })
 if ($everyone.Count -eq 0) { exit 1 }
+
 """
     explicit_grant_result = subprocess.run(
         inspect_command,
@@ -242,6 +244,7 @@ if ($rules[0].IdentityReference.Translate([System.Security.Principal.SecurityIde
 if ($rules[0].FileSystemRights -ne [System.Security.AccessControl.FileSystemRights]::FullControl) {
     exit 3
 }
+
 """
     protected_acl_result = subprocess.run(
         inspect_command,

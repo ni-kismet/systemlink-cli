@@ -53,6 +53,7 @@ try {
     [Console]::Error.WriteLine('Unable to set managed-client state ACL.')
     exit 1
 }
+
 """
 
 
