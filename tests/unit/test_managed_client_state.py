@@ -206,17 +206,25 @@ def test_windows_state_permissions_remove_explicit_grants(tmp_path: Path) -> Non
     inspect_command = [powershell, "-NoProfile", "-NonInteractive", "-Command", "-"]
     explicit_grant_check = """
 $acl = Get-Acl -LiteralPath $env:SLCLI_MANAGED_CLIENT_STATE_PATH
-$rules = @($acl.GetAccessRules($true, $false, [System.Security.Principal.SecurityIdentifier]))
-$everyone = @($rules | Where-Object { $_.IdentityReference.Value -eq 'S-1-1-0' })
+$rules = @($acl.Access)
+$rules | ForEach-Object {
+    Write-Output ("ACL identity={0}, inherited={1}, rights={2}" -f $_.IdentityReference.Value, $_.IsInherited, $_.FileSystemRights)
+}
+$everyone = @($rules | Where-Object {
+    $_.IdentityReference.Translate([System.Security.Principal.SecurityIdentifier]).Value -eq 'S-1-1-0'
+})
 if ($everyone.Count -eq 0) { exit 1 }
 """
-    subprocess.run(
+    explicit_grant_result = subprocess.run(
         inspect_command,
-        check=True,
+        check=False,
         capture_output=True,
         text=True,
         input=explicit_grant_check,
         env=environment,
+    )
+    assert explicit_grant_result.returncode == 0, (
+        explicit_grant_result.stdout + explicit_grant_result.stderr
     )
 
     StateStore._restrict_permissions(state_path, 0o700)
@@ -224,9 +232,9 @@ if ($everyone.Count -eq 0) { exit 1 }
     protected_acl_check = """
 $acl = Get-Acl -LiteralPath $env:SLCLI_MANAGED_CLIENT_STATE_PATH
 $sid = [System.Security.Principal.WindowsIdentity]::GetCurrent().User.Value
-$rules = @($acl.GetAccessRules($true, $true, [System.Security.Principal.SecurityIdentifier]))
+$rules = @($acl.Access)
 if (-not $acl.AreAccessRulesProtected -or $rules.Count -ne 1) { exit 1 }
-if ($rules[0].IdentityReference.Value -ne $sid) { exit 2 }
+if ($rules[0].IdentityReference.Translate([System.Security.Principal.SecurityIdentifier]).Value -ne $sid) { exit 2 }
 if ($rules[0].FileSystemRights -ne [System.Security.AccessControl.FileSystemRights]::FullControl) {
     exit 3
 }
