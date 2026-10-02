@@ -155,20 +155,53 @@ def test_windows_state_permissions_remove_inheritance(
     ]
 
 
+@pytest.mark.parametrize(
+    "failed_operation,expected_operations",
+    [
+        ("/user", ["/user"]),
+        ("/reset", ["/user", "/reset"]),
+        ("/inheritance:r", ["/user", "/reset", "/inheritance:r"]),
+    ],
+)
+@pytest.mark.parametrize("initialize_identity", [False, True])
 def test_windows_state_permissions_fail_closed(
-    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    failed_operation: str,
+    expected_operations: list[str],
+    initialize_identity: bool,
 ) -> None:
-    """An ACL failure prevents use of unprotected state."""
-    monkeypatch.setattr(state_module.os, "name", "nt")
-    monkeypatch.setenv("SystemRoot", str(tmp_path / "Windows"))
+    """Each permission failure stops subsequent commands and identity writes."""
+    store = StateStore(tmp_path / "state")
+    operations: list[str] = []
 
-    def run(command: list[str], **kwargs: Any) -> None:
-        raise subprocess.CalledProcessError(1, command)
+    def run(command: list[str], **kwargs: Any) -> subprocess.CompletedProcess[str]:
+        operation = command[1] if command[0].endswith("whoami.exe") else command[2]
+        operations.append(operation)
+        assert kwargs == {"check": True, "capture_output": True, "text": True}
+        if operation == failed_operation:
+            raise subprocess.CalledProcessError(1, command)
+        return subprocess.CompletedProcess(command, 0, '"test-user","S-1-5-21-123"\n', "")
 
-    monkeypatch.setattr(state_module.subprocess, "run", run)
+    message = "state directory" if initialize_identity else "Unable to protect isolated state"
+    with monkeypatch.context() as windows:
+        windows.setattr(state_module.os, "name", "nt")
+        windows.setenv("SystemRoot", str(tmp_path / "Windows"))
+        windows.setattr(state_module.subprocess, "run", run)
+        with pytest.raises(StateError, match=message) as caught:
+            if initialize_identity:
+                store.load_or_create_identity("slcli-test-001")
+            else:
+                store._restrict_permissions(store.state_dir, 0o700)
 
-    with pytest.raises(StateError, match="Unable to protect isolated state"):
-        StateStore._restrict_permissions(tmp_path / "state", 0o700)
+    cause = caught.value.__cause__
+    if initialize_identity:
+        assert isinstance(cause, StateError)
+        cause = cause.__cause__
+        assert store.state_dir.exists()
+        assert list(store.state_dir.iterdir()) == []
+    assert isinstance(cause, subprocess.CalledProcessError)
+    assert operations == expected_operations
 
 
 def test_state_store_wraps_non_json_asset_values(tmp_path: Path) -> None:
