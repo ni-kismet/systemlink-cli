@@ -318,7 +318,7 @@ def test_commands_preserve_results_on_restricted_streams(
     monkeypatch: Any, tmp_path: Path, encoding: str, command: str
 ) -> None:
     """Command results and intentional failure codes survive restricted output."""
-    monkeypatch.setattr("slcli.profiles.has_keyring_credentials", lambda: False)
+    monkeypatch.setenv("SLCLI_CONFIG", str(tmp_path / "config.json"))
     monkeypatch.setattr(
         "slcli.version_click.check_version",
         lambda: VersionCheckResult(
