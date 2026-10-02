@@ -233,19 +233,26 @@ if ($everyone.Count -eq 0) { exit 1 }
 $acl = Get-Acl -LiteralPath $env:SLCLI_MANAGED_CLIENT_STATE_PATH
 $sid = [System.Security.Principal.WindowsIdentity]::GetCurrent().User.Value
 $rules = @($acl.Access)
+Write-Output ("ACL protected={0}, ruleCount={1}, expectedSID={2}" -f $acl.AreAccessRulesProtected, $rules.Count, $sid)
+$rules | ForEach-Object {
+    Write-Output ("ACL identity={0}, inherited={1}, rights={2}" -f $_.IdentityReference.Value, $_.IsInherited, $_.FileSystemRights)
+}
 if (-not $acl.AreAccessRulesProtected -or $rules.Count -ne 1) { exit 1 }
 if ($rules[0].IdentityReference.Translate([System.Security.Principal.SecurityIdentifier]).Value -ne $sid) { exit 2 }
 if ($rules[0].FileSystemRights -ne [System.Security.AccessControl.FileSystemRights]::FullControl) {
     exit 3
 }
 """
-    subprocess.run(
+    protected_acl_result = subprocess.run(
         inspect_command,
-        check=True,
+        check=False,
         capture_output=True,
         text=True,
         input=protected_acl_check,
         env=environment,
+    )
+    assert protected_acl_result.returncode == 0, (
+        protected_acl_result.stdout + protected_acl_result.stderr
     )
 
 
