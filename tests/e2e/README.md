@@ -6,6 +6,29 @@ This directory contains end-to-end (E2E) tests for the SystemLink CLI that run a
 
 The E2E testing framework validates that CLI commands work correctly against non-mocked SystemLink services. This provides confidence that the CLI integrates properly with the actual SystemLink APIs.
 
+Native credential lifecycle tests use actual macOS Keychain, Windows Credential
+Manager, or Linux Secret Service entries under unique IDs and isolated configs:
+
+```bash
+SLCLI_E2E_NATIVE_CREDENTIALS=1 poetry run pytest tests/e2e/test_credentials_e2e.py --no-cov -v
+```
+
+Run this command on each supported OS with its native store unlocked. The local
+API-key and PKCE secure/read/logout cases need no server. The login/authenticated
+command/logout case requires the E2E server and API key configured below and skips
+when they are absent. Native access is opt-in; an unavailable or locked store
+fails enabled tests rather than silently falling back to file storage.
+
+The `native-credentials` CI matrix runs the synthetic API-key and PKCE lifecycle
+cases on macOS, Windows, and Linux without live server credentials. Linux runs an
+unlocked GNOME Keyring inside an isolated D-Bus session. The PKCE case uses a
+bundle larger than Windows Credential Manager's single-item limit to exercise
+split-token storage. Live login and authenticated-command validation still require
+the server configuration below.
+
+Follow the [credential-store manual E2E plan](../../docs/credential-store-manual-test-plan.md)
+for installation upgrades and interactive behavior not covered by these tests.
+
 ## Test Structure
 
 ```

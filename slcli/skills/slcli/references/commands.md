@@ -701,11 +701,13 @@ slcli workspace disable --id WORKSPACE_ID [--yes]
 
 ## config — Profile and credential management
 
-Manage named connection profiles (dev, test, prod). Credentials are stored in
-`~/.config/slcli/config.json`.
+Manage named connection profiles (dev, test, prod). Credentials use the OS
+credential store by default; `--credential-store file` opts into config-file
+storage, and login falls back to the config file with a warning if the OS store
+is unavailable. Legacy global keyring entries are no longer read.
 
 ```bash
-slcli login [--profile NAME] [--url URL] [--api-key KEY] [--web-url URL] [--workspace NAME]
+slcli login [--profile NAME] [--url URL] [--api-key KEY] [--web-url URL] [--workspace NAME] [--credential-store os|file]
 slcli logout [--profile NAME] [--all] [--force]
 slcli info [-f json] [--skip-health]            # Show active profile and service health
 slcli completion [--shell SHELL] [--install]    # Generate or install shell tab completion
@@ -716,7 +718,8 @@ slcli config use <PROFILE>                      # Switch the active profile
 slcli config view [-f json] [--show-secrets]    # Show stored profile details
 slcli config add [--profile NAME] [OPTIONS]     # Add or update a profile
 slcli config delete <PROFILE> [--force]         # Delete a profile
-slcli config migrate                            # Migrate legacy keyring credentials
+slcli config cleanup                            # Retry pending credential cleanup
+slcli config secure [--profile NAME | --all]    # Move plaintext credentials to the OS store
 ```
 
 ## user — User management

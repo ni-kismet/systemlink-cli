@@ -1,7 +1,7 @@
 """Unit tests for user CLI commands."""
 
 import json
-from typing import Any, Optional
+from typing import Any
 from unittest.mock import patch
 
 import click
@@ -12,11 +12,9 @@ from slcli.user_click import register_user_commands
 
 
 def patch_keyring(monkeypatch: Any) -> None:
-    """Patch keyring to return test values."""
-    monkeypatch.setattr(
-        "slcli.utils.keyring.get_password",
-        lambda service, key: "test-key" if key == "SYSTEMLINK_API_KEY" else "https://test.com",
-    )
+    """Set environment credentials used by CLI tests."""
+    monkeypatch.setenv("SLCLI_API_KEY", "test-key")
+    monkeypatch.setenv("SLCLI_API_URL", "https://test.com")
 
 
 def mock_response(data: Any, status_code: int = 200) -> Any:
@@ -1018,14 +1016,8 @@ class TestUserCreate:
         """Create user while generating workspace policies from templates."""
         patch_keyring(monkeypatch)
 
-        def mock_get_password(service: str, key: str) -> Optional[str]:
-            if key == "SYSTEMLINK_CONFIG":
-                return json.dumps({"api_url": "http://localhost", "api_key": "test"})
-            if key == "SYSTEMLINK_API_KEY":
-                return "test"
-            return None
-
-        monkeypatch.setattr("slcli.utils.keyring.get_password", mock_get_password)
+        monkeypatch.setenv("SLCLI_API_URL", "http://localhost")
+        monkeypatch.setenv("SLCLI_API_KEY", "test")
 
         cli = make_cli()
         runner_local = runner
@@ -1570,14 +1562,8 @@ class TestUserUpdate:
         """Update user and generate workspace policies from templates."""
         patch_keyring(monkeypatch)
 
-        def mock_get_password(service: str, key: str) -> Optional[str]:
-            if key == "SYSTEMLINK_CONFIG":
-                return json.dumps({"api_url": "http://localhost", "api_key": "test"})
-            if key == "SYSTEMLINK_API_KEY":
-                return "test"
-            return None
-
-        monkeypatch.setattr("slcli.utils.keyring.get_password", mock_get_password)
+        monkeypatch.setenv("SLCLI_API_URL", "http://localhost")
+        monkeypatch.setenv("SLCLI_API_KEY", "test")
 
         cli = make_cli()
         runner_local = runner

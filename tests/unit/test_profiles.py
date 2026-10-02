@@ -1,8 +1,11 @@
 """Unit tests for the profiles module."""
 
 import json
+import os
 from pathlib import Path
 from typing import Any, Dict
+
+import pytest
 
 from slcli.profiles import (
     Profile,
@@ -14,6 +17,39 @@ from slcli.profiles import (
     save_service_probe_cache_entry,
     set_profile_override,
 )
+
+
+def test_transaction_refreshes_metadata_and_keeps_nested_edits(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """Stale configs reload once, while nested contexts preserve unsaved edits."""
+    monkeypatch.setenv("SLCLI_CONFIG", str(tmp_path / "config.json"))
+    ProfileConfig(settings={"latest": True}).save()
+    config = ProfileConfig(settings={"stale": True})
+
+    with config.transaction():
+        assert config.settings == {"latest": True}
+        config.settings["unsaved"] = True
+        with config.transaction():
+            assert config.settings["unsaved"]
+        config.save()
+        with ProfileConfig().transaction() as fresh:
+            assert fresh.settings == {"latest": True, "unsaved": True}
+
+
+def test_transaction_reloads_after_exception(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """Exceptions release the lock and reset nesting before the next mutation."""
+    monkeypatch.setenv("SLCLI_CONFIG", str(tmp_path / "config.json"))
+    config = ProfileConfig()
+    config.save()
+    with pytest.raises(RuntimeError, match="interrupted"):
+        with config.transaction():
+            config.settings["unsaved"] = True
+            raise RuntimeError("interrupted")
+    with config.transaction():
+        assert "unsaved" not in config.settings
 
 
 class TestProfile:
@@ -58,6 +94,8 @@ class TestProfile:
         result = profile.to_dict()
         assert result == {
             "server": "https://example.com",
+            "id": profile.credential_id,
+            "credential-store": "file",
             "api-key": "secret",
         }
 
@@ -74,6 +112,8 @@ class TestProfile:
         result = profile.to_dict()
         assert result == {
             "server": "https://api.example.com",
+            "id": profile.credential_id,
+            "credential-store": "file",
             "api-key": "secret",
             "web-url": "https://web.example.com",
             "platform": "SLS",
@@ -199,6 +239,72 @@ class TestProfileConfig:
         saved = json.loads(config_file.read_text())
         assert saved["current-profile"] == "test"
         assert "test" in saved["profiles"]
+
+    def test_save_config_preserves_original_when_replace_fails(
+        self, tmp_path: Path, monkeypatch: Any
+    ) -> None:
+        """A failed config replacement leaves the previous file intact."""
+        config_file = tmp_path / "config.json"
+        original = json.dumps(
+            {
+                "current-profile": "dev",
+                "profiles": {"dev": {"server": "https://old.example.com", "api-key": "key"}},
+            }
+        )
+        config_file.write_text(original)
+        monkeypatch.setattr(
+            "slcli.profiles.ProfileConfig.get_config_path", classmethod(lambda cls: config_file)
+        )
+
+        config = ProfileConfig.load()
+        config.profiles["dev"].server = "https://new.example.com"
+
+        def fail_replace(_source: Any, _destination: Any) -> None:
+            raise OSError("replace failed")
+
+        monkeypatch.setattr("slcli.profiles.os.replace", fail_replace)
+
+        with pytest.raises(RuntimeError, match="Failed to save configuration"):
+            config.save()
+
+        assert config_file.read_text() == original
+        assert list(tmp_path.iterdir()) == [config_file]
+
+    @pytest.mark.parametrize("replace_fails", [False, True])
+    def test_save_preserves_symlink(
+        self, tmp_path: Path, monkeypatch: Any, replace_fails: bool
+    ) -> None:
+        """Atomic saves update the link target and preserve it when replacement fails."""
+        target_dir = tmp_path / "managed"
+        target_dir.mkdir()
+        target = target_dir / "config.json"
+        target.write_text("{}")
+        link = tmp_path / "config.json"
+        try:
+            link.symlink_to(Path("managed") / "config.json")
+        except OSError:
+            pytest.skip("Symlink creation is not available")
+        monkeypatch.setattr(ProfileConfig, "get_config_path", classmethod(lambda cls: link))
+        config = ProfileConfig(settings={"test-setting": True})
+        replace = os.replace
+
+        def replace_target(source: Path, destination: Path) -> None:
+            assert source.parent == target_dir
+            assert destination == target
+            if replace_fails:
+                raise OSError("replace failed")
+            replace(source, destination)
+
+        monkeypatch.setattr("slcli.profiles.os.replace", replace_target)
+        if replace_fails:
+            with pytest.raises(RuntimeError, match="Failed to save configuration"):
+                config.save()
+            assert target.read_text() == "{}"
+        else:
+            config.save()
+            assert json.loads(target.read_text()) == {"test-setting": True}
+        assert link.is_symlink()
+        assert list(target_dir.iterdir()) == [target]
 
     def test_service_probe_cache_entry_round_trip(self, tmp_path: Path, monkeypatch: Any) -> None:
         """Test persisted service probe cache entries survive save/load."""

@@ -81,6 +81,51 @@ jobs:
           name: slcli-binary
           path: dist/slcli/
 
+  native-credentials:
+    name: Native credentials (${{ matrix.os }})
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 15
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, macos-latest, windows-latest]
+    env:
+      SLCLI_E2E_NATIVE_CREDENTIALS: '1'
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+
+      - name: Set up Python
+        uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7
+        with:
+          python-version: '3.14'
+
+      - name: Install Poetry
+        run: pip install poetry
+
+      - name: Install dependencies
+        run: poetry install
+
+      - name: Install Linux credential service
+        if: runner.os == 'Linux'
+        run: |
+          sudo -n apt-get update
+          sudo -n apt-get install -y gnome-keyring dbus
+
+      - name: Test native Linux credentials
+        if: runner.os == 'Linux'
+        env:
+          PYTHON_KEYRING_BACKEND: keyring.backends.SecretService.Keyring
+        run: |
+          dbus-run-session -- bash -euo pipefail <<'BASH'
+          poetry run python -c 'import secrets; print(secrets.token_urlsafe(32))' | gnome-keyring-daemon --unlock --components=secrets
+          poetry run pytest tests/e2e/test_credentials_e2e.py -k test_native_secure_read_logout --timeout=120 --no-cov -q
+          BASH
+
+      - name: Test native macOS and Windows credentials
+        if: runner.os != 'Linux'
+        run: poetry run pytest tests/e2e/test_credentials_e2e.py -k test_native_secure_read_logout --timeout=120 --no-cov -q
+
   e2e-sls:
     name: E2E (SLS)
     runs-on: ubuntu-latest

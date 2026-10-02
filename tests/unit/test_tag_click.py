@@ -1,11 +1,10 @@
 """Unit tests for tag management CLI commands."""
 
 import json
-from typing import Any, Optional
+from typing import Any
 from unittest.mock import MagicMock, patch
 
 import click
-import keyring
 from click.testing import CliRunner
 
 from slcli.tag_click import register_tag_commands
@@ -35,13 +34,8 @@ class TestTagList:
 
     def test_list_tags_with_pagination(self, monkeypatch: Any) -> None:
         """Test tag listing with server-side pagination."""
-
-        def mock_get_password(service: str, key: str) -> Optional[str]:
-            if key == "SYSTEMLINK_CONFIG":
-                return json.dumps({"api_url": "http://localhost", "api_key": "test"})
-            return None
-
-        monkeypatch.setattr(keyring, "get_password", mock_get_password)
+        monkeypatch.setenv("SLCLI_API_URL", "http://localhost")
+        monkeypatch.setenv("SLCLI_API_KEY", "test")
 
         cli = make_cli()
         runner = CliRunner()
@@ -68,13 +62,8 @@ class TestTagList:
 
     def test_list_tags_success(self, monkeypatch: Any) -> None:
         """Test successful tag listing."""
-
-        def mock_get_password(service: str, key: str) -> Optional[str]:
-            if key == "SYSTEMLINK_CONFIG":
-                return json.dumps({"api_url": "http://localhost", "api_key": "test"})
-            return None
-
-        monkeypatch.setattr(keyring, "get_password", mock_get_password)
+        monkeypatch.setenv("SLCLI_API_URL", "http://localhost")
+        monkeypatch.setenv("SLCLI_API_KEY", "test")
 
         cli = make_cli()
         runner = CliRunner()
@@ -104,13 +93,8 @@ class TestTagList:
 
     def test_list_tags_json_format(self, monkeypatch: Any) -> None:
         """Test tag listing with JSON output."""
-
-        def mock_get_password(service: str, key: str) -> Optional[str]:
-            if key == "SYSTEMLINK_CONFIG":
-                return json.dumps({"api_url": "http://localhost", "api_key": "test"})
-            return None
-
-        monkeypatch.setattr(keyring, "get_password", mock_get_password)
+        monkeypatch.setenv("SLCLI_API_URL", "http://localhost")
+        monkeypatch.setenv("SLCLI_API_KEY", "test")
 
         cli = make_cli()
         runner = CliRunner()
@@ -142,13 +126,8 @@ class TestTagList:
 
     def test_list_tags_with_filter(self, monkeypatch: Any) -> None:
         """Test tag listing with filter."""
-
-        def mock_get_password(service: str, key: str) -> Optional[str]:
-            if key == "SYSTEMLINK_CONFIG":
-                return json.dumps({"api_url": "http://localhost", "api_key": "test"})
-            return None
-
-        monkeypatch.setattr(keyring, "get_password", mock_get_password)
+        monkeypatch.setenv("SLCLI_API_URL", "http://localhost")
+        monkeypatch.setenv("SLCLI_API_KEY", "test")
 
         cli = make_cli()
         runner = CliRunner()
@@ -169,13 +148,8 @@ class TestTagList:
 
     def test_list_tags_with_keywords(self, monkeypatch: Any) -> None:
         """Test tag listing with keywords."""
-
-        def mock_get_password(service: str, key: str) -> Optional[str]:
-            if key == "SYSTEMLINK_CONFIG":
-                return json.dumps({"api_url": "http://localhost", "api_key": "test"})
-            return None
-
-        monkeypatch.setattr(keyring, "get_password", mock_get_password)
+        monkeypatch.setenv("SLCLI_API_URL", "http://localhost")
+        monkeypatch.setenv("SLCLI_API_KEY", "test")
 
         cli = make_cli()
         runner = CliRunner()
@@ -199,13 +173,8 @@ class TestTagList:
 
     def test_list_tags_with_workspace_override(self, monkeypatch: Any) -> None:
         """Test tag listing with explicit workspace."""
-
-        def mock_get_password(service: str, key: str) -> Optional[str]:
-            if key == "SYSTEMLINK_CONFIG":
-                return json.dumps({"api_url": "http://localhost", "api_key": "test"})
-            return None
-
-        monkeypatch.setattr(keyring, "get_password", mock_get_password)
+        monkeypatch.setenv("SLCLI_API_URL", "http://localhost")
+        monkeypatch.setenv("SLCLI_API_KEY", "test")
 
         cli = make_cli()
         runner = CliRunner()
@@ -223,13 +192,8 @@ class TestTagList:
 
     def test_list_tags_api_error(self, monkeypatch: Any) -> None:
         """Test tag listing API error."""
-
-        def mock_get_password(service: str, key: str) -> Optional[str]:
-            if key == "SYSTEMLINK_CONFIG":
-                return json.dumps({"api_url": "http://localhost", "api_key": "test"})
-            return None
-
-        monkeypatch.setattr(keyring, "get_password", mock_get_password)
+        monkeypatch.setenv("SLCLI_API_URL", "http://localhost")
+        monkeypatch.setenv("SLCLI_API_KEY", "test")
 
         cli = make_cli()
         runner = CliRunner()
@@ -250,13 +214,8 @@ class TestTagHistory:
 
     def test_history_json_output(self, monkeypatch: Any) -> None:
         """Test historical values are returned as normalized JSON."""
-
-        def mock_get_password(service: str, key: str) -> Optional[str]:
-            if key == "SYSTEMLINK_CONFIG":
-                return json.dumps({"api_url": "http://localhost", "api_key": "test"})
-            return None
-
-        monkeypatch.setattr(keyring, "get_password", mock_get_password)
+        monkeypatch.setenv("SLCLI_API_URL", "http://localhost")
+        monkeypatch.setenv("SLCLI_API_KEY", "test")
 
         cli = make_cli()
         runner = CliRunner()
@@ -305,13 +264,8 @@ class TestTagHistory:
 
     def test_history_table_output(self, monkeypatch: Any) -> None:
         """Test historical values are rendered in table format."""
-
-        def mock_get_password(service: str, key: str) -> Optional[str]:
-            if key == "SYSTEMLINK_CONFIG":
-                return json.dumps({"api_url": "http://localhost", "api_key": "test"})
-            return None
-
-        monkeypatch.setattr(keyring, "get_password", mock_get_password)
+        monkeypatch.setenv("SLCLI_API_URL", "http://localhost")
+        monkeypatch.setenv("SLCLI_API_KEY", "test")
 
         cli = make_cli()
         runner = CliRunner()
@@ -337,13 +291,8 @@ class TestTagHistory:
 
     def test_history_graph_output(self, monkeypatch: Any) -> None:
         """Test numeric history is rendered chronologically as a sparkline."""
-
-        def mock_get_password(service: str, key: str) -> Optional[str]:
-            if key == "SYSTEMLINK_CONFIG":
-                return json.dumps({"api_url": "http://localhost", "api_key": "test"})
-            return None
-
-        monkeypatch.setattr(keyring, "get_password", mock_get_password)
+        monkeypatch.setenv("SLCLI_API_URL", "http://localhost")
+        monkeypatch.setenv("SLCLI_API_KEY", "test")
 
         cli = make_cli()
         runner = CliRunner()
@@ -388,13 +337,8 @@ class TestTagHistory:
 
     def test_history_empty_output(self, monkeypatch: Any) -> None:
         """Test an empty history response has a useful table message."""
-
-        def mock_get_password(service: str, key: str) -> Optional[str]:
-            if key == "SYSTEMLINK_CONFIG":
-                return json.dumps({"api_url": "http://localhost", "api_key": "test"})
-            return None
-
-        monkeypatch.setattr(keyring, "get_password", mock_get_password)
+        monkeypatch.setenv("SLCLI_API_URL", "http://localhost")
+        monkeypatch.setenv("SLCLI_API_KEY", "test")
 
         cli = make_cli()
         runner = CliRunner()
@@ -414,13 +358,8 @@ class TestTagHistory:
 
     def test_history_api_error(self, monkeypatch: Any) -> None:
         """Test history API errors use standard CLI error handling."""
-
-        def mock_get_password(service: str, key: str) -> Optional[str]:
-            if key == "SYSTEMLINK_CONFIG":
-                return json.dumps({"api_url": "http://localhost", "api_key": "test"})
-            return None
-
-        monkeypatch.setattr(keyring, "get_password", mock_get_password)
+        monkeypatch.setenv("SLCLI_API_URL", "http://localhost")
+        monkeypatch.setenv("SLCLI_API_KEY", "test")
 
         cli = make_cli()
         runner = CliRunner()
@@ -441,13 +380,8 @@ class TestTagGet:
 
     def test_view_tag_success(self, monkeypatch: Any) -> None:
         """Test successful tag view."""
-
-        def mock_get_password(service: str, key: str) -> Optional[str]:
-            if key == "SYSTEMLINK_CONFIG":
-                return json.dumps({"api_url": "http://localhost", "api_key": "test"})
-            return None
-
-        monkeypatch.setattr(keyring, "get_password", mock_get_password)
+        monkeypatch.setenv("SLCLI_API_URL", "http://localhost")
+        monkeypatch.setenv("SLCLI_API_KEY", "test")
 
         cli = make_cli()
         runner = CliRunner()
@@ -481,13 +415,8 @@ class TestTagGet:
 
     def test_view_tag_with_aggregates(self, monkeypatch: Any) -> None:
         """Test tag view with aggregates display."""
-
-        def mock_get_password(service: str, key: str) -> Optional[str]:
-            if key == "SYSTEMLINK_CONFIG":
-                return json.dumps({"api_url": "http://localhost", "api_key": "test"})
-            return None
-
-        monkeypatch.setattr(keyring, "get_password", mock_get_password)
+        monkeypatch.setenv("SLCLI_API_URL", "http://localhost")
+        monkeypatch.setenv("SLCLI_API_KEY", "test")
 
         cli = make_cli()
         runner = CliRunner()
@@ -516,13 +445,8 @@ class TestTagCreate:
 
     def test_create_tag_success(self, monkeypatch: Any) -> None:
         """Test successful tag creation."""
-
-        def mock_get_password(service: str, key: str) -> Optional[str]:
-            if key == "SYSTEMLINK_CONFIG":
-                return json.dumps({"api_url": "http://localhost", "api_key": "test"})
-            return None
-
-        monkeypatch.setattr(keyring, "get_password", mock_get_password)
+        monkeypatch.setenv("SLCLI_API_URL", "http://localhost")
+        monkeypatch.setenv("SLCLI_API_KEY", "test")
 
         cli = make_cli()
         runner = CliRunner()
@@ -538,13 +462,8 @@ class TestTagCreate:
 
     def test_create_tag_with_keywords(self, monkeypatch: Any) -> None:
         """Test tag creation with keywords."""
-
-        def mock_get_password(service: str, key: str) -> Optional[str]:
-            if key == "SYSTEMLINK_CONFIG":
-                return json.dumps({"api_url": "http://localhost", "api_key": "test"})
-            return None
-
-        monkeypatch.setattr(keyring, "get_password", mock_get_password)
+        monkeypatch.setenv("SLCLI_API_URL", "http://localhost")
+        monkeypatch.setenv("SLCLI_API_KEY", "test")
 
         cli = make_cli()
         runner = CliRunner()
@@ -576,13 +495,8 @@ class TestTagCreate:
 
     def test_create_tag_with_properties(self, monkeypatch: Any) -> None:
         """Test tag creation with properties."""
-
-        def mock_get_password(service: str, key: str) -> Optional[str]:
-            if key == "SYSTEMLINK_CONFIG":
-                return json.dumps({"api_url": "http://localhost", "api_key": "test"})
-            return None
-
-        monkeypatch.setattr(keyring, "get_password", mock_get_password)
+        monkeypatch.setenv("SLCLI_API_URL", "http://localhost")
+        monkeypatch.setenv("SLCLI_API_KEY", "test")
 
         cli = make_cli()
         runner = CliRunner()
@@ -614,13 +528,8 @@ class TestTagCreate:
 
     def test_create_tag_missing_type(self, monkeypatch: Any) -> None:
         """Test tag creation fails without type."""
-
-        def mock_get_password(service: str, key: str) -> Optional[str]:
-            if key == "SYSTEMLINK_CONFIG":
-                return json.dumps({"api_url": "http://localhost", "api_key": "test"})
-            return None
-
-        monkeypatch.setattr(keyring, "get_password", mock_get_password)
+        monkeypatch.setenv("SLCLI_API_URL", "http://localhost")
+        monkeypatch.setenv("SLCLI_API_KEY", "test")
 
         cli = make_cli()
         runner = CliRunner()
@@ -631,13 +540,8 @@ class TestTagCreate:
 
     def test_create_tag_with_aggregates(self, monkeypatch: Any) -> None:
         """Test tag creation with aggregates enabled."""
-
-        def mock_get_password(service: str, key: str) -> Optional[str]:
-            if key == "SYSTEMLINK_CONFIG":
-                return json.dumps({"api_url": "http://localhost", "api_key": "test"})
-            return None
-
-        monkeypatch.setattr(keyring, "get_password", mock_get_password)
+        monkeypatch.setenv("SLCLI_API_URL", "http://localhost")
+        monkeypatch.setenv("SLCLI_API_KEY", "test")
 
         cli = make_cli()
         runner = CliRunner()
@@ -669,13 +573,8 @@ class TestTagUpdate:
 
     def test_update_tag_keywords(self, monkeypatch: Any) -> None:
         """Test updating tag keywords."""
-
-        def mock_get_password(service: str, key: str) -> Optional[str]:
-            if key == "SYSTEMLINK_CONFIG":
-                return json.dumps({"api_url": "http://localhost", "api_key": "test"})
-            return None
-
-        monkeypatch.setattr(keyring, "get_password", mock_get_password)
+        monkeypatch.setenv("SLCLI_API_URL", "http://localhost")
+        monkeypatch.setenv("SLCLI_API_KEY", "test")
 
         cli = make_cli()
         runner = CliRunner()
@@ -700,13 +599,8 @@ class TestTagUpdate:
 
     def test_update_tag_with_merge(self, monkeypatch: Any) -> None:
         """Test updating tag with merge flag."""
-
-        def mock_get_password(service: str, key: str) -> Optional[str]:
-            if key == "SYSTEMLINK_CONFIG":
-                return json.dumps({"api_url": "http://localhost", "api_key": "test"})
-            return None
-
-        monkeypatch.setattr(keyring, "get_password", mock_get_password)
+        monkeypatch.setenv("SLCLI_API_URL", "http://localhost")
+        monkeypatch.setenv("SLCLI_API_KEY", "test")
 
         cli = make_cli()
         runner = CliRunner()
@@ -738,13 +632,8 @@ class TestTagDelete:
 
     def test_delete_tag_success(self, monkeypatch: Any) -> None:
         """Test successful tag deletion."""
-
-        def mock_get_password(service: str, key: str) -> Optional[str]:
-            if key == "SYSTEMLINK_CONFIG":
-                return json.dumps({"api_url": "http://localhost", "api_key": "test"})
-            return None
-
-        monkeypatch.setattr(keyring, "get_password", mock_get_password)
+        monkeypatch.setenv("SLCLI_API_URL", "http://localhost")
+        monkeypatch.setenv("SLCLI_API_KEY", "test")
 
         cli = make_cli()
         runner = CliRunner()
@@ -760,13 +649,8 @@ class TestTagDelete:
 
     def test_delete_tag_confirmation_declined(self, monkeypatch: Any) -> None:
         """Test tag deletion with confirmation declined."""
-
-        def mock_get_password(service: str, key: str) -> Optional[str]:
-            if key == "SYSTEMLINK_CONFIG":
-                return json.dumps({"api_url": "http://localhost", "api_key": "test"})
-            return None
-
-        monkeypatch.setattr(keyring, "get_password", mock_get_password)
+        monkeypatch.setenv("SLCLI_API_URL", "http://localhost")
+        monkeypatch.setenv("SLCLI_API_KEY", "test")
 
         cli = make_cli()
         runner = CliRunner()
@@ -785,13 +669,8 @@ class TestTagSetValue:
 
     def test_set_tag_value_success(self, monkeypatch: Any) -> None:
         """Test successful tag value setting."""
-
-        def mock_get_password(service: str, key: str) -> Optional[str]:
-            if key == "SYSTEMLINK_CONFIG":
-                return json.dumps({"api_url": "http://localhost", "api_key": "test"})
-            return None
-
-        monkeypatch.setattr(keyring, "get_password", mock_get_password)
+        monkeypatch.setenv("SLCLI_API_URL", "http://localhost")
+        monkeypatch.setenv("SLCLI_API_KEY", "test")
 
         cli = make_cli()
         runner = CliRunner()
@@ -810,13 +689,8 @@ class TestTagSetValue:
 
     def test_set_tag_value_with_timestamp(self, monkeypatch: Any) -> None:
         """Test setting tag value with custom timestamp."""
-
-        def mock_get_password(service: str, key: str) -> Optional[str]:
-            if key == "SYSTEMLINK_CONFIG":
-                return json.dumps({"api_url": "http://localhost", "api_key": "test"})
-            return None
-
-        monkeypatch.setattr(keyring, "get_password", mock_get_password)
+        monkeypatch.setenv("SLCLI_API_URL", "http://localhost")
+        monkeypatch.setenv("SLCLI_API_KEY", "test")
 
         cli = make_cli()
         runner = CliRunner()
@@ -847,13 +721,8 @@ class TestTagSetValue:
 
     def test_set_tag_value_uint64(self, monkeypatch: Any) -> None:
         """Ensure uint64 tags use U_INT64 type even for small integers."""
-
-        def mock_get_password(service: str, key: str) -> Optional[str]:
-            if key == "SYSTEMLINK_CONFIG":
-                return json.dumps({"api_url": "http://localhost", "api_key": "test"})
-            return None
-
-        monkeypatch.setattr(keyring, "get_password", mock_get_password)
+        monkeypatch.setenv("SLCLI_API_URL", "http://localhost")
+        monkeypatch.setenv("SLCLI_API_KEY", "test")
 
         cli = make_cli()
         runner = CliRunner()
@@ -876,13 +745,8 @@ class TestTagSetValue:
 
     def test_set_tag_value_datetime(self, monkeypatch: Any) -> None:
         """Ensure DATE_TIME tags send the correct type and value."""
-
-        def mock_get_password(service: str, key: str) -> Optional[str]:
-            if key == "SYSTEMLINK_CONFIG":
-                return json.dumps({"api_url": "http://localhost", "api_key": "test"})
-            return None
-
-        monkeypatch.setattr(keyring, "get_password", mock_get_password)
+        monkeypatch.setenv("SLCLI_API_URL", "http://localhost")
+        monkeypatch.setenv("SLCLI_API_KEY", "test")
 
         cli = make_cli()
         runner = CliRunner()
@@ -909,13 +773,8 @@ class TestTagGetValue:
 
     def test_get_tag_value_success(self, monkeypatch: Any) -> None:
         """Test successful tag value retrieval."""
-
-        def mock_get_password(service: str, key: str) -> Optional[str]:
-            if key == "SYSTEMLINK_CONFIG":
-                return json.dumps({"api_url": "http://localhost", "api_key": "test"})
-            return None
-
-        monkeypatch.setattr(keyring, "get_password", mock_get_password)
+        monkeypatch.setenv("SLCLI_API_URL", "http://localhost")
+        monkeypatch.setenv("SLCLI_API_KEY", "test")
 
         cli = make_cli()
         runner = CliRunner()
@@ -938,13 +797,8 @@ class TestTagGetValue:
 
     def test_get_tag_value_json_format(self, monkeypatch: Any) -> None:
         """Test tag value retrieval with JSON format."""
-
-        def mock_get_password(service: str, key: str) -> Optional[str]:
-            if key == "SYSTEMLINK_CONFIG":
-                return json.dumps({"api_url": "http://localhost", "api_key": "test"})
-            return None
-
-        monkeypatch.setattr(keyring, "get_password", mock_get_password)
+        monkeypatch.setenv("SLCLI_API_URL", "http://localhost")
+        monkeypatch.setenv("SLCLI_API_KEY", "test")
 
         cli = make_cli()
         runner = CliRunner()
@@ -963,13 +817,8 @@ class TestTagGetValue:
 
     def test_get_tag_value_with_aggregates(self, monkeypatch: Any) -> None:
         """Test tag value retrieval with aggregates."""
-
-        def mock_get_password(service: str, key: str) -> Optional[str]:
-            if key == "SYSTEMLINK_CONFIG":
-                return json.dumps({"api_url": "http://localhost", "api_key": "test"})
-            return None
-
-        monkeypatch.setattr(keyring, "get_password", mock_get_password)
+        monkeypatch.setenv("SLCLI_API_URL", "http://localhost")
+        monkeypatch.setenv("SLCLI_API_KEY", "test")
 
         cli = make_cli()
         runner = CliRunner()
@@ -996,13 +845,8 @@ class TestWorkspaceResolution:
 
     def test_explicit_workspace(self, monkeypatch: Any) -> None:
         """Test explicit workspace parameter."""
-
-        def mock_get_password(service: str, key: str) -> Optional[str]:
-            if key == "SYSTEMLINK_CONFIG":
-                return json.dumps({"api_url": "http://localhost", "api_key": "test"})
-            return None
-
-        monkeypatch.setattr(keyring, "get_password", mock_get_password)
+        monkeypatch.setenv("SLCLI_API_URL", "http://localhost")
+        monkeypatch.setenv("SLCLI_API_KEY", "test")
 
         cli = make_cli()
         runner = CliRunner()
@@ -1018,13 +862,8 @@ class TestWorkspaceResolution:
 
     def test_default_workspace_resolution(self, monkeypatch: Any) -> None:
         """Test default workspace when not specified."""
-
-        def mock_get_password(service: str, key: str) -> Optional[str]:
-            if key == "SYSTEMLINK_CONFIG":
-                return json.dumps({"api_url": "http://localhost", "api_key": "test"})
-            return None
-
-        monkeypatch.setattr(keyring, "get_password", mock_get_password)
+        monkeypatch.setenv("SLCLI_API_URL", "http://localhost")
+        monkeypatch.setenv("SLCLI_API_KEY", "test")
 
         cli = make_cli()
         runner = CliRunner()
@@ -1040,13 +879,8 @@ class TestWorkspaceResolution:
 
     def test_default_workspace_failure(self, monkeypatch: Any) -> None:
         """Test default workspace resolution failure."""
-
-        def mock_get_password(service: str, key: str) -> Optional[str]:
-            if key == "SYSTEMLINK_CONFIG":
-                return json.dumps({"api_url": "http://localhost", "api_key": "test"})
-            return None
-
-        monkeypatch.setattr(keyring, "get_password", mock_get_password)
+        monkeypatch.setenv("SLCLI_API_URL", "http://localhost")
+        monkeypatch.setenv("SLCLI_API_KEY", "test")
 
         cli = make_cli()
         runner = CliRunner()

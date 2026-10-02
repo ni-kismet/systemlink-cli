@@ -13,11 +13,9 @@ from slcli.dataframe_click import register_dataframe_commands
 
 
 def patch_keyring(monkeypatch: Any) -> None:
-    """Patch keyring to return test credentials."""
-    monkeypatch.setattr(
-        "slcli.utils.keyring.get_password",
-        lambda service, key: "test-key" if key == "SYSTEMLINK_API_KEY" else "https://test.com",
-    )
+    """Set environment credentials used by CLI tests."""
+    monkeypatch.setenv("SLCLI_API_KEY", "test-key")
+    monkeypatch.setenv("SLCLI_API_URL", "https://test.com")
 
 
 def make_cli() -> click.Group:
