@@ -1,1 +1,1 @@
-Fix managed-client state initialization on Windows by applying the ACL reset and user-only permissions in separate `icacls` commands.
+Restrict Windows managed-client state to the current user without temporarily restoring inherited ACL permissions.

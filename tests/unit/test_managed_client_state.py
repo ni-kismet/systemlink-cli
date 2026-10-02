@@ -138,14 +138,6 @@ def test_windows_state_permissions_remove_inheritance(
             [
                 str(system_root / "System32" / "icacls.exe"),
                 str(tmp_path / "state"),
-                "/reset",
-            ],
-            {"check": True, "capture_output": True, "text": True},
-        ),
-        (
-            [
-                str(system_root / "System32" / "icacls.exe"),
-                str(tmp_path / "state"),
                 "/inheritance:r",
                 "/grant:r",
                 "*S-1-5-21-123:F",
@@ -159,8 +151,8 @@ def test_windows_state_permissions_remove_inheritance(
     "failed_operation,expected_operations",
     [
         ("/user", ["/user"]),
-        ("/reset", ["/user", "/reset"]),
-        ("/inheritance:r", ["/user", "/reset", "/inheritance:r"]),
+        ("/inheritance:r", ["/user", "/inheritance:r"]),
+        ("/grant:r", ["/user", "/inheritance:r", "/grant:r"]),
     ],
 )
 @pytest.mark.parametrize("initialize_identity", [False, True])
@@ -176,11 +168,19 @@ def test_windows_state_permissions_fail_closed(
     operations: list[str] = []
 
     def run(command: list[str], **kwargs: Any) -> subprocess.CompletedProcess[str]:
-        operation = command[1] if command[0].endswith("whoami.exe") else command[2]
-        operations.append(operation)
         assert kwargs == {"check": True, "capture_output": True, "text": True}
-        if operation == failed_operation:
-            raise subprocess.CalledProcessError(1, command)
+        if command[0].endswith("whoami.exe"):
+            operations.append("/user")
+            if failed_operation == "/user":
+                raise subprocess.CalledProcessError(1, command)
+            return subprocess.CompletedProcess(command, 0, '"test-user","S-1-5-21-123"\n', "")
+
+        for operation in command[2:]:
+            if not operation.startswith("/"):
+                continue
+            operations.append(operation)
+            if operation == failed_operation:
+                raise subprocess.CalledProcessError(1, command)
         return subprocess.CompletedProcess(command, 0, '"test-user","S-1-5-21-123"\n', "")
 
     message = "state directory" if initialize_identity else "Unable to protect isolated state"
