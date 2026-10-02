@@ -1,1 +1,0 @@
-Stop retrying idle receive timeouts once a managed-client Salt channel is closed.

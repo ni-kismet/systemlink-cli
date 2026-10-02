@@ -2,6 +2,14 @@
 
 <!-- towncrier release notes start -->
 
+## v2.0.1 (2026-10-02)
+
+### Bug Fixes
+
+- Avoid Apple's aborting system libcrypto shim when selecting the managed-client RSA X9.31 provider on macOS, with Python 3.14 macOS crypto and authentication CI coverage. (macos-libcrypto)
+- Stop retrying idle receive timeouts once a managed-client Salt channel is closed. (managed-client-shutdown)
+
+
 ## v2.0.0 (2026-10-02)
 
 ### Breaking Changes
