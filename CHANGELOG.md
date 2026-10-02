@@ -2,6 +2,13 @@
 
 <!-- towncrier release notes start -->
 
+## v1.31.4 (2026-10-02)
+
+### Bug Fixes
+
+- Update dependency pyjwt to v2.14.0 [SECURITY]. (deps-renovate-pypi-pyjwt-vulnerability)
+
+
 ## v1.31.3 (2026-10-01)
 
 ### Bug Fixes
