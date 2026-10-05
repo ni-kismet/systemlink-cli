@@ -475,6 +475,34 @@ class TestTemplateCreate:
             )
             assert result.exit_code == exit_code, result.output
 
+    def test_create_template_response_json_error_is_api_error(
+        self, monkeypatch: Any, tmp_path: Any
+    ) -> None:
+        """Treat response JSON decoding failures as API errors, not invalid input."""
+        monkeypatch.setenv("SLCLI_API_URL", "http://localhost")
+        monkeypatch.setenv("SLCLI_API_KEY", "test")
+        statements_file = tmp_path / "statements.json"
+        statements_file.write_text(
+            '[{"actions": ["testresult:Read"], "resource": ["*"]}]', encoding="utf-8"
+        )
+        response = mock_response({})
+        with patch.object(response, "json", side_effect=ValueError("invalid API response JSON")):
+            with patch("slcli.policy_click.make_api_request", return_value=response):
+                result = CliRunner().invoke(
+                    cli,
+                    [
+                        "auth",
+                        "template",
+                        "create",
+                        "--name",
+                        "Reader",
+                        "--statements-file",
+                        str(statements_file),
+                    ],
+                )
+        assert result.exit_code == 1, result.output
+        assert "Error: invalid API response JSON" in result.output
+
     def test_policy_statements_still_require_workspace(self) -> None:
         """Workspace-free validation remains specific to template payloads."""
         from slcli.policy_utils import _build_policy_payload

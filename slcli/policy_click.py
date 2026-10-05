@@ -511,6 +511,11 @@ def register_policy_commands(cli: Any) -> None:
                 statements=statements,
                 properties=properties_dict,
             )
+        except ValueError as exc:
+            click.echo(f"✗ Error: {exc}", err=True)
+            sys.exit(ExitCodes.INVALID_INPUT)
+
+        try:
             url = f"{get_base_url()}/niauth/v1/policy-templates"
             resp = make_api_request("POST", url, payload=payload)
             created_template = resp.json()
@@ -526,9 +531,6 @@ def register_policy_commands(cli: Any) -> None:
                         "type": created_template.get("type"),
                     },
                 )
-        except ValueError as exc:
-            click.echo(f"✗ Error: {exc}", err=True)
-            sys.exit(ExitCodes.INVALID_INPUT)
         except Exception as exc:
             handle_api_error(exc)
 
