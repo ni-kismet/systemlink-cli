@@ -2,6 +2,13 @@
 
 <!-- towncrier release notes start -->
 
+## v2.0.2 (2026-10-05)
+
+### Bug Fixes
+
+- Replace Windows managed-client state ACLs with protected current-user-only permissions, removing inherited and explicit grants. (managed-client-windows-state)
+
+
 ## v2.0.1 (2026-10-02)
 
 ### Bug Fixes
