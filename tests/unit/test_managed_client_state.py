@@ -192,13 +192,17 @@ def test_windows_state_permissions_fail_closed(
     assert commands[0][-2:] == ["-Command", "-"]
 
 
+@pytest.mark.parametrize("target_type", ["directory", "file"])
 @pytest.mark.skipif(os.name != "nt", reason="Windows ACLs require Windows")
 def test_windows_state_permissions_remove_explicit_grants(
-    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, target_type: str
 ) -> None:
-    """Replacing the ACL removes unrelated explicit grants on Windows."""
+    """Replacing a file or directory ACL removes unrelated explicit grants on Windows."""
     state_path = tmp_path / "state"
-    state_path.mkdir()
+    if target_type == "directory":
+        state_path.mkdir()
+    else:
+        state_path.write_text("state")
     system_root = os.environ["SystemRoot"]
     icacls = os.path.join(system_root, "System32", "icacls.exe")
     powershell = os.path.join(
