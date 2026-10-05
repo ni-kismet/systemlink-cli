@@ -745,9 +745,24 @@ slcli auth policy diff <POLICY_ID_1> <POLICY_ID_2>  # Compare two policies
 
 # Policy templates
 slcli auth template list [-t INT] [-f json]
+slcli auth template create --name TEXT --statements-file PATH [--type user|service] [-p KEY=VALUE] [-f json]
 slcli auth template get <TEMPLATE_ID> [-f json]
 slcli auth template delete <TEMPLATE_ID>
 ```
+
+`auth template create` posts a reusable permission set to
+`/niauth/v1/policy-templates`; it does not create a workspace-scoped policy.
+The type defaults to `user`. The statements file must contain a JSON array
+or an object with a `statements` array, for example:
+
+```json
+[{"actions": ["testresult:Read"], "resource": ["*"]}]
+```
+
+Workspace fields are not required. Properties are repeatable string-valued
+`key=value` pairs. JSON output returns the full created template, including
+its ID. Apply that ID to a workspace using `auth policy create TEMPLATE_ID
+--name TEXT --workspace WORKSPACE`.
 
 ## feed — NI Package Manager feed management
 
