@@ -130,6 +130,13 @@ def _validate_statements(
         if not resources:  # Empty list check
             return False, f"Statement {i + 1}: 'resource' must not be empty"
 
+        for field_name, values in (("actions", actions), ("resource", resources)):
+            if any(not isinstance(value, str) or not value.strip() for value in values):
+                return (
+                    False,
+                    f"Statement {i + 1}: '{field_name}' entries must be non-empty strings",
+                )
+
         # Validate workspace field
         is_workspace_str: bool = isinstance(workspace, str)
         if (require_workspace or "workspace" in stmt) and not is_workspace_str:

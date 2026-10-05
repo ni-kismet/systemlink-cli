@@ -376,6 +376,10 @@ class TestTemplateCreate:
             "[null]",
             '[{"actions": [], "resource": ["*"]}]',
             '[{"actions": ["read"], "resource": "*"}]',
+            '[{"actions": [null], "resource": ["*"]}]',
+            '[{"actions": ["read"], "resource": [1]}]',
+            '[{"actions": [""], "resource": ["*"]}]',
+            '[{"actions": ["read"], "resource": [""]}]',
         ],
     )
     def test_create_template_invalid_statements(self, tmp_path: Any, content: str) -> None:
