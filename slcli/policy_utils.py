@@ -90,11 +90,14 @@ def _format_statements_for_display(statements: List[Dict[str, Any]]) -> str:
     return "\n".join(lines)
 
 
-def _validate_statements(statements: List[Dict[str, Any]]) -> Tuple[bool, Optional[str]]:
+def _validate_statements(
+    statements: List[Dict[str, Any]], require_workspace: bool = True
+) -> Tuple[bool, Optional[str]]:
     """Validate statement structure.
 
     Args:
         statements: List of statement dictionaries to validate
+        require_workspace: Whether every statement must specify a workspace
 
     Returns:
         Tuple of (is_valid, error_message)
@@ -127,11 +130,18 @@ def _validate_statements(statements: List[Dict[str, Any]]) -> Tuple[bool, Option
         if not resources:  # Empty list check
             return False, f"Statement {i + 1}: 'resource' must not be empty"
 
+        for field_name, values in (("actions", actions), ("resource", resources)):
+            if any(not isinstance(value, str) or not value.strip() for value in values):
+                return (
+                    False,
+                    f"Statement {i + 1}: '{field_name}' entries must be non-empty strings",
+                )
+
         # Validate workspace field
         is_workspace_str: bool = isinstance(workspace, str)
-        if not is_workspace_str:
+        if (require_workspace or "workspace" in stmt) and not is_workspace_str:
             return False, f"Statement {i + 1}: 'workspace' must be a string"
-        if not workspace:  # Empty string check
+        if (require_workspace or "workspace" in stmt) and not workspace:
             return False, f"Statement {i + 1}: 'workspace' must not be empty"
 
     return True, None
@@ -220,12 +230,14 @@ def _load_statements_from_file(file_path: str) -> List[Dict[str, Any]]:
     import json
 
     try:
-        with open(file_path, "r") as f:
+        with open(file_path, "r", encoding="utf-8") as f:
             data = json.load(f)
     except FileNotFoundError:
         raise ValueError(f"File not found: {file_path}")
     except json.JSONDecodeError as e:
         raise ValueError(f"Invalid JSON in file: {e}")
+    except (OSError, UnicodeError) as exc:
+        raise ValueError(f"Cannot read statements file: {exc}") from exc
 
     # Support both direct statements list or wrapped in "statements" key
     if isinstance(data, list):
@@ -310,7 +322,7 @@ def _build_template_payload(
     if not statements:
         raise ValueError("statements are required for policy templates")
 
-    is_valid, error_msg = _validate_statements(statements)
+    is_valid, error_msg = _validate_statements(statements, require_workspace=False)
     if not is_valid:
         raise ValueError(error_msg)
 

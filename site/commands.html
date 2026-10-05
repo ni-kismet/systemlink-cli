@@ -818,8 +818,29 @@ slcli auth policy delete &lt;policy-id&gt; --force</code></pre>
 
       <h3>Templates</h3>
       <pre><code>slcli auth template list
+slcli auth template create --name "Test Results Reader" --type user \
+  --statements-file statements.json --properties "description=Read test results" --format json
 slcli auth template get &lt;template-id&gt;
 slcli auth template delete &lt;template-id&gt;</code></pre>
+      <p><code>auth template create</code> creates a reusable permission set using <code>POST /niauth/v1/policy-templates</code>. It does not create a policy or bind the template to a workspace. Use <code>auth policy create &lt;template-id&gt; --name "my-policy" --workspace &lt;ws-id&gt;</code> to apply an existing template to a workspace.</p>
+      <table>
+        <thead><tr><th>Option</th><th>Description</th></tr></thead>
+        <tbody>
+          <tr><td><code>--name TEXT</code></td><td>Required template name.</td></tr>
+          <tr><td><code>--type user|service</code></td><td>Template type; defaults to <code>user</code>.</td></tr>
+          <tr><td><code>--statements-file PATH</code></td><td>Required JSON file containing a statements array or an object with a <code>statements</code> array. Workspace fields are not required.</td></tr>
+          <tr><td><code>--properties/-p key=value</code></td><td>Repeatable string-valued custom properties.</td></tr>
+          <tr><td><code>--format/-f table|json</code></td><td>Success summary (default) or the full created template as JSON.</td></tr>
+        </tbody>
+      </table>
+      <p>Example statements file:</p>
+      <pre><code>[
+  {
+    "actions": ["testresult:Read"],
+    "resource": ["*"],
+    "description": "Read test results"
+  }
+]</code></pre>
 
       <h3>User Integration</h3>
       <pre><code># Create user with workspace-scoped policies

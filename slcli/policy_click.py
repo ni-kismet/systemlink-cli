@@ -1,7 +1,7 @@
 """CLI commands for managing SystemLink auth policies and policy templates."""
 
 import sys
-from typing import Any, Dict, List, Optional
+from typing import Any, Dict, List, Optional, Tuple
 
 import click
 import questionary
@@ -9,12 +9,14 @@ import questionary
 from .cli_utils import validate_output_format
 from .policy_utils import (
     _build_policy_payload,
+    _build_template_payload,
     _display_policy_details,
     _display_template_details,
     _fetch_policy_details,
     _fetch_template_details,
     _format_policy_list_row,
     _format_template_list_row,
+    _load_statements_from_file,
     _parse_properties_from_cli,
 )
 from .universal_handlers import FilteredResponse, UniversalResponseHandler
@@ -455,6 +457,80 @@ def register_policy_commands(cli: Any) -> None:
             show_set_diff("Resources", agg1["resources"], agg2["resources"])
             show_set_diff("Workspaces", agg1["workspaces"], agg2["workspaces"])
 
+        except Exception as exc:
+            handle_api_error(exc)
+
+    @template_group.command(name="create")
+    @click.option("--name", required=True, help="Name for the reusable policy template")
+    @click.option(
+        "--type",
+        "template_type",
+        type=click.Choice(["user", "service"], case_sensitive=False),
+        default="user",
+        show_default=True,
+        help="Policy template type",
+    )
+    @click.option(
+        "--statements-file",
+        required=True,
+        type=click.Path(exists=True, dir_okay=False),
+        help='JSON file containing a statements list or an object with a "statements" list',
+    )
+    @click.option(
+        "--properties",
+        "-p",
+        multiple=True,
+        help="Custom properties as key=value (repeatable)",
+    )
+    @click.option(
+        "--format",
+        "-f",
+        type=click.Choice(["table", "json"]),
+        default="table",
+        show_default=True,
+        help="Output format",
+    )
+    def create_template(
+        name: str,
+        template_type: str,
+        statements_file: str,
+        properties: Tuple[str, ...],
+        format: str,
+    ) -> None:
+        """Create a reusable policy template, not a workspace-scoped policy."""
+        from .utils import check_readonly_mode
+
+        check_readonly_mode("create a policy template")
+
+        try:
+            statements = _load_statements_from_file(statements_file)
+            properties_dict = _parse_properties_from_cli(properties) if properties else None
+            payload = _build_template_payload(
+                name=name,
+                template_type=template_type.lower(),
+                statements=statements,
+                properties=properties_dict,
+            )
+        except ValueError as exc:
+            click.echo(f"✗ Error: {exc}", err=True)
+            sys.exit(ExitCodes.INVALID_INPUT)
+
+        try:
+            url = f"{get_base_url()}/niauth/v1/policy-templates"
+            resp = make_api_request("POST", url, payload=payload)
+            created_template = resp.json()
+
+            if format == "json":
+                _display_template_details(created_template, format)
+            else:
+                format_success(
+                    "Policy template created",
+                    {
+                        "name": created_template.get("name"),
+                        "id": created_template.get("id"),
+                        "type": created_template.get("type"),
+                    },
+                )
         except Exception as exc:
             handle_api_error(exc)
 
