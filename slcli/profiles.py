@@ -32,6 +32,8 @@ from typing import Any, Dict, Iterator, List, Optional
 import click
 from filelock import FileLock
 
+from .paths import get_config_dir
+
 SERVICE_PROBE_CACHE_SETTING = "service-probe-cache"
 
 
@@ -49,6 +51,7 @@ class Profile:
     auth_mode: str = "api-key"
     pkce_client_id: Optional[str] = None
     pkce_scopes: Optional[List[str]] = None
+    ssl_verify: bool = True
     credential_id: str = field(default_factory=lambda: str(uuid.uuid4()))
     credential_store: str = "file"
     pkce_credentials: Dict[str, Any] = field(default_factory=dict)
@@ -78,6 +81,8 @@ class Profile:
             result["workspace"] = self.workspace
         if self.readonly:
             result["readonly"] = self.readonly
+        if not self.ssl_verify:
+            result["ssl-verify"] = False
         return result
 
     @classmethod
@@ -94,6 +99,7 @@ class Profile:
             auth_mode=data.get("auth-mode", "api-key"),
             pkce_client_id=data.get("pkce-client-id"),
             pkce_scopes=data.get("pkce-scopes"),
+            ssl_verify=data.get("ssl-verify", True),
             credential_id=data.get("id") or str(uuid.uuid4()),
             credential_store=data.get("credential-store", "file" if data.get("api-key") else "os"),
             pkce_credentials=data.get("pkce-credentials", {}),
@@ -118,14 +124,7 @@ class ProfileConfig:
         if "SLCLI_CONFIG" in os.environ:
             return Path(os.environ["SLCLI_CONFIG"])
 
-        # Use XDG_CONFIG_HOME if set, otherwise use ~/.config
-        if "XDG_CONFIG_HOME" in os.environ:
-            config_dir = Path(os.environ["XDG_CONFIG_HOME"]) / "slcli"
-        else:
-            config_dir = Path.home() / ".config" / "slcli"
-
-        config_dir.mkdir(parents=True, exist_ok=True)
-        return config_dir / "config.json"
+        return get_config_dir() / "config.json"
 
     @classmethod
     def load(cls) -> "ProfileConfig":

@@ -4,10 +4,13 @@ Thank you for your interest in contributing to SystemLink CLI! This document pro
 
 ## Development Setup
 
-1. **Install Poetry** (if not already installed):
+1. **Install Poetry** at the version CI uses, the default `poetry-version` of the pinned
+   [`ni/python-actions/setup-poetry`](https://github.com/ni/python-actions/blob/dee640bba235ae28fdc6b7337c643bd06358ae90/setup-poetry/action.yml)
+   action (currently 2.1.4). Renovate also regenerates `poetry.lock` with the version
+   recorded in its header, so a matching local version avoids lock churn:
 
    ```bash
-   pip install poetry
+   pipx install poetry==2.1.4
    ```
 
 2. **Install dependencies:**

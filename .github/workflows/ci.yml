@@ -22,7 +22,7 @@ jobs:
           python-version: '3.14'
 
       - name: Install Poetry
-        run: pip install poetry
+        uses: ni/python-actions/setup-poetry@dee640bba235ae28fdc6b7337c643bd06358ae90 # v0.9.0
 
       - name: Install dependencies
         run: poetry install --extras managed-client
@@ -95,7 +95,7 @@ jobs:
           python-version: '3.14'
 
       - name: Install Poetry
-        run: pip install poetry
+        uses: ni/python-actions/setup-poetry@dee640bba235ae28fdc6b7337c643bd06358ae90 # v0.9.0
 
       - name: Install dependencies
         run: poetry install --extras managed-client
@@ -126,7 +126,7 @@ jobs:
           python-version: '3.14'
 
       - name: Install Poetry
-        run: pip install poetry
+        uses: ni/python-actions/setup-poetry@dee640bba235ae28fdc6b7337c643bd06358ae90 # v0.9.0
 
       - name: Install dependencies
         run: poetry install
@@ -187,7 +187,7 @@ jobs:
 
       - name: Install Poetry
         if: ${{ steps.sls-config.outputs.enabled == 'true' }}
-        run: pip install poetry
+        uses: ni/python-actions/setup-poetry@dee640bba235ae28fdc6b7337c643bd06358ae90 # v0.9.0
 
       - name: Install dependencies
         if: ${{ steps.sls-config.outputs.enabled == 'true' }}
@@ -264,7 +264,7 @@ jobs:
 
       - name: Install Poetry
         if: ${{ steps.sle-config.outputs.enabled == 'true' }}
-        run: pip install poetry
+        uses: ni/python-actions/setup-poetry@dee640bba235ae28fdc6b7337c643bd06358ae90 # v0.9.0
 
       - name: Install dependencies
         if: ${{ steps.sle-config.outputs.enabled == 'true' }}

@@ -39,6 +39,10 @@ rich = ">=15,<16"
 rich-click = ">=1.8,<2"
 cryptography = ">=49.0.0"
 pygments = ">=2.20.0"
+platformdirs = ">=4,<5"
+prefect = { version = ">=3.8.6,<4", optional = true }
+psutil = { version = ">=7,<8", optional = true }
+pydantic = { version = ">=2.9,<3", optional = true }
 msgpack = { version = ">=1.1,<2", optional = true }
 mcp = { version = ">=2,<3", optional = true }
 anyio = { version = ">=4.14.2,<5", optional = true }
@@ -48,6 +52,7 @@ httpcore2 = { version = ">=2.10.0,<3", optional = true }
 [tool.poetry.extras]
 managed-client = ["msgpack"]
 mcp = ["mcp", "anyio", "httpx2", "httpcore2"]
+migration = ["prefect", "psutil", "pydantic"]
 
 
 [tool.poetry.group.dev.dependencies]
@@ -79,6 +84,7 @@ msgpack = ">=1.1,<2"
 
 # Typed stubs for third-party libraries used by mypy in CI
 types-requests = "*"
+types-psutil = "*"
 types-tabulate = "*"
 
 # Changelog and release management
@@ -90,6 +96,8 @@ openpyxl = "^3.1.5"
 
 # MCP server (optional feature, also needed for type checking)
 mcp = ">=2,<3"
+prefect = ">=3.8.6,<4"
+psutil = ">=7,<8"
 
 [tool.pytest.ini_options]
 addopts = "--cov slcli --strict-markers --doctest-modules --ignore=tests/e2e"
