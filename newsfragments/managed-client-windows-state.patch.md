@@ -1,0 +1,1 @@
+Replace Windows managed-client state ACLs with protected current-user-only permissions, removing inherited and explicit grants.
