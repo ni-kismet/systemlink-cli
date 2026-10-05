@@ -153,6 +153,29 @@ def test_windows_state_permissions_replace_acl(
     assert "icacls" not in kwargs["input"]
 
 
+def test_windows_powershell_environment_replaces_module_path_case_insensitively(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """Inherited PSModulePath variants do not survive in the child environment."""
+    system_root = str(tmp_path / "Windows")
+    monkeypatch.setattr(
+        state_module.os,
+        "environ",
+        {
+            "SystemRoot": system_root,
+            "pSmOdUlEpAtH": "inherited-modules",
+            "PSMODULEPATH": "another-inherited-value",
+        },
+    )
+
+    environment = state_module._windows_powershell_environment()
+
+    assert [name for name in environment if name.casefold() == "psmodulepath"] == ["PSModulePath"]
+    assert environment["PSModulePath"] == os.path.join(
+        system_root, "System32", "WindowsPowerShell", "v1.0", "Modules"
+    )
+
+
 @pytest.mark.parametrize("initialize_identity", [False, True])
 def test_windows_state_permissions_fail_closed(
     tmp_path: Path,

@@ -69,7 +69,9 @@ def _windows_powershell_environment() -> Dict[str, str]:
     system_root = os.environ.get("SystemRoot")
     if not system_root or not os.path.isabs(system_root):
         raise StateError("Unable to resolve the Windows system directory.")
-    environment = os.environ.copy()
+    environment = {
+        name: value for name, value in os.environ.items() if name.casefold() != "psmodulepath"
+    }
     environment["PSModulePath"] = os.path.join(
         system_root, "System32", "WindowsPowerShell", "v1.0", "Modules"
     )
