@@ -36,14 +36,16 @@ ASSET_IDENTIFICATION_FIELDS = (
 _WINDOWS_ACL_SCRIPT = """$ErrorActionPreference = 'Stop'
 $statePath = $env:SLCLI_MANAGED_CLIENT_STATE_PATH
 try {
-    $icacls = Join-Path $env:SystemRoot 'System32\\icacls.exe'
-    $identity = [System.Security.Principal.WindowsIdentity]::GetCurrent().User.Value
-    & $icacls $statePath /reset
-    if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
-    & $icacls $statePath /inheritance:r
-    if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
-    & $icacls $statePath /grant:r ("*{0}:(F)" -f $identity)
-    if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+    $identity = [System.Security.Principal.WindowsIdentity]::GetCurrent().User
+    $acl = [System.Security.AccessControl.DirectorySecurity]::new()
+    $acl.SetAccessRuleProtection($true, $false)
+    $accessRule = [System.Security.AccessControl.FileSystemAccessRule]::new(
+        $identity,
+        [System.Security.AccessControl.FileSystemRights]::FullControl,
+        [System.Security.AccessControl.AccessControlType]::Allow
+    )
+    $acl.AddAccessRule($accessRule)
+    [System.IO.Directory]::SetAccessControl($statePath, $acl)
 } catch {
     [Console]::Error.WriteLine('Unable to set managed-client state ACL.')
     exit 1

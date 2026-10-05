@@ -145,9 +145,12 @@ def test_windows_state_permissions_replace_acl(
         system_root / "System32" / "WindowsPowerShell" / "v1.0" / "Modules"
     )
     assert kwargs["env"]["SLCLI_MANAGED_CLIENT_STATE_PATH"] == str(tmp_path / "state")
-    assert "$icacls $statePath /reset" in kwargs["input"]
-    assert "$icacls $statePath /inheritance:r" in kwargs["input"]
-    assert '$icacls $statePath /grant:r ("*{0}:(F)" -f $identity)' in kwargs["input"]
+    assert "$acl = [System.Security.AccessControl.DirectorySecurity]::new()" in kwargs["input"]
+    assert "$acl.SetAccessRuleProtection($true, $false)" in kwargs["input"]
+    assert "$acl.AddAccessRule($accessRule)" in kwargs["input"]
+    assert "[System.IO.Directory]::SetAccessControl($statePath, $acl)" in kwargs["input"]
+    assert "Get-Acl" not in kwargs["input"]
+    assert "icacls" not in kwargs["input"]
 
 
 @pytest.mark.parametrize("initialize_identity", [False, True])
@@ -190,7 +193,9 @@ def test_windows_state_permissions_fail_closed(
 
 
 @pytest.mark.skipif(os.name != "nt", reason="Windows ACLs require Windows")
-def test_windows_state_permissions_remove_explicit_grants(tmp_path: Path) -> None:
+def test_windows_state_permissions_remove_explicit_grants(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
     """Replacing the ACL removes unrelated explicit grants on Windows."""
     state_path = tmp_path / "state"
     state_path.mkdir()
@@ -231,6 +236,30 @@ if ($everyone.Count -eq 0) { exit 1 }
     )
     assert explicit_grant_result.returncode == 0, (
         explicit_grant_result.stdout + explicit_grant_result.stderr
+    )
+
+    original_run = subprocess.run
+
+    def fail_acl_update(command: list[str], **kwargs: Any) -> subprocess.CompletedProcess[str]:
+        if kwargs.get("input") == state_module._WINDOWS_ACL_SCRIPT:
+            raise subprocess.CalledProcessError(1, command)
+        return original_run(command, **kwargs)
+
+    with monkeypatch.context() as failing_update:
+        failing_update.setattr(state_module.subprocess, "run", fail_acl_update)
+        with pytest.raises(StateError, match="Unable to protect isolated state"):
+            StateStore._restrict_permissions(state_path, 0o700)
+
+    explicit_grant_after_failure = subprocess.run(
+        inspect_command,
+        check=False,
+        capture_output=True,
+        text=True,
+        input=explicit_grant_check,
+        env=environment,
+    )
+    assert explicit_grant_after_failure.returncode == 0, (
+        explicit_grant_after_failure.stdout + explicit_grant_after_failure.stderr
     )
 
     StateStore._restrict_permissions(state_path, 0o700)
