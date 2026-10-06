@@ -27,6 +27,7 @@ from threading import RLock
 from typing import Any, Dict, Iterator, List, Optional, Union
 from urllib.parse import urlparse
 
+import idna
 from cryptography import x509
 from cryptography.exceptions import InvalidSignature, UnsupportedAlgorithm
 from cryptography.hazmat.primitives import hashes, serialization
@@ -91,8 +92,9 @@ def get_ssl_server_origin(api_url: str) -> str:
 
     hostname = parsed.hostname.lower()
     try:
-        hostname = hostname.encode("idna").decode("ascii")
-    except UnicodeError as error:
+        if not hostname.isascii():
+            hostname = idna.encode(hostname, uts46=True).decode("ascii")
+    except idna.IDNAError as error:
         raise ValueError("Managed certificate trust requires a valid server hostname.") from error
     if ":" in hostname and not hostname.startswith("["):
         hostname = f"[{hostname}]"
@@ -484,16 +486,19 @@ def save_managed_certificate(certificate: ServerCertificate) -> Path:
 
 
 def get_managed_trust_records() -> List[Dict[str, Any]]:
-    """Return metadata for all managed server certificates."""
+    """Return metadata with canonical origins for all managed server certificates."""
     records: List[Dict[str, Any]] = []
     for metadata_path in sorted(_get_trust_directory().glob("*.json")):
         try:
             metadata = json.loads(metadata_path.read_text(encoding="utf-8"))
-        except (OSError, json.JSONDecodeError):
+            origin = metadata.get("origin") if isinstance(metadata, dict) else None
+            if not isinstance(origin, str):
+                continue
+            metadata["origin"] = get_ssl_server_origin(origin)
+        except (OSError, ValueError):
             continue
-        if isinstance(metadata, dict) and isinstance(metadata.get("origin"), str):
-            metadata.setdefault("trust-type", "leaf")
-            records.append(metadata)
+        metadata.setdefault("trust-type", "leaf")
+        records.append(metadata)
     return records
 
 

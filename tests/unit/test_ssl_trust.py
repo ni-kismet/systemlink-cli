@@ -468,12 +468,18 @@ def test_server_origin_normalization() -> None:
     assert get_ssl_server_origin("https://Example.com/path") == "https://example.com:443"
     assert get_ssl_server_origin("https://example.com:8443") == "https://example.com:8443"
     assert get_ssl_server_origin("https://bücher.example") == "https://xn--bcher-kva.example:443"
+    assert get_ssl_server_origin("https://faß.de") == "https://xn--fa-hia.de:443"
+    assert get_ssl_server_origin("https://[::1]:8443") == "https://[::1]:8443"
     with pytest.raises(ValueError, match="HTTPS"):
         get_ssl_server_origin("http://example.com")
 
 
+@pytest.mark.parametrize(
+    "hostname,ascii_hostname",
+    [("bücher.example", "xn--bcher-kva.example"), ("faß.de", "xn--fa-hia.de")],
+)
 def test_managed_trust_accepts_legacy_unicode_origin_for_initial_request(
-    monkeypatch: Any, tmp_path: Path
+    monkeypatch: Any, tmp_path: Path, hostname: str, ascii_hostname: str
 ) -> None:
     """A Unicode-keyed trust record matches requests' prepared IDNA origin."""
     import hashlib
@@ -486,7 +492,7 @@ def test_managed_trust_accepts_legacy_unicode_origin_for_initial_request(
     monkeypatch.setattr(
         "slcli.profiles.ProfileConfig.get_config_path", classmethod(lambda cls: config_file)
     )
-    legacy_origin = "https://bücher.example:443"
+    legacy_origin = f"https://{hostname}:443"
     certificate = _make_ca()
     fingerprint = certificate.fingerprint(hashes.SHA256()).hex().upper()
     trust_directory = tmp_path / "trust"
@@ -513,15 +519,24 @@ def test_managed_trust_accepts_legacy_unicode_origin_for_initial_request(
         return response
 
     monkeypatch.setattr(requests.adapters.HTTPAdapter, "send", send)
-    assert get_managed_trust_path("https://xn--bcher-kva.example") == pem_path
+    assert get_managed_trust_path(f"https://{ascii_hostname}") == pem_path
+    assert get_managed_trust_path("https://fass.de") is None
     with use_standard_ssl_context(str(pem_path)), requests.Session() as session:
-        response = session.get("https://bücher.example", verify=str(pem_path))
+        response = session.get(f"https://{hostname}", verify=str(pem_path))
+        with pytest.raises(requests.exceptions.SSLError, match="cross-origin"):
+            session.get("https://fass.de", verify=str(pem_path))
 
     assert response.status_code == 200
-    assert sent_urls == ["https://xn--bcher-kva.example/"]
+    assert sent_urls == [f"https://{ascii_hostname}/"]
 
 
-def test_managed_certificate_persistence_is_origin_scoped(monkeypatch: Any, tmp_path: Any) -> None:
+@pytest.mark.parametrize(
+    "hostname,ascii_hostname",
+    [("bücher.example", "xn--bcher-kva.example"), ("faß.de", "xn--fa-hia.de")],
+)
+def test_managed_certificate_persistence_is_origin_scoped(
+    monkeypatch: Any, tmp_path: Any, hostname: str, ascii_hostname: str
+) -> None:
     """Managed certificates should persist securely and only match their origin."""
     import json
 
@@ -539,7 +554,7 @@ def test_managed_certificate_persistence_is_origin_scoped(monkeypatch: Any, tmp_
     )
     trusted_certificate = _make_ca()
     certificate = ServerCertificate(
-        origin="https://bücher.example:443",
+        origin=f"https://{hostname}:443",
         pem=trusted_certificate.public_bytes(serialization.Encoding.PEM),
         fingerprint=trusted_certificate.fingerprint(hashes.SHA256()).hex().upper(),
         subject="commonName=example.com",
@@ -554,15 +569,17 @@ def test_managed_certificate_persistence_is_origin_scoped(monkeypatch: Any, tmp_
     path = save_managed_certificate(certificate)
     assert path.read_bytes() == certificate.pem
     assert json.loads(path.with_suffix(".json").read_text(encoding="utf-8"))["origin"] == (
-        "https://xn--bcher-kva.example:443"
+        f"https://{ascii_hostname}:443"
     )
     if sys.platform != "win32":
         assert path.stat().st_mode & 0o777 == 0o600
-    assert get_managed_trust_path("https://bücher.example/path") == path
+    assert get_managed_trust_path(f"https://{hostname}/path") == path
+    assert get_managed_trust_path(f"https://{ascii_hostname}/path") == path
+    assert get_managed_trust_path("https://fass.de") is None
     assert get_managed_trust_path("https://other.example.com") is None
     assert get_managed_trust_records()[0]["fingerprint"] == certificate.fingerprint
-    assert remove_managed_trust("https://bücher.example") is True
-    assert get_managed_trust_path("https://bücher.example") is None
+    assert remove_managed_trust(f"https://{hostname}") is True
+    assert get_managed_trust_path(f"https://{hostname}") is None
 
 
 def test_certificate_inspection_uses_unpatched_context_and_peer_chain(monkeypatch: Any) -> None:

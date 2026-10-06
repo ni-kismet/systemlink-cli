@@ -1240,6 +1240,60 @@ def test_file_store_transition_retains_pending_cleanup_when_store_fails(
 class TestTrustedCertificates:
     """Tests for managed certificate trust commands."""
 
+    @pytest.mark.parametrize("output_format", ["json", "table"])
+    def test_show_matches_legacy_unicode_origin(
+        self, monkeypatch: Any, tmp_path: Path, output_format: str
+    ) -> None:
+        """Live IDNA origins match legacy metadata while malformed records are skipped."""
+        from slcli.ssl_trust import ServerCertificate, get_managed_trust_records
+
+        monkeypatch.setenv("SLCLI_CONFIG", str(tmp_path / "config.json"))
+        trust_directory = tmp_path / "trust"
+        trust_directory.mkdir()
+        legacy_metadata = {
+            "origin": "https://fa\u00df.de:443",
+            "fingerprint": "B" * 64,
+            "trust-type": "ca",
+            "subject": "Test CA",
+        }
+        metadata_path = trust_directory / "legacy.json"
+        metadata_path.write_text(json.dumps(legacy_metadata), encoding="utf-8")
+        for index, malformed in enumerate(
+            [None, {}, {"origin": 1}, {"origin": "http://example.com"}, {"origin": "https://["}]
+        ):
+            (trust_directory / f"invalid-{index}.json").write_text(
+                json.dumps(malformed), encoding="utf-8"
+            )
+        certificate = ServerCertificate(
+            origin="https://xn--fa-hia.de:443",
+            pem=b"pem",
+            fingerprint="A" * 64,
+            subject="subject",
+            issuer="issuer",
+            sans=[],
+            not_before="before",
+            not_after="after",
+            self_signed=False,
+        )
+        monkeypatch.setattr(
+            "slcli.config_click.inspect_server_certificate", lambda _url: certificate
+        )
+
+        result = CliRunner().invoke(
+            make_cli(),
+            ["config", "trust", "show", "--url", "https://fa\u00df.de", "-f", output_format],
+        )
+
+        assert result.exit_code == 0, result.output
+        records = get_managed_trust_records()
+        assert records == [{**legacy_metadata, "origin": certificate.origin}]
+        if output_format == "json":
+            assert json.loads(result.output)["trusted-certificate"] == records[0]
+        else:
+            assert "Trusted CA certificate for this origin" in result.output
+            assert "Test CA" in result.output
+        assert json.loads(metadata_path.read_text(encoding="utf-8")) == legacy_metadata
+
     def test_show_preserves_live_details_if_metadata_unreadable(self, monkeypatch: Any) -> None:
         """Saved metadata errors must not prevent inspecting a live certificate."""
         from slcli.ssl_trust import ServerCertificate
