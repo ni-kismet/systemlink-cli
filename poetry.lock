@@ -433,14 +433,14 @@ dev = ["maturin", "pytest", "pytest-asyncio", "redis"]
 
 [[package]]
 name = "cachetools"
-version = "7.2.1"
+version = "7.2.0"
 description = "Extensible memoizing collections and decorators"
 optional = false
 python-versions = ">=3.10"
 groups = ["main", "dev"]
 files = [
-    {file = "cachetools-7.2.1-py3-none-any.whl", hash = "sha256:63aa53dfe7473c10cccdd5a01dedf76ef2c4b73a58840d9396e7d0752cbdac3b"},
-    {file = "cachetools-7.2.1.tar.gz", hash = "sha256:b1a7537025c06abf96fcc1443e496af9a3fb95e774e70e1f0af226f73f7f2dcc"},
+    {file = "cachetools-7.2.0-py3-none-any.whl", hash = "sha256:3045213f186b89fdd95d94441354c4bd87c570b7a38d8c3fd1d9dd37f6dc90d8"},
+    {file = "cachetools-7.2.0.tar.gz", hash = "sha256:bcac1a1b8da6909994a2957238a57b8140dab7c5c5c69a43669654fe87a33c1d"},
 ]
 
 [[package]]
@@ -992,14 +992,14 @@ xml-validation = ["lxml (>=4,<7)"]
 
 [[package]]
 name = "cyclopts"
-version = "5.2.0"
+version = "5.1.1"
 description = "Intuitive, easy CLIs based on type hints."
 optional = false
 python-versions = ">=3.11"
 groups = ["main", "dev"]
 files = [
-    {file = "cyclopts-5.2.0-py3-none-any.whl", hash = "sha256:5da2a5d65164e03008621fc4795946b88a722b881398b5dfa58afa6218342cff"},
-    {file = "cyclopts-5.2.0.tar.gz", hash = "sha256:b63c1b1beaadf3ead19214385a0f90b990f152c4107c174e1724c45dc71e9541"},
+    {file = "cyclopts-5.1.1-py3-none-any.whl", hash = "sha256:ff0da67b2d2d8fe716d20ab82c698277ef30a8fb75d24e9b38a06f56c44931fd"},
+    {file = "cyclopts-5.1.1.tar.gz", hash = "sha256:252fe37b01a80f10933f91c312db551e4e86ffd87bee401ab2ed091769135426"},
 ]
 
 [package.dependencies]
@@ -1011,7 +1011,7 @@ rich-rst = ">=2.0.1,<3"
 [package.extras]
 debug = ["ipdb (>=0.13.9)", "line-profiler (>=3.5.1)"]
 dev = ["coverage[toml] (>=5.1)", "mkdocs (>=1.4.0)", "pexpect (>=4.9.0) ; sys_platform != \"win32\"", "pre-commit (>=2.16.0)", "pydantic (>=2.11.2,<3.0.0)", "pytest (>=8.2.0)", "pytest-cov (>=3.0.0)", "pytest-mock (>=3.7.0)", "pytest-timeout (>=2.3.0)", "pyyaml (>=6.0.1)", "syrupy (>=4.0.0)", "toml (>=0.10.2,<1.0.0)", "trio (>=0.10.0)"]
-docs = ["gitpython (>=3.1.31)", "myst-parser[linkify] (>=3.0.1,<6.0.0)", "sphinx (>=7.4.7,<10.0.0)", "sphinx-autodoc-typehints (>=1.25.2,<4.0.0)", "sphinx-copybutton (>=0.5,<1.0)", "sphinx-rtd-dark-mode (>=1.3.0,<2.0.0)", "sphinx-rtd-theme (>=3.0.0,<4.0.0)"]
+docs = ["gitpython (>=3.1.31)", "myst-parser[linkify] (>=3.0.1,<6.0.0)", "sphinx (>=7.4.7,<8.2.0)", "sphinx-autodoc-typehints (>=1.25.2,<4.0.0)", "sphinx-copybutton (>=0.5,<1.0)", "sphinx-rtd-dark-mode (>=1.3.0,<2.0.0)", "sphinx-rtd-theme (>=3.0.0,<4.0.0)"]
 mkdocs = ["markdown (>=3.3)", "mkdocs (>=1.4.0)", "pymdown-extensions (>=10.0)"]
 trio = ["trio (>=0.10.0)"]
 yaml = ["pyyaml (>=6.0.1)"]
@@ -1405,49 +1405,49 @@ test = ["objgraph", "psutil", "setuptools"]
 
 [[package]]
 name = "griffe"
-version = "2.3.2"
+version = "2.3.0"
 description = "Signatures for entire Python programs. Extract the structure, the frame, the skeleton of your project, to generate API documentation or find breaking changes in your API."
 optional = false
-python-versions = ">=3.11"
+python-versions = ">=3.10"
 groups = ["main", "dev"]
 files = [
-    {file = "griffe-2.3.2-py3-none-any.whl", hash = "sha256:31f5217d19c7e732893260d558f92298c4c9c9d2b50f930a1e6dec3f6feb63cb"},
-    {file = "griffe-2.3.2.tar.gz", hash = "sha256:8625bf98dbb02edb291aef77f2f1a17ae6c62d32a764f5bfed009e6010b2d538"},
+    {file = "griffe-2.3.0-py3-none-any.whl", hash = "sha256:92a41ff72eb1eb316cdcb7248a608f1313f9fbc6e35d5cffa5cf7c813b7db70b"},
+    {file = "griffe-2.3.0.tar.gz", hash = "sha256:aa5634c0d7802583ecd29a7fe335c02d462ffdf5ce8f51426a3d326f374e6d93"},
 ]
 
 [package.dependencies]
-griffecli = "2.3.2"
-griffelib = "2.3.2"
+griffecli = "2.3.0"
+griffelib = "2.3.0"
 
 [package.extras]
-pypi = ["griffelib[pypi] (==2.3.2)"]
+pypi = ["griffelib[pypi] (==2.3.0)"]
 
 [[package]]
 name = "griffecli"
-version = "2.3.2"
+version = "2.3.0"
 description = "Signatures for entire Python programs. Extract the structure, the frame, the skeleton of your project, to generate API documentation or find breaking changes in your API."
 optional = false
-python-versions = ">=3.11"
+python-versions = ">=3.10"
 groups = ["main", "dev"]
 files = [
-    {file = "griffecli-2.3.2-py3-none-any.whl", hash = "sha256:54770415ad6f4b650d1c7af606d5db85c8e75591114b4b714c081a29ff00d986"},
-    {file = "griffecli-2.3.2.tar.gz", hash = "sha256:d9daf7aaef8ac38fb29680a3397cc66300f3fc17c68c909a26446f06df0b44dd"},
+    {file = "griffecli-2.3.0-py3-none-any.whl", hash = "sha256:f94653edcb52ebcac21eaeb3b7121b065a636174eddf2bd558b5935e72a553e8"},
+    {file = "griffecli-2.3.0.tar.gz", hash = "sha256:916fdc851cf51d38e9b5ab82550305df45e5981d5dfe65d346544464abedb3ec"},
 ]
 
 [package.dependencies]
 colorama = ">=0.4"
-griffelib = "2.3.2"
+griffelib = "2.3.0"
 
 [[package]]
 name = "griffelib"
-version = "2.3.2"
+version = "2.3.0"
 description = "Signatures for entire Python programs. Extract the structure, the frame, the skeleton of your project, to generate API documentation or find breaking changes in your API."
 optional = false
-python-versions = ">=3.11"
+python-versions = ">=3.10"
 groups = ["main", "dev"]
 files = [
-    {file = "griffelib-2.3.2-py3-none-any.whl", hash = "sha256:8e710afededd5607f95bf3c8ccc175ee306e7084459faf27b9f9f44ef2a7a274"},
-    {file = "griffelib-2.3.2.tar.gz", hash = "sha256:df00c7a0dee3d86268d76788997a1859272cb1fb7b865658e043d2c0c3d52e60"},
+    {file = "griffelib-2.3.0-py3-none-any.whl", hash = "sha256:1b8f9cd525681c26b1d6d574faa1371651e8459ca51d209684f50b8096ae06e0"},
+    {file = "griffelib-2.3.0.tar.gz", hash = "sha256:7b0952caf5bca6afa4bb5ee8c6a2d183fe3f21b62efc5f6c7243cb2b26d2d115"},
 ]
 
 [package.extras]
@@ -3061,7 +3061,7 @@ version = "4.9.6"
 description = "A small Python package for determining appropriate platform-specific dirs, e.g. a `user data dir`."
 optional = false
 python-versions = ">=3.10"
-groups = ["dev"]
+groups = ["main", "dev"]
 files = [
     {file = "platformdirs-4.9.6-py3-none-any.whl", hash = "sha256:e61adb1d5e5cb3441b4b7710bea7e4c12250ca49439228cc1021c00dcfac0917"},
     {file = "platformdirs-4.9.6.tar.gz", hash = "sha256:3bfa75b0ad0db84096ae777218481852c0ebc6c727b3168c1b9e0118e458cf0a"},
@@ -3535,14 +3535,14 @@ yaml = ["pyyaml (>=6.0.1)"]
 
 [[package]]
 name = "pydocket"
-version = "0.26.1"
+version = "0.26.0"
 description = "A distributed background task system for Python functions"
 optional = false
 python-versions = ">=3.10"
 groups = ["main", "dev"]
 files = [
-    {file = "pydocket-0.26.1-py3-none-any.whl", hash = "sha256:250d1ab13c1f9baf338902d3e05ca1b1bb69247e7332033b6eff6eb41c820c4b"},
-    {file = "pydocket-0.26.1.tar.gz", hash = "sha256:1032d3a3c1442a648761b1a23590bb8baee35f5b381002c1149b117decf20cec"},
+    {file = "pydocket-0.26.0-py3-none-any.whl", hash = "sha256:63051711f56912dde81f794ddac6430cfe187e9b7f241f967fdfb78d00737734"},
+    {file = "pydocket-0.26.0.tar.gz", hash = "sha256:a168adbc5ed280ed5c557bb97e7162b8ac883baca395b205dfb14494cbf85231"},
 ]
 
 [package.dependencies]
@@ -3553,7 +3553,7 @@ opentelemetry-api = ">=1.33.0"
 prometheus-client = ">=0.21.1"
 py-key-value-aio = {version = ">=0.3.0", extras = ["memory", "redis"]}
 python-json-logger = ">=2.0.7"
-redis = ">=6"
+redis = ">=5"
 rich = ">=13.9.4"
 typer = ">=0.15.1"
 typing-extensions = ">=4.12.0"
@@ -5464,4 +5464,4 @@ migration = ["prefect", "psutil", "pydantic"]
 [metadata]
 lock-version = "2.1"
 python-versions = ">=3.11.1,<3.15"
-content-hash = "c437867a61564c12c4a5311a8fb2f03c8616dbc0b022bf06198a77bf91a6546b"
+content-hash = "7df29052e428b5decd8f4ff2bf550244e0745c5f9f6634d2595e8547269cc332"
