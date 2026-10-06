@@ -1,0 +1,1 @@
+Bound idle managed-client socket receive waits so shutdown completes promptly on Windows even when socket shutdown does not wake the reader.
