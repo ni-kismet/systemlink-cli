@@ -121,10 +121,7 @@ class ManagedPrefectServer:
             if process.poll() is not None:
                 raise RuntimeError("Prefect server exited before becoming ready")
             # A healthy response alone could come from another process on the port.
-            if (
-                loopback_listener_pids(process.pid, port) == {process.pid}
-                and _is_healthy(api_url)
-            ):
+            if loopback_listener_pids(process.pid, port) == {process.pid} and _is_healthy(api_url):
                 return
             time.sleep(_POLL_INTERVAL_SECONDS)
         raise RuntimeError("Prefect server did not become ready on its owned listener")

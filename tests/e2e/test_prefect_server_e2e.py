@@ -37,10 +37,10 @@ def _listener(pid: int, port: int = 1234, ip: str = "127.0.0.1", status: str = "
 
 @pytest.mark.e2e_migration
 @pytest.mark.full_os_client_matrix
-def test_loopback_listener_pids_selects_loopback_listeners_on_port(
+def test_loopback_listener_pids_checks_only_the_requested_process(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    """Only processes listening on the loopback port count toward ownership."""
+    """Only loopback listeners owned by the requested process count."""
     connections = [
         _listener(pid=1),
         _listener(pid=2, ip="::1"),
@@ -48,9 +48,16 @@ def test_loopback_listener_pids_selects_loopback_listeners_on_port(
         _listener(pid=4, ip="0.0.0.0"),
         _listener(pid=5, status=psutil.CONN_ESTABLISHED),
     ]
-    monkeypatch.setattr(psutil, "net_connections", lambda kind: connections)
+    process_ids: List[int] = []
 
-    assert loopback_listener_pids(1234) == {1, 2}
+    def process(process_id: int) -> Any:
+        process_ids.append(process_id)
+        return SimpleNamespace(net_connections=lambda kind: connections)
+
+    monkeypatch.setattr(psutil, "Process", process)
+
+    assert loopback_listener_pids(42, 1234) == {42}
+    assert process_ids == [42]
 
 
 class FakeProcess:
