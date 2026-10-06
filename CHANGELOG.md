@@ -2,6 +2,13 @@
 
 <!-- towncrier release notes start -->
 
+## v2.2.1 (2026-10-06)
+
+### Bug Fixes
+
+- Prevent managed-client shutdown timeouts by interrupting active Salt socket reads before closing their descriptors. (managed-client-shutdown)
+
+
 ## v2.2.0 (2026-10-06)
 
 ### Features
