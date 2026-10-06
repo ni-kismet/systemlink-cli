@@ -4,10 +4,13 @@ Thank you for your interest in contributing to SystemLink CLI! This document pro
 
 ## Development Setup
 
-1. **Install Poetry** (if not already installed):
+1. **Install Poetry** at the version CI uses, the default `poetry-version` of the pinned
+   [`ni/python-actions/setup-poetry`](https://github.com/ni/python-actions/blob/dee640bba235ae28fdc6b7337c643bd06358ae90/setup-poetry/action.yml)
+   action (currently 2.1.4). Renovate also regenerates `poetry.lock` with the version
+   recorded in its header, so a matching local version avoids lock churn:
 
    ```bash
-   pip install poetry
+   pipx install poetry==2.1.4
    ```
 
 2. **Install dependencies:**
@@ -50,8 +53,14 @@ poetry run black .
 - All tests must pass before merging
 
 ```bash
-# Run all tests
+# Run the normal development suite
 poetry run pytest
+
+# Run slow tests excluded from the normal development loop
+poetry run pytest -m slow
+
+# Run both normal and slow tests in one process
+poetry run pytest -m ""
 
 # Run tests with coverage
 poetry run pytest --cov
@@ -59,6 +68,11 @@ poetry run pytest --cov
 # Run E2E tests in parallel (requires configuration - see tests/e2e/README.md)
 poetry run pytest tests/e2e/ -n auto
 ```
+
+Keep the default suite fast: mark any unit test that takes more than about 1
+second with `@pytest.mark.slow`. Typical slow tests start real processes, threads
+that contend on locks, or a fresh Python interpreter; tests that use in-process
+fakes stay in the default suite. Check with `poetry run pytest --durations=10`.
 
 ### Changelog Fragments
 
