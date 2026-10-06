@@ -1,0 +1,1 @@
+Prevent managed-client shutdown timeouts by interrupting active Salt socket reads before closing their descriptors.

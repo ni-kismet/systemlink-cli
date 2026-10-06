@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import socket
+import threading
 from collections import deque
 from dataclasses import dataclass
 from urllib.parse import urlsplit
@@ -53,6 +54,7 @@ class SaltChannel:
         self._decoder = MessagePackStream(max_frame_size=max_frame_size)
         self._pending: deque[SaltMessage] = deque()
         self._closed = False
+        self._receive_lock = threading.RLock()
 
     @classmethod
     def connect(
@@ -89,7 +91,10 @@ class SaltChannel:
             if self._closed:
                 raise TransportError("The Salt channel is closed.")
             try:
-                data = self._connection.recv(65536)
+                with self._receive_lock:
+                    if self._closed:
+                        raise TransportError("The Salt channel is closed.")
+                    data = self._connection.recv(65536)
             except socket.timeout as error:
                 if ignore_timeout:
                     continue
@@ -105,7 +110,7 @@ class SaltChannel:
                 return self._pending.popleft()
 
     def close(self) -> None:
-        """Close the socket and release its file descriptor."""
+        """Interrupt active reads before releasing the socket descriptor."""
         if self._closed:
             return
         self._closed = True
@@ -113,7 +118,8 @@ class SaltChannel:
             self._connection.shutdown(socket.SHUT_RDWR)
         except OSError:
             pass
-        try:
-            self._connection.close()
-        except OSError:
-            pass
+        with self._receive_lock:
+            try:
+                self._connection.close()
+            except OSError:
+                pass
