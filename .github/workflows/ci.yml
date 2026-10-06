@@ -84,9 +84,14 @@ jobs:
           name: slcli-binary
           path: dist/slcli/
 
-  slow-unit-tests:
-    name: Slow unit tests
-    runs-on: ubuntu-latest
+  migration-full-os-matrix-e2e:
+    name: E2E (Migration - full OS matrix) (${{ matrix.os }})
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 15
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, macos-latest, windows-latest]
     steps:
       - name: Checkout code
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
@@ -105,8 +110,8 @@ jobs:
       - name: Install dependencies
         run: poetry install
 
-      - name: Run slow tests
-        run: poetry run pytest -m slow --timeout=300
+      - name: Run migration full OS matrix E2E tests
+        run: poetry run pytest tests/e2e/ -m "e2e_migration and full_os_client_matrix" --timeout=300 --no-cov
 
   managed-client-macos:
     name: Managed-client crypto (macOS)

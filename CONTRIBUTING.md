@@ -62,22 +62,12 @@ poetry run black .
 # Run the normal development suite
 poetry run pytest
 
-# Run slow tests excluded from the normal development loop
-poetry run pytest -m slow
-
-# Run both normal and slow tests in one process
-poetry run pytest -m ""
-
 # Run tests with coverage
 poetry run pytest --cov
 
 # Run E2E tests in parallel (requires configuration - see tests/e2e/README.md)
 poetry run pytest tests/e2e/ -n auto
 ```
-
-Keep the default suite fast: mark any unit test that takes more than about 1
-second with `@pytest.mark.slow`. Check for suspected slow tests with
-`poetry run pytest --durations=10`.
 
 ### Changelog Fragments
 

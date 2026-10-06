@@ -1,4 +1,4 @@
-"""Tests for the owned local Prefect server process."""
+"""End-to-end tests for the locally managed Prefect server process."""
 
 import subprocess
 from pathlib import Path
@@ -11,12 +11,32 @@ import pytest
 from slcli.migration.prefect_server import ManagedPrefectServer, loopback_listener_pids
 
 
+# Tests that start a prefect server are slow (10-30s), so are included with e2e tests
+# instead of unit tests.
+@pytest.mark.e2e_migration
+# Server management relies on a lot of OS interaction, so schedule on the CI's full os matrix.
+@pytest.mark.full_os_client_matrix
+def test_managed_server_lifecycle(tmp_path: Path) -> None:
+    """A real child becomes ready on a dynamic port, persists its database, and stops."""
+    server = ManagedPrefectServer(tmp_path)
+
+    with server as api_url:
+        process_id = server.process_id
+        assert process_id is not None and psutil.pid_exists(process_id)
+        assert api_url.startswith("http://127.0.0.1:")
+
+    assert server.database_path.is_file()
+    assert not psutil.pid_exists(process_id)
+
+
 def _listener(pid: int, port: int = 1234, ip: str = "127.0.0.1", status: str = "") -> Any:
     return SimpleNamespace(
         pid=pid, status=status or psutil.CONN_LISTEN, laddr=SimpleNamespace(ip=ip, port=port)
     )
 
 
+@pytest.mark.e2e_migration
+@pytest.mark.full_os_client_matrix
 def test_loopback_listener_pids_selects_loopback_listeners_on_port(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
@@ -63,6 +83,8 @@ class FakeProcess:
         self.calls.append("kill")
 
 
+@pytest.mark.e2e_migration
+@pytest.mark.full_os_client_matrix
 def test_startup_fails_fast_when_child_exits() -> None:
     """An exited child fails readiness without waiting for the timeout."""
     with pytest.raises(RuntimeError, match="exited before becoming ready"):
@@ -71,6 +93,8 @@ def test_startup_fails_fast_when_child_exits() -> None:
         )
 
 
+@pytest.mark.e2e_migration
+@pytest.mark.full_os_client_matrix
 def test_stop_escalates_to_kill_for_owned_child(tmp_path: Path) -> None:
     """A child that ignores termination is killed."""
     process = FakeProcess(ignores_terminate=True)
@@ -81,17 +105,3 @@ def test_stop_escalates_to_kill_for_owned_child(tmp_path: Path) -> None:
 
     assert process.calls == ["terminate", "wait", "kill", "wait"]
     assert server.process_id is None
-
-
-@pytest.mark.slow
-def test_managed_server_lifecycle(tmp_path: Path) -> None:
-    """A real child becomes ready on a dynamic port, persists its database, and stops."""
-    server = ManagedPrefectServer(tmp_path)
-
-    with server as api_url:
-        process_id = server.process_id
-        assert process_id is not None and psutil.pid_exists(process_id)
-        assert api_url.startswith("http://127.0.0.1:")
-
-    assert server.database_path.is_file()
-    assert not psutil.pid_exists(process_id)

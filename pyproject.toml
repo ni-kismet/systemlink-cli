@@ -98,7 +98,7 @@ openpyxl = "^3.1.5"
 mcp = ">=2,<3"
 
 [tool.pytest.ini_options]
-addopts = "--cov slcli --strict-markers --doctest-modules --ignore=tests/e2e -m 'not slow'"
+addopts = "--cov slcli --strict-markers --doctest-modules --ignore=tests/e2e"
 testpaths = ["tests/unit"]
 filterwarnings = [
     # E2E tests invoke slcli as a subprocess so no in-process Python code runs;
@@ -109,6 +109,8 @@ filterwarnings = [
 ]
 markers = [
     "e2e: marks tests as end-to-end tests (not run by default)",
+    "e2e_migration: marks migration end-to-end tests",
+    "full_os_client_matrix: marks tests requiring full supported-OS client coverage",
     "slow: marks tests as slow running",
     "notebook: marks tests as notebook-related",
     "dff: marks tests as dynamic form fields related", 
