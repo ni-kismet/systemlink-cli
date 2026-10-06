@@ -746,6 +746,7 @@ slcli auth policy diff <POLICY_ID_1> <POLICY_ID_2>  # Compare two policies
 # Policy templates
 slcli auth template list [-t INT] [-f json]
 slcli auth template create --name TEXT --statements-file PATH [--type user|service] [-p KEY=VALUE] [-f json]
+slcli auth template update TEMPLATE_ID [--name TEXT] [--type user|service] [--statements-file PATH] [-p KEY=VALUE] [-f json]
 slcli auth template get <TEMPLATE_ID> [-f json]
 slcli auth template delete <TEMPLATE_ID>
 ```
@@ -758,6 +759,10 @@ or an object with a `statements` array, for example:
 ```json
 [{"actions": ["testresult:Read"], "resource": ["*"]}]
 ```
+
+`auth template update` fetches the current template and preserves unspecified
+fields before sending `PUT /niauth/v1/policy-templates/{template-id}`.
+Supplied statements and properties replace their existing values.
 
 Workspace fields are not required. Properties are repeatable string-valued
 `key=value` pairs. JSON output returns the full created template, including

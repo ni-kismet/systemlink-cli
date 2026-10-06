@@ -820,9 +820,11 @@ slcli auth policy delete &lt;policy-id&gt; --force</code></pre>
       <pre><code>slcli auth template list
 slcli auth template create --name "Test Results Reader" --type user \
   --statements-file statements.json --properties "description=Read test results" --format json
+slcli auth template update &lt;template-id&gt; --name "Updated Reader" --type service
 slcli auth template get &lt;template-id&gt;
 slcli auth template delete &lt;template-id&gt;</code></pre>
       <p><code>auth template create</code> creates a reusable permission set using <code>POST /niauth/v1/policy-templates</code>. It does not create a policy or bind the template to a workspace. Use <code>auth policy create &lt;template-id&gt; --name "my-policy" --workspace &lt;ws-id&gt;</code> to apply an existing template to a workspace.</p>
+      <p><code>auth template update</code> fetches the current template and preserves fields not supplied through <code>--name</code>, <code>--type</code>, <code>--statements-file</code>, or <code>--properties/-p</code> before sending <code>PUT /niauth/v1/policy-templates/&lt;template-id&gt;</code>. Supplied statements and properties replace their existing values.</p>
       <table>
         <thead><tr><th>Option</th><th>Description</th></tr></thead>
         <tbody>
