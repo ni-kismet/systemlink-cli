@@ -109,7 +109,7 @@ filterwarnings = [
 ]
 markers = [
     "e2e: marks tests as end-to-end tests (not run by default)",
-    "slow: marks tests that are excluded from normal development runs",
+    "slow: marks tests as slow running",
     "notebook: marks tests as notebook-related",
     "dff: marks tests as dynamic form fields related", 
     "workspace: marks tests as workspace-related",

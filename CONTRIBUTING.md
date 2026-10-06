@@ -4,14 +4,20 @@ Thank you for your interest in contributing to SystemLink CLI! This document pro
 
 ## Development Setup
 
-1. **Install Poetry** at the version CI uses, the default `poetry-version` of the pinned
-   [`ni/python-actions/setup-poetry`](https://github.com/ni/python-actions/blob/dee640bba235ae28fdc6b7337c643bd06358ae90/setup-poetry/action.yml)
-   action (currently 2.1.4). Renovate also regenerates `poetry.lock` with the version
-   recorded in its header, so a matching local version avoids lock churn:
+1. **Install Poetry**
+
+   ```bash
+   pipx install poetry
+   ```
+
+   To keep lock versions stable, install the `poetry-version` that the CI uses from the
+   [setup-poetry action](https://github.com/ni/python-actions/blob/main/setup-poetry/action.yml).
 
    ```bash
    pipx install poetry==2.1.4
    ```
+
+   See [NI Python docs](https://dev.azure.com/ni/DevCentral/_wiki/wikis/AppCentral.wiki/70875/Optional-tools-for-uncommon-cases?anchor=poetry) for more information.
 
 2. **Install dependencies:**
 
@@ -70,9 +76,8 @@ poetry run pytest tests/e2e/ -n auto
 ```
 
 Keep the default suite fast: mark any unit test that takes more than about 1
-second with `@pytest.mark.slow`. Typical slow tests start real processes, threads
-that contend on locks, or a fresh Python interpreter; tests that use in-process
-fakes stay in the default suite. Check with `poetry run pytest --durations=10`.
+second with `@pytest.mark.slow`. Check for suspected slow tests with
+`poetry run pytest --durations=10`.
 
 ### Changelog Fragments
 
@@ -173,9 +178,11 @@ Based on [CLI Guidelines](https://clig.dev), SystemLink CLI follows these patter
    ```
 
 6. **If changing packaging or build scripts:**
+
    ```bash
    poetry run build-pyinstaller
    ```
+
    Verify it works and produces a binary in `dist/`.
 
 ## Build Process
@@ -224,6 +231,7 @@ This will:
 1. **Merge pull requests with Towncrier fragments** into `main`.
 
 2. **The automated Towncrier release workflow** will:
+
    - Determine the next version from the fragment types in `newsfragments/`
    - Update `pyproject.toml` and `slcli/_version.py`
    - Build and prepend the new section in `CHANGELOG.md`
@@ -231,6 +239,7 @@ This will:
    - Create and push the `vX.Y.Z` git tag
 
 3. **The tag-triggered release workflow** will:
+
    - Run all tests and linting
    - Build PyInstaller binaries for all platforms
    - Generate Homebrew formula and Scoop manifest
