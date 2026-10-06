@@ -2,6 +2,13 @@
 
 <!-- towncrier release notes start -->
 
+## v2.2.2 (2026-10-06)
+
+### Bug Fixes
+
+- Bound idle managed-client socket receive waits so shutdown completes promptly on Windows even when socket shutdown does not wake the reader. (managed-client-windows-shutdown)
+
+
 ## v2.2.1 (2026-10-06)
 
 ### Bug Fixes
