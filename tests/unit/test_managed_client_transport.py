@@ -84,6 +84,106 @@ def test_salt_channel_rejects_closed_socket() -> None:
     channel.close()
 
 
+def test_salt_channel_close_interrupts_idle_receive() -> None:
+    """Shutdown interrupts an idle TCP receive before its socket timeout."""
+    listener = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+    listener.bind(("127.0.0.1", 0))
+    listener.listen(1)
+    client_socket = socket.create_connection(listener.getsockname(), timeout=5)
+    server_socket, _ = listener.accept()
+    receiving = threading.Event()
+    errors: list[TransportError] = []
+
+    class ReceivingSocket:
+        """Signal from inside the channel's locked read of a real TCP socket."""
+
+        def recv(self, size: int) -> bytes:
+            receiving.set()
+            return client_socket.recv(size)
+
+        def shutdown(self, how: int) -> None:
+            client_socket.shutdown(how)
+
+        def close(self) -> None:
+            client_socket.close()
+
+    channel = SaltChannel(ReceivingSocket())  # type: ignore[arg-type]
+
+    def receive() -> None:
+        try:
+            channel.receive(ignore_timeout=True)
+        except TransportError as error:
+            errors.append(error)
+
+    receiver = threading.Thread(target=receive, daemon=True)
+    closer = threading.Thread(target=channel.close, daemon=True)
+    receiver.start()
+    try:
+        assert receiving.wait(timeout=1)
+        closer.start()
+        closer.join(timeout=1)
+        assert not closer.is_alive()
+        receiver.join(timeout=1)
+        assert not receiver.is_alive()
+        assert len(errors) == 1
+    finally:
+        channel.close()
+        server_socket.close()
+        listener.close()
+        receiver.join(timeout=6)
+        if closer.ident is not None:
+            closer.join(timeout=6)
+
+
+def test_salt_channel_close_waits_for_active_receive() -> None:
+    """The descriptor remains open until an interrupted receive has returned."""
+    receiving = threading.Event()
+    shutdown_started = threading.Event()
+    release_receive = threading.Event()
+    descriptor_closed = threading.Event()
+
+    class InterruptedSocket:
+        def recv(self, _: int) -> bytes:
+            receiving.set()
+            assert release_receive.wait(timeout=2)
+            raise OSError("Socket shut down")
+
+        def shutdown(self, _: int) -> None:
+            shutdown_started.set()
+
+        def close(self) -> None:
+            descriptor_closed.set()
+
+    channel = SaltChannel(InterruptedSocket())  # type: ignore[arg-type]
+    errors: list[TransportError] = []
+
+    def receive() -> None:
+        try:
+            channel.receive(ignore_timeout=True)
+        except TransportError as error:
+            errors.append(error)
+
+    receiver = threading.Thread(target=receive, daemon=True)
+    closer = threading.Thread(target=channel.close, daemon=True)
+    receiver.start()
+    try:
+        assert receiving.wait(timeout=1)
+        closer.start()
+        assert shutdown_started.wait(timeout=1)
+        assert not descriptor_closed.wait(timeout=0.05)
+    finally:
+        release_receive.set()
+        receiver.join(timeout=1)
+        if closer.ident is not None:
+            closer.join(timeout=1)
+        channel.close()
+
+    assert not receiver.is_alive()
+    assert not closer.is_alive()
+    assert descriptor_closed.is_set()
+    assert len(errors) == 1
+
+
 def test_salt_channel_raises_auth_socket_timeout() -> None:
     """An authentication channel timeout becomes a bounded transport error."""
 
