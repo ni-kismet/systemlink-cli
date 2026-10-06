@@ -35,7 +35,7 @@ from .ssl_trust import (
     save_managed_certificate,
 )
 from .table_utils import output_formatted_list
-from .utils import ExitCodes, get_base_url, get_base_url_resolution
+from .utils import ExitCodes, get_base_url_resolution
 
 API_KEY_LENGTH = 42
 API_KEY_PATTERN = re.compile(rf"^[A-Za-z0-9_-]{{{API_KEY_LENGTH}}}$")
@@ -858,7 +858,7 @@ def register_config_commands(cli: Any) -> None:
         _show_certificate_details(trusted_certificate.to_dict(), err=True)
         if trusted_certificate.fingerprint != expected_fingerprint:
             _exit_with_validation_error(
-                "The server certificate fingerprint does not match the supplied fingerprint."
+                "The certificate fingerprint does not match the supplied fingerprint."
             )
         if trusted_certificate.trust_type == "ca":
             click.echo(
@@ -878,7 +878,7 @@ def register_config_commands(cli: Any) -> None:
     @click.option("--force", is_flag=True, help="Skip confirmation prompt")
     def remove_trusted_certificate(url: Optional[str], force: bool) -> None:
         """Remove a server certificate from the managed trust store."""
-        server_url = url or get_base_url()
+        server_url = url or get_base_url_resolution().value
         try:
             origin = get_ssl_server_origin(server_url)
         except ValueError as exc:

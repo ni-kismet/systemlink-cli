@@ -103,9 +103,8 @@ def use_standard_ssl_context(ssl_verify: Union[bool, str]) -> Iterator[None]:
     The OS trust integration replaces SSL context implementations globally. For
     explicit CA bundle paths, requests must use the standard implementation so
     the supplied bundle is evaluated instead of the platform trust verifier.
-    Partial-chain verification permits explicitly trusted leaves and intermediate
-    CAs consistently across supported Python versions without bypassing hostname
-    or certificate validity checks.
+    Partial-chain verification permits the fingerprint-matched leaf or imported
+    CA to act as the trust anchor without bypassing hostname or validity checks.
     Managed bundles reject cross-origin redirects. Explicit contexts are serialized
     so their process-global patches are restored in the correct order.
     """
@@ -204,7 +203,60 @@ def get_managed_trust_path(api_url: str) -> Optional[Path]:
         return None
     if metadata.get("origin") != origin:
         return None
+    with _SSL_CONTEXT_LOCK:
+        if not _restrict_managed_trust_bundle(pem_path, metadata):
+            return None
     return pem_path
+
+
+def _restrict_managed_trust_bundle(pem_path: Path, metadata: Dict[str, Any]) -> bool:
+    """Keep only the metadata-fingerprinted certificate in a managed PEM file."""
+    trust_type = metadata.get("trust-type", "leaf")
+    fingerprint = metadata.get("fingerprint")
+    if trust_type not in ("leaf", "ca") or not isinstance(fingerprint, str):
+        return False
+
+    try:
+        original_pem = pem_path.read_bytes()
+        certificates = x509.load_pem_x509_certificates(original_pem)
+    except (OSError, ValueError):
+        return False
+
+    expected_fingerprint = fingerprint.replace(":", "").upper()
+    trusted_certificate = next(
+        (
+            certificate
+            for certificate in certificates
+            if certificate.fingerprint(hashes.SHA256()).hex().upper() == expected_fingerprint
+        ),
+        None,
+    )
+    if trusted_certificate is None:
+        return False
+    if trust_type == "ca":
+        try:
+            constraints = trusted_certificate.extensions.get_extension_for_class(
+                x509.BasicConstraints
+            )
+        except x509.ExtensionNotFound:
+            return False
+        if not constraints.value.ca:
+            return False
+
+    trusted_pem = trusted_certificate.public_bytes(serialization.Encoding.PEM)
+    if original_pem != trusted_pem:
+        temporary_pem = pem_path.with_suffix(".pem.tmp")
+        try:
+            temporary_pem.write_bytes(trusted_pem)
+            temporary_pem.chmod(0o600)
+            temporary_pem.replace(pem_path)
+        except OSError:
+            try:
+                temporary_pem.unlink()
+            except OSError:
+                pass
+            return False
+    return True
 
 
 def _get_managed_origin(pem_path: str) -> Optional[str]:
@@ -262,32 +314,33 @@ def inspect_server_certificate(api_url: str, timeout: float = 5) -> ServerCertif
     assert parsed.hostname is not None
     port = parsed.port or 443
     certificate_chain_pem: Optional[bytes] = None
-    patched_ssl_context = ssl.SSLContext
-    try:
-        setattr(ssl, "SSLContext", _STANDARD_SSL_CONTEXT)
-        context = ssl.SSLContext(ssl.PROTOCOL_TLS_CLIENT)
-        context.check_hostname = False
-        context.verify_mode = ssl.CERT_NONE
+    with _SSL_CONTEXT_LOCK:
+        patched_ssl_context = ssl.SSLContext
+        try:
+            setattr(ssl, "SSLContext", _STANDARD_SSL_CONTEXT)
+            context = ssl.SSLContext(ssl.PROTOCOL_TLS_CLIENT)
+            context.check_hostname = False
+            context.verify_mode = ssl.CERT_NONE
 
-        with socket.create_connection((parsed.hostname, port), timeout=timeout) as tcp_socket:
-            with context.wrap_socket(tcp_socket, server_hostname=parsed.hostname) as tls_socket:
-                certificate_der = tls_socket.getpeercert(binary_form=True)
-                ssl_object = getattr(tls_socket, "_sslobj", None)
-                get_unverified_chain = getattr(ssl_object, "get_unverified_chain", None)
-                if callable(get_unverified_chain):
-                    try:
-                        chain = get_unverified_chain()
-                        chain_pem = b"".join(
-                            (pem.encode("ascii") if isinstance(pem, str) else pem)
-                            for chain_certificate in chain
-                            for pem in (chain_certificate.public_bytes(),)
-                        )
-                        if chain_pem:
-                            certificate_chain_pem = chain_pem
-                    except (AttributeError, OSError, ValueError):
-                        pass
-    finally:
-        setattr(ssl, "SSLContext", patched_ssl_context)
+            with socket.create_connection((parsed.hostname, port), timeout=timeout) as tcp_socket:
+                with context.wrap_socket(tcp_socket, server_hostname=parsed.hostname) as tls_socket:
+                    certificate_der = tls_socket.getpeercert(binary_form=True)
+                    ssl_object = getattr(tls_socket, "_sslobj", None)
+                    get_unverified_chain = getattr(ssl_object, "get_unverified_chain", None)
+                    if callable(get_unverified_chain):
+                        try:
+                            chain = get_unverified_chain()
+                            chain_pem = b"".join(
+                                (pem.encode("ascii") if isinstance(pem, str) else pem)
+                                for chain_certificate in chain
+                                for pem in (chain_certificate.public_bytes(),)
+                            )
+                            if chain_pem:
+                                certificate_chain_pem = chain_pem
+                        except (AttributeError, OSError, ValueError):
+                            pass
+        finally:
+            setattr(ssl, "SSLContext", patched_ssl_context)
 
     if not certificate_der:
         raise ssl.SSLError("The server did not provide a TLS certificate.")

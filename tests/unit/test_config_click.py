@@ -1294,6 +1294,7 @@ class TestTrustedCertificates:
         ]
         result = CliRunner().invoke(make_cli(), args + ["A" * 64])
         assert result.exit_code == ExitCodes.INVALID_INPUT
+        assert "The certificate fingerprint does not match" in result.output
         assert get_managed_trust_records() == []
         fingerprint = certificate.fingerprint(hashes.SHA256()).hex()
         result = CliRunner().invoke(make_cli(), args + [fingerprint])
@@ -1463,10 +1464,6 @@ class TestTrustedCertificates:
         inspect = MagicMock(return_value=certificate)
         save = MagicMock()
         monkeypatch.setattr(
-            "slcli.config_click.get_base_url",
-            lambda: "https://active-web.example.com",
-        )
-        monkeypatch.setattr(
             "slcli.config_click.get_base_url_resolution",
             lambda: ResolvedConfigValue("https://active-api.example.com", "profile:active"),
         )
@@ -1526,6 +1523,23 @@ class TestTrustedCertificates:
         assert result.exit_code != 0
         assert "does not match" in result.output
         assert saved_certificates == []
+
+    def test_remove_trusted_certificate_defaults_to_active_api_url(self, monkeypatch: Any) -> None:
+        """Trust remove must use the API origin used by trust add for PKCE profiles."""
+        from slcli.utils import ResolvedConfigValue
+
+        api_url = "https://api.example.com"
+        remove = MagicMock(return_value=True)
+        monkeypatch.setattr(
+            "slcli.config_click.get_base_url_resolution",
+            lambda: ResolvedConfigValue(api_url, "profile:active"),
+        )
+        monkeypatch.setattr("slcli.config_click.remove_managed_trust", remove)
+
+        result = CliRunner().invoke(make_cli(), ["config", "trust", "remove", "--force"])
+
+        assert result.exit_code == 0, result.output
+        remove.assert_called_once_with(api_url)
 
 
 class TestDeleteProfile:

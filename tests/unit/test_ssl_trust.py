@@ -126,6 +126,53 @@ def test_reading_trust_does_not_create_directory(monkeypatch: Any, tmp_path: Pat
     assert not (tmp_path / "trust").exists()
 
 
+def test_legacy_leaf_bundle_is_restricted_to_fingerprinted_certificate(
+    monkeypatch: Any, tmp_path: Path
+) -> None:
+    """Legacy leaf bundles must not trust bundled intermediates as anchors."""
+    from slcli.ssl_trust import (
+        ServerCertificate,
+        get_managed_trust_path,
+        save_managed_certificate,
+    )
+
+    monkeypatch.setenv("SLCLI_CONFIG", str(tmp_path / "config.json"))
+    ca_key = rsa.generate_private_key(public_exponent=65537, key_size=2048)
+    ca = _make_ca(key=ca_key)
+    leaf_key = rsa.generate_private_key(public_exponent=65537, key_size=2048)
+    now = datetime.now(timezone.utc)
+    leaf = (
+        x509.CertificateBuilder()
+        .subject_name(x509.Name([x509.NameAttribute(NameOID.COMMON_NAME, "example.com")]))
+        .issuer_name(ca.subject)
+        .public_key(leaf_key.public_key())
+        .serial_number(x509.random_serial_number())
+        .not_valid_before(now - timedelta(days=1))
+        .not_valid_after(now + timedelta(days=10))
+        .add_extension(x509.BasicConstraints(ca=False, path_length=None), critical=True)
+        .sign(ca_key, hashes.SHA256())
+    )
+    leaf_pem = leaf.public_bytes(serialization.Encoding.PEM)
+    save_managed_certificate(
+        ServerCertificate(
+            origin="https://example.com:443",
+            pem=leaf_pem + ca.public_bytes(serialization.Encoding.PEM),
+            fingerprint=leaf.fingerprint(hashes.SHA256()).hex().upper(),
+            subject="example.com",
+            issuer="Test CA",
+            sans=[],
+            not_before="before",
+            not_after="after",
+            self_signed=False,
+        )
+    )
+
+    trusted_path = get_managed_trust_path("https://example.com")
+
+    assert trusted_path is not None
+    assert trusted_path.read_bytes() == leaf_pem
+
+
 @pytest.mark.parametrize(
     "destination,allowed",
     [
@@ -327,6 +374,47 @@ def test_explicit_contexts_are_serialized() -> None:
     assert requests.sessions.Session.send is original_send
 
 
+def test_certificate_inspection_waits_for_explicit_context(monkeypatch: Any) -> None:
+    """Certificate inspection must share the explicit context serialization lock."""
+    from concurrent.futures import ThreadPoolExecutor
+    from threading import Event
+    from slcli import ssl_trust
+
+    original_context = object()
+    first_entered, inspection_attempted, inspection_started = Event(), Event(), Event()
+    allow_inspection_to_finish = Event()
+    monkeypatch.setattr(ssl_trust.ssl, "SSLContext", original_context)
+
+    def connect(*args: Any, **kwargs: Any) -> Any:
+        inspection_started.set()
+        assert allow_inspection_to_finish.wait(5)
+        raise OSError("stop inspection")
+
+    monkeypatch.setattr(ssl_trust.socket, "create_connection", connect)
+
+    def use_explicit_context() -> None:
+        with ssl_trust.use_standard_ssl_context("managed.pem"):
+            first_entered.set()
+            assert inspection_attempted.wait(5)
+            assert not inspection_started.wait(0.05)
+
+    def inspect_certificate() -> None:
+        assert first_entered.wait(5)
+        inspection_attempted.set()
+        with pytest.raises(OSError, match="stop inspection"):
+            ssl_trust.inspect_server_certificate("https://example.com")
+
+    with ThreadPoolExecutor(max_workers=2) as executor:
+        explicit_future = executor.submit(use_explicit_context)
+        inspection_future = executor.submit(inspect_certificate)
+        explicit_future.result(timeout=10)
+        assert inspection_started.wait(5)
+        allow_inspection_to_finish.set()
+        inspection_future.result(timeout=10)
+
+    assert ssl_trust.ssl.SSLContext is original_context
+
+
 def _make_dummy_truststore(inject_side_effect: Any = None) -> Any:
     mod = types.ModuleType("truststore")
     called: List[bool] = []
@@ -397,16 +485,18 @@ def test_managed_certificate_persistence_is_origin_scoped(monkeypatch: Any, tmp_
     monkeypatch.setattr(
         "slcli.profiles.ProfileConfig.get_config_path", classmethod(lambda cls: config_file)
     )
+    trusted_certificate = _make_ca()
     certificate = ServerCertificate(
         origin="https://example.com:443",
-        pem=b"-----BEGIN CERTIFICATE-----\nfixture\n-----END CERTIFICATE-----\n",
-        fingerprint="A" * 64,
+        pem=trusted_certificate.public_bytes(serialization.Encoding.PEM),
+        fingerprint=trusted_certificate.fingerprint(hashes.SHA256()).hex().upper(),
         subject="commonName=example.com",
         issuer="commonName=example.com",
         sans=["example.com"],
         not_before="2026-01-01T00:00:00+00:00",
         not_after="2027-01-01T00:00:00+00:00",
         self_signed=True,
+        trust_type="ca",
     )
 
     path = save_managed_certificate(certificate)
@@ -415,7 +505,7 @@ def test_managed_certificate_persistence_is_origin_scoped(monkeypatch: Any, tmp_
         assert path.stat().st_mode & 0o777 == 0o600
     assert get_managed_trust_path("https://example.com/path") == path
     assert get_managed_trust_path("https://other.example.com") is None
-    assert get_managed_trust_records()[0]["fingerprint"] == "A" * 64
+    assert get_managed_trust_records()[0]["fingerprint"] == certificate.fingerprint
     assert remove_managed_trust("https://example.com") is True
     assert get_managed_trust_path("https://example.com") is None
 
