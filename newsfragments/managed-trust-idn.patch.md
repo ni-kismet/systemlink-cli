@@ -1,1 +1,1 @@
-Canonicalize managed certificate trust origins with Requests-compatible IDNA while retaining compatibility with existing Unicode-keyed trust records, including in trust show and list output.
+Canonicalize managed certificate trust origins with Requests-compatible IDNA while retaining compatibility with existing Unicode-keyed trust records, including in trust show and list output. Only report an active managed trust certificate in trust show when its matching PEM passes certificate and fingerprint validation.

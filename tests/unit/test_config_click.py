@@ -1,5 +1,6 @@
 """Unit tests for the config_click CLI commands."""
 
+import hashlib
 import json
 from pathlib import Path
 from typing import Any, Dict
@@ -1241,23 +1242,36 @@ class TestTrustedCertificates:
     """Tests for managed certificate trust commands."""
 
     @pytest.mark.parametrize("output_format", ["json", "table"])
+    @pytest.mark.parametrize("trust_state", ["valid", "missing", "malformed", "mismatch"])
     def test_show_matches_legacy_unicode_origin(
-        self, monkeypatch: Any, tmp_path: Path, output_format: str
+        self, monkeypatch: Any, tmp_path: Path, output_format: str, trust_state: str
     ) -> None:
-        """Live IDNA origins match legacy metadata while malformed records are skipped."""
+        """Live IDNA origins show legacy trust only when its matching PEM is usable."""
+        from cryptography.hazmat.primitives import hashes, serialization
         from slcli.ssl_trust import ServerCertificate, get_managed_trust_records
+        from .test_ssl_trust import _make_ca
 
         monkeypatch.setenv("SLCLI_CONFIG", str(tmp_path / "config.json"))
         trust_directory = tmp_path / "trust"
         trust_directory.mkdir()
+        trusted_ca = _make_ca()
         legacy_metadata = {
             "origin": "https://fa\u00df.de:443",
-            "fingerprint": "B" * 64,
+            "fingerprint": trusted_ca.fingerprint(hashes.SHA256()).hex().upper(),
             "trust-type": "ca",
             "subject": "Test CA",
         }
-        metadata_path = trust_directory / "legacy.json"
+        stem = hashlib.sha256(legacy_metadata["origin"].encode("utf-8")).hexdigest()
+        metadata_path = trust_directory / f"{stem}.json"
+        if trust_state == "mismatch":
+            legacy_metadata["fingerprint"] = "B" * 64
         metadata_path.write_text(json.dumps(legacy_metadata), encoding="utf-8")
+        if trust_state != "missing":
+            metadata_path.with_suffix(".pem").write_bytes(
+                b"invalid PEM"
+                if trust_state == "malformed"
+                else trusted_ca.public_bytes(serialization.Encoding.PEM)
+            )
         for index, malformed in enumerate(
             [None, {}, {"origin": 1}, {"origin": "http://example.com"}, {"origin": "https://["}]
         ):
@@ -1288,10 +1302,15 @@ class TestTrustedCertificates:
         records = get_managed_trust_records()
         assert records == [{**legacy_metadata, "origin": certificate.origin}]
         if output_format == "json":
-            assert json.loads(result.output)["trusted-certificate"] == records[0]
-        else:
+            assert json.loads(result.output)["trusted-certificate"] == (
+                records[0] if trust_state == "valid" else None
+            )
+        elif trust_state == "valid":
             assert "Trusted CA certificate for this origin" in result.output
             assert "Test CA" in result.output
+        else:
+            assert "No managed trust certificate for this origin." in result.output
+            assert "Trusted CA certificate" not in result.output
         assert json.loads(metadata_path.read_text(encoding="utf-8")) == legacy_metadata
 
     def test_show_preserves_live_details_if_metadata_unreadable(self, monkeypatch: Any) -> None:
@@ -1313,7 +1332,7 @@ class TestTrustedCertificates:
             "slcli.config_click.inspect_server_certificate", lambda _url: certificate
         )
         monkeypatch.setattr(
-            "slcli.config_click.get_managed_trust_records",
+            "slcli.config_click.get_managed_trust_path",
             MagicMock(side_effect=PermissionError("read-only")),
         )
         result = CliRunner().invoke(
@@ -1461,7 +1480,7 @@ class TestTrustedCertificates:
         assert result.exit_code == 0, result.output
         assert json.loads(result.output)[0]["fingerprint"] == "A" * 64
 
-    def test_show_server_certificate_json(self, monkeypatch: Any) -> None:
+    def test_show_server_certificate_json(self, monkeypatch: Any, tmp_path: Path) -> None:
         """Trust show should inspect and expose the current certificate as JSON."""
         from slcli.ssl_trust import ServerCertificate
 
@@ -1485,7 +1504,10 @@ class TestTrustedCertificates:
             "fingerprint": "B" * 64,
             "self-signed": True,
         }
-        monkeypatch.setattr("slcli.config_click.get_managed_trust_records", lambda: [trusted_ca])
+        trusted_path = tmp_path / "trusted.pem"
+        trusted_path.with_suffix(".json").write_text(json.dumps(trusted_ca), encoding="utf-8")
+        lookup = MagicMock(return_value=trusted_path)
+        monkeypatch.setattr("slcli.config_click.get_managed_trust_path", lookup)
 
         result = CliRunner().invoke(
             make_cli(),
@@ -1496,6 +1518,7 @@ class TestTrustedCertificates:
         assert json.loads(result.output)["fingerprint"] == "A" * 64
         assert json.loads(result.output)["trusted-certificate"] == trusted_ca
         inspect.assert_called_once_with("https://example.com")
+        lookup.assert_called_once_with(certificate.origin)
 
     def test_show_server_certificate_table_uses_active_url_without_saving(
         self, monkeypatch: Any

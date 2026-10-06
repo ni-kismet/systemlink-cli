@@ -27,6 +27,7 @@ from .platform import (
 from .profiles import Profile, ProfileConfig, check_config_file_permissions
 from .rich_output import render_table
 from .ssl_trust import (
+    get_managed_trust_path,
     get_managed_trust_records,
     get_ssl_server_origin,
     inspect_server_certificate,
@@ -767,16 +768,16 @@ def register_config_commands(cli: Any) -> None:
             )
 
         certificate_details = certificate.to_dict()
+        trusted_certificate = None
         try:
-            trusted_certificate = next(
-                (
-                    record
-                    for record in get_managed_trust_records()
-                    if record.get("origin") == certificate.origin
-                ),
-                None,
-            )
-        except OSError as exc:
+            trusted_path = get_managed_trust_path(certificate.origin)
+            if trusted_path is not None:
+                trusted_certificate = json.loads(
+                    trusted_path.with_suffix(".json").read_text(encoding="utf-8")
+                )
+                trusted_certificate["origin"] = certificate.origin
+                trusted_certificate.setdefault("trust-type", "leaf")
+        except (OSError, ValueError) as exc:
             click.echo(f"Could not read managed certificate metadata: {exc}.", err=True)
             trusted_certificate = None
         if output_format == "json":
