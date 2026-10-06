@@ -228,19 +228,87 @@ def test_managed_trust_rejects_cross_origin_redirects(
             assert len(sent_urls) == 1
 
 
+@pytest.mark.parametrize("bundle_env", ["REQUESTS_CA_BUNDLE", "SSL_CERT_FILE"])
+def test_unmanaged_bundle_preserves_native_verification_flags(
+    monkeypatch: Any, tmp_path: Path, bundle_env: str
+) -> None:
+    """Environment bundles must not gain slcli's managed partial-chain override."""
+    import requests.adapters
+    import urllib3.util.ssl_ as urllib3_ssl
+    from slcli import ssl_trust
+    from slcli.utils import get_ssl_verify
+
+    monkeypatch.setenv("SLCLI_CONFIG", str(tmp_path / "config.json"))
+    monkeypatch.delenv("SLCLI_SSL_VERIFY", raising=False)
+    monkeypatch.delenv("REQUESTS_CA_BUNDLE", raising=False)
+    monkeypatch.delenv("SSL_CERT_FILE", raising=False)
+    monkeypatch.setattr(ssl_trust, "OS_TRUST_INJECTED", False)
+    monkeypatch.setattr(ssl, "SSLContext", ssl_trust._STANDARD_SSL_CONTEXT)
+    monkeypatch.setattr(urllib3_ssl, "SSLContext", ssl_trust._STANDARD_SSL_CONTEXT)
+    baseline_flags = urllib3_ssl.create_urllib3_context().verify_flags
+    baseline_preloaded = ssl_trust._STANDARD_SSL_CONTEXT(ssl.PROTOCOL_TLS_CLIENT)
+    monkeypatch.setattr(
+        requests.adapters, "_preloaded_ssl_context", baseline_preloaded, raising=False
+    )
+    bundle_path = tmp_path / "ca.pem"
+    bundle_path.write_bytes(_make_ca().public_bytes(serialization.Encoding.PEM))
+    monkeypatch.setenv(bundle_env, str(bundle_path))
+    ssl_verify = get_ssl_verify("https://example.com")
+
+    assert ssl_verify == str(bundle_path)
+    with ssl_trust.use_standard_ssl_context(ssl_verify):
+        assert urllib3_ssl.create_urllib3_context().verify_flags == baseline_flags
+        assert (
+            getattr(requests.adapters, "_preloaded_ssl_context").verify_flags
+            == baseline_preloaded.verify_flags
+        )
+
+
 @pytest.mark.parametrize("strict", [False, True])
 @pytest.mark.parametrize(
-    "case", ["valid", "renewed", "wrong-issuer", "expired", "hostname", "leaf"]
+    "case", ["valid", "renewed", "wrong-issuer", "expired", "hostname", "leaf", "intermediate"]
 )
-def test_managed_trust_tls_verification(tmp_path: Path, strict: bool, case: str) -> None:
+def test_managed_trust_tls_verification(
+    monkeypatch: Any, tmp_path: Path, strict: bool, case: str
+) -> None:
     """CA and legacy leaf trust preserve issuer, hostname, and expiry verification."""
     from slcli import ssl_trust
     from urllib3.util.ssl_ import create_urllib3_context
 
+    monkeypatch.setenv("SLCLI_CONFIG", str(tmp_path / "config.json"))
     ca_key = rsa.generate_private_key(public_exponent=65537, key_size=2048)
     ca_certificate = _make_ca(key=ca_key)
+    if case == "intermediate":
+        root_key = rsa.generate_private_key(public_exponent=65537, key_size=2048)
+        now = datetime.now(timezone.utc)
+        ca_certificate = (
+            x509.CertificateBuilder()
+            .subject_name(x509.Name([x509.NameAttribute(NameOID.COMMON_NAME, "Intermediate CA")]))
+            .issuer_name(_make_ca(key=root_key).subject)
+            .public_key(ca_key.public_key())
+            .serial_number(x509.random_serial_number())
+            .not_valid_before(now - timedelta(days=2))
+            .not_valid_after(now + timedelta(days=30))
+            .add_extension(x509.BasicConstraints(ca=True, path_length=0), critical=True)
+            .add_extension(
+                x509.SubjectKeyIdentifier.from_public_key(ca_key.public_key()), critical=False
+            )
+            .add_extension(
+                x509.AuthorityKeyIdentifier.from_issuer_public_key(root_key.public_key()),
+                critical=False,
+            )
+            .add_extension(
+                x509.KeyUsage(False, False, False, False, False, True, True, False, False),
+                critical=True,
+            )
+            .sign(root_key, hashes.SHA256())
+        )
     trusted_path = tmp_path / "trusted.pem"
     trusted_path.write_bytes(ca_certificate.public_bytes(serialization.Encoding.PEM))
+    trusted_ca = ssl_trust.load_ca_certificate("https://example.com", trusted_path)
+    if case == "intermediate":
+        assert not trusted_ca.self_signed
+    trusted_path = ssl_trust.save_managed_certificate(trusted_ca)
     if case == "wrong-issuer":
         ca_key = rsa.generate_private_key(public_exponent=65537, key_size=2048)
         ca_certificate = _make_ca(key=ca_key)
@@ -276,11 +344,24 @@ def test_managed_trust_tls_verification(tmp_path: Path, strict: bool, case: str)
             )
         )
         if case == "leaf":
-            trusted_path.write_bytes(leaf.public_bytes(serialization.Encoding.PEM))
+            trusted_path = ssl_trust.save_managed_certificate(
+                ssl_trust.ServerCertificate(
+                    origin="https://example.com:443",
+                    pem=leaf.public_bytes(serialization.Encoding.PEM),
+                    fingerprint=leaf.fingerprint(hashes.SHA256()).hex().upper(),
+                    subject="example.com",
+                    issuer="Test CA",
+                    sans=["example.com"],
+                    not_before=leaf.not_valid_before_utc.isoformat(),
+                    not_after=leaf.not_valid_after_utc.isoformat(),
+                    self_signed=False,
+                )
+            )
         server_context = ssl_trust._STANDARD_SSL_CONTEXT(ssl.PROTOCOL_TLS_SERVER)
         server_context.load_cert_chain(str(certificate_path), str(key_path))
         with ssl_trust.use_standard_ssl_context(str(trusted_path)):
             client_context = create_urllib3_context()
+            assert client_context.verify_flags & ssl.VERIFY_X509_PARTIAL_CHAIN
             client_context.load_verify_locations(cafile=str(trusted_path))
             if strict:
                 client_context.verify_flags |= ssl.VERIFY_X509_STRICT

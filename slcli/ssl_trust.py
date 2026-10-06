@@ -109,8 +109,9 @@ def use_standard_ssl_context(ssl_verify: Union[bool, str]) -> Iterator[None]:
     The OS trust integration replaces SSL context implementations globally. For
     explicit CA bundle paths, requests must use the standard implementation so
     the supplied bundle is evaluated instead of the platform trust verifier.
-    Partial-chain verification permits the fingerprint-matched leaf or imported
-    CA to act as the trust anchor without bypassing hostname or validity checks.
+    For validated managed bundles, partial-chain verification permits the
+    fingerprint-matched leaf or imported CA to act as the trust anchor without
+    bypassing hostname or validity checks. Other bundles retain native defaults.
     Managed bundles reject cross-origin redirects. Explicit contexts are serialized
     so their process-global patches are restored in the correct order.
     """
@@ -153,7 +154,8 @@ def _use_standard_ssl_context(ssl_verify: str) -> Iterator[None]:
 
     def create_context(protocol: int) -> ssl.SSLContext:
         context = _STANDARD_SSL_CONTEXT(protocol)
-        context.verify_flags |= ssl.VERIFY_X509_PARTIAL_CHAIN
+        if managed_origin is not None:
+            context.verify_flags |= ssl.VERIFY_X509_PARTIAL_CHAIN
         return context
 
     try:

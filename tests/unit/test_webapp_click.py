@@ -1446,11 +1446,24 @@ def test_webapp_list_shows_items(monkeypatch: MonkeyPatch) -> None:
 
 
 @pytest.mark.parametrize("paged", [False, True])
-def test_webapp_query_uses_explicit_trust_context(monkeypatch: MonkeyPatch, paged: bool) -> None:
+def test_webapp_query_uses_explicit_trust_context(
+    monkeypatch: MonkeyPatch, tmp_path: Path, paged: bool
+) -> None:
     """Both query paths must bypass OS trust when an origin has explicit PEM trust."""
     import requests
     import urllib3.util.ssl_ as urllib3_ssl
+    from cryptography.hazmat.primitives import serialization
     from slcli import ssl_trust, webapp_click
+    from .test_ssl_trust import _make_ca
+
+    monkeypatch.setenv("SLCLI_CONFIG", str(tmp_path / "config.json"))
+    ca_path = tmp_path / "ca.pem"
+    ca_path.write_bytes(_make_ca().public_bytes(serialization.Encoding.PEM))
+    trusted_path = str(
+        ssl_trust.save_managed_certificate(
+            ssl_trust.load_ca_certificate("https://example.com", ca_path)
+        )
+    )
 
     monkeypatch.setattr(
         webapp_click, "_get_webapp_base_url", lambda: "https://example.com/niapp/v1"
@@ -1459,7 +1472,7 @@ def test_webapp_query_uses_explicit_trust_context(monkeypatch: MonkeyPatch, page
 
     def get_verify(url: str) -> str:
         assert url == "https://example.com/niapp/v1/webapps/query?includeTotalCount=true"
-        return "trusted-ca.pem"
+        return trusted_path
 
     class Response:
         def raise_for_status(self) -> None:
@@ -1469,7 +1482,7 @@ def test_webapp_query_uses_explicit_trust_context(monkeypatch: MonkeyPatch, page
             return {"webapps": []}
 
     def post(url: str, **kwargs: Any) -> Response:
-        assert kwargs["verify"] == "trusted-ca.pem"
+        assert kwargs["verify"] == trusted_path
         assert ssl.SSLContext is ssl_trust._STANDARD_SSL_CONTEXT
         context_factory = getattr(urllib3_ssl, "SSLContext")
         assert context_factory is not None
