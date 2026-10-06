@@ -4,11 +4,17 @@ Thank you for your interest in contributing to SystemLink CLI! This document pro
 
 ## Development Setup
 
-1. **Install Poetry** (if not already installed):
+1. **Install Poetry**
+
+   To keep lock versions stable, install the `poetry-version` that the CI uses from the
+   [setup-poetry action](https://github.com/ni/python-actions/blob/main/setup-poetry/action.yml),
+   currently `2.1.4`.
 
    ```bash
-   pip install poetry
+   pipx install poetry==2.1.4
    ```
+
+   See [NI Python docs](https://dev.azure.com/ni/DevCentral/_wiki/wikis/AppCentral.wiki/70875/Optional-tools-for-uncommon-cases?anchor=poetry) for more information.
 
 2. **Install dependencies:**
 
@@ -50,7 +56,7 @@ poetry run black .
 - All tests must pass before merging
 
 ```bash
-# Run all tests
+# Run the normal development suite
 poetry run pytest
 
 # Run tests with coverage
@@ -146,7 +152,6 @@ Based on [CLI Guidelines](https://clig.dev), SystemLink CLI follows these patter
    - Ensure it supports JSON output via `--format/-f` option for list commands
 
 4. **If changing the hosted webapp scaffold or bundled template:**
-
    ```bash
    poetry run python scripts/smoke_test_webapp.py
    ```
@@ -159,9 +164,11 @@ Based on [CLI Guidelines](https://clig.dev), SystemLink CLI follows these patter
    ```
 
 6. **If changing packaging or build scripts:**
+
    ```bash
    poetry run build-pyinstaller
    ```
+
    Verify it works and produces a binary in `dist/`.
 
 ## Build Process

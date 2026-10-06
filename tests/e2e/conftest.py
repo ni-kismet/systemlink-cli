@@ -549,6 +549,14 @@ def sls_cli_helper(sls_cli_runner: Any) -> CLITestHelper:
 def pytest_configure(config: Any) -> None:
     """Configure pytest with custom markers."""
     config.addinivalue_line("markers", "e2e: mark test as end-to-end test")
+    config.addinivalue_line(
+        "markers",
+        "e2e_migration: mark migration end-to-end tests",
+    )
+    config.addinivalue_line(
+        "markers",
+        "full_os_client_matrix: mark tests requiring full supported-OS client coverage",
+    )
     config.addinivalue_line("markers", "slow: mark test as slow running")
     config.addinivalue_line("markers", "notebook: mark test as notebook-related")
     config.addinivalue_line("markers", "dff: mark test as dynamic form fields related")
