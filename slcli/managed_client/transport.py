@@ -13,6 +13,7 @@ from .protocol import MAX_FRAME_SIZE, MessagePackStream, SaltMessage
 
 DEFAULT_REQUEST_PORT = 4506
 DEFAULT_PUBLISH_PORT = 4505
+IDLE_RECEIVE_POLL_INTERVAL = 0.1
 
 
 @dataclass(frozen=True)
@@ -82,7 +83,7 @@ class SaltChannel:
             raise TransportError("Unable to send a Salt message.") from error
 
     def receive(self, *, ignore_timeout: bool = False) -> SaltMessage:
-        """Read until one complete Salt MessagePack message is available."""
+        """Read a complete Salt message, polling for closure when ignoring timeouts."""
         if self._closed:
             raise TransportError("The Salt channel is closed.")
         if self._pending:
@@ -94,7 +95,20 @@ class SaltChannel:
                 with self._receive_lock:
                     if self._closed:
                         raise TransportError("The Salt channel is closed.")
-                    data = self._connection.recv(65536)
+                    if ignore_timeout:
+                        timeout = self._connection.gettimeout()
+                        self._connection.settimeout(
+                            IDLE_RECEIVE_POLL_INTERVAL
+                            if timeout is None
+                            else min(timeout, IDLE_RECEIVE_POLL_INTERVAL)
+                        )
+                        try:
+                            data = self._connection.recv(65536)
+                        finally:
+                            if not self._closed:
+                                self._connection.settimeout(timeout)
+                    else:
+                        data = self._connection.recv(65536)
             except socket.timeout as error:
                 if ignore_timeout:
                     continue

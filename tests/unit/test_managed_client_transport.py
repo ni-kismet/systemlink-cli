@@ -84,8 +84,9 @@ def test_salt_channel_rejects_closed_socket() -> None:
     channel.close()
 
 
-def test_salt_channel_close_interrupts_idle_receive() -> None:
-    """Shutdown interrupts an idle TCP receive before its socket timeout."""
+@pytest.mark.parametrize("shutdown_wakes_receive", [True, False])
+def test_salt_channel_close_interrupts_idle_receive(shutdown_wakes_receive: bool) -> None:
+    """Close stops an idle TCP receive even when shutdown does not wake it."""
     listener = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
     listener.bind(("127.0.0.1", 0))
     listener.listen(1)
@@ -97,12 +98,19 @@ def test_salt_channel_close_interrupts_idle_receive() -> None:
     class ReceivingSocket:
         """Signal from inside the channel's locked read of a real TCP socket."""
 
+        def gettimeout(self) -> float | None:
+            return client_socket.gettimeout()
+
+        def settimeout(self, timeout: float | None) -> None:
+            client_socket.settimeout(timeout)
+
         def recv(self, size: int) -> bytes:
             receiving.set()
             return client_socket.recv(size)
 
         def shutdown(self, how: int) -> None:
-            client_socket.shutdown(how)
+            if shutdown_wakes_receive:
+                client_socket.shutdown(how)
 
         def close(self) -> None:
             client_socket.close()
@@ -135,6 +143,32 @@ def test_salt_channel_close_interrupts_idle_receive() -> None:
             closer.join(timeout=6)
 
 
+@pytest.mark.parametrize("timeout", [None, 5.0, 0.05])
+@pytest.mark.parametrize("peer_closed", [False, True])
+def test_salt_channel_restores_timeout_after_idle_receive(
+    timeout: float | None, peer_closed: bool
+) -> None:
+    """Idle reads preserve the socket timeout after success or a transport error."""
+    client_socket, server_socket = socket.socketpair()
+    client_socket.settimeout(timeout)
+    channel = SaltChannel(client_socket)
+    message = SaltMessage(body={"enc": "clear", "load": {}}, head={"mid": 1})
+    if peer_closed:
+        server_socket.close()
+    else:
+        server_socket.sendall(message.pack())
+    try:
+        if peer_closed:
+            with pytest.raises(TransportError, match="closed unexpectedly"):
+                channel.receive(ignore_timeout=True)
+        else:
+            assert channel.receive(ignore_timeout=True) == message
+        assert client_socket.gettimeout() == timeout
+    finally:
+        channel.close()
+        server_socket.close()
+
+
 def test_salt_channel_close_waits_for_active_receive() -> None:
     """The descriptor remains open until an interrupted receive has returned."""
     receiving = threading.Event()
@@ -143,6 +177,12 @@ def test_salt_channel_close_waits_for_active_receive() -> None:
     descriptor_closed = threading.Event()
 
     class InterruptedSocket:
+        def gettimeout(self) -> float | None:
+            return 5.0
+
+        def settimeout(self, timeout: float | None) -> None:
+            return None
+
         def recv(self, _: int) -> bytes:
             receiving.set()
             assert release_receive.wait(timeout=2)
@@ -211,6 +251,12 @@ def test_salt_channel_stops_retrying_timeouts_after_close() -> None:
         def __init__(self) -> None:
             self._attempts = 0
 
+        def gettimeout(self) -> float | None:
+            return 5.0
+
+        def settimeout(self, timeout: float | None) -> None:
+            return None
+
         def recv(self, _: int) -> bytes:
             self._attempts += 1
             if self._attempts > 1:
@@ -237,6 +283,12 @@ def test_salt_channel_ignores_idle_socket_timeout() -> None:
     class TimeoutThenMessageSocket:
         def __init__(self) -> None:
             self._attempts = 0
+
+        def gettimeout(self) -> float | None:
+            return 5.0
+
+        def settimeout(self, timeout: float | None) -> None:
+            return None
 
         def recv(self, _: int) -> bytes:
             self._attempts += 1
