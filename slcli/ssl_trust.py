@@ -196,6 +196,40 @@ def _get_trust_stem(origin: str) -> str:
     return hashlib.sha256(origin.encode("utf-8")).hexdigest()
 
 
+def _get_managed_trust_pairs(origin: str) -> List[tuple[Path, Path]]:
+    """Find metadata and PEM pairs whose stored origin normalizes to the given origin."""
+    pairs: List[tuple[Path, Path]] = []
+    for metadata_path in sorted(_get_trust_directory().glob("*.json")):
+        try:
+            metadata = json.loads(metadata_path.read_text(encoding="utf-8"))
+            stored_origin = metadata.get("origin") if isinstance(metadata, dict) else None
+            if (
+                not isinstance(stored_origin, str)
+                or metadata_path.stem != _get_trust_stem(stored_origin)
+                or get_ssl_server_origin(stored_origin) != origin
+            ):
+                continue
+        except (OSError, ValueError):
+            continue
+        pairs.append((metadata_path.with_suffix(".pem"), metadata_path))
+    return pairs
+
+
+def _remove_managed_trust_pairs(origin: str, keep_metadata_path: Optional[Path] = None) -> bool:
+    """Remove all valid trust pairs for an origin except an optional replacement pair."""
+    removed = False
+    for pem_path, metadata_path in _get_managed_trust_pairs(origin):
+        if metadata_path == keep_metadata_path:
+            continue
+        for path in (pem_path, metadata_path):
+            try:
+                path.unlink()
+                removed = True
+            except FileNotFoundError:
+                pass
+    return removed
+
+
 def get_managed_trust_path(api_url: str) -> Optional[Path]:
     """Return the managed PEM path for a URL when a trusted certificate exists."""
     origin = get_ssl_server_origin(api_url)
@@ -204,22 +238,11 @@ def get_managed_trust_path(api_url: str) -> Optional[Path]:
     metadata_path = pem_path.with_suffix(".json")
 
     if not pem_path.is_file() or not metadata_path.is_file():
-        for legacy_metadata_path in trust_directory.glob("*.json"):
-            try:
-                legacy_metadata = json.loads(legacy_metadata_path.read_text(encoding="utf-8"))
-                stored_origin = legacy_metadata.get("origin")
-                if (
-                    isinstance(stored_origin, str)
-                    and _get_trust_stem(stored_origin) == legacy_metadata_path.stem
-                    and get_ssl_server_origin(stored_origin) == origin
-                ):
-                    legacy_pem_path = legacy_metadata_path.with_suffix(".pem")
-                    if legacy_pem_path.is_file():
-                        pem_path = legacy_pem_path
-                        metadata_path = legacy_metadata_path
-                        break
-            except (AttributeError, OSError, ValueError, json.JSONDecodeError):
-                continue
+        for legacy_pem_path, legacy_metadata_path in _get_managed_trust_pairs(origin):
+            if legacy_pem_path.is_file():
+                pem_path = legacy_pem_path
+                metadata_path = legacy_metadata_path
+                break
 
     if not pem_path.is_file() or not metadata_path.is_file():
         return None
@@ -482,6 +505,7 @@ def save_managed_certificate(certificate: ServerCertificate) -> Path:
             except OSError:
                 pass
         raise
+    _remove_managed_trust_pairs(origin, keep_metadata_path=metadata_path)
     return pem_path
 
 
@@ -505,12 +529,12 @@ def get_managed_trust_records() -> List[Dict[str, Any]]:
 def remove_managed_trust(api_url: str) -> bool:
     """Remove the managed certificate trust entry for a server URL."""
     origin = get_ssl_server_origin(api_url)
-    pem_path = get_managed_trust_path(api_url)
-    if pem_path is None:
-        pem_path = _get_trust_directory() / f"{_get_trust_stem(origin)}.pem"
-    metadata_path = pem_path.with_suffix(".json")
-    removed = False
-    for path in (pem_path, metadata_path):
+    trust_directory = _get_trust_directory()
+    removed = _remove_managed_trust_pairs(origin)
+    for path in (
+        trust_directory / f"{_get_trust_stem(origin)}.pem",
+        trust_directory / f"{_get_trust_stem(origin)}.json",
+    ):
         try:
             path.unlink()
             removed = True

@@ -538,6 +538,7 @@ def test_managed_certificate_persistence_is_origin_scoped(
     monkeypatch: Any, tmp_path: Any, hostname: str, ascii_hostname: str
 ) -> None:
     """Managed certificates should persist securely and only match their origin."""
+    import hashlib
     import json
 
     from slcli.ssl_trust import (
@@ -566,8 +567,26 @@ def test_managed_certificate_persistence_is_origin_scoped(
         trust_type="ca",
     )
 
+    trust_directory = tmp_path / "trust"
+    trust_directory.mkdir()
+    legacy_origin = f"https://{hostname}:443"
+    legacy_path = trust_directory / f"{hashlib.sha256(legacy_origin.encode()).hexdigest()}.pem"
+    legacy_path.write_bytes(certificate.pem)
+    legacy_path.with_suffix(".json").write_text(
+        json.dumps(
+            {
+                "origin": legacy_origin,
+                "fingerprint": certificate.fingerprint,
+                "trust-type": "ca",
+            }
+        ),
+        encoding="utf-8",
+    )
+
     path = save_managed_certificate(certificate)
     assert path.read_bytes() == certificate.pem
+    assert not legacy_path.exists()
+    assert not legacy_path.with_suffix(".json").exists()
     assert json.loads(path.with_suffix(".json").read_text(encoding="utf-8"))["origin"] == (
         f"https://{ascii_hostname}:443"
     )
@@ -579,6 +598,45 @@ def test_managed_certificate_persistence_is_origin_scoped(
     assert get_managed_trust_path("https://other.example.com") is None
     assert get_managed_trust_records()[0]["fingerprint"] == certificate.fingerprint
     assert remove_managed_trust(f"https://{hostname}") is True
+    assert get_managed_trust_path(f"https://{hostname}") is None
+
+
+@pytest.mark.parametrize(
+    "hostname,ascii_hostname",
+    [("bücher.example", "xn--bcher-kva.example"), ("faß.de", "xn--fa-hia.de")],
+)
+def test_remove_managed_trust_removes_normalized_equivalent_records(
+    monkeypatch: Any, tmp_path: Path, hostname: str, ascii_hostname: str
+) -> None:
+    """Removing trust deletes both Unicode-keyed and canonical records for one origin."""
+    import hashlib
+    import json
+
+    from slcli.ssl_trust import get_managed_trust_path, remove_managed_trust
+
+    config_file = tmp_path / "config.json"
+    monkeypatch.setattr(
+        "slcli.profiles.ProfileConfig.get_config_path", classmethod(lambda cls: config_file)
+    )
+    trust_directory = tmp_path / "trust"
+    trust_directory.mkdir()
+    certificate = _make_ca()
+    fingerprint = certificate.fingerprint(hashes.SHA256()).hex().upper()
+
+    for stored_hostname in (hostname, ascii_hostname):
+        origin = f"https://{stored_hostname}:443"
+        stem = hashlib.sha256(origin.encode("utf-8")).hexdigest()
+        pem_path = trust_directory / f"{stem}.pem"
+        pem_path.write_bytes(certificate.public_bytes(serialization.Encoding.PEM))
+        pem_path.with_suffix(".json").write_text(
+            json.dumps({"origin": origin, "fingerprint": fingerprint, "trust-type": "ca"}),
+            encoding="utf-8",
+        )
+
+    assert get_managed_trust_path(f"https://{ascii_hostname}") is not None
+    assert remove_managed_trust(f"https://{ascii_hostname}") is True
+    assert list(trust_directory.glob("*.pem")) == []
+    assert list(trust_directory.glob("*.json")) == []
     assert get_managed_trust_path(f"https://{hostname}") is None
 
 
