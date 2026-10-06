@@ -89,13 +89,27 @@ def test_salt_channel_close_interrupts_idle_receive() -> None:
     listener = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
     listener.bind(("127.0.0.1", 0))
     listener.listen(1)
-    channel = SaltChannel.connect("127.0.0.1", listener.getsockname()[1], timeout=5)
+    client_socket = socket.create_connection(listener.getsockname(), timeout=5)
     server_socket, _ = listener.accept()
     receiving = threading.Event()
     errors: list[TransportError] = []
 
+    class ReceivingSocket:
+        """Signal from inside the channel's locked read of a real TCP socket."""
+
+        def recv(self, size: int) -> bytes:
+            receiving.set()
+            return client_socket.recv(size)
+
+        def shutdown(self, how: int) -> None:
+            client_socket.shutdown(how)
+
+        def close(self) -> None:
+            client_socket.close()
+
+    channel = SaltChannel(ReceivingSocket())  # type: ignore[arg-type]
+
     def receive() -> None:
-        receiving.set()
         try:
             channel.receive(ignore_timeout=True)
         except TransportError as error:
@@ -106,10 +120,6 @@ def test_salt_channel_close_interrupts_idle_receive() -> None:
     receiver.start()
     try:
         assert receiving.wait(timeout=1)
-        acquired = channel._receive_lock.acquire(timeout=0.05)
-        if acquired:
-            channel._receive_lock.release()
-        assert not acquired
         closer.start()
         closer.join(timeout=1)
         assert not closer.is_alive()
