@@ -824,8 +824,9 @@ slcli auth template update &lt;template-id&gt; --name "Updated Reader" --type se
 slcli auth template get &lt;template-id&gt;
 slcli auth template delete &lt;template-id&gt;</code></pre>
       <p><code>auth template create</code> creates a reusable permission set using <code>POST /niauth/v1/policy-templates</code>. It does not create a policy or bind the template to a workspace. Use <code>auth policy create &lt;template-id&gt; --name "my-policy" --workspace &lt;ws-id&gt;</code> to apply an existing template to a workspace.</p>
-      <p><code>auth template update</code> fetches the current template and preserves fields not supplied through <code>--name</code>, <code>--type</code>, <code>--statements-file</code>, or <code>--properties/-p</code> before sending <code>PUT /niauth/v1/policy-templates/&lt;template-id&gt;</code>. Supplied statements and properties replace their existing values.</p>
+      <p><code>auth template update</code> requires at least one update option: <code>--name</code>, <code>--type</code>, <code>--statements-file</code>, or <code>--properties/-p</code>. It fetches the current template and preserves unspecified fields before sending <code>PUT /niauth/v1/policy-templates/&lt;template-id&gt;</code>. Supplied statements and properties replace their existing values.</p>
       <table>
+        <caption>Options for <code>auth template create</code></caption>
         <thead><tr><th>Option</th><th>Description</th></tr></thead>
         <tbody>
           <tr><td><code>--name TEXT</code></td><td>Required template name.</td></tr>
