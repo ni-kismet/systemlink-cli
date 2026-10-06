@@ -1,1 +1,0 @@
-Add `slcli auth template update` to update policy template fields.

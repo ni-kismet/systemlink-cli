@@ -2,6 +2,13 @@
 
 <!-- towncrier release notes start -->
 
+## v2.2.0 (2026-10-06)
+
+### Features
+
+- Add `slcli auth template update` to update policy template fields. (auth-template-update)
+
+
 ## v2.1.0 (2026-10-06)
 
 ### Features
