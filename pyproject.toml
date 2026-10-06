@@ -41,6 +41,7 @@ cryptography = ">=49.0.0"
 pygments = ">=2.20.0"
 prefect = { version = ">=3.8.6,<4", optional = true }
 psutil = { version = ">=7,<8", optional = true }
+pydantic = { version = ">=2.9,<3", optional = true }
 msgpack = { version = ">=1.1,<2", optional = true }
 mcp = { version = ">=2,<3", optional = true }
 anyio = { version = ">=4.14.2,<5", optional = true }
@@ -50,7 +51,7 @@ httpcore2 = { version = ">=2.10.0,<3", optional = true }
 [tool.poetry.extras]
 managed-client = ["msgpack"]
 mcp = ["mcp", "anyio", "httpx2", "httpcore2"]
-migration = ["prefect", "psutil"]
+migration = ["prefect", "psutil", "pydantic"]
 
 
 [tool.poetry.group.dev.dependencies]
