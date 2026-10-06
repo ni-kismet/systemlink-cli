@@ -6,6 +6,7 @@ import importlib
 import ssl
 import sys
 import types
+from contextlib import nullcontext
 from datetime import datetime, timedelta, timezone
 from pathlib import Path
 from typing import Any, List
@@ -237,6 +238,7 @@ def test_unmanaged_bundle_preserves_native_verification_flags(
     import urllib3.util.ssl_ as urllib3_ssl
     from slcli import ssl_trust
     from slcli.utils import get_ssl_verify
+    from slcli.main import _build_tls_debug_context
 
     monkeypatch.setenv("SLCLI_CONFIG", str(tmp_path / "config.json"))
     monkeypatch.delenv("SLCLI_SSL_VERIFY", raising=False)
@@ -254,8 +256,14 @@ def test_unmanaged_bundle_preserves_native_verification_flags(
     bundle_path.write_bytes(_make_ca().public_bytes(serialization.Encoding.PEM))
     monkeypatch.setenv(bundle_env, str(bundle_path))
     ssl_verify = get_ssl_verify("https://example.com")
+    baseline_debug_flags = ssl.create_default_context(cafile=str(bundle_path)).verify_flags
 
     assert ssl_verify == str(bundle_path)
+    for debug_verify in (ssl_verify, True):
+        debug_context = _build_tls_debug_context(debug_verify)
+        assert debug_context.verify_flags == baseline_debug_flags
+        assert debug_context.check_hostname
+        assert debug_context.verify_mode == ssl.CERT_REQUIRED
     with ssl_trust.use_standard_ssl_context(ssl_verify):
         assert urllib3_ssl.create_urllib3_context().verify_flags == baseline_flags
         assert (
@@ -264,15 +272,17 @@ def test_unmanaged_bundle_preserves_native_verification_flags(
         )
 
 
+@pytest.mark.parametrize("context_source", ["requests", "debug"])
 @pytest.mark.parametrize("strict", [False, True])
 @pytest.mark.parametrize(
     "case", ["valid", "renewed", "wrong-issuer", "expired", "hostname", "leaf", "intermediate"]
 )
 def test_managed_trust_tls_verification(
-    monkeypatch: Any, tmp_path: Path, strict: bool, case: str
+    monkeypatch: Any, tmp_path: Path, strict: bool, case: str, context_source: str
 ) -> None:
     """CA and legacy leaf trust preserve issuer, hostname, and expiry verification."""
     from slcli import ssl_trust
+    from slcli.main import _build_tls_debug_context
     from urllib3.util.ssl_ import create_urllib3_context
 
     monkeypatch.setenv("SLCLI_CONFIG", str(tmp_path / "config.json"))
@@ -359,8 +369,17 @@ def test_managed_trust_tls_verification(
             )
         server_context = ssl_trust._STANDARD_SSL_CONTEXT(ssl.PROTOCOL_TLS_SERVER)
         server_context.load_cert_chain(str(certificate_path), str(key_path))
-        with ssl_trust.use_standard_ssl_context(str(trusted_path)):
-            client_context = create_urllib3_context()
+        context_scope = (
+            ssl_trust.use_standard_ssl_context(str(trusted_path))
+            if context_source == "requests"
+            else nullcontext()
+        )
+        with context_scope:
+            client_context = (
+                create_urllib3_context()
+                if context_source == "requests"
+                else _build_tls_debug_context(str(trusted_path))
+            )
             assert client_context.verify_flags & ssl.VERIFY_X509_PARTIAL_CHAIN
             client_context.load_verify_locations(cafile=str(trusted_path))
             if strict:

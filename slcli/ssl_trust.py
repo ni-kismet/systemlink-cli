@@ -72,6 +72,7 @@ __all__ = [
     "OS_TRUST_INJECTED",
     "OS_TRUST_REASON",
     "ServerCertificate",
+    "create_explicit_tls_context",
     "get_managed_trust_path",
     "get_managed_trust_records",
     "get_ssl_server_origin",
@@ -122,6 +123,23 @@ def use_standard_ssl_context(ssl_verify: Union[bool, str]) -> Iterator[None]:
     with _SSL_CONTEXT_LOCK:
         with _use_standard_ssl_context(ssl_verify):
             yield
+
+
+def create_explicit_tls_context(cafile: str) -> ssl.SSLContext:
+    """Build a verified TLS client context using an explicit certificate bundle.
+
+    Args:
+        cafile: Path to a managed certificate or an ordinary CA bundle.
+
+    Returns:
+        A standard TLS context with partial-chain trust enabled for validated
+        managed certificates and native verification defaults for other bundles.
+    """
+    with use_standard_ssl_context(cafile):
+        context = ssl.create_default_context(cafile=cafile)
+        if _get_managed_origin(cafile) is not None:
+            context.verify_flags |= ssl.VERIFY_X509_PARTIAL_CHAIN
+        return context
 
 
 @contextmanager
