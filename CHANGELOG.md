@@ -2,6 +2,17 @@
 
 <!-- towncrier release notes start -->
 
+## v2.1.0 (2026-10-06)
+
+### Features
+
+- Add `slcli auth template create` to create reusable Authorization API policy templates from a JSON statements file, with user/service types, custom properties, and JSON output. (auth-template-create)
+
+### Bug Fixes
+
+- Allow the managed-client minion test enough time to shut down after an idle socket receive on macOS Intel. (macos-intel-minion-shutdown)
+
+
 ## v2.0.2 (2026-10-05)
 
 ### Bug Fixes

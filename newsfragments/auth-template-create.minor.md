@@ -1,1 +1,0 @@
-Add `slcli auth template create` to create reusable Authorization API policy templates from a JSON statements file, with user/service types, custom properties, and JSON output.
