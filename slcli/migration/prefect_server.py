@@ -28,13 +28,12 @@ def _allocate_port() -> int:
         return int(listener.getsockname()[1])
 
 
-def loopback_listener_pids(port: int) -> Set[int]:
-    """Return the IDs of processes listening on the loopback ``port``."""
+def loopback_listener_pids(process_id: int, port: int) -> Set[int]:
+    """Return the process ID if it is listening on the loopback ``port``."""
     return {
-        connection.pid
-        for connection in psutil.net_connections(kind="tcp")
-        if connection.pid is not None
-        and connection.status == psutil.CONN_LISTEN
+        process_id
+        for connection in psutil.Process(process_id).net_connections(kind="tcp")
+        if connection.status == psutil.CONN_LISTEN
         and connection.laddr
         and connection.laddr.port == port
         and connection.laddr.ip in _LOOPBACK_ADDRESSES
@@ -122,7 +121,10 @@ class ManagedPrefectServer:
             if process.poll() is not None:
                 raise RuntimeError("Prefect server exited before becoming ready")
             # A healthy response alone could come from another process on the port.
-            if loopback_listener_pids(port) == {process.pid} and _is_healthy(api_url):
+            if (
+                loopback_listener_pids(process.pid, port) == {process.pid}
+                and _is_healthy(api_url)
+            ):
                 return
             time.sleep(_POLL_INTERVAL_SECONDS)
         raise RuntimeError("Prefect server did not become ready on its owned listener")
