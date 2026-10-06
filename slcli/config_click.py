@@ -6,6 +6,7 @@ import os
 import re
 import ssl
 import sys
+from pathlib import Path
 from typing import Any, NoReturn, Optional
 from urllib.parse import urlparse
 
@@ -29,6 +30,7 @@ from .ssl_trust import (
     get_managed_trust_records,
     get_ssl_server_origin,
     inspect_server_certificate,
+    load_ca_certificate,
     remove_managed_trust,
     save_managed_certificate,
 )
@@ -765,12 +767,31 @@ def register_config_commands(cli: Any) -> None:
             )
 
         certificate_details = certificate.to_dict()
+        try:
+            trusted_certificate = next(
+                (
+                    record
+                    for record in get_managed_trust_records()
+                    if record.get("origin") == certificate.origin
+                ),
+                None,
+            )
+        except OSError as exc:
+            click.echo(f"Could not read managed certificate metadata: {exc}.", err=True)
+            trusted_certificate = None
         if output_format == "json":
+            certificate_details["trusted-certificate"] = trusted_certificate
             click.echo(json.dumps(certificate_details, indent=2))
             return
 
         click.echo(f"Server certificate for {certificate_details.get('origin', 'unknown')}")
         _show_certificate_details(certificate_details)
+        if trusted_certificate:
+            kind = "CA" if trusted_certificate.get("trust-type") == "ca" else "leaf"
+            click.echo(f"\nTrusted {kind} certificate for this origin")
+            _show_certificate_details(trusted_certificate)
+        else:
+            click.echo("\nNo managed trust certificate for this origin.")
 
     @trust.command(name="list")
     @click.option(
@@ -794,13 +815,14 @@ def register_config_commands(cli: Any) -> None:
             [
                 str(record.get("origin", "")),
                 str(record.get("fingerprint", "")),
+                "CA" if record.get("trust-type") == "ca" else "leaf",
                 "yes" if record.get("self-signed") else "no",
             ]
             for record in records
         ]
         render_table(
-            headers=["SERVER", "SHA-256", "SELF-SIGNED"],
-            column_widths=[40, 64, 12],
+            headers=["SERVER", "SHA-256", "TRUST TYPE", "SELF-SIGNED"],
+            column_widths=[40, 64, 10, 12],
             rows=rows,
             show_total=True,
             total_label="certificate(s)",
@@ -809,29 +831,46 @@ def register_config_commands(cli: Any) -> None:
     @trust.command(name="add")
     @click.option("--url", help="HTTPS server URL (defaults to the active API URL)")
     @click.option(
+        "--certificate",
+        type=click.Path(exists=True, dir_okay=False, path_type=Path),
+        help="Import one public CA certificate (PEM or DER), scoped to this server origin",
+    )
+    @click.option(
         "--fingerprint",
         required=True,
         help="Expected SHA-256 fingerprint of the certificate to trust",
     )
-    def add_trusted_certificate(url: Optional[str], fingerprint: str) -> None:
-        """Trust a server certificate after verifying its fingerprint."""
-        server_url = url or get_base_url()
+    def add_trusted_certificate(
+        url: Optional[str], certificate: Optional[Path], fingerprint: str
+    ) -> None:
+        """Trust a live server certificate or imported CA after fingerprint verification."""
+        server_url = url or get_base_url_resolution().value
         try:
             expected_fingerprint = _normalize_fingerprint(fingerprint)
-            certificate = inspect_server_certificate(server_url)
+            trusted_certificate = (
+                load_ca_certificate(server_url, certificate)
+                if certificate is not None
+                else inspect_server_certificate(server_url)
+            )
         except (OSError, ValueError, ssl.SSLError) as exc:
-            _exit_with_validation_error(f"Could not inspect the server certificate: {exc}.")
+            _exit_with_validation_error(f"Could not load the certificate: {exc}.")
 
-        _show_certificate_warning(certificate.to_dict())
-        if certificate.fingerprint != expected_fingerprint:
+        _show_certificate_details(trusted_certificate.to_dict(), err=True)
+        if trusted_certificate.fingerprint != expected_fingerprint:
             _exit_with_validation_error(
                 "The server certificate fingerprint does not match the supplied fingerprint."
             )
+        if trusted_certificate.trust_type == "ca":
+            click.echo(
+                "Trusting certificates issued by this CA for this origin only; "
+                "hostname and validity verification remain enabled.",
+                err=True,
+            )
         try:
-            path = save_managed_certificate(certificate)
+            path = save_managed_certificate(trusted_certificate)
         except OSError as exc:
             _exit_with_validation_error(f"Could not save the trusted certificate: {exc}.")
-        click.echo(f"✓ Trusted certificate for {certificate.origin}")
+        click.echo(f"✓ Trusted certificate for {trusted_certificate.origin}")
         click.echo(f"  Certificate file: {path}")
 
     @trust.command(name="remove")

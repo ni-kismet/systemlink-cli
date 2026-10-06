@@ -794,15 +794,29 @@ slcli config trust show --url https://systemlink.example.local
 
 # Capture certificate metadata as JSON
 slcli config trust show --url https://systemlink.example.local --format json
-slcli config trust show --url https://systemlink.example.local -f json</code></pre>
+slcli config trust show --url https://systemlink.example.local -f json
+
+# Trust the current leaf after independently verifying its SHA-256 fingerprint
+slcli config trust add --url https://systemlink.example.local --fingerprint VERIFIED_SHA256
+
+# Import the verified public issuing CA, scoped to this HTTPS origin
+slcli config trust add --url https://systemlink.example.local \
+  --certificate systemlink-ca.pem --fingerprint VERIFIED_CA_SHA256
+
+# List saved trust anchors, or remove trust for an origin
+slcli config trust list --format json
+slcli config trust remove --url https://systemlink.example.local</code></pre>
   <table>
     <thead><tr><th>Option</th><th>Description</th></tr></thead>
     <tbody>
       <tr><td><code>--url URL</code></td><td>HTTPS server URL; defaults to the active API URL.</td></tr>
+      <tr><td><code>add --certificate FILE</code></td><td>Import one currently valid public CA certificate in PEM or DER format. Requires CA basic constraints and certificate-signing usage when present.</td></tr>
+      <tr><td><code>add --fingerprint SHA256</code></td><td>Required independently verified SHA-256 fingerprint of the live leaf or imported CA.</td></tr>
       <tr><td><code>--format/-f</code></td><td>Output format: <code>table</code> (default) or <code>json</code>.</td></tr>
     </tbody>
   </table>
-  <p>Table output shows the server, subject, issuer, SHA-256 fingerprint, self-signed status, and validity period. JSON returns one object containing <code>origin</code>, <code>fingerprint</code>, <code>subject</code>, <code>issuer</code>, <code>sans</code>, <code>not-before</code>, <code>not-after</code>, and <code>self-signed</code>; the certificate PEM is omitted. Inspection does not trust or save the certificate.</p>
+  <p>Trust is scoped to the exact HTTPS hostname and port, shared by profiles using that origin. Importing a CA replaces any saved leaf for that origin, does not modify the OS trust store, and accepts valid server certificates issued by that CA, including renewed leaves. Hostname, certificate validity, and chain verification remain enabled. Cross-origin redirects are rejected before credentials or managed trust can reach another hostname, port, or scheme; same-origin redirects remain supported. Obtain the public CA certificate and verify its fingerprint through a trusted administrative channel; servers may send only their leaf. Do not import private keys or certificate bundles.</p>
+  <p>Table output distinguishes the live server leaf from the saved CA or leaf trust anchor and shows each certificate's subject, issuer, SHA-256 fingerprint, self-signed status, and validity period. Self-signed describes that certificate, not whether its issuer is publicly trusted. JSON preserves the live certificate fields and adds <code>trust-type</code> and <code>trusted-certificate</code> (saved metadata or <code>null</code>); the PEM is omitted. Trust list includes <code>trust-type</code> (<code>ca</code> or <code>leaf</code>), treating older entries as leaves. Inspection does not trust or save certificates. Existing leaf trust remains supported across Python versions.</p>
 
       <!-- ─── AUTH ─── -->
       <h2 id="auth">auth</h2>

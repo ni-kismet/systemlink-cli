@@ -3,11 +3,328 @@
 from __future__ import annotations
 
 import importlib
+import ssl
 import sys
 import types
+from datetime import datetime, timedelta, timezone
+from pathlib import Path
 from typing import Any, List
 
 import pytest
+from cryptography import x509
+from cryptography.hazmat.primitives import hashes, serialization
+from cryptography.hazmat.primitives.asymmetric import rsa
+from cryptography.x509.oid import NameOID
+
+
+def _make_ca(
+    ca: bool = True,
+    signing: bool = True,
+    expired: bool = False,
+    key: rsa.RSAPrivateKey | None = None,
+    signer: rsa.RSAPrivateKey | None = None,
+) -> x509.Certificate:
+    key = key or rsa.generate_private_key(public_exponent=65537, key_size=2048)
+    name = x509.Name([x509.NameAttribute(NameOID.COMMON_NAME, "Test CA")])
+    now = datetime.now(timezone.utc)
+    return (
+        x509.CertificateBuilder()
+        .subject_name(name)
+        .issuer_name(name)
+        .public_key(key.public_key())
+        .serial_number(x509.random_serial_number())
+        .not_valid_before(now - timedelta(days=2))
+        .not_valid_after(now + timedelta(days=-1 if expired else 30))
+        .add_extension(x509.BasicConstraints(ca=ca, path_length=None), critical=True)
+        .add_extension(x509.SubjectKeyIdentifier.from_public_key(key.public_key()), critical=False)
+        .add_extension(
+            x509.KeyUsage(False, False, False, False, False, signing, signing, False, False),
+            critical=True,
+        )
+        .sign(signer or key, hashes.SHA256())
+    )
+
+
+@pytest.mark.parametrize("encoding", [serialization.Encoding.PEM, serialization.Encoding.DER])
+def test_load_ca_certificate(encoding: serialization.Encoding, tmp_path: Path) -> None:
+    """Import a public CA in either encoding without changing its fingerprint."""
+    from slcli.ssl_trust import load_ca_certificate
+
+    certificate = _make_ca()
+    path = tmp_path / "ca.crt"
+    path.write_bytes(certificate.public_bytes(encoding))
+    loaded = load_ca_certificate("https://example.com/path", path)
+    assert loaded.origin == "https://example.com:443"
+    assert loaded.trust_type == "ca"
+    assert loaded.self_signed
+    assert loaded.fingerprint == certificate.fingerprint(hashes.SHA256()).hex().upper()
+
+
+@pytest.mark.parametrize(
+    "ca,signing,expired,message",
+    [
+        (False, True, False, "not a CA"),
+        (True, False, False, "signing"),
+        (True, True, True, "expired"),
+    ],
+)
+def test_load_ca_rejects_invalid_certificate(
+    ca: bool, signing: bool, expired: bool, message: str, tmp_path: Path
+) -> None:
+    """Only valid certificate-signing CAs may be imported."""
+    from slcli.ssl_trust import load_ca_certificate
+
+    path = tmp_path / "ca.pem"
+    path.write_bytes(_make_ca(ca, signing, expired).public_bytes(serialization.Encoding.PEM))
+    with pytest.raises(ValueError, match=message):
+        load_ca_certificate("https://example.com", path)
+
+
+def test_load_ca_rejects_bundle(tmp_path: Path) -> None:
+    """Fingerprint approval must not silently trust additional certificates."""
+    from slcli.ssl_trust import load_ca_certificate
+
+    path = tmp_path / "bundle.pem"
+    path.write_bytes(_make_ca().public_bytes(serialization.Encoding.PEM) * 2)
+    with pytest.raises(ValueError, match="exactly one"):
+        load_ca_certificate("https://example.com", path)
+
+
+def test_self_issued_ca_is_not_self_signed(tmp_path: Path) -> None:
+    """A same-name CA rollover signed by another key is not self-signed."""
+    from slcli.ssl_trust import load_ca_certificate
+
+    signer = rsa.generate_private_key(public_exponent=65537, key_size=2048)
+    path = tmp_path / "rollover.pem"
+    path.write_bytes(_make_ca(signer=signer).public_bytes(serialization.Encoding.PEM))
+    assert not load_ca_certificate("https://example.com", path).self_signed
+
+
+def test_duplicate_ca_extensions_are_validation_errors(monkeypatch: Any, tmp_path: Path) -> None:
+    """Malformed extension errors must not escape as unhandled exceptions."""
+    from slcli.ssl_trust import load_ca_certificate
+
+    class Certificate:
+        @property
+        def extensions(self) -> x509.Extensions:
+            raise x509.DuplicateExtension("duplicate", x509.ExtensionOID.BASIC_CONSTRAINTS)
+
+    path = tmp_path / "malformed.pem"
+    path.write_bytes(b"-----BEGIN CERTIFICATE-----\nmalformed\n")
+    monkeypatch.setattr(x509, "load_pem_x509_certificates", lambda _content: [Certificate()])
+    with pytest.raises(ValueError, match="Invalid CA certificate extensions"):
+        load_ca_certificate("https://example.com", path)
+
+
+def test_reading_trust_does_not_create_directory(monkeypatch: Any, tmp_path: Path) -> None:
+    """Inspecting missing trust metadata must not require a writable directory."""
+    from slcli.ssl_trust import get_managed_trust_records, get_managed_trust_path
+
+    monkeypatch.setenv("SLCLI_CONFIG", str(tmp_path / "config.json"))
+    assert get_managed_trust_records() == []
+    assert get_managed_trust_path("https://example.com") is None
+    assert not (tmp_path / "trust").exists()
+
+
+@pytest.mark.parametrize(
+    "destination,allowed",
+    [
+        ("/next", True),
+        ("https://other.example.com/next", False),
+        ("http://example.com/next", False),
+        ("https://example.com:8443/next", False),
+    ],
+)
+def test_managed_trust_rejects_cross_origin_redirects(
+    monkeypatch: Any, tmp_path: Path, destination: str, allowed: bool
+) -> None:
+    """Redirects must not send credentials or managed CA trust to another origin."""
+    import requests
+    from slcli.ssl_trust import (
+        load_ca_certificate,
+        save_managed_certificate,
+        use_standard_ssl_context,
+    )
+
+    monkeypatch.setenv("SLCLI_CONFIG", str(tmp_path / "config.json"))
+    ca_path = tmp_path / "ca.pem"
+    ca_path.write_bytes(_make_ca().public_bytes(serialization.Encoding.PEM))
+    trusted_path = save_managed_certificate(load_ca_certificate("https://example.com", ca_path))
+    sent_urls: list[str] = []
+
+    def send(
+        adapter: requests.adapters.HTTPAdapter, request: requests.PreparedRequest, **kwargs: Any
+    ) -> requests.Response:
+        assert request.url is not None
+        sent_urls.append(request.url)
+        response = requests.Response()
+        response.url = request.url
+        response.request = request
+        response._content = b"{}"
+        response.status_code = 302 if len(sent_urls) == 1 else 200
+        if response.status_code == 302:
+            response.headers["Location"] = destination
+        return response
+
+    monkeypatch.setattr(requests.adapters.HTTPAdapter, "send", send)
+    with use_standard_ssl_context(str(trusted_path)), requests.Session() as session:
+        if allowed:
+            assert session.get("https://example.com", verify=str(trusted_path)).status_code == 200
+            assert len(sent_urls) == 2
+        else:
+            with pytest.raises(requests.exceptions.SSLError, match="cross-origin"):
+                session.get(
+                    "https://example.com",
+                    headers={"x-ni-api-key": "test-key"},
+                    verify=str(trusted_path),
+                )
+            assert len(sent_urls) == 1
+
+
+@pytest.mark.parametrize("strict", [False, True])
+@pytest.mark.parametrize(
+    "case", ["valid", "renewed", "wrong-issuer", "expired", "hostname", "leaf"]
+)
+def test_managed_trust_tls_verification(tmp_path: Path, strict: bool, case: str) -> None:
+    """CA and legacy leaf trust preserve issuer, hostname, and expiry verification."""
+    from slcli import ssl_trust
+    from urllib3.util.ssl_ import create_urllib3_context
+
+    ca_key = rsa.generate_private_key(public_exponent=65537, key_size=2048)
+    ca_certificate = _make_ca(key=ca_key)
+    trusted_path = tmp_path / "trusted.pem"
+    trusted_path.write_bytes(ca_certificate.public_bytes(serialization.Encoding.PEM))
+    if case == "wrong-issuer":
+        ca_key = rsa.generate_private_key(public_exponent=65537, key_size=2048)
+        ca_certificate = _make_ca(key=ca_key)
+    for _ in range(2 if case == "renewed" else 1):
+        leaf_key = rsa.generate_private_key(public_exponent=65537, key_size=2048)
+        now = datetime.now(timezone.utc)
+        leaf = (
+            x509.CertificateBuilder()
+            .subject_name(x509.Name([x509.NameAttribute(NameOID.COMMON_NAME, "example.com")]))
+            .issuer_name(ca_certificate.subject)
+            .public_key(leaf_key.public_key())
+            .serial_number(x509.random_serial_number())
+            .not_valid_before(now - timedelta(days=2))
+            .not_valid_after(now + timedelta(days=-1 if case == "expired" else 10))
+            .add_extension(x509.BasicConstraints(ca=False, path_length=None), critical=True)
+            .add_extension(
+                x509.SubjectAlternativeName([x509.DNSName("example.com")]), critical=False
+            )
+            .add_extension(
+                x509.AuthorityKeyIdentifier.from_issuer_public_key(ca_key.public_key()),
+                critical=False,
+            )
+            .sign(ca_key, hashes.SHA256())
+        )
+        certificate_path = tmp_path / "server.pem"
+        key_path = tmp_path / "server.key"
+        certificate_path.write_bytes(leaf.public_bytes(serialization.Encoding.PEM))
+        key_path.write_bytes(
+            leaf_key.private_bytes(
+                serialization.Encoding.PEM,
+                serialization.PrivateFormat.PKCS8,
+                serialization.NoEncryption(),
+            )
+        )
+        if case == "leaf":
+            trusted_path.write_bytes(leaf.public_bytes(serialization.Encoding.PEM))
+        server_context = ssl_trust._STANDARD_SSL_CONTEXT(ssl.PROTOCOL_TLS_SERVER)
+        server_context.load_cert_chain(str(certificate_path), str(key_path))
+        with ssl_trust.use_standard_ssl_context(str(trusted_path)):
+            client_context = create_urllib3_context()
+            client_context.load_verify_locations(cafile=str(trusted_path))
+            if strict:
+                client_context.verify_flags |= ssl.VERIFY_X509_STRICT
+            assert client_context.check_hostname
+            assert client_context.verify_mode == ssl.CERT_REQUIRED
+            server_in, server_out = ssl.MemoryBIO(), ssl.MemoryBIO()
+            client_in, client_out = ssl.MemoryBIO(), ssl.MemoryBIO()
+            server = server_context.wrap_bio(server_in, server_out, server_side=True)
+            client = client_context.wrap_bio(
+                client_in,
+                client_out,
+                server_hostname="other.example.com" if case == "hostname" else "example.com",
+            )
+
+            def handshake() -> None:
+                client_done = server_done = False
+                for _ in range(10):
+                    try:
+                        client.do_handshake()
+                        client_done = True
+                    except ssl.SSLWantReadError:
+                        pass
+                    server_in.write(client_out.read())
+                    try:
+                        server.do_handshake()
+                        server_done = True
+                    except ssl.SSLWantReadError:
+                        pass
+                    client_in.write(server_out.read())
+                    if client_done and server_done:
+                        return
+                raise AssertionError("TLS handshake did not complete")
+
+            if case in ("wrong-issuer", "expired", "hostname"):
+                with pytest.raises(ssl.SSLCertVerificationError):
+                    handshake()
+            else:
+                handshake()
+
+
+def test_explicit_context_restored_on_failure() -> None:
+    """An explicit trust failure must not leave the OS TLS context replaced."""
+    import requests.adapters
+    import urllib3.util.ssl_ as urllib3_ssl
+    from slcli.ssl_trust import use_standard_ssl_context
+
+    original_ssl = ssl.SSLContext
+    original_urllib3 = urllib3_ssl.SSLContext
+    original_preloaded = getattr(requests.adapters, "_preloaded_ssl_context", None)
+    with pytest.raises(ValueError):
+        with use_standard_ssl_context("ca.pem"):
+            raise ValueError("request failed")
+    assert ssl.SSLContext is original_ssl
+    assert urllib3_ssl.SSLContext is original_urllib3
+    assert getattr(requests.adapters, "_preloaded_ssl_context", None) is original_preloaded
+
+
+def test_explicit_contexts_are_serialized() -> None:
+    """Concurrent explicit verification contexts cannot restore each other's patches."""
+    from concurrent.futures import ThreadPoolExecutor
+    from threading import Event
+    import requests.sessions
+    import urllib3.util.ssl_ as urllib3_ssl
+    from slcli.ssl_trust import use_standard_ssl_context
+
+    first_entered, second_attempted, second_entered = Event(), Event(), Event()
+    original_ssl = ssl.SSLContext
+    original_urllib3 = urllib3_ssl.SSLContext
+    original_send = requests.sessions.Session.send
+
+    def first() -> None:
+        with use_standard_ssl_context("first.pem"):
+            first_entered.set()
+            assert second_attempted.wait(5)
+            assert not second_entered.wait(0.05)
+
+    def second() -> None:
+        assert first_entered.wait(5)
+        second_attempted.set()
+        with use_standard_ssl_context("second.pem"):
+            second_entered.set()
+
+    with ThreadPoolExecutor(max_workers=2) as executor:
+        first_future = executor.submit(first)
+        second_future = executor.submit(second)
+        first_future.result(timeout=10)
+        second_future.result(timeout=10)
+    assert second_entered.is_set()
+    assert ssl.SSLContext is original_ssl
+    assert urllib3_ssl.SSLContext is original_urllib3
+    assert requests.sessions.Session.send is original_send
 
 
 def _make_dummy_truststore(inject_side_effect: Any = None) -> Any:
@@ -121,6 +438,9 @@ def test_certificate_inspection_uses_unpatched_context_and_peer_chain(monkeypatc
 
         def fingerprint(self, _algorithm: Any) -> bytes:
             return b"\x01" * 32
+
+        def verify_directly_issued_by(self, _issuer: Any) -> None:
+            pass
 
     class FakePeerCertificate:
         def public_bytes(self) -> str:

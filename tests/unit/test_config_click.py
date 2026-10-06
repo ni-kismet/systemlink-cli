@@ -1240,6 +1240,69 @@ def test_file_store_transition_retains_pending_cleanup_when_store_fails(
 class TestTrustedCertificates:
     """Tests for managed certificate trust commands."""
 
+    def test_show_preserves_live_details_if_metadata_unreadable(self, monkeypatch: Any) -> None:
+        """Saved metadata errors must not prevent inspecting a live certificate."""
+        from slcli.ssl_trust import ServerCertificate
+
+        certificate = ServerCertificate(
+            origin="https://example.com:443",
+            pem=b"pem",
+            fingerprint="A" * 64,
+            subject="subject",
+            issuer="issuer",
+            sans=[],
+            not_before="before",
+            not_after="after",
+            self_signed=False,
+        )
+        monkeypatch.setattr(
+            "slcli.config_click.inspect_server_certificate", lambda _url: certificate
+        )
+        monkeypatch.setattr(
+            "slcli.config_click.get_managed_trust_records",
+            MagicMock(side_effect=PermissionError("read-only")),
+        )
+        result = CliRunner().invoke(
+            make_cli(),
+            ["config", "trust", "show", "--url", "https://example.com", "--format", "json"],
+        )
+        assert result.exit_code == 0, result.output
+        assert "Could not read managed certificate metadata" in result.stderr
+        assert json.loads(result.stdout)["fingerprint"] == "A" * 64
+
+    def test_import_ca_is_origin_scoped(self, monkeypatch: Any, tmp_path: Any) -> None:
+        """Import a CA without contacting the server and require its exact fingerprint."""
+        from cryptography.hazmat.primitives import hashes, serialization
+        from slcli.ssl_trust import get_managed_trust_records
+        from .test_ssl_trust import _make_ca
+
+        monkeypatch.setenv("SLCLI_CONFIG", str(tmp_path / "config.json"))
+        certificate = _make_ca()
+        path = tmp_path / "ca.pem"
+        path.write_bytes(certificate.public_bytes(serialization.Encoding.PEM))
+        inspect = MagicMock(side_effect=AssertionError("must not contact server"))
+        monkeypatch.setattr("slcli.config_click.inspect_server_certificate", inspect)
+        args = [
+            "config",
+            "trust",
+            "add",
+            "--url",
+            "https://example.com",
+            "--certificate",
+            str(path),
+            "--fingerprint",
+        ]
+        result = CliRunner().invoke(make_cli(), args + ["A" * 64])
+        assert result.exit_code == ExitCodes.INVALID_INPUT
+        assert get_managed_trust_records() == []
+        fingerprint = certificate.fingerprint(hashes.SHA256()).hex()
+        result = CliRunner().invoke(make_cli(), args + [fingerprint])
+        assert result.exit_code == 0, result.output
+        records = get_managed_trust_records()
+        assert records[0]["trust-type"] == "ca"
+        assert records[0]["origin"] == "https://example.com:443"
+        inspect.assert_not_called()
+
     def test_trust_retry_preserves_bearer_authentication(self, monkeypatch: Any) -> None:
         """PKCE certificate approval retries the Web Server probe with a bearer token."""
         from slcli.config_click import _trust_certificate_if_requested
@@ -1360,6 +1423,14 @@ class TestTrustedCertificates:
         )
         inspect = MagicMock(return_value=certificate)
         monkeypatch.setattr("slcli.config_click.inspect_server_certificate", inspect)
+        trusted_ca = {
+            "origin": "https://example.com:443",
+            "trust-type": "ca",
+            "subject": "Test CA",
+            "fingerprint": "B" * 64,
+            "self-signed": True,
+        }
+        monkeypatch.setattr("slcli.config_click.get_managed_trust_records", lambda: [trusted_ca])
 
         result = CliRunner().invoke(
             make_cli(),
@@ -1368,6 +1439,7 @@ class TestTrustedCertificates:
 
         assert result.exit_code == 0, result.output
         assert json.loads(result.output)["fingerprint"] == "A" * 64
+        assert json.loads(result.output)["trusted-certificate"] == trusted_ca
         inspect.assert_called_once_with("https://example.com")
 
     def test_show_server_certificate_table_uses_active_url_without_saving(
