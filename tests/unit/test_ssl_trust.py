@@ -462,17 +462,69 @@ def test_injection_force_failure(monkeypatch: Any) -> None:
 
 
 def test_server_origin_normalization() -> None:
-    """Managed trust should normalize default ports and reject non-HTTPS URLs."""
+    """Managed trust should normalize IDNs, ports, and non-HTTPS URLs."""
     from slcli.ssl_trust import get_ssl_server_origin
 
     assert get_ssl_server_origin("https://Example.com/path") == "https://example.com:443"
     assert get_ssl_server_origin("https://example.com:8443") == "https://example.com:8443"
+    assert get_ssl_server_origin("https://bücher.example") == "https://xn--bcher-kva.example:443"
     with pytest.raises(ValueError, match="HTTPS"):
         get_ssl_server_origin("http://example.com")
 
 
+def test_managed_trust_accepts_legacy_unicode_origin_for_initial_request(
+    monkeypatch: Any, tmp_path: Path
+) -> None:
+    """A Unicode-keyed trust record matches requests' prepared IDNA origin."""
+    import hashlib
+    import json
+
+    import requests
+    from slcli.ssl_trust import get_managed_trust_path, use_standard_ssl_context
+
+    config_file = tmp_path / "config.json"
+    monkeypatch.setattr(
+        "slcli.profiles.ProfileConfig.get_config_path", classmethod(lambda cls: config_file)
+    )
+    legacy_origin = "https://bücher.example:443"
+    certificate = _make_ca()
+    fingerprint = certificate.fingerprint(hashes.SHA256()).hex().upper()
+    trust_directory = tmp_path / "trust"
+    trust_directory.mkdir()
+    stem = hashlib.sha256(legacy_origin.encode("utf-8")).hexdigest()
+    pem_path = trust_directory / f"{stem}.pem"
+    pem_path.write_bytes(certificate.public_bytes(serialization.Encoding.PEM))
+    pem_path.with_suffix(".json").write_text(
+        json.dumps({"origin": legacy_origin, "fingerprint": fingerprint, "trust-type": "ca"}),
+        encoding="utf-8",
+    )
+    sent_urls: list[str] = []
+
+    def send(
+        adapter: requests.adapters.HTTPAdapter, request: requests.PreparedRequest, **kwargs: Any
+    ) -> requests.Response:
+        assert request.url is not None
+        sent_urls.append(request.url)
+        response = requests.Response()
+        response.url = request.url
+        response.request = request
+        response._content = b"{}"
+        response.status_code = 200
+        return response
+
+    monkeypatch.setattr(requests.adapters.HTTPAdapter, "send", send)
+    assert get_managed_trust_path("https://xn--bcher-kva.example") == pem_path
+    with use_standard_ssl_context(str(pem_path)), requests.Session() as session:
+        response = session.get("https://bücher.example", verify=str(pem_path))
+
+    assert response.status_code == 200
+    assert sent_urls == ["https://xn--bcher-kva.example/"]
+
+
 def test_managed_certificate_persistence_is_origin_scoped(monkeypatch: Any, tmp_path: Any) -> None:
     """Managed certificates should persist securely and only match their origin."""
+    import json
+
     from slcli.ssl_trust import (
         ServerCertificate,
         get_managed_trust_path,
@@ -487,7 +539,7 @@ def test_managed_certificate_persistence_is_origin_scoped(monkeypatch: Any, tmp_
     )
     trusted_certificate = _make_ca()
     certificate = ServerCertificate(
-        origin="https://example.com:443",
+        origin="https://bücher.example:443",
         pem=trusted_certificate.public_bytes(serialization.Encoding.PEM),
         fingerprint=trusted_certificate.fingerprint(hashes.SHA256()).hex().upper(),
         subject="commonName=example.com",
@@ -501,13 +553,16 @@ def test_managed_certificate_persistence_is_origin_scoped(monkeypatch: Any, tmp_
 
     path = save_managed_certificate(certificate)
     assert path.read_bytes() == certificate.pem
+    assert json.loads(path.with_suffix(".json").read_text(encoding="utf-8"))["origin"] == (
+        "https://xn--bcher-kva.example:443"
+    )
     if sys.platform != "win32":
         assert path.stat().st_mode & 0o777 == 0o600
-    assert get_managed_trust_path("https://example.com/path") == path
+    assert get_managed_trust_path("https://bücher.example/path") == path
     assert get_managed_trust_path("https://other.example.com") is None
     assert get_managed_trust_records()[0]["fingerprint"] == certificate.fingerprint
-    assert remove_managed_trust("https://example.com") is True
-    assert get_managed_trust_path("https://example.com") is None
+    assert remove_managed_trust("https://bücher.example") is True
+    assert get_managed_trust_path("https://bücher.example") is None
 
 
 def test_certificate_inspection_uses_unpatched_context_and_peer_chain(monkeypatch: Any) -> None:

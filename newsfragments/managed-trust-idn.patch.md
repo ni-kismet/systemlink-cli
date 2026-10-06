@@ -1,0 +1,1 @@
+Canonicalize managed certificate trust origins with IDNA while retaining compatibility with existing Unicode-keyed trust records.
