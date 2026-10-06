@@ -6,12 +6,9 @@ Thank you for your interest in contributing to SystemLink CLI! This document pro
 
 1. **Install Poetry**
 
-   ```bash
-   pipx install poetry
-   ```
-
    To keep lock versions stable, install the `poetry-version` that the CI uses from the
-   [setup-poetry action](https://github.com/ni/python-actions/blob/main/setup-poetry/action.yml).
+   [setup-poetry action](https://github.com/ni/python-actions/blob/main/setup-poetry/action.yml),
+   currently `2.1.4`.
 
    ```bash
    pipx install poetry==2.1.4
@@ -155,7 +152,6 @@ Based on [CLI Guidelines](https://clig.dev), SystemLink CLI follows these patter
    - Ensure it supports JSON output via `--format/-f` option for list commands
 
 4. **If changing the hosted webapp scaffold or bundled template:**
-
    ```bash
    poetry run python scripts/smoke_test_webapp.py
    ```
@@ -221,7 +217,6 @@ This will:
 1. **Merge pull requests with Towncrier fragments** into `main`.
 
 2. **The automated Towncrier release workflow** will:
-
    - Determine the next version from the fragment types in `newsfragments/`
    - Update `pyproject.toml` and `slcli/_version.py`
    - Build and prepend the new section in `CHANGELOG.md`
@@ -229,7 +224,6 @@ This will:
    - Create and push the `vX.Y.Z` git tag
 
 3. **The tag-triggered release workflow** will:
-
    - Run all tests and linting
    - Build PyInstaller binaries for all platforms
    - Generate Homebrew formula and Scoop manifest
