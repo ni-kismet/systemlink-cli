@@ -5,7 +5,7 @@ import json
 import os
 import sys
 from dataclasses import dataclass
-from typing import Any, Callable, Dict, List, Literal, Optional, Sequence, Union
+from typing import TYPE_CHECKING, Any, Callable, Dict, List, Literal, Optional, Sequence, Union
 from urllib.parse import quote, unquote
 
 import click
@@ -14,6 +14,9 @@ import requests
 from . import ssl_trust
 from .rich_output import print_json
 from .ssl_trust import use_standard_ssl_context
+
+if TYPE_CHECKING:
+    from .profiles import Profile
 
 
 class SystemLinkConfig:
@@ -453,6 +456,58 @@ def get_web_url_resolution() -> ResolvedConfigValue:
         return ResolvedConfigValue("https://localhost", f"derived:{base_resolution.source}")
 
 
+def resolve_profile_auth(
+    profile: "Profile", emit_error: bool = True, *, allow_slcli_overrides: bool = False
+) -> Optional[ResolvedAuth]:
+    """Resolve credentials from one profile without environment overrides.
+
+    Args:
+        profile: Profile owning the credential identity and storage policy.
+        emit_error: Whether PKCE failures should include login guidance.
+        allow_slcli_overrides: Allow ambient TLS policy during PKCE refresh.
+
+    Returns:
+        Authentication details, or None when no API key is configured.
+
+    Raises:
+        click.ClickException: The profile credential cannot be retrieved.
+    """
+    if profile.auth_mode == "pkce":
+        from .pkce import PkceError, resolve_pkce_token
+
+        try:
+            if allow_slcli_overrides:
+                token = resolve_pkce_token(profile, emit_error=emit_error)
+            else:
+                token = resolve_pkce_token(
+                    profile,
+                    emit_error=emit_error,
+                    ssl_verify=resolve_ssl_verify(
+                        profile.web_url,
+                        None if profile.ssl_verify else False,
+                        ca_bundle=get_ca_bundle_from_environment(),
+                    ),
+                )
+        except PkceError as exc:
+            raise click.ClickException(str(exc)) from exc
+        return ResolvedAuth(
+            token.access_token, _profile_source(profile.name, token.source), "bearer"
+        )
+    if profile.api_key:
+        _warn_plaintext_credential()
+        return ResolvedAuth(profile.api_key, _profile_source(profile.name, "file"), "api-key")
+    if profile.credential_store == "os":
+        from .credentials import CredentialStoreError, get_credential
+
+        try:
+            api_key = get_credential(profile.credential_id, "api-key")
+        except CredentialStoreError as exc:
+            raise click.ClickException(str(exc)) from exc
+        if api_key:
+            return ResolvedAuth(api_key, _profile_source(profile.name, "os"), "api-key")
+    return None
+
+
 def get_auth_resolution(emit_error: bool = True) -> ResolvedAuth:
     """Resolve the active credential and its HTTP authentication scheme.
 
@@ -470,30 +525,11 @@ def get_auth_resolution(emit_error: bool = True) -> ResolvedAuth:
 
         profile = get_active_profile()
         if profile:
-            if profile.auth_mode == "pkce":
-                from .pkce import PkceError, resolve_pkce_token
-
-                try:
-                    token = resolve_pkce_token(profile, emit_error=emit_error)
-                except PkceError as exc:
-                    raise click.ClickException(str(exc)) from exc
-                return ResolvedAuth(
-                    token.access_token, _profile_source(profile.name, token.source), "bearer"
-                )
-            if profile.api_key:
-                _warn_plaintext_credential()
-                return ResolvedAuth(
-                    profile.api_key, _profile_source(profile.name, "file"), "api-key"
-                )
-            if profile.credential_store == "os":
-                from .credentials import CredentialStoreError, get_credential
-
-                try:
-                    api_key = get_credential(profile.credential_id, "api-key")
-                except CredentialStoreError as exc:
-                    raise click.ClickException(str(exc)) from exc
-                if api_key:
-                    return ResolvedAuth(api_key, _profile_source(profile.name, "os"), "api-key")
+            resolved = resolve_profile_auth(
+                profile, emit_error=emit_error, allow_slcli_overrides=True
+            )
+            if resolved is not None:
+                return resolved
     except (FileNotFoundError, json.JSONDecodeError, KeyError, AttributeError):
         pass
 
@@ -645,23 +681,29 @@ def get_route_url(path: str, target: RouteTarget = "api") -> str:
     return f"{base_url.rstrip('/')}/{path.lstrip('/')}"
 
 
-def get_ssl_verify(server_uri: Optional[str] = None) -> Union[bool, str]:
-    """Return the effective SSL verification setting for a server.
+def resolve_ssl_verify(
+    server_uri: Optional[str],
+    ssl_verify: Optional[Union[bool, str]] = None,
+    *,
+    ca_bundle: Optional[str] = None,
+) -> Union[bool, str]:
+    """Resolve TLS verification without reading environment variables.
 
-    The result is ``False`` only when explicitly disabled. Otherwise it is a
-    managed PEM path when the server has an accepted certificate, or ``True``
-    for the normal OS/certifi verification path.
+    Args:
+        server_uri: Server whose managed trust should be used.
+        ssl_verify: Non-None values pass through unchanged, including True.
+            None selects the default trust policy. Callers should map a profile's
+            enabled-verification policy to None to allow managed certificates.
+        ca_bundle: Caller-selected fallback CA bundle, used only when ssl_verify
+            is None and no managed certificate exists.
+
+    Returns:
+        The explicit setting, otherwise managed trust, otherwise ca_bundle,
+        otherwise True for OS/certifi trust. True retains the injected OS SSL
+        context; bundle paths require use_standard_ssl_context at request time.
     """
-    env = os.environ.get("SLCLI_SSL_VERIFY")
-    if env is not None:
-        if env.lower() in ("0", "false", "no"):
-            return False
-
-    if server_uri is None:
-        try:
-            server_uri = get_base_url()
-        except Exception:
-            server_uri = None
+    if ssl_verify is not None:
+        return ssl_verify
 
     if server_uri:
         try:
@@ -673,7 +715,17 @@ def get_ssl_verify(server_uri: Optional[str] = None) -> Union[bool, str]:
         except (OSError, ValueError):
             pass
 
-    requests_ca_bundle = os.environ.get("REQUESTS_CA_BUNDLE")
+    return ca_bundle or True
+
+
+def get_ca_bundle_from_environment() -> Optional[str]:
+    """Select REQUESTS_CA_BUNDLE, CURL_CA_BUNDLE, then SSL_CERT_FILE.
+
+    Empty values are ignored. SSL_CERT_FILE is ignored when OS trust is injected,
+    preserving the operating system's enterprise roots. Callers explicitly opt
+    into these environment settings before passing them to resolve_ssl_verify.
+    """
+    requests_ca_bundle = os.environ.get("REQUESTS_CA_BUNDLE") or os.environ.get("CURL_CA_BUNDLE")
     if requests_ca_bundle:
         return requests_ca_bundle
 
@@ -681,7 +733,23 @@ def get_ssl_verify(server_uri: Optional[str] = None) -> Union[bool, str]:
     if ssl_cert_file and not ssl_trust.OS_TRUST_INJECTED:
         return ssl_cert_file
 
-    return True
+    return None
+
+
+def get_ssl_verify(server_uri: Optional[str] = None) -> Union[bool, str]:
+    """Select ambient TLS policy before resolving trust for a connection.
+
+    SLCLI_SSL_VERIFY=0/false/no disables verification. Other values retain default
+    trust selection: managed certificate, environment CA bundle, OS/certifi.
+    """
+    if server_uri is None:
+        try:
+            server_uri = get_base_url()
+        except Exception:
+            server_uri = None
+    env = os.environ.get("SLCLI_SSL_VERIFY")
+    ssl_verify = False if env is not None and env.lower() in ("0", "false", "no") else None
+    return resolve_ssl_verify(server_uri, ssl_verify, ca_bundle=get_ca_bundle_from_environment())
 
 
 def get_workspace_id_by_name(name: str) -> str:

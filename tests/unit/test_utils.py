@@ -461,12 +461,115 @@ def test_api_key_resolution_raises_single_click_exception_when_missing(monkeypat
         get_api_key_resolution()
 
 
+@pytest.mark.parametrize("explicit", [False, True, "explicit.pem", ""])
+def test_resolve_ssl_verify_preserves_explicit_settings(
+    monkeypatch: Any, explicit: bool | str
+) -> None:
+    """Explicit settings bypass both managed trust and environment selection."""
+    from unittest.mock import MagicMock
+
+    from slcli.utils import resolve_ssl_verify
+
+    lookup = MagicMock(side_effect=AssertionError("Explicit TLS must not look up managed trust"))
+    monkeypatch.setattr("slcli.ssl_trust.get_managed_trust_path", lookup)
+    monkeypatch.setattr(
+        "slcli.utils.os.environ",
+        MagicMock(get=MagicMock(side_effect=AssertionError("Environment read"))),
+    )
+
+    assert resolve_ssl_verify("https://example.com", explicit, ca_bundle="fallback.pem") == explicit
+    lookup.assert_not_called()
+
+
+@pytest.mark.parametrize(
+    "managed, bundle, expected",
+    [
+        ("managed.pem", "fallback.pem", "managed.pem"),
+        (None, "fallback.pem", "fallback.pem"),
+        (None, None, True),
+    ],
+)
+def test_resolve_ssl_verify_default_trust_is_environment_isolated(
+    monkeypatch: Any, managed: str | None, bundle: str | None, expected: bool | str
+) -> None:
+    """None selects managed trust, then the supplied bundle, then default trust."""
+    from unittest.mock import MagicMock
+
+    from slcli.utils import resolve_ssl_verify
+
+    monkeypatch.setattr(
+        "slcli.ssl_trust.get_managed_trust_path", lambda _url: Path(managed) if managed else None
+    )
+    monkeypatch.setattr(
+        "slcli.utils.os.environ",
+        MagicMock(get=MagicMock(side_effect=AssertionError("Environment read"))),
+    )
+
+    assert resolve_ssl_verify("https://example.com", None, ca_bundle=bundle) == expected
+
+
+@pytest.mark.parametrize(
+    "requests_bundle, curl_bundle, cert_file, os_trust, expected",
+    [
+        ("requests.pem", "curl.pem", "cert.pem", False, "requests.pem"),
+        ("requests.pem", "curl.pem", "cert.pem", True, "requests.pem"),
+        (None, "curl.pem", "cert.pem", False, "curl.pem"),
+        ("", "curl.pem", "cert.pem", True, "curl.pem"),
+        (None, None, "cert.pem", False, "cert.pem"),
+        (None, None, "cert.pem", True, True),
+        ("", "", "", False, True),
+    ],
+)
+def test_ssl_verify_environment_ca_precedence(
+    monkeypatch: Any,
+    requests_bundle: str | None,
+    curl_bundle: str | None,
+    cert_file: str | None,
+    os_trust: bool,
+    expected: bool | str,
+) -> None:
+    """Environment selection honors requests precedence and injected OS trust."""
+    from slcli.utils import get_ssl_verify
+
+    for name, value in (
+        ("REQUESTS_CA_BUNDLE", requests_bundle),
+        ("CURL_CA_BUNDLE", curl_bundle),
+        ("SSL_CERT_FILE", cert_file),
+    ):
+        if value is None:
+            monkeypatch.delenv(name, raising=False)
+        else:
+            monkeypatch.setenv(name, value)
+    monkeypatch.delenv("SLCLI_SSL_VERIFY", raising=False)
+    monkeypatch.setattr("slcli.ssl_trust.OS_TRUST_INJECTED", os_trust)
+    monkeypatch.setattr("slcli.ssl_trust.get_managed_trust_path", lambda _url: None)
+
+    assert get_ssl_verify("https://example.com") == expected
+
+
+@pytest.mark.parametrize("override", ["0", "false", "NO", "true", "1", ""])
+def test_ssl_verify_environment_override_precedes_trust(monkeypatch: Any, override: str) -> None:
+    """Only disabling SLCLI values override default managed trust selection."""
+    from slcli.utils import get_ssl_verify
+
+    monkeypatch.setenv("SLCLI_SSL_VERIFY", override)
+    monkeypatch.setenv("REQUESTS_CA_BUNDLE", "requests.pem")
+    monkeypatch.setenv("CURL_CA_BUNDLE", "curl.pem")
+    monkeypatch.setenv("SSL_CERT_FILE", "cert.pem")
+    monkeypatch.setattr("slcli.ssl_trust.get_managed_trust_path", lambda _url: Path("managed.pem"))
+
+    expected = False if override.lower() in ("0", "false", "no") else "managed.pem"
+    assert get_ssl_verify("https://example.com") == expected
+
+
 def test_ssl_verify_uses_managed_certificate(monkeypatch: Any, tmp_path: Path) -> None:
     """The request verification setting should use an accepted server certificate."""
     from slcli.ssl_trust import ServerCertificate, save_managed_certificate
     from slcli.utils import get_ssl_verify
 
     monkeypatch.delenv("REQUESTS_CA_BUNDLE", raising=False)
+    monkeypatch.delenv("CURL_CA_BUNDLE", raising=False)
+    monkeypatch.delenv("SLCLI_SSL_VERIFY", raising=False)
     monkeypatch.delenv("SSL_CERT_FILE", raising=False)
     config_file = tmp_path / "config.json"
     monkeypatch.setattr(
@@ -499,7 +602,10 @@ def test_ssl_verify_prefers_os_trust_over_ssl_cert_file(monkeypatch: Any) -> Non
     from slcli.utils import get_ssl_verify
 
     monkeypatch.delenv("REQUESTS_CA_BUNDLE", raising=False)
+    monkeypatch.delenv("CURL_CA_BUNDLE", raising=False)
+    monkeypatch.delenv("SLCLI_SSL_VERIFY", raising=False)
     monkeypatch.setenv("SSL_CERT_FILE", "/path/to/corporate-root.pem")
     monkeypatch.setattr("slcli.ssl_trust.OS_TRUST_INJECTED", True)
+    monkeypatch.setattr("slcli.ssl_trust.get_managed_trust_path", lambda _url: None)
 
     assert get_ssl_verify("https://example.com") is True

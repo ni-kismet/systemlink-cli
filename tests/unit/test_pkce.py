@@ -372,6 +372,74 @@ def test_refresh_pkce_credentials_rotates_tokens(monkeypatch: Any) -> None:
     assert [item[0] for item in requests_seen] == ["https://web.example/nitoken/v1/token"]
 
 
+@pytest.mark.parametrize("explicit", [None, False, True, "explicit.pem"])
+@pytest.mark.parametrize("via_profile", [False, True])
+def test_pkce_refresh_tls_selection(
+    monkeypatch: Any, explicit: bool | str | None, via_profile: bool
+) -> None:
+    """Explicit TLS bypasses ambient selection through both refresh entry points."""
+    from collections.abc import Iterator
+    from contextlib import contextmanager
+
+    import slcli.pkce as pkce
+
+    ambient = MagicMock(return_value="ambient.pem")
+    if explicit is not None:
+        ambient.side_effect = AssertionError("Explicit TLS must not select ambient policy")
+    monkeypatch.setattr(pkce, "get_ssl_verify", ambient)
+    monkeypatch.setattr(
+        pkce,
+        "get_credential",
+        lambda *_args: json.dumps({"refresh-token": "old-refresh"}),
+    )
+    write = MagicMock()
+    monkeypatch.setattr(pkce, "set_credential", write)
+    expected = "ambient.pem" if explicit is None else explicit
+    active = False
+    context_values: list[bool | str] = []
+
+    @contextmanager
+    def ssl_context(value: bool | str) -> Iterator[None]:
+        nonlocal active
+        context_values.append(value)
+        active = True
+        try:
+            yield
+        finally:
+            active = False
+
+    def post(url: str, **kwargs: Any) -> Response:
+        assert active
+        assert url == "https://web.example/nitoken/v1/token"
+        assert kwargs["verify"] == expected
+        return Response({"access_token": "fresh", "refresh_token": "rotated"})
+
+    monkeypatch.setattr(pkce, "use_standard_ssl_context", ssl_context)
+    monkeypatch.setattr(pkce.requests, "post", post)
+    if via_profile:
+        profile = Profile(
+            "test",
+            server="https://api.example",
+            web_url="https://web.example",
+            auth_mode="pkce",
+            pkce_client_id="client-id",
+        )
+        access_token = pkce.resolve_pkce_token(profile, ssl_verify=explicit).access_token
+    else:
+        access_token = pkce.refresh_pkce_credentials(
+            "test", "https://web.example", "client-id", ssl_verify=explicit
+        ).access_token
+
+    assert access_token == "fresh"
+    assert context_values == [expected]
+    assert not active
+    write.assert_called_once()
+    if explicit is None:
+        ambient.assert_called_once_with("https://web.example")
+    else:
+        ambient.assert_not_called()
+
+
 def test_refresh_pkce_credentials_keeps_existing_refresh_token_when_omitted(
     monkeypatch: Any,
 ) -> None:

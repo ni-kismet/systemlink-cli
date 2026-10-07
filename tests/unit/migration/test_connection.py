@@ -1,15 +1,18 @@
 """Tests for profile-explicit migration connections."""
 
+import json
+from pathlib import Path
 from typing import Any
+from unittest.mock import MagicMock
 
 import click
 import pytest
 from requests.adapters import HTTPAdapter
 
-from slcli.migration import connection as connection_module
 from slcli.migration.connection import MigrationConnection, resolve_migration_connection
 from slcli.pkce import PkceError
 from slcli.profiles import Profile, ProfileConfig
+from slcli.utils import get_auth_resolution, get_ssl_verify
 
 
 def test_session_carries_credentials_and_tls() -> None:
@@ -44,6 +47,7 @@ def test_resolves_only_the_named_profile(monkeypatch: pytest.MonkeyPatch) -> Non
     monkeypatch.setenv("SLCLI_PROFILE", "default")
     monkeypatch.setenv("SLCLI_API_URL", "https://environment")
     monkeypatch.setenv("SLCLI_API_KEY", "environment-key")
+    monkeypatch.setenv("SLCLI_WEB_URL", "https://environment-web")
     monkeypatch.setenv("SLCLI_SSL_VERIFY", "true")
     config = _config(
         Profile("default", server="https://default", api_key="default-key"),
@@ -98,7 +102,7 @@ class TestPkce:
 
     def test_uses_web_route_and_bearer_token(self, monkeypatch: Any) -> None:
         """A cached token authenticates against the Web Server route."""
-        monkeypatch.setattr(connection_module, "get_pkce_access_token", lambda name: "token")
+        monkeypatch.setattr("slcli.pkce.get_pkce_access_token", lambda *args: "token")
 
         connection = resolve_migration_connection("source", _config(self.PROFILE))
 
@@ -109,11 +113,179 @@ class TestPkce:
     def test_refresh_failure_requires_login(self, monkeypatch: Any) -> None:
         """An expired token that cannot be refreshed directs the user to log in."""
 
-        def refresh_fails(*args: object) -> None:
+        def refresh_fails(*args: object, **kwargs: object) -> None:
             raise PkceError("expired")
 
-        monkeypatch.setattr(connection_module, "get_pkce_access_token", lambda name: None)
-        monkeypatch.setattr(connection_module, "refresh_pkce_credentials", refresh_fails)
+        monkeypatch.setattr("slcli.pkce.get_pkce_access_token", lambda *args: None)
+        monkeypatch.setattr("slcli.pkce.refresh_pkce_credentials", refresh_fails)
 
         with pytest.raises(click.ClickException, match="slcli login --profile source"):
             resolve_migration_connection("source", _config(self.PROFILE))
+
+
+def test_os_api_key_uses_profile_identity(monkeypatch: pytest.MonkeyPatch) -> None:
+    """Explicit and ambient auth share OS credential lookup, not plaintext metadata."""
+    profile = Profile(
+        "renamed", server="https://source", credential_id="stable-id", credential_store="os"
+    )
+    read = MagicMock(return_value="stored-key")
+    monkeypatch.setattr("slcli.credentials.get_credential", read)
+    monkeypatch.setattr("slcli.profiles.get_active_profile", lambda: profile)
+    monkeypatch.setenv("SLCLI_API_KEY", "environment-key")
+
+    connection = resolve_migration_connection("renamed", _config(profile))
+
+    assert connection.headers["x-ni-api-key"] == "stored-key"
+    read.assert_called_once_with("stable-id", "api-key")
+    assert get_auth_resolution().value == "environment-key"
+    read.reset_mock()
+    monkeypatch.delenv("SLCLI_API_KEY")
+    assert get_auth_resolution().value == "stored-key"
+    read.assert_called_once_with("stable-id", "api-key")
+
+
+@pytest.mark.parametrize("missing", [False, True])
+def test_os_api_key_failure_is_reported(monkeypatch: pytest.MonkeyPatch, missing: bool) -> None:
+    """Missing and inaccessible stored API keys produce actionable errors."""
+    from slcli.credentials import CredentialStoreError
+
+    read = MagicMock(return_value=None)
+    if not missing:
+        read.side_effect = CredentialStoreError("credential store locked")
+    monkeypatch.setattr("slcli.credentials.get_credential", read)
+    profile = Profile("source", server="https://source", credential_store="os")
+
+    with pytest.raises(
+        click.ClickException, match="does not define an API key" if missing else "store locked"
+    ):
+        resolve_migration_connection("source", _config(profile))
+
+
+@pytest.mark.parametrize("store", ["os", "file"])
+@pytest.mark.parametrize("expired", [False, True])
+@pytest.mark.parametrize("verify", [False, True])
+def test_pkce_uses_selected_store_identity_and_tls(
+    monkeypatch: pytest.MonkeyPatch, store: str, expired: bool, verify: bool
+) -> None:
+    """Migration uses shared PKCE caching/rotation and ignores SLCLI TLS overrides."""
+    profile = Profile(
+        "renamed",
+        server="https://api.source",
+        web_url="https://web.source",
+        auth_mode="pkce",
+        pkce_client_id="client",
+        credential_id="stable-id",
+        credential_store=store,
+        ssl_verify=verify,
+    )
+    read = MagicMock(
+        return_value=json.dumps(
+            {
+                "access-token": "cached-token",
+                "refresh-token": "old-refresh",
+                "access-expires-at": 999.0 if expired else 4600.0,
+            }
+        )
+    )
+    write = MagicMock()
+    response = MagicMock()
+    response.json.return_value = {
+        "access_token": "fresh-token",
+        "refresh_token": "rotated-refresh",
+        "expires_in": 3600,
+    }
+    post = MagicMock(return_value=response)
+    monkeypatch.setattr("slcli.pkce.time.time", lambda: 1000.0)
+    monkeypatch.setattr("slcli.pkce.get_credential", read)
+    monkeypatch.setattr("slcli.pkce.set_credential", write)
+    monkeypatch.setattr("slcli.pkce.requests.post", post)
+    monkeypatch.setattr("slcli.ssl_trust.get_managed_trust_path", lambda _url: None)
+    monkeypatch.setenv("SLCLI_API_KEY", "environment-key")
+    monkeypatch.setenv("SLCLI_API_URL", "https://environment-api")
+    monkeypatch.setenv("SLCLI_WEB_URL", "https://environment-web")
+    monkeypatch.setenv("SLCLI_SSL_VERIFY", "false" if verify else "true")
+    monkeypatch.delenv("REQUESTS_CA_BUNDLE", raising=False)
+    monkeypatch.delenv("CURL_CA_BUNDLE", raising=False)
+    monkeypatch.delenv("SSL_CERT_FILE", raising=False)
+
+    connection = resolve_migration_connection("renamed", _config(profile))
+
+    assert connection.base_url == "https://web.source"
+    assert connection.ssl_verify is verify
+    assert connection.headers["Authorization"] == (
+        "Bearer fresh-token" if expired else "Bearer cached-token"
+    )
+    read.assert_called_with("stable-id", "pkce", store)
+    if expired:
+        assert post.call_args.args == ("https://web.source/nitoken/v1/token",)
+        assert post.call_args.kwargs["verify"] is verify
+        assert post.call_args.kwargs["data"]["refresh_token"] == "old-refresh"
+        assert write.call_args.args[:2] == ("stable-id", "pkce")
+        assert write.call_args.args[3] == store
+        assert json.loads(write.call_args.args[2])["refresh-token"] == "rotated-refresh"
+    else:
+        post.assert_not_called()
+        write.assert_not_called()
+
+
+def test_file_pkce_uses_persisted_profile_bundle(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    """File-backed tokens are found by stable identity after a profile rename."""
+    monkeypatch.setattr(
+        ProfileConfig, "get_config_path", classmethod(lambda cls: tmp_path / "config.json")
+    )
+    profile = Profile(
+        "renamed",
+        server="https://api",
+        web_url="https://web",
+        auth_mode="pkce",
+        credential_store="file",
+        credential_id="stable-id",
+        pkce_credentials={"access-token": "file-token"},
+    )
+    config = _config(profile)
+    config.save()
+    monkeypatch.setenv("SLCLI_PROFILE", "unrelated")
+
+    connection = resolve_migration_connection("renamed", config)
+
+    assert connection.headers["Authorization"] == "Bearer file-token"
+
+
+@pytest.mark.parametrize("bundle", [None, "managed.pem"])
+def test_migration_tls_shares_trust_without_slcli_override(
+    monkeypatch: pytest.MonkeyPatch, bundle: Any
+) -> None:
+    """Ambient and explicit paths share managed trust but have distinct override policy."""
+    lookup = MagicMock(return_value=Path(bundle) if bundle else None)
+    monkeypatch.setattr("slcli.ssl_trust.get_managed_trust_path", lookup)
+    monkeypatch.delenv("REQUESTS_CA_BUNDLE", raising=False)
+    monkeypatch.delenv("CURL_CA_BUNDLE", raising=False)
+    monkeypatch.delenv("SSL_CERT_FILE", raising=False)
+    monkeypatch.setenv("SLCLI_SSL_VERIFY", "false")
+    profile = Profile("source", server="https://source/", api_key="key")
+
+    connection = resolve_migration_connection("source", _config(profile))
+
+    assert connection.ssl_verify == (bundle or True)
+    lookup.assert_called_once_with("https://source")
+    assert get_ssl_verify("https://source") is False
+    monkeypatch.delenv("SLCLI_SSL_VERIFY")
+    assert get_ssl_verify("https://source") == connection.ssl_verify
+
+
+@pytest.mark.parametrize("variable", ["REQUESTS_CA_BUNDLE", "CURL_CA_BUNDLE", "SSL_CERT_FILE"])
+def test_migration_tls_supports_standard_ca_bundle(
+    monkeypatch: pytest.MonkeyPatch, variable: str
+) -> None:
+    """Standard requests CA bundles remain supported for explicit connections."""
+    for name in ("REQUESTS_CA_BUNDLE", "CURL_CA_BUNDLE", "SSL_CERT_FILE"):
+        monkeypatch.delenv(name, raising=False)
+    monkeypatch.setenv(variable, "corporate.pem")
+    monkeypatch.setenv("SLCLI_SSL_VERIFY", "false")
+    monkeypatch.setattr("slcli.ssl_trust.OS_TRUST_INJECTED", False)
+    monkeypatch.setattr("slcli.ssl_trust.get_managed_trust_path", lambda _url: None)
+    profile = Profile("source", server="http://source", api_key="key")
+
+    assert resolve_migration_connection("source", _config(profile)).ssl_verify == "corporate.pem"

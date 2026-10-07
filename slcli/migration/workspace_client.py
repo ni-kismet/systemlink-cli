@@ -7,6 +7,7 @@ import requests
 
 from slcli.migration.api import REQUEST_TIMEOUT_SECONDS, ApiModel
 from slcli.migration.connection import MigrationConnection
+from slcli.ssl_trust import use_standard_ssl_context
 
 PAGE_SIZE = 100
 
@@ -33,16 +34,19 @@ class WorkspaceClient:
         """Initialize a workspace query client."""
         self._url = f"{connection.base_url}/niuser/v1/workspaces"
         self._session = session or connection.create_session()
+        self._ssl_verify = connection.ssl_verify
 
     def query_workspaces(self) -> Iterator[Workspace]:
         """Yield every accessible workspace."""
         skip = 0
         while True:
-            response = self._session.get(
-                self._url,
-                params={"take": PAGE_SIZE, "skip": skip},
-                timeout=REQUEST_TIMEOUT_SECONDS,
-            )
+            with use_standard_ssl_context(self._ssl_verify):
+                response = self._session.get(
+                    self._url,
+                    params={"take": PAGE_SIZE, "skip": skip},
+                    timeout=REQUEST_TIMEOUT_SECONDS,
+                    verify=self._ssl_verify,
+                )
             response.raise_for_status()
             page = _WorkspacePage.model_validate(response.json())
             yield from page.workspaces

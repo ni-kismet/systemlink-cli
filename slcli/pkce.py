@@ -10,7 +10,7 @@ import webbrowser
 from dataclasses import dataclass
 from http.server import BaseHTTPRequestHandler, HTTPServer
 from pathlib import Path
-from typing import TYPE_CHECKING, Any, Dict, Mapping, Optional, Sequence
+from typing import TYPE_CHECKING, Any, Dict, Mapping, Optional, Sequence, Union
 from urllib.parse import parse_qs, quote, urlencode, urlparse
 
 import requests
@@ -537,9 +537,28 @@ def get_pkce_access_token(profile_id: str, store: str = "os") -> Optional[str]:
 
 
 def refresh_pkce_credentials(
-    profile_id: str, web_url: str, client_id: str, store: str = "os"
+    profile_id: str,
+    web_url: str,
+    client_id: str,
+    store: str = "os",
+    *,
+    ssl_verify: Optional[Union[bool, str]] = None,
 ) -> PkceLoginResult:
-    """Refresh a profile's bearer credentials and persist rotated tokens."""
+    """Refresh bearer credentials and persist rotated tokens in the selected store.
+
+    Args:
+        profile_id: Stable credential identity of the profile.
+        web_url: Web Server URL hosting the token service.
+        client_id: OAuth client identifier.
+        store: Credential store used for reading and persisting tokens.
+        ssl_verify: Explicit TLS setting; None resolves ambient TLS policy.
+
+    Returns:
+        The refreshed token bundle.
+
+    Raises:
+        PkceError: Credentials cannot be read, refreshed, or persisted.
+    """
     try:
         bundle_text = get_credential(profile_id, "pkce", store)
     except Exception as exc:
@@ -558,7 +577,8 @@ def refresh_pkce_credentials(
     if not refresh_token:
         raise PkceError("No PKCE refresh token is available.")
 
-    ssl_verify = get_ssl_verify(web_url)
+    if ssl_verify is None:
+        ssl_verify = get_ssl_verify(web_url)
     payload = _request_token(
         web_url,
         {
@@ -577,12 +597,18 @@ def refresh_pkce_credentials(
     return result
 
 
-def resolve_pkce_token(profile: "Profile", emit_error: bool = True) -> PkceTokenResolution:
+def resolve_pkce_token(
+    profile: "Profile",
+    emit_error: bool = True,
+    *,
+    ssl_verify: Optional[Union[bool, str]] = None,
+) -> PkceTokenResolution:
     """Resolve a cached bearer token or refresh and persist its replacement.
 
     Args:
         profile: Profile owning the credentials and refresh configuration.
         emit_error: Include profile-specific login guidance when unavailable.
+        ssl_verify: Explicit refresh TLS policy; None uses ambient configuration.
 
     Returns:
         A usable access token with its store and cached or refreshed provenance.
@@ -600,6 +626,7 @@ def resolve_pkce_token(profile: "Profile", emit_error: bool = True) -> PkceToken
                 profile.web_url,
                 profile.pkce_client_id,
                 profile.credential_store,
+                ssl_verify=ssl_verify,
             )
         except PkceError:
             pass
