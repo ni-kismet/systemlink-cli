@@ -2,6 +2,17 @@
 
 <!-- towncrier release notes start -->
 
+## v2.3.0 (2026-10-07)
+
+### Features
+
+- Support fingerprint-verified public CA imports with `config trust add --certificate`, scoped to a server origin. Distinguish live certificates from saved CA or leaf trust anchors, verify self-signed status, and apply explicit certificate trust consistently to webapp requests and supported Python versions. Reject cross-origin redirects when using managed trust. (ca-certificate-trust)
+
+### Bug Fixes
+
+- Canonicalize managed certificate trust origins with Requests-compatible IDNA while retaining compatibility with existing Unicode-keyed trust records, including in trust show and list output. Only report an active managed trust certificate in trust show when its matching PEM passes certificate and fingerprint validation. Limit slcli's partial-chain verification override to validated managed trust while preserving native verification defaults for environment-provided CA bundles. Apply the same managed trust policy to info --debug TLS diagnostics so trusted intermediate CAs and leaf certificates do not produce false chain-verification failures. (managed-trust-idn)
+
+
 ## v2.2.2 (2026-10-06)
 
 ### Bug Fixes
