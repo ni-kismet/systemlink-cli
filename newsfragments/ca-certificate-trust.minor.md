@@ -1,0 +1,1 @@
+Support fingerprint-verified public CA imports with `config trust add --certificate`, scoped to a server origin. Distinguish live certificates from saved CA or leaf trust anchors, verify self-signed status, and apply explicit certificate trust consistently to webapp requests and supported Python versions. Reject cross-origin redirects when using managed trust.
