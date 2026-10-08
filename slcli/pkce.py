@@ -542,7 +542,7 @@ def refresh_pkce_credentials(
     client_id: str,
     store: str = "os",
     *,
-    ssl_verify: Optional[Union[bool, str]] = None,
+    ssl_verify: Union[bool, str],
 ) -> PkceLoginResult:
     """Refresh bearer credentials and persist rotated tokens in the selected store.
 
@@ -551,7 +551,7 @@ def refresh_pkce_credentials(
         web_url: Web Server URL hosting the token service.
         client_id: OAuth client identifier.
         store: Credential store used for reading and persisting tokens.
-        ssl_verify: Explicit TLS setting; None resolves ambient TLS policy.
+        ssl_verify: Resolved TLS setting for the token request.
 
     Returns:
         The refreshed token bundle.
@@ -577,8 +577,6 @@ def refresh_pkce_credentials(
     if not refresh_token:
         raise PkceError("No PKCE refresh token is available.")
 
-    if ssl_verify is None:
-        ssl_verify = get_ssl_verify(web_url)
     payload = _request_token(
         web_url,
         {
@@ -601,14 +599,14 @@ def resolve_pkce_token(
     profile: "Profile",
     emit_error: bool = True,
     *,
-    ssl_verify: Optional[Union[bool, str]] = None,
+    ssl_verify: Union[bool, str],
 ) -> PkceTokenResolution:
     """Resolve a cached bearer token or refresh and persist its replacement.
 
     Args:
         profile: Profile owning the credentials and refresh configuration.
         emit_error: Include profile-specific login guidance when unavailable.
-        ssl_verify: Explicit refresh TLS policy; None uses ambient configuration.
+        ssl_verify: Resolved TLS setting for a token refresh request.
 
     Returns:
         A usable access token with its store and cached or refreshed provenance.

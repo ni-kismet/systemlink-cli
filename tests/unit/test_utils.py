@@ -235,11 +235,13 @@ def test_pkce_resolution_error_is_translated(monkeypatch: Any, emit_error: bool)
     resolver = MagicMock(side_effect=PkceError("login guidance"))
     monkeypatch.setattr("slcli.profiles.get_active_profile", lambda: profile)
     monkeypatch.setattr("slcli.pkce.resolve_pkce_token", resolver)
+    monkeypatch.delenv("SLCLI_API_KEY", raising=False)
+    monkeypatch.setenv("SLCLI_SSL_VERIFY", "false")
 
     with pytest.raises(click.ClickException, match="login guidance"):
         get_auth_resolution(emit_error=emit_error)
 
-    resolver.assert_called_once_with(profile, emit_error=emit_error)
+    resolver.assert_called_once_with(profile, emit_error=emit_error, ssl_verify=False)
 
 
 def test_get_auth_headers_uses_only_bearer_header() -> None:

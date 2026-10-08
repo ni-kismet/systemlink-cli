@@ -457,14 +457,14 @@ def get_web_url_resolution() -> ResolvedConfigValue:
 
 
 def resolve_profile_auth(
-    profile: "Profile", emit_error: bool = True, *, allow_slcli_overrides: bool = False
+    profile: "Profile", *, ssl_verify: Union[bool, str], emit_error: bool = True
 ) -> Optional[ResolvedAuth]:
     """Resolve credentials from one profile without environment overrides.
 
     Args:
         profile: Profile owning the credential identity and storage policy.
+        ssl_verify: Resolved TLS setting for the profile's Web URL, used for PKCE refresh.
         emit_error: Whether PKCE failures should include login guidance.
-        allow_slcli_overrides: Allow ambient TLS policy during PKCE refresh.
 
     Returns:
         Authentication details, or None when no API key is configured.
@@ -476,18 +476,7 @@ def resolve_profile_auth(
         from .pkce import PkceError, resolve_pkce_token
 
         try:
-            if allow_slcli_overrides:
-                token = resolve_pkce_token(profile, emit_error=emit_error)
-            else:
-                token = resolve_pkce_token(
-                    profile,
-                    emit_error=emit_error,
-                    ssl_verify=resolve_ssl_verify(
-                        profile.web_url,
-                        None if profile.ssl_verify else False,
-                        ca_bundle=get_ca_bundle_from_environment(),
-                    ),
-                )
+            token = resolve_pkce_token(profile, emit_error=emit_error, ssl_verify=ssl_verify)
         except PkceError as exc:
             raise click.ClickException(str(exc)) from exc
         return ResolvedAuth(
@@ -526,7 +515,9 @@ def get_auth_resolution(emit_error: bool = True) -> ResolvedAuth:
         profile = get_active_profile()
         if profile:
             resolved = resolve_profile_auth(
-                profile, emit_error=emit_error, allow_slcli_overrides=True
+                profile,
+                ssl_verify=get_ssl_verify(profile.web_url or profile.server),
+                emit_error=emit_error,
             )
             if resolved is not None:
                 return resolved
@@ -736,11 +727,48 @@ def get_ca_bundle_from_environment() -> Optional[str]:
     return None
 
 
+def _url_host(url: str) -> str:
+    from urllib.parse import urlparse
+
+    return urlparse(url if "://" in url else f"https://{url}").netloc.lower()
+
+
+def profile_disables_ssl_verify(profile: "Profile", server_uri: Optional[str]) -> bool:
+    """Return whether the profile disables TLS verification for this URL.
+
+    A profile's ``ssl-verify: false`` applies only to its own server and Web URL
+    hosts, so it never weakens connections to any other server.
+    """
+    if profile.ssl_verify or not server_uri:
+        return False
+    own_hosts = {_url_host(url) for url in (profile.server, profile.web_url) if url}
+    return _url_host(server_uri) in own_hosts
+
+
+def get_profile_ssl_verify(profile: "Profile", server_uri: str) -> Union[bool, str]:
+    """Resolve TLS verification from a profile's own policy, ignoring SLCLI_SSL_VERIFY.
+
+    Args:
+        profile: Profile whose ``ssl_verify`` setting applies.
+        server_uri: Server whose managed trust should be used.
+
+    Returns:
+        False when the profile disables verification for this host, otherwise the
+        default trust selection.
+    """
+    return resolve_ssl_verify(
+        server_uri,
+        False if profile_disables_ssl_verify(profile, server_uri) else None,
+        ca_bundle=get_ca_bundle_from_environment(),
+    )
+
+
 def get_ssl_verify(server_uri: Optional[str] = None) -> Union[bool, str]:
     """Select ambient TLS policy before resolving trust for a connection.
 
-    SLCLI_SSL_VERIFY=0/false/no disables verification. Other values retain default
-    trust selection: managed certificate, environment CA bundle, OS/certifi.
+    SLCLI_SSL_VERIFY=0/false/no disables verification. Otherwise the active profile's
+    ``ssl-verify: false`` disables it for that profile's own hosts. Other cases retain
+    default trust selection: managed certificate, environment CA bundle, OS/certifi.
     """
     if server_uri is None:
         try:
@@ -748,8 +776,24 @@ def get_ssl_verify(server_uri: Optional[str] = None) -> Union[bool, str]:
         except Exception:
             server_uri = None
     env = os.environ.get("SLCLI_SSL_VERIFY")
-    ssl_verify = False if env is not None and env.lower() in ("0", "false", "no") else None
-    return resolve_ssl_verify(server_uri, ssl_verify, ca_bundle=get_ca_bundle_from_environment())
+    if env is not None and env.lower() in ("0", "false", "no"):
+        return False
+    try:
+        from .profiles import get_active_profile
+
+        profile = get_active_profile()
+    except (
+        FileNotFoundError,
+        json.JSONDecodeError,
+        KeyError,
+        AttributeError,
+        click.ClickException,
+    ):
+        profile = None
+    disabled = profile is not None and profile_disables_ssl_verify(profile, server_uri)
+    return resolve_ssl_verify(
+        server_uri, False if disabled else None, ca_bundle=get_ca_bundle_from_environment()
+    )
 
 
 def get_workspace_id_by_name(name: str) -> str:

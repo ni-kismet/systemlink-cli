@@ -64,6 +64,24 @@ def test_resolves_only_the_named_profile(monkeypatch: pytest.MonkeyPatch) -> Non
     assert connection.ssl_verify is False
 
 
+def test_source_tls_opt_out_does_not_reach_destination(monkeypatch: pytest.MonkeyPatch) -> None:
+    """An insecure source profile, even when active, leaves the destination verified."""
+    monkeypatch.delenv("SLCLI_SSL_VERIFY", raising=False)
+    monkeypatch.setattr("slcli.ssl_trust.get_managed_trust_path", lambda _url: None)
+    for name in ("REQUESTS_CA_BUNDLE", "CURL_CA_BUNDLE", "SSL_CERT_FILE"):
+        monkeypatch.delenv(name, raising=False)
+    source = Profile("source", server="https://old", api_key="a", ssl_verify=False)
+    config = _config(
+        source, Profile("destination", server="https://new", api_key="b"), current="source"
+    )
+    monkeypatch.setattr("slcli.profiles.get_active_profile", lambda: source)
+
+    assert resolve_migration_connection("source", config).ssl_verify is False
+    assert resolve_migration_connection("destination", config).ssl_verify is True
+    assert get_ssl_verify("https://old/nitag/v2") is False
+    assert get_ssl_verify("https://new") is True
+
+
 def test_missing_profile_does_not_fall_back() -> None:
     """A missing profile fails even when a current profile exists."""
     config = _config(Profile("default", server="https://default", api_key="key"), current="default")
