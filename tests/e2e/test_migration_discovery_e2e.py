@@ -39,7 +39,7 @@ from tests.e2e.testmonitor_fixture import OwnedTestMonitorResources
 PRIMARY = "e2e-slcli-migration-source"
 OTHER = "e2e-slcli-migration-source-other"
 FIXTURE_WORKSPACES = frozenset({PRIMARY, OTHER})
-TERMINAL_STATES = ["PASSED", "FAILED", "TERMINATED", "ERRORED", "TIMEDOUT"]
+TERMINAL_STATES = ["DONE", "PASSED", "FAILED", "SKIPPED", "TERMINATED", "ERRORED", "TIMEDOUT"]
 NON_TERMINAL_STATES = ["RUNNING", "CUSTOM"]
 
 # Migration spans platforms through named profiles, so it has no sls/sle platform marker.

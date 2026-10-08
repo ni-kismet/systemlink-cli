@@ -3,7 +3,6 @@
 from contextlib import contextmanager
 from datetime import datetime, timezone
 from typing import Any, Dict, Iterator, List, Union
-from unittest.mock import MagicMock
 
 import pytest
 import requests
@@ -130,10 +129,10 @@ def test_query_workspaces_follows_offset_pages() -> None:
 
 @pytest.mark.parametrize("verify", [False, True, "managed.pem"])
 @pytest.mark.parametrize("fails", [False, True])
-def test_workspace_requests_use_connection_ssl_context(
+def test_connection_requests_use_ssl_context(
     monkeypatch: pytest.MonkeyPatch, verify: Union[bool, str], fails: bool
 ) -> None:
-    """Each page request uses and restores the connection's TLS context, even on failure."""
+    """Each request uses and restores the connection's TLS context, even on failure."""
     context_values: List[Union[bool, str]] = []
     active = False
 
@@ -147,28 +146,21 @@ def test_workspace_requests_use_connection_ssl_context(
         finally:
             active = False
 
-    def get_page(*args: Any, **kwargs: Any) -> FakeResponse:
+    def send(*args: Any, **kwargs: Any) -> FakeResponse:
         assert active
-        assert kwargs["verify"] == verify
         if fails:
             raise requests.ConnectionError("offline")
-        page = (
-            [{"id": str(index), "name": "workspace"} for index in range(WORKSPACE_PAGE_SIZE)]
-            if kwargs["params"]["skip"] == 0
-            else []
-        )
-        return FakeResponse({"workspaces": page})
+        return FakeResponse({})
 
-    monkeypatch.setattr("slcli.migration.workspace_client.use_standard_ssl_context", ssl_context)
-    session = MagicMock()
-    session.get.side_effect = get_page
-    connection = MigrationConnection("source", "https://source", {}, verify)
-    client = WorkspaceClient(connection, session)
+    monkeypatch.setattr("slcli.migration.connection.use_standard_ssl_context", ssl_context)
+    monkeypatch.setattr(requests.Session, "request", send)
+    session = MigrationConnection("source", "https://source", {}, verify).create_session()
 
-    if fails:
-        with pytest.raises(requests.ConnectionError, match="offline"):
-            list(client.query_workspaces())
-    else:
-        assert len(list(client.query_workspaces())) == WORKSPACE_PAGE_SIZE
-    assert context_values == [verify] * (1 if fails else 2)
+    for _ in range(2):
+        if fails:
+            with pytest.raises(requests.ConnectionError, match="offline"):
+                session.post("https://source/query")
+        else:
+            session.get("https://source/query")
+    assert context_values == [verify, verify]
     assert not active

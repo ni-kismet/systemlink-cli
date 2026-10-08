@@ -103,8 +103,8 @@ def test_newest_result_compares_instants_across_offsets() -> None:
 
 def test_only_api_terminal_states_are_discovered() -> None:
     """Both TIMEDOUT forms are terminal; running and custom states are not."""
-    states = ["PASSED", "FAILED", "TERMINATED", "ERRORED", "TIMEDOUT", "TIMED_OUT"]
-    states += ["RUNNING", "WAITING", "MY_CUSTOM_STATE"]
+    states = ["DONE", "PASSED", "FAILED", "SKIPPED", "TERMINATED", "ERRORED"]
+    states += ["TIMEDOUT", "TIMED_OUT", "RUNNING", "WAITING", "MY_CUSTOM_STATE"]
     source = FakeTestMonitor(
         [_product("p")],
         {"Alpha-id": [_result(state, "p", status=state) for state in states]},
@@ -112,7 +112,7 @@ def test_only_api_terminal_states_are_discovered() -> None:
 
     discovery = discover_test_monitor(source, _workspaces("Alpha"))
 
-    assert {result.id for result in discovery.results} == set(states[:6])
+    assert {result.id for result in discovery.results} == set(states[:8])
 
 
 def test_non_terminal_results_still_assign_product_workspace() -> None:

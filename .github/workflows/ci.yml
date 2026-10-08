@@ -278,6 +278,10 @@ jobs:
     runs-on: ubuntu-latest
     needs: build-test-lint
     timeout-minutes: 45
+    # Runs share fixture workspaces on one server, so overlapping cleanup would race.
+    concurrency:
+      group: e2e-migration-sls
+      cancel-in-progress: false
     env:
       SLCLI_E2E_SLS_BASE_URL: https://base.systemlink.io
       SLCLI_E2E_SOURCE_PROFILE: migration-source

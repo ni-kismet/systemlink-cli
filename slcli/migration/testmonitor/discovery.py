@@ -28,7 +28,7 @@ _logger = logging.getLogger(__name__)
 # Terminal values of the Test Monitor StatusType enum. The service accepts TIMEDOUT
 # on write and stores TIMED_OUT, so both are recognized.
 TERMINAL_RESULT_STATES = frozenset(
-    {"PASSED", "FAILED", "TERMINATED", "ERRORED", "TIMEDOUT", "TIMED_OUT"}
+    {"DONE", "PASSED", "FAILED", "SKIPPED", "TERMINATED", "ERRORED", "TIMEDOUT", "TIMED_OUT"}
 )
 
 
