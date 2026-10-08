@@ -297,7 +297,7 @@ def test_refresh_pkce_credentials_rejects_non_object_bundle(
     monkeypatch.setattr("slcli.pkce.get_credential", lambda *_args, **_kwargs: bundle_text)
 
     with pytest.raises(PkceError, match="Stored PKCE credentials are invalid"):
-        refresh_pkce_credentials("test", "https://web.example", "client-id")
+        refresh_pkce_credentials("test", "https://web.example", "client-id", ssl_verify=True)
 
 
 @pytest.mark.parametrize("expiry", ["NaN", "Infinity", "-Infinity", 10**400, True])
@@ -362,7 +362,7 @@ def test_refresh_pkce_credentials_rotates_tokens(monkeypatch: Any) -> None:
         post,
     )
 
-    result = refresh_pkce_credentials("test", "https://web.example", "client-id")
+    result = refresh_pkce_credentials("test", "https://web.example", "client-id", ssl_verify=True)
 
     assert result.access_token == "new-access-token"
     bundle = json.loads(values[("test", "pkce")])
@@ -396,7 +396,7 @@ def test_refresh_pkce_credentials_keeps_existing_refresh_token_when_omitted(
         lambda *_args, **_kwargs: Response({"access_token": "new-access-token"}),
     )
 
-    refresh_pkce_credentials("test", "https://web.example", "client-id")
+    refresh_pkce_credentials("test", "https://web.example", "client-id", ssl_verify=True)
 
     assert json.loads(values[("test", "pkce")])["refresh-token"] == "old-refresh-token"
 

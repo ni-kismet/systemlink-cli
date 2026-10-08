@@ -5,18 +5,16 @@ import json
 import os
 import sys
 from dataclasses import dataclass
-from typing import TYPE_CHECKING, Any, Callable, Dict, List, Literal, Optional, Sequence, Union
+from typing import Any, Callable, Dict, List, Literal, Optional, Sequence, Union
 from urllib.parse import quote, unquote, urlparse
 
 import click
 import requests
 
 from . import ssl_trust
+from .profiles import Profile
 from .rich_output import print_json
 from .ssl_trust import use_standard_ssl_context
-
-if TYPE_CHECKING:
-    from .profiles import Profile
 
 
 class SystemLinkConfig:
@@ -456,7 +454,7 @@ def get_web_url_resolution() -> ResolvedConfigValue:
         return ResolvedConfigValue("https://localhost", f"derived:{base_resolution.source}")
 
 
-def resolve_profile_auth(profile: "Profile", emit_error: bool = True) -> Optional[ResolvedAuth]:
+def resolve_profile_auth(profile: Profile, emit_error: bool = True) -> Optional[ResolvedAuth]:
     """Resolve credentials stored by one profile, ignoring environment overrides.
 
     Args:
@@ -664,7 +662,7 @@ def get_route_url(path: str, target: RouteTarget = "api") -> str:
     return f"{base_url.rstrip('/')}/{path.lstrip('/')}"
 
 
-def _profile_disables_ssl_verify(profile: "Profile", server_uri: Optional[str]) -> bool:
+def _profile_disables_ssl_verify(profile: Profile, server_uri: Optional[str]) -> bool:
     if profile.ssl_verify or not server_uri:
         return False
 
@@ -676,7 +674,7 @@ def _profile_disables_ssl_verify(profile: "Profile", server_uri: Optional[str]) 
 
 
 def get_ssl_verify(
-    server_uri: Optional[str] = None, profile: Optional["Profile"] = None
+    server_uri: Optional[str] = None, profile: Optional[Profile] = None
 ) -> Union[bool, str]:
     """Return the effective SSL verification setting for a server.
 

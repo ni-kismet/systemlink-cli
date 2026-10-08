@@ -541,11 +541,26 @@ def refresh_pkce_credentials(
     web_url: str,
     client_id: str,
     store: str = "os",
-    ssl_verify: Optional[Union[bool, str]] = None,
+    *,
+    ssl_verify: Union[bool, str],
 ) -> PkceLoginResult:
     """Refresh a profile's bearer credentials and persist rotated tokens.
 
-    ``ssl_verify`` defaults to ``get_ssl_verify(web_url)`` for the active profile.
+    Prefer ``resolve_pkce_token``, which derives ``ssl_verify`` from the owning profile.
+
+    Args:
+        profile_id: Stable credential identity of the profile.
+        web_url: Web Server URL hosting the token service.
+        client_id: OAuth client identifier.
+        store: Credential store used for reading and persisting tokens.
+        ssl_verify: TLS setting for the token request, from
+            ``get_ssl_verify(web_url, profile)`` for the owning profile.
+
+    Returns:
+        The refreshed token bundle.
+
+    Raises:
+        PkceError: Credentials cannot be read, refreshed, or persisted.
     """
     try:
         bundle_text = get_credential(profile_id, "pkce", store)
@@ -565,8 +580,6 @@ def refresh_pkce_credentials(
     if not refresh_token:
         raise PkceError("No PKCE refresh token is available.")
 
-    if ssl_verify is None:
-        ssl_verify = get_ssl_verify(web_url)
     payload = _request_token(
         web_url,
         {
