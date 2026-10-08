@@ -49,10 +49,10 @@ class Profile:
     auth_mode: str = "api-key"
     pkce_client_id: Optional[str] = None
     pkce_scopes: Optional[List[str]] = None
-    ssl_verify: bool = True
     credential_id: str = field(default_factory=lambda: str(uuid.uuid4()))
     credential_store: str = "file"
     pkce_credentials: Dict[str, Any] = field(default_factory=dict)
+    ssl_verify: bool = True
 
     def to_dict(self) -> Dict[str, Any]:
         """Convert profile to dictionary for serialization."""
