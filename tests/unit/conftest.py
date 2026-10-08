@@ -39,6 +39,14 @@ def isolate_user_config(monkeypatch: pytest.MonkeyPatch, tmp_path: Any) -> None:
         "SLCLI_API_KEY",
         "SLCLI_WEB_URL",
         "SLCLI_SSL_VERIFY",
+        "SLCLI_PLATFORM",
+        "SLCLI_CREDENTIAL_STORE",
+        "SLCLI_NON_INTERACTIVE",
+        "SLCLI_COLOR",
+        "SLCLI_SERVICE_PROBE_CACHE_TTL_SECONDS",
+        "SLCLI_DISABLE_OS_TRUST",
+        "SLCLI_FORCE_OS_TRUST",
+        "SLCLI_DEBUG_OS_TRUST",
     ):
         monkeypatch.delenv(name, raising=False)
 
