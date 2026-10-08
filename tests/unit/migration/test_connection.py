@@ -42,13 +42,12 @@ def _config(*profiles: Profile, current: str = "") -> ProfileConfig:
     return ProfileConfig(current_profile=current or None, profiles={p.name: p for p in profiles})
 
 
-def test_resolves_only_the_named_profile(monkeypatch: pytest.MonkeyPatch) -> None:
-    """The current profile and environment overrides never contribute settings."""
+def test_ignores_current_profile_and_target_overrides(monkeypatch: pytest.MonkeyPatch) -> None:
+    """Profile selection and server/credential env overrides do not apply."""
     monkeypatch.setenv("SLCLI_PROFILE", "default")
     monkeypatch.setenv("SLCLI_API_URL", "https://environment")
     monkeypatch.setenv("SLCLI_API_KEY", "environment-key")
     monkeypatch.setenv("SLCLI_WEB_URL", "https://environment-web")
-    monkeypatch.setenv("SLCLI_SSL_VERIFY", "true")
     config = _config(
         Profile("default", server="https://default", api_key="default-key"),
         Profile("source", server="https://source/", api_key="source-key", ssl_verify=False),

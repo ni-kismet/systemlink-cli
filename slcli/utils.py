@@ -455,7 +455,7 @@ def get_web_url_resolution() -> ResolvedConfigValue:
 
 
 def resolve_profile_auth(profile: Profile, emit_error: bool = True) -> Optional[ResolvedAuth]:
-    """Resolve credentials stored by one profile, ignoring environment overrides.
+    """Resolve the credentials stored by one profile, ignoring ``SLCLI_API_KEY``.
 
     Args:
         profile: Profile owning the credential identity and store.
