@@ -6,7 +6,7 @@ import os
 import sys
 from dataclasses import dataclass
 from typing import TYPE_CHECKING, Any, Callable, Dict, List, Literal, Optional, Sequence, Union
-from urllib.parse import quote, unquote
+from urllib.parse import quote, unquote, urlparse
 
 import click
 import requests
@@ -456,18 +456,15 @@ def get_web_url_resolution() -> ResolvedConfigValue:
         return ResolvedConfigValue("https://localhost", f"derived:{base_resolution.source}")
 
 
-def resolve_profile_auth(
-    profile: "Profile", *, ssl_verify: Union[bool, str], emit_error: bool = True
-) -> Optional[ResolvedAuth]:
-    """Resolve credentials from one profile without environment overrides.
+def resolve_profile_auth(profile: "Profile", emit_error: bool = True) -> Optional[ResolvedAuth]:
+    """Resolve credentials stored by one profile, ignoring environment overrides.
 
     Args:
-        profile: Profile owning the credential identity and storage policy.
-        ssl_verify: Resolved TLS setting for the profile's Web URL, used for PKCE refresh.
+        profile: Profile owning the credential identity and store.
         emit_error: Whether PKCE failures should include login guidance.
 
     Returns:
-        Authentication details, or None when no API key is configured.
+        Authentication details, or None when the profile has no API key.
 
     Raises:
         click.ClickException: The profile credential cannot be retrieved.
@@ -476,7 +473,7 @@ def resolve_profile_auth(
         from .pkce import PkceError, resolve_pkce_token
 
         try:
-            token = resolve_pkce_token(profile, emit_error=emit_error, ssl_verify=ssl_verify)
+            token = resolve_pkce_token(profile, emit_error=emit_error)
         except PkceError as exc:
             raise click.ClickException(str(exc)) from exc
         return ResolvedAuth(
@@ -513,14 +510,9 @@ def get_auth_resolution(emit_error: bool = True) -> ResolvedAuth:
         from .profiles import get_active_profile
 
         profile = get_active_profile()
-        if profile:
-            resolved = resolve_profile_auth(
-                profile,
-                ssl_verify=get_ssl_verify(profile.web_url or profile.server),
-                emit_error=emit_error,
-            )
-            if resolved is not None:
-                return resolved
+        resolved = resolve_profile_auth(profile, emit_error) if profile else None
+        if resolved is not None:
+            return resolved
     except (FileNotFoundError, json.JSONDecodeError, KeyError, AttributeError):
         pass
 
@@ -672,29 +664,47 @@ def get_route_url(path: str, target: RouteTarget = "api") -> str:
     return f"{base_url.rstrip('/')}/{path.lstrip('/')}"
 
 
-def resolve_ssl_verify(
-    server_uri: Optional[str],
-    ssl_verify: Optional[Union[bool, str]] = None,
-    *,
-    ca_bundle: Optional[str] = None,
+def _profile_disables_ssl_verify(profile: "Profile", server_uri: Optional[str]) -> bool:
+    if profile.ssl_verify or not server_uri:
+        return False
+
+    def host(url: str) -> str:
+        return urlparse(url if "://" in url else f"https://{url}").netloc.lower()
+
+    # Scoped to the profile's own hosts so it never weakens connections elsewhere.
+    return host(server_uri) in {host(url) for url in (profile.server, profile.web_url) if url}
+
+
+def get_ssl_verify(
+    server_uri: Optional[str] = None, profile: Optional["Profile"] = None
 ) -> Union[bool, str]:
-    """Resolve TLS verification without reading environment variables.
+    """Return the effective SSL verification setting for a server.
 
-    Args:
-        server_uri: Server whose managed trust should be used.
-        ssl_verify: Non-None values pass through unchanged, including True.
-            None selects the default trust policy. Callers should map a profile's
-            enabled-verification policy to None to allow managed certificates.
-        ca_bundle: Caller-selected fallback CA bundle, used only when ssl_verify
-            is None and no managed certificate exists.
-
-    Returns:
-        The explicit setting, otherwise managed trust, otherwise ca_bundle,
-        otherwise True for OS/certifi trust. True retains the injected OS SSL
-        context; bundle paths require use_standard_ssl_context at request time.
+    The result is ``False`` when ``SLCLI_SSL_VERIFY`` disables verification or the
+    profile (default: the active profile) sets ``ssl-verify: false`` for this host.
+    Otherwise it is a managed PEM path when the server has an accepted certificate,
+    or ``True`` for the normal OS/certifi verification path.
     """
-    if ssl_verify is not None:
-        return ssl_verify
+    env = os.environ.get("SLCLI_SSL_VERIFY")
+    if env is not None:
+        if env.lower() in ("0", "false", "no"):
+            return False
+
+    if server_uri is None:
+        try:
+            server_uri = get_base_url()
+        except Exception:
+            server_uri = None
+
+    if profile is None:
+        try:
+            from .profiles import get_active_profile
+
+            profile = get_active_profile()
+        except (FileNotFoundError, json.JSONDecodeError, KeyError, AttributeError):
+            profile = None
+    if profile is not None and _profile_disables_ssl_verify(profile, server_uri):
+        return False
 
     if server_uri:
         try:
@@ -706,17 +716,7 @@ def resolve_ssl_verify(
         except (OSError, ValueError):
             pass
 
-    return ca_bundle or True
-
-
-def get_ca_bundle_from_environment() -> Optional[str]:
-    """Select REQUESTS_CA_BUNDLE, CURL_CA_BUNDLE, then SSL_CERT_FILE.
-
-    Empty values are ignored. SSL_CERT_FILE is ignored when OS trust is injected,
-    preserving the operating system's enterprise roots. Callers explicitly opt
-    into these environment settings before passing them to resolve_ssl_verify.
-    """
-    requests_ca_bundle = os.environ.get("REQUESTS_CA_BUNDLE") or os.environ.get("CURL_CA_BUNDLE")
+    requests_ca_bundle = os.environ.get("REQUESTS_CA_BUNDLE")
     if requests_ca_bundle:
         return requests_ca_bundle
 
@@ -724,76 +724,7 @@ def get_ca_bundle_from_environment() -> Optional[str]:
     if ssl_cert_file and not ssl_trust.OS_TRUST_INJECTED:
         return ssl_cert_file
 
-    return None
-
-
-def _url_host(url: str) -> str:
-    from urllib.parse import urlparse
-
-    return urlparse(url if "://" in url else f"https://{url}").netloc.lower()
-
-
-def profile_disables_ssl_verify(profile: "Profile", server_uri: Optional[str]) -> bool:
-    """Return whether the profile disables TLS verification for this URL.
-
-    A profile's ``ssl-verify: false`` applies only to its own server and Web URL
-    hosts, so it never weakens connections to any other server.
-    """
-    if profile.ssl_verify or not server_uri:
-        return False
-    own_hosts = {_url_host(url) for url in (profile.server, profile.web_url) if url}
-    return _url_host(server_uri) in own_hosts
-
-
-def get_profile_ssl_verify(profile: "Profile", server_uri: str) -> Union[bool, str]:
-    """Resolve TLS verification from a profile's own policy, ignoring SLCLI_SSL_VERIFY.
-
-    Args:
-        profile: Profile whose ``ssl_verify`` setting applies.
-        server_uri: Server whose managed trust should be used.
-
-    Returns:
-        False when the profile disables verification for this host, otherwise the
-        default trust selection.
-    """
-    return resolve_ssl_verify(
-        server_uri,
-        False if profile_disables_ssl_verify(profile, server_uri) else None,
-        ca_bundle=get_ca_bundle_from_environment(),
-    )
-
-
-def get_ssl_verify(server_uri: Optional[str] = None) -> Union[bool, str]:
-    """Select ambient TLS policy before resolving trust for a connection.
-
-    SLCLI_SSL_VERIFY=0/false/no disables verification. Otherwise the active profile's
-    ``ssl-verify: false`` disables it for that profile's own hosts. Other cases retain
-    default trust selection: managed certificate, environment CA bundle, OS/certifi.
-    """
-    if server_uri is None:
-        try:
-            server_uri = get_base_url()
-        except Exception:
-            server_uri = None
-    env = os.environ.get("SLCLI_SSL_VERIFY")
-    if env is not None and env.lower() in ("0", "false", "no"):
-        return False
-    try:
-        from .profiles import get_active_profile
-
-        profile = get_active_profile()
-    except (
-        FileNotFoundError,
-        json.JSONDecodeError,
-        KeyError,
-        AttributeError,
-        click.ClickException,
-    ):
-        profile = None
-    disabled = profile is not None and profile_disables_ssl_verify(profile, server_uri)
-    return resolve_ssl_verify(
-        server_uri, False if disabled else None, ca_bundle=get_ca_bundle_from_environment()
-    )
+    return True
 
 
 def get_workspace_id_by_name(name: str) -> str:

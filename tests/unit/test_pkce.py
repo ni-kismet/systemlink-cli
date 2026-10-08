@@ -139,7 +139,7 @@ def test_perform_pkce_login_returns_bearer_token(
     authorization_url: list[str] = []
     server_bind: list[tuple[str, int]] = []
     monkeypatch.setattr(pkce, "_CallbackServer", FakeServer)
-    monkeypatch.setattr(pkce, "get_ssl_verify", lambda _url: True)
+    monkeypatch.setattr(pkce, "get_ssl_verify", lambda *_args: True)
 
     def open_browser(_self: Any, url: str, new: int = 0) -> bool:
         """Capture the authorization URL and report a successful browser launch."""
@@ -195,7 +195,7 @@ def test_perform_pkce_login_supports_a_custom_callback_port(monkeypatch: Any) ->
     authorization_url: list[str] = []
     server_bind: list[tuple[str, int]] = []
     monkeypatch.setattr(pkce, "_CallbackServer", FakeServer)
-    monkeypatch.setattr(pkce, "get_ssl_verify", lambda _url: True)
+    monkeypatch.setattr(pkce, "get_ssl_verify", lambda *_args: True)
 
     def open_browser(url: str, new: int = 0) -> bool:
         authorization_url.append(url)
@@ -297,7 +297,7 @@ def test_refresh_pkce_credentials_rejects_non_object_bundle(
     monkeypatch.setattr("slcli.pkce.get_credential", lambda *_args, **_kwargs: bundle_text)
 
     with pytest.raises(PkceError, match="Stored PKCE credentials are invalid"):
-        refresh_pkce_credentials("test", "https://web.example", "client-id", ssl_verify=True)
+        refresh_pkce_credentials("test", "https://web.example", "client-id")
 
 
 @pytest.mark.parametrize("expiry", ["NaN", "Infinity", "-Infinity", 10**400, True])
@@ -331,7 +331,7 @@ def test_refresh_pkce_credentials_rotates_tokens(monkeypatch: Any) -> None:
     import slcli.pkce as pkce
 
     values = {("test", "pkce"): json.dumps({"refresh-token": "old-refresh-token"})}
-    monkeypatch.setattr(pkce, "get_ssl_verify", lambda _url: True)
+    monkeypatch.setattr(pkce, "get_ssl_verify", lambda *_args: True)
     monkeypatch.setattr(
         pkce,
         "get_credential",
@@ -362,7 +362,7 @@ def test_refresh_pkce_credentials_rotates_tokens(monkeypatch: Any) -> None:
         post,
     )
 
-    result = refresh_pkce_credentials("test", "https://web.example", "client-id", ssl_verify=True)
+    result = refresh_pkce_credentials("test", "https://web.example", "client-id")
 
     assert result.access_token == "new-access-token"
     bundle = json.loads(values[("test", "pkce")])
@@ -372,69 +372,6 @@ def test_refresh_pkce_credentials_rotates_tokens(monkeypatch: Any) -> None:
     assert [item[0] for item in requests_seen] == ["https://web.example/nitoken/v1/token"]
 
 
-@pytest.mark.parametrize("explicit", [False, True, "explicit.pem"])
-@pytest.mark.parametrize("via_profile", [False, True])
-def test_pkce_refresh_tls_selection(
-    monkeypatch: Any, explicit: bool | str, via_profile: bool
-) -> None:
-    """Refresh uses the caller's TLS setting and never selects ambient policy."""
-    from collections.abc import Iterator
-    from contextlib import contextmanager
-
-    import slcli.pkce as pkce
-
-    ambient = MagicMock(side_effect=AssertionError("Refresh must not select ambient policy"))
-    monkeypatch.setattr(pkce, "get_ssl_verify", ambient)
-    monkeypatch.setattr(
-        pkce,
-        "get_credential",
-        lambda *_args: json.dumps({"refresh-token": "old-refresh"}),
-    )
-    write = MagicMock()
-    monkeypatch.setattr(pkce, "set_credential", write)
-    expected = explicit
-    active = False
-    context_values: list[bool | str] = []
-
-    @contextmanager
-    def ssl_context(value: bool | str) -> Iterator[None]:
-        nonlocal active
-        context_values.append(value)
-        active = True
-        try:
-            yield
-        finally:
-            active = False
-
-    def post(url: str, **kwargs: Any) -> Response:
-        assert active
-        assert url == "https://web.example/nitoken/v1/token"
-        assert kwargs["verify"] == expected
-        return Response({"access_token": "fresh", "refresh_token": "rotated"})
-
-    monkeypatch.setattr(pkce, "use_standard_ssl_context", ssl_context)
-    monkeypatch.setattr(pkce.requests, "post", post)
-    if via_profile:
-        profile = Profile(
-            "test",
-            server="https://api.example",
-            web_url="https://web.example",
-            auth_mode="pkce",
-            pkce_client_id="client-id",
-        )
-        access_token = pkce.resolve_pkce_token(profile, ssl_verify=explicit).access_token
-    else:
-        access_token = pkce.refresh_pkce_credentials(
-            "test", "https://web.example", "client-id", ssl_verify=explicit
-        ).access_token
-
-    assert access_token == "fresh"
-    assert context_values == [expected]
-    assert not active
-    write.assert_called_once()
-    ambient.assert_not_called()
-
-
 def test_refresh_pkce_credentials_keeps_existing_refresh_token_when_omitted(
     monkeypatch: Any,
 ) -> None:
@@ -442,7 +379,7 @@ def test_refresh_pkce_credentials_keeps_existing_refresh_token_when_omitted(
     import slcli.pkce as pkce
 
     values = {("test", "pkce"): json.dumps({"refresh-token": "old-refresh-token"})}
-    monkeypatch.setattr(pkce, "get_ssl_verify", lambda _url: True)
+    monkeypatch.setattr(pkce, "get_ssl_verify", lambda *_args: True)
     monkeypatch.setattr(
         pkce,
         "get_credential",
@@ -459,7 +396,7 @@ def test_refresh_pkce_credentials_keeps_existing_refresh_token_when_omitted(
         lambda *_args, **_kwargs: Response({"access_token": "new-access-token"}),
     )
 
-    refresh_pkce_credentials("test", "https://web.example", "client-id", ssl_verify=True)
+    refresh_pkce_credentials("test", "https://web.example", "client-id")
 
     assert json.loads(values[("test", "pkce")])["refresh-token"] == "old-refresh-token"
 
@@ -486,7 +423,7 @@ def test_resolve_pkce_token_lifecycle(
     monkeypatch.setattr("slcli.pkce.get_credential", read)
     monkeypatch.setattr("slcli.pkce.set_credential", write)
     monkeypatch.setattr("slcli.pkce.requests.post", post)
-    monkeypatch.setattr("slcli.pkce.get_ssl_verify", lambda _url: True)
+    monkeypatch.setattr("slcli.pkce.get_ssl_verify", lambda *_args: True)
     profile = Profile(
         name="test",
         server="https://api.example",
@@ -496,7 +433,7 @@ def test_resolve_pkce_token_lifecycle(
         auth_mode="pkce",
     )
 
-    result = resolve_pkce_token(profile, ssl_verify=True)
+    result = resolve_pkce_token(profile)
 
     read.assert_called_with(profile.credential_id, "pkce", store)
     if expiry is None or expiry > 1060:
@@ -545,7 +482,7 @@ def test_resolve_pkce_token_refresh_persists_to_file(
     config.add_profile(profile)
     config.save()
     monkeypatch.setattr("slcli.pkce.time.time", lambda: 1000.0)
-    monkeypatch.setattr("slcli.pkce.get_ssl_verify", lambda _url: True)
+    monkeypatch.setattr("slcli.pkce.get_ssl_verify", lambda *_args: True)
     post = MagicMock(
         return_value=Response(
             {"access_token": "fresh-access", "refresh_token": "rotated-refresh", "expires_in": 3600}
@@ -553,7 +490,7 @@ def test_resolve_pkce_token_refresh_persists_to_file(
     )
     monkeypatch.setattr("slcli.pkce.requests.post", post)
 
-    result = resolve_pkce_token(profile, ssl_verify=True)
+    result = resolve_pkce_token(profile)
 
     assert result.access_token == "fresh-access"
     assert result.source == "file:pkce-refresh"
@@ -563,7 +500,7 @@ def test_resolve_pkce_token_refresh_persists_to_file(
         "refresh-token": "rotated-refresh",
         "access-expires-at": 4600.0,
     }
-    cached = resolve_pkce_token(reloaded, ssl_verify=True)
+    cached = resolve_pkce_token(reloaded)
     assert cached.access_token == "fresh-access"
     assert cached.source == "file:pkce"
     post.assert_called_once()
@@ -582,7 +519,7 @@ def test_resolve_pkce_token_unavailable(monkeypatch: Any, failure: str, emit_err
         else json.dumps({"refresh-token": None if failure == "no-refresh" else "refresh"})
     )
     monkeypatch.setattr("slcli.pkce.get_credential", lambda *_args: bundle)
-    monkeypatch.setattr("slcli.pkce.get_ssl_verify", lambda _url: True)
+    monkeypatch.setattr("slcli.pkce.get_ssl_verify", lambda *_args: True)
     post = MagicMock(return_value=Response({"access_token": "fresh"}))
     if failure == "refresh":
         post.side_effect = requests.RequestException("unavailable")
@@ -598,7 +535,7 @@ def test_resolve_pkce_token_unavailable(monkeypatch: Any, failure: str, emit_err
     )
 
     with pytest.raises(PkceError) as error:
-        resolve_pkce_token(profile, emit_error=emit_error, ssl_verify=True)
+        resolve_pkce_token(profile, emit_error=emit_error)
 
     assert str(error.value) == (
         "PKCE bearer token for profile 'test' is unavailable. "
@@ -627,7 +564,7 @@ def test_resolve_pkce_token_malformed(monkeypatch: Any, bundle: str) -> None:
     )
 
     with pytest.raises(PkceError, match="Stored PKCE credentials are invalid"):
-        resolve_pkce_token(profile, ssl_verify=True)
+        resolve_pkce_token(profile)
 
     post.assert_not_called()
 
@@ -638,7 +575,7 @@ def test_resolve_pkce_token_store_unreadable(monkeypatch: Any) -> None:
         "slcli.pkce.get_credential", MagicMock(side_effect=CredentialStoreError("locked"))
     )
     with pytest.raises(PkceError, match="Could not read PKCE credentials: locked"):
-        resolve_pkce_token(Profile(name="test", server="https://api.example"), ssl_verify=True)
+        resolve_pkce_token(Profile(name="test", server="https://api.example"))
 
 
 def test_login_pkce_uses_bearer_token_and_stores_metadata(monkeypatch: Any, tmp_path: Any) -> None:

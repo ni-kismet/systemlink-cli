@@ -9,11 +9,7 @@ from requests.adapters import HTTPAdapter
 from urllib3.util.retry import Retry
 
 from slcli.profiles import Profile, ProfileConfig
-from slcli.utils import (
-    get_auth_headers,
-    get_profile_ssl_verify,
-    resolve_profile_auth,
-)
+from slcli.utils import get_auth_headers, get_ssl_verify, resolve_profile_auth
 
 # Policy for read-only queries, including POST query endpoints, which are safe to replay.
 # Destination writes will need a stricter policy that never replays ambiguous failures.
@@ -59,10 +55,9 @@ def resolve_migration_connection(
     """Resolve one named profile as a unit.
 
     The current profile, ``SLCLI_PROFILE``, and ``SLCLI_API_URL``/``_API_KEY``/
-    ``_WEB_URL``/``_SSL_VERIFY`` environment overrides are deliberately ignored,
-    including during PKCE token refresh. Credentials use the profile's stable
-    identity and selected store. Managed trust and standard CA bundle settings
-    are shared with normal CLI requests.
+    ``_WEB_URL`` environment overrides are deliberately ignored, including during
+    PKCE token refresh. TLS follows normal CLI policy for this profile:
+    ``SLCLI_SSL_VERIFY``, the profile's ``ssl-verify``, managed trust, CA bundles.
 
     Args:
         profile_name: Name of the profile to resolve.
@@ -80,8 +75,8 @@ def resolve_migration_connection(
     base_url = base_url.rstrip("/")
 
     # For PKCE, base_url is the Web URL, so refresh and requests share one TLS setting.
-    ssl_verify = get_profile_ssl_verify(profile, base_url)
-    auth = resolve_profile_auth(profile, ssl_verify=ssl_verify)
+    ssl_verify = get_ssl_verify(base_url, profile)
+    auth = resolve_profile_auth(profile)
     if auth is None:
         raise click.ClickException(f"Profile '{profile.name}' does not define an API key")
     headers = get_auth_headers(auth.value, auth.scheme)

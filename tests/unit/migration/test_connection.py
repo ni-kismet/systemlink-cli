@@ -68,7 +68,7 @@ def test_source_tls_opt_out_does_not_reach_destination(monkeypatch: pytest.Monke
     """An insecure source profile, even when active, leaves the destination verified."""
     monkeypatch.delenv("SLCLI_SSL_VERIFY", raising=False)
     monkeypatch.setattr("slcli.ssl_trust.get_managed_trust_path", lambda _url: None)
-    for name in ("REQUESTS_CA_BUNDLE", "CURL_CA_BUNDLE", "SSL_CERT_FILE"):
+    for name in ("REQUESTS_CA_BUNDLE", "SSL_CERT_FILE"):
         monkeypatch.delenv(name, raising=False)
     source = Profile("source", server="https://old", api_key="a", ssl_verify=False)
     config = _config(
@@ -185,7 +185,7 @@ def test_os_api_key_failure_is_reported(monkeypatch: pytest.MonkeyPatch, missing
 def test_pkce_uses_selected_store_identity_and_tls(
     monkeypatch: pytest.MonkeyPatch, store: str, expired: bool, verify: bool
 ) -> None:
-    """Migration uses shared PKCE caching/rotation and ignores SLCLI TLS overrides."""
+    """Migration uses shared PKCE caching/rotation with the profile's TLS policy."""
     profile = Profile(
         "renamed",
         server="https://api.source",
@@ -221,9 +221,8 @@ def test_pkce_uses_selected_store_identity_and_tls(
     monkeypatch.setenv("SLCLI_API_KEY", "environment-key")
     monkeypatch.setenv("SLCLI_API_URL", "https://environment-api")
     monkeypatch.setenv("SLCLI_WEB_URL", "https://environment-web")
-    monkeypatch.setenv("SLCLI_SSL_VERIFY", "false" if verify else "true")
+    monkeypatch.delenv("SLCLI_SSL_VERIFY", raising=False)
     monkeypatch.delenv("REQUESTS_CA_BUNDLE", raising=False)
-    monkeypatch.delenv("CURL_CA_BUNDLE", raising=False)
     monkeypatch.delenv("SSL_CERT_FILE", raising=False)
 
     connection = resolve_migration_connection("renamed", _config(profile))
@@ -272,36 +271,29 @@ def test_file_pkce_uses_persisted_profile_bundle(
 
 
 @pytest.mark.parametrize("bundle", [None, "managed.pem"])
-def test_migration_tls_shares_trust_without_slcli_override(
-    monkeypatch: pytest.MonkeyPatch, bundle: Any
-) -> None:
-    """Ambient and explicit paths share managed trust but have distinct override policy."""
+def test_migration_tls_shares_ambient_policy(monkeypatch: pytest.MonkeyPatch, bundle: Any) -> None:
+    """Explicit connections share managed trust and the SLCLI_SSL_VERIFY override."""
     lookup = MagicMock(return_value=Path(bundle) if bundle else None)
     monkeypatch.setattr("slcli.ssl_trust.get_managed_trust_path", lookup)
     monkeypatch.delenv("REQUESTS_CA_BUNDLE", raising=False)
-    monkeypatch.delenv("CURL_CA_BUNDLE", raising=False)
     monkeypatch.delenv("SSL_CERT_FILE", raising=False)
-    monkeypatch.setenv("SLCLI_SSL_VERIFY", "false")
-    profile = Profile("source", server="https://source/", api_key="key")
+    monkeypatch.delenv("SLCLI_SSL_VERIFY", raising=False)
+    config = _config(Profile("source", server="https://source/", api_key="key"))
 
-    connection = resolve_migration_connection("source", _config(profile))
-
-    assert connection.ssl_verify == (bundle or True)
+    assert resolve_migration_connection("source", config).ssl_verify == (bundle or True)
     lookup.assert_called_once_with("https://source")
-    assert get_ssl_verify("https://source") is False
-    monkeypatch.delenv("SLCLI_SSL_VERIFY")
-    assert get_ssl_verify("https://source") == connection.ssl_verify
+    monkeypatch.setenv("SLCLI_SSL_VERIFY", "false")
+    assert resolve_migration_connection("source", config).ssl_verify is False
 
 
-@pytest.mark.parametrize("variable", ["REQUESTS_CA_BUNDLE", "CURL_CA_BUNDLE", "SSL_CERT_FILE"])
+@pytest.mark.parametrize("variable", ["REQUESTS_CA_BUNDLE", "SSL_CERT_FILE"])
 def test_migration_tls_supports_standard_ca_bundle(
     monkeypatch: pytest.MonkeyPatch, variable: str
 ) -> None:
     """Standard requests CA bundles remain supported for explicit connections."""
-    for name in ("REQUESTS_CA_BUNDLE", "CURL_CA_BUNDLE", "SSL_CERT_FILE"):
+    for name in ("REQUESTS_CA_BUNDLE", "SSL_CERT_FILE", "SLCLI_SSL_VERIFY"):
         monkeypatch.delenv(name, raising=False)
     monkeypatch.setenv(variable, "corporate.pem")
-    monkeypatch.setenv("SLCLI_SSL_VERIFY", "false")
     monkeypatch.setattr("slcli.ssl_trust.OS_TRUST_INJECTED", False)
     monkeypatch.setattr("slcli.ssl_trust.get_managed_trust_path", lambda _url: None)
     profile = Profile("source", server="http://source", api_key="key")
