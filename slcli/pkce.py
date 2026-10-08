@@ -3,33 +3,29 @@
 import base64
 import hashlib
 import html
+import json
 import secrets
 import time
 import webbrowser
 from dataclasses import dataclass
 from http.server import BaseHTTPRequestHandler, HTTPServer
 from pathlib import Path
-from typing import Any, Dict, Mapping, Optional, Sequence
+from typing import TYPE_CHECKING, Any, Dict, Mapping, Optional, Sequence
 from urllib.parse import parse_qs, quote, urlencode, urlparse
 
-import keyring
 import requests
 
+from .credentials import CredentialStoreError, delete_credential, get_credential, set_credential
 from .ssl_trust import use_standard_ssl_context
 from .utils import get_ssl_verify
 
+if TYPE_CHECKING:
+    from .profiles import Profile
+
 TOKEN_SERVICE_PATH = "/nitoken/v1"
 DEFAULT_SCOPES = ("openid", "profile", "email", "offline_access")
-PKCE_KEYRING_SERVICE = "systemlink-cli"
 PKCE_TIMEOUT_SECONDS = 300
 PKCE_CALLBACK_PORT = 9876
-_PKCE_CREDENTIAL_NAMES = (
-    "access-token",
-    "refresh-token",
-    "access-expires-at",
-    "session-key",
-    "session-expires-at",
-)
 _SYSTEMLINK_LOGO_DATA = base64.b64encode(
     Path(__file__).with_name("systemlink-logo.svg").read_bytes()
 ).decode("ascii")
@@ -245,6 +241,14 @@ class PkceLoginResult:
     access_token: str
     refresh_token: Optional[str]
     expires_at: Optional[float] = None
+
+
+@dataclass(frozen=True)
+class PkceTokenResolution:
+    """A usable bearer token and its credential-store provenance."""
+
+    access_token: str
+    source: str
 
 
 class _CallbackServer(HTTPServer):
@@ -480,101 +484,77 @@ def perform_pkce_login(
     return _token_result(token_payload)
 
 
-def _credential_key(profile_name: str, credential: str) -> str:
-    """Return the keyring key for a profile-scoped PKCE credential."""
-    return f"PKCE:{profile_name}:{credential}"
-
-
 def save_pkce_credentials(
-    profile_name: str,
+    profile_id: str,
     access_token: str,
     refresh_token: Optional[str],
     expires_at: Optional[float] = None,
+    store: str = "os",
 ) -> None:
-    """Persist PKCE bearer credentials in the operating-system keyring."""
-    previous_values = {
-        credential: keyring.get_password(
-            PKCE_KEYRING_SERVICE, _credential_key(profile_name, credential)
-        )
-        for credential in _PKCE_CREDENTIAL_NAMES
-    }
-
+    """Persist a profile's PKCE tokens as one credential-store item."""
+    bundle = json.dumps(
+        {
+            "access-token": access_token,
+            "refresh-token": refresh_token,
+            "access-expires-at": expires_at,
+        }
+    )
     try:
-        keyring.set_password(
-            PKCE_KEYRING_SERVICE, _credential_key(profile_name, "access-token"), access_token
-        )
-        if refresh_token:
-            keyring.set_password(
-                PKCE_KEYRING_SERVICE,
-                _credential_key(profile_name, "refresh-token"),
-                refresh_token,
-            )
-        else:
-            _delete_pkce_credential(profile_name, "refresh-token")
-        if expires_at is not None:
-            keyring.set_password(
-                PKCE_KEYRING_SERVICE,
-                _credential_key(profile_name, "access-expires-at"),
-                str(expires_at),
-            )
-        else:
-            _delete_pkce_credential(profile_name, "access-expires-at")
-        _delete_pkce_credential(profile_name, "session-key")
-        _delete_pkce_credential(profile_name, "session-expires-at")
-    except Exception:
-        for credential, value in previous_values.items():
-            try:
-                if value is None:
-                    keyring.delete_password(
-                        PKCE_KEYRING_SERVICE, _credential_key(profile_name, credential)
-                    )
-                else:
-                    keyring.set_password(
-                        PKCE_KEYRING_SERVICE,
-                        _credential_key(profile_name, credential),
-                        value,
-                    )
-            except Exception:
-                pass
-        raise
+        set_credential(profile_id, "pkce", bundle, store)
+    except CredentialStoreError as exc:
+        raise PkceError(f"Could not store PKCE credentials: {exc}") from exc
 
 
-def _delete_pkce_credential(profile_name: str, credential: str) -> None:
-    """Delete an optional PKCE credential without failing the save operation."""
-    try:
-        keyring.delete_password(PKCE_KEYRING_SERVICE, _credential_key(profile_name, credential))
-    except Exception:
-        pass
-
-
-def get_pkce_access_token(profile_name: str) -> Optional[str]:
+def get_pkce_access_token(profile_id: str, store: str = "os") -> Optional[str]:
     """Return a stored, non-expired PKCE access token, if one exists."""
     try:
-        access_token = keyring.get_password(
-            PKCE_KEYRING_SERVICE, _credential_key(profile_name, "access-token")
-        )
-        expires_at = keyring.get_password(
-            PKCE_KEYRING_SERVICE, _credential_key(profile_name, "access-expires-at")
-        )
-        if access_token and expires_at:
-            try:
-                if float(expires_at) <= time.time() + 60:
-                    return None
-            except ValueError:
-                pass
-        return access_token
-    except Exception:
+        bundle_text = get_credential(profile_id, "pkce", store)
+    except CredentialStoreError as exc:
+        raise PkceError(f"Could not read PKCE credentials: {exc}") from exc
+    if not bundle_text:
         return None
+    try:
+        bundle = json.loads(bundle_text)
+        if not isinstance(bundle, dict):
+            raise ValueError("PKCE credential bundle must be an object")
+        access_token = bundle.get("access-token")
+        if access_token is not None and not isinstance(access_token, str):
+            raise ValueError("PKCE access token must be a string")
+        expires_at = bundle.get("access-expires-at")
+        if expires_at is not None:
+            import math
+
+            expiry = float(expires_at)
+            if isinstance(expires_at, bool) or not math.isfinite(expiry):
+                raise ValueError("PKCE expiry must be finite")
+            if access_token and expiry <= time.time() + 60:
+                return None
+        return access_token
+    except (TypeError, ValueError, OverflowError, json.JSONDecodeError) as exc:
+        raise PkceError(
+            "Stored PKCE credentials are invalid. Run 'slcli login --auth pkce'."
+        ) from exc
 
 
-def refresh_pkce_credentials(profile_name: str, web_url: str, client_id: str) -> PkceLoginResult:
+def refresh_pkce_credentials(
+    profile_id: str, web_url: str, client_id: str, store: str = "os"
+) -> PkceLoginResult:
     """Refresh a profile's bearer credentials and persist rotated tokens."""
     try:
-        refresh_token = keyring.get_password(
-            PKCE_KEYRING_SERVICE, _credential_key(profile_name, "refresh-token")
-        )
+        bundle_text = get_credential(profile_id, "pkce", store)
     except Exception as exc:
-        raise PkceError("Could not read the PKCE refresh token from the keyring.") from exc
+        raise PkceError("Could not read PKCE credentials from the configured store.") from exc
+    try:
+        bundle = json.loads(bundle_text) if bundle_text else {}
+        if not isinstance(bundle, dict):
+            raise ValueError("PKCE credential bundle must be an object")
+        refresh_token = bundle.get("refresh-token")
+        if refresh_token is not None and not isinstance(refresh_token, str):
+            raise ValueError("PKCE refresh token must be a string")
+    except (TypeError, ValueError, json.JSONDecodeError) as exc:
+        raise PkceError(
+            "Stored PKCE credentials are invalid. Run 'slcli login --auth pkce'."
+        ) from exc
     if not refresh_token:
         raise PkceError("No PKCE refresh token is available.")
 
@@ -592,22 +572,52 @@ def refresh_pkce_credentials(profile_name: str, web_url: str, client_id: str) ->
     result = _token_result(payload)
     refresh_token_to_save = result.refresh_token or refresh_token
     save_pkce_credentials(
-        profile_name, result.access_token, refresh_token_to_save, result.expires_at
+        profile_id, result.access_token, refresh_token_to_save, result.expires_at, store
     )
     return result
 
 
-def delete_pkce_credentials(profile_name: str) -> None:
-    """Delete PKCE bearer and refresh credentials from the keyring."""
-    for credential in (
-        "access-token",
-        "refresh-token",
-        "access-expires-at",
-        "session-key",
-        "session-expires-at",
-    ):
+def resolve_pkce_token(profile: "Profile", emit_error: bool = True) -> PkceTokenResolution:
+    """Resolve a cached bearer token or refresh and persist its replacement.
+
+    Args:
+        profile: Profile owning the credentials and refresh configuration.
+        emit_error: Include profile-specific login guidance when unavailable.
+
+    Returns:
+        A usable access token with its store and cached or refreshed provenance.
+
+    Raises:
+        PkceError: Credentials cannot be read or no usable token can be resolved.
+    """
+    access_token = get_pkce_access_token(profile.credential_id, profile.credential_store)
+    if access_token:
+        return PkceTokenResolution(access_token, f"{profile.credential_store}:pkce")
+    if profile.web_url and profile.pkce_client_id:
         try:
-            credential_key = _credential_key(profile_name, credential)
-            keyring.delete_password(PKCE_KEYRING_SERVICE, credential_key)
-        except Exception:
+            refreshed = refresh_pkce_credentials(
+                profile.credential_id,
+                profile.web_url,
+                profile.pkce_client_id,
+                profile.credential_store,
+            )
+        except PkceError:
             pass
+        else:
+            return PkceTokenResolution(
+                refreshed.access_token, f"{profile.credential_store}:pkce-refresh"
+            )
+    if emit_error:
+        raise PkceError(
+            f"PKCE bearer token for profile '{profile.name}' is unavailable. "
+            f"Run 'slcli login --profile {profile.name} --auth pkce' again."
+        )
+    raise PkceError("PKCE bearer token not found.")
+
+
+def delete_pkce_credentials(profile_id: str, store: str = "os") -> None:
+    """Delete a profile's PKCE credential bundle."""
+    try:
+        delete_credential(profile_id, "pkce", store)
+    except CredentialStoreError as exc:
+        raise PkceError(f"Could not delete PKCE credentials: {exc}") from exc

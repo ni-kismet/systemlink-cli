@@ -21,6 +21,37 @@ from slcli.managed_client.crypto import (
 from slcli.managed_client.models import UnsupportedCryptoError
 
 
+def test_x931_macos_candidates_avoid_system_libcrypto(monkeypatch: pytest.MonkeyPatch) -> None:
+    """The macOS candidates must not load Apple's aborting system libcrypto shim."""
+    monkeypatch.setattr(crypto_module.sys, "platform", "darwin")
+
+    def system_library(name: str) -> str:
+        pytest.fail("Generic discovery can resolve Apple's aborting libcrypto shim.")
+
+    monkeypatch.setattr(crypto_module.ctypes.util, "find_library", system_library)
+
+    candidates = crypto_module._x931_library_candidates()
+
+    assert candidates[0] == "/opt/homebrew/opt/openssl@3/lib/libcrypto.3.dylib"
+    assert "/usr/local/opt/openssl@3/lib/libcrypto.3.dylib" in candidates
+    assert "libcrypto.3.dylib" in candidates
+    assert "/usr/lib/libcrypto.dylib" not in candidates
+    assert "libcrypto.dylib" not in candidates
+
+
+@pytest.mark.parametrize("platform", ["linux", "win32"])
+def test_x931_other_platforms_preserve_library_discovery(
+    monkeypatch: pytest.MonkeyPatch, platform: str
+) -> None:
+    """Other platforms still prefer the discovered OpenSSL provider."""
+    monkeypatch.setattr(crypto_module.sys, "platform", platform)
+    monkeypatch.setattr(
+        crypto_module.ctypes.util, "find_library", lambda name: "discovered-libcrypto"
+    )
+
+    assert crypto_module._x931_library_candidates()[0] == "discovered-libcrypto"
+
+
 def test_aes_192_cbc_hmac_round_trip() -> None:
     """The authenticated AES envelope round-trips deterministic plaintext."""
     key = b"01234567890123456789012345678901234567890123456789012345"

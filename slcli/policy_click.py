@@ -1,7 +1,7 @@
 """CLI commands for managing SystemLink auth policies and policy templates."""
 
 import sys
-from typing import Any, Dict, List, Optional
+from typing import Any, Dict, List, Optional, Tuple
 
 import click
 import questionary
@@ -9,13 +9,16 @@ import questionary
 from .cli_utils import validate_output_format
 from .policy_utils import (
     _build_policy_payload,
+    _build_template_payload,
     _display_policy_details,
     _display_template_details,
     _fetch_policy_details,
     _fetch_template_details,
     _format_policy_list_row,
     _format_template_list_row,
+    _load_statements_from_file,
     _parse_properties_from_cli,
+    _validate_statements,
 )
 from .universal_handlers import FilteredResponse, UniversalResponseHandler
 from .utils import (
@@ -455,6 +458,160 @@ def register_policy_commands(cli: Any) -> None:
             show_set_diff("Resources", agg1["resources"], agg2["resources"])
             show_set_diff("Workspaces", agg1["workspaces"], agg2["workspaces"])
 
+        except Exception as exc:
+            handle_api_error(exc)
+
+    @template_group.command(name="create")
+    @click.option("--name", required=True, help="Name for the reusable policy template")
+    @click.option(
+        "--type",
+        "template_type",
+        type=click.Choice(["user", "service"], case_sensitive=False),
+        default="user",
+        show_default=True,
+        help="Policy template type",
+    )
+    @click.option(
+        "--statements-file",
+        required=True,
+        type=click.Path(exists=True, dir_okay=False),
+        help='JSON file containing a statements list or an object with a "statements" list',
+    )
+    @click.option(
+        "--properties",
+        "-p",
+        multiple=True,
+        help="Custom properties as key=value (repeatable)",
+    )
+    @click.option(
+        "--format",
+        "-f",
+        type=click.Choice(["table", "json"]),
+        default="table",
+        show_default=True,
+        help="Output format",
+    )
+    def create_template(
+        name: str,
+        template_type: str,
+        statements_file: str,
+        properties: Tuple[str, ...],
+        format: str,
+    ) -> None:
+        """Create a reusable policy template, not a workspace-scoped policy."""
+        from .utils import check_readonly_mode
+
+        check_readonly_mode("create a policy template")
+
+        try:
+            statements = _load_statements_from_file(statements_file)
+            properties_dict = _parse_properties_from_cli(properties) if properties else None
+            payload = _build_template_payload(
+                name=name,
+                template_type=template_type.lower(),
+                statements=statements,
+                properties=properties_dict,
+            )
+        except ValueError as exc:
+            click.echo(f"✗ Error: {exc}", err=True)
+            sys.exit(ExitCodes.INVALID_INPUT)
+
+        try:
+            url = f"{get_base_url()}/niauth/v1/policy-templates"
+            resp = make_api_request("POST", url, payload=payload)
+            created_template = resp.json()
+
+            if format == "json":
+                _display_template_details(created_template, format)
+            else:
+                format_success(
+                    "Policy template created",
+                    {
+                        "name": created_template.get("name"),
+                        "id": created_template.get("id"),
+                        "type": created_template.get("type"),
+                    },
+                )
+        except Exception as exc:
+            handle_api_error(exc)
+
+    @template_group.command(name="update")
+    @click.argument("template_id")
+    @click.option("--name", type=str, default=None, help="New policy template name")
+    @click.option(
+        "--type",
+        "template_type",
+        type=click.Choice(["user", "service"], case_sensitive=False),
+        default=None,
+        help="New policy template type",
+    )
+    @click.option(
+        "--statements-file",
+        type=click.Path(exists=True, dir_okay=False),
+        default=None,
+        help='JSON file containing a statements list or an object with a "statements" list',
+    )
+    @click.option(
+        "--properties",
+        "-p",
+        multiple=True,
+        help="Updated custom properties as key=value (repeatable)",
+    )
+    @click.option(
+        "--format",
+        "-f",
+        type=click.Choice(["table", "json"]),
+        default="table",
+        show_default=True,
+        help="Output format",
+    )
+    def update_template(
+        template_id: str,
+        name: Optional[str],
+        template_type: Optional[str],
+        statements_file: Optional[str],
+        properties: Tuple[str, ...],
+        format: str,
+    ) -> None:
+        """Update selected fields on a reusable policy template."""
+        from .utils import check_readonly_mode
+
+        check_readonly_mode("update a policy template")
+
+        try:
+            payload: Dict[str, Any] = {}
+            if name is not None:
+                payload["name"] = name
+            if template_type is not None:
+                payload["type"] = template_type.lower()
+            if statements_file is not None:
+                statements = _load_statements_from_file(statements_file)
+                is_valid, error_message = _validate_statements(
+                    statements,
+                    require_workspace=False,
+                )
+                if not is_valid:
+                    raise ValueError(error_message or "Invalid statements")
+                payload["statements"] = statements
+            if properties:
+                payload["properties"] = _parse_properties_from_cli(properties)
+            if not payload:
+                raise ValueError("At least one update option is required")
+        except ValueError as exc:
+            click.echo(f"✗ Error: {exc}", err=True)
+            sys.exit(ExitCodes.INVALID_INPUT)
+
+        try:
+            url = f"{get_base_url()}/niauth/v1/policy-templates/{template_id}"
+            current_template = make_api_request("GET", url, payload=None).json()
+            merged_payload = {
+                field: current_template[field]
+                for field in ("name", "type", "statements", "properties")
+                if field in current_template
+            }
+            merged_payload.update(payload)
+            resp = make_api_request("PUT", url, payload=merged_payload)
+            _display_template_details(resp.json(), format)
         except Exception as exc:
             handle_api_error(exc)
 

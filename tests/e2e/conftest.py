@@ -200,6 +200,14 @@ def selected_platform(pytestconfig: Any) -> str:
     return _get_requested_platform(pytestconfig)
 
 
+@pytest.fixture(scope="session")
+def selected_platform_config(
+    e2e_config: Dict[str, Any], selected_platform: str
+) -> Optional[Dict[str, Any]]:
+    """Return the configured server selected for generic E2E workflows."""
+    return _select_platform_config(e2e_config, selected_platform)
+
+
 @pytest.fixture(scope="session", autouse=True)
 def setup_e2e_environment(e2e_config: Dict[str, Any]) -> Generator[None, None, None]:
     """Set up environment for E2E tests.
@@ -209,8 +217,8 @@ def setup_e2e_environment(e2e_config: Dict[str, Any]) -> Generator[None, None, N
     """
     # Store original environment
     original_env = {
-        "SYSTEMLINK_BASE_URL": os.environ.get("SYSTEMLINK_BASE_URL"),
-        "SYSTEMLINK_API_KEY": os.environ.get("SYSTEMLINK_API_KEY"),
+        "SLCLI_API_URL": os.environ.get("SLCLI_API_URL"),
+        "SLCLI_API_KEY": os.environ.get("SLCLI_API_KEY"),
     }
 
     # For multi-platform config, don't set global env vars
@@ -218,8 +226,8 @@ def setup_e2e_environment(e2e_config: Dict[str, Any]) -> Generator[None, None, N
     if "sle" not in e2e_config and "sls" not in e2e_config:
         # Legacy single-platform config
         if e2e_config.get("base_url") and e2e_config.get("api_key"):
-            os.environ["SYSTEMLINK_BASE_URL"] = e2e_config["base_url"]
-            os.environ["SYSTEMLINK_API_KEY"] = e2e_config["api_key"]
+            os.environ["SLCLI_API_URL"] = e2e_config["base_url"]
+            os.environ["SLCLI_API_KEY"] = e2e_config["api_key"]
 
     yield
 
@@ -243,12 +251,12 @@ def _make_cli_runner(config: Dict[str, Any], timeout: int = 60) -> Any:
         # Set up environment with platform-specific config
         env = os.environ.copy()
         if config.get("base_url"):
-            env["SYSTEMLINK_API_URL"] = config["base_url"]
+            env["SLCLI_API_URL"] = config["base_url"]
         if config.get("api_key"):
-            env["SYSTEMLINK_API_KEY"] = config["api_key"]
+            env["SLCLI_API_KEY"] = config["api_key"]
         # Use explicit platform if specified in config (most reliable method)
         if config.get("platform"):
-            env["SYSTEMLINK_PLATFORM"] = config["platform"]
+            env["SLCLI_PLATFORM"] = config["platform"]
         env["PYTHONIOENCODING"] = "utf-8"
         env["SLCLI_NON_INTERACTIVE"] = "true"
 

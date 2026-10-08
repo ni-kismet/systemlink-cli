@@ -701,11 +701,13 @@ slcli workspace disable --id WORKSPACE_ID [--yes]
 
 ## config — Profile and credential management
 
-Manage named connection profiles (dev, test, prod). Credentials are stored in
-`~/.config/slcli/config.json`.
+Manage named connection profiles (dev, test, prod). Credentials use the OS
+credential store by default; `--credential-store file` opts into config-file
+storage, and login falls back to the config file with a warning if the OS store
+is unavailable. Legacy global keyring entries are no longer read.
 
 ```bash
-slcli login [--profile NAME] [--url URL] [--api-key KEY] [--web-url URL] [--workspace NAME]
+slcli login [--profile NAME] [--url URL] [--api-key KEY] [--web-url URL] [--workspace NAME] [--credential-store os|file]
 slcli logout [--profile NAME] [--all] [--force]
 slcli info [-f json] [--skip-health]            # Show active profile and service health
 slcli completion [--shell SHELL] [--install]    # Generate or install shell tab completion
@@ -716,7 +718,8 @@ slcli config use <PROFILE>                      # Switch the active profile
 slcli config view [-f json] [--show-secrets]    # Show stored profile details
 slcli config add [--profile NAME] [OPTIONS]     # Add or update a profile
 slcli config delete <PROFILE> [--force]         # Delete a profile
-slcli config migrate                            # Migrate legacy keyring credentials
+slcli config cleanup                            # Retry pending credential cleanup
+slcli config secure [--profile NAME | --all]    # Move plaintext credentials to the OS store
 ```
 
 ## user — User management
@@ -742,9 +745,29 @@ slcli auth policy diff <POLICY_ID_1> <POLICY_ID_2>  # Compare two policies
 
 # Policy templates
 slcli auth template list [-t INT] [-f json]
+slcli auth template create --name TEXT --statements-file PATH [--type user|service] [-p KEY=VALUE] [-f json]
+slcli auth template update TEMPLATE_ID [--name TEXT] [--type user|service] [--statements-file PATH] [-p KEY=VALUE] [-f json]
 slcli auth template get <TEMPLATE_ID> [-f json]
 slcli auth template delete <TEMPLATE_ID>
 ```
+
+`auth template create` posts a reusable permission set to
+`/niauth/v1/policy-templates`; it does not create a workspace-scoped policy.
+The type defaults to `user`. The statements file must contain a JSON array
+or an object with a `statements` array, for example:
+
+```json
+[{"actions": ["testresult:Read"], "resource": ["*"]}]
+```
+
+`auth template update` fetches the current template and preserves unspecified
+fields before sending `PUT /niauth/v1/policy-templates/{template-id}`.
+Supplied statements and properties replace their existing values.
+
+Workspace fields are not required. Properties are repeatable string-valued
+`key=value` pairs. JSON output returns the full created template, including
+its ID. Apply that ID to a workspace using `auth policy create TEMPLATE_ID
+--name TEXT --workspace WORKSPACE`.
 
 ## feed — NI Package Manager feed management
 

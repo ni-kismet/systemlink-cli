@@ -186,7 +186,7 @@ def test_minion_completes_pending_publish_and_refresh_job_return(tmp_path: Path)
         }
         assert minion.connected
     finally:
-        minion.stop(timeout=5)
+        minion.stop(timeout=10)
         server.close()
 
 

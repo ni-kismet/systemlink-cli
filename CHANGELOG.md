@@ -2,6 +2,104 @@
 
 <!-- towncrier release notes start -->
 
+## v2.3.0 (2026-10-07)
+
+### Features
+
+- Support fingerprint-verified public CA imports with `config trust add --certificate`, scoped to a server origin. Distinguish live certificates from saved CA or leaf trust anchors, verify self-signed status, and apply explicit certificate trust consistently to webapp requests and supported Python versions. Reject cross-origin redirects when using managed trust. (ca-certificate-trust)
+
+### Bug Fixes
+
+- Canonicalize managed certificate trust origins with Requests-compatible IDNA while retaining compatibility with existing Unicode-keyed trust records, including in trust show and list output. Only report an active managed trust certificate in trust show when its matching PEM passes certificate and fingerprint validation. Limit slcli's partial-chain verification override to validated managed trust while preserving native verification defaults for environment-provided CA bundles. Apply the same managed trust policy to info --debug TLS diagnostics so trusted intermediate CAs and leaf certificates do not produce false chain-verification failures. (managed-trust-idn)
+
+
+## v2.2.2 (2026-10-06)
+
+### Bug Fixes
+
+- Bound idle managed-client socket receive waits so shutdown completes promptly on Windows even when socket shutdown does not wake the reader. (managed-client-windows-shutdown)
+
+
+## v2.2.1 (2026-10-06)
+
+### Bug Fixes
+
+- Prevent managed-client shutdown timeouts by interrupting active Salt socket reads before closing their descriptors. (managed-client-shutdown)
+
+
+## v2.2.0 (2026-10-06)
+
+### Features
+
+- Add `slcli auth template update` to update policy template fields. (auth-template-update)
+
+
+## v2.1.0 (2026-10-06)
+
+### Features
+
+- Add `slcli auth template create` to create reusable Authorization API policy templates from a JSON statements file, with user/service types, custom properties, and JSON output. (auth-template-create)
+
+### Bug Fixes
+
+- Allow the managed-client minion test enough time to shut down after an idle socket receive on macOS Intel. (macos-intel-minion-shutdown)
+
+
+## v2.0.2 (2026-10-05)
+
+### Bug Fixes
+
+- Replace Windows managed-client state ACLs with protected current-user-only permissions, removing inherited and explicit grants. (managed-client-windows-state)
+
+
+## v2.0.1 (2026-10-02)
+
+### Bug Fixes
+
+- Avoid Apple's aborting system libcrypto shim when selecting the managed-client RSA X9.31 provider on macOS, with Python 3.14 macOS crypto and authentication CI coverage. (macos-libcrypto)
+- Stop retrying idle receive timeouts once a managed-client Salt channel is closed. (managed-client-shutdown)
+
+
+## v2.0.0 (2026-10-02)
+
+### Breaking Changes
+
+- New logins store API keys and PKCE credentials in the operating system's credential store by default, with an explicit file-store option and a warned file fallback when OS storage is unavailable. Add `slcli config secure` for existing plaintext profiles.
+
+  Remove legacy global keyring reads and `slcli config migrate`; users who relied only on those entries, or on older per-token PKCE credentials, must run `slcli login` again to configure a profile.
+
+  Remove the `SYSTEMLINK_API_URL`, `SYSTEMLINK_API_KEY`, and `SYSTEMLINK_WEB_URL` environment aliases; use `SLCLI_API_URL`, `SLCLI_API_KEY`, and `SLCLI_WEB_URL` instead. Replace the `SYSTEMLINK_PLATFORM` override with `SLCLI_PLATFORM`.
+
+  Credential replacement, logout, and profile deletion retain retryable cleanup records for written or partially written OS credentials when cleanup fails. Credential changes, profile switching, and background configuration updates share a cross-process lock. Recovery errors identify abandoned credential IDs. Use `slcli config cleanup` to retry interrupted cleanup without deleting active profiles. Atomic configuration saves preserve symlinked paths.
+
+  To remove obsolete macOS Keychain items manually, run `security delete-generic-password -s systemlink-cli -a <ACCOUNT>` for each of `SYSTEMLINK_API_KEY`, `SYSTEMLINK_API_URL`, `SYSTEMLINK_WEB_URL`, and `SYSTEMLINK_CONFIG`. (credential-store)
+
+### Other Changes
+
+- Update restricted-output command tests for the credential-store migration and isolate their configuration. (restricted-stream-tests)
+
+
+## v1.31.5 (2026-10-02)
+
+### Bug Fixes
+
+- Update GitHub Actions. (deps-renovate-github-actions)
+
+
+## v1.31.4 (2026-10-02)
+
+### Bug Fixes
+
+- Update dependency pyjwt to v2.14.0 [SECURITY]. (deps-renovate-pypi-pyjwt-vulnerability)
+
+
+## v1.31.3 (2026-10-01)
+
+### Bug Fixes
+
+- Prevent Windows encoding errors in status, table, and JSON output from making successful commands fail, including webapp generation, version checks, and skill checks. (#240)
+
+
 ## v1.31.2 (2026-09-23)
 
 ### Bug Fixes

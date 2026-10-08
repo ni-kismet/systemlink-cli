@@ -6,36 +6,44 @@ import os
 import re
 import ssl
 import sys
+from pathlib import Path
 from typing import Any, NoReturn, Optional
 from urllib.parse import urlparse
 
 import click
 import questionary
 
+from .credentials import (
+    CredentialStoreError,
+    describe_credential_store,
+    get_credential,
+)
 from .platform import (
     PLATFORM_SLE,
     PLATFORM_SLS,
     check_service_status,
     check_web_server_auth,
 )
-from .profiles import ProfileConfig, Profile, check_config_file_permissions
+from .profiles import Profile, ProfileConfig, check_config_file_permissions
 from .rich_output import render_table
 from .ssl_trust import (
+    get_managed_trust_path,
     get_managed_trust_records,
     get_ssl_server_origin,
     inspect_server_certificate,
+    load_ca_certificate,
     remove_managed_trust,
     save_managed_certificate,
 )
 from .table_utils import output_formatted_list
-from .utils import ExitCodes, get_base_url, get_base_url_resolution
+from .utils import ExitCodes, get_base_url_resolution
 
 API_KEY_LENGTH = 42
 API_KEY_PATTERN = re.compile(rf"^[A-Za-z0-9_-]{{{API_KEY_LENGTH}}}$")
 ENV_OVERRIDE_FIELDS = (
-    ("API URL", ("SLCLI_API_URL", "SYSTEMLINK_API_URL")),
-    ("API Key", ("SLCLI_API_KEY", "SYSTEMLINK_API_KEY")),
-    ("Web URL", ("SLCLI_WEB_URL", "SYSTEMLINK_WEB_URL")),
+    ("API URL", ("SLCLI_API_URL",)),
+    ("API Key", ("SLCLI_API_KEY",)),
+    ("Web URL", ("SLCLI_WEB_URL",)),
 )
 
 
@@ -224,6 +232,7 @@ def _add_profile_impl(
     client_id: Optional[str] = None,
     scopes: tuple[str, ...] = (),
     callback_port: Optional[int] = None,
+    credential_store: str = "os",
 ) -> None:
     """Shared implementation for add-profile and login commands.
 
@@ -243,6 +252,7 @@ def _add_profile_impl(
         client_id: Public OAuth client ID for the PKCE login
         scopes: OAuth scopes for the PKCE login
         callback_port: Optional loopback callback port; zero selects an ephemeral port
+        credential_store: Store for profile API keys and PKCE credentials
     """
     # Get profile name
     if not profile:
@@ -410,10 +420,11 @@ def _add_profile_impl(
         workspace = workspace_input if workspace_input else None
 
     # Create profile
+    cfg = ProfileConfig.load()
     new_profile = Profile(
         name=profile,
         server=url,
-        api_key=api_key,
+        api_key=api_key or "",
         web_url=web_url,
         platform=platform,
         workspace=workspace,
@@ -421,36 +432,25 @@ def _add_profile_impl(
         auth_mode=auth_mode,
         pkce_client_id=client_id if auth_mode == "pkce" else None,
         pkce_scopes=pkce_scopes if auth_mode == "pkce" else None,
+        credential_store=credential_store,
     )
-
-    # Load config and add profile
-    cfg = ProfileConfig.load()
-    previous_profile = cfg.get_profile(profile)
-    previous_current_profile = cfg.current_profile
-    cfg.add_profile(new_profile, set_current=set_current)
-    cfg.save()
-
     if auth_mode == "pkce" and pkce_result is not None:
-        from .pkce import save_pkce_credentials
+        new_profile.pkce_credentials = {
+            "access-token": pkce_result.access_token,
+            "refresh-token": pkce_result.refresh_token,
+            "access-expires-at": pkce_result.expires_at,
+        }
 
-        try:
-            save_pkce_credentials(
-                profile,
-                pkce_result.access_token,
-                pkce_result.refresh_token,
-                pkce_result.expires_at,
-            )
-        except Exception as exc:
-            if previous_profile is None:
-                cfg.profiles.pop(profile, None)
-            else:
-                cfg.profiles[profile] = previous_profile
-            cfg.current_profile = previous_current_profile
-            cfg.save()
-            _exit_with_validation_error(
-                f"Could not store PKCE credentials securely: {exc}.",
-                ExitCodes.GENERAL_ERROR,
-            )
+    from .profile_credentials import ProfileCredentialError, save_profile_credentials
+
+    try:
+        warnings = save_profile_credentials(cfg, new_profile, set_current=set_current)
+    except ProfileCredentialError as exc:
+        for warning in exc.warnings:
+            click.echo(f"⚠️  {warning}", err=True)
+        _exit_with_validation_error(str(exc), ExitCodes.GENERAL_ERROR)
+    for warning in warnings:
+        click.echo(f"⚠️  {warning}", err=True)
 
     click.echo(f"\n✓ Profile '{profile}' saved successfully.")
     click.echo(f"  Server: {url}")
@@ -462,6 +462,14 @@ def _add_profile_impl(
     if set_current:
         click.echo(f"  Set as current profile: yes")
     click.echo(f"\nConfig file: {ProfileConfig.get_config_path()}")
+
+
+def _get_profile_secret(profile: Profile, credential: str) -> Optional[str]:
+    """Read a profile secret only for an explicit secret-display operation."""
+    try:
+        return get_credential(profile.credential_id, credential, profile.credential_store)
+    except CredentialStoreError as exc:
+        raise click.ClickException(str(exc)) from exc
 
 
 def register_config_commands(cli: Any) -> None:
@@ -582,16 +590,15 @@ def register_config_commands(cli: Any) -> None:
     @click.argument("name")
     def use_profile(name: str) -> None:
         """Switch to a different profile."""
-        cfg = ProfileConfig.load()
+        with ProfileConfig().transaction() as cfg:
+            if name not in cfg.profiles:
+                click.echo(f"✗ Profile '{name}' not found.", err=True)
+                if cfg.profiles:
+                    click.echo(f"Available profiles: {', '.join(cfg.profiles.keys())}", err=True)
+                sys.exit(ExitCodes.NOT_FOUND)
 
-        if name not in cfg.profiles:
-            click.echo(f"✗ Profile '{name}' not found.", err=True)
-            if cfg.profiles:
-                click.echo(f"Available profiles: {', '.join(cfg.profiles.keys())}", err=True)
-            sys.exit(ExitCodes.NOT_FOUND)
-
-        cfg.set_current_profile(name)
-        cfg.save()
+            cfg.set_current_profile(name)
+            cfg.save()
 
         profile = cfg.get_profile(name)
         click.echo(f"✓ Switched to profile '{name}'")
@@ -627,8 +634,37 @@ def register_config_commands(cli: Any) -> None:
                 data["profiles"] = {}
                 for name, profile in cfg.profiles.items():
                     profile_dict = profile.to_dict()
-                    if not show_secrets and "api-key" in profile_dict:
-                        # Show only last 4 characters
+                    if profile.auth_mode == "pkce":
+                        if show_secrets:
+                            try:
+                                pkce_credentials = json.loads(
+                                    _get_profile_secret(profile, "pkce") or "{}"
+                                )
+                            except json.JSONDecodeError:
+                                _exit_with_validation_error(
+                                    f"Stored PKCE credentials for profile '{name}' are invalid. "
+                                    f"Run 'slcli login --profile {name}' to authenticate again.",
+                                    ExitCodes.GENERAL_ERROR,
+                                )
+                            if not isinstance(pkce_credentials, dict):
+                                _exit_with_validation_error(
+                                    f"Stored PKCE credentials for profile '{name}' are invalid. "
+                                    f"Run 'slcli login --profile {name}' to authenticate again.",
+                                    ExitCodes.GENERAL_ERROR,
+                                )
+                            profile_dict["pkce-credentials"] = pkce_credentials
+                        else:
+                            profile_dict["pkce-credentials"] = (
+                                f"stored in {describe_credential_store(profile.credential_store)}"
+                            )
+                    elif profile.credential_store == "os" and not profile.api_key:
+                        if show_secrets:
+                            profile_dict["api-key"] = _get_profile_secret(profile, "api-key")
+                        else:
+                            profile_dict["api-key"] = (
+                                f"stored in {describe_credential_store(profile.credential_store)}"
+                            )
+                    elif not show_secrets and "api-key" in profile_dict:
                         key = profile_dict["api-key"]
                         profile_dict["api-key"] = "****" + key[-4:] if len(key) >= 4 else "****"
                     data["profiles"][name] = profile_dict
@@ -655,9 +691,23 @@ def register_config_commands(cli: Any) -> None:
                 rows.append(["Platform", profile.platform or "Unknown"])
 
             if profile.auth_mode == "pkce":
-                rows.append(["Authentication", "PKCE (bearer token in keyring)"])
-            else:
+                rows.append(
+                    [
+                        "Authentication",
+                        f"PKCE (bearer token in {describe_credential_store(profile.credential_store)})",
+                    ]
+                )
                 if show_secrets:
+                    rows.append(["PKCE Credentials", _get_profile_secret(profile, "pkce") or ""])
+            else:
+                if profile.credential_store == "os" and not profile.api_key:
+                    if show_secrets:
+                        api_key_display = _get_profile_secret(profile, "api-key") or ""
+                    else:
+                        api_key_display = (
+                            f"stored in {describe_credential_store(profile.credential_store)}"
+                        )
+                elif show_secrets:
                     api_key_display = profile.api_key
                 else:
                     api_key_display = (
@@ -718,12 +768,31 @@ def register_config_commands(cli: Any) -> None:
             )
 
         certificate_details = certificate.to_dict()
+        trusted_certificate = None
+        try:
+            trusted_path = get_managed_trust_path(certificate.origin)
+            if trusted_path is not None:
+                trusted_certificate = json.loads(
+                    trusted_path.with_suffix(".json").read_text(encoding="utf-8")
+                )
+                trusted_certificate["origin"] = certificate.origin
+                trusted_certificate.setdefault("trust-type", "leaf")
+        except (OSError, ValueError) as exc:
+            click.echo(f"Could not read managed certificate metadata: {exc}.", err=True)
+            trusted_certificate = None
         if output_format == "json":
+            certificate_details["trusted-certificate"] = trusted_certificate
             click.echo(json.dumps(certificate_details, indent=2))
             return
 
         click.echo(f"Server certificate for {certificate_details.get('origin', 'unknown')}")
         _show_certificate_details(certificate_details)
+        if trusted_certificate:
+            kind = "CA" if trusted_certificate.get("trust-type") == "ca" else "leaf"
+            click.echo(f"\nTrusted {kind} certificate for this origin")
+            _show_certificate_details(trusted_certificate)
+        else:
+            click.echo("\nNo managed trust certificate for this origin.")
 
     @trust.command(name="list")
     @click.option(
@@ -747,13 +816,14 @@ def register_config_commands(cli: Any) -> None:
             [
                 str(record.get("origin", "")),
                 str(record.get("fingerprint", "")),
+                "CA" if record.get("trust-type") == "ca" else "leaf",
                 "yes" if record.get("self-signed") else "no",
             ]
             for record in records
         ]
         render_table(
-            headers=["SERVER", "SHA-256", "SELF-SIGNED"],
-            column_widths=[40, 64, 12],
+            headers=["SERVER", "SHA-256", "TRUST TYPE", "SELF-SIGNED"],
+            column_widths=[40, 64, 10, 12],
             rows=rows,
             show_total=True,
             total_label="certificate(s)",
@@ -762,29 +832,46 @@ def register_config_commands(cli: Any) -> None:
     @trust.command(name="add")
     @click.option("--url", help="HTTPS server URL (defaults to the active API URL)")
     @click.option(
+        "--certificate",
+        type=click.Path(exists=True, dir_okay=False, path_type=Path),
+        help="Import one public CA certificate (PEM or DER), scoped to this server origin",
+    )
+    @click.option(
         "--fingerprint",
         required=True,
         help="Expected SHA-256 fingerprint of the certificate to trust",
     )
-    def add_trusted_certificate(url: Optional[str], fingerprint: str) -> None:
-        """Trust a server certificate after verifying its fingerprint."""
-        server_url = url or get_base_url()
+    def add_trusted_certificate(
+        url: Optional[str], certificate: Optional[Path], fingerprint: str
+    ) -> None:
+        """Trust a live server certificate or imported CA after fingerprint verification."""
+        server_url = url or get_base_url_resolution().value
         try:
             expected_fingerprint = _normalize_fingerprint(fingerprint)
-            certificate = inspect_server_certificate(server_url)
+            trusted_certificate = (
+                load_ca_certificate(server_url, certificate)
+                if certificate is not None
+                else inspect_server_certificate(server_url)
+            )
         except (OSError, ValueError, ssl.SSLError) as exc:
-            _exit_with_validation_error(f"Could not inspect the server certificate: {exc}.")
+            _exit_with_validation_error(f"Could not load the certificate: {exc}.")
 
-        _show_certificate_warning(certificate.to_dict())
-        if certificate.fingerprint != expected_fingerprint:
+        _show_certificate_details(trusted_certificate.to_dict(), err=True)
+        if trusted_certificate.fingerprint != expected_fingerprint:
             _exit_with_validation_error(
-                "The server certificate fingerprint does not match the supplied fingerprint."
+                "The certificate fingerprint does not match the supplied fingerprint."
+            )
+        if trusted_certificate.trust_type == "ca":
+            click.echo(
+                "Trusting certificates issued by this CA for this origin only; "
+                "hostname and validity verification remain enabled.",
+                err=True,
             )
         try:
-            path = save_managed_certificate(certificate)
+            path = save_managed_certificate(trusted_certificate)
         except OSError as exc:
             _exit_with_validation_error(f"Could not save the trusted certificate: {exc}.")
-        click.echo(f"✓ Trusted certificate for {certificate.origin}")
+        click.echo(f"✓ Trusted certificate for {trusted_certificate.origin}")
         click.echo(f"  Certificate file: {path}")
 
     @trust.command(name="remove")
@@ -792,7 +879,7 @@ def register_config_commands(cli: Any) -> None:
     @click.option("--force", is_flag=True, help="Skip confirmation prompt")
     def remove_trusted_certificate(url: Optional[str], force: bool) -> None:
         """Remove a server certificate from the managed trust store."""
-        server_url = url or get_base_url()
+        server_url = url or get_base_url_resolution().value
         try:
             origin = get_ssl_server_origin(server_url)
         except ValueError as exc:
@@ -812,18 +899,56 @@ def register_config_commands(cli: Any) -> None:
             )
         click.echo(f"✓ Removed trusted certificate for {origin}")
 
+    @config.command(name="cleanup")
+    def cleanup_pending_credentials() -> None:
+        """Retry pending credential cleanup without deleting profiles."""
+        from .utils import check_readonly_mode
+        from .credentials import CredentialStoreError
+        from .profile_credentials import retry_pending_profile_deletions
+
+        check_readonly_mode("clean up pending credentials")
+        cfg = ProfileConfig.load()
+        try:
+            completed = retry_pending_profile_deletions(cfg)
+        except (CredentialStoreError, RuntimeError) as exc:
+            _exit_with_validation_error(
+                f"Could not finish pending credential cleanup: {exc}. "
+                "Resolve the credential-store issue and retry 'slcli config cleanup'.",
+                ExitCodes.GENERAL_ERROR,
+            )
+        if not completed:
+            click.echo("No pending credential cleanup.")
+            return
+        click.echo(f"✓ Finished pending credential cleanup for: {', '.join(completed)}")
+
     @config.command(name="delete")
     @click.argument("name")
     @click.option("--force", "-f", is_flag=True, help="Skip confirmation prompt")
     def delete_profile(name: str, force: bool) -> None:
         """Delete a profile."""
         from .utils import check_readonly_mode
+        from .credentials import CredentialStoreError
+        from .profile_credentials import (
+            delete_profile_with_credentials,
+            retry_pending_profile_deletions,
+        )
 
         check_readonly_mode("delete a profile")
 
         cfg = ProfileConfig.load()
 
+        try:
+            completed = retry_pending_profile_deletions(cfg, name)
+        except (CredentialStoreError, RuntimeError) as exc:
+            _exit_with_validation_error(
+                f"Could not finish deleting profile '{name}': {exc}. Retry when the store is available.",
+                ExitCodes.GENERAL_ERROR,
+            )
+
         if name not in cfg.profiles:
+            if completed:
+                click.echo(f"✓ Profile '{name}' deleted.")
+                return
             click.echo(f"✗ Profile '{name}' not found.", err=True)
             sys.exit(ExitCodes.NOT_FOUND)
 
@@ -835,63 +960,64 @@ def register_config_commands(cli: Any) -> None:
                 click.echo("Aborted.")
                 sys.exit(ExitCodes.GENERAL_ERROR)
 
+        profile_to_delete = cfg.profiles[name]
         was_current = cfg.current_profile == name
-        cfg.delete_profile(name)
-        cfg.save()
+        try:
+            delete_profile_with_credentials(cfg, profile_to_delete)
+        except CredentialStoreError as exc:
+            _exit_with_validation_error(
+                f"Could not remove stored credentials: {exc}. Deletion is pending; "
+                f"retry 'slcli config delete {name} --force'.",
+                ExitCodes.GENERAL_ERROR,
+            )
+        except RuntimeError as exc:
+            _exit_with_validation_error(
+                f"Could not save profile removal for '{name}': {exc}. "
+                "Credentials were not removed or deletion is pending; retry the command.",
+                ExitCodes.GENERAL_ERROR,
+            )
 
         click.echo(f"✓ Profile '{name}' deleted.")
         if was_current and cfg.current_profile:
             click.echo(f"  Current profile is now: {cfg.current_profile}")
 
-    @config.command(name="migrate")
-    @click.option(
-        "--profile-name",
-        "-n",
-        default="default",
-        help="Name for the migrated profile",
-    )
-    @click.option(
-        "--delete-keyring",
-        is_flag=True,
-        help="Delete keyring entries after migration",
-    )
-    def migrate(profile_name: str, delete_keyring: bool) -> None:
-        """Migrate credentials from keyring to config file.
+    @config.command(name="secure")
+    @click.option("--profile", "profile_name", help="Profile to secure (defaults to current)")
+    @click.option("--all", "secure_all", is_flag=True, help="Secure every file-backed profile")
+    def secure_profiles(profile_name: Optional[str], secure_all: bool) -> None:
+        """Move plaintext API keys and PKCE credentials into the OS store."""
+        from .utils import check_readonly_mode
 
-        This command reads existing credentials from the system keyring
-        and creates a new profile in the config file.
-        """
-        from .profiles import migrate_from_keyring
+        check_readonly_mode("secure profile credentials")
+        if profile_name and secure_all:
+            _exit_with_validation_error("Choose either --profile or --all, not both.")
 
-        # Check if profile already exists
         cfg = ProfileConfig.load()
-        if profile_name in cfg.profiles:
-            if not questionary.confirm(
-                f"Profile '{profile_name}' already exists. Overwrite?",
-                default=False,
-            ).ask():
-                click.echo("Aborted.")
-                sys.exit(ExitCodes.GENERAL_ERROR)
-
-        # Use centralized migration function
-        profile = migrate_from_keyring(profile_name=profile_name, delete_keyring=delete_keyring)
-
-        if not profile:
-            click.echo("✗ No credentials found in keyring.", err=True)
-            click.echo("Run 'slcli login --profile <name>' to create a new profile.", err=True)
-            sys.exit(ExitCodes.NOT_FOUND)
-
-        click.echo(f"✓ Migrated credentials to profile '{profile_name}'")
-        click.echo(f"  Server: {profile.server}")
-        if profile.web_url:
-            click.echo(f"  Web URL: {profile.web_url}")
-        if profile.platform:
-            click.echo(f"  Platform: {profile.platform}")
-
-        if delete_keyring:
-            click.echo("✓ Deleted keyring entries")
+        if secure_all:
+            selected = list(cfg.profiles.values())
         else:
-            click.echo("\nNote: Keyring entries still exist. Use --delete-keyring to remove them.")
+            selected_name = profile_name or cfg.current_profile
+            if not selected_name:
+                _exit_with_validation_error("No current profile is set.", ExitCodes.NOT_FOUND)
+            profile_to_secure = cfg.get_profile(selected_name)
+            if not profile_to_secure:
+                _exit_with_validation_error(
+                    f"Profile '{selected_name}' not found.", ExitCodes.NOT_FOUND
+                )
+            selected = [profile_to_secure]
+
+        from .profile_credentials import ProfileCredentialError, secure_profile_credentials
+
+        try:
+            secured_names, warnings = secure_profile_credentials(cfg, selected)
+        except ProfileCredentialError as exc:
+            _exit_with_validation_error(str(exc))
+        if not secured_names:
+            click.echo("All selected profile credentials are already secured.")
+            return
+        for warning in warnings:
+            click.echo(f"⚠️  {warning}", err=True)
+        click.echo(f"✓ Secured credentials for: {', '.join(secured_names)}")
 
     @config.command(name="add")
     @click.option("--profile", "-p", help="Profile name (default: 'default')")
@@ -921,6 +1047,14 @@ def register_config_commands(cli: Any) -> None:
             "(defaults to openid profile email offline_access)"
         ),
     )
+    @click.option(
+        "--credential-store",
+        type=click.Choice(["os", "file"]),
+        default="os",
+        envvar="SLCLI_CREDENTIAL_STORE",
+        show_default=True,
+        help="Store credentials in the OS store or config file",
+    )
     @click.option("--workspace", "-w", help="Default workspace for this profile")
     @click.option(
         "--set-current/--no-set-current",
@@ -948,6 +1082,7 @@ def register_config_commands(cli: Any) -> None:
         client_id: Optional[str],
         callback_port: Optional[int],
         scopes: tuple[str, ...],
+        credential_store: str,
         workspace: Optional[str],
         set_current: bool,
         readonly: bool,
@@ -956,7 +1091,7 @@ def register_config_commands(cli: Any) -> None:
         """Add or update a SystemLink profile.
 
         Profiles allow you to configure multiple SystemLink environments and switch
-        between them. Credentials are stored in ~/.config/slcli/config.json.
+        between them. Credentials use the OS store by default.
 
         The readonly flag enables readonly mode, which disables all delete and edit
         commands in slcli. This is useful for AI agents or untrusted environments.
@@ -975,6 +1110,7 @@ def register_config_commands(cli: Any) -> None:
             client_id=client_id,
             callback_port=callback_port,
             scopes=scopes,
+            credential_store=credential_store,
             workspace=workspace,
             set_current=set_current,
             readonly=readonly,

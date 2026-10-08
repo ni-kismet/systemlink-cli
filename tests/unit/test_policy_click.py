@@ -1,10 +1,11 @@
 """Unit tests for policy CLI commands."""
 
 import json
-from typing import Any, Optional
-from unittest.mock import patch
+from typing import Any
+from unittest.mock import call, patch
 
-import keyring
+import pytest
+import requests
 from click.testing import CliRunner
 
 from slcli.main import cli
@@ -38,13 +39,8 @@ class TestPolicyList:
 
     def test_list_policies_success(self, monkeypatch: Any) -> None:
         """Test successful policy listing."""
-
-        def mock_get_password(service: str, key: str) -> Optional[str]:
-            if key == "SYSTEMLINK_CONFIG":
-                return json.dumps({"api_url": "http://localhost", "api_key": "test"})
-            return None
-
-        monkeypatch.setattr(keyring, "get_password", mock_get_password)
+        monkeypatch.setenv("SLCLI_API_URL", "http://localhost")
+        monkeypatch.setenv("SLCLI_API_KEY", "test")
 
         cli_instance = make_cli()
         runner = CliRunner()
@@ -80,13 +76,8 @@ class TestPolicyList:
 
     def test_list_policies_json_format(self, monkeypatch: Any) -> None:
         """Test policy listing with JSON output."""
-
-        def mock_get_password(service: str, key: str) -> Optional[str]:
-            if key == "SYSTEMLINK_CONFIG":
-                return json.dumps({"api_url": "http://localhost", "api_key": "test"})
-            return None
-
-        monkeypatch.setattr(keyring, "get_password", mock_get_password)
+        monkeypatch.setenv("SLCLI_API_URL", "http://localhost")
+        monkeypatch.setenv("SLCLI_API_KEY", "test")
 
         cli_instance = make_cli()
         runner = CliRunner()
@@ -111,13 +102,8 @@ class TestPolicyList:
 
     def test_list_policies_with_type_filter(self, monkeypatch: Any) -> None:
         """Test policy listing with type filter."""
-
-        def mock_get_password(service: str, key: str) -> Optional[str]:
-            if key == "SYSTEMLINK_CONFIG":
-                return json.dumps({"api_url": "http://localhost", "api_key": "test"})
-            return None
-
-        monkeypatch.setattr(keyring, "get_password", mock_get_password)
+        monkeypatch.setenv("SLCLI_API_URL", "http://localhost")
+        monkeypatch.setenv("SLCLI_API_KEY", "test")
 
         cli_instance = make_cli()
         runner = CliRunner()
@@ -134,13 +120,8 @@ class TestPolicyList:
 
     def test_list_policies_empty(self, monkeypatch: Any) -> None:
         """Test policy listing when no policies exist."""
-
-        def mock_get_password(service: str, key: str) -> Optional[str]:
-            if key == "SYSTEMLINK_CONFIG":
-                return json.dumps({"api_url": "http://localhost", "api_key": "test"})
-            return None
-
-        monkeypatch.setattr(keyring, "get_password", mock_get_password)
+        monkeypatch.setenv("SLCLI_API_URL", "http://localhost")
+        monkeypatch.setenv("SLCLI_API_KEY", "test")
 
         cli_instance = make_cli()
         runner = CliRunner()
@@ -158,13 +139,8 @@ class TestPolicyGet:
 
     def test_get_policy_success(self, monkeypatch: Any) -> None:
         """Test successful policy retrieval."""
-
-        def mock_get_password(service: str, key: str) -> Optional[str]:
-            if key == "SYSTEMLINK_CONFIG":
-                return json.dumps({"api_url": "http://localhost", "api_key": "test"})
-            return None
-
-        monkeypatch.setattr(keyring, "get_password", mock_get_password)
+        monkeypatch.setenv("SLCLI_API_URL", "http://localhost")
+        monkeypatch.setenv("SLCLI_API_KEY", "test")
 
         cli_instance = make_cli()
         runner = CliRunner()
@@ -198,13 +174,8 @@ class TestPolicyGet:
 
     def test_get_policy_json_format(self, monkeypatch: Any) -> None:
         """Test policy get with JSON output."""
-
-        def mock_get_password(service: str, key: str) -> Optional[str]:
-            if key == "SYSTEMLINK_CONFIG":
-                return json.dumps({"api_url": "http://localhost", "api_key": "test"})
-            return None
-
-        monkeypatch.setattr(keyring, "get_password", mock_get_password)
+        monkeypatch.setenv("SLCLI_API_URL", "http://localhost")
+        monkeypatch.setenv("SLCLI_API_KEY", "test")
 
         cli_instance = make_cli()
         runner = CliRunner()
@@ -232,13 +203,8 @@ class TestPolicyCreate:
 
     def test_create_policy_from_template(self, monkeypatch: Any) -> None:
         """Test policy creation from a template with workspace."""
-
-        def mock_get_password(service: str, key: str) -> Optional[str]:
-            if key == "SYSTEMLINK_CONFIG":
-                return json.dumps({"api_url": "http://localhost", "api_key": "test"})
-            return None
-
-        monkeypatch.setattr(keyring, "get_password", mock_get_password)
+        monkeypatch.setenv("SLCLI_API_URL", "http://localhost")
+        monkeypatch.setenv("SLCLI_API_KEY", "test")
 
         cli_instance = make_cli()
         runner = CliRunner()
@@ -264,6 +230,16 @@ class TestPolicyCreate:
 
             assert result.exit_code == 0
             assert "Policy created" in result.output
+            mock_request.assert_called_once_with(
+                "POST",
+                "http://localhost/niauth/v1/policies",
+                payload={
+                    "name": "FromTemplate",
+                    "type": "custom",
+                    "templateId": "template-123",
+                    "workspace": "ws-1",
+                },
+            )
 
 
 class TestPolicyDelete:
@@ -271,13 +247,8 @@ class TestPolicyDelete:
 
     def test_delete_policy_with_confirmation(self, monkeypatch: Any) -> None:
         """Test policy deletion with user confirmation."""
-
-        def mock_get_password(service: str, key: str) -> Optional[str]:
-            if key == "SYSTEMLINK_CONFIG":
-                return json.dumps({"api_url": "http://localhost", "api_key": "test"})
-            return None
-
-        monkeypatch.setattr(keyring, "get_password", mock_get_password)
+        monkeypatch.setenv("SLCLI_API_URL", "http://localhost")
+        monkeypatch.setenv("SLCLI_API_KEY", "test")
 
         cli_instance = make_cli()
         runner = CliRunner()
@@ -294,13 +265,8 @@ class TestPolicyDelete:
 
     def test_delete_policy_force(self, monkeypatch: Any) -> None:
         """Test policy deletion with --force flag."""
-
-        def mock_get_password(service: str, key: str) -> Optional[str]:
-            if key == "SYSTEMLINK_CONFIG":
-                return json.dumps({"api_url": "http://localhost", "api_key": "test"})
-            return None
-
-        monkeypatch.setattr(keyring, "get_password", mock_get_password)
+        monkeypatch.setenv("SLCLI_API_URL", "http://localhost")
+        monkeypatch.setenv("SLCLI_API_KEY", "test")
 
         cli_instance = make_cli()
         runner = CliRunner()
@@ -316,18 +282,428 @@ class TestPolicyDelete:
             assert "Policy deleted" in result.output
 
 
+class TestTemplateCreate:
+    """Tests for reusable policy template creation."""
+
+    @pytest.mark.parametrize("wrapped", [False, True])
+    @pytest.mark.parametrize("template_type", ["user", "SERVICE"])
+    def test_create_template(
+        self, monkeypatch: Any, tmp_path: Any, wrapped: bool, template_type: str
+    ) -> None:
+        """Post workspace-free statements to the template endpoint."""
+        monkeypatch.setenv("SLCLI_API_URL", "http://localhost")
+        monkeypatch.setenv("SLCLI_API_KEY", "test")
+        statements = [{"actions": ["testresult:Read"], "resource": ["*"]}]
+        statements_file = tmp_path / "statements.json"
+        statements_file.write_text(
+            json.dumps({"statements": statements} if wrapped else statements), encoding="utf-8"
+        )
+        with patch("slcli.policy_click.make_api_request") as mock_request:
+            mock_request.return_value = mock_response(
+                {"id": "template-new", "name": "Reader", "type": template_type.lower()}
+            )
+            result = CliRunner().invoke(
+                cli,
+                [
+                    "auth",
+                    "template",
+                    "create",
+                    "--name",
+                    "Reader",
+                    "--type",
+                    template_type,
+                    "--statements-file",
+                    str(statements_file),
+                    "--properties",
+                    "description=Read access",
+                    "-p",
+                    "team=QA",
+                ],
+            )
+            assert result.exit_code == 0, result.output
+            assert "Policy template created" in result.output
+            assert "template-new" in result.output
+            mock_request.assert_called_once_with(
+                "POST",
+                "http://localhost/niauth/v1/policy-templates",
+                payload={
+                    "name": "Reader",
+                    "type": template_type.lower(),
+                    "statements": statements,
+                    "properties": {"description": "Read access", "team": "QA"},
+                },
+            )
+
+    def test_create_template_json(self, monkeypatch: Any, tmp_path: Any) -> None:
+        """Default to user templates and return the full response as JSON."""
+        monkeypatch.setenv("SLCLI_API_URL", "http://localhost")
+        monkeypatch.setenv("SLCLI_API_KEY", "test")
+        statements = [{"actions": ["testresult:Read"], "resource": ["*"]}]
+        statements_file = tmp_path / "statements.json"
+        statements_file.write_text(json.dumps(statements), encoding="utf-8")
+        created = {"id": "template-new", "name": "Reader", "type": "user", "statements": statements}
+        with patch("slcli.policy_click.make_api_request") as mock_request:
+            mock_request.return_value = mock_response(created)
+            result = CliRunner().invoke(
+                cli,
+                [
+                    "auth",
+                    "template",
+                    "create",
+                    "--name",
+                    "Reader",
+                    "--statements-file",
+                    str(statements_file),
+                    "--format",
+                    "json",
+                ],
+            )
+            assert result.exit_code == 0, result.output
+            assert json.loads(result.output) == created
+            assert mock_request.call_args.kwargs["payload"] == {
+                "name": "Reader",
+                "type": "user",
+                "statements": statements,
+            }
+
+    @pytest.mark.parametrize(
+        "content",
+        [
+            "not json",
+            "{}",
+            "[]",
+            '{"statements": {}}',
+            "[null]",
+            '[{"actions": [], "resource": ["*"]}]',
+            '[{"actions": ["read"], "resource": "*"}]',
+            '[{"actions": [null], "resource": ["*"]}]',
+            '[{"actions": ["read"], "resource": [1]}]',
+            '[{"actions": [""], "resource": ["*"]}]',
+            '[{"actions": ["read"], "resource": [""]}]',
+        ],
+    )
+    def test_create_template_invalid_statements(self, tmp_path: Any, content: str) -> None:
+        """Reject malformed statements before making any API request."""
+        statements_file = tmp_path / "statements.json"
+        statements_file.write_text(content, encoding="utf-8")
+        with patch("slcli.policy_click.make_api_request") as mock_request:
+            result = CliRunner().invoke(
+                cli,
+                [
+                    "auth",
+                    "template",
+                    "create",
+                    "--name",
+                    "Reader",
+                    "--statements-file",
+                    str(statements_file),
+                ],
+            )
+            assert result.exit_code == 2, result.output
+            assert "Error:" in result.output
+            mock_request.assert_not_called()
+
+    @pytest.mark.parametrize(
+        "options",
+        [
+            [],
+            ["--statements-file", "missing.json"],
+            ["--statements-file", "statements.json", "--type", "custom"],
+            ["--statements-file", "statements.json", "--properties", "invalid"],
+        ],
+    )
+    def test_create_template_invalid_options(self, tmp_path: Any, options: list[str]) -> None:
+        """Reject missing inputs, invalid types, and malformed properties."""
+        statements_file = tmp_path / "statements.json"
+        statements_file.write_text(
+            '[{"actions": ["testresult:Read"], "resource": ["*"]}]', encoding="utf-8"
+        )
+        options = [
+            str(statements_file) if value == "statements.json" else value for value in options
+        ]
+        with patch("slcli.policy_click.make_api_request") as mock_request:
+            result = CliRunner().invoke(
+                cli, ["auth", "template", "create", "--name", "Reader", *options]
+            )
+            assert result.exit_code == 2, result.output
+            mock_request.assert_not_called()
+
+    def test_create_template_readonly(self, tmp_path: Any) -> None:
+        """Block creation before making requests when the profile is read-only."""
+        statements_file = tmp_path / "statements.json"
+        statements_file.write_text("[]", encoding="utf-8")
+        with patch("slcli.profiles.is_active_profile_readonly", return_value=True):
+            with patch("slcli.policy_click.make_api_request") as mock_request:
+                result = CliRunner().invoke(
+                    cli,
+                    [
+                        "auth",
+                        "template",
+                        "create",
+                        "--name",
+                        "Reader",
+                        "--statements-file",
+                        str(statements_file),
+                    ],
+                )
+                assert result.exit_code == 4, result.output
+                assert "readonly mode" in result.output
+                mock_request.assert_not_called()
+
+    @pytest.mark.parametrize(
+        "error, exit_code",
+        [(requests.HTTPError("Forbidden"), 4), (requests.ConnectionError("Connection failed"), 5)],
+    )
+    def test_create_template_api_error(
+        self, monkeypatch: Any, tmp_path: Any, error: Exception, exit_code: int
+    ) -> None:
+        """Preserve API permission and network error exit codes."""
+        monkeypatch.setenv("SLCLI_API_URL", "http://localhost")
+        monkeypatch.setenv("SLCLI_API_KEY", "test")
+        statements_file = tmp_path / "statements.json"
+        statements_file.write_text(
+            '[{"actions": ["testresult:Read"], "resource": ["*"]}]', encoding="utf-8"
+        )
+        with patch("slcli.policy_click.make_api_request", side_effect=error):
+            result = CliRunner().invoke(
+                cli,
+                [
+                    "auth",
+                    "template",
+                    "create",
+                    "--name",
+                    "Reader",
+                    "--statements-file",
+                    str(statements_file),
+                ],
+            )
+            assert result.exit_code == exit_code, result.output
+
+    def test_create_template_response_json_error_is_api_error(
+        self, monkeypatch: Any, tmp_path: Any
+    ) -> None:
+        """Treat response JSON decoding failures as API errors, not invalid input."""
+        monkeypatch.setenv("SLCLI_API_URL", "http://localhost")
+        monkeypatch.setenv("SLCLI_API_KEY", "test")
+        statements_file = tmp_path / "statements.json"
+        statements_file.write_text(
+            '[{"actions": ["testresult:Read"], "resource": ["*"]}]', encoding="utf-8"
+        )
+        response = mock_response({})
+        with patch.object(response, "json", side_effect=ValueError("invalid API response JSON")):
+            with patch("slcli.policy_click.make_api_request", return_value=response):
+                result = CliRunner().invoke(
+                    cli,
+                    [
+                        "auth",
+                        "template",
+                        "create",
+                        "--name",
+                        "Reader",
+                        "--statements-file",
+                        str(statements_file),
+                    ],
+                )
+        assert result.exit_code == 1, result.output
+        assert "Error: invalid API response JSON" in result.output
+
+    def test_policy_statements_still_require_workspace(self) -> None:
+        """Workspace-free validation remains specific to template payloads."""
+        from slcli.policy_utils import _build_policy_payload
+
+        with pytest.raises(ValueError, match="workspace"):
+            _build_policy_payload(
+                "Reader", "custom", statements=[{"actions": ["read"], "resource": ["*"]}]
+            )
+
+
+class TestTemplateUpdate:
+    """Tests for reusable policy template updates."""
+
+    def test_update_template_with_selected_fields(self, monkeypatch: Any, tmp_path: Any) -> None:
+        """Send selected fields and display the updated template as JSON."""
+        monkeypatch.setenv("SLCLI_API_URL", "http://localhost")
+        monkeypatch.setenv("SLCLI_API_KEY", "test")
+        statements = [{"actions": ["testresult:Read"], "resource": ["*"]}]
+        statements_file = tmp_path / "statements.json"
+        statements_file.write_text(json.dumps(statements), encoding="utf-8")
+        updated = {
+            "id": "template-1",
+            "name": "Updated Reader",
+            "type": "service",
+            "statements": statements,
+            "properties": {"team": "QA"},
+        }
+
+        with patch("slcli.policy_click.make_api_request") as mock_request:
+            mock_request.return_value = mock_response(updated)
+            result = CliRunner().invoke(
+                cli,
+                [
+                    "auth",
+                    "template",
+                    "update",
+                    "template-1",
+                    "--name",
+                    "Updated Reader",
+                    "--type",
+                    "SERVICE",
+                    "--statements-file",
+                    str(statements_file),
+                    "--properties",
+                    "team=QA",
+                    "--format",
+                    "json",
+                ],
+            )
+
+        assert result.exit_code == 0, result.output
+        assert json.loads(result.output) == updated
+        assert mock_request.call_args_list == [
+            call("GET", "http://localhost/niauth/v1/policy-templates/template-1", payload=None),
+            call(
+                "PUT",
+                "http://localhost/niauth/v1/policy-templates/template-1",
+                payload={
+                    "name": "Updated Reader",
+                    "type": "service",
+                    "statements": statements,
+                    "properties": {"team": "QA"},
+                },
+            ),
+        ]
+
+    def test_update_template_preserves_unspecified_fields(self, monkeypatch: Any) -> None:
+        """Merge a name change with existing mutable fields before sending PUT."""
+        monkeypatch.setenv("SLCLI_API_URL", "http://localhost")
+        monkeypatch.setenv("SLCLI_API_KEY", "test")
+        current = {
+            "id": "template-1",
+            "name": "Original",
+            "type": "user",
+            "statements": [{"actions": ["testresult:Read"], "resource": ["*"]}],
+            "properties": {"team": "QA"},
+            "builtIn": False,
+        }
+        updated = {**current, "name": "Renamed"}
+
+        with patch("slcli.policy_click.make_api_request") as mock_request:
+            mock_request.side_effect = [mock_response(current), mock_response(updated)]
+            result = CliRunner().invoke(
+                cli,
+                ["auth", "template", "update", "template-1", "--name", "Renamed"],
+            )
+
+        assert result.exit_code == 0, result.output
+        assert mock_request.call_args_list == [
+            call("GET", "http://localhost/niauth/v1/policy-templates/template-1", payload=None),
+            call(
+                "PUT",
+                "http://localhost/niauth/v1/policy-templates/template-1",
+                payload={
+                    "name": "Renamed",
+                    "type": current["type"],
+                    "statements": current["statements"],
+                    "properties": current["properties"],
+                },
+            ),
+        ]
+
+    def test_update_template_requires_an_update_option(self) -> None:
+        """Reject empty updates before making an API request."""
+        with patch("slcli.policy_click.make_api_request") as mock_request:
+            result = CliRunner().invoke(cli, ["auth", "template", "update", "template-1"])
+        assert result.exit_code == 2, result.output
+        assert "At least one update option is required" in result.output
+        mock_request.assert_not_called()
+
+    def test_update_template_rejects_invalid_statements(self, tmp_path: Any) -> None:
+        """Reject invalid replacement statements before making an API request."""
+        statements_file = tmp_path / "statements.json"
+        statements_file.write_text("[]", encoding="utf-8")
+        with patch("slcli.policy_click.make_api_request") as mock_request:
+            result = CliRunner().invoke(
+                cli,
+                [
+                    "auth",
+                    "template",
+                    "update",
+                    "template-1",
+                    "--statements-file",
+                    str(statements_file),
+                ],
+            )
+        assert result.exit_code == 2, result.output
+        assert "At least one statement is required" in result.output
+        mock_request.assert_not_called()
+
+    def test_update_template_rejects_invalid_properties(self) -> None:
+        """Reject malformed properties before making an API request."""
+        with patch("slcli.policy_click.make_api_request") as mock_request:
+            result = CliRunner().invoke(
+                cli,
+                ["auth", "template", "update", "template-1", "--properties", "team"],
+            )
+        assert result.exit_code == 2, result.output
+        assert "Invalid property format" in result.output
+        mock_request.assert_not_called()
+
+    @pytest.mark.parametrize(
+        "status_code,exit_code,message",
+        [(403, 4, "Permission denied"), (404, 3, "Resource not found")],
+    )
+    @pytest.mark.parametrize("request_method", ["GET", "PUT"])
+    def test_update_template_api_error(
+        self,
+        monkeypatch: Any,
+        status_code: int,
+        exit_code: int,
+        message: str,
+        request_method: str,
+    ) -> None:
+        """Report API failures using the standard error handler and exit codes."""
+        monkeypatch.setenv("SLCLI_API_URL", "http://localhost")
+        monkeypatch.setenv("SLCLI_API_KEY", "test")
+        response = requests.Response()
+        response.status_code = status_code
+        with patch("slcli.policy_click.make_api_request") as mock_request:
+            api_error = requests.HTTPError(response=response)
+            if request_method == "GET":
+                mock_request.side_effect = api_error
+            else:
+                mock_request.side_effect = [
+                    mock_response({"name": "Original", "type": "user"}),
+                    api_error,
+                ]
+            result = CliRunner().invoke(
+                cli,
+                ["auth", "template", "update", "template-1", "--name", "Updated"],
+            )
+        assert result.exit_code == exit_code, result.output
+        assert message in result.stderr
+        assert mock_request.call_count == (1 if request_method == "GET" else 2)
+        assert mock_request.call_args.args[0] == request_method
+
+    def test_update_template_readonly(self) -> None:
+        """Block updates before making requests when the profile is read-only."""
+        with patch("slcli.profiles.is_active_profile_readonly", return_value=True):
+            with patch("slcli.policy_click.make_api_request") as mock_request:
+                result = CliRunner().invoke(
+                    cli,
+                    ["auth", "template", "update", "template-1", "--name", "Updated"],
+                )
+        assert result.exit_code == 4, result.output
+        assert "readonly mode" in result.output
+        mock_request.assert_not_called()
+
+
 class TestTemplateList:
     """Tests for policy template list command."""
 
     def test_list_templates_success(self, monkeypatch: Any) -> None:
         """Test successful template listing."""
-
-        def mock_get_password(service: str, key: str) -> Optional[str]:
-            if key == "SYSTEMLINK_CONFIG":
-                return json.dumps({"api_url": "http://localhost", "api_key": "test"})
-            return None
-
-        monkeypatch.setattr(keyring, "get_password", mock_get_password)
+        monkeypatch.setenv("SLCLI_API_URL", "http://localhost")
+        monkeypatch.setenv("SLCLI_API_KEY", "test")
 
         cli_instance = make_cli()
         runner = CliRunner()
@@ -355,13 +731,8 @@ class TestTemplateList:
 
     def test_list_templates_json_format(self, monkeypatch: Any) -> None:
         """Test template listing with JSON output."""
-
-        def mock_get_password(service: str, key: str) -> Optional[str]:
-            if key == "SYSTEMLINK_CONFIG":
-                return json.dumps({"api_url": "http://localhost", "api_key": "test"})
-            return None
-
-        monkeypatch.setattr(keyring, "get_password", mock_get_password)
+        monkeypatch.setenv("SLCLI_API_URL", "http://localhost")
+        monkeypatch.setenv("SLCLI_API_KEY", "test")
 
         cli_instance = make_cli()
         runner = CliRunner()
@@ -390,13 +761,8 @@ class TestTemplateGet:
 
     def test_get_template_success(self, monkeypatch: Any) -> None:
         """Test successful template retrieval."""
-
-        def mock_get_password(service: str, key: str) -> Optional[str]:
-            if key == "SYSTEMLINK_CONFIG":
-                return json.dumps({"api_url": "http://localhost", "api_key": "test"})
-            return None
-
-        monkeypatch.setattr(keyring, "get_password", mock_get_password)
+        monkeypatch.setenv("SLCLI_API_URL", "http://localhost")
+        monkeypatch.setenv("SLCLI_API_KEY", "test")
 
         cli_instance = make_cli()
         runner = CliRunner()
@@ -432,12 +798,8 @@ class TestPolicyExportImportDiff:
     """Tests for policy diff command."""
 
     def test_diff_policies_basic(self, monkeypatch: Any) -> None:
-        def mock_get_password(service: str, key: str) -> Optional[str]:
-            if key == "SYSTEMLINK_CONFIG":
-                return json.dumps({"api_url": "http://localhost", "api_key": "test"})
-            return None
-
-        monkeypatch.setattr(keyring, "get_password", mock_get_password)
+        monkeypatch.setenv("SLCLI_API_URL", "http://localhost")
+        monkeypatch.setenv("SLCLI_API_KEY", "test")
 
         cli_instance = make_cli()
         runner = CliRunner()
@@ -475,13 +837,8 @@ class TestPolicyUpdate:
         self, monkeypatch: Any
     ) -> None:
         """Update should use current statements if none provided."""
-
-        def mock_get_password(service: str, key: str) -> Optional[str]:
-            if key == "SYSTEMLINK_CONFIG":
-                return json.dumps({"api_url": "http://localhost", "api_key": "test"})
-            return None
-
-        monkeypatch.setattr(keyring, "get_password", mock_get_password)
+        monkeypatch.setenv("SLCLI_API_URL", "http://localhost")
+        monkeypatch.setenv("SLCLI_API_KEY", "test")
 
         cli_instance = make_cli()
         runner = CliRunner()
@@ -520,13 +877,8 @@ class TestTemplateDelete:
 
     def test_delete_template_with_confirmation(self, monkeypatch: Any) -> None:
         """Delete template asks for confirmation."""
-
-        def mock_get_password(service: str, key: str) -> Optional[str]:
-            if key == "SYSTEMLINK_CONFIG":
-                return json.dumps({"api_url": "http://localhost", "api_key": "test"})
-            return None
-
-        monkeypatch.setattr(keyring, "get_password", mock_get_password)
+        monkeypatch.setenv("SLCLI_API_URL", "http://localhost")
+        monkeypatch.setenv("SLCLI_API_KEY", "test")
 
         cli_instance = make_cli()
         runner = CliRunner()

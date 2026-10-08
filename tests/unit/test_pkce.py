@@ -3,13 +3,16 @@
 import base64
 import hashlib
 import json
+from pathlib import Path
 from typing import Any, Mapping
 from unittest.mock import MagicMock
 from urllib.parse import parse_qs, urlparse
 
 import pytest
+import requests
 from click.testing import CliRunner
 
+from slcli.credentials import CredentialStoreError
 from slcli.main import cli
 from slcli.pkce import (
     PkceError,
@@ -21,8 +24,10 @@ from slcli.pkce import (
     get_pkce_access_token,
     perform_pkce_login,
     refresh_pkce_credentials,
+    resolve_pkce_token,
     save_pkce_credentials,
 )
+from slcli.profiles import Profile, ProfileConfig
 
 
 def test_render_callback_success_page_is_branded_and_escapes_message() -> None:
@@ -245,71 +250,98 @@ def test_perform_pkce_login_rejects_state_mismatch(monkeypatch: Any) -> None:
         raise AssertionError("Expected state mismatch")
 
 
-def test_pkce_credentials_are_keyring_backed(monkeypatch: Any) -> None:
+def test_pkce_credentials_are_stored_as_one_bundle(monkeypatch: Any) -> None:
     """PKCE access and refresh secrets are never serialized in a profile."""
     import slcli.pkce as pkce
 
-    values: dict[str, str] = {}
+    values: dict[tuple[str, str], str] = {}
     monkeypatch.setattr(
-        pkce.keyring,
-        "set_password",
-        lambda _s, key, value: values.__setitem__(key, value),
+        pkce,
+        "set_credential",
+        lambda profile_id, name, value, _store: values.__setitem__((profile_id, name), value),
     )
-    monkeypatch.setattr(pkce.keyring, "get_password", lambda _s, key: values.get(key))
+    monkeypatch.setattr(
+        pkce,
+        "get_credential",
+        lambda profile_id, name, _store: values.get((profile_id, name)),
+    )
 
     save_pkce_credentials("test", "access-token", "refresh-token")
 
     assert get_pkce_access_token("test") == "access-token"
-    assert values["PKCE:test:refresh-token"] == "refresh-token"
+    bundle = json.loads(values[("test", "pkce")])
+    assert bundle["refresh-token"] == "refresh-token"
     assert "api-key" not in json.dumps({"auth-mode": "pkce"})
 
 
-def test_save_pkce_credentials_restores_previous_values_on_failure(monkeypatch: Any) -> None:
-    """A partial keyring update must not replace the existing credentials."""
+@pytest.mark.parametrize(
+    "bundle_text", ['["not an object"]', '"not an object"', '{"access-token": []}']
+)
+def test_get_pkce_access_token_rejects_non_object_bundle(
+    monkeypatch: Any, bundle_text: str
+) -> None:
+    """Invalid shapes and token types are rejected as malformed bundles."""
+    monkeypatch.setattr("slcli.pkce.get_credential", lambda *_args, **_kwargs: bundle_text)
+
+    with pytest.raises(PkceError, match="Stored PKCE credentials are invalid"):
+        get_pkce_access_token("test")
+
+
+@pytest.mark.parametrize(
+    "bundle_text", ['["not an object"]', '"not an object"', '{"refresh-token": []}']
+)
+def test_refresh_pkce_credentials_rejects_non_object_bundle(
+    monkeypatch: Any, bundle_text: str
+) -> None:
+    """Refresh reports a controlled PKCE error for invalid bundles."""
+    monkeypatch.setattr("slcli.pkce.get_credential", lambda *_args, **_kwargs: bundle_text)
+
+    with pytest.raises(PkceError, match="Stored PKCE credentials are invalid"):
+        refresh_pkce_credentials("test", "https://web.example", "client-id")
+
+
+@pytest.mark.parametrize("expiry", ["NaN", "Infinity", "-Infinity", 10**400, True])
+def test_get_pkce_access_token_rejects_invalid_expiry(monkeypatch: Any, expiry: Any) -> None:
+    """Non-finite, overflowing, and boolean expiries cannot bypass token validation."""
+    bundle = json.dumps({"access-token": "token", "access-expires-at": expiry})
+    monkeypatch.setattr("slcli.pkce.get_credential", lambda *_args: bundle)
+
+    with pytest.raises(PkceError, match="Stored PKCE credentials are invalid"):
+        get_pkce_access_token("test")
+
+
+def test_save_pkce_credentials_reports_store_failure(monkeypatch: Any) -> None:
+    """A failed bundle write is reported as a PKCE storage error."""
     import slcli.pkce as pkce
 
-    values = {
-        "PKCE:test:access-token": "old-access-token",
-        "PKCE:test:refresh-token": "old-refresh-token",
-        "PKCE:test:access-expires-at": "100.0",
-        "PKCE:test:session-key": "old-session-key",
-        "PKCE:test:session-expires-at": "200.0",
-    }
-    previous_values = values.copy()
+    from slcli.credentials import CredentialStoreError
 
-    monkeypatch.setattr(pkce.keyring, "get_password", lambda _service, key: values.get(key))
-
-    def set_password(_service: str, key: str, value: str) -> None:
-        if key == "PKCE:test:access-expires-at" and value == "300.0":
-            raise RuntimeError("keyring unavailable")
-        values[key] = value
-
-    monkeypatch.setattr(pkce.keyring, "set_password", set_password)
     monkeypatch.setattr(
-        pkce.keyring, "delete_password", lambda _service, key: values.pop(key, None)
+        pkce,
+        "set_credential",
+        lambda *_args: (_ for _ in ()).throw(CredentialStoreError("store unavailable")),
     )
 
-    with pytest.raises(RuntimeError, match="keyring unavailable"):
+    with pytest.raises(PkceError, match="store unavailable"):
         save_pkce_credentials("test", "new-access-token", "new-refresh-token", 300.0)
-
-    assert values == previous_values
 
 
 def test_refresh_pkce_credentials_rotates_tokens(monkeypatch: Any) -> None:
     """Refreshing credentials replaces the old refresh and access tokens."""
     import slcli.pkce as pkce
 
-    values = {
-        "PKCE:test:refresh-token": "old-refresh-token",
-    }
+    values = {("test", "pkce"): json.dumps({"refresh-token": "old-refresh-token"})}
     monkeypatch.setattr(pkce, "get_ssl_verify", lambda _url: True)
-    monkeypatch.setattr(pkce.keyring, "get_password", lambda _s, key: values.get(key))
     monkeypatch.setattr(
-        pkce.keyring,
-        "set_password",
-        lambda _s, key, value: values.__setitem__(key, value),
+        pkce,
+        "get_credential",
+        lambda profile_id, name, _store: values.get((profile_id, name)),
     )
-    monkeypatch.setattr(pkce.keyring, "delete_password", lambda *_args: None)
+    monkeypatch.setattr(
+        pkce,
+        "set_credential",
+        lambda profile_id, name, value, _store: values.__setitem__((profile_id, name), value),
+    )
 
     requests_seen: list[tuple[str, Any]] = []
 
@@ -333,9 +365,10 @@ def test_refresh_pkce_credentials_rotates_tokens(monkeypatch: Any) -> None:
     result = refresh_pkce_credentials("test", "https://web.example", "client-id")
 
     assert result.access_token == "new-access-token"
-    assert values["PKCE:test:access-token"] == "new-access-token"
-    assert values["PKCE:test:refresh-token"] == "new-refresh-token"
-    assert "PKCE:test:access-expires-at" in values
+    bundle = json.loads(values[("test", "pkce")])
+    assert bundle["access-token"] == "new-access-token"
+    assert bundle["refresh-token"] == "new-refresh-token"
+    assert bundle["access-expires-at"] is not None
     assert [item[0] for item in requests_seen] == ["https://web.example/nitoken/v1/token"]
 
 
@@ -345,15 +378,18 @@ def test_refresh_pkce_credentials_keeps_existing_refresh_token_when_omitted(
     """A refresh response may omit a replacement while retaining the old token."""
     import slcli.pkce as pkce
 
-    values = {"PKCE:test:refresh-token": "old-refresh-token"}
+    values = {("test", "pkce"): json.dumps({"refresh-token": "old-refresh-token"})}
     monkeypatch.setattr(pkce, "get_ssl_verify", lambda _url: True)
-    monkeypatch.setattr(pkce.keyring, "get_password", lambda _s, key: values.get(key))
     monkeypatch.setattr(
-        pkce.keyring,
-        "set_password",
-        lambda _s, key, value: values.__setitem__(key, value),
+        pkce,
+        "get_credential",
+        lambda profile_id, name, _store: values.get((profile_id, name)),
     )
-    monkeypatch.setattr(pkce.keyring, "delete_password", lambda *_args: None)
+    monkeypatch.setattr(
+        pkce,
+        "set_credential",
+        lambda profile_id, name, value, _store: values.__setitem__((profile_id, name), value),
+    )
     monkeypatch.setattr(
         pkce.requests,
         "post",
@@ -362,7 +398,184 @@ def test_refresh_pkce_credentials_keeps_existing_refresh_token_when_omitted(
 
     refresh_pkce_credentials("test", "https://web.example", "client-id")
 
-    assert values["PKCE:test:refresh-token"] == "old-refresh-token"
+    assert json.loads(values[("test", "pkce")])["refresh-token"] == "old-refresh-token"
+
+
+@pytest.mark.parametrize("store", ["os", "file"])
+@pytest.mark.parametrize("expiry", [None, 1061.0, 1060.0, 999.0])
+@pytest.mark.parametrize("replacement", [None, "rotated-refresh"])
+def test_resolve_pkce_token_lifecycle(
+    monkeypatch: Any, store: str, expiry: Any, replacement: Any
+) -> None:
+    """Resolution assesses expiry, persists rotation, and reports provenance."""
+    values = {
+        "access-token": "cached-access",
+        "refresh-token": "old-refresh",
+        "access-expires-at": expiry,
+    }
+    read = MagicMock(return_value=json.dumps(values))
+    write = MagicMock()
+    payload = {"access_token": "fresh-access", "expires_in": 3600}
+    if replacement:
+        payload["refresh_token"] = replacement
+    post = MagicMock(return_value=Response(payload))
+    monkeypatch.setattr("slcli.pkce.time.time", lambda: 1000.0)
+    monkeypatch.setattr("slcli.pkce.get_credential", read)
+    monkeypatch.setattr("slcli.pkce.set_credential", write)
+    monkeypatch.setattr("slcli.pkce.requests.post", post)
+    monkeypatch.setattr("slcli.pkce.get_ssl_verify", lambda _url: True)
+    profile = Profile(
+        name="test",
+        server="https://api.example",
+        web_url="https://web.example",
+        pkce_client_id="client-id",
+        credential_store=store,
+        auth_mode="pkce",
+    )
+
+    result = resolve_pkce_token(profile)
+
+    read.assert_called_with(profile.credential_id, "pkce", store)
+    if expiry is None or expiry > 1060:
+        assert result.access_token == "cached-access"
+        assert result.source == f"{store}:pkce"
+        post.assert_not_called()
+        write.assert_not_called()
+    else:
+        assert result.access_token == "fresh-access"
+        assert result.source == f"{store}:pkce-refresh"
+        assert post.call_args.args == ("https://web.example/nitoken/v1/token",)
+        assert post.call_args.kwargs["data"] == {
+            "grant_type": "refresh_token",
+            "client_id": "client-id",
+            "refresh_token": "old-refresh",
+        }
+        assert write.call_args.args[:2] == (profile.credential_id, "pkce")
+        assert write.call_args.args[3] == store
+        assert json.loads(write.call_args.args[2]) == {
+            "access-token": "fresh-access",
+            "refresh-token": replacement or "old-refresh",
+            "access-expires-at": 4600.0,
+        }
+
+
+def test_resolve_pkce_token_refresh_persists_to_file(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """A refreshed bundle survives reload and is reused without another token request."""
+    config_path = tmp_path / "config.json"
+    monkeypatch.setattr(ProfileConfig, "get_config_path", classmethod(lambda cls: config_path))
+    profile = Profile(
+        name="test",
+        server="https://api.example",
+        web_url="https://web.example",
+        pkce_client_id="client-id",
+        auth_mode="pkce",
+        credential_store="file",
+        pkce_credentials={
+            "access-token": "expired",
+            "refresh-token": "old-refresh",
+            "access-expires-at": 999.0,
+        },
+    )
+    config = ProfileConfig()
+    config.add_profile(profile)
+    config.save()
+    monkeypatch.setattr("slcli.pkce.time.time", lambda: 1000.0)
+    monkeypatch.setattr("slcli.pkce.get_ssl_verify", lambda _url: True)
+    post = MagicMock(
+        return_value=Response(
+            {"access_token": "fresh-access", "refresh_token": "rotated-refresh", "expires_in": 3600}
+        )
+    )
+    monkeypatch.setattr("slcli.pkce.requests.post", post)
+
+    result = resolve_pkce_token(profile)
+
+    assert result.access_token == "fresh-access"
+    assert result.source == "file:pkce-refresh"
+    reloaded = ProfileConfig.load().profiles["test"]
+    assert reloaded.pkce_credentials == {
+        "access-token": "fresh-access",
+        "refresh-token": "rotated-refresh",
+        "access-expires-at": 4600.0,
+    }
+    cached = resolve_pkce_token(reloaded)
+    assert cached.access_token == "fresh-access"
+    assert cached.source == "file:pkce"
+    post.assert_called_once()
+
+
+@pytest.mark.parametrize(
+    "failure",
+    ["missing", "no-refresh", "no-web", "no-client", "refresh", "persist"],
+)
+@pytest.mark.parametrize("emit_error", [True, False])
+def test_resolve_pkce_token_unavailable(monkeypatch: Any, failure: str, emit_error: bool) -> None:
+    """Unavailable or unpersisted credentials never yield a bearer token."""
+    bundle = (
+        None
+        if failure == "missing"
+        else json.dumps({"refresh-token": None if failure == "no-refresh" else "refresh"})
+    )
+    monkeypatch.setattr("slcli.pkce.get_credential", lambda *_args: bundle)
+    monkeypatch.setattr("slcli.pkce.get_ssl_verify", lambda _url: True)
+    post = MagicMock(return_value=Response({"access_token": "fresh"}))
+    if failure == "refresh":
+        post.side_effect = requests.RequestException("unavailable")
+    write = MagicMock(side_effect=CredentialStoreError("store unavailable"))
+    monkeypatch.setattr("slcli.pkce.requests.post", post)
+    monkeypatch.setattr("slcli.pkce.set_credential", write)
+    profile = Profile(
+        name="test",
+        server="https://api.example",
+        web_url="" if failure == "no-web" else "https://web.example",
+        pkce_client_id=None if failure == "no-client" else "client-id",
+        auth_mode="pkce",
+    )
+
+    with pytest.raises(PkceError) as error:
+        resolve_pkce_token(profile, emit_error=emit_error)
+
+    assert str(error.value) == (
+        "PKCE bearer token for profile 'test' is unavailable. "
+        "Run 'slcli login --profile test --auth pkce' again."
+        if emit_error
+        else "PKCE bearer token not found."
+    )
+    if failure not in ("refresh", "persist"):
+        post.assert_not_called()
+    if failure != "persist":
+        write.assert_not_called()
+
+
+@pytest.mark.parametrize("bundle", ["[]", '{"access-token": []}', '{"access-expires-at": true}'])
+def test_resolve_pkce_token_malformed(monkeypatch: Any, bundle: str) -> None:
+    """Malformed cached credentials are reported without attempting refresh."""
+    monkeypatch.setattr("slcli.pkce.get_credential", lambda *_args: bundle)
+    post = MagicMock()
+    monkeypatch.setattr("slcli.pkce.requests.post", post)
+    profile = Profile(
+        name="test",
+        server="https://api.example",
+        web_url="https://web.example",
+        pkce_client_id="client-id",
+        auth_mode="pkce",
+    )
+
+    with pytest.raises(PkceError, match="Stored PKCE credentials are invalid"):
+        resolve_pkce_token(profile)
+
+    post.assert_not_called()
+
+
+def test_resolve_pkce_token_store_unreadable(monkeypatch: Any) -> None:
+    """Store access failures remain visible rather than becoming missing tokens."""
+    monkeypatch.setattr(
+        "slcli.pkce.get_credential", MagicMock(side_effect=CredentialStoreError("locked"))
+    )
+    with pytest.raises(PkceError, match="Could not read PKCE credentials: locked"):
+        resolve_pkce_token(Profile(name="test", server="https://api.example"))
 
 
 def test_login_pkce_uses_bearer_token_and_stores_metadata(monkeypatch: Any, tmp_path: Any) -> None:

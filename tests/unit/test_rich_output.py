@@ -1,15 +1,20 @@
 """Unit tests for Rich-backed output helpers."""
 
 import json
-from io import StringIO
+from io import BytesIO, StringIO, TextIOWrapper
+from pathlib import Path
+from subprocess import CompletedProcess
+from types import SimpleNamespace
 from typing import Any, cast
 
 import click
+import pytest
 from rich.json import JSON
 from rich.table import Table
 from rich.text import Text
 
 from slcli import rich_output
+from slcli.main import cli
 from slcli.rich_output import (
     _rich_echo,
     _style_plain_message,
@@ -18,6 +23,8 @@ from slcli.rich_output import (
     print_json,
     render_table,
 )
+from slcli.skill_click import install_skills_to_directory
+from slcli.version_click import VersionCheckResult
 
 
 class FakeConsole:
@@ -26,6 +33,7 @@ class FakeConsole:
     def __init__(self, is_terminal: bool = True) -> None:
         """Initialize the fake console with a configurable terminal flag."""
         self.is_terminal = is_terminal
+        self.encoding = "utf-8"
         self.calls: list[dict[str, Any]] = []
 
     def print(self, *args: Any, **kwargs: Any) -> None:
@@ -131,6 +139,69 @@ def test_render_table_prints_table_and_total(monkeypatch: Any) -> None:
     assert console.calls[2]["args"][0].plain == "Total: 1 item(s)"
 
 
+@pytest.mark.parametrize("encoding", ["cp1252", "cp437", "ascii", "utf-8"])
+@pytest.mark.parametrize("color_mode", ["auto", "always", "never"])
+def test_render_table_handles_restricted_stream_encoding(
+    monkeypatch: Any, encoding: str, color_mode: str
+) -> None:
+    """Real table output safely renders borders, headers, cells, and totals."""
+    buffer = BytesIO()
+    stream = TextIOWrapper(buffer, encoding=encoding, errors="strict", newline="\n")
+    monkeypatch.setattr(rich_output.sys, "stdout", stream)
+    monkeypatch.setattr(rich_output, "_STDOUT_CONSOLE", None)
+    monkeypatch.setattr(rich_output, "_STDERR_CONSOLE", None)
+    monkeypatch.setenv("SLCLI_COLOR", color_mode)
+
+    render_table(
+        ["Name \u6e2c", "Status"],
+        [24, 12],
+        iter([["caf\u00e9 \u6e2c", "\u2713"], ["example", "\u2717"]]),
+        show_total=True,
+        total_label="\u6e2c item(s)",
+    )
+    stream.flush()
+    output = click.unstyle(buffer.getvalue().decode(encoding))
+
+    if encoding == "utf-8":
+        assert "\u256d" in output
+        assert "\u2713" in output and "\u2717" in output
+        assert "caf\u00e9 \u6e2c" in output
+        assert "Total: 2 \u6e2c item(s)" in output
+    else:
+        assert "+" in output and "|" in output
+        assert "[OK]" in output and "[X]" in output
+        assert "Name \\u6e2c" in output
+        assert "Total: 2 \\u6e2c item(s)" in output
+        assert "caf" in output and "\\u6e2c" in output
+
+
+@pytest.mark.parametrize("encoding", ["cp1252", "cp437", "ascii", "utf-8"])
+def test_render_table_truncation_handles_restricted_encoding(
+    monkeypatch: Any, encoding: str
+) -> None:
+    """Narrow table columns never introduce an unsupported ellipsis character."""
+    buffer = BytesIO()
+    stream = TextIOWrapper(buffer, encoding=encoding, errors="strict", newline="\n")
+    monkeypatch.setattr(rich_output.sys, "stdout", stream)
+    monkeypatch.setattr(rich_output, "_STDOUT_CONSOLE", None)
+    monkeypatch.setattr(rich_output, "_STDERR_CONSOLE", None)
+    monkeypatch.setenv("SLCLI_COLOR", "never")
+
+    render_table(["Name"], [5], [["long example name"]], show_total=True, total_count=7)
+    stream.flush()
+
+    assert "Total: 7 item(s)" in buffer.getvalue().decode(encoding)
+
+
+@pytest.mark.parametrize("encoding", ["cp1252", "cp437", "ascii", "utf-8"])
+def test_encoding_fallback_handles_warning_variation_selector(encoding: str) -> None:
+    """Warning emoji become one readable fallback without escaped selectors."""
+    message = "\u26a0\ufe0f warning"
+    expected = message if encoding == "utf-8" else "[!] warning"
+
+    assert rich_output._encoding_safe_message(message, encoding) == expected
+
+
 def test_rich_echo_uses_original_echo_for_non_stream_file(monkeypatch: Any) -> None:
     """Explicit file objects should bypass Rich rendering."""
     recorded: list[dict[str, Any]] = []
@@ -210,6 +281,159 @@ def test_rich_echo_prints_plain_messages_with_rich(monkeypatch: Any) -> None:
     assert rendered.plain == "✓ done"
 
 
+@pytest.mark.parametrize("encoding", ["cp1252", "cp437", "utf-8"])
+@pytest.mark.parametrize("err", [False, True])
+@pytest.mark.parametrize("ansi", [False, True])
+@pytest.mark.parametrize("color_mode", ["auto", "always", "never"])
+def test_rich_echo_handles_restricted_stream_encoding(
+    monkeypatch: Any, encoding: str, err: bool, ansi: bool, color_mode: str
+) -> None:
+    """Real output preserves Unicode or uses readable encoding-safe status symbols."""
+    buffer = BytesIO()
+    stream = TextIOWrapper(buffer, encoding=encoding, errors="strict", newline="\n")
+    monkeypatch.setattr(rich_output.sys, "stderr" if err else "stdout", stream)
+    monkeypatch.setattr(rich_output, "_STDOUT_CONSOLE", None)
+    monkeypatch.setattr(rich_output, "_STDERR_CONSOLE", None)
+    monkeypatch.setenv("SLCLI_COLOR", color_mode)
+    message = "\u2713 done \u2192 next \u2717 failed \u26a0 warning"
+    if ansi:
+        message = f"\x1b[32m{message}\x1b[0m"
+
+    _rich_echo(message, err=err)
+    stream.flush()
+
+    expected = (
+        "\u2713 done \u2192 next \u2717 failed \u26a0 warning\n"
+        if encoding == "utf-8"
+        else "[OK] done -> next [X] failed [!] warning\n"
+    )
+    assert click.unstyle(buffer.getvalue().decode(encoding)) == expected
+
+
+@pytest.mark.parametrize("encoding", ["cp1252", "cp437"])
+@pytest.mark.parametrize(
+    "command", ["version", "version-outdated", "skill", "skill-outdated", "webapp", "webapp-npm"]
+)
+def test_commands_preserve_results_on_restricted_streams(
+    monkeypatch: Any, tmp_path: Path, encoding: str, command: str
+) -> None:
+    """Command results and intentional failure codes survive restricted output."""
+    monkeypatch.setenv("SLCLI_CONFIG", str(tmp_path / "config.json"))
+    monkeypatch.setattr(
+        "slcli.version_click.check_version",
+        lambda: VersionCheckResult(
+            "1.2.3",
+            "1.3.0" if command.endswith("outdated") else "1.2.3",
+            "outdated" if command.endswith("outdated") else "current",
+            "scoop",
+            "scoop update slcli",
+        ),
+    )
+    npm_calls: list[list[str]] = []
+
+    def fake_run(args: list[str], **kwargs: Any) -> CompletedProcess[str]:
+        npm_calls.append(args)
+        return CompletedProcess(args, 0, stdout="", stderr="")
+
+    monkeypatch.setattr("slcli.webapp_bootstrap.subprocess.run", fake_run)
+    if command == "skill":
+        install_skills_to_directory(tmp_path, subdir="")
+    elif command == "skill-outdated":
+        skill_dir = tmp_path / "slcli"
+        skill_dir.mkdir()
+        (skill_dir / ".slcli-version").write_text("0.1.0\n", encoding="utf-8")
+
+    if command.startswith("version"):
+        args = ["version", "check", "--fail-if-outdated"]
+    elif command.startswith("skill"):
+        args = ["skill", "check", "--directory", str(tmp_path)]
+    else:
+        args = ["webapp", "new", "encoding-repro", "--directory", str(tmp_path), "--defaults"]
+        if command == "webapp":
+            args.append("--skip-install")
+
+    buffer = BytesIO()
+    stream = TextIOWrapper(buffer, encoding=encoding, errors="strict", newline="\n")
+    monkeypatch.setattr(rich_output.sys, "stdout", stream)
+    monkeypatch.setattr(rich_output.sys, "stderr", stream)
+    monkeypatch.setattr(rich_output, "_STDOUT_CONSOLE", None)
+    monkeypatch.setattr(rich_output, "_STDERR_CONSOLE", None)
+    monkeypatch.setenv("SLCLI_COLOR", "never")
+
+    if command.endswith("outdated"):
+        with pytest.raises(SystemExit) as exc:
+            cli.main(args, standalone_mode=False)
+        assert exc.value.code == 1
+    else:
+        assert cli.main(args, standalone_mode=False) is None
+    stream.flush()
+    output = buffer.getvalue().decode(encoding)
+    assert "Traceback" not in output
+    if command == "version":
+        assert "[OK] slcli is up to date" in output
+    elif command == "version-outdated":
+        assert "scoop update slcli" in output
+    elif command.startswith("skill"):
+        assert ("[X]" if command.endswith("outdated") else "[OK]") in output
+        assert ("outdated" if command.endswith("outdated") else "current") in output
+    else:
+        assert "[OK] Created SystemLink Angular webapp" in output
+        assert "Publish command:" in output
+        assert (tmp_path / "package.json").is_file()
+        assert (tmp_path / "src" / "app" / "app.module.ts").is_file()
+        if command == "webapp-npm":
+            assert "-> npm install" in output
+            assert [args[-1] for args in npm_calls] == ["install", "sbom", "build"]
+
+
+def test_encoding_fallback_preserves_representable_text() -> None:
+    """Fallback escapes unsupported user text without losing supported accents."""
+    assert rich_output._encoding_safe_message("caf\u00e9 \u6e2c", "cp1252") == "caf\u00e9 \\u6e2c"
+
+
+@pytest.mark.parametrize("encoding", ["cp1252", "cp437", "utf-8"])
+@pytest.mark.parametrize("err", [False, True])
+@pytest.mark.parametrize("color_mode", ["auto", "always", "never"])
+@pytest.mark.parametrize("ensure_ascii", [False, True])
+def test_rich_echo_restricted_json_preserves_values(
+    monkeypatch: Any, encoding: str, err: bool, color_mode: str, ensure_ascii: bool
+) -> None:
+    """Machine-readable JSON retains Unicode values instead of status substitutions."""
+    buffer = BytesIO()
+    stream = TextIOWrapper(buffer, encoding=encoding, errors="strict", newline="\n")
+    monkeypatch.setattr(rich_output.sys, "stderr" if err else "stdout", stream)
+    monkeypatch.setattr(rich_output, "_STDOUT_CONSOLE", None)
+    monkeypatch.setattr(rich_output, "_STDERR_CONSOLE", None)
+    monkeypatch.setattr(rich_output, "_stream_is_tty", lambda err=False: True)
+    monkeypatch.setenv("SLCLI_COLOR", color_mode)
+    monkeypatch.delenv("NO_COLOR", raising=False)
+    data = {"status": "\u2713", "name": "\u6e2c"}
+
+    _rich_echo(json.dumps(data, ensure_ascii=ensure_ascii), err=err)
+    print_json(data, err=err)
+    stream.flush()
+
+    decoder = json.JSONDecoder()
+    output = click.unstyle(buffer.getvalue().decode(encoding))
+    first, end = decoder.raw_decode(output)
+    assert first == data
+    assert json.loads(output[end:]) == data
+
+
+def test_rich_echo_does_not_suppress_write_failures(monkeypatch: Any) -> None:
+    """Encoding fallbacks do not turn unrelated output failures into success."""
+    console = FakeConsole()
+
+    def fail_print(*args: Any, **kwargs: Any) -> None:
+        raise BrokenPipeError("closed pipe")
+
+    monkeypatch.setattr(console, "print", fail_print)
+    monkeypatch.setattr(rich_output, "_get_console", lambda err=False: console)
+
+    with pytest.raises(BrokenPipeError, match="closed pipe"):
+        _rich_echo("\u2713 done")
+
+
 def test_should_use_rich_json_honors_color_env(monkeypatch: Any) -> None:
     """Color environment settings should control Rich JSON usage."""
     monkeypatch.setenv("SLCLI_COLOR", "always")
@@ -231,6 +455,7 @@ def test_get_console_refreshes_when_tty_becomes_available(monkeypatch: Any) -> N
     monkeypatch.setattr(rich_output, "_STDOUT_CONSOLE", cast(Any, FakeConsole(False)))
     monkeypatch.setattr(rich_output, "_STDERR_CONSOLE", cast(Any, FakeConsole(False)))
     monkeypatch.setattr(rich_output, "_stream_is_tty", lambda err=False: True)
+    monkeypatch.setattr(rich_output, "detect_legacy_windows", lambda: False)
 
     recreated = FakeConsole(True)
 
@@ -277,11 +502,44 @@ def test_rich_secho_uses_click_styling(monkeypatch: Any) -> None:
     assert "\x1b[" in recorded[0]["message"]
 
 
+@pytest.mark.parametrize("vt", [False, True])
+@pytest.mark.parametrize("err", [False, True])
+@pytest.mark.parametrize("color_mode", ["auto", "always"])
+def test_windows_terminal_styling_requires_vt(
+    monkeypatch: Any, vt: bool, err: bool, color_mode: str
+) -> None:
+    """Stream rendering emits ANSI only on VT-capable Windows terminals."""
+    buffer = BytesIO()
+    stream = TextIOWrapper(buffer, encoding="cp1252", errors="strict", newline="\n")
+    monkeypatch.setattr(rich_output.sys, "stderr" if err else "stdout", stream)
+    monkeypatch.setattr(rich_output, "_STDOUT_CONSOLE", None)
+    monkeypatch.setattr(rich_output, "_STDERR_CONSOLE", None)
+    monkeypatch.setattr(rich_output, "_stream_is_tty", lambda err=False: True)
+    monkeypatch.setattr("rich.console.WINDOWS", True)
+    monkeypatch.setattr(
+        "rich.console.get_windows_console_features",
+        lambda: SimpleNamespace(vt=vt, truecolor=vt),
+    )
+    monkeypatch.setenv("SLCLI_COLOR", color_mode)
+    monkeypatch.setenv("TERM", "xterm-256color")
+    monkeypatch.delenv("NO_COLOR", raising=False)
+
+    _rich_echo("\u2713 done", err=err)
+    stream.flush()
+
+    output = buffer.getvalue().decode("cp1252")
+    assert ("\x1b[" in output) is vt
+    assert click.unstyle(output) == "[OK] done\n"
+    assert rich_output._get_console(err=err).is_terminal is vt
+    assert rich_output._console_needs_refresh(err=err) is False
+
+
 def test_configure_consoles_respects_terminal_detection(monkeypatch: Any) -> None:
     """Console construction should follow per-stream terminal detection."""
     monkeypatch.setenv("SLCLI_COLOR", "auto")
     monkeypatch.delenv("NO_COLOR", raising=False)
     monkeypatch.setattr(rich_output, "_stream_is_tty", lambda err=False: not err)
+    monkeypatch.setattr(rich_output, "detect_legacy_windows", lambda: False)
 
     rich_output._configure_consoles()
 
@@ -289,6 +547,8 @@ def test_configure_consoles_respects_terminal_detection(monkeypatch: Any) -> Non
     assert rich_output._STDERR_CONSOLE is not None
     assert rich_output._STDOUT_CONSOLE.is_terminal is True
     assert rich_output._STDERR_CONSOLE.is_terminal is False
+    assert rich_output._STDOUT_CONSOLE.legacy_windows is False
+    assert rich_output._STDERR_CONSOLE.legacy_windows is False
 
 
 def test_console_needs_refresh_respects_explicit_color_mode(monkeypatch: Any) -> None:

@@ -121,7 +121,7 @@ Based on [CLI Guidelines](https://clig.dev), SystemLink CLI follows these patter
 
 ## Security
 
-- Use environment variables and keyring for all credentials and sensitive data
+- Use environment variables or the credential-store interface for sensitive data; never add plaintext credentials to source files
 - Never commit or suggest committing files listed in `.gitignore`
 
 ## Required Actions After Any Change

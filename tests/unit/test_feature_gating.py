@@ -1,6 +1,5 @@
 """Unit tests for platform feature gating on CLI commands."""
 
-import json
 from typing import Any
 
 import pytest
@@ -28,12 +27,9 @@ class TestFeatureGatingDFF:
             "platform": "SLS",
         }
 
-        def mock_get_password(service: str, key: str) -> str:
-            if key == "SYSTEMLINK_CONFIG":
-                return json.dumps(config)
-            return ""
-
-        monkeypatch.setattr("slcli.platform.keyring.get_password", mock_get_password)
+        monkeypatch.setenv("SLCLI_API_URL", config["api_url"])
+        monkeypatch.setenv("SLCLI_API_KEY", config["api_key"])
+        monkeypatch.setenv("SLCLI_PLATFORM", config["platform"])
 
         runner = CliRunner()
         result = runner.invoke(cli, ["customfield", "list"])
@@ -50,12 +46,9 @@ class TestFeatureGatingDFF:
             "platform": "SLS",
         }
 
-        def mock_get_password(service: str, key: str) -> str:
-            if key == "SYSTEMLINK_CONFIG":
-                return json.dumps(config)
-            return ""
-
-        monkeypatch.setattr("slcli.platform.keyring.get_password", mock_get_password)
+        monkeypatch.setenv("SLCLI_API_URL", config["api_url"])
+        monkeypatch.setenv("SLCLI_API_KEY", config["api_key"])
+        monkeypatch.setenv("SLCLI_PLATFORM", config["platform"])
 
         runner = CliRunner()
         result = runner.invoke(cli, ["customfield", "--help"])
@@ -75,12 +68,9 @@ class TestFeatureGatingTemplates:
             "platform": "SLS",
         }
 
-        def mock_get_password(service: str, key: str) -> str:
-            if key == "SYSTEMLINK_CONFIG":
-                return json.dumps(config)
-            return ""
-
-        monkeypatch.setattr("slcli.platform.keyring.get_password", mock_get_password)
+        monkeypatch.setenv("SLCLI_API_URL", config["api_url"])
+        monkeypatch.setenv("SLCLI_API_KEY", config["api_key"])
+        monkeypatch.setenv("SLCLI_PLATFORM", config["platform"])
         monkeypatch.setattr("slcli.platform._get_service_status", lambda _service: "not_found")
 
         runner = CliRunner()
@@ -101,12 +91,9 @@ class TestFeatureGatingWorkflows:
             "platform": "SLS",
         }
 
-        def mock_get_password(service: str, key: str) -> str:
-            if key == "SYSTEMLINK_CONFIG":
-                return json.dumps(config)
-            return ""
-
-        monkeypatch.setattr("slcli.platform.keyring.get_password", mock_get_password)
+        monkeypatch.setenv("SLCLI_API_URL", config["api_url"])
+        monkeypatch.setenv("SLCLI_API_KEY", config["api_key"])
+        monkeypatch.setenv("SLCLI_PLATFORM", config["platform"])
         monkeypatch.setattr("slcli.platform._get_service_status", lambda _service: "not_found")
 
         runner = CliRunner()
@@ -127,12 +114,9 @@ class TestFeatureGatingWorkitemTemplates:
             "platform": "SLS",
         }
 
-        def mock_get_password(service: str, key: str) -> str:
-            if key == "SYSTEMLINK_CONFIG":
-                return json.dumps(config)
-            return ""
-
-        monkeypatch.setattr("slcli.platform.keyring.get_password", mock_get_password)
+        monkeypatch.setenv("SLCLI_API_URL", config["api_url"])
+        monkeypatch.setenv("SLCLI_API_KEY", config["api_key"])
+        monkeypatch.setenv("SLCLI_PLATFORM", config["platform"])
         monkeypatch.setattr("slcli.platform._get_service_status", lambda _service: "not_found")
 
         runner = CliRunner()
@@ -153,12 +137,9 @@ class TestFeatureGatingComments:
             "platform": "SLS",
         }
 
-        def mock_get_password(service: str, key: str) -> str:
-            if key == "SYSTEMLINK_CONFIG":
-                return json.dumps(config)
-            return ""
-
-        monkeypatch.setattr("slcli.platform.keyring.get_password", mock_get_password)
+        monkeypatch.setenv("SLCLI_API_URL", config["api_url"])
+        monkeypatch.setenv("SLCLI_API_KEY", config["api_key"])
+        monkeypatch.setenv("SLCLI_PLATFORM", config["platform"])
         monkeypatch.setattr("slcli.platform._get_service_status", lambda _service: "not_found")
 
         runner = CliRunner()
@@ -180,12 +161,9 @@ class TestFeatureGatingDataFrame:
             "platform": "SLS",
         }
 
-        def mock_get_password(service: str, key: str) -> str:
-            if key == "SYSTEMLINK_CONFIG":
-                return json.dumps(config)
-            return ""
-
-        monkeypatch.setattr("slcli.platform.keyring.get_password", mock_get_password)
+        monkeypatch.setenv("SLCLI_API_URL", config["api_url"])
+        monkeypatch.setenv("SLCLI_API_KEY", config["api_key"])
+        monkeypatch.setenv("SLCLI_PLATFORM", config["platform"])
         monkeypatch.setattr("slcli.platform._get_service_status", lambda _service: "not_found")
 
         runner = CliRunner()
@@ -206,12 +184,8 @@ class TestFeatureGatingRuntimePlatformDisplay:
             "api_key": "test-key",
         }
 
-        def mock_get_password(service: str, key: str) -> str:
-            if key == "SYSTEMLINK_CONFIG":
-                return json.dumps(config)
-            return ""
-
-        monkeypatch.setattr("slcli.platform.keyring.get_password", mock_get_password)
+        monkeypatch.setenv("SLCLI_API_URL", config["api_url"])
+        monkeypatch.setenv("SLCLI_API_KEY", config["api_key"])
         monkeypatch.setattr("slcli.platform._get_service_status", lambda _service: "not_found")
         monkeypatch.setattr(
             "slcli.platform.check_service_status",
@@ -237,12 +211,9 @@ class TestFeatureGatingFunctions:
             "platform": "SLS",
         }
 
-        def mock_get_password(service: str, key: str) -> str:
-            if key == "SYSTEMLINK_CONFIG":
-                return json.dumps(config)
-            return ""
-
-        monkeypatch.setattr("slcli.platform.keyring.get_password", mock_get_password)
+        monkeypatch.setenv("SLCLI_API_URL", config["api_url"])
+        monkeypatch.setenv("SLCLI_API_KEY", config["api_key"])
+        monkeypatch.setenv("SLCLI_PLATFORM", config["platform"])
 
         runner = CliRunner()
         # Use 'init' command which exists
@@ -263,13 +234,9 @@ class TestFeatureGatingSLE:
             "platform": "SLE",
         }
 
-        def mock_get_password(service: str, key: str) -> str:
-            if key == "SYSTEMLINK_CONFIG":
-                return json.dumps(config)
-            return ""
-
-        monkeypatch.setattr("slcli.platform.keyring.get_password", mock_get_password)
-        monkeypatch.setattr("slcli.utils.keyring.get_password", mock_get_password)
+        monkeypatch.setenv("SLCLI_API_URL", config["api_url"])
+        monkeypatch.setenv("SLCLI_API_KEY", config["api_key"])
+        monkeypatch.setenv("SLCLI_PLATFORM", config["platform"])
 
         # Mock the API request to avoid actual network call
         def mock_make_api_request(*args: Any, **kwargs: Any) -> Any:

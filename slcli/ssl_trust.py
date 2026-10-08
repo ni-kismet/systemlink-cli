@@ -21,16 +21,21 @@ import sys
 import traceback
 from contextlib import contextmanager
 from dataclasses import dataclass
+from datetime import datetime, timezone
 from pathlib import Path
+from threading import RLock
 from typing import Any, Dict, Iterator, List, Optional, Union
 from urllib.parse import urlparse
 
+import idna
 from cryptography import x509
+from cryptography.exceptions import InvalidSignature, UnsupportedAlgorithm
 from cryptography.hazmat.primitives import hashes, serialization
 
 OS_TRUST_INJECTED: bool = False
 OS_TRUST_REASON: str = "not-attempted"
 _STANDARD_SSL_CONTEXT = ssl.SSLContext
+_SSL_CONTEXT_LOCK = RLock()
 
 
 @dataclass(frozen=True)
@@ -46,6 +51,7 @@ class ServerCertificate:
     not_before: str
     not_after: str
     self_signed: bool
+    trust_type: str = "leaf"
 
     def to_dict(self) -> Dict[str, Any]:
         """Return certificate metadata without including the PEM bytes."""
@@ -58,6 +64,7 @@ class ServerCertificate:
             "not-before": self.not_before,
             "not-after": self.not_after,
             "self-signed": self.self_signed,
+            "trust-type": self.trust_type,
         }
 
 
@@ -65,10 +72,12 @@ __all__ = [
     "OS_TRUST_INJECTED",
     "OS_TRUST_REASON",
     "ServerCertificate",
+    "create_explicit_tls_context",
     "get_managed_trust_path",
     "get_managed_trust_records",
     "get_ssl_server_origin",
     "inspect_server_certificate",
+    "load_ca_certificate",
     "inject_os_trust",
     "remove_managed_trust",
     "save_managed_certificate",
@@ -83,6 +92,11 @@ def get_ssl_server_origin(api_url: str) -> str:
         raise ValueError("Managed certificate trust requires an HTTPS server URL.")
 
     hostname = parsed.hostname.lower()
+    try:
+        if not hostname.isascii():
+            hostname = idna.encode(hostname, uts46=True).decode("ascii")
+    except idna.IDNAError as error:
+        raise ValueError("Managed certificate trust requires a valid server hostname.") from error
     if ":" in hostname and not hostname.startswith("["):
         hostname = f"[{hostname}]"
     port = parsed.port or 443
@@ -96,11 +110,41 @@ def use_standard_ssl_context(ssl_verify: Union[bool, str]) -> Iterator[None]:
     The OS trust integration replaces SSL context implementations globally. For
     explicit CA bundle paths, requests must use the standard implementation so
     the supplied bundle is evaluated instead of the platform trust verifier.
+    For validated managed bundles, partial-chain verification permits the
+    fingerprint-matched leaf or imported CA to act as the trust anchor without
+    bypassing hostname or validity checks. Other bundles retain native defaults.
+    Managed bundles reject cross-origin redirects. Explicit contexts are serialized
+    so their process-global patches are restored in the correct order.
     """
     if not isinstance(ssl_verify, str):
         yield
         return
 
+    with _SSL_CONTEXT_LOCK:
+        with _use_standard_ssl_context(ssl_verify):
+            yield
+
+
+def create_explicit_tls_context(cafile: str) -> ssl.SSLContext:
+    """Build a verified TLS client context using an explicit certificate bundle.
+
+    Args:
+        cafile: Path to a managed certificate or an ordinary CA bundle.
+
+    Returns:
+        A standard TLS context with partial-chain trust enabled for validated
+        managed certificates and native verification defaults for other bundles.
+    """
+    with use_standard_ssl_context(cafile):
+        context = ssl.create_default_context(cafile=cafile)
+        if _get_managed_origin(cafile) is not None:
+            context.verify_flags |= ssl.VERIFY_X509_PARTIAL_CHAIN
+        return context
+
+
+@contextmanager
+def _use_standard_ssl_context(ssl_verify: str) -> Iterator[None]:
+    """Apply process-global explicit trust patches while holding the context lock."""
     import requests.adapters
     import urllib3.util.ssl_ as urllib3_ssl
 
@@ -108,33 +152,62 @@ def use_standard_ssl_context(ssl_verify: Union[bool, str]) -> Iterator[None]:
     patched_urllib3_context = urllib3_ssl.SSLContext
     has_preloaded_context = hasattr(requests.adapters, "_preloaded_ssl_context")
     patched_preloaded_context = getattr(requests.adapters, "_preloaded_ssl_context", None)
+    original_send = requests.sessions.Session.send
+    managed_origin = _get_managed_origin(ssl_verify)
+
+    def send(
+        session: requests.Session, request: requests.PreparedRequest, **kwargs: Any
+    ) -> requests.Response:
+        if managed_origin and kwargs.get("verify") == ssl_verify:
+            try:
+                request_origin = get_ssl_server_origin(request.url or "")
+            except ValueError:
+                request_origin = None
+            if request_origin != managed_origin:
+                raise requests.exceptions.SSLError(
+                    f"Managed certificate trust is restricted to {managed_origin}; "
+                    "cross-origin redirects are not allowed."
+                )
+        return original_send(session, request, **kwargs)
+
+    def create_context(protocol: int) -> ssl.SSLContext:
+        context = _STANDARD_SSL_CONTEXT(protocol)
+        if managed_origin is not None:
+            context.verify_flags |= ssl.VERIFY_X509_PARTIAL_CHAIN
+        return context
+
     try:
         setattr(ssl, "SSLContext", _STANDARD_SSL_CONTEXT)
-        setattr(urllib3_ssl, "SSLContext", _STANDARD_SSL_CONTEXT)
+        setattr(urllib3_ssl, "SSLContext", create_context)
+        if managed_origin:
+            setattr(requests.sessions.Session, "send", send)
         if has_preloaded_context:
             setattr(
                 requests.adapters,
                 "_preloaded_ssl_context",
-                _STANDARD_SSL_CONTEXT(ssl.PROTOCOL_TLS_CLIENT),
+                create_context(ssl.PROTOCOL_TLS_CLIENT),
             )
         yield
     finally:
         setattr(ssl, "SSLContext", patched_ssl_context)
         setattr(urllib3_ssl, "SSLContext", patched_urllib3_context)
+        if managed_origin:
+            setattr(requests.sessions.Session, "send", original_send)
         if has_preloaded_context:
             setattr(requests.adapters, "_preloaded_ssl_context", patched_preloaded_context)
 
 
-def _get_trust_directory() -> Path:
-    """Return the managed certificate directory, creating it when needed."""
+def _get_trust_directory(create: bool = False) -> Path:
+    """Return the managed certificate directory, optionally creating it for writes."""
     from .profiles import ProfileConfig
 
     trust_directory = ProfileConfig.get_config_path().parent / "trust"
-    trust_directory.mkdir(parents=True, exist_ok=True)
-    try:
-        trust_directory.chmod(0o700)
-    except OSError:
-        pass
+    if create:
+        trust_directory.mkdir(parents=True, exist_ok=True)
+        try:
+            trust_directory.chmod(0o700)
+        except OSError:
+            pass
     return trust_directory
 
 
@@ -143,20 +216,141 @@ def _get_trust_stem(origin: str) -> str:
     return hashlib.sha256(origin.encode("utf-8")).hexdigest()
 
 
+def _get_managed_trust_pairs(origin: str) -> List[tuple[Path, Path]]:
+    """Find metadata and PEM pairs whose stored origin normalizes to the given origin."""
+    pairs: List[tuple[Path, Path]] = []
+    for metadata_path in sorted(_get_trust_directory().glob("*.json")):
+        try:
+            metadata = json.loads(metadata_path.read_text(encoding="utf-8"))
+            stored_origin = metadata.get("origin") if isinstance(metadata, dict) else None
+            if (
+                not isinstance(stored_origin, str)
+                or metadata_path.stem != _get_trust_stem(stored_origin)
+                or get_ssl_server_origin(stored_origin) != origin
+            ):
+                continue
+        except (OSError, ValueError):
+            continue
+        pairs.append((metadata_path.with_suffix(".pem"), metadata_path))
+    return pairs
+
+
+def _remove_managed_trust_pairs(origin: str, keep_metadata_path: Optional[Path] = None) -> bool:
+    """Remove all valid trust pairs for an origin except an optional replacement pair."""
+    removed = False
+    for pem_path, metadata_path in _get_managed_trust_pairs(origin):
+        if metadata_path == keep_metadata_path:
+            continue
+        for path in (pem_path, metadata_path):
+            try:
+                path.unlink()
+                removed = True
+            except FileNotFoundError:
+                pass
+    return removed
+
+
 def get_managed_trust_path(api_url: str) -> Optional[Path]:
     """Return the managed PEM path for a URL when a trusted certificate exists."""
     origin = get_ssl_server_origin(api_url)
-    pem_path = _get_trust_directory() / f"{_get_trust_stem(origin)}.pem"
+    trust_directory = _get_trust_directory()
+    pem_path = trust_directory / f"{_get_trust_stem(origin)}.pem"
     metadata_path = pem_path.with_suffix(".json")
+
+    if not pem_path.is_file() or not metadata_path.is_file():
+        for legacy_pem_path, legacy_metadata_path in _get_managed_trust_pairs(origin):
+            if legacy_pem_path.is_file():
+                pem_path = legacy_pem_path
+                metadata_path = legacy_metadata_path
+                break
+
     if not pem_path.is_file() or not metadata_path.is_file():
         return None
     try:
         metadata = json.loads(metadata_path.read_text(encoding="utf-8"))
-    except (OSError, json.JSONDecodeError):
+        stored_origin = metadata.get("origin") if isinstance(metadata, dict) else None
+        if not isinstance(stored_origin, str) or get_ssl_server_origin(stored_origin) != origin:
+            return None
+    except (OSError, ValueError, json.JSONDecodeError):
         return None
-    if metadata.get("origin") != origin:
-        return None
+    with _SSL_CONTEXT_LOCK:
+        if not _restrict_managed_trust_bundle(pem_path, metadata):
+            return None
     return pem_path
+
+
+def _restrict_managed_trust_bundle(pem_path: Path, metadata: Dict[str, Any]) -> bool:
+    """Keep only the metadata-fingerprinted certificate in a managed PEM file."""
+    trust_type = metadata.get("trust-type", "leaf")
+    fingerprint = metadata.get("fingerprint")
+    if trust_type not in ("leaf", "ca") or not isinstance(fingerprint, str):
+        return False
+
+    try:
+        original_pem = pem_path.read_bytes()
+        certificates = x509.load_pem_x509_certificates(original_pem)
+    except (OSError, ValueError):
+        return False
+
+    expected_fingerprint = fingerprint.replace(":", "").upper()
+    trusted_certificate = next(
+        (
+            certificate
+            for certificate in certificates
+            if certificate.fingerprint(hashes.SHA256()).hex().upper() == expected_fingerprint
+        ),
+        None,
+    )
+    if trusted_certificate is None:
+        return False
+    if trust_type == "ca":
+        try:
+            constraints = trusted_certificate.extensions.get_extension_for_class(
+                x509.BasicConstraints
+            )
+        except x509.ExtensionNotFound:
+            return False
+        if not constraints.value.ca:
+            return False
+
+    trusted_pem = trusted_certificate.public_bytes(serialization.Encoding.PEM)
+    if original_pem != trusted_pem:
+        temporary_pem = pem_path.with_suffix(".pem.tmp")
+        try:
+            temporary_pem.write_bytes(trusted_pem)
+            temporary_pem.chmod(0o600)
+            temporary_pem.replace(pem_path)
+        except OSError:
+            try:
+                temporary_pem.unlink()
+            except OSError:
+                pass
+            return False
+    return True
+
+
+def _get_managed_origin(pem_path: str) -> Optional[str]:
+    """Identify an explicit PEM that belongs to the origin-scoped managed store."""
+    try:
+        path = Path(pem_path)
+        metadata = json.loads(path.with_suffix(".json").read_text(encoding="utf-8"))
+        origin = metadata.get("origin") if isinstance(metadata, dict) else None
+        if isinstance(origin, str) and get_managed_trust_path(origin) == path:
+            return get_ssl_server_origin(origin)
+    except (OSError, ValueError):
+        pass
+    return None
+
+
+def _is_self_signed(certificate: x509.Certificate) -> bool:
+    """Distinguish self-signed certificates from self-issued rollover certificates."""
+    if certificate.subject != certificate.issuer:
+        return False
+    try:
+        certificate.verify_directly_issued_by(certificate)
+    except (InvalidSignature, UnsupportedAlgorithm, ValueError):
+        return False
+    return True
 
 
 def _certificate_name(name: x509.Name) -> str:
@@ -190,32 +384,33 @@ def inspect_server_certificate(api_url: str, timeout: float = 5) -> ServerCertif
     assert parsed.hostname is not None
     port = parsed.port or 443
     certificate_chain_pem: Optional[bytes] = None
-    patched_ssl_context = ssl.SSLContext
-    try:
-        setattr(ssl, "SSLContext", _STANDARD_SSL_CONTEXT)
-        context = ssl.SSLContext(ssl.PROTOCOL_TLS_CLIENT)
-        context.check_hostname = False
-        context.verify_mode = ssl.CERT_NONE
+    with _SSL_CONTEXT_LOCK:
+        patched_ssl_context = ssl.SSLContext
+        try:
+            setattr(ssl, "SSLContext", _STANDARD_SSL_CONTEXT)
+            context = ssl.SSLContext(ssl.PROTOCOL_TLS_CLIENT)
+            context.check_hostname = False
+            context.verify_mode = ssl.CERT_NONE
 
-        with socket.create_connection((parsed.hostname, port), timeout=timeout) as tcp_socket:
-            with context.wrap_socket(tcp_socket, server_hostname=parsed.hostname) as tls_socket:
-                certificate_der = tls_socket.getpeercert(binary_form=True)
-                ssl_object = getattr(tls_socket, "_sslobj", None)
-                get_unverified_chain = getattr(ssl_object, "get_unverified_chain", None)
-                if callable(get_unverified_chain):
-                    try:
-                        chain = get_unverified_chain()
-                        chain_pem = b"".join(
-                            (pem.encode("ascii") if isinstance(pem, str) else pem)
-                            for chain_certificate in chain
-                            for pem in (chain_certificate.public_bytes(),)
-                        )
-                        if chain_pem:
-                            certificate_chain_pem = chain_pem
-                    except (AttributeError, OSError, ValueError):
-                        pass
-    finally:
-        setattr(ssl, "SSLContext", patched_ssl_context)
+            with socket.create_connection((parsed.hostname, port), timeout=timeout) as tcp_socket:
+                with context.wrap_socket(tcp_socket, server_hostname=parsed.hostname) as tls_socket:
+                    certificate_der = tls_socket.getpeercert(binary_form=True)
+                    ssl_object = getattr(tls_socket, "_sslobj", None)
+                    get_unverified_chain = getattr(ssl_object, "get_unverified_chain", None)
+                    if callable(get_unverified_chain):
+                        try:
+                            chain = get_unverified_chain()
+                            chain_pem = b"".join(
+                                (pem.encode("ascii") if isinstance(pem, str) else pem)
+                                for chain_certificate in chain
+                                for pem in (chain_certificate.public_bytes(),)
+                            )
+                            if chain_pem:
+                                certificate_chain_pem = chain_pem
+                        except (AttributeError, OSError, ValueError):
+                            pass
+        finally:
+            setattr(ssl, "SSLContext", patched_ssl_context)
 
     if not certificate_der:
         raise ssl.SSLError("The server did not provide a TLS certificate.")
@@ -238,26 +433,81 @@ def inspect_server_certificate(api_url: str, timeout: float = 5) -> ServerCertif
         sans=sans,
         not_before=not_before,
         not_after=not_after,
-        self_signed=certificate.subject == certificate.issuer,
+        self_signed=_is_self_signed(certificate),
+    )
+
+
+def load_ca_certificate(api_url: str, certificate_path: Path) -> ServerCertificate:
+    """Load one PEM or DER CA certificate for origin-scoped trust.
+
+    Args:
+        api_url: HTTPS origin to associate with the CA.
+        certificate_path: Public CA certificate file, not a private key or bundle.
+
+    Returns:
+        Validated CA certificate and identity metadata.
+
+    Raises:
+        ValueError: The file is not a currently valid CA certificate.
+        OSError: The certificate file cannot be read.
+    """
+    origin = get_ssl_server_origin(api_url)
+    content = certificate_path.read_bytes()
+    if b"-----BEGIN" in content:
+        certificates = x509.load_pem_x509_certificates(content)
+        if len(certificates) != 1 or b"PRIVATE KEY" in content:
+            raise ValueError("Import exactly one public CA certificate, not a bundle or key.")
+        certificate = certificates[0]
+    else:
+        certificate = x509.load_der_x509_certificate(content)
+    try:
+        extensions = certificate.extensions
+    except (x509.DuplicateExtension, x509.UnsupportedGeneralNameType, ValueError) as exc:
+        raise ValueError(f"Invalid CA certificate extensions: {exc}") from exc
+    try:
+        constraints = extensions.get_extension_for_class(x509.BasicConstraints)
+    except x509.ExtensionNotFound as exc:
+        raise ValueError("The certificate must have CA basic constraints.") from exc
+    if not constraints.value.ca:
+        raise ValueError("The certificate is not a CA certificate.")
+    try:
+        usage = extensions.get_extension_for_class(x509.KeyUsage)
+    except x509.ExtensionNotFound:
+        pass
+    else:
+        if not usage.value.key_cert_sign:
+            raise ValueError("The CA certificate does not permit certificate signing.")
+    not_before, not_after = _certificate_validity(certificate)
+    now = datetime.now(timezone.utc)
+    if not (
+        datetime.fromisoformat(not_before).replace(tzinfo=timezone.utc)
+        <= now
+        <= datetime.fromisoformat(not_after).replace(tzinfo=timezone.utc)
+    ):
+        raise ValueError("The CA certificate is expired or not yet valid.")
+    return ServerCertificate(
+        origin=origin,
+        pem=certificate.public_bytes(serialization.Encoding.PEM),
+        fingerprint=certificate.fingerprint(hashes.SHA256()).hex().upper(),
+        subject=_certificate_name(certificate.subject),
+        issuer=_certificate_name(certificate.issuer),
+        sans=[],
+        not_before=not_before,
+        not_after=not_after,
+        self_signed=_is_self_signed(certificate),
+        trust_type="ca",
     )
 
 
 def save_managed_certificate(certificate: ServerCertificate) -> Path:
     """Persist a server certificate and metadata in the managed trust directory."""
-    trust_directory = _get_trust_directory()
-    stem = _get_trust_stem(certificate.origin)
+    trust_directory = _get_trust_directory(create=True)
+    origin = get_ssl_server_origin(certificate.origin)
+    stem = _get_trust_stem(origin)
     pem_path = trust_directory / f"{stem}.pem"
     metadata_path = pem_path.with_suffix(".json")
-    metadata: Dict[str, Any] = {
-        "origin": certificate.origin,
-        "fingerprint": certificate.fingerprint,
-        "subject": certificate.subject,
-        "issuer": certificate.issuer,
-        "sans": certificate.sans,
-        "not-before": certificate.not_before,
-        "not-after": certificate.not_after,
-        "self-signed": certificate.self_signed,
-    }
+    metadata = certificate.to_dict()
+    metadata["origin"] = origin
 
     temporary_pem = pem_path.with_suffix(".pem.tmp")
     temporary_metadata = metadata_path.with_suffix(".json.tmp")
@@ -275,29 +525,36 @@ def save_managed_certificate(certificate: ServerCertificate) -> Path:
             except OSError:
                 pass
         raise
+    _remove_managed_trust_pairs(origin, keep_metadata_path=metadata_path)
     return pem_path
 
 
 def get_managed_trust_records() -> List[Dict[str, Any]]:
-    """Return metadata for all managed server certificates."""
+    """Return metadata with canonical origins for all managed server certificates."""
     records: List[Dict[str, Any]] = []
     for metadata_path in sorted(_get_trust_directory().glob("*.json")):
         try:
             metadata = json.loads(metadata_path.read_text(encoding="utf-8"))
-        except (OSError, json.JSONDecodeError):
+            origin = metadata.get("origin") if isinstance(metadata, dict) else None
+            if not isinstance(origin, str):
+                continue
+            metadata["origin"] = get_ssl_server_origin(origin)
+        except (OSError, ValueError):
             continue
-        if isinstance(metadata, dict) and isinstance(metadata.get("origin"), str):
-            records.append(metadata)
+        metadata.setdefault("trust-type", "leaf")
+        records.append(metadata)
     return records
 
 
 def remove_managed_trust(api_url: str) -> bool:
     """Remove the managed certificate trust entry for a server URL."""
     origin = get_ssl_server_origin(api_url)
-    pem_path = _get_trust_directory() / f"{_get_trust_stem(origin)}.pem"
-    metadata_path = pem_path.with_suffix(".json")
-    removed = False
-    for path in (pem_path, metadata_path):
+    trust_directory = _get_trust_directory()
+    removed = _remove_managed_trust_pairs(origin)
+    for path in (
+        trust_directory / f"{_get_trust_stem(origin)}.pem",
+        trust_directory / f"{_get_trust_stem(origin)}.json",
+    ):
         try:
             path.unlink()
             removed = True

@@ -168,6 +168,7 @@ slcli login
 # Create named profiles for different environments
 slcli login --profile dev
 slcli login --profile prod --url "https://prod-api.example.com"</code></pre>
+  <p>New logins store API keys and PKCE credentials in the operating system's credential store. If it is unavailable, the CLI warns and saves credentials in the config file instead. Use <code>--credential-store file</code> to choose file storage explicitly.</p>
 
       <h3>Non-Interactive Login</h3>
       <pre><code># Provide all credentials via flags
@@ -225,10 +226,14 @@ slcli config view
 # View with full API key visible
 slcli config view --show-secrets
 
+# Move plaintext credentials into the operating system's credential store
+slcli config secure
+slcli config secure --all
+
 # Delete a profile
 slcli config delete old-profile --force</code></pre>
 
-  <p><code>slcli config view</code> shows the stored profile values on disk. If environment overrides are active, it displays a warning directing you to <code>slcli info</code> for the effective resolved values.</p>
+  <p><code>slcli config view</code> reports where credentials are stored without reading them. Use <code>--show-secrets</code> only when you need to display a secret. <code>config secure</code> secures the current profile; use <code>--profile NAME</code> for a specific profile or <code>--all</code> for every file-backed profile. If an OS-store write fails, the original plaintext credentials remain in the config file.</p>
 
       <h3>Using Profiles with Commands</h3>
       <pre><code># Use a specific profile for a single command
@@ -245,12 +250,13 @@ slcli workspace list</code></pre>
       <pre><code># Set custom config location
 export SLCLI_CONFIG=/path/to/config.json
 
-# Migrate from legacy keyring storage
-slcli config migrate</code></pre>
+# Select file-backed credentials instead of the OS store
+export SLCLI_CREDENTIAL_STORE=file</code></pre>
+  <p>The config file uses owner-only permissions. Credentials are stored in the OS credential store by default; the config file contains secrets only when file storage is selected or the OS store is unavailable. On macOS, same-user processes can access Keychain items without a prompt.</p>
 
       <!-- ─── ENV VARS ─── -->
       <h2 id="env-vars">Environment Variables</h2>
-      <p>Environment variables take precedence over profile settings. Profile selection uses <code>--profile</code> first, then <code>SLCLI_PROFILE</code>, then the current profile in config. After that, API URL, API key, and Web URL are each resolved independently, so a stale environment variable can override just one field.</p>
+      <p>Environment variables take precedence over profile settings. Profile selection uses <code>--profile</code> first, then <code>SLCLI_PROFILE</code>, then the current profile in config. API URL, API key, and Web URL are resolved independently. API keys use an environment override first, then the active profile's configured credential store; legacy global keyring entries are no longer read.</p>
       <table>
         <thead>
           <tr><th>Variable</th><th>Description</th></tr>
@@ -258,14 +264,14 @@ slcli config migrate</code></pre>
         <tbody>
           <tr><td><code>SLCLI_PROFILE</code></td><td>Profile to use (default: current profile)</td></tr>
           <tr><td><code>SLCLI_CONFIG</code></td><td>Custom config file path</td></tr>
-          <tr><td><code>SLCLI_API_URL</code></td><td>Preferred API URL override</td></tr>
-          <tr><td><code>SLCLI_API_KEY</code></td><td>Preferred API key override</td></tr>
-          <tr><td><code>SLCLI_WEB_URL</code></td><td>Preferred web UI URL override</td></tr>
-          <tr><td><code>SYSTEMLINK_API_URL</code></td><td>Legacy alias for <code>SLCLI_API_URL</code></td></tr>
-          <tr><td><code>SYSTEMLINK_API_KEY</code></td><td>Legacy alias for <code>SLCLI_API_KEY</code></td></tr>
-          <tr><td><code>SYSTEMLINK_WEB_URL</code></td><td>Legacy alias for <code>SLCLI_WEB_URL</code></td></tr>
+          <tr><td><code>SLCLI_API_URL</code></td><td>API URL override</td></tr>
+          <tr><td><code>SLCLI_API_KEY</code></td><td>API key override</td></tr>
+          <tr><td><code>SLCLI_WEB_URL</code></td><td>Web UI URL override</td></tr>
+          <tr><td><code>SLCLI_PLATFORM</code></td><td>Explicit platform override: <code>SLE</code> or <code>SLS</code></td></tr>
+          <tr><td><code>SLCLI_CREDENTIAL_STORE</code></td><td>Default credential store for new profiles: <code>os</code> or <code>file</code></td></tr>
         </tbody>
       </table>
+      <p>The legacy <code>SYSTEMLINK_API_URL</code>, <code>SYSTEMLINK_API_KEY</code>, and <code>SYSTEMLINK_WEB_URL</code> aliases are no longer supported. Replace <code>SYSTEMLINK_PLATFORM</code> with <code>SLCLI_PLATFORM</code>.</p>
       <p>Use <code>slcli info</code> to see the effective source for each connection setting and any active overrides.</p>
 
       <!-- ─── READONLY MODE ─── -->
@@ -302,7 +308,7 @@ slcli info
 # JSON output for scripting
 slcli info --format json</code></pre>
 
-      <p>The info output includes API URL, API key, and Web URL source rows so you can tell whether the CLI is using a profile value, an environment variable, or a legacy fallback.</p>
+      <p>The info output includes API URL, API key, and Web URL source rows so you can tell whether the CLI is using an environment override, a profile, or its configured credential store.</p>
 
       <table>
         <thead>

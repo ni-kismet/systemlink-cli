@@ -1,8 +1,7 @@
 """Test main CLI functionality."""
 
 import importlib
-import json
-from typing import Any, Optional
+from typing import Any
 from unittest.mock import patch
 
 import click
@@ -108,8 +107,6 @@ def test_login_with_flags(monkeypatch: Any, tmp_path: Any) -> None:
             "platform": PLATFORM_SLE,
         },
     )
-    # Mock keyring to return None (no existing credentials)
-    monkeypatch.setattr("slcli.main.keyring.get_password", lambda *a, **kw: None)
 
     runner = CliRunner()
     result = runner.invoke(
@@ -124,6 +121,8 @@ def test_login_with_flags(monkeypatch: Any, tmp_path: Any) -> None:
             VALID_API_KEY,
             "--web-url",
             "https://web.example.test",
+            "--credential-store",
+            "file",
         ],
         input="\n\n",  # Skip optional workspace prompt and readonly confirmation
     )
@@ -169,7 +168,6 @@ def test_login_prompts_to_trust_certificate_and_retries(monkeypatch: Any, tmp_pa
         "services": {"Auth": "ok"},
         "platform": PLATFORM_SLE,
     }
-    monkeypatch.setattr("slcli.main.keyring.get_password", lambda *a, **kw: None)
 
     with patch(
         "slcli.config_click.check_service_status", side_effect=[failed_status, verified_status]
@@ -188,6 +186,8 @@ def test_login_prompts_to_trust_certificate_and_retries(monkeypatch: Any, tmp_pa
                 VALID_API_KEY,
                 "--web-url",
                 "https://web.example.test",
+                "--credential-store",
+                "file",
             ],
             input="y\n\n",
         )
@@ -213,7 +213,6 @@ def test_login_rejects_unauthorized_api_key(monkeypatch: Any, tmp_path: Any) -> 
             "platform": PLATFORM_SLE,
         },
     )
-    monkeypatch.setattr("slcli.main.keyring.get_password", lambda *a, **kw: None)
 
     runner = CliRunner()
     result = runner.invoke(
@@ -253,7 +252,6 @@ def test_login_rejects_unauthorized_api_key_for_sls(monkeypatch: Any, tmp_path: 
             "platform": PLATFORM_SLS,
         },
     )
-    monkeypatch.setattr("slcli.main.keyring.get_password", lambda *a, **kw: None)
 
     result = CliRunner().invoke(
         cli,
@@ -292,7 +290,6 @@ def test_login_rejects_inconclusive_profile_verification(monkeypatch: Any, tmp_p
             "platform": PLATFORM_SLE,
         },
     )
-    monkeypatch.setattr("slcli.main.keyring.get_password", lambda *a, **kw: None)
 
     runner = CliRunner()
     result = runner.invoke(
@@ -332,7 +329,6 @@ def test_login_rejects_unknown_auth_verification_state(monkeypatch: Any, tmp_pat
             "platform": PLATFORM_SLE,
         },
     )
-    monkeypatch.setattr("slcli.main.keyring.get_password", lambda *a, **kw: None)
 
     runner = CliRunner()
     result = runner.invoke(
@@ -374,7 +370,6 @@ def test_login_reports_file_query_fallback(monkeypatch: Any, tmp_path: Any) -> N
             "platform": PLATFORM_SLE,
         },
     )
-    monkeypatch.setattr("slcli.main.keyring.get_password", lambda *a, **kw: None)
 
     runner = CliRunner()
     result = runner.invoke(
@@ -389,6 +384,8 @@ def test_login_reports_file_query_fallback(monkeypatch: Any, tmp_path: Any) -> N
             VALID_API_KEY,
             "--web-url",
             "https://web.example.test",
+            "--credential-store",
+            "file",
         ],
         input="\n\n",
     )
@@ -415,7 +412,6 @@ def test_login_reports_sls_query_files(monkeypatch: Any, tmp_path: Any) -> None:
             "platform": "SLS",
         },
     )
-    monkeypatch.setattr("slcli.main.keyring.get_password", lambda *a, **kw: None)
 
     runner = CliRunner()
     result = runner.invoke(
@@ -430,6 +426,8 @@ def test_login_reports_sls_query_files(monkeypatch: Any, tmp_path: Any) -> None:
             VALID_API_KEY,
             "--web-url",
             "https://web.example.test",
+            "--credential-store",
+            "file",
         ],
         input="\n\n",
     )
@@ -438,9 +436,10 @@ def test_login_reports_sls_query_files(monkeypatch: Any, tmp_path: Any) -> None:
     assert "File query: query-files" in result.output
 
 
-def test_logout_removes_credentials(monkeypatch: Any, tmp_path: Any) -> None:
-    """Ensure logout deletes profile from config."""
+def test_logout_removes_os_credentials(monkeypatch: Any, tmp_path: Any) -> None:
+    """Logout removes profile metadata and its OS-stored credentials."""
     import json
+    from unittest.mock import MagicMock
 
     config_file = tmp_path / "config.json"
     # Create a config file with a profile (uses hyphens for keys)
@@ -449,8 +448,9 @@ def test_logout_removes_credentials(monkeypatch: Any, tmp_path: Any) -> None:
         "current-profile": "test",
         "profiles": {
             "test": {
+                "id": "profile-id",
                 "server": "https://example.test",
-                "api-key": "abc123",
+                "credential-store": "os",
                 "web-url": "https://web.example.test",
                 "platform": "SLE",
             }
@@ -462,14 +462,279 @@ def test_logout_removes_credentials(monkeypatch: Any, tmp_path: Any) -> None:
     monkeypatch.setattr(
         "slcli.profiles.ProfileConfig.get_config_path", classmethod(lambda cls: config_file)
     )
-    # Mock keyring deletes to avoid errors
-    monkeypatch.setattr("slcli.main.keyring.delete_password", lambda *a, **kw: None)
+    delete_credentials = MagicMock()
+    monkeypatch.setattr("slcli.credentials.delete_profile_credentials", delete_credentials)
 
     runner = CliRunner()
     result = runner.invoke(cli, ["logout", "--force"])
 
     assert result.exit_code == 0
     assert "Profile 'test' removed" in result.output
+    delete_credentials.assert_called_once_with("profile-id", "os", "test", "api-key")
+
+
+def test_logout_current_ignores_unrelated_pending_cleanup(monkeypatch: Any, tmp_path: Any) -> None:
+    """Default logout does not retry a different profile's pending cleanup."""
+    import json
+    from unittest.mock import MagicMock
+    from slcli.credentials import CredentialStoreError
+
+    record = {"id": "old-id", "name": "other", "store": "os", "auth-mode": "api-key"}
+    config_file = tmp_path / "config.json"
+    config_file.write_text(
+        json.dumps(
+            {
+                "current-profile": "dev",
+                "profiles": {"dev": {"id": "dev-id", "server": "https://example.com"}},
+                "pending-credential-deletions": [record],
+            }
+        )
+    )
+    monkeypatch.setattr(
+        "slcli.profiles.ProfileConfig.get_config_path", classmethod(lambda cls: config_file)
+    )
+
+    def delete(profile_id: str, *_args: Any) -> None:
+        if profile_id == "old-id":
+            raise CredentialStoreError("locked")
+
+    delete_mock = MagicMock(side_effect=delete)
+    monkeypatch.setattr("slcli.credentials.delete_profile_credentials", delete_mock)
+    result = CliRunner().invoke(cli, ["logout", "--force"])
+
+    assert result.exit_code == 0, result.output
+    delete_mock.assert_called_once_with("dev-id", "os", "dev", "api-key")
+    assert json.loads(config_file.read_text())["pending-credential-deletions"] == [record]
+
+
+def test_logout_stale_current_profile_reports_error(monkeypatch: Any, tmp_path: Any) -> None:
+    """A stale current selection returns guidance instead of raising KeyError."""
+    import json
+    from unittest.mock import MagicMock
+
+    config_file = tmp_path / "config.json"
+    config_file.write_text(json.dumps({"current-profile": "missing", "profiles": {}}))
+    monkeypatch.setattr(
+        "slcli.profiles.ProfileConfig.get_config_path", classmethod(lambda cls: config_file)
+    )
+    confirm = MagicMock()
+    monkeypatch.setattr("slcli.main.questionary.confirm", confirm)
+    result = CliRunner().invoke(cli, ["logout"])
+
+    assert result.exit_code == ExitCodes.NOT_FOUND
+    assert "Current profile 'missing' not found" in result.output
+    confirm.assert_not_called()
+
+
+def test_logout_all_does_not_save_after_completed_deletion(monkeypatch: Any, tmp_path: Any) -> None:
+    """Removing the last profile needs only the two transactional writes."""
+    import json
+    from unittest.mock import MagicMock
+    from slcli.profiles import ProfileConfig
+
+    config_file = tmp_path / "config.json"
+    config_file.write_text(
+        json.dumps(
+            {
+                "current-profile": "dev",
+                "profiles": {"dev": {"id": "dev-id", "server": "https://example.com"}},
+            }
+        )
+    )
+    monkeypatch.setattr(ProfileConfig, "get_config_path", classmethod(lambda cls: config_file))
+    original_save = ProfileConfig.save
+    saves = 0
+
+    def save(config: ProfileConfig) -> None:
+        nonlocal saves
+        saves += 1
+        if saves > 2:
+            raise RuntimeError("disk unavailable")
+        original_save(config)
+
+    monkeypatch.setattr(ProfileConfig, "save", save)
+    monkeypatch.setattr("slcli.credentials.delete_profile_credentials", MagicMock())
+    result = CliRunner().invoke(cli, ["logout", "--all", "--force"])
+
+    assert result.exit_code == 0, result.output
+    assert saves == 2
+    assert json.loads(config_file.read_text()).get("current-profile") is None
+
+
+def test_logout_file_api_key_profile_cleans_legacy_tokens(monkeypatch: Any, tmp_path: Any) -> None:
+    """Logout supplies the old PKCE account name even for a current API-key profile."""
+    import json
+    from unittest.mock import MagicMock
+
+    config_file = tmp_path / "config.json"
+    config_file.write_text(
+        json.dumps(
+            {
+                "current-profile": "test",
+                "profiles": {
+                    "test": {
+                        "id": "profile-id",
+                        "server": "https://example.test",
+                        "api-key": "file-key",
+                        "credential-store": "file",
+                        "auth-mode": "api-key",
+                    }
+                },
+            }
+        )
+    )
+    monkeypatch.setattr(
+        "slcli.profiles.ProfileConfig.get_config_path", classmethod(lambda cls: config_file)
+    )
+    cleanup = MagicMock()
+    monkeypatch.setattr("slcli.credentials.delete_profile_credentials", cleanup)
+
+    result = CliRunner().invoke(cli, ["logout", "--force"])
+
+    assert result.exit_code == 0
+    cleanup.assert_called_once_with("profile-id", "file", "test", "api-key")
+
+
+def test_logout_keeps_pending_record_when_credential_cleanup_fails(
+    monkeypatch: Any, tmp_path: Any
+) -> None:
+    """A cleanup failure leaves a persisted credential ID for retry."""
+    import json
+    from unittest.mock import MagicMock
+
+    from slcli.credentials import CredentialStoreError
+
+    config_file = tmp_path / "config.json"
+    config_file.write_text(
+        json.dumps(
+            {
+                "current-profile": "test",
+                "profiles": {
+                    "test": {
+                        "id": "profile-id",
+                        "server": "https://example.test",
+                        "credential-store": "os",
+                    }
+                },
+            }
+        )
+    )
+    monkeypatch.setattr(
+        "slcli.profiles.ProfileConfig.get_config_path", classmethod(lambda cls: config_file)
+    )
+    monkeypatch.setattr(
+        "slcli.credentials.delete_profile_credentials",
+        MagicMock(side_effect=CredentialStoreError("store locked")),
+    )
+
+    result = CliRunner().invoke(cli, ["logout", "--force"])
+
+    assert result.exit_code != 0
+    saved = json.loads(config_file.read_text())
+    assert "test" not in saved.get("profiles", {})
+    assert saved["pending-credential-deletions"][0]["id"] == "profile-id"
+
+
+def test_logout_does_not_delete_credentials_when_config_save_fails(
+    monkeypatch: Any, tmp_path: Any
+) -> None:
+    """A config write failure prevents destructive credential cleanup."""
+    import json
+    from unittest.mock import MagicMock
+
+    config_file = tmp_path / "config.json"
+    config_file.write_text(
+        json.dumps(
+            {
+                "current-profile": "test",
+                "profiles": {
+                    "test": {
+                        "id": "profile-id",
+                        "server": "https://example.test",
+                        "credential-store": "os",
+                    }
+                },
+            }
+        )
+    )
+    monkeypatch.setattr(
+        "slcli.profiles.ProfileConfig.get_config_path", classmethod(lambda cls: config_file)
+    )
+
+    def fail_save(_self: Any) -> None:
+        raise RuntimeError("config is read-only")
+
+    monkeypatch.setattr("slcli.profiles.ProfileConfig.save", fail_save)
+    delete_credentials = MagicMock()
+    monkeypatch.setattr("slcli.credentials.delete_profile_credentials", delete_credentials)
+
+    result = CliRunner().invoke(cli, ["logout", "--force"])
+
+    assert result.exit_code != 0
+    assert "test" in json.loads(config_file.read_text())["profiles"]
+    delete_credentials.assert_not_called()
+
+
+def test_logout_all_persists_successful_cleanup_before_later_failure(
+    monkeypatch: Any, tmp_path: Any
+) -> None:
+    """A later cleanup failure preserves only profiles whose credentials remain."""
+    import json
+    from unittest.mock import MagicMock
+
+    import click
+
+    from slcli.credentials import CredentialStoreError
+
+    config_file = tmp_path / "config.json"
+    config_file.write_text(
+        json.dumps(
+            {
+                "current-profile": "first",
+                "profiles": {
+                    "first": {
+                        "id": "first-id",
+                        "server": "https://first.example.test",
+                        "credential-store": "os",
+                    },
+                    "second": {
+                        "id": "second-id",
+                        "server": "https://second.example.test",
+                        "credential-store": "os",
+                    },
+                },
+            }
+        )
+    )
+    monkeypatch.setattr(
+        "slcli.profiles.ProfileConfig.get_config_path", classmethod(lambda cls: config_file)
+    )
+    delete_credentials = MagicMock(side_effect=[None, CredentialStoreError("store locked")])
+    monkeypatch.setattr("slcli.credentials.delete_profile_credentials", delete_credentials)
+    error_messages: list[str] = []
+
+    class RecordingClickException(click.ClickException):
+        def __init__(self, message: str) -> None:
+            error_messages.append(message)
+            super().__init__(message)
+
+    monkeypatch.setattr("slcli.main.click.ClickException", RecordingClickException)
+
+    result = CliRunner().invoke(cli, ["logout", "--all", "--force"], terminal_width=200)
+
+    saved = json.loads(config_file.read_text())
+    assert result.exit_code != 0
+    assert "One earlier profile was removed" in error_messages[0]
+    assert "profiles" not in saved
+    assert saved["pending-credential-deletions"][0]["id"] == "second-id"
+    assert delete_credentials.call_count == 2
+
+    delete_credentials.side_effect = None
+    retry = CliRunner().invoke(cli, ["logout", "--all", "--force"])
+
+    assert retry.exit_code == 0
+    assert "pending-credential-deletions" not in json.loads(config_file.read_text())
+    assert delete_credentials.call_count == 3
 
 
 def test_info_json(monkeypatch: Any, tmp_path: Any) -> None:
@@ -499,98 +764,3 @@ def test_info_json(monkeypatch: Any, tmp_path: Any) -> None:
     result = runner.invoke(cli, ["info", "--format", "json"])
 
     assert result.exit_code == 0
-
-
-def test_login_prompts_migration_with_existing_keyring(monkeypatch: Any, tmp_path: Any) -> None:
-    """Test that CLI automatically migrates credentials when keyring exists."""
-    config_file = tmp_path / "config.json"
-    monkeypatch.setattr(
-        "slcli.profiles.ProfileConfig.get_config_path", classmethod(lambda cls: config_file)
-    )
-    monkeypatch.setattr(
-        "slcli.config_click.check_service_status",
-        lambda *a, **kw: {
-            "server_reachable": True,
-            "auth_valid": True,
-            "services": {"Auth": "ok"},
-            "platform": PLATFORM_SLE,
-        },
-    )
-
-    # Mock keyring to return existing credentials
-    def mock_get_password(service: str, key: str) -> Optional[str]:
-        if key == "SYSTEMLINK_CONFIG":
-            return json.dumps(
-                {
-                    "api_url": "https://existing.test",
-                    "api_key": "existing-key",
-                    "web_url": "https://web.existing.test",
-                    "platform": "SLE",
-                }
-            )
-        return None
-
-    # Mock keyring at module level
-    import keyring as keyring_module
-
-    monkeypatch.setattr(keyring_module, "get_password", mock_get_password)
-    monkeypatch.setattr(keyring_module, "delete_password", lambda *a, **kw: None)
-
-    runner = CliRunner()
-    # Run any command - migration should happen automatically
-    result = runner.invoke(
-        cli,
-        ["info"],
-    )
-
-    # Migration should have happened automatically
-    assert "Migration Required" in result.output
-    assert "Migrated credentials to profile 'default'" in result.output
-    assert "Migration complete" in result.output
-
-
-def test_login_migration_accepted(monkeypatch: Any, tmp_path: Any) -> None:
-    """Test that automatic migration creates the profile correctly."""
-    config_file = tmp_path / "config.json"
-    monkeypatch.setattr(
-        "slcli.profiles.ProfileConfig.get_config_path", classmethod(lambda cls: config_file)
-    )
-
-    # Mock keyring to return existing credentials
-    def mock_get_password(service: str, key: str) -> Optional[str]:
-        if key == "SYSTEMLINK_CONFIG":
-            return json.dumps(
-                {
-                    "api_url": "https://migrated.test",
-                    "api_key": "migrated-key",
-                    "web_url": "https://web.migrated.test",
-                    "platform": "SLE",
-                }
-            )
-        return None
-
-    # Mock keyring at module level
-    import keyring as keyring_module
-
-    monkeypatch.setattr(keyring_module, "get_password", mock_get_password)
-    monkeypatch.setattr(keyring_module, "delete_password", lambda *a, **kw: None)
-
-    runner = CliRunner()
-    # Run any command - migration should happen automatically
-    result = runner.invoke(
-        cli,
-        ["info"],
-    )
-
-    assert result.exit_code == 0
-    assert "Migrated credentials to profile 'default'" in result.output
-    assert "Migration complete" in result.output
-
-    # Verify profile was created
-    assert config_file.exists()
-    import json as json_mod
-
-    saved = json_mod.loads(config_file.read_text())
-    assert saved["current-profile"] == "default"
-    assert "default" in saved["profiles"]
-    assert saved["profiles"]["default"]["server"] == "https://migrated.test"
