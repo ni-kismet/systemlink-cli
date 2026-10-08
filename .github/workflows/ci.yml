@@ -271,7 +271,7 @@ jobs:
 
       - name: Run SLS E2E tests
         if: ${{ steps.sls-config.outputs.enabled == 'true' }}
-        run: poetry run pytest tests/e2e/ -m "e2e and not sle and not migration" --e2e-platform sls -n auto --timeout=300
+        run: poetry run pytest tests/e2e/ -m "e2e and not sle" --e2e-platform sls -n auto --timeout=300
 
   e2e-migration:
     name: E2E (Migration)
@@ -347,7 +347,7 @@ jobs:
 
       - name: Run migration E2E tests
         if: ${{ steps.migration-config.outputs.enabled == 'true' }}
-        run: poetry run pytest tests/e2e/ -m "e2e and migration" --timeout=300
+        run: poetry run pytest tests/e2e/ -m "e2e_migration and not full_os_client_matrix" --timeout=300 --no-cov
 
       - name: Upload Prefect server log
         if: ${{ always() && steps.migration-config.outputs.enabled == 'true' }}
@@ -435,4 +435,4 @@ jobs:
 
       - name: Run SLE E2E tests
         if: ${{ steps.sle-config.outputs.enabled == 'true' }}
-        run: poetry run pytest tests/e2e/ -m "e2e and not sls and not migration" --e2e-platform sle -n auto --timeout=300
+        run: poetry run pytest tests/e2e/ -m "e2e and not sls" --e2e-platform sle -n auto --timeout=300

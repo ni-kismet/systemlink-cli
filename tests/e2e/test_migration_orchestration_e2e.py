@@ -11,7 +11,8 @@ from slcli.migration.state import create_migration_run
 from slcli.migration.testmonitor.discovery_task import discover_test_monitor_task
 from slcli.migration.testmonitor.models import DiscoveredProduct, TestMonitorDiscovery
 
-pytestmark = pytest.mark.slow
+# Uses a real Prefect server, so too slow for unit tests.
+pytestmark = pytest.mark.e2e_migration
 
 DISCOVERY = TestMonitorDiscovery(products=(DiscoveredProduct(id="p", workspace="Lab"),))
 
@@ -89,6 +90,8 @@ def test_failed_run_does_not_affect_later_runs(
     assert run_discovery(run, "source", None, test_prefect_server).test_monitor == DISCOVERY
 
 
+# Restarting over the same database exercises OS process and file-lock handling.
+@pytest.mark.full_os_client_matrix
 def test_managed_server_restart_reuses_persisted_discovery(
     fake_source: FakeSource, tmp_path: Path
 ) -> None:

@@ -154,6 +154,23 @@ the server-backed `e2e` tests.
 poetry run pytest tests/e2e/ -m e2e_migration --timeout=300 --no-cov
 ```
 
+Migration tests use named slcli profiles rather than `e2e_config.json`,
+because a migration spans a source (SLS) and, later, a destination (SLE).
+Tests that need a source skip unless `SLCLI_E2E_SOURCE_PROFILE` is set.
+Fixtures only modify the dedicated `e2e-slcli-migration-*` workspaces and
+resources carrying the fixture ownership property.
+
+Each pytest session starts its own Prefect server (~10s). To reuse one across
+runs, start it in another terminal and point the tests at it:
+
+```bash
+PREFECT_HOME=build/ai/prefect-dev poetry run prefect server start --host 127.0.0.1 --port 4200
+
+export SLCLI_E2E_SOURCE_PROFILE="sls-vm"
+export SLCLI_TEST_PREFECT_API_URL="http://127.0.0.1:4200/api"
+poetry run pytest tests/e2e/ -m e2e_migration --timeout=300 --no-cov
+```
+
 ### Run The Local MCP Streamable HTTP Smoke Test
 
 The MCP smoke test connects to a locally running streamable HTTP server and exercises the
@@ -225,30 +242,6 @@ poetry run pytest tests/e2e/test_tag_e2e.py -m e2e -v
 poetry run pytest tests/e2e/test_spec_e2e.py -m e2e -v
 ```
 
-### Run Migration E2E Tests
-
-Migration tests carry the `migration` marker and use named slcli profiles
-rather than `e2e_config.json`, because a migration spans a source (SLS) and,
-later, a destination (SLE). They skip unless `SLCLI_E2E_SOURCE_PROFILE` is
-set. Fixtures only modify the dedicated `e2e-slcli-migration-*` workspaces and
-resources carrying the fixture ownership property.
-
-```bash
-export SLCLI_E2E_SOURCE_PROFILE="sls-vm"
-poetry run pytest tests/e2e -m migration -v
-```
-
-Each pytest session starts its own Prefect server (~10s). To reuse one across
-runs, start it in another terminal and point the tests at it:
-
-```bash
-PREFECT_HOME=build/ai/prefect-dev poetry run prefect server start --host 127.0.0.1 --port 4200
-
-export SLCLI_TEST_PREFECT_API_URL="http://127.0.0.1:4200/api"
-poetry run pytest tests/e2e -m migration -v
-poetry run pytest tests/unit/migration -m slow -v
-```
-
 ### Run SLS-Supported E2E Tests
 
 The only tests that are explicitly marked and curated for SLS today are the
@@ -256,7 +249,7 @@ supported SLS subset.
 
 ```bash
 # Run the supported SLS subset
-poetry run pytest tests/e2e/ -m "e2e and sls" --e2e-platform sls -v
+poetry run pytest tests/e2e/ -m "e2e and not sle" --e2e-platform sls -v
 
 # Run the SLS notebook execution suite directly
 poetry run pytest tests/e2e/test_notebook_e2e.py -m "e2e and sls" --e2e-platform sls -v

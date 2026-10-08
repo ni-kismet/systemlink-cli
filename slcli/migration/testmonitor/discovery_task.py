@@ -31,8 +31,8 @@ def discover_test_monitor_task(
     """
     connection = resolve_migration_connection(source_profile)
     session = connection.create_session()
-    workspace_ids = {
+    all_workspaces = {
         workspace.name: workspace.id
         for workspace in WorkspaceClient(connection, session).query_workspaces()
     }
-    return discover_test_monitor(TestMonitorClient(connection, session), workspace_ids, workspaces)
+    return discover_test_monitor(TestMonitorClient(connection, session), all_workspaces, workspaces)

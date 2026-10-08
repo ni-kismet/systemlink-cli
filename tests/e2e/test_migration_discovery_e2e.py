@@ -43,7 +43,7 @@ TERMINAL_STATES = ["PASSED", "FAILED", "TERMINATED", "ERRORED", "TIMEDOUT"]
 NON_TERMINAL_STATES = ["RUNNING", "CUSTOM"]
 
 # Migration spans platforms through named profiles, so it has no sls/sle platform marker.
-pytestmark = [pytest.mark.e2e, pytest.mark.migration, pytest.mark.testmonitor]
+pytestmark = [pytest.mark.e2e_migration, pytest.mark.testmonitor]
 
 
 @dataclass(frozen=True)

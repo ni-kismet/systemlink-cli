@@ -112,7 +112,7 @@ def infer_product_workspace(
 
 def discover_test_monitor(
     client: TestMonitorQuery,
-    workspaces: Mapping[str, str],
+    all_workspaces: Mapping[str, str],
     selected_workspaces: Optional[Collection[str]] = None,
 ) -> TestMonitorDiscovery:
     """Discover products and terminal results owned by the selected workspaces.
@@ -122,15 +122,15 @@ def discover_test_monitor(
 
     Args:
         client: Test Monitor queries for the source server.
-        workspaces: Every accessible source workspace, by name to ID.
+        all_workspaces: Every accessible source workspace, by name to ID.
         selected_workspaces: Workspace names to discover; all workspaces when None.
     """
-    selected = set(workspaces if selected_workspaces is None else selected_workspaces)
-    unknown = selected.difference(workspaces)
+    selected = set(all_workspaces if selected_workspaces is None else selected_workspaces)
+    unknown = selected.difference(all_workspaces)
     if unknown:
         raise ValueError(f"Unknown selected workspace: {', '.join(sorted(unknown))}")
 
-    scan = _scan_results(client, workspaces, selected)
+    scan = _scan_results(client, all_workspaces, selected)
     migrate_products_with_no_results = selected_workspaces is None and not scan.failures
     products: List[DiscoveredProduct] = []
     product_ids_by_part_number: Dict[str, str] = {}

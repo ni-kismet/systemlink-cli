@@ -122,7 +122,6 @@ markers = [
     "sle: marks tests as SystemLink Enterprise specific",
     "file: marks tests as file service related",
     "comment: marks tests as comment management related",
-    "migration: marks migration E2E tests that use named source/destination profiles",
     "testmonitor: marks tests as Test Monitor related"
 ]
 

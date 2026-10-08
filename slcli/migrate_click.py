@@ -55,7 +55,7 @@ def register_migrate_command(cli: click.Group) -> None:
         callback=_parse_workspace_mappings,
         help=(
             "Comma-delimited SOURCE or SOURCE:DESTINATION workspace mappings. "
-            "Only the listed source workspaces are discovered; all when omitted."
+            "Only the listed source workspaces are migrated; all when omitted."
         ),
     )
     @click.option("--migration-id", help="Repeat discovery for an existing migration.")
