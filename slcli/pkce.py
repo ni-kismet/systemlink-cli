@@ -10,7 +10,7 @@ import webbrowser
 from dataclasses import dataclass
 from http.server import BaseHTTPRequestHandler, HTTPServer
 from pathlib import Path
-from typing import TYPE_CHECKING, Any, Dict, Mapping, Optional, Sequence
+from typing import TYPE_CHECKING, Any, Dict, Mapping, Optional, Sequence, Union
 from urllib.parse import parse_qs, quote, urlencode, urlparse
 
 import requests
@@ -537,9 +537,31 @@ def get_pkce_access_token(profile_id: str, store: str = "os") -> Optional[str]:
 
 
 def refresh_pkce_credentials(
-    profile_id: str, web_url: str, client_id: str, store: str = "os"
+    profile_id: str,
+    web_url: str,
+    client_id: str,
+    store: str = "os",
+    *,
+    ssl_verify: Union[bool, str],
 ) -> PkceLoginResult:
-    """Refresh a profile's bearer credentials and persist rotated tokens."""
+    """Refresh a profile's bearer credentials and persist rotated tokens.
+
+    Prefer ``resolve_pkce_token``, which derives ``ssl_verify`` from the owning profile.
+
+    Args:
+        profile_id: Stable credential identity of the profile.
+        web_url: Web Server URL hosting the token service.
+        client_id: OAuth client identifier.
+        store: Credential store used for reading and persisting tokens.
+        ssl_verify: TLS setting for the token request, from
+            ``get_ssl_verify(web_url, profile)`` for the owning profile.
+
+    Returns:
+        The refreshed token bundle.
+
+    Raises:
+        PkceError: Credentials cannot be read, refreshed, or persisted.
+    """
     try:
         bundle_text = get_credential(profile_id, "pkce", store)
     except Exception as exc:
@@ -558,7 +580,6 @@ def refresh_pkce_credentials(
     if not refresh_token:
         raise PkceError("No PKCE refresh token is available.")
 
-    ssl_verify = get_ssl_verify(web_url)
     payload = _request_token(
         web_url,
         {
@@ -600,6 +621,7 @@ def resolve_pkce_token(profile: "Profile", emit_error: bool = True) -> PkceToken
                 profile.web_url,
                 profile.pkce_client_id,
                 profile.credential_store,
+                ssl_verify=get_ssl_verify(profile.web_url, profile),
             )
         except PkceError:
             pass

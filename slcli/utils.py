@@ -6,12 +6,13 @@ import os
 import sys
 from dataclasses import dataclass
 from typing import Any, Callable, Dict, List, Literal, Optional, Sequence, Union
-from urllib.parse import quote, unquote
+from urllib.parse import quote, unquote, urlparse
 
 import click
 import requests
 
 from . import ssl_trust
+from .profiles import Profile
 from .rich_output import print_json
 from .ssl_trust import use_standard_ssl_context
 
@@ -453,6 +454,44 @@ def get_web_url_resolution() -> ResolvedConfigValue:
         return ResolvedConfigValue("https://localhost", f"derived:{base_resolution.source}")
 
 
+def resolve_profile_auth(profile: Profile, emit_error: bool = True) -> Optional[ResolvedAuth]:
+    """Resolve the credentials stored by one profile, ignoring ``SLCLI_API_KEY``.
+
+    Args:
+        profile: Profile owning the credential identity and store.
+        emit_error: Whether PKCE failures should include login guidance.
+
+    Returns:
+        Authentication details, or None when the profile has no API key.
+
+    Raises:
+        click.ClickException: The profile credential cannot be retrieved.
+    """
+    if profile.auth_mode == "pkce":
+        from .pkce import PkceError, resolve_pkce_token
+
+        try:
+            token = resolve_pkce_token(profile, emit_error=emit_error)
+        except PkceError as exc:
+            raise click.ClickException(str(exc)) from exc
+        return ResolvedAuth(
+            token.access_token, _profile_source(profile.name, token.source), "bearer"
+        )
+    if profile.api_key:
+        _warn_plaintext_credential()
+        return ResolvedAuth(profile.api_key, _profile_source(profile.name, "file"), "api-key")
+    if profile.credential_store == "os":
+        from .credentials import CredentialStoreError, get_credential
+
+        try:
+            api_key = get_credential(profile.credential_id, "api-key")
+        except CredentialStoreError as exc:
+            raise click.ClickException(str(exc)) from exc
+        if api_key:
+            return ResolvedAuth(api_key, _profile_source(profile.name, "os"), "api-key")
+    return None
+
+
 def get_auth_resolution(emit_error: bool = True) -> ResolvedAuth:
     """Resolve the active credential and its HTTP authentication scheme.
 
@@ -469,31 +508,9 @@ def get_auth_resolution(emit_error: bool = True) -> ResolvedAuth:
         from .profiles import get_active_profile
 
         profile = get_active_profile()
-        if profile:
-            if profile.auth_mode == "pkce":
-                from .pkce import PkceError, resolve_pkce_token
-
-                try:
-                    token = resolve_pkce_token(profile, emit_error=emit_error)
-                except PkceError as exc:
-                    raise click.ClickException(str(exc)) from exc
-                return ResolvedAuth(
-                    token.access_token, _profile_source(profile.name, token.source), "bearer"
-                )
-            if profile.api_key:
-                _warn_plaintext_credential()
-                return ResolvedAuth(
-                    profile.api_key, _profile_source(profile.name, "file"), "api-key"
-                )
-            if profile.credential_store == "os":
-                from .credentials import CredentialStoreError, get_credential
-
-                try:
-                    api_key = get_credential(profile.credential_id, "api-key")
-                except CredentialStoreError as exc:
-                    raise click.ClickException(str(exc)) from exc
-                if api_key:
-                    return ResolvedAuth(api_key, _profile_source(profile.name, "os"), "api-key")
+        resolved = resolve_profile_auth(profile, emit_error) if profile else None
+        if resolved is not None:
+            return resolved
     except (FileNotFoundError, json.JSONDecodeError, KeyError, AttributeError):
         pass
 
@@ -645,12 +662,26 @@ def get_route_url(path: str, target: RouteTarget = "api") -> str:
     return f"{base_url.rstrip('/')}/{path.lstrip('/')}"
 
 
-def get_ssl_verify(server_uri: Optional[str] = None) -> Union[bool, str]:
+def _profile_disables_ssl_verify(profile: Profile, server_uri: Optional[str]) -> bool:
+    if profile.ssl_verify or not server_uri:
+        return False
+
+    def host(url: str) -> str:
+        return urlparse(url if "://" in url else f"https://{url}").netloc.lower()
+
+    # Scoped to the profile's own hosts so it never weakens connections elsewhere.
+    return host(server_uri) in {host(url) for url in (profile.server, profile.web_url) if url}
+
+
+def get_ssl_verify(
+    server_uri: Optional[str] = None, profile: Optional[Profile] = None
+) -> Union[bool, str]:
     """Return the effective SSL verification setting for a server.
 
-    The result is ``False`` only when explicitly disabled. Otherwise it is a
-    managed PEM path when the server has an accepted certificate, or ``True``
-    for the normal OS/certifi verification path.
+    The result is ``False`` when ``SLCLI_SSL_VERIFY`` disables verification or the
+    profile (default: the active profile) sets ``ssl-verify: false`` for this host.
+    Otherwise it is a managed PEM path when the server has an accepted certificate,
+    or ``True`` for the normal OS/certifi verification path.
     """
     env = os.environ.get("SLCLI_SSL_VERIFY")
     if env is not None:
@@ -662,6 +693,16 @@ def get_ssl_verify(server_uri: Optional[str] = None) -> Union[bool, str]:
             server_uri = get_base_url()
         except Exception:
             server_uri = None
+
+    if profile is None:
+        try:
+            from .profiles import get_active_profile
+
+            profile = get_active_profile()
+        except (FileNotFoundError, json.JSONDecodeError, KeyError, AttributeError):
+            profile = None
+    if profile is not None and _profile_disables_ssl_verify(profile, server_uri):
+        return False
 
     if server_uri:
         try:

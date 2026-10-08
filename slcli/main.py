@@ -432,6 +432,11 @@ def ca_info() -> None:
     ),
 )
 @click.option(
+    "--ssl-verify/--no-ssl-verify",
+    default=True,
+    help="Verify TLS certificates for this profile's servers (default: yes)",
+)
+@click.option(
     "--trust-fingerprint",
     help="Trust a certificate after its SHA-256 fingerprint matches exactly",
 )
@@ -448,6 +453,7 @@ def login(
     workspace: Optional[str],
     set_current: bool,
     readonly: bool,
+    ssl_verify: bool,
     trust_fingerprint: Optional[str],
 ) -> None:
     """Create or update a SystemLink profile with credentials.
@@ -479,6 +485,7 @@ def login(
         workspace=workspace,
         set_current=set_current,
         readonly=readonly,
+        ssl_verify=ssl_verify,
         trust_fingerprint=trust_fingerprint,
     )
 

@@ -52,6 +52,7 @@ class Profile:
     credential_id: str = field(default_factory=lambda: str(uuid.uuid4()))
     credential_store: str = "file"
     pkce_credentials: Dict[str, Any] = field(default_factory=dict)
+    ssl_verify: bool = True
 
     def to_dict(self) -> Dict[str, Any]:
         """Convert profile to dictionary for serialization."""
@@ -78,6 +79,8 @@ class Profile:
             result["workspace"] = self.workspace
         if self.readonly:
             result["readonly"] = self.readonly
+        if not self.ssl_verify:
+            result["ssl-verify"] = False
         return result
 
     @classmethod
@@ -94,6 +97,7 @@ class Profile:
             auth_mode=data.get("auth-mode", "api-key"),
             pkce_client_id=data.get("pkce-client-id"),
             pkce_scopes=data.get("pkce-scopes"),
+            ssl_verify=data.get("ssl-verify", True),
             credential_id=data.get("id") or str(uuid.uuid4()),
             credential_store=data.get("credential-store", "file" if data.get("api-key") else "os"),
             pkce_credentials=data.get("pkce-credentials", {}),
