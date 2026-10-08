@@ -503,3 +503,22 @@ def test_ssl_verify_prefers_os_trust_over_ssl_cert_file(monkeypatch: Any) -> Non
     monkeypatch.setattr("slcli.ssl_trust.OS_TRUST_INJECTED", True)
 
     assert get_ssl_verify("https://example.com") is True
+
+
+def test_ssl_verify_profile_opt_out_is_limited_to_its_hosts(monkeypatch: Any) -> None:
+    """A profile's ssl-verify: false applies to its server and Web UI hosts only."""
+    from slcli.profiles import Profile
+    from slcli.utils import get_ssl_verify
+
+    monkeypatch.delenv("REQUESTS_CA_BUNDLE", raising=False)
+    monkeypatch.delenv("SSL_CERT_FILE", raising=False)
+    monkeypatch.setattr("slcli.ssl_trust.get_managed_trust_path", lambda _url: None)
+    profile = Profile(
+        "insecure", server="https://api.old", web_url="https://web.old", ssl_verify=False
+    )
+    monkeypatch.setattr("slcli.profiles.get_active_profile", lambda: profile)
+
+    assert get_ssl_verify("https://api.old/nitag/v2", profile) is False
+    assert get_ssl_verify("https://web.old", profile) is False
+    assert get_ssl_verify("https://other", profile) is True
+    assert get_ssl_verify("https://api.old") is False  # active profile
