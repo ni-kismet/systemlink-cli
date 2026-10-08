@@ -1,0 +1,1 @@
+Add `--no-ssl-verify` to `slcli login` and `slcli config add` (saved as `ssl-verify: false`) to disable TLS verification for that profile's own server and Web UI hosts without setting `SLCLI_SSL_VERIFY` globally. Verification stays enabled by default.

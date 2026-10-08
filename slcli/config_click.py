@@ -230,6 +230,7 @@ def _add_profile_impl(
     scopes: tuple[str, ...] = (),
     callback_port: Optional[int] = None,
     credential_store: str = "os",
+    ssl_verify: bool = True,
 ) -> None:
     """Shared implementation for add-profile and login commands.
 
@@ -250,6 +251,7 @@ def _add_profile_impl(
         scopes: OAuth scopes for the PKCE login
         callback_port: Optional loopback callback port; zero selects an ephemeral port
         credential_store: Store for profile API keys and PKCE credentials
+        ssl_verify: Whether to verify TLS certificates for this profile's hosts
     """
     # Get profile name
     if not profile:
@@ -429,6 +431,7 @@ def _add_profile_impl(
         auth_mode=auth_mode,
         pkce_client_id=client_id if auth_mode == "pkce" else None,
         pkce_scopes=pkce_scopes if auth_mode == "pkce" else None,
+        ssl_verify=ssl_verify,
         credential_store=credential_store,
     )
     if auth_mode == "pkce" and pkce_result is not None:
@@ -456,6 +459,8 @@ def _add_profile_impl(
         click.echo(f"  Default workspace: {workspace}")
     if readonly:
         click.echo(f"  Readonly mode: enabled (mutation operations disabled)")
+    if not ssl_verify:
+        click.echo("  TLS verification: disabled for this profile's servers")
     if set_current:
         click.echo(f"  Set as current profile: yes")
     click.echo(f"\nConfig file: {ProfileConfig.get_config_path()}")
@@ -1030,6 +1035,11 @@ def register_config_commands(cli: Any) -> None:
         ),
     )
     @click.option(
+        "--ssl-verify/--no-ssl-verify",
+        default=True,
+        help="Verify TLS certificates for this profile's servers (default: yes)",
+    )
+    @click.option(
         "--trust-fingerprint",
         help="Trust a certificate after its SHA-256 fingerprint matches exactly",
     )
@@ -1046,6 +1056,7 @@ def register_config_commands(cli: Any) -> None:
         workspace: Optional[str],
         set_current: bool,
         readonly: bool,
+        ssl_verify: bool,
         trust_fingerprint: Optional[str],
     ) -> None:
         """Add or update a SystemLink profile.
@@ -1074,5 +1085,6 @@ def register_config_commands(cli: Any) -> None:
             workspace=workspace,
             set_current=set_current,
             readonly=readonly,
+            ssl_verify=ssl_verify,
             trust_fingerprint=trust_fingerprint,
         )

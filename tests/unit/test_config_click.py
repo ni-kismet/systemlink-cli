@@ -2,7 +2,7 @@
 
 import json
 from pathlib import Path
-from typing import Any, Dict
+from typing import Any, Dict, Optional
 from unittest.mock import MagicMock
 
 import click
@@ -1014,6 +1014,70 @@ def test_pkce_to_api_key_migration_removes_legacy_tokens(
     delete_legacy.assert_called_once_with(
         "dev", "file" if previous_store == new_store == "file" else "os"
     )
+
+
+@pytest.mark.parametrize("existing", [True, False])
+@pytest.mark.parametrize("ssl_verify", [None, True, False])
+def test_add_profile_sets_ssl_verify_from_option(
+    existing: bool, ssl_verify: Optional[bool], tmp_path: Path, monkeypatch: Any
+) -> None:
+    """ssl-verify is defined by the login option like other settings; default verifies."""
+    from slcli.config_click import _add_profile_impl
+
+    config_file = tmp_path / "config.json"
+    profiles: Dict[str, Any] = {}
+    if existing:
+        profiles["dev"] = {
+            "server": "https://old.example.com",
+            "credential-store": "file",
+            "ssl-verify": False,
+        }
+    config_file.write_text(json.dumps({"current-profile": "dev", "profiles": profiles}))
+    monkeypatch.setattr(
+        "slcli.profiles.ProfileConfig.get_config_path", classmethod(lambda cls: config_file)
+    )
+    monkeypatch.setattr(
+        "slcli.config_click.check_service_status",
+        lambda *_args, **_kwargs: {
+            "server_reachable": True,
+            "platform": "unknown",
+            "auth_valid": True,
+            "services": {},
+        },
+    )
+    option: Dict[str, Any] = {} if ssl_verify is None else {"ssl_verify": ssl_verify}
+
+    _add_profile_impl(
+        profile="dev",
+        url="https://new.example.com",
+        api_key=VALID_API_KEY,
+        web_url="https://web.example.com",
+        workspace="",
+        set_current=True,
+        readonly=False,
+        credential_store="file",
+        **option,
+    )
+
+    saved = json.loads(config_file.read_text())["profiles"]["dev"]
+    if ssl_verify is False:
+        assert saved["ssl-verify"] is False
+    else:
+        assert "ssl-verify" not in saved
+
+
+@pytest.mark.parametrize(("args", "expected"), [([], True), (["--no-ssl-verify"], False)])
+def test_login_ssl_verify_option(args: list[str], expected: bool, monkeypatch: Any) -> None:
+    """The login command forwards --ssl-verify/--no-ssl-verify, defaulting to verify."""
+    from slcli.main import cli
+
+    add = MagicMock()
+    monkeypatch.setattr("slcli.config_click._add_profile_impl", add)
+
+    result = CliRunner().invoke(cli, ["login", "--profile", "dev", *args])
+
+    assert result.exit_code == 0, result.output
+    assert add.call_args.kwargs["ssl_verify"] is expected
 
 
 def test_fallback_save_failure_restores_previous_profile(tmp_path: Path, monkeypatch: Any) -> None:
