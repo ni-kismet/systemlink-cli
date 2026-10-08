@@ -1,7 +1,7 @@
 """Profile-explicit SystemLink connections for migration operations."""
 
 from dataclasses import dataclass, field
-from typing import Dict, Optional, Union
+from typing import Any, Dict, Optional, Union
 
 import click
 import requests
@@ -9,6 +9,7 @@ from requests.adapters import HTTPAdapter
 from urllib3.util.retry import Retry
 
 from slcli.profiles import Profile, ProfileConfig
+from slcli.ssl_trust import use_standard_ssl_context
 from slcli.utils import get_auth_headers, get_ssl_verify, resolve_profile_auth
 
 # Policy for read-only queries, including POST query endpoints, which are safe to replay.
@@ -23,6 +24,20 @@ _QUERY_RETRY = Retry(
 )
 
 
+class _ProfileSession(requests.Session):
+    """Session that evaluates an explicit CA bundle despite injected OS trust."""
+
+    def __init__(self, ssl_verify: Union[bool, str]) -> None:
+        """Bind the session to one TLS verification setting."""
+        super().__init__()
+        self.verify = self._ssl_verify = ssl_verify
+
+    def request(self, *args: Any, **kwargs: Any) -> requests.Response:  # type: ignore[override]
+        """Send a request using the standard SSL context for CA bundle paths."""
+        with use_standard_ssl_context(self._ssl_verify):
+            return super().request(*args, **kwargs)
+
+
 @dataclass(frozen=True)
 class MigrationConnection:
     """Endpoint, authentication, and TLS settings from one explicitly named profile."""
@@ -34,9 +49,8 @@ class MigrationConnection:
 
     def create_session(self) -> requests.Session:
         """Return a query session bound to this connection's credentials and TLS."""
-        session = requests.Session()
+        session = _ProfileSession(self.ssl_verify)
         session.headers.update(self.headers)
-        session.verify = self.ssl_verify
         adapter = HTTPAdapter(max_retries=_QUERY_RETRY)
         session.mount("https://", adapter)
         session.mount("http://", adapter)

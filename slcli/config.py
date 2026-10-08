@@ -1,21 +1,15 @@
 """Configuration management for slcli."""
 
 import json
-import os
 from pathlib import Path
 from typing import Dict, Optional
+
+from .paths import get_config_dir
 
 
 def get_config_file_path() -> Path:
     """Get the path to the slcli configuration file."""
-    # Use XDG_CONFIG_HOME if set, otherwise use ~/.config
-    if "XDG_CONFIG_HOME" in os.environ:
-        config_dir = Path(os.environ["XDG_CONFIG_HOME"]) / "slcli"
-    else:
-        config_dir = Path.home() / ".config" / "slcli"
-
-    config_dir.mkdir(parents=True, exist_ok=True)
-    return config_dir / "config.json"
+    return get_config_dir() / "config.json"
 
 
 def load_config() -> Dict[str, str]:

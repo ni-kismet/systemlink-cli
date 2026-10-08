@@ -39,6 +39,7 @@ rich = ">=15,<16"
 rich-click = ">=1.8,<2"
 cryptography = ">=49.0.0"
 pygments = ">=2.20.0"
+platformdirs = ">=4,<5"
 prefect = { version = ">=3.8.6,<4", optional = true }
 psutil = { version = ">=7,<8", optional = true }
 pydantic = { version = ">=2.9,<3", optional = true }
@@ -80,8 +81,6 @@ pytest-timeout = ">=2.1.0"
 pyinstaller = "^6.14.2"
 jsonschema = ">=4.0"
 msgpack = ">=1.1,<2"
-prefect = ">=3.8.6,<4"
-psutil = ">=7,<8"
 
 # Typed stubs for third-party libraries used by mypy in CI
 types-requests = "*"
@@ -97,6 +96,8 @@ openpyxl = "^3.1.5"
 
 # MCP server (optional feature, also needed for type checking)
 mcp = ">=2,<3"
+prefect = ">=3.8.6,<4"
+psutil = ">=7,<8"
 
 [tool.pytest.ini_options]
 addopts = "--cov slcli --strict-markers --doctest-modules --ignore=tests/e2e"
@@ -120,7 +121,8 @@ markers = [
     "sls: marks tests as SystemLink Server specific",
     "sle: marks tests as SystemLink Enterprise specific",
     "file: marks tests as file service related",
-    "comment: marks tests as comment management related"
+    "comment: marks tests as comment management related",
+    "testmonitor: marks tests as Test Monitor related"
 ]
 
 [tool.black]

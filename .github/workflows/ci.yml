@@ -218,8 +218,8 @@ jobs:
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
 
       - name: Set up Python
-        if: ${{ steps.sls-config.outputs.enabled == 'true' }}
         id: setup-python
+        if: ${{ steps.sls-config.outputs.enabled == 'true' }}
         uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7
         with:
           python-version: '3.14'
@@ -273,6 +273,94 @@ jobs:
         if: ${{ steps.sls-config.outputs.enabled == 'true' }}
         run: poetry run pytest tests/e2e/ -m "e2e and not sle" --e2e-platform sls -n auto --timeout=300
 
+  e2e-migration:
+    name: E2E (Migration)
+    runs-on: ubuntu-latest
+    needs: build-test-lint
+    timeout-minutes: 45
+    # Runs share fixture workspaces on one server, so overlapping cleanup would race.
+    concurrency:
+      group: e2e-migration-sls
+      cancel-in-progress: false
+    env:
+      SLCLI_E2E_SLS_BASE_URL: https://base.systemlink.io
+      SLCLI_E2E_SOURCE_PROFILE: migration-source
+      SLCLI_TEST_PREFECT_API_URL: http://127.0.0.1:4200/api
+    steps:
+      - name: Check migration E2E configuration
+        id: migration-config
+        env:
+          SLCLI_E2E_SLS_API_KEY: ${{ secrets.SLCLI_E2E_SLS_API_KEY }}
+        run: |
+          if [ -n "$SLCLI_E2E_SLS_API_KEY" ]; then
+            echo "enabled=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "enabled=false" >> "$GITHUB_OUTPUT"
+            echo "Skipping migration E2E job because SLCLI_E2E_SLS_API_KEY is not configured."
+          fi
+
+      - name: Checkout code
+        if: ${{ steps.migration-config.outputs.enabled == 'true' }}
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+
+      - name: Set up Python
+        if: ${{ steps.migration-config.outputs.enabled == 'true' }}
+        uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7
+        with:
+          python-version: '3.14'
+
+      - name: Install Poetry
+        if: ${{ steps.migration-config.outputs.enabled == 'true' }}
+        uses: ni/python-actions/setup-poetry@dee640bba235ae28fdc6b7337c643bd06358ae90 # v0.9.0
+
+      - name: Install dependencies
+        if: ${{ steps.migration-config.outputs.enabled == 'true' }}
+        run: poetry install
+
+      # Started early so its startup overlaps profile setup; shared by all migration tests.
+      - name: Start Prefect server
+        if: ${{ steps.migration-config.outputs.enabled == 'true' }}
+        env:
+          PREFECT_HOME: ${{ runner.temp }}/prefect
+          PREFECT_SERVER_ANALYTICS_ENABLED: "false"
+          PREFECT_UI_ENABLED: "false"
+        run: |
+          nohup poetry run prefect server start --host 127.0.0.1 --port 4200 \
+            > "$RUNNER_TEMP/prefect-server.log" 2>&1 &
+
+      - name: Configure migration profiles
+        if: ${{ steps.migration-config.outputs.enabled == 'true' }}
+        env:
+          SLCLI_E2E_SLS_API_KEY: ${{ secrets.SLCLI_E2E_SLS_API_KEY }}
+        run: >-
+          poetry run slcli config add
+          --profile "$SLCLI_E2E_SOURCE_PROFILE"
+          --url "$SLCLI_E2E_SLS_BASE_URL"
+          --web-url "$SLCLI_E2E_SLS_BASE_URL"
+          --api-key "$SLCLI_E2E_SLS_API_KEY"
+          --no-set-current
+
+      - name: Wait for Prefect server
+        if: ${{ steps.migration-config.outputs.enabled == 'true' }}
+        run: |
+          for _ in $(seq 60); do
+            curl -sf "$SLCLI_TEST_PREFECT_API_URL/health" && exit 0
+            sleep 1
+          done
+          exit 1
+
+      - name: Run migration E2E tests
+        if: ${{ steps.migration-config.outputs.enabled == 'true' }}
+        run: poetry run pytest tests/e2e/ -m "e2e_migration and not full_os_client_matrix" --timeout=300 --no-cov
+
+      - name: Upload Prefect server log
+        if: ${{ always() && steps.migration-config.outputs.enabled == 'true' }}
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: migration-prefect-server-log
+          path: ${{ runner.temp }}/prefect-server.log
+          if-no-files-found: ignore
+
   e2e-sle:
     name: E2E (SLE)
     runs-on: ubuntu-latest
@@ -298,8 +386,8 @@ jobs:
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
 
       - name: Set up Python
-        if: ${{ steps.sle-config.outputs.enabled == 'true' }}
         id: setup-python
+        if: ${{ steps.sle-config.outputs.enabled == 'true' }}
         uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7
         with:
           python-version: '3.14'

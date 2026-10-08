@@ -27,6 +27,7 @@ from .file_click import register_file_commands
 from .function_click import register_function_commands
 from .managed_client_click import register_managed_client_commands
 from .mcp_click import register_mcp_commands
+from .migrate_click import register_migrate_command
 from .notebook_click import register_notebook_commands
 from .platform import get_platform_info
 from .policy_click import register_policy_commands
@@ -80,6 +81,7 @@ def _configure_rich_click_command_groups() -> None:
                     "version",
                     "completion",
                     "example",
+                    "migrate",
                 ],
             },
             {
@@ -791,6 +793,7 @@ register_file_commands(cli)
 register_function_commands(cli)
 register_managed_client_commands(cli)
 register_mcp_commands(cli)
+register_migrate_command(cli)
 register_templates_commands(cli)
 register_notebook_commands(cli)
 register_policy_commands(cli)
