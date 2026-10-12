@@ -2,6 +2,7 @@
 
 import io
 import shutil
+import ssl
 import subprocess
 import tarfile
 from hashlib import sha256
@@ -1442,6 +1443,60 @@ def test_webapp_list_shows_items(monkeypatch: MonkeyPatch) -> None:
     result = runner.invoke(cli, ["webapp", "list"])
     assert result.exit_code == 0
     assert "AppOne" in result.output
+
+
+@pytest.mark.parametrize("paged", [False, True])
+def test_webapp_query_uses_explicit_trust_context(
+    monkeypatch: MonkeyPatch, tmp_path: Path, paged: bool
+) -> None:
+    """Both query paths must bypass OS trust when an origin has explicit PEM trust."""
+    import requests
+    import urllib3.util.ssl_ as urllib3_ssl
+    from cryptography.hazmat.primitives import serialization
+    from slcli import ssl_trust, webapp_click
+    from .test_ssl_trust import _make_ca
+
+    monkeypatch.setenv("SLCLI_CONFIG", str(tmp_path / "config.json"))
+    ca_path = tmp_path / "ca.pem"
+    ca_path.write_bytes(_make_ca().public_bytes(serialization.Encoding.PEM))
+    trusted_path = str(
+        ssl_trust.save_managed_certificate(
+            ssl_trust.load_ca_certificate("https://example.com", ca_path)
+        )
+    )
+
+    monkeypatch.setattr(
+        webapp_click, "_get_webapp_base_url", lambda: "https://example.com/niapp/v1"
+    )
+    monkeypatch.setattr(webapp_click, "get_headers", lambda *_args: {})
+
+    def get_verify(url: str) -> str:
+        assert url == "https://example.com/niapp/v1/webapps/query?includeTotalCount=true"
+        return trusted_path
+
+    class Response:
+        def raise_for_status(self) -> None:
+            pass
+
+        def json(self) -> Dict[str, Any]:
+            return {"webapps": []}
+
+    def post(url: str, **kwargs: Any) -> Response:
+        assert kwargs["verify"] == trusted_path
+        assert ssl.SSLContext is ssl_trust._STANDARD_SSL_CONTEXT
+        context_factory = getattr(urllib3_ssl, "SSLContext")
+        assert context_factory is not None
+        context = context_factory(ssl.PROTOCOL_TLS_CLIENT)
+        assert context.verify_flags & ssl.VERIFY_X509_PARTIAL_CHAIN
+        assert context.check_hostname
+        return Response()
+
+    monkeypatch.setattr(webapp_click, "get_ssl_verify", get_verify)
+    monkeypatch.setattr(requests, "post", post)
+    if paged:
+        assert webapp_click._fetch_webapps_page("")[0] == []
+    else:
+        assert webapp_click._query_webapps_http("") == []
 
 
 def test_webapp_list_with_filter(monkeypatch: MonkeyPatch) -> None:

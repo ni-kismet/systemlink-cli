@@ -22,6 +22,7 @@ import requests
 from .cli_utils import is_interactive_environment, validate_output_format
 from .platform import PLATFORM_SLS, get_platform
 from .skill_click import install_skills_to_directory
+from .ssl_trust import use_standard_ssl_context
 from .universal_handlers import UniversalResponseHandler
 from .utils import (
     ExitCodes,
@@ -109,11 +110,10 @@ def _build_published_webapp_url(
 
     if webapp_id and (not resolved_name or not resolved_workspace_id):
         try:
-            resp = requests.get(
-                f"{_get_webapp_base_url()}/webapps/{webapp_id}",
-                headers=get_headers("application/json"),
-                verify=get_ssl_verify(),
-            )
+            url = f"{_get_webapp_base_url()}/webapps/{webapp_id}"
+            ssl_verify = get_ssl_verify(url)
+            with use_standard_ssl_context(ssl_verify):
+                resp = requests.get(url, headers=get_headers("application/json"), verify=ssl_verify)
             resp.raise_for_status()
             data = resp.json()
             resolved_name = resolved_name or str(data.get("name", ""))
@@ -295,12 +295,10 @@ def _query_webapps_http(filter_str: str, max_items: int = 1000) -> List[Dict[str
             payload["continuationToken"] = continuation_token
 
         # Request the server to include a total count when available
-        resp = requests.post(
-            f"{base}/webapps/query?includeTotalCount=true",
-            headers=headers,
-            json=payload,
-            verify=get_ssl_verify(),
-        )
+        url = f"{base}/webapps/query?includeTotalCount=true"
+        ssl_verify = get_ssl_verify(url)
+        with use_standard_ssl_context(ssl_verify):
+            resp = requests.post(url, headers=headers, json=payload, verify=ssl_verify)
         resp.raise_for_status()
         data = resp.json()
         page_items: List[Dict[str, Any]] = data.get("webapps", []) if isinstance(data, dict) else []
@@ -336,12 +334,10 @@ def _fetch_webapps_page(
         payload["continuationToken"] = continuation_token
 
     # Request the server to include a total count when available
-    resp = requests.post(
-        f"{base}/webapps/query?includeTotalCount=true",
-        headers=headers,
-        json=payload,
-        verify=get_ssl_verify(),
-    )
+    url = f"{base}/webapps/query?includeTotalCount=true"
+    ssl_verify = get_ssl_verify(url)
+    with use_standard_ssl_context(ssl_verify):
+        resp = requests.post(url, headers=headers, json=payload, verify=ssl_verify)
     resp.raise_for_status()
     data = resp.json()
     items = data.get("webapps", []) if isinstance(data, dict) else []
@@ -1491,11 +1487,10 @@ def register_webapp_commands(cli: Any) -> None:
         """Show webapp metadata."""
         try:
             base = _get_webapp_base_url()
-            resp = requests.get(
-                f"{base}/webapps/{webapp_id}",
-                headers=get_headers("application/json"),
-                verify=get_ssl_verify(),
-            )
+            url = f"{base}/webapps/{webapp_id}"
+            ssl_verify = get_ssl_verify(url)
+            with use_standard_ssl_context(ssl_verify):
+                resp = requests.get(url, headers=get_headers("application/json"), verify=ssl_verify)
             resp.raise_for_status()
             data = resp.json()
             if data.get("type", "") != "WebVI":
@@ -1516,9 +1511,10 @@ def register_webapp_commands(cli: Any) -> None:
 
         try:
             base = _get_webapp_base_url()
-            resp = requests.delete(
-                f"{base}/webapps/{webapp_id}", headers=get_headers(), verify=get_ssl_verify()
-            )
+            url = f"{base}/webapps/{webapp_id}"
+            ssl_verify = get_ssl_verify(url)
+            with use_standard_ssl_context(ssl_verify):
+                resp = requests.delete(url, headers=get_headers(), verify=ssl_verify)
             # Validate response and type if possible
             try:
                 data = resp.json()
@@ -1542,11 +1538,10 @@ def register_webapp_commands(cli: Any) -> None:
 
         try:
             base = _get_webapp_base_url()
-            resp = requests.get(
-                f"{base}/webapps/{webapp_id}",
-                headers=get_headers("application/json"),
-                verify=get_ssl_verify(),
-            )
+            url = f"{base}/webapps/{webapp_id}"
+            ssl_verify = get_ssl_verify(url)
+            with use_standard_ssl_context(ssl_verify):
+                resp = requests.get(url, headers=get_headers("application/json"), verify=ssl_verify)
             resp.raise_for_status()
             data = resp.json()
             app_url = _build_published_webapp_url(
@@ -1630,12 +1625,15 @@ def register_webapp_commands(cli: Any) -> None:
                             "policyIds": [],
                             "properties": {},
                         }
-                        resp_create = requests.post(
-                            f"{base}/webapps",
-                            headers=get_headers("application/json"),
-                            json=payload,
-                            verify=get_ssl_verify(),
-                        )
+                        url = f"{base}/webapps"
+                        ssl_verify = get_ssl_verify(url)
+                        with use_standard_ssl_context(ssl_verify):
+                            resp_create = requests.post(
+                                url,
+                                headers=get_headers("application/json"),
+                                json=payload,
+                                verify=ssl_verify,
+                            )
                         _handle_webapp_create_conflict(
                             resp_create,
                             workspace_id=created_workspace_id,
@@ -1656,9 +1654,11 @@ def register_webapp_commands(cli: Any) -> None:
 
                     upload_headers = get_headers("application/octet-stream")
                     url = f"{base}/webapps/{webapp_id}/content"
-                    resp = requests.put(
-                        url, headers=upload_headers, data=data, verify=get_ssl_verify()
-                    )
+                    ssl_verify = get_ssl_verify(url)
+                    with use_standard_ssl_context(ssl_verify):
+                        resp = requests.put(
+                            url, headers=upload_headers, data=data, verify=ssl_verify
+                        )
                     if resp.status_code in (200, 201, 204):
                         workspace_name_hint = (
                             get_effective_workspace(workspace) or workspace
@@ -1708,12 +1708,15 @@ def register_webapp_commands(cli: Any) -> None:
                         "policyIds": [],
                         "properties": {},
                     }
-                    resp_create = requests.post(
-                        f"{base}/webapps",
-                        headers=get_headers("application/json"),
-                        json=payload,
-                        verify=get_ssl_verify(),
-                    )
+                    url = f"{base}/webapps"
+                    ssl_verify = get_ssl_verify(url)
+                    with use_standard_ssl_context(ssl_verify):
+                        resp_create = requests.post(
+                            url,
+                            headers=get_headers("application/json"),
+                            json=payload,
+                            verify=ssl_verify,
+                        )
                     _handle_webapp_create_conflict(
                         resp_create,
                         workspace_id=created_workspace_id,
@@ -1734,7 +1737,9 @@ def register_webapp_commands(cli: Any) -> None:
 
                 upload_headers = get_headers("application/octet-stream")
                 url = f"{base}/webapps/{webapp_id}/content"
-                resp = requests.put(url, headers=upload_headers, data=data, verify=get_ssl_verify())
+                ssl_verify = get_ssl_verify(url)
+                with use_standard_ssl_context(ssl_verify):
+                    resp = requests.put(url, headers=upload_headers, data=data, verify=ssl_verify)
                 if resp.status_code in (200, 201, 204):
                     workspace_name_hint = (
                         (get_effective_workspace(workspace) or workspace)

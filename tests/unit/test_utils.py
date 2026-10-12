@@ -463,8 +463,10 @@ def test_api_key_resolution_raises_single_click_exception_when_missing(monkeypat
 
 def test_ssl_verify_uses_managed_certificate(monkeypatch: Any, tmp_path: Path) -> None:
     """The request verification setting should use an accepted server certificate."""
+    from cryptography.hazmat.primitives import hashes, serialization
     from slcli.ssl_trust import ServerCertificate, save_managed_certificate
     from slcli.utils import get_ssl_verify
+    from .test_ssl_trust import _make_ca
 
     monkeypatch.delenv("REQUESTS_CA_BUNDLE", raising=False)
     monkeypatch.delenv("SSL_CERT_FILE", raising=False)
@@ -472,16 +474,18 @@ def test_ssl_verify_uses_managed_certificate(monkeypatch: Any, tmp_path: Path) -
     monkeypatch.setattr(
         "slcli.profiles.ProfileConfig.get_config_path", classmethod(lambda cls: config_file)
     )
+    trusted_certificate = _make_ca()
     certificate = ServerCertificate(
         origin="https://example.com:443",
-        pem=b"pem",
-        fingerprint="B" * 64,
+        pem=trusted_certificate.public_bytes(serialization.Encoding.PEM),
+        fingerprint=trusted_certificate.fingerprint(hashes.SHA256()).hex().upper(),
         subject="subject",
         issuer="issuer",
         sans=[],
         not_before="before",
         not_after="after",
-        self_signed=False,
+        self_signed=True,
+        trust_type="ca",
     )
     path = save_managed_certificate(certificate)
 

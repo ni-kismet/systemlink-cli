@@ -35,7 +35,7 @@ from .rich_output import install_rich_output, render_table
 from .routine_click import register_routine_commands
 from .skill_click import register_skill_commands
 from .spec_click import register_spec_commands
-from .ssl_trust import OS_TRUST_INJECTED, OS_TRUST_REASON
+from .ssl_trust import OS_TRUST_INJECTED, OS_TRUST_REASON, create_explicit_tls_context
 from .state_click import register_state_commands
 from .system_click import register_system_commands
 from .tag_click import register_tag_commands
@@ -143,11 +143,11 @@ def _build_tls_debug_context(ssl_verify: Union[bool, str]) -> ssl.SSLContext:
         return ctx
 
     if isinstance(ssl_verify, str):
-        return ssl.create_default_context(cafile=ssl_verify)
+        return create_explicit_tls_context(ssl_verify)
 
     verify_env = os.environ.get("REQUESTS_CA_BUNDLE") or os.environ.get("SSL_CERT_FILE")
     if verify_env:
-        return ssl.create_default_context(cafile=verify_env)
+        return create_explicit_tls_context(verify_env)
 
     if OS_TRUST_INJECTED:
         try:
