@@ -328,7 +328,7 @@ def get_http_configuration() -> SystemLinkConfig:
     server_uri = get_base_url()
     api_key = get_api_key()
 
-    ssl_verify = get_ssl_verify(server_uri)
+    ssl_verify = active_profile_ssl_verify(server_uri)
 
     return SystemLinkConfig(
         server_uri=server_uri,
@@ -673,35 +673,23 @@ def _profile_disables_ssl_verify(profile: Profile, server_uri: Optional[str]) ->
     return host(server_uri) in {host(url) for url in (profile.server, profile.web_url) if url}
 
 
-def get_ssl_verify(
-    server_uri: Optional[str] = None, profile: Optional[Profile] = None
-) -> Union[bool, str]:
-    """Return the effective SSL verification setting for a server.
+def build_ssl_verify(server_uri: Optional[str], *, enabled: bool) -> Union[bool, str]:
+    """Build the requests ``verify`` value for an operation against a server.
 
-    The result is ``False`` when ``SLCLI_SSL_VERIFY`` disables verification or the
-    profile (default: the active profile) sets ``ssl-verify: false`` for this host.
-    Otherwise it is a managed PEM path when the server has an accepted certificate,
-    or ``True`` for the normal OS/certifi verification path.
+    No profile is consulted; callers that follow profile policy should use
+    ``profile_ssl_verify`` or ``active_profile_ssl_verify``.
+
+    Args:
+        server_uri: Server the operation connects to; selects managed trust.
+        enabled: Whether the operation verifies TLS certificates.
+
+    Returns:
+        ``False`` when ``enabled`` is false or ``SLCLI_SSL_VERIFY`` disables
+        verification; otherwise a managed PEM path for an accepted certificate,
+        a configured CA bundle path, or ``True`` for OS/certifi verification.
     """
     env = os.environ.get("SLCLI_SSL_VERIFY")
-    if env is not None:
-        if env.lower() in ("0", "false", "no"):
-            return False
-
-    if server_uri is None:
-        try:
-            server_uri = get_base_url()
-        except Exception:
-            server_uri = None
-
-    if profile is None:
-        try:
-            from .profiles import get_active_profile
-
-            profile = get_active_profile()
-        except (FileNotFoundError, json.JSONDecodeError, KeyError, AttributeError):
-            profile = None
-    if profile is not None and _profile_disables_ssl_verify(profile, server_uri):
+    if not enabled or (env is not None and env.lower() in ("0", "false", "no")):
         return False
 
     if server_uri:
@@ -723,6 +711,50 @@ def get_ssl_verify(
         return ssl_cert_file
 
     return True
+
+
+def profile_ssl_verify(server_uri: Optional[str], profile: Profile) -> Union[bool, str]:
+    """Return the requests ``verify`` value for a server under a profile's TLS policy.
+
+    The profile's ``ssl-verify: false`` applies only to its own server and Web UI
+    hosts, so it never weakens connections to other servers.
+
+    Args:
+        server_uri: Server the operation connects to.
+        profile: Profile whose policy applies.
+
+    Returns:
+        The requests ``verify`` value from ``build_ssl_verify``.
+    """
+    enabled = not _profile_disables_ssl_verify(profile, server_uri)
+    return build_ssl_verify(server_uri, enabled=enabled)
+
+
+def active_profile_ssl_verify(server_uri: Optional[str] = None) -> Union[bool, str]:
+    """Return the requests ``verify`` value for a server under the active profile.
+
+    Args:
+        server_uri: Server the operation connects to; defaults to the configured API URL.
+
+    Returns:
+        The requests ``verify`` value from ``profile_ssl_verify``, or from
+        ``build_ssl_verify`` with verification enabled when no profile is configured.
+    """
+    if server_uri is None:
+        try:
+            server_uri = get_base_url()
+        except Exception:
+            server_uri = None
+
+    try:
+        from .profiles import get_active_profile
+
+        profile = get_active_profile()
+    except (FileNotFoundError, json.JSONDecodeError, KeyError, AttributeError):
+        profile = None
+    if profile is None:
+        return build_ssl_verify(server_uri, enabled=True)
+    return profile_ssl_verify(server_uri, profile)
 
 
 def get_workspace_id_by_name(name: str) -> str:
@@ -874,7 +906,7 @@ def make_api_request(
         if files:
             default_headers.pop("Content-Type", None)
 
-        ssl_verify = get_ssl_verify(url)
+        ssl_verify = active_profile_ssl_verify(url)
 
         with use_standard_ssl_context(ssl_verify):
             if method.upper() == "GET":

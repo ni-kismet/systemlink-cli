@@ -6,6 +6,7 @@ import os
 import re
 import ssl
 import sys
+from pathlib import Path
 from typing import Any, NoReturn, Optional
 from urllib.parse import urlparse
 
@@ -26,14 +27,16 @@ from .platform import (
 from .profiles import Profile, ProfileConfig, check_config_file_permissions
 from .rich_output import render_table
 from .ssl_trust import (
+    get_managed_trust_path,
     get_managed_trust_records,
     get_ssl_server_origin,
     inspect_server_certificate,
+    load_ca_certificate,
     remove_managed_trust,
     save_managed_certificate,
 )
 from .table_utils import output_formatted_list
-from .utils import ExitCodes, get_base_url, get_base_url_resolution
+from .utils import ExitCodes, build_ssl_verify, get_base_url_resolution
 
 API_KEY_LENGTH = 42
 API_KEY_PATTERN = re.compile(rf"^[A-Za-z0-9_-]{{{API_KEY_LENGTH}}}$")
@@ -193,11 +196,17 @@ def _trust_certificate_if_requested(
         )
 
     try:
-        save_managed_certificate(certificate)
+        trusted_path = save_managed_certificate(certificate)
+        # Retry against exactly the certificate the user just approved.
+        retry_ssl_verify = str(trusted_path)
         if auth_scheme == "bearer":
-            retry_status = check_web_server_auth(url, credential, auth_scheme=auth_scheme)
+            retry_status = check_web_server_auth(
+                url, credential, auth_scheme=auth_scheme, ssl_verify=retry_ssl_verify
+            )
         else:
-            retry_status = check_service_status(url, credential, auth_scheme=auth_scheme)
+            retry_status = check_service_status(
+                url, credential, auth_scheme=auth_scheme, ssl_verify=retry_ssl_verify
+            )
     except (OSError, ValueError) as exc:
         _exit_with_validation_error(
             f"Could not save the trusted certificate: {exc}. Profile was not saved.",
@@ -217,7 +226,7 @@ def _trust_certificate_if_requested(
 
 
 def _add_profile_impl(
-    profile: Optional[str],
+    profile_name: Optional[str],
     url: Optional[str],
     api_key: Optional[str],
     web_url: Optional[str],
@@ -238,7 +247,7 @@ def _add_profile_impl(
     and login commands. Both commands invoke this function with the same parameters.
 
     Args:
-        profile: Profile name (default: 'default')
+        profile_name: Profile name (default: 'default')
         url: SystemLink API URL
         api_key: SystemLink API key
         web_url: SystemLink Web UI base URL
@@ -254,10 +263,10 @@ def _add_profile_impl(
         ssl_verify: Whether to verify TLS certificates for this profile's hosts
     """
     # Get profile name
-    if not profile:
-        profile = click.prompt("Profile name", default="default")
-    assert isinstance(profile, str)
-    profile = _normalize_profile_name(profile)
+    if not profile_name:
+        profile_name = click.prompt("Profile name", default="default")
+    assert isinstance(profile_name, str)
+    profile_name = _normalize_profile_name(profile_name)
 
     # Get URL - either from flag or prompt
     if not url:
@@ -291,7 +300,12 @@ def _add_profile_impl(
     pkce_result: Any = None
     pkce_scopes = list(scopes) if scopes else ["openid", "profile", "email", "offline_access"]
     if auth_mode == "pkce":
-        certificate_status = check_web_server_auth(web_url, "", auth_scheme="bearer")
+        certificate_status = check_web_server_auth(
+            web_url,
+            "",
+            auth_scheme="bearer",
+            ssl_verify=build_ssl_verify(web_url, enabled=ssl_verify),
+        )
         if certificate_status.get("certificate_error") and not certificate_status.get(
             "server_reachable"
         ):
@@ -314,10 +328,19 @@ def _add_profile_impl(
         click.echo("Opening the SystemLink Web UI for authentication...")
         try:
             if callback_port is None:
-                pkce_result = perform_pkce_login(web_url, client_id, pkce_scopes)
+                pkce_result = perform_pkce_login(
+                    web_url,
+                    client_id,
+                    pkce_scopes,
+                    ssl_verify=build_ssl_verify(web_url, enabled=ssl_verify),
+                )
             else:
                 pkce_result = perform_pkce_login(
-                    web_url, client_id, pkce_scopes, callback_port=callback_port
+                    web_url,
+                    client_id,
+                    pkce_scopes,
+                    callback_port=callback_port,
+                    ssl_verify=build_ssl_verify(web_url, enabled=ssl_verify),
                 )
         except PkceError as exc:
             _exit_with_validation_error(f"PKCE login failed: {exc}")
@@ -328,9 +351,16 @@ def _add_profile_impl(
     # Validate PKCE against the Web Server identity route; API-key login retains API probes.
     click.echo("Checking server connectivity and services...")
     if auth_mode == "pkce":
-        status = check_web_server_auth(web_url, api_key, auth_scheme="bearer")
+        status = check_web_server_auth(
+            web_url,
+            api_key,
+            auth_scheme="bearer",
+            ssl_verify=build_ssl_verify(web_url, enabled=ssl_verify),
+        )
     else:
-        status = check_service_status(url, api_key)
+        status = check_service_status(
+            url, api_key, ssl_verify=build_ssl_verify(url, enabled=ssl_verify)
+        )
 
     if status.get("certificate_error") and not status.get("server_reachable"):
         validation_url = web_url if auth_mode == "pkce" else url
@@ -344,7 +374,12 @@ def _add_profile_impl(
 
     platform = status["platform"]
     if auth_mode == "pkce":
-        platform_status = check_service_status(web_url, api_key, auth_scheme="bearer")
+        platform_status = check_service_status(
+            web_url,
+            api_key,
+            auth_scheme="bearer",
+            ssl_verify=build_ssl_verify(web_url, enabled=ssl_verify),
+        )
         detected_platform = platform_status.get("platform")
         if detected_platform in (PLATFORM_SLE, PLATFORM_SLS):
             platform = detected_platform
@@ -421,7 +456,7 @@ def _add_profile_impl(
     # Create profile
     cfg = ProfileConfig.load()
     new_profile = Profile(
-        name=profile,
+        name=profile_name,
         server=url,
         api_key=api_key or "",
         web_url=web_url,
@@ -452,7 +487,7 @@ def _add_profile_impl(
     for warning in warnings:
         click.echo(f"⚠️  {warning}", err=True)
 
-    click.echo(f"\n✓ Profile '{profile}' saved successfully.")
+    click.echo(f"\n✓ Profile '{profile_name}' saved successfully.")
     click.echo(f"  Server: {url}")
     click.echo(f"  Web URL: {web_url}")
     if workspace:
@@ -770,12 +805,31 @@ def register_config_commands(cli: Any) -> None:
             )
 
         certificate_details = certificate.to_dict()
+        trusted_certificate = None
+        try:
+            trusted_path = get_managed_trust_path(certificate.origin)
+            if trusted_path is not None:
+                trusted_certificate = json.loads(
+                    trusted_path.with_suffix(".json").read_text(encoding="utf-8")
+                )
+                trusted_certificate["origin"] = certificate.origin
+                trusted_certificate.setdefault("trust-type", "leaf")
+        except (OSError, ValueError) as exc:
+            click.echo(f"Could not read managed certificate metadata: {exc}.", err=True)
+            trusted_certificate = None
         if output_format == "json":
+            certificate_details["trusted-certificate"] = trusted_certificate
             click.echo(json.dumps(certificate_details, indent=2))
             return
 
         click.echo(f"Server certificate for {certificate_details.get('origin', 'unknown')}")
         _show_certificate_details(certificate_details)
+        if trusted_certificate:
+            kind = "CA" if trusted_certificate.get("trust-type") == "ca" else "leaf"
+            click.echo(f"\nTrusted {kind} certificate for this origin")
+            _show_certificate_details(trusted_certificate)
+        else:
+            click.echo("\nNo managed trust certificate for this origin.")
 
     @trust.command(name="list")
     @click.option(
@@ -799,13 +853,14 @@ def register_config_commands(cli: Any) -> None:
             [
                 str(record.get("origin", "")),
                 str(record.get("fingerprint", "")),
+                "CA" if record.get("trust-type") == "ca" else "leaf",
                 "yes" if record.get("self-signed") else "no",
             ]
             for record in records
         ]
         render_table(
-            headers=["SERVER", "SHA-256", "SELF-SIGNED"],
-            column_widths=[40, 64, 12],
+            headers=["SERVER", "SHA-256", "TRUST TYPE", "SELF-SIGNED"],
+            column_widths=[40, 64, 10, 12],
             rows=rows,
             show_total=True,
             total_label="certificate(s)",
@@ -814,29 +869,46 @@ def register_config_commands(cli: Any) -> None:
     @trust.command(name="add")
     @click.option("--url", help="HTTPS server URL (defaults to the active API URL)")
     @click.option(
+        "--certificate",
+        type=click.Path(exists=True, dir_okay=False, path_type=Path),
+        help="Import one public CA certificate (PEM or DER), scoped to this server origin",
+    )
+    @click.option(
         "--fingerprint",
         required=True,
         help="Expected SHA-256 fingerprint of the certificate to trust",
     )
-    def add_trusted_certificate(url: Optional[str], fingerprint: str) -> None:
-        """Trust a server certificate after verifying its fingerprint."""
-        server_url = url or get_base_url()
+    def add_trusted_certificate(
+        url: Optional[str], certificate: Optional[Path], fingerprint: str
+    ) -> None:
+        """Trust a live server certificate or imported CA after fingerprint verification."""
+        server_url = url or get_base_url_resolution().value
         try:
             expected_fingerprint = _normalize_fingerprint(fingerprint)
-            certificate = inspect_server_certificate(server_url)
+            trusted_certificate = (
+                load_ca_certificate(server_url, certificate)
+                if certificate is not None
+                else inspect_server_certificate(server_url)
+            )
         except (OSError, ValueError, ssl.SSLError) as exc:
-            _exit_with_validation_error(f"Could not inspect the server certificate: {exc}.")
+            _exit_with_validation_error(f"Could not load the certificate: {exc}.")
 
-        _show_certificate_warning(certificate.to_dict())
-        if certificate.fingerprint != expected_fingerprint:
+        _show_certificate_details(trusted_certificate.to_dict(), err=True)
+        if trusted_certificate.fingerprint != expected_fingerprint:
             _exit_with_validation_error(
-                "The server certificate fingerprint does not match the supplied fingerprint."
+                "The certificate fingerprint does not match the supplied fingerprint."
+            )
+        if trusted_certificate.trust_type == "ca":
+            click.echo(
+                "Trusting certificates issued by this CA for this origin only; "
+                "hostname and validity verification remain enabled.",
+                err=True,
             )
         try:
-            path = save_managed_certificate(certificate)
+            path = save_managed_certificate(trusted_certificate)
         except OSError as exc:
             _exit_with_validation_error(f"Could not save the trusted certificate: {exc}.")
-        click.echo(f"✓ Trusted certificate for {certificate.origin}")
+        click.echo(f"✓ Trusted certificate for {trusted_certificate.origin}")
         click.echo(f"  Certificate file: {path}")
 
     @trust.command(name="remove")
@@ -844,7 +916,7 @@ def register_config_commands(cli: Any) -> None:
     @click.option("--force", is_flag=True, help="Skip confirmation prompt")
     def remove_trusted_certificate(url: Optional[str], force: bool) -> None:
         """Remove a server certificate from the managed trust store."""
-        server_url = url or get_base_url()
+        server_url = url or get_base_url_resolution().value
         try:
             origin = get_ssl_server_origin(server_url)
         except ValueError as exc:
@@ -1037,7 +1109,7 @@ def register_config_commands(cli: Any) -> None:
     @click.option(
         "--ssl-verify/--no-ssl-verify",
         default=True,
-        help="Verify TLS certificates for this profile's servers (default: yes)",
+        help="Verify TLS certificates during login and for this profile's servers (default: yes)",
     )
     @click.option(
         "--trust-fingerprint",
@@ -1073,7 +1145,7 @@ def register_config_commands(cli: Any) -> None:
             slcli config add --profile test --workspace "Testing" --readonly
         """
         _add_profile_impl(
-            profile=profile,
+            profile_name=profile,
             url=url,
             api_key=api_key,
             web_url=web_url,

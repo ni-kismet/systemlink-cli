@@ -19,6 +19,11 @@ _STARTUP_TIMEOUT_SECONDS = 30.0
 _POLL_INTERVAL_SECONDS = 0.1
 _TERMINATE_TIMEOUT_SECONDS = 10
 _KILL_TIMEOUT_SECONDS = 5
+_MAX_START_ATTEMPTS = 5
+
+
+class _ExitedBeforeReadyError(RuntimeError):
+    """The Prefect child exited before it became ready."""
 
 
 def _allocate_port() -> int:
@@ -74,9 +79,17 @@ class ManagedPrefectServer:
 
     def __enter__(self) -> str:
         """Start Prefect and return its API URL after PID-verified readiness."""
-        port = _allocate_port()
-        api_url = f"http://{_HOST}:{port}/api"
         self._home.mkdir(parents=True, exist_ok=True)
+        # The allocated port can be taken before Prefect binds it; a fresh port avoids that.
+        for _ in range(_MAX_START_ATTEMPTS - 1):
+            try:
+                return self._start(_allocate_port())
+            except _ExitedBeforeReadyError:
+                pass
+        return self._start(_allocate_port())
+
+    def _start(self, port: int) -> str:
+        api_url = f"http://{_HOST}:{port}/api"
         self._log = (self._home / "server.log").open("a", encoding="utf-8")
         self._process = subprocess.Popen(
             [sys.executable, "-m", "prefect", "server", "start"]
@@ -119,7 +132,7 @@ class ManagedPrefectServer:
         deadline = time.monotonic() + _STARTUP_TIMEOUT_SECONDS
         while time.monotonic() < deadline:
             if process.poll() is not None:
-                raise RuntimeError("Prefect server exited before becoming ready")
+                raise _ExitedBeforeReadyError("Prefect server exited before becoming ready")
             # A healthy response alone could come from another process on the port.
             if loopback_listener_pids(process.pid, port) == {process.pid} and _is_healthy(api_url):
                 return

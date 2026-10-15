@@ -36,7 +36,7 @@ from .rich_output import install_rich_output, render_table
 from .routine_click import register_routine_commands
 from .skill_click import register_skill_commands
 from .spec_click import register_spec_commands
-from .ssl_trust import OS_TRUST_INJECTED, OS_TRUST_REASON
+from .ssl_trust import OS_TRUST_INJECTED, OS_TRUST_REASON, create_explicit_tls_context
 from .state_click import register_state_commands
 from .system_click import register_system_commands
 from .tag_click import register_tag_commands
@@ -145,11 +145,11 @@ def _build_tls_debug_context(ssl_verify: Union[bool, str]) -> ssl.SSLContext:
         return ctx
 
     if isinstance(ssl_verify, str):
-        return ssl.create_default_context(cafile=ssl_verify)
+        return create_explicit_tls_context(ssl_verify)
 
     verify_env = os.environ.get("REQUESTS_CA_BUNDLE") or os.environ.get("SSL_CERT_FILE")
     if verify_env:
-        return ssl.create_default_context(cafile=verify_env)
+        return create_explicit_tls_context(verify_env)
 
     if OS_TRUST_INJECTED:
         try:
@@ -292,9 +292,9 @@ def _probe_tls_connection(api_url: str, ssl_verify: Union[bool, str]) -> List[Tu
 
 def _collect_info_debug_rows(api_url: str) -> List[Tuple[str, str]]:
     """Return structured connection diagnostics for info --debug."""
-    from .utils import get_ssl_verify
+    from .utils import active_profile_ssl_verify
 
-    ssl_verify = get_ssl_verify(api_url)
+    ssl_verify = active_profile_ssl_verify(api_url)
     rows = [
         ("SSL Verify", "enabled" if ssl_verify else "disabled"),
         ("CA Source", _get_ca_source_display()),
@@ -436,7 +436,7 @@ def ca_info() -> None:
 @click.option(
     "--ssl-verify/--no-ssl-verify",
     default=True,
-    help="Verify TLS certificates for this profile's servers (default: yes)",
+    help="Verify TLS certificates during login and for this profile's servers (default: yes)",
 )
 @click.option(
     "--trust-fingerprint",
@@ -475,7 +475,7 @@ def login(
 
     # Invoke the shared implementation
     _add_profile_impl(
-        profile=profile,
+        profile_name=profile,
         url=url,
         api_key=api_key,
         web_url=web_url,

@@ -18,7 +18,7 @@ from .utils import (
     format_success,
     get_base_url,
     get_headers,
-    get_ssl_verify,
+    active_profile_ssl_verify,
     get_workspace_map,
     handle_api_error,
     load_json_file,
@@ -645,7 +645,7 @@ def _post_arrow_append(table_id: str, input_path: str, end_of_data: bool) -> req
                 url,
                 headers=get_headers("application/vnd.apache.arrow.stream"),
                 data=arrow_file,
-                verify=get_ssl_verify(),
+                verify=active_profile_ssl_verify(),
             )
         response.raise_for_status()
         return response
