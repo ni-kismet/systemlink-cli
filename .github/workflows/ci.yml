@@ -335,8 +335,9 @@ jobs:
         if: ${{ steps.migration-config.outputs.enabled == 'true' }}
         env:
           SLCLI_E2E_SLS_API_KEY: ${{ secrets.SLCLI_E2E_SLS_API_KEY }}
+        # Answer the optional default-workspace prompt with an empty line.
         run: >-
-          poetry run slcli config add
+          echo "" | poetry run slcli config add
           --profile "$SLCLI_E2E_SOURCE_PROFILE"
           --url "$SLCLI_E2E_SLS_BASE_URL"
           --web-url "$SLCLI_E2E_SLS_BASE_URL"
