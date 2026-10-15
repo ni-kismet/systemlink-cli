@@ -166,8 +166,10 @@ def test_mapped_workspace(seeded: Seeded, test_prefect_server: str, tmp_path: Pa
     assert {r.id for r in discovery.results} == seeded.primary_results
     # The service stores the TIMEDOUT input as TIMED_OUT.
     assert {r.status for r in discovery.results} == {
+        "DONE",
         "PASSED",
         "FAILED",
+        "SKIPPED",
         "TERMINATED",
         "ERRORED",
         "TIMED_OUT",
