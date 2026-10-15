@@ -290,9 +290,9 @@ def _probe_tls_connection(api_url: str, ssl_verify: Union[bool, str]) -> List[Tu
 
 def _collect_info_debug_rows(api_url: str) -> List[Tuple[str, str]]:
     """Return structured connection diagnostics for info --debug."""
-    from .utils import get_ssl_verify
+    from .utils import active_profile_ssl_verify
 
-    ssl_verify = get_ssl_verify(api_url)
+    ssl_verify = active_profile_ssl_verify(api_url)
     rows = [
         ("SSL Verify", "enabled" if ssl_verify else "disabled"),
         ("CA Source", _get_ca_source_display()),
@@ -434,7 +434,7 @@ def ca_info() -> None:
 @click.option(
     "--ssl-verify/--no-ssl-verify",
     default=True,
-    help="Verify TLS certificates for this profile's servers (default: yes)",
+    help="Verify TLS certificates during login and for this profile's servers (default: yes)",
 )
 @click.option(
     "--trust-fingerprint",
@@ -473,7 +473,7 @@ def login(
 
     # Invoke the shared implementation
     _add_profile_impl(
-        profile=profile,
+        profile_name=profile,
         url=url,
         api_key=api_key,
         web_url=web_url,

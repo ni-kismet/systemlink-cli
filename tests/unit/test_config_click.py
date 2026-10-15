@@ -12,7 +12,7 @@ from click.testing import CliRunner
 from slcli.config_click import _normalize_base_url, register_config_commands
 from slcli.credentials import CredentialStoreError, describe_credential_store
 from slcli.platform import PLATFORM_SLS
-from slcli.utils import ExitCodes
+from slcli.utils import ExitCodes, build_ssl_verify
 
 VALID_API_KEY = "4LpbauiNA-UI9IhjqZoS4UeikZtExLK9Q_Q77d1bJd"
 
@@ -864,7 +864,7 @@ def test_add_profile_falls_back_to_file_when_os_write_fails(
         client_id = "client-id"
 
     _add_profile_impl(
-        profile="dev",
+        profile_name="dev",
         url="https://api.example.com",
         api_key=api_key,
         web_url=web_url,
@@ -929,7 +929,7 @@ def test_unexpected_os_write_failure_does_not_fall_back_to_plaintext(
 
     with pytest.raises(SystemExit) as exc_info:
         _add_profile_impl(
-            profile="dev",
+            profile_name="dev",
             url="https://new.example.com",
             api_key=VALID_API_KEY,
             web_url="https://web.example.com",
@@ -998,7 +998,7 @@ def test_pkce_to_api_key_migration_removes_legacy_tokens(
     monkeypatch.setattr("slcli.credentials.delete_legacy_pkce_credentials", delete_legacy)
 
     _add_profile_impl(
-        profile="dev",
+        profile_name="dev",
         url="https://new.example.com",
         api_key=VALID_API_KEY,
         web_url="https://web.example.com",
@@ -1048,7 +1048,7 @@ def test_add_profile_sets_ssl_verify_from_option(
     option: Dict[str, Any] = {} if ssl_verify is None else {"ssl_verify": ssl_verify}
 
     _add_profile_impl(
-        profile="dev",
+        profile_name="dev",
         url="https://new.example.com",
         api_key=VALID_API_KEY,
         web_url="https://web.example.com",
@@ -1078,6 +1078,91 @@ def test_login_ssl_verify_option(args: list[str], expected: bool, monkeypatch: A
 
     assert result.exit_code == 0, result.output
     assert add.call_args.kwargs["ssl_verify"] is expected
+
+
+@pytest.mark.parametrize("command", [["login"], ["config", "add"]])
+@pytest.mark.parametrize("auth_mode", ["api-key", "pkce"])
+@pytest.mark.parametrize("ssl_verify", [True, False])
+@pytest.mark.parametrize("existing", [False, True])
+def test_login_requests_use_new_profile_tls_policy(
+    command: list[str],
+    auth_mode: str,
+    ssl_verify: bool,
+    existing: bool,
+    tmp_path: Path,
+    monkeypatch: Any,
+) -> None:
+    """Login passes its own TLS policy, never the active profile's, to every probe."""
+    from slcli.main import cli
+    from slcli.pkce import PkceLoginResult
+
+    config_file = tmp_path / "config.json"
+    if existing:
+        config_file.write_text(
+            json.dumps(
+                {
+                    "current-profile": "old",
+                    "profiles": {
+                        "old": {
+                            "server": "https://api.example.com",
+                            "web-url": "https://web.example.com",
+                            "ssl-verify": False,
+                        }
+                    },
+                }
+            )
+        )
+    monkeypatch.setattr(
+        "slcli.profiles.ProfileConfig.get_config_path", classmethod(lambda cls: config_file)
+    )
+    for name in ("SLCLI_SSL_VERIFY", "REQUESTS_CA_BUNDLE", "SSL_CERT_FILE"):
+        monkeypatch.delenv(name, raising=False)
+    monkeypatch.setattr("slcli.ssl_trust.get_managed_trust_path", lambda _url: None)
+    calls: list[tuple[str, Any]] = []
+    status = {"server_reachable": True, "auth_valid": True, "platform": "unknown", "services": {}}
+
+    def probe(name: str) -> Any:
+        def record(*_args: Any, ssl_verify: Any, **_kwargs: Any) -> Any:
+            calls.append((name, ssl_verify))
+            if name == "perform_pkce_login":
+                return PkceLoginResult("token", "refresh")
+            return status
+
+        return record
+
+    for name in ("check_service_status", "check_web_server_auth"):
+        monkeypatch.setattr(f"slcli.config_click.{name}", probe(name))
+    monkeypatch.setattr("slcli.pkce.perform_pkce_login", probe("perform_pkce_login"))
+    args = [
+        *command,
+        "--profile",
+        "new",
+        "--url",
+        "https://api.example.com",
+        "--web-url",
+        "https://web.example.com",
+        "--credential-store",
+        "file",
+        "--ssl-verify" if ssl_verify else "--no-ssl-verify",
+    ]
+    if auth_mode == "pkce":
+        args += ["--auth", "pkce", "--client-id", "client"]
+    else:
+        args += ["--api-key", VALID_API_KEY]
+    result = CliRunner().invoke(cli, args, input="\n")
+
+    assert result.exit_code == 0, result.output
+    expected = (
+        ["check_web_server_auth", "perform_pkce_login", "check_web_server_auth"]
+        + ["check_service_status"]
+        if auth_mode == "pkce"
+        else ["check_service_status"]
+    )
+    assert calls == [(name, ssl_verify) for name in expected]
+    saved = json.loads(config_file.read_text())["profiles"]
+    assert saved["new"].get("ssl-verify", True) is ssl_verify
+    if existing:
+        assert saved["old"]["ssl-verify"] is False
 
 
 def test_fallback_save_failure_restores_previous_profile(tmp_path: Path, monkeypatch: Any) -> None:
@@ -1128,7 +1213,7 @@ def test_fallback_save_failure_restores_previous_profile(tmp_path: Path, monkeyp
 
     with pytest.raises(SystemExit) as exc_info:
         _add_profile_impl(
-            profile="dev",
+            profile_name="dev",
             url="https://new.example.com",
             api_key=VALID_API_KEY,
             web_url="https://web.example.com",
@@ -1189,7 +1274,7 @@ def test_profile_rollback_save_failure_reports_credential_id(
 
     with pytest.raises(SystemExit) as exc_info:
         _add_profile_impl(
-            profile="dev",
+            profile_name="dev",
             url="https://new.example.com",
             api_key=VALID_API_KEY,
             web_url="https://web.example.com",
@@ -1261,7 +1346,7 @@ def test_file_store_transition_retains_pending_cleanup_when_store_fails(
     monkeypatch.setattr("slcli.credentials.delete_legacy_pkce_credentials", MagicMock())
 
     _add_profile_impl(
-        profile="dev",
+        profile_name="dev",
         url="https://new.example.com",
         api_key=VALID_API_KEY,
         web_url="https://web.example.com",
@@ -1329,7 +1414,9 @@ class TestTrustedCertificates:
         monkeypatch.setattr(
             "slcli.config_click.inspect_server_certificate", lambda _url: certificate
         )
-        monkeypatch.setattr("slcli.config_click.save_managed_certificate", lambda _cert: None)
+        monkeypatch.setattr(
+            "slcli.config_click.save_managed_certificate", lambda _cert: Path("managed.pem")
+        )
         monkeypatch.setattr("slcli.config_click.check_web_server_auth", mock_check)
 
         result = _trust_certificate_if_requested(
@@ -1346,7 +1433,10 @@ class TestTrustedCertificates:
 
         assert result == retry_status
         mock_check.assert_called_once_with(
-            "https://web.example.com", "access-token", auth_scheme="bearer"
+            "https://web.example.com",
+            "access-token",
+            auth_scheme="bearer",
+            ssl_verify="managed.pem",
         )
 
     def test_reachable_server_skips_certificate_trust_flow(
@@ -1359,7 +1449,7 @@ class TestTrustedCertificates:
         )
         monkeypatch.setattr(
             "slcli.config_click.check_service_status",
-            lambda _url, _api_key: {
+            lambda _url, _api_key, *, ssl_verify: {
                 "server_reachable": True,
                 "platform": "unknown",
                 "auth_valid": True,
@@ -1803,7 +1893,7 @@ class TestAddProfileTrailingSlash:
         # Mock check_service_status to avoid network calls
         monkeypatch.setattr(
             "slcli.config_click.check_service_status",
-            lambda url, key: {
+            lambda url, key, *, ssl_verify: {
                 "server_reachable": True,
                 "platform": "unknown",
                 "auth_valid": True,
@@ -1845,7 +1935,7 @@ class TestAddProfileTrailingSlash:
         )
         monkeypatch.setattr(
             "slcli.config_click.check_service_status",
-            lambda url, key: {
+            lambda url, key, *, ssl_verify: {
                 "server_reachable": True,
                 "platform": "unknown",
                 "auth_valid": True,
@@ -1887,7 +1977,7 @@ class TestAddProfileTrailingSlash:
         )
         monkeypatch.setattr(
             "slcli.config_click.check_service_status",
-            lambda url, key: {
+            lambda url, key, *, ssl_verify: {
                 "server_reachable": False,
                 "platform": "unreachable",
                 "auth_valid": None,
@@ -1971,7 +2061,7 @@ class TestPkceProfileVerification:
         events: list[str] = []
 
         def mock_web_probe(
-            url: str, credential: str, auth_scheme: str = "bearer"
+            url: str, credential: str, auth_scheme: str = "bearer", *, ssl_verify: Any
         ) -> dict[str, Any]:
             events.append(f"probe:{credential}")
             if not credential:
@@ -1993,7 +2083,7 @@ class TestPkceProfileVerification:
 
         def trust_certificate(*args: Any, **kwargs: Any) -> dict[str, Any]:
             events.append("trust")
-            return mock_web_probe(args[0], "trusted")
+            return mock_web_probe(args[0], "trusted", ssl_verify="trusted.pem")
 
         def perform_login(*args: Any, **kwargs: Any) -> PkceLoginResult:
             events.append("login")
@@ -2008,7 +2098,7 @@ class TestPkceProfileVerification:
         )
 
         _add_profile_impl(
-            profile="pkce",
+            profile_name="pkce",
             url="https://api.example.com",
             api_key=None,
             web_url="https://web.example.com",
@@ -2035,7 +2125,7 @@ class TestPkceProfileVerification:
         )
         monkeypatch.setattr(
             "slcli.pkce.perform_pkce_login",
-            lambda _web_url, _client_id, _scopes: PkceLoginResult(
+            lambda _web_url, _client_id, _scopes, *, ssl_verify: PkceLoginResult(
                 access_token="access-token", refresh_token="refresh-token"
             ),
         )
@@ -2053,7 +2143,7 @@ class TestPkceProfileVerification:
         monkeypatch.setattr("slcli.pkce.save_pkce_credentials", lambda *args: None)
 
         _add_profile_impl(
-            profile="pkce",
+            profile_name="pkce",
             url="https://api.example.com",
             api_key=None,
             web_url="https://web.example.com",
@@ -2064,16 +2154,20 @@ class TestPkceProfileVerification:
             client_id="client-id",
         )
 
+        web_tls = build_ssl_verify("https://web.example.com", enabled=True)
         assert mock_web_probe.call_args_list[0] == (
             ("https://web.example.com", ""),
-            {"auth_scheme": "bearer"},
+            {"auth_scheme": "bearer", "ssl_verify": web_tls},
         )
         assert mock_web_probe.call_args_list[-1] == (
             ("https://web.example.com", "access-token"),
-            {"auth_scheme": "bearer"},
+            {"auth_scheme": "bearer", "ssl_verify": web_tls},
         )
         mock_service_probe.assert_called_once_with(
-            "https://web.example.com", "access-token", auth_scheme="bearer"
+            "https://web.example.com",
+            "access-token",
+            auth_scheme="bearer",
+            ssl_verify=web_tls,
         )
         saved = json.loads(config_file.read_text())
         assert saved["profiles"]["pkce"]["server"] == "https://api.example.com"
@@ -2133,7 +2227,7 @@ class TestPkceProfileVerification:
 
         with pytest.raises(SystemExit) as exc_info:
             _add_profile_impl(
-                profile="pkce",
+                profile_name="pkce",
                 url="https://new-api.example.com",
                 api_key=None,
                 web_url="https://new-web.example.com",
@@ -2176,7 +2270,7 @@ class TestSlsProfileVerification:
 
         with pytest.raises(SystemExit) as exc_info:
             _add_profile_impl(
-                profile="sls",
+                profile_name="sls",
                 url="https://api.example.com",
                 api_key=VALID_API_KEY,
                 web_url="https://web.example.com",

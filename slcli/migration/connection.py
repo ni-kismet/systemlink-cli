@@ -9,7 +9,7 @@ from requests.adapters import HTTPAdapter
 from urllib3.util.retry import Retry
 
 from slcli.profiles import Profile, ProfileConfig
-from slcli.utils import get_auth_headers, get_ssl_verify, resolve_profile_auth
+from slcli.utils import get_auth_headers, profile_ssl_verify, resolve_profile_auth
 
 # Policy for read-only queries, including POST query endpoints, which are safe to replay.
 # Destination writes will need a stricter policy that never replays ambiguous failures.
@@ -75,7 +75,7 @@ def resolve_migration_connection(
     base_url = base_url.rstrip("/")
 
     # For PKCE, base_url is the Web URL, so refresh and requests share one TLS setting.
-    ssl_verify = get_ssl_verify(base_url, profile)
+    ssl_verify = profile_ssl_verify(base_url, profile)
     auth = resolve_profile_auth(profile)
     if auth is None:
         raise click.ClickException(f"Profile '{profile.name}' does not define an API key")

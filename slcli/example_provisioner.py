@@ -22,7 +22,7 @@ from .utils import (
     escape_filter_value,
     get_base_url,
     get_headers,
-    get_ssl_verify,
+    active_profile_ssl_verify,
     make_api_request,
     sanitize_filename,
 )
@@ -1508,7 +1508,7 @@ class ExampleProvisioner:
                 package_url,
                 stream=True,
                 timeout=int(source.get("timeout", props.get("timeout", 300))),
-                verify=get_ssl_verify(package_url),
+                verify=active_profile_ssl_verify(package_url),
             )
             try:
                 response.raise_for_status()

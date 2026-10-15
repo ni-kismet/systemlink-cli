@@ -30,7 +30,7 @@ from .utils import (
     get_web_url,
     get_headers,
     load_json_file,
-    get_ssl_verify,
+    active_profile_ssl_verify,
     get_workspace_id_with_fallback,
     get_workspace_map,
     handle_api_error,
@@ -112,7 +112,7 @@ def _build_published_webapp_url(
             resp = requests.get(
                 f"{_get_webapp_base_url()}/webapps/{webapp_id}",
                 headers=get_headers("application/json"),
-                verify=get_ssl_verify(),
+                verify=active_profile_ssl_verify(),
             )
             resp.raise_for_status()
             data = resp.json()
@@ -299,7 +299,7 @@ def _query_webapps_http(filter_str: str, max_items: int = 1000) -> List[Dict[str
             f"{base}/webapps/query?includeTotalCount=true",
             headers=headers,
             json=payload,
-            verify=get_ssl_verify(),
+            verify=active_profile_ssl_verify(),
         )
         resp.raise_for_status()
         data = resp.json()
@@ -340,7 +340,7 @@ def _fetch_webapps_page(
         f"{base}/webapps/query?includeTotalCount=true",
         headers=headers,
         json=payload,
-        verify=get_ssl_verify(),
+        verify=active_profile_ssl_verify(),
     )
     resp.raise_for_status()
     data = resp.json()
@@ -1494,7 +1494,7 @@ def register_webapp_commands(cli: Any) -> None:
             resp = requests.get(
                 f"{base}/webapps/{webapp_id}",
                 headers=get_headers("application/json"),
-                verify=get_ssl_verify(),
+                verify=active_profile_ssl_verify(),
             )
             resp.raise_for_status()
             data = resp.json()
@@ -1517,7 +1517,9 @@ def register_webapp_commands(cli: Any) -> None:
         try:
             base = _get_webapp_base_url()
             resp = requests.delete(
-                f"{base}/webapps/{webapp_id}", headers=get_headers(), verify=get_ssl_verify()
+                f"{base}/webapps/{webapp_id}",
+                headers=get_headers(),
+                verify=active_profile_ssl_verify(),
             )
             # Validate response and type if possible
             try:
@@ -1545,7 +1547,7 @@ def register_webapp_commands(cli: Any) -> None:
             resp = requests.get(
                 f"{base}/webapps/{webapp_id}",
                 headers=get_headers("application/json"),
-                verify=get_ssl_verify(),
+                verify=active_profile_ssl_verify(),
             )
             resp.raise_for_status()
             data = resp.json()
@@ -1634,7 +1636,7 @@ def register_webapp_commands(cli: Any) -> None:
                             f"{base}/webapps",
                             headers=get_headers("application/json"),
                             json=payload,
-                            verify=get_ssl_verify(),
+                            verify=active_profile_ssl_verify(),
                         )
                         _handle_webapp_create_conflict(
                             resp_create,
@@ -1657,7 +1659,7 @@ def register_webapp_commands(cli: Any) -> None:
                     upload_headers = get_headers("application/octet-stream")
                     url = f"{base}/webapps/{webapp_id}/content"
                     resp = requests.put(
-                        url, headers=upload_headers, data=data, verify=get_ssl_verify()
+                        url, headers=upload_headers, data=data, verify=active_profile_ssl_verify()
                     )
                     if resp.status_code in (200, 201, 204):
                         workspace_name_hint = (
@@ -1712,7 +1714,7 @@ def register_webapp_commands(cli: Any) -> None:
                         f"{base}/webapps",
                         headers=get_headers("application/json"),
                         json=payload,
-                        verify=get_ssl_verify(),
+                        verify=active_profile_ssl_verify(),
                     )
                     _handle_webapp_create_conflict(
                         resp_create,
@@ -1734,7 +1736,9 @@ def register_webapp_commands(cli: Any) -> None:
 
                 upload_headers = get_headers("application/octet-stream")
                 url = f"{base}/webapps/{webapp_id}/content"
-                resp = requests.put(url, headers=upload_headers, data=data, verify=get_ssl_verify())
+                resp = requests.put(
+                    url, headers=upload_headers, data=data, verify=active_profile_ssl_verify()
+                )
                 if resp.status_code in (200, 201, 204):
                     workspace_name_hint = (
                         (get_effective_workspace(workspace) or workspace)

@@ -33,7 +33,7 @@ from .ssl_trust import (
     save_managed_certificate,
 )
 from .table_utils import output_formatted_list
-from .utils import ExitCodes, get_base_url, get_base_url_resolution
+from .utils import ExitCodes, build_ssl_verify, get_base_url, get_base_url_resolution
 
 API_KEY_LENGTH = 42
 API_KEY_PATTERN = re.compile(rf"^[A-Za-z0-9_-]{{{API_KEY_LENGTH}}}$")
@@ -193,11 +193,17 @@ def _trust_certificate_if_requested(
         )
 
     try:
-        save_managed_certificate(certificate)
+        trusted_path = save_managed_certificate(certificate)
+        # Retry against exactly the certificate the user just approved.
+        retry_ssl_verify = str(trusted_path)
         if auth_scheme == "bearer":
-            retry_status = check_web_server_auth(url, credential, auth_scheme=auth_scheme)
+            retry_status = check_web_server_auth(
+                url, credential, auth_scheme=auth_scheme, ssl_verify=retry_ssl_verify
+            )
         else:
-            retry_status = check_service_status(url, credential, auth_scheme=auth_scheme)
+            retry_status = check_service_status(
+                url, credential, auth_scheme=auth_scheme, ssl_verify=retry_ssl_verify
+            )
     except (OSError, ValueError) as exc:
         _exit_with_validation_error(
             f"Could not save the trusted certificate: {exc}. Profile was not saved.",
@@ -217,7 +223,7 @@ def _trust_certificate_if_requested(
 
 
 def _add_profile_impl(
-    profile: Optional[str],
+    profile_name: Optional[str],
     url: Optional[str],
     api_key: Optional[str],
     web_url: Optional[str],
@@ -238,7 +244,7 @@ def _add_profile_impl(
     and login commands. Both commands invoke this function with the same parameters.
 
     Args:
-        profile: Profile name (default: 'default')
+        profile_name: Profile name (default: 'default')
         url: SystemLink API URL
         api_key: SystemLink API key
         web_url: SystemLink Web UI base URL
@@ -254,10 +260,10 @@ def _add_profile_impl(
         ssl_verify: Whether to verify TLS certificates for this profile's hosts
     """
     # Get profile name
-    if not profile:
-        profile = click.prompt("Profile name", default="default")
-    assert isinstance(profile, str)
-    profile = _normalize_profile_name(profile)
+    if not profile_name:
+        profile_name = click.prompt("Profile name", default="default")
+    assert isinstance(profile_name, str)
+    profile_name = _normalize_profile_name(profile_name)
 
     # Get URL - either from flag or prompt
     if not url:
@@ -291,7 +297,12 @@ def _add_profile_impl(
     pkce_result: Any = None
     pkce_scopes = list(scopes) if scopes else ["openid", "profile", "email", "offline_access"]
     if auth_mode == "pkce":
-        certificate_status = check_web_server_auth(web_url, "", auth_scheme="bearer")
+        certificate_status = check_web_server_auth(
+            web_url,
+            "",
+            auth_scheme="bearer",
+            ssl_verify=build_ssl_verify(web_url, enabled=ssl_verify),
+        )
         if certificate_status.get("certificate_error") and not certificate_status.get(
             "server_reachable"
         ):
@@ -314,10 +325,19 @@ def _add_profile_impl(
         click.echo("Opening the SystemLink Web UI for authentication...")
         try:
             if callback_port is None:
-                pkce_result = perform_pkce_login(web_url, client_id, pkce_scopes)
+                pkce_result = perform_pkce_login(
+                    web_url,
+                    client_id,
+                    pkce_scopes,
+                    ssl_verify=build_ssl_verify(web_url, enabled=ssl_verify),
+                )
             else:
                 pkce_result = perform_pkce_login(
-                    web_url, client_id, pkce_scopes, callback_port=callback_port
+                    web_url,
+                    client_id,
+                    pkce_scopes,
+                    callback_port=callback_port,
+                    ssl_verify=build_ssl_verify(web_url, enabled=ssl_verify),
                 )
         except PkceError as exc:
             _exit_with_validation_error(f"PKCE login failed: {exc}")
@@ -328,9 +348,16 @@ def _add_profile_impl(
     # Validate PKCE against the Web Server identity route; API-key login retains API probes.
     click.echo("Checking server connectivity and services...")
     if auth_mode == "pkce":
-        status = check_web_server_auth(web_url, api_key, auth_scheme="bearer")
+        status = check_web_server_auth(
+            web_url,
+            api_key,
+            auth_scheme="bearer",
+            ssl_verify=build_ssl_verify(web_url, enabled=ssl_verify),
+        )
     else:
-        status = check_service_status(url, api_key)
+        status = check_service_status(
+            url, api_key, ssl_verify=build_ssl_verify(url, enabled=ssl_verify)
+        )
 
     if status.get("certificate_error") and not status.get("server_reachable"):
         validation_url = web_url if auth_mode == "pkce" else url
@@ -344,7 +371,12 @@ def _add_profile_impl(
 
     platform = status["platform"]
     if auth_mode == "pkce":
-        platform_status = check_service_status(web_url, api_key, auth_scheme="bearer")
+        platform_status = check_service_status(
+            web_url,
+            api_key,
+            auth_scheme="bearer",
+            ssl_verify=build_ssl_verify(web_url, enabled=ssl_verify),
+        )
         detected_platform = platform_status.get("platform")
         if detected_platform in (PLATFORM_SLE, PLATFORM_SLS):
             platform = detected_platform
@@ -421,7 +453,7 @@ def _add_profile_impl(
     # Create profile
     cfg = ProfileConfig.load()
     new_profile = Profile(
-        name=profile,
+        name=profile_name,
         server=url,
         api_key=api_key or "",
         web_url=web_url,
@@ -452,7 +484,7 @@ def _add_profile_impl(
     for warning in warnings:
         click.echo(f"⚠️  {warning}", err=True)
 
-    click.echo(f"\n✓ Profile '{profile}' saved successfully.")
+    click.echo(f"\n✓ Profile '{profile_name}' saved successfully.")
     click.echo(f"  Server: {url}")
     click.echo(f"  Web URL: {web_url}")
     if workspace:
@@ -1037,7 +1069,7 @@ def register_config_commands(cli: Any) -> None:
     @click.option(
         "--ssl-verify/--no-ssl-verify",
         default=True,
-        help="Verify TLS certificates for this profile's servers (default: yes)",
+        help="Verify TLS certificates during login and for this profile's servers (default: yes)",
     )
     @click.option(
         "--trust-fingerprint",
@@ -1073,7 +1105,7 @@ def register_config_commands(cli: Any) -> None:
             slcli config add --profile test --workspace "Testing" --readonly
         """
         _add_profile_impl(
-            profile=profile,
+            profile_name=profile,
             url=url,
             api_key=api_key,
             web_url=web_url,
