@@ -2,6 +2,17 @@
 
 <!-- towncrier release notes start -->
 
+## v2.3.1 (2026-10-16)
+
+### Bug Fixes
+
+- Update dependency mcp to v2.2.0 [SECURITY]. (deps-renovate-pypi-mcp-vulnerability)
+
+### Documentation
+
+- Move the evaluation gating and pull request workflows into reusable Copilot skills. (convert-prompts-to-skills)
+
+
 ## v2.3.0 (2026-10-07)
 
 ### Features
