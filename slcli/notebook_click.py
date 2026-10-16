@@ -25,7 +25,7 @@ from .utils import (
     make_api_request,
     get_base_url,
     get_headers,
-    get_ssl_verify,
+    active_profile_ssl_verify,
     get_workspace_id_with_fallback,
     get_workspace_map,
     handle_api_error,
@@ -161,7 +161,9 @@ def _query_notebooks_http(
             else:
                 url = f"{base_url}/notebook/query"
 
-            response = requests.post(url, headers=headers, json=payload, verify=get_ssl_verify())
+            response = requests.post(
+                url, headers=headers, json=payload, verify=active_profile_ssl_verify()
+            )
             response.raise_for_status()
 
             data = response.json()
@@ -219,7 +221,7 @@ def _get_notebook_http(notebook_id: str) -> Dict[str, Any]:
             # SLE uses ID-based endpoint: /notebook/{id}
             url = f"{base_url}/notebook/{notebook_id}"
 
-        response = requests.get(url, headers=headers, verify=get_ssl_verify())
+        response = requests.get(url, headers=headers, verify=active_profile_ssl_verify())
         response.raise_for_status()
         result = response.json()
 
@@ -248,7 +250,7 @@ def _get_notebook_content_http(notebook_id: str) -> bytes:
             # SLE uses ID-based endpoint: /notebook/{id}/content
             url = f"{base_url}/notebook/{notebook_id}/content"
 
-        response = requests.get(url, headers=headers, verify=get_ssl_verify())
+        response = requests.get(url, headers=headers, verify=active_profile_ssl_verify())
         response.raise_for_status()
         return response.content
     except requests.exceptions.RequestException as exc:
@@ -458,7 +460,7 @@ def _create_notebook_http(name: str, workspace: str, content: bytes) -> Dict[str
 
     try:
         response = requests.post(
-            f"{base_url}/notebook", headers=headers, files=files, verify=get_ssl_verify()
+            f"{base_url}/notebook", headers=headers, files=files, verify=active_profile_ssl_verify()
         )
         response.raise_for_status()
         return response.json()
@@ -502,7 +504,7 @@ def _update_notebook_http(
             f"{base_url}/notebook/{notebook_id}",
             headers=headers,
             files=files,
-            verify=get_ssl_verify(),
+            verify=active_profile_ssl_verify(),
         )
         response.raise_for_status()
         return response.json()
@@ -520,7 +522,9 @@ def _delete_notebook_http(notebook_id: str) -> None:
 
     try:
         response = requests.delete(
-            f"{base_url}/notebook/{notebook_id}", headers=headers, verify=get_ssl_verify()
+            f"{base_url}/notebook/{notebook_id}",
+            headers=headers,
+            verify=active_profile_ssl_verify(),
         )
         response.raise_for_status()
     except requests.exceptions.RequestException as exc:
@@ -1577,7 +1581,9 @@ def register_notebook_commands(cli: Any) -> None:
         try:
             # Use direct requests.post because make_api_request only supports dict payloads.
             headers = get_headers("application/json")
-            resp = requests.post(url, headers=headers, json=payload, verify=get_ssl_verify())
+            resp = requests.post(
+                url, headers=headers, json=payload, verify=active_profile_ssl_verify()
+            )
             resp.raise_for_status()
             resp_data = resp.json()
 
@@ -1697,7 +1703,9 @@ def register_notebook_commands(cli: Any) -> None:
         url = f"{base}/executions"
         try:
             headers = get_headers("application/json")
-            resp = requests.post(url, headers=headers, json=payload, verify=get_ssl_verify())
+            resp = requests.post(
+                url, headers=headers, json=payload, verify=active_profile_ssl_verify()
+            )
             resp.raise_for_status()
             resp_data = resp.json()
 
@@ -1797,7 +1805,7 @@ def register_notebook_commands(cli: Any) -> None:
                 url = f"{base}/cancel-executions"
                 headers = get_headers("application/json")
                 resp = requests.post(
-                    url, headers=headers, json=[execution_id], verify=get_ssl_verify()
+                    url, headers=headers, json=[execution_id], verify=active_profile_ssl_verify()
                 )
                 resp.raise_for_status()
             else:

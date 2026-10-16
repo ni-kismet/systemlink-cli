@@ -31,7 +31,7 @@ from .utils import (
     get_web_url,
     get_headers,
     load_json_file,
-    get_ssl_verify,
+    active_profile_ssl_verify,
     get_workspace_id_with_fallback,
     get_workspace_map,
     handle_api_error,
@@ -111,7 +111,7 @@ def _build_published_webapp_url(
     if webapp_id and (not resolved_name or not resolved_workspace_id):
         try:
             url = f"{_get_webapp_base_url()}/webapps/{webapp_id}"
-            ssl_verify = get_ssl_verify(url)
+            ssl_verify = active_profile_ssl_verify(url)
             with use_standard_ssl_context(ssl_verify):
                 resp = requests.get(url, headers=get_headers("application/json"), verify=ssl_verify)
             resp.raise_for_status()
@@ -296,7 +296,7 @@ def _query_webapps_http(filter_str: str, max_items: int = 1000) -> List[Dict[str
 
         # Request the server to include a total count when available
         url = f"{base}/webapps/query?includeTotalCount=true"
-        ssl_verify = get_ssl_verify(url)
+        ssl_verify = active_profile_ssl_verify(url)
         with use_standard_ssl_context(ssl_verify):
             resp = requests.post(url, headers=headers, json=payload, verify=ssl_verify)
         resp.raise_for_status()
@@ -335,7 +335,7 @@ def _fetch_webapps_page(
 
     # Request the server to include a total count when available
     url = f"{base}/webapps/query?includeTotalCount=true"
-    ssl_verify = get_ssl_verify(url)
+    ssl_verify = active_profile_ssl_verify(url)
     with use_standard_ssl_context(ssl_verify):
         resp = requests.post(url, headers=headers, json=payload, verify=ssl_verify)
     resp.raise_for_status()
@@ -1488,7 +1488,7 @@ def register_webapp_commands(cli: Any) -> None:
         try:
             base = _get_webapp_base_url()
             url = f"{base}/webapps/{webapp_id}"
-            ssl_verify = get_ssl_verify(url)
+            ssl_verify = active_profile_ssl_verify(url)
             with use_standard_ssl_context(ssl_verify):
                 resp = requests.get(url, headers=get_headers("application/json"), verify=ssl_verify)
             resp.raise_for_status()
@@ -1512,7 +1512,7 @@ def register_webapp_commands(cli: Any) -> None:
         try:
             base = _get_webapp_base_url()
             url = f"{base}/webapps/{webapp_id}"
-            ssl_verify = get_ssl_verify(url)
+            ssl_verify = active_profile_ssl_verify(url)
             with use_standard_ssl_context(ssl_verify):
                 resp = requests.delete(url, headers=get_headers(), verify=ssl_verify)
             # Validate response and type if possible
@@ -1539,7 +1539,7 @@ def register_webapp_commands(cli: Any) -> None:
         try:
             base = _get_webapp_base_url()
             url = f"{base}/webapps/{webapp_id}"
-            ssl_verify = get_ssl_verify(url)
+            ssl_verify = active_profile_ssl_verify(url)
             with use_standard_ssl_context(ssl_verify):
                 resp = requests.get(url, headers=get_headers("application/json"), verify=ssl_verify)
             resp.raise_for_status()
@@ -1626,7 +1626,7 @@ def register_webapp_commands(cli: Any) -> None:
                             "properties": {},
                         }
                         url = f"{base}/webapps"
-                        ssl_verify = get_ssl_verify(url)
+                        ssl_verify = active_profile_ssl_verify(url)
                         with use_standard_ssl_context(ssl_verify):
                             resp_create = requests.post(
                                 url,
@@ -1654,7 +1654,7 @@ def register_webapp_commands(cli: Any) -> None:
 
                     upload_headers = get_headers("application/octet-stream")
                     url = f"{base}/webapps/{webapp_id}/content"
-                    ssl_verify = get_ssl_verify(url)
+                    ssl_verify = active_profile_ssl_verify(url)
                     with use_standard_ssl_context(ssl_verify):
                         resp = requests.put(
                             url, headers=upload_headers, data=data, verify=ssl_verify
@@ -1709,7 +1709,7 @@ def register_webapp_commands(cli: Any) -> None:
                         "properties": {},
                     }
                     url = f"{base}/webapps"
-                    ssl_verify = get_ssl_verify(url)
+                    ssl_verify = active_profile_ssl_verify(url)
                     with use_standard_ssl_context(ssl_verify):
                         resp_create = requests.post(
                             url,
@@ -1737,7 +1737,7 @@ def register_webapp_commands(cli: Any) -> None:
 
                 upload_headers = get_headers("application/octet-stream")
                 url = f"{base}/webapps/{webapp_id}/content"
-                ssl_verify = get_ssl_verify(url)
+                ssl_verify = active_profile_ssl_verify(url)
                 with use_standard_ssl_context(ssl_verify):
                     resp = requests.put(url, headers=upload_headers, data=data, verify=ssl_verify)
                 if resp.status_code in (200, 201, 204):

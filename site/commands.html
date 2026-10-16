@@ -786,6 +786,7 @@ slcli config delete dev --force</code></pre>
   <p>Credentials use the OS credential store by default. If it is unavailable, login warns and falls back to the config file. Set <code>SLCLI_CREDENTIAL_STORE=file</code> or pass <code>--credential-store file</code> to opt into file storage. Use <code>slcli config cleanup</code> to retry persisted credential removals without deleting active profiles. The CLI no longer reads legacy global keyring entries.</p>
 
   <h3>Trust</h3>
+  <p><code>slcli login</code> and <code>slcli config add</code> verify TLS certificates by default. Use <code>--no-ssl-verify</code> only when necessary: it disables verification for the new profile's API and Web UI hosts during login (including PKCE token exchange) and saves <code>ssl-verify: false</code> for subsequent commands. The active profile's TLS setting does not control the new login. The global <code>SLCLI_SSL_VERIFY=false</code> override still applies. Prefer approving a server certificate, interactively or with <code>--trust-fingerprint</code>, to disabling verification.</p>
   <pre><code># Inspect the certificate at the active API URL
 slcli config trust show
 

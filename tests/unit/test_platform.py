@@ -17,7 +17,6 @@ from slcli.platform import (
     SLS_PLATFORM_PROBE_PATH,
     check_service_status,
     clear_platform_cache,
-    detect_platform,
     get_platform,
     get_platform_info,
     has_feature,
@@ -32,43 +31,6 @@ def clear_cache(tmp_path: Any, monkeypatch: Any) -> None:
     clear_platform_cache()
     monkeypatch.setenv("SLCLI_CONFIG", str(tmp_path / "config.json"))
     monkeypatch.delenv("SLCLI_SERVICE_PROBE_CACHE_TTL_SECONDS", raising=False)
-
-
-class TestDetectPlatform:
-    """Tests for platform detection via check_service_status."""
-
-    def test_detect_platform_sle_when_workorder_ok(self) -> None:
-        """Test SLE detected when check_service_status reports workorder OK."""
-        with patch("slcli.platform.check_service_status") as mock_check:
-            mock_check.return_value = {
-                "server_reachable": True,
-                "auth_valid": True,
-                "services": {"Work Order": "ok"},
-                "platform": PLATFORM_SLE,
-            }
-            assert detect_platform("https://api.example.com", "key") == PLATFORM_SLE
-
-    def test_detect_platform_sls_when_workorder_not_found(self) -> None:
-        """Test SLS detected when workorder endpoint returns 404."""
-        with patch("slcli.platform.check_service_status") as mock_check:
-            mock_check.return_value = {
-                "server_reachable": True,
-                "auth_valid": True,
-                "services": {"Work Order": "not_found"},
-                "platform": PLATFORM_SLS,
-            }
-            assert detect_platform("https://my-server.local", "key") == PLATFORM_SLS
-
-    def test_detect_platform_unreachable_when_no_connection(self) -> None:
-        """Test UNREACHABLE when server cannot be reached."""
-        with patch("slcli.platform.check_service_status") as mock_check:
-            mock_check.return_value = {
-                "server_reachable": False,
-                "auth_valid": None,
-                "services": {},
-                "platform": PLATFORM_UNREACHABLE,
-            }
-            assert detect_platform("https://offline.example.com", "key") == PLATFORM_UNREACHABLE
 
 
 def _make_mock_response(status_code: int) -> MagicMock:
@@ -136,7 +98,7 @@ class TestCheckServiceStatus:
         with patch("slcli.platform.requests.get", mock_get), patch(
             "slcli.platform.requests.post", mock_post
         ):
-            result = check_service_status("https://api.example.com", "valid-key")
+            result = check_service_status("https://api.example.com", "valid-key", ssl_verify=True)
 
         assert result["server_reachable"] is True
         assert result["auth_valid"] is True
@@ -154,10 +116,13 @@ class TestCheckServiceStatus:
         with patch("slcli.platform.requests.get", mock_get), patch(
             "slcli.platform.requests.post", mock_post
         ):
-            result = check_service_status("https://api.example.com", "access-token", "bearer")
+            result = check_service_status(
+                "https://api.example.com", "access-token", "bearer", ssl_verify="ca.pem"
+            )
 
         assert result["auth_valid"] is True
         for mock_request in [*mock_get.call_args_list, *mock_post.call_args_list]:
+            assert mock_request.kwargs["verify"] == "ca.pem"
             headers = mock_request.kwargs["headers"]
             assert headers["Authorization"] == "Bearer access-token"
             assert "x-ni-api-key" not in headers
@@ -165,26 +130,23 @@ class TestCheckServiceStatus:
     def test_web_server_auth_probes_identity_route_with_bearer(self) -> None:
         """PKCE validation targets the Web Server identity route."""
         response = _make_mock_response(200)
-        with patch("slcli.platform.requests.get", return_value=response) as mock_get, patch(
-            "slcli.platform.get_ssl_verify", return_value=True
-        ):
+        with patch("slcli.platform.requests.get", return_value=response) as mock_get:
             result = check_web_server_auth(
-                "https://web.example.com", "access-token", auth_scheme="bearer"
+                "https://web.example.com", "access-token", auth_scheme="bearer", ssl_verify="ca.pem"
             )
 
         assert result["server_reachable"] is True
         assert result["auth_valid"] is True
         assert result["services"] == {"Web Server": "ok"}
         assert mock_get.call_args.args[0] == "https://web.example.com/niauth/v1/auth"
+        assert mock_get.call_args.kwargs["verify"] == "ca.pem"
         assert mock_get.call_args.kwargs["headers"]["Authorization"] == "Bearer access-token"
         assert "x-ni-api-key" not in mock_get.call_args.kwargs["headers"]
 
     def test_web_server_auth_reports_unauthorized_bearer(self) -> None:
         """A rejected bearer token is distinguishable from an unreachable Web Server."""
-        with patch("slcli.platform.requests.get", return_value=_make_mock_response(401)), patch(
-            "slcli.platform.get_ssl_verify", return_value=True
-        ):
-            result = check_web_server_auth("https://web.example.com", "bad-token")
+        with patch("slcli.platform.requests.get", return_value=_make_mock_response(401)):
+            result = check_web_server_auth("https://web.example.com", "bad-token", ssl_verify=True)
 
         assert result["server_reachable"] is True
         assert result["auth_valid"] is False
@@ -200,10 +162,10 @@ class TestCheckServiceStatus:
         with patch(
             "slcli.platform.requests.get",
             side_effect=req_module.exceptions.SSLError("untrusted certificate"),
-        ), patch("slcli.platform.get_ssl_verify", return_value=True), patch(
-            "slcli.ssl_trust.inspect_server_certificate", return_value=certificate
-        ):
-            result = check_web_server_auth("https://web.example.com", "access-token")
+        ), patch("slcli.ssl_trust.inspect_server_certificate", return_value=certificate):
+            result = check_web_server_auth(
+                "https://web.example.com", "access-token", ssl_verify=True
+            )
 
         assert result["server_reachable"] is False
         assert result["auth_valid"] is None
@@ -234,7 +196,7 @@ class TestCheckServiceStatus:
         with patch("slcli.platform.requests.get", mock_get), patch(
             "slcli.platform.requests.post", mock_post
         ):
-            result = check_service_status("https://my-server.local", "valid-key")
+            result = check_service_status("https://my-server.local", "valid-key", ssl_verify=True)
 
         assert result["server_reachable"] is True
         assert result["auth_valid"] is True
@@ -266,7 +228,7 @@ class TestCheckServiceStatus:
         with patch("slcli.platform.requests.get", mock_get), patch(
             "slcli.platform.requests.post", mock_post
         ):
-            result = check_service_status("https://my-server.local", "valid-key")
+            result = check_service_status("https://my-server.local", "valid-key", ssl_verify=True)
 
         assert result["server_reachable"] is True
         assert result["platform"] == PLATFORM_UNKNOWN
@@ -289,7 +251,7 @@ class TestCheckServiceStatus:
         with patch("slcli.platform.requests.get", mock_get), patch(
             "slcli.platform.requests.post", mock_post
         ):
-            result = check_service_status("https://my-server.local", "valid-key")
+            result = check_service_status("https://my-server.local", "valid-key", ssl_verify=True)
 
         assert result["platform"] == PLATFORM_UNKNOWN
 
@@ -311,7 +273,7 @@ class TestCheckServiceStatus:
         with patch("slcli.platform.requests.get", mock_get), patch(
             "slcli.platform.requests.post", mock_post
         ):
-            result = check_service_status("https://my-server.local", "valid-key")
+            result = check_service_status("https://my-server.local", "valid-key", ssl_verify=True)
 
         assert result["platform"] == PLATFORM_UNKNOWN
 
@@ -338,7 +300,7 @@ class TestCheckServiceStatus:
         with patch("slcli.platform.requests.get", mock_get), patch(
             "slcli.platform.requests.post", mock_post
         ):
-            result = check_service_status("https://my-server.local", "bad-key")
+            result = check_service_status("https://my-server.local", "bad-key", ssl_verify=True)
 
         assert result["server_reachable"] is True
         assert result["auth_valid"] is False
@@ -366,7 +328,7 @@ class TestCheckServiceStatus:
         with patch("slcli.platform.requests.get", mock_get), patch(
             "slcli.platform.requests.post", mock_post
         ):
-            result = check_service_status("https://api.example.com", "bad-key")
+            result = check_service_status("https://api.example.com", "bad-key", ssl_verify=True)
 
         assert result["server_reachable"] is True
         assert result["auth_valid"] is False
@@ -397,7 +359,7 @@ class TestCheckServiceStatus:
         with patch("slcli.platform.requests.get", mock_get), patch(
             "slcli.platform.requests.post", mock_post
         ):
-            result = check_service_status("https://api.example.com", "partial-key")
+            result = check_service_status("https://api.example.com", "partial-key", ssl_verify=True)
 
         assert result["server_reachable"] is True
         assert result["auth_valid"] is True
@@ -428,7 +390,7 @@ class TestCheckServiceStatus:
         with patch("slcli.platform.requests.get", mock_get), patch(
             "slcli.platform.requests.post", mock_post
         ):
-            result = check_service_status("https://offline.example.com", "any-key")
+            result = check_service_status("https://offline.example.com", "any-key", ssl_verify=True)
 
         assert result["server_reachable"] is False
         assert result["auth_valid"] is None
@@ -456,7 +418,7 @@ class TestCheckServiceStatus:
         monkeypatch.setattr("slcli.platform.requests.post", side_effect)
         monkeypatch.setattr("slcli.ssl_trust.inspect_server_certificate", lambda _url: certificate)
 
-        result = check_service_status("https://example.com", "key")
+        result = check_service_status("https://example.com", "key", ssl_verify=True)
 
         assert result["server_reachable"] is False
         assert result["certificate_error"] is True
@@ -484,7 +446,7 @@ class TestCheckServiceStatus:
         with patch("slcli.platform.requests.get", mock_get), patch(
             "slcli.platform.requests.post", mock_post
         ):
-            result = check_service_status("https://my-server.example.com", "key")
+            result = check_service_status("https://my-server.example.com", "key", ssl_verify=True)
 
         assert result["server_reachable"] is True
         assert result["platform"] == PLATFORM_SLE
@@ -550,7 +512,7 @@ class TestCheckServiceStatus:
         with patch("slcli.platform.requests.get", mock_get), patch(
             "slcli.platform.requests.post", mock_post
         ):
-            result = check_service_status("https://my-lab.example.com", "key")
+            result = check_service_status("https://my-lab.example.com", "key", ssl_verify=True)
 
         assert result["server_reachable"] is True
         assert result["platform"] == PLATFORM_UNKNOWN
@@ -582,7 +544,7 @@ class TestCheckServiceStatus:
                 "elasticsearch_available": False,
             },
         ):
-            result = check_service_status("https://my-server.local", "valid-key")
+            result = check_service_status("https://my-server.local", "valid-key", ssl_verify=True)
 
         assert result["services"]["File"] == "fallback"
         assert result["file_query_endpoint"] == "query-files-linq"
@@ -625,7 +587,7 @@ class TestCheckServiceStatus:
                 "materialized_search_available": False,
             },
         ):
-            result = check_service_status("https://my-server.local", "valid-key")
+            result = check_service_status("https://my-server.local", "valid-key", ssl_verify=True)
 
         assert result["auth_valid"] is True
         assert result["platform"] == PLATFORM_SLS
@@ -665,7 +627,7 @@ class TestCheckServiceStatus:
         ), patch("slcli.platform.get_file_query_capability", return_value=not_found_file), patch(
             "slcli.platform.get_system_query_capability", return_value=not_found_system
         ):
-            result = check_service_status("https://my-server.local", "valid-key")
+            result = check_service_status("https://my-server.local", "valid-key", ssl_verify=True)
 
         assert result["auth_valid"] is True
         assert result["platform"] == PLATFORM_SLS
@@ -697,7 +659,7 @@ class TestCheckServiceStatus:
                 "elasticsearch_available": False,
             },
         ):
-            result = check_service_status("https://my-server.local", "valid-key")
+            result = check_service_status("https://my-server.local", "valid-key", ssl_verify=True)
 
         assert result["services"]["File"] == "ok"
         assert result["file_query_endpoint"] == "query-files"
@@ -737,7 +699,7 @@ class TestCheckServiceStatus:
                 "materialized_search_available": True,
             },
         ):
-            result = check_service_status("https://api.example.com", "valid-key")
+            result = check_service_status("https://api.example.com", "valid-key", ssl_verify=True)
 
         assert result["services"]["Systems"] == "ok"
         assert result["system_query_endpoint"] == "search-systems"
@@ -1334,11 +1296,15 @@ class TestGetPlatformInfo:
             "slcli.platform.check_web_server_auth", return_value=status
         ) as mock_web_probe, patch(
             "slcli.platform.check_service_status"
-        ) as mock_api_probe:
+        ) as mock_api_probe, patch(
+            "slcli.platform.active_profile_ssl_verify", return_value="web.pem"
+        ):
             result = _get_service_status_snapshot(force_refresh=True)
 
         assert result == status
-        mock_web_probe.assert_called_once_with("https://web.example.com", "access-token", "bearer")
+        mock_web_probe.assert_called_once_with(
+            "https://web.example.com", "access-token", "bearer", ssl_verify="web.pem"
+        )
         mock_api_probe.assert_not_called()
 
     def test_get_platform_info_preserves_profile_platform_for_bearer_snapshot(self) -> None:

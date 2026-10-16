@@ -14,7 +14,7 @@ from typing import Optional, Any
 import click
 import requests
 
-from .utils import ExitCodes, get_base_url, get_headers, get_ssl_verify
+from .utils import ExitCodes, active_profile_ssl_verify, get_base_url, get_headers
 
 
 def _validated_proxy_origin(api_base: str) -> tuple[str, str]:
@@ -287,7 +287,7 @@ class DFFWebEditor:
         api_base = get_base_url().rstrip("/")
         api_scheme, api_netloc = _validated_proxy_origin(api_base)
         default_headers = get_headers()
-        ssl_verify = get_ssl_verify()
+        ssl_verify = active_profile_ssl_verify()
         secret = self._secret
 
         class EditorTCPServer(socketserver.TCPServer):
