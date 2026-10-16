@@ -1,8 +1,8 @@
 ---
 name: slcli-pr-review
-description: Comprehensive pull request review for SystemLink CLI with high standards for testing, code reuse, architecture, and repository standards. Supports review types (standard, cli, api, refactor, e2e) with optional focus areas.
+description: "Comprehensive pull request review for SystemLink CLI with high standards for testing, code reuse, architecture, and repository standards. Supports review types (standard, cli, api, refactor, e2e) with optional focus areas."
+disable-model-invocation: true
 ---
-
 ## Summary
 
 Comprehensive pull request review prompt with high standards for testing, code reuse, architecture, and repository standards. Tailored prompts for different types of changes (standard, CLI, API, refactoring, E2E testing).
