@@ -1,8 +1,8 @@
 <section class="master-detail sl-page">
   <header class="sl-page__intro">
-    <p class="sl-page__eyebrow">Starter Pattern: Master Detail</p>
-    <h2>Use this sample layout when selection and lightweight editing need to stay side by side.</h2>
-    <p>
+    <p class="sl-page__eyebrow" i18n>Starter Pattern: Master Detail</p>
+    <h2 i18n>Use this sample layout when selection and lightweight editing need to stay side by side.</h2>
+    <p i18n>
       The list items, fields, and helper copy here are starter content. Replace them when the
       route is connected to the real records your app manages.
     </p>
@@ -16,7 +16,8 @@
         (click)="isEditing ? saveChanges() : toggleEditMode()"
         [disabled]="!selectedDevice"
       >
-        {{ isEditing ? 'Save details' : 'Edit details' }}
+        <ng-container *ngIf="isEditing" i18n>Save details</ng-container>
+        <ng-container *ngIf="!isEditing" i18n>Edit details</ng-container>
       </nimble-button>
     </div>
   </div>
@@ -27,14 +28,16 @@
         class="master-detail__filter"
         [(ngModel)]="filterTerm"
         placeholder="Search devices"
+        i18n-placeholder
         (ngModelChange)="applyFilter()"
       >
-        Filter devices
+        <ng-container i18n>Filter devices</ng-container>
       </nimble-text-field>
 
       <ok-fv-master-detail-list
         class="master-detail__list"
         placeholder="Filter devices..."
+        i18n-placeholder
         (change)="onSelectionChange($event)"
       >
         <ok-fv-master-detail-list-item
@@ -60,58 +63,58 @@
 
       <div class="master-detail__detail-grid">
         <div>
-          <span>Device name</span>
+          <span i18n>Device name</span>
           <strong>{{ device.name }}</strong>
         </div>
         <div>
-          <span>Model</span>
+          <span i18n>Model</span>
           <strong>{{ device.model }}</strong>
         </div>
         <div>
-          <span>IP address</span>
+          <span i18n>IP address</span>
           <strong>{{ device.ipAddress }}</strong>
         </div>
         <div>
-          <span>Firmware version</span>
+          <span i18n>Firmware version</span>
           <strong>{{ device.firmwareVersion }}</strong>
         </div>
       </div>
 
       <div class="master-detail__edit-grid">
         <nimble-text-field [(ngModel)]="device.location" [readonly]="!isEditing">
-          Location
+          <ng-container i18n>Location</ng-container>
         </nimble-text-field>
         <nimble-text-field [(ngModel)]="device.systemId" [readonly]="!isEditing">
-          Device ID
+          <ng-container i18n>Device ID</ng-container>
         </nimble-text-field>
       </div>
 
       <nimble-text-area [(ngModel)]="device.notes" [readonly]="!isEditing" resize="vertical">
-        Notes
+        <ng-container i18n>Notes</ng-container>
       </nimble-text-area>
 
       <nimble-switch [(ngModel)]="device.monitorEnabled" [disabled]="!isEditing">
-        Include in monitor roster
+        <ng-container i18n>Include in monitor roster</ng-container>
       </nimble-switch>
 
-      <nimble-banner *ngIf="device.statusLabel === 'Pending changes'" [open]="true" severity="warning">
+      <nimble-banner *ngIf="device.statusCode === 'pending-changes'" [open]="true" severity="warning" i18n>
         Review the pending changes before this device returns to the connected roster.
       </nimble-banner>
 
       <dl class="master-detail__facts">
         <div>
-          <dt>Last seen</dt>
-          <dd>{{ device.lastSeen }}</dd>
+          <dt i18n>Last seen</dt>
+          <dd>{{ device.lastSeen | date:'medium' }}</dd>
         </div>
         <div>
-          <dt>Calibration due</dt>
-          <dd>{{ device.calibrationDue }}</dd>
+          <dt i18n>Calibration due</dt>
+          <dd>{{ device.calibrationDue | date:'mediumDate' }}</dd>
         </div>
       </dl>
     </section>
   </div>
 
   <ng-template #emptyState>
-    <sl-empty-state [message]="'Adjust the filter or add a real device query to populate this pattern.'"></sl-empty-state>
+    <sl-empty-state [message]="emptyStateMessage"></sl-empty-state>
   </ng-template>
 </section>

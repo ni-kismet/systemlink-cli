@@ -357,10 +357,16 @@ def _build_webapp_routing_module(template: str, routing_mode: str) -> str:
     return "\n".join(lines)
 
 
+def _localize_typescript_literal(value: str) -> str:
+    """Return a TypeScript `$localize` template literal for a fixed message."""
+    escaped = value.replace("\\", "\\\\").replace("`", "\\`").replace("${", "\\${")
+    return f"$localize`{escaped}`"
+
+
 def _build_webapp_shell_component(template: str) -> str:
     """Render the app shell tabs for the selected template."""
     tab_lines = [
-        f"    {{ id: '{tab['id']}', label: '{tab['label']}', route: '{tab['route']}' }},"
+        f"    {{ id: '{tab['id']}', label: {_localize_typescript_literal(tab['label'])}, route: '{tab['route']}' }},"
         for tab in _webapp_template_profile(template)["tabs"]
     ]
 
@@ -533,6 +539,7 @@ def _build_master_detail_page_template(enable_ok_feature: bool) -> str:
             <ok-fv-master-detail-list
                 class=\"master-detail__list\"
                 placeholder=\"Filter devices...\"
+                i18n-placeholder
                 (change)=\"onSelectionChange($event)\"
             >
                 <ok-fv-master-detail-list-item
@@ -551,6 +558,7 @@ def _build_master_detail_page_template(enable_ok_feature: bool) -> str:
             <nimble-select
                 class=\"master-detail__list\"
                 aria-label=\"Devices\"
+                i18n-aria-label
                 filter-mode=\"standard\"
                 [(ngModel)]=\"selectedDeviceId\"
                 (ngModelChange)=\"onSelectedDeviceIdChange()\"
@@ -564,9 +572,9 @@ def _build_master_detail_page_template(enable_ok_feature: bool) -> str:
     return (
         """<section class=\"master-detail sl-page\">
     <header class=\"sl-page__intro\">
-        <p class=\"sl-page__eyebrow\">Starter Pattern: Master Detail</p>
-        <h2>Use this sample layout when selection and lightweight editing need to stay side by side.</h2>
-        <p>
+        <p class=\"sl-page__eyebrow\" i18n>Starter Pattern: Master Detail</p>
+        <h2 i18n>Use this sample layout when selection and lightweight editing need to stay side by side.</h2>
+        <p i18n>
             The list items, fields, and helper copy here are starter content. Replace them when the
             route is connected to the real records your app manages.
         </p>
@@ -580,7 +588,8 @@ def _build_master_detail_page_template(enable_ok_feature: bool) -> str:
                 (click)=\"isEditing ? saveChanges() : toggleEditMode()\"
                 [disabled]=\"!selectedDevice\"
             >
-                {{ isEditing ? 'Save details' : 'Edit details' }}
+                <ng-container *ngIf=\"isEditing\" i18n>Save details</ng-container>
+                <ng-container *ngIf=\"!isEditing\" i18n>Edit details</ng-container>
             </nimble-button>
         </div>
     </div>
@@ -591,9 +600,10 @@ def _build_master_detail_page_template(enable_ok_feature: bool) -> str:
                 class=\"master-detail__filter\"
                 [(ngModel)]=\"filterTerm\"
                 placeholder=\"Search devices\"
+                i18n-placeholder
                 (ngModelChange)=\"applyFilter()\"
             >
-                Filter devices
+                <ng-container i18n>Filter devices</ng-container>
             </nimble-text-field>
 
 """
@@ -612,74 +622,74 @@ def _build_master_detail_page_template(enable_ok_feature: bool) -> str:
 
             <div class=\"master-detail__detail-grid\">
                 <div>
-                    <span>Device name</span>
+                    <span i18n>Device name</span>
                     <strong>{{ device.name }}</strong>
                 </div>
                 <div>
-                    <span>Model</span>
+                    <span i18n>Model</span>
                     <strong>{{ device.model }}</strong>
                 </div>
                 <div>
-                    <span>IP address</span>
+                    <span i18n>IP address</span>
                     <strong>{{ device.ipAddress }}</strong>
                 </div>
                 <div>
-                    <span>Firmware version</span>
+                    <span i18n>Firmware version</span>
                     <strong>{{ device.firmwareVersion }}</strong>
                 </div>
             </div>
 
             <div class=\"master-detail__edit-grid\">
                 <nimble-text-field [(ngModel)]=\"device.location\" [readonly]=\"!isEditing\">
-                    Location
+                    <ng-container i18n>Location</ng-container>
                 </nimble-text-field>
                 <nimble-text-field [(ngModel)]=\"device.systemId\" [readonly]=\"!isEditing\">
-                    Device ID
+                    <ng-container i18n>Device ID</ng-container>
                 </nimble-text-field>
             </div>
 
             <nimble-text-area [(ngModel)]=\"device.notes\" [readonly]=\"!isEditing\" resize=\"vertical\">
-                Notes
+                <ng-container i18n>Notes</ng-container>
             </nimble-text-area>
 
             <nimble-switch [(ngModel)]=\"device.monitorEnabled\" [disabled]=\"!isEditing\">
-                Include in monitor roster
+                <ng-container i18n>Include in monitor roster</ng-container>
             </nimble-switch>
 
-            <nimble-banner *ngIf=\"device.statusLabel === 'Pending changes'\" [open]=\"true\" severity=\"warning\">
+            <nimble-banner *ngIf=\"device.statusCode === 'pending-changes'\" [open]=\"true\" severity=\"warning\" i18n>
                 Review the pending changes before this device returns to the connected roster.
             </nimble-banner>
 
             <dl class=\"master-detail__facts\">
                 <div>
-                    <dt>Last seen</dt>
-                    <dd>{{ device.lastSeen }}</dd>
+                    <dt i18n>Last seen</dt>
+                    <dd>{{ device.lastSeen | date:'medium' }}</dd>
                 </div>
                 <div>
-                    <dt>Calibration due</dt>
-                    <dd>{{ device.calibrationDue }}</dd>
+                    <dt i18n>Calibration due</dt>
+                    <dd>{{ device.calibrationDue | date:'mediumDate' }}</dd>
                 </div>
             </dl>
         </section>
     </div>
 
     <ng-template #emptyState>
-        <sl-empty-state [message]=\"'Adjust the filter or add a real device query to populate this pattern.'\"></sl-empty-state>
+        <sl-empty-state [message]=\"emptyStateMessage\"></sl-empty-state>
     </ng-template>
 </section>
 """
     )
 
 
-def _quoted_typescript_list(values: List[str]) -> str:
-    """Return a comma-separated TypeScript string literal list."""
-    return ",\n        ".join(f"'{value}'" for value in values)
+def _localized_typescript_list(values: List[str]) -> str:
+    """Return a comma-separated list of localized TypeScript messages."""
+    return ",\n        ".join(_localize_typescript_literal(value) for value in values)
 
 
 def _build_webapp_home_data_service(template: str) -> str:
     """Render the home data service for the selected template."""
     profile = _webapp_template_profile(template)
-    patterns = _quoted_typescript_list(profile["patterns"])
+    patterns = _localized_typescript_list(profile["patterns"])
     return "\n".join(
         [
             "import { Injectable } from '@angular/core';",
@@ -708,21 +718,21 @@ def _build_webapp_home_data_service(template: str) -> str:
             "    return {",
             "      metrics: [",
             "        {",
-            "          label: 'Hosted origin',",
+            "          label: $localize`Hosted origin`,",
             "          value: this.context.origin,",
-            "          detail: 'Root future SDK clients and direct fetch calls here.',",
+            "          detail: $localize`Root future SDK clients and direct fetch calls here.`,",
             "          tone: 'info',",
             "        },",
             "        {",
-            "          label: 'Auth mode',",
+            "          label: $localize`Auth mode`,",
             "          value: this.context.authMode,",
-            "          detail: 'Swap with --auth when you need API-key-driven development flows.',",
+            "          detail: $localize`Swap with --auth when you need API-key-driven development flows.`,",
             "          tone: 'warning',",
             "        },",
             "        {",
-            "          label: 'Workspace',",
+            "          label: $localize`Workspace`,",
             "          value: this.context.workspaceName,",
-            "          detail: 'Publishing help text and starter docs are already aligned to this workspace.',",
+            "          detail: $localize`Publishing help text and starter docs are already aligned to this workspace.`,",
             "          tone: 'success',",
             "        },",
             "      ],",
@@ -730,11 +740,11 @@ def _build_webapp_home_data_service(template: str) -> str:
             f"        {patterns},",
             "      ],",
             "      nextSteps: [",
-            "        'Replace one sample page with a real SystemLink query before adding more routes.',",
-            "        'Use Nimble buttons for actions and Nimble anchors or route tabs for navigation.',",
-            "        'Preserve hosted query parameters if you later add cross-app breadcrumbs.',",
+            "        $localize`Replace one sample page with a real SystemLink query before adding more routes.`,",
+            "        $localize`Use Nimble buttons for actions and Nimble anchors or route tabs for navigation.`,",
+            "        $localize`Preserve hosted query parameters if you later add cross-app breadcrumbs.`,",
             "      ],",
-            f"      readinessMessage: '{profile['readiness_message']}',",
+            f"      readinessMessage: {_localize_typescript_literal(profile['readiness_message'])},",
             "    };",
             "  }",
             "}",
@@ -768,13 +778,18 @@ This app was generated by `slcli webapp new {app_name}` as a hosted Angular 20 s
 - `nimble-theme-provider` at the application root
 - `APP_BASE_HREF` provided without a `<base>` tag in `src/index.html`
 - `useHash: {'true' if routing_mode == 'hash' else 'false'}` routing for hosted navigation
-- `@angular/localize/init` configured for the build polyfill path
+- Angular `i18n` and `$localize` support with `en-US` as the source locale
+- `npm run i18n:extract` configured to write the English fallback catalog
+- Runtime localization using the active SystemLink language preference
+- Runtime translation catalogs for German, English, Spanish, French, Japanese, Korean, and Chinese
+- `@angular/localize/init` configured in the build polyfill path
 - Nimble fonts imported in `src/styles.scss`
 - modern Angular application builders configured for the hosted scaffold
 - CycloneDX npm generator for a runtime dependency SBOM
 - initial bundle warning budget tuned for the included starter shell
 - shared loading, error, and empty states
 - SystemLink context and theme sync services under `src/app/core/systemlink/`
+- `nimble-theme-provider` and live SystemLink shell theme synchronization enabled by default
 - {profile['pattern_summary']}
 
 ## Enabled Starter Routes
@@ -797,7 +812,38 @@ or creating the SBOM yet.
 
 The generated scaffold intentionally omits a default test runner setup so `npm install`
 does not pull in the deprecated Karma/Jasmine stack. Add your preferred test tooling when
-you start writing app-specific tests.
+you start writing app-specific tests. Include `@angular/localize/init` in the test
+polyfill path when you add that tooling.
+
+## Localization
+
+The source locale is `en-US`. Sample UI copy is marked with Angular `i18n` in
+templates and `$localize` in TypeScript. Run `npm run i18n:extract` after adding
+or changing user-facing text to regenerate the complete English fallback
+catalog in `src/locale/messages.en.json`. Add translated message IDs to the
+runtime catalogs in `src/locale/messages.<language>.json`; the selected locale
+catalog overrides matching English entries, while untranslated copy falls
+back to English without runtime warnings. The starter reads the SystemLink
+preference from `localStorage.language` when the iframe loads, with the legacy
+`skyline-api-languages` preference and browser language as fallbacks. It
+supports `de`, `en`, `es`, `fr`, `ja`, `ko`, and `zh`. Angular translations and
+locale data load before app modules are imported through `loadTranslations()`,
+and the resolved language sets `LOCALE_ID` and the iframe document's `lang`.
+The SystemLink shell reloads the iframe when the user changes the profile
+language, so the next bootstrap applies the new translations and date/number
+formats.
+The Home localization preview has translations for all supported non-English
+languages; other starter copy remains in English until you add translations.
+
+## Theming
+
+The app is wrapped in a root `nimble-theme-provider`. By default,
+`ThemeSyncService` observes the SystemLink shell theme and updates the app for
+`light`, `dark`, and `color` themes. Use Nimble design tokens for custom styles
+and keep theme aliases on the provider. For standalone previews, the
+`?theme=light`, `?theme=dark`, and `?theme=color` query values can select a
+theme. The `webapp new --theme-sync` option can disable automatic shell
+synchronization when needed.
 
 ## Publish To SystemLink
 
@@ -964,6 +1010,7 @@ def _customize_generated_package_json(
     package_json["scripts"] = {
         "start": "ng serve --host 0.0.0.0",
         "build": "ng build",
+        "i18n:extract": "ng extract-i18n",
         "sbom": (
             "cyclonedx-npm --omit dev --output-format JSON "
             "--output-file sbom.cdx.json --validate --output-reproducible "
@@ -1104,7 +1151,10 @@ def _emit_webapp_new_dry_run(
         + ", ".join(tab["route"].lstrip("/") or "home" for tab in profile["tabs"])
     )
     click.echo("    - APP_BASE_HREF provider with no <base> tag")
-    click.echo("    - Angular localize polyfills for build")
+    click.echo("    - Angular localize build polyfill and en-US source locale")
+    click.echo("    - i18n:extract script for the English fallback catalog")
+    click.echo("    - SystemLink runtime language detection and locale-aware bootstrap")
+    click.echo("    - root Nimble theme provider with shell synchronization enabled by default")
     click.echo("    - Nimble fonts in src/styles.scss")
     click.echo("    - @angular/build application builder with inlineCritical disabled")
     click.echo("    - hash routing enabled unless --routing path is requested")
