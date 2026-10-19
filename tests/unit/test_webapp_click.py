@@ -456,7 +456,7 @@ def test_webapp_new_blank_creates_host_ready_workspace(
     assert "Localization preview" in home_template
     assert "This message follows the language selected in SystemLink." in home_template
     assert "Spanish demo build" not in home_template
-    assert "one {{{ filteredCount | number }} run visible}" in datasets_template
+    assert "=1 {{{ filteredCount | number }} run visible}" in datasets_template
     assert "other {{{ filteredCount | number }} runs visible}" in datasets_template
     english_plural = next(
         message
@@ -464,6 +464,8 @@ def test_webapp_new_blank_creates_host_ready_workspace(
         if "No runs visible" in message
     )
     assert english_plural.count("{INTERPOLATION}") == 2
+    assert "=1 {{INTERPOLATION} run visible}" in english_plural
+    assert " one {" not in english_plural
     assert "# run visible" not in english_plural
     assert "## Localization" in readme
     assert "## Theming" in readme

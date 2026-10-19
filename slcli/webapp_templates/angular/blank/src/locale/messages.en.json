@@ -77,7 +77,7 @@
     "6759205696902713848": "Warning",
     "7256395947475975935": "Failed",
     "8856905278208146821": " {$ICU} ",
-    "5579145161886460833": "{VAR_PLURAL, plural, =0 {No runs visible} one {{INTERPOLATION} run visible} other {{INTERPOLATION} runs visible}}",
+    "129341885391760054": "{VAR_PLURAL, plural, =0 {No runs visible} =1 {{INTERPOLATION} run visible} other {{INTERPOLATION} runs visible}}",
     "6634790566400449864": " Clear filters ",
     "8827441957616951354": "The table is filtered to the current search and status selections.",
     "1560213565756350788": "Suite",
