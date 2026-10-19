@@ -2,6 +2,15 @@
 
 <!-- towncrier release notes start -->
 
+## v2.4.0 (2026-10-19)
+
+### Features
+
+- Add runtime SystemLink language detection, translated sample UI, and locale-aware
+  formatting to `slcli webapp new`, while enabling SystemLink shell theme
+  synchronization by default. (webapp-localization-theme)
+
+
 ## v2.3.1 (2026-10-16)
 
 ### Bug Fixes
