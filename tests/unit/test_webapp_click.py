@@ -374,6 +374,7 @@ def test_webapp_new_blank_creates_host_ready_workspace(
     assert "language" in locale_utils
     assert "skyline-api-languages" in locale_utils
     assert "navigator?.languages" in locale_utils
+    assert "...(globalThis.navigator?.languages ?? [])" in locale_utils
     assert "platformBrowserDynamic" not in main_ts
     assert "standalone: true" in app_component
     assert "AppShellComponent" in app_component
@@ -540,6 +541,13 @@ def test_webapp_new_blank_uses_supported_nimble_api_shapes(
     assert "selectedRecordIds[0]" in operations_ts
     assert "TableRowSelectionEventDetail<" not in assets_ts
     assert "TableRowSelectionEventDetail<" not in operations_ts
+    assert "calibratedAt: number;" in assets_ts
+    assert "calibratedAt: calibratedDate.getTime()" in assets_ts
+    assert "<nimble-table-column-date-text" in assets_html
+    assert 'field-name="calibratedAt"' in assets_html
+    assert 'custom-date-style="medium"' in assets_html
+    assert 'custom-time-zone="UTC"' in assets_html
+    assert "NimbleTableColumnDateTextModule" in app_module
     assert "LOCALE_ID" in datasets_ts
     assert "Intl.DateTimeFormat" in datasets_ts
     assert "Intl.DateTimeFormat" in assets_ts

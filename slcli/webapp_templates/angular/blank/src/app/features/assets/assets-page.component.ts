@@ -23,6 +23,7 @@ interface AssetRow extends TableRecord {
   location: string;
   owner: string;
   calibrated: string;
+  calibratedAt: number;
   [key: string]: TableFieldValue;
 }
 
@@ -105,10 +106,14 @@ export class AssetsPageComponent implements AfterViewInit {
       dateStyle: 'medium',
       timeZone: 'UTC',
     });
-    this.assets = ASSET_SAMPLES.map(({ calibratedAt, ...asset }: AssetSample) => ({
-      ...asset,
-      calibrated: dateFormat.format(new Date(calibratedAt)),
-    }));
+    this.assets = ASSET_SAMPLES.map(({ calibratedAt, ...asset }: AssetSample) => {
+      const calibratedDate = new Date(calibratedAt);
+      return {
+        ...asset,
+        calibrated: dateFormat.format(calibratedDate),
+        calibratedAt: calibratedDate.getTime(),
+      };
+    });
     this.selectedAsset = this.assets[0] ?? null;
   }
 

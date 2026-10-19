@@ -33,7 +33,7 @@ export function getSystemLinkLanguage(): SystemLinkLanguage {
   }
 
   const browserCandidates = [
-    globalThis.navigator?.languages?.[0],
+    ...(globalThis.navigator?.languages ?? []),
     globalThis.navigator?.language,
     Intl.DateTimeFormat().resolvedOptions().locale,
   ];

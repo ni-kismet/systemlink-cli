@@ -469,6 +469,7 @@ def _build_webapp_app_module(enable_ok_feature: bool) -> str:
         "import { NimbleChipModule } from '@ni/nimble-angular/chip';",
         "import { NimbleLabelProviderCoreModule } from '@ni/nimble-angular/label-provider/core';",
         "import { NimbleTableModule } from '@ni/nimble-angular/table';",
+        "import { NimbleTableColumnDateTextModule } from '@ni/nimble-angular/table-column/date-text';",
         "import { NimbleTableColumnTextModule } from '@ni/nimble-angular/table-column/text';",
     ]
     if ok_imports:
@@ -521,6 +522,7 @@ def _build_webapp_app_module(enable_ok_feature: bool) -> str:
             "    NimbleTextAreaModule,",
             "    NimbleTextFieldModule,",
             "    NimbleTableModule,",
+            "    NimbleTableColumnDateTextModule,",
             "    NimbleTableColumnTextModule,",
             *ok_modules,
             "  ],",

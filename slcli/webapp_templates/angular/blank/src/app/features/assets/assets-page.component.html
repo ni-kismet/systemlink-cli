@@ -46,9 +46,15 @@
       <nimble-table-column-text field-name="owner" column-id="owner">
         <ng-container i18n>Owner</ng-container>
       </nimble-table-column-text>
-      <nimble-table-column-text field-name="calibrated" column-id="calibrated">
+      <nimble-table-column-date-text
+        field-name="calibratedAt"
+        column-id="calibrated"
+        format="custom"
+        custom-date-style="medium"
+        custom-time-zone="UTC"
+      >
         <ng-container i18n>Last calibrated</ng-container>
-      </nimble-table-column-text>
+      </nimble-table-column-date-text>
     </nimble-table>
   </div>
 
