@@ -32,7 +32,7 @@ def test_smoke_test_webapp_runs_generation_install_sbom_and_runtime_localized_bu
     )
 
     workspace_dir = tmp_path / "smoke-check"
-    smoke_test_webapp.smoke_test_webapp(workspace_dir, "smoke-check")
+    smoke_test_webapp.smoke_test_webapp(workspace_dir, "Smoke Check")
 
     assert commands == [
         (
@@ -42,7 +42,7 @@ def test_smoke_test_webapp_runs_generation_install_sbom_and_runtime_localized_bu
                 "slcli",
                 "webapp",
                 "new",
-                "smoke-check",
+                "Smoke Check",
                 "--directory",
                 str(workspace_dir),
                 "--skip-install",
@@ -54,11 +54,19 @@ def test_smoke_test_webapp_runs_generation_install_sbom_and_runtime_localized_bu
         (["npm", "run", "sbom"], workspace_dir),
         (["npm", "run", "build"], workspace_dir),
     ]
-    assert verified_builds == [(workspace_dir, "smoke-check")]
+    assert verified_builds == [(workspace_dir, "Smoke Check")]
 
 
-def test_verify_runtime_localized_build_checks_catalogs_and_hosted_html(tmp_path: Path) -> None:
-    output_dir = tmp_path / "dist" / "smoke-check" / "browser"
+def test_verify_runtime_localized_build_uses_normalized_angular_output_path(
+    tmp_path: Path,
+) -> None:
+    display_name = "Smoke Check"
+    project_name = "smoke-check"
+    (tmp_path / "angular.json").write_text(
+        '{"projects":{"smoke-check":{"architect":{"build":{"options":{"outputPath":"dist/smoke-check"}}}}}}',
+        encoding="utf-8",
+    )
+    output_dir = tmp_path / "dist" / project_name / "browser"
     output_dir.mkdir(parents=True)
     (output_dir / "index.html").write_text(
         '<html lang="en-US"><head></head><body></body></html>', encoding="utf-8"
@@ -72,12 +80,16 @@ def test_verify_runtime_localized_build_checks_catalogs_and_hosted_html(tmp_path
         encoding="utf-8",
     )
 
-    smoke_test_webapp._verify_runtime_localized_build(tmp_path, "smoke-check")
+    smoke_test_webapp._verify_runtime_localized_build(tmp_path, display_name)
 
 
 def test_verify_runtime_localized_build_fails_when_catalog_string_is_missing(
     tmp_path: Path,
 ) -> None:
+    (tmp_path / "angular.json").write_text(
+        '{"projects":{"smoke-check":{"architect":{"build":{"options":{"outputPath":"dist/smoke-check"}}}}}}',
+        encoding="utf-8",
+    )
     output_dir = tmp_path / "dist" / "smoke-check" / "browser"
     output_dir.mkdir(parents=True)
     (output_dir / "index.html").write_text(

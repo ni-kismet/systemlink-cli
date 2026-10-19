@@ -667,7 +667,7 @@ def _build_master_detail_page_template(enable_ok_feature: bool) -> str:
                 </div>
                 <div>
                     <dt i18n>Calibration due</dt>
-                    <dd>{{ device.calibrationDue | date:'mediumDate' }}</dd>
+                    <dd>{{ device.calibrationDue | date:'mediumDate':'UTC' }}</dd>
                 </div>
             </dl>
         </section>

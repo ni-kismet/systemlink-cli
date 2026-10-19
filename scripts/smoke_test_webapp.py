@@ -1,6 +1,7 @@
 """Generate and build a temporary hosted Angular webapp as a smoke test."""
 
 import argparse
+import json
 import re
 import subprocess
 import sys
@@ -31,7 +32,20 @@ def _decode_javascript_unicode_escapes(content: str) -> str:
 
 def _verify_runtime_localized_build(workspace_dir: Path, app_name: str) -> None:
     """Verify runtime locale catalogs and hosted HTML were emitted by the build."""
-    output_dir = workspace_dir / "dist" / app_name / "browser"
+    angular_json_path = workspace_dir / "angular.json"
+    angular_json = json.loads(angular_json_path.read_text(encoding="utf-8"))
+    try:
+        project = next(iter(angular_json["projects"].values()))
+        output_path = project["architect"]["build"]["options"]["outputPath"]
+    except (KeyError, StopIteration, TypeError) as error:
+        raise RuntimeError(
+            f"Could not find the Angular build output path for {app_name!r} "
+            f"in {angular_json_path}"
+        ) from error
+    if not isinstance(output_path, str) or not output_path:
+        raise RuntimeError(f"Invalid Angular build output path for {app_name!r}: {output_path!r}")
+
+    output_dir = workspace_dir / output_path / "browser"
     index_file = output_dir / "index.html"
     javascript_files = list(output_dir.rglob("*.js"))
     if not index_file.is_file() or not javascript_files:

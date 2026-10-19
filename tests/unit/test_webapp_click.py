@@ -305,6 +305,9 @@ def test_webapp_new_blank_creates_host_ready_workspace(
     home_template = (
         target / "src" / "app" / "features" / "home" / "home-page.component.html"
     ).read_text(encoding="utf-8")
+    datasets_template = (
+        target / "src" / "app" / "features" / "datasets" / "datasets-page.component.html"
+    ).read_text(encoding="utf-8")
     home_data_service = (
         target / "src" / "app" / "core" / "systemlink" / "webapp-home-data.service.ts"
     ).read_text(encoding="utf-8")
@@ -393,6 +396,7 @@ def test_webapp_new_blank_creates_host_ready_workspace(
     assert "$localize`Hosted origin`" in home_data_service
     assert "i18n" in master_detail_template
     assert "device.lastSeen | date:'medium'" in master_detail_template
+    assert "device.calibrationDue | date:'mediumDate':'UTC'" in master_detail_template
     assert "useHash: true" in app_routing
     assert "path: 'master-detail'" in app_routing
     assert (
@@ -452,6 +456,15 @@ def test_webapp_new_blank_creates_host_ready_workspace(
     assert "Localization preview" in home_template
     assert "This message follows the language selected in SystemLink." in home_template
     assert "Spanish demo build" not in home_template
+    assert "one {{{ filteredCount | number }} run visible}" in datasets_template
+    assert "other {{{ filteredCount | number }} runs visible}" in datasets_template
+    english_plural = next(
+        message
+        for message in runtime_catalogs["en"]["translations"].values()
+        if "No runs visible" in message
+    )
+    assert english_plural.count("{INTERPOLATION}") == 2
+    assert "# run visible" not in english_plural
     assert "## Localization" in readme
     assert "## Theming" in readme
     assert "Skipped npm install, npm run sbom, and npm run build" in result.output
