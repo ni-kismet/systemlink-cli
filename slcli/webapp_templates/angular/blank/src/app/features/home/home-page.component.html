@@ -1,16 +1,37 @@
 <section class="overview sl-page">
   <header class="sl-page__intro">
-    <p class="sl-page__eyebrow">Starter Pattern: Overview</p>
-    <h2>Replace this overview with the first hosted SystemLink flow you plan to ship.</h2>
-    <p>
+    <p class="sl-page__eyebrow" i18n>Starter Pattern: Overview</p>
+    <h2 i18n>Replace this overview with the first hosted SystemLink flow you plan to ship.</h2>
+    <p i18n>
       The metrics, lists, and helper copy on this route are starter content. Remove them once this
       page is backed by real workspace data.
     </p>
   </header>
 
+  <section class="overview__section">
+    <h3 i18n="Home localization demo title@@webappLocalizationTitle">
+      Localization preview
+    </h3>
+    <p i18n="Home localization demo message@@webappLocalizationMessage">
+      This message follows the language selected in SystemLink.
+    </p>
+    <p i18n="Home localization demo formatting hint@@webappLocalizationFormattingHint">
+      The interface language, dates, and numbers follow your SystemLink language preference.
+    </p>
+    <p>
+      <span i18n="Home localization demo date label@@webappLocalizationDateLabel">Example date</span>:
+      {{ localizationExampleDate | date: 'longDate':'UTC' }}
+    </p>
+    <p>
+      <span i18n="Home localization demo quantity label@@webappLocalizationQuantityLabel"
+        >Example quantity</span
+      >: {{ localizationExampleQuantity | number: '1.2-2' }}
+    </p>
+  </section>
+
   <div class="overview__toolbar sl-toolbar">
     <div class="sl-toolbar__primary">
-      <nimble-button appearance="block" appearance-variant="accent" (click)="reload()">
+      <nimble-button appearance="block" appearance-variant="accent" (click)="reload()" i18n>
         Reload starter data
       </nimble-button>
     </div>
@@ -39,14 +60,14 @@
 
       <div class="overview__columns">
         <section class="overview__section">
-          <h3>Included patterns</h3>
+          <h3 i18n>Included patterns</h3>
           <ul>
             <li *ngFor="let pattern of model.patterns">{{ pattern }}</li>
           </ul>
         </section>
 
         <section class="overview__section">
-          <h3>Recommended next steps</h3>
+          <h3 i18n>Recommended next steps</h3>
           <ol>
             <li *ngFor="let step of model.nextSteps">{{ step }}</li>
           </ol>
@@ -56,6 +77,6 @@
   </ng-container>
 
   <ng-template #emptyState>
-    <sl-empty-state [message]="'The starter is ready. Replace one sample route with a real query.'"></sl-empty-state>
+    <sl-empty-state [message]="emptyStateMessage"></sl-empty-state>
   </ng-template>
 </section>

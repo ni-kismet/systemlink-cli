@@ -25,12 +25,12 @@ interface ShellTab {
 })
 export class AppShellComponent {
   readonly tabs: readonly ShellTab[] = [
-    { id: 'overview', label: 'Overview', route: '/' },
-    { id: 'datasets', label: 'Data Table', route: '/datasets' },
-    { id: 'assets', label: 'Drawer Detail', route: '/assets' },
-    { id: 'master-detail', label: 'Master Detail', route: '/master-detail' },
-    { id: 'operations', label: 'Operations', route: '/operations' },
-    { id: 'settings', label: 'Settings', route: '/settings' },
+    { id: 'overview', label: $localize`Overview`, route: '/' },
+    { id: 'datasets', label: $localize`Data Table`, route: '/datasets' },
+    { id: 'assets', label: $localize`Drawer Detail`, route: '/assets' },
+    { id: 'master-detail', label: $localize`Master Detail`, route: '/master-detail' },
+    { id: 'operations', label: $localize`Operations`, route: '/operations' },
+    { id: 'settings', label: $localize`Settings`, route: '/settings' },
   ];
 
   activeTabId = 'overview';

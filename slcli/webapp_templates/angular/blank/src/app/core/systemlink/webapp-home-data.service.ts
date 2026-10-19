@@ -24,39 +24,39 @@ export class WebappHomeDataService {
     return {
       metrics: [
         {
-          label: 'Hosted origin',
+          label: $localize`Hosted origin`,
           value: this.context.origin,
-          detail: 'Root future SDK clients and direct fetch calls here.',
+          detail: $localize`Root future SDK clients and direct fetch calls here.`,
           tone: 'info',
         },
         {
-          label: 'Auth mode',
+          label: $localize`Auth mode`,
           value: this.context.authMode,
-          detail: 'Swap with --auth when you need API-key-driven development flows.',
+          detail: $localize`Swap with --auth when you need API-key-driven development flows.`,
           tone: 'warning',
         },
         {
-          label: 'Workspace',
+          label: $localize`Workspace`,
           value: this.context.workspaceName,
-          detail: 'Publishing help text and starter docs are already aligned to this workspace.',
+          detail: $localize`Publishing help text and starter docs are already aligned to this workspace.`,
           tone: 'success',
         },
       ],
       patterns: [
-        'Route-level navigation with Nimble anchor tabs',
-        'Search-first Nimble table toolbar with concise Search <items> copy',
-        'Drawer-based detail inspection from a primary dataset',
-        'Master/detail split pane with read-only detail fields until edit mode',
-        'Split operations workspace with manual refresh and a confirm dialog',
-        'Grouped settings form with theme-aware sections and readonly hosted facts',
+        $localize`Route-level navigation with Nimble anchor tabs`,
+        $localize`Search-first Nimble table toolbar with concise Search <items> copy`,
+        $localize`Drawer-based detail inspection from a primary dataset`,
+        $localize`Master/detail split pane with read-only detail fields until edit mode`,
+        $localize`Split operations workspace with manual refresh and a confirm dialog`,
+        $localize`Grouped settings form with theme-aware sections and readonly hosted facts`,
       ],
       nextSteps: [
-        'Replace one sample page with a real SystemLink query before adding more routes.',
-        'Use Nimble buttons for actions and Nimble anchors or route tabs for navigation.',
-        'Preserve hosted query parameters if you later add cross-app breadcrumbs.',
+        $localize`Replace one sample page with a real SystemLink query before adding more routes.`,
+        $localize`Use Nimble buttons for actions and Nimble anchors or route tabs for navigation.`,
+        $localize`Preserve hosted query parameters if you later add cross-app breadcrumbs.`,
       ],
       readinessMessage:
-        'This starter keeps hosted routing, Nimble tokens, and sample control text aligned to current Stratus guidance.',
+        $localize`This starter keeps hosted routing, Nimble tokens, and sample control text aligned to current Stratus guidance.`,
     };
   }
 }
