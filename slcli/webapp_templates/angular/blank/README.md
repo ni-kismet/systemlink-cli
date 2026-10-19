@@ -67,9 +67,12 @@ polyfill path when you add that tooling.
 ## Localization
 
 The source locale is `en-US`. Sample UI copy is marked with Angular `i18n` in
-templates and `$localize` in TypeScript. Run `npm run i18n:extract` after adding
-or changing user-facing text to regenerate the complete English fallback
-catalog in `src/locale/messages.en.json`. Add translated message IDs to the
+templates and `$localize` in TypeScript. The English fallback catalog is a
+union across the `blank`, `dashboard`, `list-detail`, and `admin` profiles and
+the Nimble-only master/detail variant. After adding or changing user-facing
+text, run `npm run i18n:extract` for the affected variant and merge its IDs
+into `src/locale/messages.en.json`; do not replace the union with output from a
+single variant. Add translated message IDs to the
 runtime catalogs in `src/locale/messages.<language>.json`; the selected locale
 catalog overrides matching English entries, while untranslated copy falls
 back to English without runtime warnings. The starter reads the SystemLink

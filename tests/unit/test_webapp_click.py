@@ -454,6 +454,23 @@ def test_webapp_new_blank_creates_host_ready_workspace(
         }.issubset(runtime_catalogs[language]["translations"])
         for language in runtime_languages
     )
+    english_messages = set(runtime_catalogs["en"]["translations"].values())
+    profile_messages = {
+        profile["readiness_message"]
+        for profile in webapp_bootstrap._WEBAPP_TEMPLATE_PROFILES.values()
+    }
+    profile_messages.update(
+        pattern
+        for profile in webapp_bootstrap._WEBAPP_TEMPLATE_PROFILES.values()
+        for pattern in profile["patterns"]
+    )
+    profile_messages.update(
+        tab["label"]
+        for profile in webapp_bootstrap._WEBAPP_TEMPLATE_PROFILES.values()
+        for tab in profile["tabs"]
+    )
+    assert profile_messages.issubset(english_messages)
+    assert "Devices" in english_messages
     assert "Localization preview" in home_template
     assert "This message follows the language selected in SystemLink." in home_template
     assert "Spanish demo build" not in home_template
