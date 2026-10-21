@@ -806,6 +806,7 @@ def test_dataframe_delete_multiple_uses_batch_endpoint(monkeypatch: Any, runner:
 def test_dataframe_append_arrow_uses_binary_request(monkeypatch: Any, runner: CliRunner) -> None:
     """Test Arrow append path with raw binary request."""
     patch_keyring(monkeypatch)
+    monkeypatch.setattr("slcli.platform._get_service_status", lambda _service: "ok")
     captured_request: Dict[str, Any] = {}
 
     def mock_post(url: str, headers: Dict[str, str], data: Any, verify: bool) -> Any:
