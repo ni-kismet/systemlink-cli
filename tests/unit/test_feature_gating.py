@@ -189,7 +189,7 @@ class TestFeatureGatingRuntimePlatformDisplay:
         monkeypatch.setattr("slcli.platform._get_service_status", lambda _service: "not_found")
         monkeypatch.setattr(
             "slcli.platform.check_service_status",
-            lambda api_url, api_key: {"platform": "SLS"},
+            lambda api_url, api_key, *, ssl_verify: {"platform": "SLS"},
         )
 
         runner = CliRunner()

@@ -765,7 +765,7 @@ class TestCollectInfoDebugRows:
 
         with patch.object(main_module, "OS_TRUST_INJECTED", False), patch.object(
             main_module, "OS_TRUST_REASON", "not-attempted"
-        ), patch("slcli.utils.get_ssl_verify", return_value=True), patch.object(
+        ), patch("slcli.utils.active_profile_ssl_verify", return_value=True), patch.object(
             main_module,
             "_probe_tls_connection",
             return_value=[("TLS Probe", "Skipped (non-HTTPS API URL)")],
