@@ -56,7 +56,7 @@ poetry run black .
 - All tests must pass before merging
 
 ```bash
-# Run the normal development suite
+# Run the standard development suite
 poetry run pytest
 
 # Run tests with coverage
