@@ -26,6 +26,19 @@ class _ExitedBeforeReadyError(RuntimeError):
     """The Prefect child exited before it became ready."""
 
 
+class _PortConflictError(RuntimeError):
+    """Another process holds the port allocated for the Prefect child."""
+
+
+def _accepts_connections(port: int) -> bool:
+    """Return whether something accepts TCP connections on the loopback ``port``."""
+    try:
+        with socket.create_connection((_HOST, port), timeout=1):
+            return True
+    except OSError:
+        return False
+
+
 def _allocate_port() -> int:
     """Ask the OS for an available loopback port."""
     with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as listener:
@@ -84,7 +97,7 @@ class ManagedPrefectServer:
         for _ in range(_MAX_START_ATTEMPTS - 1):
             try:
                 return self._start(_allocate_port())
-            except _ExitedBeforeReadyError:
+            except (_ExitedBeforeReadyError, _PortConflictError):
                 pass
         return self._start(_allocate_port())
 
@@ -137,6 +150,12 @@ class ManagedPrefectServer:
             if loopback_listener_pids(process.pid, port) == {process.pid} and _is_healthy(api_url):
                 return
             time.sleep(_POLL_INTERVAL_SECONDS)
+        if loopback_listener_pids(process.pid, port) != {process.pid} and _accepts_connections(
+            port
+        ):
+            raise _PortConflictError(
+                f"Port {port} is in use by another process; Prefect server could not claim it"
+            )
         raise RuntimeError("Prefect server did not become ready on its owned listener")
 
     def stop(self) -> None:

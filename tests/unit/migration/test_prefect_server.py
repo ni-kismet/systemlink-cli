@@ -88,3 +88,32 @@ def test_enter_raises_after_max_attempts(tmp_path: Path, monkeypatch: pytest.Mon
         ManagedPrefectServer(tmp_path).__enter__()
 
     assert started == list(range(5000, 5000 + attempts))
+
+
+def _patch_conflict(monkeypatch: pytest.MonkeyPatch, accepts: bool) -> None:
+    clock = iter(range(0, 1000, 100))
+    monkeypatch.setattr(prefect_server.time, "monotonic", lambda: float(next(clock)))
+    monkeypatch.setattr(prefect_server.time, "sleep", lambda _: None)
+    monkeypatch.setattr(prefect_server, "loopback_listener_pids", lambda pid, port: set())
+    monkeypatch.setattr(prefect_server, "_is_healthy", lambda url: False)
+    monkeypatch.setattr(prefect_server, "_accepts_connections", lambda port: accepts)
+
+
+def test_wait_reports_port_conflict(monkeypatch: pytest.MonkeyPatch) -> None:
+    """A port answered by another process is reported as a conflict."""
+    _patch_conflict(monkeypatch, accepts=True)
+
+    with pytest.raises(prefect_server._PortConflictError, match="Port 5000 is in use"):
+        ManagedPrefectServer._wait_until_ready(
+            FakeProcess(), 5000, "http://127.0.0.1:5000/api"  # type: ignore[arg-type]
+        )
+
+
+def test_wait_reports_generic_timeout_without_conflict(monkeypatch: pytest.MonkeyPatch) -> None:
+    """A silent port times out with the generic readiness error."""
+    _patch_conflict(monkeypatch, accepts=False)
+
+    with pytest.raises(RuntimeError, match="did not become ready"):
+        ManagedPrefectServer._wait_until_ready(
+            FakeProcess(), 5000, "http://127.0.0.1:5000/api"  # type: ignore[arg-type]
+        )
