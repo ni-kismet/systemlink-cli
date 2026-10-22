@@ -1,6 +1,7 @@
 # End-to-End Testing Framework
 
-This directory contains end-to-end (E2E) tests for the SystemLink CLI that run against configured SystemLink test environments.
+This directory contains end-to-end (E2E) tests for the SystemLink CLI, including
+tests against configured SystemLink test environments and locally managed runtime components.
 
 ## Overview
 
@@ -134,10 +135,23 @@ python tests/e2e/run_e2e.py
 poetry run pytest tests/e2e/ -m e2e -v
 
 # Force generic tests to target SystemLink Server
-poetry run pytest tests/e2e/ -m e2e --e2e-platform sls -v
+poetry run pytest tests/e2e/ -m "e2e and not sle" --e2e-platform sls -v
 
 # Force generic tests to target SystemLink Enterprise
-poetry run pytest tests/e2e/ -m e2e --e2e-platform sle -v
+poetry run pytest tests/e2e/ -m "e2e and not sls" --e2e-platform sle -v
+```
+
+The `e2e` family covers server-backed tests; `sls` and `sle` are exclusivity
+markers. Tests without either exclusivity marker are included in both backend
+jobs.
+
+### Run Migration Tests
+
+Migration tests use their own markers and are selected separately from
+the server-backed `e2e` tests.
+
+```bash
+poetry run pytest tests/e2e/ -m e2e_migration --timeout=300 --no-cov
 ```
 
 ### Run The Local MCP Streamable HTTP Smoke Test
@@ -340,6 +354,7 @@ If tests fail only in parallel mode, they likely have:
 The framework uses pytest markers to categorize tests:
 
 - `@pytest.mark.e2e` - All E2E tests
+- `@pytest.mark.e2e_migration` - Migration end-to-end tests
 - `@pytest.mark.slow` - Long-running tests
 - `@pytest.mark.notebook` - Notebook-related tests
 - `@pytest.mark.dff` - Custom Fields tests
@@ -369,10 +384,13 @@ Configure these environment variables for local E2E testing:
 
 ## CI Configuration
 
-The GitHub Actions pipeline can run the E2E suite in two separate jobs:
+The GitHub Actions pipeline can run the E2E suite in four separate jobs:
 
 - `E2E (SLS)` runs `poetry run pytest tests/e2e/ -m "e2e and not sle" --e2e-platform sls -n auto --timeout=300`
 - `E2E (SLE)` runs `poetry run pytest tests/e2e/ -m "e2e and not sls" --e2e-platform sle -n auto --timeout=300`
+- `E2E (Migration - full OS matrix)` runs the subset of `e2e_migration` tests requiring supported-OS coverage on Ubuntu, macOS, and Windows.
+- `E2E (Migration)` runs all other `e2e_migration` tests.
+- `Native credentials` runs `poetry run pytest tests/e2e/test_credentials_e2e.py -k test_native_secure_read_logout --timeout=120 --no-cov -q` on Ubuntu, macOS, and Windows.
 
 The CI jobs use `https://base.systemlink.io` for SLS and
 `https://test-api.lifecyclesolutions.ni.com` for SLE. Configure the jobs with
