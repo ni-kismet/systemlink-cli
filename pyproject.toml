@@ -54,7 +54,7 @@ mcp = ["mcp", "anyio", "httpx2", "httpcore2"]
 [tool.poetry.group.dev.dependencies]
 # Lint
 cyclonedx-bom = "^7.0.0"
-setuptools = ">=83,<84"
+setuptools = ">=84,<85"
 black = ">=26.3.1"
 flake8 = ">=7.3.0"
 flake8-black = ">=0.4.0"
