@@ -56,7 +56,7 @@ poetry run black .
 - All tests must pass before merging
 
 ```bash
-# Run the normal development suite
+# Run the standard development suite
 poetry run pytest
 
 # Run tests with coverage
@@ -152,6 +152,7 @@ Based on [CLI Guidelines](https://clig.dev), SystemLink CLI follows these patter
    - Ensure it supports JSON output via `--format/-f` option for list commands
 
 4. **If changing the hosted webapp scaffold or bundled template:**
+
    ```bash
    poetry run python scripts/smoke_test_webapp.py
    ```

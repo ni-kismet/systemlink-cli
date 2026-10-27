@@ -1,0 +1,10 @@
+{
+  "locale": "ja",
+  "translations": {
+    "webappLocalizationTitle": "ローカライズのプレビュー",
+    "webappLocalizationMessage": "このメッセージは SystemLink で選択した言語に従います。",
+    "webappLocalizationFormattingHint": "インターフェースの言語、日付、数値の形式は SystemLink の言語設定に従います。",
+    "webappLocalizationDateLabel": "日付の例",
+    "webappLocalizationQuantityLabel": "数量の例"
+  }
+}

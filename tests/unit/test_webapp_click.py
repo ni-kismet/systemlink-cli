@@ -277,6 +277,17 @@ def test_webapp_new_blank_creates_host_ready_workspace(
     angular_json = loads((target / "angular.json").read_text(encoding="utf-8"))
     tsconfig_json = loads((target / "tsconfig.json").read_text(encoding="utf-8"))
     index_html = (target / "src" / "index.html").read_text(encoding="utf-8")
+    localize_types = (target / "src" / "localize.d.ts").read_text(encoding="utf-8")
+    locale_utils_path = target / "src" / "app" / "core" / "systemlink" / "systemlink-locale.ts"
+    assert locale_utils_path.is_file()
+    locale_utils = locale_utils_path.read_text(encoding="utf-8")
+    runtime_languages = ("de", "en", "es", "fr", "ja", "ko", "zh")
+    runtime_catalogs = {
+        language: loads(
+            (target / "src" / "locale" / f"messages.{language}.json").read_text(encoding="utf-8")
+        )
+        for language in runtime_languages
+    }
     main_ts = (target / "src" / "main.ts").read_text(encoding="utf-8")
     app_component = (target / "src" / "app" / "app.component.ts").read_text(encoding="utf-8")
     app_module = (target / "src" / "app" / "app.module.ts").read_text(encoding="utf-8")
@@ -287,6 +298,23 @@ def test_webapp_new_blank_creates_host_ready_workspace(
     app_shell_template = (
         target / "src" / "app" / "core" / "layout" / "app-shell.component.html"
     ).read_text(encoding="utf-8")
+    app_root_template = (target / "src" / "app" / "app.component.html").read_text(encoding="utf-8")
+    theme_sync_service = (
+        target / "src" / "app" / "core" / "systemlink" / "theme-sync.service.ts"
+    ).read_text(encoding="utf-8")
+    home_template = (
+        target / "src" / "app" / "features" / "home" / "home-page.component.html"
+    ).read_text(encoding="utf-8")
+    datasets_template = (
+        target / "src" / "app" / "features" / "datasets" / "datasets-page.component.html"
+    ).read_text(encoding="utf-8")
+    home_data_service = (
+        target / "src" / "app" / "core" / "systemlink" / "webapp-home-data.service.ts"
+    ).read_text(encoding="utf-8")
+    master_detail_template = (
+        target / "src" / "app" / "features" / "master-detail" / "master-detail-page.component.html"
+    ).read_text(encoding="utf-8")
+    theme_styles = (target / "src" / "styles.scss").read_text(encoding="utf-8")
     readme = (target / "README.md").read_text(encoding="utf-8")
 
     assert package_json["dependencies"]["@ni/nimble-angular"] == "~33.5.0"
@@ -303,6 +331,7 @@ def test_webapp_new_blank_creates_host_ready_workspace(
     compiler_options = tsconfig_json["compilerOptions"]
     assert compiler_options["rootDir"] == "./src"
     assert compiler_options["moduleResolution"] == "bundler"
+    assert compiler_options["resolveJsonModule"] is True
     assert "baseUrl" not in compiler_options
     assert "downlevelIteration" not in compiler_options
     assert package_json["scripts"]["sbom"] == (
@@ -310,14 +339,42 @@ def test_webapp_new_blank_creates_host_ready_workspace(
         "--output-file sbom.cdx.json --validate --output-reproducible "
         "&& node scripts/filter-sbom.js sbom.cdx.json"
     )
+    assert package_json["scripts"]["i18n:extract"] == "ng extract-i18n"
+    assert "build:es" not in package_json["scripts"]
+    assert localize_types == "import '@angular/localize';\n"
+    project_config = angular_json["projects"]["coffee-roaster"]
+    assert project_config["i18n"] == {"sourceLocale": "en-US"}
+    assert project_config["architect"]["build"]["options"]["polyfills"] == [
+        "zone.js",
+        "@angular/localize/init",
+    ]
+    assert project_config["architect"]["extract-i18n"]["options"] == {
+        "buildTarget": "coffee-roaster:build",
+        "format": "json",
+        "outFile": "messages.en.json",
+        "outputPath": "src/locale",
+    }
     development_build = angular_json["projects"]["coffee-roaster"]["architect"]["build"][
         "configurations"
     ]["development"]
     assert not {"buildOptimizer", "vendorChunk"}.intersection(development_build)
+    assert (
+        "spanish-demo"
+        not in angular_json["projects"]["coffee-roaster"]["architect"]["build"]["configurations"]
+    )
     assert "test" not in package_json["scripts"]
     assert "<base" not in index_html
     assert "bootstrapApplication(AppComponent" in main_ts
     assert "importProvidersFrom(AppModule)" in main_ts
+    assert "getSystemLinkLanguage" in main_ts
+    assert "loadTranslations" in main_ts
+    assert "registerLocaleData" in main_ts
+    assert "LOCALE_ID" in main_ts
+    assert main_ts.index("loadTranslations(") < main_ts.index("import('./app/app.component')")
+    assert "language" in locale_utils
+    assert "skyline-api-languages" in locale_utils
+    assert "navigator?.languages" in locale_utils
+    assert "...(globalThis.navigator?.languages ?? [])" in locale_utils
     assert "platformBrowserDynamic" not in main_ts
     assert "standalone: true" in app_component
     assert "AppShellComponent" in app_component
@@ -331,6 +388,16 @@ def test_webapp_new_blank_creates_host_ready_workspace(
     assert "RouterModule" in app_shell
     assert "AppRoutingModule" not in app_shell
     assert '<header class="shell__header">' not in app_shell_template
+    assert "$localize`Overview`" in app_shell
+    assert '<nimble-theme-provider [theme]="themeSync.theme">' in app_root_template
+    assert "private readonly autoSync = true;" in theme_sync_service
+    assert "MutationObserver" in theme_sync_service
+    assert "--app-background: var(--ni-nimble-application-background-color);" in theme_styles
+    assert "i18n" in home_template
+    assert "$localize`Hosted origin`" in home_data_service
+    assert "i18n" in master_detail_template
+    assert "device.lastSeen | date:'medium'" in master_detail_template
+    assert "device.calibrationDue | date:'mediumDate':'UTC'" in master_detail_template
     assert "useHash: true" in app_routing
     assert "path: 'master-detail'" in app_routing
     assert (
@@ -363,6 +430,63 @@ def test_webapp_new_blank_creates_host_ready_workspace(
     assert "project-root" in readme
     assert "outside `dist/`" in readme
     assert "omits a default test runner setup" in readme
+    assert "npm run i18n:extract" in readme
+    assert "SystemLink language preference" in readme
+    assert "loadTranslations" in readme
+    assert "npm run build:es" not in readme
+    assert (
+        runtime_catalogs["fr"]["translations"]["webappLocalizationTitle"]
+        == "Aperçu de la localisation"
+    )
+    assert (
+        runtime_catalogs["es"]["translations"]["webappLocalizationMessage"]
+        == "Este mensaje sigue el idioma seleccionado en SystemLink."
+    )
+    assert runtime_catalogs["en"]["locale"] == "en-US"
+    assert "Production smoke" in runtime_catalogs["en"]["translations"].values()
+    assert all(
+        {
+            "webappLocalizationTitle",
+            "webappLocalizationMessage",
+            "webappLocalizationFormattingHint",
+            "webappLocalizationDateLabel",
+            "webappLocalizationQuantityLabel",
+        }.issubset(runtime_catalogs[language]["translations"])
+        for language in runtime_languages
+    )
+    english_messages = set(runtime_catalogs["en"]["translations"].values())
+    profile_messages = {
+        profile["readiness_message"]
+        for profile in webapp_bootstrap._WEBAPP_TEMPLATE_PROFILES.values()
+    }
+    profile_messages.update(
+        pattern
+        for profile in webapp_bootstrap._WEBAPP_TEMPLATE_PROFILES.values()
+        for pattern in profile["patterns"]
+    )
+    profile_messages.update(
+        tab["label"]
+        for profile in webapp_bootstrap._WEBAPP_TEMPLATE_PROFILES.values()
+        for tab in profile["tabs"]
+    )
+    assert profile_messages.issubset(english_messages)
+    assert "Devices" in english_messages
+    assert "Localization preview" in home_template
+    assert "This message follows the language selected in SystemLink." in home_template
+    assert "Spanish demo build" not in home_template
+    assert "=1 {{{ filteredCount | number }} run visible}" in datasets_template
+    assert "other {{{ filteredCount | number }} runs visible}" in datasets_template
+    english_plural = next(
+        message
+        for message in runtime_catalogs["en"]["translations"].values()
+        if "No runs visible" in message
+    )
+    assert english_plural.count("{INTERPOLATION}") == 2
+    assert "=1 {{INTERPOLATION} run visible}" in english_plural
+    assert " one {" not in english_plural
+    assert "# run visible" not in english_plural
+    assert "## Localization" in readme
+    assert "## Theming" in readme
     assert "Skipped npm install, npm run sbom, and npm run build" in result.output
 
 
@@ -434,12 +558,25 @@ def test_webapp_new_blank_uses_supported_nimble_api_shapes(
     assert "selectedRecordIds[0]" in operations_ts
     assert "TableRowSelectionEventDetail<" not in assets_ts
     assert "TableRowSelectionEventDetail<" not in operations_ts
+    assert "calibratedAt: number;" in assets_ts
+    assert "calibratedAt: calibratedDate.getTime()" in assets_ts
+    assert "<nimble-table-column-date-text" in assets_html
+    assert 'field-name="calibratedAt"' in assets_html
+    assert 'custom-date-style="medium"' in assets_html
+    assert 'custom-time-zone="UTC"' in assets_html
+    assert "NimbleTableColumnDateTextModule" in app_module
+    assert "LOCALE_ID" in datasets_ts
+    assert "Intl.DateTimeFormat" in datasets_ts
+    assert "Intl.DateTimeFormat" in assets_ts
+    assert "Intl.DateTimeFormat" in operations_ts
+    assert "var(--ni-nimble-pass-color)" in master_detail_ts
     assert 'severity="information"' in home_html
     assert 'severity="information"' in datasets_html
     assert 'severity="information"' in operations_html
     assert 'severity="information"' in settings_html
     assert 'role="separator"' in operations_html
-    assert "Show details" in operations_html
+    assert "detailPaneToggleLabel" in operations_html
+    assert "Show details" in operations_ts
     assert "operations__splitter-toggle" in operations_html
     assert 'severity="info"' not in home_html
     assert 'severity="info"' not in datasets_html

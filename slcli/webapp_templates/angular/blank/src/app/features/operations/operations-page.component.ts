@@ -1,4 +1,11 @@
-import { Component, ElementRef, OnDestroy, ViewChild } from '@angular/core';
+import {
+  Component,
+  ElementRef,
+  Inject,
+  LOCALE_ID,
+  OnDestroy,
+  ViewChild,
+} from '@angular/core';
 
 import { TableFieldValue, TableRecord, TableRowSelectionEventDetail } from '@ni/nimble-angular/table';
 import { BehaviorSubject } from 'rxjs';
@@ -8,9 +15,20 @@ interface OperationRow extends TableRecord {
   workItem: string;
   owner: string;
   status: string;
+  statusCode: string;
   priority: string;
   due: string;
   [key: string]: TableFieldValue;
+}
+
+interface OperationSample {
+  id: string;
+  workItem: string;
+  owner: string;
+  status: string;
+  statusCode: string;
+  priority: string;
+  dueAt: string;
 }
 
 type DialogElement = HTMLElement & {
@@ -18,30 +36,33 @@ type DialogElement = HTMLElement & {
   show: () => void;
 };
 
-const OPERATION_ROWS: readonly OperationRow[] = [
+const OPERATION_SAMPLES: readonly OperationSample[] = [
   {
     id: 'op-001',
-    workItem: 'Run release candidate smoke suite',
+    workItem: $localize`Run release candidate smoke suite`,
     owner: 'J. Lee',
-    status: 'Ready',
-    priority: 'High',
-    due: 'Today 14:00',
+    status: $localize`Ready`,
+    statusCode: 'ready',
+    priority: $localize`High`,
+    dueAt: '2026-10-16T14:00:00Z',
   },
   {
     id: 'op-002',
-    workItem: 'Approve asset reassignment',
+    workItem: $localize`Approve asset reassignment`,
     owner: 'M. Chen',
-    status: 'Needs review',
-    priority: 'Medium',
-    due: 'Today 16:30',
+    status: $localize`Needs review`,
+    statusCode: 'needs-review',
+    priority: $localize`Medium`,
+    dueAt: '2026-10-16T16:30:00Z',
   },
   {
     id: 'op-003',
-    workItem: 'Publish nightly results to workspace',
+    workItem: $localize`Publish nightly results to workspace`,
     owner: 'A. Rivera',
-    status: 'Queued',
-    priority: 'Low',
-    due: 'Tomorrow 07:00',
+    status: $localize`Queued`,
+    statusCode: 'queued',
+    priority: $localize`Low`,
+    dueAt: '2026-10-17T07:00:00Z',
   },
 ];
 
@@ -57,9 +78,9 @@ export class OperationsPageComponent implements OnDestroy {
   private static readonly splitterWidth = 12;
   private static readonly resizeStep = 24;
 
-  readonly rows$ = new BehaviorSubject<OperationRow[]>([...OPERATION_ROWS]);
+  readonly rows$: BehaviorSubject<OperationRow[]>;
 
-  selectedOperation: OperationRow = OPERATION_ROWS[0];
+  selectedOperation: OperationRow;
   lastActionMessage: string | null = null;
   queuePaneWidth = 432;
   isResizing = false;
@@ -78,14 +99,31 @@ export class OperationsPageComponent implements OnDestroy {
   @ViewChild('launchDialog') private launchDialog?: ElementRef<DialogElement>;
   @ViewChild('workspace') private workspace?: ElementRef<HTMLElement>;
 
+  constructor(@Inject(LOCALE_ID) locale: string) {
+    const dueFormat = new Intl.DateTimeFormat(locale, {
+      dateStyle: 'medium',
+      timeStyle: 'short',
+    });
+    const rows = OPERATION_SAMPLES.map(({ dueAt, ...sample }: OperationSample) => ({
+      ...sample,
+      due: dueFormat.format(new Date(dueAt)),
+    }));
+    this.rows$ = new BehaviorSubject<OperationRow[]>(rows);
+    this.selectedOperation = rows[0];
+  }
+
   get queuePaneWidthStyle(): string {
     return `${this.queuePaneWidth}px`;
+  }
+
+  get detailPaneToggleLabel(): string {
+    return this.isDetailCollapsed ? $localize`Show details` : $localize`Hide details`;
   }
 
   onSelectionChange(event: Event): void {
     const detail = (event as CustomEvent<TableRowSelectionEventDetail>).detail;
     const selectedId = detail.selectedRecordIds[0];
-    const selected = OPERATION_ROWS.find((row: OperationRow) => row.id === selectedId);
+    const selected = this.rows$.value.find((row: OperationRow) => row.id === selectedId);
     if (!selected) {
       return;
     }
@@ -102,7 +140,7 @@ export class OperationsPageComponent implements OnDestroy {
   }
 
   confirmRun(): void {
-    this.lastActionMessage = `${this.selectedOperation.workItem} is queued to run from the hosted workspace.`;
+    this.lastActionMessage = $localize`${this.selectedOperation.workItem} is queued to run from the hosted workspace.`;
     this.closeDialog();
   }
 
