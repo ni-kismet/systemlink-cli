@@ -2,6 +2,13 @@
 
 <!-- towncrier release notes start -->
 
+## v2.4.1 (2026-10-27)
+
+### Bug Fixes
+
+- Update dependency idna to v3.20. (deps-renovate-python-runtime-dependencies)
+
+
 ## v2.4.0 (2026-10-19)
 
 ### Features
