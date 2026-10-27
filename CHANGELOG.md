@@ -2,6 +2,69 @@
 
 <!-- towncrier release notes start -->
 
+## v2.4.6 (2026-10-27)
+
+### Other Changes
+
+- Add an owned local Prefect server runtime for migration workflows. (migration-prefect-runtime)
+
+
+## v2.4.5 (2026-10-27)
+
+### Bug Fixes
+
+- Update dependency filelock to v4.2.4 [SECURITY]. (deps-renovate-pypi-filelock-vulnerability)
+
+
+## v2.4.4 (2026-10-27)
+
+### Bug Fixes
+
+- Update dependency black to v26.10.1 [SECURITY]. (deps-renovate-pypi-black-vulnerability)
+- Update Python packages. (deps-renovate-python)
+
+
+## v2.4.3 (2026-10-27)
+
+### Other Changes
+
+- Use the systemlink-cli-maintainers team as the default CODEOWNERS entry. (codeowners-maintainers-team)
+
+
+## v2.4.2 (2026-10-27)
+
+### Bug Fixes
+
+- Update dependency filelock to v4. (deps-major-python-runtime-dependencies)
+
+
+## v2.4.1 (2026-10-27)
+
+### Bug Fixes
+
+- Update dependency idna to v3.20. (deps-renovate-python-runtime-dependencies)
+
+
+## v2.4.0 (2026-10-19)
+
+### Features
+
+- Add runtime SystemLink language detection, translated sample UI, and locale-aware
+  formatting to `slcli webapp new`, while enabling SystemLink shell theme
+  synchronization by default. (webapp-localization-theme)
+
+
+## v2.3.1 (2026-10-16)
+
+### Bug Fixes
+
+- Update dependency mcp to v2.2.0 [SECURITY]. (deps-renovate-pypi-mcp-vulnerability)
+
+### Documentation
+
+- Move the evaluation gating and pull request workflows into reusable Copilot skills. (convert-prompts-to-skills)
+
+
 ## v2.3.0 (2026-10-07)
 
 ### Features

@@ -1,10 +1,9 @@
 ---
 name: eval-skill-gating
-description: Run the full slcli gating eval workflow end to end: prepare an iteration, generate prompts, execute candidate and merge-base skill runs via isolated subagents, grade, apply the regression gate, and regenerate the static review page.
+description: "Run the full slcli gating eval workflow end to end: prepare an iteration, generate prompts, execute candidate and merge-base skill runs via isolated subagents, grade, apply the regression gate, and regenerate the static review page."
+disable-model-invocation: true
 argument-hint: Optional key=value args such as iteration_dir="..." max_parallel=3 max_tool_calls=8 max_minutes=3 force=true
-agent: agent
 ---
-
 ## Summary
 
 Run the `slcli` gating eval workflow from one parent Copilot chat.

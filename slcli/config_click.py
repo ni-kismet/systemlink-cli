@@ -198,14 +198,14 @@ def _trust_certificate_if_requested(
     try:
         trusted_path = save_managed_certificate(certificate)
         # Retry against exactly the certificate the user just approved.
-        retry_ssl_verify = str(trusted_path)
+        trusted_ssl_verify = str(trusted_path)
         if auth_scheme == "bearer":
             retry_status = check_web_server_auth(
-                url, credential, auth_scheme=auth_scheme, ssl_verify=retry_ssl_verify
+                url, credential, auth_scheme=auth_scheme, ssl_verify=trusted_ssl_verify
             )
         else:
             retry_status = check_service_status(
-                url, credential, auth_scheme=auth_scheme, ssl_verify=retry_ssl_verify
+                url, credential, auth_scheme=auth_scheme, ssl_verify=trusted_ssl_verify
             )
     except (OSError, ValueError) as exc:
         _exit_with_validation_error(

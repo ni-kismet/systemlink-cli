@@ -670,14 +670,16 @@ def _profile_disables_ssl_verify(profile: Profile, server_uri: Optional[str]) ->
         return urlparse(url if "://" in url else f"https://{url}").netloc.lower()
 
     # Scoped to the profile's own hosts so it never weakens connections elsewhere.
-    return host(server_uri) in {host(url) for url in (profile.server, profile.web_url) if url}
+    target_host = host(server_uri)
+    profile_hosts = {host(url) for url in (profile.server, profile.web_url) if url}
+    return target_host in profile_hosts
 
 
 def build_ssl_verify(server_uri: Optional[str], *, enabled: bool) -> Union[bool, str]:
     """Build the requests ``verify`` value for an operation against a server.
 
     No profile is consulted; callers that follow profile policy should use
-    ``profile_ssl_verify`` or ``active_profile_ssl_verify``.
+    ``profile_ssl_verify`` or ``active_profile_ssl_verify`` instead.
 
     Args:
         server_uri: Server the operation connects to; selects managed trust.

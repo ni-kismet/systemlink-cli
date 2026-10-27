@@ -1,0 +1,10 @@
+{
+  "locale": "ko",
+  "translations": {
+    "webappLocalizationTitle": "현지화 미리 보기",
+    "webappLocalizationMessage": "이 메시지는 SystemLink에서 선택한 언어를 따릅니다.",
+    "webappLocalizationFormattingHint": "인터페이스 언어와 날짜 및 숫자 형식은 SystemLink 언어 설정을 따릅니다.",
+    "webappLocalizationDateLabel": "예시 날짜",
+    "webappLocalizationQuantityLabel": "예시 수량"
+  }
+}
