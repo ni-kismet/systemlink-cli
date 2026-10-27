@@ -1,0 +1,1 @@
+A profile's `ssl-verify: false` setting no longer disables certificate verification for function uploads, notebook, DataFrame, and DFF editor requests sent to hosts outside that profile (for example, a `FUNCTION_SERVICE_URL` on another server).

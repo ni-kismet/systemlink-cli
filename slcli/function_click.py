@@ -716,7 +716,7 @@ def register_function_commands(cli: Any) -> None:
                     url,
                     files=files,  # type: ignore
                     headers=get_headers(""),
-                    verify=active_profile_ssl_verify(),
+                    verify=active_profile_ssl_verify(url),
                 )
                 resp.raise_for_status()
             else:
@@ -933,7 +933,7 @@ def register_function_commands(cli: Any) -> None:
                 url,
                 files=files,
                 headers=get_headers(""),
-                verify=active_profile_ssl_verify(),
+                verify=active_profile_ssl_verify(url),
             )
             resp.raise_for_status()
             click.echo("✓ Function definition updated successfully")

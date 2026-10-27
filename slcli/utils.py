@@ -734,22 +734,17 @@ def profile_ssl_verify(server_uri: Optional[str], profile: Profile) -> Union[boo
     return build_ssl_verify(server_uri, enabled=enabled)
 
 
-def active_profile_ssl_verify(server_uri: Optional[str] = None) -> Union[bool, str]:
+def active_profile_ssl_verify(server_uri: str) -> Union[bool, str]:
     """Return the requests ``verify`` value for a server under the active profile.
 
     Args:
-        server_uri: Server the operation connects to; defaults to the configured API URL.
+        server_uri: URL actually being requested. The profile's ``ssl-verify``
+            opt-out only applies when this URL belongs to the profile's hosts.
 
     Returns:
         The requests ``verify`` value from ``profile_ssl_verify``, or from
         ``build_ssl_verify`` with verification enabled when no profile is configured.
     """
-    if server_uri is None:
-        try:
-            server_uri = get_base_url()
-        except Exception:
-            server_uri = None
-
     try:
         from .profiles import get_active_profile
 
