@@ -2,6 +2,13 @@
 
 <!-- towncrier release notes start -->
 
+## v2.4.6 (2026-10-27)
+
+### Other Changes
+
+- Add an owned local Prefect server runtime for migration workflows. (migration-prefect-runtime)
+
+
 ## v2.4.5 (2026-10-27)
 
 ### Bug Fixes
