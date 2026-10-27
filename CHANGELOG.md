@@ -2,6 +2,35 @@
 
 <!-- towncrier release notes start -->
 
+## v2.4.7 (2026-10-27)
+
+### Other Changes
+
+- Isolate unit tests from the developer's slcli config and `SLCLI_*` environment variables. (unit-test-config-isolation)
+
+
+## v2.4.6 (2026-10-27)
+
+### Other Changes
+
+- Add an owned local Prefect server runtime for migration workflows. (migration-prefect-runtime)
+
+
+## v2.4.5 (2026-10-27)
+
+### Bug Fixes
+
+- Update dependency filelock to v4.2.4 [SECURITY]. (deps-renovate-pypi-filelock-vulnerability)
+
+
+## v2.4.4 (2026-10-27)
+
+### Bug Fixes
+
+- Update dependency black to v26.10.1 [SECURITY]. (deps-renovate-pypi-black-vulnerability)
+- Update Python packages. (deps-renovate-python)
+
+
 ## v2.4.3 (2026-10-27)
 
 ### Other Changes
