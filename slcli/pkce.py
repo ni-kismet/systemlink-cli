@@ -10,14 +10,14 @@ import webbrowser
 from dataclasses import dataclass
 from http.server import BaseHTTPRequestHandler, HTTPServer
 from pathlib import Path
-from typing import TYPE_CHECKING, Any, Dict, Mapping, Optional, Sequence
+from typing import TYPE_CHECKING, Any, Dict, Mapping, Optional, Sequence, Union
 from urllib.parse import parse_qs, quote, urlencode, urlparse
 
 import requests
 
 from .credentials import CredentialStoreError, delete_credential, get_credential, set_credential
 from .ssl_trust import use_standard_ssl_context
-from .utils import get_ssl_verify
+from .utils import profile_ssl_verify
 
 if TYPE_CHECKING:
     from .profiles import Profile
@@ -418,8 +418,26 @@ def perform_pkce_login(
     scopes: Sequence[str] = DEFAULT_SCOPES,
     timeout_seconds: int = PKCE_TIMEOUT_SECONDS,
     callback_port: int = PKCE_CALLBACK_PORT,
+    *,
+    ssl_verify: Union[bool, str],
 ) -> PkceLoginResult:
-    """Run the browser PKCE flow and return credentials for bearer requests."""
+    """Run the browser PKCE flow and return credentials for bearer requests.
+
+    Args:
+        web_url: SystemLink Web UI base URL.
+        client_id: Registered public OAuth client ID.
+        scopes: OAuth scopes requested during authorization.
+        timeout_seconds: Maximum time to wait for the browser callback.
+        callback_port: Loopback callback port; zero selects an ephemeral port.
+        ssl_verify: TLS ``verify`` value for the token exchange. Browser TLS policy
+            is controlled by the browser.
+
+    Returns:
+        Credentials returned by the authorization-code token exchange.
+
+    Raises:
+        PkceError: If inputs are invalid, authorization fails, or token exchange fails.
+    """
     if not client_id.strip():
         raise PkceError("PKCE client ID cannot be empty.")
     if not scopes:
@@ -468,7 +486,6 @@ def perform_pkce_login(
     if not code:
         raise PkceError("Login callback did not contain an authorization code.")
 
-    ssl_verify = get_ssl_verify(web_url)
     token_payload = _request_token(
         web_url,
         {
@@ -537,9 +554,31 @@ def get_pkce_access_token(profile_id: str, store: str = "os") -> Optional[str]:
 
 
 def refresh_pkce_credentials(
-    profile_id: str, web_url: str, client_id: str, store: str = "os"
+    profile_id: str,
+    web_url: str,
+    client_id: str,
+    store: str = "os",
+    *,
+    ssl_verify: Union[bool, str],
 ) -> PkceLoginResult:
-    """Refresh a profile's bearer credentials and persist rotated tokens."""
+    """Refresh a profile's bearer credentials and persist rotated tokens.
+
+    Prefer ``resolve_pkce_token``, which derives ``ssl_verify`` from the owning profile.
+
+    Args:
+        profile_id: Stable credential identity of the profile.
+        web_url: Web Server URL hosting the token service.
+        client_id: OAuth client identifier.
+        store: Credential store used for reading and persisting tokens.
+        ssl_verify: TLS setting for the token request, from
+            ``profile_ssl_verify(web_url, profile)`` for the owning profile.
+
+    Returns:
+        The refreshed token bundle.
+
+    Raises:
+        PkceError: Credentials cannot be read, refreshed, or persisted.
+    """
     try:
         bundle_text = get_credential(profile_id, "pkce", store)
     except Exception as exc:
@@ -558,7 +597,6 @@ def refresh_pkce_credentials(
     if not refresh_token:
         raise PkceError("No PKCE refresh token is available.")
 
-    ssl_verify = get_ssl_verify(web_url)
     payload = _request_token(
         web_url,
         {
@@ -600,6 +638,7 @@ def resolve_pkce_token(profile: "Profile", emit_error: bool = True) -> PkceToken
                 profile.web_url,
                 profile.pkce_client_id,
                 profile.credential_store,
+                ssl_verify=profile_ssl_verify(profile.web_url, profile),
             )
         except PkceError:
             pass

@@ -2,6 +2,24 @@
 
 <!-- towncrier release notes start -->
 
+## v2.5.0 (2026-10-27)
+
+### Features
+
+- Add `--no-ssl-verify` to `slcli login` and `slcli config add` (saved as `ssl-verify: false`) to disable TLS verification for that profile's own server and Web UI hosts without setting `SLCLI_SSL_VERIFY` globally. Verification stays enabled by default. (profile-ssl-verify)
+
+### Other Changes
+
+- Add profile-explicit SystemLink API access for migration discovery. (migration-profile-connections)
+
+
+## v2.4.8 (2026-10-27)
+
+### Bug Fixes
+
+- Update GitHub Actions. (deps-renovate-github-actions)
+
+
 ## v2.4.7 (2026-10-27)
 
 ### Other Changes

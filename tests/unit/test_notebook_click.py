@@ -139,7 +139,7 @@ def test_query_notebooks_http_respects_take(monkeypatch: MonkeyPatch) -> None:
     monkeypatch.setattr(slcli.notebook_click, "get_platform", lambda: PLATFORM_SLE)
     monkeypatch.setattr(slcli.notebook_click, "get_base_url", lambda: "https://server.example")
     monkeypatch.setattr(slcli.notebook_click, "get_headers", lambda content_type: {})
-    monkeypatch.setattr(slcli.notebook_click, "get_ssl_verify", lambda: True)
+    monkeypatch.setattr(slcli.notebook_click, "active_profile_ssl_verify", lambda: True)
     monkeypatch.setattr(slcli.notebook_click.requests, "post", mock_post)
 
     notebooks = slcli.notebook_click._query_notebooks_http(take=1)

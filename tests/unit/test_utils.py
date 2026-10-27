@@ -465,7 +465,8 @@ def test_ssl_verify_uses_managed_certificate(monkeypatch: Any, tmp_path: Path) -
     """The request verification setting should use an accepted server certificate."""
     from cryptography.hazmat.primitives import hashes, serialization
     from slcli.ssl_trust import ServerCertificate, save_managed_certificate
-    from slcli.utils import get_ssl_verify
+    from slcli.utils import active_profile_ssl_verify
+
     from .test_ssl_trust import _make_ca
 
     monkeypatch.delenv("REQUESTS_CA_BUNDLE", raising=False)
@@ -489,21 +490,58 @@ def test_ssl_verify_uses_managed_certificate(monkeypatch: Any, tmp_path: Path) -
     )
     path = save_managed_certificate(certificate)
 
-    assert get_ssl_verify("https://example.com") == str(path)
+    assert active_profile_ssl_verify("https://example.com") == str(path)
 
     monkeypatch.setenv("SSL_CERT_FILE", "/path/to/system-bundle.pem")
-    assert get_ssl_verify("https://example.com") == str(path)
+    assert active_profile_ssl_verify("https://example.com") == str(path)
 
     monkeypatch.setenv("SLCLI_SSL_VERIFY", "false")
-    assert get_ssl_verify("https://example.com") is False
+    assert active_profile_ssl_verify("https://example.com") is False
 
 
 def test_ssl_verify_prefers_os_trust_over_ssl_cert_file(monkeypatch: Any) -> None:
     """The OS trust store should not be replaced by a single SSL_CERT_FILE root."""
-    from slcli.utils import get_ssl_verify
+    from slcli.utils import active_profile_ssl_verify
 
     monkeypatch.delenv("REQUESTS_CA_BUNDLE", raising=False)
     monkeypatch.setenv("SSL_CERT_FILE", "/path/to/corporate-root.pem")
     monkeypatch.setattr("slcli.ssl_trust.OS_TRUST_INJECTED", True)
 
-    assert get_ssl_verify("https://example.com") is True
+    assert active_profile_ssl_verify("https://example.com") is True
+
+
+def test_ssl_verify_profile_opt_out_is_limited_to_its_hosts(monkeypatch: Any) -> None:
+    """A profile's ssl-verify: false applies to its server and Web UI hosts only."""
+    from slcli.profiles import Profile
+    from slcli.utils import active_profile_ssl_verify, profile_ssl_verify
+
+    monkeypatch.delenv("REQUESTS_CA_BUNDLE", raising=False)
+    monkeypatch.delenv("SSL_CERT_FILE", raising=False)
+    monkeypatch.setattr("slcli.ssl_trust.get_managed_trust_path", lambda _url: None)
+    profile = Profile(
+        "insecure", server="https://api.old", web_url="https://web.old", ssl_verify=False
+    )
+    monkeypatch.setattr("slcli.profiles.get_active_profile", lambda: profile)
+
+    assert profile_ssl_verify("https://api.old/nitag/v2", profile) is False
+    assert profile_ssl_verify("https://web.old", profile) is False
+    assert profile_ssl_verify("https://other", profile) is True
+    assert active_profile_ssl_verify("https://api.old") is False  # active profile
+
+
+def test_build_ssl_verify_ignores_profiles(monkeypatch: Any, tmp_path: Path) -> None:
+    """Operation-level TLS ignores profiles but honors the env opt-out and managed trust."""
+    from slcli.utils import build_ssl_verify
+
+    managed = tmp_path / "managed.pem"
+    monkeypatch.delenv("SLCLI_SSL_VERIFY", raising=False)
+    monkeypatch.setattr("slcli.ssl_trust.get_managed_trust_path", lambda _url: managed)
+    monkeypatch.setattr(
+        "slcli.profiles.get_active_profile",
+        lambda: pytest.fail("operation TLS must not consult the active profile"),
+    )
+
+    assert build_ssl_verify("https://new", enabled=False) is False
+    assert build_ssl_verify("https://new", enabled=True) == str(managed)
+    monkeypatch.setenv("SLCLI_SSL_VERIFY", "false")
+    assert build_ssl_verify("https://new", enabled=True) is False
