@@ -2,6 +2,13 @@
 
 <!-- towncrier release notes start -->
 
+## v2.5.1 (2026-10-27)
+
+### Other Changes
+
+- Fix the Windows Prefect listener ownership test to compare the actual listener process ID. (windows-prefect-listener)
+
+
 ## v2.5.0 (2026-10-27)
 
 ### Features
