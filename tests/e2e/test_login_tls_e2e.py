@@ -88,6 +88,7 @@ def self_signed_server(tmp_path: Path) -> Iterator[_TlsServer]:
         )
     )
     context = ssl.SSLContext(ssl.PROTOCOL_TLS_SERVER)
+    context.minimum_version = ssl.TLSVersion.TLSv1_2
     context.load_cert_chain(certificate_file, key_file)
     with ThreadingHTTPServer(("127.0.0.1", 0), _ServiceHandler) as server:
         server.socket = context.wrap_socket(server.socket, server_side=True)
