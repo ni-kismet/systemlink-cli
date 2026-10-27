@@ -1628,7 +1628,7 @@ def test_webapp_query_uses_explicit_trust_context(
         assert context.check_hostname
         return Response()
 
-    monkeypatch.setattr(webapp_click, "get_ssl_verify", get_verify)
+    monkeypatch.setattr(webapp_click, "active_profile_ssl_verify", get_verify)
     monkeypatch.setattr(requests, "post", post)
     if paged:
         assert webapp_click._fetch_webapps_page("")[0] == []

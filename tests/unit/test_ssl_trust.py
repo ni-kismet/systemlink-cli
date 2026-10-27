@@ -237,7 +237,7 @@ def test_unmanaged_bundle_preserves_native_verification_flags(
     import requests.adapters
     import urllib3.util.ssl_ as urllib3_ssl
     from slcli import ssl_trust
-    from slcli.utils import get_ssl_verify
+    from slcli.utils import active_profile_ssl_verify
     from slcli.main import _build_tls_debug_context
 
     monkeypatch.setenv("SLCLI_CONFIG", str(tmp_path / "config.json"))
@@ -255,7 +255,7 @@ def test_unmanaged_bundle_preserves_native_verification_flags(
     bundle_path = tmp_path / "ca.pem"
     bundle_path.write_bytes(_make_ca().public_bytes(serialization.Encoding.PEM))
     monkeypatch.setenv(bundle_env, str(bundle_path))
-    ssl_verify = get_ssl_verify("https://example.com")
+    ssl_verify = active_profile_ssl_verify("https://example.com")
     baseline_debug_flags = ssl.create_default_context(cafile=str(bundle_path)).verify_flags
 
     assert ssl_verify == str(bundle_path)

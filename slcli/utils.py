@@ -6,12 +6,13 @@ import os
 import sys
 from dataclasses import dataclass
 from typing import Any, Callable, Dict, List, Literal, Optional, Sequence, Union
-from urllib.parse import quote, unquote
+from urllib.parse import quote, unquote, urlparse
 
 import click
 import requests
 
 from . import ssl_trust
+from .profiles import Profile
 from .rich_output import print_json
 from .ssl_trust import use_standard_ssl_context
 
@@ -327,7 +328,7 @@ def get_http_configuration() -> SystemLinkConfig:
     server_uri = get_base_url()
     api_key = get_api_key()
 
-    ssl_verify = get_ssl_verify(server_uri)
+    ssl_verify = active_profile_ssl_verify(server_uri)
 
     return SystemLinkConfig(
         server_uri=server_uri,
@@ -453,6 +454,44 @@ def get_web_url_resolution() -> ResolvedConfigValue:
         return ResolvedConfigValue("https://localhost", f"derived:{base_resolution.source}")
 
 
+def resolve_profile_auth(profile: Profile, emit_error: bool = True) -> Optional[ResolvedAuth]:
+    """Resolve the credentials stored by one profile, ignoring ``SLCLI_API_KEY``.
+
+    Args:
+        profile: Profile owning the credential identity and store.
+        emit_error: Whether PKCE failures should include login guidance.
+
+    Returns:
+        Authentication details, or None when the profile has no API key.
+
+    Raises:
+        click.ClickException: The profile credential cannot be retrieved.
+    """
+    if profile.auth_mode == "pkce":
+        from .pkce import PkceError, resolve_pkce_token
+
+        try:
+            token = resolve_pkce_token(profile, emit_error=emit_error)
+        except PkceError as exc:
+            raise click.ClickException(str(exc)) from exc
+        return ResolvedAuth(
+            token.access_token, _profile_source(profile.name, token.source), "bearer"
+        )
+    if profile.api_key:
+        _warn_plaintext_credential()
+        return ResolvedAuth(profile.api_key, _profile_source(profile.name, "file"), "api-key")
+    if profile.credential_store == "os":
+        from .credentials import CredentialStoreError, get_credential
+
+        try:
+            api_key = get_credential(profile.credential_id, "api-key")
+        except CredentialStoreError as exc:
+            raise click.ClickException(str(exc)) from exc
+        if api_key:
+            return ResolvedAuth(api_key, _profile_source(profile.name, "os"), "api-key")
+    return None
+
+
 def get_auth_resolution(emit_error: bool = True) -> ResolvedAuth:
     """Resolve the active credential and its HTTP authentication scheme.
 
@@ -469,31 +508,9 @@ def get_auth_resolution(emit_error: bool = True) -> ResolvedAuth:
         from .profiles import get_active_profile
 
         profile = get_active_profile()
-        if profile:
-            if profile.auth_mode == "pkce":
-                from .pkce import PkceError, resolve_pkce_token
-
-                try:
-                    token = resolve_pkce_token(profile, emit_error=emit_error)
-                except PkceError as exc:
-                    raise click.ClickException(str(exc)) from exc
-                return ResolvedAuth(
-                    token.access_token, _profile_source(profile.name, token.source), "bearer"
-                )
-            if profile.api_key:
-                _warn_plaintext_credential()
-                return ResolvedAuth(
-                    profile.api_key, _profile_source(profile.name, "file"), "api-key"
-                )
-            if profile.credential_store == "os":
-                from .credentials import CredentialStoreError, get_credential
-
-                try:
-                    api_key = get_credential(profile.credential_id, "api-key")
-                except CredentialStoreError as exc:
-                    raise click.ClickException(str(exc)) from exc
-                if api_key:
-                    return ResolvedAuth(api_key, _profile_source(profile.name, "os"), "api-key")
+        resolved = resolve_profile_auth(profile, emit_error) if profile else None
+        if resolved is not None:
+            return resolved
     except (FileNotFoundError, json.JSONDecodeError, KeyError, AttributeError):
         pass
 
@@ -645,23 +662,37 @@ def get_route_url(path: str, target: RouteTarget = "api") -> str:
     return f"{base_url.rstrip('/')}/{path.lstrip('/')}"
 
 
-def get_ssl_verify(server_uri: Optional[str] = None) -> Union[bool, str]:
-    """Return the effective SSL verification setting for a server.
+def _profile_disables_ssl_verify(profile: Profile, server_uri: Optional[str]) -> bool:
+    if profile.ssl_verify or not server_uri:
+        return False
 
-    The result is ``False`` only when explicitly disabled. Otherwise it is a
-    managed PEM path when the server has an accepted certificate, or ``True``
-    for the normal OS/certifi verification path.
+    def host(url: str) -> str:
+        return urlparse(url if "://" in url else f"https://{url}").netloc.lower()
+
+    # Scoped to the profile's own hosts so it never weakens connections elsewhere.
+    target_host = host(server_uri)
+    profile_hosts = {host(url) for url in (profile.server, profile.web_url) if url}
+    return target_host in profile_hosts
+
+
+def build_ssl_verify(server_uri: Optional[str], *, enabled: bool) -> Union[bool, str]:
+    """Build the requests ``verify`` value for an operation against a server.
+
+    No profile is consulted; callers that follow profile policy should use
+    ``profile_ssl_verify`` or ``active_profile_ssl_verify`` instead.
+
+    Args:
+        server_uri: Server the operation connects to; selects managed trust.
+        enabled: Whether the operation verifies TLS certificates.
+
+    Returns:
+        ``False`` when ``enabled`` is false or ``SLCLI_SSL_VERIFY`` disables
+        verification; otherwise a managed PEM path for an accepted certificate,
+        a configured CA bundle path, or ``True`` for OS/certifi verification.
     """
     env = os.environ.get("SLCLI_SSL_VERIFY")
-    if env is not None:
-        if env.lower() in ("0", "false", "no"):
-            return False
-
-    if server_uri is None:
-        try:
-            server_uri = get_base_url()
-        except Exception:
-            server_uri = None
+    if not enabled or (env is not None and env.lower() in ("0", "false", "no")):
+        return False
 
     if server_uri:
         try:
@@ -682,6 +713,50 @@ def get_ssl_verify(server_uri: Optional[str] = None) -> Union[bool, str]:
         return ssl_cert_file
 
     return True
+
+
+def profile_ssl_verify(server_uri: Optional[str], profile: Profile) -> Union[bool, str]:
+    """Return the requests ``verify`` value for a server under a profile's TLS policy.
+
+    The profile's ``ssl-verify: false`` applies only to its own server and Web UI
+    hosts, so it never weakens connections to other servers.
+
+    Args:
+        server_uri: Server the operation connects to.
+        profile: Profile whose policy applies.
+
+    Returns:
+        The requests ``verify`` value from ``build_ssl_verify``.
+    """
+    enabled = not _profile_disables_ssl_verify(profile, server_uri)
+    return build_ssl_verify(server_uri, enabled=enabled)
+
+
+def active_profile_ssl_verify(server_uri: Optional[str] = None) -> Union[bool, str]:
+    """Return the requests ``verify`` value for a server under the active profile.
+
+    Args:
+        server_uri: Server the operation connects to; defaults to the configured API URL.
+
+    Returns:
+        The requests ``verify`` value from ``profile_ssl_verify``, or from
+        ``build_ssl_verify`` with verification enabled when no profile is configured.
+    """
+    if server_uri is None:
+        try:
+            server_uri = get_base_url()
+        except Exception:
+            server_uri = None
+
+    try:
+        from .profiles import get_active_profile
+
+        profile = get_active_profile()
+    except (FileNotFoundError, json.JSONDecodeError, KeyError, AttributeError):
+        profile = None
+    if profile is None:
+        return build_ssl_verify(server_uri, enabled=True)
+    return profile_ssl_verify(server_uri, profile)
 
 
 def get_workspace_id_by_name(name: str) -> str:
@@ -833,7 +908,7 @@ def make_api_request(
         if files:
             default_headers.pop("Content-Type", None)
 
-        ssl_verify = get_ssl_verify(url)
+        ssl_verify = active_profile_ssl_verify(url)
 
         with use_standard_ssl_context(ssl_verify):
             if method.upper() == "GET":

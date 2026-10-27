@@ -24,7 +24,7 @@ from .utils import (
     ExitCodes,
     get_base_url,
     get_headers,
-    get_ssl_verify,
+    active_profile_ssl_verify,
     get_workspace_id_with_fallback,
     get_workspace_map,
     handle_api_error,
@@ -716,7 +716,7 @@ def register_function_commands(cli: Any) -> None:
                     url,
                     files=files,  # type: ignore
                     headers=get_headers(""),
-                    verify=get_ssl_verify(),
+                    verify=active_profile_ssl_verify(),
                 )
                 resp.raise_for_status()
             else:
@@ -933,7 +933,7 @@ def register_function_commands(cli: Any) -> None:
                 url,
                 files=files,
                 headers=get_headers(""),
-                verify=get_ssl_verify(),
+                verify=active_profile_ssl_verify(),
             )
             resp.raise_for_status()
             click.echo("✓ Function definition updated successfully")
