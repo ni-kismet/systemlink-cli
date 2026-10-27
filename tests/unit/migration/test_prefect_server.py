@@ -61,15 +61,15 @@ def test_stop_escalates_to_kill_for_owned_child(
 _LAUNCHER_SCRIPT = """
 import subprocess, sys
 child = subprocess.Popen([sys.executable, "-c", sys.argv[1]])
-print(child.pid, flush=True)
 child.wait()
 """
 
 _LISTENER_SCRIPT = """
-import socket, time
+import os, socket, time
 listener = socket.socket()
 listener.bind(("127.0.0.1", int({port})))
 listener.listen()
+print(os.getpid(), flush=True)
 time.sleep(60)
 """
 
