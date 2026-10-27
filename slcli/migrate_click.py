@@ -70,7 +70,7 @@ def register_migrate_command(cli: click.Group) -> None:
         migration_id: Optional[str],
         prefect_api_url: Optional[str],
     ) -> None:
-        """Discover resources to migrate from a SystemLink Server."""
+        """Discover and migrate resources from a SystemLink Server."""
         if migration_id is not None and (
             source_profile is not None or workspace_mappings is not None
         ):
