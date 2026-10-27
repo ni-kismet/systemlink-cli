@@ -1,7 +1,8 @@
 """Tests for Test Monitor discovery and workspace assignment policy."""
 
+import logging
 from datetime import datetime
-from typing import Dict, Iterable, List, Optional, Sequence, Set, Union
+from typing import Dict, Iterable, List, Optional, Sequence, Union
 
 import pytest
 
@@ -155,7 +156,7 @@ def test_no_result_products_require_all_workspaces() -> None:
 
 
 def test_selection_excludes_products_owned_by_unselected_workspace() -> None:
-    """A product whose newest result is in an unselected workspace is skipped."""
+    """A product with results only in an unselected workspace is skipped."""
     source = FakeTestMonitor(
         [_product("outside"), _product("inside")],
         {"Lab-id": [_result("r1", "inside")], "Other-id": [_result("r2", "outside")]},
@@ -165,19 +166,38 @@ def test_selection_excludes_products_owned_by_unselected_workspace() -> None:
 
     assert _product_workspaces(discovery) == {"product-inside": "Lab"}
     assert [result.id for result in discovery.results] == ["r1"]
+    assert discovery.workspaces == ("Lab",)
 
 
-def test_workspace_failure_preserves_partial_results() -> None:
-    """A failed workspace is reported by type only and others are still discovered."""
+def test_ownership_is_inferred_only_from_selected_workspaces() -> None:
+    """Newer results in unselected workspaces neither move a product nor are queried."""
+    source = FakeTestMonitor(
+        [_product("p")],
+        {
+            "Lab-id": [_result("old", "p", "2026-01-01T00:00:00Z")],
+            "Other-id": RuntimeError("must not be queried"),
+        },
+    )
+
+    discovery = discover_test_monitor(source, _workspaces("Lab", "Other"), ["Lab"])
+
+    assert _product_workspaces(discovery) == {"product-p": "Lab"}
+    assert discovery.failures == ()
+
+
+def test_workspace_failure_preserves_partial_results(caplog: pytest.LogCaptureFixture) -> None:
+    """A failed workspace is summarized by type, logged with detail, and others proceed."""
     source = FakeTestMonitor(
         [_product("p")],
         {"Broken-id": RuntimeError("sensitive response"), "Working-id": [_result("r", "p")]},
     )
 
-    discovery = discover_test_monitor(source, _workspaces("Broken", "Working"))
+    with caplog.at_level(logging.WARNING):
+        discovery = discover_test_monitor(source, _workspaces("Broken", "Working"))
 
     assert [result.id for result in discovery.results] == ["r"]
     assert [(f.workspace, f.error_type) for f in discovery.failures] == [("Broken", "RuntimeError")]
+    assert "Workspace Broken discovery failed: RuntimeError: sensitive response" in caplog.text
 
 
 def test_failed_workspace_contributes_no_partial_pages() -> None:
@@ -221,21 +241,20 @@ def test_rejects_unknown_selected_workspace() -> None:
 
 
 @pytest.mark.parametrize(
-    ("newest_workspace", "selected", "migrate_no_results", "expected"),
+    ("newest_workspace", "migrate_no_results", "expected"),
     [
-        ("Other", {"Other"}, False, "Other"),
-        ("Other", {DEFAULT_WORKSPACE}, True, None),
-        (None, {DEFAULT_WORKSPACE}, True, DEFAULT_WORKSPACE),
-        (None, {DEFAULT_WORKSPACE}, False, None),
+        ("Other", False, "Other"),
+        ("Other", True, "Other"),
+        (None, True, DEFAULT_WORKSPACE),
+        (None, False, None),
     ],
 )
 def test_infer_product_workspace(
     newest_workspace: Optional[str],
-    selected: Set[str],
     migrate_no_results: bool,
     expected: Optional[str],
 ) -> None:
     """Ownership follows the newest result; products with no results go to Default."""
     newest = {"p": (newest_workspace, _result("r", "p"))} if newest_workspace else {}
 
-    assert infer_product_workspace("p", newest, selected, migrate_no_results) == expected
+    assert infer_product_workspace("p", newest, migrate_no_results) == expected

@@ -178,7 +178,12 @@ def test_mapped_workspace(seeded: Seeded, test_prefect_server: str, tmp_path: Pa
         **{result: seeded.states_product for result in seeded.states_terminal_results},
         seeded.spanning_older_result: seeded.spanning_product,
     }
-    assert _products(discovery, FIXTURE_WORKSPACES) == {seeded.states_product: PRIMARY}
+    # The spanning product's newer result is in an unmapped workspace, so ownership
+    # is inferred from the mapped workspace's older result.
+    assert _products(discovery, FIXTURE_WORKSPACES) == {
+        seeded.states_product: PRIMARY,
+        seeded.spanning_product: PRIMARY,
+    }
     assert {p.workspace for p in discovery.products} == {PRIMARY}
 
 
@@ -249,7 +254,7 @@ def test_migrate_cli(
 
     assert result.exit_code == 0, result.output
     assert (
-        f"  Products: 1\n  Terminal results: {len(seeded.primary_results)}\n"
+        f"  Products: 2\n  Terminal results: {len(seeded.primary_results)}\n"
         "  Failed workspaces: 0"
     ) in result.output
     [run_directory] = tmp_path.iterdir()

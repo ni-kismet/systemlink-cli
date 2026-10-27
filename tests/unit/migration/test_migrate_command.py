@@ -36,6 +36,7 @@ DISCOVERY = TestMonitorDiscovery(
         ),
     ),
     failures=(WorkspaceFailure(workspace="Broken", error_type="HTTPError"),),
+    workspaces=("Broken", "Lab"),
 )
 
 
@@ -133,8 +134,45 @@ def test_summary_is_deterministic() -> None:
         "  Products: 1\n"
         "  Terminal results: 1\n"
         "  Failed workspaces: 1\n"
-        "    Broken: HTTPError"
+        "    Broken: HTTPError\n"
+        "  Product workspaces were inferred without the failed workspaces."
     )
+
+
+def test_summary_omits_failure_note_without_failures() -> None:
+    """The inference caveat appears only when a workspace failed."""
+    summary = command.format_summary(DISCOVERY.model_copy(update={"failures": ()}))
+
+    assert summary.endswith("  Failed workspaces: 0")
+
+
+def test_success_reports_log_path(fake_discovery: FakeDiscovery) -> None:
+    """A successful run prints where its log was written."""
+    result = _migrate("--source-profile", "source")
+
+    assert result.exit_code == 0, result.output
+    [run] = fake_discovery.runs()
+    assert f"Log: {run.directory / 'migration.log'}" in result.output
+
+
+def test_every_workspace_failing_is_an_error(fake_discovery: FakeDiscovery) -> None:
+    """Discovery with no successful workspace exits non-zero after the summary."""
+    fake_discovery.outcome = DISCOVERY.model_copy(update={"workspaces": ("Broken",)})
+
+    result = _migrate("--source-profile", "source")
+
+    assert result.exit_code == 1
+    assert "Failed workspaces: 1" in result.output
+    assert "Discovery failed for every workspace." in result.output
+
+
+def test_no_workspaces_is_not_a_failure(fake_discovery: FakeDiscovery) -> None:
+    """A source with no workspaces discovers nothing without erroring."""
+    fake_discovery.outcome = TestMonitorDiscovery()
+
+    result = _migrate("--source-profile", "source")
+
+    assert result.exit_code == 0, result.output
 
 
 def test_new_migration_discovers_selected_workspaces(fake_discovery: FakeDiscovery) -> None:
@@ -197,7 +235,8 @@ def test_failed_discovery_is_logged(fake_discovery: FakeDiscovery) -> None:
     assert result.exit_code != 0
     [run] = fake_discovery.runs()
     log = (run.directory / "migration.log").read_text(encoding="utf-8")
-    assert "Discovery failed: RuntimeError" in log
+    assert "Discovery failed: RuntimeError: discovery failed" in log
+    assert f"Log: {run.directory / 'migration.log'}" in result.output
 
 
 def test_existing_migration_reuses_persisted_inputs(fake_discovery: FakeDiscovery) -> None:

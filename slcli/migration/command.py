@@ -3,6 +3,7 @@
 import logging
 from collections.abc import Generator
 from contextlib import contextmanager
+from pathlib import Path
 from typing import Dict, Optional
 from urllib.parse import urlparse
 
@@ -16,6 +17,7 @@ from slcli.migration.testmonitor.models import TestMonitorDiscovery
 from slcli.migration.workspace_client import WorkspaceClient
 
 _logger = logging.getLogger("slcli.migration")
+MIGRATION_LOG = "migration.log"
 
 
 def start_migration(
@@ -52,7 +54,13 @@ def format_summary(discovery: TestMonitorDiscovery) -> str:
         f"  Failed workspaces: {len(discovery.failures)}",
         *(f"    {failure.workspace}: {failure.error_type}" for failure in discovery.failures),
     ]
+    if discovery.failures:
+        lines.append("  Product workspaces were inferred without the failed workspaces.")
     return "\n".join(lines)
+
+
+def _all_workspaces_failed(discovery: TestMonitorDiscovery) -> bool:
+    return bool(discovery.workspaces) and len(discovery.failures) == len(discovery.workspaces)
 
 
 def _echo_source(connection: MigrationConnection) -> None:
@@ -76,9 +84,9 @@ def _require_source_workspaces(
 
 
 @contextmanager
-def _run_log(run: MigrationRun) -> Generator[None, None, None]:
+def _run_log(log_path: Path) -> Generator[None, None, None]:
     """Write migration logs to the run directory for the duration of the run."""
-    handler = logging.FileHandler(run.directory / "migration.log", encoding="utf-8")
+    handler = logging.FileHandler(log_path, encoding="utf-8")
     handler.setFormatter(logging.Formatter("%(asctime)s %(levelname)s %(name)s %(message)s"))
     previous_level = _logger.level
     _logger.addHandler(handler)
@@ -98,9 +106,10 @@ def _discover(
     prefect_api_url: Optional[str],
 ) -> None:
     click.echo(f"Migration ID: {run.migration_id}")
+    log_path = run.directory / MIGRATION_LOG
     workspaces = list(workspace_mappings) if workspace_mappings is not None else None
     server_mode = "managed" if prefect_api_url is None else "external"
-    with _run_log(run):
+    with _run_log(log_path):
         _logger.info(
             "Discovery started: migration=%s cli=%s profile=%s endpoint=%s workspaces=%s "
             "prefect_server=%s",
@@ -115,7 +124,8 @@ def _discover(
             with prefect_server(run, prefect_api_url) as api_url:
                 discovery = run_discovery(run, connection.profile_name, workspaces, api_url)
         except BaseException as exc:
-            _logger.error("Discovery failed: %s", type(exc).__name__)
+            _logger.error("Discovery failed: %s: %s", type(exc).__name__, exc)
+            click.echo(f"Log: {log_path}", err=True)
             raise
         test_monitor = discovery.test_monitor
         _logger.info(
@@ -125,3 +135,6 @@ def _discover(
             [failure.workspace for failure in test_monitor.failures],
         )
     click.echo(format_summary(test_monitor))
+    click.echo(f"Log: {log_path}")
+    if _all_workspaces_failed(test_monitor):
+        raise click.ClickException("Discovery failed for every workspace.")

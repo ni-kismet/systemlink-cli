@@ -40,6 +40,8 @@ class TestMonitorDiscovery(_Persisted, VersionedModel):
 
     __test__ = False
 
+    workspaces: Tuple[str, ...] = ()
+    """Names of the workspaces that discovery queried."""
     products: Tuple[DiscoveredProduct, ...] = ()
     results: Tuple[DiscoveredResult, ...] = ()
     failures: Tuple[WorkspaceFailure, ...] = ()
