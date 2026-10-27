@@ -2,6 +2,13 @@
 
 <!-- towncrier release notes start -->
 
+## v2.4.2 (2026-10-27)
+
+### Bug Fixes
+
+- Update dependency filelock to v4. (deps-major-python-runtime-dependencies)
+
+
 ## v2.4.1 (2026-10-27)
 
 ### Bug Fixes
