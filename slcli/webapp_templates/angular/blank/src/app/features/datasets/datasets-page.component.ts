@@ -1,4 +1,4 @@
-import { AfterViewInit, Component, OnInit, ViewChild } from '@angular/core';
+import { AfterViewInit, Component, Inject, LOCALE_ID, OnInit, ViewChild } from '@angular/core';
 
 import { NimbleTableDirective, TableFieldValue, TableRecord } from '@ni/nimble-angular/table';
 
@@ -6,6 +6,7 @@ interface DatasetRow extends TableRecord {
   id: string;
   suite: string;
   status: string;
+  statusCode: string;
   branch: string;
   owner: string;
   duration: string;
@@ -13,60 +14,70 @@ interface DatasetRow extends TableRecord {
   [key: string]: TableFieldValue;
 }
 
-const DATASET_ROWS: readonly DatasetRow[] = [
+interface DatasetSample {
+  id: string;
+  suite: string;
+  statusCode: 'passed' | 'warning' | 'failed';
+  branch: string;
+  owner: string;
+  durationSeconds: number;
+  startedAt: string;
+}
+
+const DATASET_SAMPLES: readonly DatasetSample[] = [
   {
     id: 'run-001',
-    suite: 'Production smoke',
-    status: 'Passed',
+    suite: $localize`Production smoke`,
+    statusCode: 'passed',
     branch: 'main',
     owner: 'A. Rivera',
-    duration: '12m 04s',
-    started: '2026-06-17 09:15',
+    durationSeconds: 724,
+    startedAt: '2026-06-17T09:15:00Z',
   },
   {
     id: 'run-002',
-    suite: 'Calibration retest',
-    status: 'Warning',
+    suite: $localize`Calibration retest`,
+    statusCode: 'warning',
     branch: 'release/3.4',
     owner: 'J. Lee',
-    duration: '18m 27s',
-    started: '2026-06-17 08:40',
+    durationSeconds: 1107,
+    startedAt: '2026-06-17T08:40:00Z',
   },
   {
     id: 'run-003',
-    suite: 'End-of-line batch',
-    status: 'Failed',
+    suite: $localize`End-of-line batch`,
+    statusCode: 'failed',
     branch: 'main',
     owner: 'M. Chen',
-    duration: '26m 55s',
-    started: '2026-06-17 07:58',
+    durationSeconds: 1615,
+    startedAt: '2026-06-17T07:58:00Z',
   },
   {
     id: 'run-004',
-    suite: 'Firmware validation',
-    status: 'Passed',
+    suite: $localize`Firmware validation`,
+    statusCode: 'passed',
     branch: 'feature/fw-sync',
     owner: 'R. Patel',
-    duration: '34m 11s',
-    started: '2026-06-16 16:22',
+    durationSeconds: 2051,
+    startedAt: '2026-06-16T16:22:00Z',
   },
   {
     id: 'run-005',
-    suite: 'Functional sweep',
-    status: 'Passed',
+    suite: $localize`Functional sweep`,
+    statusCode: 'passed',
     branch: 'main',
     owner: 'S. Kim',
-    duration: '08m 43s',
-    started: '2026-06-16 15:05',
+    durationSeconds: 523,
+    startedAt: '2026-06-16T15:05:00Z',
   },
   {
     id: 'run-006',
-    suite: 'Thermal soak',
-    status: 'Warning',
+    suite: $localize`Thermal soak`,
     branch: 'main',
     owner: 'A. Rivera',
-    duration: '44m 02s',
-    started: '2026-06-16 13:49',
+    statusCode: 'warning',
+    durationSeconds: 2642,
+    startedAt: '2026-06-16T13:49:00Z',
   },
 ];
 
@@ -77,14 +88,46 @@ const DATASET_ROWS: readonly DatasetRow[] = [
   styleUrl: './datasets-page.component.scss',
 })
 export class DatasetsPageComponent implements AfterViewInit, OnInit {
-  filteredRows: readonly DatasetRow[] = [...DATASET_ROWS];
+  private readonly allRows: readonly DatasetRow[];
+  filteredRows: readonly DatasetRow[] = [];
 
   searchTerm = '';
   statusFilter = '';
-  filteredCount = DATASET_ROWS.length;
+  filteredCount = 0;
 
   @ViewChild('datasetTable', { read: NimbleTableDirective })
   private datasetTable?: NimbleTableDirective<DatasetRow>;
+
+  constructor(@Inject(LOCALE_ID) locale: string) {
+    const dateFormat = new Intl.DateTimeFormat(locale, {
+      dateStyle: 'medium',
+      timeStyle: 'short',
+    });
+    const durationFormat = new Intl.NumberFormat(locale, {
+      style: 'unit',
+      unit: 'minute',
+      unitDisplay: 'short',
+      maximumFractionDigits: 1,
+    });
+    const statusLabels: Record<DatasetSample['statusCode'], string> = {
+      passed: $localize`Passed`,
+      warning: $localize`Warning`,
+      failed: $localize`Failed`,
+    };
+
+    this.allRows = DATASET_SAMPLES.map((sample: DatasetSample) => ({
+      id: sample.id,
+      suite: sample.suite,
+      status: statusLabels[sample.statusCode],
+      statusCode: sample.statusCode,
+      branch: sample.branch,
+      owner: sample.owner,
+      duration: durationFormat.format(sample.durationSeconds / 60),
+      started: dateFormat.format(new Date(sample.startedAt)),
+    }));
+    this.filteredRows = [...this.allRows];
+    this.filteredCount = this.allRows.length;
+  }
 
   ngOnInit(): void {
     this.applyFilters();
@@ -96,13 +139,14 @@ export class DatasetsPageComponent implements AfterViewInit, OnInit {
 
   applyFilters(): void {
     const search = this.searchTerm.trim().toLowerCase();
-    const filtered = DATASET_ROWS.filter((row: DatasetRow) => {
+    const filtered = this.allRows.filter((row: DatasetRow) => {
       const matchesSearch =
         search.length === 0 ||
         row.suite.toLowerCase().includes(search) ||
         row.owner.toLowerCase().includes(search) ||
         row.branch.toLowerCase().includes(search);
-      const matchesStatus = this.statusFilter.length === 0 || row.status === this.statusFilter;
+      const matchesStatus =
+        this.statusFilter.length === 0 || row.statusCode === this.statusFilter;
       return matchesSearch && matchesStatus;
     });
 

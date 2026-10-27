@@ -1,9 +1,9 @@
 <section class="assets sl-page">
   <header class="sl-page__intro">
     <div>
-      <p class="sl-page__eyebrow">Starter Pattern: Drawer Detail</p>
-      <h2>Use this route when you need a detail view without losing the main browse context.</h2>
-      <p>
+      <p class="sl-page__eyebrow" i18n>Starter Pattern: Drawer Detail</p>
+      <h2 i18n>Use this route when you need a detail view without losing the main browse context.</h2>
+      <p i18n>
         The sample actions and drawer guidance are placeholders. Replace them after you bind the
         page to a real inventory or calibration workflow.
       </p>
@@ -12,14 +12,14 @@
 
   <div class="assets__toolbar sl-toolbar">
     <div class="sl-toolbar__primary">
-      <nimble-button appearance="block" appearance-variant="accent">
+      <nimble-button appearance="block" appearance-variant="accent" i18n>
         Export calibration list
       </nimble-button>
     </div>
 
     <div class="sl-toolbar__end">
       <div class="sl-toolbar__actions">
-        <nimble-button appearance="ghost">Refresh inventory</nimble-button>
+        <nimble-button appearance="ghost" i18n>Refresh inventory</nimble-button>
       </div>
     </div>
   </div>
@@ -32,35 +32,41 @@
       (selection-change)="onSelectionChange($event)"
     >
       <nimble-table-column-text field-name="name" column-id="name">
-        Asset
+        <ng-container i18n>Asset</ng-container>
       </nimble-table-column-text>
       <nimble-table-column-text field-name="type" column-id="type">
-        Type
+        <ng-container i18n>Type</ng-container>
       </nimble-table-column-text>
       <nimble-table-column-text field-name="status" column-id="status">
-        Status
+        <ng-container i18n>Status</ng-container>
       </nimble-table-column-text>
       <nimble-table-column-text field-name="location" column-id="location">
-        Location
+        <ng-container i18n>Location</ng-container>
       </nimble-table-column-text>
       <nimble-table-column-text field-name="owner" column-id="owner">
-        Owner
+        <ng-container i18n>Owner</ng-container>
       </nimble-table-column-text>
-      <nimble-table-column-text field-name="calibrated" column-id="calibrated">
-        Last calibrated
-      </nimble-table-column-text>
+      <nimble-table-column-date-text
+        field-name="calibratedAt"
+        column-id="calibrated"
+        format="custom"
+        custom-date-style="medium"
+        custom-time-zone="UTC"
+      >
+        <ng-container i18n>Last calibrated</ng-container>
+      </nimble-table-column-date-text>
     </nimble-table>
   </div>
 
   <nimble-drawer #detailDrawer location="right">
-    <header>{{ selectedAsset?.name || 'Asset detail' }}</header>
+    <header>{{ drawerTitle }}</header>
 
     <section class="assets__drawer" *ngIf="selectedAsset as asset">
-      <nimble-banner *ngIf="asset.status === 'Out of service'" [open]="true" severity="error">
+      <nimble-banner *ngIf="asset.statusCode === 'out-of-service'" [open]="true" severity="error" i18n>
         This asset is unavailable and should not be scheduled for test execution.
       </nimble-banner>
 
-      <nimble-banner *ngIf="asset.status === 'Due soon'" [open]="true" severity="warning">
+      <nimble-banner *ngIf="asset.statusCode === 'due-soon'" [open]="true" severity="warning" i18n>
         Calibration is approaching its due date. Schedule service before the next release build.
       </nimble-banner>
 
@@ -72,17 +78,22 @@
 
       <dl class="assets__detail-list">
         <div>
-          <dt>Owner</dt>
+          <dt i18n>Owner</dt>
           <dd>{{ asset.owner }}</dd>
         </div>
         <div>
-          <dt>Last calibrated</dt>
+          <dt i18n>Last calibrated</dt>
           <dd>{{ asset.calibrated }}</dd>
         </div>
         <div>
-          <dt>Recommended action</dt>
+          <dt i18n>Recommended action</dt>
           <dd>
-            {{ asset.status === 'Calibrated' ? 'Keep in active rotation.' : 'Route through metrology review.' }}
+            <ng-container *ngIf="asset.statusCode === 'calibrated'; else reviewAction" i18n>
+              Keep in active rotation.
+            </ng-container>
+            <ng-template #reviewAction>
+              <span i18n>Route through metrology review.</span>
+            </ng-template>
           </dd>
         </div>
       </dl>
@@ -91,15 +102,16 @@
 
     <footer class="assets__drawer-footer" *ngIf="selectedAsset">
       <div class="assets__drawer-footer-start">
-        <nimble-button appearance="ghost" (click)="closeDrawer()">Cancel</nimble-button>
+        <nimble-button appearance="ghost" (click)="closeDrawer()" i18n>Cancel</nimble-button>
       </div>
 
       <div class="assets__drawer-footer-end">
-        <nimble-button appearance="ghost" (click)="closeDrawer()">Schedule follow-up</nimble-button>
+        <nimble-button appearance="ghost" (click)="closeDrawer()" i18n>Schedule follow-up</nimble-button>
         <nimble-button
           appearance="block"
           appearance-variant="accent"
           (click)="closeDrawer()"
+          i18n
         >
           Save detail
         </nimble-button>

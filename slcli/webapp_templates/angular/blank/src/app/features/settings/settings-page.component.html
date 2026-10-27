@@ -1,8 +1,8 @@
 <section class="settings sl-page">
   <header class="sl-page__intro">
-    <p class="sl-page__eyebrow">Starter Pattern: Settings</p>
-    <h2>Use this starter route to shape a dense hosted settings experience around real configuration.</h2>
-    <p>
+    <p class="sl-page__eyebrow" i18n>Starter Pattern: Settings</p>
+    <h2 i18n>Use this starter route to shape a dense hosted settings experience around real configuration.</h2>
+    <p i18n>
       The sections, labels, and helper text are example content. Replace them once the route is
       bound to your own configuration model and persistence flow.
     </p>
@@ -10,14 +10,14 @@
 
   <div class="settings__toolbar sl-toolbar">
     <div class="sl-toolbar__primary">
-      <nimble-button appearance="block" appearance-variant="accent" (click)="save()">
+      <nimble-button appearance="block" appearance-variant="accent" (click)="save()" i18n>
         Save changes
       </nimble-button>
     </div>
   </div>
 
   <nimble-banner *ngIf="saveMessageOpen" [open]="true" severity="information">
-    Settings were saved for the hosted workspace profile.
+    <span i18n>Settings were saved for the hosted workspace profile.</span>
   </nimble-banner>
 
   <div class="settings__layout">
@@ -39,132 +39,132 @@
     <section class="settings__content" [ngSwitch]="activeSection">
       <div class="settings__panel" *ngSwitchCase="'profile'">
         <header class="settings__panel-header">
-          <h3>Profile</h3>
-          <p>Keep identity and default workspace settings close to the operator profile.</p>
+          <h3 i18n>Profile</h3>
+          <p i18n>Keep identity and default workspace settings close to the operator profile.</p>
         </header>
 
         <div class="settings__grid">
-          <nimble-text-field [(ngModel)]="ownerName">Owner name</nimble-text-field>
-          <nimble-text-field [(ngModel)]="ownerEmail">Owner email</nimble-text-field>
+          <nimble-text-field [(ngModel)]="ownerName" i18n>Owner name</nimble-text-field>
+          <nimble-text-field [(ngModel)]="ownerEmail" i18n>Owner email</nimble-text-field>
           <nimble-select filter-mode="standard" [(ngModel)]="defaultWorkspace">
-            Workspace
+            <ng-container i18n>Workspace</ng-container>
             <nimble-list-option value="primary">{{ context.workspaceName }}</nimble-list-option>
-            <nimble-list-option value="validation">Validation</nimble-list-option>
-            <nimble-list-option value="staging">Staging</nimble-list-option>
+            <nimble-list-option value="validation" i18n>Validation</nimble-list-option>
+            <nimble-list-option value="staging" i18n>Staging</nimble-list-option>
           </nimble-select>
           <nimble-select [(ngModel)]="defaultView">
-            Default view
-            <nimble-list-option value="queue">Operations queue</nimble-list-option>
-            <nimble-list-option value="dataset">Latest results</nimble-list-option>
-            <nimble-list-option value="assets">Asset inventory</nimble-list-option>
-            <nimble-list-option value="master-detail">Master detail</nimble-list-option>
+            <ng-container i18n>Default view</ng-container>
+            <nimble-list-option value="queue" i18n>Operations queue</nimble-list-option>
+            <nimble-list-option value="dataset" i18n>Latest results</nimble-list-option>
+            <nimble-list-option value="assets" i18n>Asset inventory</nimble-list-option>
+            <nimble-list-option value="master-detail" i18n>Master detail</nimble-list-option>
           </nimble-select>
         </div>
       </div>
 
       <div class="settings__panel" *ngSwitchCase="'security'">
         <header class="settings__panel-header">
-          <h3>Security</h3>
-          <p>Keep publish posture and approval policies visible before workspace changes ship.</p>
+          <h3 i18n>Security</h3>
+          <p i18n>Keep publish posture and approval policies visible before workspace changes ship.</p>
         </header>
 
         <div class="settings__stack settings__stack--tight">
-          <nimble-switch [(ngModel)]="requireApproval">
+          <nimble-switch [(ngModel)]="requireApproval" i18n>
             Require approval before publishing to the shared catalog
           </nimble-switch>
           <nimble-select [(ngModel)]="publishAudience">
-            Publish audience
-            <nimble-list-option value="workspace">Current workspace</nimble-list-option>
-            <nimble-list-option value="shared">Shared catalog</nimble-list-option>
+            <ng-container i18n>Publish audience</ng-container>
+            <nimble-list-option value="workspace" i18n>Current workspace</nimble-list-option>
+            <nimble-list-option value="shared" i18n>Shared catalog</nimble-list-option>
           </nimble-select>
           <nimble-select [(ngModel)]="resultRetention">
-            Result retention
-            <nimble-list-option value="7">7 days</nimble-list-option>
-            <nimble-list-option value="30">30 days</nimble-list-option>
-            <nimble-list-option value="90">90 days</nimble-list-option>
+            <ng-container i18n>Result retention</ng-container>
+            <nimble-list-option value="7" i18n>7 days</nimble-list-option>
+            <nimble-list-option value="30" i18n>30 days</nimble-list-option>
+            <nimble-list-option value="90" i18n>90 days</nimble-list-option>
           </nimble-select>
         </div>
       </div>
 
       <div class="settings__panel" *ngSwitchCase="'notifications'">
         <header class="settings__panel-header">
-          <h3>Notifications</h3>
-          <p>Choose which workspace events should fan out to operators and chat channels.</p>
+          <h3 i18n>Notifications</h3>
+          <p i18n>Choose which workspace events should fan out to operators and chat channels.</p>
         </header>
 
         <section class="settings__group">
-          <h4>Email notifications</h4>
-          <p>Choose when to receive email alerts.</p>
+          <h4 i18n>Email notifications</h4>
+          <p i18n>Choose when to receive email alerts.</p>
           <div class="settings__stack">
-            <nimble-checkbox [(ngModel)]="notifyOnFailure">
+            <nimble-checkbox [(ngModel)]="notifyOnFailure" i18n>
               Notify me when a test run fails
             </nimble-checkbox>
-            <nimble-checkbox [(ngModel)]="notifyOnPass">
+            <nimble-checkbox [(ngModel)]="notifyOnPass" i18n>
               Notify me when a test run passes
             </nimble-checkbox>
             <nimble-select [(ngModel)]="notificationMode">
-              Notification cadence
-              <nimble-list-option value="realtime">Real-time</nimble-list-option>
-              <nimble-list-option value="daily">Daily digest</nimble-list-option>
-              <nimble-list-option value="weekly">Weekly digest</nimble-list-option>
+              <ng-container i18n>Notification cadence</ng-container>
+              <nimble-list-option value="realtime" i18n>Real-time</nimble-list-option>
+              <nimble-list-option value="daily" i18n>Daily digest</nimble-list-option>
+              <nimble-list-option value="weekly" i18n>Weekly digest</nimble-list-option>
             </nimble-select>
           </div>
         </section>
 
         <section class="settings__group">
-          <h4>Slack</h4>
-          <p>Post results and escalation notices to the connected operations channel.</p>
+          <h4 i18n>Slack</h4>
+          <p i18n>Post results and escalation notices to the connected operations channel.</p>
           <div class="settings__stack settings__stack--tight">
-            <nimble-switch [(ngModel)]="slackEnabled">Enable Slack notifications</nimble-switch>
-            <nimble-switch [(ngModel)]="webhookEnabled">Mirror failures to the release room</nimble-switch>
+            <nimble-switch [(ngModel)]="slackEnabled" i18n>Enable Slack notifications</nimble-switch>
+            <nimble-switch [(ngModel)]="webhookEnabled" i18n>Mirror failures to the release room</nimble-switch>
           </div>
         </section>
       </div>
 
       <div class="settings__panel" *ngSwitchCase="'integrations'">
         <header class="settings__panel-header">
-          <h3>Integrations</h3>
-          <p>Keep outbound connection settings grouped so operators can validate them in one place.</p>
+          <h3 i18n>Integrations</h3>
+          <p i18n>Keep outbound connection settings grouped so operators can validate them in one place.</p>
         </header>
 
         <div class="settings__grid">
-          <nimble-text-field [(ngModel)]="integrationEndpoint">Slack webhook</nimble-text-field>
-          <nimble-text-field [ngModel]="context.origin" [readonly]="true">
+          <nimble-text-field [(ngModel)]="integrationEndpoint" i18n>Slack webhook</nimble-text-field>
+          <nimble-text-field [ngModel]="context.origin" [readonly]="true" i18n>
             Hosted origin
           </nimble-text-field>
           <nimble-select [(ngModel)]="publishAudience">
-            Default audience
-            <nimble-list-option value="workspace">Current workspace</nimble-list-option>
-            <nimble-list-option value="shared">Shared catalog</nimble-list-option>
+            <ng-container i18n>Default audience</ng-container>
+            <nimble-list-option value="workspace" i18n>Current workspace</nimble-list-option>
+            <nimble-list-option value="shared" i18n>Shared catalog</nimble-list-option>
           </nimble-select>
         </div>
       </div>
 
       <div class="settings__panel" *ngSwitchDefault>
         <header class="settings__panel-header">
-          <h3>Advanced</h3>
-          <p>Surface hosted facts and automation posture without burying them behind summary cards.</p>
+          <h3 i18n>Advanced</h3>
+          <p i18n>Surface hosted facts and automation posture without burying them behind summary cards.</p>
         </header>
 
         <div class="settings__stack">
           <nimble-select [(ngModel)]="automationWindow">
-            Automation mode
-            <nimble-list-option value="guarded">Guarded launch</nimble-list-option>
-            <nimble-list-option value="manual">Manual approval</nimble-list-option>
-            <nimble-list-option value="open">Always available</nimble-list-option>
+            <ng-container i18n>Automation mode</ng-container>
+            <nimble-list-option value="guarded" i18n>Guarded launch</nimble-list-option>
+            <nimble-list-option value="manual" i18n>Manual approval</nimble-list-option>
+            <nimble-list-option value="open" i18n>Always available</nimble-list-option>
           </nimble-select>
 
           <dl class="settings__facts">
             <div>
-              <dt>Hosted auth mode</dt>
+              <dt i18n>Hosted auth mode</dt>
               <dd>{{ context.authMode }}</dd>
             </div>
             <div>
-              <dt>Base origin</dt>
+              <dt i18n>Base origin</dt>
               <dd>{{ context.origin }}</dd>
             </div>
             <div>
-              <dt>Workspace</dt>
+              <dt i18n>Workspace</dt>
               <dd>{{ context.workspaceName }}</dd>
             </div>
           </dl>

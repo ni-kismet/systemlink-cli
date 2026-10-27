@@ -1,0 +1,10 @@
+{
+  "locale": "zh",
+  "translations": {
+    "webappLocalizationTitle": "本地化预览",
+    "webappLocalizationMessage": "此消息使用 SystemLink 中选择的语言。",
+    "webappLocalizationFormattingHint": "界面语言以及日期和数字格式均遵循 SystemLink 语言设置。",
+    "webappLocalizationDateLabel": "示例日期",
+    "webappLocalizationQuantityLabel": "示例数量"
+  }
+}
