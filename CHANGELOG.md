@@ -2,6 +2,13 @@
 
 <!-- towncrier release notes start -->
 
+## v2.5.2 (2026-10-27)
+
+### Bug Fixes
+
+- Update dependency setuptools to v84 [SECURITY]. (deps-renovate-pypi-setuptools-vulnerability)
+
+
 ## v2.5.1 (2026-10-27)
 
 ### Other Changes
