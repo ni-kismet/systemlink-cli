@@ -1,4 +1,4 @@
-* @fredvisser
+* @ni-kismet/systemlink-cli-maintainers
 
 /.snyk @ni-kismet/security-scanning-owners
 /.wiz @ni-kismet/security-scanning-owners

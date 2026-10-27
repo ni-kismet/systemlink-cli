@@ -2,6 +2,27 @@
 
 <!-- towncrier release notes start -->
 
+## v2.4.3 (2026-10-27)
+
+### Other Changes
+
+- Use the systemlink-cli-maintainers team as the default CODEOWNERS entry. (codeowners-maintainers-team)
+
+
+## v2.4.2 (2026-10-27)
+
+### Bug Fixes
+
+- Update dependency filelock to v4. (deps-major-python-runtime-dependencies)
+
+
+## v2.4.1 (2026-10-27)
+
+### Bug Fixes
+
+- Update dependency idna to v3.20. (deps-renovate-python-runtime-dependencies)
+
+
 ## v2.4.0 (2026-10-19)
 
 ### Features
