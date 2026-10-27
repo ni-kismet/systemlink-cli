@@ -2,6 +2,13 @@
 
 <!-- towncrier release notes start -->
 
+## v2.4.3 (2026-10-27)
+
+### Other Changes
+
+- Use the systemlink-cli-maintainers team as the default CODEOWNERS entry. (codeowners-maintainers-team)
+
+
 ## v2.4.2 (2026-10-27)
 
 ### Bug Fixes
