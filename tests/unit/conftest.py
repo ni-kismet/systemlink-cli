@@ -6,6 +6,7 @@ unit tests. Tests that cover credential storage explicitly mock the backend.
 Also patches network utilities to prevent real HTTP calls during tests.
 """
 
+import os
 from typing import Any, Callable, Dict, Optional
 
 import keyring
@@ -27,6 +28,15 @@ def prevent_macos_keychain_access(monkeypatch: pytest.MonkeyPatch) -> None:
         raise credentials.CredentialStoreUnavailable("Keychain access is disabled in unit tests.")
 
     monkeypatch.setattr(credentials, "_security_executable", unavailable)
+
+
+@pytest.fixture(autouse=True)
+def isolate_user_config(monkeypatch: pytest.MonkeyPatch, tmp_path: Any) -> None:
+    """Keep the developer's slcli config and SLCLI_* environment out of unit tests."""
+    for name in list(os.environ):
+        if name.upper().startswith("SLCLI_"):
+            monkeypatch.delenv(name)
+    monkeypatch.setenv("SLCLI_CONFIG", str(tmp_path / "slcli-config.json"))
 
 
 class MockResponse:

@@ -9,13 +9,13 @@ import ssl
 import sys
 import time
 from functools import lru_cache
-from typing import Any, Dict, List, Optional, Tuple
+from typing import Any, Dict, List, Optional, Tuple, Union
 
 import click
 import requests
 
 from .ssl_trust import use_standard_ssl_context
-from .utils import ExitCodes, get_auth_headers, get_ssl_verify
+from .utils import ExitCodes, active_profile_ssl_verify, get_auth_headers
 
 DEFAULT_SERVICE_PROBE_CACHE_TTL_SECONDS = 300
 
@@ -134,10 +134,15 @@ def _is_valid_sls_platform_probe(response: requests.Response) -> bool:
     )
 
 
-def _probe_sls_platform(api_url: str, credential: str, auth_scheme: str = "api-key") -> str:
+def _probe_sls_platform(
+    api_url: str,
+    credential: str,
+    auth_scheme: str = "api-key",
+    *,
+    ssl_verify: Union[bool, str],
+) -> str:
     """Probe the unauthenticated Tag Rule Engine versioning endpoint."""
     headers = get_auth_headers(credential, auth_scheme, "application/json")
-    ssl_verify = get_ssl_verify(api_url)
 
     try:
         response = requests.get(
@@ -158,26 +163,6 @@ def _probe_sls_platform(api_url: str, credential: str, auth_scheme: str = "api-k
     if response.status_code in (404, 501):
         return "not_found"
     return "error"
-
-
-def detect_platform(api_url: str, credential: str, auth_scheme: str = "api-key") -> str:
-    """Detect the SystemLink platform type by probing endpoints.
-
-    Uses check_service_status to probe services and determine:
-    - Platform type (SLE vs SLS)
-    - Server reachability
-
-    Args:
-        api_url: The SystemLink API base URL
-        credential: The API key or bearer token for authentication.
-        auth_scheme: HTTP authentication scheme, either ``api-key`` or ``bearer``.
-
-    Returns:
-        Platform identifier (PLATFORM_SLE, PLATFORM_SLS, PLATFORM_UNREACHABLE,
-        or PLATFORM_UNKNOWN)
-    """
-    status = check_service_status(api_url, credential, auth_scheme)
-    return status["platform"]
 
 
 @lru_cache(maxsize=1)
@@ -235,10 +220,11 @@ def _probe_service_status(
     method: str,
     url_path: str,
     auth_scheme: str = "api-key",
+    *,
+    ssl_verify: Union[bool, str],
 ) -> str:
     """Probe a single service endpoint and return its normalized status."""
     headers = get_auth_headers(credential, auth_scheme, "application/json")
-    ssl_verify = get_ssl_verify(api_url)
 
     try:
         full_url = f"{api_url}{url_path}"
@@ -272,7 +258,11 @@ def _probe_service_status(
 
 
 def check_web_server_auth(
-    web_url: str, credential: str, auth_scheme: str = "bearer"
+    web_url: str,
+    credential: str,
+    auth_scheme: str = "bearer",
+    *,
+    ssl_verify: Union[bool, str],
 ) -> Dict[str, Any]:
     """Validate a credential against the Web Server identity route.
 
@@ -280,15 +270,16 @@ def check_web_server_auth(
         web_url: The Web Server base URL.
         credential: The API key or bearer token to validate.
         auth_scheme: HTTP authentication scheme for the credential.
+        ssl_verify: Resolved TLS ``verify`` value for this operation, for example
+            from ``active_profile_ssl_verify`` or ``build_ssl_verify``.
 
     Returns:
         A status dictionary containing reachability, authorization, certificate,
         and Web Server probe information.
     """
-    ssl_verify = get_ssl_verify(web_url)
     with use_standard_ssl_context(ssl_verify):
         status = _probe_service_status(
-            web_url, credential, "GET", WEB_SERVER_AUTH_PATH, auth_scheme
+            web_url, credential, "GET", WEB_SERVER_AUTH_PATH, auth_scheme, ssl_verify=ssl_verify
         )
     if status == "ok":
         auth_valid: Optional[bool] = True
@@ -327,7 +318,12 @@ def _get_cached_service_status(
         return "error"
 
     return _probe_service_status(
-        api_url, credential, service_check[1], service_check[2], auth_scheme
+        api_url,
+        credential,
+        service_check[1],
+        service_check[2],
+        auth_scheme,
+        ssl_verify=active_profile_ssl_verify(api_url),
     )
 
 
@@ -448,9 +444,13 @@ def _get_service_status_snapshot(force_refresh: bool = False) -> Optional[Dict[s
 
     _, api_url, credential, auth_scheme = api_context
     if auth_scheme == "bearer":
-        status = check_web_server_auth(api_url, credential, auth_scheme)
+        status = check_web_server_auth(
+            api_url, credential, auth_scheme, ssl_verify=active_profile_ssl_verify(api_url)
+        )
     else:
-        status = check_service_status(api_url, credential)
+        status = check_service_status(
+            api_url, credential, ssl_verify=active_profile_ssl_verify(api_url)
+        )
     _save_service_status_snapshot(api_context, status)
     return status
 
@@ -564,11 +564,14 @@ SERVICE_CHECKS: List[List[str]] = [
 
 
 def get_file_query_capability(
-    api_url: str, credential: str, auth_scheme: str = "api-key"
+    api_url: str,
+    credential: str,
+    auth_scheme: str = "api-key",
+    *,
+    ssl_verify: Union[bool, str],
 ) -> Dict[str, Any]:
     """Determine which file query endpoint is available for this server."""
     headers = get_auth_headers(credential, auth_scheme, "application/json")
-    ssl_verify = get_ssl_verify(api_url)
 
     try:
         search_resp = requests.post(
@@ -676,11 +679,14 @@ def get_file_query_capability(
 
 
 def get_system_query_capability(
-    api_url: str, credential: str, auth_scheme: str = "api-key"
+    api_url: str,
+    credential: str,
+    auth_scheme: str = "api-key",
+    *,
+    ssl_verify: Union[bool, str],
 ) -> Dict[str, Any]:
     """Determine which systems query endpoint is available for this server."""
     headers = get_auth_headers(credential, auth_scheme, "application/json")
-    ssl_verify = get_ssl_verify(api_url)
 
     try:
         search_resp = requests.post(
@@ -755,7 +761,11 @@ def get_system_query_capability(
 
 
 def check_service_status(
-    api_url: str, credential: str, auth_scheme: str = "api-key"
+    api_url: str,
+    credential: str,
+    auth_scheme: str = "api-key",
+    *,
+    ssl_verify: Union[bool, str],
 ) -> Dict[str, Any]:
     """Probe key SystemLink services and report their status.
 
@@ -765,6 +775,8 @@ def check_service_status(
         api_url: The SystemLink API base URL.
         credential: The API key or bearer token for authentication.
         auth_scheme: HTTP authentication scheme, either ``api-key`` or ``bearer``.
+        ssl_verify: Resolved TLS ``verify`` value for this operation, for example
+            from ``active_profile_ssl_verify`` or ``build_ssl_verify``.
 
     Returns:
         Dictionary with:
@@ -779,17 +791,19 @@ def check_service_status(
         - platform: detected platform string (PLATFORM_SLE, PLATFORM_SLS,
           PLATFORM_UNREACHABLE, PLATFORM_UNKNOWN)
     """
-    ssl_verify = get_ssl_verify(api_url)
     with use_standard_ssl_context(ssl_verify):
-        return _check_service_status(api_url, credential, auth_scheme)
+        return _check_service_status(api_url, credential, auth_scheme, ssl_verify=ssl_verify)
 
 
 def _check_service_status(
-    api_url: str, credential: str, auth_scheme: str = "api-key"
+    api_url: str,
+    credential: str,
+    auth_scheme: str = "api-key",
+    *,
+    ssl_verify: Union[bool, str],
 ) -> Dict[str, Any]:
     """Probe services while the caller has selected the appropriate SSL context."""
     headers = get_auth_headers(credential, auth_scheme, "application/json")
-    ssl_verify = get_ssl_verify(api_url)
 
     services: Dict[str, str] = {}
     any_responded = False
@@ -831,7 +845,9 @@ def _check_service_status(
         except requests.RequestException:
             services[display_name] = "unreachable"
 
-    sls_platform_status = _probe_sls_platform(api_url, credential, auth_scheme)
+    sls_platform_status = _probe_sls_platform(
+        api_url, credential, auth_scheme, ssl_verify=ssl_verify
+    )
     certificate_error = certificate_error or sls_platform_status == "certificate_error"
 
     # Determine overall status
@@ -875,9 +891,13 @@ def _check_service_status(
     platform = _detect_platform_from_services(services, sls_platform_status)
     initial_auth_valid = any(status == "ok" for status in services.values())
 
-    file_capability = get_file_query_capability(api_url, credential, auth_scheme)
+    file_capability = get_file_query_capability(
+        api_url, credential, auth_scheme, ssl_verify=ssl_verify
+    )
     services["File"] = file_capability["status"]
-    system_capability = get_system_query_capability(api_url, credential, auth_scheme)
+    system_capability = get_system_query_capability(
+        api_url, credential, auth_scheme, ssl_verify=ssl_verify
+    )
     services["Systems"] = system_capability["status"]
 
     # Recompute auth after capability probes add their final service statuses.
