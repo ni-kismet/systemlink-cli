@@ -2,6 +2,13 @@
 
 <!-- towncrier release notes start -->
 
+## v2.4.8 (2026-10-27)
+
+### Bug Fixes
+
+- Update GitHub Actions. (deps-renovate-github-actions)
+
+
 ## v2.4.7 (2026-10-27)
 
 ### Other Changes
