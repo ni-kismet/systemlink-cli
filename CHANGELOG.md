@@ -2,6 +2,14 @@
 
 <!-- towncrier release notes start -->
 
+## v2.4.4 (2026-10-27)
+
+### Bug Fixes
+
+- Update dependency black to v26.10.1 [SECURITY]. (deps-renovate-pypi-black-vulnerability)
+- Update Python packages. (deps-renovate-python)
+
+
 ## v2.4.3 (2026-10-27)
 
 ### Other Changes
