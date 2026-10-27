@@ -1,10 +1,9 @@
 ---
 name: slcli-pr-create
-description: Create a concise GitHub pull request for the current changes. Ensures the work is on a feature branch, pushes it, and opens the PR.
+description: "Create a concise GitHub pull request for the current changes. Ensures the work is on a feature branch, pushes it, and opens the PR."
+disable-model-invocation: true
 argument-hint: Optional key=value args such as title="..." base=main draft=true context="..."
-agent: agent
 ---
-
 ## Summary
 
 Create and post a concise, high-quality pull request for the current work. Detect whether the changes are already on a non-default feature branch and reuse it; if the work is still on the default branch, create a new descriptive feature branch automatically. Ensure any required Towncrier newsfragment entries under `newsfragments/` exist, review the changes before posting, run the required validation, push the branch, open the PR, and prefer to finish only when the PR build pipeline is green.

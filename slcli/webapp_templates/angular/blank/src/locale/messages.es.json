@@ -1,0 +1,10 @@
+{
+  "locale": "es",
+  "translations": {
+    "webappLocalizationTitle": "Vista previa de localización",
+    "webappLocalizationMessage": "Este mensaje sigue el idioma seleccionado en SystemLink.",
+    "webappLocalizationFormattingHint": "El idioma de la interfaz y los formatos de fecha y número siguen el idioma de SystemLink.",
+    "webappLocalizationDateLabel": "Fecha de ejemplo",
+    "webappLocalizationQuantityLabel": "Cantidad de ejemplo"
+  }
+}

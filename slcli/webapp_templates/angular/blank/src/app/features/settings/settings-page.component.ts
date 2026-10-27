@@ -23,18 +23,18 @@ interface SettingsSectionGroup {
 export class SettingsPageComponent {
   readonly sectionGroups: readonly SettingsSectionGroup[] = [
     {
-      title: 'Account',
+      title: $localize`Account`,
       items: [
-        { id: 'profile', label: 'Profile' },
-        { id: 'security', label: 'Security' },
+        { id: 'profile', label: $localize`Profile` },
+        { id: 'security', label: $localize`Security` },
       ],
     },
     {
-      title: 'Workspace',
+      title: $localize`Workspace`,
       items: [
-        { id: 'notifications', label: 'Notifications' },
-        { id: 'integrations', label: 'Integrations' },
-        { id: 'advanced', label: 'Advanced' },
+        { id: 'notifications', label: $localize`Notifications` },
+        { id: 'integrations', label: $localize`Integrations` },
+        { id: 'advanced', label: $localize`Advanced` },
       ],
     },
   ];
@@ -61,17 +61,17 @@ export class SettingsPageComponent {
   get activeSectionTitle(): string {
     switch (this.activeSection) {
       case 'profile':
-        return 'Profile';
+        return $localize`Profile`;
       case 'security':
-        return 'Security';
+        return $localize`Security`;
       case 'notifications':
-        return 'Notifications';
+        return $localize`Notifications`;
       case 'integrations':
-        return 'Integrations';
+        return $localize`Integrations`;
       case 'advanced':
-        return 'Advanced';
+        return $localize`Advanced`;
       default:
-        return 'Settings';
+        return $localize`Settings`;
     }
   }
 

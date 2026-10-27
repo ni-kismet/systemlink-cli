@@ -6,6 +6,7 @@
   "scripts": {
     "start": "ng serve --host 0.0.0.0",
     "build": "ng build",
+    "i18n:extract": "ng extract-i18n",
     "publish:webapp": "slcli webapp publish dist/{{PROJECT_NAME}}"
   },
   "dependencies": {},

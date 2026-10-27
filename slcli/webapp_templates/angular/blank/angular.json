@@ -20,6 +20,9 @@
       "root": "",
       "sourceRoot": "src",
       "prefix": "app",
+      "i18n": {
+        "sourceLocale": "en-US"
+      },
       "architect": {
         "build": {
           "builder": "@angular/build:application",
@@ -82,7 +85,10 @@
         "extract-i18n": {
           "builder": "@angular/build:extract-i18n",
           "options": {
-            "buildTarget": "{{PROJECT_NAME}}:build"
+            "buildTarget": "{{PROJECT_NAME}}:build",
+            "format": "json",
+            "outFile": "messages.en.json",
+            "outputPath": "src/locale"
           }
         }
       }

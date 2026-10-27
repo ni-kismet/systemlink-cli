@@ -21,6 +21,7 @@ import {
 import { NimbleChipModule } from '@ni/nimble-angular/chip';
 import { NimbleLabelProviderCoreModule } from '@ni/nimble-angular/label-provider/core';
 import { NimbleTableModule } from '@ni/nimble-angular/table';
+import { NimbleTableColumnDateTextModule } from '@ni/nimble-angular/table-column/date-text';
 import { NimbleTableColumnTextModule } from '@ni/nimble-angular/table-column/text';
 import { OkFvMasterDetailListItemModule } from '@ni/ok-angular/fv/master-detail-list-item';
 import { OkFvMasterDetailListModule } from '@ni/ok-angular/fv/master-detail-list';
@@ -69,6 +70,7 @@ import { LoadingStateComponent } from './shared/components/loading-state.compone
     NimbleTextAreaModule,
     NimbleTextFieldModule,
     NimbleTableModule,
+    NimbleTableColumnDateTextModule,
     NimbleTableColumnTextModule,
     OkFvMasterDetailListModule,
     OkFvMasterDetailListItemModule,
