@@ -2,6 +2,13 @@
 
 <!-- towncrier release notes start -->
 
+## v2.4.7 (2026-10-27)
+
+### Other Changes
+
+- Isolate unit tests from the developer's slcli config and `SLCLI_*` environment variables. (unit-test-config-isolation)
+
+
 ## v2.4.6 (2026-10-27)
 
 ### Other Changes
