@@ -377,7 +377,7 @@ def register_tag_commands(cli: Any) -> None:
     @click.option(
         "--take",
         "-t",
-        type=int,
+        type=click.IntRange(min=1),
         default=None,
         help="Limit number of results (table: 25, json: 1000)",
     )
@@ -433,6 +433,23 @@ def register_tag_commands(cli: Any) -> None:
             tags = data.get("tagsWithValues", [])
             total_count = data.get("totalCount", len(tags))
             continuation_token = data.get("continuationToken")
+
+            if format == "json":
+                tags = tags[:take]
+                while continuation_token and len(tags) < take:
+                    page_payload = {
+                        **query_params,
+                        "take": take - len(tags),
+                        "continuationToken": continuation_token,
+                    }
+                    page = make_api_request("POST", url, payload=page_payload).json()
+                    page_tags = page.get("tagsWithValues", [])
+                    tags.extend(page_tags[: take - len(tags)])
+                    continuation_token = page.get("continuationToken")
+                    if not page_tags:
+                        break
+                click.echo(json.dumps(tags, indent=2))
+                return
 
             # For table format with continuation, show interactive pagination
             if format == "table" and continuation_token:

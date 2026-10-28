@@ -867,7 +867,7 @@ def register_notebook_commands(cli: Any) -> None:
     @click.option(
         "--take",
         "-t",
-        type=int,
+        type=click.IntRange(min=1),
         default=25,
         show_default=True,
         help="Maximum number of notebooks to return",
@@ -1327,7 +1327,14 @@ def register_notebook_commands(cli: Any) -> None:
         ),
     )
     @click.option("--notebook-id", "-n", help="Filter by notebook ID")
-    @click.option("--take", "-t", type=int, default=25, show_default=True, help="Max rows/page")
+    @click.option(
+        "--take",
+        "-t",
+        type=click.IntRange(min=1),
+        default=25,
+        show_default=True,
+        help="Max rows/page",
+    )
     @click.option(
         "--format",
         "-f",
