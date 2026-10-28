@@ -277,7 +277,7 @@ def register_templates_commands(cli: Any) -> None:
     @click.option(
         "--take",
         "-t",
-        type=int,
+        type=click.IntRange(min=1),
         default=25,
         show_default=True,
         help="Maximum number of templates to return",

@@ -407,6 +407,8 @@ def register_dff_commands(cli: Any) -> None:
     @click.option("--workspace", "-w", help="Filter by workspace name or ID")
     @click.option(
         "--take",
+        "-t",
+        type=click.IntRange(min=1),
         default=25,
         show_default=True,
         help="Maximum number of configurations to return",

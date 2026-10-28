@@ -588,7 +588,7 @@ def register_user_commands(cli: click.Group) -> None:
     @click.option(
         "--take",
         "-t",
-        type=int,
+        type=click.IntRange(min=1),
         default=25,
         help=(
             "Table page size (default 25). JSON returns up to 1000 users by default; "

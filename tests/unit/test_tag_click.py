@@ -5,6 +5,7 @@ from typing import Any
 from unittest.mock import MagicMock, patch
 
 import click
+import pytest
 from click.testing import CliRunner
 
 from slcli.tag_click import register_tag_commands
@@ -31,6 +32,70 @@ def mock_response(data: dict, status_code: int = 200) -> Any:
 
 class TestTagList:
     """Tests for tag list command."""
+
+    @pytest.mark.parametrize(
+        "pages,expected",
+        [
+            (
+                [
+                    {"tagsWithValues": [{"id": "1"}], "continuationToken": "next"},
+                    {"tagsWithValues": [{"id": "2"}, {"id": "3"}, {"id": "4"}]},
+                ],
+                [{"id": "1"}, {"id": "2"}, {"id": "3"}],
+            ),
+            (
+                [
+                    {"tagsWithValues": [{"id": "1"}], "continuationToken": "next"},
+                    {"tagsWithValues": []},
+                ],
+                [{"id": "1"}],
+            ),
+            ([{"tagsWithValues": []}], []),
+        ],
+    )
+    def test_json_collects_requested_results(
+        self, monkeypatch: Any, pages: list, expected: list
+    ) -> None:
+        """JSON follows tokens, stops at exhaustion, and never invokes prompts."""
+        monkeypatch.setenv("SLCLI_API_URL", "http://localhost")
+        monkeypatch.setattr("slcli.tag_click.resolve_workspace_id", lambda workspace: None)
+        with (
+            patch(
+                "slcli.tag_click.make_api_request",
+                side_effect=[mock_response(page) for page in pages],
+            ) as request,
+            patch("slcli.tag_click.questionary.confirm") as confirm,
+        ):
+            result = CliRunner().invoke(
+                make_cli(), ["tag", "list", "--format", "json", "--take", "3"]
+            )
+        assert result.exit_code == 0, result.output
+        assert json.loads(result.output) == expected
+        assert request.call_count == len(pages)
+        confirm.assert_not_called()
+        if len(pages) > 1:
+            assert request.call_args.kwargs["payload"]["take"] == 2
+            assert request.call_args.kwargs["payload"]["continuationToken"] == "next"
+
+    def test_json_page_error_is_not_partial_success(self, monkeypatch: Any) -> None:
+        """A later API failure produces a nonzero exit without partial JSON stdout."""
+        import requests
+
+        monkeypatch.setenv("SLCLI_API_URL", "http://localhost")
+        monkeypatch.setattr("slcli.tag_click.resolve_workspace_id", lambda workspace: None)
+        with patch(
+            "slcli.tag_click.make_api_request",
+            side_effect=[
+                mock_response({"tagsWithValues": [{"id": "1"}], "continuationToken": "next"}),
+                requests.Timeout("timed out"),
+            ],
+        ):
+            result = CliRunner().invoke(
+                make_cli(), ["tag", "list", "--format", "json", "--take", "3"]
+            )
+        assert result.exit_code == 5
+        assert not result.stdout
+        assert "Network error" in result.stderr
 
     def test_list_tags_with_pagination(self, monkeypatch: Any) -> None:
         """Test tag listing with server-side pagination."""

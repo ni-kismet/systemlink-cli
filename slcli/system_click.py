@@ -1891,7 +1891,7 @@ def register_system_commands(cli: Any) -> None:
     @click.option(
         "--take",
         "-t",
-        type=int,
+        type=click.IntRange(min=1),
         default=100,
         show_default=True,
         help=(
@@ -2216,7 +2216,7 @@ def register_system_commands(cli: Any) -> None:
     @click.option(
         "--take",
         "-t",
-        type=int,
+        type=click.IntRange(min=1),
         default=10,
         show_default=True,
         help="Maximum rows to show per related-resource section",
@@ -2778,7 +2778,7 @@ def register_system_commands(cli: Any) -> None:
     @click.option(
         "--take",
         "-t",
-        type=int,
+        type=click.IntRange(min=1),
         default=25,
         show_default=True,
         help="Items per page (table output only)",

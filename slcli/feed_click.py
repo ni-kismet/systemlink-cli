@@ -457,7 +457,14 @@ def register_feed_commands(cli: Any) -> None:
         default="table",
         help="Output format",
     )
-    @click.option("--take", "-t", type=int, default=25, show_default=True, help="Items per page")
+    @click.option(
+        "--take",
+        "-t",
+        type=click.IntRange(min=1),
+        default=25,
+        show_default=True,
+        help="Items per page",
+    )
     @click.option(
         "--platform",
         "-p",
@@ -740,7 +747,14 @@ def register_feed_commands(cli: Any) -> None:
         default="table",
         help="Output format",
     )
-    @click.option("--take", "-t", type=int, default=25, show_default=True, help="Items per page")
+    @click.option(
+        "--take",
+        "-t",
+        type=click.IntRange(min=1),
+        default=25,
+        show_default=True,
+        help="Items per page",
+    )
     def list_packages(feed_id: str, format_: str, take: int) -> None:
         """List packages in a feed."""
         format_output = validate_output_format(format_)
