@@ -1,1 +1,1 @@
-Bound shared API requests with 10-second connect and 60-second read timeouts (explicit overrides remain supported), classify transport errors with network exit code 5, and encode workspace name filters correctly.
+Bound shared API requests with 10-second connect and 60-second read timeouts (explicit overrides remain supported), classify transport errors with network exit code 5, and encode workspace name filters correctly. Synchronous function execution allows its execution timeout plus 60 seconds for response reads, or an unlimited read wait for infinite executions.

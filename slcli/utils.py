@@ -872,7 +872,7 @@ def make_api_request(
     stream: bool = False,
     credential: Optional[str] = None,
     auth_scheme: Optional[str] = None,
-    timeout: Optional[Union[float, Tuple[float, float]]] = (10.0, 60.0),
+    timeout: Optional[Union[float, Tuple[float, Optional[float]]]] = (10.0, 60.0),
 ) -> requests.Response:
     """Make API request with consistent error handling and configuration.
 
@@ -889,7 +889,8 @@ def make_api_request(
             credential is resolved from configuration.
         auth_scheme: Authentication scheme for an explicit credential.
         timeout: Socket timeout in seconds, or a (connect, read) pair. Defaults to
-            10 seconds to connect and 60 seconds between reads. None disables timeouts.
+            10 seconds to connect and 60 seconds between reads. A None read timeout
+            waits indefinitely for response data; None disables both timeouts.
 
     Returns:
         Response object
@@ -982,7 +983,7 @@ def make_web_request(
     stream: bool = False,
     credential: Optional[str] = None,
     auth_scheme: Optional[str] = None,
-    timeout: Optional[Union[float, Tuple[float, float]]] = (10.0, 60.0),
+    timeout: Optional[Union[float, Tuple[float, Optional[float]]]] = (10.0, 60.0),
 ) -> requests.Response:
     """Make a request to a Web Server route using the configured Web URL.
 
