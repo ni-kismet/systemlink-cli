@@ -3,6 +3,7 @@
 import json
 import sys
 from typing import Any, Dict, Optional, Tuple
+from urllib.parse import urlencode
 
 import click
 
@@ -36,12 +37,12 @@ def _fetch_workspaces_page(
         url = f"{get_base_url()}/niuser/v1/workspaces"
         page_size = min(take, 100)  # API max take is 100
 
-        query_params = [f"take={page_size}", f"skip={skip}"]
+        query_params = {"take": str(page_size), "skip": str(skip)}
         if name_filter:
             # Use *TEXT* pattern for case-insensitive substring matching
-            query_params.append(f"name=*{name_filter}*")
+            query_params["name"] = f"*{name_filter}*"
 
-        paginated_url = url + "?" + "&".join(query_params)
+        paginated_url = url + "?" + urlencode(query_params, safe="*")
 
         resp = make_api_request("GET", paginated_url, payload=None)
         data = resp.json()

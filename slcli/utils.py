@@ -5,7 +5,7 @@ import json
 import os
 import sys
 from dataclasses import dataclass
-from typing import Any, Callable, Dict, List, Literal, Optional, Sequence, Union
+from typing import Any, Callable, Dict, List, Literal, Optional, Sequence, Tuple, Union
 from urllib.parse import quote, unquote, urlparse
 
 import click
@@ -154,20 +154,22 @@ def handle_api_error(exc: Exception) -> None:
     status_code = _extract_response_status_code(exc)
 
     error_msg = display_msg.lower()
-    if status_code == 404 or "not found" in error_msg:
-        click.echo(f"✗ Resource not found: {display_msg}", err=True)
-        sys.exit(ExitCodes.NOT_FOUND)
-    elif status_code in (401, 403) or (
-        "permission" in error_msg or "unauthorized" in error_msg or "forbidden" in error_msg
-    ):
-        click.echo(f"✗ Permission denied: {display_msg}", err=True)
-        sys.exit(ExitCodes.PERMISSION_DENIED)
+    if status_code == 404:
+        label, code = "Resource not found", ExitCodes.NOT_FOUND
+    elif status_code in (401, 403):
+        label, code = "Permission denied", ExitCodes.PERMISSION_DENIED
+    elif isinstance(exc, (requests.Timeout, requests.ConnectionError)):
+        label, code = "Network error", ExitCodes.NETWORK_ERROR
+    elif "not found" in error_msg:
+        label, code = "Resource not found", ExitCodes.NOT_FOUND
+    elif any(word in error_msg for word in ("permission", "unauthorized", "forbidden")):
+        label, code = "Permission denied", ExitCodes.PERMISSION_DENIED
     elif "network" in error_msg or "connection" in error_msg:
-        click.echo(f"✗ Network error: {display_msg}", err=True)
-        sys.exit(ExitCodes.NETWORK_ERROR)
+        label, code = "Network error", ExitCodes.NETWORK_ERROR
     else:
-        click.echo(f"✗ Error: {display_msg}", err=True)
-        sys.exit(ExitCodes.GENERAL_ERROR)
+        label, code = "Error", ExitCodes.GENERAL_ERROR
+    click.echo(f"✗ {label}: {display_msg}", err=True)
+    sys.exit(code)
 
 
 def format_success(message: str, data: Optional[Any] = None) -> None:
@@ -870,7 +872,7 @@ def make_api_request(
     stream: bool = False,
     credential: Optional[str] = None,
     auth_scheme: Optional[str] = None,
-    timeout: Optional[float] = None,
+    timeout: Optional[Union[float, Tuple[float, Optional[float]]]] = (10.0, 60.0),
 ) -> requests.Response:
     """Make API request with consistent error handling and configuration.
 
@@ -886,7 +888,9 @@ def make_api_request(
         credential: Optional explicit credential for this request. When omitted, the active
             credential is resolved from configuration.
         auth_scheme: Authentication scheme for an explicit credential.
-        timeout: Optional request timeout in seconds.
+        timeout: Socket timeout in seconds, or a (connect, read) pair. Defaults to
+            10 seconds to connect and 60 seconds between reads. A None read timeout
+            waits indefinitely for response data; None disables both timeouts.
 
     Returns:
         Response object
@@ -979,6 +983,7 @@ def make_web_request(
     stream: bool = False,
     credential: Optional[str] = None,
     auth_scheme: Optional[str] = None,
+    timeout: Optional[Union[float, Tuple[float, Optional[float]]]] = (10.0, 60.0),
 ) -> requests.Response:
     """Make a request to a Web Server route using the configured Web URL.
 
@@ -993,6 +998,7 @@ def make_web_request(
         stream: Whether to stream the response (for large file downloads)
         credential: Optional explicit credential for this request.
         auth_scheme: Authentication scheme for an explicit credential.
+        timeout: Socket timeout or (connect, read) pair, as in make_api_request.
 
     Returns:
         Response object.
@@ -1008,6 +1014,7 @@ def make_web_request(
         stream=stream,
         credential=credential,
         auth_scheme=auth_scheme,
+        timeout=timeout,
     )
 
 

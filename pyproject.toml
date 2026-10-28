@@ -1,6 +1,6 @@
 [tool.poetry]
 name = "systemlink-cli"
-version = "2.5.1"
+version = "2.5.3"
 description = "SystemLink Integrator CLI - cross-platform CLI for SystemLink workflows and templates."
 authors = ["Fred Visser <fred.visser@emerson.com>"]
 packages = [{ include = "slcli" }]
@@ -59,7 +59,7 @@ migration = ["prefect", "psutil", "pydantic"]
 [tool.poetry.group.dev.dependencies]
 # Lint
 cyclonedx-bom = "^7.0.0"
-setuptools = ">=83,<84"
+setuptools = ">=84,<85"
 black = ">=26.3.1"
 flake8 = ">=7.3.0"
 flake8-black = ">=0.4.0"
