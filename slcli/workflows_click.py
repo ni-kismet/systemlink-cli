@@ -13,7 +13,7 @@ import questionary
 import requests
 
 from . import workflow_preview
-from .cli_utils import validate_output_format
+from .cli_utils import confirmation_option, validate_output_format
 from .platform import require_feature
 from .universal_handlers import UniversalResponseHandler, FilteredResponse
 from .utils import (
@@ -683,7 +683,7 @@ def register_workflows_commands(cli: Any) -> None:
         required=True,
         help="Workflow ID to delete",
     )
-    @click.confirmation_option(prompt="Are you sure you want to delete this workflow?")
+    @confirmation_option(prompt="Are you sure you want to delete this workflow?")
     def delete_workflow(workflow_id: str) -> None:
         """Delete a workflow."""
         from .utils import check_readonly_mode

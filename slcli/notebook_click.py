@@ -16,7 +16,7 @@ from typing import Any, Dict, List, Optional, cast
 import click
 import requests
 
-from .cli_utils import validate_output_format
+from .cli_utils import confirmation_option, validate_output_format
 from .platform import PLATFORM_SLS, get_platform
 from .universal_handlers import UniversalResponseHandler
 from .utils import (
@@ -1280,7 +1280,7 @@ def register_notebook_commands(cli: Any) -> None:
 
     @notebook_manage.command(name="delete")
     @click.option("--id", "-i", "notebook_id", required=True, help="Notebook ID to delete")
-    @click.confirmation_option(prompt="Are you sure you want to delete this notebook?")
+    @confirmation_option(prompt="Are you sure you want to delete this notebook?")
     def delete_notebook(notebook_id: str = "") -> None:
         """Delete a notebook.
 

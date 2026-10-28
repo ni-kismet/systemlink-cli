@@ -19,7 +19,7 @@ import click
 import questionary
 import requests
 
-from .cli_utils import is_interactive_environment, validate_output_format
+from .cli_utils import confirmation_option, is_interactive_environment, validate_output_format
 from .platform import PLATFORM_SLS, get_platform
 from .skill_click import install_skills_to_directory
 from .ssl_trust import use_standard_ssl_context
@@ -1273,6 +1273,7 @@ def register_webapp_commands(cli: Any) -> None:
     )
     @click.option(
         "--take",
+        "-t",
         "take",
         type=click.IntRange(min=1),
         default=25,
@@ -1502,7 +1503,7 @@ def register_webapp_commands(cli: Any) -> None:
 
     @webapp.command(name="delete")
     @click.option("--id", "-i", "webapp_id", required=True, help="Webapp ID to delete")
-    @click.confirmation_option(prompt="Are you sure you want to delete this webapp?")
+    @confirmation_option(prompt="Are you sure you want to delete this webapp?")
     def delete_webapp(webapp_id: str) -> None:
         """Delete a webapp."""
         from .utils import check_readonly_mode

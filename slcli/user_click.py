@@ -15,7 +15,7 @@ import click
 import questionary
 from click.core import ParameterSource
 
-from .cli_utils import paginate_list_output, validate_output_format
+from .cli_utils import confirmation_option, paginate_list_output, validate_output_format
 from .rich_output import render_table
 from .utils import (
     ExitCodes,
@@ -1269,7 +1269,7 @@ def register_user_commands(cli: click.Group) -> None:
 
     @user.command(name="delete")
     @click.option("--id", "-i", "user_id", required=True, help="User ID to delete")
-    @click.confirmation_option(
+    @confirmation_option(
         prompt="Are you sure you want to delete this user? This action cannot be undone."
     )
     def delete_user(user_id: str) -> None:

@@ -14,7 +14,7 @@ from typing import Any, Dict, List, Optional, Tuple
 import click
 import questionary
 
-from .cli_utils import is_interactive_environment, validate_output_format
+from .cli_utils import confirmation_option, is_interactive_environment, validate_output_format
 from .universal_handlers import FilteredResponse, UniversalResponseHandler
 from .utils import (
     ExitCodes,
@@ -470,7 +470,10 @@ def register_tag_commands(cli: Any) -> None:
 
                     # Update cumulative count and show pagination info
                     cumulative_count += len(tags)
-                    click.echo(f"\nShowing {cumulative_count} of {total_count} tags")
+                    click.echo(
+                        f"\nShowing {cumulative_count} of {total_count} tags",
+                        err=not is_interactive_environment(),
+                    )
 
                     # Check if there are more results
                     if not continuation_token:
@@ -509,7 +512,10 @@ def register_tag_commands(cli: Any) -> None:
                 )
 
                 if format == "table" and total_count > len(tags):
-                    click.echo(f"\nShowing {len(tags)} of {total_count} tags")
+                    click.echo(
+                        f"\nShowing {len(tags)} of {total_count} tags",
+                        err=not is_interactive_environment(),
+                    )
 
         except Exception as exc:
             handle_api_error(exc)
@@ -830,7 +836,7 @@ def register_tag_commands(cli: Any) -> None:
         default=None,
         help="Workspace ID or name (defaults to default workspace)",
     )
-    @click.confirmation_option(prompt="Are you sure you want to delete this tag?")
+    @confirmation_option(prompt="Are you sure you want to delete this tag?")
     def delete_tag(tag_path: str, workspace: Optional[str]) -> None:
         """Delete a tag.
 

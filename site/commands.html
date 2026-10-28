@@ -82,7 +82,10 @@
 
       <!-- ─── OVERVIEW ─── -->
       <h1 id="overview">Command Groups</h1>
-      <p>slcli organizes commands into logical groups. Every list command supports <code>--format</code> and <code>--take</code> options.</p>
+      <p>slcli organizes commands into logical groups. Every list command supports
+        <code>--format</code>. Paginated lists support <code>--take/-t</code>;
+        <code>comment list</code>, <code>config trust list</code>, and
+        <code>example list</code> return their available collection without this option.</p>
 
       <div class="cmd-groups">
         <div class="cmd-group"><h3>mcp</h3><p>Model Context Protocol server install and serve commands</p><code>slcli mcp install</code></div>
@@ -115,16 +118,31 @@
 
       <!-- ─── OUTPUT FORMATS ─── -->
       <h2 id="output-formats">Output Formats</h2>
-      <p>All list and get commands support <code>--format/-f</code> with <code>table</code> (default) or <code>json</code>.</p>
+      <p>List commands support <code>--format</code> with <code>table</code> (default)
+        or <code>json</code>. Most also support <code>-f</code>; on
+        <code>feed package list</code> and <code>function execute list</code>,
+        <code>-f</code> retains its existing resource-ID meaning, so use
+        <code>--format</code> explicitly.</p>
       <ul>
-        <li><strong>Table</strong> — colored, paginated (25 rows per page by default), with box-drawing and truncation</li>
-        <li><strong>JSON</strong> — complete results without pagination, ideal for scripting and <code>jq</code> processing</li>
+        <li><strong>Table</strong> — colored, paginated, with box-drawing and truncation.
+          Interactive terminals can request another page. Non-interactive output stops
+          after the first display page and sends remaining-results notices to stderr.</li>
+        <li><strong>JSON</strong> — one array containing the requested results, without
+          display pagination or prompts, ideal for scripting and <code>jq</code>.
+          An empty result is <code>[]</code>. Use an explicit <code>--take</code>
+          when the result limit matters.</li>
       </ul>
       <pre><code># Human-readable table
 slcli testmonitor result list
 
 # Machine-readable JSON
-slcli testmonitor result list --format json</code></pre>
+slcli testmonitor result list --format json --take 100</code></pre>
+      <p>Existing retrieval defaults are retained for compatibility. Most table page
+        sizes default to 25; some commands differ. User and tag JSON listings default
+        to 1,000 results, while file JSON listings default to 25. Authorization policy
+        and template JSON listings return all matches unless limited. File table
+        listings fetch up to 1,000 by default and paginate that fetched set. Check
+        each command's <code>--help</code> rather than assuming a global default.</p>
 
       <!-- ─── FLAG CONVENTIONS ─── -->
       <h2 id="flag-conventions">Flag Conventions</h2>
@@ -138,10 +156,18 @@ slcli testmonitor result list --format json</code></pre>
           <tr><td><code>--id/-i</code></td><td>Resource identifier</td></tr>
           <tr><td><code>--file</code></td><td>Input file for import operations</td></tr>
           <tr><td><code>--filter</code></td><td>Dynamic LINQ or API filter expression</td></tr>
-          <tr><td><code>--yes/-y</code></td><td>Skip confirmation prompts</td></tr>
-          <tr><td><code>--force</code></td><td>Force overwrite or skip confirmation</td></tr>
+          <tr><td><code>--yes/-y</code></td><td>Explicitly confirm a destructive operation without prompting</td></tr>
+          <tr><td><code>--force</code></td><td>Force overwrite; retained as a confirmation alias on commands that already supported it</td></tr>
         </tbody>
       </table>
+
+      <p>Destructive commands require <code>--yes/-y</code> when stdin or stdout is
+        not a terminal, or when <code>SLCLI_NON_INTERACTIVE=true</code> or
+        <code>CI=true</code> disables prompts. Existing confirmation aliases,
+        including <code>--force</code> and <code>-f</code> where previously supported,
+        continue to work. Comment and example deletion now require confirmation too;
+        <code>example delete --dry-run</code> does not. This is an intentional
+        compatibility change: update automation to pass explicit consent.</p>
 
       <p>Result counts must be at least <code>1</code>. JSON tag listings follow service
         continuation tokens until the requested count is collected or matching results
@@ -924,7 +950,7 @@ slcli comment add -r testmonitor:Result -i &lt;result-id&gt; \
 
 # Update / delete
 slcli comment update &lt;comment-id&gt; --message "Revised: out of spec."
-slcli comment delete &lt;id1&gt; &lt;id2&gt;</code></pre>
+slcli comment delete &lt;id1&gt; &lt;id2&gt; --yes</code></pre>
       <p>Supported resource types: <code>testmonitor:Result</code>, <code>niapm:Asset</code>, <code>nisysmgmt:System</code>, <code>workorder:workorder</code>, <code>workitem:workitem</code>, <code>DataSpace</code></p>
 
       <!-- ─── CUSTOM FIELDS ─── -->
@@ -1003,7 +1029,7 @@ slcli example install --file ./fixtures/example-resources/config.yaml \
 
 # Delete resources from an external fixture
 slcli example delete --file ./fixtures/example-resources/config.yaml \
-  --workspace Training
+  --workspace Training --yes
 
 # Install the phase-one Nigel query fixture and write its completeness manifest
 slcli example install demo-data-3 \
@@ -1011,7 +1037,7 @@ slcli example install demo-data-3 \
 
 # Delete provisioned resources
 slcli example delete demo-data-1 \
-  --workspace Training --audit-log delete-log.json</code></pre>
+  --workspace Training --audit-log delete-log.json --yes</code></pre>
 
       <p>Available examples:</p>
       <p>For local fixtures, use <code>--file PATH</code> with a <code>config.yaml</code> file. Relative <code>file_path</code>, <code>rows_file</code>, and <code>data_file</code> references resolve relative to that configuration file's directory.</p>

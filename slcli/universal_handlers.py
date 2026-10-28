@@ -71,7 +71,7 @@ class UniversalResponseHandler:
             total_count: Optional server-provided total count for all matching items.
             shown_count: Optional count of items shown so far (useful for paged responses).
         """
-        from .cli_utils import paginate_list_output
+        from .cli_utils import is_interactive_environment, paginate_list_output
         from .table_utils import output_formatted_list
 
         try:
@@ -120,7 +120,8 @@ class UniversalResponseHandler:
                     shown = int(shown_count) if shown_count is not None else len(items)
                     remaining = max(int(total_count) - shown, 0)
                     click.echo(
-                        f"\nShowing {shown} of {total_count} {item_name}(s). {remaining} more available."
+                        f"\nShowing {shown} of {total_count} {item_name}(s). {remaining} more available.",
+                        err=not is_interactive_environment(),
                     )
             else:
                 # Fallback to simple JSON/basic formatting
@@ -141,7 +142,8 @@ class UniversalResponseHandler:
                         shown = int(shown_count) if shown_count is not None else len(items)
                         remaining = max(int(total_count) - shown, 0)
                         click.echo(
-                            f"\nShowing {shown} of {total_count} {item_name}(s). {remaining} more available."
+                            f"\nShowing {shown} of {total_count} {item_name}(s). {remaining} more available.",
+                            err=not is_interactive_environment(),
                         )
                     else:
                         # Fallback to the old behaviour

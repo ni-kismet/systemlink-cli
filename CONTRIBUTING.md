@@ -98,11 +98,12 @@ Based on [CLI Guidelines](https://clig.dev), SystemLink CLI follows these patter
 
 ### Output & Formatting
 
-- All list commands must support `--format/-f` option with `table` (default) and `json` formats
+- All list commands must support `--format` with `table` (default) and `json` formats; add `-f` unless a legacy resource-ID option already uses it
 - Use `--output` for file path outputs (export, save operations)
 - Use consistent visual indicators: `✓` for success messages, `✗` for error messages
 - Send all error messages to stderr using `click.echo(..., err=True)`
 - For JSON output, display all data at once (no pagination); for table output, retain pagination
+- Stop non-interactive table output after one display page; send remaining-results notices to stderr
 - Handle empty results gracefully: `[]` for JSON, descriptive message for table format
 
 ### Error Handling & Exit Codes
@@ -124,6 +125,9 @@ Based on [CLI Guidelines](https://clig.dev), SystemLink CLI follows these patter
 - Use consistent parameter names across similar commands (e.g., `--workspace`, `--output`)
 - Provide sensible defaults and show them in help text with `show_default=True`
 - Support both ID and name-based lookups where applicable (e.g., `--id` or `--name`)
+- Use positive `--take/-t` counts for paginated lists; document per-command retrieval limits
+- Use `--yes/-y` for destructive confirmation and retain existing aliases for compatibility
+- Never prompt for destructive consent without a terminal; require explicit confirmation instead
 
 ## Security
 

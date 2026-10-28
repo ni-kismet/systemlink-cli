@@ -74,6 +74,7 @@ def test_external_fixture_install_delete_round_trip(
             [
                 "example",
                 "delete",
+                "--yes",
                 "--file",
                 str(config_path),
                 "--workspace",
