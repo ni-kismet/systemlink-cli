@@ -1,10 +1,10 @@
 """Profile-bound Test Monitor queries for migration discovery."""
 
 from collections.abc import Iterator
-from typing import Dict, List, Optional, Sequence, Type, TypeVar
+from typing import Any, Dict, List, Optional, Sequence, Type, TypeVar
 
 import requests
-from pydantic import AwareDatetime
+from pydantic import AwareDatetime, ConfigDict
 
 from slcli.migration.api import REQUEST_TIMEOUT_SECONDS, ApiModel
 from slcli.migration.connection import MigrationConnection
@@ -18,7 +18,7 @@ class Product(ApiModel):
     id: str
     part_number: str
     workspace: Optional[str] = None
-    properties: Dict[str, str] = {}
+    properties: Dict[str, Optional[str]] = {}
 
 
 class ResultStatus(ApiModel):
@@ -35,7 +35,7 @@ class Result(ApiModel):
     workspace: Optional[str] = None
     status: ResultStatus
     updated_at: AwareDatetime
-    properties: Dict[str, str] = {}
+    properties: Dict[str, Optional[str]] = {}
 
 
 class _Page(ApiModel):
@@ -48,6 +48,12 @@ class _ProductPage(_Page):
 
 class _ResultPage(_Page):
     results: List[Result] = []
+
+
+class _RecordPage(_Page):
+    """A page whose records are kept verbatim as extra fields."""
+
+    model_config = ConfigDict(extra="allow")
 
 
 _PageT = TypeVar("_PageT", bound=_Page)
@@ -84,6 +90,24 @@ class TestMonitorClient:
             query["substitutions"] = list(substitutions or [])
         for page in self._query_pages("query-results", _ResultPage, query):
             yield from page.results
+
+    def query_records(
+        self,
+        collection: str,
+        filter_expr: str,
+        substitutions: Sequence[object],
+    ) -> Iterator[Dict[str, Any]]:
+        """Yield complete records of a collection matching a parameterized filter.
+
+        Args:
+            collection: ``products``, ``results``, or ``steps``.
+            filter_expr: Dynamic LINQ filter.
+            substitutions: Values for ``@0``, ``@1``, and so on in ``filter_expr``.
+        """
+        query: Dict[str, object] = {"filter": filter_expr, "substitutions": list(substitutions)}
+        for page in self._query_pages(f"query-{collection}", _RecordPage, query):
+            records = (page.model_extra or {}).get(collection) or []
+            yield from records
 
     def _query_pages(
         self, endpoint: str, page_type: Type[_PageT], query: Dict[str, object]

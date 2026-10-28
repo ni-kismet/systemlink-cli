@@ -82,7 +82,7 @@ def _validate_prefect_api_url(
 
 
 def register_migrate_command(cli: click.Group) -> None:
-    """Register the discovery-only migrate command, hidden without the migration extra."""
+    """Register the migrate command, hidden without the migration extra."""
 
     @cli.command(name="migrate", hidden=not migration_extra_installed())
     @click.option("--source-profile", help="Named source SystemLink profile for a new migration.")
@@ -100,7 +100,9 @@ def register_migrate_command(cli: click.Group) -> None:
             "Destination workspaces must already exist."
         ),
     )
-    @click.option("--migration-id", help="Repeat discovery for an existing migration.")
+    @click.option("--migration-id", help="Resume an existing migration.")
+    @click.option("--product-batch-size", type=click.IntRange(min=1), default=None, hidden=True)
+    @click.option("--result-batch-size", type=click.IntRange(min=1), default=None, hidden=True)
     @click.option(
         "--prefect-api-url",
         callback=_validate_prefect_api_url,
@@ -111,14 +113,22 @@ def register_migrate_command(cli: click.Group) -> None:
         destination_profile: Optional[str],
         workspace_mappings: Optional[Dict[str, str]],
         migration_id: Optional[str],
+        product_batch_size: Optional[int],
+        result_batch_size: Optional[int],
         prefect_api_url: Optional[str],
     ) -> None:
         """Discover and migrate resources from a SystemLink Server."""
-        new_run_options = (source_profile, destination_profile, workspace_mappings)
+        new_run_options = (
+            source_profile,
+            destination_profile,
+            workspace_mappings,
+            product_batch_size,
+            result_batch_size,
+        )
         if migration_id is not None and any(value is not None for value in new_run_options):
             raise click.UsageError(
                 "--migration-id cannot be combined with --source-profile, "
-                "--destination-profile, or --workspace-mappings"
+                "--destination-profile, --workspace-mappings, or batch sizes"
             )
         if migration_id is None and (source_profile is None or destination_profile is None):
             raise click.UsageError(
@@ -139,6 +149,18 @@ def register_migrate_command(cli: click.Group) -> None:
         if migration_id is not None:
             command.resume_migration(migration_id, prefect_api_url)
         elif source_profile is not None and destination_profile is not None:
+            batch_sizes = {
+                key: value
+                for key, value in (
+                    ("product_batch_size", product_batch_size),
+                    ("result_batch_size", result_batch_size),
+                )
+                if value is not None
+            }
             command.start_migration(
-                source_profile, destination_profile, workspace_mappings, prefect_api_url
+                source_profile,
+                destination_profile,
+                workspace_mappings,
+                prefect_api_url,
+                **batch_sizes,
             )

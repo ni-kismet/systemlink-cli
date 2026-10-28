@@ -164,6 +164,9 @@ between, and after migration tests. Workspace names are constants because
 workspaces cannot be deleted on shared servers; do not make them unique per run.
 Fixtures only modify the dedicated `e2e-slcli-migration-*` workspaces, the
 destination workspace, and resources carrying the fixture ownership property.
+Cleanup refuses to run if a fixture or destination workspace holds Test Monitor
+resources without that property. Migrated resources keep their source
+properties, so they carry it too.
 
 Each pytest session starts its own Prefect server (~10s). To reuse one across
 runs, start it in another terminal and point the tests at it:
