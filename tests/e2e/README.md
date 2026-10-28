@@ -155,10 +155,15 @@ poetry run pytest tests/e2e/ -m e2e_migration --timeout=300 --no-cov
 ```
 
 Migration tests use named slcli profiles rather than `e2e_config.json`,
-because a migration spans a source (SLS) and, later, a destination (SLE).
+because a migration spans a source (SLS) and a destination (SLE).
 Tests that need a source skip unless `SLCLI_E2E_SOURCE_PROFILE` is set.
-Fixtures only modify the dedicated `e2e-slcli-migration-*` workspaces and
-resources carrying the fixture ownership property.
+Tests that need a destination also skip unless `SLCLI_E2E_DESTINATION_PROFILE`
+is set. Fixtures get or create the fixed `e2e-slcli-migration-destination`
+workspace and clear fixture-owned Test Monitor resources from it before,
+between, and after migration tests. Workspace names are constants because
+workspaces cannot be deleted on shared servers; do not make them unique per run.
+Fixtures only modify the dedicated `e2e-slcli-migration-*` workspaces, the
+destination workspace, and resources carrying the fixture ownership property.
 
 Each pytest session starts its own Prefect server (~10s). To reuse one across
 runs, start it in another terminal and point the tests at it:

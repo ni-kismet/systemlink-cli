@@ -15,6 +15,11 @@ from slcli.migration.orchestration import prefect_server, run_discovery
 from slcli.migration.state import MigrationRun, create_migration_run, open_migration_run
 from slcli.migration.testmonitor.models import TestMonitorDiscovery
 from slcli.migration.workspace_client import WorkspaceClient
+from slcli.migration.workspaces import (
+    WorkspaceMapping,
+    WorkspaceMappingError,
+    map_workspaces,
+)
 
 _logger = logging.getLogger("slcli.migration")
 MIGRATION_LOG = "migration.log"
@@ -22,16 +27,17 @@ MIGRATION_LOG = "migration.log"
 
 def start_migration(
     source_profile: str,
+    destination_profile: str,
     workspace_mappings: Optional[Dict[str, str]],
     prefect_api_url: Optional[str],
 ) -> None:
-    """Create a new migration run and discover its source resources."""
-    connection = resolve_migration_connection(source_profile)
-    _echo_source(connection)
-    if workspace_mappings is not None:
-        _require_source_workspaces(connection, workspace_mappings)
-    run = create_migration_run(source_profile, workspace_mappings)
-    _discover(run, connection, workspace_mappings, prefect_api_url)
+    """Create a new migration run after mapping its workspaces, then discover resources."""
+    source = resolve_migration_connection(source_profile)
+    destination = resolve_migration_connection(destination_profile)
+    _echo_connections(source, destination)
+    mapping = _map_workspaces(source, destination, workspace_mappings)
+    run = create_migration_run(source_profile, destination_profile, workspace_mappings)
+    _discover(run, source, destination, mapping, workspace_mappings, prefect_api_url)
 
 
 def resume_migration(migration_id: str, prefect_api_url: Optional[str]) -> None:
@@ -40,9 +46,11 @@ def resume_migration(migration_id: str, prefect_api_url: Optional[str]) -> None:
         run, metadata = open_migration_run(migration_id)
     except ValueError as exc:
         raise click.ClickException(str(exc)) from exc
-    connection = resolve_migration_connection(metadata.source_profile)
-    _echo_source(connection)
-    _discover(run, connection, metadata.workspace_mappings, prefect_api_url)
+    source = resolve_migration_connection(metadata.source_profile)
+    destination = resolve_migration_connection(metadata.destination_profile)
+    _echo_connections(source, destination)
+    mapping = _map_workspaces(source, destination, metadata.workspace_mappings)
+    _discover(run, source, destination, mapping, metadata.workspace_mappings, prefect_api_url)
 
 
 def format_summary(discovery: TestMonitorDiscovery) -> str:
@@ -63,24 +71,50 @@ def _all_workspaces_failed(discovery: TestMonitorDiscovery) -> bool:
     return bool(discovery.workspaces) and len(discovery.failures) == len(discovery.workspaces)
 
 
-def _echo_source(connection: MigrationConnection) -> None:
-    click.echo(f"Source: {connection.profile_name} ({connection.base_url})")
-    if urlparse(connection.base_url).scheme.lower() != "https":
-        click.echo("Warning: source connection does not use HTTPS.", err=True)
-    if connection.ssl_verify is False:
-        click.echo("Warning: source TLS certificate verification is disabled.", err=True)
+def format_workspace_mapping(mapping: WorkspaceMapping) -> str:
+    """Return each source workspace and the destination workspace it migrates to."""
+    return "\n".join(
+        [
+            "Workspace mapping:",
+            *(
+                f"  {workspace.source_name} -> {workspace.destination_name}"
+                for workspace in mapping.workspaces
+            ),
+        ]
+    )
 
 
-def _require_source_workspaces(
-    connection: MigrationConnection, workspace_mappings: Dict[str, str]
-) -> None:
-    existing = {workspace.name for workspace in WorkspaceClient(connection).query_workspaces()}
-    unknown = sorted(set(workspace_mappings).difference(existing))
-    if unknown:
-        raise click.BadParameter(
-            f"unknown source workspace: {', '.join(unknown)}",
-            param_hint="--workspace-mappings",
+def _echo_connections(source: MigrationConnection, destination: MigrationConnection) -> None:
+    for role, connection in (("Source", source), ("Destination", destination)):
+        click.echo(f"{role}: {connection.profile_name} ({connection.base_url})")
+        if urlparse(connection.base_url).scheme.lower() != "https":
+            click.echo(f"Warning: {role.lower()} connection does not use HTTPS.", err=True)
+        if connection.ssl_verify is False:
+            click.echo(
+                f"Warning: {role.lower()} TLS certificate verification is disabled.", err=True
+            )
+
+
+def _map_workspaces(
+    source: MigrationConnection,
+    destination: MigrationConnection,
+    workspace_mappings: Optional[Dict[str, str]],
+) -> WorkspaceMapping:
+    """Discover workspaces on both sides and fail before any migration work if unmapped."""
+    try:
+        return map_workspaces(
+            WorkspaceClient(source).query_workspaces(),
+            WorkspaceClient(destination).query_workspaces(),
+            workspace_mappings,
         )
+    except WorkspaceMappingError as exc:
+        hint = (
+            "Destination workspaces are not created by migration."
+            if workspace_mappings is not None
+            else "Create the destination workspaces or select workspaces with "
+            "--workspace-mappings. Destination workspaces are not created by migration."
+        )
+        raise click.ClickException(f"{exc}. {hint}") from exc
 
 
 @contextmanager
@@ -101,28 +135,40 @@ def _run_log(log_path: Path) -> Generator[None, None, None]:
 
 def _discover(
     run: MigrationRun,
-    connection: MigrationConnection,
+    source: MigrationConnection,
+    destination: MigrationConnection,
+    mapping: WorkspaceMapping,
     workspace_mappings: Optional[Dict[str, str]],
     prefect_api_url: Optional[str],
 ) -> None:
     click.echo(f"Migration ID: {run.migration_id}")
+    click.echo(format_workspace_mapping(mapping))
     log_path = run.directory / MIGRATION_LOG
     workspaces = list(workspace_mappings) if workspace_mappings is not None else None
     server_mode = "managed" if prefect_api_url is None else "external"
     with _run_log(log_path):
         _logger.info(
             "Discovery started: migration=%s cli=%s profile=%s endpoint=%s workspaces=%s "
-            "prefect_server=%s",
+            "destination_profile=%s destination_endpoint=%s prefect_server=%s",
             run.migration_id,
             __version__,
-            connection.profile_name,
-            connection.base_url,
+            source.profile_name,
+            source.base_url,
             workspaces if workspaces is not None else "all",
+            destination.profile_name,
+            destination.base_url,
             server_mode,
+        )
+        _logger.info(
+            "Workspace mapping: %s",
+            [
+                f"{w.source_name}({w.source_id}) -> {w.destination_name}({w.destination_id})"
+                for w in mapping.workspaces
+            ],
         )
         try:
             with prefect_server(run, prefect_api_url) as api_url:
-                discovery = run_discovery(run, connection.profile_name, workspaces, api_url)
+                discovery = run_discovery(run, source.profile_name, workspaces, api_url)
         except BaseException as exc:
             _logger.error("Discovery failed: %s: %s", type(exc).__name__, exc)
             click.echo(f"Log: {log_path}", err=True)

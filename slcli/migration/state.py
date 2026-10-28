@@ -28,6 +28,7 @@ class RunMetadata(VersionedModel):
     migration_id: str
     cli_version: str = __version__
     source_profile: str
+    destination_profile: str
     workspace_mappings: Optional[Dict[str, str]]
     created_at: datetime
 
@@ -91,6 +92,7 @@ def _validate_created_migration_id(migration_id: str) -> None:
 
 def create_migration_run(
     source_profile: str,
+    destination_profile: str,
     workspace_mappings: Optional[Dict[str, str]],
     root: Optional[Path] = None,
 ) -> MigrationRun:
@@ -106,6 +108,7 @@ def create_migration_run(
         RunMetadata(
             migration_id=migration_id,
             source_profile=source_profile,
+            destination_profile=destination_profile,
             workspace_mappings=workspace_mappings,
             created_at=datetime.now(timezone.utc),
         )

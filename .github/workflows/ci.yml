@@ -285,6 +285,7 @@ jobs:
     env:
       SLCLI_E2E_SLS_BASE_URL: https://base.systemlink.io
       SLCLI_E2E_SOURCE_PROFILE: migration-source
+      SLCLI_E2E_SLE_BASE_URL: https://test-api.lifecyclesolutions.ni.com
       SLCLI_TEST_PREFECT_API_URL: http://127.0.0.1:4200/api
     steps:
       - name: Check migration E2E configuration
@@ -343,6 +344,21 @@ jobs:
           --web-url "$SLCLI_E2E_SLS_BASE_URL"
           --api-key "$SLCLI_E2E_SLS_API_KEY"
           --no-set-current
+
+      # Destination tests skip unless the SLE key and destination workspace are configured.
+      - name: Configure migration destination profile
+        if: ${{ steps.migration-config.outputs.enabled == 'true' }}
+        env:
+          SLCLI_E2E_SLE_API_KEY: ${{ secrets.SLCLI_E2E_SLE_API_KEY }}
+        run: |
+          if [ -n "$SLCLI_E2E_SLE_API_KEY" ]; then
+            echo "" | poetry run slcli config add \
+              --profile migration-destination \
+              --url "$SLCLI_E2E_SLE_BASE_URL" \
+              --api-key "$SLCLI_E2E_SLE_API_KEY" \
+              --no-set-current
+            echo "SLCLI_E2E_DESTINATION_PROFILE=migration-destination" >> "$GITHUB_ENV"
+          fi
 
       - name: Wait for Prefect server
         if: ${{ steps.migration-config.outputs.enabled == 'true' }}

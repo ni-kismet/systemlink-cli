@@ -1,0 +1,1 @@
+Map migration workspaces to existing destination workspaces with \--destination-profile\ (behind the unreleased \migration\ extra).

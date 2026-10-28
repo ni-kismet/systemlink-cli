@@ -48,7 +48,7 @@ def test_discovery_persists_typed_task_result(
     fake_source: FakeSource, test_prefect_server: str, tmp_path: Path
 ) -> None:
     """The flow returns typed results and persists them in the run's storage."""
-    run = create_migration_run("source", {"Lab": "Lab"}, tmp_path)
+    run = create_migration_run("source", "destination", {"Lab": "Lab"}, tmp_path)
 
     discovery = run_discovery(run, "source", ["Lab"], test_prefect_server)
 
@@ -64,7 +64,7 @@ def test_discovery_is_cached_per_input(
     fake_source: FakeSource, test_prefect_server: str, tmp_path: Path
 ) -> None:
     """Repeating the same inputs reuses the persisted task; new inputs recompute."""
-    run = create_migration_run("source", None, tmp_path)
+    run = create_migration_run("source", "destination", None, tmp_path)
 
     first = run_discovery(run, "source", ["Lab"], test_prefect_server)
     second = run_discovery(run, "source", ["Lab"], test_prefect_server)
@@ -81,11 +81,14 @@ def test_failed_run_does_not_affect_later_runs(
     fake_source.fail = True
     with pytest.raises(RuntimeError, match="source unavailable"):
         run_discovery(
-            create_migration_run("source", None, tmp_path), "source", None, test_prefect_server
+            create_migration_run("source", "destination", None, tmp_path),
+            "source",
+            None,
+            test_prefect_server,
         )
 
     fake_source.fail = False
-    run = create_migration_run("source", None, tmp_path)
+    run = create_migration_run("source", "destination", None, tmp_path)
 
     assert run_discovery(run, "source", None, test_prefect_server).test_monitor == DISCOVERY
 
@@ -96,7 +99,7 @@ def test_managed_server_restart_reuses_persisted_discovery(
     fake_source: FakeSource, tmp_path: Path
 ) -> None:
     """A new managed server over the same run restores discovery without recomputing."""
-    run = create_migration_run("source", None, tmp_path)
+    run = create_migration_run("source", "destination", None, tmp_path)
 
     with prefect_server(run) as api_url:
         first = run_discovery(run, "source", None, api_url)
@@ -112,7 +115,7 @@ def test_cached_discovery_does_not_depend_on_server_history(
     fake_source: FakeSource, test_prefect_server: str, tmp_path: Path
 ) -> None:
     """Result storage alone restores a run; any server can serve the next flow."""
-    run = create_migration_run("source", None, tmp_path)
+    run = create_migration_run("source", "destination", None, tmp_path)
     first = run_discovery(run, "source", None, test_prefect_server)
 
     with prefect_server(run) as fresh_server_url:
