@@ -192,6 +192,26 @@ def test_handle_api_error_uses_403_status_when_message_lacks_keyword(capsys: Any
     assert "Access denied." in captured.err
 
 
+@pytest.mark.parametrize(
+    "exc",
+    [requests.Timeout("operation timed out"), requests.ConnectionError("host unavailable")],
+)
+def test_handle_api_error_classifies_transport_types(exc: Exception, capsys: Any) -> None:
+    """Transport failures use the network exit code regardless of message wording."""
+    with pytest.raises(SystemExit) as result:
+        handle_api_error(exc)
+    assert result.value.code == ExitCodes.NETWORK_ERROR
+    assert "Network error" in capsys.readouterr().err
+
+
+def test_handle_api_error_status_precedes_message(capsys: Any) -> None:
+    """A permission response cannot become a not-found error through its message."""
+    with pytest.raises(SystemExit) as result:
+        handle_api_error(_make_http_error(403, {"message": "User not found or inaccessible"}))
+    assert result.value.code == ExitCodes.PERMISSION_DENIED
+    assert "Permission denied" in capsys.readouterr().err
+
+
 def test_extract_response_error_message_no_response() -> None:
     """Plain Exception without a response attribute returns None."""
     assert _extract_response_error_message(Exception("boom")) is None
@@ -273,3 +293,23 @@ class TestMakeApiRequestHttpMethods:
 
         _, call_kwargs = mock_get.call_args
         assert call_kwargs["timeout"] == 3.5
+
+    @pytest.mark.parametrize("method", ["get", "post", "put", "patch", "delete"])
+    def test_request_has_finite_default_timeout(self, monkeypatch: Any, method: str) -> None:
+        """Every shared HTTP method has bounded connection and read waits."""
+        self._patch_keyring(monkeypatch)
+        with patch(f"requests.{method}") as request:
+            from slcli.utils import make_api_request
+
+            make_api_request(method.upper(), "http://localhost:8000/api/v1/resource")
+        assert request.call_args.kwargs["timeout"] == (10.0, 60.0)
+
+    @pytest.mark.parametrize("timeout", [None, 120.0, (5.0, 300.0)])
+    def test_web_request_preserves_timeout_override(self, monkeypatch: Any, timeout: Any) -> None:
+        """Web routes retain explicit overrides for long-running requests."""
+        self._patch_keyring(monkeypatch)
+        with patch("requests.get") as request:
+            from slcli.utils import make_web_request
+
+            make_web_request("GET", "/api/v1/resource", timeout=timeout)
+        assert request.call_args.kwargs["timeout"] == timeout
