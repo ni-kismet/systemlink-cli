@@ -40,6 +40,7 @@ rich = ">=15,<16"
 rich-click = ">=1.8,<2"
 cryptography = ">=49.0.0"
 pygments = ">=2.20.0"
+platformdirs = ">=4,<5"
 prefect = { version = ">=3.8.6,<4", optional = true }
 psutil = { version = ">=7,<8", optional = true }
 pydantic = { version = ">=2.9,<3", optional = true }
@@ -121,7 +122,8 @@ markers = [
     "sls: marks tests as SystemLink Server specific",
     "sle: marks tests as SystemLink Enterprise specific",
     "file: marks tests as file service related",
-    "comment: marks tests as comment management related"
+    "comment: marks tests as comment management related",
+    "testmonitor: marks tests as Test Monitor related"
 ]
 
 [tool.black]
