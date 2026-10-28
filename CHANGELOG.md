@@ -2,6 +2,13 @@
 
 <!-- towncrier release notes start -->
 
+## v2.5.5 (2026-10-28)
+
+### Bug Fixes
+
+- A profile's `ssl-verify: false` setting now applies only to requests sent to that profile's hosts, including function, notebook, DataFrame, and DFF editor requests. (ssl-verify-request-url)
+
+
 ## v2.5.4 (2026-10-28)
 
 ### Other Changes
