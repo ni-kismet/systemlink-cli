@@ -1245,6 +1245,8 @@ def register_function_commands(cli: Any) -> None:
         """Execute a function synchronously and return the result.
 
         This sends a single request and waits for completion (no async polling).
+        The HTTP read timeout allows 60 seconds beyond the execution timeout,
+        or waits indefinitely when the execution timeout is zero.
         """
         format_output = validate_output_format(format)
         url = f"{get_unified_v2_base()}/functions/{function_id}/execute"
@@ -1319,7 +1321,12 @@ def register_function_commands(cli: Any) -> None:
             }
             if client_request_id:
                 execute_request["clientRequestId"] = client_request_id
-            response_data = make_api_request("POST", url, execute_request).json()
+            response_data = make_api_request(
+                "POST",
+                url,
+                execute_request,
+                timeout=(10.0, float(timeout + 60) if timeout else None),
+            ).json()
             if format_output == "json":
                 click.echo(json.dumps(response_data, indent=2))
                 return

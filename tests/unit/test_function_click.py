@@ -162,7 +162,12 @@ def test_function_execute_sync_json(monkeypatch: Any, runner: CliRunner) -> None
     patch_keyring(monkeypatch)
 
     def mock_make_api_request(
-        method: str, url: str, payload: Any = None, headers: Any = None, handle_errors: Any = True
+        method: str,
+        url: str,
+        payload: Any = None,
+        headers: Any = None,
+        handle_errors: Any = True,
+        timeout: Any = None,
     ) -> Any:
         """Mock implementation of make_api_request for testing.
 
@@ -215,7 +220,12 @@ def test_function_execute_sync_defaults(monkeypatch: Any, runner: CliRunner) -> 
     patch_keyring(monkeypatch)
 
     def mock_make_api_request(
-        method: str, url: str, payload: Any = None, headers: Any = None, handle_errors: Any = True
+        method: str,
+        url: str,
+        payload: Any = None,
+        headers: Any = None,
+        handle_errors: Any = True,
+        timeout: Any = None,
     ) -> Any:
         """Mock API request function for testing sync function execution.
 
@@ -257,6 +267,32 @@ def test_function_execute_sync_defaults(monkeypatch: Any, runner: CliRunner) -> 
     assert result.exit_code == 0, result.output
     out = json.loads(result.output)
     assert out["result"]["ok"] is True
+
+
+@pytest.mark.parametrize("execution_timeout", [None, 90, 3600, 0])
+def test_function_execute_sync_http_timeout(
+    monkeypatch: Any, runner: CliRunner, execution_timeout: Any
+) -> None:
+    """Blocking execution forwards a compatible read timeout while bounding connection waits."""
+    from unittest.mock import Mock
+
+    patch_keyring(monkeypatch)
+    request = Mock(return_value=_MockResponse({"result": {"ok": True}}))
+    monkeypatch.setattr("requests.post", request)
+    args = ["function", "execute", "sync", "--function-id", "func-1", "--format", "json"]
+    if execution_timeout is not None:
+        args.extend(["--timeout", str(execution_timeout)])
+
+    result = runner.invoke(make_cli(), args)
+
+    assert result.exit_code == 0, result.output
+    expected_execution_timeout = 300 if execution_timeout is None else execution_timeout
+    assert request.call_args.kwargs["json"]["timeout"] == expected_execution_timeout
+    assert request.call_args.kwargs["timeout"] == (
+        10.0,
+        float(expected_execution_timeout + 60) if expected_execution_timeout else None,
+    )
+    assert json.loads(result.output) == {"result": {"ok": True}}
 
 
 ## Async execution command removed; corresponding test deleted.

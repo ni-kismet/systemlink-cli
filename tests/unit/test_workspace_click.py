@@ -2,12 +2,29 @@
 
 import json
 from typing import Any
+from unittest.mock import Mock
+from urllib.parse import parse_qs, urlparse
 
 import click
 import pytest
 from click.testing import CliRunner
 
 from slcli.workspace_click import register_workspace_commands
+
+
+@pytest.mark.parametrize("name", ["R&D", "a+b #1", "Lab/\u6e2c\u8a66"])
+def test_workspace_filter_is_url_encoded(monkeypatch: Any, name: str) -> None:
+    """Workspace names remain one query value even when they contain URL delimiters."""
+    from slcli.workspace_click import _fetch_workspaces_page
+
+    request = Mock()
+    request.return_value.json.return_value = {"workspaces": [], "totalCount": 0}
+    monkeypatch.setattr("slcli.workspace_click.get_base_url", lambda: "https://example.com")
+    monkeypatch.setattr("slcli.workspace_click.make_api_request", request)
+
+    assert _fetch_workspaces_page(name) == ([], 0, None)
+    query = parse_qs(urlparse(request.call_args.args[1]).query)
+    assert query == {"take": ["25"], "skip": ["0"], "name": [f"*{name}*"]}
 
 
 def patch_keyring(monkeypatch: Any) -> None:
