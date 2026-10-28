@@ -132,7 +132,7 @@ slcli testmonitor result list --format json</code></pre>
         <thead><tr><th>Flag</th><th>Description</th></tr></thead>
         <tbody>
           <tr><td><code>--format/-f</code></td><td>Output format: <code>table</code> or <code>json</code></td></tr>
-          <tr><td><code>--take/-t</code></td><td>Number of items to return (default: 25)</td></tr>
+          <tr><td><code>--take/-t</code></td><td>Positive result count or table page size; see each command's help for defaults</td></tr>
           <tr><td><code>--output/-o</code></td><td>File path for export operations</td></tr>
           <tr><td><code>--workspace/-w</code></td><td>Filter by workspace name or ID</td></tr>
           <tr><td><code>--id/-i</code></td><td>Resource identifier</td></tr>
@@ -142,6 +142,16 @@ slcli testmonitor result list --format json</code></pre>
           <tr><td><code>--force</code></td><td>Force overwrite or skip confirmation</td></tr>
         </tbody>
       </table>
+
+      <p>Result counts must be at least <code>1</code>. JSON tag listings follow service
+        continuation tokens until the requested count is collected or matching results
+        are exhausted. Workspace listings preserve matching results across the service's
+        100-record page cap and pages containing only disabled workspaces.</p>
+
+      <p>Shared API requests allow 10 seconds to connect and 60 seconds between response
+        reads. These are socket timeouts, not a total command deadline. Transport failures
+        exit with code <code>5</code>; individual operations can use longer request timeouts
+        where needed. Failed mutations are not automatically retried.</p>
 
       <!-- ─── MCP ─── -->
       <h2 id="mcp">mcp</h2>

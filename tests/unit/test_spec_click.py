@@ -818,8 +818,8 @@ def test_list_specifications_invalid_take(monkeypatch: Any, runner: CliRunner) -
         ["spec", "list", "--product", "product-1", "--take", "0"],
     )
 
-    assert result.exit_code != 0
-    assert "--take must be greater than 0" in result.output
+    assert result.exit_code == 2
+    assert "not in the range x>=1" in result.output
 
 
 def test_create_specification_missing_required_fields(monkeypatch: Any, runner: CliRunner) -> None:

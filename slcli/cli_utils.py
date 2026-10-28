@@ -374,6 +374,10 @@ def paginate_list_output(
         empty_message: Message when no items found
         total_label: Label for count display
     """
+    if page_size < 1:
+        click.echo("✗ Page size must be at least 1.", err=True)
+        sys.exit(ExitCodes.INVALID_INPUT)
+
     if not items:
         if format_output.lower() == "json":
             click.echo("[]")

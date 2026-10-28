@@ -2,7 +2,17 @@
 
 from typing import Any, List
 
+import pytest
+
 from slcli.cli_utils import is_interactive_environment, paginate_list_output
+
+
+@pytest.mark.parametrize("page_size", [0, -1])
+def test_paginate_list_output_rejects_nonpositive_page_size(page_size: int) -> None:
+    """Direct helper callers cannot enter a non-advancing pagination loop."""
+    with pytest.raises(SystemExit) as result:
+        paginate_list_output([{"id": "1"}], page_size=page_size)
+    assert result.value.code == 2
 
 
 def test_is_interactive_environment_honors_explicit_override(monkeypatch: Any) -> None:
