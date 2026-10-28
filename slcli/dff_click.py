@@ -9,6 +9,7 @@ import click
 import questionary
 import requests
 
+from .cli_utils import confirmation_option
 from .platform import require_feature
 from .universal_handlers import FilteredResponse, UniversalResponseHandler
 from .utils import (
@@ -721,7 +722,7 @@ def register_dff_commands(cli: Any) -> None:
         default=True,
         help="Do not recursively delete dependent items (groups/fields when deleting configs)",
     )
-    @click.confirmation_option(prompt="Are you sure you want to delete these items?")
+    @confirmation_option(prompt="Are you sure you want to delete these items?")
     def delete_configuration(
         config_ids: tuple[str, ...],
         group_ids: tuple[str, ...],

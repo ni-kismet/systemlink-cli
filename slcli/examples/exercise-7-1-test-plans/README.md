@@ -19,7 +19,7 @@ slcli example install exercise-7-1-test-plans -w <workspace> --dry-run
 slcli example install exercise-7-1-test-plans -w <workspace>
 
 # Remove all provisioned resources when the session ends
-slcli example delete exercise-7-1-test-plans -w <workspace>
+slcli example delete exercise-7-1-test-plans -w <workspace> --yes
 ```
 
 ## Resources Provisioned
@@ -77,7 +77,7 @@ slcli example delete exercise-7-1-test-plans -w <workspace>
 ## Cleanup
 
 ```bash
-slcli example delete exercise-7-1-test-plans -w <workspace>
+slcli example delete exercise-7-1-test-plans -w <workspace> --yes
 ```
 
 Deletion order (respects dependencies):

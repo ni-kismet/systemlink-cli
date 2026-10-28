@@ -12,7 +12,12 @@ import click
 import requests
 
 from . import workflow_preview
-from .cli_utils import is_interactive_environment, validate_output_format
+from .cli_utils import (
+    confirmation_option,
+    is_interactive_environment,
+    validate_confirmation,
+    validate_output_format,
+)
 from .platform import require_feature
 from .universal_handlers import FilteredResponse, UniversalResponseHandler
 from .utils import (
@@ -573,7 +578,10 @@ def register_workitem_commands(cli: Any) -> None:
                 )
                 if not cont:
                     break
-                click.echo(f"\nShowing {displayed} work item(s). More may be available.")
+                click.echo(
+                    f"\nShowing {displayed} work item(s). More may be available.",
+                    err=not is_interactive_environment(),
+                )
                 if not is_interactive_environment():
                     break
                 if not click.confirm(f"Show next {take} results?", default=True):
@@ -978,7 +986,9 @@ def register_workitem_commands(cli: Any) -> None:
     # -----------------------------------------------------------------------
     @workitem.command(name="delete")
     @click.argument("work_item_ids", nargs=-1, required=True)
-    @click.option("--yes", "-y", is_flag=True, help="Skip confirmation prompt")
+    @click.option(
+        "--yes", "-y", is_flag=True, help="Skip confirmation prompt", callback=validate_confirmation
+    )
     def delete_workitems(work_item_ids: tuple, yes: bool) -> None:
         """Delete one or more work items by ID."""
         from .utils import check_readonly_mode
@@ -1281,7 +1291,10 @@ def register_workitem_commands(cli: Any) -> None:
                 )
                 if not cont:
                     break
-                click.echo(f"\nShowing {displayed} template(s). More may be available.")
+                click.echo(
+                    f"\nShowing {displayed} template(s). More may be available.",
+                    err=not is_interactive_environment(),
+                )
                 if not is_interactive_environment():
                     break
                 if not click.confirm(f"Show next {take} results?", default=True):
@@ -1518,7 +1531,9 @@ def register_workitem_commands(cli: Any) -> None:
 
     @template_group.command(name="delete")
     @click.argument("template_ids", nargs=-1, required=True)
-    @click.option("--yes", "-y", is_flag=True, help="Skip confirmation prompt")
+    @click.option(
+        "--yes", "-y", is_flag=True, help="Skip confirmation prompt", callback=validate_confirmation
+    )
     def delete_templates(template_ids: tuple, yes: bool) -> None:
         """Delete one or more work item templates by ID."""
         from .utils import check_readonly_mode
@@ -1867,7 +1882,10 @@ def register_workitem_commands(cli: Any) -> None:
                 )
                 if not cont:
                     break
-                click.echo(f"\nShowing {displayed} workflow(s). More may be available.")
+                click.echo(
+                    f"\nShowing {displayed} workflow(s). More may be available.",
+                    err=not is_interactive_environment(),
+                )
                 if not is_interactive_environment():
                     break
                 if not click.confirm(f"Show next {take} results?", default=True):
@@ -2077,7 +2095,7 @@ def register_workitem_commands(cli: Any) -> None:
 
     @workflow_group.command(name="delete")
     @click.option("--id", "-i", "workflow_id", required=True, help="Workflow ID to delete")
-    @click.confirmation_option(prompt="Are you sure you want to delete this workflow?")
+    @confirmation_option(prompt="Are you sure you want to delete this workflow?")
     def delete_workflow(workflow_id: str) -> None:
         """Delete a workflow by ID."""
         from .utils import check_readonly_mode

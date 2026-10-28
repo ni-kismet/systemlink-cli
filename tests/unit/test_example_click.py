@@ -625,14 +625,17 @@ def test_delete_example_outputs_deleted_results(
     monkeypatch.setattr("slcli.example_click.get_workspace_map", lambda: {"ws-1": "Training"})
 
     cli = make_cli()
-    result = runner.invoke(cli, ["example", "delete", "demo-test", "--workspace", "Training"])
+    result = runner.invoke(
+        cli, ["example", "delete", "--yes", "demo-test", "--workspace", "Training"]
+    )
 
     assert result.exit_code == 0
     assert "deleted" in result.output.lower()
 
 
+@pytest.mark.parametrize("dry_run", [False, True])
 def test_delete_example_from_file_uses_config_directory_for_references(
-    runner: CliRunner, temp_examples_dir: Path, monkeypatch: Any
+    runner: CliRunner, temp_examples_dir: Path, monkeypatch: Any, dry_run: bool
 ) -> None:
     """Delete accepts an external config and passes its directory to the provisioner."""
     import yaml  # type: ignore
@@ -672,17 +675,27 @@ def test_delete_example_from_file_uses_config_directory_for_references(
     )
     monkeypatch.setattr("slcli.example_click.ExampleProvisioner", DummyProvisioner)
     monkeypatch.setattr("slcli.example_click.get_workspace_map", lambda: {"ws-1": "Training"})
+    monkeypatch.setenv("SLCLI_NON_INTERACTIVE", "true")
 
     cli = make_cli()
     result = runner.invoke(
         cli,
-        ["example", "delete", "--file", str(config_path), "--workspace", "Training"],
+        [
+            "example",
+            "delete",
+            "--dry-run" if dry_run else "--yes",
+            "--file",
+            str(config_path),
+            "--workspace",
+            "Training",
+        ],
     )
 
     assert result.exit_code == 0
     assert captured["workspace_id"] == "ws-1"
     assert captured["example_name"] == "example-resources"
     assert captured["example_dir"] == example_dir.resolve()
+    assert captured["dry_run"] is dry_run
 
 
 def test_delete_example_from_file_exits_nonzero_for_failed_resource(
@@ -731,7 +744,7 @@ def test_delete_example_from_file_exits_nonzero_for_failed_resource(
 
     result = runner.invoke(
         make_cli(),
-        ["example", "delete", "--file", str(config_path), "--workspace", "Training"],
+        ["example", "delete", "--yes", "--file", str(config_path), "--workspace", "Training"],
     )
 
     assert result.exit_code == ExitCodes.GENERAL_ERROR
