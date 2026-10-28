@@ -34,6 +34,8 @@ def test_new_run_persists_non_secret_versioned_metadata(tmp_path: Path) -> None:
         "sourceProfile",
         "destinationProfile",
         "workspaceMappings",
+        "productBatchSize",
+        "resultBatchSize",
         "createdAt",
     }
     assert metadata["schemaVersion"] == SCHEMA_VERSION

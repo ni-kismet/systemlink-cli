@@ -4,7 +4,7 @@ import logging
 from collections.abc import Generator
 from contextlib import contextmanager
 from pathlib import Path
-from typing import Dict, Optional
+from typing import Dict, List, Optional, Sequence
 from urllib.parse import urlparse
 
 import click
@@ -12,19 +12,28 @@ import requests
 
 from slcli._version import __version__
 from slcli.migration.connection import MigrationConnection, resolve_migration_connection
+from slcli.migration.flows.migrate import TestMonitorMigration
 from slcli.migration.orchestration import prefect_server, run_migration
 from slcli.migration.state import (
+    DEFAULT_PRODUCT_BATCH_SIZE,
+    DEFAULT_RESULT_BATCH_SIZE,
     MigrationRun,
     RunMetadata,
     create_migration_run,
     open_migration_run,
 )
-from slcli.migration.testmonitor.models import TestMonitorDiscovery
-from slcli.migration.workspaces import WorkspaceMapping, WorkspaceMappingError
+from slcli.migration.testmonitor.models import BatchResult, FailedItem, TestMonitorDiscovery
+from slcli.migration.workspace_client import Workspace, WorkspaceClient
+from slcli.migration.workspaces import (
+    WorkspaceMapping,
+    WorkspaceMappingError,
+    map_workspaces,
+)
 from slcli.utils import handle_api_error
 
 _logger = logging.getLogger("slcli.migration")
 MIGRATION_LOG = "migration.log"
+MAX_LISTED_ITEMS = 10
 
 
 def start_migration(
@@ -32,14 +41,23 @@ def start_migration(
     destination_profile: str,
     workspace_mappings: Optional[Dict[str, str]],
     prefect_api_url: Optional[str],
+    product_batch_size: int = DEFAULT_PRODUCT_BATCH_SIZE,
+    result_batch_size: int = DEFAULT_RESULT_BATCH_SIZE,
 ) -> None:
-    """Create a new migration run, then discover resources and synchronize workspaces."""
+    """Create a new migration run after mapping its workspaces, then migrate resources."""
     source = resolve_migration_connection(source_profile)
     destination = resolve_migration_connection(destination_profile)
     _echo_connections(source, destination)
-    run = create_migration_run(source_profile, destination_profile, workspace_mappings)
+    mapping = _map_workspaces(source, destination, workspace_mappings)
+    run = create_migration_run(
+        source_profile,
+        destination_profile,
+        workspace_mappings,
+        product_batch_size=product_batch_size,
+        result_batch_size=result_batch_size,
+    )
     _, metadata = open_migration_run(run.migration_id, run.directory.parent)
-    _migrate(run, metadata, source, destination, prefect_api_url)
+    _migrate(run, metadata, source, destination, mapping, prefect_api_url)
 
 
 def resume_migration(migration_id: str, prefect_api_url: Optional[str]) -> None:
@@ -51,7 +69,8 @@ def resume_migration(migration_id: str, prefect_api_url: Optional[str]) -> None:
     source = resolve_migration_connection(metadata.source_profile)
     destination = resolve_migration_connection(metadata.destination_profile)
     _echo_connections(source, destination)
-    _migrate(run, metadata, source, destination, prefect_api_url)
+    mapping = _map_workspaces(source, destination, metadata.workspace_mappings)
+    _migrate(run, metadata, source, destination, mapping, prefect_api_url)
 
 
 def format_summary(discovery: TestMonitorDiscovery) -> str:
@@ -65,6 +84,43 @@ def format_summary(discovery: TestMonitorDiscovery) -> str:
     ]
     if discovery.failures:
         lines.append("  Product workspaces were inferred without the failed workspaces.")
+    return "\n".join(lines)
+
+
+def _failed(batches: Sequence[BatchResult]) -> List[FailedItem]:
+    return [item for batch in batches for item in batch.failed]
+
+
+def format_migration_summary(migration: TestMonitorMigration) -> str:
+    """Return Test Monitor migration counts, conflicts, and the first failed items."""
+    conflicts = [c for batch in migration.products for c in batch.conflicts]
+    failed_products = _failed(migration.products)
+    failed_results = _failed(migration.results)
+    lines = [
+        "Test Monitor migration:",
+        f"  Products migrated: {sum(len(b.migrated) for b in migration.products)}",
+        f"  Product conflicts: {len(conflicts)}",
+        f"  Products failed: {len(failed_products)}",
+        f"  Results migrated: {sum(len(b.migrated) for b in migration.results)}",
+        f"  Results failed: {len(failed_results)}",
+    ]
+    for conflict in conflicts[:MAX_LISTED_ITEMS]:
+        lines.append(
+            f"    Conflict: product {conflict.source_id} part number "
+            f"{conflict.part_number!r} exists as {conflict.existing_id}"
+        )
+    if len(conflicts) > MAX_LISTED_ITEMS:
+        lines.append(f"    +{len(conflicts) - MAX_LISTED_ITEMS} more conflicts (see log)")
+    failures = [("product", f) for f in failed_products] + [("result", f) for f in failed_results]
+    for kind, item in failures[:MAX_LISTED_ITEMS]:
+        details = [f"stage={item.stage}", f"error={item.error_type}"]
+        if item.destination_id:
+            details.append(f"destination={item.destination_id}")
+        if item.correlation_id:
+            details.append(f"correlation={item.correlation_id}")
+        lines.append(f"    Failed {kind} {item.source_id}: {' '.join(details)}")
+    if len(failures) > MAX_LISTED_ITEMS:
+        lines.append(f"    +{len(failures) - MAX_LISTED_ITEMS} more failures (see log)")
     return "\n".join(lines)
 
 
@@ -96,17 +152,33 @@ def _echo_connections(source: MigrationConnection, destination: MigrationConnect
             )
 
 
-def _mapping_error(
-    exc: WorkspaceMappingError, workspace_mappings: Optional[Dict[str, str]]
-) -> click.ClickException:
-    # TODO(AB#4088608): Synchronize workspaces will create missing destination workspaces.
-    hint = (
-        "Destination workspaces are not created by migration."
-        if workspace_mappings is not None
-        else "Create the destination workspaces or select workspaces with "
-        "--workspace-mappings. Destination workspaces are not created by migration."
-    )
-    return click.ClickException(f"{exc}. {hint}")
+def _map_workspaces(
+    source: MigrationConnection,
+    destination: MigrationConnection,
+    workspace_mappings: Optional[Dict[str, str]],
+) -> WorkspaceMapping:
+    """Discover workspaces on both sides and fail before any migration work if unmapped."""
+    workspaces: List[List[Workspace]] = []
+    for role, connection in (("source", source), ("destination", destination)):
+        try:
+            workspaces.append(list(WorkspaceClient(connection).query_workspaces()))
+        except requests.RequestException as exc:
+            click.echo(
+                f"Failed to query {role} workspaces with profile '{connection.profile_name}'.",
+                err=True,
+            )
+            handle_api_error(exc)
+    try:
+        return map_workspaces(workspaces[0], workspaces[1], workspace_mappings)
+    except WorkspaceMappingError as exc:
+        # TODO(AB#4088608): Synchronize workspaces will create missing destination workspaces.
+        hint = (
+            "Destination workspaces are not created by migration."
+            if workspace_mappings is not None
+            else "Create the destination workspaces or select workspaces with "
+            "--workspace-mappings. Destination workspaces are not created by migration."
+        )
+        raise click.ClickException(f"{exc}. {hint}") from exc
 
 
 @contextmanager
@@ -130,9 +202,11 @@ def _migrate(
     metadata: RunMetadata,
     source: MigrationConnection,
     destination: MigrationConnection,
+    mapping: WorkspaceMapping,
     prefect_api_url: Optional[str],
 ) -> None:
     click.echo(f"Migration ID: {run.migration_id}")
+    click.echo(format_workspace_mapping(mapping))
     log_path = run.directory / MIGRATION_LOG
     workspace_mappings = metadata.workspace_mappings
     workspaces = list(workspace_mappings) if workspace_mappings is not None else None
@@ -140,7 +214,8 @@ def _migrate(
     with _run_log(log_path):
         _logger.info(
             "Migration started: migration=%s cli=%s profile=%s endpoint=%s workspaces=%s "
-            "destination_profile=%s destination_endpoint=%s prefect_server=%s",
+            "destination_profile=%s destination_endpoint=%s prefect_server=%s "
+            "product_batch_size=%d result_batch_size=%d",
             run.migration_id,
             __version__,
             source.profile_name,
@@ -149,41 +224,37 @@ def _migrate(
             destination.profile_name,
             destination.base_url,
             server_mode,
+            metadata.product_batch_size,
+            metadata.result_batch_size,
         )
-        try:
-            with prefect_server(run, prefect_api_url) as api_url:
-                outcome = run_migration(run, metadata, api_url)
-        except WorkspaceMappingError as exc:
-            _log_failure(exc, log_path)
-            raise _mapping_error(exc, workspace_mappings) from exc
-        except requests.RequestException as exc:
-            _log_failure(exc, log_path)
-            handle_api_error(exc)
-            raise
-        except BaseException as exc:
-            _log_failure(exc, log_path)
-            raise
         _logger.info(
             "Workspace mapping: %s",
             [
                 f"{w.source_name}({w.source_id}) -> {w.destination_name}({w.destination_id})"
-                for w in outcome.mapping.workspaces
+                for w in mapping.workspaces
             ],
         )
+        try:
+            with prefect_server(run, prefect_api_url) as api_url:
+                outcome = run_migration(run, metadata, mapping, api_url)
+        except BaseException as exc:
+            _logger.error("Migration failed: %s: %s", type(exc).__name__, exc)
+            click.echo(f"Log: {log_path}", err=True)
+            raise
         test_monitor = outcome.discovery.test_monitor
+        migration = outcome.test_monitor
+        failed = len(_failed(migration.products)) + len(_failed(migration.results))
         _logger.info(
-            "Discovery completed: products=%d results=%d failed_workspaces=%s",
+            "Migration completed: products=%d results=%d failed_workspaces=%s failed_items=%d",
             len(test_monitor.products),
             len(test_monitor.results),
             [failure.workspace for failure in test_monitor.failures],
+            failed,
         )
-    click.echo(format_workspace_mapping(outcome.mapping))
     click.echo(format_summary(test_monitor))
+    click.echo(format_migration_summary(migration))
     click.echo(f"Log: {log_path}")
     if _all_workspaces_failed(test_monitor):
         raise click.ClickException("Discovery failed for every workspace.")
-
-
-def _log_failure(exc: BaseException, log_path: Path) -> None:
-    _logger.error("Migration failed: %s: %s", type(exc).__name__, exc)
-    click.echo(f"Log: {log_path}", err=True)
+    if failed:
+        raise click.ClickException(f"{failed} items failed to migrate.")

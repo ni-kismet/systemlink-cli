@@ -1,23 +1,82 @@
-"""Migration flow: discover, then synchronize workspaces."""
+"""Migration flow: discover, then migrate batches of each resource type."""
 
-from typing import Dict, List, Optional
+import logging
+from typing import List, Optional, Protocol, Sequence, Tuple, TypeVar
 
-from prefect import flow
+from prefect import flow, unmapped
+from prefect.futures import PrefectFutureList
 from pydantic import ConfigDict
 
 from slcli.migration.flows.discover import MigrationDiscovery, discover_flow
 from slcli.migration.schema import VersionedModel
-from slcli.migration.workspace_task import synchronize_workspaces_task
+from slcli.migration.testmonitor.migration_task import (
+    migrate_products_task,
+    migrate_results_task,
+)
+from slcli.migration.testmonitor.models import BatchResult, FailedItem
 from slcli.migration.workspaces import WorkspaceMapping
+
+_T = TypeVar("_T")
+_logger = logging.getLogger(__name__)
+
+
+class _Identified(Protocol):
+    @property
+    def id(self) -> str: ...
+
+
+class TestMonitorMigration(VersionedModel):
+    """Batch outcomes for Test Monitor resources."""
+
+    __test__ = False
+    model_config = ConfigDict(frozen=True)
+
+    products: Tuple[BatchResult, ...] = ()
+    results: Tuple[BatchResult, ...] = ()
 
 
 class MigrationOutcome(VersionedModel):
-    """Discovery and workspace mapping of one run."""
+    """Discovery and migration outcomes of one run."""
 
     model_config = ConfigDict(frozen=True)
 
     discovery: MigrationDiscovery
-    mapping: WorkspaceMapping
+    test_monitor: TestMonitorMigration
+
+
+def partition(items: Sequence[_T], size: int) -> List[List[_T]]:
+    """Split items into stable, ordered batches of at most ``size``."""
+    if size < 1:
+        raise ValueError("batch size must be at least 1")
+    return [list(items[start : start + size]) for start in range(0, len(items), size)]
+
+
+def _gather(
+    resource: str,
+    batches: Sequence[Sequence[_Identified]],
+    futures: PrefectFutureList[BatchResult],
+) -> List[BatchResult]:
+    """Wait for every batch; a batch that raised reports all of its items as failed."""
+    outcomes: List[BatchResult] = []
+    for index, (batch, future) in enumerate(zip(batches, futures)):
+        future.wait()
+        if future.state.is_completed():
+            outcomes.append(future.result())
+            continue
+        error = future.state.result(raise_on_failure=False)
+        error_type = type(error).__name__ if isinstance(error, BaseException) else "Failed"
+        _logger.error("Batch %s[%d] failed before migrating: %s", resource, index, error_type)
+        outcomes.append(
+            BatchResult(
+                resource=resource,
+                batch=index,
+                failed=tuple(
+                    FailedItem(source_id=item.id, stage="batch", error_type=error_type)
+                    for item in batch
+                ),
+            )
+        )
+    return outcomes
 
 
 @flow(
@@ -30,24 +89,44 @@ def migrate_flow(
     migration_id: str,
     source_profile: str,
     destination_profile: str,
-    workspace_mappings: Optional[Dict[str, str]],
+    workspaces: Optional[List[str]],
+    mapping: WorkspaceMapping,
+    product_batch_size: int,
+    result_batch_size: int,
 ) -> MigrationOutcome:
-    """Discover source resources, then synchronize workspaces to the destination.
+    """Discover source resources, then migrate products before results.
 
     Args:
         migration_id: Migration that scopes task cache keys.
         source_profile: Name of the source profile.
         destination_profile: Name of the destination profile.
-        workspace_mappings: Source to destination workspace names; all by name when None.
-
-    Raises:
-        WorkspaceMappingError: If a source or destination workspace does not exist.
+        workspaces: Source workspace names to discover; all workspaces when None.
+        mapping: Resolved source-to-destination workspaces.
+        product_batch_size: Products per migration task.
+        result_batch_size: Results, with their steps, per migration task.
     """
-    workspaces: Optional[List[str]] = (
-        list(workspace_mappings) if workspace_mappings is not None else None
-    )
     discovery = discover_flow(migration_id, source_profile, workspaces)
-    mapping = synchronize_workspaces_task(
-        migration_id, destination_profile, discovery.workspaces, workspace_mappings
+    test_monitor = discovery.test_monitor
+    common = (
+        unmapped(migration_id),
+        unmapped(source_profile),
+        unmapped(destination_profile),
+        unmapped(mapping),
     )
-    return MigrationOutcome(discovery=discovery, mapping=mapping)
+    product_batches = partition(test_monitor.products, product_batch_size)
+    products = _gather(
+        "products",
+        product_batches,
+        migrate_products_task.map(*common, list(range(len(product_batches))), product_batches),
+    )
+    # Results reference products by part number, so all products are attempted first.
+    result_batches = partition(test_monitor.results, result_batch_size)
+    results = _gather(
+        "results",
+        result_batches,
+        migrate_results_task.map(*common, list(range(len(result_batches))), result_batches),
+    )
+    return MigrationOutcome(
+        discovery=discovery,
+        test_monitor=TestMonitorMigration(products=tuple(products), results=tuple(results)),
+    )

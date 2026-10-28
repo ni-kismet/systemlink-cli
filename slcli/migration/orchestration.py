@@ -16,6 +16,7 @@ from slcli.migration.flows.discover import MigrationDiscovery, discover_flow
 from slcli.migration.flows.migrate import MigrationOutcome, migrate_flow
 from slcli.migration.prefect_server import ManagedPrefectServer
 from slcli.migration.state import MigrationRun, RunMetadata
+from slcli.migration.workspaces import WorkspaceMapping
 
 
 @contextmanager
@@ -69,18 +70,30 @@ def run_discovery(
         return discover_flow(run.migration_id, source_profile, workspaces)
 
 
-def run_migration(run: MigrationRun, metadata: RunMetadata, api_url: str) -> MigrationOutcome:
+def run_migration(
+    run: MigrationRun,
+    metadata: RunMetadata,
+    mapping: WorkspaceMapping,
+    api_url: str,
+) -> MigrationOutcome:
     """Run the migration flow for a run on a Prefect server.
 
     Args:
         run: Migration run that provides the client home and result storage.
-        metadata: Persisted run inputs, including profiles and workspace mappings.
+        metadata: Persisted run inputs, including profiles and batch sizes.
+        mapping: Workspace mapping resolved for this invocation.
         api_url: Prefect API URL from :func:`prefect_server`.
     """
+    workspaces = (
+        list(metadata.workspace_mappings) if metadata.workspace_mappings is not None else None
+    )
     with _run_settings(run, api_url):
         return migrate_flow(
             run.migration_id,
             metadata.source_profile,
             metadata.destination_profile,
-            metadata.workspace_mappings,
+            workspaces,
+            mapping,
+            metadata.product_batch_size,
+            metadata.result_batch_size,
         )
