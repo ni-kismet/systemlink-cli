@@ -2,6 +2,13 @@
 
 <!-- towncrier release notes start -->
 
+## v2.5.4 (2026-10-28)
+
+### Other Changes
+
+- Add Test Monitor discovery and migration orchestration workflows. (migration-testmonitor-discovery)
+
+
 ## v2.5.3 (2026-10-28)
 
 ### Bug Fixes
