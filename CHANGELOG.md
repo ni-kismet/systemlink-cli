@@ -2,6 +2,13 @@
 
 <!-- towncrier release notes start -->
 
+## v2.5.3 (2026-10-28)
+
+### Bug Fixes
+
+- Bound shared API requests with 10-second connect and 60-second read timeouts (explicit overrides remain supported), classify transport errors with network exit code 5, and encode workspace name filters correctly. Synchronous function execution allows its execution timeout plus 60 seconds for response reads, or an unlimited read wait for infinite executions. (cli-request-reliability)
+
+
 ## v2.5.2 (2026-10-27)
 
 ### Bug Fixes
