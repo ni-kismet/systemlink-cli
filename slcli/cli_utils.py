@@ -2,7 +2,7 @@
 
 import os
 import sys
-from typing import Any, Callable, Dict, List, Optional
+from typing import Any, Callable, Dict, List, Optional, TypeVar
 
 import click
 import questionary
@@ -10,6 +10,37 @@ import requests
 
 from .rich_output import print_json, render_table
 from .utils import ExitCodes, handle_api_error
+
+_Command = TypeVar("_Command", bound=Callable[..., Any])
+
+
+def validate_confirmation(ctx: click.Context, param: click.Parameter, value: bool) -> bool:
+    """Require explicit consent instead of prompting in non-interactive environments."""
+    if not value and not is_interactive_environment():
+        raise click.BadParameter(
+            "Confirmation requires an interactive terminal; pass --yes to proceed.",
+            ctx=ctx,
+            param=param,
+        )
+    return value
+
+
+def confirmation_option(prompt: str) -> Callable[[_Command], _Command]:
+    """Provide Click's confirmation option with consistent aliases and TTY validation."""
+
+    def confirm(ctx: click.Context, param: click.Parameter, value: bool) -> None:
+        validate_confirmation(ctx, param, value)
+        if not value and not click.confirm(prompt):
+            ctx.abort()
+
+    return click.option(
+        "--yes",
+        "-y",
+        is_flag=True,
+        expose_value=False,
+        callback=confirm,
+        help="Skip confirmation prompt",
+    )
 
 
 def is_interactive_environment() -> bool:
@@ -87,12 +118,18 @@ def confirm_bulk_operation(
     Returns:
         True if confirmed, False otherwise
     """
-    if force:
-        return True
-
     if count == 0:
         click.echo(f"No {resource_type}s to {operation}")
         return False
+
+    if force:
+        return True
+
+    if not is_interactive_environment():
+        click.echo(
+            "✗ Confirmation requires an interactive terminal; pass --yes to proceed.", err=True
+        )
+        sys.exit(ExitCodes.INVALID_INPUT)
 
     if count == 1:
         return click.confirm(f"Are you sure you want to {operation} this {resource_type}?")
@@ -361,7 +398,7 @@ def paginate_list_output(
 ) -> None:
     """Paginate list output with user prompts to continue.
 
-    For table format, shows pages of results with user prompts.
+    For table format, shows pages with user prompts, or one page without a TTY.
     For JSON format, shows all results at once (no pagination).
 
     Args:
@@ -421,16 +458,15 @@ def paginate_list_output(
         # Show pagination info and prompt if there are more items
         if items_shown < total_items:
             remaining = total_items - items_shown
+            interactive = is_interactive_environment()
             click.echo(
                 f"\nShowing {items_shown} of {total_items} {total_label}. "
-                f"{remaining} more available."
+                f"{remaining} more available.",
+                err=not interactive,
             )
 
-            if not is_interactive_environment():
-                click.echo("Non-interactive environment detected. Showing all remaining results...")
-                # Continue to show all remaining pages without prompting
-                current_page += 1
-                continue
+            if not interactive:
+                break
 
             if not questionary.confirm(f"Show next {page_size} results?", default=True).ask():
                 break

@@ -18,7 +18,7 @@ import click
 import questionary
 import requests as requests_lib
 
-from .cli_utils import is_interactive_environment, validate_output_format
+from .cli_utils import is_interactive_environment, validate_confirmation, validate_output_format
 from .rich_output import render_table
 from .system_query_utils import (
     DEFAULT_SYSTEM_JSON_FIELDS,
@@ -669,7 +669,7 @@ def _handle_interactive_pagination(
             column_widths=column_widths,
         )
 
-        click.echo(f"\nShowing {shown_count} {item_label}")
+        click.echo(f"\nShowing {shown_count} {item_label}", err=not is_interactive_environment())
 
         # Flush stdout so the table is visible before prompting
         try:
@@ -761,7 +761,7 @@ def _handle_materialized_system_pagination_with_fallback(
             column_widths=column_widths,
         )
 
-        click.echo(f"\nShowing {shown_count} {item_label}")
+        click.echo(f"\nShowing {shown_count} {item_label}", err=not is_interactive_environment())
 
         try:
             sys.stdout.flush()
@@ -2636,8 +2636,11 @@ def register_system_commands(cli: Any) -> None:
     @click.argument("system_id")
     @click.option(
         "--force",
+        "--yes",
+        "-y",
         is_flag=True,
         help="Skip confirmation and remove immediately from database",
+        callback=validate_confirmation,
     )
     def remove_system(
         system_id: str,

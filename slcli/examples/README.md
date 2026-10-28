@@ -83,9 +83,9 @@ slcli example install \
 
 # Delete example resources from a workspace
 slcli example delete demo-data-2 -w <workspace-id> --dry-run
-slcli example delete demo-data-2 -w <workspace>
+slcli example delete demo-data-2 -w <workspace> --yes
 # Write an audit log of deletion results
-slcli example delete demo-data-2 -w <workspace> --audit-log delete-log.json --format json
+slcli example delete demo-data-2 -w <workspace> --audit-log delete-log.json --format json --yes
 ```
 
 ## Creating New Examples
@@ -130,7 +130,7 @@ slcli example install \
 # Delete resources from the same external fixture
 slcli example delete \
   --file fixtures/example-resources/config.yaml \
-  --workspace <workspace>
+  --workspace <workspace> --yes
 ```
 
 Paths in `file_path`, `rows_file`, and `data_file` properties are resolved

@@ -1,10 +1,69 @@
 """Tests for shared CLI utility behavior."""
 
 from typing import Any, List
+from unittest.mock import Mock
 
+import click
 import pytest
 
-from slcli.cli_utils import is_interactive_environment, paginate_list_output
+from slcli.cli_utils import (
+    confirm_bulk_operation,
+    confirmation_option,
+    is_interactive_environment,
+    paginate_list_output,
+)
+
+
+@pytest.mark.parametrize("answer", ["y", "n"])
+def test_confirmation_option_preserves_interactive_consent(answer: str) -> None:
+    """Interactive users can accept or decline without executing on refusal."""
+    from click.testing import CliRunner
+
+    invoked = Mock()
+
+    @click.command()
+    @confirmation_option("Delete this resource?")
+    def command() -> None:
+        invoked()
+
+    result = CliRunner().invoke(command, input=f"{answer}\n")
+    assert result.exit_code == (0 if answer == "y" else 1)
+    assert invoked.call_count == (1 if answer == "y" else 0)
+
+
+def test_bulk_confirmation_requires_explicit_noninteractive_consent(monkeypatch: Any) -> None:
+    """The shared confirmation helper never prompts when automation lacks consent."""
+    monkeypatch.setenv("SLCLI_NON_INTERACTIVE", "true")
+    prompt = Mock(side_effect=AssertionError("Must not prompt"))
+    monkeypatch.setattr("slcli.cli_utils.click.confirm", prompt)
+    with pytest.raises(SystemExit) as result:
+        confirm_bulk_operation("delete", "record", 2)
+    assert result.value.code == 2
+    assert confirm_bulk_operation("delete", "record", 2, force=True)
+    assert not confirm_bulk_operation("delete", "record", 0, force=True)
+
+
+def test_noninteractive_table_stops_after_one_page(monkeypatch: Any, capsys: Any) -> None:
+    """Captured table output has one page and a remaining-results notice on stderr."""
+    monkeypatch.setenv("SLCLI_NON_INTERACTIVE", "true")
+    paginate_list_output([{"id": str(i)} for i in range(3)], page_size=1)
+    output = capsys.readouterr()
+    assert output.out.strip() == "{'id': '0'}"
+    assert "Showing 1 of 3" in output.err
+
+
+@pytest.mark.parametrize("items", [[], [{"id": "1"}, {"id": "2"}]])
+def test_json_output_is_complete_and_prompt_free(
+    monkeypatch: Any, capsys: Any, items: list
+) -> None:
+    """Machine output is a single array even when its size exceeds a display page."""
+    import json
+
+    monkeypatch.setenv("SLCLI_NON_INTERACTIVE", "true")
+    paginate_list_output(items, page_size=1, format_output="json")
+    output = capsys.readouterr()
+    assert json.loads(output.out) == items
+    assert not output.err
 
 
 @pytest.mark.parametrize("page_size", [0, -1])
