@@ -5,7 +5,7 @@ Migration depends on the optional ``migration`` extra, so this module imports
 """
 
 from importlib.util import find_spec
-from typing import Dict, Optional
+from typing import Dict, List, Optional
 from urllib.parse import urlparse
 
 import click
@@ -18,6 +18,42 @@ def migration_extra_installed() -> bool:
     return all(find_spec(package) is not None for package in _MIGRATION_EXTRA_PACKAGES)
 
 
+_MAPPING_FORMAT_ERROR = "workspace mappings must be SOURCE or SOURCE:DESTINATION"
+
+
+def _split_workspace_mappings(value: str) -> List[List[str]]:
+    r"""Split mappings on unescaped commas and colons.
+
+    A backslash makes the next character literal, so \, and \: allow workspace
+    names containing a comma or colon. SystemLink workspace names cannot contain
+    backslashes or leading/trailing spaces, so escaping is unambiguous and
+    surrounding whitespace is ignored.
+    """
+    items: List[List[str]] = [[]]
+    part: List[str] = []
+
+    def finish_part() -> None:
+        items[-1].append("".join(part).strip())
+        part.clear()
+
+    chars = iter(value)
+    for char in chars:
+        if char == "\\":
+            escaped = next(chars, None)
+            if escaped is None:
+                raise click.BadParameter("workspace mappings cannot end with an escape '\\'")
+            part.append(escaped)
+        elif char == ":":
+            finish_part()
+        elif char == ",":
+            finish_part()
+            items.append([])
+        else:
+            part.append(char)
+    finish_part()
+    return items
+
+
 def _parse_workspace_mappings(
     ctx: click.Context, param: click.Parameter, value: Optional[str]
 ) -> Optional[Dict[str, str]]:
@@ -25,13 +61,13 @@ def _parse_workspace_mappings(
     if value is None:
         return None
     mappings: Dict[str, str] = {}
-    for item in value.split(","):
-        source, _, destination = (part.strip() for part in item.partition(":"))
-        if not source or (":" in item and not destination):
-            raise click.BadParameter("workspace mappings must be SOURCE or SOURCE:DESTINATION")
+    for parts in _split_workspace_mappings(value):
+        if len(parts) > 2 or not all(parts):
+            raise click.BadParameter(_MAPPING_FORMAT_ERROR)
+        source, destination = parts[0], parts[-1]
         if source in mappings:
             raise click.BadParameter(f"workspace '{source}' is mapped more than once")
-        mappings[source] = destination or source
+        mappings[source] = destination
     return mappings
 
 
@@ -55,6 +91,7 @@ def register_migrate_command(cli: click.Group) -> None:
         callback=_parse_workspace_mappings,
         help=(
             "Comma-delimited SOURCE or SOURCE:DESTINATION workspace mappings. "
+            "Escape ',' or ':' in a workspace name with a backslash, for example Lab\\:A:Dest. "
             "Only the listed source workspaces are migrated; all when omitted."
         ),
     )

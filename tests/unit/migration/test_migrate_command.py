@@ -6,12 +6,13 @@ from contextlib import contextmanager
 from dataclasses import dataclass, field
 from datetime import datetime, timezone
 from pathlib import Path
-from typing import Dict, List, Optional
+from typing import Dict, List, Optional, Tuple
 
 import click
 import pytest
 from click.testing import CliRunner, Result
 
+from slcli import migrate_click
 from slcli.migrate_click import register_migrate_command
 from slcli.migration import command
 from slcli.migration.flows.discover import MigrationDiscovery
@@ -56,6 +57,7 @@ class FakeDiscovery:
     outcome: Optional[TestMonitorDiscovery] = DISCOVERY
     calls: List[Dict[str, object]] = field(default_factory=list)
     state_root: Path = Path()
+    source_workspaces: Tuple[str, ...] = ("Lab", "Default")
 
     def runs(self) -> List[MigrationRun]:
         """Return the runs created under the state root."""
@@ -100,7 +102,7 @@ def fake_discovery(monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> FakeDisco
     monkeypatch.setattr(
         WorkspaceClient,
         "query_workspaces",
-        lambda self: iter([Workspace(id="1", name="Lab"), Workspace(id="2", name="Default")]),
+        lambda self: iter(Workspace(id=f"{name}-id", name=name) for name in fake.source_workspaces),
     )
     return fake
 
@@ -112,6 +114,32 @@ def test_unknown_mapped_workspace_fails_before_run(fake_discovery: FakeDiscovery
     assert result.exit_code == 2
     assert "unknown source workspace: Missing" in result.output
     assert not fake_discovery.state_root.exists()
+
+
+@pytest.mark.parametrize(
+    ("value", "expected"),
+    [
+        ("Lab", {"Lab": "Lab"}),
+        (" Lab : Dest , Default ", {"Lab": "Dest", "Default": "Default"}),
+        ("Lab\\:A:Dest", {"Lab:A": "Dest"}),
+        ("Lab\\:A:Dest\\,B", {"Lab:A": "Dest,B"}),
+        ("a\\, b:c\\:d", {"a, b": "c:d"}),
+        ('Say "hi":/x/y', {'Say "hi"': "/x/y"}),
+    ],
+)
+def test_workspace_mappings_support_escaping(value: str, expected: Dict[str, str]) -> None:
+    """Escaped delimiters are part of names; quotes and slashes are literal."""
+    assert migrate_click._parse_workspace_mappings(None, None, value) == expected  # type: ignore[arg-type]
+
+
+def test_mapping_name_with_colon_reaches_discovery(fake_discovery: FakeDiscovery) -> None:
+    """An escaped source name containing ':' is discovered by its literal name."""
+    fake_discovery.source_workspaces = ("Lab:A", "Default")
+
+    result = _migrate("--source-profile", "source", "--workspace-mappings", "Lab\\:A")
+
+    assert result.exit_code == 0, result.output
+    assert fake_discovery.calls[0]["workspaces"] == ["Lab:A"]
 
 
 def test_run_log_records_lifecycle_without_secrets(fake_discovery: FakeDiscovery) -> None:
@@ -268,6 +296,8 @@ def test_unknown_migration_id_is_reported(fake_discovery: FakeDiscovery) -> None
         (["--source-profile", "s", "--workspace-mappings", ":Dest"], "SOURCE:DESTINATION"),
         (["--source-profile", "s", "--workspace-mappings", "Lab:"], "SOURCE:DESTINATION"),
         (["--source-profile", "s", "--workspace-mappings", "Lab,Lab:X"], "mapped more than once"),
+        (["--source-profile", "s", "--workspace-mappings", "A:B:C"], "SOURCE:DESTINATION"),
+        (["--source-profile", "s", "--workspace-mappings", "Lab\\"], "end with an escape"),
     ],
 )
 def test_rejects_invalid_usage(args: List[str], message: str) -> None:
