@@ -645,7 +645,7 @@ def _post_arrow_append(table_id: str, input_path: str, end_of_data: bool) -> req
                 url,
                 headers=get_headers("application/vnd.apache.arrow.stream"),
                 data=arrow_file,
-                verify=active_profile_ssl_verify(),
+                verify=active_profile_ssl_verify(url),
             )
         response.raise_for_status()
         return response
