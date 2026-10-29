@@ -55,7 +55,11 @@ def test_missing_destination_workspace_fails_without_creating_it(
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    """A mapping to an absent destination workspace fails before creating a run."""
+    """A mapping to an absent destination workspace fails before creating a run.
+
+    AB#4088608 (Synchronize workspaces) will create missing destination
+    workspaces; update this test when that lands.
+    """
     monkeypatch.setenv(STATE_DIR_ENV, str(tmp_path))
     absent = f"e2e-slcli-migration-absent-{uuid.uuid4().hex[:8]}"
 

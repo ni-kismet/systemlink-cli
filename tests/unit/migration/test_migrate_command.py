@@ -10,6 +10,7 @@ from typing import Dict, Iterator, List, Optional, Tuple
 
 import click
 import pytest
+import requests
 from click.testing import CliRunner, Result
 
 from slcli import migrate_click
@@ -24,6 +25,7 @@ from slcli.migration.testmonitor.models import (
     WorkspaceFailure,
 )
 from slcli.migration.workspace_client import Workspace, WorkspaceClient
+from slcli.utils import ExitCodes
 
 DISCOVERY = TestMonitorDiscovery(
     products=(DiscoveredProduct(id="p", workspace="Lab"),),
@@ -178,6 +180,27 @@ def test_missing_destination_workspace_fails_before_run(fake_discovery: FakeDisc
     assert "missing destination workspace: Lab -> Absent" in result.output
     assert "not created by migration" in result.output
     assert not fake_discovery.state_root.exists()
+
+
+def test_failed_destination_workspace_query_exits_without_run(
+    fake_discovery: FakeDiscovery, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """A destination query error names the profile and uses the API exit code."""
+
+    def query_workspaces(self: WorkspaceClient) -> Iterator[Workspace]:
+        if "destination" in self._url:
+            raise requests.ConnectionError("unreachable")
+        return iter([Workspace(id="Lab-id", name="Lab")])
+
+    monkeypatch.setattr(WorkspaceClient, "query_workspaces", query_workspaces)
+
+    result = _migrate("--source-profile", "source", "--destination-profile", "destination")
+
+    assert result.exit_code == ExitCodes.NETWORK_ERROR
+    assert "destination workspaces with profile 'destination'" in result.output
+    assert "unreachable" in result.output
+    assert not fake_discovery.state_root.exists()
+    assert not fake_discovery.calls
 
 
 def test_omitted_mappings_require_every_same_named_destination(

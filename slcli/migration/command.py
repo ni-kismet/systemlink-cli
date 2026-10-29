@@ -4,22 +4,24 @@ import logging
 from collections.abc import Generator
 from contextlib import contextmanager
 from pathlib import Path
-from typing import Dict, Optional
+from typing import Dict, List, Optional
 from urllib.parse import urlparse
 
 import click
+import requests
 
 from slcli._version import __version__
 from slcli.migration.connection import MigrationConnection, resolve_migration_connection
 from slcli.migration.orchestration import prefect_server, run_discovery
 from slcli.migration.state import MigrationRun, create_migration_run, open_migration_run
 from slcli.migration.testmonitor.models import TestMonitorDiscovery
-from slcli.migration.workspace_client import WorkspaceClient
+from slcli.migration.workspace_client import Workspace, WorkspaceClient
 from slcli.migration.workspaces import (
     WorkspaceMapping,
     WorkspaceMappingError,
     map_workspaces,
 )
+from slcli.utils import handle_api_error
 
 _logger = logging.getLogger("slcli.migration")
 MIGRATION_LOG = "migration.log"
@@ -101,13 +103,20 @@ def _map_workspaces(
     workspace_mappings: Optional[Dict[str, str]],
 ) -> WorkspaceMapping:
     """Discover workspaces on both sides and fail before any migration work if unmapped."""
+    workspaces: List[List[Workspace]] = []
+    for role, connection in (("source", source), ("destination", destination)):
+        try:
+            workspaces.append(list(WorkspaceClient(connection).query_workspaces()))
+        except requests.RequestException as exc:
+            click.echo(
+                f"Failed to query {role} workspaces with profile '{connection.profile_name}'.",
+                err=True,
+            )
+            handle_api_error(exc)
     try:
-        return map_workspaces(
-            WorkspaceClient(source).query_workspaces(),
-            WorkspaceClient(destination).query_workspaces(),
-            workspace_mappings,
-        )
+        return map_workspaces(workspaces[0], workspaces[1], workspace_mappings)
     except WorkspaceMappingError as exc:
+        # TODO(AB#4088608): Synchronize workspaces will create missing destination workspaces.
         hint = (
             "Destination workspaces are not created by migration."
             if workspace_mappings is not None
