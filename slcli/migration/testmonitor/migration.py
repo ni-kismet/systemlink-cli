@@ -22,7 +22,6 @@ from typing import (
 
 import requests
 
-from slcli.migration.api import correlation_id
 from slcli.migration.testmonitor.models import (
     BatchResult,
     DiscoveredProduct,
@@ -151,14 +150,9 @@ def _copy(record: Record, fields: Sequence[str]) -> Record:
     return {name: record[name] for name in fields if record.get(name) is not None}
 
 
-def _request_failure(exc: requests.RequestException) -> Tuple[str, Optional[str], Optional[str]]:
+def _request_failure(exc: requests.RequestException) -> Tuple[str, Optional[str]]:
     response = exc.response
-    detail = f"HTTP {response.status_code}" if response is not None else None
-    return (
-        type(exc).__name__,
-        detail,
-        correlation_id(response.headers) if response is not None else None,
-    )
+    return type(exc).__name__, f"HTTP {response.status_code}" if response is not None else None
 
 
 FILTER_CHUNK_SIZE = 100
@@ -215,15 +209,9 @@ def _create(
     try:
         response = create(list(requests_by_source_id.values()))
     except requests.RequestException as exc:
-        error_type, detail, correlation = _request_failure(exc)
+        error_type, detail = _request_failure(exc)
         return {}, [
-            FailedItem(
-                source_id=source_id,
-                stage="create",
-                error_type=error_type,
-                detail=detail,
-                correlation_id=correlation,
-            )
+            FailedItem(source_id=source_id, stage="create", error_type=error_type, detail=detail)
             for source_id in requests_by_source_id
         ]
     created = {
@@ -237,7 +225,6 @@ def _create(
             stage="create",
             error_type="PartialFailure" if errors else "NotCreated",
             detail=errors,
-            correlation_id=response.correlation_id,
         )
         for source_id in requests_by_source_id
         if source_id not in created
@@ -380,16 +367,13 @@ def _complete_result(
     source_id: str,
     destination_id: str,
 ) -> Union[MigratedItem, FailedItem]:
-    def failure(
-        stage: str, error_type: str, detail: Optional[str], correlation: Optional[str]
-    ) -> FailedItem:
+    def failure(stage: str, error_type: str, detail: Optional[str]) -> FailedItem:
         return FailedItem(
             source_id=source_id,
             stage=stage,
             error_type=error_type,
             detail=detail,
             destination_id=destination_id,
-            correlation_id=correlation,
         )
 
     try:
@@ -406,12 +390,7 @@ def _complete_result(
     except requests.RequestException as exc:
         return failure("complete", *_request_failure(exc))
     if response.failed or response.error:
-        return failure(
-            "complete",
-            "PartialFailure",
-            ", ".join(error_names(response.error)) or None,
-            response.correlation_id,
-        )
+        return failure("complete", "PartialFailure", ", ".join(error_names(response.error)) or None)
     return MigratedItem(source_id=source_id, destination_id=destination_id, steps=len(steps))
 
 
@@ -448,17 +427,17 @@ def _migrate_steps(
     context: MigrationContext,
     destination_result_id: str,
     steps: Sequence[Record],
-) -> Optional[Tuple[str, Optional[str], Optional[str]]]:
+) -> Optional[Tuple[str, Optional[str]]]:
     """Create every step parent-first, remapping parent IDs to destination step IDs.
 
     Returns:
-        None when every step migrated, otherwise the error type, detail, and
-        correlation ID of the first failure.
+        None when every step migrated, otherwise the error type and detail of
+        the first failure.
     """
     try:
         levels = order_steps(steps)
     except ValueError as exc:
-        return ("InvalidStepHierarchy", str(exc), None)
+        return ("InvalidStepHierarchy", str(exc))
     destination_step_ids: Dict[str, str] = {}
     migrated = 0
     for level in levels:
@@ -482,8 +461,8 @@ def _migrate_steps(
             try:
                 response = destination.create_steps([request for _, request in chunk])
             except requests.RequestException as exc:
-                error_type, detail, correlation = _request_failure(exc)
-                return (error_type, f"{migrated} of {len(steps)} steps; {detail}", correlation)
+                error_type, detail = _request_failure(exc)
+                return (error_type, f"{migrated} of {len(steps)} steps; {detail}")
             for created in response.created:
                 source_step_id = (created.get("properties") or {}).get(SOURCE_ID)
                 if source_step_id is not None:
@@ -495,13 +474,12 @@ def _migrate_steps(
                 return (
                     "PartialFailure",
                     f"{migrated} of {len(steps)} steps; {errors or 'not created'}",
-                    response.correlation_id,
                 )
     return None
 
 
 def log_batch(result: BatchResult) -> None:
-    """Log a batch outcome with the IDs and correlation IDs needed to follow up."""
+    """Log a batch outcome with the IDs needed to follow up."""
     level = logging.WARNING if result.failed or result.conflicts else logging.INFO
     _logger.log(
         level,
@@ -514,14 +492,13 @@ def log_batch(result: BatchResult) -> None:
     )
     for item in result.failed:
         _logger.warning(
-            "Failed %s %s: stage=%s error=%s detail=%s destination_id=%s correlation_id=%s",
+            "Failed %s %s: stage=%s error=%s detail=%s destination_id=%s",
             result.resource,
             item.source_id,
             item.stage,
             item.error_type,
             item.detail,
             item.destination_id,
-            item.correlation_id,
         )
     for conflict in result.conflicts:
         _logger.warning(

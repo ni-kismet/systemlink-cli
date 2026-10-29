@@ -51,10 +51,9 @@ def _result(result_id: str, workspace: str = "Lab") -> DiscoveredResult:
     )
 
 
-def _http_error(status: int, correlation: str) -> requests.HTTPError:
+def _http_error(status: int) -> requests.HTTPError:
     response = requests.Response()
     response.status_code = status
-    response.headers["x-correlation-id"] = correlation
     return requests.HTTPError(response=response)
 
 
@@ -111,7 +110,7 @@ class FakeDestination:
             store.append(new)
             created.append(new)
         error = {"innerErrors": [{"name": "Rejected"}]} if failed else None
-        return WriteResponse(created, failed, error, "corr-write")
+        return WriteResponse(created, failed, error)
 
     def create_products(self, products: Sequence[Record]) -> WriteResponse:
         return self._create("products", products, self.products)
@@ -133,7 +132,7 @@ class FakeDestination:
             step_id = step["stepId"] if self.honor_step_ids else f"dst-{source_id}"
             created.append({**step, "stepId": step_id})
         error = {"innerErrors": [{"name": "StepRejected"}]} if failed else None
-        return WriteResponse(created, failed, error, "corr-steps")
+        return WriteResponse(created, failed, error)
 
     def update_results(self, results: Sequence[Record]) -> WriteResponse:
         if "update" in self.raise_on:
@@ -247,19 +246,15 @@ def test_product_partial_failure_and_missing_records_are_reported() -> None:
     }
 
 
-def test_product_request_error_captures_correlation_id() -> None:
-    """A failed create request reports HTTP status and correlation ID for every item."""
+def test_product_request_error_reports_status() -> None:
+    """A failed create request reports the HTTP status for every item."""
     source = FakeSource({"products": [_source_product("p1", "PN-1")]})
-    destination = FakeDestination(raise_on={"products": _http_error(500, "corr-500")})
+    destination = FakeDestination(raise_on={"products": _http_error(500)})
 
     result = migrate_products(source, destination, CONTEXT, 0, [_product("p1")])
 
     [failure] = result.failed
-    assert (failure.error_type, failure.detail, failure.correlation_id) == (
-        "HTTPError",
-        "HTTP 500",
-        "corr-500",
-    )
+    assert (failure.error_type, failure.detail) == ("HTTPError", "HTTP 500")
 
 
 def test_result_with_steps_is_completed() -> None:
@@ -317,29 +312,26 @@ def test_step_failure_leaves_result_incomplete() -> None:
         "new-r1",
     )
     assert failure.detail == "0 of 2 steps; StepRejected"
-    assert failure.correlation_id == "corr-steps"
     assert len(destination.step_calls) == 1
     assert not destination.updates
 
 
 def test_step_query_and_completion_errors_are_reported() -> None:
     """Errors after the result is created report its destination ID."""
-    source = FakeSource(
-        {"results": [_source_result("r1")]}, steps_error=_http_error(503, "corr-503")
-    )
+    source = FakeSource({"results": [_source_result("r1")]}, steps_error=_http_error(503))
     batch = migrate_results(source, FakeDestination(), CONTEXT, 0, [_result("r1")])
     [failure] = batch.failed
-    assert (failure.stage, failure.correlation_id, failure.destination_id) == (
+    assert (failure.stage, failure.detail, failure.destination_id) == (
         "steps",
-        "corr-503",
+        "HTTP 503",
         "new-r1",
     )
 
-    destination = FakeDestination(raise_on={"update": _http_error(500, "corr-up")})
+    destination = FakeDestination(raise_on={"update": _http_error(500)})
     source = FakeSource({"results": [_source_result("r1")]})
     batch = migrate_results(source, destination, CONTEXT, 0, [_result("r1")])
     [failure] = batch.failed
-    assert (failure.stage, failure.correlation_id) == ("complete", "corr-up")
+    assert (failure.stage, failure.detail) == ("complete", "HTTP 500")
 
 
 def test_client_supplied_step_ids_are_used_when_honored() -> None:

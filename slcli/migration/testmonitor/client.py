@@ -1,10 +1,10 @@
 """Profile-bound Test Monitor queries for migration discovery."""
 
 from collections.abc import Iterator
-from typing import Any, Dict, List, Optional, Sequence, Type, TypeVar
+from typing import Any, Dict, Optional, Sequence
 
 import requests
-from pydantic import AwareDatetime, ConfigDict
+from pydantic import AwareDatetime
 
 from slcli.migration.api import REQUEST_TIMEOUT_SECONDS, ApiModel
 from slcli.migration.connection import MigrationConnection
@@ -38,27 +38,6 @@ class Result(ApiModel):
     properties: Dict[str, Optional[str]] = {}
 
 
-class _Page(ApiModel):
-    continuation_token: Optional[str] = None
-
-
-class _ProductPage(_Page):
-    products: List[Product] = []
-
-
-class _ResultPage(_Page):
-    results: List[Result] = []
-
-
-class _RecordPage(_Page):
-    """A page whose records are kept verbatim as extra fields."""
-
-    model_config = ConfigDict(extra="allow")
-
-
-_PageT = TypeVar("_PageT", bound=_Page)
-
-
 class TestMonitorClient:
     """Query Test Monitor using one profile-bound migration connection."""
 
@@ -75,8 +54,8 @@ class TestMonitorClient:
 
     def query_products(self) -> Iterator[Product]:
         """Yield every product."""
-        for page in self._query_pages("query-products", _ProductPage, {}):
-            yield from page.products
+        for record in self._query_records("products", {}):
+            yield Product.model_validate(record)
 
     def query_results(
         self,
@@ -88,8 +67,8 @@ class TestMonitorClient:
         if filter_expr:
             query["filter"] = filter_expr
             query["substitutions"] = list(substitutions or [])
-        for page in self._query_pages("query-results", _ResultPage, query):
-            yield from page.results
+        for record in self._query_records("results", query):
+            yield Result.model_validate(record)
 
     def query_records(
         self,
@@ -99,30 +78,31 @@ class TestMonitorClient:
     ) -> Iterator[Dict[str, Any]]:
         """Yield complete records of a collection matching a parameterized filter.
 
+        Records are returned as received so fields that migration does not model
+        are preserved.
+
         Args:
             collection: ``products``, ``results``, or ``steps``.
             filter_expr: Dynamic LINQ filter.
             substitutions: Values for ``@0``, ``@1``, and so on in ``filter_expr``.
         """
         query: Dict[str, object] = {"filter": filter_expr, "substitutions": list(substitutions)}
-        for page in self._query_pages(f"query-{collection}", _RecordPage, query):
-            records = (page.model_extra or {}).get(collection) or []
-            yield from records
+        return self._query_records(collection, query)
 
-    def _query_pages(
-        self, endpoint: str, page_type: Type[_PageT], query: Dict[str, object]
-    ) -> Iterator[_PageT]:
-        """Yield every page of a continuation-token query."""
+    def _query_records(self, collection: str, query: Dict[str, object]) -> Iterator[Dict[str, Any]]:
+        """Yield every record of a continuation-token query on ``query-<collection>``."""
         payload: Dict[str, object] = {**query, "take": PAGE_SIZE, "descending": False}
         while True:
             response = self._session.post(
-                f"{self._base_url}/{endpoint}", json=payload, timeout=REQUEST_TIMEOUT_SECONDS
+                f"{self._base_url}/query-{collection}",
+                json=payload,
+                timeout=REQUEST_TIMEOUT_SECONDS,
             )
             response.raise_for_status()
-            page = page_type.model_validate(response.json())
-            yield page
+            page: Dict[str, Any] = response.json()
+            yield from page.get(collection) or []
 
-            token = page.continuation_token
+            token = page.get("continuationToken")
             if not token:
                 return
             payload = {**payload, "continuationToken": token}

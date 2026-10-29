@@ -19,7 +19,7 @@ import uuid
 from collections.abc import Generator
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Any, Dict, List
+from typing import Any, Dict, List, Optional
 
 import pytest
 from click.testing import CliRunner, Result
@@ -137,11 +137,28 @@ def _destination_results(seeded: Seeded) -> List[Dict[str, Any]]:
     )
 
 
+def _step_parents(seeded: Seeded, destination_result_id: str) -> Dict[str, Optional[str]]:
+    """Return each destination step name mapped to its parent step name."""
+    client = TestMonitorClient(seeded.endpoints.destination)
+    steps = list(client.query_records("steps", "resultId == @0", [destination_result_id]))
+    by_id = {step["stepId"]: step for step in steps}
+    return {step["name"]: by_id.get(step.get("parentId"), {}).get("name") for step in steps}
+
+
 @pytest.fixture(scope="module")
-def migrated(
+def one_completed_migration_run(
     seeded: Seeded, test_prefect_server: str, tmp_path_factory: pytest.TempPathFactory
 ) -> Generator[Result, None, None]:
-    """Run one migration of the source workspace into the destination workspace."""
+    """Run the migration command once and share its result across this module.
+
+    Each live migration takes about a minute, so the tests below check different
+    parts of one run instead of migrating separately. As a consequence:
+
+    - The tests share destination state and must not change anything another
+      test checks; ``test_rerun_does_not_duplicate`` only adds a no-op re-run.
+    - A failed migration fails every test that uses this fixture, each
+      reporting the same command output.
+    """
     state = tmp_path_factory.mktemp("migration-state")
     with pytest.MonkeyPatch.context() as patch:
         patch.setenv(STATE_DIR_ENV, str(state))
@@ -164,16 +181,23 @@ def _migration_id(result: Result) -> str:
     return match.group(1)
 
 
-def test_summary_reports_migration_and_conflict(seeded: Seeded, migrated: Result) -> None:
+def test_summary_reports_migration_and_conflict(
+    seeded: Seeded, one_completed_migration_run: Result
+) -> None:
     """The run succeeds, reporting the conflicting product without failing."""
-    assert migrated.exit_code == 0, migrated.output
-    assert "Products migrated: 1\n  Product conflicts: 1\n  Products failed: 0" in migrated.output
-    assert "Results migrated: 2\n  Results failed: 0" in migrated.output
-    assert f"Conflict: product {seeded.conflicting_product}" in migrated.output
-    assert seeded.existing_destination_product in migrated.output
+    assert one_completed_migration_run.exit_code == 0, one_completed_migration_run.output
+    assert (
+        "Products migrated: 1\n  Product conflicts: 1\n  Products failed: 0"
+        in one_completed_migration_run.output
+    )
+    assert "Results migrated: 2\n  Results failed: 0" in one_completed_migration_run.output
+    assert f"Conflict: product {seeded.conflicting_product}" in one_completed_migration_run.output
+    assert seeded.existing_destination_product in one_completed_migration_run.output
 
 
-def test_products_migrate_except_conflicts(seeded: Seeded, migrated: Result) -> None:
+def test_products_migrate_except_conflicts(
+    seeded: Seeded, one_completed_migration_run: Result
+) -> None:
     """The fresh product is annotated; the existing destination product is unchanged."""
     client = TestMonitorClient(seeded.endpoints.destination)
     products = {
@@ -188,14 +212,16 @@ def test_products_migrate_except_conflicts(seeded: Seeded, migrated: Result) -> 
     fresh = products[seeded.fresh_part]
     assert fresh["workspace"] == seeded.endpoints.destination_workspace_id
     assert fresh["properties"][SOURCE_ID] == seeded.fresh_product
-    assert fresh["properties"][MIGRATION_ID] == _migration_id(migrated)
+    assert fresh["properties"][MIGRATION_ID] == _migration_id(one_completed_migration_run)
     existing = products[seeded.conflicting_part]
     assert existing["id"] == seeded.existing_destination_product
     assert existing["name"] == "pre-existing"
     assert MIGRATION_ID not in existing["properties"]
 
 
-def test_results_complete_with_step_tree(seeded: Seeded, migrated: Result) -> None:
+def test_results_complete_with_step_tree(
+    seeded: Seeded, one_completed_migration_run: Result
+) -> None:
     """Both results migrate complete, keep part numbers, and drop file references."""
     results = {r["properties"][SOURCE_ID]: r for r in _destination_results(seeded)}
 
@@ -205,25 +231,25 @@ def test_results_complete_with_step_tree(seeded: Seeded, migrated: Result) -> No
     for result in results.values():
         assert result["properties"][STATUS] == COMPLETE
         assert not result.get("fileIds")
-    client = TestMonitorClient(seeded.endpoints.destination)
-    steps = list(
-        client.query_records("steps", "resultId == @0", [results[seeded.stepped_result]["id"]])
-    )
-    by_id = {s["stepId"]: s for s in steps}
-    parents = {s["name"]: by_id.get(s.get("parentId"), {}).get("name") for s in steps}
-    assert parents == {"parent": None, "child": "parent", "grandchild": "child"}
+    assert _step_parents(seeded, results[seeded.stepped_result]["id"]) == {
+        "parent": None,
+        "child": "parent",
+        "grandchild": "child",
+    }
 
 
 def test_rerun_does_not_duplicate(
-    seeded: Seeded, migrated: Result, test_prefect_server: str
+    seeded: Seeded, one_completed_migration_run: Result, test_prefect_server: str
 ) -> None:
     """Re-running a migration by ID reuses completed batches instead of writing again."""
     before = len(_destination_results(seeded))
-    state = Path(migrated.output.split("Log: ")[-1].strip()).parents[1]
+    state = Path(one_completed_migration_run.output.split("Log: ")[-1].strip()).parents[1]
 
     with pytest.MonkeyPatch.context() as patch:
         patch.setenv(STATE_DIR_ENV, str(state))
-        rerun = _invoke(["--migration-id", _migration_id(migrated)], test_prefect_server)
+        rerun = _invoke(
+            ["--migration-id", _migration_id(one_completed_migration_run)], test_prefect_server
+        )
 
     assert rerun.exit_code == 0, rerun.output
     assert "Results migrated: 2" in rerun.output

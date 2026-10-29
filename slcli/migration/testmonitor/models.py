@@ -66,7 +66,6 @@ class FailedItem(_Persisted):
     detail: Optional[str] = None
     destination_id: Optional[str] = None
     """Incomplete destination resource left behind, if any."""
-    correlation_id: Optional[str] = None
 
 
 class ProductConflict(_Persisted):
