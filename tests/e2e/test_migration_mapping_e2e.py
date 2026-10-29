@@ -4,9 +4,11 @@ Requires a source profile, a destination profile, and an existing non-Default
 destination workspace. See ``tests/e2e/README.md``.
 """
 
+import re
 import uuid
 from pathlib import Path
 
+import click
 import pytest
 from click.testing import CliRunner, Result
 
@@ -49,6 +51,10 @@ def _migrate(endpoints: MigrationEndpoints, mapping: str, prefect_api_url: str) 
     )
 
 
+def _compact(text: str) -> str:
+    return re.sub(r"[\s─-╿]", "", click.unstyle(text))
+
+
 def test_missing_destination_workspace_fails_without_creating_it(
     endpoints: MigrationEndpoints,
     test_prefect_server: str,
@@ -66,9 +72,11 @@ def test_missing_destination_workspace_fails_without_creating_it(
     result = _migrate(endpoints, f"{SOURCE_WORKSPACE}:{absent}", test_prefect_server)
 
     assert result.exit_code == 1, result.output
-    # The error panel wraps long lines, so compare without the wrapping.
-    output = " ".join(result.output.replace("│", " ").split())
-    assert f"missing destination workspace: {SOURCE_WORKSPACE} -> {absent}" in output
+    # The error panel may be colored and wrapped at any width, so compare without
+    # styling, borders, or whitespace.
+    assert _compact(f"missing destination workspace: {SOURCE_WORKSPACE} -> {absent}") in _compact(
+        result.output
+    )
     assert not tmp_path.exists() or not any(tmp_path.iterdir())
     destination_names = {w.name for w in WorkspaceClient(endpoints.destination).query_workspaces()}
     assert absent not in destination_names
