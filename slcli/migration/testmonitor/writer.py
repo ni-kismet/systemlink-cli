@@ -5,7 +5,7 @@ from typing import Any, Dict, Iterable, List, Optional, Sequence
 
 import requests
 
-from slcli.migration.api import REQUEST_TIMEOUT_SECONDS, correlation_id
+from slcli.migration.api import REQUEST_TIMEOUT_SECONDS
 from slcli.migration.connection import MigrationConnection
 from slcli.migration.testmonitor.client import TestMonitorClient
 
@@ -19,7 +19,6 @@ class WriteResponse:
     created: List[Record] = field(default_factory=list)
     failed: List[Record] = field(default_factory=list)
     error: Optional[Record] = None
-    correlation_id: Optional[str] = None
 
 
 _FILTER_CHUNK_SIZE = 100
@@ -83,7 +82,6 @@ class TestMonitorWriter:
             created=list(body.get(collection) or []),
             failed=list(body.get("failed") or []),
             error=body.get("error"),
-            correlation_id=correlation_id(response.headers),
         )
 
 

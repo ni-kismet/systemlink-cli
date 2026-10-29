@@ -12,7 +12,6 @@ from urllib3.connectionpool import ConnectionPool
 from urllib3.response import BaseHTTPResponse
 from urllib3.util.retry import Retry
 
-from slcli.migration.api import correlation_id
 from slcli.profiles import Profile, ProfileConfig
 from slcli.ssl_trust import use_standard_ssl_context
 from slcli.utils import get_auth_headers, profile_ssl_verify, resolve_profile_auth
@@ -34,26 +33,23 @@ class LoggingRetry(Retry):
     ) -> "LoggingRetry":
         """Log the retry decision, then defer to :class:`Retry`."""
         reason = f"status={response.status}" if response is not None else type(error).__name__
-        correlation = correlation_id(response.headers) if response is not None else None
         try:
             retry = super().increment(method, url, response, error, _pool, _stacktrace)
         except Exception:
             _logger.warning(
-                "HTTP retry exhausted: %s %s %s correlation_id=%s",
+                "HTTP retry exhausted: %s %s %s",
                 method,
                 url,
                 reason,
-                correlation,
             )
             raise
         _logger.warning(
-            "HTTP retry: %s %s %s attempt=%d backoff=%.1fs correlation_id=%s",
+            "HTTP retry: %s %s %s attempt=%d backoff=%.1fs",
             method,
             url,
             reason,
             len(retry.history),
             retry.get_backoff_time(),
-            correlation,
         )
         return retry
 

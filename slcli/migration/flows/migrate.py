@@ -1,7 +1,7 @@
 """Migration flow: discover, then migrate batches of each resource type."""
 
 import logging
-from typing import List, Optional, Protocol, Sequence, Tuple, TypeVar
+from typing import Any, List, Optional, Protocol, Sequence, Tuple, TypeVar
 
 from prefect import flow, unmapped
 from prefect.futures import PrefectFutureList
@@ -79,6 +79,22 @@ def _gather(
     return outcomes
 
 
+def _shared_task_args(
+    migration_id: str, source_profile: str, destination_profile: str, mapping: WorkspaceMapping
+) -> Tuple[Any, ...]:
+    """Return the leading arguments every batch task receives.
+
+    ``Task.map`` iterates sequence arguments; ``unmapped`` passes these unchanged
+    to every batch instead.
+    """
+    return (
+        unmapped(migration_id),
+        unmapped(source_profile),
+        unmapped(destination_profile),
+        unmapped(mapping),
+    )
+
+
 @flow(
     name="systemlink-migration",
     flow_run_name="migration-{migration_id}",
@@ -107,12 +123,7 @@ def migrate_flow(
     """
     discovery = discover_flow(migration_id, source_profile, workspaces)
     test_monitor = discovery.test_monitor
-    common = (
-        unmapped(migration_id),
-        unmapped(source_profile),
-        unmapped(destination_profile),
-        unmapped(mapping),
-    )
+    common = _shared_task_args(migration_id, source_profile, destination_profile, mapping)
     product_batches = partition(test_monitor.products, product_batch_size)
     products = _gather(
         "products",
