@@ -29,11 +29,7 @@ from slcli.migration.summary import (
 )
 from slcli.migration.testmonitor.models import TestMonitorDiscovery
 from slcli.migration.workspace_client import Workspace, WorkspaceClient
-from slcli.migration.workspaces import (
-    WorkspaceMapping,
-    WorkspaceMappingError,
-    map_workspaces,
-)
+from slcli.migration.workspaces import WorkspaceMappingError, map_workspaces
 from slcli.utils import handle_api_error
 
 _logger = logging.getLogger("slcli.migration")
@@ -52,7 +48,7 @@ def start_migration(
     source = resolve_migration_connection(source_profile)
     destination = resolve_migration_connection(destination_profile)
     _echo_connections(source, destination)
-    mapping = _map_workspaces(source, destination, workspace_mappings)
+    _check_workspaces(source, destination, workspace_mappings)
     run = create_migration_run(
         source_profile,
         destination_profile,
@@ -61,11 +57,15 @@ def start_migration(
         result_batch_size=result_batch_size,
     )
     _, metadata = open_migration_run(run.migration_id, run.directory.parent)
-    _migrate(run, metadata, source, destination, mapping, prefect_api_url)
+    _migrate(run, metadata, source, destination, prefect_api_url)
 
 
 def resume_migration(migration_id: str, prefect_api_url: Optional[str]) -> None:
-    """Resume migration run with the original inputs and cached state."""
+    """Resume migration run with the original inputs and cached state.
+
+    The flow reuses the workspace mapping it resolved before, so workspaces are
+    not checked again here.
+    """
     try:
         run, metadata = open_migration_run(migration_id)
     except ValueError as exc:
@@ -73,8 +73,7 @@ def resume_migration(migration_id: str, prefect_api_url: Optional[str]) -> None:
     source = resolve_migration_connection(metadata.source_profile)
     destination = resolve_migration_connection(metadata.destination_profile)
     _echo_connections(source, destination)
-    mapping = _map_workspaces(source, destination, metadata.workspace_mappings)
-    _migrate(run, metadata, source, destination, mapping, prefect_api_url)
+    _migrate(run, metadata, source, destination, prefect_api_url)
 
 
 def _all_workspaces_failed(discovery: TestMonitorDiscovery) -> bool:
@@ -92,12 +91,12 @@ def _echo_connections(source: MigrationConnection, destination: MigrationConnect
             )
 
 
-def _map_workspaces(
+def _check_workspaces(
     source: MigrationConnection,
     destination: MigrationConnection,
     workspace_mappings: Optional[Dict[str, str]],
-) -> WorkspaceMapping:
-    """Discover workspaces on both sides and fail before any migration work if unmapped."""
+) -> None:
+    """Fail before creating a run if the requested workspaces cannot be mapped."""
     workspaces: List[List[Workspace]] = []
     for role, connection in (("source", source), ("destination", destination)):
         try:
@@ -109,16 +108,22 @@ def _map_workspaces(
             )
             handle_api_error(exc)
     try:
-        return map_workspaces(workspaces[0], workspaces[1], workspace_mappings)
+        map_workspaces(workspaces[0], workspaces[1], workspace_mappings)
     except WorkspaceMappingError as exc:
-        # TODO(AB#4088608): Synchronize workspaces will create missing destination workspaces.
-        hint = (
-            "Destination workspaces are not created by migration."
-            if workspace_mappings is not None
-            else "Create the destination workspaces or select workspaces with "
-            "--workspace-mappings. Destination workspaces are not created by migration."
-        )
-        raise click.ClickException(f"{exc}. {hint}") from exc
+        raise _mapping_error(exc, workspace_mappings) from exc
+
+
+def _mapping_error(
+    exc: WorkspaceMappingError, workspace_mappings: Optional[Dict[str, str]]
+) -> click.ClickException:
+    # TODO(AB#4088608): Synchronize workspaces will create missing destination workspaces.
+    hint = (
+        "Destination workspaces are not created by migration."
+        if workspace_mappings is not None
+        else "Create the destination workspaces or select workspaces with "
+        "--workspace-mappings. Destination workspaces are not created by migration."
+    )
+    return click.ClickException(f"{exc}. {hint}")
 
 
 @contextmanager
@@ -142,11 +147,9 @@ def _migrate(
     metadata: RunMetadata,
     source: MigrationConnection,
     destination: MigrationConnection,
-    mapping: WorkspaceMapping,
     prefect_api_url: Optional[str],
 ) -> None:
     click.echo(f"Migration ID: {run.migration_id}")
-    click.echo(format_workspace_mapping(mapping))
     log_path = run.directory / MIGRATION_LOG
     workspace_mappings = metadata.workspace_mappings
     workspaces = list(workspace_mappings) if workspace_mappings is not None else None
@@ -167,20 +170,24 @@ def _migrate(
             metadata.product_batch_size,
             metadata.result_batch_size,
         )
+        try:
+            with prefect_server(run, prefect_api_url) as api_url:
+                outcome = run_migration(run, metadata, api_url)
+        except BaseException as exc:
+            _logger.error("Migration failed: %s: %s", type(exc).__name__, exc)
+            click.echo(f"Log: {log_path}", err=True)
+            if isinstance(exc, WorkspaceMappingError):
+                raise _mapping_error(exc, workspace_mappings) from exc
+            if isinstance(exc, requests.RequestException):
+                handle_api_error(exc)
+            raise
         _logger.info(
             "Workspace mapping: %s",
             [
                 f"{w.source_name}({w.source_id}) -> {w.destination_name}({w.destination_id})"
-                for w in mapping.workspaces
+                for w in outcome.mapping.workspaces
             ],
         )
-        try:
-            with prefect_server(run, prefect_api_url) as api_url:
-                outcome = run_migration(run, metadata, mapping, api_url)
-        except BaseException as exc:
-            _logger.error("Migration failed: %s: %s", type(exc).__name__, exc)
-            click.echo(f"Log: {log_path}", err=True)
-            raise
         test_monitor = outcome.discovery.test_monitor
         migration = outcome.test_monitor
         failed = len(failed_items(migration.products)) + len(failed_items(migration.results))
@@ -191,6 +198,7 @@ def _migrate(
             [failure.workspace for failure in test_monitor.failures],
             failed,
         )
+    click.echo(format_workspace_mapping(outcome.mapping))
     click.echo(format_summary(test_monitor))
     click.echo(format_migration_summary(migration))
     click.echo(f"Log: {log_path}")

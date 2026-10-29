@@ -2,7 +2,6 @@
 
 from datetime import datetime, timezone
 
-from slcli.migration.flows.migrate import TestMonitorMigration
 from slcli.migration.summary import format_migration_summary, format_summary
 from slcli.migration.testmonitor.models import (
     BatchResult,
@@ -14,6 +13,7 @@ from slcli.migration.testmonitor.models import (
     TestMonitorDiscovery,
     WorkspaceFailure,
 )
+from slcli.migration.testmonitor.pipeline import TestMonitorMigration
 
 DISCOVERY = TestMonitorDiscovery(
     products=(DiscoveredProduct(id="p", workspace="Lab"),),
