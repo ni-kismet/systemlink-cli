@@ -7,7 +7,7 @@ from urllib.parse import urlencode
 
 import click
 
-from .cli_utils import validate_output_format
+from .cli_utils import is_interactive_environment, validate_output_format
 from .rich_output import render_table
 from .utils import (
     ExitCodes,
@@ -85,7 +85,7 @@ def register_workspace_commands(cli: Any) -> None:
     @click.option(
         "--take",
         "-t",
-        type=int,
+        type=click.IntRange(min=1),
         default=25,
         show_default=True,
         help="Maximum number of workspaces to return from API",
@@ -109,7 +109,7 @@ def register_workspace_commands(cli: Any) -> None:
             if format_output.lower() == "json":
                 all_workspaces = []
                 skip = 0
-                remaining = take if take and take > 0 else 25
+                remaining = take
                 while remaining > 0:
                     page_take = min(remaining, 100)
                     workspaces, total_count, error = _fetch_workspaces_page(
@@ -119,17 +119,17 @@ def register_workspace_commands(cli: Any) -> None:
                         click.echo(f"✗ {error}", err=True)
                         sys.exit(ExitCodes.GENERAL_ERROR)
 
-                    # Filter by enabled status if needed
+                    fetched_count = len(workspaces)
+                    skip += fetched_count
                     if not include_disabled:
                         workspaces = [ws for ws in workspaces if ws.get("enabled", True)]
 
                     all_workspaces.extend(workspaces)
 
                     # Stop when we've collected the requested amount or reached total
-                    if len(all_workspaces) >= take or skip + page_take >= total_count:
+                    if not fetched_count or skip >= total_count:
                         break
 
-                    skip += page_take
                     remaining = take - len(all_workspaces)
 
                 # Trim in case we over-collected due to page boundaries
@@ -158,17 +158,19 @@ def register_workspace_commands(cli: Any) -> None:
                     click.echo(f"✗ {error}", err=True)
                     sys.exit(ExitCodes.GENERAL_ERROR)
 
+                fetched_count = len(workspaces)
+                skip += fetched_count
+
                 # Filter by enabled status if needed
                 if not include_disabled:
                     workspaces = [ws for ws in workspaces if ws.get("enabled", True)]
 
-                if not workspaces and skip == 0:
-                    click.echo("No workspaces found.")
-                    return
-
                 if not workspaces:
-                    # No more results on this page
-                    break
+                    if not fetched_count or skip >= total_count_from_api:
+                        if shown_count == 0:
+                            click.echo("No workspaces found.")
+                        break
+                    continue
 
                 # Display the page
                 from .table_utils import output_formatted_list
@@ -184,7 +186,6 @@ def register_workspace_commands(cli: Any) -> None:
                 )
 
                 shown_count += len(workspaces)
-                skip += take
 
                 # Check if there are potentially more results from the API
                 # We check skip against total_count to see if the next page exists
@@ -194,12 +195,7 @@ def register_workspace_commands(cli: Any) -> None:
                 # Ask user if they want to see more; if non-interactive, stop
                 click.echo(f"\nShowing {shown_count} workspace(s) so far. More may be available.")
 
-                try:
-                    is_tty = sys.stdout.isatty() and sys.stdin.isatty()
-                except Exception:
-                    is_tty = False
-
-                if not is_tty:
+                if not is_interactive_environment():
                     break
                 if not click.confirm("Show next page?", default=True):
                     break

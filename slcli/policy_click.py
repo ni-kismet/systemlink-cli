@@ -75,7 +75,7 @@ def register_policy_commands(cli: Any) -> None:
     @click.option(
         "--take",
         "-t",
-        type=int,
+        type=click.IntRange(min=1),
         default=None,
         help="Limit results (default: 25 for table, all for JSON)",
     )
@@ -642,7 +642,7 @@ def register_policy_commands(cli: Any) -> None:
     @click.option(
         "--take",
         "-t",
-        type=int,
+        type=click.IntRange(min=1),
         default=None,
         help="Limit results (default: 25 for table, all for JSON)",
     )

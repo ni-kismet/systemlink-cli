@@ -515,7 +515,7 @@ def register_state_commands(cli: Any) -> None:
     @click.option(
         "--take",
         "-t",
-        type=int,
+        type=click.IntRange(min=1),
         default=25,
         show_default=True,
         help="Maximum states to return (table page size; JSON list total)",
@@ -1021,7 +1021,7 @@ def register_state_commands(cli: Any) -> None:
     @click.option(
         "--take",
         "-t",
-        type=int,
+        type=click.IntRange(min=1),
         default=25,
         show_default=True,
         help="Number of items per page in table output",

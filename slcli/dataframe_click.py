@@ -693,7 +693,7 @@ def register_dataframe_commands(cli: Any) -> None:
     @click.option(
         "--take",
         "-t",
-        type=int,
+        type=click.IntRange(min=1),
         default=25,
         show_default=True,
         help="Maximum tables to return (table page size; JSON list total)",
@@ -813,7 +813,14 @@ def register_dataframe_commands(cli: Any) -> None:
         multiple=True,
         help="Sort clause in the form column[:asc|desc]. Repeat for multiple clauses.",
     )
-    @click.option("--take", "-t", type=int, default=100, show_default=True, help="Rows per page")
+    @click.option(
+        "--take",
+        "-t",
+        type=click.IntRange(min=1),
+        default=100,
+        show_default=True,
+        help="Rows per page",
+    )
     @click.option("--continuation-token", help="Continuation token for paged reads")
     @click.option(
         "--request",
@@ -961,7 +968,7 @@ def register_dataframe_commands(cli: Any) -> None:
         multiple=True,
         help="Sort clause in the form column[:asc|desc]. Repeat for multiple clauses.",
     )
-    @click.option("--take", type=int, help="Limit the number of exported rows")
+    @click.option("--take", type=click.IntRange(min=1), help="Limit the number of exported rows")
     @click.option(
         "--request",
         type=click.Path(exists=True, dir_okay=False, readable=True),
