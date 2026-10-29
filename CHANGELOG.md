@@ -2,6 +2,13 @@
 
 <!-- towncrier release notes start -->
 
+## v2.5.6 (2026-10-29)
+
+### Bug Fixes
+
+- Reject non-positive result counts, preserve workspace records across capped or disabled-only pages, and collect the full requested tag JSON result set across continuation tokens. (cli-pagination-correctness)
+
+
 ## v2.5.5 (2026-10-28)
 
 ### Bug Fixes
