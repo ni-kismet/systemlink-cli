@@ -9,7 +9,7 @@ from urllib3.exceptions import MaxRetryError, ProtocolError
 from urllib3.response import HTTPResponse
 
 from slcli.migration.connection import LoggingRetry, MigrationConnection
-from slcli.migration.flows.migrate import partition
+from slcli.migration.flows.batching import partition
 from slcli.migration.testmonitor.writer import TestMonitorWriter, error_names
 
 CONNECTION = MigrationConnection("destination", "https://dest", {"x-ni-api-key": "secret"})

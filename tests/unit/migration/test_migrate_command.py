@@ -6,7 +6,7 @@ from contextlib import contextmanager
 from dataclasses import dataclass, field
 from datetime import datetime, timezone
 from pathlib import Path
-from typing import Dict, Iterator, List, Optional, Tuple
+from typing import Dict, Iterable, Iterator, List, Optional, Tuple
 
 import click
 import pytest
@@ -17,7 +17,7 @@ from slcli import migrate_click
 from slcli.migrate_click import register_migrate_command
 from slcli.migration import command
 from slcli.migration.flows.discover import MigrationDiscovery
-from slcli.migration.flows.migrate import MigrationOutcome, TestMonitorMigration
+from slcli.migration.flows.migrate import MigrationOutcome
 from slcli.migration.state import STATE_DIR_ENV, MigrationRun, RunMetadata, create_migration_run
 from slcli.migration.testmonitor.models import (
     DiscoveredProduct,
@@ -29,8 +29,9 @@ from slcli.migration.testmonitor.models import (
     TestMonitorDiscovery,
     WorkspaceFailure,
 )
+from slcli.migration.testmonitor.pipeline import TestMonitorMigration
 from slcli.migration.workspace_client import Workspace, WorkspaceClient
-from slcli.migration.workspaces import WorkspaceMapping
+from slcli.migration.workspaces import map_workspaces
 from slcli.utils import ExitCodes
 
 DISCOVERY = TestMonitorDiscovery(
@@ -56,6 +57,10 @@ def _migrate(*args: str) -> Result:
 
     register_migrate_command(cli)
     return CliRunner().invoke(cli, ["migrate", *args])
+
+
+def _named(names: Iterable[str]) -> List[Workspace]:
+    return [Workspace(id=f"{name}-id", name=name) for name in names]
 
 
 @dataclass
@@ -99,9 +104,7 @@ def fake_discovery(monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> FakeDisco
     def prefect_server(run: MigrationRun, api_url: Optional[str]) -> Generator[str, None, None]:
         yield api_url or "http://managed/api"
 
-    def run_migration(
-        run: MigrationRun, metadata: RunMetadata, mapping: WorkspaceMapping, api_url: str
-    ) -> MigrationOutcome:
+    def run_migration(run: MigrationRun, metadata: RunMetadata, api_url: str) -> MigrationOutcome:
         workspaces = (
             list(metadata.workspace_mappings) if metadata.workspace_mappings is not None else None
         )
@@ -116,7 +119,13 @@ def fake_discovery(monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> FakeDisco
         fake.metadata.append(metadata)
         if fake.outcome is None:
             raise RuntimeError("discovery failed")
+        mapping = map_workspaces(
+            _named(fake.source_workspaces),
+            _named(fake.destination_workspaces),
+            metadata.workspace_mappings,
+        )
         return MigrationOutcome(
+            mapping=mapping,
             discovery=MigrationDiscovery(test_monitor=fake.outcome),
             test_monitor=fake.migration,
         )
@@ -128,7 +137,7 @@ def fake_discovery(monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> FakeDisco
         names = (
             fake.destination_workspaces if "destination" in self._url else fake.source_workspaces
         )
-        return iter(Workspace(id=f"{name}-id", name=name) for name in names)
+        return iter(_named(names))
 
     monkeypatch.setattr(WorkspaceClient, "query_workspaces", query_workspaces)
     return fake
@@ -403,6 +412,37 @@ def test_existing_migration_reuses_persisted_inputs(fake_discovery: FakeDiscover
     assert result.exit_code == 0, result.output
     assert fake_discovery.calls[0]["profile"] == "source"
     assert fake_discovery.calls[0]["workspaces"] == ["Lab"]
+
+
+def test_resume_leaves_workspace_mapping_to_the_flow(
+    fake_discovery: FakeDiscovery, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """Resume does not query workspaces; the flow reuses its resolved mapping."""
+    run = create_migration_run("source", "destination", {"Lab": "Dest"}, fake_discovery.state_root)
+
+    def query_workspaces(self: WorkspaceClient) -> Iterator[Workspace]:
+        raise AssertionError("resume must not re-resolve workspaces")
+
+    monkeypatch.setattr(WorkspaceClient, "query_workspaces", query_workspaces)
+
+    result = _migrate("--migration-id", run.migration_id)
+
+    assert result.exit_code == 0, result.output
+    assert "Workspace mapping:\n  Lab -> Dest\n" in result.output
+
+
+def test_resume_reports_a_mapping_error_from_the_flow(fake_discovery: FakeDiscovery) -> None:
+    """A mapping error raised while the flow resolves workspaces is a user error."""
+    run = create_migration_run("source", "destination", None, fake_discovery.state_root)
+    fake_discovery.destination_workspaces = ("Lab",)
+
+    result = _migrate("--migration-id", run.migration_id)
+
+    assert result.exit_code == 1
+    assert "missing destination workspace: Default -> Default" in result.output
+    assert "--workspace-mappings" in result.output
+    log = (run.directory / "migration.log").read_text(encoding="utf-8")
+    assert "Migration failed: WorkspaceMappingError" in log
 
 
 def test_unknown_migration_id_is_reported(fake_discovery: FakeDiscovery) -> None:
