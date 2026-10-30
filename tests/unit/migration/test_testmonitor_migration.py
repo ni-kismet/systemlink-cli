@@ -8,14 +8,16 @@ from typing import Dict, Iterable, List, Optional, Sequence, Set
 import pytest
 import requests
 
-from slcli.migration.testmonitor import migration
-from slcli.migration.testmonitor.migration import (
+from slcli.migration.annotations import (
     COMPLETE,
     INCOMPLETE,
     MIGRATION_ID,
     SOURCE_HOSTNAME,
     SOURCE_ID,
     STATUS,
+)
+from slcli.migration.testmonitor import migration
+from slcli.migration.testmonitor.migration import (
     MigrationContext,
     migrate_products,
     migrate_results,

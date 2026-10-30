@@ -21,6 +21,16 @@ from typing import (
     TypeVar,
 )
 
+from slcli.migration.annotations import (
+    COMPLETE,
+    COMPLETED_AT,
+    INCOMPLETE,
+    MIGRATION_ID,
+    SOURCE_HOSTNAME,
+    SOURCE_ID,
+    STARTED_AT,
+    STATUS,
+)
 from slcli.migration.testmonitor.models import (
     BatchResult,
     DiscoveredProduct,
@@ -34,14 +44,6 @@ from slcli.migration.workspaces import WorkspaceMapping
 
 _logger = logging.getLogger(__name__)
 
-SOURCE_ID = "Migration.SourceId"
-SOURCE_HOSTNAME = "Migration.SourceHostname"
-MIGRATION_ID = "Migration.Id"
-STATUS = "Migration.Status"
-STARTED_AT = "Migration.StartedAt"
-COMPLETED_AT = "Migration.CompletedAt"
-INCOMPLETE = "INCOMPLETE"
-COMPLETE = "COMPLETE"
 
 PRODUCT_FIELDS = ("partNumber", "name", "family", "keywords")
 RESULT_FIELDS = (
