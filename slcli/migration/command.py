@@ -4,7 +4,7 @@ import logging
 from collections.abc import Generator
 from contextlib import contextmanager
 from pathlib import Path
-from typing import Dict, List, Optional
+from typing import Dict, Optional
 from urllib.parse import urlparse
 
 import click
@@ -28,8 +28,7 @@ from slcli.migration.summary import (
     format_workspace_mapping,
 )
 from slcli.migration.testmonitor.models import TestMonitorDiscovery
-from slcli.migration.workspace_client import Workspace, WorkspaceClient
-from slcli.migration.workspaces import WorkspaceMappingError, map_workspaces
+from slcli.migration.workspaces import WorkspaceMappingError
 from slcli.utils import handle_api_error
 
 _logger = logging.getLogger("slcli.migration")
@@ -44,11 +43,10 @@ def start_migration(
     product_batch_size: int = DEFAULT_PRODUCT_BATCH_SIZE,
     result_batch_size: int = DEFAULT_RESULT_BATCH_SIZE,
 ) -> None:
-    """Create a new migration run after mapping its workspaces, then migrate resources."""
+    """Create a new migration run, then migrate resources."""
     source = resolve_migration_connection(source_profile)
     destination = resolve_migration_connection(destination_profile)
     _echo_connections(source, destination)
-    _check_workspaces(source, destination, workspace_mappings)
     run = create_migration_run(
         source_profile,
         destination_profile,
@@ -61,11 +59,7 @@ def start_migration(
 
 
 def resume_migration(migration_id: str, prefect_api_url: Optional[str]) -> None:
-    """Resume migration run with the original inputs and cached state.
-
-    The flow reuses the workspace mapping it resolved before, so workspaces are
-    not checked again here.
-    """
+    """Resume migration run with the original inputs and cached state."""
     try:
         run, metadata = open_migration_run(migration_id)
     except ValueError as exc:
@@ -89,28 +83,6 @@ def _echo_connections(source: MigrationConnection, destination: MigrationConnect
             click.echo(
                 f"Warning: {role.lower()} TLS certificate verification is disabled.", err=True
             )
-
-
-def _check_workspaces(
-    source: MigrationConnection,
-    destination: MigrationConnection,
-    workspace_mappings: Optional[Dict[str, str]],
-) -> None:
-    """Fail before creating a run if the requested workspaces cannot be mapped."""
-    workspaces: List[List[Workspace]] = []
-    for role, connection in (("source", source), ("destination", destination)):
-        try:
-            workspaces.append(list(WorkspaceClient(connection).query_workspaces()))
-        except requests.RequestException as exc:
-            click.echo(
-                f"Failed to query {role} workspaces with profile '{connection.profile_name}'.",
-                err=True,
-            )
-            handle_api_error(exc)
-    try:
-        map_workspaces(workspaces[0], workspaces[1], workspace_mappings)
-    except WorkspaceMappingError as exc:
-        raise _mapping_error(exc, workspace_mappings) from exc
 
 
 def _mapping_error(
@@ -173,13 +145,15 @@ def _migrate(
         try:
             with prefect_server(run, prefect_api_url) as api_url:
                 outcome = run_migration(run, metadata, api_url)
+        except WorkspaceMappingError as exc:
+            _log_failure(exc, log_path)
+            raise _mapping_error(exc, workspace_mappings) from exc
+        except requests.RequestException as exc:
+            _log_failure(exc, log_path)
+            handle_api_error(exc)
+            raise
         except BaseException as exc:
-            _logger.error("Migration failed: %s: %s", type(exc).__name__, exc)
-            click.echo(f"Log: {log_path}", err=True)
-            if isinstance(exc, WorkspaceMappingError):
-                raise _mapping_error(exc, workspace_mappings) from exc
-            if isinstance(exc, requests.RequestException):
-                handle_api_error(exc)
+            _log_failure(exc, log_path)
             raise
         _logger.info(
             "Workspace mapping: %s",
@@ -206,3 +180,8 @@ def _migrate(
         raise click.ClickException("Discovery failed for every workspace.")
     if failed:
         raise click.ClickException(f"{failed} items failed to migrate.")
+
+
+def _log_failure(exc: BaseException, log_path: Path) -> None:
+    _logger.error("Migration failed: %s: %s", type(exc).__name__, exc)
+    click.echo(f"Log: {log_path}", err=True)
