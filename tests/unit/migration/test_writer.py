@@ -53,8 +53,8 @@ def test_retry_logs_attempts(caplog: pytest.LogCaptureFixture) -> None:
     ]
 
 
-def test_write_read_error_is_not_retried() -> None:
-    """A read error after sending a write is surfaced instead of replayed."""
+def test_write_session_does_not_replay_dropped_connections() -> None:
+    """A write whose connection drops after sending may have been applied, so it is not replayed."""
     retry = _retry_of(CONNECTION.create_write_session())
 
     with pytest.raises(MaxRetryError) as raised:
