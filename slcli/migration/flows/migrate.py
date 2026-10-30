@@ -6,8 +6,9 @@ from prefect import flow
 from pydantic import ConfigDict
 
 from slcli.migration.flows.discover import MigrationDiscovery, discover_flow
+from slcli.migration.flows.service import migration_task_runner
 from slcli.migration.schema import VersionedModel
-from slcli.migration.testmonitor.pipeline import TestMonitorMigration, migrate_test_monitor
+from slcli.migration.testmonitor.pipeline import TestMonitorMigration, migrate_test_monitor_task
 from slcli.migration.workspace_task import resolve_workspaces_task
 from slcli.migration.workspaces import WorkspaceMapping
 
@@ -27,6 +28,7 @@ class MigrationOutcome(VersionedModel):
     flow_run_name="migration-{migration_id}",
     persist_result=True,
     result_serializer="json",
+    task_runner=migration_task_runner(),
 )
 def migrate_flow(
     migration_id: str,
@@ -38,8 +40,8 @@ def migrate_flow(
 ) -> MigrationOutcome:
     """Resolve workspaces, discover source resources, then migrate them.
 
-    Each resource type submits its batches and returns without waiting, so
-    resource types run in parallel unless one is given another's futures.
+    Each resource type is a service task (see :func:`service_task`). Submitted
+    service tasks run in parallel; pass ``wait_for`` to sequence them.
 
     Args:
         migration_id: Migration that scopes task cache keys.
@@ -49,7 +51,6 @@ def migrate_flow(
         product_batch_size: Products per migration task.
         result_batch_size: Results, with their steps, per migration task.
     """
-    # Every resource type needs the mapping, and a mapping error fails the run.
     mapping = resolve_workspaces_task(
         migration_id, source_profile, destination_profile, workspace_mappings
     )
@@ -57,7 +58,7 @@ def migrate_flow(
         list(workspace_mappings) if workspace_mappings is not None else None
     )
     discovery = discover_flow(migration_id, source_profile, workspaces)
-    test_monitor = migrate_test_monitor(
+    test_monitor = migrate_test_monitor_task.submit(
         migration_id,
         source_profile,
         destination_profile,
@@ -67,5 +68,5 @@ def migrate_flow(
         result_batch_size,
     )
     return MigrationOutcome(
-        mapping=mapping, discovery=discovery, test_monitor=test_monitor.gather()
+        mapping=mapping, discovery=discovery, test_monitor=test_monitor.result()
     )
