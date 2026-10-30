@@ -78,7 +78,7 @@ class Step(TestMonitorRecord):
         {"path", "path_ids", "updatedAt", "hasChildren", "workspace"}
     )
     step_id: str
-    parent_id: Optional[str] = None
+    parent_id: str
     path_ids: List[str]
 
     @property

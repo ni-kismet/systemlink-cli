@@ -7,6 +7,7 @@ not migrated yet.
 
 import logging
 import re
+import uuid
 from dataclasses import dataclass
 from datetime import datetime, timezone
 from typing import Dict, Iterable, Iterator, List, Optional, Sequence, Set, Type, TypeVar
@@ -280,18 +281,25 @@ def _migrate_steps(
     destination_result_id: str,
     steps: Sequence[Step],
 ) -> None:
-    """Create every step under the destination result, keeping source step IDs.
+    """Create every step under the destination result with fresh step IDs.
 
     The destination accepts client-supplied step IDs and orders parents within a
     request, but a parent must exist before a later request references it. Sorting
     by path depth keeps each parent in the same or an earlier chunk than its children.
+    Parents outside the result, such as ``root``, keep their ID.
 
     Raises:
         NotCreated: If the destination did not create every step.
     """
+    step_ids = {step.step_id: str(uuid.uuid4()) for step in steps}
     to_create = [
         step.create_request(
-            {"resultId": destination_result_id, "properties": context.annotate(step)}
+            {
+                "stepId": step_ids[step.step_id],
+                "parentId": step_ids.get(step.parent_id, step.parent_id),
+                "resultId": destination_result_id,
+                "properties": context.annotate(step),
+            }
         )
         for step in sorted(steps, key=lambda step: len(step.path_ids))
     ]

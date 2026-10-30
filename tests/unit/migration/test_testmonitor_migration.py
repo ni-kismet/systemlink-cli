@@ -278,11 +278,15 @@ def test_result_with_steps_is_completed() -> None:
     assert created["properties"][STATUS] == INCOMPLETE
     assert "fileIds" not in created and "dataTableIds" not in created
     [call] = destination.step_calls
-    assert [(s["stepId"], s["parentId"]) for s in call] == [
+    source_ids = {s["stepId"]: s["properties"][SOURCE_ID] for s in call}
+    assert [
+        (source_ids[s["stepId"]], source_ids.get(s["parentId"], s["parentId"])) for s in call
+    ] == [
         ("parent", "root"),
         ("child", "parent"),
         ("grandchild", "child"),
     ]
+    assert not {"parent", "child", "grandchild"} & set(source_ids)
     assert all("pathIds" not in s and s["resultId"] == "new-r1" for s in call)
     [update] = destination.updates
     assert update["id"] == "new-r1"
@@ -347,7 +351,7 @@ def test_steps_are_created_in_chunks(monkeypatch: pytest.MonkeyPatch) -> None:
 
     batch = migrate_results(source, destination, CONTEXT, 0, [_result("r1")])
 
-    assert [[s["stepId"] for s in call] for call in destination.step_calls] == [
+    assert [[s["properties"][SOURCE_ID] for s in call] for call in destination.step_calls] == [
         ["p0", "p1"],
         ["p2", "p3"],
         ["c"],
