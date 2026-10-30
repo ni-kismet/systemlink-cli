@@ -27,10 +27,10 @@ class TestMonitorRecord(BaseModel):
 
     @field_validator("properties", mode="before")
     @classmethod
-    def _drop_null_properties(cls, value: Optional[Dict[str, Optional[str]]]) -> Dict[str, str]:
+    def _empty_null_properties(cls, value: Optional[Dict[str, Optional[str]]]) -> Dict[str, str]:
         # SystemLink Server returns null property values, which its API model does
         # not allow and destinations reject.
-        return {key: item for key, item in (value or {}).items() if item is not None}
+        return {key: "" if item is None else item for key, item in (value or {}).items()}
 
     @property
     def key(self) -> str:
