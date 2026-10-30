@@ -1,0 +1,10 @@
+"""Property annotations that mark migrated destination resources."""
+
+SOURCE_ID = "Migration.SourceId"
+SOURCE_HOSTNAME = "Migration.SourceHostname"
+MIGRATION_ID = "Migration.Id"
+STATUS = "Migration.Status"
+STARTED_AT = "Migration.StartedAt"
+COMPLETED_AT = "Migration.CompletedAt"
+INCOMPLETE = "INCOMPLETE"
+COMPLETE = "COMPLETE"

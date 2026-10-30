@@ -25,14 +25,9 @@ import pytest
 from click.testing import CliRunner, Result
 
 from slcli.main import cli
+from slcli.migration.annotations import COMPLETE, MIGRATION_ID, SOURCE_ID, STATUS
 from slcli.migration.state import STATE_DIR_ENV
 from slcli.migration.testmonitor.client import TestMonitorClient
-from slcli.migration.testmonitor.migration import (
-    COMPLETE,
-    MIGRATION_ID,
-    SOURCE_ID,
-    STATUS,
-)
 from tests.e2e.migration_endpoints import (
     MigrationEndpoints,
     get_or_create_workspace,
