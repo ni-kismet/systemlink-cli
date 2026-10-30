@@ -1,24 +1,18 @@
-"""Submit Test Monitor batch tasks and gather their outcomes."""
+"""Test Monitor service task: migrate products, then results, in batches."""
 
-from dataclasses import dataclass
 from typing import Any, List, Tuple
 
 from prefect import allow_failure
-from prefect.futures import PrefectFutureList
 from pydantic import ConfigDict
 
 from slcli.migration.flows.batching import gather_batches, partition, shared_task_args
+from slcli.migration.flows.service import service_task
 from slcli.migration.schema import VersionedModel
 from slcli.migration.testmonitor.migration_task import (
     migrate_products_task,
     migrate_results_task,
 )
-from slcli.migration.testmonitor.models import (
-    BatchResult,
-    DiscoveredProduct,
-    DiscoveredResult,
-    TestMonitorDiscovery,
-)
+from slcli.migration.testmonitor.models import BatchResult, TestMonitorDiscovery
 from slcli.migration.workspaces import WorkspaceMapping
 
 
@@ -32,26 +26,8 @@ class TestMonitorMigration(VersionedModel):
     results: Tuple[BatchResult, ...] = ()
 
 
-@dataclass(frozen=True)
-class TestMonitorBatches:
-    """Submitted Test Monitor batches that have not been waited on."""
-
-    __test__ = False
-
-    product_batches: List[List[DiscoveredProduct]]
-    products: PrefectFutureList[BatchResult]
-    result_batches: List[List[DiscoveredResult]]
-    results: PrefectFutureList[BatchResult]
-
-    def gather(self) -> TestMonitorMigration:
-        """Wait for every batch and collect the outcomes."""
-        return TestMonitorMigration(
-            products=tuple(gather_batches("products", self.product_batches, self.products)),
-            results=tuple(gather_batches("results", self.result_batches, self.results)),
-        )
-
-
-def migrate_test_monitor(
+@service_task("migrate-test-monitor")
+def migrate_test_monitor_task(
     migration_id: str,
     source_profile: str,
     destination_profile: str,
@@ -59,8 +35,8 @@ def migrate_test_monitor(
     discovery: TestMonitorDiscovery,
     product_batch_size: int,
     result_batch_size: int,
-) -> TestMonitorBatches:
-    """Submit product batches, then result batches, without waiting for them.
+) -> TestMonitorMigration:
+    """Migrate products, then results with their steps, in batch tasks.
 
     Results reference products by part number, so result batches wait for every
     product batch to finish, including batches that failed.
@@ -88,4 +64,7 @@ def migrate_test_monitor(
         result_batches,
         wait_for=after_products,
     )
-    return TestMonitorBatches(product_batches, products, result_batches, results)
+    return TestMonitorMigration(
+        products=tuple(gather_batches("products", product_batches, products)),
+        results=tuple(gather_batches("results", result_batches, results)),
+    )
