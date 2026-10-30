@@ -1,6 +1,6 @@
 """Migration flow: resolve workspaces, discover, then migrate each resource type."""
 
-from typing import Dict, List, Optional
+from typing import Dict, Optional
 
 from prefect import flow
 from pydantic import ConfigDict
@@ -54,9 +54,7 @@ def migrate_flow(
     mapping = resolve_workspaces_task(
         migration_id, source_profile, destination_profile, workspace_mappings
     )
-    workspaces: Optional[List[str]] = (
-        list(workspace_mappings) if workspace_mappings is not None else None
-    )
+    workspaces = [workspace.source_name for workspace in mapping.workspaces]
     discovery = discover_flow(migration_id, source_profile, workspaces)
     test_monitor = migrate_test_monitor_task.submit(
         migration_id,
