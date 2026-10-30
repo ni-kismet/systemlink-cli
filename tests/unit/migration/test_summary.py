@@ -41,8 +41,6 @@ MIGRATION = TestMonitorMigration(
                     source_id="p2",
                     part_number="PN-2",
                     expected_workspace="Dest-id",
-                    existing_id="existing",
-                    existing_workspace_id="Other-id",
                 ),
             ),
         ),
@@ -90,7 +88,7 @@ def test_migration_summary_lists_conflicts_and_failures() -> None:
         "  Products failed: 0\n"
         "  Results migrated: 1\n"
         "  Results failed: 1\n"
-        "    Conflict: product p2 part number 'PN-2' exists as existing\n"
+        "    Conflict: product p2 part number 'PN-2' already exists on the destination\n"
         "    Failed result r2: stage=steps error=HTTPError destination=dr2"
     )
 

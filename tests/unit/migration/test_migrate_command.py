@@ -455,8 +455,6 @@ MIGRATION = TestMonitorMigration(
                     source_id="p2",
                     part_number="PN-2",
                     expected_workspace="Dest-id",
-                    existing_id="existing",
-                    existing_workspace_id="Other-id",
                 ),
             ),
         ),

@@ -18,6 +18,7 @@ from slcli.migration.annotations import (
 )
 from slcli.migration.testmonitor import client, migration
 from slcli.migration.testmonitor.migration import (
+    DUPLICATE_PART_NUMBER,
     MigrationContext,
     migrate_products,
     migrate_results,
@@ -26,7 +27,7 @@ from slcli.migration.testmonitor.migration import (
 )
 from slcli.migration.testmonitor.models import DiscoveredProduct, DiscoveredResult
 from slcli.migration.testmonitor.records import Result, Step
-from slcli.migration.testmonitor.writer import Record, WriteResponse
+from slcli.migration.testmonitor.writer import ApiError, Record, WriteResponse
 from slcli.migration.workspaces import MappedWorkspace, WorkspaceMapping
 
 CONTEXT = MigrationContext(
@@ -93,7 +94,7 @@ class FakeSource:
 class FakeDestination:
     """Creates records with generated IDs, optionally rejecting some by source ID."""
 
-    existing_products: List[Record] = field(default_factory=list)
+    existing_part_numbers: Set[str] = field(default_factory=set)
     reject: Set[str] = field(default_factory=set)
     raise_on: Dict[str, requests.RequestException] = field(default_factory=dict)
     honor_step_ids: bool = False
@@ -102,23 +103,24 @@ class FakeDestination:
     step_calls: List[List[Record]] = field(default_factory=list)
     updates: List[Record] = field(default_factory=list)
 
-    def query_products_by_part_number(self, part_numbers: Sequence[str]) -> List[Record]:
-        return [p for p in self.existing_products if p["partNumber"] in part_numbers]
-
     def _create(self, kind: str, records: Sequence[Record], store: List[Record]) -> WriteResponse:
         if kind in self.raise_on:
             raise self.raise_on[kind]
         created: List[Record] = []
         failed: List[Record] = []
+        inner: List[ApiError] = []
         for record in records:
-            if record["properties"][SOURCE_ID] in self.reject:
+            if record.get("partNumber") in self.existing_part_numbers and kind == "products":
                 failed.append(record)
-                continue
-            new = {**record, "id": f"new-{record['properties'][SOURCE_ID]}"}
-            store.append(new)
-            created.append(new)
-        error = {"innerErrors": [{"name": "Rejected"}]} if failed else None
-        return WriteResponse(created, failed, error)
+                inner.append(ApiError(name=DUPLICATE_PART_NUMBER, args=[record["partNumber"]]))
+            elif record["properties"][SOURCE_ID] in self.reject:
+                failed.append(record)
+                inner.append(ApiError(name="Rejected"))
+            else:
+                new = {**record, "id": f"new-{record['properties'][SOURCE_ID]}"}
+                store.append(new)
+                created.append(new)
+        return WriteResponse(created, failed, ApiError(inner_errors=inner) if inner else None)
 
     def create_products(self, products: Sequence[Record]) -> WriteResponse:
         return self._create("products", products, self.products)
@@ -139,7 +141,7 @@ class FakeDestination:
                 continue
             step_id = step["stepId"] if self.honor_step_ids else f"dst-{source_id}"
             created.append({**step, "stepId": step_id})
-        error = {"innerErrors": [{"name": "StepRejected"}]} if failed else None
+        error = ApiError(inner_errors=[ApiError(name="StepRejected")]) if failed else None
         return WriteResponse(created, failed, error)
 
     def update_results(self, results: Sequence[Record]) -> WriteResponse:
@@ -198,20 +200,11 @@ def test_products_are_copied_annotated_and_mapped() -> None:
 
 
 def test_product_part_number_conflict_is_skipped_and_reported() -> None:
-    """An existing destination part number is left unchanged and reported with context."""
+    """A duplicate part number rejected by the destination is reported as a conflict."""
     source = FakeSource(
         {"products": [_source_product("p1", "PN-1"), _source_product("p2", "PN-2")]}
     )
-    destination = FakeDestination(
-        existing_products=[
-            {
-                "id": "existing",
-                "partNumber": "PN-1",
-                "workspace": "other",
-                "properties": {MIGRATION_ID: "older", SOURCE_ID: "p0"},
-            }
-        ]
-    )
+    destination = FakeDestination(existing_part_numbers={"PN-1"})
 
     result = migrate_products(source, destination, CONTEXT, 0, [_product("p1"), _product("p2")])
 
@@ -222,36 +215,33 @@ def test_product_part_number_conflict_is_skipped_and_reported() -> None:
         "source_id": "p1",
         "part_number": "PN-1",
         "expected_workspace": "Dest",
-        "existing_id": "existing",
-        "existing_workspace_id": "other",
-        "existing_migration_id": "older",
-        "existing_source_id": "p0",
     }
 
 
 def test_product_partial_failure_and_missing_records_are_reported() -> None:
-    """Rejected, vanished, and unmapped products fail individually."""
-    source = FakeSource(
-        {"products": [_source_product("p1", "PN-1"), _source_product("p3", "PN-3")]}
-    )
+    """Rejected and vanished products fail individually."""
+    source = FakeSource({"products": [_source_product("p1", "PN-1")]})
     destination = FakeDestination(reject={"p1"})
 
-    result = migrate_products(
-        source,
-        destination,
-        CONTEXT,
-        2,
-        [_product("p1"), _product("gone"), _product("p3", workspace="Unmapped")],
-    )
+    result = migrate_products(source, destination, CONTEXT, 2, [_product("p1"), _product("gone")])
 
     assert result.batch == 2
     assert not result.migrated
     failures = {f.source_id: (f.stage, f.error_type, f.detail) for f in result.failed}
     assert failures == {
-        "gone": ("prepare", "SourceRecordNotFound", "gone"),
-        "p3": ("prepare", "KeyError", "\"Workspace 'Unmapped' is not mapped\""),
+        "gone": ("fetch", "SourceRecordNotFound", "gone"),
         "p1": ("create", "NotCreated", "Rejected"),
     }
+
+
+def test_unmapped_product_workspace_fails_the_batch() -> None:
+    """Discovery only yields mapped workspaces, so an unmapped one is a bug."""
+    source = FakeSource({"products": [_source_product("p1", "PN-1")]})
+
+    with pytest.raises(KeyError):
+        migrate_products(
+            source, FakeDestination(), CONTEXT, 0, [_product("p1", workspace="Unmapped")]
+        )
 
 
 def test_product_request_error_fails_the_batch() -> None:

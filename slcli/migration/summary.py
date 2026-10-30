@@ -57,7 +57,7 @@ def format_migration_summary(migration: TestMonitorMigration) -> str:
     for conflict in conflicts[:MAX_LISTED_ITEMS]:
         lines.append(
             f"    Conflict: product {conflict.source_id} part number "
-            f"{conflict.part_number!r} exists as {conflict.existing_id}"
+            f"{conflict.part_number!r} already exists on the destination"
         )
     if len(conflicts) > MAX_LISTED_ITEMS:
         lines.append(f"    +{len(conflicts) - MAX_LISTED_ITEMS} more conflicts (see log)")

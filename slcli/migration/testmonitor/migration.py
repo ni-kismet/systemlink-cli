@@ -9,17 +9,7 @@ import logging
 import re
 from dataclasses import dataclass
 from datetime import datetime, timezone
-from typing import (
-    Callable,
-    Dict,
-    Iterator,
-    List,
-    Optional,
-    Sequence,
-    Tuple,
-    Type,
-    TypeVar,
-)
+from typing import Dict, Iterable, Iterator, List, Optional, Sequence, Set, Type, TypeVar
 
 from slcli.migration.annotations import (
     COMPLETE,
@@ -41,7 +31,7 @@ from slcli.migration.testmonitor.models import (
     ProductConflict,
 )
 from slcli.migration.testmonitor.records import Product, Result, Step, TestMonitorRecord
-from slcli.migration.testmonitor.writer import DestinationWriter, Record, WriteResponse, error_names
+from slcli.migration.testmonitor.writer import ApiError, DestinationWriter, Record, WriteResponse
 from slcli.migration.workspaces import WorkspaceMapping
 
 _logger = logging.getLogger(__name__)
@@ -49,6 +39,9 @@ _logger = logging.getLogger(__name__)
 STEP_CHUNK_SIZE = 500
 FILTER_CHUNK_SIZE = 100
 _SERVER_ID = re.compile(r"^[A-Za-z0-9-]+$")
+
+
+DUPLICATE_PART_NUMBER = "TestMonitor.DuplicatePartNumber"
 
 
 class SourceRecordNotFound(LookupError):
@@ -61,15 +54,6 @@ class NotCreated(RuntimeError):
 
 class InvalidStepHierarchy(ValueError):
     """Source steps whose parents form a cycle."""
-
-
-class ProductConflictError(Exception):
-    """A product whose part number already exists on the destination."""
-
-    def __init__(self, conflict: ProductConflict) -> None:
-        """Record the conflicting destination product."""
-        super().__init__(conflict.part_number)
-        self.conflict = conflict
 
 
 def _now() -> str:
@@ -131,10 +115,13 @@ def _fetch_by_id(
     return {record.key: record for record in records}
 
 
-def _lookup(records: Dict[str, _R], source_id: str) -> _R:
-    if source_id not in records:
-        raise SourceRecordNotFound(source_id)
-    return records[source_id]
+def _missing(ids: Iterable[str], records: Dict[str, _R]) -> List[FailedItem]:
+    """Report discovered items whose source record no longer exists."""
+    return [
+        _failed(source_id, "fetch", SourceRecordNotFound(source_id))
+        for source_id in ids
+        if source_id not in records
+    ]
 
 
 def _failed(
@@ -155,53 +142,18 @@ def _created_ids(model: Type[TestMonitorRecord], response: WriteResponse) -> Dic
     return {record.properties[SOURCE_ID]: record.key for record in created}
 
 
-def _create(
-    create: Callable[[Sequence[Record]], WriteResponse],
-    model: Type[TestMonitorRecord],
-    requests_by_source_id: Dict[str, Record],
-) -> Tuple[Dict[str, str], List[FailedItem]]:
-    """Create records in one request and split the response by source ID.
-
-    Raises:
-        requests.RequestException: If the request fails as a whole.
-    """
-    if not requests_by_source_id:
-        return {}, []
-    response = create(list(requests_by_source_id.values()))
-    created = _created_ids(model, response)
-    error = NotCreated(", ".join(error_names(response.error)))
-    failed = [
-        _failed(source_id, "create", error)
-        for source_id in requests_by_source_id
-        if source_id not in created
+def _not_created(
+    source_ids: Iterable[str], created: Dict[str, str], error: Optional[ApiError]
+) -> List[FailedItem]:
+    exc = NotCreated(", ".join(error.names() if error else []))
+    return [
+        _failed(source_id, "create", exc) for source_id in source_ids if source_id not in created
     ]
-    return created, failed
 
 
-def _product_request(
-    discovered: DiscoveredProduct,
-    records: Dict[str, Product],
-    existing: Dict[str, Product],
-    context: MigrationContext,
-) -> Record:
-    product = _lookup(records, discovered.id)
-    workspace = context.mapping.workspace(discovered.workspace)
-    match = existing.get(product.part_number)
-    if match is not None:
-        raise ProductConflictError(
-            ProductConflict(
-                source_id=product.id,
-                part_number=product.part_number,
-                expected_workspace=workspace.destination_name,
-                existing_id=match.id,
-                existing_workspace_id=match.workspace,
-                existing_migration_id=match.properties.get(MIGRATION_ID),
-                existing_source_id=match.properties.get(SOURCE_ID),
-            )
-        )
-    return product.create_request(
-        {"workspace": workspace.destination_id, "properties": context.annotate(product)}
-    )
+def _duplicate_part_numbers(error: Optional[ApiError]) -> Set[str]:
+    inner = error.inner_errors if error else []
+    return {str(arg) for e in inner if e.name == DUPLICATE_PART_NUMBER for arg in e.args}
 
 
 def migrate_products(
@@ -214,49 +166,45 @@ def migrate_products(
     """Migrate a batch of products into their mapped destination workspaces.
 
     A product whose part number already exists on the destination is not changed
-    and is reported as a conflict. Other per-product errors are reported as
-    failures.
+    and is reported as a conflict.
 
     Raises:
         requests.RequestException: If a batch-wide read or create fails.
+        KeyError: If a product's workspace is not mapped.
     """
     records = _fetch_by_id(source, "products", Product, [p.id for p in products])
-    part_numbers = sorted({product.part_number for product in records.values()})
-    existing = {
-        product.part_number: product
-        for product in map(
-            Product.model_validate, destination.query_products_by_part_number(part_numbers)
+    workspaces = {p.id: context.mapping.workspace(p.workspace) for p in products}
+    to_create = {
+        product.id: product.create_request(
+            {
+                "workspace": workspaces[product.id].destination_id,
+                "properties": context.annotate(product),
+            }
         )
+        for product in records.values()
     }
-    failed: List[FailedItem] = []
-    conflicts: List[ProductConflict] = []
-    to_create: Dict[str, Record] = {}
-    for product in products:
-        try:
-            to_create[product.id] = _product_request(product, records, existing, context)
-        except ProductConflictError as exc:
-            conflicts.append(exc.conflict)
-        except Exception as exc:
-            failed.append(_failed(product.id, "prepare", exc))
-    created, create_failed = _create(destination.create_products, Product, to_create)
+    response = destination.create_products(list(to_create.values()))
+    created = _created_ids(Product, response)
+    duplicates = _duplicate_part_numbers(response.error)
+    conflicts = [
+        ProductConflict(
+            source_id=product.id,
+            part_number=product.part_number,
+            expected_workspace=workspaces[product.id].destination_name,
+        )
+        for product in records.values()
+        if product.id not in created and product.part_number in duplicates
+    ]
+    conflicted = {conflict.source_id for conflict in conflicts}
     return BatchResult(
         resource="products",
         batch=batch,
         migrated=tuple(MigratedItem(source_id=s, destination_id=d) for s, d in created.items()),
-        failed=tuple(failed + create_failed),
+        failed=(
+            *_missing(workspaces, records),
+            *_not_created(set(to_create) - conflicted, created, response.error),
+        ),
         conflicts=tuple(conflicts),
-    )
-
-
-def _result_request(
-    discovered: DiscoveredResult, records: Dict[str, Result], context: MigrationContext
-) -> Record:
-    result = _lookup(records, discovered.id)
-    return result.create_request(
-        {
-            "workspace": context.mapping.workspace(discovered.workspace).destination_id,
-            "properties": context.annotate(result, **{STATUS: INCOMPLETE}),
-        }
     )
 
 
@@ -277,15 +225,19 @@ def migrate_results(
         requests.RequestException: If a batch-wide read or create fails.
     """
     records = _fetch_by_id(source, "results", Result, [r.id for r in results])
-    failed: List[FailedItem] = []
-    to_create: Dict[str, Record] = {}
-    for result in results:
-        try:
-            to_create[result.id] = _result_request(result, records, context)
-        except Exception as exc:
-            failed.append(_failed(result.id, "prepare", exc))
-    created, create_failed = _create(destination.create_results, Result, to_create)
-    failed.extend(create_failed)
+    workspaces = {r.id: context.mapping.workspace(r.workspace) for r in results}
+    to_create = {
+        result.id: result.create_request(
+            {
+                "workspace": workspaces[result.id].destination_id,
+                "properties": context.annotate(result, **{STATUS: INCOMPLETE}),
+            }
+        )
+        for result in records.values()
+    }
+    response = destination.create_results(list(to_create.values()))
+    created = _created_ids(Result, response)
+    failed = [*_missing(workspaces, records), *_not_created(to_create, created, response.error)]
     migrated: List[MigratedItem] = []
     for source_id, destination_id in created.items():
         try:
@@ -322,7 +274,7 @@ def _complete_result(
         [{"id": destination_id, "properties": {STATUS: COMPLETE, COMPLETED_AT: _now()}}]
     )
     if response.failed or response.error:
-        raise NotCreated(", ".join(error_names(response.error)))
+        raise NotCreated(", ".join(response.error.names() if response.error else []))
     return len(steps)
 
 
@@ -392,7 +344,7 @@ def _migrate_steps(
             )
             destination_step_ids.update(_created_ids(Step, response))
             if any(step.step_id not in destination_step_ids for step in chunk):
-                errors = ", ".join(error_names(response.error))
+                errors = ", ".join(response.error.names() if response.error else [])
                 raise NotCreated(
                     f"{len(destination_step_ids)} of {len(steps)} steps created; {errors}"
                 )
@@ -422,13 +374,8 @@ def log_batch(result: BatchResult) -> None:
         )
     for conflict in result.conflicts:
         _logger.warning(
-            "Product conflict %s: part_number=%s expected_workspace=%s existing_id=%s "
-            "existing_workspace=%s existing_migration_id=%s existing_source_id=%s",
+            "Product conflict %s: part_number=%s expected_workspace=%s",
             conflict.source_id,
             conflict.part_number,
             conflict.expected_workspace,
-            conflict.existing_id,
-            conflict.existing_workspace_id,
-            conflict.existing_migration_id,
-            conflict.existing_source_id,
         )

@@ -10,7 +10,7 @@ from urllib3.response import HTTPResponse
 
 from slcli.migration.connection import LoggingRetry, MigrationConnection
 from slcli.migration.flows.batching import partition
-from slcli.migration.testmonitor.writer import TestMonitorWriter, error_names
+from slcli.migration.testmonitor.writer import TestMonitorWriter
 
 CONNECTION = MigrationConnection("destination", "https://dest", {"x-ni-api-key": "secret"})
 
@@ -86,7 +86,7 @@ def test_writer_returns_partial_success() -> None:
             "error": {"name": "Skyline.OneOrMoreErrorsOccurred", "innerErrors": [{"name": "X"}]},
         }
     )
-    writer = TestMonitorWriter(CONNECTION, session=session, query_session=session)
+    writer = TestMonitorWriter(CONNECTION, session=session)
 
     response = writer.create_results([{"programName": "ok"}, {"programName": "bad"}])
 
@@ -98,13 +98,14 @@ def test_writer_returns_partial_success() -> None:
     ]
     assert response.created == [{"id": "r1"}]
     assert response.failed == [{"programName": "bad"}]
-    assert error_names(response.error) == ["Skyline.OneOrMoreErrorsOccurred", "X"]
+    assert response.error is not None
+    assert response.error.names() == ["Skyline.OneOrMoreErrorsOccurred", "X"]
 
 
 def test_writer_raises_http_errors() -> None:
     """A failed request raises so the caller can report its status."""
     session = _FakeSession({}, status=400)
-    writer = TestMonitorWriter(CONNECTION, session=session, query_session=session)
+    writer = TestMonitorWriter(CONNECTION, session=session)
 
     with pytest.raises(requests.HTTPError):
         writer.update_results([{"id": "r1"}])
