@@ -10,20 +10,24 @@ from typing import Dict, List, Optional, Tuple
 
 import click
 import pytest
+import requests
 from click.testing import CliRunner, Result
 
 from slcli import migrate_click
 from slcli.migrate_click import register_migrate_command
 from slcli.migration import command
 from slcli.migration.flows.discover import MigrationDiscovery
-from slcli.migration.state import STATE_DIR_ENV, MigrationRun, create_migration_run
+from slcli.migration.flows.migrate import MigrationOutcome
+from slcli.migration.state import STATE_DIR_ENV, MigrationRun, RunMetadata, create_migration_run
 from slcli.migration.testmonitor.models import (
     DiscoveredProduct,
     DiscoveredResult,
     TestMonitorDiscovery,
     WorkspaceFailure,
 )
-from slcli.migration.workspace_client import Workspace, WorkspaceClient
+from slcli.migration.workspace_client import Workspace
+from slcli.migration.workspaces import discover_workspaces, synchronize_workspaces
+from slcli.utils import ExitCodes
 
 DISCOVERY = TestMonitorDiscovery(
     products=(DiscoveredProduct(id="p", workspace="Lab"),),
@@ -58,6 +62,8 @@ class FakeDiscovery:
     calls: List[Dict[str, object]] = field(default_factory=list)
     state_root: Path = Path()
     source_workspaces: Tuple[str, ...] = ("Lab", "Default")
+    destination_workspaces: Tuple[str, ...] = ("Lab", "Default", "Dest")
+    destination_error: Optional[Exception] = None
 
     def runs(self) -> List[MigrationRun]:
         """Return the runs created under the state root."""
@@ -73,6 +79,7 @@ def fake_discovery(monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> FakeDisco
             {
                 "profiles": {
                     "source": {"server": "https://source", "api-key": "key"},
+                    "destination": {"server": "https://destination", "api-key": "key"},
                     "insecure": {"server": "http://source", "api-key": "k", "ssl-verify": False},
                 }
             }
@@ -87,33 +94,53 @@ def fake_discovery(monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> FakeDisco
     def prefect_server(run: MigrationRun, api_url: Optional[str]) -> Generator[str, None, None]:
         yield api_url or "http://managed/api"
 
-    def run_discovery(
-        run: MigrationRun, source_profile: str, workspaces: Optional[List[str]], api_url: str
-    ) -> MigrationDiscovery:
+    def run_migration(run: MigrationRun, metadata: RunMetadata, api_url: str) -> MigrationOutcome:
+        mappings = metadata.workspace_mappings
+        workspaces = list(mappings) if mappings is not None else None
         fake.calls.append(
-            {"run": run, "profile": source_profile, "workspaces": workspaces, "api_url": api_url}
+            {
+                "run": run,
+                "profile": metadata.source_profile,
+                "workspaces": workspaces,
+                "api_url": api_url,
+            }
         )
+        discovered = discover_workspaces(_workspaces(fake.source_workspaces), workspaces)
         if fake.outcome is None:
             raise RuntimeError("discovery failed")
-        return MigrationDiscovery(test_monitor=fake.outcome)
+        if fake.destination_error is not None:
+            raise fake.destination_error
+        return MigrationOutcome(
+            discovery=MigrationDiscovery(workspaces=discovered, test_monitor=fake.outcome),
+            mapping=synchronize_workspaces(
+                discovered, _workspaces(fake.destination_workspaces), mappings
+            ),
+        )
 
     monkeypatch.setattr(command, "prefect_server", prefect_server)
-    monkeypatch.setattr(command, "run_discovery", run_discovery)
-    monkeypatch.setattr(
-        WorkspaceClient,
-        "query_workspaces",
-        lambda self: iter(Workspace(id=f"{name}-id", name=name) for name in fake.source_workspaces),
-    )
+    monkeypatch.setattr(command, "run_migration", run_migration)
     return fake
 
 
-def test_unknown_mapped_workspace_fails_before_run(fake_discovery: FakeDiscovery) -> None:
-    """Mapping a workspace the source lacks is a usage error and creates no run."""
-    result = _migrate("--source-profile", "source", "--workspace-mappings", "Lab,Missing")
+def _workspaces(names: Tuple[str, ...]) -> List[Workspace]:
+    return [Workspace(id=f"{name}-id", name=name) for name in names]
 
-    assert result.exit_code == 2
+
+def test_unknown_mapped_workspace_fails_discovery(fake_discovery: FakeDiscovery) -> None:
+    """Mapping a workspace the source lacks fails the run during discovery."""
+    result = _migrate(
+        "--source-profile",
+        "source",
+        "--destination-profile",
+        "destination",
+        "--workspace-mappings",
+        "Lab,Missing",
+    )
+
+    assert result.exit_code == 1
     assert "unknown source workspace: Missing" in result.output
-    assert not fake_discovery.state_root.exists()
+    [run] = fake_discovery.runs()
+    assert "WorkspaceMappingError" in (run.directory / "migration.log").read_text(encoding="utf-8")
 
 
 @pytest.mark.parametrize(
@@ -133,18 +160,94 @@ def test_workspace_mappings_support_escaping(value: str, expected: Dict[str, str
 
 
 def test_mapping_name_with_colon_reaches_discovery(fake_discovery: FakeDiscovery) -> None:
-    """An escaped source name containing ':' is discovered by its literal name."""
+    """An escaped source name containing ':' resolves against discovered workspaces."""
     fake_discovery.source_workspaces = ("Lab:A", "Default")
+    fake_discovery.destination_workspaces = ("Dest",)
 
-    result = _migrate("--source-profile", "source", "--workspace-mappings", "Lab\\:A")
+    result = _migrate(
+        "--source-profile",
+        "source",
+        "--destination-profile",
+        "destination",
+        "--workspace-mappings",
+        "Lab\\:A:Dest",
+    )
 
     assert result.exit_code == 0, result.output
+    assert "Workspace mapping:\n  Lab:A -> Dest\n" in result.output
     assert fake_discovery.calls[0]["workspaces"] == ["Lab:A"]
+
+
+def test_missing_destination_workspace_fails_synchronization(
+    fake_discovery: FakeDiscovery,
+) -> None:
+    """A mapping to a workspace the destination lacks fails without creating it."""
+    result = _migrate(
+        "--source-profile",
+        "source",
+        "--destination-profile",
+        "destination",
+        "--workspace-mappings",
+        "Lab:Absent",
+    )
+
+    assert result.exit_code == 1
+    assert "missing destination workspace: Lab -> Absent" in result.output
+    assert "not created by migration" in result.output
+
+
+def test_failed_workspace_query_uses_api_exit_code(fake_discovery: FakeDiscovery) -> None:
+    """A workspace query error raised by the run uses the API exit code."""
+    fake_discovery.destination_error = requests.ConnectionError("unreachable")
+
+    result = _migrate("--source-profile", "source", "--destination-profile", "destination")
+
+    assert result.exit_code == ExitCodes.NETWORK_ERROR
+    assert "unreachable" in result.output
+
+
+def test_omitted_mappings_require_every_same_named_destination(
+    fake_discovery: FakeDiscovery,
+) -> None:
+    """Without mappings every source workspace needs a same-named destination."""
+    fake_discovery.destination_workspaces = ("Lab",)
+
+    result = _migrate("--source-profile", "source", "--destination-profile", "destination")
+
+    assert result.exit_code == 1
+    assert "missing destination workspace: Default -> Default" in result.output
+    assert "--workspace-mappings" in result.output
+
+
+def test_mapping_is_shown_and_logged(fake_discovery: FakeDiscovery) -> None:
+    """The resolved mapping is shown by name and logged with IDs."""
+    result = _migrate(
+        "--source-profile",
+        "source",
+        "--destination-profile",
+        "destination",
+        "--workspace-mappings",
+        "Lab:Dest",
+    )
+
+    assert result.exit_code == 0, result.output
+    assert "Workspace mapping:\n  Lab -> Dest\n" in result.output
+    [run] = fake_discovery.runs()
+    log = (run.directory / "migration.log").read_text(encoding="utf-8")
+    assert "Workspace mapping: ['Lab(Lab-id) -> Dest(Dest-id)']" in log
+    assert run.read_metadata().destination_profile == "destination"
 
 
 def test_run_log_records_lifecycle_without_secrets(fake_discovery: FakeDiscovery) -> None:
     """The run log identifies the migration, source, scope, and counts."""
-    result = _migrate("--source-profile", "source", "--workspace-mappings", "Lab")
+    result = _migrate(
+        "--source-profile",
+        "source",
+        "--destination-profile",
+        "destination",
+        "--workspace-mappings",
+        "Lab",
+    )
 
     assert result.exit_code == 0, result.output
     [run] = fake_discovery.runs()
@@ -176,7 +279,7 @@ def test_summary_omits_failure_note_without_failures() -> None:
 
 def test_success_reports_log_path(fake_discovery: FakeDiscovery) -> None:
     """A successful run prints where its log was written."""
-    result = _migrate("--source-profile", "source")
+    result = _migrate("--source-profile", "source", "--destination-profile", "destination")
 
     assert result.exit_code == 0, result.output
     [run] = fake_discovery.runs()
@@ -187,7 +290,7 @@ def test_every_workspace_failing_is_an_error(fake_discovery: FakeDiscovery) -> N
     """Discovery with no successful workspace exits non-zero after the summary."""
     fake_discovery.outcome = DISCOVERY.model_copy(update={"workspaces": ("Broken",)})
 
-    result = _migrate("--source-profile", "source")
+    result = _migrate("--source-profile", "source", "--destination-profile", "destination")
 
     assert result.exit_code == 1
     assert "Failed workspaces: 1" in result.output
@@ -198,14 +301,21 @@ def test_no_workspaces_is_not_a_failure(fake_discovery: FakeDiscovery) -> None:
     """A source with no workspaces discovers nothing without erroring."""
     fake_discovery.outcome = TestMonitorDiscovery()
 
-    result = _migrate("--source-profile", "source")
+    result = _migrate("--source-profile", "source", "--destination-profile", "destination")
 
     assert result.exit_code == 0, result.output
 
 
 def test_new_migration_discovers_selected_workspaces(fake_discovery: FakeDiscovery) -> None:
     """A new run shows the source and ID before discovery, then the summary."""
-    result = _migrate("--source-profile", "source", "--workspace-mappings", "Lab:Dest,Default")
+    result = _migrate(
+        "--source-profile",
+        "source",
+        "--destination-profile",
+        "destination",
+        "--workspace-mappings",
+        "Lab:Dest,Default",
+    )
 
     assert result.exit_code == 0, result.output
     [run] = fake_discovery.runs()
@@ -227,7 +337,14 @@ def test_new_migration_discovers_selected_workspaces(fake_discovery: FakeDiscove
 
 def test_omitted_mappings_discover_all_workspaces(fake_discovery: FakeDiscovery) -> None:
     """Without mappings the flow receives no workspace restriction."""
-    result = _migrate("--source-profile", "source", "--prefect-api-url", "http://external/api")
+    result = _migrate(
+        "--source-profile",
+        "source",
+        "--destination-profile",
+        "destination",
+        "--prefect-api-url",
+        "http://external/api",
+    )
 
     assert result.exit_code == 0, result.output
     assert fake_discovery.calls[0]["workspaces"] is None
@@ -239,15 +356,26 @@ def test_omitted_mappings_discover_all_workspaces(fake_discovery: FakeDiscovery)
 
 def test_insecure_source_is_warned(fake_discovery: FakeDiscovery) -> None:
     """Plain HTTP and disabled certificate verification are called out."""
-    result = _migrate("--source-profile", "insecure")
+    result = _migrate("--source-profile", "insecure", "--destination-profile", "destination")
 
     assert "does not use HTTPS" in result.output
     assert "verification is disabled" in result.output
 
 
+def test_destination_profile_is_reused_by_migration_id(fake_discovery: FakeDiscovery) -> None:
+    """A missing destination profile for an existing run fails before discovery."""
+    run = create_migration_run("source", "gone", None, fake_discovery.state_root)
+
+    result = _migrate("--migration-id", run.migration_id)
+
+    assert result.exit_code == 1
+    assert "Profile 'gone' not found" in result.output
+    assert not fake_discovery.calls
+
+
 def test_missing_profile_creates_no_run(fake_discovery: FakeDiscovery) -> None:
     """Profile errors happen before any migration state exists."""
-    result = _migrate("--source-profile", "missing")
+    result = _migrate("--source-profile", "missing", "--destination-profile", "destination")
 
     assert result.exit_code != 0
     assert "Profile 'missing' not found" in result.output
@@ -258,18 +386,18 @@ def test_failed_discovery_is_logged(fake_discovery: FakeDiscovery) -> None:
     """A run-level failure is logged; Prefect holds the failed flow-run state."""
     fake_discovery.outcome = None
 
-    result = _migrate("--source-profile", "source")
+    result = _migrate("--source-profile", "source", "--destination-profile", "destination")
 
     assert result.exit_code != 0
     [run] = fake_discovery.runs()
     log = (run.directory / "migration.log").read_text(encoding="utf-8")
-    assert "Discovery failed: RuntimeError: discovery failed" in log
+    assert "Migration failed: RuntimeError: discovery failed" in log
     assert f"Log: {run.directory / 'migration.log'}" in result.output
 
 
 def test_existing_migration_reuses_persisted_inputs(fake_discovery: FakeDiscovery) -> None:
     """A migration ID restores the original profile and workspace selection."""
-    run = create_migration_run("source", {"Lab": "Dest"}, fake_discovery.state_root)
+    run = create_migration_run("source", "destination", {"Lab": "Dest"}, fake_discovery.state_root)
 
     result = _migrate("--migration-id", run.migration_id)
 
@@ -289,8 +417,10 @@ def test_unknown_migration_id_is_reported(fake_discovery: FakeDiscovery) -> None
 @pytest.mark.parametrize(
     ("args", "message"),
     [
-        ([], "Provide --source-profile"),
+        ([], "Provide --source-profile and --destination-profile"),
+        (["--source-profile", "source"], "Provide --source-profile and --destination-profile"),
         (["--migration-id", "id", "--source-profile", "source"], "cannot be combined"),
+        (["--migration-id", "id", "--destination-profile", "d"], "cannot be combined"),
         (["--source-profile", "s", "--prefect-api-url", "not-a-url"], "HTTP or HTTPS URL"),
         (["--source-profile", "s", "--workspace-mappings", ""], "SOURCE:DESTINATION"),
         (["--source-profile", "s", "--workspace-mappings", ":Dest"], "SOURCE:DESTINATION"),
