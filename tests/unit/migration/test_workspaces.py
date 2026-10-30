@@ -1,4 +1,4 @@
-"""Tests for source-to-destination workspace mapping."""
+"""Tests for discovering source workspaces and synchronizing destination workspaces."""
 
 from typing import Iterable, List
 
@@ -8,7 +8,8 @@ from slcli.migration.workspace_client import Workspace
 from slcli.migration.workspaces import (
     MappedWorkspace,
     WorkspaceMappingError,
-    map_workspaces,
+    discover_workspaces,
+    synchronize_workspaces,
 )
 
 
@@ -16,12 +17,31 @@ def _workspaces(prefix: str, names: Iterable[str]) -> List[Workspace]:
     return [Workspace(id=f"{prefix}-{name}", name=name) for name in names]
 
 
-SOURCE = _workspaces("s", ["Default", "Lab"])
+SOURCE = _workspaces("s", ["Lab", "Default"])
 
 
-def test_omitted_mappings_map_every_source_workspace_by_name() -> None:
-    """Every source workspace maps to the same-named destination workspace."""
-    mapping = map_workspaces(SOURCE, _workspaces("d", ["Lab", "Default", "Extra"]), None)
+def test_omitted_selection_discovers_every_source_workspace() -> None:
+    """Every source workspace is in scope, ordered by name."""
+    discovered = discover_workspaces(SOURCE, None)
+
+    assert [w.name for w in discovered.source] == ["Default", "Lab"]
+    assert discovered.selected == ("Default", "Lab")
+
+
+def test_unknown_source_workspaces_are_all_reported() -> None:
+    """Every requested workspace the source lacks is reported together."""
+    with pytest.raises(WorkspaceMappingError) as raised:
+        discover_workspaces(SOURCE, ["Lab", "Missing", "Absent"])
+
+    assert raised.value.missing_source == ["Absent", "Missing"]
+    assert str(raised.value) == "unknown source workspace: Absent, Missing"
+
+
+def test_omitted_mappings_map_every_selected_workspace_by_name() -> None:
+    """Every selected source workspace maps to the same-named destination workspace."""
+    mapping = synchronize_workspaces(
+        discover_workspaces(SOURCE, None), _workspaces("d", ["Lab", "Default", "Extra"]), None
+    )
 
     assert mapping.workspaces == (
         MappedWorkspace(
@@ -37,8 +57,11 @@ def test_omitted_mappings_map_every_source_workspace_by_name() -> None:
 
 
 def test_explicit_mappings_select_and_rename() -> None:
-    """Only requested source workspaces are mapped, to the requested destinations."""
-    mapping = map_workspaces(SOURCE, _workspaces("d", ["Target"]), {"Lab": "Target"})
+    """Only selected source workspaces are mapped, to the requested destinations."""
+    requested = {"Lab": "Target"}
+    mapping = synchronize_workspaces(
+        discover_workspaces(SOURCE, requested), _workspaces("d", ["Target"]), requested
+    )
 
     assert [(w.source_name, w.destination_id) for w in mapping.workspaces] == [("Lab", "d-Target")]
     assert mapping.workspace("Lab").destination_id == "d-Target"
@@ -46,32 +69,30 @@ def test_explicit_mappings_select_and_rename() -> None:
         mapping.workspace("Default")
 
 
-def test_missing_workspaces_on_either_side_are_all_reported() -> None:
-    """Every missing workspace is reported together and nothing is mapped."""
+def test_missing_destination_workspaces_are_all_reported() -> None:
+    """Every missing destination workspace is reported together and nothing is mapped."""
+    requested = {"Lab": "Lab", "Default": "Absent"}
     with pytest.raises(WorkspaceMappingError) as raised:
-        map_workspaces(
-            SOURCE,
-            _workspaces("d", ["Lab"]),
-            {"Lab": "Lab", "Default": "Absent", "Missing": "Lab"},
+        synchronize_workspaces(
+            discover_workspaces(SOURCE, requested), _workspaces("d", ["Lab"]), requested
         )
 
-    assert raised.value.missing_source == ["Missing"]
     assert raised.value.missing_destination == ["Default -> Absent"]
-    assert str(raised.value) == (
-        "unknown source workspace: Missing; missing destination workspace: Default -> Absent"
-    )
+    assert str(raised.value) == "missing destination workspace: Default -> Absent"
 
 
 def test_empty_source_maps_nothing() -> None:
     """A source without workspaces needs no destination workspaces."""
-    assert map_workspaces([], [], None).workspaces == ()
+    assert synchronize_workspaces(discover_workspaces([], None), [], None).workspaces == ()
 
 
 def test_omitted_mappings_preserve_special_character_names() -> None:
     """Auto-mapping matches names verbatim, including delimiters and quotes."""
     names = ["Lab:A", "a, b", 'Say "hi"', "x/y", "Ünïcødé"]
 
-    mapping = map_workspaces(_workspaces("s", names), _workspaces("d", names), None)
+    mapping = synchronize_workspaces(
+        discover_workspaces(_workspaces("s", names), None), _workspaces("d", names), None
+    )
 
     assert [(w.source_name, w.destination_id) for w in mapping.workspaces] == [
         (name, f"d-{name}") for name in sorted(names)

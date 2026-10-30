@@ -1,4 +1,4 @@
-"""Migration flow: resolve workspaces, discover, then migrate each resource type."""
+"""Migration flow: discover, synchronize workspaces, then migrate each resource type."""
 
 from typing import Dict, Optional
 
@@ -10,7 +10,7 @@ from slcli.migration.flows.service import migration_task_runner
 from slcli.migration.schema import VersionedModel
 from slcli.migration.testmonitor.migration_task import migrate_test_monitor_task
 from slcli.migration.testmonitor.models import TestMonitorMigration
-from slcli.migration.workspace_task import resolve_workspaces_task
+from slcli.migration.workspace_task import synchronize_workspaces_task
 from slcli.migration.workspaces import WorkspaceMapping
 
 
@@ -39,7 +39,7 @@ def migrate_flow(
     product_batch_size: int,
     result_batch_size: int,
 ) -> MigrationOutcome:
-    """Resolve workspaces, discover source resources, then migrate them.
+    """Discover source resources, synchronize workspaces, then migrate resources.
 
     Each resource type is a service task (see :func:`service_task`). Submitted
     service tasks run in parallel; pass ``wait_for`` to sequence them.
@@ -52,11 +52,11 @@ def migrate_flow(
         product_batch_size: Products per migration task.
         result_batch_size: Results, with their steps, per migration task.
     """
-    mapping = resolve_workspaces_task(
-        migration_id, source_profile, destination_profile, workspace_mappings
-    )
-    workspaces = [workspace.source_name for workspace in mapping.workspaces]
+    workspaces = list(workspace_mappings) if workspace_mappings is not None else None
     discovery = discover_flow(migration_id, source_profile, workspaces)
+    mapping = synchronize_workspaces_task(
+        migration_id, destination_profile, discovery.workspaces, workspace_mappings
+    )
     test_monitor = migrate_test_monitor_task.submit(
         migration_id,
         source_profile,
