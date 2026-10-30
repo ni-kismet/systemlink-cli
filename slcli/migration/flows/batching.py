@@ -1,10 +1,10 @@
 """Helpers shared by every resource type that migrates in batches."""
 
 import logging
-from typing import Any, List, Protocol, Sequence, Tuple, TypeVar
+from typing import Any, Iterable, List, Protocol, Sequence, Tuple, TypeVar
 
-from prefect import unmapped
-from prefect.futures import PrefectFutureList
+from prefect import allow_failure, unmapped
+from prefect.futures import PrefectFuture, PrefectFutureList
 
 from slcli.migration.testmonitor.models import BatchResult, FailedItem
 from slcli.migration.workspaces import WorkspaceMapping
@@ -55,6 +55,15 @@ def gather_batches(
             )
         )
     return outcomes
+
+
+def after_all(futures: Iterable[PrefectFuture[Any]]) -> List[Any]:
+    """Return ``wait_for`` dependencies that are met once every future finishes.
+
+    Unlike plain futures, these are met by failed and crashed futures too.
+    """
+    # Prefect accepts allow_failure in wait_for but does not annotate it.
+    return [allow_failure(future) for future in futures]
 
 
 def shared_task_args(

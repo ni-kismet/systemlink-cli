@@ -29,7 +29,7 @@ from slcli.migration.testmonitor.models import (
     TestMonitorDiscovery,
     WorkspaceFailure,
 )
-from slcli.migration.testmonitor.pipeline import TestMonitorMigration
+from slcli.migration.testmonitor.models import TestMonitorMigration
 from slcli.migration.workspace_client import Workspace, WorkspaceClient
 from slcli.migration.workspaces import map_workspaces
 from slcli.utils import ExitCodes

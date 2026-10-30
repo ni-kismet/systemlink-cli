@@ -8,7 +8,8 @@ from pydantic import ConfigDict
 from slcli.migration.flows.discover import MigrationDiscovery, discover_flow
 from slcli.migration.flows.service import migration_task_runner
 from slcli.migration.schema import VersionedModel
-from slcli.migration.testmonitor.pipeline import TestMonitorMigration, migrate_test_monitor_task
+from slcli.migration.testmonitor.migration_task import migrate_test_monitor_task
+from slcli.migration.testmonitor.models import TestMonitorMigration
 from slcli.migration.workspace_task import resolve_workspaces_task
 from slcli.migration.workspaces import WorkspaceMapping
 

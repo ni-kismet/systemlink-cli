@@ -13,7 +13,7 @@ from slcli.migration.testmonitor.models import (
     TestMonitorDiscovery,
     WorkspaceFailure,
 )
-from slcli.migration.testmonitor.pipeline import TestMonitorMigration
+from slcli.migration.testmonitor.models import TestMonitorMigration
 
 DISCOVERY = TestMonitorDiscovery(
     products=(DiscoveredProduct(id="p", workspace="Lab"),),
