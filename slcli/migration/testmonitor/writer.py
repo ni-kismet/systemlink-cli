@@ -1,15 +1,27 @@
 """Destination Test Monitor writes for migration."""
 
 from dataclasses import dataclass, field
-from typing import Any, Dict, Iterable, List, Optional, Protocol, Sequence
+from typing import Any, Dict, List, Optional, Protocol, Sequence
 
 import requests
 
-from slcli.migration.api import REQUEST_TIMEOUT_SECONDS
+from slcli.migration.api import REQUEST_TIMEOUT_SECONDS, ApiModel
 from slcli.migration.connection import MigrationConnection
-from slcli.migration.testmonitor.client import TestMonitorClient
 
 Record = Dict[str, Any]
+
+
+class ApiError(ApiModel):
+    """A SystemLink error and the per-item errors it contains."""
+
+    name: Optional[str] = None
+    message: Optional[str] = None
+    args: List[Any] = []
+    inner_errors: List["ApiError"] = []
+
+    def names(self) -> List[str]:
+        """Return this error's name and the names of its inner errors."""
+        return [n for n in (self.name, *(e.name for e in self.inner_errors)) if n]
 
 
 @dataclass(frozen=True)
@@ -18,18 +30,11 @@ class WriteResponse:
 
     created: List[Record] = field(default_factory=list)
     failed: List[Record] = field(default_factory=list)
-    error: Optional[Record] = None
-
-
-_FILTER_CHUNK_SIZE = 100
+    error: Optional[ApiError] = None
 
 
 class DestinationWriter(Protocol):
-    """Destination reads and writes needed by migration."""
-
-    def query_products_by_part_number(self, part_numbers: Sequence[str]) -> List[Record]:
-        """Return destination products with any of the given part numbers."""
-        ...
+    """Destination writes needed by migration."""
 
     def create_products(self, products: Sequence[Record]) -> WriteResponse:
         """Create products."""
@@ -57,25 +62,10 @@ class TestMonitorWriter:
         self,
         connection: MigrationConnection,
         session: Optional[requests.Session] = None,
-        query_session: Optional[requests.Session] = None,
     ) -> None:
         """Initialize a writer with a non-replaying write session."""
         self._base_url = f"{connection.base_url}/nitestmonitor/v2"
         self._session = session or connection.create_write_session()
-        self._reader = TestMonitorClient(connection, query_session)
-
-    def query_products_by_part_number(self, part_numbers: Sequence[str]) -> List[Record]:
-        """Return destination products with any of the given part numbers."""
-        products: List[Record] = []
-        for start in range(0, len(part_numbers), _FILTER_CHUNK_SIZE):
-            chunk = part_numbers[start : start + _FILTER_CHUNK_SIZE]
-            placeholders = ",".join(f"@{index}" for index in range(len(chunk)))
-            products.extend(
-                self._reader.query_records(
-                    "products", f"new[]{{{placeholders}}}.Contains(partNumber)", list(chunk)
-                )
-            )
-        return products
 
     def create_products(self, products: Sequence[Record]) -> WriteResponse:
         """Create products; partial failures are returned, not raised."""
@@ -94,6 +84,8 @@ class TestMonitorWriter:
         return self._post("update-results", "results", {"results": list(results)})
 
     def _create(self, endpoint: str, collection: str, records: Sequence[Record]) -> WriteResponse:
+        if not records:
+            return WriteResponse()
         return self._post(endpoint, collection, {collection: list(records)})
 
     def _post(self, endpoint: str, collection: str, payload: Dict[str, object]) -> WriteResponse:
@@ -105,16 +97,5 @@ class TestMonitorWriter:
         return WriteResponse(
             created=list(body.get(collection) or []),
             failed=list(body.get("failed") or []),
-            error=body.get("error"),
+            error=ApiError.model_validate(body["error"]) if body.get("error") else None,
         )
-
-
-def error_names(error: Optional[Record]) -> List[str]:
-    """Return the error and inner-error names reported by a partial-success response."""
-    if not error:
-        return []
-    names: Iterable[Any] = [
-        error.get("name"),
-        *(inner.get("name") for inner in error.get("innerErrors") or []),
-    ]
-    return [str(name) for name in names if name]

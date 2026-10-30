@@ -187,7 +187,6 @@ def test_summary_reports_migration_and_conflict(
     )
     assert "Results migrated: 2\n  Results failed: 0" in one_completed_migration_run.output
     assert f"Conflict: product {seeded.conflicting_product}" in one_completed_migration_run.output
-    assert seeded.existing_destination_product in one_completed_migration_run.output
 
 
 def test_products_migrate_except_conflicts(

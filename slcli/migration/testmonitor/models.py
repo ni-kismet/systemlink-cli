@@ -75,10 +75,6 @@ class ProductConflict(_Persisted):
     part_number: str
     expected_workspace: str
     """Destination workspace name the product would have migrated to."""
-    existing_id: str
-    existing_workspace_id: Optional[str] = None
-    existing_migration_id: Optional[str] = None
-    existing_source_id: Optional[str] = None
 
 
 class BatchResult(_Persisted, VersionedModel):
