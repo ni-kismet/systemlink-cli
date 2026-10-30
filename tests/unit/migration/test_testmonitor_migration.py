@@ -16,7 +16,7 @@ from slcli.migration.annotations import (
     SOURCE_ID,
     STATUS,
 )
-from slcli.migration.testmonitor import migration
+from slcli.migration.testmonitor import client, migration
 from slcli.migration.testmonitor.migration import (
     MigrationContext,
     migrate_products,
@@ -65,6 +65,16 @@ class FakeSource:
 
     records: Dict[str, List[Record]] = field(default_factory=dict)
     steps_error: Optional[requests.RequestException] = None
+
+    def query_products(self) -> Iterable[client.Product]:
+        """Migration never queries modeled products."""
+        raise NotImplementedError
+
+    def query_results(
+        self, filter_expr: Optional[str] = None, substitutions: Optional[Sequence[str]] = None
+    ) -> Iterable[client.Result]:
+        """Migration never queries modeled results."""
+        raise NotImplementedError
 
     def query_records(
         self, collection: str, filter_expr: str, substitutions: Sequence[object]

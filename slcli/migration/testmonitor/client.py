@@ -1,7 +1,7 @@
 """Profile-bound Test Monitor queries for migration discovery."""
 
 from collections.abc import Iterator
-from typing import Any, Dict, Optional, Sequence
+from typing import Any, Dict, Iterable, Optional, Protocol, Sequence
 
 import requests
 from pydantic import AwareDatetime
@@ -36,6 +36,28 @@ class Result(ApiModel):
     status: ResultStatus
     updated_at: AwareDatetime
     properties: Dict[str, Optional[str]] = {}
+
+
+class TestMonitorSource(Protocol):
+    """Source Test Monitor queries used by discovery and migration."""
+
+    def query_products(self) -> Iterable[Product]:
+        """Return all Test Monitor products."""
+        ...
+
+    def query_results(
+        self,
+        filter_expr: Optional[str] = None,
+        substitutions: Optional[Sequence[str]] = None,
+    ) -> Iterable[Result]:
+        """Return Test Monitor results matching a parameterized filter."""
+        ...
+
+    def query_records(
+        self, collection: str, filter_expr: str, substitutions: Sequence[object]
+    ) -> Iterable[Dict[str, Any]]:
+        """Return complete records of a collection matching a filter."""
+        ...
 
 
 class TestMonitorClient:

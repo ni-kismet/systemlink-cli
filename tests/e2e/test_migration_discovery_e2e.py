@@ -20,7 +20,7 @@ import uuid
 from collections.abc import Generator
 from dataclasses import dataclass
 from pathlib import Path
-from typing import AbstractSet, Dict, FrozenSet, Iterable, List, Optional, Sequence
+from typing import AbstractSet, Any, Dict, FrozenSet, Iterable, List, Optional, Sequence
 
 import pytest
 
@@ -200,6 +200,12 @@ class _FailingWorkspace:
         if substitutions and substitutions[0] == self._failing_workspace_id:
             raise ConnectionError("injected workspace failure")
         return self._client.query_results(filter_expr, substitutions)
+
+    def query_records(
+        self, collection: str, filter_expr: str, substitutions: Sequence[object]
+    ) -> Iterable[Dict[str, Any]]:
+        """Return live records."""
+        return self._client.query_records(collection, filter_expr, substitutions)
 
 
 def test_workspace_failure_preserves_other_workspaces(seeded: Seeded) -> None:

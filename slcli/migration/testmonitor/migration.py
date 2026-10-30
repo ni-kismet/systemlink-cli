@@ -12,11 +12,9 @@ from datetime import datetime, timezone
 from typing import (
     Callable,
     Dict,
-    Iterable,
     Iterator,
     List,
     Optional,
-    Protocol,
     Sequence,
     Tuple,
     Type,
@@ -33,6 +31,7 @@ from slcli.migration.annotations import (
     STARTED_AT,
     STATUS,
 )
+from slcli.migration.testmonitor.client import TestMonitorSource
 from slcli.migration.testmonitor.models import (
     BatchResult,
     DiscoveredProduct,
@@ -42,7 +41,7 @@ from slcli.migration.testmonitor.models import (
     ProductConflict,
 )
 from slcli.migration.testmonitor.records import Product, Result, Step, TestMonitorRecord
-from slcli.migration.testmonitor.writer import Record, WriteResponse, error_names
+from slcli.migration.testmonitor.writer import DestinationWriter, Record, WriteResponse, error_names
 from slcli.migration.workspaces import WorkspaceMapping
 
 _logger = logging.getLogger(__name__)
@@ -50,40 +49,6 @@ _logger = logging.getLogger(__name__)
 STEP_CHUNK_SIZE = 500
 FILTER_CHUNK_SIZE = 100
 _SERVER_ID = re.compile(r"^[A-Za-z0-9-]+$")
-
-
-class SourceRecords(Protocol):
-    """Complete source records by parameterized filter."""
-
-    def query_records(
-        self, collection: str, filter_expr: str, substitutions: Sequence[object]
-    ) -> Iterable[Record]:
-        """Return records of a collection matching a filter."""
-        ...
-
-
-class DestinationWriter(Protocol):
-    """Destination reads and writes needed by migration."""
-
-    def query_products_by_part_number(self, part_numbers: Sequence[str]) -> List[Record]:
-        """Return destination products with any of the given part numbers."""
-        ...
-
-    def create_products(self, products: Sequence[Record]) -> WriteResponse:
-        """Create products."""
-        ...
-
-    def create_results(self, results: Sequence[Record]) -> WriteResponse:
-        """Create results."""
-        ...
-
-    def create_steps(self, steps: Sequence[Record]) -> WriteResponse:
-        """Create steps."""
-        ...
-
-    def update_results(self, results: Sequence[Record]) -> WriteResponse:
-        """Merge fields into results."""
-        ...
 
 
 class SourceRecordNotFound(LookupError):
@@ -156,7 +121,7 @@ def literal_id_filter(ids: Sequence[str]) -> str:
 
 
 def _fetch_by_id(
-    source: SourceRecords, collection: str, model: Type[_R], ids: Sequence[str]
+    source: TestMonitorSource, collection: str, model: Type[_R], ids: Sequence[str]
 ) -> Dict[str, _R]:
     records = (
         model.model_validate(record)
@@ -240,7 +205,7 @@ def _product_request(
 
 
 def migrate_products(
-    source: SourceRecords,
+    source: TestMonitorSource,
     destination: DestinationWriter,
     context: MigrationContext,
     batch: int,
@@ -296,7 +261,7 @@ def _result_request(
 
 
 def migrate_results(
-    source: SourceRecords,
+    source: TestMonitorSource,
     destination: DestinationWriter,
     context: MigrationContext,
     batch: int,
@@ -337,7 +302,7 @@ def migrate_results(
 
 
 def _complete_result(
-    source: SourceRecords,
+    source: TestMonitorSource,
     destination: DestinationWriter,
     context: MigrationContext,
     source_id: str,
