@@ -91,6 +91,20 @@ class OwnedTestMonitorResources:
         """Create owned results in a managed workspace and return their IDs."""
         return self._create("results", results, workspace)
 
+    def create_steps(self, steps: List[Dict[str, object]]) -> List[str]:
+        """Create owned steps on owned results and return their step IDs in order."""
+        owned = [
+            {**step, "properties": owner_properties(MIGRATION_DISCOVERY_OWNER)} for step in steps
+        ]
+        body = self._post("steps", {"steps": owned})
+        ids = [item.get("stepId") for item in body.get("steps", [])]
+        if len(ids) != len(owned) or not all(isinstance(step_id, str) for step_id in ids):
+            raise RuntimeError(
+                f"Test Monitor did not create all requested steps: "
+                f"failed={body.get('failed')!r}, error={body.get('error')!r}"
+            )
+        return [str(step_id) for step_id in ids]
+
     def _create(
         self, collection: str, resources: List[Dict[str, object]], workspace: str
     ) -> List[str]:

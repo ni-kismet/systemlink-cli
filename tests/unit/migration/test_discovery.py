@@ -2,7 +2,7 @@
 
 import logging
 from datetime import datetime
-from typing import Dict, Iterable, List, Optional, Sequence, Union
+from typing import Any, Dict, Iterable, List, Optional, Sequence, Union
 
 import pytest
 
@@ -40,6 +40,12 @@ class FakeTestMonitor:
         if isinstance(results, Exception):
             raise results
         return results
+
+    def query_records(
+        self, collection: str, filter_expr: str, substitutions: Sequence[object]
+    ) -> Iterable[Dict[str, Any]]:
+        """Discovery never queries complete records."""
+        raise NotImplementedError
 
 
 def _product(part_number: str) -> Product:

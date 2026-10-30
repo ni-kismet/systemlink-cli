@@ -34,6 +34,17 @@ class WorkspaceMapping(BaseModel):
 
     workspaces: Tuple[MappedWorkspace, ...] = ()
 
+    def workspace(self, source_name: str) -> MappedWorkspace:
+        """Return the mapping for a source workspace name.
+
+        Raises:
+            KeyError: If the source workspace is not mapped.
+        """
+        for workspace in self.workspaces:
+            if workspace.source_name == source_name:
+                return workspace
+        raise KeyError(f"Workspace '{source_name}' is not mapped")
+
 
 class WorkspaceMappingError(ValueError):
     """Requested workspaces that do not exist on the source or destination."""

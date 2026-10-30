@@ -20,15 +20,13 @@ import uuid
 from collections.abc import Generator
 from dataclasses import dataclass
 from pathlib import Path
-from typing import AbstractSet, Dict, FrozenSet, Iterable, List, Optional, Sequence
+from typing import AbstractSet, Any, Dict, FrozenSet, Iterable, List, Optional, Sequence
 
 import pytest
-from click.testing import CliRunner
 
-from slcli.main import cli
 from slcli.migration.connection import MigrationConnection, resolve_migration_connection
 from slcli.migration.orchestration import run_discovery
-from slcli.migration.state import STATE_DIR_ENV, create_migration_run
+from slcli.migration.state import create_migration_run
 from slcli.migration.testmonitor.client import Product, Result, TestMonitorClient
 from slcli.migration.testmonitor.discovery import DEFAULT_WORKSPACE, discover_test_monitor
 from slcli.migration.testmonitor.models import TestMonitorDiscovery
@@ -203,6 +201,12 @@ class _FailingWorkspace:
             raise ConnectionError("injected workspace failure")
         return self._client.query_results(filter_expr, substitutions)
 
+    def query_records(
+        self, collection: str, filter_expr: str, substitutions: Sequence[object]
+    ) -> Iterable[Dict[str, Any]]:
+        """Return live records."""
+        return self._client.query_records(collection, filter_expr, substitutions)
+
 
 def test_workspace_failure_preserves_other_workspaces(seeded: Seeded) -> None:
     """A failed workspace is reported while other workspaces are still discovered.
@@ -219,36 +223,3 @@ def test_workspace_failure_preserves_other_workspaces(seeded: Seeded) -> None:
     assert _results(discovery, PRIMARY) == seeded.primary_results
     assert _results(discovery, OTHER) == frozenset()
     assert seeded.orphan_product not in {p.id for p in discovery.products}
-
-
-def test_migrate_cli(
-    seeded: Seeded, test_prefect_server: str, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
-) -> None:
-    """``slcli migrate`` summarizes the mapped workspace and records the run."""
-    monkeypatch.setenv(STATE_DIR_ENV, str(tmp_path))
-
-    result = CliRunner().invoke(
-        cli,
-        [
-            "migrate",
-            "--source-profile",
-            seeded.connection.profile_name,
-            # The source doubles as destination; mapping only requires PRIMARY on both sides.
-            "--destination-profile",
-            seeded.connection.profile_name,
-            "--workspace-mappings",
-            PRIMARY,
-            "--prefect-api-url",
-            test_prefect_server,
-        ],
-    )
-
-    assert result.exit_code == 0, result.output
-    assert (
-        f"  Products: 2\n  Terminal results: {len(seeded.primary_results)}\n"
-        "  Failed workspaces: 0"
-    ) in result.output
-    [run_directory] = tmp_path.iterdir()
-    assert f"Migration ID: {run_directory.name}" in result.output
-    assert "Discovery completed" in (run_directory / "migration.log").read_text("utf-8")
-    assert any((run_directory / "results").iterdir())

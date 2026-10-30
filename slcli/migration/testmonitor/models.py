@@ -45,3 +45,52 @@ class TestMonitorDiscovery(_Persisted, VersionedModel):
     products: Tuple[DiscoveredProduct, ...] = ()
     results: Tuple[DiscoveredResult, ...] = ()
     failures: Tuple[WorkspaceFailure, ...] = ()
+
+
+class MigratedItem(_Persisted):
+    """A source resource and the destination resource created for it."""
+
+    source_id: str
+    destination_id: str
+    steps: int = 0
+    """Steps migrated with a result."""
+
+
+class FailedItem(_Persisted):
+    """A source resource that did not migrate completely, safe for summary output."""
+
+    source_id: str
+    stage: str
+    """Migration stage that failed, such as ``create`` or ``steps``."""
+    error_type: str
+    detail: Optional[str] = None
+    destination_id: Optional[str] = None
+    """Incomplete destination resource left behind, if any."""
+
+
+class ProductConflict(_Persisted):
+    """A source product skipped because its part number exists on the destination."""
+
+    source_id: str
+    part_number: str
+    expected_workspace: str
+    """Destination workspace name the product would have migrated to."""
+
+
+class BatchResult(_Persisted, VersionedModel):
+    """Outcome of migrating one batch; partial success is a normal outcome."""
+
+    resource: str
+    batch: int
+    migrated: Tuple[MigratedItem, ...] = ()
+    failed: Tuple[FailedItem, ...] = ()
+    conflicts: Tuple[ProductConflict, ...] = ()
+
+
+class TestMonitorMigration(_Persisted, VersionedModel):
+    """Batch outcomes for Test Monitor resources."""
+
+    __test__ = False
+
+    products: Tuple[BatchResult, ...] = ()
+    results: Tuple[BatchResult, ...] = ()
