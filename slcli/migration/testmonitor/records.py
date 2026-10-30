@@ -6,7 +6,7 @@ destination unchanged, except server-owned fields, which the destination
 assigns itself.
 """
 
-from typing import ClassVar, Dict, FrozenSet, Optional
+from typing import ClassVar, Dict, FrozenSet, List, Optional
 
 from pydantic import BaseModel, ConfigDict, Field, field_validator
 from pydantic.alias_generators import to_camel
@@ -75,10 +75,11 @@ class Step(TestMonitorRecord):
     """A step, identified by a step ID that is unique within its result."""
 
     server_owned: ClassVar[FrozenSet[str]] = frozenset(
-        {"path", "pathIds", "updatedAt", "hasChildren", "workspace"}
+        {"path", "path_ids", "updatedAt", "hasChildren", "workspace"}
     )
     step_id: str
     parent_id: Optional[str] = None
+    path_ids: List[str]
 
     @property
     def key(self) -> str:

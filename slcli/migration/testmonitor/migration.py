@@ -31,7 +31,7 @@ from slcli.migration.testmonitor.models import (
     ProductConflict,
 )
 from slcli.migration.testmonitor.records import Product, Result, Step, TestMonitorRecord
-from slcli.migration.testmonitor.writer import ApiError, DestinationWriter, Record, WriteResponse
+from slcli.migration.testmonitor.writer import ApiError, DestinationWriter, WriteResponse
 from slcli.migration.workspaces import WorkspaceMapping
 
 _logger = logging.getLogger(__name__)
@@ -50,10 +50,6 @@ class SourceRecordNotFound(LookupError):
 
 class NotCreated(RuntimeError):
     """The destination did not create or update an item it was sent."""
-
-
-class InvalidStepHierarchy(ValueError):
-    """Source steps whose parents form a cycle."""
 
 
 def _now() -> str:
@@ -278,76 +274,34 @@ def _complete_result(
     return len(steps)
 
 
-def order_steps(steps: Sequence[Step]) -> List[List[Step]]:
-    """Group steps into levels so every parent precedes its children.
-
-    Parents outside ``steps``, such as the ``root`` pseudo-parent, are level 0.
-
-    Raises:
-        InvalidStepHierarchy: If the source step hierarchy has a cycle.
-    """
-    by_id = {step.step_id: step for step in steps}
-    depths: Dict[str, int] = {}
-
-    def depth(step_id: str) -> int:
-        chain: List[str] = []
-        current: Optional[str] = step_id
-        while current is not None and current in by_id and current not in depths:
-            if current in chain:
-                raise InvalidStepHierarchy(f"Step hierarchy has a cycle at '{current}'")
-            chain.append(current)
-            current = by_id[current].parent_id
-        base = depths.get(current, -1) if current is not None else -1
-        for offset, item in enumerate(reversed(chain), start=1):
-            depths[item] = base + offset
-        return depths[step_id]
-
-    levels: Dict[int, List[Step]] = {}
-    for step_id, step in by_id.items():
-        levels.setdefault(depth(step_id), []).append(step)
-    return [levels[level] for level in sorted(levels)]
-
-
-def _step_request(
-    step: Step,
-    context: MigrationContext,
-    destination_result_id: str,
-    destination_step_ids: Dict[str, str],
-) -> Record:
-    """Return a create request for a step whose parent, if migrated, is already created."""
-    overrides: Record = {"resultId": destination_result_id, "properties": context.annotate(step)}
-    if step.parent_id is not None:
-        # Parents outside the result, such as ``root``, keep their ID.
-        overrides["parentId"] = destination_step_ids.get(step.parent_id, step.parent_id)
-    return step.create_request(overrides)
-
-
 def _migrate_steps(
     destination: DestinationWriter,
     context: MigrationContext,
     destination_result_id: str,
     steps: Sequence[Step],
 ) -> None:
-    """Create every step parent-first, remapping parent IDs to destination step IDs.
+    """Create every step under the destination result, keeping source step IDs.
+
+    The destination accepts client-supplied step IDs and orders parents within a
+    request, but a parent must exist before a later request references it. Sorting
+    by path depth keeps each parent in the same or an earlier chunk than its children.
 
     Raises:
         NotCreated: If the destination did not create every step.
     """
-    destination_step_ids: Dict[str, str] = {}
-    for level in order_steps(steps):
-        for chunk in _chunks(level, STEP_CHUNK_SIZE):
-            response = destination.create_steps(
-                [
-                    _step_request(step, context, destination_result_id, destination_step_ids)
-                    for step in chunk
-                ]
-            )
-            destination_step_ids.update(_created_ids(Step, response))
-            if any(step.step_id not in destination_step_ids for step in chunk):
-                errors = ", ".join(response.error.names() if response.error else [])
-                raise NotCreated(
-                    f"{len(destination_step_ids)} of {len(steps)} steps created; {errors}"
-                )
+    to_create = [
+        step.create_request(
+            {"resultId": destination_result_id, "properties": context.annotate(step)}
+        )
+        for step in sorted(steps, key=lambda step: len(step.path_ids))
+    ]
+    created = 0
+    for chunk in _chunks(to_create, STEP_CHUNK_SIZE):
+        response = destination.create_steps(chunk)
+        created += len(response.created)
+        if response.failed or response.error:
+            errors = ", ".join(response.error.names() if response.error else [])
+            raise NotCreated(f"{created} of {len(steps)} steps created; {errors}")
 
 
 def log_batch(result: BatchResult) -> None:
