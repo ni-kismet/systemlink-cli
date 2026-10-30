@@ -61,7 +61,7 @@ def test_missing_destination_workspace_fails_without_creating_it(
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    """A mapping to an absent destination workspace fails before creating a run.
+    """A mapping to an absent destination workspace fails synchronization.
 
     AB#4088608 (Synchronize workspaces) will create missing destination
     workspaces; update this test when that lands.
@@ -77,7 +77,6 @@ def test_missing_destination_workspace_fails_without_creating_it(
     assert _compact(f"missing destination workspace: {SOURCE_WORKSPACE} -> {absent}") in _compact(
         result.output
     )
-    assert not tmp_path.exists() or not any(tmp_path.iterdir())
     destination_names = {w.name for w in WorkspaceClient(endpoints.destination).query_workspaces()}
     assert absent not in destination_names
 

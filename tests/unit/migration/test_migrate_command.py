@@ -6,7 +6,7 @@ from contextlib import contextmanager
 from dataclasses import dataclass, field
 from datetime import datetime, timezone
 from pathlib import Path
-from typing import Dict, Iterator, List, Optional, Tuple
+from typing import Dict, List, Optional, Tuple
 
 import click
 import pytest
@@ -17,14 +17,16 @@ from slcli import migrate_click
 from slcli.migrate_click import register_migrate_command
 from slcli.migration import command
 from slcli.migration.flows.discover import MigrationDiscovery
-from slcli.migration.state import STATE_DIR_ENV, MigrationRun, create_migration_run
+from slcli.migration.flows.migrate import MigrationOutcome
+from slcli.migration.state import STATE_DIR_ENV, MigrationRun, RunMetadata, create_migration_run
 from slcli.migration.testmonitor.models import (
     DiscoveredProduct,
     DiscoveredResult,
     TestMonitorDiscovery,
     WorkspaceFailure,
 )
-from slcli.migration.workspace_client import Workspace, WorkspaceClient
+from slcli.migration.workspace_client import Workspace
+from slcli.migration.workspaces import discover_workspaces, synchronize_workspaces
 from slcli.utils import ExitCodes
 
 DISCOVERY = TestMonitorDiscovery(
@@ -61,6 +63,7 @@ class FakeDiscovery:
     state_root: Path = Path()
     source_workspaces: Tuple[str, ...] = ("Lab", "Default")
     destination_workspaces: Tuple[str, ...] = ("Lab", "Default", "Dest")
+    destination_error: Optional[Exception] = None
 
     def runs(self) -> List[MigrationRun]:
         """Return the runs created under the state root."""
@@ -91,31 +94,40 @@ def fake_discovery(monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> FakeDisco
     def prefect_server(run: MigrationRun, api_url: Optional[str]) -> Generator[str, None, None]:
         yield api_url or "http://managed/api"
 
-    def run_discovery(
-        run: MigrationRun, source_profile: str, workspaces: Optional[List[str]], api_url: str
-    ) -> MigrationDiscovery:
+    def run_migration(run: MigrationRun, metadata: RunMetadata, api_url: str) -> MigrationOutcome:
+        mappings = metadata.workspace_mappings
+        workspaces = list(mappings) if mappings is not None else None
         fake.calls.append(
-            {"run": run, "profile": source_profile, "workspaces": workspaces, "api_url": api_url}
+            {
+                "run": run,
+                "profile": metadata.source_profile,
+                "workspaces": workspaces,
+                "api_url": api_url,
+            }
         )
+        discovered = discover_workspaces(_workspaces(fake.source_workspaces), workspaces)
         if fake.outcome is None:
             raise RuntimeError("discovery failed")
-        return MigrationDiscovery(test_monitor=fake.outcome)
+        if fake.destination_error is not None:
+            raise fake.destination_error
+        return MigrationOutcome(
+            discovery=MigrationDiscovery(workspaces=discovered, test_monitor=fake.outcome),
+            mapping=synchronize_workspaces(
+                discovered, _workspaces(fake.destination_workspaces), mappings
+            ),
+        )
 
     monkeypatch.setattr(command, "prefect_server", prefect_server)
-    monkeypatch.setattr(command, "run_discovery", run_discovery)
-
-    def query_workspaces(self: WorkspaceClient) -> Iterator[Workspace]:
-        names = (
-            fake.destination_workspaces if "destination" in self._url else fake.source_workspaces
-        )
-        return iter(Workspace(id=f"{name}-id", name=name) for name in names)
-
-    monkeypatch.setattr(WorkspaceClient, "query_workspaces", query_workspaces)
+    monkeypatch.setattr(command, "run_migration", run_migration)
     return fake
 
 
-def test_unknown_mapped_workspace_fails_before_run(fake_discovery: FakeDiscovery) -> None:
-    """Mapping a workspace the source lacks fails and creates no run."""
+def _workspaces(names: Tuple[str, ...]) -> List[Workspace]:
+    return [Workspace(id=f"{name}-id", name=name) for name in names]
+
+
+def test_unknown_mapped_workspace_fails_discovery(fake_discovery: FakeDiscovery) -> None:
+    """Mapping a workspace the source lacks fails the run during discovery."""
     result = _migrate(
         "--source-profile",
         "source",
@@ -127,7 +139,8 @@ def test_unknown_mapped_workspace_fails_before_run(fake_discovery: FakeDiscovery
 
     assert result.exit_code == 1
     assert "unknown source workspace: Missing" in result.output
-    assert not fake_discovery.state_root.exists()
+    [run] = fake_discovery.runs()
+    assert "WorkspaceMappingError" in (run.directory / "migration.log").read_text(encoding="utf-8")
 
 
 @pytest.mark.parametrize(
@@ -165,7 +178,9 @@ def test_mapping_name_with_colon_reaches_discovery(fake_discovery: FakeDiscovery
     assert fake_discovery.calls[0]["workspaces"] == ["Lab:A"]
 
 
-def test_missing_destination_workspace_fails_before_run(fake_discovery: FakeDiscovery) -> None:
+def test_missing_destination_workspace_fails_synchronization(
+    fake_discovery: FakeDiscovery,
+) -> None:
     """A mapping to a workspace the destination lacks fails without creating it."""
     result = _migrate(
         "--source-profile",
@@ -179,28 +194,16 @@ def test_missing_destination_workspace_fails_before_run(fake_discovery: FakeDisc
     assert result.exit_code == 1
     assert "missing destination workspace: Lab -> Absent" in result.output
     assert "not created by migration" in result.output
-    assert not fake_discovery.state_root.exists()
 
 
-def test_failed_destination_workspace_query_exits_without_run(
-    fake_discovery: FakeDiscovery, monkeypatch: pytest.MonkeyPatch
-) -> None:
-    """A destination query error names the profile and uses the API exit code."""
-
-    def query_workspaces(self: WorkspaceClient) -> Iterator[Workspace]:
-        if "destination" in self._url:
-            raise requests.ConnectionError("unreachable")
-        return iter([Workspace(id="Lab-id", name="Lab")])
-
-    monkeypatch.setattr(WorkspaceClient, "query_workspaces", query_workspaces)
+def test_failed_workspace_query_uses_api_exit_code(fake_discovery: FakeDiscovery) -> None:
+    """A workspace query error raised by the run uses the API exit code."""
+    fake_discovery.destination_error = requests.ConnectionError("unreachable")
 
     result = _migrate("--source-profile", "source", "--destination-profile", "destination")
 
     assert result.exit_code == ExitCodes.NETWORK_ERROR
-    assert "destination workspaces with profile 'destination'" in result.output
     assert "unreachable" in result.output
-    assert not fake_discovery.state_root.exists()
-    assert not fake_discovery.calls
 
 
 def test_omitted_mappings_require_every_same_named_destination(
@@ -214,7 +217,6 @@ def test_omitted_mappings_require_every_same_named_destination(
     assert result.exit_code == 1
     assert "missing destination workspace: Default -> Default" in result.output
     assert "--workspace-mappings" in result.output
-    assert not fake_discovery.calls
 
 
 def test_mapping_is_shown_and_logged(fake_discovery: FakeDiscovery) -> None:
@@ -389,7 +391,7 @@ def test_failed_discovery_is_logged(fake_discovery: FakeDiscovery) -> None:
     assert result.exit_code != 0
     [run] = fake_discovery.runs()
     log = (run.directory / "migration.log").read_text(encoding="utf-8")
-    assert "Discovery failed: RuntimeError: discovery failed" in log
+    assert "Migration failed: RuntimeError: discovery failed" in log
     assert f"Log: {run.directory / 'migration.log'}" in result.output
 
 

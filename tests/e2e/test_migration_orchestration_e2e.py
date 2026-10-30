@@ -10,6 +10,9 @@ from slcli.migration.orchestration import prefect_server, run_discovery
 from slcli.migration.state import create_migration_run
 from slcli.migration.testmonitor.discovery_task import discover_test_monitor_task
 from slcli.migration.testmonitor.models import DiscoveredProduct, TestMonitorDiscovery
+from slcli.migration.workspace_client import Workspace
+from slcli.migration.workspace_task import discover_workspaces_task
+from slcli.migration.workspaces import DiscoveredWorkspaces, discover_workspaces
 
 # Uses a real Prefect server, so too slow for unit tests.
 pytestmark = pytest.mark.e2e_migration
@@ -27,19 +30,30 @@ class FakeSource:
 
 @pytest.fixture
 def fake_source(monkeypatch: pytest.MonkeyPatch) -> FakeSource:
-    """Replace the Test Monitor task body; Prefect still persists and caches it."""
+    """Replace the discovery task bodies; Prefect still persists and caches them."""
     fake = FakeSource()
 
+    def workspaces(
+        migration_id: str, source_profile: str, names: Optional[List[str]]
+    ) -> DiscoveredWorkspaces:
+        source = [Workspace(id=f"{name}-id", name=name) for name in ("Default", "Lab", "Other")]
+        return discover_workspaces(source, names)
+
     def discover(
-        migration_id: str, source_profile: str, workspaces: Optional[List[str]]
+        migration_id: str, source_profile: str, workspaces: DiscoveredWorkspaces
     ) -> TestMonitorDiscovery:
         fake.calls.append(
-            {"migration_id": migration_id, "profile": source_profile, "workspaces": workspaces}
+            {
+                "migration_id": migration_id,
+                "profile": source_profile,
+                "workspaces": list(workspaces.selected),
+            }
         )
         if fake.fail:
             raise RuntimeError("source unavailable")
         return DISCOVERY
 
+    monkeypatch.setattr(discover_workspaces_task, "fn", workspaces)
     monkeypatch.setattr(discover_test_monitor_task, "fn", discover)
     return fake
 
@@ -56,7 +70,7 @@ def test_discovery_persists_typed_task_result(
     assert fake_source.calls == [
         {"migration_id": run.migration_id, "profile": "source", "workspaces": ["Lab"]}
     ]
-    assert len(list(run.results_path.iterdir())) == 2
+    assert len(list(run.results_path.iterdir())) == 3
     assert not run.server_home.exists()
 
 
