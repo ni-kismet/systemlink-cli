@@ -366,11 +366,11 @@ def test_literal_id_filter_rejects_non_server_ids() -> None:
         literal_id_filter(['x" || true || id == "y'])
 
 
-def test_null_source_properties_are_dropped() -> None:
-    """Null property values, which destinations reject, are not copied."""
+def test_null_source_properties_become_empty_strings() -> None:
+    """Null property values, which destinations reject, keep their key with an empty value."""
     record = Result.model_validate({"id": "r1", "properties": {"kept": "v", "empty": None}})
 
-    assert record.properties == {"kept": "v"}
+    assert record.properties == {"kept": "v", "empty": ""}
 
 
 def test_create_request_passes_unknown_fields_and_nulls_through() -> None:
