@@ -1,7 +1,8 @@
 """Migrate Test Monitor products, results, and steps one batch at a time.
 
-Records are copied field-by-field from the source and annotated with their
-source identity. File and data table references are not migrated yet.
+Records pass through unchanged apart from server-owned fields, destination
+routing, and source identity annotations. File and data table references are
+not migrated yet.
 """
 
 import logging
@@ -18,6 +19,7 @@ from typing import (
     Protocol,
     Sequence,
     Tuple,
+    Type,
     TypeVar,
 )
 
@@ -39,39 +41,15 @@ from slcli.migration.testmonitor.models import (
     MigratedItem,
     ProductConflict,
 )
+from slcli.migration.testmonitor.records import Product, Result, Step, TestMonitorRecord
 from slcli.migration.testmonitor.writer import Record, WriteResponse, error_names
 from slcli.migration.workspaces import WorkspaceMapping
 
 _logger = logging.getLogger(__name__)
 
-
-PRODUCT_FIELDS = ("partNumber", "name", "family", "keywords")
-RESULT_FIELDS = (
-    "programName",
-    "status",
-    "systemId",
-    "hostName",
-    "keywords",
-    "serialNumber",
-    "operator",
-    "partNumber",
-    "startedAt",
-    "totalTimeInSeconds",
-)
-STEP_FIELDS = (
-    "stepId",
-    "name",
-    "stepType",
-    "status",
-    "startedAt",
-    "totalTimeInSeconds",
-    "dataModel",
-    "data",
-    "inputs",
-    "outputs",
-    "keywords",
-)
 STEP_CHUNK_SIZE = 500
+FILTER_CHUNK_SIZE = 100
+_SERVER_ID = re.compile(r"^[A-Za-z0-9-]+$")
 
 
 class SourceRecords(Protocol):
@@ -108,71 +86,6 @@ class DestinationWriter(Protocol):
         ...
 
 
-def _now() -> str:
-    return datetime.now(timezone.utc).isoformat()
-
-
-@dataclass(frozen=True)
-class MigrationContext:
-    """Identity and workspace routing shared by every batch of one migration."""
-
-    migration_id: str
-    source_hostname: str
-    mapping: WorkspaceMapping
-
-    def annotate(self, record: Record, source_id: str, **extra: str) -> Dict[str, str]:
-        """Return a record's properties with its source identity added."""
-        # Servers may hold null property values, which writes reject.
-        properties = record.get("properties") or {}
-        return {
-            **{key: value for key, value in properties.items() if value is not None},
-            SOURCE_ID: source_id,
-            SOURCE_HOSTNAME: self.source_hostname,
-            MIGRATION_ID: self.migration_id,
-            STARTED_AT: _now(),
-            **extra,
-        }
-
-
-_T = TypeVar("_T")
-
-
-def _chunks(items: Sequence[_T], size: int) -> Iterator[Sequence[_T]]:
-    for start in range(0, len(items), size):
-        yield items[start : start + size]
-
-
-def _copy(record: Record, fields: Sequence[str]) -> Record:
-    return {name: record[name] for name in fields if record.get(name) is not None}
-
-
-FILTER_CHUNK_SIZE = 100
-_SERVER_ID = re.compile(r"^[A-Za-z0-9-]+$")
-
-
-def literal_id_filter(ids: Sequence[str]) -> str:
-    """Return a filter matching server-generated IDs without substitutions.
-
-    SystemLink Server ``query-products`` does not accept substitutions, so IDs
-    are validated and inlined for every collection.
-
-    Raises:
-        ValueError: If an ID is not a server-generated identifier.
-    """
-    for item in ids:
-        if not _SERVER_ID.match(item):
-            raise ValueError(f"Unexpected resource ID format: {item!r}")
-    return " || ".join(f'id == "{item}"' for item in ids)
-
-
-def _fetch_by_id(source: SourceRecords, collection: str, ids: Sequence[str]) -> Dict[str, Record]:
-    return {
-        record["id"]: record
-        for chunk in _chunks(ids, FILTER_CHUNK_SIZE)
-        for record in source.query_records(collection, literal_id_filter(chunk), [])
-    }
-
-
 class SourceRecordNotFound(LookupError):
     """A discovered source record no longer exists."""
 
@@ -194,6 +107,71 @@ class ProductConflictError(Exception):
         self.conflict = conflict
 
 
+def _now() -> str:
+    return datetime.now(timezone.utc).isoformat()
+
+
+@dataclass(frozen=True)
+class MigrationContext:
+    """Identity and workspace routing shared by every batch of one migration."""
+
+    migration_id: str
+    source_hostname: str
+    mapping: WorkspaceMapping
+
+    def annotate(self, record: TestMonitorRecord, **extra: str) -> Dict[str, str]:
+        """Return a record's properties with its source identity added."""
+        return {
+            **record.properties,
+            SOURCE_ID: record.key,
+            SOURCE_HOSTNAME: self.source_hostname,
+            MIGRATION_ID: self.migration_id,
+            STARTED_AT: _now(),
+            **extra,
+        }
+
+
+_T = TypeVar("_T")
+_R = TypeVar("_R", bound=TestMonitorRecord)
+
+
+def _chunks(items: Sequence[_T], size: int) -> Iterator[Sequence[_T]]:
+    for start in range(0, len(items), size):
+        yield items[start : start + size]
+
+
+def literal_id_filter(ids: Sequence[str]) -> str:
+    """Return a filter matching server-generated IDs without substitutions.
+
+    SystemLink Server ``query-products`` does not accept substitutions, so IDs
+    are validated and inlined for every collection.
+
+    Raises:
+        ValueError: If an ID is not a server-generated identifier.
+    """
+    for item in ids:
+        if not _SERVER_ID.match(item):
+            raise ValueError(f"Unexpected resource ID format: {item!r}")
+    return " || ".join(f'id == "{item}"' for item in ids)
+
+
+def _fetch_by_id(
+    source: SourceRecords, collection: str, model: Type[_R], ids: Sequence[str]
+) -> Dict[str, _R]:
+    records = (
+        model.model_validate(record)
+        for chunk in _chunks(ids, FILTER_CHUNK_SIZE)
+        for record in source.query_records(collection, literal_id_filter(chunk), [])
+    )
+    return {record.key: record for record in records}
+
+
+def _lookup(records: Dict[str, _R], source_id: str) -> _R:
+    if source_id not in records:
+        raise SourceRecordNotFound(source_id)
+    return records[source_id]
+
+
 def _failed(
     source_id: str, stage: str, exc: Exception, destination_id: Optional[str] = None
 ) -> FailedItem:
@@ -206,15 +184,15 @@ def _failed(
     )
 
 
-def _record(records: Dict[str, Record], source_id: str) -> Record:
-    record = records.get(source_id)
-    if record is None:
-        raise SourceRecordNotFound(source_id)
-    return record
+def _created_ids(model: Type[TestMonitorRecord], response: WriteResponse) -> Dict[str, str]:
+    """Map each created record's source ID annotation to its destination ID."""
+    created = (model.model_validate(record) for record in response.created)
+    return {record.properties[SOURCE_ID]: record.key for record in created}
 
 
 def _create(
     create: Callable[[Sequence[Record]], WriteResponse],
+    model: Type[TestMonitorRecord],
     requests_by_source_id: Dict[str, Record],
 ) -> Tuple[Dict[str, str], List[FailedItem]]:
     """Create records in one request and split the response by source ID.
@@ -225,7 +203,7 @@ def _create(
     if not requests_by_source_id:
         return {}, []
     response = create(list(requests_by_source_id.values()))
-    created = {record["properties"][SOURCE_ID]: record["id"] for record in response.created}
+    created = _created_ids(model, response)
     error = NotCreated(", ".join(error_names(response.error)))
     failed = [
         _failed(source_id, "create", error)
@@ -235,43 +213,30 @@ def _create(
     return created, failed
 
 
-def _existing_products(
-    destination: DestinationWriter, records: Iterable[Record]
-) -> Dict[str, Record]:
-    part_numbers = sorted({record["partNumber"] for record in records})
-    return {
-        product["partNumber"]: product
-        for product in destination.query_products_by_part_number(part_numbers)
-    }
-
-
 def _product_request(
-    product: DiscoveredProduct,
-    records: Dict[str, Record],
-    existing: Dict[str, Record],
+    discovered: DiscoveredProduct,
+    records: Dict[str, Product],
+    existing: Dict[str, Product],
     context: MigrationContext,
 ) -> Record:
-    record = _record(records, product.id)
-    workspace = context.mapping.workspace(product.workspace)
-    match = existing.get(record["partNumber"])
+    product = _lookup(records, discovered.id)
+    workspace = context.mapping.workspace(discovered.workspace)
+    match = existing.get(product.part_number)
     if match is not None:
-        properties = match.get("properties") or {}
         raise ProductConflictError(
             ProductConflict(
                 source_id=product.id,
-                part_number=record["partNumber"],
+                part_number=product.part_number,
                 expected_workspace=workspace.destination_name,
-                existing_id=match["id"],
-                existing_workspace_id=match.get("workspace"),
-                existing_migration_id=properties.get(MIGRATION_ID),
-                existing_source_id=properties.get(SOURCE_ID),
+                existing_id=match.id,
+                existing_workspace_id=match.workspace,
+                existing_migration_id=match.properties.get(MIGRATION_ID),
+                existing_source_id=match.properties.get(SOURCE_ID),
             )
         )
-    return {
-        **_copy(record, PRODUCT_FIELDS),
-        "workspace": workspace.destination_id,
-        "properties": context.annotate(record, product.id),
-    }
+    return product.create_request(
+        {"workspace": workspace.destination_id, "properties": context.annotate(product)}
+    )
 
 
 def migrate_products(
@@ -290,8 +255,14 @@ def migrate_products(
     Raises:
         requests.RequestException: If a batch-wide read or create fails.
     """
-    records = _fetch_by_id(source, "products", [p.id for p in products])
-    existing = _existing_products(destination, records.values())
+    records = _fetch_by_id(source, "products", Product, [p.id for p in products])
+    part_numbers = sorted({product.part_number for product in records.values()})
+    existing = {
+        product.part_number: product
+        for product in map(
+            Product.model_validate, destination.query_products_by_part_number(part_numbers)
+        )
+    }
     failed: List[FailedItem] = []
     conflicts: List[ProductConflict] = []
     to_create: Dict[str, Record] = {}
@@ -302,7 +273,7 @@ def migrate_products(
             conflicts.append(exc.conflict)
         except Exception as exc:
             failed.append(_failed(product.id, "prepare", exc))
-    created, create_failed = _create(destination.create_products, to_create)
+    created, create_failed = _create(destination.create_products, Product, to_create)
     return BatchResult(
         resource="products",
         batch=batch,
@@ -313,14 +284,15 @@ def migrate_products(
 
 
 def _result_request(
-    result: DiscoveredResult, records: Dict[str, Record], context: MigrationContext
+    discovered: DiscoveredResult, records: Dict[str, Result], context: MigrationContext
 ) -> Record:
-    record = _record(records, result.id)
-    return {
-        **_copy(record, RESULT_FIELDS),
-        "workspace": context.mapping.workspace(result.workspace).destination_id,
-        "properties": context.annotate(record, result.id, **{STATUS: INCOMPLETE}),
-    }
+    result = _lookup(records, discovered.id)
+    return result.create_request(
+        {
+            "workspace": context.mapping.workspace(discovered.workspace).destination_id,
+            "properties": context.annotate(result, **{STATUS: INCOMPLETE}),
+        }
+    )
 
 
 def migrate_results(
@@ -339,7 +311,7 @@ def migrate_results(
     Raises:
         requests.RequestException: If a batch-wide read or create fails.
     """
-    records = _fetch_by_id(source, "results", [r.id for r in results])
+    records = _fetch_by_id(source, "results", Result, [r.id for r in results])
     failed: List[FailedItem] = []
     to_create: Dict[str, Record] = {}
     for result in results:
@@ -347,7 +319,7 @@ def migrate_results(
             to_create[result.id] = _result_request(result, records, context)
         except Exception as exc:
             failed.append(_failed(result.id, "prepare", exc))
-    created, create_failed = _create(destination.create_results, to_create)
+    created, create_failed = _create(destination.create_results, Result, to_create)
     failed.extend(create_failed)
     migrated: List[MigratedItem] = []
     for source_id, destination_id in created.items():
@@ -376,7 +348,10 @@ def _complete_result(
     Returns:
         The number of steps migrated.
     """
-    steps = list(source.query_records("steps", "resultId == @0", [source_id]))
+    steps = [
+        Step.model_validate(record)
+        for record in source.query_records("steps", "resultId == @0", [source_id])
+    ]
     _migrate_steps(destination, context, destination_id, steps)
     response = destination.update_results(
         [{"id": destination_id, "properties": {STATUS: COMPLETE, COMPLETED_AT: _now()}}]
@@ -386,7 +361,7 @@ def _complete_result(
     return len(steps)
 
 
-def order_steps(steps: Sequence[Record]) -> List[List[Record]]:
+def order_steps(steps: Sequence[Step]) -> List[List[Step]]:
     """Group steps into levels so every parent precedes its children.
 
     Parents outside ``steps``, such as the ``root`` pseudo-parent, are level 0.
@@ -394,7 +369,7 @@ def order_steps(steps: Sequence[Record]) -> List[List[Record]]:
     Raises:
         InvalidStepHierarchy: If the source step hierarchy has a cycle.
     """
-    by_id = {step["stepId"]: step for step in steps}
+    by_id = {step.step_id: step for step in steps}
     depths: Dict[str, int] = {}
 
     def depth(step_id: str) -> int:
@@ -404,42 +379,37 @@ def order_steps(steps: Sequence[Record]) -> List[List[Record]]:
             if current in chain:
                 raise InvalidStepHierarchy(f"Step hierarchy has a cycle at '{current}'")
             chain.append(current)
-            current = by_id[current].get("parentId")
+            current = by_id[current].parent_id
         base = depths.get(current, -1) if current is not None else -1
         for offset, item in enumerate(reversed(chain), start=1):
             depths[item] = base + offset
         return depths[step_id]
 
-    levels: Dict[int, List[Record]] = {}
+    levels: Dict[int, List[Step]] = {}
     for step_id, step in by_id.items():
         levels.setdefault(depth(step_id), []).append(step)
     return [levels[level] for level in sorted(levels)]
 
 
 def _step_request(
-    step: Record,
+    step: Step,
     context: MigrationContext,
     destination_result_id: str,
     destination_step_ids: Dict[str, str],
 ) -> Record:
     """Return a create request for a step whose parent, if migrated, is already created."""
-    request = {
-        **_copy(step, STEP_FIELDS),
-        "resultId": destination_result_id,
-        "properties": context.annotate(step, step["stepId"]),
-    }
-    parent = step.get("parentId")
-    if parent is not None:
+    overrides: Record = {"resultId": destination_result_id, "properties": context.annotate(step)}
+    if step.parent_id is not None:
         # Parents outside the result, such as ``root``, keep their ID.
-        request["parentId"] = destination_step_ids.get(parent, parent)
-    return request
+        overrides["parentId"] = destination_step_ids.get(step.parent_id, step.parent_id)
+    return step.create_request(overrides)
 
 
 def _migrate_steps(
     destination: DestinationWriter,
     context: MigrationContext,
     destination_result_id: str,
-    steps: Sequence[Record],
+    steps: Sequence[Step],
 ) -> None:
     """Create every step parent-first, remapping parent IDs to destination step IDs.
 
@@ -455,9 +425,8 @@ def _migrate_steps(
                     for step in chunk
                 ]
             )
-            for created in response.created:
-                destination_step_ids[created["properties"][SOURCE_ID]] = created["stepId"]
-            if any(step["stepId"] not in destination_step_ids for step in chunk):
+            destination_step_ids.update(_created_ids(Step, response))
+            if any(step.step_id not in destination_step_ids for step in chunk):
                 errors = ", ".join(error_names(response.error))
                 raise NotCreated(
                     f"{len(destination_step_ids)} of {len(steps)} steps created; {errors}"

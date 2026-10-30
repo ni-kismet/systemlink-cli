@@ -25,6 +25,7 @@ from slcli.migration.testmonitor.migration import (
     order_steps,
 )
 from slcli.migration.testmonitor.models import DiscoveredProduct, DiscoveredResult
+from slcli.migration.testmonitor.records import Result, Step
 from slcli.migration.testmonitor.writer import Record, WriteResponse
 from slcli.migration.workspaces import MappedWorkspace, WorkspaceMapping
 
@@ -370,15 +371,20 @@ def test_order_steps_groups_levels_parent_first() -> None:
         _step("x", "r", parent=None),
     ]
 
-    levels = order_steps(steps)
+    levels = order_steps([Step.model_validate(step) for step in steps])
 
-    assert [[s["stepId"] for s in level] for level in levels] == [["a", "x"], ["b"], ["c"]]
+    assert [[s.step_id for s in level] for level in levels] == [["a", "x"], ["b"], ["c"]]
 
 
 def test_order_steps_rejects_cycles() -> None:
     """A cyclic hierarchy cannot be created parent-first."""
     with pytest.raises(ValueError, match="cycle"):
-        order_steps([_step("a", "r", parent="b"), _step("b", "r", parent="a")])
+        order_steps(
+            [
+                Step.model_validate(_step("a", "r", parent="b")),
+                Step.model_validate(_step("b", "r", parent="a")),
+            ]
+        )
 
 
 def test_cyclic_steps_fail_the_result() -> None:
@@ -406,12 +412,22 @@ def test_literal_id_filter_rejects_non_server_ids() -> None:
 
 def test_null_source_properties_are_dropped() -> None:
     """Null property values, which destinations reject, are not copied."""
-    record = {"properties": {"kept": "v", "empty": None}}
+    record = Result.model_validate({"id": "r1", "properties": {"kept": "v", "empty": None}})
 
-    properties = CONTEXT.annotate(record, "p1")
+    assert record.properties == {"kept": "v"}
 
-    assert properties["kept"] == "v"
-    assert "empty" not in properties
+
+def test_create_request_passes_unknown_fields_and_nulls_through() -> None:
+    """Undeclared fields and nulls round-trip; server-owned fields are dropped."""
+    record = Result.model_validate(
+        {"id": "r1", "updatedAt": "t", "fileIds": ["f"], "custom": {"x": 1}, "partNumber": None}
+    )
+
+    assert record.create_request({"workspace": "w"}) == {
+        "custom": {"x": 1},
+        "partNumber": None,
+        "workspace": "w",
+    }
 
 
 def test_large_batches_are_fetched_in_chunks(monkeypatch: pytest.MonkeyPatch) -> None:
