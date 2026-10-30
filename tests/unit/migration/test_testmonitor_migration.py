@@ -23,10 +23,9 @@ from slcli.migration.testmonitor.migration import (
     migrate_products,
     migrate_results,
     literal_id_filter,
-    order_steps,
 )
 from slcli.migration.testmonitor.models import DiscoveredProduct, DiscoveredResult
-from slcli.migration.testmonitor.records import Result, Step
+from slcli.migration.testmonitor.records import Result
 from slcli.migration.testmonitor.writer import ApiError, Record, WriteResponse
 from slcli.migration.workspaces import MappedWorkspace, WorkspaceMapping
 
@@ -97,7 +96,6 @@ class FakeDestination:
     existing_part_numbers: Set[str] = field(default_factory=set)
     reject: Set[str] = field(default_factory=set)
     raise_on: Dict[str, requests.RequestException] = field(default_factory=dict)
-    honor_step_ids: bool = False
     products: List[Record] = field(default_factory=list)
     results: List[Record] = field(default_factory=list)
     step_calls: List[List[Record]] = field(default_factory=list)
@@ -139,8 +137,7 @@ class FakeDestination:
             if source_id in self.reject:
                 failed.append(step)
                 continue
-            step_id = step["stepId"] if self.honor_step_ids else f"dst-{source_id}"
-            created.append({**step, "stepId": step_id})
+            created.append(step)
         error = ApiError(inner_errors=[ApiError(name="StepRejected")]) if failed else None
         return WriteResponse(created, failed, error)
 
@@ -175,11 +172,16 @@ def _source_result(result_id: str) -> Record:
     }
 
 
-def _step(step_id: str, result_id: str, parent: Optional[str] = "root") -> Record:
-    step: Record = {"stepId": step_id, "resultId": result_id, "name": step_id}
-    if parent is not None:
-        step["parentId"] = parent
-    return step
+def _step(step_id: str, result_id: str, *ancestors: str) -> Record:
+    """Return a source step under ``ancestors``, which default to the ``root`` pseudo-parent."""
+    path = ancestors or ("root",)
+    return {
+        "stepId": step_id,
+        "resultId": result_id,
+        "name": step_id,
+        "parentId": path[-1],
+        "pathIds": [*path, step_id],
+    }
 
 
 def test_products_are_copied_annotated_and_mapped() -> None:
@@ -259,9 +261,9 @@ def test_result_with_steps_is_completed() -> None:
         {
             "results": [_source_result("r1")],
             "steps": [
-                _step("child", "r1", parent="parent"),
+                _step("grandchild", "r1", "root", "parent", "child"),
+                _step("child", "r1", "root", "parent"),
                 _step("parent", "r1"),
-                _step("grandchild", "r1", parent="child"),
             ],
         }
     )
@@ -275,14 +277,13 @@ def test_result_with_steps_is_completed() -> None:
     [created] = destination.results
     assert created["properties"][STATUS] == INCOMPLETE
     assert "fileIds" not in created and "dataTableIds" not in created
-    assert [[s["properties"][SOURCE_ID] for s in call] for call in destination.step_calls] == [
-        ["parent"],
-        ["child"],
-        ["grandchild"],
+    [call] = destination.step_calls
+    assert [(s["stepId"], s["parentId"]) for s in call] == [
+        ("parent", "root"),
+        ("child", "parent"),
+        ("grandchild", "child"),
     ]
-    parents = [call[0]["parentId"] for call in destination.step_calls]
-    assert parents == ["root", "dst-parent", "dst-child"]
-    assert all(call[0]["resultId"] == "new-r1" for call in destination.step_calls)
+    assert all("pathIds" not in s and s["resultId"] == "new-r1" for s in call)
     [update] = destination.updates
     assert update["id"] == "new-r1"
     assert update["properties"][STATUS] == COMPLETE
@@ -293,7 +294,7 @@ def test_step_failure_leaves_result_incomplete() -> None:
     source = FakeSource(
         {
             "results": [_source_result("r1")],
-            "steps": [_step("parent", "r1"), _step("child", "r1", parent="parent")],
+            "steps": [_step("parent", "r1"), _step("child", "r1", "root", "parent")],
         }
     )
     destination = FakeDestination(reject={"parent"})
@@ -307,7 +308,7 @@ def test_step_failure_leaves_result_incomplete() -> None:
         "NotCreated",
         "new-r1",
     )
-    assert failure.detail == "0 of 2 steps created; StepRejected"
+    assert failure.detail == "1 of 2 steps created; StepRejected"
     assert len(destination.step_calls) == 1
     assert not destination.updates
 
@@ -330,77 +331,28 @@ def test_step_query_and_completion_errors_are_reported() -> None:
     assert (failure.stage, failure.detail) == ("complete", "500 Error")
 
 
-def test_client_supplied_step_ids_are_used_when_honored() -> None:
-    """Parent remapping uses whatever step IDs the destination returns."""
-    source = FakeSource(
-        {
-            "results": [_source_result("r1")],
-            "steps": [_step("parent", "r1"), _step("child", "r1", parent="parent")],
-        }
-    )
-    destination = FakeDestination(honor_step_ids=True)
-
-    migrate_results(source, destination, CONTEXT, 0, [_result("r1")])
-
-    assert destination.step_calls[1][0]["parentId"] == "parent"
-
-
 def test_steps_are_created_in_chunks(monkeypatch: pytest.MonkeyPatch) -> None:
-    """Large levels are split into bounded requests."""
+    """Steps are split into bounded requests with parents in earlier chunks."""
     monkeypatch.setattr(migration, "STEP_CHUNK_SIZE", 2)
     source = FakeSource(
         {
             "results": [_source_result("r1")],
-            "steps": [_step(f"s{i}", "r1") for i in range(5)],
+            "steps": [
+                _step("c", "r1", "root", "p0"),
+                *(_step(f"p{i}", "r1") for i in range(4)),
+            ],
         }
     )
     destination = FakeDestination()
 
     batch = migrate_results(source, destination, CONTEXT, 0, [_result("r1")])
 
-    assert [len(call) for call in destination.step_calls] == [2, 2, 1]
-    assert batch.migrated[0].steps == 5
-
-
-def test_order_steps_groups_levels_parent_first() -> None:
-    """Steps with external parents form level zero; children follow their parents."""
-    steps = [
-        _step("c", "r", parent="b"),
-        _step("b", "r", parent="a"),
-        _step("a", "r"),
-        _step("x", "r", parent=None),
+    assert [[s["stepId"] for s in call] for call in destination.step_calls] == [
+        ["p0", "p1"],
+        ["p2", "p3"],
+        ["c"],
     ]
-
-    levels = order_steps([Step.model_validate(step) for step in steps])
-
-    assert [[s.step_id for s in level] for level in levels] == [["a", "x"], ["b"], ["c"]]
-
-
-def test_order_steps_rejects_cycles() -> None:
-    """A cyclic hierarchy cannot be created parent-first."""
-    with pytest.raises(ValueError, match="cycle"):
-        order_steps(
-            [
-                Step.model_validate(_step("a", "r", parent="b")),
-                Step.model_validate(_step("b", "r", parent="a")),
-            ]
-        )
-
-
-def test_cyclic_steps_fail_the_result() -> None:
-    """An invalid step hierarchy is reported without writing steps."""
-    source = FakeSource(
-        {
-            "results": [_source_result("r1")],
-            "steps": [_step("a", "r1", parent="b"), _step("b", "r1", parent="a")],
-        }
-    )
-    destination = FakeDestination()
-
-    batch = migrate_results(source, destination, CONTEXT, 0, [_result("r1")])
-
-    assert batch.failed[0].error_type == "InvalidStepHierarchy"
-    assert not destination.step_calls
+    assert batch.migrated[0].steps == 5
 
 
 def test_literal_id_filter_rejects_non_server_ids() -> None:
