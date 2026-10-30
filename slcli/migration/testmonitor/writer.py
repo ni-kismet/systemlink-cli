@@ -1,7 +1,7 @@
 """Destination Test Monitor writes for migration."""
 
 from dataclasses import dataclass, field
-from typing import Any, Dict, Iterable, List, Optional, Sequence
+from typing import Any, Dict, Iterable, List, Optional, Protocol, Sequence
 
 import requests
 
@@ -22,6 +22,30 @@ class WriteResponse:
 
 
 _FILTER_CHUNK_SIZE = 100
+
+
+class DestinationWriter(Protocol):
+    """Destination reads and writes needed by migration."""
+
+    def query_products_by_part_number(self, part_numbers: Sequence[str]) -> List[Record]:
+        """Return destination products with any of the given part numbers."""
+        ...
+
+    def create_products(self, products: Sequence[Record]) -> WriteResponse:
+        """Create products."""
+        ...
+
+    def create_results(self, results: Sequence[Record]) -> WriteResponse:
+        """Create results."""
+        ...
+
+    def create_steps(self, steps: Sequence[Record]) -> WriteResponse:
+        """Create steps."""
+        ...
+
+    def update_results(self, results: Sequence[Record]) -> WriteResponse:
+        """Merge fields into results."""
+        ...
 
 
 class TestMonitorWriter:
