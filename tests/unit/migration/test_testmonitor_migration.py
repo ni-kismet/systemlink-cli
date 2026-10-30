@@ -21,7 +21,6 @@ from slcli.migration.testmonitor.migration import (
     MigrationContext,
     migrate_products,
     migrate_results,
-    contains_filter,
     literal_id_filter,
     order_steps,
 )
@@ -74,12 +73,8 @@ class FakeSource:
                 raise self.steps_error
             [result_id] = substitutions
             return [s for s in self.records.get("steps", []) if s["resultId"] == result_id]
-        if collection == "products":
-            assert not substitutions
-            ids = re.findall(r'id == "([^"]+)"', filter_expr)
-        else:
-            assert filter_expr.endswith(".Contains(id)")
-            ids = [str(item) for item in substitutions]
+        assert not substitutions
+        ids = re.findall(r'id == "([^"]+)"', filter_expr)
         return [r for r in self.records.get(collection, []) if r["id"] in ids]
 
 
@@ -400,14 +395,6 @@ def test_cyclic_steps_fail_the_result() -> None:
 
     assert batch.failed[0].error_type == "InvalidStepHierarchy"
     assert not destination.step_calls
-
-
-def test_contains_filter_is_parameterized() -> None:
-    """Values are substitutions, never inlined."""
-    assert contains_filter("partNumber", ['a" || true', "b"]) == (
-        "new[]{@0,@1}.Contains(partNumber)",
-        ['a" || true', "b"],
-    )
 
 
 def test_literal_id_filter_rejects_non_server_ids() -> None:

@@ -123,21 +123,15 @@ class MigrationContext:
     def annotate(self, record: Record, source_id: str, **extra: str) -> Dict[str, str]:
         """Return a record's properties with its source identity added."""
         # Servers may hold null property values, which writes reject.
-        properties = {
-            key: value
-            for key, value in (record.get("properties") or {}).items()
-            if value is not None
+        properties = record.get("properties") or {}
+        return {
+            **{key: value for key, value in properties.items() if value is not None},
+            SOURCE_ID: source_id,
+            SOURCE_HOSTNAME: self.source_hostname,
+            MIGRATION_ID: self.migration_id,
+            STARTED_AT: _now(),
+            **extra,
         }
-        properties.update(
-            {
-                SOURCE_ID: source_id,
-                SOURCE_HOSTNAME: self.source_hostname,
-                MIGRATION_ID: self.migration_id,
-                STARTED_AT: _now(),
-                **extra,
-            }
-        )
-        return properties
 
 
 _T = TypeVar("_T")
@@ -156,20 +150,11 @@ FILTER_CHUNK_SIZE = 100
 _SERVER_ID = re.compile(r"^[A-Za-z0-9-]+$")
 
 
-def contains_filter(field: str, values: Sequence[str]) -> Tuple[str, List[str]]:
-    """Return a parameterized filter matching any of ``values`` in ``field``.
-
-    Test Monitor rejects a list substitution such as ``@0.Contains(id)``.
-    """
-    placeholders = ",".join(f"@{index}" for index in range(len(values)))
-    return f"new[]{{{placeholders}}}.Contains({field})", list(values)
-
-
 def literal_id_filter(ids: Sequence[str]) -> str:
     """Return a filter matching server-generated IDs without substitutions.
 
     SystemLink Server ``query-products`` does not accept substitutions, so IDs
-    are validated and inlined.
+    are validated and inlined for every collection.
 
     Raises:
         ValueError: If an ID is not a server-generated identifier.
@@ -181,15 +166,11 @@ def literal_id_filter(ids: Sequence[str]) -> str:
 
 
 def _fetch_by_id(source: SourceRecords, collection: str, ids: Sequence[str]) -> Dict[str, Record]:
-    records: Dict[str, Record] = {}
-    for chunk in _chunks(ids, FILTER_CHUNK_SIZE):
-        if collection == "products":
-            filter_expr, substitutions = literal_id_filter(chunk), list[str]()
-        else:
-            filter_expr, substitutions = contains_filter("id", chunk)
-        for record in source.query_records(collection, filter_expr, substitutions):
-            records[record["id"]] = record
-    return records
+    return {
+        record["id"]: record
+        for chunk in _chunks(ids, FILTER_CHUNK_SIZE)
+        for record in source.query_records(collection, literal_id_filter(chunk), [])
+    }
 
 
 class SourceRecordNotFound(LookupError):
