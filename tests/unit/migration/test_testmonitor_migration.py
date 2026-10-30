@@ -54,7 +54,7 @@ def _result(result_id: str, workspace: str = "Lab") -> DiscoveredResult:
 def _http_error(status: int) -> requests.HTTPError:
     response = requests.Response()
     response.status_code = status
-    return requests.HTTPError(response=response)
+    return requests.HTTPError(f"{status} Error", response=response)
 
 
 @dataclass
@@ -240,21 +240,19 @@ def test_product_partial_failure_and_missing_records_are_reported() -> None:
     assert not result.migrated
     failures = {f.source_id: (f.stage, f.error_type, f.detail) for f in result.failed}
     assert failures == {
-        "gone": ("fetch", "NotFound", None),
-        "p3": ("map", "UnmappedWorkspace", "Unmapped"),
-        "p1": ("create", "PartialFailure", "Rejected"),
+        "gone": ("prepare", "SourceRecordNotFound", "gone"),
+        "p3": ("prepare", "KeyError", "\"Workspace 'Unmapped' is not mapped\""),
+        "p1": ("create", "NotCreated", "Rejected"),
     }
 
 
-def test_product_request_error_reports_status() -> None:
-    """A failed create request reports the HTTP status for every item."""
+def test_product_request_error_fails_the_batch() -> None:
+    """A create request that fails as a whole fails the batch."""
     source = FakeSource({"products": [_source_product("p1", "PN-1")]})
     destination = FakeDestination(raise_on={"products": _http_error(500)})
 
-    result = migrate_products(source, destination, CONTEXT, 0, [_product("p1")])
-
-    [failure] = result.failed
-    assert (failure.error_type, failure.detail) == ("HTTPError", "HTTP 500")
+    with pytest.raises(requests.HTTPError):
+        migrate_products(source, destination, CONTEXT, 0, [_product("p1")])
 
 
 def test_result_with_steps_is_completed() -> None:
@@ -307,11 +305,11 @@ def test_step_failure_leaves_result_incomplete() -> None:
     assert not batch.migrated
     [failure] = batch.failed
     assert (failure.stage, failure.error_type, failure.destination_id) == (
-        "steps",
-        "PartialFailure",
+        "complete",
+        "NotCreated",
         "new-r1",
     )
-    assert failure.detail == "0 of 2 steps; StepRejected"
+    assert failure.detail == "0 of 2 steps created; StepRejected"
     assert len(destination.step_calls) == 1
     assert not destination.updates
 
@@ -322,8 +320,8 @@ def test_step_query_and_completion_errors_are_reported() -> None:
     batch = migrate_results(source, FakeDestination(), CONTEXT, 0, [_result("r1")])
     [failure] = batch.failed
     assert (failure.stage, failure.detail, failure.destination_id) == (
-        "steps",
-        "HTTP 503",
+        "complete",
+        "503 Error",
         "new-r1",
     )
 
@@ -331,7 +329,7 @@ def test_step_query_and_completion_errors_are_reported() -> None:
     source = FakeSource({"results": [_source_result("r1")]})
     batch = migrate_results(source, destination, CONTEXT, 0, [_result("r1")])
     [failure] = batch.failed
-    assert (failure.stage, failure.detail) == ("complete", "HTTP 500")
+    assert (failure.stage, failure.detail) == ("complete", "500 Error")
 
 
 def test_client_supplied_step_ids_are_used_when_honored() -> None:
