@@ -1,4 +1,4 @@
-"""Persisted Prefect tasks that migrate Test Monitor batches."""
+"""Prefect tasks that migrate Test Monitor resources in batches."""
 
 from typing import List
 from urllib.parse import urlparse
@@ -7,6 +7,8 @@ from prefect import task
 from prefect.cache_policies import INPUTS
 
 from slcli.migration.connection import resolve_migration_connection
+from slcli.migration.flows.batching import after_all, gather_batches, partition, shared_task_args
+from slcli.migration.flows.service import service_task
 from slcli.migration.testmonitor.client import TestMonitorClient
 from slcli.migration.testmonitor.migration import (
     MigrationContext,
@@ -18,6 +20,8 @@ from slcli.migration.testmonitor.models import (
     BatchResult,
     DiscoveredProduct,
     DiscoveredResult,
+    TestMonitorDiscovery,
+    TestMonitorMigration,
 )
 from slcli.migration.testmonitor.writer import TestMonitorWriter
 from slcli.migration.workspaces import WorkspaceMapping
@@ -86,3 +90,47 @@ def migrate_results_task(
     result = migrate_results(source, destination, context, batch, results)
     log_batch(result)
     return result
+
+
+@service_task("migrate-test-monitor")
+def migrate_test_monitor_task(
+    migration_id: str,
+    source_profile: str,
+    destination_profile: str,
+    mapping: WorkspaceMapping,
+    discovery: TestMonitorDiscovery,
+    product_batch_size: int,
+    result_batch_size: int,
+) -> TestMonitorMigration:
+    """Migrate products, then results with their steps, in batch tasks.
+
+    Results reference products by part number, so result batches wait for every
+    product batch to finish. They run even when products failed: those results
+    still migrate, but their source-to-destination product mapping is ambiguous
+    and will need review. This will eventually be reported as a warning.
+
+    Args:
+        migration_id: Migration that scopes task cache keys.
+        source_profile: Name of the source profile.
+        destination_profile: Name of the destination profile.
+        mapping: Resolved source-to-destination workspaces.
+        discovery: Discovered Test Monitor resources.
+        product_batch_size: Products per migration task.
+        result_batch_size: Results, with their steps, per migration task.
+    """
+    common = shared_task_args(migration_id, source_profile, destination_profile, mapping)
+    product_batches = partition(discovery.products, product_batch_size)
+    products = migrate_products_task.map(
+        *common, list(range(len(product_batches))), product_batches
+    )
+    result_batches = partition(discovery.results, result_batch_size)
+    results = migrate_results_task.map(
+        *common,
+        list(range(len(result_batches))),
+        result_batches,
+        wait_for=after_all(products),
+    )
+    return TestMonitorMigration(
+        products=tuple(gather_batches("products", product_batches, products)),
+        results=tuple(gather_batches("results", result_batches, results)),
+    )

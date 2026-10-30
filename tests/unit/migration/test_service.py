@@ -9,7 +9,7 @@ from prefect.transactions import CommitMode, get_transaction
 
 from slcli.migration.flows import service
 from slcli.migration.flows.migrate import migrate_flow
-from slcli.migration.testmonitor.pipeline import migrate_test_monitor_task
+from slcli.migration.testmonitor.migration_task import migrate_test_monitor_task
 
 
 def _max_workers(runner: object) -> int:

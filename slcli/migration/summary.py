@@ -3,7 +3,7 @@
 from typing import List, Sequence
 
 from slcli.migration.testmonitor.models import BatchResult, FailedItem, TestMonitorDiscovery
-from slcli.migration.testmonitor.pipeline import TestMonitorMigration
+from slcli.migration.testmonitor.models import TestMonitorMigration
 from slcli.migration.workspaces import WorkspaceMapping
 
 MAX_LISTED_ITEMS = 10

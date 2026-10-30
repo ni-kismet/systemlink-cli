@@ -89,3 +89,12 @@ class BatchResult(_Persisted, VersionedModel):
     migrated: Tuple[MigratedItem, ...] = ()
     failed: Tuple[FailedItem, ...] = ()
     conflicts: Tuple[ProductConflict, ...] = ()
+
+
+class TestMonitorMigration(_Persisted, VersionedModel):
+    """Batch outcomes for Test Monitor resources."""
+
+    __test__ = False
+
+    products: Tuple[BatchResult, ...] = ()
+    results: Tuple[BatchResult, ...] = ()
