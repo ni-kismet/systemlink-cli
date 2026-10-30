@@ -38,6 +38,7 @@ from slcli.migration.workspaces import WorkspaceMapping
 _logger = logging.getLogger(__name__)
 
 STEP_CHUNK_SIZE = 500
+ROOT_STEP_ID = "root"
 FILTER_CHUNK_SIZE = 100
 _SERVER_ID = re.compile(r"^[A-Za-z0-9-]+$")
 
@@ -286,17 +287,18 @@ def _migrate_steps(
     The destination accepts client-supplied step IDs and orders parents within a
     request, but a parent must exist before a later request references it. Sorting
     by path depth keeps each parent in the same or an earlier chunk than its children.
-    Parents outside the result, such as ``root``, keep their ID.
+    Top-level steps keep the ``root`` pseudo-parent.
 
     Raises:
+        KeyError: If a step's parent is not ``root`` or another step of the result.
         NotCreated: If the destination did not create every step.
     """
-    step_ids = {step.step_id: str(uuid.uuid4()) for step in steps}
+    step_ids = {ROOT_STEP_ID: ROOT_STEP_ID, **{step.step_id: str(uuid.uuid4()) for step in steps}}
     to_create = [
         step.create_request(
             {
                 "stepId": step_ids[step.step_id],
-                "parentId": step_ids.get(step.parent_id, step.parent_id),
+                "parentId": step_ids[step.parent_id],
                 "resultId": destination_result_id,
                 "properties": context.annotate(step),
             }

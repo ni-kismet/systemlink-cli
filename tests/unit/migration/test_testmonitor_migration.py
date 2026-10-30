@@ -335,6 +335,19 @@ def test_step_query_and_completion_errors_are_reported() -> None:
     assert (failure.stage, failure.detail) == ("complete", "500 Error")
 
 
+def test_step_with_unknown_parent_fails_the_result() -> None:
+    """A parent outside the result other than ``root`` is a programming error."""
+    source = FakeSource(
+        {"results": [_source_result("r1")], "steps": [_step("c", "r1", "root", "gone")]}
+    )
+    destination = FakeDestination()
+
+    batch = migrate_results(source, destination, CONTEXT, 0, [_result("r1")])
+
+    assert batch.failed[0].error_type == "KeyError"
+    assert not destination.step_calls
+
+
 def test_steps_are_created_in_chunks(monkeypatch: pytest.MonkeyPatch) -> None:
     """Steps are split into bounded requests with parents in earlier chunks."""
     monkeypatch.setattr(migration, "STEP_CHUNK_SIZE", 2)
