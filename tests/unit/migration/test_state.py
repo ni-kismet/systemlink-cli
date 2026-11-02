@@ -20,7 +20,7 @@ from slcli.paths import get_state_dir
 
 def test_new_run_persists_non_secret_versioned_metadata(tmp_path: Path) -> None:
     """Metadata holds identity and inputs only, never credentials."""
-    run = create_migration_run("source", {"Lab": "Destination"}, tmp_path)
+    run = create_migration_run("source", "destination", {"Lab": "Destination"}, tmp_path)
 
     assert run.directory == tmp_path / run.migration_id
     assert run.results_path.is_dir()
@@ -32,10 +32,11 @@ def test_new_run_persists_non_secret_versioned_metadata(tmp_path: Path) -> None:
         "migrationId",
         "cliVersion",
         "sourceProfile",
+        "destinationProfile",
         "workspaceMappings",
         "createdAt",
     }
-    assert metadata["schemaVersion"] == 1
+    assert metadata["schemaVersion"] == SCHEMA_VERSION
     assert metadata["migrationId"] == run.migration_id
     assert metadata["sourceProfile"] == "source"
     assert metadata["workspaceMappings"] == {"Lab": "Destination"}
@@ -44,7 +45,7 @@ def test_new_run_persists_non_secret_versioned_metadata(tmp_path: Path) -> None:
 @pytest.mark.skipif(sys.platform == "win32", reason="Windows relies on per-user profile ACLs")
 def test_run_directory_is_private_to_user(tmp_path: Path) -> None:
     """Only the invoking user can read migration state."""
-    run = create_migration_run("source", None, tmp_path / "root")
+    run = create_migration_run("source", "destination", None, tmp_path / "root")
 
     for directory in (tmp_path / "root", run.directory):
         assert stat.S_IMODE(directory.stat().st_mode) == 0o700
@@ -52,7 +53,7 @@ def test_run_directory_is_private_to_user(tmp_path: Path) -> None:
 
 def test_opens_existing_run(tmp_path: Path) -> None:
     """An existing run restores its persisted inputs."""
-    created = create_migration_run("source", {"Lab": "Destination"}, tmp_path)
+    created = create_migration_run("source", "destination", {"Lab": "Destination"}, tmp_path)
 
     run, metadata = open_migration_run(created.migration_id, tmp_path)
 
@@ -84,7 +85,7 @@ def test_rejects_ids_not_created_by_create_migration_run(migration_id: str, tmp_
 
 def test_rejects_metadata_for_another_run(tmp_path: Path) -> None:
     """A run directory cannot impersonate another migration."""
-    created = create_migration_run("source", None, tmp_path)
+    created = create_migration_run("source", "destination", None, tmp_path)
     metadata = json.loads(created.metadata_path.read_text(encoding="utf-8"))
     metadata["migrationId"] = str(uuid.uuid4())
     created.metadata_path.write_text(json.dumps(metadata), encoding="utf-8")
@@ -95,7 +96,7 @@ def test_rejects_metadata_for_another_run(tmp_path: Path) -> None:
 
 def test_rejects_metadata_from_another_schema_version(tmp_path: Path) -> None:
     """Runs written by an incompatible CLI fail clearly instead of loading partially."""
-    created = create_migration_run("source", None, tmp_path)
+    created = create_migration_run("source", "destination", None, tmp_path)
     metadata = json.loads(created.metadata_path.read_text(encoding="utf-8"))
     metadata["schemaVersion"] = SCHEMA_VERSION + 1
     created.metadata_path.write_text(json.dumps(metadata), encoding="utf-8")
