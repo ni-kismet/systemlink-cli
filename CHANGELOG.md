@@ -2,6 +2,13 @@
 
 <!-- towncrier release notes start -->
 
+## v2.5.7 (2026-11-02)
+
+### Bug Fixes
+
+- Keep `slcli info` working when the optional service probe cache cannot be saved. (#263)
+
+
 ## v2.5.6 (2026-10-29)
 
 ### Bug Fixes
