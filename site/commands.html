@@ -157,7 +157,7 @@ slcli testmonitor result list --format json --take 100</code></pre>
           <tr><td><code>--file</code></td><td>Input file for import operations</td></tr>
           <tr><td><code>--filter</code></td><td>Dynamic LINQ or API filter expression</td></tr>
           <tr><td><code>--yes/-y</code></td><td>Explicitly confirm a destructive operation without prompting</td></tr>
-          <tr><td><code>--force</code></td><td>Force overwrite; retained as a confirmation alias on commands that already supported it</td></tr>
+          <tr><td><code>--force</code></td><td>Command-specific behavior; on some commands, it is also a confirmation alias</td></tr>
         </tbody>
       </table>
 
@@ -168,6 +168,9 @@ slcli testmonitor result list --format json --take 100</code></pre>
         continue to work. Comment and example deletion now require confirmation too;
         <code>example delete --dry-run</code> does not. This is an intentional
         compatibility change: update automation to pass explicit consent.</p>
+      <p><code>system remove</code> is an exception: its existing <code>--force</code>
+        option requests immediate database removal. Use <code>--yes</code> to confirm
+        removal while preserving the normal unregister behavior.</p>
       <!-- ─── MCP ─── -->
       <h2 id="mcp">mcp</h2>
       <p>Configure and run the experimental Model Context Protocol server for AI assistants.</p>
