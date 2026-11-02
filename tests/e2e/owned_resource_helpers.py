@@ -1,7 +1,7 @@
 """Ownership marking for resources created by E2E fixtures."""
 
 from dataclasses import dataclass
-from typing import Iterable, List, Mapping, Protocol
+from typing import Iterable, List, Mapping, Optional, Protocol
 
 OWNER_PROPERTY = "slcli.e2e.owner"
 """Property that marks a resource as created and cleaned up by an E2E fixture."""
@@ -18,7 +18,7 @@ class PropertyResource(Protocol):
         ...
 
     @property
-    def properties(self) -> Mapping[str, str]:
+    def properties(self) -> Mapping[str, Optional[str]]:
         """Return the resource's custom properties."""
         ...
 
