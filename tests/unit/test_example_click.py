@@ -4,6 +4,7 @@ import json
 import tempfile
 from pathlib import Path
 from typing import Any, Dict, Generator, List, Optional, Tuple
+from unittest.mock import Mock
 
 import click
 import pytest
@@ -631,6 +632,61 @@ def test_delete_example_outputs_deleted_results(
 
     assert result.exit_code == 0
     assert "deleted" in result.output.lower()
+
+
+def test_delete_example_without_yes_rejected_noninteractively(
+    runner: CliRunner, temp_examples_dir: Path, monkeypatch: Any
+) -> None:
+    config = {
+        "format_version": "1.0",
+        "name": "demo-test",
+        "title": "Demo Test Example",
+        "resources": [],
+    }
+    create_example_config(temp_examples_dir, "demo-test", config)
+    provisioner = Mock()
+    monkeypatch.setattr(
+        "slcli.example_click.ExampleLoader", lambda: ExampleLoader(temp_examples_dir)
+    )
+    monkeypatch.setattr("slcli.example_click.ExampleProvisioner", lambda **kwargs: provisioner)
+    monkeypatch.setattr("slcli.example_click.get_workspace_map", lambda: {"ws-1": "Training"})
+    monkeypatch.setenv("SLCLI_NON_INTERACTIVE", "true")
+
+    result = runner.invoke(
+        make_cli(), ["example", "delete", "demo-test", "--workspace", "Training"]
+    )
+
+    assert result.exit_code == ExitCodes.INVALID_INPUT
+    provisioner.delete.assert_not_called()
+
+
+def test_delete_example_declined_does_not_delete(
+    runner: CliRunner, temp_examples_dir: Path, monkeypatch: Any
+) -> None:
+    config = {
+        "format_version": "1.0",
+        "name": "demo-test",
+        "title": "Demo Test Example",
+        "resources": [],
+    }
+    create_example_config(temp_examples_dir, "demo-test", config)
+    provisioner = Mock()
+    monkeypatch.setattr(
+        "slcli.example_click.ExampleLoader", lambda: ExampleLoader(temp_examples_dir)
+    )
+    monkeypatch.setattr("slcli.example_click.ExampleProvisioner", lambda **kwargs: provisioner)
+    monkeypatch.setattr("slcli.example_click.get_workspace_map", lambda: {"ws-1": "Training"})
+    monkeypatch.setattr("slcli.cli_utils.is_interactive_environment", lambda: True)
+
+    result = runner.invoke(
+        make_cli(),
+        ["example", "delete", "demo-test", "--workspace", "Training"],
+        input="n\n",
+    )
+
+    assert result.exit_code == 0
+    assert "Are you sure you want to delete this example?" in result.output
+    provisioner.delete.assert_not_called()
 
 
 @pytest.mark.parametrize("dry_run", [False, True])

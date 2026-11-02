@@ -140,7 +140,7 @@ slcli testmonitor result list --format json --take 100</code></pre>
       <p>Existing retrieval defaults are retained for compatibility. Most table page
         sizes default to 25; some commands differ. User and tag JSON listings default
         to 1,000 results, while file JSON listings default to 25. Authorization policy
-        and template JSON listings return all matches unless limited. File table
+        and template JSON listings default to 100 results. File table
         listings fetch up to 1,000 by default and paginate that fetched set. Check
         each command's <code>--help</code> rather than assuming a global default.</p>
 

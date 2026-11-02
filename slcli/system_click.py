@@ -18,7 +18,7 @@ import click
 import questionary
 import requests as requests_lib
 
-from .cli_utils import is_interactive_environment, validate_confirmation, validate_output_format
+from .cli_utils import is_interactive_environment, validate_output_format
 from .rich_output import render_table
 from .system_query_utils import (
     DEFAULT_SYSTEM_JSON_FIELDS,
@@ -2636,25 +2636,31 @@ def register_system_commands(cli: Any) -> None:
     @click.argument("system_id")
     @click.option(
         "--force",
-        "--yes",
-        "-y",
         is_flag=True,
-        help="Skip confirmation and remove immediately from database",
-        callback=validate_confirmation,
+        help="Remove immediately from the database instead of waiting for unregister",
     )
+    @click.option("--yes", "-y", is_flag=True, help="Confirm removal without prompting")
     def remove_system(
         system_id: str,
         force: bool,
+        yes: bool,
     ) -> None:
         """Remove/unregister a system from SystemLink.
 
         SYSTEM_ID is the unique identifier of the system to remove.
 
-        Without --force, prompts for confirmation and waits for the
-        unregister job to complete. With --force, removes the system
+        Without --yes or --force, prompts for confirmation and waits for
+        the unregister job to complete. With --force, removes the system
         from the database immediately.
         """
         check_readonly_mode("remove a system")
+
+        if not (yes or force) and not is_interactive_environment():
+            click.echo(
+                "✗ Confirmation requires an interactive terminal; pass --yes to proceed.",
+                err=True,
+            )
+            sys.exit(ExitCodes.INVALID_INPUT)
 
         try:
             # Fetch system info for confirmation display
@@ -2670,7 +2676,7 @@ def register_system_commands(cli: Any) -> None:
                 # using the ID as the display name for the confirmation prompt.
                 display_name = system_id
 
-            if not force:
+            if not (yes or force):
                 if not questionary.confirm(
                     f"Are you sure you want to remove system '{display_name}'?",
                     default=False,

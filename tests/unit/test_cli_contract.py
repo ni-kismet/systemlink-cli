@@ -46,8 +46,8 @@ def test_destructive_confirmation_aliases_and_noninteractive_guard(
         if isinstance(param, click.Option) and "--yes" in param.opts
     )
     assert "-y" in option.opts
-    if path == ("example", "delete"):
-        return  # Dry-run is checked in the callback before consent is required.
+    if path in {("example", "delete"), ("system", "remove")}:
+        return  # These commands handle consent in their callbacks.
     assert option.callback is not None
     context = click.Context(command)
     with pytest.raises(click.BadParameter, match="pass --yes"):
