@@ -332,7 +332,8 @@ class TestWorkitemLifecycleE2E:
                 check=False,
             )
             assert result.returncode == 2
-            assert "pass --yes" in result.stderr
+            assert "interactive" in result.stderr.lower()
+            assert "--yes" in result.stderr
 
             # Verify item still exists
             result = cli_runner(["workitem", "get", wi_id, "--format", "json"])
@@ -604,7 +605,8 @@ class TestWorkitemTemplateLifecycleE2E:
                 check=False,
             )
             assert result.returncode == 2
-            assert "pass --yes" in result.stderr
+            assert "interactive" in result.stderr.lower()
+            assert "--yes" in result.stderr
 
             # Verify template still exists
             result = cli_runner(["workitem", "template", "get", tmpl_id, "--format", "json"])
