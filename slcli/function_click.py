@@ -10,7 +10,7 @@ import click
 import questionary
 import requests
 
-from .cli_utils import validate_output_format
+from .cli_utils import validate_confirmation, validate_output_format
 from .function_templates import (
     download_and_extract_template,
     TEMPLATE_REPO,
@@ -950,8 +950,11 @@ def register_function_commands(cli: Any) -> None:
     )
     @click.option(
         "--force",
+        "--yes",
+        "-y",
         is_flag=True,
         help="Skip confirmation prompt",
+        callback=validate_confirmation,
     )
     def delete_function(function_id: str, force: bool = False) -> None:
         """Delete a function definition."""

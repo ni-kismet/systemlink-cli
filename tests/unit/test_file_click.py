@@ -12,6 +12,8 @@ from click.testing import CliRunner
 from slcli.file_click import register_file_commands
 from slcli.utils import ExitCodes
 
+pytestmark = pytest.mark.usefixtures("interactive_environment")
+
 
 def patch_keyring(monkeypatch: Any) -> None:
     """Set environment credentials used by CLI tests."""

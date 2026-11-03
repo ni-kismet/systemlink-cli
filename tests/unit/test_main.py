@@ -5,12 +5,15 @@ from typing import Any
 from unittest.mock import patch
 
 import click
+import pytest
 from click.testing import CliRunner
 
 import slcli
 from slcli.main import cli, get_version
 from slcli.platform import PLATFORM_SLE, PLATFORM_SLS
 from slcli.utils import ExitCodes
+
+pytestmark = pytest.mark.usefixtures("interactive_environment")
 
 VALID_API_KEY = "4LpbauiNA-UI9IhjqZoS4UeikZtExLK9Q_Q77d1bJd"
 

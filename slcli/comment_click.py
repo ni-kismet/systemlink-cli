@@ -19,7 +19,7 @@ from urllib.parse import urlencode
 
 import click
 
-from .cli_utils import validate_output_format
+from .cli_utils import confirm_bulk_operation, validate_confirmation, validate_output_format
 from .platform import require_feature
 from .universal_handlers import FilteredResponse, UniversalResponseHandler
 from .utils import (
@@ -555,18 +555,23 @@ def register_comment_commands(cli: Any) -> None:
 
     @comment.command(name="delete")
     @click.argument("comment_ids", nargs=-1, required=True)
+    @click.option(
+        "--yes", "-y", is_flag=True, help="Skip confirmation prompt", callback=validate_confirmation
+    )
     def delete_comments(
         comment_ids: Tuple[str, ...],
+        yes: bool,
     ) -> None:
         """Delete one or more comments by ID.
 
         You can delete your own comments. Elevated permissions are required
         to delete others' comments. Accepts up to 1000 IDs per invocation.
+        Prompts for confirmation; use --yes for non-interactive deletion.
 
         \b
         Examples:
           slcli comment delete <comment-id>
-          slcli comment delete <id1> <id2> <id3>
+          slcli comment delete <id1> <id2> <id3> --yes
         """
         check_readonly_mode("delete comment(s)")
 
@@ -576,6 +581,9 @@ def register_comment_commands(cli: Any) -> None:
                 err=True,
             )
             sys.exit(ExitCodes.INVALID_INPUT)
+
+        if not confirm_bulk_operation("delete", "comment", len(comment_ids), force=yes):
+            return
 
         try:
             payload: Dict[str, Any] = {"ids": list(comment_ids)}

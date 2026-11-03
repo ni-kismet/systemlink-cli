@@ -35,6 +35,8 @@ from slcli.system_click import (
 from slcli.system_query_utils import build_materialized_system_search_filter
 from slcli.utils import ExitCodes
 
+pytestmark = pytest.mark.usefixtures("interactive_environment")
+
 
 def patch_keyring(monkeypatch: Any) -> None:
     """Set environment credentials used by CLI tests."""
@@ -1571,6 +1573,43 @@ class TestRemoveSystem:
         result = runner.invoke(cli, ["system", "remove", "minion-PXI-1234", "--force"])
         assert result.exit_code == 0
         assert "removed" in result.output.lower() or "✓" in result.output
+        assert captured_payloads[0]["force"] is True
+
+    def test_remove_with_yes_keeps_unregister_mode(
+        self, monkeypatch: Any, runner: CliRunner
+    ) -> None:
+        """--yes consents without selecting immediate database removal."""
+        patch_keyring(monkeypatch)
+        monkeypatch.setattr("slcli.profiles.is_active_profile_readonly", lambda: False)
+        captured_payloads: List[Dict[str, Any]] = []
+
+        def mock_request(*a: Any, **kw: Any) -> Any:
+            if a and a[0] == "GET":
+                return MockResponse([SAMPLE_SYSTEM])
+            captured_payloads.append(kw.get("payload", {}))
+            return MockResponse({"removedIds": ["minion-PXI-1234"]})
+
+        monkeypatch.setattr("slcli.system_click.make_api_request", mock_request)
+        result = runner.invoke(make_cli(), ["system", "remove", "minion-PXI-1234", "--yes"])
+
+        assert result.exit_code == 0, result.output
+        assert captured_payloads[0]["force"] is False
+
+    def test_remove_without_consent_rejected_noninteractively(
+        self, monkeypatch: Any, runner: CliRunner
+    ) -> None:
+        patch_keyring(monkeypatch)
+        monkeypatch.setattr("slcli.profiles.is_active_profile_readonly", lambda: False)
+        monkeypatch.setattr("slcli.system_click.is_interactive_environment", lambda: False)
+        requests: List[Any] = []
+        monkeypatch.setattr(
+            "slcli.system_click.make_api_request", lambda *args, **kwargs: requests.append(args)
+        )
+
+        result = runner.invoke(make_cli(), ["system", "remove", "system-id"])
+
+        assert result.exit_code == ExitCodes.INVALID_INPUT
+        assert not requests
 
     def test_remove_confirmation_declined(self, monkeypatch: Any, runner: CliRunner) -> None:
         """Test removing a system with confirmation declined."""
