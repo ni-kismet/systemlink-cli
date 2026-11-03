@@ -10,6 +10,8 @@ from click.testing import CliRunner
 
 from slcli.comment_click import register_comment_commands
 
+pytestmark = pytest.mark.usefixtures("interactive_environment")
+
 
 def make_cli() -> click.Group:
     """Create a test CLI group with comment commands registered."""
@@ -617,7 +619,7 @@ class TestCommentDelete:
 
     def test_delete_requires_noninteractive_consent(self, monkeypatch: Any) -> None:
         """Automation cannot silently delete comments without explicit consent."""
-        monkeypatch.setenv("SLCLI_NON_INTERACTIVE", "true")
+        monkeypatch.setattr("slcli.cli_utils.is_interactive_environment", lambda: False)
         with patch("slcli.comment_click.make_api_request") as request:
             result = CliRunner().invoke(make_cli(), ["comment", "delete", "one", "two"])
         assert result.exit_code == 2

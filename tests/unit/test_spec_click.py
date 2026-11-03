@@ -15,6 +15,8 @@ from slcli.spec_click import (
     register_spec_commands,
 )
 
+pytestmark = pytest.mark.usefixtures("interactive_environment")
+
 
 def patch_keyring(monkeypatch: Any) -> None:
     """Set environment credentials used by CLI tests."""

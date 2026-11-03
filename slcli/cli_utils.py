@@ -44,15 +44,9 @@ def confirmation_option(prompt: str) -> Callable[[_Command], _Command]:
 
 
 def is_interactive_environment() -> bool:
-    """Return whether interactive prompts should be displayed.
-
-    In-process pytest callers remain interactive so prompt behavior can be tested with mocks.
-    Captured E2E subprocesses set ``SLCLI_NON_INTERACTIVE`` explicitly.
-    """
+    """Return whether interactive prompts should be displayed."""
     if os.getenv("SLCLI_NON_INTERACTIVE", "").lower() == "true":
         return False
-    if os.getenv("PYTEST_CURRENT_TEST") is not None:
-        return True
     return sys.stdin.isatty() and sys.stdout.isatty() and os.getenv("CI", "").lower() != "true"
 
 

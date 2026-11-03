@@ -10,6 +10,8 @@ from click.testing import CliRunner
 
 from slcli.tag_click import register_tag_commands
 
+pytestmark = pytest.mark.usefixtures("interactive_environment")
+
 
 def make_cli() -> click.Group:
     """Create a test CLI group with tag commands registered."""

@@ -35,6 +35,8 @@ from slcli.system_click import (
 from slcli.system_query_utils import build_materialized_system_search_filter
 from slcli.utils import ExitCodes
 
+pytestmark = pytest.mark.usefixtures("interactive_environment")
+
 
 def patch_keyring(monkeypatch: Any) -> None:
     """Set environment credentials used by CLI tests."""

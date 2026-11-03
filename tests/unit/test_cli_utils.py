@@ -15,10 +15,11 @@ from slcli.cli_utils import (
 
 
 @pytest.mark.parametrize("answer", ["y", "n"])
-def test_confirmation_option_preserves_interactive_consent(answer: str) -> None:
+def test_confirmation_option_preserves_interactive_consent(answer: str, monkeypatch: Any) -> None:
     """Interactive users can accept or decline without executing on refusal."""
     from click.testing import CliRunner
 
+    monkeypatch.setattr("slcli.cli_utils.is_interactive_environment", lambda: True)
     invoked = Mock()
 
     @click.command()
@@ -29,6 +30,24 @@ def test_confirmation_option_preserves_interactive_consent(answer: str) -> None:
     result = CliRunner().invoke(command, input=f"{answer}\n")
     assert result.exit_code == (0 if answer == "y" else 1)
     assert invoked.call_count == (1 if answer == "y" else 0)
+
+
+def test_confirmation_option_rejects_piped_consent_in_ci(monkeypatch: Any) -> None:
+    """A piped yes cannot bypass the non-interactive guard under pytest."""
+    from click.testing import CliRunner
+
+    monkeypatch.setenv("CI", "true")
+    invoked = Mock()
+
+    @click.command()
+    @confirmation_option("Delete this resource?")
+    def command() -> None:
+        invoked()
+
+    result = CliRunner().invoke(command, input="y\n")
+    assert result.exit_code == 2
+    assert "pass --yes" in result.output
+    invoked.assert_not_called()
 
 
 def test_bulk_confirmation_requires_explicit_noninteractive_consent(monkeypatch: Any) -> None:
@@ -82,20 +101,22 @@ def test_is_interactive_environment_honors_explicit_override(monkeypatch: Any) -
     assert is_interactive_environment() is False
 
 
-def test_is_interactive_environment_allows_in_process_prompt_tests(monkeypatch: Any) -> None:
-    """Pytest callers can exercise prompt paths with mocked prompt implementations."""
+def test_is_interactive_environment_rejects_ci_even_under_pytest(monkeypatch: Any) -> None:
+    """Pytest does not override non-interactive CI detection."""
+    monkeypatch.delenv("SLCLI_NON_INTERACTIVE", raising=False)
+    monkeypatch.setenv("CI", "true")
+    monkeypatch.setenv("PYTEST_CURRENT_TEST", "test_is_interactive_environment")
+
+    assert is_interactive_environment() is False
+
+
+def test_is_interactive_environment_rejects_piped_pytest(monkeypatch: Any) -> None:
+    """Pytest does not make piped input and output interactive."""
     monkeypatch.delenv("SLCLI_NON_INTERACTIVE", raising=False)
     monkeypatch.delenv("CI", raising=False)
     monkeypatch.setenv("PYTEST_CURRENT_TEST", "test_is_interactive_environment")
-
-    assert is_interactive_environment() is True
-
-
-def test_is_interactive_environment_rejects_ci(monkeypatch: Any) -> None:
-    """CI execution is non-interactive when no explicit test override is present."""
-    monkeypatch.delenv("SLCLI_NON_INTERACTIVE", raising=False)
-    monkeypatch.delenv("PYTEST_CURRENT_TEST", raising=False)
-    monkeypatch.setenv("CI", "true")
+    monkeypatch.setattr("slcli.cli_utils.sys.stdin", Mock(isatty=lambda: False))
+    monkeypatch.setattr("slcli.cli_utils.sys.stdout", Mock(isatty=lambda: True))
 
     assert is_interactive_environment() is False
 
@@ -103,6 +124,7 @@ def test_is_interactive_environment_rejects_ci(monkeypatch: Any) -> None:
 def test_paginate_list_output_uses_configured_page_size_in_prompt(monkeypatch: Any) -> None:
     """Pagination prompts should describe the actual page size being fetched."""
     monkeypatch.delenv("SLCLI_NON_INTERACTIVE", raising=False)
+    monkeypatch.setattr("slcli.cli_utils.is_interactive_environment", lambda: True)
     prompt_messages: List[str] = []
 
     class Prompt:

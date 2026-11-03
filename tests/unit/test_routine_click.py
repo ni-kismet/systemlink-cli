@@ -11,6 +11,8 @@ from click.testing import CliRunner
 from slcli.routine_click import register_routine_commands
 from slcli.utils import ExitCodes
 
+pytestmark = pytest.mark.usefixtures("interactive_environment")
+
 
 @pytest.fixture(autouse=True)
 def _no_profile_workspace() -> Any:
@@ -298,7 +300,7 @@ def test_list_pagination_first_page_non_interactive(
     """Test pagination shows first page and stops in non-interactive (non-TTY) mode."""
     routines = [dict(V2_ROUTINE, id=f"id-{i}", name=f"Routine {i}") for i in range(30)]
     mock_request.return_value = MockResponse(json_data={"routines": routines})
-    monkeypatch.setenv("SLCLI_NON_INTERACTIVE", "true")
+    monkeypatch.setattr("slcli.routine_click.is_interactive_environment", lambda: False)
 
     cli = make_cli()
     runner = CliRunner()
