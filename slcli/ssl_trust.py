@@ -133,23 +133,30 @@ def create_explicit_tls_context(cafile: str) -> ssl.SSLContext:
 
     Returns:
         A standard TLS context with partial-chain trust enabled for validated
-        managed certificates and native verification defaults for other bundles.
+        managed certificates, without X.509 strict extension checks for those
+        certificates. Other bundles retain native verification defaults.
     """
     with use_standard_ssl_context(cafile):
         context = ssl.create_default_context(cafile=cafile)
         if _get_managed_origin(cafile) is not None:
             context.verify_flags |= ssl.VERIFY_X509_PARTIAL_CHAIN
+            context.verify_flags &= ~ssl.VERIFY_X509_STRICT
         return context
 
 
 @contextmanager
 def _use_standard_ssl_context(ssl_verify: str) -> Iterator[None]:
-    """Apply process-global explicit trust patches while holding the context lock."""
+    """Apply explicit trust patches while holding the context lock.
+
+    Managed certificates use partial-chain verification without urllib3's strict
+    X.509 extension check; hostname and certificate validity checks remain enabled.
+    """
     import requests.adapters
     import urllib3.util.ssl_ as urllib3_ssl
 
     patched_ssl_context = ssl.SSLContext
     patched_urllib3_context = urllib3_ssl.SSLContext
+    patched_x509_strict = getattr(urllib3_ssl, "VERIFY_X509_STRICT", 0)
     has_preloaded_context = hasattr(requests.adapters, "_preloaded_ssl_context")
     patched_preloaded_context = getattr(requests.adapters, "_preloaded_ssl_context", None)
     original_send = requests.sessions.Session.send
@@ -180,6 +187,8 @@ def _use_standard_ssl_context(ssl_verify: str) -> Iterator[None]:
         setattr(ssl, "SSLContext", _STANDARD_SSL_CONTEXT)
         setattr(urllib3_ssl, "SSLContext", create_context)
         if managed_origin:
+            if patched_x509_strict:
+                setattr(urllib3_ssl, "VERIFY_X509_STRICT", 0)
             setattr(requests.sessions.Session, "send", send)
         if has_preloaded_context:
             setattr(
@@ -192,6 +201,8 @@ def _use_standard_ssl_context(ssl_verify: str) -> Iterator[None]:
         setattr(ssl, "SSLContext", patched_ssl_context)
         setattr(urllib3_ssl, "SSLContext", patched_urllib3_context)
         if managed_origin:
+            if patched_x509_strict:
+                setattr(urllib3_ssl, "VERIFY_X509_STRICT", patched_x509_strict)
             setattr(requests.sessions.Session, "send", original_send)
         if has_preloaded_context:
             setattr(requests.adapters, "_preloaded_ssl_context", patched_preloaded_context)

@@ -275,7 +275,17 @@ def test_unmanaged_bundle_preserves_native_verification_flags(
 @pytest.mark.parametrize("context_source", ["requests", "debug"])
 @pytest.mark.parametrize("strict", [False, True])
 @pytest.mark.parametrize(
-    "case", ["valid", "renewed", "wrong-issuer", "expired", "hostname", "leaf", "intermediate"]
+    "case",
+    [
+        "valid",
+        "renewed",
+        "wrong-issuer",
+        "expired",
+        "hostname",
+        "leaf",
+        "intermediate",
+        "malformed-issuer",
+    ],
 )
 def test_managed_trust_tls_verification(
     monkeypatch: Any, tmp_path: Path, strict: bool, case: str, context_source: str
@@ -283,11 +293,29 @@ def test_managed_trust_tls_verification(
     """CA and legacy leaf trust preserve issuer, hostname, and expiry verification."""
     from slcli import ssl_trust
     from slcli.main import _build_tls_debug_context
+    import urllib3.util.ssl_ as urllib3_ssl
     from urllib3.util.ssl_ import create_urllib3_context
 
+    original_x509_strict = urllib3_ssl.VERIFY_X509_STRICT
     monkeypatch.setenv("SLCLI_CONFIG", str(tmp_path / "config.json"))
     ca_key = rsa.generate_private_key(public_exponent=65537, key_size=2048)
     ca_certificate = _make_ca(key=ca_key)
+    if case == "malformed-issuer":
+        now = datetime.now(timezone.utc)
+        ca_certificate = (
+            x509.CertificateBuilder()
+            .subject_name(x509.Name([x509.NameAttribute(NameOID.COMMON_NAME, "Test CA")]))
+            .issuer_name(x509.Name([x509.NameAttribute(NameOID.COMMON_NAME, "Test CA")]))
+            .public_key(ca_key.public_key())
+            .serial_number(x509.random_serial_number())
+            .not_valid_before(now - timedelta(days=2))
+            .not_valid_after(now + timedelta(days=30))
+            .add_extension(x509.BasicConstraints(ca=True, path_length=0), critical=True)
+            .add_extension(
+                x509.SubjectKeyIdentifier.from_public_key(ca_key.public_key()), critical=False
+            )
+            .sign(ca_key, hashes.SHA256())
+        )
     if case == "intermediate":
         root_key = rsa.generate_private_key(public_exponent=65537, key_size=2048)
         now = datetime.now(timezone.utc)
@@ -345,7 +373,10 @@ def test_managed_trust_tls_verification(
         )
         certificate_path = tmp_path / "server.pem"
         key_path = tmp_path / "server.key"
-        certificate_path.write_bytes(leaf.public_bytes(serialization.Encoding.PEM))
+        certificate_chain = leaf.public_bytes(serialization.Encoding.PEM)
+        if case == "malformed-issuer":
+            certificate_chain += ca_certificate.public_bytes(serialization.Encoding.PEM)
+        certificate_path.write_bytes(certificate_chain)
         key_path.write_bytes(
             leaf_key.private_bytes(
                 serialization.Encoding.PEM,
@@ -353,7 +384,7 @@ def test_managed_trust_tls_verification(
                 serialization.NoEncryption(),
             )
         )
-        if case == "leaf":
+        if case in ("leaf", "malformed-issuer"):
             trusted_path = ssl_trust.save_managed_certificate(
                 ssl_trust.ServerCertificate(
                     origin="https://example.com:443",
@@ -414,11 +445,14 @@ def test_managed_trust_tls_verification(
                         return
                 raise AssertionError("TLS handshake did not complete")
 
-            if case in ("wrong-issuer", "expired", "hostname"):
+            if case in ("wrong-issuer", "expired", "hostname") or (
+                case == "malformed-issuer" and strict
+            ):
                 with pytest.raises(ssl.SSLCertVerificationError):
                     handshake()
             else:
                 handshake()
+    assert urllib3_ssl.VERIFY_X509_STRICT == original_x509_strict
 
 
 def test_explicit_context_restored_on_failure() -> None:

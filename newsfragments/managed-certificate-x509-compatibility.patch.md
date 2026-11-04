@@ -1,0 +1,1 @@
+Allow explicitly trusted server certificates to connect when urllib3's strict X.509 extension check rejects a malformed issuer certificate.
