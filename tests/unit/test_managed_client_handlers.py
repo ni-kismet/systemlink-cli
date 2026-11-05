@@ -88,10 +88,19 @@ def test_mock_package_removal_is_safe_idempotent_and_supports_dry_run(
     assert repeated["success"] is True
     assert store.get_installed_packages() == {"ni-two": {"version": "2.0", "arch": "all"}}
     removed = registry.dispatch(
-        {"jid": "remove-last", "fun": "pkg.remove", "kwargs": {"name": "ni-two"}},
+        {
+            "jid": "remove-last",
+            "fun": ["pkg.remove", "system.get_reboot_required_witnessed", "pkg.info_installed"],
+            "arg": [
+                [{"__kwarg__": True, "pkgs": ["ni-two"]}],
+                [],
+                [{"__kwarg__": True, "attr": ["version", "arch"]}],
+            ],
+        },
         "slcli-test-001",
     )
-    assert removed["success"] is True
+    assert removed["success"] == [True, True, True]
+    assert removed["return"] == [{"ni-two": {"old": "2.0", "new": ""}}, False, {}]
     assert StateStore(tmp_path / "minion").get_installed_packages() == {}
 
 
@@ -499,7 +508,7 @@ def test_systemlink_refresh_job_returns_normal_multi_function_result() -> None:
             registry.GRAINS_ITEMS,
             registry.INFO_INSTALLED,
         ],
-        "return": [True, True, {}, {**EXPECTED_WINDOWS_GRAINS, "minion_blackout": False}, None],
+        "return": [True, True, {}, {**EXPECTED_WINDOWS_GRAINS, "minion_blackout": False}, {}],
         "retcode": [0, 0, 0, 0, 0],
         "success": [True, True, True, True, True],
     }

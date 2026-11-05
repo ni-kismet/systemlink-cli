@@ -518,6 +518,10 @@ slcli system remove &lt;system-id&gt; --force</code></pre>
           software and feeds survive reconnects and process restarts using the same state directory;
           <code>managed-client reset</code> clears them along with the minion identity.
         </p>
+        <p>When no mock packages are installed, <code>pkg.info_installed</code> returns an empty map rather than
+          <code>null</code>. This explicitly clears SystemLink's cached installed-software inventory after removing the
+          last package.
+        </p>
         <p><code>system.get_reboot_required_witnessed</code> returns <code>False</code> with a success status because
           mock installs never require a reboot. <code>nisysmgmt.restart</code> and
           <code>nisysmgmt.restart_if_required</code> acknowledge no-argument jobs with a successful <code>True</code>

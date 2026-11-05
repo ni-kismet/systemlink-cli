@@ -573,4 +573,4 @@ class FixtureHandlerRegistry:
             for name, package in packages.items()
             if not job.args or name in job.args
         }
-        return HandlerResult(True, 0, inventory or None)
+        return HandlerResult(True, 0, inventory)
