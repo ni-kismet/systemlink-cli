@@ -121,10 +121,16 @@ class FixtureHandlerRegistry:
     REMOVE = "pkg.remove"
     LIST_PACKAGES = "pkg.list_pkgs"
 
-    def __init__(self, state_store: StateStore | None = None, boot_time: str | None = None) -> None:
+    def __init__(
+        self,
+        state_store: StateStore | None = None,
+        boot_time: str | None = None,
+        extra_grains: Mapping[str, Any] | None = None,
+    ) -> None:
         """Create a registry with the built-in deterministic handlers."""
         self._state_store = state_store
         self._boot_time = boot_time
+        self._extra_grains = dict(extra_grains or {})
         self._handlers: Dict[str, FixtureHandler] = {
             self.RETURN_SUCCESS: self._return_success,
             self.RETURN_FIXTURE: self._return_fixture,
@@ -421,6 +427,7 @@ class FixtureHandlerRegistry:
             return HandlerResult(False, 2, error="unable-to-read-blackout-state")
         grains: Dict[str, Any] = {
             **MOCK_SYSTEM_GRAINS,
+            **self._extra_grains,
             "minion_blackout": blackout,
             "pid": os.getpid(),
         }

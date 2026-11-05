@@ -21,6 +21,7 @@ from .crypto import (
     serialize_public_key,
 )
 from .handlers import MOCK_SYSTEM_GRAINS, FixtureHandlerRegistry
+from .health import HealthTagPublisher
 from .models import (
     LifecycleTimeoutError,
     ManagedClientError,
@@ -61,6 +62,7 @@ class TestMinion:
         configuration: MinionConfiguration,
         *,
         handlers: FixtureHandlerRegistry | None = None,
+        health_publisher: HealthTagPublisher | None = None,
         on_event: EventCallback | None = None,
         token_signer: TokenSigner = rsa_x931_sign,
         verify_load_signature: LoadSignatureVerifier | None = None,
@@ -73,12 +75,14 @@ class TestMinion:
             configuration.master, request_port=configuration.request_port
         )
         self._state_store = StateStore(configuration.state_dir)
+        self._health_publisher = health_publisher
         self._boot_time = (
             datetime.now(timezone.utc).isoformat(timespec="milliseconds").replace("+00:00", "Z")
         )
         self._handlers = handlers or FixtureHandlerRegistry(
             state_store=self._state_store,
             boot_time=self._boot_time,
+            extra_grains=health_publisher.grains if health_publisher else None,
         )
         self._on_event = on_event
         self._token_signer = token_signer
@@ -160,6 +164,8 @@ class TestMinion:
         """Stop sockets and the lifecycle thread deterministically."""
         self._stop_event.set()
         self._close_channels()
+        if self._health_publisher is not None:
+            self._health_publisher.stop()
         thread = self._thread
         if thread is not None and thread is not threading.current_thread():
             thread.join(timeout=timeout or self.configuration.request_timeout)
@@ -245,6 +251,8 @@ class TestMinion:
                     self._publish_grains(request_channel, auth_response.shared_secret)
                     self._reconnect_attempts = 0
                     self._set_phase(MinionPhase.CONNECTED, "Publish channel connected")
+                    if self._health_publisher is not None:
+                        self._health_publisher.start()
                     self._run_connected(
                         request_channel,
                         publish_channel,
@@ -264,6 +272,8 @@ class TestMinion:
                         break
                     self._record_reconnect(error)
                 finally:
+                    if self._health_publisher is not None:
+                        self._health_publisher.stop()
                     if request_channel is not None:
                         self._close_channel(request_channel)
                         request_channel = None
@@ -313,6 +323,7 @@ class TestMinion:
             build_pillar_request(
                 grains={
                     **MOCK_SYSTEM_GRAINS,
+                    **(self._health_publisher.grains if self._health_publisher else {}),
                     "boottime": self._boot_time,
                     "minion_blackout": self._state_store.get_blackout_state(),
                     "pid": os.getpid(),

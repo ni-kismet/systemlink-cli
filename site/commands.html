@@ -543,6 +543,26 @@ slcli system remove &lt;system-id&gt; --force</code></pre>
           required for Salt's X9.31 signatures. POSIX state directories and keys use owner-only permissions; Windows
           removes inherited ACLs and grants access only to the current user.</p>
 
+        <h3>Synthetic Health Tags</h3>
+        <p><code>--health-tags</code> enables periodic HTTP writes to the Tag Service using the selected slcli REST
+          profile, not the Salt master hostname or client HTTP-master credentials. Select the profile for the same
+          environment explicitly. The publisher resolves the minion's workspace before writing tags and is disabled
+          by default. Read-only profiles cannot enable publishing.</p>
+        <pre><code>python -m slcli --profile main-dev managed-client run \
+  --master dev-salt.systemlink.ni.dev \
+  --minion-id vaterlaus-fake-minion \
+  --state-dir ./.slcli-managed-client/vaterlaus-fake-minion \
+  --health-tags --health-interval 30</code></pre>
+        <p>The 13 CPU, memory, and disk tags use the client beacon's paths, types, units, and display properties,
+          with <code>slcliMock=true</code> identifying synthetic values. Current values use server timestamps.
+          Each metric follows a bounded random walk with drift toward changing targets and capped movement scaled
+          by elapsed seconds. CPU changes faster than memory; disk usage changes slowly. CPU mean is derived from
+          two cores. Memory capacity is 8 GiB and disk capacity is 128 GiB; free, available, used, and percentage
+          values are derived together to remain consistent. No host health metrics are collected.</p>
+        <p><code>--health-interval</code> is in seconds (default 300). The publisher runs while Salt is connected,
+          retries HTTP failures after 15 seconds with a safe operation/status diagnostic, and stops on disconnect
+          or shutdown. Failures do not stop Salt job processing.</p>
+
         <h3>Run Options</h3>
         <pre><code>slcli managed-client run [OPTIONS]
 
@@ -555,7 +575,9 @@ slcli system remove &lt;system-id&gt; --force</code></pre>
                                 [default: 1.0]
   --max-reconnect-attempts INTEGER
                                 Maximum retries before the minion fails.
-                                [default: 5]</code></pre>
+                                [default: 5]
+  --health-tags                Publish synthetic health tags via the selected REST profile.
+  --health-interval FLOAT      Seconds between health samples. [default: 300.0]</code></pre>
 
         <h3>Reset Local Identity</h3>
         <p>Reset removes only <code>metadata.json</code>, <code>minion-key.pem</code>, and

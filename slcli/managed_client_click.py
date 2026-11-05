@@ -196,6 +196,18 @@ def register_managed_client_commands(cli: Any) -> None:
         type=click.IntRange(min=1),
         help="Maximum reconnect attempts before the minion fails.",
     )
+    @click.option(
+        "--health-tags",
+        is_flag=True,
+        help="Publish synthetic health tags using the selected slcli REST profile.",
+    )
+    @click.option(
+        "--health-interval",
+        default=300.0,
+        show_default=True,
+        type=click.FloatRange(min=0.1),
+        help="Seconds between synthetic health samples when --health-tags is enabled.",
+    )
     def run(
         format: str,
         master: str,
@@ -205,6 +217,8 @@ def register_managed_client_commands(cli: Any) -> None:
         request_timeout: float,
         reconnect_interval: float,
         max_reconnect_attempts: int,
+        health_tags: bool,
+        health_interval: float,
     ) -> None:
         """Run the test minion until interrupted or a lifecycle failure occurs."""
         from .managed_client import MinionConfiguration, TestMinion
@@ -238,6 +252,38 @@ def register_managed_client_commands(cli: Any) -> None:
         command_error: ManagedClientError | None = None
         interrupted = False
         try:
+            minion_options: dict[str, Any] = {}
+            if health_tags:
+                from .managed_client.health import HealthTagPublisher
+                from .utils import check_readonly_mode
+
+                check_readonly_mode("publish synthetic minion health tags")
+
+                def report_health(success: bool, count: int) -> None:
+                    phase = minion.phase if minion is not None else MinionPhase.CONNECTED
+                    details = {"tags": str(count)}
+                    if not success:
+                        details["reason"] = (
+                            minion_options["health_publisher"].last_error or "unknown"
+                        )
+                    report_event(
+                        MinionEvent(
+                            phase=phase,
+                            message=(
+                                "Published synthetic health tags"
+                                if success
+                                else "Health tag publication failed; retrying in 15 seconds"
+                            ),
+                            details=details,
+                        )
+                    )
+
+                minion_options["health_publisher"] = HealthTagPublisher(
+                    minion_id,
+                    interval=health_interval,
+                    timeout=min(request_timeout, 5.0),
+                    on_status=report_health,
+                )
             minion = TestMinion(
                 MinionConfiguration(
                     master=master,
@@ -249,6 +295,7 @@ def register_managed_client_commands(cli: Any) -> None:
                     max_reconnect_attempts=max_reconnect_attempts,
                 ),
                 on_event=report_event,
+                **minion_options,
             )
             minion.start()
             if output_format == "json":
