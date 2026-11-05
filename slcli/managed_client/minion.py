@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import os
 import threading
 import time
 import uuid
@@ -19,7 +20,7 @@ from .crypto import (
     rsa_x931_sign,
     serialize_public_key,
 )
-from .handlers import FixtureHandlerRegistry
+from .handlers import MOCK_SYSTEM_GRAINS, FixtureHandlerRegistry
 from .models import (
     LifecycleTimeoutError,
     ManagedClientError,
@@ -311,8 +312,10 @@ class TestMinion:
         request_channel.send(
             build_pillar_request(
                 grains={
+                    **MOCK_SYSTEM_GRAINS,
                     "boottime": self._boot_time,
                     "minion_blackout": self._state_store.get_blackout_state(),
+                    "pid": os.getpid(),
                 },
                 minion_id=self.minion_id,
                 shared_secret=shared_secret,

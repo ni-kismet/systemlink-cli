@@ -202,6 +202,139 @@ class StateStore:
         metadata["asset_records"] = stored_records
         self._write_metadata(metadata)
 
+    def get_installed_packages(self) -> Dict[str, Dict[str, str]]:
+        """Return mock software inventory without inspecting the host."""
+        packages = self._read_metadata().get("installed_packages", {})
+        if not isinstance(packages, dict) or any(
+            not isinstance(name, str)
+            or not name.strip()
+            or not isinstance(package, dict)
+            or set(package) != {"version", "arch"}
+            or any(not isinstance(value, str) or not value.strip() for value in package.values())
+            for name, package in packages.items()
+        ):
+            raise StateError("The stored mock package inventory is invalid.")
+        return packages
+
+    def install_mock_packages(self, packages: Mapping[str, str]) -> Dict[str, Dict[str, str]]:
+        """Persist mock versions and return Salt changes without installing software."""
+        if not packages or any(
+            not isinstance(name, str)
+            or not name.strip()
+            or not isinstance(version, str)
+            or not version.strip()
+            for name, version in packages.items()
+        ):
+            raise StateError("Mock package names and versions must be non-empty strings.")
+        installed = self.get_installed_packages()
+        changes: Dict[str, Dict[str, str]] = {}
+        for name, version in packages.items():
+            old_version = installed.get(name, {}).get("version", "")
+            if old_version != version:
+                changes[name] = {"old": old_version, "new": version}
+                installed[name] = {"version": version, "arch": "all"}
+        if changes:
+            metadata = self._read_metadata()
+            metadata["installed_packages"] = installed
+            self._write_metadata(metadata)
+        return changes
+
+    def remove_mock_packages(
+        self, packages: Sequence[str], dry_run: bool = False
+    ) -> Dict[str, Dict[str, str]]:
+        """Remove named packages from mock state without uninstalling host software.
+
+        Args:
+            packages: Explicit package names to remove.
+            dry_run: Whether to report changes without persisting them.
+
+        Returns:
+            Salt-style old and new versions for packages currently installed.
+        """
+        if (
+            not packages
+            or isinstance(packages, str)
+            or any(not isinstance(name, str) or not name.strip() for name in packages)
+            or not isinstance(dry_run, bool)
+        ):
+            raise StateError("Mock package removal requires non-empty package names.")
+        installed = self.get_installed_packages()
+        changes = {
+            name: {"old": installed[name]["version"], "new": ""}
+            for name in packages
+            if name in installed
+        }
+        if changes and not dry_run:
+            for name in changes:
+                del installed[name]
+            metadata = self._read_metadata()
+            metadata["installed_packages"] = installed
+            self._write_metadata(metadata)
+        return changes
+
+    def get_mock_repositories(self) -> Dict[str, Dict[str, Any]]:
+        """Return isolated mock feed records without reading host configuration."""
+        repositories = self._read_metadata().get("repositories", {})
+        if not isinstance(repositories, dict) or any(
+            not isinstance(name, str)
+            or not name.strip()
+            or not isinstance(repository, dict)
+            or set(repository) != {"uri", "enabled", "trusted"}
+            or not isinstance(repository["uri"], str)
+            or not repository["uri"].strip()
+            or not isinstance(repository["enabled"], bool)
+            or not isinstance(repository["trusted"], bool)
+            for name, repository in repositories.items()
+        ):
+            raise StateError("The stored mock repository inventory is invalid.")
+        return repositories
+
+    def modify_mock_repository(
+        self, name: str, properties: Mapping[str, Any], allow_renaming: bool = False
+    ) -> Dict[str, Dict[str, Any]]:
+        """Create or update mock feed metadata without contacting a repository.
+
+        Args:
+            name: The requested repository name.
+            properties: URI and enabled/trusted flags to merge into the record.
+            allow_renaming: Whether an existing URI may be renamed to the requested name.
+
+        Returns:
+            The updated repository record keyed by its name.
+        """
+        if (
+            not isinstance(name, str)
+            or not name.strip()
+            or not isinstance(allow_renaming, bool)
+            or set(properties) - {"uri", "enabled", "trusted"}
+        ):
+            raise StateError("The mock repository arguments are invalid.")
+        repositories = self.get_mock_repositories()
+        repository = {
+            "enabled": True,
+            "trusted": False,
+            **repositories.get(name, {}),
+            **properties,
+        }
+        if (
+            not isinstance(repository.get("uri"), str)
+            or not repository["uri"].strip()
+            or not isinstance(repository["enabled"], bool)
+            or not isinstance(repository["trusted"], bool)
+        ):
+            raise StateError("A mock repository requires a URI and boolean flags.")
+        if allow_renaming:
+            repositories = {
+                stored_name: stored_repository
+                for stored_name, stored_repository in repositories.items()
+                if stored_name == name or stored_repository["uri"] != repository["uri"]
+            }
+        repositories[name] = repository
+        metadata = self._read_metadata()
+        metadata["repositories"] = repositories
+        self._write_metadata(metadata)
+        return {name: repository}
+
     def remove_asset(self, identification: Mapping[str, Any]) -> bool:
         """Remove an identified asset record from isolated metadata."""
         if not isinstance(identification, Mapping) or any(

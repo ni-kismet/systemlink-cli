@@ -1,154 +1,280 @@
 <!DOCTYPE html>
 <html lang="en">
+
 <head>
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
   <title>Command Reference — SystemLink CLI</title>
   <meta name="description" content="Complete command reference for all slcli command groups." />
-  <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24'><text y='20' font-size='18'>⚡</text></svg>" />
+  <link rel="icon"
+    href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24'><text y='20' font-size='18'>⚡</text></svg>" />
   <link rel="stylesheet" href="style.css" />
 </head>
+
 <body>
 
-<!-- ─── NAV ─── -->
-<nav>
-  <div class="nav-inner">
-    <a href="index.html" class="nav-logo">
-      <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="4 17 10 11 4 5"/><line x1="12" y1="19" x2="20" y2="19"/></svg>
-      <span>slcli</span>
-    </a>
-    <div class="nav-links">
-      <a href="getting-started.html">Get Started</a>
-      <a href="commands.html">Commands</a>
-      <a href="workflows.html">Workflows</a>
-      <a href="https://github.com/ni-kismet/systemlink-cli" class="btn btn-sm" target="_blank" rel="noopener">GitHub</a>
+  <!-- ─── NAV ─── -->
+  <nav>
+    <div class="nav-inner">
+      <a href="index.html" class="nav-logo">
+        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"
+          stroke-linecap="round" stroke-linejoin="round">
+          <polyline points="4 17 10 11 4 5" />
+          <line x1="12" y1="19" x2="20" y2="19" />
+        </svg>
+        <span>slcli</span>
+      </a>
+      <div class="nav-links">
+        <a href="getting-started.html">Get Started</a>
+        <a href="commands.html">Commands</a>
+        <a href="workflows.html">Workflows</a>
+        <a href="https://github.com/ni-kismet/systemlink-cli" class="btn btn-sm" target="_blank"
+          rel="noopener">GitHub</a>
+      </div>
     </div>
-  </div>
-</nav>
+  </nav>
 
-<!-- ─── PAGE HERO ─── -->
-<section class="page-hero">
+  <!-- ─── PAGE HERO ─── -->
+  <section class="page-hero">
+    <div class="container">
+      <h1>Command Reference</h1>
+      <p>Complete documentation for every slcli command group, option, and output format.</p>
+    </div>
+  </section>
+
+  <!-- ─── DOCS ─── -->
   <div class="container">
-    <h1>Command Reference</h1>
-    <p>Complete documentation for every slcli command group, option, and output format.</p>
-  </div>
-</section>
+    <div class="docs-layout">
 
-<!-- ─── DOCS ─── -->
-<div class="container">
-  <div class="docs-layout">
+      <!-- SIDEBAR -->
+      <aside class="docs-sidebar">
+        <div class="sidebar-group">
+          <div class="sidebar-label">Global</div>
+          <a href="#overview" class="sidebar-link">Overview</a>
+          <a href="#output-formats" class="sidebar-link">Output Formats</a>
+          <a href="#flag-conventions" class="sidebar-link">Flag Conventions</a>
+        </div>
+        <div class="sidebar-group">
+          <div class="sidebar-label">Commands</div>
+          <a href="#mcp" class="sidebar-link">mcp</a>
+          <a href="#testmonitor" class="sidebar-link">testmonitor</a>
+          <a href="#asset" class="sidebar-link">asset</a>
+          <a href="#alarm" class="sidebar-link">alarm</a>
+          <a href="#system" class="sidebar-link">system</a>
+          <a href="#managed-client" class="sidebar-link">managed-client</a>
+          <a href="#state" class="sidebar-link">state</a>
+          <a href="#dataframe" class="sidebar-link">dataframe</a>
+          <a href="#spec" class="sidebar-link">spec</a>
+          <a href="#workitem" class="sidebar-link">workitem</a>
+          <a href="#template" class="sidebar-link">template</a>
+          <a href="#notebook" class="sidebar-link">notebook</a>
+          <a href="#routine" class="sidebar-link">routine</a>
+          <a href="#feed" class="sidebar-link">feed</a>
+          <a href="#file" class="sidebar-link">file</a>
+          <a href="#tag" class="sidebar-link">tag</a>
+          <a href="#user" class="sidebar-link">user</a>
+          <a href="#config" class="sidebar-link">config</a>
+          <a href="#auth" class="sidebar-link">auth</a>
+          <a href="#workspace" class="sidebar-link">workspace</a>
+          <a href="#webapp" class="sidebar-link">webapp</a>
+          <a href="#comment" class="sidebar-link">comment</a>
+          <a href="#customfield" class="sidebar-link">customfield</a>
+          <a href="#version" class="sidebar-link">version</a>
+          <a href="#skill" class="sidebar-link">skill</a>
+          <a href="#example" class="sidebar-link">example</a>
+        </div>
+      </aside>
 
-    <!-- SIDEBAR -->
-    <aside class="docs-sidebar">
-      <div class="sidebar-group">
-        <div class="sidebar-label">Global</div>
-        <a href="#overview" class="sidebar-link">Overview</a>
-        <a href="#output-formats" class="sidebar-link">Output Formats</a>
-        <a href="#flag-conventions" class="sidebar-link">Flag Conventions</a>
-      </div>
-      <div class="sidebar-group">
-        <div class="sidebar-label">Commands</div>
-        <a href="#mcp" class="sidebar-link">mcp</a>
-        <a href="#testmonitor" class="sidebar-link">testmonitor</a>
-        <a href="#asset" class="sidebar-link">asset</a>
-        <a href="#alarm" class="sidebar-link">alarm</a>
-        <a href="#system" class="sidebar-link">system</a>
-        <a href="#managed-client" class="sidebar-link">managed-client</a>
-        <a href="#state" class="sidebar-link">state</a>
-        <a href="#dataframe" class="sidebar-link">dataframe</a>
-        <a href="#spec" class="sidebar-link">spec</a>
-        <a href="#workitem" class="sidebar-link">workitem</a>
-        <a href="#template" class="sidebar-link">template</a>
-        <a href="#notebook" class="sidebar-link">notebook</a>
-        <a href="#routine" class="sidebar-link">routine</a>
-        <a href="#feed" class="sidebar-link">feed</a>
-        <a href="#file" class="sidebar-link">file</a>
-        <a href="#tag" class="sidebar-link">tag</a>
-        <a href="#user" class="sidebar-link">user</a>
-        <a href="#config" class="sidebar-link">config</a>
-        <a href="#auth" class="sidebar-link">auth</a>
-        <a href="#workspace" class="sidebar-link">workspace</a>
-        <a href="#webapp" class="sidebar-link">webapp</a>
-        <a href="#comment" class="sidebar-link">comment</a>
-        <a href="#customfield" class="sidebar-link">customfield</a>
-        <a href="#version" class="sidebar-link">version</a>
-        <a href="#skill" class="sidebar-link">skill</a>
-        <a href="#example" class="sidebar-link">example</a>
-      </div>
-    </aside>
+      <!-- CONTENT -->
+      <main class="docs-content">
 
-    <!-- CONTENT -->
-    <main class="docs-content">
+        <!-- ─── OVERVIEW ─── -->
+        <h1 id="overview">Command Groups</h1>
+        <p>slcli organizes commands into logical groups. Every list command supports <code>--format</code> and
+          <code>--take</code> options.
+        </p>
 
-      <!-- ─── OVERVIEW ─── -->
-      <h1 id="overview">Command Groups</h1>
-      <p>slcli organizes commands into logical groups. Every list command supports <code>--format</code> and <code>--take</code> options.</p>
+        <div class="cmd-groups">
+          <div class="cmd-group">
+            <h3>mcp</h3>
+            <p>Model Context Protocol server install and serve commands</p><code>slcli mcp install</code>
+          </div>
+          <div class="cmd-group">
+            <h3>testmonitor</h3>
+            <p>Test results, products, steps, measurements</p><code>slcli testmonitor result list</code>
+          </div>
+          <div class="cmd-group">
+            <h3>asset</h3>
+            <p>Hardware assets, calibration, fleet summary</p><code>slcli asset list</code>
+          </div>
+          <div class="cmd-group">
+            <h3>alarm</h3>
+            <p>Alarm listing, lifecycle actions, transitions, and monitoring</p><code>slcli alarm list</code>
+          </div>
+          <div class="cmd-group">
+            <h3>system</h3>
+            <p>Managed systems, package comparison, jobs, reports</p><code>slcli system list</code>
+          </div>
+          <div class="cmd-group">
+            <h3>managed-client</h3>
+            <p>Foreground Salt test-minion lifecycle and isolated identity state</p>
+            <code>slcli managed-client run</code>
+          </div>
+          <div class="cmd-group">
+            <h3>state</h3>
+            <p>Saved software states, .sls import/export, history, versioning</p><code>slcli state list</code>
+          </div>
+          <div class="cmd-group">
+            <h3>dataframe</h3>
+            <p>DataFrame tables, schema inspection, row queries, CSV export</p>
+            <code>slcli dataframe schema &lt;table-id&gt;</code>
+          </div>
+          <div class="cmd-group">
+            <h3>spec</h3>
+            <p>Product specifications, limits, conditions, bulk import/export</p><code>slcli spec list</code>
+          </div>
+          <div class="cmd-group">
+            <h3>workitem</h3>
+            <p>Work items, templates, workflows</p><code>slcli workitem list</code>
+          </div>
+          <div class="cmd-group">
+            <h3>template</h3>
+            <p>Test plan templates</p><code>slcli template list</code>
+          </div>
+          <div class="cmd-group">
+            <h3>notebook</h3>
+            <p>Jupyter notebooks, execution records</p><code>slcli notebook manage list</code>
+          </div>
+          <div class="cmd-group">
+            <h3>routine</h3>
+            <p>Event-action routines (v1 &amp; v2)</p><code>slcli routine list</code>
+          </div>
+          <div class="cmd-group">
+            <h3>feed</h3>
+            <p>NI Package Manager feeds &amp; packages</p><code>slcli feed list</code>
+          </div>
+          <div class="cmd-group">
+            <h3>file</h3>
+            <p>File upload, download, query, watch</p><code>slcli file list</code>
+          </div>
+          <div class="cmd-group">
+            <h3>tag</h3>
+            <p>Tags: create, read, values, and value history</p><code>slcli tag list</code>
+          </div>
+          <div class="cmd-group">
+            <h3>user</h3>
+            <p>User &amp; service account management</p><code>slcli user list</code>
+          </div>
+          <div class="cmd-group">
+            <h3>config</h3>
+            <p>Profiles, settings, and certificate trust inspection</p><code>slcli config trust show</code>
+          </div>
+          <div class="cmd-group">
+            <h3>auth</h3>
+            <p>Authorization policies &amp; templates</p><code>slcli auth policy list</code>
+          </div>
+          <div class="cmd-group">
+            <h3>workspace</h3>
+            <p>Workspace listing, info, disable</p><code>slcli workspace list</code>
+          </div>
+          <div class="cmd-group">
+            <h3>webapp</h3>
+            <p>Static web app lifecycle</p><code>slcli webapp list</code>
+          </div>
+          <div class="cmd-group">
+            <h3>comment</h3>
+            <p>Comments on any resource</p><code>slcli comment list</code>
+          </div>
+          <div class="cmd-group">
+            <h3>customfield</h3>
+            <p>Custom field configurations</p><code>slcli customfield list</code>
+          </div>
+          <div class="cmd-group">
+            <h3>version</h3>
+            <p>CLI version and update guidance</p><code>slcli version check</code>
+          </div>
+          <div class="cmd-group">
+            <h3>skill</h3>
+            <p>Bundled AI skill installation and version checks</p><code>slcli skill check</code>
+          </div>
+          <div class="cmd-group">
+            <h3>example</h3>
+            <p>Demo environment provisioning</p><code>slcli example list</code>
+          </div>
+        </div>
 
-      <div class="cmd-groups">
-        <div class="cmd-group"><h3>mcp</h3><p>Model Context Protocol server install and serve commands</p><code>slcli mcp install</code></div>
-        <div class="cmd-group"><h3>testmonitor</h3><p>Test results, products, steps, measurements</p><code>slcli testmonitor result list</code></div>
-        <div class="cmd-group"><h3>asset</h3><p>Hardware assets, calibration, fleet summary</p><code>slcli asset list</code></div>
-        <div class="cmd-group"><h3>alarm</h3><p>Alarm listing, lifecycle actions, transitions, and monitoring</p><code>slcli alarm list</code></div>
-        <div class="cmd-group"><h3>system</h3><p>Managed systems, package comparison, jobs, reports</p><code>slcli system list</code></div>
-        <div class="cmd-group"><h3>managed-client</h3><p>Foreground Salt test-minion lifecycle and isolated identity state</p><code>slcli managed-client run</code></div>
-        <div class="cmd-group"><h3>state</h3><p>Saved software states, .sls import/export, history, versioning</p><code>slcli state list</code></div>
-        <div class="cmd-group"><h3>dataframe</h3><p>DataFrame tables, schema inspection, row queries, CSV export</p><code>slcli dataframe schema &lt;table-id&gt;</code></div>
-        <div class="cmd-group"><h3>spec</h3><p>Product specifications, limits, conditions, bulk import/export</p><code>slcli spec list</code></div>
-        <div class="cmd-group"><h3>workitem</h3><p>Work items, templates, workflows</p><code>slcli workitem list</code></div>
-        <div class="cmd-group"><h3>template</h3><p>Test plan templates</p><code>slcli template list</code></div>
-        <div class="cmd-group"><h3>notebook</h3><p>Jupyter notebooks, execution records</p><code>slcli notebook manage list</code></div>
-        <div class="cmd-group"><h3>routine</h3><p>Event-action routines (v1 &amp; v2)</p><code>slcli routine list</code></div>
-        <div class="cmd-group"><h3>feed</h3><p>NI Package Manager feeds &amp; packages</p><code>slcli feed list</code></div>
-        <div class="cmd-group"><h3>file</h3><p>File upload, download, query, watch</p><code>slcli file list</code></div>
-        <div class="cmd-group"><h3>tag</h3><p>Tags: create, read, values, and value history</p><code>slcli tag list</code></div>
-        <div class="cmd-group"><h3>user</h3><p>User &amp; service account management</p><code>slcli user list</code></div>
-        <div class="cmd-group"><h3>config</h3><p>Profiles, settings, and certificate trust inspection</p><code>slcli config trust show</code></div>
-        <div class="cmd-group"><h3>auth</h3><p>Authorization policies &amp; templates</p><code>slcli auth policy list</code></div>
-        <div class="cmd-group"><h3>workspace</h3><p>Workspace listing, info, disable</p><code>slcli workspace list</code></div>
-        <div class="cmd-group"><h3>webapp</h3><p>Static web app lifecycle</p><code>slcli webapp list</code></div>
-        <div class="cmd-group"><h3>comment</h3><p>Comments on any resource</p><code>slcli comment list</code></div>
-        <div class="cmd-group"><h3>customfield</h3><p>Custom field configurations</p><code>slcli customfield list</code></div>
-        <div class="cmd-group"><h3>version</h3><p>CLI version and update guidance</p><code>slcli version check</code></div>
-        <div class="cmd-group"><h3>skill</h3><p>Bundled AI skill installation and version checks</p><code>slcli skill check</code></div>
-        <div class="cmd-group"><h3>example</h3><p>Demo environment provisioning</p><code>slcli example list</code></div>
-      </div>
-
-      <!-- ─── OUTPUT FORMATS ─── -->
-      <h2 id="output-formats">Output Formats</h2>
-      <p>All list and get commands support <code>--format/-f</code> with <code>table</code> (default) or <code>json</code>.</p>
-      <ul>
-        <li><strong>Table</strong> — colored, paginated (25 rows per page by default), with box-drawing and truncation</li>
-        <li><strong>JSON</strong> — complete results without pagination, ideal for scripting and <code>jq</code> processing</li>
-      </ul>
-      <pre><code># Human-readable table
+        <!-- ─── OUTPUT FORMATS ─── -->
+        <h2 id="output-formats">Output Formats</h2>
+        <p>All list and get commands support <code>--format/-f</code> with <code>table</code> (default) or
+          <code>json</code>.
+        </p>
+        <ul>
+          <li><strong>Table</strong> — colored, paginated (25 rows per page by default), with box-drawing and truncation
+          </li>
+          <li><strong>JSON</strong> — complete results without pagination, ideal for scripting and <code>jq</code>
+            processing</li>
+        </ul>
+        <pre><code># Human-readable table
 slcli testmonitor result list
 
 # Machine-readable JSON
 slcli testmonitor result list --format json</code></pre>
 
-      <!-- ─── FLAG CONVENTIONS ─── -->
-      <h2 id="flag-conventions">Flag Conventions</h2>
-      <table>
-        <thead><tr><th>Flag</th><th>Description</th></tr></thead>
-        <tbody>
-          <tr><td><code>--format/-f</code></td><td>Output format: <code>table</code> or <code>json</code></td></tr>
-          <tr><td><code>--take/-t</code></td><td>Number of items to return (default: 25)</td></tr>
-          <tr><td><code>--output/-o</code></td><td>File path for export operations</td></tr>
-          <tr><td><code>--workspace/-w</code></td><td>Filter by workspace name or ID</td></tr>
-          <tr><td><code>--id/-i</code></td><td>Resource identifier</td></tr>
-          <tr><td><code>--file</code></td><td>Input file for import operations</td></tr>
-          <tr><td><code>--filter</code></td><td>Dynamic LINQ or API filter expression</td></tr>
-          <tr><td><code>--yes/-y</code></td><td>Skip confirmation prompts</td></tr>
-          <tr><td><code>--force</code></td><td>Force overwrite or skip confirmation</td></tr>
-        </tbody>
-      </table>
+        <!-- ─── FLAG CONVENTIONS ─── -->
+        <h2 id="flag-conventions">Flag Conventions</h2>
+        <table>
+          <thead>
+            <tr>
+              <th>Flag</th>
+              <th>Description</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr>
+              <td><code>--format/-f</code></td>
+              <td>Output format: <code>table</code> or <code>json</code></td>
+            </tr>
+            <tr>
+              <td><code>--take/-t</code></td>
+              <td>Number of items to return (default: 25)</td>
+            </tr>
+            <tr>
+              <td><code>--output/-o</code></td>
+              <td>File path for export operations</td>
+            </tr>
+            <tr>
+              <td><code>--workspace/-w</code></td>
+              <td>Filter by workspace name or ID</td>
+            </tr>
+            <tr>
+              <td><code>--id/-i</code></td>
+              <td>Resource identifier</td>
+            </tr>
+            <tr>
+              <td><code>--file</code></td>
+              <td>Input file for import operations</td>
+            </tr>
+            <tr>
+              <td><code>--filter</code></td>
+              <td>Dynamic LINQ or API filter expression</td>
+            </tr>
+            <tr>
+              <td><code>--yes/-y</code></td>
+              <td>Skip confirmation prompts</td>
+            </tr>
+            <tr>
+              <td><code>--force</code></td>
+              <td>Force overwrite or skip confirmation</td>
+            </tr>
+          </tbody>
+        </table>
 
-      <!-- ─── MCP ─── -->
-      <h2 id="mcp">mcp</h2>
-      <p>Configure and run the experimental Model Context Protocol server for AI assistants.</p>
+        <!-- ─── MCP ─── -->
+        <h2 id="mcp">mcp</h2>
+        <p>Configure and run the experimental Model Context Protocol server for AI assistants.</p>
 
-      <h3>Install Client Configuration</h3>
-      <pre><code># Register with VS Code Copilot Agent mode in the current workspace
+        <h3>Install Client Configuration</h3>
+        <pre><code># Register with VS Code Copilot Agent mode in the current workspace
     slcli mcp install
 
     # Register with Claude Desktop
@@ -161,8 +287,8 @@ slcli testmonitor result list --format json</code></pre>
     # Write all supported configs at once
     slcli mcp install --target all</code></pre>
 
-      <h3>Serve The MCP Endpoint</h3>
-      <pre><code># Default streamable HTTP transport for the MCP Inspector and browser tooling
+        <h3>Serve The MCP Endpoint</h3>
+        <pre><code># Default streamable HTTP transport for the MCP Inspector and browser tooling
     slcli mcp serve
 
     # Stdio transport for AI clients that spawn the server directly
@@ -171,14 +297,14 @@ slcli testmonitor result list --format json</code></pre>
     # Bind to a custom host and port
     slcli mcp serve --transport streamable-http --host 0.0.0.0 --port 9000</code></pre>
 
-      <p>Streamable HTTP serves the MCP endpoint at <code>http://127.0.0.1:8765/mcp</code> by default.</p>
+        <p>Streamable HTTP serves the MCP endpoint at <code>http://127.0.0.1:8765/mcp</code> by default.</p>
 
-      <!-- ─── TEST MONITOR ─── -->
-      <h2 id="testmonitor">testmonitor</h2>
-      <p>Query test results, products, steps, and measurements from the Test Monitor service.</p>
+        <!-- ─── TEST MONITOR ─── -->
+        <h2 id="testmonitor">testmonitor</h2>
+        <p>Query test results, products, steps, and measurements from the Test Monitor service.</p>
 
-      <h3>Results</h3>
-      <pre><code># List test results with filters
+        <h3>Results</h3>
+        <pre><code># List test results with filters
 slcli testmonitor result list --status passed --program-name "Calibration"
 
 # Filter by part number and serial number
@@ -196,8 +322,8 @@ slcli testmonitor result list --summary --group-by status
 # Get result details with steps and measurements
 slcli testmonitor result get &lt;result-id&gt; --include-steps --include-measurements</code></pre>
 
-      <h3>Products</h3>
-      <pre><code># List products with filters
+        <h3>Products</h3>
+        <pre><code># List products with filters
 slcli testmonitor product list --name "cRIO" --family "cRIO"
 
 # Create a product
@@ -211,12 +337,12 @@ slcli testmonitor product update &lt;product-id&gt; --name "cRIO-9030 Rev B"
 # Delete products
 slcli testmonitor product delete --yes &lt;id1&gt; &lt;id2&gt;</code></pre>
 
-      <!-- ─── ASSET ─── -->
-      <h2 id="asset">asset</h2>
-      <p>Manage hardware assets with rich filtering, calibration tracking, and location history.</p>
+        <!-- ─── ASSET ─── -->
+        <h2 id="asset">asset</h2>
+        <p>Manage hardware assets with rich filtering, calibration tracking, and location history.</p>
 
-      <h3>List &amp; Filter</h3>
-      <pre><code># Filter by model, serial number, bus type
+        <h3>List &amp; Filter</h3>
+        <pre><code># Filter by model, serial number, bus type
 slcli asset list --model "PXI-4071"
 slcli asset list --serial-number "01BB877A"
 slcli asset list --bus-type PCI_PXI
@@ -230,15 +356,15 @@ slcli asset list --filter 'ModelName.Contains("PXI") and BusType = "PCI_PXI"'
 # Inline summary statistics
 slcli asset list --summary</code></pre>
 
-      <h3>Get Details</h3>
-      <pre><code># Detailed view with calibration history
+        <h3>Get Details</h3>
+        <pre><code># Detailed view with calibration history
 slcli asset get &lt;asset-id&gt; --include-calibration</code></pre>
 
-      <h3>Fleet Summary</h3>
-      <pre><code>slcli asset summary</code></pre>
+        <h3>Fleet Summary</h3>
+        <pre><code>slcli asset summary</code></pre>
 
-      <h3>Calibration &amp; Location History</h3>
-      <pre><code># Calibration history
+        <h3>Calibration &amp; Location History</h3>
+        <pre><code># Calibration history
 slcli asset calibration &lt;asset-id&gt; --take 10
 
 # Location history with date range
@@ -246,17 +372,18 @@ slcli asset location-history &lt;asset-id&gt; \
   --from "2025-12-01T00:00:00Z" \
   --to "2025-12-02T00:00:00Z"</code></pre>
 
-      <h3>Create, Update, Delete</h3>
-      <pre><code>slcli asset create --model-name "PXI-4071" --serial-number "SN-123" --bus-type PCI_PXI
+        <h3>Create, Update, Delete</h3>
+        <pre><code>slcli asset create --model-name "PXI-4071" --serial-number "SN-123" --bus-type PCI_PXI
 slcli asset update &lt;asset-id&gt; --name "Updated Name"
 slcli asset delete &lt;asset-id&gt; --force</code></pre>
 
-      <!-- ─── ALARM ─── -->
-      <h2 id="alarm">alarm</h2>
-      <p>Query alarm instances, inspect and acknowledge conditions, clear or delete records, report transitions, and monitor active alarms.</p>
+        <!-- ─── ALARM ─── -->
+        <h2 id="alarm">alarm</h2>
+        <p>Query alarm instances, inspect and acknowledge conditions, clear or delete records, report transitions, and
+          monitor active alarms.</p>
 
-      <h3>List &amp; Filter</h3>
-      <pre><code># List active alarms in the effective workspace
+        <h3>List &amp; Filter</h3>
+        <pre><code># List active alarms in the effective workspace
     slcli alarm list
 
     # Search alarm history across all workspaces
@@ -265,8 +392,8 @@ slcli asset delete &lt;asset-id&gt; --force</code></pre>
     # Filter by severity and resource
     slcli alarm list --min-severity 3 --resource-type Tag</code></pre>
 
-      <h3>Inspect &amp; Manage</h3>
-      <pre><code># Inspect one alarm instance
+        <h3>Inspect &amp; Manage</h3>
+        <pre><code># Inspect one alarm instance
     slcli alarm get &lt;instance-id&gt;
 
     # Acknowledge, force-clear, or delete alarm instances
@@ -282,21 +409,24 @@ slcli asset delete &lt;asset-id&gt; --force</code></pre>
     slcli alarm monitor
     slcli alarm monitor --once --format json</code></pre>
 
-      <!-- ─── SYSTEM ─── -->
-      <h2 id="system">system</h2>
-      <p>Manage registered systems, compare software and assets, inspect packages and jobs, and generate reports.</p>
+        <!-- ─── SYSTEM ─── -->
+        <h2 id="system">system</h2>
+        <p>Manage registered systems, compare software and assets, inspect packages and jobs, and generate reports.</p>
 
-      <h3>List &amp; Filter</h3>
-      <pre><code>slcli system list --state CONNECTED --os "Windows"
+        <h3>List &amp; Filter</h3>
+        <pre><code>slcli system list --state CONNECTED --os "Windows"
 slcli system list --has-package "ni-daqmx"
 slcli system list --has-keyword "production"
     slcli system list --property "Location=Building 5"
     slcli system list -f json --field packages
     slcli system list -f json --all-fields</code></pre>
-      <p><code>slcli system list -f json</code> uses a slim schema by default for faster responses. Add repeatable <code>--field</code> options for specific extended fields, or use <code>--all-fields</code> to restore the full legacy JSON schema.</p>
+        <p><code>slcli system list -f json</code> uses a slim schema by default for faster responses. Add repeatable
+          <code>--field</code> options for specific extended fields, or use <code>--all-fields</code> to restore the
+          full legacy JSON schema.
+        </p>
 
-      <h3>Get System Details</h3>
-      <pre><code># Basic details
+        <h3>Get System Details</h3>
+        <pre><code># Basic details
 slcli system get &lt;system-id&gt;
 
 # Include all related resources
@@ -307,43 +437,53 @@ slcli system get &lt;system-id&gt; --include-packages --include-feeds
 slcli system get &lt;system-id&gt; --include-assets --include-alarms
 slcli system get &lt;system-id&gt; --include-jobs --include-results --include-workitems</code></pre>
 
-      <h3>Compare Systems</h3>
-      <pre><code># Compare by alias
+        <h3>Compare Systems</h3>
+        <pre><code># Compare by alias
 slcli system compare "PXI Controller A" "PXI Controller B"
 
 # Compare by system ID with JSON output
 slcli system compare &lt;system-a&gt; &lt;system-b&gt; --format json</code></pre>
-      <p>Compares installed software and connected assets across two systems. Accepts system IDs or aliases and highlights package-only differences, version differences, asset count mismatches, and slot differences.</p>
+        <p>Compares installed software and connected assets across two systems. Accepts system IDs or aliases and
+          highlights package-only differences, version differences, asset count mismatches, and slot differences.</p>
 
-      <h3>Create Virtual System</h3>
-      <pre><code>slcli system create --alias "Test System 01" --workspace Default
+        <h3>Create Virtual System</h3>
+        <pre><code>slcli system create --alias "Test System 01" --workspace Default
 slcli system create --alias "Test System 02" --location-id &lt;location-id&gt;
 slcli system create --alias "Test System 03" --format json</code></pre>
-      <p>Creates a virtual system that can report data without a physical Salt minion connection. The command returns the generated system ID and reports whether the system was activated.</p>
+        <p>Creates a virtual system that can report data without a physical Salt minion connection. The command returns
+          the generated system ID and reports whether the system was activated.</p>
 
-      <h3>Summary &amp; Reports</h3>
-      <pre><code>slcli system summary
+        <h3>Summary &amp; Reports</h3>
+        <pre><code>slcli system summary
 slcli system report --type SOFTWARE --output software_report.csv
 slcli system report --type HARDWARE --filter 'connected.data.state = "CONNECTED"' --output hw_report.csv</code></pre>
 
-      <h3>Job Management</h3>
-      <pre><code>slcli system job list --state FAILED
+        <h3>Job Management</h3>
+        <pre><code>slcli system job list --state FAILED
 slcli system job get &lt;job-id&gt;
 slcli system job summary
 slcli system job cancel &lt;job-id&gt;</code></pre>
 
-      <h3>Update &amp; Remove</h3>
-      <pre><code>slcli system update &lt;system-id&gt; --alias "New Name" --workspace "Production"
+        <h3>Update &amp; Remove</h3>
+        <pre><code>slcli system update &lt;system-id&gt; --alias "New Name" --workspace "Production"
 slcli system remove &lt;system-id&gt; --force</code></pre>
 
-      <!-- ─── MANAGED CLIENT ─── -->
-      <h2 id="managed-client">managed-client</h2>
-      <p>Run an opt-in, foreground Salt test minion for managed-client interoperability testing. This is a test feature and is separate from <code>slcli system</code> REST commands and virtual systems.</p>
+        <!-- ─── MANAGED CLIENT ─── -->
+        <h2 id="managed-client">managed-client</h2>
+        <p>Run an opt-in, foreground Salt test minion for managed-client interoperability testing. This is a test
+          feature and is separate from <code>slcli system</code> REST commands and virtual systems.</p>
 
-      <h3>Prerequisites and Lifecycle</h3>
-      <p>Install the optional managed-client dependency before using this command: <code>pip install "systemlink-cli[managed-client]"</code>. With Poetry, use <code>poetry install --extras managed-client</code>.</p>
-      <p>The Salt master endpoint and request port must be reachable from the machine running slcli. The <code>run</code> command creates or reuses a stable RSA identity in the supplied state directory. A separate REST control-plane operation must approve the pending public key; <code>managed-client run</code> does not approve keys or create server-side systems.</p>
-      <pre><code># Start the foreground test minion
+        <h3>Prerequisites and Lifecycle</h3>
+        <p>Install the optional managed-client dependency before using this command:
+          <code>pip install "systemlink-cli[managed-client]"</code>. With Poetry, use
+          <code>poetry install --extras managed-client</code>.
+        </p>
+        <p>The Salt master endpoint and request port must be reachable from the machine running slcli. The
+          <code>run</code> command creates or reuses a stable RSA identity in the supplied state directory. A separate
+          REST control-plane operation must approve the pending public key; <code>managed-client run</code> does not
+          approve keys or create server-side systems.
+        </p>
+        <pre><code># Start the foreground test minion
     slcli managed-client run \
       --master salt-master.example.com \
       --minion-id slcli-test-001 \
@@ -351,14 +491,56 @@ slcli system remove &lt;system-id&gt; --force</code></pre>
 
     # The command reports phases such as PENDING_APPROVAL, CONNECTED,
     # RUNNING_JOB, RECONNECTING, and FAILED. Stop it with Ctrl+C.</code></pre>
-      <p>When a Salt job is received or returned, the command also prints its job ID, function name(s), target, and return status. Job arguments, tokens, and encrypted payloads are not displayed.</p>
-      <pre><code>RUNNING_JOB: Received Salt job (jid=20260919123456789012, functions=nisysmgmt.state_apply, target=slcli-test-001)
+        <p>When a Salt job is received or returned, the command also prints its job ID, function name(s), target, and
+          return status. Job arguments, tokens, and encrypted payloads are not displayed.</p>
+        <pre><code>RUNNING_JOB: Received Salt job (jid=20260919123456789012, functions=nisysmgmt.state_apply, target=slcli-test-001)
     CONNECTED: Sent Salt job return (jid=20260919123456789012, functions=nisysmgmt.state_apply, target=slcli-test-001, retcode=0, success=True)</code></pre>
-      <p>After the key is approved, the minion reconnects, registers on the Salt publish channel, receives allowlisted deterministic test jobs, and returns their results. Reconnects reuse the same identity and stop after the configured retry limit. Keep the state directory private and use a distinct directory for each test minion.</p>
-      <p>Linux CI validates the packaged protocol and RSA X9.31 smoke path. Windows and macOS remain experimental until their complete managed-client lifecycle is validated; live Salt job dispatch has not been confirmed on those platforms. A compatible OpenSSL <code>libcrypto</code> provider must expose the legacy RSA symbols required for Salt's X9.31 signatures. POSIX state directories and keys use owner-only permissions; Windows removes inherited ACLs and grants access only to the current user.</p>
+        <p>After the key is approved, the minion reconnects, registers on the Salt publish channel, receives allowlisted
+          deterministic test jobs, and returns their results. Reconnects reuse the same identity and stop after the
+          configured retry limit. Keep the state directory private and use a distinct directory for each test minion.
+        </p>
+        <p>The test minion reports a simulated Windows AMD64 identity on every host so SystemLink recognizes a supported
+          software-management platform. This identity does not describe the real host. Software jobs are mocked:
+          <code>pkg.install</code> records packages in isolated minion metadata without running an installer, querying
+          repositories, or inspecting host software. It accepts a package <code>name</code> (including comma-separated
+          names) with an optional <code>version</code>, or a <code>pkgs</code> list of names and single-name version
+          mappings. Unspecified versions are recorded as <code>latest</code>, and mock package architecture is
+          <code>all</code>. Install returns contain only changed packages with their old and new versions; repeating the
+          same version returns an empty change map.
+        </p>
+        <p><code>pkg.mod_repo</code> creates or updates mock feed records by name, tracking <code>uri</code>,
+          <code>enabled</code>, and <code>trusted</code> in isolated metadata. <code>allow_renaming=True</code> replaces
+          an existing name for the same URI. <code>pkg.list_repos</code> returns URI-keyed lists of feed records
+          containing their names, or an empty map when no feeds exist. These jobs never configure host feeds or contact
+          repository URLs. <code>pkg.list_pkgs</code> returns the mock package/version map and supports
+          <code>versions_as_list=True</code>. <code>pkg.info_installed</code> returns mock metadata, optionally filtered
+          by positional package names and an <code>attr</code> list such as <code>["version", "arch"]</code>. Mock
+          software and feeds survive reconnects and process restarts using the same state directory;
+          <code>managed-client reset</code> clears them along with the minion identity.
+        </p>
+        <p><code>system.get_reboot_required_witnessed</code> returns <code>False</code> with a success status because
+          mock installs never require a reboot. <code>nisysmgmt.restart</code> and
+          <code>nisysmgmt.restart_if_required</code> acknowledge no-argument jobs with a successful <code>True</code>
+          return. Both are no-ops: they never restart the host or the test minion.
+        </p>
+        <p><code>pkg.remove</code> removes explicitly named packages from mock inventory and returns old/new version
+          changes without running an uninstaller. It accepts a <code>name</code> (including comma-separated names) or a
+          <code>pkgs</code> list of names. Missing packages are successful no-ops; <code>test=True</code> reports
+          changes
+          without saving them. Dependency-removal flags do not remove additional packages because dependency
+          relationships are not simulated.
+        </p>
+        <p>Startup and refresh grains include the running Python process ID as numeric <code>pid</code>. Systems
+          Management records this value before dispatching software deployment jobs and uses it to detect minion process
+          changes.</p>
+        <p>Linux CI validates the packaged protocol and RSA X9.31 smoke path. Windows and macOS remain experimental
+          until their complete managed-client lifecycle is validated; live Salt job dispatch has not been confirmed on
+          those platforms. A compatible OpenSSL <code>libcrypto</code> provider must expose the legacy RSA symbols
+          required for Salt's X9.31 signatures. POSIX state directories and keys use owner-only permissions; Windows
+          removes inherited ACLs and grants access only to the current user.</p>
 
-      <h3>Run Options</h3>
-      <pre><code>slcli managed-client run [OPTIONS]
+        <h3>Run Options</h3>
+        <pre><code>slcli managed-client run [OPTIONS]
 
   --master TEXT                 Salt master hostname or endpoint. [required]
   --minion-id TEXT              Stable test-minion identity. [required]
@@ -371,25 +553,29 @@ slcli system remove &lt;system-id&gt; --force</code></pre>
                                 Maximum retries before the minion fails.
                                 [default: 5]</code></pre>
 
-      <h3>Reset Local Identity</h3>
-      <p>Reset removes only <code>metadata.json</code>, <code>minion-key.pem</code>, and <code>minion-key.pub.pem</code> from the supplied state directory. It does not remove server-side keys, systems, jobs, or other files in that directory. Stop the foreground minion before resetting.</p>
-      <pre><code>slcli managed-client reset [OPTIONS]
+        <h3>Reset Local Identity</h3>
+        <p>Reset removes only <code>metadata.json</code>, <code>minion-key.pem</code>, and
+          <code>minion-key.pub.pem</code> from the supplied state directory. It does not remove server-side keys,
+          systems, jobs, or other files in that directory. Stop the foreground minion before resetting.
+        </p>
+        <pre><code>slcli managed-client reset [OPTIONS]
 
   --state-dir DIRECTORY         Isolated identity state directory. [required]
   --yes                         Skip the destructive-operation confirmation.</code></pre>
-      <pre><code># Confirm before deleting the isolated identity files
+        <pre><code># Confirm before deleting the isolated identity files
     slcli managed-client reset --state-dir ./.slcli-managed-client/slcli-test-001
 
     # Use in a scripted cleanup step
     slcli managed-client reset \
       --state-dir ./.slcli-managed-client/slcli-test-001 --yes</code></pre>
 
-      <!-- ─── STATE ─── -->
-      <h2 id="state">state</h2>
-      <p>Manage saved software states, including package and feed definitions, imported <code>.sls</code> files, export workflows, and version history.</p>
+        <!-- ─── STATE ─── -->
+        <h2 id="state">state</h2>
+        <p>Manage saved software states, including package and feed definitions, imported <code>.sls</code> files,
+          export workflows, and version history.</p>
 
-      <h3>List &amp; Inspect</h3>
-      <pre><code># List saved states
+        <h3>List &amp; Inspect</h3>
+        <pre><code># List saved states
     slcli state list [OPTIONS]
 
       --workspace, -w TEXT       # Filter by workspace name or ID
@@ -403,8 +589,8 @@ slcli system remove &lt;system-id&gt; --force</code></pre>
     slcli state history &lt;STATE_ID&gt; [-t INT] [-f table|json]
     slcli state version &lt;STATE_ID&gt; &lt;VERSION&gt; [-f table|json]</code></pre>
 
-      <h3>Create &amp; Update</h3>
-      <pre><code># Create a package/feed-defined state
+        <h3>Create &amp; Update</h3>
+        <pre><code># Create a package/feed-defined state
     slcli state create --name TEXT --distribution CHOICE --architecture CHOICE [OPTIONS]
       --workspace, -w TEXT       # Workspace name or ID
       --property KEY=VALUE       # Repeatable custom property
@@ -423,8 +609,8 @@ slcli system remove &lt;system-id&gt; --force</code></pre>
       --property KEY=VALUE       # Replaces properties when provided
       --request FILE             # Raw JSON patch override</code></pre>
 
-      <h3>Import, Replace, Export, Capture</h3>
-      <pre><code># Import a state from an .sls file
+        <h3>Import, Replace, Export, Capture</h3>
+        <pre><code># Import a state from an .sls file
     slcli state import --name TEXT --distribution CHOICE --architecture CHOICE --file PATH [OPTIONS]
 
     # Replace the content of an existing state with a new .sls file
@@ -436,19 +622,20 @@ slcli system remove &lt;system-id&gt; --force</code></pre>
     # Capture a system's state as .sls
     slcli state capture &lt;SYSTEM_ID&gt; [--inline | --output FILE]</code></pre>
 
-      <h3>Delete &amp; Revert</h3>
-      <pre><code># Delete a state
+        <h3>Delete &amp; Revert</h3>
+        <pre><code># Delete a state
     slcli state delete &lt;STATE_ID&gt; [--yes]
 
     # Revert to a specific historical version
     slcli state revert &lt;STATE_ID&gt; &lt;VERSION&gt; [--yes]</code></pre>
 
-      <!-- ─── DATAFRAME ─── -->
-      <h2 id="dataframe">dataframe</h2>
-      <p>Inspect DataFrame table shape, query and decimate row data, export CSV, append rows, and manage table metadata.</p>
+        <!-- ─── DATAFRAME ─── -->
+        <h2 id="dataframe">dataframe</h2>
+        <p>Inspect DataFrame table shape, query and decimate row data, export CSV, append rows, and manage table
+          metadata.</p>
 
-      <h3>Discover Tables</h3>
-      <pre><code># List tables across all workspaces
+        <h3>Discover Tables</h3>
+        <pre><code># List tables across all workspaces
     slcli dataframe list --workspace all
 
     # Filter by name, associated test result, or append capability
@@ -461,16 +648,16 @@ slcli system remove &lt;system-id&gt; --force</code></pre>
       --substitution "Battery" \
       --substitution true</code></pre>
 
-      <h3>Inspect Metadata &amp; Schema</h3>
-      <pre><code># Summary plus schema preview
+        <h3>Inspect Metadata &amp; Schema</h3>
+        <pre><code># Summary plus schema preview
     slcli dataframe get &lt;table-id&gt;
 
     # Schema only
     slcli dataframe schema &lt;table-id&gt;
     slcli dataframe schema &lt;table-id&gt; --properties --format json</code></pre>
 
-      <h3>Query &amp; Decimate Row Data</h3>
-      <pre><code># Query selected columns with filters and sorting
+        <h3>Query &amp; Decimate Row Data</h3>
+        <pre><code># Query selected columns with filters and sorting
     slcli dataframe query &lt;table-id&gt; \
       --columns Time,Voltage,State \
       --where State,EQUALS,FAIL \
@@ -490,8 +677,8 @@ slcli system remove &lt;system-id&gt; --force</code></pre>
       --method MAX_MIN \
       --intervals 500</code></pre>
 
-      <h3>Export &amp; Append</h3>
-      <pre><code># Export CSV inline or to a file
+        <h3>Export &amp; Append</h3>
+        <pre><code># Export CSV inline or to a file
     slcli dataframe export &lt;table-id&gt; --where Cycle,GREATER_THAN,3
     slcli dataframe export &lt;table-id&gt; --output rows.csv
 
@@ -501,8 +688,8 @@ slcli system remove &lt;system-id&gt; --force</code></pre>
     # Append Arrow stream payloads and mark the table complete
     slcli dataframe append &lt;table-id&gt; --input rows.arrow --input-format arrow --end-of-data</code></pre>
 
-      <h3>Create, Update, &amp; Delete</h3>
-      <pre><code># Create from a definition file
+        <h3>Create, Update, &amp; Delete</h3>
+        <pre><code># Create from a definition file
     slcli dataframe create --definition table.json --workspace Production
 
     # Update metadata and column properties
@@ -518,12 +705,13 @@ slcli system remove &lt;system-id&gt; --force</code></pre>
     slcli dataframe delete &lt;table-id&gt; --yes
     slcli dataframe delete &lt;id-1&gt; &lt;id-2&gt; --yes</code></pre>
 
-      <!-- ─── SPEC ─── -->
-      <h2 id="spec">spec</h2>
-      <p>Manage SystemLink product specifications, including parametric limits, conditions, bulk import/export, and filtered query workflows.</p>
+        <!-- ─── SPEC ─── -->
+        <h2 id="spec">spec</h2>
+        <p>Manage SystemLink product specifications, including parametric limits, conditions, bulk import/export, and
+          filtered query workflows.</p>
 
-      <h3>List &amp; Query</h3>
-      <pre><code># List specifications for a product (by name, part number, or ID)
+        <h3>List &amp; Query</h3>
+        <pre><code># List specifications for a product (by name, part number, or ID)
 slcli spec list --product &lt;product&gt;
 
 # Query with Dynamic Linq and condition/limit helpers
@@ -536,12 +724,12 @@ slcli spec query --product &lt;product&gt; \
 # Continue a paged raw query
 slcli spec query --product &lt;product&gt; --continuation-token &lt;token&gt; --format json</code></pre>
 
-      <h3>Get</h3>
-      <pre><code>slcli spec get --id &lt;specification-id&gt;
+        <h3>Get</h3>
+        <pre><code>slcli spec get --id &lt;specification-id&gt;
 slcli spec get --id &lt;specification-id&gt; --format json</code></pre>
 
-      <h3>Create &amp; Update</h3>
-      <pre><code># Create from CLI flags
+        <h3>Create &amp; Update</h3>
+        <pre><code># Create from CLI flags
 slcli spec create --product &lt;product&gt; --spec-id VSAT01 --type PARAMETRIC \
   --name "Saturation voltage" --limit-min 1.2 --limit-max 1.8 \
   --condition '{"name":"Temperature","value":{"conditionType":"NUMERIC","discrete":[25,85],"unit":"C"}}'
@@ -552,26 +740,29 @@ slcli spec update --id &lt;specification-id&gt; --version 0 --limit-typical 1.5
 # Create or update from JSON payload files
 slcli spec create --file spec.json
 slcli spec update --file spec-update.json</code></pre>
-      <p>When a spec payload omits <code>workspace</code>, the CLI inherits the workspace from the referenced product unless you state a workspace explicitly.</p>
+        <p>When a spec payload omits <code>workspace</code>, the CLI inherits the workspace from the referenced product
+          unless you state a workspace explicitly.</p>
 
-      <h3>Bulk Import &amp; Export</h3>
-      <pre><code># Export a filtered spec payload file
+        <h3>Bulk Import &amp; Export</h3>
+        <pre><code># Export a filtered spec payload file
 slcli spec export --product &lt;product&gt; --include-conditions --output specs.json
 
 # Import one or more specs from JSON
 slcli spec import --file specs.json</code></pre>
-      <p>Repository examples: <code>docs/examples/specifications/import-specs.json</code> and <code>docs/examples/specifications/exported-specs.json</code>.</p>
+        <p>Repository examples: <code>docs/examples/specifications/import-specs.json</code> and
+          <code>docs/examples/specifications/exported-specs.json</code>.
+        </p>
 
-      <h3>Delete</h3>
-      <pre><code>slcli spec delete --id &lt;specification-id&gt; --force
+        <h3>Delete</h3>
+        <pre><code>slcli spec delete --id &lt;specification-id&gt; --force
 slcli spec delete --id &lt;id-1&gt; --id &lt;id-2&gt; --force</code></pre>
 
-      <!-- ─── WORK ITEM ─── -->
-      <h2 id="workitem">workitem</h2>
-      <p>Full work item lifecycle — create, schedule, execute, and manage associated templates and workflows.</p>
+        <!-- ─── WORK ITEM ─── -->
+        <h2 id="workitem">workitem</h2>
+        <p>Full work item lifecycle — create, schedule, execute, and manage associated templates and workflows.</p>
 
-      <h3>CRUD</h3>
-      <pre><code># List and filter
+        <h3>CRUD</h3>
+        <pre><code># List and filter
 slcli workitem list --state NEW --workspace "Production"
 
 # Create
@@ -587,19 +778,19 @@ slcli workitem update &lt;id&gt; --state IN_PROGRESS
 # Delete
 slcli workitem delete &lt;id1&gt; &lt;id2&gt; --yes</code></pre>
 
-      <h3>Execute &amp; Schedule</h3>
-      <pre><code>slcli workitem execute &lt;id&gt; --action START
+        <h3>Execute &amp; Schedule</h3>
+        <pre><code>slcli workitem execute &lt;id&gt; --action START
 slcli workitem schedule &lt;id&gt; --start 2026-03-01T09:00:00Z \
   --system &lt;system-id&gt; --fixture &lt;slot-id&gt; --dut &lt;dut-id&gt;</code></pre>
 
-      <h3>Templates</h3>
-      <pre><code>slcli workitem template list
+        <h3>Templates</h3>
+        <pre><code>slcli workitem template list
 slcli workitem template create --name "Battery Test" --type testplan --template-group "Functional"
 slcli workitem template update &lt;id&gt; --name "Updated Template"
 slcli workitem template delete &lt;id&gt; --yes</code></pre>
 
-      <h3>Workflows</h3>
-      <pre><code># List, get, export
+        <h3>Workflows</h3>
+        <pre><code># List, get, export
 slcli workitem workflow list
 slcli workitem workflow get --name "Battery Test Workflow"
 slcli workitem workflow export --id &lt;id&gt; --output workflow.json
@@ -613,10 +804,10 @@ slcli workitem workflow update --id &lt;id&gt; --file updated.json
 slcli workitem workflow preview --id &lt;id&gt;
 slcli workitem workflow preview --file my-workflow.json --format mmd --output wf.mmd</code></pre>
 
-      <!-- ─── TEMPLATE ─── -->
-      <h2 id="template">template</h2>
-      <p>Manage test plan templates — scaffold, list, export, import, and delete.</p>
-      <pre><code># Create a template scaffold
+        <!-- ─── TEMPLATE ─── -->
+        <h2 id="template">template</h2>
+        <p>Manage test plan templates — scaffold, list, export, import, and delete.</p>
+        <pre><code># Create a template scaffold
 slcli template init --name "Battery Test Template" --template-group "Production Tests"
 
 # List and filter
@@ -630,10 +821,11 @@ slcli template export --name "My Template" --output template.json
 slcli template import --file template.json
 slcli template delete --id &lt;template-id&gt;</code></pre>
 
-      <!-- ─── NOTEBOOK ─── -->
-      <h2 id="notebook">notebook</h2>
-      <p>Manage Jupyter notebooks — create, download, update, and assign interfaces. Execute records can be listed via the <code>execute</code> subgroup.</p>
-      <pre><code># Initialize a local notebook
+        <!-- ─── NOTEBOOK ─── -->
+        <h2 id="notebook">notebook</h2>
+        <p>Manage Jupyter notebooks — create, download, update, and assign interfaces. Execute records can be listed via
+          the <code>execute</code> subgroup.</p>
+        <pre><code># Initialize a local notebook
 slcli notebook init --name MyLocalNotebook.ipynb
 
 # List remote notebooks
@@ -651,12 +843,14 @@ slcli notebook manage set-interface --id &lt;id&gt; --interface "File Analysis"
 # List execution records
 slcli notebook execute list --status succeeded --format json</code></pre>
 
-      <p>Available interfaces: Assets Grid, Data Table Analysis, Data Space Analysis, File Analysis, Periodic Execution, Resource Changed Routine, Specification Analysis, Systems Grid, Test Data Analysis, Test Data Extraction, Work Item Automations, Work Item Operations, Work Item Scheduler.</p>
+        <p>Available interfaces: Assets Grid, Data Table Analysis, Data Space Analysis, File Analysis, Periodic
+          Execution, Resource Changed Routine, Specification Analysis, Systems Grid, Test Data Analysis, Test Data
+          Extraction, Work Item Automations, Work Item Operations, Work Item Scheduler.</p>
 
-      <!-- ─── ROUTINE ─── -->
-      <h2 id="routine">routine</h2>
-      <p>Manage event-action routines across two API versions (v2 default, v1 for notebook execution).</p>
-      <pre><code># List routines
+        <!-- ─── ROUTINE ─── -->
+        <h2 id="routine">routine</h2>
+        <p>Manage event-action routines across two API versions (v2 default, v1 for notebook execution).</p>
+        <pre><code># List routines
 slcli routine list --enabled --event-type tag
 
 # Create v2 event-action routine
@@ -675,10 +869,10 @@ slcli routine enable &lt;id&gt;
 slcli routine disable &lt;id&gt;
 slcli routine delete &lt;id&gt; --yes</code></pre>
 
-      <!-- ─── FEED ─── -->
-      <h2 id="feed">feed</h2>
-      <p>Manage NI Package Manager feeds and packages for SLE and SLS.</p>
-      <pre><code># List feeds
+        <!-- ─── FEED ─── -->
+        <h2 id="feed">feed</h2>
+        <p>Manage NI Package Manager feeds and packages for SLE and SLS.</p>
+        <pre><code># List feeds
 slcli feed list
 
 # Create a feed
@@ -693,10 +887,10 @@ slcli feed package upload --feed-id &lt;feed-id&gt; --file mypkg.nipkg --wait
 # Delete a feed
 slcli feed delete --id &lt;feed-id&gt; --yes</code></pre>
 
-      <!-- ─── FILE ─── -->
-      <h2 id="file">file</h2>
-      <p>Full file lifecycle — upload, download, query, update metadata, and watch directories.</p>
-      <pre><code># Upload
+        <!-- ─── FILE ─── -->
+        <h2 id="file">file</h2>
+        <p>Full file lifecycle — upload, download, query, update metadata, and watch directories.</p>
+        <pre><code># Upload
 slcli file upload /path/to/myfile.txt --workspace &lt;workspace-id&gt;
 
 # Download
@@ -711,10 +905,10 @@ slcli file watch /path/to/watch --pattern "*.csv" --recursive
 # Update metadata
 slcli file update-metadata &lt;file-id&gt; --name "new-name.txt"</code></pre>
 
-      <!-- ─── TAG ─── -->
-      <h2 id="tag">tag</h2>
-      <p>Create, read, update tags and manage their values. All operations are workspace-scoped.</p>
-      <pre><code># List and filter
+        <!-- ─── TAG ─── -->
+        <h2 id="tag">tag</h2>
+        <p>Create, read, update tags and manage their values. All operations are workspace-scoped.</p>
+        <pre><code># List and filter
 slcli tag list --workspace "Production" --keywords "sensor,temperature"
 
 # Create
@@ -736,12 +930,14 @@ slcli tag get "sensor.temp" --include-aggregates
 # Update and delete
 slcli tag update "sensor.temp" --keywords "active" --properties "status=ok" --merge
 slcli tag delete "sensor.temp"</code></pre>
-      <p>Supported types: <code>DOUBLE</code>, <code>INT</code>, <code>STRING</code>, <code>BOOLEAN</code>, <code>U_INT64</code>, <code>DATE_TIME</code></p>
+        <p>Supported types: <code>DOUBLE</code>, <code>INT</code>, <code>STRING</code>, <code>BOOLEAN</code>,
+          <code>U_INT64</code>, <code>DATE_TIME</code>
+        </p>
 
-      <!-- ─── USER ─── -->
-      <h2 id="user">user</h2>
-      <p>Comprehensive user management — list, create, update, and delete regular users and service accounts.</p>
-      <pre><code># List users with filter
+        <!-- ─── USER ─── -->
+        <h2 id="user">user</h2>
+        <p>Comprehensive user management — list, create, update, and delete regular users and service accounts.</p>
+        <pre><code># List users with filter
 slcli user list --filter 'firstName.StartsWith("John")' --type user
 
 # Get user by email
@@ -758,12 +954,12 @@ slcli user create --type service --first-name "CI Bot"
 slcli user update --id &lt;user-id&gt; --email "new@example.com"
 slcli user delete --id &lt;user-id&gt;</code></pre>
 
-  <!-- ─── CONFIG ─── -->
-  <h2 id="config">config</h2>
-  <p>Inspect local profiles, settings, and explicitly trusted server certificates.</p>
+        <!-- ─── CONFIG ─── -->
+        <h2 id="config">config</h2>
+        <p>Inspect local profiles, settings, and explicitly trusted server certificates.</p>
 
-  <h3>Profiles and credentials</h3>
-  <pre><code># Add a profile (OS credential store is the default)
+        <h3>Profiles and credentials</h3>
+        <pre><code># Add a profile (OS credential store is the default)
 slcli login --profile dev --url https://systemlink.example.com
 
 # Choose config-file storage explicitly
@@ -783,11 +979,20 @@ slcli config view --show-secrets
 
 # Remove a profile and its stored credentials
 slcli config delete dev --force</code></pre>
-  <p>Credentials use the OS credential store by default. If it is unavailable, login warns and falls back to the config file. Set <code>SLCLI_CREDENTIAL_STORE=file</code> or pass <code>--credential-store file</code> to opt into file storage. Use <code>slcli config cleanup</code> to retry persisted credential removals without deleting active profiles. The CLI no longer reads legacy global keyring entries.</p>
+        <p>Credentials use the OS credential store by default. If it is unavailable, login warns and falls back to the
+          config file. Set <code>SLCLI_CREDENTIAL_STORE=file</code> or pass <code>--credential-store file</code> to opt
+          into file storage. Use <code>slcli config cleanup</code> to retry persisted credential removals without
+          deleting active profiles. The CLI no longer reads legacy global keyring entries.</p>
 
-  <h3>Trust</h3>
-  <p><code>slcli login</code> and <code>slcli config add</code> verify TLS certificates by default. Use <code>--no-ssl-verify</code> only when necessary: it disables verification for the new profile's API and Web UI hosts during login (including PKCE token exchange) and saves <code>ssl-verify: false</code> for subsequent commands. The active profile's TLS setting does not control the new login. The global <code>SLCLI_SSL_VERIFY=false</code> override still applies. Prefer approving a server certificate, interactively or with <code>--trust-fingerprint</code>, to disabling verification.</p>
-  <pre><code># Inspect the certificate at the active API URL
+        <h3>Trust</h3>
+        <p><code>slcli login</code> and <code>slcli config add</code> verify TLS certificates by default. Use
+          <code>--no-ssl-verify</code> only when necessary: it disables verification for the new profile's API and Web
+          UI hosts during login (including PKCE token exchange) and saves <code>ssl-verify: false</code> for subsequent
+          commands. The active profile's TLS setting does not control the new login. The global
+          <code>SLCLI_SSL_VERIFY=false</code> override still applies. Prefer approving a server certificate,
+          interactively or with <code>--trust-fingerprint</code>, to disabling verification.
+        </p>
+        <pre><code># Inspect the certificate at the active API URL
 slcli config trust show
 
 # Inspect a specific server
@@ -807,52 +1012,114 @@ slcli config trust add --url https://systemlink.example.local \
 # List saved trust anchors, or remove trust for an origin
 slcli config trust list --format json
 slcli config trust remove --url https://systemlink.example.local</code></pre>
-  <table>
-    <thead><tr><th>Option</th><th>Description</th></tr></thead>
-    <tbody>
-      <tr><td><code>--url URL</code></td><td>HTTPS server URL; defaults to the active API URL.</td></tr>
-      <tr><td><code>add --certificate FILE</code></td><td>Import one currently valid public CA certificate in PEM or DER format. Requires CA basic constraints and certificate-signing usage when present.</td></tr>
-      <tr><td><code>add --fingerprint SHA256</code></td><td>Required independently verified SHA-256 fingerprint of the live leaf or imported CA.</td></tr>
-      <tr><td><code>--format/-f</code></td><td>Output format: <code>table</code> (default) or <code>json</code>.</td></tr>
-    </tbody>
-  </table>
-  <p>Trust is scoped to the exact HTTPS hostname and port, shared by profiles using that origin. Importing a CA replaces any saved leaf for that origin, does not modify the OS trust store, and accepts valid server certificates issued by that CA, including renewed leaves. Hostname, certificate validity, and chain verification remain enabled. Cross-origin redirects are rejected before credentials or managed trust can reach another hostname, port, or scheme; same-origin redirects remain supported. Obtain the public CA certificate and verify its fingerprint through a trusted administrative channel; servers may send only their leaf. Do not import private keys or certificate bundles.</p>
-  <p>Table output distinguishes the live server leaf from the saved CA or leaf trust anchor and shows each certificate's subject, issuer, SHA-256 fingerprint, self-signed status, and validity period. Self-signed describes that certificate, not whether its issuer is publicly trusted. JSON preserves the live certificate fields and adds <code>trust-type</code> and <code>trusted-certificate</code> (saved metadata or <code>null</code>); the PEM is omitted. Trust list includes <code>trust-type</code> (<code>ca</code> or <code>leaf</code>), treating older entries as leaves. Inspection does not trust or save certificates. Existing leaf trust remains supported across Python versions.</p>
+        <table>
+          <thead>
+            <tr>
+              <th>Option</th>
+              <th>Description</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr>
+              <td><code>--url URL</code></td>
+              <td>HTTPS server URL; defaults to the active API URL.</td>
+            </tr>
+            <tr>
+              <td><code>add --certificate FILE</code></td>
+              <td>Import one currently valid public CA certificate in PEM or DER format. Requires CA basic constraints
+                and certificate-signing usage when present.</td>
+            </tr>
+            <tr>
+              <td><code>add --fingerprint SHA256</code></td>
+              <td>Required independently verified SHA-256 fingerprint of the live leaf or imported CA.</td>
+            </tr>
+            <tr>
+              <td><code>--format/-f</code></td>
+              <td>Output format: <code>table</code> (default) or <code>json</code>.</td>
+            </tr>
+          </tbody>
+        </table>
+        <p>Trust is scoped to the exact HTTPS hostname and port, shared by profiles using that origin. Importing a CA
+          replaces any saved leaf for that origin, does not modify the OS trust store, and accepts valid server
+          certificates issued by that CA, including renewed leaves. Hostname, certificate validity, and chain
+          verification remain enabled. Cross-origin redirects are rejected before credentials or managed trust can reach
+          another hostname, port, or scheme; same-origin redirects remain supported. Obtain the public CA certificate
+          and verify its fingerprint through a trusted administrative channel; servers may send only their leaf. Do not
+          import private keys or certificate bundles.</p>
+        <p>Table output distinguishes the live server leaf from the saved CA or leaf trust anchor and shows each
+          certificate's subject, issuer, SHA-256 fingerprint, self-signed status, and validity period. Self-signed
+          describes that certificate, not whether its issuer is publicly trusted. JSON preserves the live certificate
+          fields and adds <code>trust-type</code> and <code>trusted-certificate</code> (saved metadata or
+          <code>null</code>); the PEM is omitted. Trust list includes <code>trust-type</code> (<code>ca</code> or
+          <code>leaf</code>), treating older entries as leaves. Inspection does not trust or save certificates. Existing
+          leaf trust remains supported across Python versions.
+        </p>
 
-      <!-- ─── AUTH ─── -->
-      <h2 id="auth">auth</h2>
-      <p>Manage authorization policies and templates for workspace-based access control.</p>
+        <!-- ─── AUTH ─── -->
+        <h2 id="auth">auth</h2>
+        <p>Manage authorization policies and templates for workspace-based access control.</p>
 
-      <h3>Policies</h3>
-      <pre><code>slcli auth policy list --type custom
+        <h3>Policies</h3>
+        <pre><code>slcli auth policy list --type custom
 slcli auth policy get &lt;policy-id&gt;
 slcli auth policy create &lt;template-id&gt; --name "my-policy" --workspace &lt;ws-id&gt;
 slcli auth policy update &lt;policy-id&gt; --name "new-name"
 slcli auth policy diff &lt;policy-id-1&gt; &lt;policy-id-2&gt;
 slcli auth policy delete &lt;policy-id&gt; --force</code></pre>
 
-      <h3>Templates</h3>
-      <pre><code>slcli auth template list
+        <h3>Templates</h3>
+        <pre><code>slcli auth template list
 slcli auth template create --name "Test Results Reader" --type user \
   --statements-file statements.json --properties "description=Read test results" --format json
 slcli auth template update &lt;template-id&gt; --name "Updated Reader" --type service
 slcli auth template get &lt;template-id&gt;
 slcli auth template delete &lt;template-id&gt;</code></pre>
-      <p><code>auth template create</code> creates a reusable permission set using <code>POST /niauth/v1/policy-templates</code>. It does not create a policy or bind the template to a workspace. Use <code>auth policy create &lt;template-id&gt; --name "my-policy" --workspace &lt;ws-id&gt;</code> to apply an existing template to a workspace.</p>
-      <p><code>auth template update</code> requires at least one update option: <code>--name</code>, <code>--type</code>, <code>--statements-file</code>, or <code>--properties/-p</code>. It fetches the current template and preserves unspecified fields before sending <code>PUT /niauth/v1/policy-templates/&lt;template-id&gt;</code>. Supplied statements and properties replace their existing values.</p>
-      <table>
-        <caption>Options for <code>auth template create</code></caption>
-        <thead><tr><th>Option</th><th>Description</th></tr></thead>
-        <tbody>
-          <tr><td><code>--name TEXT</code></td><td>Required template name.</td></tr>
-          <tr><td><code>--type user|service</code></td><td>Template type; defaults to <code>user</code>.</td></tr>
-          <tr><td><code>--statements-file PATH</code></td><td>Required JSON file containing a statements array or an object with a <code>statements</code> array. Workspace fields are not required.</td></tr>
-          <tr><td><code>--properties/-p key=value</code></td><td>Repeatable string-valued custom properties.</td></tr>
-          <tr><td><code>--format/-f table|json</code></td><td>Success summary (default) or the full created template as JSON.</td></tr>
-        </tbody>
-      </table>
-      <p>Example statements file:</p>
-      <pre><code>[
+        <p><code>auth template create</code> creates a reusable permission set using
+          <code>POST /niauth/v1/policy-templates</code>. It does not create a policy or bind the template to a
+          workspace. Use
+          <code>auth policy create &lt;template-id&gt; --name "my-policy" --workspace &lt;ws-id&gt;</code> to apply an
+          existing template to a workspace.
+        </p>
+        <p><code>auth template update</code> requires at least one update option: <code>--name</code>,
+          <code>--type</code>, <code>--statements-file</code>, or <code>--properties/-p</code>. It fetches the current
+          template and preserves unspecified fields before sending
+          <code>PUT /niauth/v1/policy-templates/&lt;template-id&gt;</code>. Supplied statements and properties replace
+          their existing values.
+        </p>
+        <table>
+          <caption>Options for <code>auth template create</code></caption>
+          <thead>
+            <tr>
+              <th>Option</th>
+              <th>Description</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr>
+              <td><code>--name TEXT</code></td>
+              <td>Required template name.</td>
+            </tr>
+            <tr>
+              <td><code>--type user|service</code></td>
+              <td>Template type; defaults to <code>user</code>.</td>
+            </tr>
+            <tr>
+              <td><code>--statements-file PATH</code></td>
+              <td>Required JSON file containing a statements array or an object with a <code>statements</code> array.
+                Workspace fields are not required.</td>
+            </tr>
+            <tr>
+              <td><code>--properties/-p key=value</code></td>
+              <td>Repeatable string-valued custom properties.</td>
+            </tr>
+            <tr>
+              <td><code>--format/-f table|json</code></td>
+              <td>Success summary (default) or the full created template as JSON.</td>
+            </tr>
+          </tbody>
+        </table>
+        <p>Example statements file:</p>
+        <pre><code>[
   {
     "actions": ["testresult:Read"],
     "resource": ["*"],
@@ -860,23 +1127,23 @@ slcli auth template delete &lt;template-id&gt;</code></pre>
   }
 ]</code></pre>
 
-      <h3>User Integration</h3>
-      <pre><code># Create user with workspace-scoped policies
+        <h3>User Integration</h3>
+        <pre><code># Create user with workspace-scoped policies
 slcli user create --type user --first-name Jane --last-name Doe \
   --email jane@example.com \
   --workspace-policies "DevWorkspace:template-dev,ProdWorkspace:template-prod"</code></pre>
 
-      <!-- ─── WORKSPACE ─── -->
-      <h2 id="workspace">workspace</h2>
-      <p>Workspace listing, details, and administration.</p>
-      <pre><code>slcli workspace list --filter "prod" --include-disabled
+        <!-- ─── WORKSPACE ─── -->
+        <h2 id="workspace">workspace</h2>
+        <p>Workspace listing, details, and administration.</p>
+        <pre><code>slcli workspace list --filter "prod" --include-disabled
 slcli workspace info --name "Production" --format json
 slcli workspace disable --id &lt;workspace-id&gt;</code></pre>
 
-      <!-- ─── WEBAPP ─── -->
-      <h2 id="webapp">webapp</h2>
-      <p>Scaffold, pack, publish, and manage SystemLink web applications.</p>
-      <pre><code># Scaffold the recommended hosted Angular starter
+        <!-- ─── WEBAPP ─── -->
+        <h2 id="webapp">webapp</h2>
+        <p>Scaffold, pack, publish, and manage SystemLink web applications.</p>
+        <pre><code># Scaffold the recommended hosted Angular starter
     slcli webapp new fleet-dashboard
 
     # Low-level/manual starter path
@@ -902,10 +1169,10 @@ slcli webapp get --id &lt;id&gt;
 slcli webapp open --id &lt;id&gt;
 slcli webapp delete --id &lt;id&gt;</code></pre>
 
-      <!-- ─── COMMENT ─── -->
-      <h2 id="comment">comment</h2>
-      <p>Manage comments on any SystemLink resource. Supports Markdown and @-mentions with email notifications.</p>
-      <pre><code># List comments on a resource
+        <!-- ─── COMMENT ─── -->
+        <h2 id="comment">comment</h2>
+        <p>Manage comments on any SystemLink resource. Supports Markdown and @-mentions with email notifications.</p>
+        <pre><code># List comments on a resource
 slcli comment list --resource-type testmonitor:Result --resource-id &lt;result-id&gt;
 
 # Add a comment
@@ -915,12 +1182,15 @@ slcli comment add -r testmonitor:Result -i &lt;result-id&gt; \
 # Update / delete
 slcli comment update &lt;comment-id&gt; --message "Revised: out of spec."
 slcli comment delete &lt;id1&gt; &lt;id2&gt;</code></pre>
-      <p>Supported resource types: <code>testmonitor:Result</code>, <code>niapm:Asset</code>, <code>nisysmgmt:System</code>, <code>workorder:workorder</code>, <code>workitem:workitem</code>, <code>DataSpace</code></p>
+        <p>Supported resource types: <code>testmonitor:Result</code>, <code>niapm:Asset</code>,
+          <code>nisysmgmt:System</code>, <code>workorder:workorder</code>, <code>workitem:workitem</code>,
+          <code>DataSpace</code>
+        </p>
 
-      <!-- ─── CUSTOM FIELDS ─── -->
-      <h2 id="customfield">customfield</h2>
-      <p>Manage custom field configurations, groups, and fields. Includes a web-based visual editor.</p>
-      <pre><code># List configurations
+        <!-- ─── CUSTOM FIELDS ─── -->
+        <h2 id="customfield">customfield</h2>
+        <p>Manage custom field configurations, groups, and fields. Includes a web-based visual editor.</p>
+        <pre><code># List configurations
 slcli customfield list --workspace "Production"
 
 # Export / create / update
@@ -938,10 +1208,11 @@ slcli customfield edit --id &lt;config-id&gt;
 slcli customfield init --name "My Config" --workspace "MyWorkspace" \
   --resource-type workorder:workorder</code></pre>
 
-  <!-- ─── VERSION ─── -->
-  <h2 id="version">version</h2>
-  <p>Show the installed slcli version or check PyPI for a newer release and display the update command for the detected installation method.</p>
-  <pre><code># Show the installed version without a network request
+        <!-- ─── VERSION ─── -->
+        <h2 id="version">version</h2>
+        <p>Show the installed slcli version or check PyPI for a newer release and display the update command for the
+          detected installation method.</p>
+        <pre><code># Show the installed version without a network request
 slcli version
 
 # Check for a newer release and show update guidance
@@ -952,12 +1223,14 @@ slcli version check --format json
 
 # Return exit code 1 when an update is available
 slcli version check --fail-if-outdated</code></pre>
-  <p>The check recognizes Homebrew, Scoop, pipx, uv, pip, standalone binaries, and development checkouts. Network lookup failures return exit code <code>5</code>.</p>
+        <p>The check recognizes Homebrew, Scoop, pipx, uv, pip, standalone binaries, and development checkouts. Network
+          lookup failures return exit code <code>5</code>.</p>
 
-  <!-- ─── SKILL ─── -->
-  <h2 id="skill">skill</h2>
-  <p>Install bundled AI assistant skills and check whether existing installations match the current slcli release.</p>
-  <pre><code># Install into the current project's standard agent directory
+        <!-- ─── SKILL ─── -->
+        <h2 id="skill">skill</h2>
+        <p>Install bundled AI assistant skills and check whether existing installations match the current slcli release.
+        </p>
+        <pre><code># Install into the current project's standard agent directory
 slcli skill install --client agents --scope project
 
 # Check installed versions and return nonzero when an update is needed
@@ -969,12 +1242,12 @@ slcli skill check --directory ./my-agent/skills
 
 # Replace an outdated or unversioned installation
 slcli skill install --directory ./my-agent/skills --force</code></pre>
-  <p><code>--directory</code> cannot be combined with <code>--client</code> or <code>--scope</code>.</p>
+        <p><code>--directory</code> cannot be combined with <code>--client</code> or <code>--scope</code>.</p>
 
-      <!-- ─── EXAMPLE ─── -->
-      <h2 id="example">example</h2>
-      <p>Provision complete demo environments for training and evaluation.</p>
-      <pre><code># Discover available examples
+        <!-- ─── EXAMPLE ─── -->
+        <h2 id="example">example</h2>
+        <p>Provision complete demo environments for training and evaluation.</p>
+        <pre><code># Discover available examples
 slcli example list
 
 # Inspect an example
@@ -1003,38 +1276,48 @@ slcli example install demo-data-3 \
 slcli example delete demo-data-1 \
   --workspace Training --audit-log delete-log.json</code></pre>
 
-      <p>Available examples:</p>
-      <p>For local fixtures, use <code>--file PATH</code> with a <code>config.yaml</code> file. Relative <code>file_path</code>, <code>rows_file</code>, and <code>data_file</code> references resolve relative to that configuration file's directory.</p>
-      <ul>
-        <li><strong>demo-data-1</strong> — end-to-end workflow with systems, assets, DUTs, plans, and results</li>
-        <li><strong>demo-data-2</strong> — focused test-plan setup with reusable assets and templates</li>
-        <li><strong>exercise-5-1-parametric-insights</strong> — parametric test data for training exercises</li>
-        <li><strong>exercise-7-1-test-plans</strong> — test plan creation and scheduling exercises</li>
-        <li><strong>spec-compliance-notebooks</strong> — Jupyter notebooks for specification compliance analysis</li>
-        <li><strong>demo-data-3</strong> — phase-one Systems and Products query data with an explicit incomplete-install manifest</li>
-      </ul>
-      <p>The Nigel fixture intentionally exits nonzero when its manifest reports unsupported acceptance capabilities. Use the JSON output and audit log to inspect the provisioned resource IDs and validation gaps.</p>
+        <p>Available examples:</p>
+        <p>For local fixtures, use <code>--file PATH</code> with a <code>config.yaml</code> file. Relative
+          <code>file_path</code>, <code>rows_file</code>, and <code>data_file</code> references resolve relative to that
+          configuration file's directory.
+        </p>
+        <ul>
+          <li><strong>demo-data-1</strong> — end-to-end workflow with systems, assets, DUTs, plans, and results</li>
+          <li><strong>demo-data-2</strong> — focused test-plan setup with reusable assets and templates</li>
+          <li><strong>exercise-5-1-parametric-insights</strong> — parametric test data for training exercises</li>
+          <li><strong>exercise-7-1-test-plans</strong> — test plan creation and scheduling exercises</li>
+          <li><strong>spec-compliance-notebooks</strong> — Jupyter notebooks for specification compliance analysis</li>
+          <li><strong>demo-data-3</strong> — phase-one Systems and Products query data with an explicit
+            incomplete-install manifest</li>
+        </ul>
+        <p>The Nigel fixture intentionally exits nonzero when its manifest reports unsupported acceptance capabilities.
+          Use the JSON output and audit log to inspect the provisioned resource IDs and validation gaps.</p>
 
-    </main>
+      </main>
+    </div>
   </div>
-</div>
 
-<!-- ─── FOOTER ─── -->
-<footer>
-  <div class="container footer-inner">
-    <div class="footer-brand">
-      <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="4 17 10 11 4 5"/><line x1="12" y1="19" x2="20" y2="19"/></svg>
-      <span>SystemLink CLI</span>
+  <!-- ─── FOOTER ─── -->
+  <footer>
+    <div class="container footer-inner">
+      <div class="footer-brand">
+        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"
+          stroke-linecap="round" stroke-linejoin="round">
+          <polyline points="4 17 10 11 4 5" />
+          <line x1="12" y1="19" x2="20" y2="19" />
+        </svg>
+        <span>SystemLink CLI</span>
+      </div>
+      <div class="footer-links">
+        <a href="https://github.com/ni-kismet/systemlink-cli">GitHub</a>
+        <a href="https://github.com/ni-kismet/systemlink-cli/blob/main/CONTRIBUTING.md">Contributing</a>
+        <a href="https://github.com/ni-kismet/systemlink-cli/issues">Issues</a>
+        <a href="https://github.com/ni-kismet/systemlink-cli/releases">Releases</a>
+      </div>
+      <div class="footer-copy">MIT License · ni-kismet</div>
     </div>
-    <div class="footer-links">
-      <a href="https://github.com/ni-kismet/systemlink-cli">GitHub</a>
-      <a href="https://github.com/ni-kismet/systemlink-cli/blob/main/CONTRIBUTING.md">Contributing</a>
-      <a href="https://github.com/ni-kismet/systemlink-cli/issues">Issues</a>
-      <a href="https://github.com/ni-kismet/systemlink-cli/releases">Releases</a>
-    </div>
-    <div class="footer-copy">MIT License · ni-kismet</div>
-  </div>
-</footer>
+  </footer>
 
 </body>
+
 </html>

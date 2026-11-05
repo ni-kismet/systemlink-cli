@@ -167,6 +167,14 @@ def test_minion_completes_pending_publish_and_refresh_job_return(tmp_path: Path)
         assert result["retcode"] == [0, 0, 0, 0, 0]
         assert result["success"] == [True, True, True, True, True]
         assert server.projected_grains["minion_blackout"] is True
+        assert server.projected_grains["kernel"] == "Windows"
+        assert result["return"][2] == {}
+        assert server.projected_grains["os"] == "Windows"
+        assert server.projected_grains["os_family"] == "Windows"
+        assert server.projected_grains["cpuarch"] == "AMD64"
+        assert isinstance(server.projected_grains["pid"], int)
+        assert server.projected_grains["pid"] > 0
+        assert result["return"][3] == server.projected_grains
         assert isinstance(server.projected_grains["boottime"], str)
         assert server.projected_grains["boottime"].endswith("Z")
         received = next(event for event in events if event.message == "Received Salt job")

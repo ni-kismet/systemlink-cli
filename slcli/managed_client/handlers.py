@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import os
 from dataclasses import dataclass, field
 from typing import Any, Callable, Dict, Mapping, Optional, Tuple
 
@@ -9,6 +10,12 @@ from .models import ManagedClientError
 from .state import ASSET_IDENTIFICATION_FIELDS, StateStore
 
 FixtureHandler = Callable[["FixtureJob"], "HandlerResult"]
+MOCK_SYSTEM_GRAINS: Mapping[str, str] = {
+    "kernel": "Windows",
+    "os": "Windows",
+    "os_family": "Windows",
+    "cpuarch": "AMD64",
+}
 
 
 class HandlerError(ManagedClientError):
@@ -56,11 +63,12 @@ class FixtureJob:
             and args[0][0].get("__kwarg__") is True
         ):
             args = args[0]
-        if args and isinstance(args[0], Mapping) and args[0].get("__kwarg__") is True:
-            if len(args) != 1:
-                raise HandlerError("Fixture keyword arguments must be the only argument.")
-            kwargs = {key: value for key, value in args[0].items() if key != "__kwarg__"}
-            args = ()
+        if args and isinstance(args[-1], Mapping) and args[-1].get("__kwarg__") is True:
+            salt_kwargs = {key: value for key, value in args[-1].items() if key != "__kwarg__"}
+            if set(kwargs) & set(salt_kwargs):
+                raise HandlerError("Fixture keyword arguments must not be duplicated.")
+            kwargs = {**kwargs, **salt_kwargs}
+            args = args[:-1]
         return cls(jid=jid, function=function, args=tuple(args), kwargs=kwargs)
 
 
@@ -98,14 +106,20 @@ class FixtureHandlerRegistry:
     REFRESH_PILLAR = "saltutil.refresh_pillar"
     STATE_APPLY = "nisysmgmt.state_apply"
     RESTART = "nisysmgmt.restart"
+    RESTART_IF_REQUIRED = "nisysmgmt.restart_if_required"
+    REBOOT_REQUIRED = "system.get_reboot_required_witnessed"
     SET_BLACKOUT = "nisysmgmt.set_blackout"
     UNSET_BLACKOUT = "nisysmgmt.unset_blackout"
     ADD_ASSET = "ni_asset.add_asset"
     REMOVE_ASSET = "ni_asset.remove_asset"
     REFRESH_ASSET = "ni_asset.refresh"
     LIST_REPOS = "pkg.list_repos"
+    MOD_REPO = "pkg.mod_repo"
     GRAINS_ITEMS = "nisysmgmt.grains_items"
     INFO_INSTALLED = "pkg.info_installed"
+    INSTALL = "pkg.install"
+    REMOVE = "pkg.remove"
+    LIST_PACKAGES = "pkg.list_pkgs"
 
     def __init__(self, state_store: StateStore | None = None, boot_time: str | None = None) -> None:
         """Create a registry with the built-in deterministic handlers."""
@@ -119,14 +133,20 @@ class FixtureHandlerRegistry:
             self.REFRESH_PILLAR: self._return_true,
             self.STATE_APPLY: self._return_true,
             self.RESTART: self._return_true,
+            self.RESTART_IF_REQUIRED: self._return_true,
+            self.REBOOT_REQUIRED: self._reboot_required,
             self.SET_BLACKOUT: self._set_blackout,
             self.UNSET_BLACKOUT: self._unset_blackout,
             self.ADD_ASSET: self._add_asset,
             self.REMOVE_ASSET: self._remove_asset,
             self.REFRESH_ASSET: self._refresh_asset,
-            self.LIST_REPOS: self._return_none,
+            self.LIST_REPOS: self._list_repos,
+            self.MOD_REPO: self._mod_repo,
             self.GRAINS_ITEMS: self._grains_items,
             self.INFO_INSTALLED: self._info_installed,
+            self.INSTALL: self._install,
+            self.REMOVE: self._remove,
+            self.LIST_PACKAGES: self._list_packages,
         }
 
     def dispatch(self, job: Mapping[str, Any], minion_id: str) -> Dict[str, Any]:
@@ -296,6 +316,13 @@ class FixtureHandlerRegistry:
             return HandlerResult(False, 2, error=f"{job.function}-takes-no-arguments")
         return HandlerResult(True, 0, True)
 
+    @staticmethod
+    def _reboot_required(job: FixtureJob) -> HandlerResult:
+        """Report that mock software changes never require a host reboot."""
+        if job.args or job.kwargs:
+            return HandlerResult(False, 2, error="reboot-required-takes-no-arguments")
+        return HandlerResult(True, 0, False)
+
     def _set_blackout(self, job: FixtureJob) -> HandlerResult:
         """Persist a Salt blackout request and return its new state."""
         blackout: Any
@@ -385,31 +412,165 @@ class FixtureHandlerRegistry:
         return HandlerResult(True, 0, True)
 
     def _grains_items(self, job: FixtureJob) -> HandlerResult:
-        """Return the SystemLink grain that represents the lock state."""
+        """Return mock Windows identity and the locally persisted lock state."""
         if job.args or job.kwargs:
             return HandlerResult(False, 2, error="grains_items-takes-no-arguments")
         try:
             blackout = self._state_store.get_blackout_state() if self._state_store else False
         except ManagedClientError:
             return HandlerResult(False, 2, error="unable-to-read-blackout-state")
-        grains: Dict[str, Any] = {"minion_blackout": blackout}
+        grains: Dict[str, Any] = {
+            **MOCK_SYSTEM_GRAINS,
+            "minion_blackout": blackout,
+            "pid": os.getpid(),
+        }
         if self._boot_time is not None:
             grains["boottime"] = self._boot_time
         return HandlerResult(True, 0, grains)
 
-    @staticmethod
-    def _return_none(job: FixtureJob) -> HandlerResult:
+    def _list_repos(self, job: FixtureJob) -> HandlerResult:
+        """Return URI-grouped lists of named feed records for SystemLink."""
         if job.args or job.kwargs:
             return HandlerResult(False, 2, error=f"{job.function}-takes-no-arguments")
-        return HandlerResult(True, 0, None)
+        try:
+            repositories = self._state_store.get_mock_repositories() if self._state_store else {}
+        except ManagedClientError:
+            return HandlerResult(False, 2, error="unable-to-read-repository-state")
+        groups: Dict[str, list[Dict[str, Any]]] = {}
+        for name, repository in repositories.items():
+            groups.setdefault(repository["uri"], []).append({"name": name, **repository})
+        return HandlerResult(True, 0, groups)
 
-    @staticmethod
-    def _info_installed(job: FixtureJob) -> HandlerResult:
-        attributes = job.kwargs.get("attr")
+    def _mod_repo(self, job: FixtureJob) -> HandlerResult:
+        """Persist a Salt repository modification in isolated mock metadata only."""
+        if len(job.args) > 1 or (job.args and "name" in job.kwargs):
+            return HandlerResult(False, 2, error="pkg.mod_repo-invalid-arguments")
+        name = job.args[0] if job.args else job.kwargs.get("name")
+        allow_renaming = job.kwargs.get("allow_renaming", False)
         if (
-            job.args
-            or not isinstance(attributes, list)
+            not isinstance(name, str)
+            or not name.strip()
+            or not isinstance(allow_renaming, bool)
+            or set(job.kwargs) - {"name", "uri", "enabled", "trusted", "allow_renaming"}
+        ):
+            return HandlerResult(False, 2, error="pkg.mod_repo-invalid-arguments")
+        if self._state_store is None:
+            return HandlerResult(False, 2, error="pkg.mod_repo-requires-state-store")
+        properties = {
+            key: value for key, value in job.kwargs.items() if key in {"uri", "enabled", "trusted"}
+        }
+        try:
+            repository = self._state_store.modify_mock_repository(name, properties, allow_renaming)
+        except ManagedClientError:
+            return HandlerResult(False, 2, error="unable-to-persist-repository-state")
+        return HandlerResult(True, 0, repository)
+
+    def _install(self, job: FixtureJob) -> HandlerResult:
+        """Simulate named or bulk Salt package installs in isolated state only."""
+        if len(job.args) > 1 or (job.args and "name" in job.kwargs):
+            return HandlerResult(False, 2, error="pkg.install-requires-packages")
+        name = job.args[0] if job.args else job.kwargs.get("name")
+        requested = job.kwargs.get("pkgs")
+        version = job.kwargs.get("version", "latest")
+        if not isinstance(version, str) or not version.strip():
+            return HandlerResult(False, 2, error="pkg.install-requires-packages")
+        if requested is None:
+            if not isinstance(name, str) or not name.strip():
+                return HandlerResult(False, 2, error="pkg.install-requires-packages")
+            requested = [part.strip() for part in name.split(",")]
+        elif name is not None:
+            return HandlerResult(False, 2, error="pkg.install-requires-packages")
+        if not isinstance(requested, list) or not requested:
+            return HandlerResult(False, 2, error="pkg.install-requires-packages")
+        packages: Dict[str, str] = {}
+        for package in requested:
+            if isinstance(package, str):
+                package_name, package_version = package, version
+            elif isinstance(package, Mapping) and len(package) == 1:
+                package_name, package_version = next(iter(package.items()))
+            else:
+                return HandlerResult(False, 2, error="pkg.install-requires-packages")
+            if (
+                not isinstance(package_name, str)
+                or not package_name.strip()
+                or not isinstance(package_version, str)
+                or not package_version.strip()
+            ):
+                return HandlerResult(False, 2, error="pkg.install-requires-packages")
+            packages[package_name] = package_version
+        if self._state_store is None:
+            return HandlerResult(False, 2, error="pkg.install-requires-state-store")
+        try:
+            changes = self._state_store.install_mock_packages(packages)
+        except ManagedClientError:
+            return HandlerResult(False, 2, error="unable-to-persist-package-state")
+        return HandlerResult(True, 0, changes)
+
+    def _remove(self, job: FixtureJob) -> HandlerResult:
+        """Simulate Salt package removal in isolated mock state only."""
+        if len(job.args) > 1 or (job.args and "name" in job.kwargs):
+            return HandlerResult(False, 2, error="pkg.remove-requires-packages")
+        name = job.args[0] if job.args else job.kwargs.get("name")
+        requested = job.kwargs.get("pkgs")
+        dry_run = job.kwargs.get("test", False)
+        if not isinstance(dry_run, bool):
+            return HandlerResult(False, 2, error="pkg.remove-invalid-test-flag")
+        if requested is None:
+            if not isinstance(name, str) or not name.strip():
+                return HandlerResult(False, 2, error="pkg.remove-requires-packages")
+            requested = [part.strip() for part in name.split(",")]
+        elif name is not None:
+            return HandlerResult(False, 2, error="pkg.remove-requires-packages")
+        if (
+            not isinstance(requested, list)
+            or not requested
+            or any(not isinstance(package, str) or not package.strip() for package in requested)
+        ):
+            return HandlerResult(False, 2, error="pkg.remove-requires-packages")
+        if self._state_store is None:
+            return HandlerResult(False, 2, error="pkg.remove-requires-state-store")
+        try:
+            changes = self._state_store.remove_mock_packages(requested, dry_run)
+        except ManagedClientError:
+            return HandlerResult(False, 2, error="unable-to-persist-package-state")
+        return HandlerResult(True, 0, changes)
+
+    def _list_packages(self, job: FixtureJob) -> HandlerResult:
+        """Return mock installed versions using Salt's list_pkgs schema."""
+        versions_as_list = job.kwargs.get("versions_as_list", False)
+        if job.args or not isinstance(versions_as_list, bool):
+            return HandlerResult(False, 2, error="pkg.list_pkgs-invalid-arguments")
+        try:
+            packages = self._state_store.get_installed_packages() if self._state_store else {}
+        except ManagedClientError:
+            return HandlerResult(False, 2, error="unable-to-read-package-state")
+        return HandlerResult(
+            True,
+            0,
+            {
+                name: [package["version"]] if versions_as_list else package["version"]
+                for name, package in packages.items()
+            },
+        )
+
+    def _info_installed(self, job: FixtureJob) -> HandlerResult:
+        """Return requested mock package metadata for SystemLink software refreshes."""
+        attributes = job.kwargs.get("attr", ["version", "arch"])
+        if (
+            not isinstance(attributes, list)
             or any(not isinstance(attribute, str) for attribute in attributes)
+            or any(not isinstance(name, str) for name in job.args)
         ):
             return HandlerResult(False, 2, error="pkg.info_installed-requires-attribute-list")
-        return HandlerResult(True, 0, None)
+        try:
+            packages = self._state_store.get_installed_packages() if self._state_store else {}
+        except ManagedClientError:
+            return HandlerResult(False, 2, error="unable-to-read-package-state")
+        inventory = {
+            name: {
+                attribute: package[attribute] for attribute in attributes if attribute in package
+            }
+            for name, package in packages.items()
+            if not job.args or name in job.args
+        }
+        return HandlerResult(True, 0, inventory or None)
