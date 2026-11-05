@@ -202,21 +202,21 @@ class StateStore:
         metadata["asset_records"] = stored_records
         self._write_metadata(metadata)
 
-    def get_installed_packages(self) -> Dict[str, Dict[str, str]]:
+    def get_installed_packages(self) -> Dict[str, Dict[str, Any]]:
         """Return mock software inventory without inspecting the host."""
         packages = self._read_metadata().get("installed_packages", {})
         if not isinstance(packages, dict) or any(
             not isinstance(name, str)
             or not name.strip()
             or not isinstance(package, dict)
-            or set(package) != {"version", "arch"}
-            or any(not isinstance(value, str) or not value.strip() for value in package.values())
+            or not {"version", "arch"}.issubset(package)
+            or any(not isinstance(package[key], str) or not package[key].strip() for key in ("version", "arch"))
             for name, package in packages.items()
         ):
             raise StateError("The stored mock package inventory is invalid.")
         return packages
 
-    def install_mock_packages(self, packages: Mapping[str, str]) -> Dict[str, Dict[str, str]]:
+    def install_mock_packages(self, packages: Mapping[str, str], dry_run: bool = False) -> Dict[str, Dict[str, str]]:
         """Persist mock versions and return Salt changes without installing software."""
         if not packages or any(
             not isinstance(name, str)
@@ -233,9 +233,42 @@ class StateStore:
             if old_version != version:
                 changes[name] = {"old": old_version, "new": version}
                 installed[name] = {"version": version, "arch": "all"}
-        if changes:
+        if changes and not dry_run:
             metadata = self._read_metadata()
             metadata["installed_packages"] = installed
+            self._write_metadata(metadata)
+        return changes
+
+    def replace_mock_packages(
+        self, packages: Mapping[str, Mapping[str, Any]], dry_run: bool = False
+    ) -> Dict[str, Dict[str, str]]:
+        """Atomically persist a resolved inventory without applying host transactions.
+
+        Args:
+            packages: Complete proposed mock inventory from the solver.
+            dry_run: Whether to report changes without writing state.
+
+        Returns:
+            Version changes for all affected package names.
+        """
+        inventory = {name: dict(record) for name, record in packages.items()}
+        if any(
+            not isinstance(name, str) or not name.strip()
+            or not {"version", "arch"}.issubset(record)
+            or any(not isinstance(record[key], str) or not record[key].strip() for key in ("version", "arch"))
+            for name, record in inventory.items()
+        ):
+            raise StateError("Resolved mock package inventory is invalid.")
+        installed = self.get_installed_packages()
+        changes = {}
+        for name in installed.keys() | inventory.keys():
+            old = installed.get(name, {}).get("version", "")
+            new = inventory.get(name, {}).get("version", "")
+            if old != new:
+                changes[name] = {"old": old, "new": new}
+        if not dry_run and installed != inventory:
+            metadata = self._read_metadata()
+            metadata["installed_packages"] = inventory
             self._write_metadata(metadata)
         return changes
 

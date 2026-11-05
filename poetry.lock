@@ -3824,6 +3824,23 @@ files = [
 six = ">=1.5"
 
 [[package]]
+name = "python-debian"
+version = "1.1.1"
+description = "Modules to read and manipulate many file formats related to Debian packages and repositories"
+optional = true
+python-versions = ">=3.7"
+groups = ["main"]
+markers = "extra == \"solv>=0-7-39,<0-8\""
+files = [
+    {file = "python_debian-1.1.1-py3-none-any.whl", hash = "sha256:f98ae013e8e5310e49041cc3860a7105df73af73d4ff1d8afb474770d328a6ad"},
+    {file = "python_debian-1.1.1.tar.gz", hash = "sha256:fe4fc3dc798dbf1f0ef5865e2b1b4f7cc0352b6a511b25ab7594906c64a73629"},
+]
+
+[package.extras]
+encodings = ["charset-normalizer"]
+test = ["pytest", "pytest-cov"]
+
+[[package]]
 name = "python-dotenv"
 version = "1.2.3"
 description = "Read key-value pairs from a .env file and set them as environment variables"
@@ -5427,8 +5444,9 @@ type = ["pytest-mypy"]
 managed-client = ["msgpack"]
 mcp = ["anyio", "httpcore2", "httpx2", "mcp"]
 migration = ["prefect", "psutil", "pydantic"]
+"solv>=0-7-39,<0-8" = ["python-debian"]
 
 [metadata]
 lock-version = "2.1"
 python-versions = ">=3.11.1,<3.15"
-content-hash = "09b230457bef6ab58e4db63bc88a33bcd17e9bea5538b01ac99f2bae958dfb4c"
+content-hash = "4b76bb170dfbd8e48e648c69fd3256e960f4f7ce7ffecd4b6001011a3c7f9dc5"

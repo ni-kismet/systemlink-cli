@@ -8,6 +8,7 @@ from typing import Any, Callable, Dict, Mapping, Optional, Tuple
 
 from .models import ManagedClientError
 from .state import ASSET_IDENTIFICATION_FIELDS, StateStore
+from .software import CatalogPackage, SoftwareResolutionError, load_feed_packages, solve_package_install
 
 FixtureHandler = Callable[["FixtureJob"], "HandlerResult"]
 MOCK_SYSTEM_GRAINS: Mapping[str, str] = {
@@ -126,11 +127,13 @@ class FixtureHandlerRegistry:
         state_store: StateStore | None = None,
         boot_time: str | None = None,
         extra_grains: Mapping[str, Any] | None = None,
+        catalog_loader: Callable[[Mapping[str, Mapping[str, Any]]], list[CatalogPackage]] = load_feed_packages,
     ) -> None:
         """Create a registry with the built-in deterministic handlers."""
         self._state_store = state_store
         self._boot_time = boot_time
         self._extra_grains = dict(extra_grains or {})
+        self._catalog_loader = catalog_loader
         self._handlers: Dict[str, FixtureHandler] = {
             self.RETURN_SUCCESS: self._return_success,
             self.RETURN_FIXTURE: self._return_fixture,
@@ -507,8 +510,22 @@ class FixtureHandlerRegistry:
             packages[package_name] = package_version
         if self._state_store is None:
             return HandlerResult(False, 2, error="pkg.install-requires-state-store")
+        dry_run = job.kwargs.get("test", False)
+        recommends = job.kwargs.get("install_recommends", True)
+        if not isinstance(dry_run, bool) or not isinstance(recommends, bool):
+            return HandlerResult(False, 2, error="pkg.install-invalid-solver-flags")
         try:
-            changes = self._state_store.install_mock_packages(packages)
+            repositories = self._state_store.get_mock_repositories()
+            if any(repository.get("enabled", True) for repository in repositories.values()):
+                inventory = solve_package_install(
+                    packages, self._state_store.get_installed_packages(),
+                    self._catalog_loader(repositories), install_recommends=recommends,
+                )
+                changes = self._state_store.replace_mock_packages(inventory, dry_run)
+            else:
+                changes = self._state_store.install_mock_packages(packages, dry_run)
+        except SoftwareResolutionError as error:
+            return HandlerResult(False, 2, value={"message": str(error)}, error="software-resolution-failed")
         except ManagedClientError:
             return HandlerResult(False, 2, error="unable-to-persist-package-state")
         return HandlerResult(True, 0, changes)
