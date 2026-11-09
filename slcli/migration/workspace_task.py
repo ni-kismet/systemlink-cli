@@ -28,10 +28,11 @@ def discover_workspaces_task(
     """Discover the source workspaces in scope of a migration.
 
     ``migration_id`` is unused by the body but scopes the cache key to one migration.
-    If provided, ``workspace_names_subset`` contains the requested workspaces, otherwise all are considered.
+    ``workspace_names_subset`` optionally contains a specific set of workspaces to find.
+    If not given, all workspaces are discovered and returned.
 
     Raises:
-        WorkspaceMappingError: If a requested workspace does not exist on the source.
+        WorkspaceMappingError: If a requested source workspace does not exist.
     """
     source_workspace_iterator = WorkspaceClient(
         resolve_migration_connection(source_profile)
@@ -54,7 +55,7 @@ def synchronize_workspaces_task(
     source_workspaces: DiscoveredWorkspaces,
     workspace_mappings: Optional[Dict[str, str]],
 ) -> WorkspaceMapping:
-    """Map discovered source workspaces to existing destination workspaces, or create them if missing.
+    """Map source workspaces to existing destination workspaces, or create if missing.
 
     ``migration_id`` is unused by the body but scopes the cache key to one migration.
     Raises:
@@ -65,4 +66,5 @@ def synchronize_workspaces_task(
         source_workspaces,
         destination_client.query_workspaces(),
         destination_client.create_workspace,
-        workspace_mappings)
+        workspace_mappings,
+    )
