@@ -4,7 +4,7 @@ from typing import Callable, Iterable, Mapping, Optional, Sequence, Tuple
 
 from pydantic import BaseModel, ConfigDict
 
-from slcli.migration.workspace_client import Workspace, WorkspaceClient
+from slcli.migration.workspace_client import Workspace
 
 
 class DiscoveredWorkspaces(BaseModel):
