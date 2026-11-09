@@ -63,6 +63,7 @@ class FakeDiscovery:
     state_root: Path = Path()
     source_workspaces: Tuple[str, ...] = ("Lab", "Default")
     destination_workspaces: Tuple[str, ...] = ("Lab", "Default", "Dest")
+    created_destination_workspaces: List[str] = field(default_factory=list)
     destination_error: Optional[Exception] = None
 
     def runs(self) -> List[MigrationRun]:
@@ -110,10 +111,16 @@ def fake_discovery(monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> FakeDisco
             raise RuntimeError("discovery failed")
         if fake.destination_error is not None:
             raise fake.destination_error
+        destination = _workspaces(fake.destination_workspaces)
+
+        def create_destination_workspace(name: str) -> Workspace:
+            fake.created_destination_workspaces.append(name)
+            return Workspace(id=f"{name}-created-id", name=name)
+
         return MigrationOutcome(
             discovery=MigrationDiscovery(workspaces=discovered, test_monitor=fake.outcome),
             mapping=synchronize_workspaces(
-                discovered, _workspaces(fake.destination_workspaces), mappings
+                discovered, destination, create_destination_workspace, mappings
             ),
         )
 
@@ -178,10 +185,10 @@ def test_mapping_name_with_colon_reaches_discovery(fake_discovery: FakeDiscovery
     assert fake_discovery.calls[0]["workspaces"] == ["Lab:A"]
 
 
-def test_missing_destination_workspace_fails_synchronization(
+def test_missing_mapped_destination_workspace_is_created(
     fake_discovery: FakeDiscovery,
 ) -> None:
-    """A mapping to a workspace the destination lacks fails without creating it."""
+    """A mapping to an absent destination workspace is created during synchronization."""
     result = _migrate(
         "--source-profile",
         "source",
@@ -191,9 +198,9 @@ def test_missing_destination_workspace_fails_synchronization(
         "Lab:Absent",
     )
 
-    assert result.exit_code == 1
-    assert "missing destination workspace: Lab -> Absent" in result.output
-    assert "not created by migration" in result.output
+    assert result.exit_code == 0, result.output
+    assert "Workspace mapping:\n  Lab -> Absent\n" in result.output
+    assert fake_discovery.created_destination_workspaces == ["Absent"]
 
 
 def test_failed_workspace_query_uses_api_exit_code(fake_discovery: FakeDiscovery) -> None:
@@ -206,17 +213,17 @@ def test_failed_workspace_query_uses_api_exit_code(fake_discovery: FakeDiscovery
     assert "unreachable" in result.output
 
 
-def test_omitted_mappings_require_every_same_named_destination(
+def test_omitted_mappings_create_missing_same_named_destinations(
     fake_discovery: FakeDiscovery,
 ) -> None:
-    """Without mappings every source workspace needs a same-named destination."""
+    """Without explicit mappings, missing destinations are created by source name."""
     fake_discovery.destination_workspaces = ("Lab",)
 
     result = _migrate("--source-profile", "source", "--destination-profile", "destination")
 
-    assert result.exit_code == 1
-    assert "missing destination workspace: Default -> Default" in result.output
-    assert "--workspace-mappings" in result.output
+    assert result.exit_code == 0, result.output
+    assert "Workspace mapping:\n  Default -> Default\n  Lab -> Lab\n" in result.output
+    assert fake_discovery.created_destination_workspaces == ["Default"]
 
 
 def test_mapping_is_shown_and_logged(fake_discovery: FakeDiscovery) -> None:

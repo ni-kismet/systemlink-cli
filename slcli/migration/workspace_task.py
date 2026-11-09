@@ -23,17 +23,20 @@ from slcli.migration.workspaces import (
     cache_policy=INPUTS,
 )
 def discover_workspaces_task(
-    migration_id: str, source_profile: str, workspaces: Optional[List[str]]
+    migration_id: str, source_profile: str, workspace_names_subset: Optional[List[str]]
 ) -> DiscoveredWorkspaces:
     """Discover the source workspaces in scope of a migration.
 
     ``migration_id`` is unused by the body but scopes the cache key to one migration.
+    If provided, ``workspace_names_subset`` contains the requested workspaces, otherwise all are considered.
 
     Raises:
         WorkspaceMappingError: If a requested workspace does not exist on the source.
     """
-    source = WorkspaceClient(resolve_migration_connection(source_profile)).query_workspaces()
-    return discover_workspaces(source, workspaces)
+    source_workspace_iterator = WorkspaceClient(
+        resolve_migration_connection(source_profile)
+    ).query_workspaces()
+    return discover_workspaces(source_workspace_iterator, workspace_names_subset)
 
 
 # Later migration tasks are cached by the mapping, so a resumed run must reuse
@@ -48,18 +51,18 @@ def discover_workspaces_task(
 def synchronize_workspaces_task(
     migration_id: str,
     destination_profile: str,
-    discovered: DiscoveredWorkspaces,
+    source_workspaces: DiscoveredWorkspaces,
     workspace_mappings: Optional[Dict[str, str]],
 ) -> WorkspaceMapping:
-    """Map discovered source workspaces to destination workspaces.
+    """Map discovered source workspaces to existing destination workspaces, or create them if missing.
 
     ``migration_id`` is unused by the body but scopes the cache key to one migration.
-
     Raises:
-        WorkspaceMappingError: If a destination workspace does not exist.
+        WorkspaceMappingError: If a mapped destination workspace is disabled.
     """
-    # TODO(AB#4088608): Create missing destination workspaces.
-    destination = WorkspaceClient(
-        resolve_migration_connection(destination_profile)
-    ).query_workspaces()
-    return synchronize_workspaces(discovered, destination, workspace_mappings)
+    destination_client = WorkspaceClient(resolve_migration_connection(destination_profile))
+    return synchronize_workspaces(
+        source_workspaces,
+        destination_client.query_workspaces(),
+        destination_client.create_workspace,
+        workspace_mappings)

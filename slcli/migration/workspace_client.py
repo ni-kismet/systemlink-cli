@@ -16,6 +16,7 @@ class Workspace(ApiModel):
 
     id: str
     name: str
+    enabled: bool = True
 
 
 class _WorkspacePage(ApiModel):
@@ -49,3 +50,13 @@ class WorkspaceClient:
             if len(page.workspaces) < PAGE_SIZE:
                 return
             skip += PAGE_SIZE
+
+    def create_workspace(self, name: str) -> Workspace:
+        """Create an enabled workspace and return its server-assigned identity."""
+        response = self._session.post(
+            self._url,
+            json={"name": name, "enabled": True},
+            timeout=REQUEST_TIMEOUT_SECONDS,
+        )
+        response.raise_for_status()
+        return Workspace(id=str(response.json()["id"]), name=name)
