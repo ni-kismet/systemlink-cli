@@ -272,6 +272,129 @@ def test_unmanaged_bundle_preserves_native_verification_flags(
         )
 
 
+def test_managed_bundle_relaxes_verification_flags_only_for_its_request(
+    monkeypatch: Any, tmp_path: Path
+) -> None:
+    """Nested ordinary bundle requests retain native verification flags."""
+    import requests
+    import urllib3.connection
+    import urllib3.util.ssl_ as urllib3_ssl
+    from slcli import ssl_trust
+
+    managed_path = str(tmp_path / "managed.pem")
+    ordinary_path = str(tmp_path / "ordinary.pem")
+    origin = "https://example.com:443"
+    monkeypatch.setattr(
+        ssl_trust,
+        "_get_managed_origin",
+        lambda path: origin if path == managed_path else None,
+    )
+    native_create_context = urllib3_ssl.create_urllib3_context
+    strict = getattr(ssl, "VERIFY_X509_STRICT", 0)
+    monkeypatch.setattr(urllib3_ssl, "VERIFY_X509_STRICT", strict, raising=False)
+
+    def create_strict_context(*args: Any, **kwargs: Any) -> ssl.SSLContext:
+        context = native_create_context(*args, **kwargs)
+        context.verify_flags |= strict
+        return context
+
+    monkeypatch.setattr(urllib3_ssl, "create_urllib3_context", create_strict_context)
+    baseline_flags = create_strict_context().verify_flags
+    contexts: list[tuple[str, int]] = []
+
+    def send(
+        adapter: requests.adapters.HTTPAdapter, request: requests.PreparedRequest, **kwargs: Any
+    ) -> requests.Response:
+        contexts.append(
+            (kwargs["verify"], urllib3.connection.create_urllib3_context().verify_flags)
+        )
+        response = requests.Response()
+        response.status_code = 200
+        response._content = b""
+        response.request = request
+        response.url = request.url
+        return response
+
+    monkeypatch.setattr(requests.adapters.HTTPAdapter, "send", send)
+    with ssl_trust.use_standard_ssl_context(managed_path):
+        with requests.Session() as session:
+            session.get("https://example.com", verify=managed_path)
+            with ssl_trust.use_standard_ssl_context(ordinary_path):
+                session.get("https://example.com", verify=ordinary_path)
+
+    assert contexts[0][1] & ssl.VERIFY_X509_PARTIAL_CHAIN
+    assert not contexts[0][1] & strict
+    assert contexts[1][1] == baseline_flags
+
+
+def test_concurrent_unmanaged_request_retains_native_verification_flags(
+    monkeypatch: Any, tmp_path: Path
+) -> None:
+    """Concurrent verify=True requests do not inherit managed trust flags."""
+    from concurrent.futures import ThreadPoolExecutor
+    from threading import Event
+
+    import requests
+    import urllib3.connection
+    import urllib3.util.ssl_ as urllib3_ssl
+    from slcli import ssl_trust
+
+    managed_path = str(tmp_path / "managed.pem")
+    origin = "https://example.com:443"
+    monkeypatch.setattr(
+        ssl_trust, "_get_managed_origin", lambda path: origin if path == managed_path else None
+    )
+    monkeypatch.delenv("REQUESTS_CA_BUNDLE", raising=False)
+    monkeypatch.delenv("CURL_CA_BUNDLE", raising=False)
+    baseline_flags = urllib3_ssl.create_urllib3_context().verify_flags
+    managed_created, unmanaged_created = Event(), Event()
+    contexts: dict[str, int] = {}
+    preloaded_context = getattr(requests.adapters, "_preloaded_ssl_context", None)
+    preloaded_flags = getattr(preloaded_context, "verify_flags", None)
+    preloaded_contexts: list[Any] = []
+
+    def send(
+        adapter: requests.adapters.HTTPAdapter, request: requests.PreparedRequest, **kwargs: Any
+    ) -> requests.Response:
+        preloaded_contexts.append(getattr(requests.adapters, "_preloaded_ssl_context", None))
+        if kwargs["verify"] is True and preloaded_context is not None:
+            flags = preloaded_context.verify_flags
+        else:
+            flags = urllib3.connection.create_urllib3_context().verify_flags
+        if kwargs["verify"] == managed_path:
+            contexts["managed"] = flags
+            managed_created.set()
+            assert unmanaged_created.wait(5)
+        else:
+            contexts["unmanaged"] = flags
+            unmanaged_created.set()
+            assert managed_created.wait(5)
+        response = requests.Response()
+        response.status_code = 200
+        response._content = b""
+        response.request = request
+        response.url = request.url
+        return response
+
+    monkeypatch.setattr(requests.adapters.HTTPAdapter, "send", send)
+    with ssl_trust.use_standard_ssl_context(managed_path):
+        with requests.Session() as managed_session, requests.Session() as unmanaged_session:
+            with ThreadPoolExecutor(max_workers=1) as executor:
+                unmanaged_request = executor.submit(
+                    unmanaged_session.get, "https://example.com", verify=True
+                )
+                managed_session.get("https://example.com", verify=managed_path)
+                unmanaged_request.result(timeout=5)
+
+    strict = getattr(urllib3_ssl, "VERIFY_X509_STRICT", 0)
+    assert contexts["managed"] & ssl.VERIFY_X509_PARTIAL_CHAIN
+    assert not contexts["managed"] & strict
+    assert contexts["unmanaged"] == baseline_flags
+    assert preloaded_contexts
+    assert all(context is preloaded_context for context in preloaded_contexts)
+    assert getattr(preloaded_context, "verify_flags", None) == preloaded_flags
+
+
 @pytest.mark.parametrize("context_source", ["requests", "debug"])
 @pytest.mark.parametrize("strict", [False, True])
 @pytest.mark.parametrize(
@@ -294,7 +417,6 @@ def test_managed_trust_tls_verification(
     from slcli import ssl_trust
     from slcli.main import _build_tls_debug_context
     import urllib3.util.ssl_ as urllib3_ssl
-    from urllib3.util.ssl_ import create_urllib3_context
 
     original_x509_strict = urllib3_ssl.VERIFY_X509_STRICT
     monkeypatch.setenv("SLCLI_CONFIG", str(tmp_path / "config.json"))
@@ -406,11 +528,14 @@ def test_managed_trust_tls_verification(
             else nullcontext()
         )
         with context_scope:
-            client_context = (
-                create_urllib3_context()
-                if context_source == "requests"
-                else _build_tls_debug_context(str(trusted_path))
-            )
+            if context_source == "requests":
+                token = ssl_trust._MANAGED_REQUEST_SSL_CONTEXT.set(True)
+                try:
+                    client_context = urllib3_ssl.create_urllib3_context()
+                finally:
+                    ssl_trust._MANAGED_REQUEST_SSL_CONTEXT.reset(token)
+            else:
+                client_context = _build_tls_debug_context(str(trusted_path))
             assert client_context.verify_flags & ssl.VERIFY_X509_PARTIAL_CHAIN
             client_context.load_verify_locations(cafile=str(trusted_path))
             if strict:

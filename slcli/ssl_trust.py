@@ -20,6 +20,7 @@ import ssl
 import sys
 import traceback
 from contextlib import contextmanager
+from contextvars import ContextVar
 from dataclasses import dataclass
 from datetime import datetime, timezone
 from pathlib import Path
@@ -36,6 +37,9 @@ OS_TRUST_INJECTED: bool = False
 OS_TRUST_REASON: str = "not-attempted"
 _STANDARD_SSL_CONTEXT = ssl.SSLContext
 _SSL_CONTEXT_LOCK = RLock()
+_MANAGED_REQUEST_SSL_CONTEXT: ContextVar[bool] = ContextVar(
+    "managed_request_ssl_context", default=False
+)
 
 
 @dataclass(frozen=True)
@@ -151,21 +155,22 @@ def _use_standard_ssl_context(ssl_verify: str) -> Iterator[None]:
     Managed certificates use partial-chain verification without urllib3's strict
     X.509 extension check; hostname and certificate validity checks remain enabled.
     """
-    import requests.adapters
+    import requests
+    import urllib3.connection
     import urllib3.util.ssl_ as urllib3_ssl
 
     patched_ssl_context = ssl.SSLContext
     patched_urllib3_context = urllib3_ssl.SSLContext
-    patched_x509_strict = getattr(urllib3_ssl, "VERIFY_X509_STRICT", 0)
-    has_preloaded_context = hasattr(requests.adapters, "_preloaded_ssl_context")
-    patched_preloaded_context = getattr(requests.adapters, "_preloaded_ssl_context", None)
+    patched_create_urllib3_context = urllib3_ssl.create_urllib3_context
+    patched_connection_create_urllib3_context = urllib3.connection.create_urllib3_context
     original_send = requests.sessions.Session.send
     managed_origin = _get_managed_origin(ssl_verify)
 
     def send(
         session: requests.Session, request: requests.PreparedRequest, **kwargs: Any
     ) -> requests.Response:
-        if managed_origin and kwargs.get("verify") == ssl_verify:
+        managed_request = managed_origin is not None and kwargs.get("verify") == ssl_verify
+        if managed_request:
             try:
                 request_origin = get_ssl_server_origin(request.url or "")
             except ValueError:
@@ -175,37 +180,44 @@ def _use_standard_ssl_context(ssl_verify: str) -> Iterator[None]:
                     f"Managed certificate trust is restricted to {managed_origin}; "
                     "cross-origin redirects are not allowed."
                 )
-        return original_send(session, request, **kwargs)
+        token = _MANAGED_REQUEST_SSL_CONTEXT.set(managed_request)
+        try:
+            return original_send(session, request, **kwargs)
+        finally:
+            _MANAGED_REQUEST_SSL_CONTEXT.reset(token)
 
     def create_context(protocol: int) -> ssl.SSLContext:
         context = _STANDARD_SSL_CONTEXT(protocol)
-        if managed_origin is not None:
+        if managed_origin is not None and _MANAGED_REQUEST_SSL_CONTEXT.get():
             context.verify_flags |= ssl.VERIFY_X509_PARTIAL_CHAIN
+        return context
+
+    def create_urllib3_context(*args: Any, **kwargs: Any) -> ssl.SSLContext:
+        context = patched_create_urllib3_context(*args, **kwargs)
+        if managed_origin is not None and _MANAGED_REQUEST_SSL_CONTEXT.get():
+            context.verify_flags |= ssl.VERIFY_X509_PARTIAL_CHAIN
+            context.verify_flags &= ~getattr(urllib3_ssl, "VERIFY_X509_STRICT", 0)
         return context
 
     try:
         setattr(ssl, "SSLContext", _STANDARD_SSL_CONTEXT)
         setattr(urllib3_ssl, "SSLContext", create_context)
+        setattr(urllib3_ssl, "create_urllib3_context", create_urllib3_context)
+        setattr(urllib3.connection, "create_urllib3_context", create_urllib3_context)
         if managed_origin:
-            if patched_x509_strict:
-                setattr(urllib3_ssl, "VERIFY_X509_STRICT", 0)
             setattr(requests.sessions.Session, "send", send)
-        if has_preloaded_context:
-            setattr(
-                requests.adapters,
-                "_preloaded_ssl_context",
-                create_context(ssl.PROTOCOL_TLS_CLIENT),
-            )
         yield
     finally:
         setattr(ssl, "SSLContext", patched_ssl_context)
         setattr(urllib3_ssl, "SSLContext", patched_urllib3_context)
+        setattr(urllib3_ssl, "create_urllib3_context", patched_create_urllib3_context)
+        setattr(
+            urllib3.connection,
+            "create_urllib3_context",
+            patched_connection_create_urllib3_context,
+        )
         if managed_origin:
-            if patched_x509_strict:
-                setattr(urllib3_ssl, "VERIFY_X509_STRICT", patched_x509_strict)
             setattr(requests.sessions.Session, "send", original_send)
-        if has_preloaded_context:
-            setattr(requests.adapters, "_preloaded_ssl_context", patched_preloaded_context)
 
 
 def _get_trust_directory(create: bool = False) -> Path:
