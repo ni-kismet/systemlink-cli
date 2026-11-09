@@ -22,6 +22,7 @@ _QUERY_RETRY = Retry(
     respect_retry_after_header=True,
     raise_on_status=False,
 )
+_WRITE_RETRY = _QUERY_RETRY.new(allowed_methods=frozenset({"GET"}))
 
 
 class _ProfileSession(requests.Session):
@@ -47,11 +48,16 @@ class MigrationConnection:
     headers: Dict[str, str] = field(repr=False)
     ssl_verify: Union[bool, str] = True
 
-    def create_session(self) -> requests.Session:
-        """Return a query session bound to this connection's credentials and TLS."""
+    def create_session(self, retry_post_queries: bool = True) -> requests.Session:
+        """Return a session bound to this connection's credentials and TLS.
+
+        Args:
+            retry_post_queries: Whether to retry POST requests used for read-only queries.
+        """
         session = _ProfileSession(self.ssl_verify)
         session.headers.update(self.headers)
-        adapter = HTTPAdapter(max_retries=_QUERY_RETRY)
+        retry = _QUERY_RETRY if retry_post_queries else _WRITE_RETRY
+        adapter = HTTPAdapter(max_retries=retry)
         session.mount("https://", adapter)
         session.mount("http://", adapter)
         return session

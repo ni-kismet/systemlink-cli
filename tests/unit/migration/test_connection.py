@@ -74,6 +74,20 @@ def test_session_retries_transient_query_failures() -> None:
     assert "POST" in (retry.allowed_methods or ())
 
 
+def test_session_does_not_retry_write_post_failures() -> None:
+    """Write sessions retry GET requests but do not replay POST requests."""
+    session = MigrationConnection("source", "https://source", {}).create_session(
+        retry_post_queries=False
+    )
+
+    adapter = session.get_adapter("https://source")
+    assert isinstance(adapter, HTTPAdapter)
+    retry = adapter.max_retries
+    assert retry.total == 5
+    assert "GET" in (retry.allowed_methods or ())
+    assert "POST" not in (retry.allowed_methods or ())
+
+
 # Profile selection
 
 
