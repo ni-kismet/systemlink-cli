@@ -2,6 +2,13 @@
 
 <!-- towncrier release notes start -->
 
+## v3.0.0 (2026-11-09)
+
+### Breaking Changes
+
+- Standardize destructive confirmation on --yes/-y while retaining existing --force aliases. Non-interactive destructive commands now require explicit consent, including comment and example deletion; example --dry-run remains prompt-free. Non-interactive table output now stops after one display page instead of draining client-side pages; use JSON with an explicit --take for automation. Pagination notices go to stderr when output is non-interactive. (cli-confirmation-contract)
+
+
 ## v2.5.7 (2026-11-02)
 
 ### Bug Fixes
