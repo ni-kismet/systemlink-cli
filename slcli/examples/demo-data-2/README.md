@@ -85,10 +85,10 @@ To remove all example resources:
 slcli example delete demo-data-2 -w <workspace-id> --dry-run
 
 # Delete all demo-tagged resources in a workspace
-slcli example delete demo-data-2 -w <workspace>
+slcli example delete demo-data-2 -w <workspace> --yes
 
 # Write an audit log of deletion results
-slcli example delete demo-data-2 -w <workspace> --audit-log delete-log.json --format json
+slcli example delete demo-data-2 -w <workspace> --audit-log delete-log.json --format json --yes
 ```
 
 **Important**: Cleanup only deletes resources tagged with "demo". Any resources you created or modified separately will not be deleted.

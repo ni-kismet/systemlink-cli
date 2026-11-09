@@ -19,7 +19,7 @@ slcli example install exercise-5-1-parametric-insights -w <workspace> --dry-run
 slcli example install exercise-5-1-parametric-insights -w <workspace>
 
 # Remove all provisioned resources when the session ends
-slcli example delete exercise-5-1-parametric-insights -w <workspace>
+slcli example delete exercise-5-1-parametric-insights -w <workspace> --yes
 ```
 
 ## Resources Provisioned

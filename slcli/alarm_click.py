@@ -11,7 +11,12 @@ from urllib.parse import quote
 import click
 import questionary
 
-from .cli_utils import confirm_bulk_operation, is_interactive_environment, validate_output_format
+from .cli_utils import (
+    confirm_bulk_operation,
+    is_interactive_environment,
+    validate_confirmation,
+    validate_output_format,
+)
 from .rich_output import render_table
 from .universal_handlers import FilteredResponse, UniversalResponseHandler
 from .utils import (
@@ -612,7 +617,9 @@ def register_alarm_commands(cli: Any) -> None:
 
     @alarm.command(name="force-clear")
     @click.argument("instance_ids", nargs=-1, required=True)
-    @click.option("--yes", "-y", is_flag=True, help="Skip confirmation prompt")
+    @click.option(
+        "--yes", "-y", is_flag=True, help="Skip confirmation prompt", callback=validate_confirmation
+    )
     @click.option(
         "--format",
         "-f",
@@ -647,7 +654,9 @@ def register_alarm_commands(cli: Any) -> None:
 
     @alarm.command(name="delete")
     @click.argument("instance_ids", nargs=-1, required=True)
-    @click.option("--yes", "-y", is_flag=True, help="Skip confirmation prompt")
+    @click.option(
+        "--yes", "-y", is_flag=True, help="Skip confirmation prompt", callback=validate_confirmation
+    )
     @click.option(
         "--format",
         "-f",

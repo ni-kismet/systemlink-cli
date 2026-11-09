@@ -299,10 +299,10 @@ class TestWorkitemLifecycleE2E:
             if wi_id:
                 cli_runner(["workitem", "delete", wi_id, "--yes"], check=False)
 
-    def test_delete_requires_confirmation(
+    def test_delete_without_consent_fails_non_interactively(
         self, cli_runner: Any, cli_helper: Any, configured_workspace: str
     ) -> None:
-        """Delete without --yes prompts; declining leaves the item intact."""
+        """A non-interactive delete without --yes fails and leaves the item intact."""
         unique = uuid.uuid4().hex[:8]
         wi_id = None
 
@@ -327,15 +327,13 @@ class TestWorkitemLifecycleE2E:
             wi_id = _extract_id(result.stdout)
             assert wi_id
 
-            # Decline the confirmation
             result = cli_runner(
                 ["workitem", "delete", wi_id],
-                input_data="n\n",
                 check=False,
             )
-            # Declining prints "Aborted." and returns cleanly (exit 0)
-            assert result.returncode == 0
-            assert "Aborted" in result.stdout
+            assert result.returncode == 2
+            assert "interactive" in result.stderr.lower()
+            assert "--yes" in result.stderr
 
             # Verify item still exists
             result = cli_runner(["workitem", "get", wi_id, "--format", "json"])
@@ -575,10 +573,10 @@ class TestWorkitemTemplateLifecycleE2E:
             if tmpl_id:
                 cli_runner(["workitem", "template", "delete", tmpl_id, "--yes"], check=False)
 
-    def test_delete_requires_confirmation(
+    def test_delete_without_consent_fails_non_interactively(
         self, cli_runner: Any, cli_helper: Any, configured_workspace: str
     ) -> None:
-        """Delete without --yes prompts; declining leaves the template intact."""
+        """A non-interactive delete without --yes fails and leaves the template intact."""
         unique = uuid.uuid4().hex[:8]
         tmpl_id = None
 
@@ -604,12 +602,11 @@ class TestWorkitemTemplateLifecycleE2E:
 
             result = cli_runner(
                 ["workitem", "template", "delete", tmpl_id],
-                input_data="n\n",
                 check=False,
             )
-            # Declining prints "Aborted." and returns cleanly (exit 0)
-            assert result.returncode == 0
-            assert "Aborted" in result.stdout
+            assert result.returncode == 2
+            assert "interactive" in result.stderr.lower()
+            assert "--yes" in result.stderr
 
             # Verify template still exists
             result = cli_runner(["workitem", "template", "get", tmpl_id, "--format", "json"])

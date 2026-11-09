@@ -7,6 +7,7 @@ from typing import Any, Dict, List, Optional
 
 import click
 
+from .cli_utils import confirm_bulk_operation
 from .example_loader import ExampleLoader
 from .example_provisioner import ExampleProvisioner, ProvisioningAction, ProvisioningResult
 from .universal_handlers import UniversalResponseHandler, FilteredResponse
@@ -408,6 +409,7 @@ def register_example_commands(cli: Any) -> None:
             handle_api_error(exc)
 
     @example.command(name="delete")
+    @click.option("--yes", "-y", is_flag=True, help="Skip confirmation prompt")
     @click.argument("example_name", required=False)
     @click.option(
         "--file",
@@ -441,8 +443,9 @@ def register_example_commands(cli: Any) -> None:
         format: str,
         dry_run: bool,
         audit_log: Optional[str],
+        yes: bool,
     ) -> None:
-        """Delete resources for an example configuration in reverse order."""
+        """Delete example resources in reverse order; use --yes to skip confirmation."""
         from .utils import check_readonly_mode
 
         check_readonly_mode("delete an example")
@@ -472,6 +475,9 @@ def register_example_commands(cli: Any) -> None:
             if example_dir is not None:
                 provisioner_options["example_dir"] = example_dir
             provisioner = ExampleProvisioner(**provisioner_options)
+
+            if not dry_run and not confirm_bulk_operation("delete", "example", 1, force=yes):
+                return
 
             results, err = provisioner.delete(config)
             if err:

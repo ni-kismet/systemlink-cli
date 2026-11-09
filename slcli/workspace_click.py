@@ -7,7 +7,7 @@ from urllib.parse import urlencode
 
 import click
 
-from .cli_utils import is_interactive_environment, validate_output_format
+from .cli_utils import confirmation_option, is_interactive_environment, validate_output_format
 from .rich_output import render_table
 from .utils import (
     ExitCodes,
@@ -193,7 +193,10 @@ def register_workspace_commands(cli: Any) -> None:
                     break
 
                 # Ask user if they want to see more; if non-interactive, stop
-                click.echo(f"\nShowing {shown_count} workspace(s) so far. More may be available.")
+                click.echo(
+                    f"\nShowing {shown_count} workspace(s) so far. More may be available.",
+                    err=not is_interactive_environment(),
+                )
 
                 if not is_interactive_environment():
                     break
@@ -210,7 +213,7 @@ def register_workspace_commands(cli: Any) -> None:
         required=True,
         help="ID of the workspace to disable",
     )
-    @click.confirmation_option(prompt="Are you sure you want to disable this workspace?")
+    @confirmation_option(prompt="Are you sure you want to disable this workspace?")
     def disable_workspace(id: str) -> None:
         """Disable a workspace."""
         from .utils import check_readonly_mode
