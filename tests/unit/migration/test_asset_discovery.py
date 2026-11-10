@@ -1,6 +1,7 @@
 """Tests for pure Asset Service discovery and planning policy."""
 
-from slcli.migration.assets.discovery import discover_assets
+from slcli.migration.assets.discovery import discover_assets, source_system_workspaces
+from slcli.migration.system_client import System
 
 
 def _asset(asset_id: str, minion_id: str = "minion-1", **overrides: object) -> dict[str, object]:
@@ -16,6 +17,19 @@ def _asset(asset_id: str, minion_id: str = "minion-1", **overrides: object) -> d
     }
     asset.update(overrides)
     return asset
+
+
+def test_source_system_workspaces_resolves_workspace_ids_to_names() -> None:
+    """Only systems with an accessible source workspace contribute ownership."""
+    workspaces = source_system_workspaces(
+        [
+            System(id="minion-1", workspace="workspace-1"),
+            System(id="minion-2", workspace="missing-workspace"),
+        ],
+        {"workspace-1": "Source"},
+    )
+
+    assert workspaces == {"minion-1": "Source"}
 
 
 def test_discovery_maps_supported_asset_to_destination_workspace() -> None:
