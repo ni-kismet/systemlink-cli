@@ -87,12 +87,17 @@ def register_migrate_command(cli: click.Group) -> None:
     @cli.command(name="migrate", hidden=not migration_extra_installed())
     @click.option("--source-profile", help="Named source SystemLink profile for a new migration.")
     @click.option(
+        "--destination-profile",
+        help="Named destination SystemLink profile for a new migration.",
+    )
+    @click.option(
         "--workspace-mappings",
         callback=_parse_workspace_mappings,
         help=(
             "Comma-delimited SOURCE or SOURCE:DESTINATION workspace mappings. "
             "Escape ',' or ':' in a workspace name with a backslash, for example Lab\\:A:Dest. "
-            "Only the listed source workspaces are migrated; all when omitted."
+            "Only the listed source workspaces are migrated; all when omitted. "
+            "Destination workspaces must already exist."
         ),
     )
     @click.option("--migration-id", help="Repeat discovery for an existing migration.")
@@ -103,20 +108,22 @@ def register_migrate_command(cli: click.Group) -> None:
     )
     def migrate(
         source_profile: Optional[str],
+        destination_profile: Optional[str],
         workspace_mappings: Optional[Dict[str, str]],
         migration_id: Optional[str],
         prefect_api_url: Optional[str],
     ) -> None:
         """Discover and migrate resources from a SystemLink Server."""
-        if migration_id is not None and (
-            source_profile is not None or workspace_mappings is not None
-        ):
+        new_run_options = (source_profile, destination_profile, workspace_mappings)
+        if migration_id is not None and any(value is not None for value in new_run_options):
             raise click.UsageError(
-                "--migration-id cannot be combined with --source-profile or --workspace-mappings"
+                "--migration-id cannot be combined with --source-profile, "
+                "--destination-profile, or --workspace-mappings"
             )
-        if migration_id is None and source_profile is None:
+        if migration_id is None and (source_profile is None or destination_profile is None):
             raise click.UsageError(
-                "Provide --source-profile for a new migration or --migration-id for an existing one"
+                "Provide --source-profile and --destination-profile for a new migration "
+                "or --migration-id for an existing one"
             )
 
         try:
@@ -131,5 +138,7 @@ def register_migrate_command(cli: click.Group) -> None:
 
         if migration_id is not None:
             command.resume_migration(migration_id, prefect_api_url)
-        elif source_profile is not None:
-            command.start_migration(source_profile, workspace_mappings, prefect_api_url)
+        elif source_profile is not None and destination_profile is not None:
+            command.start_migration(
+                source_profile, destination_profile, workspace_mappings, prefect_api_url
+            )

@@ -113,8 +113,10 @@ def discover_test_monitor(
 
     Only selected workspaces are queried, so product ownership is inferred from
     their results alone. A failed workspace is reported and excluded from that
-    inference. Products with no results are included only when all workspaces are
-    discovered without failures, since a failed workspace could hide their results.
+    inference. Products with no results belong to Default, so they are included
+    only when every workspace, Default among them, is discovered without failures.
+    A failed workspace could hide their results. Every discovered item's workspace
+    is therefore a selected workspace.
 
     Args:
         client: Test Monitor queries for the source server.
@@ -129,7 +131,9 @@ def discover_test_monitor(
     scan = _scan_results(
         client, {name: id_ for name, id_ in all_workspaces.items() if name in selected}
     )
-    migrate_products_with_no_results = selected_workspaces is None and not scan.failures
+    migrate_products_with_no_results = (
+        selected == set(all_workspaces) and DEFAULT_WORKSPACE in selected and not scan.failures
+    )
     products: List[DiscoveredProduct] = []
     product_ids_by_part_number: Dict[str, str] = {}
     for product in client.query_products():

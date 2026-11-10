@@ -13,8 +13,9 @@ from prefect.settings import (
 )
 
 from slcli.migration.flows.discover import MigrationDiscovery, discover_flow
+from slcli.migration.flows.migrate import MigrationOutcome, migrate_flow
 from slcli.migration.prefect_server import ManagedPrefectServer
-from slcli.migration.state import MigrationRun
+from slcli.migration.state import MigrationRun, RunMetadata
 
 
 @contextmanager
@@ -33,6 +34,23 @@ def prefect_server(run: MigrationRun, api_url: Optional[str] = None) -> Generato
         yield managed_api_url
 
 
+@contextmanager
+def _run_settings(run: MigrationRun, api_url: str) -> Generator[None, None, None]:
+    with temporary_settings(
+        updates={
+            PREFECT_HOME: run.client_home,
+            PREFECT_API_URL: api_url,
+            PREFECT_LOGGING_TO_API_ENABLED: False,
+            "results.local_storage_path": run.results_path,
+        }
+    ):
+        try:
+            yield
+        finally:
+            # Deliver queued task-state events before the server may be stopped.
+            EventsWorker.drain_all()
+
+
 def run_discovery(
     run: MigrationRun,
     source_profile: str,
@@ -47,16 +65,22 @@ def run_discovery(
         workspaces: Source workspace names to discover; all workspaces when None.
         api_url: Prefect API URL from :func:`prefect_server`.
     """
-    with temporary_settings(
-        updates={
-            PREFECT_HOME: run.client_home,
-            PREFECT_API_URL: api_url,
-            PREFECT_LOGGING_TO_API_ENABLED: False,
-            "results.local_storage_path": run.results_path,
-        }
-    ):
-        try:
-            return discover_flow(run.migration_id, source_profile, workspaces)
-        finally:
-            # Deliver queued task-state events before the server may be stopped.
-            EventsWorker.drain_all()
+    with _run_settings(run, api_url):
+        return discover_flow(run.migration_id, source_profile, workspaces)
+
+
+def run_migration(run: MigrationRun, metadata: RunMetadata, api_url: str) -> MigrationOutcome:
+    """Run the migration flow for a run on a Prefect server.
+
+    Args:
+        run: Migration run that provides the client home and result storage.
+        metadata: Persisted run inputs, including profiles and workspace mappings.
+        api_url: Prefect API URL from :func:`prefect_server`.
+    """
+    with _run_settings(run, api_url):
+        return migrate_flow(
+            run.migration_id,
+            metadata.source_profile,
+            metadata.destination_profile,
+            metadata.workspace_mappings,
+        )

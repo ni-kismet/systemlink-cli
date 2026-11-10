@@ -155,6 +155,26 @@ def test_no_result_products_require_all_workspaces() -> None:
     assert _product_workspaces(all_workspaces) == {"product-orphan": DEFAULT_WORKSPACE}
 
 
+def test_no_result_products_follow_all_workspaces_when_selected_explicitly() -> None:
+    """Selecting every workspace by name is the same as selecting all."""
+    source = FakeTestMonitor([_product("orphan")], {"Alpha-id": [], "Default-id": []})
+
+    discovery = discover_test_monitor(
+        source, _workspaces("Alpha", DEFAULT_WORKSPACE), ["Alpha", DEFAULT_WORKSPACE]
+    )
+
+    assert _product_workspaces(discovery) == {"product-orphan": DEFAULT_WORKSPACE}
+
+
+def test_no_result_products_require_a_default_workspace() -> None:
+    """Products are never placed in a Default workspace that is not in scope."""
+    source = FakeTestMonitor([_product("orphan")], {"Alpha-id": []})
+
+    discovery = discover_test_monitor(source, _workspaces("Alpha"))
+
+    assert discovery.products == ()
+
+
 def test_selection_excludes_products_owned_by_unselected_workspace() -> None:
     """A product with results only in an unselected workspace is skipped."""
     source = FakeTestMonitor(
