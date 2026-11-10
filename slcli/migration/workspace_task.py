@@ -58,6 +58,7 @@ def synchronize_workspaces_task(
     """Map source workspaces to existing destination workspaces, or create if missing.
 
     ``migration_id`` is unused by the body but scopes the cache key to one migration.
+
     Raises:
         WorkspaceMappingError: If a mapped destination workspace is disabled.
     """

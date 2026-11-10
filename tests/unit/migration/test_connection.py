@@ -118,6 +118,22 @@ def test_missing_profile_does_not_fall_back() -> None:
         resolve_migration_connection("missing", config)
 
 
+@pytest.mark.parametrize(("active_readonly", "selected_readonly"), [(True, False), (False, True)])
+def test_readonly_setting_comes_from_named_profile(
+    active_readonly: bool, selected_readonly: bool
+) -> None:
+    """The selected profile's protection is independent of the active profile."""
+    config = _config(
+        Profile("active", server="https://active", api_key="key", readonly=active_readonly),
+        Profile(
+            "destination", server="https://destination", api_key="key", readonly=selected_readonly
+        ),
+        current="active",
+    )
+
+    assert resolve_migration_connection("destination", config).readonly is selected_readonly
+
+
 @pytest.mark.parametrize(
     ("profile", "message"),
     [

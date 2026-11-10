@@ -32,7 +32,7 @@ pytestmark = [pytest.mark.e2e_migration_manual]
 def migration_connections() -> Tuple[MigrationConnection, MigrationConnection]:
     """Resolve the two profiles only after explicit persistent-write acknowledgement."""
     if os.getenv("SLCLI_E2E_ENABLE_WORKSPACE_CREATION_TESTS") != WORKSPACE_CREATE_ACK:
-        pytest.skip("set SLCLI_E2E_ENABLE_WORKSPACE_CREATION_TESTS to acknowledge persistent workspaces")
+        pytest.skip("Skipping manual workspace creation test.")
     source_profile = os.getenv(SOURCE_PROFILE_ENV)
     destination_profile = os.getenv(DESTINATION_PROFILE_ENV)
     if not source_profile or not destination_profile:

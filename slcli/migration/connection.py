@@ -41,12 +41,13 @@ class _ProfileSession(requests.Session):
 
 @dataclass(frozen=True)
 class MigrationConnection:
-    """Endpoint, authentication, and TLS settings from one explicitly named profile."""
+    """Endpoint, authentication, TLS, and read-only settings from a named profile."""
 
     profile_name: str
     base_url: str
     headers: Dict[str, str] = field(repr=False)
     ssl_verify: Union[bool, str] = True
+    readonly: bool = False
 
     def create_session(self, retry_post_queries: bool = True) -> requests.Session:
         """Return a session bound to this connection's credentials and TLS.
@@ -100,4 +101,4 @@ def resolve_migration_connection(
     if auth is None:
         raise click.ClickException(f"Profile '{profile.name}' does not define an API key")
     headers = get_auth_headers(auth.value, auth.scheme)
-    return MigrationConnection(profile.name, base_url, headers, ssl_verify)
+    return MigrationConnection(profile.name, base_url, headers, ssl_verify, profile.readonly)

@@ -7,6 +7,7 @@ from dataclasses import dataclass, field
 from datetime import datetime, timezone
 from pathlib import Path
 from typing import Dict, List, Optional, Tuple
+from unittest.mock import MagicMock
 
 import click
 import pytest
@@ -26,6 +27,7 @@ from slcli.migration.testmonitor.models import (
     WorkspaceFailure,
 )
 from slcli.migration.workspace_client import Workspace
+from slcli.migration.workspace_task import synchronize_workspaces_task
 from slcli.migration.workspaces import discover_workspaces, synchronize_workspaces
 from slcli.utils import ExitCodes
 
@@ -411,6 +413,67 @@ def test_existing_migration_reuses_persisted_inputs(fake_discovery: FakeDiscover
     assert result.exit_code == 0, result.output
     assert fake_discovery.calls[0]["profile"] == "source"
     assert fake_discovery.calls[0]["workspaces"] == ["Lab"]
+
+
+@pytest.mark.parametrize("resume", [False, True])
+@pytest.mark.parametrize("readonly", [False, True])
+@pytest.mark.parametrize("destination_exists", [False, True])
+def test_destination_readonly_applies_to_workspace_creation(
+    fake_discovery: FakeDiscovery,
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+    resume: bool,
+    readonly: bool,
+    destination_exists: bool,
+) -> None:
+    """New and resumed runs use the selected destination's current read-only setting."""
+    run = create_migration_run("source", "destination", {"Lab": "New"}, fake_discovery.state_root)
+    config_path = tmp_path / "config.json"
+    config = json.loads(config_path.read_text(encoding="utf-8"))
+    config["current-profile"] = "source"
+    config["profiles"]["source"]["readonly"] = not readonly
+    config["profiles"]["destination"]["readonly"] = readonly
+    config_path.write_text(json.dumps(config), encoding="utf-8")
+
+    session = MagicMock()
+    session.get.return_value.json.return_value = {
+        "workspaces": ([{"id": "existing-id", "name": "New"}] if destination_exists else [])
+    }
+    session.post.return_value.json.return_value = {"id": "created-id"}
+    monkeypatch.setattr(
+        "slcli.migration.connection.MigrationConnection.create_session",
+        MagicMock(return_value=session),
+    )
+
+    def run_migration(run: MigrationRun, metadata: RunMetadata, api_url: str) -> MigrationOutcome:
+        discovered = discover_workspaces([Workspace(id="lab-id", name="Lab")], None)
+        mapping = synchronize_workspaces_task.fn(
+            run.migration_id, metadata.destination_profile, discovered, metadata.workspace_mappings
+        )
+        return MigrationOutcome(
+            discovery=MigrationDiscovery(workspaces=discovered, test_monitor=DISCOVERY),
+            mapping=mapping,
+        )
+
+    monkeypatch.setattr(command, "run_migration", run_migration)
+    if resume:
+        result = _migrate("--migration-id", run.migration_id)
+    else:
+        result = _migrate(
+            "--source-profile",
+            "source",
+            "--destination-profile",
+            "destination",
+            "--workspace-mappings",
+            "Lab:New",
+        )
+
+    if readonly and not destination_exists:
+        assert result.exit_code != 0
+        assert "profile 'destination' is in readonly mode" in result.output
+    else:
+        assert result.exit_code == 0, result.output
+    assert session.post.call_count == int(not readonly and not destination_exists)
 
 
 def test_unknown_migration_id_is_reported(fake_discovery: FakeDiscovery) -> None:

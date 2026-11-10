@@ -2,10 +2,12 @@
 
 from unittest.mock import MagicMock
 
+import click
 import pytest
 import requests
 from pydantic import ValidationError
 
+from slcli.migration.connection import MigrationConnection
 from slcli.migration.workspace_client import Workspace, WorkspaceClient
 
 
@@ -17,6 +19,7 @@ def test_create_workspace_posts_enabled_workspace() -> None:
     session.post.return_value = response
     connection = MagicMock()
     connection.base_url = "https://destination.example.com"
+    connection.readonly = False
     connection.create_session.return_value = session
 
     workspace = WorkspaceClient(connection).create_workspace("New workspace")
@@ -29,6 +32,17 @@ def test_create_workspace_posts_enabled_workspace() -> None:
         timeout=30,
     )
     response.raise_for_status.assert_called_once_with()
+
+
+def test_readonly_connection_rejects_creation_without_posting() -> None:
+    """A read-only profile cannot create a destination workspace."""
+    session = MagicMock()
+    connection = MigrationConnection("destination", "https://destination", {}, readonly=True)
+
+    with pytest.raises(click.ClickException, match="profile 'destination' is in readonly mode"):
+        WorkspaceClient(connection, session).create_workspace("New")
+
+    session.post.assert_not_called()
 
 
 @pytest.mark.parametrize("enabled", [False, True])
@@ -61,6 +75,7 @@ def test_workspace_http_errors_propagate_before_parsing(
     session.get.return_value = session.post.return_value = response
     connection = MagicMock()
     connection.base_url = "https://destination.example.com"
+    connection.readonly = False
     client = WorkspaceClient(connection, session)
 
     with pytest.raises(requests.HTTPError) as raised:
@@ -83,6 +98,7 @@ def test_workspace_invalid_json_propagates(operation: str) -> None:
     session.get.return_value = session.post.return_value = response
     connection = MagicMock()
     connection.base_url = "https://destination.example.com"
+    connection.readonly = False
     client = WorkspaceClient(connection, session)
 
     with pytest.raises(requests.exceptions.JSONDecodeError):
@@ -113,6 +129,7 @@ def test_workspace_creation_rejects_missing_id() -> None:
     session.post.return_value.json.return_value = {}
     connection = MagicMock()
     connection.base_url = "https://destination.example.com"
+    connection.readonly = False
 
     with pytest.raises(KeyError, match="id"):
         WorkspaceClient(connection, session).create_workspace("Lab")
