@@ -76,6 +76,23 @@ def test_discovery_preserves_numeric_metadata_and_external_calibration_capabilit
     assert asset.is_calibration_capable is True
 
 
+def test_discovery_uses_same_name_destination_without_workspace_mapping() -> None:
+    """All-workspace discovery retains the source workspace as the destination."""
+    discovery = discover_assets(
+        [_asset("asset-1")],
+        source_system_workspaces={"minion-1": "Source"},
+        destination_minion_ids={"minion-1"},
+        destination_file_ids_by_source_id={"file-1": "destination-file-1"},
+    )
+
+    asset = discovery.assets[0]
+    assert (asset.workspace, asset.destination_workspace, asset.decision) == (
+        "Source",
+        "Source",
+        "include",
+    )
+
+
 def test_discovery_falls_back_to_default_for_unknown_system() -> None:
     """Assets without a known owning system are placed in Default."""
     discovery = discover_assets(
