@@ -1617,10 +1617,7 @@ def test_webapp_query_uses_explicit_trust_context(
         request: requests.PreparedRequest,
         **kwargs: Any,
     ) -> requests.Response:
-        assert (
-            request.url
-            == "https://example.com/niapp/v1/webapps/query?includeTotalCount=true"
-        )
+        assert request.url == "https://example.com/niapp/v1/webapps/query?includeTotalCount=true"
         assert kwargs["verify"] == trusted_path
         assert ssl.SSLContext is ssl_trust._STANDARD_SSL_CONTEXT
         context = urllib3.connection.create_urllib3_context()
