@@ -51,11 +51,11 @@ def _block_reason(
     location: AssetLocation,
     destination_minion_ids: Collection[str],
     file_ids: Collection[str],
-    destination_file_ids: Collection[str],
+    destination_file_ids_by_source_id: Mapping[str, str],
 ) -> Optional[str]:
     if location.minion_id is not None and location.minion_id not in destination_minion_ids:
         return f"missing destination system for minion {location.minion_id}"
-    missing_file_ids = sorted(set(file_ids).difference(destination_file_ids))
+    missing_file_ids = sorted(set(file_ids).difference(destination_file_ids_by_source_id))
     if missing_file_ids:
         return f"missing destination files: {', '.join(missing_file_ids)}"
     return None
@@ -65,7 +65,7 @@ def discover_assets(
     records: Iterable[Mapping[str, Any]],
     source_system_workspaces: Mapping[str, str],
     destination_minion_ids: Collection[str],
-    destination_file_ids: Collection[str],
+    destination_file_ids_by_source_id: Mapping[str, str],
     workspace_mappings: Optional[Mapping[str, str]] = None,
 ) -> AssetDiscovery:
     """Create compact asset discovery results from source Asset Service records.
@@ -83,7 +83,7 @@ def discover_assets(
 
         file_ids = _strings(record.get("fileIds"))
         block_reason = _block_reason(
-            location, destination_minion_ids, file_ids, destination_file_ids
+            location, destination_minion_ids, file_ids, destination_file_ids_by_source_id
         )
         assets.append(
             DiscoveredAsset(

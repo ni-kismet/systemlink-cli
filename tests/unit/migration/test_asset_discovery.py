@@ -24,7 +24,7 @@ def test_discovery_maps_supported_asset_to_destination_workspace() -> None:
         [_asset("asset-1")],
         source_system_workspaces={"minion-1": "Source"},
         destination_minion_ids={"minion-1"},
-        destination_file_ids={"file-1"},
+        destination_file_ids_by_source_id={"file-1": "destination-file-1"},
         workspace_mappings={"Source": "Target"},
     )
 
@@ -46,7 +46,7 @@ def test_discovery_falls_back_to_default_for_unknown_system() -> None:
         [_asset("asset-1", minion_id="unknown", fileIds=[])],
         source_system_workspaces={},
         destination_minion_ids={"unknown"},
-        destination_file_ids=set(),
+        destination_file_ids_by_source_id={},
     )
 
     asset = discovery.assets[0]
@@ -63,7 +63,7 @@ def test_discovery_omits_assets_outside_selected_workspaces() -> None:
         [_asset("in"), _asset("out", minion_id="minion-2")],
         source_system_workspaces={"minion-1": "Selected", "minion-2": "Other"},
         destination_minion_ids={"minion-1", "minion-2"},
-        destination_file_ids={"file-1"},
+        destination_file_ids_by_source_id={"file-1": "destination-file-1"},
         workspace_mappings={"Selected": "Target"},
     )
 
@@ -76,7 +76,7 @@ def test_discovery_blocks_missing_destination_system() -> None:
         [_asset("asset-1")],
         source_system_workspaces={"minion-1": "Source"},
         destination_minion_ids=set(),
-        destination_file_ids={"file-1"},
+        destination_file_ids_by_source_id={"file-1": "destination-file-1"},
     )
 
     asset = discovery.assets[0]
@@ -90,7 +90,7 @@ def test_discovery_blocks_missing_destination_file() -> None:
         [_asset("asset-1")],
         source_system_workspaces={"minion-1": "Source"},
         destination_minion_ids={"minion-1"},
-        destination_file_ids=set(),
+        destination_file_ids_by_source_id={},
     )
 
     asset = discovery.assets[0]
