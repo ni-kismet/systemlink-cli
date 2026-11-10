@@ -8,7 +8,7 @@ def _asset(asset_id: str, minion_id: str = "minion-1", **overrides: object) -> d
         "id": asset_id,
         "name": "DAQ",
         "discoveryType": "MANUAL",
-        "isCalibratable": True,
+        "supportsSelfCalibration": True,
         "fileIds": ["file-1"],
         "keywords": ["production"],
         "properties": {"Owner": "Engineering", "Migration.SourceId": "old"},
@@ -40,6 +40,28 @@ def test_discovery_maps_supported_asset_to_destination_workspace() -> None:
     assert asset.properties == {"Owner": "Engineering"}
 
 
+def test_discovery_preserves_numeric_metadata_and_external_calibration_capability() -> None:
+    """Asset number fields and either calibration capability are retained."""
+    discovery = discover_assets(
+        [
+            _asset(
+                "asset-1",
+                modelNumber=42,
+                vendorNumber=7,
+                supportsSelfCalibration=False,
+                supportsExternalCalibration=True,
+            )
+        ],
+        source_system_workspaces={"minion-1": "Source"},
+        destination_minion_ids={"minion-1"},
+        destination_file_ids_by_source_id={"file-1": "destination-file-1"},
+    )
+
+    asset = discovery.assets[0]
+    assert (asset.model_number, asset.vendor_number) == (42, 7)
+    assert asset.is_calibration_capable is True
+
+
 def test_discovery_falls_back_to_default_for_unknown_system() -> None:
     """Assets without a known owning system are placed in Default."""
     discovery = discover_assets(
@@ -55,6 +77,19 @@ def test_discovery_falls_back_to_default_for_unknown_system() -> None:
         "Default",
         "include",
     )
+
+
+def test_discovery_does_not_require_a_system_for_empty_minion_id() -> None:
+    """A physical asset with no owning minion is eligible without a destination system."""
+    discovery = discover_assets(
+        [_asset("asset-1", minion_id="", fileIds=[])],
+        source_system_workspaces={},
+        destination_minion_ids=set(),
+        destination_file_ids_by_source_id={},
+    )
+
+    asset = discovery.assets[0]
+    assert (asset.workspace, asset.decision, asset.block_reason) == ("Default", "include", None)
 
 
 def test_discovery_omits_assets_outside_selected_workspaces() -> None:

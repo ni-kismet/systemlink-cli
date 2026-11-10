@@ -33,10 +33,10 @@ class DiscoveredAsset(_Persisted):
     discovery_type: Optional[str] = None
     name: Optional[str] = None
     model_name: Optional[str] = None
-    model_number: Optional[str] = None
+    model_number: Optional[int] = None
     serial_number: Optional[str] = None
     vendor_name: Optional[str] = None
-    vendor_number: Optional[str] = None
+    vendor_number: Optional[int] = None
     part_number: Optional[str] = None
     location: AssetLocation = Field(default_factory=AssetLocation)
     is_calibration_capable: bool = False

@@ -11,6 +11,10 @@ def _string(value: Any) -> Optional[str]:
     return value if isinstance(value, str) else None
 
 
+def _integer(value: Any) -> Optional[int]:
+    return value if isinstance(value, int) and not isinstance(value, bool) else None
+
+
 def _strings(value: Any) -> Tuple[str, ...]:
     if not isinstance(value, list):
         return ()
@@ -53,7 +57,7 @@ def _block_reason(
     file_ids: Collection[str],
     destination_file_ids_by_source_id: Mapping[str, str],
 ) -> Optional[str]:
-    if location.minion_id is not None and location.minion_id not in destination_minion_ids:
+    if location.minion_id and location.minion_id not in destination_minion_ids:
         return f"missing destination system for minion {location.minion_id}"
     missing_file_ids = sorted(set(file_ids).difference(destination_file_ids_by_source_id))
     if missing_file_ids:
@@ -93,13 +97,16 @@ def discover_assets(
                 discovery_type=_string(record.get("discoveryType")),
                 name=_string(record.get("name")),
                 model_name=_string(record.get("modelName")),
-                model_number=_string(record.get("modelNumber")),
+                model_number=_integer(record.get("modelNumber")),
                 serial_number=_string(record.get("serialNumber")),
                 vendor_name=_string(record.get("vendorName")),
-                vendor_number=_string(record.get("vendorNumber")),
+                vendor_number=_integer(record.get("vendorNumber")),
                 part_number=_string(record.get("partNumber")),
                 location=location,
-                is_calibration_capable=bool(record.get("isCalibratable", False)),
+                is_calibration_capable=bool(
+                    record.get("supportsSelfCalibration", False)
+                    or record.get("supportsExternalCalibration", False)
+                ),
                 file_ids=file_ids,
                 updated_at=record.get("updatedAt"),
                 keywords=_strings(record.get("keywords")),
