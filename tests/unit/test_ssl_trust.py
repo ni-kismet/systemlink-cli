@@ -312,6 +312,7 @@ def test_managed_bundle_relaxes_verification_flags_only_for_its_request(
         response.status_code = 200
         response._content = b""
         response.request = request
+        assert request.url is not None
         response.url = request.url
         return response
 
@@ -373,6 +374,7 @@ def test_concurrent_unmanaged_request_retains_native_verification_flags(
         response.status_code = 200
         response._content = b""
         response.request = request
+        assert request.url is not None
         response.url = request.url
         return response
 
