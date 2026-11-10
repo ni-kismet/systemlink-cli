@@ -5,6 +5,8 @@ from typing import Dict, List, Optional
 from prefect import flow
 from pydantic import ConfigDict
 
+from slcli.migration.assets.discovery_task import discover_assets_task
+from slcli.migration.assets.models import AssetDiscovery
 from slcli.migration.flows.discover import MigrationDiscovery, discover_flow
 from slcli.migration.schema import VersionedModel
 from slcli.migration.workspace_task import synchronize_workspaces_task
@@ -12,12 +14,13 @@ from slcli.migration.workspaces import WorkspaceMapping
 
 
 class MigrationOutcome(VersionedModel):
-    """Discovery and workspace mapping of one run."""
+    """Discovery, workspace mapping, and asset planning of one run."""
 
     model_config = ConfigDict(frozen=True)
 
     discovery: MigrationDiscovery
     mapping: WorkspaceMapping
+    assets: AssetDiscovery
 
 
 @flow(
@@ -50,4 +53,8 @@ def migrate_flow(
     mapping = synchronize_workspaces_task(
         migration_id, destination_profile, discovery.workspaces, workspace_mappings
     )
-    return MigrationOutcome(discovery=discovery, mapping=mapping)
+    return MigrationOutcome(
+        discovery=discovery,
+        mapping=mapping,
+        assets=discover_assets_task(migration_id, source_profile, destination_profile, mapping),
+    )
