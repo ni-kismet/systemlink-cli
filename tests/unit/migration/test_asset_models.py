@@ -84,4 +84,6 @@ def test_asset_decision_accepts_planning_outcomes(decision: AssetDecision) -> No
 def test_asset_discovery_rejects_unknown_decision() -> None:
     """Discovery cannot persist an unsupported planning outcome."""
     with pytest.raises(ValidationError, match="Input should be"):
-        DiscoveredAsset(id="asset-1", workspace="Source", decision="retry")  # type: ignore[arg-type]
+        DiscoveredAsset.model_validate(
+            {"id": "asset-1", "workspace": "Source", "decision": "retry"}
+        )
