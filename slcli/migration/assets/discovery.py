@@ -79,10 +79,12 @@ def discover_assets(
     supplied, only mapped source workspaces are retained.
     """
     assets = []
+    out_of_scope_count = 0
     for record in records:
         location = _location(record)
         workspace = source_system_workspaces.get(location.minion_id or "", DEFAULT_WORKSPACE)
         if workspace_mappings is not None and workspace not in workspace_mappings:
+            out_of_scope_count += 1
             continue
 
         file_ids = _strings(record.get("fileIds"))
@@ -117,4 +119,7 @@ def discover_assets(
                 block_reason=block_reason,
             )
         )
-    return AssetDiscovery(assets=tuple(sorted(assets, key=lambda asset: asset.id)))
+    return AssetDiscovery(
+        assets=tuple(sorted(assets, key=lambda asset: asset.id)),
+        out_of_scope_count=out_of_scope_count,
+    )

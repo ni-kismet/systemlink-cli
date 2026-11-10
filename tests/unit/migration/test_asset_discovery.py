@@ -103,6 +103,7 @@ def test_discovery_omits_assets_outside_selected_workspaces() -> None:
     )
 
     assert [asset.id for asset in discovery.assets] == ["in"]
+    assert discovery.out_of_scope_count == 1
 
 
 def test_discovery_blocks_missing_destination_system() -> None:

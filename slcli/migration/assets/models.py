@@ -55,3 +55,4 @@ class AssetDiscovery(_Persisted, VersionedModel):
     __test__ = False
 
     assets: Tuple[DiscoveredAsset, ...] = ()
+    out_of_scope_count: int = 0

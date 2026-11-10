@@ -69,6 +69,7 @@ def test_asset_discovery_serializes_compact_asset_metadata() -> None:
                 "exclusion_reason": None,
             }
         ],
+        "out_of_scope_count": 0,
     }
 
 
