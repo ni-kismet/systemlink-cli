@@ -5,7 +5,12 @@ from datetime import datetime
 import pytest
 from pydantic import ValidationError
 
-from slcli.migration.assets.models import AssetDiscovery, AssetLocation, DiscoveredAsset
+from slcli.migration.assets.models import (
+    AssetDecision,
+    AssetDiscovery,
+    AssetLocation,
+    DiscoveredAsset,
+)
 from slcli.migration.schema import SCHEMA_VERSION
 
 
@@ -68,7 +73,7 @@ def test_asset_discovery_serializes_compact_asset_metadata() -> None:
 
 
 @pytest.mark.parametrize("decision", ["include", "exclude", "block"])
-def test_asset_decision_accepts_planning_outcomes(decision: str) -> None:
+def test_asset_decision_accepts_planning_outcomes(decision: AssetDecision) -> None:
     """Discovery persists each supported terminal planning outcome."""
     asset = DiscoveredAsset(id="asset-1", workspace="Source", decision=decision)
 
