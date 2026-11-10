@@ -127,8 +127,8 @@ def test_source_discovery_excludes_disabled_workspace(
 
     assert SOURCE_WORKSPACE in discovered.selected
     assert disabled_workspace.name not in discovered.selected
-    assert disabled_workspace.id not in {workspace.id for workspace in discovered.source}
-    assert all(workspace.enabled for workspace in discovered.source)
+    assert disabled_workspace.id not in {workspace.id for workspace in discovered.source.values()}
+    assert all(workspace.enabled for workspace in discovered.source.values())
 
     with pytest.raises(WorkspaceMappingError) as raised:
         discover_workspaces_task.fn(

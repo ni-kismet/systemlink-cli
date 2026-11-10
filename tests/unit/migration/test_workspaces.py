@@ -31,7 +31,7 @@ def test_omitted_selection_discovers_every_source_workspace() -> None:
     """Every source workspace is in scope, ordered by name."""
     discovered = discover_workspaces(SOURCE, None)
 
-    assert [w.name for w in discovered.source] == ["Default", "Lab"]
+    assert [w.name for w in discovered.source.values()] == ["Default", "Lab"]
     assert discovered.selected == ("Default", "Lab")
 
 
@@ -58,7 +58,7 @@ def test_discovery_excludes_disabled_source_workspaces(
         selection,
     )
 
-    assert [workspace.name for workspace in discovered.source] == ["Default", "Lab"]
+    assert [workspace.name for workspace in discovered.source.values()] == ["Default", "Lab"]
     assert discovered.selected == expected_selected
     assert discovered.disabled == ("Disabled",)
 
@@ -91,7 +91,7 @@ def test_discovery_with_only_disabled_sources_is_empty() -> None:
         [Workspace(id="disabled-id", name="Disabled", enabled=False)], None
     )
 
-    assert discovered.source == ()
+    assert discovered.source == {}
     assert discovered.selected == ()
 
 
