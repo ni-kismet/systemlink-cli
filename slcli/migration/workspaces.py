@@ -1,6 +1,6 @@
 """Discover source workspaces and synchronize them to destination workspaces."""
 
-from typing import Callable, Iterable, Mapping, Optional, Sequence, Tuple
+from typing import Callable, Dict, Iterable, Mapping, Optional, Sequence, Tuple
 
 from pydantic import BaseModel, ConfigDict
 
@@ -8,11 +8,11 @@ from slcli.migration.workspace_client import Workspace
 
 
 class DiscoveredWorkspaces(BaseModel):
-    """Every accessible enabled source workspace and the names in scope of a migration."""
+    """Enabled source workspaces by name and the names in scope of a migration."""
 
     model_config = ConfigDict(frozen=True)
 
-    source: Tuple[Workspace, ...] = ()
+    source: Dict[str, Workspace] = {}
     selected: Tuple[str, ...] = ()
     disabled: Tuple[str, ...] = ()
 
@@ -90,6 +90,7 @@ def discover_workspaces(
             key=lambda workspace: workspace.name,
         )
     )
+    by_name = {workspace.name: workspace for workspace in enabled_workspaces}
     enabled_workspace_names = [workspace.name for workspace in enabled_workspaces]
     disabled_workspace_names = tuple(
         workspace.name for workspace in enumerated_source_workspaces if not workspace.enabled
@@ -103,7 +104,7 @@ def discover_workspaces(
     if missing:
         raise WorkspaceMappingError(missing_source=missing)
     return DiscoveredWorkspaces(
-        source=enabled_workspaces,
+        source=by_name,
         selected=tuple(names_to_include),
         disabled=disabled_workspace_names,
     )
@@ -149,7 +150,7 @@ def synchronize_workspaces(
     for missing_name in sorted(needed_names - existing_names):
         destination_workspaces_by_name[missing_name] = create_destination_workspace(missing_name)
 
-    source_ids = {workspace.name: workspace.id for workspace in source_workspaces.source}
+    source_ids = {workspace.name: workspace.id for workspace in source_workspaces.source.values()}
     return WorkspaceMapping(
         workspaces=tuple(
             MappedWorkspace(

@@ -5,6 +5,8 @@ from typing import List, Optional
 from prefect import flow
 from pydantic import ConfigDict
 
+from slcli.migration.files.discovery_task import discover_files_task
+from slcli.migration.files.models import FileDiscovery
 from slcli.migration.schema import VersionedModel
 from slcli.migration.testmonitor.discovery_task import discover_test_monitor_task
 from slcli.migration.testmonitor.models import TestMonitorDiscovery
@@ -18,6 +20,7 @@ class MigrationDiscovery(VersionedModel):
     model_config = ConfigDict(frozen=True)
 
     workspaces: DiscoveredWorkspaces
+    files: FileDiscovery
     test_monitor: TestMonitorDiscovery
 
 
@@ -30,20 +33,21 @@ class MigrationDiscovery(VersionedModel):
 def discover_flow(
     migration_id: str,
     source_profile: str,
-    workspaces: Optional[List[str]],
+    explicit_workspace_selection: Optional[List[str]],
 ) -> MigrationDiscovery:
     """Discover source workspaces, then each supported resource type within them.
 
     Args:
         migration_id: Migration that scopes task cache keys.
         source_profile: Name of the source profile.
-        workspaces: Source workspace names to discover; all workspaces when None.
+        explicit_workspace_selection: Source workspace names to discover; all workspaces when None.
 
     Raises:
         WorkspaceMappingError: If a requested workspace does not exist on the source.
     """
-    discovered = discover_workspaces_task(migration_id, source_profile, workspaces)
+    workspaces = discover_workspaces_task(migration_id, source_profile, explicit_workspace_selection)
     return MigrationDiscovery(
-        workspaces=discovered,
-        test_monitor=discover_test_monitor_task(migration_id, source_profile, discovered),
+        workspaces=workspaces,
+        files = discover_files_task(migration_id, source_profile, workspaces),
+        test_monitor=discover_test_monitor_task(migration_id, source_profile, workspaces),
     )

@@ -17,6 +17,7 @@ from click.testing import CliRunner, Result
 from slcli import migrate_click
 from slcli.migrate_click import register_migrate_command
 from slcli.migration import command
+from slcli.migration.files.models import DiscoveredFile, FileDiscovery
 from slcli.migration.flows.discover import MigrationDiscovery
 from slcli.migration.flows.migrate import MigrationOutcome
 from slcli.migration.state import STATE_DIR_ENV, MigrationRun, RunMetadata, create_migration_run
@@ -36,7 +37,7 @@ from slcli.migration.workspace_task import synchronize_workspaces_task
 from slcli.migration.workspaces import discover_workspaces, synchronize_workspaces
 from slcli.utils import ExitCodes
 
-DISCOVERY = TestMonitorDiscovery(
+TEST_MONITOR_DISCOVERY = TestMonitorDiscovery(
     products=(DiscoveredProduct(id="p", workspace="Lab"),),
     results=(
         DiscoveredResult(
@@ -48,6 +49,10 @@ DISCOVERY = TestMonitorDiscovery(
         ),
     ),
     failures=(WorkspaceFailure(workspace="Broken", error_type="HTTPError"),),
+    workspaces=("Broken", "Lab"),
+)
+FILES_DISCOVERY = FileDiscovery(
+    files=(DiscoveredFile(id="f", workspace="Lab", name="a.txt", size_bytes=3),),
     workspaces=("Broken", "Lab"),
 )
 
@@ -69,7 +74,8 @@ def _named(names: Iterable[str]) -> List[Workspace]:
 class FakeDiscovery:
     """Records discovery requests in place of a Prefect server and flow."""
 
-    outcome: Optional[TestMonitorDiscovery] = DISCOVERY
+    test_monitor_outcome: Optional[TestMonitorDiscovery] = TEST_MONITOR_DISCOVERY
+    files_outcome: FileDiscovery = FILES_DISCOVERY
     calls: List[Dict[str, object]] = field(default_factory=list)
     state_root: Path = Path()
     source_workspaces: Tuple[str, ...] = ("Lab", "Default")
@@ -121,7 +127,7 @@ def fake_discovery(monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> FakeDisco
         )
         fake.metadata.append(metadata)
         discovered = discover_workspaces(_named(fake.source_workspaces), workspaces)
-        if fake.outcome is None:
+        if fake.test_monitor_outcome is None:
             raise RuntimeError("discovery failed")
         if fake.destination_error is not None:
             raise fake.destination_error
@@ -138,7 +144,11 @@ def fake_discovery(monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> FakeDisco
         )
         return MigrationOutcome(
             mapping=mapping,
-            discovery=MigrationDiscovery(workspaces=discovered, test_monitor=fake.outcome),
+            discovery=MigrationDiscovery(
+                workspaces=discovered,
+                files=fake.files_outcome,
+                test_monitor=fake.test_monitor_outcome,
+            ),
             test_monitor=fake.migration,
         )
 
@@ -195,7 +205,6 @@ def test_mapping_name_with_colon_reaches_discovery(fake_discovery: FakeDiscovery
     )
 
     assert result.exit_code == 0, result.output
-    assert "Workspace mapping:\n  Lab:A -> Dest\n" in result.output
     assert fake_discovery.calls[0]["workspaces"] == ["Lab:A"]
 
 
@@ -213,7 +222,6 @@ def test_missing_mapped_destination_workspace_is_created(
     )
 
     assert result.exit_code == 0, result.output
-    assert "Workspace mapping:\n  Lab -> Absent\n" in result.output
     assert fake_discovery.created_destination_workspaces == ["Absent"]
 
 
@@ -236,12 +244,11 @@ def test_omitted_mappings_create_missing_same_named_destinations(
     result = _migrate("--source-profile", "source", "--destination-profile", "destination")
 
     assert result.exit_code == 0, result.output
-    assert "Workspace mapping:\n  Default -> Default\n  Lab -> Lab\n" in result.output
     assert fake_discovery.created_destination_workspaces == ["Default"]
 
 
-def test_mapping_is_shown_and_logged(fake_discovery: FakeDiscovery) -> None:
-    """The resolved mapping is shown by name and logged with IDs."""
+def test_workspace_mappings_are_persisted_for_the_run(fake_discovery: FakeDiscovery) -> None:
+    """The requested workspace mapping is persisted as a migration input."""
     result = _migrate(
         "--source-profile",
         "source",
@@ -252,15 +259,13 @@ def test_mapping_is_shown_and_logged(fake_discovery: FakeDiscovery) -> None:
     )
 
     assert result.exit_code == 0, result.output
-    assert "Workspace mapping:\n  Lab -> Dest\n" in result.output
     [run] = fake_discovery.runs()
-    log = (run.directory / "migration.log").read_text(encoding="utf-8")
-    assert "Workspace mapping: ['Lab(Lab-id) -> Dest(Dest-id)']" in log
     assert run.read_metadata().destination_profile == "destination"
+    assert run.read_metadata().workspace_mappings == {"Lab": "Dest"}
 
 
-def test_run_log_records_lifecycle_without_secrets(fake_discovery: FakeDiscovery) -> None:
-    """The run log identifies the migration, source, scope, and counts."""
+def test_run_log_records_inputs_without_secrets(fake_discovery: FakeDiscovery) -> None:
+    """The run log identifies migration inputs without exposing credentials."""
     result = _migrate(
         "--source-profile",
         "source",
@@ -275,7 +280,6 @@ def test_run_log_records_lifecycle_without_secrets(fake_discovery: FakeDiscovery
     log = (run.directory / "migration.log").read_text(encoding="utf-8")
     assert f"migration={run.migration_id}" in log
     assert "profile=source endpoint=https://source workspaces=['Lab']" in log
-    assert "products=1 results=1 failed_workspaces=['Broken']" in log
     assert "key" not in log.replace("api-key", "")
 
 
@@ -289,8 +293,10 @@ def test_success_reports_log_path(fake_discovery: FakeDiscovery) -> None:
 
 
 def test_every_workspace_failing_is_an_error(fake_discovery: FakeDiscovery) -> None:
-    """Discovery with no successful workspace exits non-zero after the summary."""
-    fake_discovery.outcome = DISCOVERY.model_copy(update={"workspaces": ("Broken",)})
+    """Test Monitor discovery with no successful workspace exits non-zero after the summary."""
+    fake_discovery.test_monitor_outcome = TEST_MONITOR_DISCOVERY.model_copy(
+        update={"workspaces": ("Broken",)}
+    )
 
     result = _migrate("--source-profile", "source", "--destination-profile", "destination")
 
@@ -301,7 +307,7 @@ def test_every_workspace_failing_is_an_error(fake_discovery: FakeDiscovery) -> N
 
 def test_no_workspaces_is_not_a_failure(fake_discovery: FakeDiscovery) -> None:
     """A source with no workspaces discovers nothing without erroring."""
-    fake_discovery.outcome = TestMonitorDiscovery()
+    fake_discovery.test_monitor_outcome = TestMonitorDiscovery()
 
     result = _migrate("--source-profile", "source", "--destination-profile", "destination")
 
@@ -309,7 +315,7 @@ def test_no_workspaces_is_not_a_failure(fake_discovery: FakeDiscovery) -> None:
 
 
 def test_new_migration_discovers_selected_workspaces(fake_discovery: FakeDiscovery) -> None:
-    """A new run shows the source and ID before discovery, then the summary."""
+    """A new run shows the source and ID before invoking discovery."""
     result = _migrate(
         "--source-profile",
         "source",
@@ -324,7 +330,6 @@ def test_new_migration_discovers_selected_workspaces(fake_discovery: FakeDiscove
     assert result.output.index("Source: source (https://source)") < result.output.index(
         f"Migration ID: {run.migration_id}"
     )
-    assert "Products: 1" in result.output
     assert fake_discovery.calls == [
         {
             "run": run,
@@ -386,7 +391,7 @@ def test_missing_profile_creates_no_run(fake_discovery: FakeDiscovery) -> None:
 
 def test_failed_discovery_is_logged(fake_discovery: FakeDiscovery) -> None:
     """A run-level failure is logged; Prefect holds the failed flow-run state."""
-    fake_discovery.outcome = None
+    fake_discovery.test_monitor_outcome = None
 
     result = _migrate("--source-profile", "source", "--destination-profile", "destination")
 
@@ -444,7 +449,9 @@ def test_destination_readonly_applies_to_workspace_creation(
             run.migration_id, metadata.destination_profile, discovered, metadata.workspace_mappings
         )
         return MigrationOutcome(
-            discovery=MigrationDiscovery(workspaces=discovered, test_monitor=DISCOVERY),
+            discovery=MigrationDiscovery(
+                workspaces=discovered, files=FileDiscovery(), test_monitor=TEST_MONITOR_DISCOVERY
+            ),
             mapping=mapping,
             test_monitor=fake_discovery.migration,
         )

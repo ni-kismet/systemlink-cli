@@ -1,7 +1,7 @@
 """Persisted Prefect task for Test Monitor discovery."""
 
 from prefect import task
-from prefect.cache_policies import INPUTS
+from prefect.cache_policies import INPUTS, TASK_SOURCE
 
 from slcli.migration.connection import resolve_migration_connection
 from slcli.migration.testmonitor.client import TestMonitorClient
@@ -15,7 +15,7 @@ from slcli.migration.workspaces import DiscoveredWorkspaces
     persist_result=True,
     result_serializer="json",
     cache_result_in_memory=False,
-    cache_policy=INPUTS,
+    cache_policy=TASK_SOURCE + INPUTS,
 )
 def discover_test_monitor_task(
     migration_id: str,
@@ -30,7 +30,5 @@ def discover_test_monitor_task(
     connection = resolve_migration_connection(source_profile)
     return discover_test_monitor(
         TestMonitorClient(connection),
-        {workspace.name: workspace.id for workspace in workspaces.source},
-        workspaces.selected,
-        workspaces.disabled,
+        workspaces,
     )
