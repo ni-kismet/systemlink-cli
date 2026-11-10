@@ -7,6 +7,7 @@ from pydantic import ValidationError
 
 from slcli.migration.assets.models import (
     AssetDecision,
+    AssetDependencyBlock,
     AssetDiscovery,
     AssetLocation,
     DiscoveredAsset,
@@ -65,7 +66,7 @@ def test_asset_discovery_serializes_compact_asset_metadata() -> None:
                 "keywords": ["production"],
                 "properties": {"Owner": "Engineering"},
                 "destination_workspace": "Target",
-                "block_reason": None,
+                "blocks": [],
                 "exclusion_reason": None,
             }
         ],
@@ -79,6 +80,29 @@ def test_asset_decision_accepts_planning_outcomes(decision: AssetDecision) -> No
     asset = DiscoveredAsset(id="asset-1", workspace="Source", decision=decision)
 
     assert asset.decision == decision
+
+
+def test_asset_dependency_blocks_record_retry_conditions() -> None:
+    """Blocked assets retain every dependency and the condition for retrying."""
+    asset = DiscoveredAsset(
+        id="asset-1",
+        workspace="Source",
+        decision="block",
+        blocks=(
+            AssetDependencyBlock(
+                kind="destination_system",
+                source_id="minion-1",
+                recovery_action="wait_for_destination_system",
+            ),
+            AssetDependencyBlock(
+                kind="destination_file",
+                source_id="file-1",
+                recovery_action="wait_for_destination_file",
+            ),
+        ),
+    )
+
+    assert asset.blocks[1].source_id == "file-1"
 
 
 def test_asset_discovery_rejects_unknown_decision() -> None:

@@ -65,4 +65,6 @@ def test_discovers_assets_with_resolved_workspace_and_destination_systems(
     asset = discovery.assets[0]
     assert (asset.workspace, asset.destination_workspace) == ("Source", "Destination")
     assert asset.decision == "block"
-    assert asset.block_reason == "missing destination files: file-1"
+    assert [(block.kind, block.source_id, block.recovery_action) for block in asset.blocks] == [
+        ("destination_file", "file-1", "wait_for_destination_file"),
+    ]
