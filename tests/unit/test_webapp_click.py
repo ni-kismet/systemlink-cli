@@ -1588,6 +1588,7 @@ def test_webapp_query_uses_explicit_trust_context(
 ) -> None:
     """Both query paths must bypass OS trust when an origin has explicit PEM trust."""
     import requests
+    import urllib3.connection
     import urllib3.util.ssl_ as urllib3_ssl
     from cryptography.hazmat.primitives import serialization
     from slcli import ssl_trust, webapp_click
@@ -1611,25 +1612,30 @@ def test_webapp_query_uses_explicit_trust_context(
         assert url == "https://example.com/niapp/v1/webapps/query?includeTotalCount=true"
         return trusted_path
 
-    class Response:
-        def raise_for_status(self) -> None:
-            pass
-
-        def json(self) -> Dict[str, Any]:
-            return {"webapps": []}
-
-    def post(url: str, **kwargs: Any) -> Response:
+    def send(
+        _adapter: requests.adapters.HTTPAdapter,
+        request: requests.PreparedRequest,
+        **kwargs: Any,
+    ) -> requests.Response:
+        assert (
+            request.url
+            == "https://example.com/niapp/v1/webapps/query?includeTotalCount=true"
+        )
         assert kwargs["verify"] == trusted_path
         assert ssl.SSLContext is ssl_trust._STANDARD_SSL_CONTEXT
-        context_factory = getattr(urllib3_ssl, "SSLContext")
-        assert context_factory is not None
-        context = context_factory(ssl.PROTOCOL_TLS_CLIENT)
+        context = urllib3.connection.create_urllib3_context()
         assert context.verify_flags & ssl.VERIFY_X509_PARTIAL_CHAIN
+        assert not context.verify_flags & getattr(urllib3_ssl, "VERIFY_X509_STRICT", 0)
         assert context.check_hostname
-        return Response()
+        response = requests.Response()
+        response.status_code = 200
+        response._content = b'{"webapps":[]}'
+        response.url = request.url
+        response.request = request
+        return response
 
     monkeypatch.setattr(webapp_click, "active_profile_ssl_verify", get_verify)
-    monkeypatch.setattr(requests, "post", post)
+    monkeypatch.setattr(requests.adapters.HTTPAdapter, "send", send)
     if paged:
         assert webapp_click._fetch_webapps_page("")[0] == []
     else:
