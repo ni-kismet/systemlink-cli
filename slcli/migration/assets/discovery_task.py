@@ -45,7 +45,7 @@ def discover_assets_task(
             },
         ),
         destination_minion_ids,
-        destination_file_ids=(),
+        destination_file_ids_by_source_id={},
         workspace_mappings={
             workspace.source_name: workspace.destination_name
             for workspace in workspace_mapping.workspaces
