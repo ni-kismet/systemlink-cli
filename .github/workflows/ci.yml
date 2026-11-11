@@ -20,7 +20,7 @@ jobs:
         id: setup-python
         uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7
         with:
-          python-version: '3.14'
+          python-version: '3.15'
 
       - name: Install Poetry
         uses: ni/python-actions/setup-poetry@dee640bba235ae28fdc6b7337c643bd06358ae90 # v0.9.0
@@ -100,7 +100,7 @@ jobs:
         id: setup-python
         uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7
         with:
-          python-version: '3.14'
+          python-version: '3.15'
 
       - name: Install Poetry
         uses: ni/python-actions/setup-poetry@dee640bba235ae28fdc6b7337c643bd06358ae90 # v0.9.0
@@ -125,7 +125,7 @@ jobs:
         id: setup-python
         uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7
         with:
-          python-version: '3.14'
+          python-version: '3.15'
 
       - name: Install Poetry
         uses: ni/python-actions/setup-poetry@dee640bba235ae28fdc6b7337c643bd06358ae90 # v0.9.0
@@ -159,7 +159,7 @@ jobs:
         id: setup-python
         uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7
         with:
-          python-version: '3.14'
+          python-version: '3.15'
 
       - name: Install Poetry
         uses: ni/python-actions/setup-poetry@dee640bba235ae28fdc6b7337c643bd06358ae90 # v0.9.0
@@ -226,7 +226,7 @@ jobs:
         id: setup-python
         uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7
         with:
-          python-version: '3.14'
+          python-version: '3.15'
 
       - name: Install Poetry
         if: ${{ steps.sls-config.outputs.enabled == 'true' }}
@@ -318,7 +318,7 @@ jobs:
         if: ${{ steps.migration-config.outputs.enabled == 'true' }}
         uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7
         with:
-          python-version: '3.14'
+          python-version: '3.15'
 
       - name: Install Poetry
         if: ${{ steps.migration-config.outputs.enabled == 'true' }}
@@ -385,7 +385,7 @@ jobs:
 
       - name: Upload Prefect server log
         if: ${{ always() && steps.migration-config.outputs.enabled == 'true' }}
-        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         with:
           name: migration-prefect-server-log
           path: ${{ runner.temp }}/prefect-server.log
@@ -420,7 +420,7 @@ jobs:
         id: setup-python
         uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7
         with:
-          python-version: '3.14'
+          python-version: '3.15'
 
       - name: Install Poetry
         if: ${{ steps.sle-config.outputs.enabled == 'true' }}
