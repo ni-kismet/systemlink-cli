@@ -20,7 +20,6 @@ class FakeResponse:
     def __init__(self, body: Any) -> None:
         """Store the body."""
         self._body = body
-        self.content = b"{}"
 
     def raise_for_status(self) -> None:
         """Succeed."""
@@ -28,19 +27,6 @@ class FakeResponse:
     def json(self) -> Any:
         """Return the body."""
         return self._body
-
-
-class EmptyResponse(FakeResponse):
-    """A successful response with no JSON body."""
-
-    def __init__(self) -> None:
-        """Create an empty response."""
-        super().__init__(None)
-        self.content = b" \n"
-
-    def json(self) -> Any:
-        """Raise the error requests would raise for an empty body."""
-        raise requests.exceptions.JSONDecodeError("Expecting value", "", 0)
 
 
 class FakeSession:
@@ -54,8 +40,7 @@ class FakeSession:
     def post(self, url: str, **kwargs: Any) -> FakeResponse:
         """Record a POST."""
         self.calls.append({"url": url, **kwargs})
-        page = self.pages.pop(0)
-        return page if isinstance(page, FakeResponse) else FakeResponse(page)
+        return FakeResponse(self.pages.pop(0))
 
     def get(self, url: str, **kwargs: Any) -> FakeResponse:
         """Record a GET."""
@@ -151,50 +136,6 @@ def test_query_workspaces_follows_offset_pages() -> None:
     assert len(workspaces) == WORKSPACE_PAGE_SIZE + 1
     assert workspaces[-1].name == "Last"
     assert [call["params"]["skip"] for call in session.calls] == [0, WORKSPACE_PAGE_SIZE]
-
-
-def test_query_workspaces_retries_empty_successful_response() -> None:
-    """A transient empty 200 response is retried once."""
-    session = FakeSession([EmptyResponse(), {"workspaces": [{"id": "id", "name": "Workspace"}]}])
-
-    workspaces = list(WorkspaceClient(CONNECTION, session).query_workspaces())  # type: ignore[arg-type]
-
-    assert [workspace.name for workspace in workspaces] == ["Workspace"]
-    assert len(session.calls) == 2
-    assert [call["params"]["skip"] for call in session.calls] == [0, 0]
-
-
-def test_query_workspaces_fails_after_retrying_empty_response() -> None:
-    """A second empty response is surfaced after one retry."""
-    session = FakeSession([EmptyResponse(), EmptyResponse()])
-
-    with pytest.raises(requests.exceptions.JSONDecodeError):
-        list(WorkspaceClient(CONNECTION, session).query_workspaces())  # type: ignore[arg-type]
-
-    assert len(session.calls) == 2
-
-
-def test_query_workspaces_does_not_retry_nonempty_invalid_json() -> None:
-    """A malformed non-empty response fails without retrying."""
-
-    class InvalidJsonResponse(FakeResponse):
-        """A successful response containing invalid JSON."""
-
-        def __init__(self) -> None:
-            """Create an invalid JSON response."""
-            super().__init__(None)
-            self.content = b"not-json"
-
-        def json(self) -> Any:
-            """Raise the error requests would raise for invalid JSON."""
-            raise requests.exceptions.JSONDecodeError("Expecting value", "not-json", 0)
-
-    session = FakeSession([InvalidJsonResponse()])
-
-    with pytest.raises(requests.exceptions.JSONDecodeError):
-        list(WorkspaceClient(CONNECTION, session).query_workspaces())  # type: ignore[arg-type]
-
-    assert len(session.calls) == 1
 
 
 @pytest.mark.parametrize("verify", [False, True, "managed.pem"])

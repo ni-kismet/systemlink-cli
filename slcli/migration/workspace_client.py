@@ -44,19 +44,7 @@ class WorkspaceClient:
                 timeout=REQUEST_TIMEOUT_SECONDS,
             )
             response.raise_for_status()
-            try:
-                payload = response.json()
-            except requests.exceptions.JSONDecodeError:
-                if response.content.strip():
-                    raise
-                response = self._session.get(
-                    self._url,
-                    params={"take": PAGE_SIZE, "skip": skip},
-                    timeout=REQUEST_TIMEOUT_SECONDS,
-                )
-                response.raise_for_status()
-                payload = response.json()
-            page = _WorkspacePage.model_validate(payload)
+            page = _WorkspacePage.model_validate(response.json())
             yield from page.workspaces
             if len(page.workspaces) < PAGE_SIZE:
                 return
