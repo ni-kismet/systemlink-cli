@@ -35,7 +35,7 @@ class Result(ApiModel):
     workspace: Optional[str] = None
     status: ResultStatus
     updated_at: AwareDatetime
-    properties: Dict[str, str] = {}
+    properties: Dict[str, Optional[str]] = {}
 
 
 class _Page(ApiModel):

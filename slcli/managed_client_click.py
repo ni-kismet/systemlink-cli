@@ -11,7 +11,7 @@ from typing import TYPE_CHECKING, Any, NoReturn, TextIO
 
 import click
 
-from .cli_utils import validate_output_format
+from .cli_utils import validate_confirmation, validate_output_format
 from .utils import ExitCodes
 
 if TYPE_CHECKING:
@@ -304,7 +304,13 @@ def register_managed_client_commands(cli: Any) -> None:
         type=click.Path(file_okay=False, dir_okay=True, path_type=Path),
         help="Directory containing this minion's isolated identity state.",
     )
-    @click.option("--yes", is_flag=True, help="Skip the destructive-operation confirmation.")
+    @click.option(
+        "--yes",
+        "-y",
+        is_flag=True,
+        help="Skip the destructive-operation confirmation.",
+        callback=validate_confirmation,
+    )
     def reset(state_dir: Path, yes: bool) -> None:
         """Remove only the identity files in an isolated state directory."""
         if not yes:

@@ -104,10 +104,8 @@ class TestNotebookE2E:
             assert created_notebook, f"Created notebook '{notebook_name}' not found in list"
             assert created_notebook["id"] == notebook_id
 
-            # Delete notebook (need to confirm with 'y')
-            result = cli_runner(
-                ["notebook", "manage", "delete", "--id", notebook_id], input_data="y\n"
-            )
+            # Delete notebook with explicit consent in the non-interactive E2E runner.
+            result = cli_runner(["notebook", "manage", "delete", "--id", notebook_id, "--yes"])
             cli_helper.assert_success(result, "Notebook deleted")
 
             # Verify notebook is deleted
@@ -213,8 +211,7 @@ class TestNotebookE2E:
             # Cleanup
             Path(download_path).unlink(missing_ok=True)
             cli_runner(
-                ["notebook", "manage", "delete", "--id", notebook_id],
-                input_data="y\n",
+                ["notebook", "manage", "delete", "--id", notebook_id, "--yes"],
                 check=False,
             )
 
@@ -297,8 +294,7 @@ class TestNotebookE2E:
             notebook = cli_helper.find_resource_by_name(notebooks, notebook_name)
             if notebook:
                 cli_runner(
-                    ["notebook", "manage", "delete", "--id", notebook["id"]],
-                    input_data="y\n",
+                    ["notebook", "manage", "delete", "--id", notebook["id"], "--yes"],
                     check=False,
                 )
 
@@ -375,8 +371,7 @@ class TestNotebookE2E:
         if notebook_id:
             # Cleanup
             cli_runner(
-                ["notebook", "manage", "delete", "--id", notebook_id],
-                input_data="y\n",
+                ["notebook", "manage", "delete", "--id", notebook_id, "--yes"],
                 check=False,
             )
 

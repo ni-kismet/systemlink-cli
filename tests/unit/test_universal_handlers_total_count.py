@@ -1,6 +1,10 @@
 from typing import Any
 
+import pytest
+
 from slcli.universal_handlers import FilteredResponse, UniversalResponseHandler
+
+pytestmark = pytest.mark.usefixtures("interactive_environment")
 
 
 def test_handle_list_response_shows_total_count(capsys: Any) -> None:

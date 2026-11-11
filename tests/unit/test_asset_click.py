@@ -18,6 +18,8 @@ from slcli.asset_click import (
     register_asset_commands,
 )
 
+pytestmark = pytest.mark.usefixtures("interactive_environment")
+
 
 def patch_keyring(monkeypatch: Any) -> None:
     """Set environment credentials used by CLI tests."""

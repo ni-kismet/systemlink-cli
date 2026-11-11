@@ -8,7 +8,7 @@ from typing import Any, Dict, Iterable, List, Optional, Tuple
 import click
 import questionary
 
-from .cli_utils import is_interactive_environment, validate_output_format
+from .cli_utils import is_interactive_environment, validate_confirmation, validate_output_format
 from .universal_handlers import FilteredResponse, UniversalResponseHandler
 from .utils import (
     ExitCodes,
@@ -1539,7 +1539,9 @@ def register_testmonitor_commands(cli: Any) -> None:
 
     @product.command(name="delete")
     @click.argument("product_ids", nargs=-1, required=True)
-    @click.option("--yes", "-y", is_flag=True, help="Skip confirmation prompt")
+    @click.option(
+        "--yes", "-y", is_flag=True, help="Skip confirmation prompt", callback=validate_confirmation
+    )
     def delete_products(
         product_ids: Tuple[str, ...],
         yes: bool,

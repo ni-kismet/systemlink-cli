@@ -2,6 +2,49 @@
 
 <!-- towncrier release notes start -->
 
+## v3.1.0 (2026-11-11)
+
+### Features
+
+- Add support for Python 3.15 and run CI on Python 3.15. (python-3-15-support)
+
+### Bug Fixes
+
+- Update GitHub Actions. (deps-renovate-github-actions)
+
+
+## v3.0.2 (2026-11-11)
+
+### Bug Fixes
+
+- Allow migration discovery to read test results containing null property values. (migration-null-result-properties)
+
+### Other Changes
+
+- Configure the SLS E2E server through a repository variable and use the SLCLI-Test workspace. (sls-e2e-server)
+
+
+## v3.0.1 (2026-11-10)
+
+### Other Changes
+
+- Map migration workspaces to existing destination workspaces with \--destination-profile\ (behind the unreleased \migration\ extra). (migration-workspace-mapping)
+
+
+## v3.0.0 (2026-11-09)
+
+### Breaking Changes
+
+- Standardize destructive confirmation on --yes/-y while retaining existing --force aliases. Non-interactive destructive commands now require explicit consent, including comment and example deletion; example --dry-run remains prompt-free. Non-interactive table output now stops after one display page instead of draining client-side pages; use JSON with an explicit --take for automation. Pagination notices go to stderr when output is non-interactive. (cli-confirmation-contract)
+
+
+## v2.5.7 (2026-11-02)
+
+### Bug Fixes
+
+- Keep `slcli info` working when the optional service probe cache cannot be saved. (#263)
+
+
 ## v2.5.6 (2026-10-29)
 
 ### Bug Fixes

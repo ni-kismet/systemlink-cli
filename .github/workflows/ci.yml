@@ -20,7 +20,7 @@ jobs:
         id: setup-python
         uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7
         with:
-          python-version: '3.14'
+          python-version: '3.15'
 
       - name: Install Poetry
         uses: ni/python-actions/setup-poetry@dee640bba235ae28fdc6b7337c643bd06358ae90 # v0.9.0
@@ -100,7 +100,7 @@ jobs:
         id: setup-python
         uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7
         with:
-          python-version: '3.14'
+          python-version: '3.15'
 
       - name: Install Poetry
         uses: ni/python-actions/setup-poetry@dee640bba235ae28fdc6b7337c643bd06358ae90 # v0.9.0
@@ -125,7 +125,7 @@ jobs:
         id: setup-python
         uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7
         with:
-          python-version: '3.14'
+          python-version: '3.15'
 
       - name: Install Poetry
         uses: ni/python-actions/setup-poetry@dee640bba235ae28fdc6b7337c643bd06358ae90 # v0.9.0
@@ -159,7 +159,7 @@ jobs:
         id: setup-python
         uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7
         with:
-          python-version: '3.14'
+          python-version: '3.15'
 
       - name: Install Poetry
         uses: ni/python-actions/setup-poetry@dee640bba235ae28fdc6b7337c643bd06358ae90 # v0.9.0
@@ -199,7 +199,7 @@ jobs:
     needs: build-test-lint
     timeout-minutes: 45
     env:
-      SLCLI_E2E_SLS_BASE_URL: https://base.systemlink.io
+      SLCLI_E2E_SLS_BASE_URL: ${{ vars.SLCLI_E2E_SLS_BASE_URL }}
     steps:
       - name: Check SLS E2E configuration
         id: sls-config
@@ -207,6 +207,10 @@ jobs:
           SLCLI_E2E_SLS_API_KEY: ${{ secrets.SLCLI_E2E_SLS_API_KEY }}
         run: |
           if [ -n "$SLCLI_E2E_SLS_API_KEY" ]; then
+            if [ -z "$SLCLI_E2E_SLS_BASE_URL" ]; then
+              echo "::error::Set the SLCLI_E2E_SLS_BASE_URL repository variable."
+              exit 1
+            fi
             echo "enabled=true" >> "$GITHUB_OUTPUT"
           else
             echo "enabled=false" >> "$GITHUB_OUTPUT"
@@ -222,7 +226,7 @@ jobs:
         id: setup-python
         uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7
         with:
-          python-version: '3.14'
+          python-version: '3.15'
 
       - name: Install Poetry
         if: ${{ steps.sls-config.outputs.enabled == 'true' }}
@@ -252,7 +256,7 @@ jobs:
               "sls": {
                   "base_url": os.environ["SLCLI_E2E_SLS_BASE_URL"],
                   "api_key": os.environ["SLCLI_E2E_SLS_API_KEY"],
-                  "workspace": os.environ.get("SLCLI_E2E_SLS_WORKSPACE") or "Default",
+                  "workspace": os.environ.get("SLCLI_E2E_SLS_WORKSPACE") or "SLCLI-Test",
                   "platform": "SLS",
               },
               "timeout": int(os.environ.get("SLCLI_E2E_TIMEOUT") or "60"),
@@ -283,8 +287,10 @@ jobs:
       group: e2e-migration-sls
       cancel-in-progress: false
     env:
-      SLCLI_E2E_SLS_BASE_URL: https://base.systemlink.io
+      SLCLI_E2E_SLS_BASE_URL: ${{ vars.SLCLI_E2E_SLS_BASE_URL }}
       SLCLI_E2E_SOURCE_PROFILE: migration-source
+      SLCLI_E2E_SLE_BASE_URL: https://test-api.lifecyclesolutions.ni.com
+      SLCLI_E2E_SLE_WEB_URL: https://test.lifecyclesolutions.ni.com
       SLCLI_TEST_PREFECT_API_URL: http://127.0.0.1:4200/api
     steps:
       - name: Check migration E2E configuration
@@ -293,6 +299,10 @@ jobs:
           SLCLI_E2E_SLS_API_KEY: ${{ secrets.SLCLI_E2E_SLS_API_KEY }}
         run: |
           if [ -n "$SLCLI_E2E_SLS_API_KEY" ]; then
+            if [ -z "$SLCLI_E2E_SLS_BASE_URL" ]; then
+              echo "::error::Set the SLCLI_E2E_SLS_BASE_URL repository variable."
+              exit 1
+            fi
             echo "enabled=true" >> "$GITHUB_OUTPUT"
           else
             echo "enabled=false" >> "$GITHUB_OUTPUT"
@@ -308,7 +318,7 @@ jobs:
         if: ${{ steps.migration-config.outputs.enabled == 'true' }}
         uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7
         with:
-          python-version: '3.14'
+          python-version: '3.15'
 
       - name: Install Poetry
         if: ${{ steps.migration-config.outputs.enabled == 'true' }}
@@ -344,6 +354,22 @@ jobs:
           --api-key "$SLCLI_E2E_SLS_API_KEY"
           --no-set-current
 
+      # Destination tests skip unless the SLE key is configured.
+      - name: Configure migration destination profile
+        if: ${{ steps.migration-config.outputs.enabled == 'true' }}
+        env:
+          SLCLI_E2E_SLE_API_KEY: ${{ secrets.SLCLI_E2E_SLE_API_KEY }}
+        run: |
+          if [ -n "$SLCLI_E2E_SLE_API_KEY" ]; then
+            echo "" | poetry run slcli config add \
+              --profile migration-destination \
+              --url "$SLCLI_E2E_SLE_BASE_URL" \
+              --web-url "$SLCLI_E2E_SLE_WEB_URL" \
+              --api-key "$SLCLI_E2E_SLE_API_KEY" \
+              --no-set-current
+            echo "SLCLI_E2E_DESTINATION_PROFILE=migration-destination" >> "$GITHUB_ENV"
+          fi
+
       - name: Wait for Prefect server
         if: ${{ steps.migration-config.outputs.enabled == 'true' }}
         run: |
@@ -359,7 +385,7 @@ jobs:
 
       - name: Upload Prefect server log
         if: ${{ always() && steps.migration-config.outputs.enabled == 'true' }}
-        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         with:
           name: migration-prefect-server-log
           path: ${{ runner.temp }}/prefect-server.log
@@ -394,7 +420,7 @@ jobs:
         id: setup-python
         uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7
         with:
-          python-version: '3.14'
+          python-version: '3.15'
 
       - name: Install Poetry
         if: ${{ steps.sle-config.outputs.enabled == 'true' }}

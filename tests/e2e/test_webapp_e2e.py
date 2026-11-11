@@ -54,7 +54,7 @@ def _find_published_webapp(
 
 @pytest.mark.e2e
 def test_webapp_publish_and_list(
-    cli_runner: Any, cli_helper: Any, e2e_config: Dict[str, Any]
+    cli_runner: Any, cli_helper: Any, configured_workspace: str
 ) -> None:
     """Publish a small webapp, verify it appears in list, then clean up."""
     unique = uuid.uuid4().hex[:8]
@@ -70,7 +70,7 @@ def test_webapp_publish_and_list(
             (site / "index.html").write_text("<html><body>e2e</body></html>")
 
             # Publish the folder (CLI will pack it)
-            workspace = e2e_config.get("workspace", "Default")
+            workspace = configured_workspace
             result = cli_runner(
                 ["webapp", "publish", str(site), "--name", webapp_name, "--workspace", workspace]
             )

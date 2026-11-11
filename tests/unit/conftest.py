@@ -7,6 +7,7 @@ Also patches network utilities to prevent real HTTP calls during tests.
 """
 
 import os
+import sys
 from typing import Any, Callable, Dict, Optional
 
 import keyring
@@ -17,6 +18,19 @@ from keyring.backends.null import Keyring as NullKeyring
 # triggers a real keyring call. This is critical for macOS CI where
 # the default macOS Keychain backend blocks on a locked keychain.
 keyring.set_keyring(NullKeyring())
+
+
+@pytest.fixture
+def interactive_environment(monkeypatch: pytest.MonkeyPatch) -> None:
+    """Mock a terminal for tests that exercise interactive CLI prompts."""
+    from slcli.cli_utils import is_interactive_environment
+
+    def is_interactive() -> bool:
+        return True
+
+    for module in tuple(sys.modules.values()):
+        if getattr(module, "is_interactive_environment", None) is is_interactive_environment:
+            monkeypatch.setattr(module, "is_interactive_environment", is_interactive)
 
 
 @pytest.fixture(autouse=True)

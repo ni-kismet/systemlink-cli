@@ -35,7 +35,7 @@ def test_missing_migration_extra_is_actionable(package: str) -> None:
         f"import sys; sys.modules[{package!r}] = None\n"
         "from click.testing import CliRunner\n"
         "from slcli.main import cli\n"
-        "result = CliRunner().invoke(cli, ['migrate', '--source-profile', 'source'])\n"
+        "result = CliRunner().invoke(cli, ['migrate', '--source-profile', 'source', '--destination-profile', 'dest'])\n"
         "print(result.output)\n"
         "sys.exit(result.exit_code)"
     )
