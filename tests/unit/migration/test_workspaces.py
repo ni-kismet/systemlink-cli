@@ -60,6 +60,18 @@ def test_discovery_excludes_disabled_source_workspaces(
 
     assert [workspace.name for workspace in discovered.source] == ["Default", "Lab"]
     assert discovered.selected == expected_selected
+    assert discovered.disabled == ("Disabled",)
+
+
+def test_disabled_source_names_are_reported_with_explicit_selection() -> None:
+    """Disabled names are reported even when the selection excludes them."""
+    discovered = discover_workspaces(
+        iter([*SOURCE, Workspace(id="disabled-id", name="Disabled", enabled=False)]),
+        ["Default"],
+    )
+
+    assert discovered.selected == ("Default",)
+    assert discovered.disabled == ("Disabled",)
 
 
 def test_explicit_selection_rejects_disabled_source_workspace() -> None:

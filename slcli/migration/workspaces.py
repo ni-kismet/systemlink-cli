@@ -14,6 +14,7 @@ class DiscoveredWorkspaces(BaseModel):
 
     source: Tuple[Workspace, ...] = ()
     selected: Tuple[str, ...] = ()
+    disabled: Tuple[str, ...] = ()
 
 
 class MappedWorkspace(BaseModel):
@@ -70,22 +71,30 @@ def discover_workspaces(
     Raises:
         WorkspaceMappingError: If a requested source workspace is missing or disabled.
     """
-    all_workspaces = tuple(
+    all_source_workspaces = tuple(workspace_iterable)
+    enabled_workspaces = tuple(
         sorted(
-            (workspace for workspace in workspace_iterable if workspace.enabled),
+            (workspace for workspace in all_source_workspaces if workspace.enabled),
             key=lambda workspace: workspace.name,
         )
     )
-    all_workspace_names = [workspace.name for workspace in all_workspaces]
+    enabled_workspace_names = [workspace.name for workspace in enabled_workspaces]
+    disabled_workspace_names = tuple(
+        workspace.name for workspace in all_source_workspaces if not workspace.enabled
+    )
     names_to_include = (
         sorted(workspaces_names_subset)
         if workspaces_names_subset is not None
-        else all_workspace_names
+        else enabled_workspace_names
     )
-    missing = sorted(set(names_to_include).difference(all_workspace_names))
+    missing = sorted(set(names_to_include).difference(enabled_workspace_names))
     if missing:
         raise WorkspaceMappingError(missing_source=missing)
-    return DiscoveredWorkspaces(source=all_workspaces, selected=tuple(names_to_include))
+    return DiscoveredWorkspaces(
+        source=enabled_workspaces,
+        selected=tuple(names_to_include),
+        disabled=disabled_workspace_names,
+    )
 
 
 def synchronize_workspaces(

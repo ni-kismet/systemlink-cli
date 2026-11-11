@@ -78,7 +78,7 @@ def test_product_belongs_to_workspace_of_newest_result() -> None:
         },
     )
 
-    discovery = discover_test_monitor(source, _workspaces("Alpha", "Beta"))
+    discovery = discover_test_monitor(source, _workspaces("Alpha", "Beta"), ["Alpha", "Beta"], [])
 
     assert _product_workspaces(discovery) == {"product-p": "Beta"}
     assert [(r.id, r.workspace, r.product_id) for r in discovery.results] == [
@@ -97,7 +97,7 @@ def test_newest_result_compares_instants_across_offsets() -> None:
         },
     )
 
-    discovery = discover_test_monitor(source, _workspaces("Alpha", "Beta"))
+    discovery = discover_test_monitor(source, _workspaces("Alpha", "Beta"), ["Alpha", "Beta"], [])
 
     assert _product_workspaces(discovery) == {"product-p": "Beta"}
 
@@ -111,7 +111,7 @@ def test_only_api_terminal_states_are_discovered() -> None:
         {"Alpha-id": [_result(state, "p", status=state) for state in states]},
     )
 
-    discovery = discover_test_monitor(source, _workspaces("Alpha"))
+    discovery = discover_test_monitor(source, _workspaces("Alpha"), ["Alpha"], [])
 
     assert {result.id for result in discovery.results} == set(states[:8])
 
@@ -122,25 +122,10 @@ def test_non_terminal_results_still_assign_product_workspace() -> None:
         [_product("p")], {"Alpha-id": [_result("running", "p", status="RUNNING")]}
     )
 
-    discovery = discover_test_monitor(source, _workspaces("Alpha"))
+    discovery = discover_test_monitor(source, _workspaces("Alpha"), ["Alpha"], [])
 
     assert discovery.results == ()
     assert _product_workspaces(discovery) == {"product-p": "Alpha"}
-
-
-def test_omitted_selection_discovers_all_workspaces() -> None:
-    """Without mappings, every workspace including Default is in scope."""
-    source = FakeTestMonitor(
-        [_product("p"), _product("orphan")],
-        {"Alpha-id": [_result("r", "p")], "Default-id": []},
-    )
-
-    discovery = discover_test_monitor(source, _workspaces("Alpha", DEFAULT_WORKSPACE))
-
-    assert _product_workspaces(discovery) == {
-        "product-p": "Alpha",
-        "product-orphan": DEFAULT_WORKSPACE,
-    }
 
 
 def test_no_result_products_require_all_workspaces() -> None:
@@ -148,8 +133,8 @@ def test_no_result_products_require_all_workspaces() -> None:
     source = FakeTestMonitor([_product("orphan")], {"Alpha-id": [], "Default-id": []})
     workspaces = _workspaces("Alpha", DEFAULT_WORKSPACE)
 
-    mapped_default = discover_test_monitor(source, workspaces, [DEFAULT_WORKSPACE])
-    all_workspaces = discover_test_monitor(source, workspaces)
+    mapped_default = discover_test_monitor(source, workspaces, [DEFAULT_WORKSPACE], [])
+    all_workspaces = discover_test_monitor(source, workspaces, ["Alpha", DEFAULT_WORKSPACE], [])
 
     assert mapped_default.products == ()
     assert _product_workspaces(all_workspaces) == {"product-orphan": DEFAULT_WORKSPACE}
@@ -160,7 +145,7 @@ def test_no_result_products_follow_all_workspaces_when_selected_explicitly() -> 
     source = FakeTestMonitor([_product("orphan")], {"Alpha-id": [], "Default-id": []})
 
     discovery = discover_test_monitor(
-        source, _workspaces("Alpha", DEFAULT_WORKSPACE), ["Alpha", DEFAULT_WORKSPACE]
+        source, _workspaces("Alpha", DEFAULT_WORKSPACE), ["Alpha", DEFAULT_WORKSPACE], []
     )
 
     assert _product_workspaces(discovery) == {"product-orphan": DEFAULT_WORKSPACE}
@@ -170,7 +155,7 @@ def test_no_result_products_require_a_default_workspace() -> None:
     """Products are never placed in a Default workspace that is not in scope."""
     source = FakeTestMonitor([_product("orphan")], {"Alpha-id": []})
 
-    discovery = discover_test_monitor(source, _workspaces("Alpha"))
+    discovery = discover_test_monitor(source, _workspaces("Alpha"), ["Alpha"], [])
 
     assert discovery.products == ()
 
@@ -182,11 +167,45 @@ def test_selection_excludes_products_owned_by_unselected_workspace() -> None:
         {"Lab-id": [_result("r1", "inside")], "Other-id": [_result("r2", "outside")]},
     )
 
-    discovery = discover_test_monitor(source, _workspaces("Lab", "Other"), ["Lab"])
+    discovery = discover_test_monitor(source, _workspaces("Lab", "Other"), ["Lab"], [])
 
     assert _product_workspaces(discovery) == {"product-inside": "Lab"}
     assert [result.id for result in discovery.results] == ["r1"]
     assert discovery.workspaces == ("Lab",)
+
+
+def test_selection_excludes_products_with_results_only_in_disabled_workspace() -> None:
+    """Default-only mapping with disabled Lab: a Lab-only product is not migrated to Default.
+
+    Lab is never scanned, so the scan is incomplete and the no-results fallback is off.
+    """
+    source = FakeTestMonitor(
+        [_product("lab-only")],
+        {"Default-id": [], "Lab-id": RuntimeError("disabled workspace must not be queried")},
+    )
+
+    discovery = discover_test_monitor(
+        source, _workspaces(DEFAULT_WORKSPACE), [DEFAULT_WORKSPACE], ["Lab"]
+    )
+
+    assert discovery.products == ()
+    assert discovery.results == ()
+    assert discovery.failures == ()
+
+
+def test_disabled_workspace_still_allows_products_with_enabled_results() -> None:
+    """Products with results in the selected enabled workspace keep their ownership."""
+    source = FakeTestMonitor(
+        [_product("p")],
+        {"Default-id": [_result("r1", "p")], "Lab-id": RuntimeError("must not be queried")},
+    )
+
+    discovery = discover_test_monitor(
+        source, _workspaces(DEFAULT_WORKSPACE), [DEFAULT_WORKSPACE], ["Lab"]
+    )
+
+    assert _product_workspaces(discovery) == {"product-p": DEFAULT_WORKSPACE}
+    assert [result.id for result in discovery.results] == ["r1"]
 
 
 def test_ownership_is_inferred_only_from_selected_workspaces() -> None:
@@ -199,7 +218,7 @@ def test_ownership_is_inferred_only_from_selected_workspaces() -> None:
         },
     )
 
-    discovery = discover_test_monitor(source, _workspaces("Lab", "Other"), ["Lab"])
+    discovery = discover_test_monitor(source, _workspaces("Lab", "Other"), ["Lab"], [])
 
     assert _product_workspaces(discovery) == {"product-p": "Lab"}
     assert discovery.failures == ()
@@ -213,7 +232,9 @@ def test_workspace_failure_preserves_partial_results(caplog: pytest.LogCaptureFi
     )
 
     with caplog.at_level(logging.WARNING):
-        discovery = discover_test_monitor(source, _workspaces("Broken", "Working"))
+        discovery = discover_test_monitor(
+            source, _workspaces("Broken", "Working"), ["Broken", "Working"], []
+        )
 
     assert [result.id for result in discovery.results] == ["r"]
     assert [(f.workspace, f.error_type) for f in discovery.failures] == [("Broken", "RuntimeError")]
@@ -233,7 +254,7 @@ def test_failed_workspace_contributes_no_partial_pages() -> None:
         ) -> Iterable[Result]:
             return failing_pages()
 
-    discovery = discover_test_monitor(PartiallyFailing([], {}), _workspaces("Alpha"))
+    discovery = discover_test_monitor(PartiallyFailing([], {}), _workspaces("Alpha"), ["Alpha"], [])
 
     assert discovery.results == ()
     assert [f.workspace for f in discovery.failures] == ["Alpha"]
@@ -249,7 +270,9 @@ def test_failure_skips_products_with_no_results() -> None:
         [_product("p")], {"Default-id": [], "Broken-id": RuntimeError("unavailable")}
     )
 
-    discovery = discover_test_monitor(source, _workspaces(DEFAULT_WORKSPACE, "Broken"))
+    discovery = discover_test_monitor(
+        source, _workspaces(DEFAULT_WORKSPACE, "Broken"), [DEFAULT_WORKSPACE, "Broken"], []
+    )
 
     assert discovery.products == ()
 
@@ -257,7 +280,7 @@ def test_failure_skips_products_with_no_results() -> None:
 def test_rejects_unknown_selected_workspace() -> None:
     """Selected names must be existing source workspaces."""
     with pytest.raises(ValueError, match="Unknown selected workspace: Missing"):
-        discover_test_monitor(FakeTestMonitor([], {}), _workspaces("Alpha"), ["Missing"])
+        discover_test_monitor(FakeTestMonitor([], {}), _workspaces("Alpha"), ["Missing"], [])
 
 
 @pytest.mark.parametrize(

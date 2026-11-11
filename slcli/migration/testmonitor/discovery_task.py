@@ -32,4 +32,5 @@ def discover_test_monitor_task(
         TestMonitorClient(connection),
         {workspace.name: workspace.id for workspace in workspaces.source},
         workspaces.selected,
+        workspaces.disabled,
     )

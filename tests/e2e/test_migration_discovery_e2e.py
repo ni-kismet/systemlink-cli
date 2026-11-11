@@ -211,9 +211,11 @@ def test_workspace_failure_preserves_other_workspaces(seeded: Seeded) -> None:
     discovery policy directly with live queries.
     """
     client = _FailingWorkspace(TestMonitorClient(seeded.connection), seeded.workspace_ids[OTHER])
-    workspaces = {w.name: w.id for w in WorkspaceClient(seeded.connection).query_workspaces()}
+    all_workspaces = WorkspaceClient(seeded.connection).query_workspaces()
+    enabled = {w.name: w.id for w in all_workspaces if w.enabled}
+    disabled = [w.name for w in all_workspaces if not w.enabled]
 
-    discovery = discover_test_monitor(client, workspaces)
+    discovery = discover_test_monitor(client, enabled, list(enabled), disabled)
 
     assert [(f.workspace, f.error_type) for f in discovery.failures] == [(OTHER, "ConnectionError")]
     assert _results(discovery, PRIMARY) == seeded.primary_results
