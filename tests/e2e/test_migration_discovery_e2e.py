@@ -143,7 +143,8 @@ def test_all_workspaces(seeded: Seeded, test_prefect_server: str, tmp_path: Path
         seeded.states_product: PRIMARY,
         seeded.spanning_product: OTHER,
     }
-    assert _products(discovery, {DEFAULT_WORKSPACE})[seeded.orphan_product] == DEFAULT_WORKSPACE
+    # Because there are disabled workspaces, orphan product not included in default workspace
+    assert seeded.orphan_product not in _products(discovery, {DEFAULT_WORKSPACE})
 
 
 def test_mapped_workspace(seeded: Seeded, test_prefect_server: str, tmp_path: Path) -> None:
