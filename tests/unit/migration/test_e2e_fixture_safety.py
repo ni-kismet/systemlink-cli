@@ -68,7 +68,7 @@ def _result(result_id: str, owned: bool = True) -> Result:
         id=result_id,
         status=ResultStatus(status_type="PASSED"),
         updated_at="2026-01-01T00:00:00Z",  # type: ignore[arg-type]
-        properties=OWNED if owned else {},
+        properties={**OWNED} if owned else {},
     )
 
 

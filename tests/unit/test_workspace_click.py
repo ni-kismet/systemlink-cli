@@ -11,6 +11,8 @@ from click.testing import CliRunner
 
 from slcli.workspace_click import register_workspace_commands
 
+pytestmark = pytest.mark.usefixtures("interactive_environment")
+
 
 @pytest.mark.parametrize("name", ["R&D", "a+b #1", "Lab/\u6e2c\u8a66"])
 def test_workspace_filter_is_url_encoded(monkeypatch: Any, name: str) -> None:

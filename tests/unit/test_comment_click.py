@@ -10,6 +10,8 @@ from click.testing import CliRunner
 
 from slcli.comment_click import register_comment_commands
 
+pytestmark = pytest.mark.usefixtures("interactive_environment")
+
 
 def make_cli() -> click.Group:
     """Create a test CLI group with comment commands registered."""
@@ -615,6 +617,24 @@ class TestCommentUpdate:
 class TestCommentDelete:
     """Tests for `slcli comment delete`."""
 
+    def test_delete_requires_noninteractive_consent(self, monkeypatch: Any) -> None:
+        """Automation cannot silently delete comments without explicit consent."""
+        monkeypatch.setattr("slcli.cli_utils.is_interactive_environment", lambda: False)
+        with patch("slcli.comment_click.make_api_request") as request:
+            result = CliRunner().invoke(make_cli(), ["comment", "delete", "one", "two"])
+        assert result.exit_code == 2
+        assert "pass --yes" in result.stderr
+        request.assert_not_called()
+
+    def test_delete_declined_does_not_mutate(self) -> None:
+        """Declining an interactive bulk deletion leaves comments unchanged."""
+        with patch("slcli.comment_click.make_api_request") as request:
+            result = CliRunner().invoke(
+                make_cli(), ["comment", "delete", "one", "two"], input="n\n"
+            )
+        assert result.exit_code == 0
+        request.assert_not_called()
+
     def test_delete_single_success(self, monkeypatch: Any) -> None:
         """Delete a single comment with a 204 response."""
         with patch("slcli.comment_click.make_api_request") as mock_req:
@@ -623,7 +643,7 @@ class TestCommentDelete:
             runner = CliRunner()
             result = runner.invoke(
                 make_cli(),
-                ["comment", "delete", "aaa111bbb222ccc333ddd444"],
+                ["comment", "delete", "--yes", "aaa111bbb222ccc333ddd444"],
             )
 
         assert result.exit_code == 0
@@ -640,6 +660,7 @@ class TestCommentDelete:
                 [
                     "comment",
                     "delete",
+                    "--yes",
                     "aaa111bbb222ccc333ddd444",
                     "bbb222ccc333ddd444eee555",
                 ],
@@ -665,6 +686,7 @@ class TestCommentDelete:
                 [
                     "comment",
                     "delete",
+                    "--yes",
                     "aaa111bbb222ccc333ddd444",
                     "bbb222ccc333ddd444eee555",
                 ],
@@ -690,7 +712,7 @@ class TestCommentDelete:
             runner = CliRunner()
             result = runner.invoke(
                 make_cli(),
-                ["comment", "delete", "some-id"],
+                ["comment", "delete", "--yes", "some-id"],
             )
 
         assert result.exit_code != 0

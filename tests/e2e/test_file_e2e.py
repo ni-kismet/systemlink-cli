@@ -107,7 +107,8 @@ class TestFileE2E:
         cli_helper.assert_success(result)
         workspaces = cli_helper.get_json_output(result)
         target_ws = cli_helper.find_resource_by_name(workspaces, workspace)
-        workspace_id = target_ws["id"] if target_ws else None
+        assert target_ws and target_ws.get("id"), f"Workspace '{workspace}' has no ID"
+        workspace_id = target_ws["id"]
 
         file_id = None
         try:
@@ -119,8 +120,7 @@ class TestFileE2E:
                 "--name",
                 unique_name,
             ]
-            if workspace_id:
-                upload_args.extend(["--workspace", workspace_id])
+            upload_args.extend(["--workspace", workspace_id])
 
             result = cli_runner(upload_args)
             cli_helper.assert_success(result)
@@ -179,7 +179,7 @@ class TestFileE2E:
         cli_runner: Any,
         cli_helper: Any,
         temp_test_file: Path,
-        e2e_config: Any,
+        configured_workspace: str,
     ) -> None:
         """Test file upload with custom properties."""
         unique_name = f"e2e-props-{uuid.uuid4().hex[:8]}.txt"
@@ -195,6 +195,8 @@ class TestFileE2E:
                     str(temp_test_file),
                     "--name",
                     unique_name,
+                    "--workspace",
+                    configured_workspace,
                     "--properties",
                     properties,
                 ]
@@ -226,7 +228,9 @@ class TestFileE2E:
                     # Ignore errors during test cleanup; file may already be deleted.
                     pass
 
-    def test_file_query(self, cli_runner: Any, cli_helper: Any, temp_test_file: Path) -> None:
+    def test_file_query(
+        self, cli_runner: Any, cli_helper: Any, temp_test_file: Path, configured_workspace: str
+    ) -> None:
         """Test file query with search filter."""
         unique_prefix = f"e2e-query-{uuid.uuid4().hex[:8]}"
         unique_name = f"{unique_prefix}.txt"
@@ -241,6 +245,8 @@ class TestFileE2E:
                     str(temp_test_file),
                     "--name",
                     unique_name,
+                    "--workspace",
+                    configured_workspace,
                 ]
             )
             cli_helper.assert_success(result)
@@ -281,7 +287,7 @@ class TestFileE2E:
                     pass
 
     def test_file_update_metadata(
-        self, cli_runner: Any, cli_helper: Any, temp_test_file: Path
+        self, cli_runner: Any, cli_helper: Any, temp_test_file: Path, configured_workspace: str
     ) -> None:
         """Test updating file metadata."""
         original_name = f"e2e-meta-{uuid.uuid4().hex[:8]}.txt"
@@ -297,6 +303,8 @@ class TestFileE2E:
                     str(temp_test_file),
                     "--name",
                     original_name,
+                    "--workspace",
+                    configured_workspace,
                 ]
             )
             cli_helper.assert_success(result)
@@ -364,7 +372,7 @@ class TestFileE2E:
         cli_helper.assert_failure(result)
 
     def test_file_update_metadata_no_updates_error(
-        self, cli_runner: Any, cli_helper: Any, temp_test_file: Path
+        self, cli_runner: Any, cli_helper: Any, temp_test_file: Path, configured_workspace: str
     ) -> None:
         """Test update-metadata fails when no updates specified."""
         unique_name = f"e2e-noupdate-{uuid.uuid4().hex[:8]}.txt"
@@ -372,7 +380,17 @@ class TestFileE2E:
         file_id = None
         try:
             # Upload file
-            result = cli_runner(["file", "upload", str(temp_test_file), "--name", unique_name])
+            result = cli_runner(
+                [
+                    "file",
+                    "upload",
+                    str(temp_test_file),
+                    "--name",
+                    unique_name,
+                    "--workspace",
+                    configured_workspace,
+                ]
+            )
             cli_helper.assert_success(result)
 
             # Extract file ID
@@ -403,6 +421,7 @@ class TestFileE2E:
         cli_helper: Any,
         temp_test_file: Path,
         temp_download_dir: Path,
+        configured_workspace: str,
     ) -> None:
         """Test downloading file with force overwrite."""
         unique_name = f"e2e-overwrite-{uuid.uuid4().hex[:8]}.txt"
@@ -410,7 +429,17 @@ class TestFileE2E:
         file_id = None
         try:
             # Upload file
-            result = cli_runner(["file", "upload", str(temp_test_file), "--name", unique_name])
+            result = cli_runner(
+                [
+                    "file",
+                    "upload",
+                    str(temp_test_file),
+                    "--name",
+                    unique_name,
+                    "--workspace",
+                    configured_workspace,
+                ]
+            )
             cli_helper.assert_success(result)
 
             # Extract file ID
