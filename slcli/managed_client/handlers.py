@@ -8,7 +8,13 @@ from typing import Any, Callable, Dict, Mapping, Optional, Tuple
 
 from .models import ManagedClientError
 from .state import ASSET_IDENTIFICATION_FIELDS, StateStore
-from .software import CatalogPackage, SoftwareResolutionError, load_feed_packages, solve_package_install
+from .system_packages import INFO_ATTRIBUTES, PackageBackend, PackageBackendError
+from .software import (
+    CatalogPackage,
+    SoftwareResolutionError,
+    load_feed_packages,
+    solve_package_install,
+)
 
 FixtureHandler = Callable[["FixtureJob"], "HandlerResult"]
 MOCK_SYSTEM_GRAINS: Mapping[str, str] = {
@@ -127,12 +133,22 @@ class FixtureHandlerRegistry:
         state_store: StateStore | None = None,
         boot_time: str | None = None,
         extra_grains: Mapping[str, Any] | None = None,
-        catalog_loader: Callable[[Mapping[str, Mapping[str, Any]]], list[CatalogPackage]] = load_feed_packages,
+        catalog_loader: Callable[
+            [Mapping[str, Mapping[str, Any]]], list[CatalogPackage]
+        ] = load_feed_packages,
+        system_grains: Mapping[str, Any] | None = None,
+        package_backend: PackageBackend | None = None,
     ) -> None:
-        """Create a registry with the built-in deterministic handlers."""
+        """Create a registry with the built-in deterministic handlers.
+
+        A package backend switches software jobs from isolated mock state to the host's
+        real package manager.
+        """
         self._state_store = state_store
+        self._package_backend = package_backend
         self._boot_time = boot_time
         self._extra_grains = dict(extra_grains or {})
+        self._system_grains = dict(MOCK_SYSTEM_GRAINS if system_grains is None else system_grains)
         self._catalog_loader = catalog_loader
         self._handlers: Dict[str, FixtureHandler] = {
             self.RETURN_SUCCESS: self._return_success,
@@ -326,10 +342,19 @@ class FixtureHandlerRegistry:
         return HandlerResult(True, 0, True)
 
     @staticmethod
-    def _reboot_required(job: FixtureJob) -> HandlerResult:
-        """Report that mock software changes never require a host reboot."""
+    def _backend_failure(error: PackageBackendError) -> HandlerResult:
+        """Convert a host package-manager failure into a Salt-style error result."""
+        return HandlerResult(False, 2, value={"message": error.message}, error=error.code)
+
+    def _reboot_required(self, job: FixtureJob) -> HandlerResult:
+        """Report whether the host needs a reboot, or the mock state never does."""
         if job.args or job.kwargs:
             return HandlerResult(False, 2, error="reboot-required-takes-no-arguments")
+        if self._package_backend is not None:
+            try:
+                return HandlerResult(True, 0, self._package_backend.reboot_required())
+            except PackageBackendError as error:
+                return self._backend_failure(error)
         return HandlerResult(True, 0, False)
 
     def _set_blackout(self, job: FixtureJob) -> HandlerResult:
@@ -421,7 +446,7 @@ class FixtureHandlerRegistry:
         return HandlerResult(True, 0, True)
 
     def _grains_items(self, job: FixtureJob) -> HandlerResult:
-        """Return mock Windows identity and the locally persisted lock state."""
+        """Return the configured host identity and the locally persisted lock state."""
         if job.args or job.kwargs:
             return HandlerResult(False, 2, error="grains_items-takes-no-arguments")
         try:
@@ -429,7 +454,7 @@ class FixtureHandlerRegistry:
         except ManagedClientError:
             return HandlerResult(False, 2, error="unable-to-read-blackout-state")
         grains: Dict[str, Any] = {
-            **MOCK_SYSTEM_GRAINS,
+            **self._system_grains,
             **self._extra_grains,
             "minion_blackout": blackout,
             "pid": os.getpid(),
@@ -443,7 +468,14 @@ class FixtureHandlerRegistry:
         if job.args or job.kwargs:
             return HandlerResult(False, 2, error=f"{job.function}-takes-no-arguments")
         try:
-            repositories = self._state_store.get_mock_repositories() if self._state_store else {}
+            if self._package_backend is not None:
+                repositories = self._package_backend.list_repositories()
+            else:
+                repositories = (
+                    self._state_store.get_mock_repositories() if self._state_store else {}
+                )
+        except PackageBackendError as error:
+            return self._backend_failure(error)
         except ManagedClientError:
             return HandlerResult(False, 2, error="unable-to-read-repository-state")
         groups: Dict[str, list[Dict[str, Any]]] = {}
@@ -464,6 +496,8 @@ class FixtureHandlerRegistry:
             or set(job.kwargs) - {"name", "uri", "enabled", "trusted", "allow_renaming"}
         ):
             return HandlerResult(False, 2, error="pkg.mod_repo-invalid-arguments")
+        if self._package_backend is not None:
+            return HandlerResult(False, 2, error="pkg.mod_repo-unsupported-on-host")
         if self._state_store is None:
             return HandlerResult(False, 2, error="pkg.mod_repo-requires-state-store")
         properties = {
@@ -474,6 +508,20 @@ class FixtureHandlerRegistry:
         except ManagedClientError:
             return HandlerResult(False, 2, error="unable-to-persist-repository-state")
         return HandlerResult(True, 0, repository)
+
+    def _install_with_backend(
+        self, backend: PackageBackend, packages: Dict[str, str], job: FixtureJob
+    ) -> HandlerResult:
+        """Install packages through the host package manager, or simulate them there."""
+        dry_run = job.kwargs.get("test", False)
+        recommends = job.kwargs.get("install_recommends", True)
+        if not isinstance(dry_run, bool) or not isinstance(recommends, bool):
+            return HandlerResult(False, 2, error="pkg.install-invalid-solver-flags")
+        try:
+            changes = backend.install(packages, dry_run, recommends)
+        except PackageBackendError as error:
+            return self._backend_failure(error)
+        return HandlerResult(True, 0, changes)
 
     def _install(self, job: FixtureJob) -> HandlerResult:
         """Simulate named or bulk Salt package installs in isolated state only."""
@@ -508,6 +556,8 @@ class FixtureHandlerRegistry:
             ):
                 return HandlerResult(False, 2, error="pkg.install-requires-packages")
             packages[package_name] = package_version
+        if self._package_backend is not None:
+            return self._install_with_backend(self._package_backend, packages, job)
         if self._state_store is None:
             return HandlerResult(False, 2, error="pkg.install-requires-state-store")
         dry_run = job.kwargs.get("test", False)
@@ -518,14 +568,18 @@ class FixtureHandlerRegistry:
             repositories = self._state_store.get_mock_repositories()
             if any(repository.get("enabled", True) for repository in repositories.values()):
                 inventory = solve_package_install(
-                    packages, self._state_store.get_installed_packages(),
-                    self._catalog_loader(repositories), install_recommends=recommends,
+                    packages,
+                    self._state_store.get_installed_packages(),
+                    self._catalog_loader(repositories),
+                    install_recommends=recommends,
                 )
                 changes = self._state_store.replace_mock_packages(inventory, dry_run)
             else:
                 changes = self._state_store.install_mock_packages(packages, dry_run)
         except SoftwareResolutionError as error:
-            return HandlerResult(False, 2, value={"message": str(error)}, error="software-resolution-failed")
+            return HandlerResult(
+                False, 2, value={"message": str(error)}, error="software-resolution-failed"
+            )
         except ManagedClientError:
             return HandlerResult(False, 2, error="unable-to-persist-package-state")
         return HandlerResult(True, 0, changes)
@@ -551,6 +605,12 @@ class FixtureHandlerRegistry:
             or any(not isinstance(package, str) or not package.strip() for package in requested)
         ):
             return HandlerResult(False, 2, error="pkg.remove-requires-packages")
+        if self._package_backend is not None:
+            try:
+                changes = self._package_backend.remove(requested, dry_run)
+            except PackageBackendError as error:
+                return self._backend_failure(error)
+            return HandlerResult(True, 0, changes)
         if self._state_store is None:
             return HandlerResult(False, 2, error="pkg.remove-requires-state-store")
         try:
@@ -559,13 +619,21 @@ class FixtureHandlerRegistry:
             return HandlerResult(False, 2, error="unable-to-persist-package-state")
         return HandlerResult(True, 0, changes)
 
+    def _installed_packages(self) -> Dict[str, Dict[str, str]]:
+        """Return installed packages from the host backend, or from mock state."""
+        if self._package_backend is not None:
+            return self._package_backend.list_installed()
+        return self._state_store.get_installed_packages() if self._state_store else {}
+
     def _list_packages(self, job: FixtureJob) -> HandlerResult:
         """Return mock installed versions using Salt's list_pkgs schema."""
         versions_as_list = job.kwargs.get("versions_as_list", False)
         if job.args or not isinstance(versions_as_list, bool):
             return HandlerResult(False, 2, error="pkg.list_pkgs-invalid-arguments")
         try:
-            packages = self._state_store.get_installed_packages() if self._state_store else {}
+            packages = self._installed_packages()
+        except PackageBackendError as error:
+            return self._backend_failure(error)
         except ManagedClientError:
             return HandlerResult(False, 2, error="unable-to-read-package-state")
         return HandlerResult(
@@ -579,7 +647,7 @@ class FixtureHandlerRegistry:
 
     def _info_installed(self, job: FixtureJob) -> HandlerResult:
         """Return requested mock package metadata for SystemLink software refreshes."""
-        attributes = job.kwargs.get("attr", ["version", "arch"])
+        attributes = job.kwargs.get("attr", list(INFO_ATTRIBUTES))
         if (
             not isinstance(attributes, list)
             or any(not isinstance(attribute, str) for attribute in attributes)
@@ -587,7 +655,9 @@ class FixtureHandlerRegistry:
         ):
             return HandlerResult(False, 2, error="pkg.info_installed-requires-attribute-list")
         try:
-            packages = self._state_store.get_installed_packages() if self._state_store else {}
+            packages = self._installed_packages()
+        except PackageBackendError as error:
+            return self._backend_failure(error)
         except ManagedClientError:
             return HandlerResult(False, 2, error="unable-to-read-package-state")
         inventory = {

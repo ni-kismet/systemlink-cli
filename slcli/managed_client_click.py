@@ -206,7 +206,17 @@ def register_managed_client_commands(cli: Any) -> None:
         default=300.0,
         show_default=True,
         type=click.FloatRange(min=0.1),
-        help="Seconds between synthetic health samples when --health-tags is enabled.",
+        help="Seconds between health samples when --health-tags is enabled.",
+    )
+    @click.option(
+        "--simulated",
+        type=click.BOOL,
+        default=True,
+        show_default=True,
+        help=(
+            "Use a simulated host identity and simulated health values (true), or this "
+            "host's real identity and CPU, memory, and disk values (false)."
+        ),
     )
     def run(
         format: str,
@@ -219,6 +229,7 @@ def register_managed_client_commands(cli: Any) -> None:
         max_reconnect_attempts: int,
         health_tags: bool,
         health_interval: float,
+        simulated: bool,
     ) -> None:
         """Run the test minion until interrupted or a lifecycle failure occurs."""
         from .managed_client import MinionConfiguration, TestMinion
@@ -270,7 +281,11 @@ def register_managed_client_commands(cli: Any) -> None:
                         MinionEvent(
                             phase=phase,
                             message=(
-                                "Published synthetic health tags"
+                                (
+                                    "Published simulated health tags"
+                                    if simulated
+                                    else "Published host health tags"
+                                )
                                 if success
                                 else "Health tag publication failed; retrying in 15 seconds"
                             ),
@@ -283,6 +298,8 @@ def register_managed_client_commands(cli: Any) -> None:
                     interval=health_interval,
                     timeout=min(request_timeout, 5.0),
                     on_status=report_health,
+                    state_dir=state_dir,
+                    simulated=simulated,
                 )
             minion = TestMinion(
                 MinionConfiguration(
@@ -293,6 +310,7 @@ def register_managed_client_commands(cli: Any) -> None:
                     request_timeout=request_timeout,
                     reconnect_interval=reconnect_interval,
                     max_reconnect_attempts=max_reconnect_attempts,
+                    simulated=simulated,
                 ),
                 on_event=report_event,
                 **minion_options,

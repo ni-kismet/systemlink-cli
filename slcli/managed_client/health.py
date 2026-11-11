@@ -8,13 +8,18 @@ import threading
 import time
 from collections.abc import Mapping
 from dataclasses import dataclass
-from typing import Any, Callable
+from functools import partial
+from pathlib import Path
+from typing import Any, Callable, cast
 from urllib.parse import quote, urlencode
 
+import click
 import requests
 
 from .models import LifecycleTimeoutError, ManagedClientError
 from .rest import RequestFunction
+from .state import StateStore
+from .system_info import HostHealthValues
 from ..utils import get_base_url, make_api_request
 
 
@@ -106,25 +111,32 @@ class SyntheticHealthValues:
         return values
 
 
+_DEFAULT_CPU_USE = (20.0, 30.0)
+
+
 def build_mock_health_tags(
     minion_id: str,
     hostname: str,
     workspace: str,
     values: Mapping[str, float | int] | None = None,
+    *,
+    simulated: bool = True,
 ) -> list[dict[str, Any]]:
-    """Build beacon-compatible tag metadata and deterministic synthetic values.
+    """Build beacon-compatible tag metadata and health sample values.
 
     Args:
         minion_id: System identity used as the tag path prefix.
         hostname: Name used in the tag display metadata.
         workspace: System workspace used for tag ownership and hyperlinks.
-        values: Optional correlated synthetic metric values to include in the sample.
+        values: Optional metric values to include in the sample. Per-core CPU tags follow
+            the ``CPU.Count`` value when it is present.
+        simulated: Whether to mark the tags as simulated.
 
     Returns:
-        Health tag definitions including their synthetic sample values.
+        Health tag definitions including their sample values.
     """
     gibibyte = 1024.0**3
-    metrics = [
+    metrics: list[tuple[str, str, str, str, float | int]] = [
         ("Disk.Free", "DISK FREE", "DOUBLE", "BYTES", 96 * gibibyte),
         ("Disk.Used", "DISK USED", "DOUBLE", "BYTES", 32 * gibibyte),
         ("Disk.Total", "DISK TOTAL", "DOUBLE", "BYTES", 128 * gibibyte),
@@ -136,28 +148,32 @@ def build_mock_health_tags(
         ("Memory.UsePercentage", "MEMORY USED", "DOUBLE", "%", 37.5),
         ("CPU.Count", "CPU COUNT", "INT", "", 2),
         ("CPU.MeanUsePercentage", "CPU USED", "DOUBLE", "%", 25.0),
-        ("CPU.0.UsePercentage", "CPU 0 USED", "DOUBLE", "%", 20.0),
-        ("CPU.1.UsePercentage", "CPU 1 USED", "DOUBLE", "%", 30.0),
     ]
+    cpu_count = int(values["CPU.Count"]) if values and "CPU.Count" in values else 2
+    for index in range(cpu_count):
+        default = _DEFAULT_CPU_USE[index] if index < len(_DEFAULT_CPU_USE) else 25.0
+        metrics.append((f"CPU.{index}.UsePercentage", f"CPU {index} USED", "DOUBLE", "%", default))
     tags: list[dict[str, Any]] = []
     for suffix, display_name, tag_type, units, value in metrics:
         path = f"{minion_id}.Health.{suffix}"
+        properties: dict[str, str] = {
+            "minionId": minion_id,
+            "displayName": f"{hostname} {display_name}",
+            "units": units,
+            "hyperlink": f"#tagviewer/tag/{quote(workspace, safe='')}/{quote(path, safe='')}",
+            "nitagRetention": "DURATION",
+            "nitagHistoryTTLDays": "30",
+            "nitagMaxHistoryCount": "10000",
+        }
+        if simulated:
+            properties["slcliMock"] = "true"
         tags.append(
             {
                 "path": path,
                 "type": tag_type,
                 "workspace": workspace,
                 "collectAggregates": True,
-                "properties": {
-                    "minionId": minion_id,
-                    "displayName": f"{hostname} {display_name}",
-                    "units": units,
-                    "hyperlink": f"#tagviewer/tag/{quote(workspace, safe='')}/{quote(path, safe='')}",
-                    "nitagRetention": "DURATION",
-                    "nitagHistoryTTLDays": "30",
-                    "nitagMaxHistoryCount": "10000",
-                    "slcliMock": "true",
-                },
+                "properties": properties,
                 "value": values.get(suffix, value) if values is not None else value,
             }
         )
@@ -174,20 +190,26 @@ class HealthTagPublisher:
         interval: float = 300.0,
         timeout: float = 10.0,
         base_url: str | None = None,
-        request: RequestFunction = make_api_request,
+        request: RequestFunction | None = None,
         on_status: Callable[[bool, int], None] | None = None,
         seed: int | None = None,
+        state_dir: Path | None = None,
+        simulated: bool = True,
     ) -> None:
         """Configure periodic publishing without opening sockets or saving credentials.
 
         Args:
-            minion_id: The managed system to look up in the selected REST profile.
+            minion_id: The managed system to look up in the REST server.
             interval: Seconds between successful synthetic samples.
             timeout: Maximum duration of each HTTP request.
             base_url: Optional explicit REST server URL.
-            request: Authenticated request function used for HTTP operations.
+            request: Optional authenticated request function used for HTTP operations.
             on_status: Optional callback receiving success and published tag count.
             seed: Optional seed for reproducible synthetic health walks.
+            state_dir: Managed-client state directory holding the REST connection
+                file delivered by Salt. Used when no explicit URL or request is given.
+            simulated: When true, publish simulated values. When false, publish values
+                read from the local host's CPU, memory, and system disk.
         """
         if not minion_id.strip() or not all(
             math.isfinite(value) and value > 0 for value in (interval, timeout)
@@ -198,15 +220,53 @@ class HealthTagPublisher:
         self.interval = interval
         self._minion_id = minion_id
         self._timeout = timeout
-        self._base_url = (base_url or get_base_url()).rstrip("/")
-        self._request = request
+        self._explicit_base_url = base_url.rstrip("/") if base_url else None
+        self._explicit_request = request
+        self._state_dir = state_dir
         self._on_status = on_status
         self._metadata: list[dict[str, Any]] = []
         self._stop_event = threading.Event()
         self._thread: threading.Thread | None = None
         self._last_error: str | None = None
         self._stage = "system lookup"
-        self._values = SyntheticHealthValues(seed=seed)
+        self._simulated = simulated
+        self._values: SyntheticHealthValues | HostHealthValues = (
+            SyntheticHealthValues(seed=seed) if simulated else HostHealthValues()
+        )
+
+    def _transport(self) -> tuple[str, RequestFunction]:
+        """Return the REST base URL and request function for this publish cycle.
+
+        Explicit arguments win. Otherwise the connection file that Salt delivered
+        into the managed-client state directory is used. A managed-client state
+        directory never falls back to the workstation's slcli profile, because
+        that would publish with unrelated credentials.
+        """
+        stored = StateStore(self._state_dir).load_http_master() if self._state_dir else None
+        if stored is None and self._state_dir and self._explicit_request is None:
+            raise ManagedClientError(
+                "The Salt master has not delivered REST connection details yet."
+            )
+        base_url = self._explicit_base_url
+        if base_url is None:
+            base_url = (stored[0] if stored else get_base_url()).rstrip("/")
+        if self._explicit_request is not None:
+            return base_url, self._explicit_request
+        if stored is not None:
+            api_key = stored[1]
+            ca_bundle = (
+                StateStore(self._state_dir).load_http_ca_bundle() if self._state_dir else None
+            )
+            return base_url, cast(
+                RequestFunction,
+                partial(
+                    make_api_request,
+                    credential=api_key,
+                    auth_scheme="api-key",
+                    ssl_verify=ca_bundle,
+                ),
+            )
+        return base_url, make_api_request
 
     def publish_once(self) -> int:
         """Resolve the system workspace and publish one synthetic health sample.
@@ -214,11 +274,12 @@ class HealthTagPublisher:
         Returns:
             Number of current tag values written.
         """
+        base_url, request = self._transport()
         query = urlencode({"id": self._minion_id})
         self._stage = "system lookup"
-        response = self._request(
+        response = request(
             "GET",
-            f"{self._base_url}/nisysmgmt/v1/systems?{query}",
+            f"{base_url}/nisysmgmt/v1/systems?{query}",
             handle_errors=False,
             timeout=self._timeout,
         )
@@ -236,7 +297,13 @@ class HealthTagPublisher:
         hostname = grains.get("host") or self._minion_id
         if not isinstance(hostname, str):
             raise ManagedClientError("Health publishing received an invalid hostname.")
-        tags = build_mock_health_tags(self._minion_id, hostname, workspace, self._values.sample())
+        tags = build_mock_health_tags(
+            self._minion_id,
+            hostname,
+            workspace,
+            self._values.sample(),
+            simulated=self._simulated,
+        )
         retention = {
             "nitagRetention": str(
                 grains.get("health_monitoring_retention_type", "DURATION")
@@ -256,9 +323,9 @@ class HealthTagPublisher:
                 if self._stop_event.is_set():
                     return 0
                 encoded_path = quote(tag["path"], safe="")
-                self._request(
+                request(
                     "PUT",
-                    f"{self._base_url}/nitag/v2/tags/{quote(workspace, safe='')}/{encoded_path}",
+                    f"{base_url}/nitag/v2/tags/{quote(workspace, safe='')}/{encoded_path}",
                     payload=tag,
                     handle_errors=False,
                     timeout=self._timeout,
@@ -270,9 +337,9 @@ class HealthTagPublisher:
             if self._stop_event.is_set():
                 break
             encoded_path = quote(tag["path"], safe="")
-            self._request(
+            request(
                 "PUT",
-                f"{self._base_url}/nitag/v2/tags/{quote(workspace, safe='')}/{encoded_path}/values/current",
+                f"{base_url}/nitag/v2/tags/{quote(workspace, safe='')}/{encoded_path}/values/current",
                 payload={"value": {"type": tag["type"], "value": str(tag["value"])}},
                 handle_errors=False,
                 timeout=self._timeout,
@@ -322,6 +389,7 @@ class HealthTagPublisher:
                 delay = self.interval
             except (
                 requests.RequestException,
+                click.ClickException,
                 ManagedClientError,
                 ValueError,
                 TypeError,
@@ -330,10 +398,14 @@ class HealthTagPublisher:
                 self._metadata = []
                 status = getattr(getattr(error, "response", None), "status_code", None)
                 reason = f"HTTP {status}" if isinstance(status, int) else type(error).__name__
+                if isinstance(error, requests.RequestException) and not isinstance(status, int):
+                    # Request errors name the URL and TLS/connect cause; the API key is only in headers.
+                    detail = str(error).strip()
+                    if detail:
+                        reason = f"{reason}: {detail[:300]}"
                 if isinstance(error, ManagedClientError):
-                    reason = (
-                        "system identity or workspace is unavailable in the selected REST profile"
-                    )
+                    # Managed-client messages are fixed strings that contain no credentials.
+                    reason = str(error)
                 self._last_error = f"{self._stage}: {reason}"
                 count = 0
                 success = False

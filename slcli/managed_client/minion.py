@@ -20,8 +20,10 @@ from .crypto import (
     rsa_x931_sign,
     serialize_public_key,
 )
-from .handlers import MOCK_SYSTEM_GRAINS, FixtureHandlerRegistry
+from .handlers import FixtureHandlerRegistry
 from .health import HealthTagPublisher
+from .system_info import identity_grains
+from .system_packages import select_package_backend
 from .models import (
     LifecycleTimeoutError,
     ManagedClientError,
@@ -43,6 +45,7 @@ from .protocol import (
     build_pillar_request,
     build_publish_registration,
     decrypt_message_load,
+    decrypt_pillar_reply,
     parse_auth_response,
 )
 from .state import MinionIdentity, StateStore
@@ -79,10 +82,13 @@ class TestMinion:
         self._boot_time = (
             datetime.now(timezone.utc).isoformat(timespec="milliseconds").replace("+00:00", "Z")
         )
+        self._identity_grains = identity_grains(configuration.minion_id, configuration.simulated)
         self._handlers = handlers or FixtureHandlerRegistry(
             state_store=self._state_store,
             boot_time=self._boot_time,
             extra_grains=health_publisher.grains if health_publisher else None,
+            system_grains=self._identity_grains,
+            package_backend=None if configuration.simulated else select_package_backend(),
         )
         self._on_event = on_event
         self._token_signer = token_signer
@@ -248,7 +254,11 @@ class TestMinion:
                             signer=self._token_signer,
                         )
                     )
-                    self._publish_grains(request_channel, auth_response.shared_secret)
+                    self._publish_grains(
+                        request_channel,
+                        auth_response.shared_secret,
+                        auth_response.master_public_key,
+                    )
                     self._reconnect_attempts = 0
                     self._set_phase(MinionPhase.CONNECTED, "Publish channel connected")
                     if self._health_publisher is not None:
@@ -317,12 +327,18 @@ class TestMinion:
             self._minion_token = response.minion_token
         return response
 
-    def _publish_grains(self, request_channel: SaltChannel, shared_secret: bytes) -> None:
-        """Publish the locally persisted grains through Salt's cache path."""
+    def _publish_grains(
+        self,
+        request_channel: SaltChannel,
+        shared_secret: bytes,
+        master_public_key: str,
+    ) -> None:
+        """Publish the locally persisted grains and apply the pillar the master returns."""
+        nonce = uuid.uuid4().hex
         request_channel.send(
             build_pillar_request(
                 grains={
-                    **MOCK_SYSTEM_GRAINS,
+                    **self._identity_grains,
                     **(self._health_publisher.grains if self._health_publisher else {}),
                     "boottime": self._boot_time,
                     "minion_blackout": self._state_store.get_blackout_state(),
@@ -331,10 +347,22 @@ class TestMinion:
                 minion_id=self.minion_id,
                 shared_secret=shared_secret,
                 private_key=self._require_identity().key_pair.private_key,
+                nonce=nonce,
                 api_key=self.configuration.api_key,
                 signer=self._token_signer,
             )
         )
+        pillar = decrypt_pillar_reply(
+            request_channel.receive_raw(),
+            private_key=self._require_identity().key_pair.private_key,
+            master_public_key=master_public_key,
+            nonce=nonce,
+        )
+        self._apply_pillar(pillar)
+
+    def _apply_pillar(self, pillar: Mapping[str, Any]) -> None:
+        """Store the REST connection from the pillar, as the http_credentials state does."""
+        self._state_store.record_http_master_from_pillar(pillar, self.configuration.master)
 
     @staticmethod
     def _verify_session_signature(digest: bytes, signature: bytes, public_key: str) -> bool:

@@ -70,6 +70,7 @@ class MinionConfiguration:
     max_reconnect_attempts: int = 5
     request_port: int = 4506
     api_key: Optional[str] = None
+    simulated: bool = True
 
     def __post_init__(self) -> None:
         """Validate configuration before any state or socket is opened."""

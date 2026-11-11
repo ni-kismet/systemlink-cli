@@ -868,6 +868,7 @@ def make_api_request(
     credential: Optional[str] = None,
     auth_scheme: Optional[str] = None,
     timeout: Optional[Union[float, Tuple[float, Optional[float]]]] = (10.0, 60.0),
+    ssl_verify: Optional[Union[bool, str]] = None,
 ) -> requests.Response:
     """Make API request with consistent error handling and configuration.
 
@@ -886,6 +887,8 @@ def make_api_request(
         timeout: Socket timeout in seconds, or a (connect, read) pair. Defaults to
             10 seconds to connect and 60 seconds between reads. A None read timeout
             waits indefinitely for response data; None disables both timeouts.
+        ssl_verify: Optional requests ``verify`` value (a bool or CA bundle path) that
+            overrides the active profile's TLS policy for this request.
 
     Returns:
         Response object
@@ -907,7 +910,7 @@ def make_api_request(
         if files:
             default_headers.pop("Content-Type", None)
 
-        ssl_verify = active_profile_ssl_verify(url)
+        ssl_verify = ssl_verify if ssl_verify is not None else active_profile_ssl_verify(url)
 
         with use_standard_ssl_context(ssl_verify):
             if method.upper() == "GET":

@@ -140,6 +140,38 @@ class FixtureSaltServer:
         assert isinstance(grains, Mapping)
         self.projected_grains = dict(grains)
         self.projected_grains_history.append(self.projected_grains.copy())
+        self._send_pillar_reply(request_channel, request["nonce"])
+
+    def _send_pillar_reply(self, request_channel: SaltChannel, nonce: str) -> None:
+        """Send the v3 `_pillar` reply the master uses for the http pillar.
+
+        The per-reply secret is RSA-OAEP wrapped to the minion key in ``key``. The
+        signed ``data`` blob is AES-encrypted with that secret in ``pillar``.
+        """
+        assert self._minion_public_key is not None
+        pillar_secret = bytes(range(1, 57))
+        data = pack_inner_load(
+            {
+                "key": b"fixture-key-envelope",
+                "pillar": {"http": {"uri": "https://valinor/", "api_key": "fixture-key"}},
+                "nonce": nonce,
+            }
+        )
+        signature = sign_rsa_pkcs1_sha1(data, self._master_key.private_key)
+        envelope = encrypt_aes_192_cbc_hmac(
+            pack_inner_load({"data": data, "sig": signature}), pillar_secret
+        ).to_bytes()
+        request_channel.send_raw(
+            {
+                "body": {
+                    "key": encrypt_rsa_oaep(
+                        base64.b64encode(pillar_secret), self._minion_public_key
+                    ),
+                    "pillar": envelope,
+                },
+                "head": {"mid": 1},
+            }
+        )
 
     def _send_job(self, publish_channel: SaltChannel, jid: str) -> None:
         """Send the observed multi-function refresh job."""

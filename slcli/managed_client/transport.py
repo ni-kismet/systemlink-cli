@@ -5,11 +5,13 @@ from __future__ import annotations
 import socket
 import threading
 from collections import deque
+from collections.abc import Mapping
 from dataclasses import dataclass
+from typing import Any
 from urllib.parse import urlsplit
 
 from .models import ConfigurationError, TransportError
-from .protocol import MAX_FRAME_SIZE, MessagePackStream, SaltMessage
+from .protocol import MAX_FRAME_SIZE, MessagePackStream, SaltMessage, pack_frame
 
 DEFAULT_REQUEST_PORT = 4506
 DEFAULT_PUBLISH_PORT = 4505
@@ -53,7 +55,7 @@ class SaltChannel:
         """Wrap an already connected socket."""
         self._connection = connection
         self._decoder = MessagePackStream(max_frame_size=max_frame_size)
-        self._pending: deque[SaltMessage] = deque()
+        self._pending: deque[Mapping[str, Any]] = deque()
         self._closed = False
         self._receive_lock = threading.RLock()
 
@@ -75,15 +77,27 @@ class SaltChannel:
 
     def send(self, message: SaltMessage) -> None:
         """Write one unprefixed MessagePack Salt message."""
+        self.send_raw(message.to_mapping())
+
+    def send_raw(self, message: Mapping[str, Any]) -> None:
+        """Write one outer frame without request-envelope validation."""
         if self._closed:
             raise TransportError("The Salt channel is closed.")
         try:
-            self._connection.sendall(message.pack())
+            self._connection.sendall(pack_frame(message))
         except OSError as error:
             raise TransportError("Unable to send a Salt message.") from error
 
     def receive(self, *, ignore_timeout: bool = False) -> SaltMessage:
-        """Read a complete Salt message, polling for closure when ignoring timeouts."""
+        """Read a complete, validated Salt message."""
+        return SaltMessage.from_mapping(self.receive_raw(ignore_timeout=ignore_timeout))
+
+    def receive_raw(self, *, ignore_timeout: bool = False) -> Mapping[str, Any]:
+        """Read the next outer frame without enforcing the request-envelope fields.
+
+        The master's `_pillar` reply has no `enc` field, so it cannot pass
+        `SaltMessage` validation and is handled by the caller instead.
+        """
         if self._closed:
             raise TransportError("The Salt channel is closed.")
         if self._pending:
@@ -117,9 +131,7 @@ class SaltChannel:
                 raise TransportError("Unable to receive a Salt message.") from error
             if not data:
                 raise TransportError("The Salt channel closed unexpectedly.")
-            self._pending.extend(
-                SaltMessage.from_mapping(frame) for frame in self._decoder.feed(data)
-            )
+            self._pending.extend(self._decoder.feed(data))
             if self._pending:
                 return self._pending.popleft()
 

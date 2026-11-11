@@ -104,7 +104,7 @@ the existing `slcli system` REST commands or with a virtual system.
 | Concern | Existing `slcli` REST layer | Test minion | SystemLink/SaltMaster |
 | --- | --- | --- | --- |
 | Select environment | Yes | Uses supplied configuration | No |
-| Store API key or OAuth credentials | Yes | No | No |
+| Store API key or OAuth credentials | Yes (profiles) | Only the Salt-delivered REST connection in its state directory | No |
 | Generate Salt RSA identity | No | Yes | No |
 | Submit public key | No | `_auth` request | Receives and stores key |
 | Approve or reject key | REST adapter | No | Systems Management |
@@ -217,7 +217,20 @@ profile, and minion ID. Persist only what is needed to reconnect:
 
 Requirements:
 
-- Never store API keys in the Salt state directory.
+- Persist the REST endpoint and API key that the Salt master delivers through the
+  `http` pillar, as `http_master.json` in the state directory. This mirrors the
+  `http_credentials` state, which writes the same connection file on managed
+  systems. The file is owner-only, and the health publisher reads it. Credentials
+  delivered this way are scoped to the managed system and are removed when the
+  pillar no longer provides them. The delivered CA certificate is stored beside it
+  as `http-client/http-client.cer` and used for TLS verification of the REST endpoint.
+- `--simulated` (default `true`) controls identity and health sources. Simulated mode
+  advertises the minion ID as host, alias, and localhost, with the simulated vendor, model, and
+  IPv4 address, and publishes simulated health values. `--simulated false` advertises the local
+  host's name, OS, vendor and model (from DMI on Linux or the BIOS registry on Windows), and IPv4
+  addresses, and publishes the local CPU, memory, and system disk values. Software jobs use the
+  Debian-family package manager (`dpkg-query` and `apt-get`) on those hosts and return
+  `unsupported-host-package-manager` elsewhere. Simulated mode keeps the isolated mock package store.
 - Never log private keys, API keys, session secrets, or complete encrypted
   payloads.
 - Use restrictive file permissions on POSIX and equivalent user-only ACLs on

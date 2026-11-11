@@ -10,7 +10,8 @@ import subprocess
 import tempfile
 from dataclasses import dataclass, field
 from pathlib import Path
-from typing import Any, Dict, Mapping, Sequence, Union
+from typing import Any, Dict, Mapping, Optional, Sequence, Tuple, Union
+from urllib.parse import urlsplit, urlunsplit
 
 from cryptography.hazmat.primitives.asymmetric.rsa import RSAPublicKey
 
@@ -26,6 +27,8 @@ from .models import MasterIdentityChangedError, StateError
 
 STATE_DIRECTORY_MODE = stat.S_IRWXU
 STATE_FILE_MODE = stat.S_IRUSR | stat.S_IWUSR
+HTTP_MASTER_FILE_NAME = "http_master.json"
+HTTP_CA_BUNDLE_RELATIVE_PATH = Path("http-client") / "http-client.cer"
 ASSET_IDENTIFICATION_FIELDS = (
     "model_name",
     "model_number",
@@ -100,6 +103,8 @@ class StateStore:
         self._metadata_path = self.state_dir / "metadata.json"
         self._private_key_path = self.state_dir / "minion-key.pem"
         self._public_key_path = self.state_dir / "minion-key.pub.pem"
+        self._http_master_path = self.state_dir / HTTP_MASTER_FILE_NAME
+        self._http_ca_bundle_path = self.state_dir / HTTP_CA_BUNDLE_RELATIVE_PATH
 
     def ensure_directory(self) -> None:
         """Create the state directory with owner-only permissions where supported."""
@@ -210,13 +215,18 @@ class StateStore:
             or not name.strip()
             or not isinstance(package, dict)
             or not {"version", "arch"}.issubset(package)
-            or any(not isinstance(package[key], str) or not package[key].strip() for key in ("version", "arch"))
+            or any(
+                not isinstance(package[key], str) or not package[key].strip()
+                for key in ("version", "arch")
+            )
             for name, package in packages.items()
         ):
             raise StateError("The stored mock package inventory is invalid.")
         return packages
 
-    def install_mock_packages(self, packages: Mapping[str, str], dry_run: bool = False) -> Dict[str, Dict[str, str]]:
+    def install_mock_packages(
+        self, packages: Mapping[str, str], dry_run: bool = False
+    ) -> Dict[str, Dict[str, str]]:
         """Persist mock versions and return Salt changes without installing software."""
         if not packages or any(
             not isinstance(name, str)
@@ -253,9 +263,13 @@ class StateStore:
         """
         inventory = {name: dict(record) for name, record in packages.items()}
         if any(
-            not isinstance(name, str) or not name.strip()
+            not isinstance(name, str)
+            or not name.strip()
             or not {"version", "arch"}.issubset(record)
-            or any(not isinstance(record[key], str) or not record[key].strip() for key in ("version", "arch"))
+            or any(
+                not isinstance(record[key], str) or not record[key].strip()
+                for key in ("version", "arch")
+            )
             for name, record in inventory.items()
         ):
             raise StateError("Resolved mock package inventory is invalid.")
@@ -427,6 +441,94 @@ class StateStore:
         except OSError as error:
             raise StateError("Unable to write isolated minion identity state.") from error
 
+    def record_http_master(self, uri: str, api_key: str) -> None:
+        """Persist the REST endpoint and API key delivered to this minion.
+
+        The file is owner-only and lives in the isolated state directory, so the
+        health publisher can authenticate without environment variables or a profile.
+        """
+        if not uri.strip() or not api_key.strip():
+            raise StateError("The REST URI and API key are required.")
+        self.ensure_directory()
+        self._write_private_json(
+            self._http_master_path,
+            {"Uri": uri, "ApiKey": api_key},
+            "REST connection state",
+        )
+
+    def record_http_master_from_pillar(
+        self, pillar: Mapping[str, Any], master_host: str | None
+    ) -> None:
+        """Apply the ``http`` pillar the same way as the Salt ``http_credentials`` state.
+
+        The URI host is replaced with the master host unless ``uriIsOverridden`` is set.
+        Missing URI or key values remove any previously stored connection state.
+        """
+        http = pillar.get("http")
+        if not isinstance(http, Mapping):
+            http = {}
+        uri = http.get("uri")
+        api_key = http.get("api_key")
+        if not uri or not api_key:
+            self.clear_http_master()
+            return
+        if not http.get("uriIsOverridden") and master_host:
+            components = urlsplit(str(uri))
+            if components.hostname:
+                netloc = components.netloc.replace(components.hostname, master_host)
+                uri = urlunsplit(
+                    (
+                        components.scheme,
+                        netloc,
+                        components.path,
+                        components.query,
+                        components.fragment,
+                    )
+                )
+        self.record_http_master(str(uri), str(api_key))
+        self._record_http_ca_bundle(http.get("certificate"))
+
+    def load_http_ca_bundle(self) -> Optional[str]:
+        """Return the path to the delivered HTTP server certificate, or None."""
+        path = self._http_ca_bundle_path
+        return str(path) if path.is_file() else None
+
+    def _record_http_ca_bundle(self, certificate: Any) -> None:
+        """Store or remove the delivered HTTP server certificate used to verify TLS."""
+        if not isinstance(certificate, str) or not certificate.strip():
+            self._http_ca_bundle_path.unlink(missing_ok=True)
+            return
+        self.ensure_directory()
+        self._http_ca_bundle_path.parent.mkdir(parents=True, exist_ok=True)
+        self._http_ca_bundle_path.write_text(certificate, encoding="utf-8")
+
+    def load_http_master(self) -> Optional[Tuple[str, str]]:
+        """Return the stored ``(uri, api_key)`` pair, or None when none is stored."""
+        if not self._http_master_path.exists():
+            return None
+        try:
+            value = json.loads(self._http_master_path.read_text(encoding="utf-8"))
+        except (OSError, json.JSONDecodeError) as error:
+            raise StateError("The stored REST connection state is invalid.") from error
+        uri = value.get("Uri") if isinstance(value, dict) else None
+        api_key = value.get("ApiKey") if isinstance(value, dict) else None
+        if (
+            not isinstance(uri, str)
+            or not uri.strip()
+            or not isinstance(api_key, str)
+            or not api_key.strip()
+        ):
+            raise StateError("The stored REST connection state is invalid.")
+        return uri, api_key
+
+    def clear_http_master(self) -> None:
+        """Remove any stored REST connection state and delivered certificate."""
+        try:
+            self._http_master_path.unlink(missing_ok=True)
+            self._http_ca_bundle_path.unlink(missing_ok=True)
+        except OSError as error:
+            raise StateError("Unable to remove the stored REST connection state.") from error
+
     @staticmethod
     def _restrict_permissions(path: Path, mode: int) -> None:
         """Restrict a state path to the current user on every supported OS."""
@@ -466,6 +568,9 @@ class StateStore:
         return value
 
     def _write_metadata(self, metadata: Dict[str, Any]) -> None:
+        self._write_private_json(self._metadata_path, metadata, "isolated minion metadata")
+
+    def _write_private_json(self, path: Path, payload: Dict[str, Any], description: str) -> None:
         temporary_path: Path | None = None
         try:
             self.ensure_directory()
@@ -473,19 +578,19 @@ class StateStore:
                 mode="w",
                 encoding="utf-8",
                 dir=self.state_dir,
-                prefix=".metadata-",
+                prefix=f".{path.stem}-",
                 suffix=".tmp",
                 delete=False,
             ) as temporary_file:
                 temporary_path = Path(temporary_file.name)
-                temporary_file.write(json.dumps(metadata, indent=2, sort_keys=True) + "\n")
+                temporary_file.write(json.dumps(payload, indent=2, sort_keys=True) + "\n")
                 temporary_file.flush()
                 os.fsync(temporary_file.fileno())
             self._restrict_permissions(temporary_path, STATE_FILE_MODE)
-            os.replace(temporary_path, self._metadata_path)
+            os.replace(temporary_path, path)
             temporary_path = None
         except (OSError, StateError, TypeError) as error:
-            raise StateError("Unable to write isolated minion metadata.") from error
+            raise StateError(f"Unable to write {description}.") from error
         finally:
             if temporary_path is not None:
                 try:

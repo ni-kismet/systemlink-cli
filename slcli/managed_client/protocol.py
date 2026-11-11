@@ -16,6 +16,8 @@ from cryptography.hazmat.primitives.asymmetric.rsa import RSAPrivateKey
 
 from .crypto import (
     SALT_SHARED_SECRET_SIZE,
+    CryptoError,
+    decrypt_aes_192_cbc_hmac,
     decrypt_rsa_oaep,
     encrypt_aes_192_cbc_hmac,
     load_rsa_public_key,
@@ -90,7 +92,9 @@ def _restore_binary_field(value: Any) -> Any:
         return value
     if isinstance(value.get("body"), Mapping) and isinstance(value.get("head"), Mapping):
         restored = dict(value)
-        restored["body"] = _restore_binary_map(value["body"], frozenset({"load", "sig"}))
+        restored["body"] = _restore_binary_map(
+            value["body"], frozenset({"load", "sig", "key", "pillar"})
+        )
         return restored
     return _restore_binary_map(value, _BINARY_FIELDS)
 
@@ -448,6 +452,74 @@ def decrypt_message_load(message: SaltMessage, shared_secret: bytes) -> MutableM
     from .crypto import decrypt_aes_192_cbc_hmac
 
     return unpack_inner_load(decrypt_aes_192_cbc_hmac(encrypted_load, shared_secret))
+
+
+def _wire_bytes(value: Any) -> bytes | None:
+    """Return a wire value as bytes, accepting MessagePack strings that hold raw bytes."""
+    if isinstance(value, bytes):
+        return value
+    if isinstance(value, str):
+        return value.encode("utf-8", errors="surrogateescape")
+    return None
+
+
+def decrypt_pillar_reply(
+    reply: Mapping[str, Any],
+    *,
+    private_key: RSAPrivateKey,
+    master_public_key: str,
+    nonce: str,
+) -> Mapping[str, Any]:
+    """Decrypt and verify the master's v3 `_pillar` reply and return its pillar.
+
+    The reply body carries an RSA-OAEP wrapped, base64-encoded per-reply secret in
+    ``key`` and an AES envelope in ``pillar``. The envelope holds a signed ``data``
+    blob, which is verified against the master public key before it is unpacked.
+    """
+    body = reply.get("body")
+    if not isinstance(body, Mapping):
+        raise ProtocolError("The Salt pillar reply has no body map.")
+    wrapped_key = body.get("key")
+    encrypted_pillar = body.get("pillar")
+    if not isinstance(wrapped_key, bytes) or not isinstance(encrypted_pillar, bytes):
+        raise ProtocolError(
+            "The Salt pillar reply is missing its key or pillar payload "
+            f"(body keys={sorted(str(k) for k in body)}, "
+            f"key={type(wrapped_key).__name__}, pillar={type(encrypted_pillar).__name__})."
+        )
+
+    try:
+        secret = base64.b64decode(decrypt_rsa_oaep(wrapped_key, private_key), validate=True)
+    except (ValueError, binascii.Error) as error:
+        raise ProtocolError("The Salt pillar reply key could not be decrypted.") from error
+    if len(secret) != SALT_SHARED_SECRET_SIZE:
+        raise ProtocolError("The Salt pillar reply key has an unexpected size.")
+
+    try:
+        envelope = unpack_inner_load(decrypt_aes_192_cbc_hmac(encrypted_pillar, secret))
+    except (CryptoError, ValueError) as error:
+        raise ProtocolError("The Salt pillar reply payload could not be decrypted.") from error
+
+    data = _wire_bytes(envelope.get("data"))
+    signature = _wire_bytes(envelope.get("sig"))
+    if data is None or signature is None:
+        raise ProtocolError(
+            "The Salt pillar reply is missing its signed data "
+            f"(envelope keys={sorted(str(k) for k in envelope)}, "
+            f"data={type(envelope.get('data')).__name__}, "
+            f"sig={type(envelope.get('sig')).__name__})."
+        )
+    master_key = load_rsa_public_key(master_public_key.encode("utf-8"))
+    if not verify_rsa_pkcs1_sha1_result(data, signature, master_key):
+        raise ProtocolError("The Salt pillar reply signature is invalid.")
+
+    inner = unpack_inner_load(data)
+    if inner.get("nonce") != nonce:
+        raise ProtocolError("The Salt pillar reply nonce does not match the request.")
+    pillar = inner.get("pillar")
+    if not isinstance(pillar, Mapping):
+        raise ProtocolError("The Salt pillar reply has no pillar map.")
+    return pillar
 
 
 def build_job_return(
