@@ -199,7 +199,7 @@ jobs:
     needs: build-test-lint
     timeout-minutes: 45
     env:
-      SLCLI_E2E_SLS_BASE_URL: https://base.systemlink.io
+      SLCLI_E2E_SLS_BASE_URL: ${{ vars.SLCLI_E2E_SLS_BASE_URL }}
     steps:
       - name: Check SLS E2E configuration
         id: sls-config
@@ -207,6 +207,10 @@ jobs:
           SLCLI_E2E_SLS_API_KEY: ${{ secrets.SLCLI_E2E_SLS_API_KEY }}
         run: |
           if [ -n "$SLCLI_E2E_SLS_API_KEY" ]; then
+            if [ -z "$SLCLI_E2E_SLS_BASE_URL" ]; then
+              echo "::error::Set the SLCLI_E2E_SLS_BASE_URL repository variable."
+              exit 1
+            fi
             echo "enabled=true" >> "$GITHUB_OUTPUT"
           else
             echo "enabled=false" >> "$GITHUB_OUTPUT"
@@ -252,7 +256,7 @@ jobs:
               "sls": {
                   "base_url": os.environ["SLCLI_E2E_SLS_BASE_URL"],
                   "api_key": os.environ["SLCLI_E2E_SLS_API_KEY"],
-                  "workspace": os.environ.get("SLCLI_E2E_SLS_WORKSPACE") or "Default",
+                  "workspace": os.environ.get("SLCLI_E2E_SLS_WORKSPACE") or "SLCLI-Test",
                   "platform": "SLS",
               },
               "timeout": int(os.environ.get("SLCLI_E2E_TIMEOUT") or "60"),
@@ -283,7 +287,7 @@ jobs:
       group: e2e-migration-sls
       cancel-in-progress: false
     env:
-      SLCLI_E2E_SLS_BASE_URL: https://base.systemlink.io
+      SLCLI_E2E_SLS_BASE_URL: ${{ vars.SLCLI_E2E_SLS_BASE_URL }}
       SLCLI_E2E_SOURCE_PROFILE: migration-source
       SLCLI_TEST_PREFECT_API_URL: http://127.0.0.1:4200/api
     steps:
@@ -293,6 +297,10 @@ jobs:
           SLCLI_E2E_SLS_API_KEY: ${{ secrets.SLCLI_E2E_SLS_API_KEY }}
         run: |
           if [ -n "$SLCLI_E2E_SLS_API_KEY" ]; then
+            if [ -z "$SLCLI_E2E_SLS_BASE_URL" ]; then
+              echo "::error::Set the SLCLI_E2E_SLS_BASE_URL repository variable."
+              exit 1
+            fi
             echo "enabled=true" >> "$GITHUB_OUTPUT"
           else
             echo "enabled=false" >> "$GITHUB_OUTPUT"
