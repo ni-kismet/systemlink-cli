@@ -520,12 +520,15 @@ slcli system remove &lt;system-id&gt; --force</code></pre>
           <code>managed-client reset</code> clears them along with the minion identity.
         </p>
         <p>With <code>--simulated false</code>, the minion reports the local host's OS and platform, and software jobs
-          use the host's package manager instead of the mock. Only Debian-family hosts are supported (Debian, Ubuntu, and
+          use the host's package manager instead of the mock. Only Debian-family hosts are supported (Debian, Ubuntu,
+          and
           other distributions whose <code>ID</code> or <code>ID_LIKE</code> includes <code>debian</code>, with
-          <code>dpkg-query</code> and <code>apt-get</code> on the <code>PATH</code>). On other hosts, package jobs return
+          <code>dpkg-query</code> and <code>apt-get</code> on the <code>PATH</code>). On other hosts, package jobs
+          return
           <code>unsupported-host-package-manager</code>. <code>pkg.list_pkgs</code> and
           <code>pkg.info_installed</code> read <code>dpkg-query</code>. <code>pkg.install</code> and
-          <code>pkg.remove</code> run <code>apt-get</code> non-interactively and report the inventory changes they cause.
+          <code>pkg.remove</code> run <code>apt-get</code> non-interactively and report the inventory changes they
+          cause.
           Dry runs use <code>apt-get -s</code> and need no privileges. Real runs require root or passwordless
           <code>sudo</code> for the minion user. <code>pkg.list_repos</code> reads the apt source lists, and
           <code>pkg.mod_repo</code> is not supported on real hosts. Reboot status checks
@@ -578,7 +581,8 @@ slcli system remove &lt;system-id&gt; --force</code></pre>
           above are published. With <code>false</code>, the local host's name, OS (Linux, Windows, or macOS as
           detected), vendor and model, and IPv4 addresses are advertised, and the health tags use this
           machine's real CPU, memory, and system disk values. The real-host tags omit <code>slcliMock</code>.
-          Real-host mode requires <code>psutil</code>, which is installed with the <code>managed-client</code> extra.</p>
+          Real-host mode requires <code>psutil</code>, which is installed with the <code>managed-client</code> extra.
+        </p>
         <p><code>--health-interval</code> is in seconds (default 300). The publisher runs while Salt is connected,
           retries HTTP failures after 15 seconds with a safe operation/status diagnostic, and stops on disconnect
           or shutdown. Failures do not stop Salt job processing.</p>
