@@ -111,7 +111,7 @@ def e2e_config() -> Dict[str, Any]:
     config = {
         "base_url": os.getenv("SLCLI_E2E_BASE_URL"),
         "api_key": os.getenv("SLCLI_E2E_API_KEY"),
-        "workspace": os.getenv("SLCLI_E2E_WORKSPACE", "Default"),
+        "workspace": os.getenv("SLCLI_E2E_WORKSPACE"),
         "timeout": int(os.getenv("SLCLI_E2E_TIMEOUT", "60")),
         "cleanup": os.getenv("SLCLI_E2E_CLEANUP", "true").lower() == "true",
     }
@@ -122,6 +122,7 @@ def e2e_config() -> Dict[str, Any]:
             if not config.get(key):
                 config[key] = value
 
+    config["workspace"] = config["workspace"] or "Default"
     return config
 
 
@@ -299,6 +300,13 @@ def cli_runner(e2e_config: Dict[str, Any], selected_platform: str) -> Any:
     timeout = e2e_config.get("timeout", 60)
     selected_config = _select_platform_config(e2e_config, selected_platform)
 
+    if selected_platform in {"sle", "sls"} and (
+        not selected_config
+        or not selected_config.get("base_url")
+        or not selected_config.get("api_key")
+    ):
+        pytest.fail(f"{selected_platform.upper()} E2E base URL and API key must be configured")
+
     if selected_config is not None:
         return _make_cli_runner(selected_config, timeout)
 
@@ -328,8 +336,8 @@ def sls_cli_runner(sls_config: Dict[str, Any], e2e_config: Dict[str, Any]) -> An
 def configured_workspace(e2e_config: Dict[str, Any], selected_platform: str) -> str:
     """Return a configured workspace name that exists in the target environment.
 
-    Generic tests use the workspace from the selected active platform. If that workspace
-    is not present in the target tenant, use the first accessible workspace instead.
+    Generic tests use the workspace from the selected active platform. SLE tests
+    fall back to the first accessible workspace when the configured one is missing.
     For platform-specific tests, prefer `sle_workspace` or `sls_workspace`.
     """
     selected_config = _select_platform_config(e2e_config, selected_platform)
@@ -356,11 +364,15 @@ def configured_workspace(e2e_config: Dict[str, Any], selected_platform: str) -> 
         if isinstance(workspace, dict) and workspace.get("name")
     ]
     if not available_workspaces:
-        pytest.skip("No accessible workspaces available in the target environment")
+        if _resolve_active_platform(e2e_config, selected_platform) != "sls":
+            pytest.skip("No accessible workspaces available in the target environment")
+        pytest.fail("No accessible workspaces available in the target environment")
 
     if any(workspace.get("name") == configured_name for workspace in available_workspaces):
         return str(configured_name)
-    return str(available_workspaces[0]["name"])
+    if _resolve_active_platform(e2e_config, selected_platform) != "sls":
+        return str(available_workspaces[0]["name"])
+    pytest.fail(f"Configured workspace '{configured_name}' is not accessible")
 
 
 @pytest.fixture

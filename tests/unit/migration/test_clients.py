@@ -95,6 +95,17 @@ def test_query_products_reads_product_endpoint() -> None:
     assert "filter" not in session.calls[0]["json"]
 
 
+def test_query_results_accepts_null_property_values() -> None:
+    """Null result properties do not prevent discovery of the entire workspace."""
+    session = FakeSession(
+        [{"results": [{**_result("r1"), "properties": {"TEST_STOP_TIME": None, "owner": "test"}}]}]
+    )
+    client = TestMonitorClient(CONNECTION, session)  # type: ignore[arg-type]
+
+    [result] = client.query_results()
+    assert result.properties == {"TEST_STOP_TIME": None, "owner": "test"}
+
+
 def test_query_rejects_malformed_response() -> None:
     """Responses that do not match the API contract fail at the client boundary."""
     session = FakeSession([{"results": [{"id": "r1"}]}])
