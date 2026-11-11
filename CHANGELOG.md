@@ -2,6 +2,17 @@
 
 <!-- towncrier release notes start -->
 
+## v3.0.2 (2026-11-11)
+
+### Bug Fixes
+
+- Allow migration discovery to read test results containing null property values. (migration-null-result-properties)
+
+### Other Changes
+
+- Configure the SLS E2E server through a repository variable and use the SLCLI-Test workspace. (sls-e2e-server)
+
+
 ## v3.0.1 (2026-11-10)
 
 ### Other Changes

@@ -108,6 +108,10 @@ Notes:
 - `test_notebook_path` is used by the SLS notebook execution tests.
 - Use `--e2e-platform sle|sls` or `SLCLI_E2E_PLATFORM=sle|sls` to choose which
   platform the generic `cli_runner` and `configured_workspace` fixtures target.
+- Explicit platform selection requires an E2E URL and API key; it does not fall
+  back to the active CLI profile. Set the SLS workspace to `SLCLI-Test` locally.
+- The configured SLS workspace must be accessible; tests do not fall back to
+  another workspace.
 - In `auto` mode, the generic fixtures still prefer SLE when both `sle` and
   `sls` are configured.
 
@@ -120,6 +124,7 @@ The API key should have:
 - Access to the configured workspace
 - Permissions to create/read/update/delete notebooks
 - Access to user management APIs
+- Permission to create, read, update, and delete authorization policy templates
 - Access to workspace management APIs
 - Access to Custom Fields (if testing custom fields functionality)
 
@@ -414,19 +419,21 @@ The GitHub Actions pipeline can run the E2E suite in four separate jobs:
 - `E2E (Migration)` runs all other `e2e_migration` tests.
 - `Native credentials` runs `poetry run pytest tests/e2e/test_credentials_e2e.py -k test_native_secure_read_logout --timeout=120 --no-cov -q` on Ubuntu, macOS, and Windows.
 
-The CI jobs use `https://base.systemlink.io` for SLS and
-`https://test-api.lifecyclesolutions.ni.com` for SLE. Configure the jobs with
-GitHub Actions secrets and repository variables for workspace and test-data
-settings.
+The CI jobs use `SLCLI_E2E_SLS_BASE_URL` for SLS and
+`https://test-api.lifecyclesolutions.ni.com` for SLE. Set the SLS URL to the
+new server reachable by GitHub-hosted runners and update the SLS API key secret
+for that server before running CI. The migration job uses the same SLS URL and
+API key but creates its own dedicated migration fixture workspaces.
 
 ### Required GitHub Secrets
 
 - `SLCLI_E2E_SLS_API_KEY` - API key for the SystemLink Server (SLS) test user
 - `SLCLI_E2E_SLE_API_KEY` - API key for the SystemLink Enterprise (SLE) test user
 
-### Recommended GitHub Repository Variables
+### GitHub Repository Variables
 
-- `SLCLI_E2E_SLS_WORKSPACE` - Workspace for the SLS test user (optional, defaults to `Default`)
+- `SLCLI_E2E_SLS_BASE_URL` - SLS API URL (required when the SLS API key is configured)
+- `SLCLI_E2E_SLS_WORKSPACE` - Workspace for the SLS test user (optional, defaults to `SLCLI-Test`)
 - `SLCLI_E2E_SLS_TEST_NOTEBOOK_PATH` - Notebook path used by SLS notebook execution tests (optional, enables more SLS coverage)
 - `SLCLI_E2E_SLE_WORKSPACE` - Workspace for the SLE test user (optional, defaults to `Default`)
 - `SLCLI_E2E_SLE_TEST_NOTEBOOK_ID` - Notebook ID used by SLE routine/notebook tests (optional, enables more SLE coverage)
