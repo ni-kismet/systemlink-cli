@@ -2,6 +2,17 @@
 
 <!-- towncrier release notes start -->
 
+## v3.1.0 (2026-11-11)
+
+### Features
+
+- Add support for Python 3.15 and run CI on Python 3.15. (python-3-15-support)
+
+### Bug Fixes
+
+- Update GitHub Actions. (deps-renovate-github-actions)
+
+
 ## v3.0.2 (2026-11-11)
 
 ### Bug Fixes
