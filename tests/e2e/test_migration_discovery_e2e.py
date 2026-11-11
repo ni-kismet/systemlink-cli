@@ -34,6 +34,7 @@ from slcli.migration.testmonitor.discovery import DEFAULT_WORKSPACE, discover_te
 from slcli.migration.testmonitor.models import TestMonitorDiscovery
 from slcli.migration.workspace_client import WorkspaceClient
 from slcli.ssl_trust import inject_os_trust
+from tests.e2e.migration_endpoints import get_or_create_workspace
 from tests.e2e.testmonitor_fixture import OwnedTestMonitorResources
 
 PRIMARY = "e2e-slcli-migration-source"
@@ -73,19 +74,6 @@ def _result(part_number: str, status: str) -> Dict[str, object]:
     }
 
 
-def _get_or_create_workspace(connection: MigrationConnection, name: str) -> str:
-    existing = {w.name: w.id for w in WorkspaceClient(connection).query_workspaces()}
-    if name in existing:
-        return existing[name]
-    response = connection.create_session().post(
-        f"{connection.base_url}/niuser/v1/workspaces",
-        json={"name": name, "enabled": True},
-        timeout=30,
-    )
-    response.raise_for_status()
-    return str(response.json()["id"])
-
-
 @pytest.fixture(scope="module")
 def seeded() -> Generator[Seeded, None, None]:
     """Seed the dataset once in fixture-owned workspaces and clean it up afterward."""
@@ -94,7 +82,7 @@ def seeded() -> Generator[Seeded, None, None]:
         pytest.skip("SLCLI_E2E_SOURCE_PROFILE is not configured")
     inject_os_trust()
     connection = resolve_migration_connection(profile)
-    workspace_ids = {name: _get_or_create_workspace(connection, name) for name in (PRIMARY, OTHER)}
+    workspace_ids = {name: get_or_create_workspace(connection, name) for name in (PRIMARY, OTHER)}
     resources = OwnedTestMonitorResources(connection, workspace_ids)
     resources.clean()
     try:
@@ -132,7 +120,7 @@ def _discover(
     """Run the production discovery flow as ``slcli migrate`` would for a new run."""
     profile = seeded.connection.profile_name
     mappings = {name: name for name in workspaces} if workspaces is not None else None
-    run = create_migration_run(profile, mappings, state_root)
+    run = create_migration_run(profile, profile, mappings, state_root)
     return run_discovery(run, profile, workspaces, prefect_api_url).test_monitor
 
 
@@ -244,6 +232,9 @@ def test_migrate_cli(
         [
             "migrate",
             "--source-profile",
+            seeded.connection.profile_name,
+            # The source doubles as destination; mapping only requires PRIMARY on both sides.
+            "--destination-profile",
             seeded.connection.profile_name,
             "--workspace-mappings",
             PRIMARY,

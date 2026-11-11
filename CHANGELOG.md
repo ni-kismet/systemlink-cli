@@ -2,6 +2,13 @@
 
 <!-- towncrier release notes start -->
 
+## v3.0.1 (2026-11-10)
+
+### Other Changes
+
+- Map migration workspaces to existing destination workspaces with \--destination-profile\ (behind the unreleased \migration\ extra). (migration-workspace-mapping)
+
+
 ## v3.0.0 (2026-11-09)
 
 ### Breaking Changes
