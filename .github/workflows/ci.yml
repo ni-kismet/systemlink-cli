@@ -199,7 +199,7 @@ jobs:
     needs: build-test-lint
     timeout-minutes: 45
     env:
-      SLCLI_E2E_SLS_BASE_URL: https://base.systemlink.io
+      SLCLI_E2E_SLS_BASE_URL: https://demo.systemlink.ni.dev
     steps:
       - name: Check SLS E2E configuration
         id: sls-config
@@ -283,7 +283,7 @@ jobs:
       group: e2e-migration-sls
       cancel-in-progress: false
     env:
-      SLCLI_E2E_SLS_BASE_URL: https://base.systemlink.io
+      SLCLI_E2E_SLS_BASE_URL: https://demo.systemlink.ni.dev
       SLCLI_E2E_SOURCE_PROFILE: migration-source
       SLCLI_E2E_SLE_BASE_URL: https://test-api.lifecyclesolutions.ni.com
       SLCLI_E2E_SLE_WEB_URL: https://test.lifecyclesolutions.ni.com
