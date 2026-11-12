@@ -10,6 +10,9 @@ from slcli.migration.api import REQUEST_TIMEOUT_SECONDS, ApiModel
 from slcli.migration.connection import MigrationConnection
 
 PAGE_SIZE = 1000
+TEST_MONITOR_BASE_PATH = "nitestmonitor/v2"
+# POST query-products and query-results are read-only, so their retries are safe.
+TEST_MONITOR_QUERY_PATHS = (f"{TEST_MONITOR_BASE_PATH}/query-",)
 
 
 class Product(ApiModel):
@@ -64,8 +67,8 @@ class TestMonitorClient:
         session: Optional[requests.Session] = None,
     ) -> None:
         """Initialize a Test Monitor query client."""
-        self._base_url = f"{connection.base_url}/nitestmonitor/v2"
-        self._session = session or connection.create_session()
+        self._base_url = f"{connection.base_url}/{TEST_MONITOR_BASE_PATH}"
+        self._session = session or connection.create_session(TEST_MONITOR_QUERY_PATHS)
 
     def query_products(self) -> Iterator[Product]:
         """Yield every product."""

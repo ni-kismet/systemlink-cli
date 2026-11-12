@@ -60,31 +60,31 @@ class WorkspaceMappingError(ValueError):
 
 
 def discover_workspaces(
-    workspace_iterable: Iterable[Workspace], workspaces_names_subset: Optional[Iterable[str]]
+    all_source_workspaces: Iterable[Workspace], explicit_workspace_selection: Optional[Iterable[str]]
 ) -> DiscoveredWorkspaces:
     """Select enabled source workspaces in scope of a migration.
 
     Args:
-        workspace_iterable: Every accessible source workspace.
-        workspaces_names_subset: Source names to migrate; all enabled workspaces when None.
+        all_source_workspaces: Every accessible source workspace.
+        explicit_workspace_selection: Source names to migrate; all enabled workspaces when None.
 
     Raises:
         WorkspaceMappingError: If a requested source workspace is missing or disabled.
     """
-    all_source_workspaces = tuple(workspace_iterable)
+    enumerated_source_workspaces = tuple(all_source_workspaces)
     enabled_workspaces = tuple(
         sorted(
-            (workspace for workspace in all_source_workspaces if workspace.enabled),
+            (workspace for workspace in enumerated_source_workspaces if workspace.enabled),
             key=lambda workspace: workspace.name,
         )
     )
     enabled_workspace_names = [workspace.name for workspace in enabled_workspaces]
     disabled_workspace_names = tuple(
-        workspace.name for workspace in all_source_workspaces if not workspace.enabled
+        workspace.name for workspace in enumerated_source_workspaces if not workspace.enabled
     )
     names_to_include = (
-        sorted(workspaces_names_subset)
-        if workspaces_names_subset is not None
+        sorted(explicit_workspace_selection)
+        if explicit_workspace_selection is not None
         else enabled_workspace_names
     )
     missing = sorted(set(names_to_include).difference(enabled_workspace_names))

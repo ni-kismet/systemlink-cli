@@ -23,12 +23,12 @@ from slcli.migration.workspaces import (
     cache_policy=INPUTS,
 )
 def discover_workspaces_task(
-    migration_id: str, source_profile: str, workspace_names_subset: Optional[List[str]]
+    migration_id: str, source_profile: str, explicit_workspace_selection: Optional[List[str]]
 ) -> DiscoveredWorkspaces:
     """Discover the source workspaces in scope of a migration.
 
     ``migration_id`` is unused by the body but scopes the cache key to one migration.
-    ``workspace_names_subset`` optionally contains a specific set of workspaces to find.
+    ``explicit_workspace_selection`` optionally contains a specific set of workspaces to find.
     If not given, all workspaces are discovered and returned.
 
     Raises:
@@ -37,7 +37,7 @@ def discover_workspaces_task(
     source_workspace_iterator = WorkspaceClient(
         resolve_migration_connection(source_profile)
     ).query_workspaces()
-    return discover_workspaces(source_workspace_iterator, workspace_names_subset)
+    return discover_workspaces(source_workspace_iterator, explicit_workspace_selection)
 
 
 # Later migration tasks are cached by the mapping, so a resumed run must reuse

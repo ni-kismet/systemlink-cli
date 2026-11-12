@@ -35,7 +35,7 @@ class WorkspaceClient:
         """Initialize a workspace query client."""
         self._connection = connection
         self._url = f"{connection.base_url}/niuser/v1/workspaces"
-        self._session = session or connection.create_session(retry_post_queries=False)
+        self._session = session or connection.create_session()
 
     def query_workspaces(self) -> Iterator[Workspace]:
         """Yield every accessible workspace."""

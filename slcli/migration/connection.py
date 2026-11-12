@@ -1,7 +1,7 @@
 """Profile-explicit SystemLink connections for migration operations."""
 
 from dataclasses import dataclass, field
-from typing import Any, Dict, Optional, Union
+from typing import Any, Dict, Iterable, Optional, Union
 
 import click
 import requests
@@ -12,17 +12,18 @@ from slcli.profiles import Profile, ProfileConfig
 from slcli.ssl_trust import use_standard_ssl_context
 from slcli.utils import get_auth_headers, profile_ssl_verify, resolve_profile_auth
 
-# Policy for read-only queries, including POST query endpoints, which are safe to replay.
-# Destination writes will need a stricter policy that never replays ambiguous failures.
-_QUERY_RETRY = Retry(
+# Default retry policy: GET is replayed, but not POST, since a failure
+# may be ambiguous about whether it created data, and we don't want to replay it.
+_DEFAULT_RETRY = Retry(
     total=5,
     backoff_factor=0.5,
     status_forcelist=(429, 500, 502, 503, 504),
-    allowed_methods=frozenset({"GET", "POST"}),
+    allowed_methods=frozenset({"GET"}),
     respect_retry_after_header=True,
     raise_on_status=False,
 )
-_WRITE_RETRY = _QUERY_RETRY.new(allowed_methods=frozenset({"GET"}))
+# Retry policy that includes POSTs as well, to be used for query endpoints.
+_QUERY_RETRY = _DEFAULT_RETRY.new(allowed_methods=frozenset({"GET", "POST"}))
 
 
 class _ProfileSession(requests.Session):
@@ -49,18 +50,26 @@ class MigrationConnection:
     ssl_verify: Union[bool, str] = True
     readonly: bool = False
 
-    def create_session(self, retry_post_queries: bool = True) -> requests.Session:
+    def create_session(self, query_paths: Iterable[str] = ()) -> requests.Session:
         """Return a session bound to this connection's credentials and TLS.
 
+        Requests are matched to a retry policy by URL prefix. URLs under any
+        ``query_paths`` entry use the query policy, which replays POST requests.
+        All other URLs use the default policy, which never replays POST requests.
+
         Args:
-            retry_post_queries: Whether to retry POST requests used for read-only queries.
+            query_paths: Route prefixes relative to ``base_url`` whose POST requests
+                are read-only queries, such as ``"nitestmonitor/v2/query-"``.
         """
         session = _ProfileSession(self.ssl_verify)
         session.headers.update(self.headers)
-        retry = _QUERY_RETRY if retry_post_queries else _WRITE_RETRY
-        adapter = HTTPAdapter(max_retries=retry)
-        session.mount("https://", adapter)
-        session.mount("http://", adapter)
+        query_adapter = HTTPAdapter(max_retries=_QUERY_RETRY)
+        write_adapter = HTTPAdapter(max_retries=_DEFAULT_RETRY)
+        session.mount("https://", write_adapter)
+        session.mount("http://", write_adapter)
+        base = self.base_url.rstrip("/")
+        for path in query_paths:
+            session.mount(f"{base}/{path.lstrip('/')}", query_adapter)
         return session
 
 

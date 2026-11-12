@@ -62,11 +62,13 @@ def test_session_carries_credentials_and_tls() -> None:
     assert "secret" not in repr(connection)
 
 
-def test_session_retries_transient_query_failures() -> None:
-    """Read queries, including POST queries, retry throttling and server errors."""
-    session = MigrationConnection("source", "https://source", {}).create_session()
+def test_session_retries_post_failures_on_query_routes() -> None:
+    """POST requests to declared query routes retry throttling and server errors."""
+    session = MigrationConnection("source", "https://source", {}).create_session(
+        query_paths=("nitestmonitor/v2/query-",)
+    )
 
-    adapter = session.get_adapter("https://source")
+    adapter = session.get_adapter("https://source/nitestmonitor/v2/query-results")
     assert isinstance(adapter, HTTPAdapter)
     retry = adapter.max_retries
     assert retry.total == 5
@@ -74,16 +76,28 @@ def test_session_retries_transient_query_failures() -> None:
     assert "POST" in (retry.allowed_methods or ())
 
 
-def test_session_does_not_retry_write_post_failures() -> None:
-    """Write sessions retry GET requests but do not replay POST requests."""
+def test_session_does_not_retry_post_failures_on_nonquery_routes() -> None:
+    """Non-query routes use the write policy, even in a session with query routes."""
     session = MigrationConnection("source", "https://source", {}).create_session(
-        retry_post_queries=False
+        query_paths=("nitestmonitor/v2/query-",)
     )
 
-    adapter = session.get_adapter("https://source")
+    for url in ("https://source/nitestmonitor/v2/products", "https://source/niuser/v1/workspaces"):
+        adapter = session.get_adapter(url)
+        assert isinstance(adapter, HTTPAdapter)
+        retry = adapter.max_retries
+        assert retry.total == 5
+        assert "GET" in (retry.allowed_methods or ())
+        assert "POST" not in (retry.allowed_methods or ())
+
+
+def test_default_session_retries_gets_but_not_posts() -> None:
+    """Without declared query routes, every route uses the write policy."""
+    session = MigrationConnection("source", "https://source", {}).create_session()
+
+    adapter = session.get_adapter("https://source/nitestmonitor/v2/query-results")
     assert isinstance(adapter, HTTPAdapter)
     retry = adapter.max_retries
-    assert retry.total == 5
     assert "GET" in (retry.allowed_methods or ())
     assert "POST" not in (retry.allowed_methods or ())
 

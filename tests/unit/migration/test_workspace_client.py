@@ -25,7 +25,7 @@ def test_create_workspace_posts_enabled_workspace() -> None:
     workspace = WorkspaceClient(connection).create_workspace("New workspace")
 
     assert workspace == Workspace(id="created-id", name="New workspace")
-    connection.create_session.assert_called_once_with(retry_post_queries=False)
+    connection.create_session.assert_called_once_with()
     session.post.assert_called_once_with(
         "https://destination.example.com/niuser/v1/workspaces",
         json={"name": "New workspace", "enabled": True},
