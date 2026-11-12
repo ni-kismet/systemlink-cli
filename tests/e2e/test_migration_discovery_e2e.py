@@ -32,7 +32,11 @@ from slcli.migration.testmonitor.discovery import DEFAULT_WORKSPACE, discover_te
 from slcli.migration.testmonitor.models import TestMonitorDiscovery
 from slcli.migration.workspace_client import WorkspaceClient
 from slcli.ssl_trust import inject_os_trust
-from tests.e2e.migration_endpoints import get_or_create_workspace
+from tests.e2e.migration_endpoints import (
+    DISABLED_SOURCE_WORKSPACE,
+    get_or_create_disabled_workspace,
+    get_or_create_workspace,
+)
 from tests.e2e.testmonitor_fixture import OwnedTestMonitorResources
 
 PRIMARY = "e2e-slcli-migration-source"
@@ -81,6 +85,8 @@ def seeded() -> Generator[Seeded, None, None]:
     inject_os_trust()
     connection = resolve_migration_connection(profile)
     workspace_ids = {name: get_or_create_workspace(connection, name) for name in (PRIMARY, OTHER)}
+    # Products with no results go to Default only when no source workspace is disabled.
+    get_or_create_disabled_workspace(connection, DISABLED_SOURCE_WORKSPACE)
     resources = OwnedTestMonitorResources(connection, workspace_ids)
     resources.clean()
     try:
