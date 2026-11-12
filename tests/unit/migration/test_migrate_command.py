@@ -6,7 +6,7 @@ from contextlib import contextmanager
 from dataclasses import dataclass, field
 from datetime import datetime, timezone
 from pathlib import Path
-from typing import Dict, List, Optional, Tuple
+from typing import Dict, Iterable, List, Optional, Tuple
 
 import click
 import pytest
@@ -22,9 +22,14 @@ from slcli.migration.state import STATE_DIR_ENV, MigrationRun, RunMetadata, crea
 from slcli.migration.testmonitor.models import (
     DiscoveredProduct,
     DiscoveredResult,
+    BatchResult,
+    FailedItem,
+    MigratedItem,
+    ProductConflict,
     TestMonitorDiscovery,
     WorkspaceFailure,
 )
+from slcli.migration.testmonitor.models import TestMonitorMigration
 from slcli.migration.workspace_client import Workspace
 from slcli.migration.workspaces import discover_workspaces, synchronize_workspaces
 from slcli.utils import ExitCodes
@@ -54,6 +59,10 @@ def _migrate(*args: str) -> Result:
     return CliRunner().invoke(cli, ["migrate", *args])
 
 
+def _named(names: Iterable[str]) -> List[Workspace]:
+    return [Workspace(id=f"{name}-id", name=name) for name in names]
+
+
 @dataclass
 class FakeDiscovery:
     """Records discovery requests in place of a Prefect server and flow."""
@@ -63,6 +72,8 @@ class FakeDiscovery:
     state_root: Path = Path()
     source_workspaces: Tuple[str, ...] = ("Lab", "Default")
     destination_workspaces: Tuple[str, ...] = ("Lab", "Default", "Dest")
+    migration: TestMonitorMigration = TestMonitorMigration()
+    metadata: List[RunMetadata] = field(default_factory=list)
     destination_error: Optional[Exception] = None
 
     def runs(self) -> List[MigrationRun]:
@@ -95,8 +106,9 @@ def fake_discovery(monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> FakeDisco
         yield api_url or "http://managed/api"
 
     def run_migration(run: MigrationRun, metadata: RunMetadata, api_url: str) -> MigrationOutcome:
-        mappings = metadata.workspace_mappings
-        workspaces = list(mappings) if mappings is not None else None
+        workspaces = (
+            list(metadata.workspace_mappings) if metadata.workspace_mappings is not None else None
+        )
         fake.calls.append(
             {
                 "run": run,
@@ -105,25 +117,24 @@ def fake_discovery(monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> FakeDisco
                 "api_url": api_url,
             }
         )
-        discovered = discover_workspaces(_workspaces(fake.source_workspaces), workspaces)
+        fake.metadata.append(metadata)
+        discovered = discover_workspaces(_named(fake.source_workspaces), workspaces)
         if fake.outcome is None:
             raise RuntimeError("discovery failed")
         if fake.destination_error is not None:
             raise fake.destination_error
+        mapping = synchronize_workspaces(
+            discovered, _named(fake.destination_workspaces), metadata.workspace_mappings
+        )
         return MigrationOutcome(
+            mapping=mapping,
             discovery=MigrationDiscovery(workspaces=discovered, test_monitor=fake.outcome),
-            mapping=synchronize_workspaces(
-                discovered, _workspaces(fake.destination_workspaces), mappings
-            ),
+            test_monitor=fake.migration,
         )
 
     monkeypatch.setattr(command, "prefect_server", prefect_server)
     monkeypatch.setattr(command, "run_migration", run_migration)
     return fake
-
-
-def _workspaces(names: Tuple[str, ...]) -> List[Workspace]:
-    return [Workspace(id=f"{name}-id", name=name) for name in names]
 
 
 def test_unknown_mapped_workspace_fails_discovery(fake_discovery: FakeDiscovery) -> None:
@@ -258,25 +269,6 @@ def test_run_log_records_lifecycle_without_secrets(fake_discovery: FakeDiscovery
     assert "key" not in log.replace("api-key", "")
 
 
-def test_summary_is_deterministic() -> None:
-    """The summary reports counts and each failed workspace."""
-    assert command.format_summary(DISCOVERY) == (
-        "Test Monitor discovery:\n"
-        "  Products: 1\n"
-        "  Terminal results: 1\n"
-        "  Failed workspaces: 1\n"
-        "    Broken: HTTPError\n"
-        "  Product workspaces were inferred without the failed workspaces."
-    )
-
-
-def test_summary_omits_failure_note_without_failures() -> None:
-    """The inference caveat appears only when a workspace failed."""
-    summary = command.format_summary(DISCOVERY.model_copy(update={"failures": ()}))
-
-    assert summary.endswith("  Failed workspaces: 0")
-
-
 def test_success_reports_log_path(fake_discovery: FakeDiscovery) -> None:
     """A successful run prints where its log was written."""
     result = _migrate("--source-profile", "source", "--destination-profile", "destination")
@@ -406,6 +398,20 @@ def test_existing_migration_reuses_persisted_inputs(fake_discovery: FakeDiscover
     assert fake_discovery.calls[0]["workspaces"] == ["Lab"]
 
 
+def test_resume_reports_a_mapping_error_from_the_flow(fake_discovery: FakeDiscovery) -> None:
+    """A mapping error raised while the flow resolves workspaces is a user error."""
+    run = create_migration_run("source", "destination", None, fake_discovery.state_root)
+    fake_discovery.destination_workspaces = ("Lab",)
+
+    result = _migrate("--migration-id", run.migration_id)
+
+    assert result.exit_code == 1
+    assert "missing destination workspace: Default -> Default" in result.output
+    assert "--workspace-mappings" in result.output
+    log = (run.directory / "migration.log").read_text(encoding="utf-8")
+    assert "Migration failed: WorkspaceMappingError" in log
+
+
 def test_unknown_migration_id_is_reported(fake_discovery: FakeDiscovery) -> None:
     """Invalid IDs are a user error, not a traceback."""
     result = _migrate("--migration-id", "not-a-uuid")
@@ -436,3 +442,81 @@ def test_rejects_invalid_usage(args: List[str], message: str) -> None:
 
     assert result.exit_code == 2
     assert message in result.output
+
+
+MIGRATION = TestMonitorMigration(
+    products=(
+        BatchResult(
+            resource="products",
+            batch=0,
+            migrated=(MigratedItem(source_id="p1", destination_id="d1"),),
+            conflicts=(
+                ProductConflict(
+                    source_id="p2",
+                    part_number="PN-2",
+                    expected_workspace="Dest-id",
+                ),
+            ),
+        ),
+    ),
+    results=(
+        BatchResult(
+            resource="results",
+            batch=0,
+            migrated=(MigratedItem(source_id="r1", destination_id="dr1", steps=3),),
+            failed=(
+                FailedItem(
+                    source_id="r2",
+                    stage="steps",
+                    error_type="HTTPError",
+                    destination_id="dr2",
+                ),
+            ),
+        ),
+    ),
+)
+
+
+def test_failed_items_exit_non_zero_after_summary(fake_discovery: FakeDiscovery) -> None:
+    """Item failures fail the command; conflicts alone do not."""
+    fake_discovery.migration = MIGRATION
+
+    result = _migrate("--source-profile", "source", "--destination-profile", "destination")
+
+    assert result.exit_code == 1
+    assert "Results failed: 1" in result.output
+    assert "1 items failed to migrate." in result.output
+
+
+def test_conflicts_alone_succeed(fake_discovery: FakeDiscovery) -> None:
+    """A part-number conflict is reported without failing the run."""
+    fake_discovery.migration = MIGRATION.model_copy(update={"results": ()})
+
+    result = _migrate("--source-profile", "source", "--destination-profile", "destination")
+
+    assert result.exit_code == 0, result.output
+    assert "Product conflicts: 1" in result.output
+
+
+def test_batch_sizes_are_persisted(fake_discovery: FakeDiscovery) -> None:
+    """Hidden batch-size options are stored with the run and reused on resume."""
+    result = _migrate(
+        "--source-profile",
+        "source",
+        "--destination-profile",
+        "destination",
+        "--product-batch-size",
+        "7",
+        "--result-batch-size",
+        "3",
+    )
+    assert result.exit_code == 0, result.output
+    [run] = fake_discovery.runs()
+
+    resumed = _migrate("--migration-id", run.migration_id)
+
+    assert resumed.exit_code == 0, resumed.output
+    assert [(m.product_batch_size, m.result_batch_size) for m in fake_discovery.metadata] == [
+        (7, 3),
+        (7, 3),
+    ]

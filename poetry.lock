@@ -5448,4 +5448,4 @@ migration = ["prefect", "psutil", "pydantic"]
 [metadata]
 lock-version = "2.1"
 python-versions = ">=3.11.1,<3.16"
-content-hash = "0608f2727b72ad477b1a533467dd294e94138ba2b652aec7f7218cded631a311"
+content-hash = "a2f9e27f9828da7d57c58bf24fce9a24b85f8dd6bf24f7003ef60e06b0723626"

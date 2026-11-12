@@ -69,12 +69,16 @@ def run_discovery(
         return discover_flow(run.migration_id, source_profile, workspaces)
 
 
-def run_migration(run: MigrationRun, metadata: RunMetadata, api_url: str) -> MigrationOutcome:
+def run_migration(
+    run: MigrationRun,
+    metadata: RunMetadata,
+    api_url: str,
+) -> MigrationOutcome:
     """Run the migration flow for a run on a Prefect server.
 
     Args:
         run: Migration run that provides the client home and result storage.
-        metadata: Persisted run inputs, including profiles and workspace mappings.
+        metadata: Persisted run inputs, including profiles and batch sizes.
         api_url: Prefect API URL from :func:`prefect_server`.
     """
     with _run_settings(run, api_url):
@@ -83,4 +87,6 @@ def run_migration(run: MigrationRun, metadata: RunMetadata, api_url: str) -> Mig
             metadata.source_profile,
             metadata.destination_profile,
             metadata.workspace_mappings,
+            metadata.product_batch_size,
+            metadata.result_batch_size,
         )

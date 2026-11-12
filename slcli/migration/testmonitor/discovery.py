@@ -9,12 +9,10 @@ from typing import (
     List,
     Mapping,
     Optional,
-    Protocol,
-    Sequence,
     Tuple,
 )
 
-from slcli.migration.testmonitor.client import Product, Result
+from slcli.migration.testmonitor.client import Result, TestMonitorSource
 from slcli.migration.testmonitor.models import (
     DiscoveredProduct,
     DiscoveredResult,
@@ -29,22 +27,6 @@ _logger = logging.getLogger(__name__)
 TERMINAL_RESULT_STATES = frozenset(
     {"DONE", "PASSED", "FAILED", "SKIPPED", "TERMINATED", "ERRORED", "TIMEDOUT", "TIMED_OUT"}
 )
-
-
-class TestMonitorQuery(Protocol):
-    """Queries required by Test Monitor discovery."""
-
-    def query_products(self) -> Iterable[Product]:
-        """Return all Test Monitor products."""
-        ...
-
-    def query_results(
-        self,
-        filter_expr: Optional[str] = None,
-        substitutions: Optional[Sequence[str]] = None,
-    ) -> Iterable[Result]:
-        """Return Test Monitor results matching a parameterized filter."""
-        ...
 
 
 WorkspacedResult = Tuple[str, Result]
@@ -69,7 +51,7 @@ class _ResultScan:
                     self.newest_by_part_number[result.part_number] = (workspace, result)
 
 
-def _scan_results(client: TestMonitorQuery, workspaces: Mapping[str, str]) -> _ResultScan:
+def _scan_results(client: TestMonitorSource, workspaces: Mapping[str, str]) -> _ResultScan:
     scan = _ResultScan()
     for workspace, workspace_id in workspaces.items():
         try:
@@ -105,7 +87,7 @@ def infer_product_workspace(
 
 
 def discover_test_monitor(
-    client: TestMonitorQuery,
+    client: TestMonitorSource,
     all_workspaces: Mapping[str, str],
     selected_workspaces: Optional[Collection[str]] = None,
 ) -> TestMonitorDiscovery:

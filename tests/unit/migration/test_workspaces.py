@@ -64,6 +64,9 @@ def test_explicit_mappings_select_and_rename() -> None:
     )
 
     assert [(w.source_name, w.destination_id) for w in mapping.workspaces] == [("Lab", "d-Target")]
+    assert mapping.workspace("Lab").destination_id == "d-Target"
+    with pytest.raises(KeyError):
+        mapping.workspace("Default")
 
 
 def test_missing_destination_workspaces_are_all_reported() -> None:

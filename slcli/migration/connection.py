@@ -1,24 +1,80 @@
 """Profile-explicit SystemLink connections for migration operations."""
 
+import logging
 from dataclasses import dataclass, field
+from types import TracebackType
 from typing import Any, Dict, Optional, Union
 
 import click
 import requests
 from requests.adapters import HTTPAdapter
+from urllib3.connectionpool import ConnectionPool
+from urllib3.response import BaseHTTPResponse
 from urllib3.util.retry import Retry
 
 from slcli.profiles import Profile, ProfileConfig
 from slcli.ssl_trust import use_standard_ssl_context
 from slcli.utils import get_auth_headers, profile_ssl_verify, resolve_profile_auth
 
+_logger = logging.getLogger(__name__)
+
+
+class LoggingRetry(Retry):
+    """Retry policy that logs every retry decision to the migration log."""
+
+    def increment(
+        self,
+        method: Optional[str] = None,
+        url: Optional[str] = None,
+        response: Optional[BaseHTTPResponse] = None,
+        error: Optional[Exception] = None,
+        _pool: Optional[ConnectionPool] = None,
+        _stacktrace: Optional[TracebackType] = None,
+    ) -> "LoggingRetry":
+        """Log the retry decision, then defer to :class:`Retry`."""
+        reason = f"status={response.status}" if response is not None else type(error).__name__
+        try:
+            retry = super().increment(method, url, response, error, _pool, _stacktrace)
+        except Exception:
+            _logger.warning(
+                "HTTP retry exhausted: %s %s %s",
+                method,
+                url,
+                reason,
+            )
+            raise
+        _logger.warning(
+            "HTTP retry: %s %s %s attempt=%d backoff=%.1fs",
+            method,
+            url,
+            reason,
+            len(retry.history),
+            retry.get_backoff_time(),
+        )
+        return retry
+
+
 # Policy for read-only queries, including POST query endpoints, which are safe to replay.
-# Destination writes will need a stricter policy that never replays ambiguous failures.
-_QUERY_RETRY = Retry(
+_QUERY_RETRY = LoggingRetry(
     total=5,
     backoff_factor=0.5,
     status_forcelist=(429, 500, 502, 503, 504),
     allowed_methods=frozenset({"GET", "POST"}),
+    respect_retry_after_header=True,
+    raise_on_status=False,
+)
+
+# Policy for destination writes. Only failures where the server did not process the
+# request are retried: refused connections and explicit 429/503 back-pressure. Read
+# timeouts and other 5xx responses are ambiguous and are never replayed.
+_WRITE_RETRY = LoggingRetry(
+    total=5,
+    connect=5,
+    read=0,
+    other=0,
+    backoff_factor=1.0,
+    status_forcelist=(429, 503),
+    allowed_methods=None,
     respect_retry_after_header=True,
     raise_on_status=False,
 )
@@ -49,9 +105,16 @@ class MigrationConnection:
 
     def create_session(self) -> requests.Session:
         """Return a query session bound to this connection's credentials and TLS."""
+        return self._session(_QUERY_RETRY)
+
+    def create_write_session(self) -> requests.Session:
+        """Return a session for non-idempotent writes that never replays ambiguous failures."""
+        return self._session(_WRITE_RETRY)
+
+    def _session(self, retry: Retry) -> requests.Session:
         session = _ProfileSession(self.ssl_verify)
         session.headers.update(self.headers)
-        adapter = HTTPAdapter(max_retries=_QUERY_RETRY)
+        adapter = HTTPAdapter(max_retries=retry)
         session.mount("https://", adapter)
         session.mount("http://", adapter)
         return session
