@@ -35,6 +35,17 @@ class WorkspaceMapping(BaseModel):
 
     workspaces: Tuple[MappedWorkspace, ...] = ()
 
+    def workspace(self, source_name: str) -> MappedWorkspace:
+        """Return the mapping for a source workspace name.
+
+        Raises:
+            KeyError: If the source workspace is not mapped.
+        """
+        for workspace in self.workspaces:
+            if workspace.source_name == source_name:
+                return workspace
+        raise KeyError(f"Workspace '{source_name}' is not mapped")
+
 
 class WorkspaceMappingError(ValueError):
     """Requested workspaces that are missing or have disabled destinations."""
@@ -60,7 +71,8 @@ class WorkspaceMappingError(ValueError):
 
 
 def discover_workspaces(
-    all_source_workspaces: Iterable[Workspace], explicit_workspace_selection: Optional[Iterable[str]]
+    all_source_workspaces: Iterable[Workspace],
+    explicit_workspace_selection: Optional[Iterable[str]],
 ) -> DiscoveredWorkspaces:
     """Select enabled source workspaces in scope of a migration.
 

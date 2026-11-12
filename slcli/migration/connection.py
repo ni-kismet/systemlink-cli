@@ -1,20 +1,60 @@
 """Profile-explicit SystemLink connections for migration operations."""
 
+import logging
 from dataclasses import dataclass, field
+from types import TracebackType
 from typing import Any, Dict, Iterable, Optional, Union
 
 import click
 import requests
 from requests.adapters import HTTPAdapter
+from urllib3.connectionpool import ConnectionPool
+from urllib3.response import BaseHTTPResponse
 from urllib3.util.retry import Retry
 
 from slcli.profiles import Profile, ProfileConfig
 from slcli.ssl_trust import use_standard_ssl_context
 from slcli.utils import get_auth_headers, profile_ssl_verify, resolve_profile_auth
 
-# Default retry policy: GET is replayed, but not POST, since a failure
-# may be ambiguous about whether it created data, and we don't want to replay it.
-_DEFAULT_RETRY = Retry(
+_logger = logging.getLogger(__name__)
+
+
+class LoggingRetry(Retry):
+    """Retry policy that logs every retry decision to the migration log."""
+
+    def increment(
+        self,
+        method: Optional[str] = None,
+        url: Optional[str] = None,
+        response: Optional[BaseHTTPResponse] = None,
+        error: Optional[Exception] = None,
+        _pool: Optional[ConnectionPool] = None,
+        _stacktrace: Optional[TracebackType] = None,
+    ) -> "LoggingRetry":
+        """Log the retry decision, then defer to :class:`Retry`."""
+        reason = f"status={response.status}" if response is not None else type(error).__name__
+        try:
+            retry = super().increment(method, url, response, error, _pool, _stacktrace)
+        except Exception:
+            _logger.warning(
+                "HTTP retry exhausted: %s %s %s",
+                method,
+                url,
+                reason,
+            )
+            raise
+        _logger.warning(
+            "HTTP retry: %s %s %s attempt=%d backoff=%.1fs",
+            method,
+            url,
+            reason,
+            len(retry.history),
+            retry.get_backoff_time(),
+        )
+        return retry
+
+
+_DEFAULT_RETRY = LoggingRetry(
     total=5,
     backoff_factor=0.5,
     status_forcelist=(429, 500, 502, 503, 504),
@@ -22,8 +62,23 @@ _DEFAULT_RETRY = Retry(
     respect_retry_after_header=True,
     raise_on_status=False,
 )
-# Retry policy that includes POSTs as well, to be used for query endpoints.
+# Policy for read-only queries, including POST query endpoints, which are safe to replay.
 _QUERY_RETRY = _DEFAULT_RETRY.new(allowed_methods=frozenset({"GET", "POST"}))
+
+# Policy for destination writes. Only failures where the server did not process the
+# request are retried: refused connections and explicit 429/503 back-pressure. Read
+# timeouts and other 5xx responses are ambiguous and are never replayed.
+_WRITE_RETRY = LoggingRetry(
+    total=5,
+    connect=5,
+    read=0,
+    other=0,
+    backoff_factor=1.0,
+    status_forcelist=(429, 503),
+    allowed_methods=None,
+    respect_retry_after_header=True,
+    raise_on_status=False,
+)
 
 
 class _ProfileSession(requests.Session):
@@ -61,15 +116,22 @@ class MigrationConnection:
             query_paths: Route prefixes relative to ``base_url`` whose POST requests
                 are read-only queries, such as ``"nitestmonitor/v2/query-"``.
         """
-        session = _ProfileSession(self.ssl_verify)
-        session.headers.update(self.headers)
-        query_adapter = HTTPAdapter(max_retries=_QUERY_RETRY)
-        write_adapter = HTTPAdapter(max_retries=_DEFAULT_RETRY)
-        session.mount("https://", write_adapter)
-        session.mount("http://", write_adapter)
+        session = self._session(_DEFAULT_RETRY)
         base = self.base_url.rstrip("/")
         for path in query_paths:
-            session.mount(f"{base}/{path.lstrip('/')}", query_adapter)
+            session.mount(f"{base}/{path.lstrip('/')}", HTTPAdapter(max_retries=_QUERY_RETRY))
+        return session
+
+    def create_write_session(self) -> requests.Session:
+        """Return a session for non-idempotent writes that never replays ambiguous failures."""
+        return self._session(_WRITE_RETRY)
+
+    def _session(self, retry: Retry) -> requests.Session:
+        session = _ProfileSession(self.ssl_verify)
+        session.headers.update(self.headers)
+        adapter = HTTPAdapter(max_retries=retry)
+        session.mount("https://", adapter)
+        session.mount("http://", adapter)
         return session
 
 

@@ -132,6 +132,9 @@ def test_explicit_mappings_select_and_rename(create_destination_workspace: Magic
 
     assert [(w.source_name, w.destination_id) for w in mapping.workspaces] == [("Lab", "d-Target")]
     create_destination_workspace.assert_not_called()
+    assert mapping.workspace("Lab").destination_id == "d-Target"
+    with pytest.raises(KeyError):
+        mapping.workspace("Default")
 
 
 def test_missing_destination_workspace_is_created(create_destination_workspace: MagicMock) -> None:

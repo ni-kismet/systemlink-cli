@@ -59,7 +59,7 @@ def _product(product_id: str, workspace: str = "", owned: bool = True) -> Produc
         id=product_id,
         part_number="part",
         workspace=workspace or None,
-        properties=OWNED if owned else {},
+        properties=dict(OWNED) if owned else {},
     )
 
 
