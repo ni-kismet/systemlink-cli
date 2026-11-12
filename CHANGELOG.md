@@ -2,6 +2,13 @@
 
 <!-- towncrier release notes start -->
 
+## v3.1.1 (2026-11-12)
+
+### Other Changes
+
+- `slcli migrate` migrates Test Monitor products, terminal results, and their steps into mapped destination workspaces, reporting part-number conflicts and failed items. (migration-testmonitor-results)
+
+
 ## v3.1.0 (2026-11-11)
 
 ### Features
