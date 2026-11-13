@@ -2,6 +2,13 @@
 
 <!-- towncrier release notes start -->
 
+## v3.2.0 (2026-11-13)
+
+### Features
+
+- Create missing destination workspaces during migration workspace synchronization. (synchronize-destination-workspaces)
+
+
 ## v3.1.1 (2026-11-12)
 
 ### Other Changes
