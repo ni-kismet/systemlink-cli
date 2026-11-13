@@ -9,6 +9,8 @@ import requests
 from pydantic import ValidationError
 
 from slcli.migration.connection import MigrationConnection
+from slcli.migration.files.client import FilesClient
+from slcli.migration.files.client import PAGE_SIZE as FILES_PAGE_SIZE
 from slcli.migration.testmonitor.client import PAGE_SIZE, TestMonitorClient
 from slcli.migration.workspace_client import PAGE_SIZE as WORKSPACE_PAGE_SIZE
 from slcli.migration.workspace_client import WorkspaceClient
@@ -104,6 +106,39 @@ def test_query_results_accepts_null_property_values() -> None:
 
     [result] = client.query_results()
     assert result.properties == {"TEST_STOP_TIME": None, "owner": "test"}
+
+
+def test_query_files_pages_with_skip_until_short_page() -> None:
+    """Files page with skip/take per workspace and stop after a short page."""
+    full_page = [{"id": f"f{i}", "properties": {"Name": f"n{i}"}} for i in range(FILES_PAGE_SIZE)]
+    session = FakeSession(
+        [
+            {"availableFiles": full_page},
+            {"availableFiles": [{"id": "last", "size64": 9}]},
+        ]
+    )
+    client = FilesClient(CONNECTION, session)  # type: ignore[arg-type]
+
+    files = list(client.query_files("lab-id"))
+
+    assert len(files) == FILES_PAGE_SIZE + 1
+    assert files[0].name == "n0"
+    assert files[-1].id == "last"
+    assert files[-1].size_bytes == 9
+    assert session.calls[0]["url"] == (
+        "https://source/nifile/v1/service-groups/Default/query-files"
+    )
+    assert session.calls[0]["params"] == {
+        "skip": 0,
+        "take": FILES_PAGE_SIZE,
+        "workspace": "lab-id",
+    }
+    assert session.calls[1]["params"] == {
+        "skip": FILES_PAGE_SIZE,
+        "take": FILES_PAGE_SIZE,
+        "workspace": "lab-id",
+    }
+    assert session.calls[0]["json"] == {}
 
 
 def test_query_rejects_malformed_response() -> None:

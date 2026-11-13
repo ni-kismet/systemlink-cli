@@ -31,6 +31,7 @@ from slcli.migration.testmonitor.client import Product, Result, TestMonitorClien
 from slcli.migration.testmonitor.discovery import DEFAULT_WORKSPACE, discover_test_monitor
 from slcli.migration.testmonitor.models import TestMonitorDiscovery
 from slcli.migration.workspace_client import WorkspaceClient
+from slcli.migration.workspaces import discover_workspaces
 from slcli.ssl_trust import inject_os_trust
 from tests.e2e.migration_endpoints import (
     DISABLED_SOURCE_WORKSPACE,
@@ -222,11 +223,8 @@ def test_workspace_failure_preserves_other_workspaces(seeded: Seeded) -> None:
     discovery policy directly with live queries.
     """
     client = _FailingWorkspace(TestMonitorClient(seeded.connection), seeded.workspace_ids[OTHER])
-    all_workspaces = WorkspaceClient(seeded.connection).query_workspaces()
-    enabled = {w.name: w.id for w in all_workspaces if w.enabled}
-    disabled = [w.name for w in all_workspaces if not w.enabled]
-
-    discovery = discover_test_monitor(client, enabled, list(enabled), disabled)
+    workspaces = discover_workspaces(WorkspaceClient(seeded.connection).query_workspaces(), None)
+    discovery = discover_test_monitor(client, workspaces)
 
     assert [(f.workspace, f.error_type) for f in discovery.failures] == [(OTHER, "ConnectionError")]
     assert _results(discovery, PRIMARY) == seeded.primary_results

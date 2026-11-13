@@ -3,7 +3,7 @@
 from typing import Dict, List, Optional
 
 from prefect import task
-from prefect.cache_policies import INPUTS
+from prefect.cache_policies import INPUTS, TASK_SOURCE
 
 from slcli.migration.connection import resolve_migration_connection
 from slcli.migration.workspace_client import WorkspaceClient
@@ -20,7 +20,7 @@ from slcli.migration.workspaces import (
     persist_result=True,
     result_serializer="json",
     cache_result_in_memory=False,
-    cache_policy=INPUTS,
+    cache_policy=TASK_SOURCE + INPUTS,
 )
 def discover_workspaces_task(
     migration_id: str, source_profile: str, explicit_workspace_selection: Optional[List[str]]
@@ -47,7 +47,7 @@ def discover_workspaces_task(
     persist_result=True,
     result_serializer="json",
     cache_result_in_memory=False,
-    cache_policy=INPUTS,
+    cache_policy=TASK_SOURCE + INPUTS,
 )
 def synchronize_workspaces_task(
     migration_id: str,
