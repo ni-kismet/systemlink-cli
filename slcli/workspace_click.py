@@ -88,7 +88,7 @@ def register_workspace_commands(cli: Any) -> None:
         type=click.IntRange(min=1),
         default=100,
         show_default=True,
-        help="Maximum number of workspaces to return from API",
+        help="JSON result limit or table page size (API pages max 100)",
     )
     def list_workspaces(
         format: str = "table",
@@ -99,8 +99,8 @@ def register_workspace_commands(cli: Any) -> None:
         """List workspaces with optional filtering.
 
         The --filter option performs server-side case-insensitive substring
-        matching on workspace names. The --take option limits the number of
-        results shown per page (max 100).
+        matching on workspace names. The --take option sets the JSON result limit
+        or table page size (API pages are capped at 100).
         """
         format_output = validate_output_format(format)
 

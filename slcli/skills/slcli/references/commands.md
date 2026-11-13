@@ -694,12 +694,14 @@ slcli comment delete <ID1> <ID2> <ID3> --yes
 ## workspace — Workspace management
 
 ```bash
-slcli workspace list [--format json] [--take 100]
+slcli workspace list [--format json] [--take N]
 slcli workspace get --workspace WORKSPACE_ID [--format json]
 slcli workspace disable --id WORKSPACE_ID [--yes]
 ```
 
-`workspace list` returns up to 100 workspaces by default.
+`workspace list` defaults to 100. For JSON output, `--take` limits the total
+results. For table output, it sets the page size (maximum 100); interactive users
+can continue through additional pages.
 
 ## config — Profile and credential management
 
