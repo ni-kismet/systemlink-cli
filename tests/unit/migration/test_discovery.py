@@ -75,7 +75,9 @@ def _workspaces(
 ) -> DiscoveredWorkspaces:
     source = {name: Workspace(id=f"{name}-id", name=name) for name in names}
     selected_names = tuple(sorted(source)) if selected is None else tuple(sorted(selected))
-    return DiscoveredWorkspaces(source=source, selected=selected_names, disabled=tuple(disabled or ()))
+    return DiscoveredWorkspaces(
+        source=source, selected=selected_names, disabled=tuple(disabled or ())
+    )
 
 
 def _product_workspaces(discovery: TestMonitorDiscovery) -> Dict[str, str]:
@@ -146,7 +148,9 @@ def test_no_result_products_require_all_workspaces() -> None:
     """Products without results are included only when no workspaces are mapped."""
     source = FakeTestMonitor([_product("orphan")], {"Alpha-id": [], "Default-id": []})
 
-    mapped_default = discover_test_monitor(source, _workspaces("Alpha", DEFAULT_WORKSPACE, selected=[DEFAULT_WORKSPACE]))
+    mapped_default = discover_test_monitor(
+        source, _workspaces("Alpha", DEFAULT_WORKSPACE, selected=[DEFAULT_WORKSPACE])
+    )
     all_workspaces = discover_test_monitor(source, _workspaces("Alpha", DEFAULT_WORKSPACE))
 
     assert mapped_default.products == ()
@@ -195,9 +199,7 @@ def test_selection_excludes_products_with_results_only_in_disabled_workspace() -
         {"Default-id": [], "Lab-id": RuntimeError("disabled workspace must not be queried")},
     )
 
-    discovery = discover_test_monitor(
-        source, _workspaces(DEFAULT_WORKSPACE, disabled=["Lab"])
-    )
+    discovery = discover_test_monitor(source, _workspaces(DEFAULT_WORKSPACE, disabled=["Lab"]))
 
     assert discovery.products == ()
     assert discovery.results == ()
@@ -211,9 +213,7 @@ def test_disabled_workspace_still_allows_products_with_enabled_results() -> None
         {"Default-id": [_result("r1", "p")], "Lab-id": RuntimeError("must not be queried")},
     )
 
-    discovery = discover_test_monitor(
-        source, _workspaces(DEFAULT_WORKSPACE, disabled=["Lab"])
-    )
+    discovery = discover_test_monitor(source, _workspaces(DEFAULT_WORKSPACE, disabled=["Lab"]))
 
     assert _product_workspaces(discovery) == {"product-p": DEFAULT_WORKSPACE}
     assert [result.id for result in discovery.results] == ["r1"]
