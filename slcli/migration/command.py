@@ -85,15 +85,11 @@ def _echo_connections(source: MigrationConnection, destination: MigrationConnect
             )
 
 
-def _mapping_error(
-    exc: WorkspaceMappingError, workspace_mappings: Optional[Dict[str, str]]
-) -> click.ClickException:
-    # TODO(AB#4088608): Synchronize workspaces will create missing destination workspaces.
+def _mapping_error(exc: WorkspaceMappingError) -> click.ClickException:
     hint = (
-        "Destination workspaces are not created by migration."
-        if workspace_mappings is not None
-        else "Create the destination workspaces or select workspaces with "
-        "--workspace-mappings. Destination workspaces are not created by migration."
+        "Check that the requested source workspaces exist."
+        if exc.missing_source
+        else "Check destination workspace access and retry."
     )
     return click.ClickException(f"{exc}. {hint}")
 
@@ -147,7 +143,7 @@ def _migrate(
                 outcome = run_migration(run, metadata, api_url)
         except WorkspaceMappingError as exc:
             _log_failure(exc, log_path)
-            raise _mapping_error(exc, workspace_mappings) from exc
+            raise _mapping_error(exc) from exc
         except requests.RequestException as exc:
             _log_failure(exc, log_path)
             handle_api_error(exc)

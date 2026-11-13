@@ -32,7 +32,11 @@ from slcli.migration.testmonitor.discovery import DEFAULT_WORKSPACE, discover_te
 from slcli.migration.testmonitor.models import TestMonitorDiscovery
 from slcli.migration.workspace_client import WorkspaceClient
 from slcli.ssl_trust import inject_os_trust
-from tests.e2e.migration_endpoints import get_or_create_workspace
+from tests.e2e.migration_endpoints import (
+    DISABLED_SOURCE_WORKSPACE,
+    get_or_create_disabled_workspace,
+    get_or_create_workspace,
+)
 from tests.e2e.testmonitor_fixture import OwnedTestMonitorResources
 
 PRIMARY = "e2e-slcli-migration-source"
@@ -81,6 +85,8 @@ def seeded() -> Generator[Seeded, None, None]:
     inject_os_trust()
     connection = resolve_migration_connection(profile)
     workspace_ids = {name: get_or_create_workspace(connection, name) for name in (PRIMARY, OTHER)}
+    # Products with no results go to Default only when no source workspace is disabled.
+    get_or_create_disabled_workspace(connection, DISABLED_SOURCE_WORKSPACE)
     resources = OwnedTestMonitorResources(connection, workspace_ids)
     resources.clean()
     try:
@@ -141,7 +147,8 @@ def test_all_workspaces(seeded: Seeded, test_prefect_server: str, tmp_path: Path
         seeded.states_product: PRIMARY,
         seeded.spanning_product: OTHER,
     }
-    assert _products(discovery, {DEFAULT_WORKSPACE})[seeded.orphan_product] == DEFAULT_WORKSPACE
+    # Because there are disabled workspaces, orphan product not included in default workspace
+    assert seeded.orphan_product not in _products(discovery, {DEFAULT_WORKSPACE})
 
 
 def test_mapped_workspace(seeded: Seeded, test_prefect_server: str, tmp_path: Path) -> None:
@@ -215,9 +222,11 @@ def test_workspace_failure_preserves_other_workspaces(seeded: Seeded) -> None:
     discovery policy directly with live queries.
     """
     client = _FailingWorkspace(TestMonitorClient(seeded.connection), seeded.workspace_ids[OTHER])
-    workspaces = {w.name: w.id for w in WorkspaceClient(seeded.connection).query_workspaces()}
+    all_workspaces = WorkspaceClient(seeded.connection).query_workspaces()
+    enabled = {w.name: w.id for w in all_workspaces if w.enabled}
+    disabled = [w.name for w in all_workspaces if not w.enabled]
 
-    discovery = discover_test_monitor(client, workspaces)
+    discovery = discover_test_monitor(client, enabled, list(enabled), disabled)
 
     assert [(f.workspace, f.error_type) for f in discovery.failures] == [(OTHER, "ConnectionError")]
     assert _results(discovery, PRIMARY) == seeded.primary_results

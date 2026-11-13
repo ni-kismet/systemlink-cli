@@ -7,6 +7,7 @@ from dataclasses import dataclass, field
 from datetime import datetime, timezone
 from pathlib import Path
 from typing import Dict, Iterable, List, Optional, Tuple
+from unittest.mock import MagicMock
 
 import click
 import pytest
@@ -31,6 +32,7 @@ from slcli.migration.testmonitor.models import (
 )
 from slcli.migration.testmonitor.models import TestMonitorMigration
 from slcli.migration.workspace_client import Workspace
+from slcli.migration.workspace_task import synchronize_workspaces_task
 from slcli.migration.workspaces import discover_workspaces, synchronize_workspaces
 from slcli.utils import ExitCodes
 
@@ -72,6 +74,7 @@ class FakeDiscovery:
     state_root: Path = Path()
     source_workspaces: Tuple[str, ...] = ("Lab", "Default")
     destination_workspaces: Tuple[str, ...] = ("Lab", "Default", "Dest")
+    created_destination_workspaces: List[str] = field(default_factory=list)
     migration: TestMonitorMigration = TestMonitorMigration()
     metadata: List[RunMetadata] = field(default_factory=list)
     destination_error: Optional[Exception] = None
@@ -106,9 +109,8 @@ def fake_discovery(monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> FakeDisco
         yield api_url or "http://managed/api"
 
     def run_migration(run: MigrationRun, metadata: RunMetadata, api_url: str) -> MigrationOutcome:
-        workspaces = (
-            list(metadata.workspace_mappings) if metadata.workspace_mappings is not None else None
-        )
+        mappings = metadata.workspace_mappings
+        workspaces = list(mappings) if mappings is not None else None
         fake.calls.append(
             {
                 "run": run,
@@ -123,8 +125,16 @@ def fake_discovery(monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> FakeDisco
             raise RuntimeError("discovery failed")
         if fake.destination_error is not None:
             raise fake.destination_error
+
+        def create_destination_workspace(name: str) -> Workspace:
+            fake.created_destination_workspaces.append(name)
+            return Workspace(id=f"{name}-created-id", name=name)
+
         mapping = synchronize_workspaces(
-            discovered, _named(fake.destination_workspaces), metadata.workspace_mappings
+            discovered,
+            _named(fake.destination_workspaces),
+            create_destination_workspace,
+            mappings,
         )
         return MigrationOutcome(
             mapping=mapping,
@@ -189,10 +199,10 @@ def test_mapping_name_with_colon_reaches_discovery(fake_discovery: FakeDiscovery
     assert fake_discovery.calls[0]["workspaces"] == ["Lab:A"]
 
 
-def test_missing_destination_workspace_fails_synchronization(
+def test_missing_mapped_destination_workspace_is_created(
     fake_discovery: FakeDiscovery,
 ) -> None:
-    """A mapping to a workspace the destination lacks fails without creating it."""
+    """A mapping to an absent destination workspace is created during synchronization."""
     result = _migrate(
         "--source-profile",
         "source",
@@ -202,9 +212,9 @@ def test_missing_destination_workspace_fails_synchronization(
         "Lab:Absent",
     )
 
-    assert result.exit_code == 1
-    assert "missing destination workspace: Lab -> Absent" in result.output
-    assert "not created by migration" in result.output
+    assert result.exit_code == 0, result.output
+    assert "Workspace mapping:\n  Lab -> Absent\n" in result.output
+    assert fake_discovery.created_destination_workspaces == ["Absent"]
 
 
 def test_failed_workspace_query_uses_api_exit_code(fake_discovery: FakeDiscovery) -> None:
@@ -217,17 +227,17 @@ def test_failed_workspace_query_uses_api_exit_code(fake_discovery: FakeDiscovery
     assert "unreachable" in result.output
 
 
-def test_omitted_mappings_require_every_same_named_destination(
+def test_omitted_mappings_create_missing_same_named_destinations(
     fake_discovery: FakeDiscovery,
 ) -> None:
-    """Without mappings every source workspace needs a same-named destination."""
+    """Without explicit mappings, missing destinations are created by source name."""
     fake_discovery.destination_workspaces = ("Lab",)
 
     result = _migrate("--source-profile", "source", "--destination-profile", "destination")
 
-    assert result.exit_code == 1
-    assert "missing destination workspace: Default -> Default" in result.output
-    assert "--workspace-mappings" in result.output
+    assert result.exit_code == 0, result.output
+    assert "Workspace mapping:\n  Default -> Default\n  Lab -> Lab\n" in result.output
+    assert fake_discovery.created_destination_workspaces == ["Default"]
 
 
 def test_mapping_is_shown_and_logged(fake_discovery: FakeDiscovery) -> None:
@@ -398,18 +408,66 @@ def test_existing_migration_reuses_persisted_inputs(fake_discovery: FakeDiscover
     assert fake_discovery.calls[0]["workspaces"] == ["Lab"]
 
 
-def test_resume_reports_a_mapping_error_from_the_flow(fake_discovery: FakeDiscovery) -> None:
-    """A mapping error raised while the flow resolves workspaces is a user error."""
-    run = create_migration_run("source", "destination", None, fake_discovery.state_root)
-    fake_discovery.destination_workspaces = ("Lab",)
+@pytest.mark.parametrize("resume", [False, True])
+@pytest.mark.parametrize("readonly", [False, True])
+@pytest.mark.parametrize("destination_exists", [False, True])
+def test_destination_readonly_applies_to_workspace_creation(
+    fake_discovery: FakeDiscovery,
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+    resume: bool,
+    readonly: bool,
+    destination_exists: bool,
+) -> None:
+    """New and resumed runs use the selected destination's current read-only setting."""
+    run = create_migration_run("source", "destination", {"Lab": "New"}, fake_discovery.state_root)
+    config_path = tmp_path / "config.json"
+    config = json.loads(config_path.read_text(encoding="utf-8"))
+    config["current-profile"] = "source"
+    config["profiles"]["source"]["readonly"] = not readonly
+    config["profiles"]["destination"]["readonly"] = readonly
+    config_path.write_text(json.dumps(config), encoding="utf-8")
 
-    result = _migrate("--migration-id", run.migration_id)
+    session = MagicMock()
+    session.get.return_value.json.return_value = {
+        "workspaces": ([{"id": "existing-id", "name": "New"}] if destination_exists else [])
+    }
+    session.post.return_value.json.return_value = {"id": "created-id"}
+    monkeypatch.setattr(
+        "slcli.migration.connection.MigrationConnection.create_session",
+        MagicMock(return_value=session),
+    )
 
-    assert result.exit_code == 1
-    assert "missing destination workspace: Default -> Default" in result.output
-    assert "--workspace-mappings" in result.output
-    log = (run.directory / "migration.log").read_text(encoding="utf-8")
-    assert "Migration failed: WorkspaceMappingError" in log
+    def run_migration(run: MigrationRun, metadata: RunMetadata, api_url: str) -> MigrationOutcome:
+        discovered = discover_workspaces([Workspace(id="lab-id", name="Lab")], None)
+        mapping = synchronize_workspaces_task.fn(
+            run.migration_id, metadata.destination_profile, discovered, metadata.workspace_mappings
+        )
+        return MigrationOutcome(
+            discovery=MigrationDiscovery(workspaces=discovered, test_monitor=DISCOVERY),
+            mapping=mapping,
+            test_monitor=fake_discovery.migration,
+        )
+
+    monkeypatch.setattr(command, "run_migration", run_migration)
+    if resume:
+        result = _migrate("--migration-id", run.migration_id)
+    else:
+        result = _migrate(
+            "--source-profile",
+            "source",
+            "--destination-profile",
+            "destination",
+            "--workspace-mappings",
+            "Lab:New",
+        )
+
+    if readonly and not destination_exists:
+        assert result.exit_code != 0
+        assert "profile 'destination' is in readonly mode" in result.output
+    else:
+        assert result.exit_code == 0, result.output
+    assert session.post.call_count == int(not readonly and not destination_exists)
 
 
 def test_unknown_migration_id_is_reported(fake_discovery: FakeDiscovery) -> None:

@@ -1,6 +1,6 @@
 """Migration flow: discover, synchronize workspaces, then migrate each resource type."""
 
-from typing import Dict, Optional
+from typing import Dict, List, Optional
 
 from prefect import flow
 from pydantic import ConfigDict
@@ -51,9 +51,14 @@ def migrate_flow(
         workspace_mappings: Source to destination workspace names; all by name when None.
         product_batch_size: Products per migration task.
         result_batch_size: Results, with their steps, per migration task.
+
+    Raises:
+        WorkspaceMappingError: If a source workspace does not exist.
     """
-    workspaces = list(workspace_mappings) if workspace_mappings is not None else None
-    discovery = discover_flow(migration_id, source_profile, workspaces)
+    workspace_subset_to_migrate: Optional[List[str]] = (
+        list(workspace_mappings) if workspace_mappings is not None else None
+    )
+    discovery = discover_flow(migration_id, source_profile, workspace_subset_to_migrate)
     mapping = synchronize_workspaces_task(
         migration_id, destination_profile, discovery.workspaces, workspace_mappings
     )

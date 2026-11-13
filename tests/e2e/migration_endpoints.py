@@ -15,6 +15,7 @@ from slcli.ssl_trust import inject_os_trust
 SOURCE_PROFILE_ENV = "SLCLI_E2E_SOURCE_PROFILE"
 DESTINATION_PROFILE_ENV = "SLCLI_E2E_DESTINATION_PROFILE"
 DESTINATION_WORKSPACE = "e2e-slcli-migration-destination"
+DISABLED_SOURCE_WORKSPACE = "e2e-slcli-migration-disabled-source"
 
 
 @dataclass(frozen=True)
@@ -70,3 +71,19 @@ def get_or_create_workspace(connection: MigrationConnection, name: str) -> str:
         )
         enabled.raise_for_status()
     return str(workspace["id"])
+
+
+def get_or_create_disabled_workspace(connection: MigrationConnection, name: str) -> str:
+    """Return the ID of a fixture-owned workspace, leaving it disabled.
+
+    Disabled workspaces are never deleted, so the workspace persists for later runs.
+    """
+    workspace_id = get_or_create_workspace(connection, name)
+    session = connection.create_session()
+    response = session.put(
+        f"{connection.base_url}/niuser/v1/workspaces/{workspace_id}",
+        json={"name": name, "enabled": False},
+        timeout=30,
+    )
+    response.raise_for_status()
+    return workspace_id

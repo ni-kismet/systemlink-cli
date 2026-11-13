@@ -1,0 +1,1 @@
+Create missing destination workspaces during migration workspace synchronization.

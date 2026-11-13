@@ -97,7 +97,7 @@ def register_migrate_command(cli: click.Group) -> None:
             "Comma-delimited SOURCE or SOURCE:DESTINATION workspace mappings. "
             "Escape ',' or ':' in a workspace name with a backslash, for example Lab\\:A:Dest. "
             "Only the listed source workspaces are migrated; all when omitted. "
-            "Destination workspaces must already exist."
+            "Missing destination workspaces are created unless the destination profile is readonly."
         ),
     )
     @click.option("--migration-id", help="Resume an existing migration.")

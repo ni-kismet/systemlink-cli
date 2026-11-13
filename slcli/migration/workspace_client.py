@@ -3,6 +3,7 @@
 from collections.abc import Iterator
 from typing import List, Optional
 
+import click
 import requests
 
 from slcli.migration.api import REQUEST_TIMEOUT_SECONDS, ApiModel
@@ -16,6 +17,7 @@ class Workspace(ApiModel):
 
     id: str
     name: str
+    enabled: bool = True
 
 
 class _WorkspacePage(ApiModel):
@@ -31,6 +33,7 @@ class WorkspaceClient:
         session: Optional[requests.Session] = None,
     ) -> None:
         """Initialize a workspace query client."""
+        self._connection = connection
         self._url = f"{connection.base_url}/niuser/v1/workspaces"
         self._session = session or connection.create_session()
 
@@ -49,3 +52,18 @@ class WorkspaceClient:
             if len(page.workspaces) < PAGE_SIZE:
                 return
             skip += PAGE_SIZE
+
+    def create_workspace(self, name: str) -> Workspace:
+        """Create an enabled workspace and return its server-assigned identity."""
+        if self._connection.readonly:
+            raise click.ClickException(
+                f"Cannot create a workspace: profile '{self._connection.profile_name}' "
+                "is in readonly mode"
+            )
+        response = self._session.post(
+            self._url,
+            json={"name": name, "enabled": True},
+            timeout=REQUEST_TIMEOUT_SECONDS,
+        )
+        response.raise_for_status()
+        return Workspace(id=str(response.json()["id"]), name=name)

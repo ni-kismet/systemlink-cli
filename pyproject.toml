@@ -114,6 +114,7 @@ filterwarnings = [
 markers = [
     "e2e: marks tests as end-to-end tests (not run by default)",
     "e2e_migration: marks migration end-to-end tests",
+    "e2e_migration_manual: marks opt-in migration E2E tests that must be run against a throw-away destination",
     "full_os_client_matrix: marks tests requiring full supported-OS client coverage",
     "slow: marks tests as slow running",
     "notebook: marks tests as notebook-related",

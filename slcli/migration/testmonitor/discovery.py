@@ -89,7 +89,8 @@ def infer_product_workspace(
 def discover_test_monitor(
     client: TestMonitorSource,
     all_workspaces: Mapping[str, str],
-    selected_workspaces: Optional[Collection[str]] = None,
+    selected_workspaces: Collection[str],
+    disabled_workspaces: Collection[str],
 ) -> TestMonitorDiscovery:
     """Discover products and terminal results owned by the selected workspaces.
 
@@ -102,10 +103,13 @@ def discover_test_monitor(
 
     Args:
         client: Test Monitor queries for the source server.
-        all_workspaces: Every accessible source workspace, by name to ID.
-        selected_workspaces: Workspace names to discover; all workspaces when None.
+        all_workspaces: Every (enabled) source workspace, by name to ID.
+        selected_workspaces: Names of workspaces in scope of the migration.
+        disabled_workspaces: Names of disabled source workspaces, which are never scanned.
+            Any disabled workspace may hold results, so products with no results are not
+            assigned to Default when this is non-empty.
     """
-    selected = set(all_workspaces if selected_workspaces is None else selected_workspaces)
+    selected = set(selected_workspaces)
     unknown = selected.difference(all_workspaces)
     if unknown:
         raise ValueError(f"Unknown selected workspace: {', '.join(sorted(unknown))}")
@@ -114,7 +118,10 @@ def discover_test_monitor(
         client, {name: id_ for name, id_ in all_workspaces.items() if name in selected}
     )
     migrate_products_with_no_results = (
-        selected == set(all_workspaces) and DEFAULT_WORKSPACE in selected and not scan.failures
+        selected == set(all_workspaces)
+        and DEFAULT_WORKSPACE in selected
+        and not disabled_workspaces
+        and not scan.failures
     )
     products: List[DiscoveredProduct] = []
     product_ids_by_part_number: Dict[str, str] = {}
