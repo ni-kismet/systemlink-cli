@@ -45,9 +45,11 @@ def discover_flow(
     Raises:
         WorkspaceMappingError: If a requested workspace does not exist on the source.
     """
-    workspaces = discover_workspaces_task(migration_id, source_profile, explicit_workspace_selection)
+    workspaces = discover_workspaces_task(
+        migration_id, source_profile, explicit_workspace_selection
+    )
     return MigrationDiscovery(
         workspaces=workspaces,
-        files = discover_files_task(migration_id, source_profile, workspaces),
+        files=discover_files_task(migration_id, source_profile, workspaces),
         test_monitor=discover_test_monitor_task(migration_id, source_profile, workspaces),
     )
