@@ -694,10 +694,12 @@ slcli comment delete <ID1> <ID2> <ID3> --yes
 ## workspace — Workspace management
 
 ```bash
-slcli workspace list [--format json]
+slcli workspace list [--format json] [--take 100]
 slcli workspace get --workspace WORKSPACE_ID [--format json]
 slcli workspace disable --id WORKSPACE_ID [--yes]
 ```
+
+`workspace list` returns up to 100 workspaces by default.
 
 ## config — Profile and credential management
 

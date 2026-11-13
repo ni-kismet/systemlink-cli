@@ -19,7 +19,7 @@ from .utils import (
 
 
 def _fetch_workspaces_page(
-    name_filter: Optional[str] = None, take: int = 25, skip: int = 0
+    name_filter: Optional[str] = None, take: int = 100, skip: int = 0
 ) -> Tuple[list, int, Optional[str]]:
     """Fetch a single page of workspaces with optional server-side filtering.
 
@@ -86,7 +86,7 @@ def register_workspace_commands(cli: Any) -> None:
         "--take",
         "-t",
         type=click.IntRange(min=1),
-        default=25,
+        default=100,
         show_default=True,
         help="Maximum number of workspaces to return from API",
     )
@@ -94,7 +94,7 @@ def register_workspace_commands(cli: Any) -> None:
         format: str = "table",
         include_disabled: bool = False,
         name_filter: Optional[str] = None,
-        take: int = 25,
+        take: int = 100,
     ) -> None:
         """List workspaces with optional filtering.
 

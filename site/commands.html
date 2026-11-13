@@ -896,7 +896,9 @@ slcli user create --type user --first-name Jane --last-name Doe \
 
       <!-- ─── WORKSPACE ─── -->
       <h2 id="workspace">workspace</h2>
-      <p>Workspace listing, details, and administration.</p>
+      <p>Workspace listing returns up to 100 workspaces by default; use
+        <code>--take</code> to change the limit. The command also supports details
+        and administration.</p>
       <pre><code>slcli workspace list --filter "prod" --include-disabled
 slcli workspace info --name "Production" --format json
 slcli workspace disable --id &lt;workspace-id&gt;</code></pre>
