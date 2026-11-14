@@ -2,6 +2,13 @@
 
 <!-- towncrier release notes start -->
 
+## v3.2.1 (2026-11-14)
+
+### Bug Fixes
+
+- Increase the default workspace list limit to 100. (workspace-list-default-100)
+
+
 ## v3.2.0 (2026-11-13)
 
 ### Features
