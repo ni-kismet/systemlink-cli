@@ -1,6 +1,7 @@
 """Tests for pure Asset Service discovery and planning policy."""
 
-from slcli.migration.assets.discovery import discover_assets
+from slcli.migration.assets.discovery import discover_assets, source_system_workspaces
+from slcli.migration.system_client import System
 
 
 def _asset(asset_id: str, minion_id: str = "minion-1", **overrides: object) -> dict[str, object]:
@@ -16,6 +17,19 @@ def _asset(asset_id: str, minion_id: str = "minion-1", **overrides: object) -> d
     }
     asset.update(overrides)
     return asset
+
+
+def test_source_system_workspaces_resolves_workspace_ids_to_names() -> None:
+    """Only systems with an accessible source workspace contribute ownership."""
+    workspaces = source_system_workspaces(
+        [
+            System(id="minion-1", workspace="workspace-1"),
+            System(id="minion-2", workspace="missing-workspace"),
+        ],
+        {"workspace-1": "Source"},
+    )
+
+    assert workspaces == {"minion-1": "Source"}
 
 
 def test_discovery_maps_supported_asset_to_destination_workspace() -> None:
@@ -60,6 +74,23 @@ def test_discovery_preserves_numeric_metadata_and_external_calibration_capabilit
     asset = discovery.assets[0]
     assert (asset.model_number, asset.vendor_number) == (42, 7)
     assert asset.is_calibration_capable is True
+
+
+def test_discovery_uses_same_name_destination_without_workspace_mapping() -> None:
+    """All-workspace discovery retains the source workspace as the destination."""
+    discovery = discover_assets(
+        [_asset("asset-1")],
+        source_system_workspaces={"minion-1": "Source"},
+        destination_minion_ids={"minion-1"},
+        destination_file_ids_by_source_id={"file-1": "destination-file-1"},
+    )
+
+    asset = discovery.assets[0]
+    assert (asset.workspace, asset.destination_workspace, asset.decision) == (
+        "Source",
+        "Source",
+        "include",
+    )
 
 
 def test_discovery_falls_back_to_default_for_unknown_system() -> None:
