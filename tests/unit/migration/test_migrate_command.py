@@ -289,7 +289,10 @@ def test_success_reports_log_path(fake_discovery: FakeDiscovery) -> None:
 
     assert result.exit_code == 0, result.output
     [run] = fake_discovery.runs()
+    log = (run.directory / "migration.log").read_text(encoding="utf-8")
     assert f"Log: {run.directory / 'migration.log'}" in result.output
+    assert "files=1" in log
+    assert "failed_file_workspaces=[]" in log
 
 
 def test_every_workspace_failing_is_an_error(fake_discovery: FakeDiscovery) -> None:
@@ -302,6 +305,29 @@ def test_every_workspace_failing_is_an_error(fake_discovery: FakeDiscovery) -> N
 
     assert result.exit_code == 1
     assert "Failed workspaces: 1" in result.output
+    assert "Discovery failed for every workspace." in result.output
+
+
+def test_every_file_workspace_failing_is_an_error(fake_discovery: FakeDiscovery) -> None:
+    """File discovery failures fail the run even when Test Monitor discovery succeeds."""
+    fake_discovery.test_monitor_outcome = TestMonitorDiscovery(workspaces=("Lab",))
+    fake_discovery.files_outcome = FileDiscovery(
+        workspaces=("Lab",),
+        failures=(WorkspaceFailure(workspace="Lab", error_type="HTTPError"),),
+    )
+
+    result = _migrate(
+        "--source-profile",
+        "source",
+        "--destination-profile",
+        "destination",
+        "--workspace-mappings",
+        "Lab",
+    )
+
+    assert result.exit_code == 1
+    assert "Files: 0" in result.output
+    assert "Failed workspaces: 1\n    Lab: HTTPError" in result.output
     assert "Discovery failed for every workspace." in result.output
 
 

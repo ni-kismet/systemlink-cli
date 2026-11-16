@@ -12,6 +12,7 @@ import requests
 
 from slcli._version import __version__
 from slcli.migration.connection import MigrationConnection, resolve_migration_connection
+from slcli.migration.files.models import FileDiscovery
 from slcli.migration.orchestration import prefect_server, run_migration
 from slcli.migration.state import (
     DEFAULT_PRODUCT_BATCH_SIZE,
@@ -70,8 +71,11 @@ def resume_migration(migration_id: str, prefect_api_url: Optional[str]) -> None:
     _migrate(run, metadata, source, destination, prefect_api_url)
 
 
-def _all_workspaces_failed(discovery: TestMonitorDiscovery) -> bool:
-    return bool(discovery.workspaces) and len(discovery.failures) == len(discovery.workspaces)
+def _all_workspaces_failed(discovery: TestMonitorDiscovery, files: FileDiscovery) -> bool:
+    return any(
+        bool(resource.workspaces) and len(resource.failures) == len(resource.workspaces)
+        for resource in (discovery, files)
+    )
 
 
 def _echo_connections(source: MigrationConnection, destination: MigrationConnection) -> None:
@@ -159,20 +163,24 @@ def _migrate(
             ],
         )
         test_monitor = outcome.discovery.test_monitor
+        files = outcome.discovery.files
         migration = outcome.test_monitor
         failed = len(failed_items(migration.products)) + len(failed_items(migration.results))
         _logger.info(
-            "Migration completed: products=%d results=%d failed_workspaces=%s failed_items=%d",
+            "Migration completed: products=%d results=%d files=%d failed_workspaces=%s "
+            "failed_file_workspaces=%s failed_items=%d",
             len(test_monitor.products),
             len(test_monitor.results),
+            len(files.files),
             [failure.workspace for failure in test_monitor.failures],
+            [failure.workspace for failure in files.failures],
             failed,
         )
     click.echo(format_workspace_mapping(outcome.mapping))
-    click.echo(format_summary(test_monitor))
+    click.echo(format_summary(test_monitor, files))
     click.echo(format_migration_summary(migration))
     click.echo(f"Log: {log_path}")
-    if _all_workspaces_failed(test_monitor):
+    if _all_workspaces_failed(test_monitor, files):
         raise click.ClickException("Discovery failed for every workspace.")
     if failed:
         raise click.ClickException(f"{failed} items failed to migrate.")
