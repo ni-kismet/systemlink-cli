@@ -50,7 +50,9 @@ class FilesClient:
     ) -> None:
         """Initialize a file query client."""
         self._base_url = f"{connection.base_url}/nifile/v1/service-groups/Default"
-        self._session = session or connection.create_session()
+        self._session = session or connection.create_session(
+            ("nifile/v1/service-groups/Default/query-files",)
+        )
 
     def query_files(self, workspace_id: str) -> Iterator[SourceFile]:
         """Yield every file in one workspace, paging with skip/take.
