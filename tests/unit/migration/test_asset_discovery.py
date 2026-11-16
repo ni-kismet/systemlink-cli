@@ -120,7 +120,7 @@ def test_discovery_does_not_require_a_system_for_empty_minion_id() -> None:
     )
 
     asset = discovery.assets[0]
-    assert (asset.workspace, asset.decision, asset.block_reason) == ("Default", "include", None)
+    assert (asset.workspace, asset.decision, asset.blocks) == ("Default", "include", ())
 
 
 def test_discovery_omits_assets_outside_selected_workspaces() -> None:
@@ -148,7 +148,9 @@ def test_discovery_blocks_missing_destination_system() -> None:
 
     asset = discovery.assets[0]
     assert asset.decision == "block"
-    assert asset.block_reason == "missing destination system for minion minion-1"
+    assert [(block.kind, block.source_id, block.recovery_action) for block in asset.blocks] == [
+        ("destination_system", "minion-1", "wait_for_destination_system"),
+    ]
 
 
 def test_discovery_blocks_missing_destination_file() -> None:
@@ -162,4 +164,24 @@ def test_discovery_blocks_missing_destination_file() -> None:
 
     asset = discovery.assets[0]
     assert asset.decision == "block"
-    assert asset.block_reason == "missing destination files: file-1"
+    assert [(block.kind, block.source_id, block.recovery_action) for block in asset.blocks] == [
+        ("destination_file", "file-1", "wait_for_destination_file"),
+    ]
+
+
+def test_discovery_retains_every_unresolved_dependency() -> None:
+    """A blocked asset retains both system and file recovery conditions."""
+    discovery = discover_assets(
+        [_asset("asset-1", fileIds=["file-2", "file-1"])],
+        source_system_workspaces={"minion-1": "Source"},
+        destination_minion_ids=set(),
+        destination_file_ids_by_source_id={},
+    )
+
+    asset = discovery.assets[0]
+    assert asset.decision == "block"
+    assert [(block.kind, block.source_id) for block in asset.blocks] == [
+        ("destination_system", "minion-1"),
+        ("destination_file", "file-1"),
+        ("destination_file", "file-2"),
+    ]

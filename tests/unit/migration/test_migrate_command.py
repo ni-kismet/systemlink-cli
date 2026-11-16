@@ -16,6 +16,7 @@ from click.testing import CliRunner, Result
 from slcli import migrate_click
 from slcli.migrate_click import register_migrate_command
 from slcli.migration import command
+from slcli.migration.assets.models import AssetDiscovery
 from slcli.migration.flows.discover import MigrationDiscovery
 from slcli.migration.flows.migrate import MigrationOutcome
 from slcli.migration.state import STATE_DIR_ENV, MigrationRun, RunMetadata, create_migration_run
@@ -115,6 +116,7 @@ def fake_discovery(monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> FakeDisco
             mapping=synchronize_workspaces(
                 discovered, _workspaces(fake.destination_workspaces), mappings
             ),
+            assets=AssetDiscovery(),
         )
 
     monkeypatch.setattr(command, "prefect_server", prefect_server)

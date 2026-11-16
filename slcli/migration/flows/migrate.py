@@ -5,6 +5,8 @@ from typing import Dict, List, Optional
 from prefect import flow
 from pydantic import ConfigDict
 
+from slcli.migration.assets.discovery_task import discover_assets_task
+from slcli.migration.assets.models import AssetDiscovery
 from slcli.migration.flows.discover import MigrationDiscovery, discover_flow
 from slcli.migration.schema import VersionedModel
 from slcli.migration.workspace_task import synchronize_workspaces_task
@@ -12,12 +14,13 @@ from slcli.migration.workspaces import WorkspaceMapping
 
 
 class MigrationOutcome(VersionedModel):
-    """Discovery and workspace mapping of one run."""
+    """Discovery, workspace mapping, and asset planning of one run."""
 
     model_config = ConfigDict(frozen=True)
 
     discovery: MigrationDiscovery
     mapping: WorkspaceMapping
+    assets: AssetDiscovery
 
 
 @flow(
@@ -31,6 +34,7 @@ def migrate_flow(
     source_profile: str,
     destination_profile: str,
     workspace_mappings: Optional[Dict[str, str]],
+    destination_file_ids_by_source_id: Optional[Dict[str, str]] = None,
 ) -> MigrationOutcome:
     """Discover source resources, then synchronize workspaces to the destination.
 
@@ -39,6 +43,8 @@ def migrate_flow(
         source_profile: Name of the source profile.
         destination_profile: Name of the destination profile.
         workspace_mappings: Source to destination workspace names; all by name when None.
+        destination_file_ids_by_source_id: Optional source-to-destination file map used to
+            resolve file dependency blocks during discovery.
 
     Raises:
         WorkspaceMappingError: If a source or destination workspace does not exist.
@@ -50,4 +56,14 @@ def migrate_flow(
     mapping = synchronize_workspaces_task(
         migration_id, destination_profile, discovery.workspaces, workspace_mappings
     )
-    return MigrationOutcome(discovery=discovery, mapping=mapping)
+    return MigrationOutcome(
+        discovery=discovery,
+        mapping=mapping,
+        assets=discover_assets_task(
+            migration_id,
+            source_profile,
+            destination_profile,
+            mapping,
+            destination_file_ids_by_source_id=destination_file_ids_by_source_id,
+        ),
+    )

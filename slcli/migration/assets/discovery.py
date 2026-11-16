@@ -3,7 +3,12 @@
 from collections.abc import Collection, Iterable, Mapping
 from typing import Any, Dict, Optional, Tuple
 
-from slcli.migration.assets.models import AssetDiscovery, AssetLocation, DiscoveredAsset
+from slcli.migration.assets.models import (
+    AssetDependencyBlock,
+    AssetDiscovery,
+    AssetLocation,
+    DiscoveredAsset,
+)
 from slcli.migration.system_client import System
 from slcli.migration.testmonitor.discovery import DEFAULT_WORKSPACE
 
@@ -52,18 +57,31 @@ def _properties(record: Mapping[str, Any]) -> Dict[str, str]:
     }
 
 
-def _block_reason(
+def _blocks(
     location: AssetLocation,
     destination_minion_ids: Collection[str],
     file_ids: Collection[str],
     destination_file_ids_by_source_id: Mapping[str, str],
-) -> Optional[str]:
+) -> Tuple[AssetDependencyBlock, ...]:
+    blocks = []
     if location.minion_id and location.minion_id not in destination_minion_ids:
-        return f"missing destination system for minion {location.minion_id}"
+        blocks.append(
+            AssetDependencyBlock(
+                kind="destination_system",
+                source_id=location.minion_id,
+                recovery_action="wait_for_destination_system",
+            )
+        )
     missing_file_ids = sorted(set(file_ids).difference(destination_file_ids_by_source_id))
-    if missing_file_ids:
-        return f"missing destination files: {', '.join(missing_file_ids)}"
-    return None
+    blocks.extend(
+        AssetDependencyBlock(
+            kind="destination_file",
+            source_id=file_id,
+            recovery_action="wait_for_destination_file",
+        )
+        for file_id in missing_file_ids
+    )
+    return tuple(blocks)
 
 
 def source_system_workspaces(
@@ -104,14 +122,14 @@ def discover_assets(
             continue
 
         file_ids = _strings(record.get("fileIds"))
-        block_reason = _block_reason(
+        blocks = _blocks(
             location, destination_minion_ids, file_ids, destination_file_ids_by_source_id
         )
         assets.append(
             DiscoveredAsset(
                 id=str(record["id"]),
                 workspace=workspace,
-                decision="block" if block_reason else "include",
+                decision="block" if blocks else "include",
                 discovery_type=_string(record.get("discoveryType")),
                 name=_string(record.get("name")),
                 model_name=_string(record.get("modelName")),
@@ -132,7 +150,7 @@ def discover_assets(
                 destination_workspace=(
                     workspace_mappings[workspace] if workspace_mappings is not None else workspace
                 ),
-                block_reason=block_reason,
+                blocks=blocks,
             )
         )
     return AssetDiscovery(

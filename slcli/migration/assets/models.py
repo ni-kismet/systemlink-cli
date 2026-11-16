@@ -7,6 +7,8 @@ from pydantic import AwareDatetime, BaseModel, ConfigDict, Field
 from slcli.migration.schema import VersionedModel
 
 AssetDecision = Literal["include", "exclude", "block"]
+AssetDependencyKind = Literal["destination_system", "destination_file"]
+AssetRecoveryAction = Literal["wait_for_destination_system", "wait_for_destination_file"]
 
 
 class _Persisted(BaseModel):
@@ -22,6 +24,14 @@ class AssetLocation(_Persisted):
     resource_uri: Optional[str] = None
     slot_number: Optional[int] = None
     asset_presence: Optional[str] = None
+
+
+class AssetDependencyBlock(_Persisted):
+    """One unresolved relationship that blocks an asset from migrating."""
+
+    kind: AssetDependencyKind
+    source_id: str
+    recovery_action: AssetRecoveryAction
 
 
 class DiscoveredAsset(_Persisted):
@@ -45,7 +55,7 @@ class DiscoveredAsset(_Persisted):
     keywords: Tuple[str, ...] = ()
     properties: Dict[str, str] = Field(default_factory=dict)
     destination_workspace: Optional[str] = None
-    block_reason: Optional[str] = None
+    blocks: Tuple[AssetDependencyBlock, ...] = ()
     exclusion_reason: Optional[str] = None
 
 
