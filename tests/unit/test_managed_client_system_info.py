@@ -91,6 +91,23 @@ def test_read_dmi_returns_firmware_value_or_unknown(tmp_path: Path) -> None:
     assert system_info._read_dmi("product_name", tmp_path) == "Unknown"
 
 
+def test_macos_hardware_identity_uses_sysctl(monkeypatch: pytest.MonkeyPatch) -> None:
+    """On macOS, identity reads the hardware model without a shell."""
+    monkeypatch.setattr(system_info.platform, "system", lambda: "Darwin")
+    calls: list[list[str]] = []
+
+    def run(command: list[str], **kwargs: Any) -> Any:
+        calls.append(command)
+        assert kwargs["capture_output"] is True
+        assert kwargs["timeout"] == 2
+        return SimpleNamespace(returncode=0, stdout="Mac14,7\n")
+
+    monkeypatch.setattr(system_info.subprocess, "run", run)
+
+    assert system_info._hardware_identity() == ("Apple", "Mac14,7")
+    assert calls == [["sysctl", "-n", "hw.model"]]
+
+
 def test_host_health_values_use_local_metrics(monkeypatch: pytest.MonkeyPatch) -> None:
     """Host sampling reports per-core CPU, memory, and system disk values."""
     _fake_host(monkeypatch, [12.34, 56.0, 30.0, 10.0])

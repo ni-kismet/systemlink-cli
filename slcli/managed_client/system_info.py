@@ -6,6 +6,7 @@ import importlib
 import os
 import platform
 import socket
+import subprocess
 from pathlib import Path
 from typing import Any
 
@@ -81,8 +82,22 @@ def _windows_bios_identity() -> tuple[str, str]:
 
 def _hardware_identity() -> tuple[str, str]:
     """Return the system vendor and model reported by the local firmware."""
-    if platform.system() == "Windows":
+    system = platform.system()
+    if system == "Windows":
         return _windows_bios_identity()
+    if system == "Darwin":
+        try:
+            result = subprocess.run(
+                ["sysctl", "-n", "hw.model"],
+                capture_output=True,
+                check=False,
+                text=True,
+                timeout=2,
+            )
+        except (OSError, subprocess.SubprocessError):
+            return "Unknown", "Unknown"
+        model = result.stdout.strip() if result.returncode == 0 else ""
+        return "Apple", model or "Unknown"
     return _read_dmi("sys_vendor"), _read_dmi("product_name")
 
 

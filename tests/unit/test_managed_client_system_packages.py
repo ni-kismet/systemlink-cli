@@ -323,6 +323,30 @@ def test_registry_maps_backend_errors_to_salt_failure(tmp_path: Path) -> None:
     assert result["return"] == {"message": "apt-get exited with status 100"}
 
 
+def test_unsupported_host_refresh_returns_null_inventory() -> None:
+    """Failed inventory reads must not masquerade as package or repository records."""
+    registry = FixtureHandlerRegistry(package_backend=UnsupportedPackageBackend("Unsupported"))
+    result = registry.dispatch(
+        {
+            "jid": "refresh-unsupported",
+            "fun": [
+                "saltutil.refresh_pillar",
+                "nisysmgmt.state_apply",
+                "pkg.list_repos",
+                "nisysmgmt.grains_items",
+                "pkg.info_installed",
+                "pkg.list_pkgs",
+            ],
+            "arg": [[], [], [], [], [], []],
+        },
+        "minion-a",
+    )
+    assert result["retcode"] == [0, 0, 2, 0, 2, 2]
+    assert result["success"] == [True, True, False, True, False, False]
+    assert result["return"][2] is None
+    assert result["return"][4:] == [None, None]
+
+
 def test_default_runner_maps_missing_binary_to_backend_error(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:

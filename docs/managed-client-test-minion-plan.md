@@ -43,8 +43,10 @@ The first implementation will not provide:
 
 - NI System API or native device behavior.
 - The official `MinionAgent` or any copied official-client source.
-- mDNS discovery, grains, beacons, package management, feed installation,
-  licensing, or product-specific Salt modules.
+- mDNS discovery, beacons, licensing, or product-specific Salt modules. Package
+  jobs use isolated inventory in simulated mode and the Debian-family host package
+  manager in real-host mode; simulated feed installs read package-index metadata
+  only and never download or execute package archives.
 - A Windows service, Linux systemd unit, macOS launchd agent, or installer.
 - Arbitrary Salt function execution or a general-purpose remote shell.
 - A virtual-system shortcut presented as a connected managed system.
@@ -227,8 +229,9 @@ Requirements:
 - `--simulated` (default `true`) controls identity and health sources. Simulated mode
   advertises the minion ID as host, alias, and localhost, with the simulated vendor, model, and
   IPv4 address, and publishes simulated health values. `--simulated false` advertises the local
-  host's name, OS, vendor and model (from DMI on Linux or the BIOS registry on Windows), and IPv4
-  addresses, and publishes the local CPU, memory, and system disk values. Software jobs use the
+  host's name, OS, vendor and model (from DMI on Linux, the BIOS registry on Windows, or
+  `sysctl` on macOS), and IPv4 addresses, and publishes the local CPU, memory, and system disk
+  values. Software jobs use the
   Debian-family package manager (`dpkg-query` and `apt-get`) on those hosts and return
   `unsupported-host-package-manager` elsewhere. Simulated mode keeps the isolated mock package store.
 - Never log private keys, API keys, session secrets, or complete encrypted

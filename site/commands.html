@@ -502,12 +502,15 @@ slcli system remove &lt;system-id&gt; --force</code></pre>
         <p>With the default <code>--simulated true</code>, the test minion reports a simulated Windows AMD64 identity on
           every host so SystemLink recognizes a supported software-management platform. This identity does not describe
           the real host. Software jobs are mocked:
-          <code>pkg.install</code> records packages in isolated minion metadata without running an installer, querying
-          repositories, or inspecting host software. It accepts a package <code>name</code> (including comma-separated
-          names) with an optional <code>version</code>, or a <code>pkgs</code> list of names and single-name version
-          mappings. Unspecified versions are recorded as <code>latest</code>, and mock package architecture is
-          <code>all</code>. Install returns contain only changed packages with their old and new versions; repeating the
-          same version returns an empty change map.
+          <code>pkg.install</code> records packages in isolated minion metadata without running an installer or
+          inspecting host software. With no enabled mock feed it records the requested version directly. With an enabled
+          mock feed it fetches package-index metadata (never package archives) and resolves dependencies; install that
+          optional support with <code>pip install "systemlink-cli[managed-client-solver]"</code>. It accepts a package
+          <code>name</code> (including comma-separated names) with an optional <code>version</code>, or a
+          <code>pkgs</code> list of names and single-name version mappings. Without enabled feeds, unspecified versions
+          are recorded as <code>latest</code> and architecture as <code>all</code>. Feed-backed installs resolve actual
+          versions and retain the catalog architecture. Install returns contain only changed
+          packages with their old and new versions; repeating the same version returns an empty change map.
         </p>
         <p><code>pkg.mod_repo</code> creates or updates mock feed records by name, tracking <code>uri</code>,
           <code>enabled</code>, and <code>trusted</code> in isolated metadata. <code>allow_renaming=True</code> replaces
@@ -526,6 +529,10 @@ slcli system remove &lt;system-id&gt; --force</code></pre>
           <code>dpkg-query</code> and <code>apt-get</code> on the <code>PATH</code>). On other hosts, package jobs
           return
           <code>unsupported-host-package-manager</code>. <code>pkg.list_pkgs</code> and
+          <code>pkg.info_installed</code> failures return <code>null</code> inventory with a nonzero return
+          code, not an error-message map that could be mistaken for installed packages. Refresh jobs on unsupported
+          real hosts therefore finish as failed rather than remaining in progress. In simulated mode these inventory
+          operations remain supported. On Debian-family hosts, <code>pkg.list_pkgs</code> and
           <code>pkg.info_installed</code> read <code>dpkg-query</code>. <code>pkg.install</code> and
           <code>pkg.remove</code> run <code>apt-get</code> non-interactively and report the inventory changes they
           cause.
@@ -547,8 +554,8 @@ slcli system remove &lt;system-id&gt; --force</code></pre>
           changes without running an uninstaller. It accepts a <code>name</code> (including comma-separated names) or a
           <code>pkgs</code> list of names. Missing packages are successful no-ops; <code>test=True</code> reports
           changes
-          without saving them. Dependency-removal flags do not remove additional packages because dependency
-          relationships are not simulated.
+          without saving them. Dependency-removal flags do not remove additional packages; removal only affects the
+          explicitly named packages, even when feed-backed installs recorded dependency relationships.
         </p>
         <p>Startup and refresh grains include the running Python process ID as numeric <code>pid</code>. Systems
           Management records this value before dispatching software deployment jobs and uses it to detect minion process
@@ -560,10 +567,12 @@ slcli system remove &lt;system-id&gt; --force</code></pre>
           removes inherited ACLs and grants access only to the current user.</p>
 
         <h3>Synthetic Health Tags</h3>
-        <p><code>--health-tags</code> enables periodic HTTP writes to the Tag Service using the selected slcli REST
-          profile, not the Salt master hostname or client HTTP-master credentials. Select the profile for the same
-          environment explicitly. The publisher resolves the minion's workspace before writing tags and is disabled
-          by default. Read-only profiles cannot enable publishing.</p>
+        <p><code>--health-tags</code> enables periodic HTTP writes to the Tag Service using the HTTP
+          connection delivered by the Salt master in the minion state directory, including its endpoint, API key, and
+          optional CA certificate. It does not use credentials from the selected local slcli profile. Ensure the
+          delivered connection targets the intended environment and permits tag writes. The publisher resolves the
+          minion's workspace before writing tags and is disabled by default. Local read-only mode still prevents
+          enabling publication.</p>
         <pre><code>python -m slcli --profile main-dev managed-client run \
   --master dev-salt.systemlink.ni.dev \
   --minion-id vaterlaus-fake-minion \
@@ -579,8 +588,9 @@ slcli system remove &lt;system-id&gt; --force</code></pre>
           With <code>true</code>, the minion ID is used as the host, alias, and localhost, the Windows mock
           identity is advertised with simulated vendor, model, and IPv4 values, and the simulated health values
           above are published. With <code>false</code>, the local host's name, OS (Linux, Windows, or macOS as
-          detected), vendor and model, and IPv4 addresses are advertised, and the health tags use this
-          machine's real CPU, memory, and system disk values. The real-host tags omit <code>slcliMock</code>.
+          detected), vendor and model where available (Linux DMI, Windows BIOS registry, or macOS
+          <code>sysctl</code>), and IPv4 addresses are advertised. Health tags use this machine's real CPU, memory,
+          and system disk values. The real-host tags omit <code>slcliMock</code>.
           Real-host mode requires <code>psutil</code>, which is installed with the <code>managed-client</code> extra.
         </p>
         <p><code>--health-interval</code> is in seconds (default 300). The publisher runs while Salt is connected,
@@ -600,7 +610,7 @@ slcli system remove &lt;system-id&gt; --force</code></pre>
   --max-reconnect-attempts INTEGER
                                 Maximum retries before the minion fails.
                                 [default: 5]
-  --health-tags                Publish health tags via the selected REST profile.
+  --health-tags                Publish health tags using Salt-delivered HTTP connection details.
   --health-interval FLOAT      Seconds between health samples. [default: 300.0]
   --simulated BOOLEAN          Simulated identity and health values (true) or this host's
                                real values (false). [default: true]</code></pre>

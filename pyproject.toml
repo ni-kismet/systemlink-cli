@@ -50,10 +50,11 @@ anyio = { version = ">=4.14.2,<5", optional = true }
 httpx2 = { version = ">=2.12.0,<3", optional = true }
 httpcore2 = { version = ">=2.10.0,<3", optional = true }
 python-debian = {version = ">=1,<2", optional = true}
+solv = {version = ">=0.7.39,<0.8", optional = true}
 
 [tool.poetry.extras]
 managed-client = ["msgpack", "psutil"]
-managed-client-solver = ["msgpack", "solv", "python-debian"]
+managed-client-solver = ["msgpack", "psutil", "solv", "python-debian"]
 mcp = ["mcp", "anyio", "httpx2", "httpcore2"]
 migration = ["prefect", "psutil", "pydantic"]
 

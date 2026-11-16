@@ -199,7 +199,7 @@ def register_managed_client_commands(cli: Any) -> None:
     @click.option(
         "--health-tags",
         is_flag=True,
-        help="Publish synthetic health tags using the selected slcli REST profile.",
+        help="Publish health tags using the HTTP connection delivered by Salt into --state-dir.",
     )
     @click.option(
         "--health-interval",

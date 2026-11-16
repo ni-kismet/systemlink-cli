@@ -7,14 +7,14 @@ from dataclasses import dataclass, field
 from typing import Any, Callable, Dict, Mapping, Optional, Tuple
 
 from .models import ManagedClientError
-from .state import ASSET_IDENTIFICATION_FIELDS, StateStore
-from .system_packages import INFO_ATTRIBUTES, PackageBackend, PackageBackendError
 from .software import (
     CatalogPackage,
     SoftwareResolutionError,
     load_feed_packages,
     solve_package_install,
 )
+from .state import ASSET_IDENTIFICATION_FIELDS, StateStore
+from .system_packages import INFO_ATTRIBUTES, PackageBackend, PackageBackendError
 
 FixtureHandler = Callable[["FixtureJob"], "HandlerResult"]
 MOCK_SYSTEM_GRAINS: Mapping[str, str] = {
@@ -342,9 +342,16 @@ class FixtureHandlerRegistry:
         return HandlerResult(True, 0, True)
 
     @staticmethod
-    def _backend_failure(error: PackageBackendError) -> HandlerResult:
-        """Convert a host package-manager failure into a Salt-style error result."""
-        return HandlerResult(False, 2, value={"message": error.message}, error=error.code)
+    def _backend_failure(
+        error: PackageBackendError, *, include_message: bool = False
+    ) -> HandlerResult:
+        """Return null for failed inventory reads so error text is not parsed as inventory."""
+        return HandlerResult(
+            False,
+            2,
+            value={"message": error.message} if include_message else None,
+            error=error.code,
+        )
 
     def _reboot_required(self, job: FixtureJob) -> HandlerResult:
         """Report whether the host needs a reboot, or the mock state never does."""
@@ -520,25 +527,29 @@ class FixtureHandlerRegistry:
         try:
             changes = backend.install(packages, dry_run, recommends)
         except PackageBackendError as error:
-            return self._backend_failure(error)
+            return self._backend_failure(error, include_message=True)
         return HandlerResult(True, 0, changes)
+
+    @staticmethod
+    def _requested_package_list(job: FixtureJob) -> list[Any] | None:
+        """Normalize the shared Salt name and ``pkgs`` request forms."""
+        if len(job.args) > 1 or (job.args and "name" in job.kwargs):
+            return None
+        name = job.args[0] if job.args else job.kwargs.get("name")
+        requested = job.kwargs.get("pkgs")
+        if requested is None:
+            if not isinstance(name, str) or not name.strip():
+                return None
+            return [part.strip() for part in name.split(",")]
+        if name is not None or not isinstance(requested, list) or not requested:
+            return None
+        return requested
 
     def _install(self, job: FixtureJob) -> HandlerResult:
         """Simulate named or bulk Salt package installs in isolated state only."""
-        if len(job.args) > 1 or (job.args and "name" in job.kwargs):
-            return HandlerResult(False, 2, error="pkg.install-requires-packages")
-        name = job.args[0] if job.args else job.kwargs.get("name")
-        requested = job.kwargs.get("pkgs")
+        requested = self._requested_package_list(job)
         version = job.kwargs.get("version", "latest")
-        if not isinstance(version, str) or not version.strip():
-            return HandlerResult(False, 2, error="pkg.install-requires-packages")
-        if requested is None:
-            if not isinstance(name, str) or not name.strip():
-                return HandlerResult(False, 2, error="pkg.install-requires-packages")
-            requested = [part.strip() for part in name.split(",")]
-        elif name is not None:
-            return HandlerResult(False, 2, error="pkg.install-requires-packages")
-        if not isinstance(requested, list) or not requested:
+        if requested is None or not isinstance(version, str) or not version.strip():
             return HandlerResult(False, 2, error="pkg.install-requires-packages")
         packages: Dict[str, str] = {}
         for package in requested:
@@ -586,30 +597,19 @@ class FixtureHandlerRegistry:
 
     def _remove(self, job: FixtureJob) -> HandlerResult:
         """Simulate Salt package removal in isolated mock state only."""
-        if len(job.args) > 1 or (job.args and "name" in job.kwargs):
-            return HandlerResult(False, 2, error="pkg.remove-requires-packages")
-        name = job.args[0] if job.args else job.kwargs.get("name")
-        requested = job.kwargs.get("pkgs")
+        requested = self._requested_package_list(job)
         dry_run = job.kwargs.get("test", False)
         if not isinstance(dry_run, bool):
             return HandlerResult(False, 2, error="pkg.remove-invalid-test-flag")
-        if requested is None:
-            if not isinstance(name, str) or not name.strip():
-                return HandlerResult(False, 2, error="pkg.remove-requires-packages")
-            requested = [part.strip() for part in name.split(",")]
-        elif name is not None:
-            return HandlerResult(False, 2, error="pkg.remove-requires-packages")
-        if (
-            not isinstance(requested, list)
-            or not requested
-            or any(not isinstance(package, str) or not package.strip() for package in requested)
+        if requested is None or any(
+            not isinstance(package, str) or not package.strip() for package in requested
         ):
             return HandlerResult(False, 2, error="pkg.remove-requires-packages")
         if self._package_backend is not None:
             try:
                 changes = self._package_backend.remove(requested, dry_run)
             except PackageBackendError as error:
-                return self._backend_failure(error)
+                return self._backend_failure(error, include_message=True)
             return HandlerResult(True, 0, changes)
         if self._state_store is None:
             return HandlerResult(False, 2, error="pkg.remove-requires-state-store")
