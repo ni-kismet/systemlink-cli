@@ -7,6 +7,7 @@ from typing import Any, Dict, Iterator, List, Union
 import pytest
 import requests
 from pydantic import ValidationError
+from requests.adapters import HTTPAdapter
 
 from slcli.migration.connection import MigrationConnection
 from slcli.migration.files.client import FilesClient
@@ -139,6 +140,37 @@ def test_query_files_pages_with_skip_until_short_page() -> None:
         "workspace": "lab-id",
     }
     assert session.calls[0]["json"] == {}
+
+
+def test_query_files_fetches_empty_page_after_exact_full_page() -> None:
+    """An exact page-size result is followed by an empty page to finish paging."""
+    full_page = [{"id": f"f{i}"} for i in range(FILES_PAGE_SIZE)]
+    session = FakeSession([{"availableFiles": full_page}, {"availableFiles": []}])
+    client = FilesClient(CONNECTION, session)  # type: ignore[arg-type]
+
+    files = list(client.query_files("lab-id"))
+
+    assert len(files) == FILES_PAGE_SIZE
+    assert [call["params"]["skip"] for call in session.calls] == [0, FILES_PAGE_SIZE]
+
+
+def test_files_client_enables_post_retries_only_for_query_files_route() -> None:
+    """The client's default session safely retries read-only query POSTs."""
+    client = FilesClient(CONNECTION)
+
+    query_adapter = client._session.get_adapter(
+        "https://source/nifile/v1/service-groups/Default/query-files"
+    )
+    assert isinstance(query_adapter, HTTPAdapter)
+    assert "POST" in (query_adapter.max_retries.allowed_methods or ())
+    assert 429 in (query_adapter.max_retries.status_forcelist or ())
+    assert 503 in (query_adapter.max_retries.status_forcelist or ())
+
+    write_adapter = client._session.get_adapter(
+        "https://source/nifile/v1/service-groups/Default/upload-files"
+    )
+    assert isinstance(write_adapter, HTTPAdapter)
+    assert "POST" not in (write_adapter.max_retries.allowed_methods or ())
 
 
 def test_query_rejects_malformed_response() -> None:
