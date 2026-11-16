@@ -1,5 +1,8 @@
 """Persisted Prefect task for Asset Service discovery."""
 
+from collections.abc import Mapping
+from typing import Optional
+
 from prefect import task
 from prefect.cache_policies import INPUTS
 
@@ -23,18 +26,20 @@ def discover_assets_task(
     source_profile: str,
     destination_profile: str,
     workspace_mapping: WorkspaceMapping,
+    destination_file_ids_by_source_id: Optional[Mapping[str, str]] = None,
 ) -> AssetDiscovery:
-    """Discover source assets and validate destination system dependencies.
+    """Discover source assets and validate destination dependencies.
 
     Inputs are references, never credentials. ``migration_id`` is unused by the
-    body but scopes the cache key to one migration. File migration does not yet
-    provide a durable source-to-destination file map, so linked assets remain
-    blocked until that map is available.
+    body but scopes the cache key to one migration. ``destination_file_ids_by_source_id``
+    is optional and enables file-destination readiness checks when a durable source-to-
+    destination file map is available.
     """
     source = resolve_migration_connection(source_profile)
     destination = resolve_migration_connection(destination_profile)
     source_systems = SystemClient(source).query_systems()
     destination_minion_ids = {system.id for system in SystemClient(destination).query_systems()}
+    file_map = {} if destination_file_ids_by_source_id is None else dict(destination_file_ids_by_source_id)
     return discover_assets(
         AssetClient(source).query_assets(),
         source_system_workspaces(
@@ -45,7 +50,7 @@ def discover_assets_task(
             },
         ),
         destination_minion_ids,
-        destination_file_ids_by_source_id={},
+        destination_file_ids_by_source_id=file_map,
         workspace_mappings={
             workspace.source_name: workspace.destination_name
             for workspace in workspace_mapping.workspaces

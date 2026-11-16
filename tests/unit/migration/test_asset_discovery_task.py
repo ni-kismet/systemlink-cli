@@ -68,3 +68,50 @@ def test_discovers_assets_with_resolved_workspace_and_destination_systems(
     assert [(block.kind, block.source_id, block.recovery_action) for block in asset.blocks] == [
         ("destination_file", "file-1", "wait_for_destination_file"),
     ]
+
+
+def test_discovers_assets_without_file_block_when_mapping_is_available(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """A mapped source file should not block a destination asset when the file map is ready."""
+    source_connection = object()
+    destination_connection = object()
+    connections = {"source": source_connection, "destination": destination_connection}
+    monkeypatch.setattr(
+        "slcli.migration.assets.discovery_task.resolve_migration_connection",
+        lambda profile: connections[profile],
+    )
+    monkeypatch.setattr(
+        "slcli.migration.assets.discovery_task.AssetClient", lambda connection: _FakeAssetClient()
+    )
+    monkeypatch.setattr(
+        "slcli.migration.assets.discovery_task.SystemClient",
+        lambda connection: _FakeSystemClient(
+            [System(id="minion-1", workspace="source-workspace")]
+            if connection is source_connection
+            else [System(id="minion-1", workspace="destination-workspace")]
+        ),
+    )
+    mapping = WorkspaceMapping(
+        workspaces=(
+            MappedWorkspace(
+                source_name="Source",
+                source_id="source-workspace",
+                destination_name="Destination",
+                destination_id="destination-workspace",
+            ),
+        )
+    )
+
+    discovery = discover_assets_task.fn(
+        "migration-id",
+        "source",
+        "destination",
+        mapping,
+        destination_file_ids_by_source_id={"file-1": "destination-file-1"},
+    )
+
+    assert len(discovery.assets) == 1
+    asset = discovery.assets[0]
+    assert asset.decision == "include"
+    assert asset.blocks == ()

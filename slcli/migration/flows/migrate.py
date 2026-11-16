@@ -34,6 +34,7 @@ def migrate_flow(
     source_profile: str,
     destination_profile: str,
     workspace_mappings: Optional[Dict[str, str]],
+    destination_file_ids_by_source_id: Optional[Dict[str, str]] = None,
 ) -> MigrationOutcome:
     """Discover source resources, then synchronize workspaces to the destination.
 
@@ -42,6 +43,8 @@ def migrate_flow(
         source_profile: Name of the source profile.
         destination_profile: Name of the destination profile.
         workspace_mappings: Source to destination workspace names; all by name when None.
+        destination_file_ids_by_source_id: Optional source-to-destination file map used to
+            resolve file dependency blocks during discovery.
 
     Raises:
         WorkspaceMappingError: If a source or destination workspace does not exist.
@@ -56,5 +59,11 @@ def migrate_flow(
     return MigrationOutcome(
         discovery=discovery,
         mapping=mapping,
-        assets=discover_assets_task(migration_id, source_profile, destination_profile, mapping),
+        assets=discover_assets_task(
+            migration_id,
+            source_profile,
+            destination_profile,
+            mapping,
+            destination_file_ids_by_source_id=destination_file_ids_by_source_id,
+        ),
     )
