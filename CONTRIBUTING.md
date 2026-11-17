@@ -7,11 +7,10 @@ Thank you for your interest in contributing to SystemLink CLI! This document pro
 1. **Install Poetry**
 
    To keep lock versions stable, install the `poetry-version` that the CI uses from the
-   [setup-poetry action](https://github.com/ni/python-actions/blob/main/setup-poetry/action.yml),
-   currently `2.1.4`.
+   [setup-poetry action](https://github.com/ni/python-actions/blob/main/setup-poetry/action.yml#L4).
 
    ```bash
-   pipx install poetry==2.1.4
+   pipx install poetry==[version]
    ```
 
    See [NI Python docs](https://dev.azure.com/ni/DevCentral/_wiki/wikis/AppCentral.wiki/70875/Optional-tools-for-uncommon-cases?anchor=poetry) for more information.
