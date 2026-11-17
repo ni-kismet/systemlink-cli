@@ -8,6 +8,7 @@ from slcli.migration.files.models import FileTransfer
 from slcli.migration.testmonitor.client import TestMonitorClient
 from slcli.migration.testmonitor.file_references import (
     FileReferenceRepair,
+    complete_results,
     repair_file_references,
     unresolved_references,
 )
@@ -29,7 +30,7 @@ def repair_file_references_task(
     transfer: FileTransfer,
     migration: TestMonitorMigration,
 ) -> FileReferenceRepair:
-    """Restore result file references after both migrations complete.
+    """Repair references, then mark results complete after both migrations succeed.
 
     ``migration_id`` scopes the cache to one migration; inputs contain no credentials.
     """
@@ -39,14 +40,18 @@ def repair_file_references_task(
         for file_id, result_ids in batch.file_results.items()
         if file_id in transfer.reassigned_ids
     )
-    if not has_affected_results:
+    has_successful_results = any(batch.migrated for batch in migration.results)
+    if not has_affected_results and not has_successful_results:
         return FileReferenceRepair(unresolved=unresolved_references(migration))
     destination_connection = resolve_migration_connection(destination_profile)
     if destination_connection.readonly:
         raise ValueError(f"Profile '{destination_profile}' is in readonly mode")
-    return repair_file_references(
+    writer = TestMonitorWriter(destination_connection)
+    repaired = repair_file_references(
         TestMonitorClient(destination_connection),
-        TestMonitorWriter(destination_connection),
+        writer,
         transfer,
         migration,
     )
+    complete_results(writer, migration)
+    return repaired

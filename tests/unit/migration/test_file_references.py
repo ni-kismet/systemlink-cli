@@ -4,8 +4,10 @@ from typing import Dict, Iterable, List, Sequence, Tuple
 
 import pytest
 
+from slcli.migration.annotations import COMPLETE, COMPLETED_AT, STATUS
+from slcli.migration.connection import MigrationConnection
 from slcli.migration.files.models import FileTransfer
-from slcli.migration.testmonitor.file_references import repair_file_references
+from slcli.migration.testmonitor.file_references import complete_results, repair_file_references
 from slcli.migration.testmonitor.file_references_task import repair_file_references_task
 from slcli.migration.testmonitor.models import (
     BatchResult,
@@ -306,3 +308,75 @@ def test_no_affected_results_does_not_resolve_connection(monkeypatch: pytest.Mon
         _migration(file_results={"unchanged": ("d",)}),
     )
     assert result.updated == 0
+
+
+def test_completion_is_batched_and_excludes_partial_results() -> None:
+    items = tuple(MigratedItem(source_id=f"s{i}", destination_id=f"d{i}") for i in range(201))
+    migration = TestMonitorMigration(
+        results=(
+            BatchResult(
+                resource="results",
+                batch=0,
+                migrated=items,
+                failed=(
+                    FailedItem(
+                        source_id="partial",
+                        destination_id="partial-destination",
+                        stage="steps",
+                        error_type="RuntimeError",
+                    ),
+                ),
+            ),
+        )
+    )
+    writer = Writer()
+
+    complete_results(writer, migration)
+
+    assert writer.batch_sizes == [100, 100, 1]
+    assert writer.replace_values == [False, False, False]
+    assert {update["id"] for update in writer.updates} == {item.destination_id for item in items}
+    for update in writer.updates:
+        assert set(update) == {"id", "properties"}
+        assert update["properties"][STATUS] == COMPLETE
+        assert update["properties"][COMPLETED_AT]
+
+
+@pytest.mark.parametrize(
+    "response",
+    [
+        WriteResponse(),
+        WriteResponse(failed=[{"id": "d"}]),
+        WriteResponse(error=ApiError(name="rejected")),
+    ],
+)
+def test_completion_errors_are_not_silently_accepted(response: WriteResponse) -> None:
+    with pytest.raises(ValueError, match="Failed to update results.*d"):
+        complete_results(
+            Writer(response),
+            _migration(MigratedItem(source_id="s", destination_id="d"), file_results={}),
+        )
+
+
+def test_task_marks_results_complete_even_without_reassignments(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    writer = Writer()
+    monkeypatch.setattr(
+        "slcli.migration.testmonitor.file_references_task.resolve_migration_connection",
+        lambda profile: MigrationConnection(profile, "https://destination", {}),
+    )
+    monkeypatch.setattr(
+        "slcli.migration.testmonitor.file_references_task.TestMonitorWriter",
+        lambda connection: writer,
+    )
+    repair_file_references_task.fn(
+        "run",
+        "source",
+        "destination",
+        FileTransfer(),
+        _migration(MigratedItem(source_id="s", destination_id="d"), file_results={}),
+    )
+    assert writer.updates[0]["id"] == "d"
+    assert writer.updates[0]["properties"][STATUS] == COMPLETE
+    assert writer.replace_values == [False]

@@ -9,7 +9,6 @@ import pytest
 import requests
 
 from slcli.migration.annotations import (
-    COMPLETE,
     INCOMPLETE,
     MIGRATION_ID,
     SOURCE_HOSTNAME,
@@ -268,8 +267,8 @@ def test_product_request_error_fails_the_batch() -> None:
         migrate_products(source, destination, CONTEXT, 0, [_product("p1")])
 
 
-def test_result_with_steps_is_completed() -> None:
-    """A result is created incomplete, its step tree is remapped, then it is completed."""
+def test_result_with_steps_waits_for_file_finalization() -> None:
+    """Results stay incomplete after their steps migrate, until file transfer finishes."""
     source = FakeSource(
         {
             "results": [_source_result("r1")],
@@ -301,9 +300,7 @@ def test_result_with_steps_is_completed() -> None:
     ]
     assert not {"parent", "child", "grandchild"} & set(source_ids)
     assert all("pathIds" not in s and s["resultId"] == "new-r1" for s in call)
-    [update] = destination.updates
-    assert update["id"] == "new-r1"
-    assert update["properties"][STATUS] == COMPLETE
+    assert destination.updates == []
 
 
 def test_result_is_created_with_intended_file_ids_and_unresolved_annotation() -> None:
@@ -369,7 +366,7 @@ def test_step_failure_leaves_result_incomplete() -> None:
     assert not batch.migrated
     [failure] = batch.failed
     assert (failure.stage, failure.error_type, failure.destination_id) == (
-        "complete",
+        "steps",
         "NotCreated",
         "new-r1",
     )
@@ -378,22 +375,16 @@ def test_step_failure_leaves_result_incomplete() -> None:
     assert not destination.updates
 
 
-def test_step_query_and_completion_errors_are_reported() -> None:
+def test_step_query_errors_are_reported() -> None:
     """Errors after the result is created report its destination ID."""
     source = FakeSource({"results": [_source_result("r1")]}, steps_error=_http_error(503))
     batch = migrate_results(source, FakeDestination(), CONTEXT, 0, [_result("r1")], {})
     [failure] = batch.failed
     assert (failure.stage, failure.detail, failure.destination_id) == (
-        "complete",
+        "steps",
         "503 Error",
         "new-r1",
     )
-
-    destination = FakeDestination(raise_on={"update": _http_error(500)})
-    source = FakeSource({"results": [_source_result("r1")]})
-    batch = migrate_results(source, destination, CONTEXT, 0, [_result("r1")], {})
-    [failure] = batch.failed
-    assert (failure.stage, failure.detail) == ("complete", "500 Error")
 
 
 def test_step_with_unknown_parent_fails_the_result() -> None:
