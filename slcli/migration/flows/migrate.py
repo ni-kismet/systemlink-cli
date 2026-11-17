@@ -59,8 +59,8 @@ def migrate_flow(
 ) -> MigrationOutcome:
     """Discover source resources, synchronize workspaces, then migrate resources.
 
-    Each resource type is a service task (see :func:`service_task`). Submitted
-    service tasks run in parallel; pass ``wait_for`` to sequence them.
+    File transfer and Test Monitor migration run in parallel after workspace
+    synchronization. The flow waits for both tasks before reporting a failure.
 
     Args:
         migration_id: Migration that scopes task cache keys.
@@ -81,12 +81,9 @@ def migrate_flow(
     mapping = synchronize_workspaces_task(
         migration_id, destination_profile, discovery.workspaces, workspace_mappings
     )
-    files = transfer_files_task(
+    files_future = transfer_files_task.submit(
         migration_id, source_profile, destination_profile, discovery.files, mapping
     )
-    files_summary = format_file_transfer_summary(files)
-    _logger.info(files_summary)
-    click.echo(files_summary)
     test_monitor = migrate_test_monitor_task.submit(
         migration_id,
         source_profile,
@@ -96,6 +93,12 @@ def migrate_flow(
         product_batch_size,
         result_batch_size,
     )
+    files_future.wait()
+    test_monitor.wait()
+    files = files_future.result()
+    files_summary = format_file_transfer_summary(files)
+    _logger.info(files_summary)
+    click.echo(files_summary)
     return MigrationOutcome(
         mapping=mapping, discovery=discovery, test_monitor=test_monitor.result(), files=files
     )
