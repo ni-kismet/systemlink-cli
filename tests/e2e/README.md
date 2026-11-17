@@ -199,6 +199,26 @@ poetry run pytest tests/e2e/test_migration_workspace_creation_manual_e2e.py `
 Each run leaves one uniquely named workspace on the destination. Do not set the
 acknowledgement when using a shared SLE or other non-disposable destination.
 
+#### File Transfer Coverage
+
+`test_migration_orchestration_e2e.py::test_file_transfer_resume_persists_reassigned_ids`
+uses a real Prefect server and simulated file endpoints to verify partial failure,
+resume, reassigned-ID recovery, and cached result persistence. It requires no live profiles.
+
+`test_migration_files_e2e.py` requires writable `SLCLI_E2E_SOURCE_PROFILE` and
+`SLCLI_E2E_DESTINATION_PROFILE` profiles. It uploads a binary fixture to SLS,
+transfers it to the destination, checks bytes, properties and actual IDs, and verifies
+that resuming does not duplicate the file. It reuses the fixed
+`e2e-slcli-migration-files-source` source workspace and the standard migration
+destination workspace. Cleanup deletes only files carrying this test run's unique
+`slcliMigrationFileTestOwner` property, including uploads whose responses were lost.
+The fixed workspaces remain after the test.
+
+```powershell
+poetry run pytest tests\e2e\test_migration_orchestration_e2e.py `
+  tests\e2e\test_migration_files_e2e.py -m e2e_migration --timeout=300 --no-cov
+```
+
 ### Run The Local MCP Streamable HTTP Smoke Test
 
 The MCP smoke test connects to a locally running streamable HTTP server and exercises the

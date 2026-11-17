@@ -55,13 +55,30 @@ def test_files_are_attributed_to_the_queried_workspace() -> None:
 
     discovery = discover_files(client, _discovered_workspaces(["Lab", "Default"]))
 
+    name_properties = {"Name": "a.txt"}
     assert discovery.workspaces == ("Default", "Lab")
     assert discovery.files == (
-        DiscoveredFile(id="f3", workspace="Default", name="a.txt", size_bytes=3),
-        DiscoveredFile(id="f1", workspace="Lab", name="a.txt", size_bytes=3),
-        DiscoveredFile(id="f2", workspace="Lab", name="a.txt", size_bytes=3),
+        DiscoveredFile(
+            id="f3", workspace="Default", name="a.txt", size_bytes=3, properties=name_properties
+        ),
+        DiscoveredFile(
+            id="f1", workspace="Lab", name="a.txt", size_bytes=3, properties=name_properties
+        ),
+        DiscoveredFile(
+            id="f2", workspace="Lab", name="a.txt", size_bytes=3, properties=name_properties
+        ),
     )
     assert discovery.failures == ()
+
+
+def test_file_properties_are_kept_for_transfer() -> None:
+    """Every source property is kept so it can be migrated as file metadata."""
+    properties = {"Name": "a.txt", "Owner": "lab", "Serial": "123"}
+    client = FakeFiles({"lab-id": [SourceFile(id="f1", properties=properties)]})
+
+    discovery = discover_files(client, _discovered_workspaces(["Lab"]))
+
+    assert discovery.files[0].properties == properties
 
 
 def test_all_workspaces_are_discovered_by_default() -> None:

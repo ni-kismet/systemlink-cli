@@ -1,4 +1,4 @@
-"""CLI registration for the discovery-only ``migrate`` command.
+"""CLI registration for the ``migrate`` command.
 
 Migration depends on the optional ``migration`` extra, so this module imports
 ``slcli.migration`` only when the command runs.
@@ -100,7 +100,10 @@ def register_migrate_command(cli: click.Group) -> None:
             "Missing destination workspaces are created unless the destination profile is readonly."
         ),
     )
-    @click.option("--migration-id", help="Resume an existing migration.")
+    @click.option(
+        "--migration-id",
+        help="Resume an existing migration, retrying only unfinished work.",
+    )
     @click.option("--product-batch-size", type=click.IntRange(min=1), default=None, hidden=True)
     @click.option("--result-batch-size", type=click.IntRange(min=1), default=None, hidden=True)
     @click.option(

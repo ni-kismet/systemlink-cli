@@ -1,10 +1,14 @@
 """Migration flow: discover, synchronize workspaces, then migrate each resource type."""
 
+import logging
 from typing import Dict, List, Optional
 
+import click
 from prefect import flow
 from pydantic import ConfigDict
 
+from slcli.migration.files.models import FileTransfer
+from slcli.migration.files.transfer_task import transfer_files_task
 from slcli.migration.flows.discover import MigrationDiscovery, discover_flow
 from slcli.migration.flows.service import migration_task_runner
 from slcli.migration.schema import VersionedModel
@@ -12,6 +16,8 @@ from slcli.migration.testmonitor.migration_task import migrate_test_monitor_task
 from slcli.migration.testmonitor.models import TestMonitorMigration
 from slcli.migration.workspace_task import synchronize_workspaces_task
 from slcli.migration.workspaces import WorkspaceMapping
+
+_logger = logging.getLogger("slcli.migration")
 
 
 class MigrationOutcome(VersionedModel):
@@ -22,6 +28,18 @@ class MigrationOutcome(VersionedModel):
     mapping: WorkspaceMapping
     discovery: MigrationDiscovery
     test_monitor: TestMonitorMigration
+    files: FileTransfer
+
+
+def format_file_transfer_summary(transfer: FileTransfer) -> str:
+    """Returns a formatted summary of the file transfer results."""
+    lines = [
+        "File transfer:",
+        f"  Transferred: {transfer.transferred}",
+        f"  Already present: {transfer.already_present}",
+        f"  Reassigned IDs: {len(transfer.reassigned_ids)}",
+    ]
+    return "\n".join(lines)
 
 
 @flow(
@@ -54,6 +72,7 @@ def migrate_flow(
 
     Raises:
         WorkspaceMappingError: If a source workspace does not exist.
+        click.ClickException: If any file failed to transfer.
     """
     explicit_workspace_selection: Optional[List[str]] = (
         list(workspace_mappings) if workspace_mappings is not None else None
@@ -62,6 +81,12 @@ def migrate_flow(
     mapping = synchronize_workspaces_task(
         migration_id, destination_profile, discovery.workspaces, workspace_mappings
     )
+    files = transfer_files_task(
+        migration_id, source_profile, destination_profile, discovery.files, mapping
+    )
+    files_summary = format_file_transfer_summary(files)
+    _logger.info(files_summary)
+    click.echo(files_summary)
     test_monitor = migrate_test_monitor_task.submit(
         migration_id,
         source_profile,
@@ -72,5 +97,5 @@ def migrate_flow(
         result_batch_size,
     )
     return MigrationOutcome(
-        mapping=mapping, discovery=discovery, test_monitor=test_monitor.result()
+        mapping=mapping, discovery=discovery, test_monitor=test_monitor.result(), files=files
     )
