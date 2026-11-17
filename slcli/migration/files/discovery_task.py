@@ -1,5 +1,6 @@
 """Persisted Prefect task for SLS file discovery."""
 
+import click
 from prefect import task
 from prefect.cache_policies import INPUTS, TASK_SOURCE
 
@@ -21,14 +22,23 @@ def discover_files_task(
     migration_id: str,
     source_profile: str,
     workspaces: DiscoveredWorkspaces,
+    require_complete: bool = False,
 ) -> FileDiscovery:
     """Discover SLS files in the discovered source workspaces.
 
     Inputs are references, never credentials. ``migration_id`` is unused by the
-    body but scopes the cache key to one migration.
+    body but scopes the cache key to one migration. When ``require_complete`` is
+    true, partial discovery raises rather than caching an incomplete file map.
     """
     connection = resolve_migration_connection(source_profile)
-    return discover_files(
+    discovery = discover_files(
         FilesClient(connection),
         workspaces,
     )
+    if require_complete and discovery.failures:
+        failed_workspaces = ", ".join(failure.workspace for failure in discovery.failures)
+        raise click.ClickException(
+            f"File discovery failed for workspace(s): {failed_workspaces}. "
+            "Retry the migration before results are created."
+        )
+    return discovery
