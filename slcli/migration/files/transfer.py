@@ -94,12 +94,12 @@ def transfer_files(
         migrated_files = migrated_by_workspace[workspace_id]
         filename = file.name or file.id
 
-        migrated = _find_migrated_file(file.id, migrated_files)
-        if migrated is not None:
-            actual_id = migrated.id
-            already_present += 1
-        else:
-            try:
+        try:
+            migrated = _find_migrated_file(file.id, migrated_files)
+            if migrated is not None:
+                actual_id = migrated.id
+                already_present += 1
+            else:
                 requested_id = _choose_id(intended_id, existing_files, reserved_ids)
                 actual_id = _upload_with_retry(
                     source,
@@ -110,26 +110,26 @@ def transfer_files(
                     filename,
                     reserved_ids,
                 )
-            except Exception as exc:
-                _logger.warning(
-                    "File %s in workspace %s could not be transferred: %s: %s",
-                    file.id,
-                    file.workspace,
-                    type(exc).__name__,
-                    exc,
+                existing_files[actual_id] = SourceFile(
+                    id=actual_id,
+                    properties={**file.properties, MIGRATED_SOURCE_ID: file.id},
                 )
-                failures.append(
-                    FileFailure(id=file.id, workspace=file.workspace, error_type=type(exc).__name__)
-                )
-                continue
-            existing_files[actual_id] = SourceFile(
-                id=actual_id,
-                properties={**file.properties, MIGRATED_SOURCE_ID: file.id},
+                migrated_files[file.id] = [existing_files[actual_id]]
+                reserved_ids.add(actual_id)
+                transferred += 1
+                _logger.info("File %s transferred as %s", file.id, actual_id)
+        except Exception as exc:
+            _logger.warning(
+                "File %s in workspace %s could not be transferred: %s: %s",
+                file.id,
+                file.workspace,
+                type(exc).__name__,
+                exc,
             )
-            migrated_files[file.id] = [existing_files[actual_id]]
-            reserved_ids.add(actual_id)
-            transferred += 1
-            _logger.info("File %s transferred as %s", file.id, actual_id)
+            failures.append(
+                FileFailure(id=file.id, workspace=file.workspace, error_type=type(exc).__name__)
+            )
+            continue
 
         if actual_id != intended_id:
             _logger.info("File %s was reassigned from %s to %s", file.id, intended_id, actual_id)

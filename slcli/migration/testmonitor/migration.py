@@ -1,8 +1,8 @@
 """Migrate Test Monitor products, results, and steps one batch at a time.
 
 Records pass through unchanged apart from server-owned fields, destination
-routing, and source identity annotations. File and data table references are
-not migrated yet.
+routing, source identity annotations, and mapped file references. Data table
+references are not migrated yet.
 """
 
 import logging
@@ -10,7 +10,7 @@ import re
 import uuid
 from dataclasses import dataclass
 from datetime import datetime, timezone
-from typing import Dict, Iterable, Iterator, List, Optional, Sequence, Set, Type, TypeVar
+from typing import Dict, Iterable, Iterator, List, Mapping, Optional, Sequence, Set, Type, TypeVar
 
 from slcli.migration.annotations import (
     COMPLETE,
@@ -21,6 +21,7 @@ from slcli.migration.annotations import (
     SOURCE_ID,
     STARTED_AT,
     STATUS,
+    UNRESOLVED_FILE_IDS,
 )
 from slcli.migration.testmonitor.client import TestMonitorSource
 from slcli.migration.testmonitor.models import (
@@ -212,6 +213,7 @@ def migrate_results(
     context: MigrationContext,
     batch: int,
     results: Sequence[DiscoveredResult],
+    file_id_map: Mapping[str, str],
 ) -> BatchResult:
     """Migrate a batch of results, each with all of its steps.
 
@@ -224,30 +226,65 @@ def migrate_results(
     """
     records = _fetch_by_id(source, "results", Result, [r.id for r in results])
     workspaces = {r.id: context.mapping.workspace(r.workspace) for r in results}
-    to_create = {
-        result.id: result.create_request(
-            {
-                "workspace": workspaces[result.id].destination_id,
-                "properties": context.annotate(result, **{STATUS: INCOMPLETE}),
-            }
+    unresolved_by_result: Dict[str, tuple[str, ...]] = {}
+    intended_by_result: Dict[str, List[str]] = {}
+    to_create: Dict[str, Dict[str, object]] = {}
+    for result in records.values():
+        file_ids = result.model_extra.get("fileIds", []) if result.model_extra else []
+        if not isinstance(file_ids, list) or not all(isinstance(fid, str) for fid in file_ids):
+            raise ValueError(f"Invalid fileIds on source result {result.id!r}")
+        unresolved = tuple(dict.fromkeys(fid for fid in file_ids if fid not in file_id_map))
+        unresolved_by_result[result.id] = unresolved
+        annotations = {STATUS: INCOMPLETE}
+        if unresolved:
+            annotations[UNRESOLVED_FILE_IDS] = ",".join(unresolved)
+            _logger.warning(
+                "Result %s has unresolved source file IDs: %s", result.id, ",".join(unresolved)
+            )
+        elif UNRESOLVED_FILE_IDS in result.properties:
+            annotations[UNRESOLVED_FILE_IDS] = ""
+        overrides: Dict[str, object] = {
+            "workspace": workspaces[result.id].destination_id,
+            "properties": context.annotate(result, **annotations),
+        }
+        intended_ids = list(
+            dict.fromkeys(file_id_map[fid] for fid in file_ids if fid in file_id_map)
         )
-        for result in records.values()
-    }
+        intended_by_result[result.id] = intended_ids
+        if intended_ids:
+            overrides["fileIds"] = intended_ids
+        to_create[result.id] = result.create_request(overrides)
     response = destination.create_results(list(to_create.values()))
     created = _created_ids(Result, response)
     failed = [*_missing(workspaces, records), *_not_created(to_create, created, response.error)]
     migrated: List[MigratedItem] = []
+    file_results: Dict[str, List[str]] = {}
     for source_id, destination_id in created.items():
+        for file_id in intended_by_result[source_id]:
+            file_results.setdefault(file_id, []).append(destination_id)
         try:
             steps = _complete_result(source, destination, context, source_id, destination_id)
         except Exception as exc:
-            failed.append(_failed(source_id, "complete", exc, destination_id))
+            failed.append(
+                _failed(source_id, "complete", exc, destination_id).model_copy(
+                    update={"unresolved_file_ids": unresolved_by_result[source_id]}
+                )
+            )
         else:
             migrated.append(
-                MigratedItem(source_id=source_id, destination_id=destination_id, steps=steps)
+                MigratedItem(
+                    source_id=source_id,
+                    destination_id=destination_id,
+                    steps=steps,
+                    unresolved_file_ids=unresolved_by_result[source_id],
+                )
             )
     return BatchResult(
-        resource="results", batch=batch, migrated=tuple(migrated), failed=tuple(failed)
+        resource="results",
+        batch=batch,
+        migrated=tuple(migrated),
+        failed=tuple(failed),
+        file_results={file_id: tuple(ids) for file_id, ids in file_results.items()},
     )
 
 

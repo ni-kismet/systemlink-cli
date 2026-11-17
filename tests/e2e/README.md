@@ -205,6 +205,15 @@ acknowledgement when using a shared SLE or other non-disposable destination.
 uses a real Prefect server and simulated file endpoints to verify partial failure,
 resume, reassigned-ID recovery, and cached result persistence. It requires no live profiles.
 
+`test_result_file_reference_task_receives_both_migration_outcomes` verifies that
+the result-batch file index survives Prefect persistence, overlapping file IDs
+are repaired from their original associations, and interrupted repairs resume
+without recreating results or rewriting already repaired references.
+
+`test_migration_testmonitor_e2e.py::test_live_result_file_id_backpatch_preserves_other_fields`
+checks that the destination accepts result references before files exist and
+that replacing file IDs preserves unrelated result fields and properties.
+
 `test_migration_files_e2e.py` requires writable `SLCLI_E2E_SOURCE_PROFILE` and
 `SLCLI_E2E_DESTINATION_PROFILE` profiles. It uploads a binary fixture to SLS,
 transfers it to the destination, checks bytes, properties and actual IDs, and verifies

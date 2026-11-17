@@ -1,9 +1,11 @@
 """Prefect tasks that migrate Test Monitor resources in batches."""
 
-from typing import List
+import hashlib
+import json
+from typing import Dict, List
 from urllib.parse import urlparse
 
-from prefect import task
+from prefect import task, unmapped
 from prefect.cache_policies import INPUTS
 
 from slcli.migration.connection import resolve_migration_connection
@@ -73,7 +75,7 @@ def migrate_products_task(
     persist_result=True,
     result_serializer="json",
     cache_result_in_memory=False,
-    cache_policy=INPUTS,
+    cache_policy=INPUTS - "file_id_map",
 )
 def migrate_results_task(
     migration_id: str,
@@ -82,12 +84,14 @@ def migrate_results_task(
     mapping: WorkspaceMapping,
     batch: int,
     results: List[DiscoveredResult],
+    file_id_map: Dict[str, str],
+    file_id_map_digest: str,
 ) -> BatchResult:
-    """Migrate one batch of results with their steps."""
+    """Migrate results; the shared file map's digest participates in the cache key."""
     context = _context(migration_id, source_profile, mapping)
     source = TestMonitorClient(resolve_migration_connection(source_profile))
     destination = TestMonitorWriter(resolve_migration_connection(destination_profile))
-    result = migrate_results(source, destination, context, batch, results)
+    result = migrate_results(source, destination, context, batch, results, file_id_map)
     log_batch(result)
     return result
 
@@ -101,6 +105,7 @@ def migrate_test_monitor_task(
     discovery: TestMonitorDiscovery,
     product_batch_size: int,
     result_batch_size: int,
+    file_id_map: Dict[str, str],
 ) -> TestMonitorMigration:
     """Migrate products, then results with their steps, in batch tasks.
 
@@ -117,6 +122,7 @@ def migrate_test_monitor_task(
         discovery: Discovered Test Monitor resources.
         product_batch_size: Products per migration task.
         result_batch_size: Results, with their steps, per migration task.
+        file_id_map: Pre-allocated destination IDs keyed by source file ID.
     """
     common = shared_task_args(migration_id, source_profile, destination_profile, mapping)
     product_batches = partition(discovery.products, product_batch_size)
@@ -124,10 +130,15 @@ def migrate_test_monitor_task(
         *common, list(range(len(product_batches))), product_batches
     )
     result_batches = partition(discovery.results, result_batch_size)
+    file_id_map_digest = hashlib.sha256(
+        json.dumps(file_id_map, sort_keys=True).encode("utf-8")
+    ).hexdigest()
     results = migrate_results_task.map(
         *common,
         list(range(len(result_batches))),
         result_batches,
+        unmapped(file_id_map),
+        unmapped(file_id_map_digest),
         wait_for=after_all(products),
     )
     return TestMonitorMigration(

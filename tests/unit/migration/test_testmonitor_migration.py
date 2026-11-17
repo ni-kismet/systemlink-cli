@@ -15,6 +15,7 @@ from slcli.migration.annotations import (
     SOURCE_HOSTNAME,
     SOURCE_ID,
     STATUS,
+    UNRESOLVED_FILE_IDS,
 )
 from slcli.migration.testmonitor import client, migration
 from slcli.migration.testmonitor.migration import (
@@ -24,7 +25,7 @@ from slcli.migration.testmonitor.migration import (
     migrate_results,
     literal_id_filter,
 )
-from slcli.migration.testmonitor.models import DiscoveredProduct, DiscoveredResult
+from slcli.migration.testmonitor.models import BatchResult, DiscoveredProduct, DiscoveredResult
 from slcli.migration.testmonitor.records import Result
 from slcli.migration.testmonitor.writer import ApiError, Record, WriteResponse
 from slcli.migration.workspaces import MappedWorkspace, WorkspaceMapping
@@ -141,7 +142,7 @@ class FakeDestination:
         error = ApiError(inner_errors=[ApiError(name="StepRejected")]) if failed else None
         return WriteResponse(created, failed, error)
 
-    def update_results(self, results: Sequence[Record]) -> WriteResponse:
+    def update_results(self, results: Sequence[Record], *, replace: bool = False) -> WriteResponse:
         if "update" in self.raise_on:
             raise self.raise_on["update"]
         self.updates.extend(results)
@@ -182,6 +183,18 @@ def _step(step_id: str, result_id: str, *ancestors: str) -> Record:
         "parentId": path[-1],
         "pathIds": [*path, step_id],
     }
+
+
+def test_partial_result_reports_unresolved_file_ids() -> None:
+    """Results created before a step failure retain their unresolved references."""
+    source = FakeSource({"results": [_source_result("r1")]}, steps_error=_http_error(500))
+    destination = FakeDestination()
+
+    result = migrate_results(source, destination, CONTEXT, 0, [_result("r1")], {})
+
+    assert result.failed[0].destination_id == "new-r1"
+    assert result.failed[0].unresolved_file_ids == ("f1",)
+    assert destination.results[0]["properties"][UNRESOLVED_FILE_IDS] == "f1"
 
 
 def test_products_are_copied_annotated_and_mapped() -> None:
@@ -269,7 +282,7 @@ def test_result_with_steps_is_completed() -> None:
     )
     destination = FakeDestination()
 
-    batch = migrate_results(source, destination, CONTEXT, 0, [_result("r1")])
+    batch = migrate_results(source, destination, CONTEXT, 0, [_result("r1")], {})
 
     assert not batch.failed
     [migrated] = batch.migrated
@@ -293,6 +306,54 @@ def test_result_with_steps_is_completed() -> None:
     assert update["properties"][STATUS] == COMPLETE
 
 
+def test_result_is_created_with_intended_file_ids_and_unresolved_annotation() -> None:
+    """Source IDs are translated before transfer completes; missing IDs are reported."""
+    record = _source_result("r1")
+    record["fileIds"] = ["f1", "unknown", "f2", "unknown"]
+    record["properties"][UNRESOLVED_FILE_IDS] = "stale"
+    source = FakeSource({"results": [record]})
+    destination = FakeDestination()
+
+    batch = migrate_results(
+        source, destination, CONTEXT, 0, [_result("r1")], {"f1": "expected1", "f2": "expected2"}
+    )
+
+    [created] = destination.results
+    assert created["fileIds"] == ["expected1", "expected2"]
+    assert created["properties"][UNRESOLVED_FILE_IDS] == "unknown"
+    assert batch.migrated[0].unresolved_file_ids == ("unknown",)
+    assert batch.file_results == {"expected1": ("new-r1",), "expected2": ("new-r1",)}
+
+
+def test_file_index_includes_partial_results_but_not_rejected_creates() -> None:
+    """Persist original associations even when a created result's steps fail."""
+    records = [_source_result(f"r{i}") for i in range(3)]
+    source = FakeSource({"results": records}, steps_error=_http_error(500))
+    destination = FakeDestination(reject={"r2"})
+
+    batch = migrate_results(
+        source, destination, CONTEXT, 0, [_result(f"r{i}") for i in range(3)], {"f1": "expected"}
+    )
+
+    assert batch.file_results == {"expected": ("new-r0", "new-r1")}
+    assert {item.destination_id for item in batch.failed} == {"new-r0", "new-r1", None}
+    assert BatchResult.model_validate_json(batch.model_dump_json()) == batch
+
+
+def test_result_clears_stale_unresolved_annotation_when_all_ids_are_known() -> None:
+    record = _source_result("r1")
+    record["properties"][UNRESOLVED_FILE_IDS] = "stale"
+    destination = FakeDestination()
+
+    batch = migrate_results(
+        FakeSource({"results": [record]}), destination, CONTEXT, 0, [_result("r1")], {"f1": "new"}
+    )
+
+    assert destination.results[0]["fileIds"] == ["new"]
+    assert destination.results[0]["properties"][UNRESOLVED_FILE_IDS] == ""
+    assert batch.migrated[0].unresolved_file_ids == ()
+
+
 def test_step_failure_leaves_result_incomplete() -> None:
     """A rejected step stops its result, which is reported failed and never completed."""
     source = FakeSource(
@@ -303,7 +364,7 @@ def test_step_failure_leaves_result_incomplete() -> None:
     )
     destination = FakeDestination(reject={"parent"})
 
-    batch = migrate_results(source, destination, CONTEXT, 0, [_result("r1")])
+    batch = migrate_results(source, destination, CONTEXT, 0, [_result("r1")], {})
 
     assert not batch.migrated
     [failure] = batch.failed
@@ -320,7 +381,7 @@ def test_step_failure_leaves_result_incomplete() -> None:
 def test_step_query_and_completion_errors_are_reported() -> None:
     """Errors after the result is created report its destination ID."""
     source = FakeSource({"results": [_source_result("r1")]}, steps_error=_http_error(503))
-    batch = migrate_results(source, FakeDestination(), CONTEXT, 0, [_result("r1")])
+    batch = migrate_results(source, FakeDestination(), CONTEXT, 0, [_result("r1")], {})
     [failure] = batch.failed
     assert (failure.stage, failure.detail, failure.destination_id) == (
         "complete",
@@ -330,7 +391,7 @@ def test_step_query_and_completion_errors_are_reported() -> None:
 
     destination = FakeDestination(raise_on={"update": _http_error(500)})
     source = FakeSource({"results": [_source_result("r1")]})
-    batch = migrate_results(source, destination, CONTEXT, 0, [_result("r1")])
+    batch = migrate_results(source, destination, CONTEXT, 0, [_result("r1")], {})
     [failure] = batch.failed
     assert (failure.stage, failure.detail) == ("complete", "500 Error")
 
@@ -342,7 +403,7 @@ def test_step_with_unknown_parent_fails_the_result() -> None:
     )
     destination = FakeDestination()
 
-    batch = migrate_results(source, destination, CONTEXT, 0, [_result("r1")])
+    batch = migrate_results(source, destination, CONTEXT, 0, [_result("r1")], {})
 
     assert batch.failed[0].error_type == "KeyError"
     assert not destination.step_calls
@@ -362,7 +423,7 @@ def test_steps_are_created_in_chunks(monkeypatch: pytest.MonkeyPatch) -> None:
     )
     destination = FakeDestination()
 
-    batch = migrate_results(source, destination, CONTEXT, 0, [_result("r1")])
+    batch = migrate_results(source, destination, CONTEXT, 0, [_result("r1")], {})
 
     assert [[s["properties"][SOURCE_ID] for s in call] for call in destination.step_calls] == [
         ["p0", "p1"],
