@@ -2,6 +2,13 @@
 
 <!-- towncrier release notes start -->
 
+## v3.3.0 (2026-11-17)
+
+### Features
+
+- Add SLS file discovery to the migration discovery flow, reporting files and failed workspaces alongside Test Monitor results. (discover-files)
+
+
 ## v3.2.1 (2026-11-14)
 
 ### Bug Fixes
