@@ -85,7 +85,7 @@ def _generate_file_id_mappings(source_ids: Iterable[str]) -> Dict[str, str]:
     """
     taken: Set[str] = set(source_ids)
     mapping: Dict[str, str] = {}
-    # Since the file IDs are 12-byte values rather than 16-byte (like typical GUIDs), collisions are more likely than with GUIDs.
+    # Since file IDs are 12 bytes rather than 16 (like typical GUIDs), collisions are more likely.
     # To be safe, we check for collisions and retry generation as needed.
     for source_id in sorted(taken):
         new_id = secrets.token_hex(_OBJECT_ID_BYTES)
