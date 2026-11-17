@@ -61,7 +61,7 @@ def test_live_file_transfer_preserves_bytes_metadata_and_resumes() -> None:
                     properties=file.properties,
                 ),
             ),
-            file_id_map={file.id: intended_id},
+            source_to_destination_id_map={file.id: intended_id},
         )
         mapping = WorkspaceMapping(
             workspaces=(

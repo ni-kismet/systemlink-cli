@@ -35,7 +35,7 @@ def _discovery(*files: DiscoveredFile) -> FileDiscovery:
     return FileDiscovery(
         workspaces=("Default", "Lab", "Other"),
         files=files,
-        file_id_map={file.id: f"new-{file.id}" for file in files},
+        source_to_destination_id_map={file.id: f"new-{file.id}" for file in files},
     )
 
 
