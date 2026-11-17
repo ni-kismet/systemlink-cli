@@ -73,7 +73,7 @@ def transfer_files(
         workspace.source_name: workspace.destination_id for workspace in mapping.workspaces
     }
     # A replacement must not take the intended ID of another file.
-    reserved_ids: Set[str] = set(discovery.file_id_map.values())
+    reserved_ids: Set[str] = set(discovery.source_to_destination_id_map.values())
     files_by_workspace: Dict[str, Dict[str, SourceFile]] = {}
     migrated_by_workspace: Dict[str, Dict[str, List[SourceFile]]] = {}
     transferred = 0
@@ -81,7 +81,7 @@ def transfer_files(
     reassigned_ids: Dict[str, str] = {}
     failures: List[FileFailure] = []
     for file in discovery.files:
-        intended_id = discovery.file_id_map[file.id]
+        intended_id = discovery.source_to_destination_id_map[file.id]
         workspace_id = destination_workspace_ids[file.workspace]
         if workspace_id not in files_by_workspace:
             files_by_workspace[workspace_id] = {

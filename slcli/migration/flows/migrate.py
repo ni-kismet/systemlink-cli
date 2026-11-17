@@ -95,7 +95,7 @@ def migrate_flow(
         discovery.test_monitor,
         product_batch_size,
         result_batch_size,
-        discovery.files.file_id_map,
+        discovery.files.source_to_destination_id_map,
     )
     references = repair_file_references_task.submit(
         migration_id,

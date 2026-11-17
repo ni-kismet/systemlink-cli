@@ -42,7 +42,7 @@ class FileFailure(_Persisted):
 class FileTransfer(_Persisted, VersionedModel):
     """Transferred files, their reassigned IDs, and isolated per-file failures.
 
-    ``reassigned_ids`` maps an intended destination ID from discovery's ``file_id_map``
+    ``reassigned_ids`` maps an intended ID from discovery's ``source_to_destination_id_map``
     to the ID the file actually has on the destination, for files whose IDs differ.
     References to the intended ID must be rewritten to the actual ID.
     """

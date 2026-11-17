@@ -265,7 +265,7 @@ def test_file_transfer_resume_persists_reassigned_ids(
             DiscoveredFile(id="good", workspace="Lab", name="good.txt"),
             DiscoveredFile(id="bad", workspace="Lab", name="bad.txt"),
         ),
-        file_id_map={"good": intended_good, "bad": intended_bad},
+        source_to_destination_id_map={"good": intended_good, "bad": intended_bad},
         workspaces=("Lab",),
     )
     mapping = WorkspaceMapping(
@@ -363,7 +363,9 @@ def test_result_file_reference_task_receives_both_migration_outcomes(
     from slcli.migration.annotations import COMPLETE, INCOMPLETE, STATUS, UNRESOLVED_FILE_IDS
 
     intended, second, actual = "ab" * 12, "cd" * 12, "ef" * 12
-    discovery = FileDiscovery(file_id_map={"source-file": intended, "second-file": second})
+    discovery = FileDiscovery(
+        source_to_destination_id_map={"source-file": intended, "second-file": second}
+    )
     mapping = WorkspaceMapping()
     migration = TestMonitorMigration(
         results=(
