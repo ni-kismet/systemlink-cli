@@ -34,6 +34,7 @@ def discover_flow(
     migration_id: str,
     source_profile: str,
     explicit_workspace_selection: Optional[List[str]],
+    require_complete_file_discovery: bool = False,
 ) -> MigrationDiscovery:
     """Discover source workspaces, then each supported resource type within them.
 
@@ -41,6 +42,7 @@ def discover_flow(
         migration_id: Migration that scopes task cache keys.
         source_profile: Name of the source profile.
         explicit_workspace_selection: Source workspace names to discover; all workspaces when None.
+        require_complete_file_discovery: Fail rather than returning an incomplete file map.
 
     Raises:
         WorkspaceMappingError: If a requested workspace does not exist on the source.
@@ -50,6 +52,11 @@ def discover_flow(
     )
     return MigrationDiscovery(
         workspaces=workspaces,
-        files=discover_files_task(migration_id, source_profile, workspaces),
+        files=discover_files_task(
+            migration_id,
+            source_profile,
+            workspaces,
+            require_complete=require_complete_file_discovery,
+        ),
         test_monitor=discover_test_monitor_task(migration_id, source_profile, workspaces),
     )

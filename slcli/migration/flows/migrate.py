@@ -80,7 +80,12 @@ def migrate_flow(
     explicit_workspace_selection: Optional[List[str]] = (
         list(workspace_mappings) if workspace_mappings is not None else None
     )
-    discovery = discover_flow(migration_id, source_profile, explicit_workspace_selection)
+    discovery = discover_flow(
+        migration_id,
+        source_profile,
+        explicit_workspace_selection,
+        require_complete_file_discovery=True,
+    )
     mapping = synchronize_workspaces_task(
         migration_id, destination_profile, discovery.workspaces, workspace_mappings
     )
