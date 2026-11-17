@@ -13,8 +13,6 @@ from datetime import datetime, timezone
 from typing import Dict, Iterable, Iterator, List, Mapping, Optional, Sequence, Set, Type, TypeVar
 
 from slcli.migration.annotations import (
-    COMPLETE,
-    COMPLETED_AT,
     INCOMPLETE,
     MIGRATION_ID,
     SOURCE_HOSTNAME,
@@ -217,9 +215,9 @@ def migrate_results(
 ) -> BatchResult:
     """Migrate a batch of results, each with all of its steps.
 
-    A result is created ``INCOMPLETE`` and marked ``COMPLETE`` only after all of
-    its steps migrate. A result whose steps fail stays ``INCOMPLETE`` and is
-    reported as failed with its destination ID.
+    A result is created ``INCOMPLETE`` and stays so until the dependent task
+    finishes file transfer and reference repair. A result whose steps fail is
+    reported as failed with its destination ID and is never marked complete.
 
     Raises:
         requests.RequestException: If a batch-wide read or create fails.
@@ -263,10 +261,10 @@ def migrate_results(
         for file_id in intended_by_result[source_id]:
             file_results.setdefault(file_id, []).append(destination_id)
         try:
-            steps = _complete_result(source, destination, context, source_id, destination_id)
+            steps = _migrate_result_steps(source, destination, context, source_id, destination_id)
         except Exception as exc:
             failed.append(
-                _failed(source_id, "complete", exc, destination_id).model_copy(
+                _failed(source_id, "steps", exc, destination_id).model_copy(
                     update={"unresolved_file_ids": unresolved_by_result[source_id]}
                 )
             )
@@ -288,14 +286,14 @@ def migrate_results(
     )
 
 
-def _complete_result(
+def _migrate_result_steps(
     source: TestMonitorSource,
     destination: DestinationWriter,
     context: MigrationContext,
     source_id: str,
     destination_id: str,
 ) -> int:
-    """Migrate a created result's steps, then mark the result complete.
+    """Migrate a created result's steps without marking the result complete.
 
     Returns:
         The number of steps migrated.
@@ -305,11 +303,6 @@ def _complete_result(
         for record in source.query_records("steps", "resultId == @0", [source_id])
     ]
     _migrate_steps(destination, context, destination_id, steps)
-    response = destination.update_results(
-        [{"id": destination_id, "properties": {STATUS: COMPLETE, COMPLETED_AT: _now()}}]
-    )
-    if response.failed or response.error:
-        raise NotCreated(", ".join(response.error.names() if response.error else []))
     return len(steps)
 
 

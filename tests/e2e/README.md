@@ -209,6 +209,8 @@ resume, reassigned-ID recovery, and cached result persistence. It requires no li
 the result-batch file index survives Prefect persistence, overlapping file IDs
 are repaired from their original associations, and interrupted repairs resume
 without recreating results or rewriting already repaired references.
+Results are marked COMPLETE only after file transfer and reference repair succeed;
+failures in either stage leave them INCOMPLETE for resume.
 
 `test_migration_testmonitor_e2e.py::test_live_result_file_id_backpatch_preserves_other_fields`
 checks that the destination accepts result references before files exist and

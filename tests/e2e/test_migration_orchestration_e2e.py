@@ -351,16 +351,16 @@ def test_file_transfer_resume_persists_reassigned_ids(
     assert cached == resumed
 
 
-@pytest.mark.parametrize("interrupt_repair", [False, True])
+@pytest.mark.parametrize("interrupt_stage", [None, "transfer", "repair", "completion"])
 def test_result_file_reference_task_receives_both_migration_outcomes(
     fake_source: FakeSource,
     test_prefect_server: str,
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,
-    interrupt_repair: bool,
+    interrupt_stage: Optional[str],
 ) -> None:
     """Prefect resolves both futures and reuses completed batch and repair results."""
-    from slcli.migration.annotations import UNRESOLVED_FILE_IDS
+    from slcli.migration.annotations import COMPLETE, INCOMPLETE, STATUS, UNRESOLVED_FILE_IDS
 
     intended, second, actual = "ab" * 12, "cd" * 12, "ef" * 12
     discovery = FileDiscovery(file_id_map={"source-file": intended, "second-file": second})
@@ -383,14 +383,19 @@ def test_result_file_reference_task_receives_both_migration_outcomes(
         )
     )
     updates: List[Record] = []
+    completions: List[Record] = []
     batch_calls: List[int] = []
     records: Dict[str, Record] = {
         "dest-result": {
             "id": "dest-result",
             "fileIds": [intended],
-            "properties": {UNRESOLVED_FILE_IDS: "unresolved"},
+            "properties": {UNRESOLVED_FILE_IDS: "unresolved", STATUS: INCOMPLETE},
         },
-        "second-result": {"id": "second-result", "fileIds": [second]},
+        "second-result": {
+            "id": "second-result",
+            "fileIds": [second],
+            "properties": {STATUS: INCOMPLETE},
+        },
     }
     interrupted = False
 
@@ -416,8 +421,18 @@ def test_result_file_reference_task_receives_both_migration_outcomes(
 
         def update_results(self, results: List[Record], *, replace: bool = False) -> WriteResponse:
             nonlocal interrupted
-            assert replace
-            if interrupt_repair and not interrupted:
+            if not replace:
+                assert records["dest-result"]["fileIds"] == [second]
+                assert records["second-result"]["fileIds"] == [actual]
+                for result in results:
+                    records[result["id"]]["properties"].update(result["properties"])
+                    completions.append(result)
+                    if interrupt_stage == "completion" and not interrupted:
+                        interrupted = True
+                        raise RuntimeError("response lost during completion")
+                return WriteResponse(created=results)
+            assert all(record["properties"][STATUS] == INCOMPLETE for record in records.values())
+            if interrupt_stage == "repair" and not interrupted:
                 records[results[0]["id"]].update(results[0])
                 updates.append(results[0])
                 interrupted = True
@@ -451,11 +466,15 @@ def test_result_file_reference_task_receives_both_migration_outcomes(
         ),
     )
     monkeypatch.setattr(synchronize_workspaces_task, "fn", lambda *args: mapping)
-    monkeypatch.setattr(
-        transfer_files_task,
-        "fn",
-        lambda *args: FileTransfer(reassigned_ids={intended: second, second: actual}),
-    )
+
+    def transfer(*args: Any) -> FileTransfer:
+        nonlocal interrupted
+        if interrupt_stage == "transfer" and not interrupted:
+            interrupted = True
+            raise RuntimeError("file transfer failed")
+        return FileTransfer(reassigned_ids={intended: second, second: actual})
+
+    monkeypatch.setattr(transfer_files_task, "fn", transfer)
 
     def migrate_result_batch(
         migration_id: str,
@@ -485,9 +504,12 @@ def test_result_file_reference_task_receives_both_migration_outcomes(
     )
     run = create_migration_run("source", "destination", {"Lab": "Destination"}, tmp_path)
 
-    if interrupt_repair:
-        with pytest.raises(RuntimeError, match="response lost after partial repair"):
+    if interrupt_stage is not None:
+        with pytest.raises(RuntimeError, match="response lost|file transfer failed"):
             run_migration(run, run.read_metadata(), test_prefect_server)
+        if interrupt_stage != "completion":
+            assert completions == []
+            assert all(record["properties"][STATUS] == INCOMPLETE for record in records.values())
     outcome = run_migration(run, run.read_metadata(), test_prefect_server)
 
     assert updates == [
@@ -499,9 +521,14 @@ def test_result_file_reference_task_receives_both_migration_outcomes(
     ]
     assert records["dest-result"]["fileIds"] == [second]
     assert records["second-result"]["fileIds"] == [actual]
-    assert outcome.file_references.updated == (1 if interrupt_repair else 2)
+    expected_updates = {"repair": 1, "completion": 0}
+    assert outcome.file_references.updated == expected_updates.get(interrupt_stage or "", 2)
     assert outcome.file_references.unresolved[0].file_ids == ("unresolved",)
+    assert all(record["properties"][STATUS] == COMPLETE for record in records.values())
+    assert records["dest-result"]["properties"][UNRESOLVED_FILE_IDS] == "unresolved"
+    completion_count = len(completions)
     resumed = run_migration(run, run.read_metadata(), test_prefect_server)
     assert resumed == outcome
     assert batch_calls == [0]
     assert len(updates) == 2
+    assert len(completions) == completion_count
