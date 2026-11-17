@@ -83,18 +83,18 @@ def transfer_files(
     for file in discovery.files:
         intended_id = discovery.source_to_destination_id_map[file.id]
         workspace_id = destination_workspace_ids[file.workspace]
-        if workspace_id not in files_by_workspace:
-            files_by_workspace[workspace_id] = {
-                existing.id: existing for existing in destination.query_files(workspace_id)
-            }
-            migrated_by_workspace[workspace_id] = _index_migrated_files(
-                files_by_workspace[workspace_id].values()
-            )
-        existing_files = files_by_workspace[workspace_id]
-        migrated_files = migrated_by_workspace[workspace_id]
-        filename = file.name or file.id
-
         try:
+            if workspace_id not in files_by_workspace:
+                files_by_workspace[workspace_id] = {
+                    existing.id: existing for existing in destination.query_files(workspace_id)
+                }
+                migrated_by_workspace[workspace_id] = _index_migrated_files(
+                    files_by_workspace[workspace_id].values()
+                )
+            existing_files = files_by_workspace[workspace_id]
+            migrated_files = migrated_by_workspace[workspace_id]
+            filename = file.name or file.id
+
             migrated = _find_migrated_file(file.id, migrated_files)
             if migrated is not None:
                 actual_id = migrated.id
