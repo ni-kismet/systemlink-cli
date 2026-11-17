@@ -26,5 +26,5 @@ class FileDiscovery(_Persisted, VersionedModel):
 
     workspaces: Tuple[str, ...] = ()
     files: Tuple[DiscoveredFile, ...] = ()
-    file_id_map: Dict[str, str] = Field(default_factory=dict)
+    source_to_destination_id_map: Dict[str, str] = Field(default_factory=dict)
     failures: Tuple[WorkspaceFailure, ...] = ()

@@ -66,7 +66,7 @@ def discover_files(
     return FileDiscovery(
         workspaces=sorted_selected,
         files=tuple(sorted(files, key=lambda item: (item.workspace, item.id))),
-        file_id_map=_generate_file_id_mappings(file.id for file in files),
+        source_to_destination_id_map=_generate_file_id_mappings(file.id for file in files),
         failures=tuple(sorted(failures, key=lambda item: item.workspace)),
     )
 
@@ -85,6 +85,8 @@ def _generate_file_id_mappings(source_ids: Iterable[str]) -> Dict[str, str]:
     """
     taken: Set[str] = set(source_ids)
     mapping: Dict[str, str] = {}
+    # Since the file IDs are 12-byte values rather than 16-byte (like typical GUIDs), collisions are more likely than with GUIDs.
+    # To be safe, we check for collisions and retry generation as needed.
     for source_id in sorted(taken):
         new_id = secrets.token_hex(_OBJECT_ID_BYTES)
         while new_id in taken:

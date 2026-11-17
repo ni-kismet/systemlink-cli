@@ -138,8 +138,8 @@ def test_every_discovered_file_maps_to_a_unique_objectid_shaped_valinor_id() -> 
 
     discovery = discover_files(client, _discovered_workspaces(["Lab", "Default"]))
 
-    assert set(discovery.file_id_map) == {"f1", "f2", "f3"}
-    new_ids = list(discovery.file_id_map.values())
+    assert set(discovery.source_to_destination_id_map) == {"f1", "f2", "f3"}
+    new_ids = list(discovery.source_to_destination_id_map.values())
     assert len(set(new_ids)) == 3
     assert all(re.fullmatch(r"[0-9a-f]{24}", new_id) for new_id in new_ids)
     assert set(new_ids).isdisjoint({"f1", "f2", "f3"})
@@ -150,7 +150,7 @@ def test_empty_discovery_has_an_empty_file_id_map() -> None:
     discovery = discover_files(FakeFiles({}), _discovered_workspaces(["Lab"]))
 
     assert discovery.files == ()
-    assert discovery.file_id_map == {}
+    assert discovery.source_to_destination_id_map == {}
 
 
 def test_failed_workspace_files_get_no_id_mapping() -> None:
@@ -162,7 +162,7 @@ def test_failed_workspace_files_get_no_id_mapping() -> None:
 
     discovery = discover_files(client, _discovered_workspaces(["Broken", "Lab"]))
 
-    assert set(discovery.file_id_map) == {"f1"}
+    assert set(discovery.source_to_destination_id_map) == {"f1"}
 
 
 def test_duplicate_sls_file_ids_are_rejected() -> None:
@@ -186,7 +186,7 @@ def test_allocation_regenerates_when_a_candidate_is_already_taken(
 
     discovery = discover_files(client, _discovered_workspaces(["Lab"]))
 
-    assert discovery.file_id_map == {"f1": "ab" * 12}
+    assert discovery.source_to_destination_id_map == {"f1": "ab" * 12}
 
 
 def test_file_id_map_survives_a_json_round_trip() -> None:
@@ -197,7 +197,7 @@ def test_file_id_map_survives_a_json_round_trip() -> None:
     restored = FileDiscovery.model_validate_json(discovery.model_dump_json())
 
     assert restored == discovery
-    assert restored.file_id_map == discovery.file_id_map
+    assert restored.source_to_destination_id_map == discovery.source_to_destination_id_map
 
 
 def test_discovery_result_is_a_versioned_model() -> None:
