@@ -1,8 +1,8 @@
 """Versioned compact models for Test Monitor discovery."""
 
-from typing import Optional, Tuple
+from typing import Dict, Optional, Tuple
 
-from pydantic import AwareDatetime, BaseModel, ConfigDict
+from pydantic import AwareDatetime, BaseModel, ConfigDict, Field
 
 from slcli.migration.schema import VersionedModel
 
@@ -54,6 +54,8 @@ class MigratedItem(_Persisted):
     destination_id: str
     steps: int = 0
     """Steps migrated with a result."""
+    unresolved_file_ids: Tuple[str, ...] = ()
+    """Source file IDs excluded because they were not discovered."""
 
 
 class FailedItem(_Persisted):
@@ -66,6 +68,8 @@ class FailedItem(_Persisted):
     detail: Optional[str] = None
     destination_id: Optional[str] = None
     """Incomplete destination resource left behind, if any."""
+    unresolved_file_ids: Tuple[str, ...] = ()
+    """Source file IDs excluded from a partially migrated result."""
 
 
 class ProductConflict(_Persisted):
@@ -85,6 +89,8 @@ class BatchResult(_Persisted, VersionedModel):
     migrated: Tuple[MigratedItem, ...] = ()
     failed: Tuple[FailedItem, ...] = ()
     conflicts: Tuple[ProductConflict, ...] = ()
+    file_results: Dict[str, Tuple[str, ...]] = Field(default_factory=dict)
+    """Original intended file IDs mapped to created destination result IDs, including partials."""
 
 
 class TestMonitorMigration(_Persisted, VersionedModel):

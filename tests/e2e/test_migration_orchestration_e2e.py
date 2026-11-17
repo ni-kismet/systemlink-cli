@@ -3,6 +3,7 @@
 from collections.abc import Iterator
 from contextlib import contextmanager
 from dataclasses import dataclass, field
+from datetime import datetime, timezone
 from pathlib import Path
 from threading import Barrier, Event
 from time import sleep
@@ -20,12 +21,21 @@ from slcli.migration.files.transfer_task import transfer_files_task
 from slcli.migration.orchestration import prefect_server, run_discovery, run_migration
 from slcli.migration.state import create_migration_run
 from slcli.migration.testmonitor.discovery_task import discover_test_monitor_task
-from slcli.migration.testmonitor.migration_task import migrate_test_monitor_task
+from slcli.migration.testmonitor.file_references import FileReferenceRepair
+from slcli.migration.testmonitor.file_references_task import repair_file_references_task
+from slcli.migration.testmonitor.migration_task import (
+    migrate_results_task,
+    migrate_test_monitor_task,
+)
 from slcli.migration.testmonitor.models import (
+    BatchResult,
     DiscoveredProduct,
+    DiscoveredResult,
+    MigratedItem,
     TestMonitorDiscovery,
     TestMonitorMigration,
 )
+from slcli.migration.testmonitor.writer import Record, WriteResponse
 from slcli.migration.workspace_client import Workspace
 from slcli.migration.workspace_task import discover_workspaces_task, synchronize_workspaces_task
 from slcli.migration.workspaces import (
@@ -182,6 +192,7 @@ def test_file_and_test_monitor_migrations_run_concurrently(
     """Both tasks overlap, and either failure waits for the other task to finish."""
     barrier = Barrier(2, timeout=30)
     completed = Event()
+    repair_calls: List[tuple[FileTransfer, TestMonitorMigration]] = []
     mapping = WorkspaceMapping(
         workspaces=(
             MappedWorkspace(
@@ -214,6 +225,18 @@ def test_file_and_test_monitor_migrations_run_concurrently(
 
     monkeypatch.setattr(transfer_files_task, "fn", transfer)
     monkeypatch.setattr(migrate_test_monitor_task, "fn", migrate_monitor)
+
+    def repair(
+        migration_id: str,
+        source_profile: str,
+        destination_profile: str,
+        files: FileTransfer,
+        monitor: TestMonitorMigration,
+    ) -> FileReferenceRepair:
+        repair_calls.append((files, monitor))
+        return FileReferenceRepair()
+
+    monkeypatch.setattr(repair_file_references_task, "fn", repair)
     run = create_migration_run("source", "destination", {"Lab": "Destination"}, tmp_path)
     metadata = run.read_metadata()
 
@@ -221,9 +244,11 @@ def test_file_and_test_monitor_migrations_run_concurrently(
         outcome = run_migration(run, metadata, test_prefect_server)
         assert outcome.files == FileTransfer(transferred=1)
         assert outcome.test_monitor == TestMonitorMigration()
+        assert repair_calls == [(outcome.files, outcome.test_monitor)]
     else:
         with pytest.raises(RuntimeError, match=f"{failing_task} failed"):
             run_migration(run, metadata, test_prefect_server)
+        assert repair_calls == []
     assert completed.is_set()
 
 
@@ -324,3 +349,159 @@ def test_file_transfer_resume_persists_reassigned_ids(
     monkeypatch.setattr("slcli.migration.files.transfer_task.FilesClient", unexpected_client)
     cached = run_migration(run, metadata, test_prefect_server)
     assert cached == resumed
+
+
+@pytest.mark.parametrize("interrupt_repair", [False, True])
+def test_result_file_reference_task_receives_both_migration_outcomes(
+    fake_source: FakeSource,
+    test_prefect_server: str,
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    interrupt_repair: bool,
+) -> None:
+    """Prefect resolves both futures and reuses completed batch and repair results."""
+    from slcli.migration.annotations import UNRESOLVED_FILE_IDS
+
+    intended, second, actual = "ab" * 12, "cd" * 12, "ef" * 12
+    discovery = FileDiscovery(file_id_map={"source-file": intended, "second-file": second})
+    mapping = WorkspaceMapping()
+    migration = TestMonitorMigration(
+        results=(
+            BatchResult(
+                resource="results",
+                batch=0,
+                file_results={intended: ("dest-result",), second: ("second-result",)},
+                migrated=(
+                    MigratedItem(
+                        source_id="source-result",
+                        destination_id="dest-result",
+                        unresolved_file_ids=("unresolved",),
+                    ),
+                    MigratedItem(source_id="second-source", destination_id="second-result"),
+                ),
+            ),
+        )
+    )
+    updates: List[Record] = []
+    batch_calls: List[int] = []
+    records: Dict[str, Record] = {
+        "dest-result": {
+            "id": "dest-result",
+            "fileIds": [intended],
+            "properties": {UNRESOLVED_FILE_IDS: "unresolved"},
+        },
+        "second-result": {"id": "second-result", "fileIds": [second]},
+    }
+    interrupted = False
+
+    class Client:
+        """Return source or destination result records for the repair task."""
+
+        def __init__(self, connection: MigrationConnection) -> None:
+            self.profile = connection.profile_name
+
+        def query_records(
+            self, collection: str, filter_expr: str, substitutions: List[object]
+        ) -> Iterator[Record]:
+            assert self.profile == "destination"
+            for result_id in substitutions:
+                assert isinstance(result_id, str)
+                yield records[result_id]
+
+    class Writer:
+        """Capture the destination update."""
+
+        def __init__(self, connection: MigrationConnection) -> None:
+            assert connection.profile_name == "destination"
+
+        def update_results(self, results: List[Record], *, replace: bool = False) -> WriteResponse:
+            nonlocal interrupted
+            assert replace
+            if interrupt_repair and not interrupted:
+                records[results[0]["id"]].update(results[0])
+                updates.append(results[0])
+                interrupted = True
+                raise RuntimeError("response lost after partial repair")
+            for result in results:
+                records[result["id"]].update(result)
+            updates.extend(results)
+            return WriteResponse(created=results)
+
+    monkeypatch.setattr(discover_files_task, "fn", lambda *args: discovery)
+    monkeypatch.setattr(
+        discover_test_monitor_task,
+        "fn",
+        lambda *args: TestMonitorDiscovery(
+            results=(
+                DiscoveredResult(
+                    id="source-result",
+                    product_id=None,
+                    workspace="Lab",
+                    status="PASSED",
+                    updated_at=datetime(2026, 1, 1, tzinfo=timezone.utc),
+                ),
+                DiscoveredResult(
+                    id="second-source",
+                    product_id=None,
+                    workspace="Lab",
+                    status="PASSED",
+                    updated_at=datetime(2026, 1, 1, tzinfo=timezone.utc),
+                ),
+            )
+        ),
+    )
+    monkeypatch.setattr(synchronize_workspaces_task, "fn", lambda *args: mapping)
+    monkeypatch.setattr(
+        transfer_files_task,
+        "fn",
+        lambda *args: FileTransfer(reassigned_ids={intended: second, second: actual}),
+    )
+
+    def migrate_result_batch(
+        migration_id: str,
+        source_profile: str,
+        destination_profile: str,
+        mapping: WorkspaceMapping,
+        batch: int,
+        results: List[DiscoveredResult],
+        file_id_map: Dict[str, str],
+        file_id_map_digest: str,
+    ) -> BatchResult:
+        assert file_id_map == {"source-file": intended, "second-file": second}
+        assert [result.id for result in results] == ["source-result", "second-source"]
+        batch_calls.append(batch)
+        return migration.results[0]
+
+    monkeypatch.setattr(migrate_results_task, "fn", migrate_result_batch)
+    monkeypatch.setattr(
+        "slcli.migration.testmonitor.file_references_task.resolve_migration_connection",
+        lambda profile: MigrationConnection(profile, f"https://{profile}", {}),
+    )
+    monkeypatch.setattr(
+        "slcli.migration.testmonitor.file_references_task.TestMonitorClient", Client
+    )
+    monkeypatch.setattr(
+        "slcli.migration.testmonitor.file_references_task.TestMonitorWriter", Writer
+    )
+    run = create_migration_run("source", "destination", {"Lab": "Destination"}, tmp_path)
+
+    if interrupt_repair:
+        with pytest.raises(RuntimeError, match="response lost after partial repair"):
+            run_migration(run, run.read_metadata(), test_prefect_server)
+    outcome = run_migration(run, run.read_metadata(), test_prefect_server)
+
+    assert updates == [
+        {
+            "id": "dest-result",
+            "fileIds": [second],
+        },
+        {"id": "second-result", "fileIds": [actual]},
+    ]
+    assert records["dest-result"]["fileIds"] == [second]
+    assert records["second-result"]["fileIds"] == [actual]
+    assert outcome.file_references.updated == (1 if interrupt_repair else 2)
+    assert outcome.file_references.unresolved[0].file_ids == ("unresolved",)
+    resumed = run_migration(run, run.read_metadata(), test_prefect_server)
+    assert resumed == outcome
+    assert batch_calls == [0]
+    assert len(updates) == 2

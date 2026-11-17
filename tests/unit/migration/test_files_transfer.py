@@ -321,8 +321,10 @@ def test_annotation_matching_is_scoped_to_mapped_workspace() -> None:
     ) == FileTransfer(transferred=1)
 
 
-def test_duplicate_annotations_are_reported_as_ambiguous() -> None:
-    """Do not silently choose between two files claiming the same source identity."""
+def test_duplicate_annotations_fail_only_the_ambiguous_file(
+    caplog: pytest.LogCaptureFixture,
+) -> None:
+    """Reject ambiguous identity without stopping independent file transfers."""
     files = FakeFiles(
         existing={
             "sh-id": {
@@ -332,9 +334,16 @@ def test_duplicate_annotations_are_reported_as_ambiguous() -> None:
         }
     )
 
-    with pytest.raises(ValueError, match="Multiple destination files"):
-        transfer_files(files, files, _discovery(DiscoveredFile(id="f1", workspace="Lab")), MAPPING)
-    assert files.uploads == []
+    discovery = _discovery(
+        DiscoveredFile(id="f1", workspace="Lab"),
+        DiscoveredFile(id="f2", workspace="Lab"),
+    )
+    result = transfer_files(files, files, discovery, MAPPING)
+    assert result.failures == (FileFailure(id="f1", workspace="Lab", error_type="ValueError"),)
+    assert result.transferred == 1
+    assert [upload["id"] for upload in files.uploads] == ["new-f2"]
+    assert files.downloads == ["f2"]
+    assert "Multiple destination files" in caplog.text
 
 
 def test_failed_file_is_isolated_from_the_others() -> None:

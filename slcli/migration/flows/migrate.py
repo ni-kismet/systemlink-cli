@@ -12,6 +12,8 @@ from slcli.migration.files.transfer_task import transfer_files_task
 from slcli.migration.flows.discover import MigrationDiscovery, discover_flow
 from slcli.migration.flows.service import migration_task_runner
 from slcli.migration.schema import VersionedModel
+from slcli.migration.testmonitor.file_references import FileReferenceRepair
+from slcli.migration.testmonitor.file_references_task import repair_file_references_task
 from slcli.migration.testmonitor.migration_task import migrate_test_monitor_task
 from slcli.migration.testmonitor.models import TestMonitorMigration
 from slcli.migration.workspace_task import synchronize_workspaces_task
@@ -29,6 +31,7 @@ class MigrationOutcome(VersionedModel):
     discovery: MigrationDiscovery
     test_monitor: TestMonitorMigration
     files: FileTransfer
+    file_references: FileReferenceRepair = FileReferenceRepair()
 
 
 def format_file_transfer_summary(transfer: FileTransfer) -> str:
@@ -60,7 +63,7 @@ def migrate_flow(
     """Discover source resources, synchronize workspaces, then migrate resources.
 
     File transfer and Test Monitor migration run in parallel after workspace
-    synchronization. The flow waits for both tasks before reporting a failure.
+    synchronization. Result file references are repaired after both complete.
 
     Args:
         migration_id: Migration that scopes task cache keys.
@@ -92,13 +95,34 @@ def migrate_flow(
         discovery.test_monitor,
         product_batch_size,
         result_batch_size,
+        discovery.files.file_id_map,
+    )
+    references = repair_file_references_task.submit(
+        migration_id,
+        source_profile,
+        destination_profile,
+        files_future,
+        test_monitor,
+        return_state=False,
     )
     files_future.wait()
     test_monitor.wait()
     files = files_future.result()
+    test_monitor_result = test_monitor.result()
     files_summary = format_file_transfer_summary(files)
     _logger.info(files_summary)
     click.echo(files_summary)
+    repaired = references.result()
+    summary = (
+        f"Result file references: {repaired.updated} results updated, "
+        f"{len(repaired.unresolved)} results with unresolved file IDs"
+    )
+    _logger.info(summary)
+    click.echo(summary)
     return MigrationOutcome(
-        mapping=mapping, discovery=discovery, test_monitor=test_monitor.result(), files=files
+        mapping=mapping,
+        discovery=discovery,
+        test_monitor=test_monitor_result,
+        files=files,
+        file_references=repaired,
     )
