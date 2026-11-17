@@ -47,6 +47,7 @@ def discover_files(
                     workspace=workspace_name,
                     name=file.name,
                     size_bytes=file.size_bytes,
+                    properties=file.properties,
                 )
                 for file in source_files
             )
