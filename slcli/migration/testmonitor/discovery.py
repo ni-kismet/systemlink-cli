@@ -3,7 +3,6 @@
 import logging
 from dataclasses import dataclass, field
 from typing import (
-    Collection,
     Dict,
     Iterable,
     List,
@@ -19,6 +18,7 @@ from slcli.migration.testmonitor.models import (
     TestMonitorDiscovery,
     WorkspaceFailure,
 )
+from slcli.migration.workspaces import DiscoveredWorkspaces
 
 DEFAULT_WORKSPACE = "Default"
 _logger = logging.getLogger(__name__)
@@ -88,9 +88,7 @@ def infer_product_workspace(
 
 def discover_test_monitor(
     client: TestMonitorSource,
-    all_workspaces: Mapping[str, str],
-    selected_workspaces: Collection[str],
-    disabled_workspaces: Collection[str],
+    workspaces: DiscoveredWorkspaces,
 ) -> TestMonitorDiscovery:
     """Discover products and terminal results owned by the selected workspaces.
 
@@ -103,24 +101,17 @@ def discover_test_monitor(
 
     Args:
         client: Test Monitor queries for the source server.
-        all_workspaces: Every (enabled) source workspace, by name to ID.
-        selected_workspaces: Names of workspaces in scope of the migration.
-        disabled_workspaces: Names of disabled source workspaces, which are never scanned.
-            Any disabled workspace may hold results, so products with no results are not
-            assigned to Default when this is non-empty.
+        workspaces: Discovered source workspaces.
     """
-    selected = set(selected_workspaces)
-    unknown = selected.difference(all_workspaces)
-    if unknown:
-        raise ValueError(f"Unknown selected workspace: {', '.join(sorted(unknown))}")
-
-    scan = _scan_results(
-        client, {name: id_ for name, id_ in all_workspaces.items() if name in selected}
-    )
+    selected_name_to_id_map = {
+        w.name: w.id for w in workspaces.source.values() if w.name in workspaces.selected
+    }
+    scan = _scan_results(client, selected_name_to_id_map)
+    all_workspaces_selected = len(workspaces.selected) == len(workspaces.source)
     migrate_products_with_no_results = (
-        selected == set(all_workspaces)
-        and DEFAULT_WORKSPACE in selected
-        and not disabled_workspaces
+        all_workspaces_selected
+        and DEFAULT_WORKSPACE in workspaces.source
+        and not workspaces.disabled
         and not scan.failures
     )
     products: List[DiscoveredProduct] = []
@@ -144,7 +135,7 @@ def discover_test_monitor(
         for workspace, result in scan.terminal
     ]
     return TestMonitorDiscovery(
-        workspaces=tuple(sorted(selected)),
+        workspaces=tuple(sorted(workspaces.selected)),
         products=tuple(sorted(products, key=lambda item: (item.workspace, item.id))),
         results=tuple(sorted(results, key=lambda item: (item.workspace, item.id))),
         failures=tuple(sorted(scan.failures, key=lambda item: item.workspace)),

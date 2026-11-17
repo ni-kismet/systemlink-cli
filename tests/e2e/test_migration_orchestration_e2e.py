@@ -6,6 +6,8 @@ from typing import Dict, List, Optional
 
 import pytest
 
+from slcli.migration.files.discovery_task import discover_files_task
+from slcli.migration.files.models import FileDiscovery
 from slcli.migration.orchestration import prefect_server, run_discovery
 from slcli.migration.state import create_migration_run
 from slcli.migration.testmonitor.discovery_task import discover_test_monitor_task
@@ -18,6 +20,7 @@ from slcli.migration.workspaces import DiscoveredWorkspaces, discover_workspaces
 pytestmark = pytest.mark.e2e_migration
 
 DISCOVERY = TestMonitorDiscovery(products=(DiscoveredProduct(id="p", workspace="Lab"),))
+FILES_DISCOVERY = FileDiscovery(workspaces=("Lab",))
 
 
 @dataclass
@@ -33,13 +36,15 @@ def fake_source(monkeypatch: pytest.MonkeyPatch) -> FakeSource:
     """Replace the discovery task bodies; Prefect still persists and caches them."""
     fake = FakeSource()
 
-    def workspaces(
+    def workspaces_discovery(
         migration_id: str, source_profile: str, names: Optional[List[str]]
     ) -> DiscoveredWorkspaces:
         source = [Workspace(id=f"{name}-id", name=name) for name in ("Default", "Lab", "Other")]
         return discover_workspaces(source, names)
 
-    def discover(
+    monkeypatch.setattr(discover_workspaces_task, "fn", workspaces_discovery)
+
+    def test_monitor_discovery(
         migration_id: str, source_profile: str, workspaces: DiscoveredWorkspaces
     ) -> TestMonitorDiscovery:
         fake.calls.append(
@@ -53,8 +58,15 @@ def fake_source(monkeypatch: pytest.MonkeyPatch) -> FakeSource:
             raise RuntimeError("source unavailable")
         return DISCOVERY
 
-    monkeypatch.setattr(discover_workspaces_task, "fn", workspaces)
-    monkeypatch.setattr(discover_test_monitor_task, "fn", discover)
+    monkeypatch.setattr(discover_test_monitor_task, "fn", test_monitor_discovery)
+
+    def files_discovery(
+        migration_id: str, source_profile: str, workspaces: DiscoveredWorkspaces
+    ) -> FileDiscovery:
+        return FILES_DISCOVERY
+
+    monkeypatch.setattr(discover_files_task, "fn", files_discovery)
+
     return fake
 
 
@@ -67,10 +79,11 @@ def test_discovery_persists_typed_task_result(
     discovery = run_discovery(run, "source", ["Lab"], test_prefect_server)
 
     assert discovery.test_monitor == DISCOVERY
+    assert discovery.files == FILES_DISCOVERY
     assert fake_source.calls == [
         {"migration_id": run.migration_id, "profile": "source", "workspaces": ["Lab"]}
     ]
-    assert len(list(run.results_path.iterdir())) == 3
+    assert len(list(run.results_path.iterdir())) == 4
     assert not run.server_home.exists()
 
 

@@ -2,6 +2,7 @@
 
 from datetime import datetime, timezone
 
+from slcli.migration.files.models import DiscoveredFile, FileDiscovery
 from slcli.migration.summary import format_migration_summary, format_summary
 from slcli.migration.testmonitor.models import (
     BatchResult,
@@ -26,6 +27,11 @@ DISCOVERY = TestMonitorDiscovery(
             updated_at=datetime(2026, 1, 1, tzinfo=timezone.utc),
         ),
     ),
+    failures=(WorkspaceFailure(workspace="Broken", error_type="HTTPError"),),
+    workspaces=("Broken", "Lab"),
+)
+FILES = FileDiscovery(
+    files=(DiscoveredFile(id="f", workspace="Lab", name="a.txt", size_bytes=3),),
     failures=(WorkspaceFailure(workspace="Broken", error_type="HTTPError"),),
     workspaces=("Broken", "Lab"),
 )
@@ -62,21 +68,25 @@ MIGRATION = TestMonitorMigration(
 
 def test_summary_is_deterministic() -> None:
     """The summary reports counts and each failed workspace."""
-    assert format_summary(DISCOVERY) == (
+    assert format_summary(DISCOVERY, FILES) == (
         "Test Monitor discovery:\n"
         "  Products: 1\n"
         "  Terminal results: 1\n"
         "  Failed workspaces: 1\n"
         "    Broken: HTTPError\n"
-        "  Product workspaces were inferred without the failed workspaces."
+        "  Product workspaces were inferred without the failed workspaces.\n"
+        "File discovery:\n"
+        "  Files: 1\n"
+        "  Failed workspaces: 1\n"
+        "    Broken: HTTPError"
     )
 
 
 def test_summary_omits_failure_note_without_failures() -> None:
     """The inference caveat appears only when a workspace failed."""
-    summary = format_summary(DISCOVERY.model_copy(update={"failures": ()}))
+    summary = format_summary(DISCOVERY.model_copy(update={"failures": ()}), FILES)
 
-    assert summary.endswith("  Failed workspaces: 0")
+    assert "  Failed workspaces: 0\nFile discovery:" in summary
 
 
 def test_migration_summary_lists_conflicts_and_failures() -> None:
