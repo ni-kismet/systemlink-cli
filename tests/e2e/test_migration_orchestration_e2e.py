@@ -90,7 +90,10 @@ def fake_source(monkeypatch: pytest.MonkeyPatch) -> FakeSource:
     monkeypatch.setattr(discover_test_monitor_task, "fn", test_monitor_discovery)
 
     def files_discovery(
-        migration_id: str, source_profile: str, workspaces: DiscoveredWorkspaces
+        migration_id: str,
+        source_profile: str,
+        workspaces: DiscoveredWorkspaces,
+        require_complete: bool = False,
     ) -> FileDiscovery:
         return FILES_DISCOVERY
 
@@ -314,7 +317,9 @@ def test_file_transfer_resume_persists_reassigned_ids(
             stored[actual_id] = SourceFile(id=actual_id, properties=dict(properties))
             return actual_id
 
-    monkeypatch.setattr(discover_files_task, "fn", lambda *args: discovery)
+    monkeypatch.setattr(
+        discover_files_task, "fn", lambda *args, require_complete=False: discovery
+    )
     monkeypatch.setattr(synchronize_workspaces_task, "fn", lambda *args: mapping)
     monkeypatch.setattr(migrate_test_monitor_task, "fn", lambda *args: TestMonitorMigration())
     monkeypatch.setattr(
@@ -444,7 +449,9 @@ def test_result_file_reference_task_receives_both_migration_outcomes(
             updates.extend(results)
             return WriteResponse(created=results)
 
-    monkeypatch.setattr(discover_files_task, "fn", lambda *args: discovery)
+    monkeypatch.setattr(
+        discover_files_task, "fn", lambda *args, require_complete=False: discovery
+    )
     monkeypatch.setattr(
         discover_test_monitor_task,
         "fn",
