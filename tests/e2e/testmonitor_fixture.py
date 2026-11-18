@@ -7,7 +7,12 @@ from typing import Collection, Dict, List, Mapping, Optional
 import requests
 
 from slcli.migration.connection import MigrationConnection
-from slcli.migration.testmonitor.client import Product, Result, TestMonitorClient
+from slcli.migration.testmonitor.client import (
+    TEST_MONITOR_QUERY_PATHS,
+    Product,
+    Result,
+    TestMonitorClient,
+)
 from tests.e2e.owned_resource_helpers import (
     MIGRATION_DISCOVERY_OWNER,
     owner_properties,
@@ -60,7 +65,7 @@ class OwnedTestMonitorResources:
     ) -> None:
         """Initialize the manager for dedicated workspaces, by name to ID."""
         self._base_url = f"{connection.base_url}/nitestmonitor/v2"
-        self._session = session or connection.create_session()
+        self._session = session or connection.create_session(TEST_MONITOR_QUERY_PATHS)
         self._client = TestMonitorClient(connection, self._session)
         self._workspaces = dict(workspaces)
 

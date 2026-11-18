@@ -2,6 +2,55 @@
 
 <!-- towncrier release notes start -->
 
+## v3.3.3 (2026-11-18)
+
+### Bug Fixes
+
+- Update dependency msgpack to v1.2.4 [SECURITY]. (deps-renovate-pypi-msgpack-vulnerability)
+
+
+## v3.3.2 (2026-11-18)
+
+### Bug Fixes
+
+- Update dependency node to v26. (deps-major-github-actions)
+
+
+## v3.3.1 (2026-11-18)
+
+### Documentation
+
+- Update contributor setup instructions to use the Poetry version configured by CI. (contributor-poetry-version)
+
+
+## v3.3.0 (2026-11-17)
+
+### Features
+
+- Add SLS file discovery to the migration discovery flow, reporting files and failed workspaces alongside Test Monitor results. (discover-files)
+
+
+## v3.2.1 (2026-11-14)
+
+### Bug Fixes
+
+- Increase the default workspace list limit to 100. (workspace-list-default-100)
+
+
+## v3.2.0 (2026-11-13)
+
+### Features
+
+- Create missing destination workspaces during migration workspace synchronization. (synchronize-destination-workspaces)
+
+
+## v3.1.1 (2026-11-12)
+
+### Other Changes
+
+- `slcli migrate` migrates Test Monitor products, terminal results, and their steps into mapped destination workspaces, reporting part-number conflicts and failed items. (migration-testmonitor-results)
+
+
 ## v3.1.0 (2026-11-11)
 
 ### Features

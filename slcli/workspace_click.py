@@ -19,7 +19,7 @@ from .utils import (
 
 
 def _fetch_workspaces_page(
-    name_filter: Optional[str] = None, take: int = 25, skip: int = 0
+    name_filter: Optional[str] = None, take: int = 100, skip: int = 0
 ) -> Tuple[list, int, Optional[str]]:
     """Fetch a single page of workspaces with optional server-side filtering.
 
@@ -86,21 +86,21 @@ def register_workspace_commands(cli: Any) -> None:
         "--take",
         "-t",
         type=click.IntRange(min=1),
-        default=25,
+        default=100,
         show_default=True,
-        help="Maximum number of workspaces to return from API",
+        help="JSON result limit or table page size (API pages max 100)",
     )
     def list_workspaces(
         format: str = "table",
         include_disabled: bool = False,
         name_filter: Optional[str] = None,
-        take: int = 25,
+        take: int = 100,
     ) -> None:
         """List workspaces with optional filtering.
 
         The --filter option performs server-side case-insensitive substring
-        matching on workspace names. The --take option limits the number of
-        results shown per page (max 100).
+        matching on workspace names. The --take option sets the JSON result limit
+        or table page size (API pages are capped at 100).
         """
         format_output = validate_output_format(format)
 

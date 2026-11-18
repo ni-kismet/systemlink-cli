@@ -3,7 +3,7 @@
 import logging
 from dataclasses import dataclass, field
 from types import TracebackType
-from typing import Any, Dict, Optional, Union
+from typing import Any, Dict, Iterable, Optional, Union
 
 import click
 import requests
@@ -54,15 +54,16 @@ class LoggingRetry(Retry):
         return retry
 
 
-# Policy for read-only queries, including POST query endpoints, which are safe to replay.
-_QUERY_RETRY = LoggingRetry(
+_DEFAULT_RETRY = LoggingRetry(
     total=5,
     backoff_factor=0.5,
     status_forcelist=(429, 500, 502, 503, 504),
-    allowed_methods=frozenset({"GET", "POST"}),
+    allowed_methods=frozenset({"GET"}),
     respect_retry_after_header=True,
     raise_on_status=False,
 )
+# Policy for read-only queries, including POST query endpoints, which are safe to replay.
+_QUERY_RETRY = _DEFAULT_RETRY.new(allowed_methods=frozenset({"GET", "POST"}))
 
 # Policy for destination writes. Only failures where the server did not process the
 # request are retried: refused connections and explicit 429/503 back-pressure. Read
@@ -96,16 +97,30 @@ class _ProfileSession(requests.Session):
 
 @dataclass(frozen=True)
 class MigrationConnection:
-    """Endpoint, authentication, and TLS settings from one explicitly named profile."""
+    """Endpoint, authentication, TLS, and read-only settings from a named profile."""
 
     profile_name: str
     base_url: str
     headers: Dict[str, str] = field(repr=False)
     ssl_verify: Union[bool, str] = True
+    readonly: bool = False
 
-    def create_session(self) -> requests.Session:
-        """Return a query session bound to this connection's credentials and TLS."""
-        return self._session(_QUERY_RETRY)
+    def create_session(self, query_paths: Iterable[str] = ()) -> requests.Session:
+        """Return a session bound to this connection's credentials and TLS.
+
+        Requests are matched to a retry policy by URL prefix. URLs under any
+        ``query_paths`` entry use the query policy, which replays POST requests.
+        All other URLs use the default policy, which never replays POST requests.
+
+        Args:
+            query_paths: Route prefixes relative to ``base_url`` whose POST requests
+                are read-only queries, such as ``"nitestmonitor/v2/query-"``.
+        """
+        session = self._session(_DEFAULT_RETRY)
+        base = self.base_url.rstrip("/")
+        for path in query_paths:
+            session.mount(f"{base}/{path.lstrip('/')}", HTTPAdapter(max_retries=_QUERY_RETRY))
+        return session
 
     def create_write_session(self) -> requests.Session:
         """Return a session for non-idempotent writes that never replays ambiguous failures."""
@@ -157,4 +172,4 @@ def resolve_migration_connection(
     if auth is None:
         raise click.ClickException(f"Profile '{profile.name}' does not define an API key")
     headers = get_auth_headers(auth.value, auth.scheme)
-    return MigrationConnection(profile.name, base_url, headers, ssl_verify)
+    return MigrationConnection(profile.name, base_url, headers, ssl_verify, profile.readonly)
