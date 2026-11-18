@@ -2,6 +2,13 @@
 
 <!-- towncrier release notes start -->
 
+## v3.3.4 (2026-11-18)
+
+### Bug Fixes
+
+- Update Python packages. (deps-renovate-python)
+
+
 ## v3.3.3 (2026-11-18)
 
 ### Bug Fixes
