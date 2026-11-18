@@ -2,6 +2,13 @@
 
 <!-- towncrier release notes start -->
 
+## v3.3.1 (2026-11-18)
+
+### Documentation
+
+- Update contributor setup instructions to use the Poetry version configured by CI. (contributor-poetry-version)
+
+
 ## v3.3.0 (2026-11-17)
 
 ### Features
