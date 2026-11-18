@@ -420,15 +420,19 @@ def _save_service_status_snapshot(
 
     profile_name, api_url, credential, auth_scheme = api_context
     cache_key = _build_service_probe_cache_key(profile_name, api_url, credential, auth_scheme)
-    save_service_probe_cache_entry(
-        cache_key,
-        {
-            "profile": profile_name,
-            "server": api_url,
-            "cached_at": time.time(),
-            "status": status,
-        },
-    )
+    try:
+        save_service_probe_cache_entry(
+            cache_key,
+            {
+                "profile": profile_name,
+                "server": api_url,
+                "cached_at": time.time(),
+                "status": status,
+            },
+        )
+    except (OSError, RuntimeError):
+        # ponytail: cache persistence is optional; failed writes only skip cross-invocation reuse.
+        pass
 
 
 def _get_service_status_snapshot(force_refresh: bool = False) -> Optional[Dict[str, Any]]:

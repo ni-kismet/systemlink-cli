@@ -13,6 +13,7 @@ from urllib.parse import urlparse
 import click
 import questionary
 
+from .cli_utils import validate_confirmation
 from .credentials import (
     CredentialStoreError,
     describe_credential_store,
@@ -834,6 +835,7 @@ def register_config_commands(cli: Any) -> None:
     @trust.command(name="list")
     @click.option(
         "--format",
+        "-f",
         "output_format",
         type=click.Choice(["table", "json"]),
         default="table",
@@ -913,7 +915,14 @@ def register_config_commands(cli: Any) -> None:
 
     @trust.command(name="remove")
     @click.option("--url", help="HTTPS server URL (defaults to the active API URL)")
-    @click.option("--force", is_flag=True, help="Skip confirmation prompt")
+    @click.option(
+        "--force",
+        "--yes",
+        "-y",
+        is_flag=True,
+        help="Skip confirmation prompt",
+        callback=validate_confirmation,
+    )
     def remove_trusted_certificate(url: Optional[str], force: bool) -> None:
         """Remove a server certificate from the managed trust store."""
         server_url = url or get_base_url_resolution().value
@@ -960,7 +969,15 @@ def register_config_commands(cli: Any) -> None:
 
     @config.command(name="delete")
     @click.argument("name")
-    @click.option("--force", "-f", is_flag=True, help="Skip confirmation prompt")
+    @click.option(
+        "--force",
+        "--yes",
+        "-y",
+        "-f",
+        is_flag=True,
+        help="Skip confirmation prompt",
+        callback=validate_confirmation,
+    )
     def delete_profile(name: str, force: bool) -> None:
         """Delete a profile."""
         from .utils import check_readonly_mode

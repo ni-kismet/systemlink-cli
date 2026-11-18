@@ -10,6 +10,8 @@ from click.testing import CliRunner
 
 from slcli.main import cli
 
+pytestmark = pytest.mark.usefixtures("interactive_environment")
+
 
 def make_cli() -> Any:
     """Create a CLI instance for testing."""

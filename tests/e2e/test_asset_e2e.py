@@ -241,7 +241,9 @@ class TestAssetSummaryE2E:
 class TestAssetLifecycleE2E:
     """End-to-end tests for asset create/update/delete lifecycle."""
 
-    def test_create_update_delete(self, cli_runner: Any, cli_helper: Any) -> None:
+    def test_create_update_delete(
+        self, cli_runner: Any, cli_helper: Any, configured_workspace: str
+    ) -> None:
         """Test full asset lifecycle: create, update, delete."""
         unique_id = uuid.uuid4().hex[:8]
         model = f"E2E-Test-Model-{unique_id}"
@@ -262,6 +264,8 @@ class TestAssetLifecycleE2E:
                     "E2E Test Vendor",
                     "--asset-type",
                     "GENERIC",
+                    "--workspace",
+                    configured_workspace,
                     "--format",
                     "json",
                 ],
@@ -327,7 +331,9 @@ class TestAssetLifecycleE2E:
                     check=False,
                 )
 
-    def test_create_with_properties(self, cli_runner: Any, cli_helper: Any) -> None:
+    def test_create_with_properties(
+        self, cli_runner: Any, cli_helper: Any, configured_workspace: str
+    ) -> None:
         """Test creating an asset with custom properties."""
         unique_id = uuid.uuid4().hex[:8]
         model = f"E2E-Props-{unique_id}"
@@ -347,6 +353,8 @@ class TestAssetLifecycleE2E:
                     "E2E Test Vendor",
                     "--asset-type",
                     "DEVICE_UNDER_TEST",
+                    "--workspace",
+                    configured_workspace,
                     "--property",
                     f"TestKey=TestValue-{unique_id}",
                     "--format",

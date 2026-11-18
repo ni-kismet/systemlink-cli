@@ -15,6 +15,8 @@ from slcli.migration.schema import VersionedModel
 from slcli.paths import get_state_dir
 
 STATE_DIR_ENV = "SLCLI_MIGRATION_STATE_DIR"
+DEFAULT_PRODUCT_BATCH_SIZE = 500
+DEFAULT_RESULT_BATCH_SIZE = 100
 
 
 class RunMetadata(VersionedModel):
@@ -28,7 +30,11 @@ class RunMetadata(VersionedModel):
     migration_id: str
     cli_version: str = __version__
     source_profile: str
+    destination_profile: str
     workspace_mappings: Optional[Dict[str, str]]
+    product_batch_size: int = DEFAULT_PRODUCT_BATCH_SIZE
+    result_batch_size: int = DEFAULT_RESULT_BATCH_SIZE
+    """Batch sizes define task cache identity, so a run keeps them for its lifetime."""
     created_at: datetime
 
 
@@ -91,8 +97,11 @@ def _validate_created_migration_id(migration_id: str) -> None:
 
 def create_migration_run(
     source_profile: str,
+    destination_profile: str,
     workspace_mappings: Optional[Dict[str, str]],
     root: Optional[Path] = None,
+    product_batch_size: int = DEFAULT_PRODUCT_BATCH_SIZE,
+    result_batch_size: int = DEFAULT_RESULT_BATCH_SIZE,
 ) -> MigrationRun:
     """Create a new run directory, readable only by the current user."""
     root = root or get_migration_root()
@@ -106,7 +115,10 @@ def create_migration_run(
         RunMetadata(
             migration_id=migration_id,
             source_profile=source_profile,
+            destination_profile=destination_profile,
             workspace_mappings=workspace_mappings,
+            product_batch_size=product_batch_size,
+            result_batch_size=result_batch_size,
             created_at=datetime.now(timezone.utc),
         )
     )

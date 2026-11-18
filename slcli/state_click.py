@@ -11,6 +11,7 @@ import click
 import questionary
 import requests
 
+from .cli_utils import validate_confirmation
 from .universal_handlers import FilteredResponse, UniversalResponseHandler
 from .utils import (
     ExitCodes,
@@ -772,7 +773,9 @@ def register_state_commands(cli: Any) -> None:
 
     @state.command(name="delete")
     @click.argument("state_id")
-    @click.option("--yes", is_flag=True, help="Skip confirmation prompt")
+    @click.option(
+        "--yes", "-y", is_flag=True, help="Skip confirmation prompt", callback=validate_confirmation
+    )
     def delete_state(state_id: str, yes: bool) -> None:
         """Delete a state."""
         check_readonly_mode("delete a state")
@@ -1088,7 +1091,9 @@ def register_state_commands(cli: Any) -> None:
     @state.command(name="revert")
     @click.argument("state_id")
     @click.argument("version")
-    @click.option("--yes", is_flag=True, help="Skip confirmation prompt")
+    @click.option(
+        "--yes", "-y", is_flag=True, help="Skip confirmation prompt", callback=validate_confirmation
+    )
     def revert_state(state_id: str, version: str, yes: bool) -> None:
         """Revert a state to a historical version."""
         check_readonly_mode("revert a state")

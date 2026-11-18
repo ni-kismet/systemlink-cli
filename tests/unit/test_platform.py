@@ -1307,6 +1307,22 @@ class TestGetPlatformInfo:
         )
         mock_api_probe.assert_not_called()
 
+    def test_service_snapshot_survives_cache_write_failure(self) -> None:
+        """A failed optional cache write does not fail a live service probe."""
+        from slcli.platform import _get_service_status_snapshot
+
+        status = {"server_reachable": True, "services": {"Auth": "ok"}}
+        with patch(
+            "slcli.platform._get_current_api_context",
+            return_value=("test", "https://example.com", "test-key", "api-key"),
+        ), patch("slcli.platform.check_service_status", return_value=status), patch(
+            "slcli.platform.active_profile_ssl_verify", return_value=True
+        ), patch(
+            "slcli.profiles.save_service_probe_cache_entry",
+            side_effect=RuntimeError("Failed to save configuration: permission denied"),
+        ):
+            assert _get_service_status_snapshot(force_refresh=True) == status
+
     def test_get_platform_info_preserves_profile_platform_for_bearer_snapshot(self) -> None:
         """Bearer identity snapshots do not replace a known profile platform."""
         from slcli.profiles import Profile

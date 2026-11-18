@@ -3,24 +3,22 @@
 import logging
 from dataclasses import dataclass, field
 from typing import (
-    Collection,
     Dict,
     Iterable,
     List,
     Mapping,
     Optional,
-    Protocol,
-    Sequence,
     Tuple,
 )
 
-from slcli.migration.testmonitor.client import Product, Result
+from slcli.migration.testmonitor.client import Result, TestMonitorSource
 from slcli.migration.testmonitor.models import (
     DiscoveredProduct,
     DiscoveredResult,
     TestMonitorDiscovery,
     WorkspaceFailure,
 )
+from slcli.migration.workspaces import DiscoveredWorkspaces
 
 DEFAULT_WORKSPACE = "Default"
 _logger = logging.getLogger(__name__)
@@ -29,22 +27,6 @@ _logger = logging.getLogger(__name__)
 TERMINAL_RESULT_STATES = frozenset(
     {"DONE", "PASSED", "FAILED", "SKIPPED", "TERMINATED", "ERRORED", "TIMEDOUT", "TIMED_OUT"}
 )
-
-
-class TestMonitorQuery(Protocol):
-    """Queries required by Test Monitor discovery."""
-
-    def query_products(self) -> Iterable[Product]:
-        """Return all Test Monitor products."""
-        ...
-
-    def query_results(
-        self,
-        filter_expr: Optional[str] = None,
-        substitutions: Optional[Sequence[str]] = None,
-    ) -> Iterable[Result]:
-        """Return Test Monitor results matching a parameterized filter."""
-        ...
 
 
 WorkspacedResult = Tuple[str, Result]
@@ -69,7 +51,7 @@ class _ResultScan:
                     self.newest_by_part_number[result.part_number] = (workspace, result)
 
 
-def _scan_results(client: TestMonitorQuery, workspaces: Mapping[str, str]) -> _ResultScan:
+def _scan_results(client: TestMonitorSource, workspaces: Mapping[str, str]) -> _ResultScan:
     scan = _ResultScan()
     for workspace, workspace_id in workspaces.items():
         try:
@@ -105,31 +87,33 @@ def infer_product_workspace(
 
 
 def discover_test_monitor(
-    client: TestMonitorQuery,
-    all_workspaces: Mapping[str, str],
-    selected_workspaces: Optional[Collection[str]] = None,
+    client: TestMonitorSource,
+    workspaces: DiscoveredWorkspaces,
 ) -> TestMonitorDiscovery:
     """Discover products and terminal results owned by the selected workspaces.
 
     Only selected workspaces are queried, so product ownership is inferred from
     their results alone. A failed workspace is reported and excluded from that
-    inference. Products with no results are included only when all workspaces are
-    discovered without failures, since a failed workspace could hide their results.
+    inference. Products with no results belong to Default, so they are included
+    only when every workspace, Default among them, is discovered without failures.
+    A failed workspace could hide their results. Every discovered item's workspace
+    is therefore a selected workspace.
 
     Args:
         client: Test Monitor queries for the source server.
-        all_workspaces: Every accessible source workspace, by name to ID.
-        selected_workspaces: Workspace names to discover; all workspaces when None.
+        workspaces: Discovered source workspaces.
     """
-    selected = set(all_workspaces if selected_workspaces is None else selected_workspaces)
-    unknown = selected.difference(all_workspaces)
-    if unknown:
-        raise ValueError(f"Unknown selected workspace: {', '.join(sorted(unknown))}")
-
-    scan = _scan_results(
-        client, {name: id_ for name, id_ in all_workspaces.items() if name in selected}
+    selected_name_to_id_map = {
+        w.name: w.id for w in workspaces.source.values() if w.name in workspaces.selected
+    }
+    scan = _scan_results(client, selected_name_to_id_map)
+    all_workspaces_selected = len(workspaces.selected) == len(workspaces.source)
+    migrate_products_with_no_results = (
+        all_workspaces_selected
+        and DEFAULT_WORKSPACE in workspaces.source
+        and not workspaces.disabled
+        and not scan.failures
     )
-    migrate_products_with_no_results = selected_workspaces is None and not scan.failures
     products: List[DiscoveredProduct] = []
     product_ids_by_part_number: Dict[str, str] = {}
     for product in client.query_products():
@@ -151,7 +135,7 @@ def discover_test_monitor(
         for workspace, result in scan.terminal
     ]
     return TestMonitorDiscovery(
-        workspaces=tuple(sorted(selected)),
+        workspaces=tuple(sorted(workspaces.selected)),
         products=tuple(sorted(products, key=lambda item: (item.workspace, item.id))),
         results=tuple(sorted(results, key=lambda item: (item.workspace, item.id))),
         failures=tuple(sorted(scan.failures, key=lambda item: item.workspace)),

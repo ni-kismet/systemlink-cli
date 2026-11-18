@@ -13,6 +13,7 @@ import click
 import questionary
 import requests
 
+from .cli_utils import is_interactive_environment, validate_confirmation
 from .utils import (
     ExitCodes,
     format_success,
@@ -302,14 +303,12 @@ def register_routine_commands(cli: Any) -> None:
                 if offset >= total:
                     break
 
-                click.echo(f"\nShowing {offset} of {total} routine(s).")
+                click.echo(
+                    f"\nShowing {offset} of {total} routine(s).",
+                    err=not is_interactive_environment(),
+                )
 
-                try:
-                    is_tty = sys.stdout.isatty() and sys.stdin.isatty()
-                except (OSError, AttributeError):
-                    is_tty = False
-
-                if not is_tty:
+                if not is_interactive_environment():
                     break
 
                 if not questionary.confirm("Show next page?", default=True).ask():
@@ -741,6 +740,7 @@ def register_routine_commands(cli: Any) -> None:
         is_flag=True,
         default=False,
         help="Skip confirmation prompt",
+        callback=validate_confirmation,
     )
     def delete_routine(routine_id: str, api_version: str, yes: bool) -> None:
         """Delete a routine by ID.

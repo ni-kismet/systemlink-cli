@@ -1,0 +1,164 @@
+"""Discover source workspaces and synchronize them to destination workspaces."""
+
+from typing import Callable, Dict, Iterable, Mapping, Optional, Sequence, Tuple
+
+from pydantic import BaseModel, ConfigDict
+
+from slcli.migration.workspace_client import Workspace
+
+
+class DiscoveredWorkspaces(BaseModel):
+    """Enabled source workspaces by name and the names in scope of a migration."""
+
+    model_config = ConfigDict(frozen=True)
+
+    source: Dict[str, Workspace] = {}
+    selected: Tuple[str, ...] = ()
+    disabled: Tuple[str, ...] = ()
+
+
+class MappedWorkspace(BaseModel):
+    """One source workspace and the existing destination workspace it migrates to."""
+
+    model_config = ConfigDict(frozen=True)
+
+    source_name: str
+    source_id: str
+    destination_name: str
+    destination_id: str
+
+
+class WorkspaceMapping(BaseModel):
+    """Resolved source-to-destination workspaces, ordered by source name."""
+
+    model_config = ConfigDict(frozen=True)
+
+    workspaces: Tuple[MappedWorkspace, ...] = ()
+
+    def workspace(self, source_name: str) -> MappedWorkspace:
+        """Return the mapping for a source workspace name.
+
+        Raises:
+            KeyError: If the source workspace is not mapped.
+        """
+        for workspace in self.workspaces:
+            if workspace.source_name == source_name:
+                return workspace
+        raise KeyError(f"Workspace '{source_name}' is not mapped")
+
+
+class WorkspaceMappingError(ValueError):
+    """Requested workspaces that are missing or have disabled destinations."""
+
+    def __init__(
+        self,
+        missing_source: Sequence[str] = (),
+        missing_destination: Sequence[str] = (),
+        disabled_destination: Sequence[str] = (),
+    ) -> None:
+        """Record missing source or destination workspaces and disabled destinations."""
+        self.missing_source = list(missing_source)
+        self.missing_destination = list(missing_destination)
+        self.disabled_destination = list(disabled_destination)
+        problems = []
+        if missing_source:
+            problems.append(f"unknown source workspace: {', '.join(missing_source)}")
+        if missing_destination:
+            problems.append(f"missing destination workspace: {', '.join(missing_destination)}")
+        if disabled_destination:
+            problems.append(f"disabled destination workspace: {', '.join(disabled_destination)}")
+        super().__init__("; ".join(problems))
+
+
+def discover_workspaces(
+    all_source_workspaces: Iterable[Workspace],
+    explicit_workspace_selection: Optional[Iterable[str]],
+) -> DiscoveredWorkspaces:
+    """Select enabled source workspaces in scope of a migration.
+
+    Args:
+        all_source_workspaces: Every accessible source workspace.
+        explicit_workspace_selection: Source names to migrate; all enabled workspaces when None.
+
+    Raises:
+        WorkspaceMappingError: If a requested source workspace is missing or disabled.
+    """
+    enumerated_source_workspaces = tuple(all_source_workspaces)
+    enabled_workspaces = tuple(
+        sorted(
+            (workspace for workspace in enumerated_source_workspaces if workspace.enabled),
+            key=lambda workspace: workspace.name,
+        )
+    )
+    by_name = {workspace.name: workspace for workspace in enabled_workspaces}
+    enabled_workspace_names = [workspace.name for workspace in enabled_workspaces]
+    disabled_workspace_names = tuple(
+        workspace.name for workspace in enumerated_source_workspaces if not workspace.enabled
+    )
+    names_to_include = (
+        sorted(explicit_workspace_selection)
+        if explicit_workspace_selection is not None
+        else enabled_workspace_names
+    )
+    missing = sorted(set(names_to_include).difference(enabled_workspace_names))
+    if missing:
+        raise WorkspaceMappingError(missing_source=missing)
+    return DiscoveredWorkspaces(
+        source=by_name,
+        selected=tuple(names_to_include),
+        disabled=disabled_workspace_names,
+    )
+
+
+def synchronize_workspaces(
+    source_workspaces: DiscoveredWorkspaces,
+    destination_workspaces: Iterable[Workspace],
+    create_destination_workspace: Callable[[str], Workspace],
+    provided_name_mappings: Optional[Mapping[str, str]],
+) -> WorkspaceMapping:
+    """Map discovered source workspaces to existing destination workspaces.
+
+    Every selected source workspace maps to the same-named destination workspace
+    unless ``provided_name_mappings`` renames it.
+
+    Args:
+        source_workspaces: Source workspaces discovered.
+        destination_client: Client for running workspace commands on the destination.
+        provided_name_mappings: Explicit source-to-destination name mappings;
+            when None, destination names match source.
+
+    Raises:
+        WorkspaceMappingError: If a mapped destination workspace is disabled.
+    """
+    destination_workspaces_by_name = {
+        workspace.name: workspace for workspace in destination_workspaces
+    }
+
+    name_mappings = {
+        source_name: (provided_name_mappings or {}).get(source_name, source_name)
+        for source_name in source_workspaces.selected
+    }
+    needed_names = set(name_mappings.values())
+    existing_names = set(destination_workspaces_by_name)
+    disabled_names = sorted(
+        name
+        for name in needed_names & existing_names
+        if not destination_workspaces_by_name[name].enabled
+    )
+    if disabled_names:
+        raise WorkspaceMappingError(disabled_destination=disabled_names)
+    for missing_name in sorted(needed_names - existing_names):
+        destination_workspaces_by_name[missing_name] = create_destination_workspace(missing_name)
+
+    source_ids = {workspace.name: workspace.id for workspace in source_workspaces.source.values()}
+    return WorkspaceMapping(
+        workspaces=tuple(
+            MappedWorkspace(
+                source_name=source_name,
+                source_id=source_ids[source_name],
+                destination_name=name_mappings[source_name],
+                destination_id=destination_workspaces_by_name[name_mappings[source_name]].id,
+            )
+            for source_name in source_workspaces.selected
+        )
+    )

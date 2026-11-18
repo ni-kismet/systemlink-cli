@@ -13,6 +13,8 @@ from slcli.dff_click import register_dff_commands
 from slcli.utils import ExitCodes
 from .test_utils import patch_keyring
 
+pytestmark = pytest.mark.usefixtures("interactive_environment")
+
 
 def make_cli() -> click.Group:
     """Create a dummy CLI for testing."""

@@ -14,7 +14,7 @@ import click
 import questionary
 import requests as requests_lib
 
-from .cli_utils import validate_output_format
+from .cli_utils import validate_confirmation, validate_output_format
 from .universal_handlers import FilteredResponse, UniversalResponseHandler
 from .utils import (
     ExitCodes,
@@ -851,8 +851,11 @@ def register_file_commands(cli: Any) -> None:
     )
     @click.option(
         "--force",
+        "--yes",
+        "-y",
         is_flag=True,
         help="Delete without confirmation",
+        callback=validate_confirmation,
     )
     def delete_file(file_id: str, force: bool = False) -> None:
         """Delete a file."""

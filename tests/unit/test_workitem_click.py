@@ -16,6 +16,8 @@ from slcli.workitem_click import (
 )
 from .test_utils import patch_keyring
 
+pytestmark = pytest.mark.usefixtures("interactive_environment")
+
 
 def make_cli() -> click.Group:
     """Create a minimal CLI for testing."""
@@ -286,7 +288,7 @@ def test_list_workitems_stops_pagination_when_non_interactive(
 ) -> None:
     """Captured output stops before prompting for another work-item page."""
     patch_keyring(monkeypatch)
-    monkeypatch.setenv("SLCLI_NON_INTERACTIVE", "true")
+    monkeypatch.setattr("slcli.workitem_click.is_interactive_environment", lambda: False)
 
     call_count: List[int] = [0]
 

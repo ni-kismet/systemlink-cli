@@ -10,6 +10,8 @@ from click.testing import CliRunner
 from slcli.feed_click import PackageUploadError, register_feed_commands
 from slcli.utils import ExitCodes
 
+pytestmark = pytest.mark.usefixtures("interactive_environment")
+
 
 def make_cli() -> click.Group:
     """Create a test CLI with feed commands registered."""

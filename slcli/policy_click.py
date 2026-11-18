@@ -6,7 +6,7 @@ from typing import Any, Dict, List, Optional, Tuple
 import click
 import questionary
 
-from .cli_utils import validate_output_format
+from .cli_utils import is_interactive_environment, validate_confirmation, validate_output_format
 from .policy_utils import (
     _build_policy_payload,
     _build_template_payload,
@@ -198,19 +198,14 @@ def register_policy_commands(cli: Any) -> None:
                     message = f"Showing {len(policies)} of {total_count} policy(ies)."
                     if remaining:
                         message += f" {remaining} more available."
-                    click.echo(message)
+                    click.echo(message, err=not is_interactive_environment())
 
                 current_skip += take
 
                 if len(policies) < take:
                     break
 
-                try:
-                    is_tty = sys.stdout.isatty() and sys.stdin.isatty()
-                except Exception:
-                    is_tty = False
-
-                if not is_tty:
+                if not is_interactive_environment():
                     break
                 if not questionary.confirm(f"Show next {take} policies?", default=True).ask():
                     break
@@ -368,7 +363,14 @@ def register_policy_commands(cli: Any) -> None:
 
     @policy_group.command(name="delete")
     @click.argument("policy_id")
-    @click.option("--force", is_flag=True, help="Skip confirmation prompt")
+    @click.option(
+        "--force",
+        "--yes",
+        "-y",
+        is_flag=True,
+        help="Skip confirmation prompt",
+        callback=validate_confirmation,
+    )
     def delete_policy(policy_id: str, force: bool) -> None:
         """Delete a policy."""
         from .utils import check_readonly_mode
@@ -765,19 +767,14 @@ def register_policy_commands(cli: Any) -> None:
                     message = f"Showing {len(templates)} of {total_count} policy template(s)."
                     if remaining:
                         message += f" {remaining} more available."
-                    click.echo(message)
+                    click.echo(message, err=not is_interactive_environment())
 
                 current_skip += take
 
                 if len(templates) < take:
                     break
 
-                try:
-                    is_tty = sys.stdout.isatty() and sys.stdin.isatty()
-                except Exception:
-                    is_tty = False
-
-                if not is_tty:
+                if not is_interactive_environment():
                     break
                 if not questionary.confirm(f"Show next {take} templates?", default=True).ask():
                     break
@@ -808,7 +805,14 @@ def register_policy_commands(cli: Any) -> None:
 
     @template_group.command(name="delete")
     @click.argument("template_id")
-    @click.option("--force", is_flag=True, help="Skip confirmation prompt")
+    @click.option(
+        "--force",
+        "--yes",
+        "-y",
+        is_flag=True,
+        help="Skip confirmation prompt",
+        callback=validate_confirmation,
+    )
     def delete_template(template_id: str, force: bool) -> None:
         """Delete a policy template."""
         from .utils import check_readonly_mode

@@ -74,7 +74,7 @@ raw `slcli -f json` checks before changing `validation.complete` to `true`.
 
   ```bash
   slcli example delete demo-data-3 \
-    -w a-fred-test-workspace -f json
+    -w a-fred-test-workspace -f json --yes
   ```
 
 - Scope: one dedicated workspace per installation.

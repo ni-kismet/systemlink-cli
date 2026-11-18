@@ -7,7 +7,12 @@ from typing import Collection, Dict, List, Mapping, Optional
 import requests
 
 from slcli.migration.connection import MigrationConnection
-from slcli.migration.testmonitor.client import Product, Result, TestMonitorClient
+from slcli.migration.testmonitor.client import (
+    TEST_MONITOR_QUERY_PATHS,
+    Product,
+    Result,
+    TestMonitorClient,
+)
 from tests.e2e.owned_resource_helpers import (
     MIGRATION_DISCOVERY_OWNER,
     owner_properties,
@@ -60,7 +65,7 @@ class OwnedTestMonitorResources:
     ) -> None:
         """Initialize the manager for dedicated workspaces, by name to ID."""
         self._base_url = f"{connection.base_url}/nitestmonitor/v2"
-        self._session = session or connection.create_session()
+        self._session = session or connection.create_session(TEST_MONITOR_QUERY_PATHS)
         self._client = TestMonitorClient(connection, self._session)
         self._workspaces = dict(workspaces)
 
@@ -90,6 +95,20 @@ class OwnedTestMonitorResources:
     def create_results(self, results: List[Dict[str, object]], workspace: str) -> List[str]:
         """Create owned results in a managed workspace and return their IDs."""
         return self._create("results", results, workspace)
+
+    def create_steps(self, steps: List[Dict[str, object]]) -> List[str]:
+        """Create owned steps on owned results and return their step IDs in order."""
+        owned = [
+            {**step, "properties": owner_properties(MIGRATION_DISCOVERY_OWNER)} for step in steps
+        ]
+        body = self._post("steps", {"steps": owned})
+        ids = [item.get("stepId") for item in body.get("steps", [])]
+        if len(ids) != len(owned) or not all(isinstance(step_id, str) for step_id in ids):
+            raise RuntimeError(
+                f"Test Monitor did not create all requested steps: "
+                f"failed={body.get('failed')!r}, error={body.get('error')!r}"
+            )
+        return [str(step_id) for step_id in ids]
 
     def _create(
         self, collection: str, resources: List[Dict[str, object]], workspace: str

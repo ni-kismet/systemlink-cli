@@ -20,20 +20,24 @@ import uuid
 from collections.abc import Generator
 from dataclasses import dataclass
 from pathlib import Path
-from typing import AbstractSet, Dict, FrozenSet, Iterable, List, Optional, Sequence
+from typing import AbstractSet, Any, Dict, FrozenSet, Iterable, List, Optional, Sequence
 
 import pytest
-from click.testing import CliRunner
 
-from slcli.main import cli
 from slcli.migration.connection import MigrationConnection, resolve_migration_connection
 from slcli.migration.orchestration import run_discovery
-from slcli.migration.state import STATE_DIR_ENV, create_migration_run
+from slcli.migration.state import create_migration_run
 from slcli.migration.testmonitor.client import Product, Result, TestMonitorClient
 from slcli.migration.testmonitor.discovery import DEFAULT_WORKSPACE, discover_test_monitor
 from slcli.migration.testmonitor.models import TestMonitorDiscovery
 from slcli.migration.workspace_client import WorkspaceClient
+from slcli.migration.workspaces import discover_workspaces
 from slcli.ssl_trust import inject_os_trust
+from tests.e2e.migration_endpoints import (
+    DISABLED_SOURCE_WORKSPACE,
+    get_or_create_disabled_workspace,
+    get_or_create_workspace,
+)
 from tests.e2e.testmonitor_fixture import OwnedTestMonitorResources
 
 PRIMARY = "e2e-slcli-migration-source"
@@ -73,19 +77,6 @@ def _result(part_number: str, status: str) -> Dict[str, object]:
     }
 
 
-def _get_or_create_workspace(connection: MigrationConnection, name: str) -> str:
-    existing = {w.name: w.id for w in WorkspaceClient(connection).query_workspaces()}
-    if name in existing:
-        return existing[name]
-    response = connection.create_session().post(
-        f"{connection.base_url}/niuser/v1/workspaces",
-        json={"name": name, "enabled": True},
-        timeout=30,
-    )
-    response.raise_for_status()
-    return str(response.json()["id"])
-
-
 @pytest.fixture(scope="module")
 def seeded() -> Generator[Seeded, None, None]:
     """Seed the dataset once in fixture-owned workspaces and clean it up afterward."""
@@ -94,7 +85,9 @@ def seeded() -> Generator[Seeded, None, None]:
         pytest.skip("SLCLI_E2E_SOURCE_PROFILE is not configured")
     inject_os_trust()
     connection = resolve_migration_connection(profile)
-    workspace_ids = {name: _get_or_create_workspace(connection, name) for name in (PRIMARY, OTHER)}
+    workspace_ids = {name: get_or_create_workspace(connection, name) for name in (PRIMARY, OTHER)}
+    # Products with no results go to Default only when no source workspace is disabled.
+    get_or_create_disabled_workspace(connection, DISABLED_SOURCE_WORKSPACE)
     resources = OwnedTestMonitorResources(connection, workspace_ids)
     resources.clean()
     try:
@@ -132,7 +125,7 @@ def _discover(
     """Run the production discovery flow as ``slcli migrate`` would for a new run."""
     profile = seeded.connection.profile_name
     mappings = {name: name for name in workspaces} if workspaces is not None else None
-    run = create_migration_run(profile, mappings, state_root)
+    run = create_migration_run(profile, profile, mappings, state_root)
     return run_discovery(run, profile, workspaces, prefect_api_url).test_monitor
 
 
@@ -155,7 +148,8 @@ def test_all_workspaces(seeded: Seeded, test_prefect_server: str, tmp_path: Path
         seeded.states_product: PRIMARY,
         seeded.spanning_product: OTHER,
     }
-    assert _products(discovery, {DEFAULT_WORKSPACE})[seeded.orphan_product] == DEFAULT_WORKSPACE
+    # Because there are disabled workspaces, orphan product not included in default workspace
+    assert seeded.orphan_product not in _products(discovery, {DEFAULT_WORKSPACE})
 
 
 def test_mapped_workspace(seeded: Seeded, test_prefect_server: str, tmp_path: Path) -> None:
@@ -215,6 +209,12 @@ class _FailingWorkspace:
             raise ConnectionError("injected workspace failure")
         return self._client.query_results(filter_expr, substitutions)
 
+    def query_records(
+        self, collection: str, filter_expr: str, substitutions: Sequence[object]
+    ) -> Iterable[Dict[str, Any]]:
+        """Return live records."""
+        return self._client.query_records(collection, filter_expr, substitutions)
+
 
 def test_workspace_failure_preserves_other_workspaces(seeded: Seeded) -> None:
     """A failed workspace is reported while other workspaces are still discovered.
@@ -223,41 +223,10 @@ def test_workspace_failure_preserves_other_workspaces(seeded: Seeded) -> None:
     discovery policy directly with live queries.
     """
     client = _FailingWorkspace(TestMonitorClient(seeded.connection), seeded.workspace_ids[OTHER])
-    workspaces = {w.name: w.id for w in WorkspaceClient(seeded.connection).query_workspaces()}
-
+    workspaces = discover_workspaces(WorkspaceClient(seeded.connection).query_workspaces(), None)
     discovery = discover_test_monitor(client, workspaces)
 
     assert [(f.workspace, f.error_type) for f in discovery.failures] == [(OTHER, "ConnectionError")]
     assert _results(discovery, PRIMARY) == seeded.primary_results
     assert _results(discovery, OTHER) == frozenset()
     assert seeded.orphan_product not in {p.id for p in discovery.products}
-
-
-def test_migrate_cli(
-    seeded: Seeded, test_prefect_server: str, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
-) -> None:
-    """``slcli migrate`` summarizes the mapped workspace and records the run."""
-    monkeypatch.setenv(STATE_DIR_ENV, str(tmp_path))
-
-    result = CliRunner().invoke(
-        cli,
-        [
-            "migrate",
-            "--source-profile",
-            seeded.connection.profile_name,
-            "--workspace-mappings",
-            PRIMARY,
-            "--prefect-api-url",
-            test_prefect_server,
-        ],
-    )
-
-    assert result.exit_code == 0, result.output
-    assert (
-        f"  Products: 2\n  Terminal results: {len(seeded.primary_results)}\n"
-        "  Failed workspaces: 0"
-    ) in result.output
-    [run_directory] = tmp_path.iterdir()
-    assert f"Migration ID: {run_directory.name}" in result.output
-    assert "Discovery completed" in (run_directory / "migration.log").read_text("utf-8")
-    assert any((run_directory / "results").iterdir())

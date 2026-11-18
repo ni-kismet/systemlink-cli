@@ -227,6 +227,6 @@ class TestCommentAddUpdateDeleteE2E:
         cli_helper.assert_success(add_result)
         comment_id = _extract_comment_id(add_result.stdout)
 
-        result = cli_runner(["comment", "delete", comment_id])
+        result = cli_runner(["comment", "delete", comment_id, "--yes"])
         cli_helper.assert_success(result)
         assert "✓" in result.stdout
