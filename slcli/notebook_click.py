@@ -16,7 +16,7 @@ from typing import Any, Dict, List, Optional, cast
 import click
 import requests
 
-from .cli_utils import validate_output_format
+from .cli_utils import confirmation_option, validate_output_format
 from .platform import PLATFORM_SLS, get_platform
 from .universal_handlers import UniversalResponseHandler
 from .utils import (
@@ -162,7 +162,7 @@ def _query_notebooks_http(
                 url = f"{base_url}/notebook/query"
 
             response = requests.post(
-                url, headers=headers, json=payload, verify=active_profile_ssl_verify()
+                url, headers=headers, json=payload, verify=active_profile_ssl_verify(url)
             )
             response.raise_for_status()
 
@@ -221,7 +221,7 @@ def _get_notebook_http(notebook_id: str) -> Dict[str, Any]:
             # SLE uses ID-based endpoint: /notebook/{id}
             url = f"{base_url}/notebook/{notebook_id}"
 
-        response = requests.get(url, headers=headers, verify=active_profile_ssl_verify())
+        response = requests.get(url, headers=headers, verify=active_profile_ssl_verify(url))
         response.raise_for_status()
         result = response.json()
 
@@ -250,7 +250,7 @@ def _get_notebook_content_http(notebook_id: str) -> bytes:
             # SLE uses ID-based endpoint: /notebook/{id}/content
             url = f"{base_url}/notebook/{notebook_id}/content"
 
-        response = requests.get(url, headers=headers, verify=active_profile_ssl_verify())
+        response = requests.get(url, headers=headers, verify=active_profile_ssl_verify(url))
         response.raise_for_status()
         return response.content
     except requests.exceptions.RequestException as exc:
@@ -459,8 +459,9 @@ def _create_notebook_http(name: str, workspace: str, content: bytes) -> Dict[str
     }
 
     try:
+        url = f"{base_url}/notebook"
         response = requests.post(
-            f"{base_url}/notebook", headers=headers, files=files, verify=active_profile_ssl_verify()
+            url, headers=headers, files=files, verify=active_profile_ssl_verify(url)
         )
         response.raise_for_status()
         return response.json()
@@ -500,11 +501,12 @@ def _update_notebook_http(
         files["content"] = ("notebook.ipynb", content, "application/octet-stream")  # type: ignore
 
     try:
+        url = f"{base_url}/notebook/{notebook_id}"
         response = requests.put(
-            f"{base_url}/notebook/{notebook_id}",
+            url,
             headers=headers,
             files=files,
-            verify=active_profile_ssl_verify(),
+            verify=active_profile_ssl_verify(url),
         )
         response.raise_for_status()
         return response.json()
@@ -521,10 +523,11 @@ def _delete_notebook_http(notebook_id: str) -> None:
     headers = get_headers()
 
     try:
+        url = f"{base_url}/notebook/{notebook_id}"
         response = requests.delete(
-            f"{base_url}/notebook/{notebook_id}",
+            url,
             headers=headers,
-            verify=active_profile_ssl_verify(),
+            verify=active_profile_ssl_verify(url),
         )
         response.raise_for_status()
     except requests.exceptions.RequestException as exc:
@@ -867,7 +870,7 @@ def register_notebook_commands(cli: Any) -> None:
     @click.option(
         "--take",
         "-t",
-        type=int,
+        type=click.IntRange(min=1),
         default=25,
         show_default=True,
         help="Maximum number of notebooks to return",
@@ -1280,7 +1283,7 @@ def register_notebook_commands(cli: Any) -> None:
 
     @notebook_manage.command(name="delete")
     @click.option("--id", "-i", "notebook_id", required=True, help="Notebook ID to delete")
-    @click.confirmation_option(prompt="Are you sure you want to delete this notebook?")
+    @confirmation_option(prompt="Are you sure you want to delete this notebook?")
     def delete_notebook(notebook_id: str = "") -> None:
         """Delete a notebook.
 
@@ -1327,7 +1330,14 @@ def register_notebook_commands(cli: Any) -> None:
         ),
     )
     @click.option("--notebook-id", "-n", help="Filter by notebook ID")
-    @click.option("--take", "-t", type=int, default=25, show_default=True, help="Max rows/page")
+    @click.option(
+        "--take",
+        "-t",
+        type=click.IntRange(min=1),
+        default=25,
+        show_default=True,
+        help="Max rows/page",
+    )
     @click.option(
         "--format",
         "-f",
@@ -1582,7 +1592,7 @@ def register_notebook_commands(cli: Any) -> None:
             # Use direct requests.post because make_api_request only supports dict payloads.
             headers = get_headers("application/json")
             resp = requests.post(
-                url, headers=headers, json=payload, verify=active_profile_ssl_verify()
+                url, headers=headers, json=payload, verify=active_profile_ssl_verify(url)
             )
             resp.raise_for_status()
             resp_data = resp.json()
@@ -1704,7 +1714,7 @@ def register_notebook_commands(cli: Any) -> None:
         try:
             headers = get_headers("application/json")
             resp = requests.post(
-                url, headers=headers, json=payload, verify=active_profile_ssl_verify()
+                url, headers=headers, json=payload, verify=active_profile_ssl_verify(url)
             )
             resp.raise_for_status()
             resp_data = resp.json()
@@ -1805,7 +1815,7 @@ def register_notebook_commands(cli: Any) -> None:
                 url = f"{base}/cancel-executions"
                 headers = get_headers("application/json")
                 resp = requests.post(
-                    url, headers=headers, json=[execution_id], verify=active_profile_ssl_verify()
+                    url, headers=headers, json=[execution_id], verify=active_profile_ssl_verify(url)
                 )
                 resp.raise_for_status()
             else:

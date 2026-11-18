@@ -21,6 +21,8 @@ from slcli.main import cli
 from slcli.utils import ExitCodes
 from .test_utils import patch_keyring
 
+pytestmark = pytest.mark.usefixtures("interactive_environment")
+
 
 def _read_control_file(pkg_path: Path) -> str:
     """Extract and decode the Debian control file from a .nipkg archive."""

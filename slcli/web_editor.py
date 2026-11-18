@@ -287,7 +287,7 @@ class DFFWebEditor:
         api_base = get_base_url().rstrip("/")
         api_scheme, api_netloc = _validated_proxy_origin(api_base)
         default_headers = get_headers()
-        ssl_verify = active_profile_ssl_verify()
+        ssl_verify = active_profile_ssl_verify(api_base)
         secret = self._secret
 
         class EditorTCPServer(socketserver.TCPServer):

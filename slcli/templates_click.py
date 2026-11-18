@@ -8,7 +8,7 @@ from typing import Any, Dict, List, Optional
 import click
 import questionary
 
-from .cli_utils import validate_output_format
+from .cli_utils import confirmation_option, validate_output_format
 from .platform import require_feature
 from .universal_handlers import UniversalResponseHandler, FilteredResponse
 from .utils import (
@@ -277,7 +277,7 @@ def register_templates_commands(cli: Any) -> None:
     @click.option(
         "--take",
         "-t",
-        type=int,
+        type=click.IntRange(min=1),
         default=25,
         show_default=True,
         help="Maximum number of templates to return",
@@ -591,7 +591,7 @@ def register_templates_commands(cli: Any) -> None:
         required=True,
         help="Test plan template ID to delete",
     )
-    @click.confirmation_option(prompt="Are you sure you want to delete this template?")
+    @confirmation_option(prompt="Are you sure you want to delete this template?")
     def delete_template(template_id: str) -> None:
         """Delete a template."""
         from .utils import check_readonly_mode

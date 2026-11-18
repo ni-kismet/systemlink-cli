@@ -3,10 +3,11 @@
 import json
 import sys
 from typing import Any, Dict, Optional, Tuple
+from urllib.parse import urlencode
 
 import click
 
-from .cli_utils import validate_output_format
+from .cli_utils import confirmation_option, is_interactive_environment, validate_output_format
 from .rich_output import render_table
 from .utils import (
     ExitCodes,
@@ -18,7 +19,7 @@ from .utils import (
 
 
 def _fetch_workspaces_page(
-    name_filter: Optional[str] = None, take: int = 25, skip: int = 0
+    name_filter: Optional[str] = None, take: int = 100, skip: int = 0
 ) -> Tuple[list, int, Optional[str]]:
     """Fetch a single page of workspaces with optional server-side filtering.
 
@@ -36,12 +37,12 @@ def _fetch_workspaces_page(
         url = f"{get_base_url()}/niuser/v1/workspaces"
         page_size = min(take, 100)  # API max take is 100
 
-        query_params = [f"take={page_size}", f"skip={skip}"]
+        query_params = {"take": str(page_size), "skip": str(skip)}
         if name_filter:
             # Use *TEXT* pattern for case-insensitive substring matching
-            query_params.append(f"name=*{name_filter}*")
+            query_params["name"] = f"*{name_filter}*"
 
-        paginated_url = url + "?" + "&".join(query_params)
+        paginated_url = url + "?" + urlencode(query_params, safe="*")
 
         resp = make_api_request("GET", paginated_url, payload=None)
         data = resp.json()
@@ -84,22 +85,22 @@ def register_workspace_commands(cli: Any) -> None:
     @click.option(
         "--take",
         "-t",
-        type=int,
-        default=25,
+        type=click.IntRange(min=1),
+        default=100,
         show_default=True,
-        help="Maximum number of workspaces to return from API",
+        help="JSON result limit or table page size (API pages max 100)",
     )
     def list_workspaces(
         format: str = "table",
         include_disabled: bool = False,
         name_filter: Optional[str] = None,
-        take: int = 25,
+        take: int = 100,
     ) -> None:
         """List workspaces with optional filtering.
 
         The --filter option performs server-side case-insensitive substring
-        matching on workspace names. The --take option limits the number of
-        results shown per page (max 100).
+        matching on workspace names. The --take option sets the JSON result limit
+        or table page size (API pages are capped at 100).
         """
         format_output = validate_output_format(format)
 
@@ -108,7 +109,7 @@ def register_workspace_commands(cli: Any) -> None:
             if format_output.lower() == "json":
                 all_workspaces = []
                 skip = 0
-                remaining = take if take and take > 0 else 25
+                remaining = take
                 while remaining > 0:
                     page_take = min(remaining, 100)
                     workspaces, total_count, error = _fetch_workspaces_page(
@@ -118,17 +119,17 @@ def register_workspace_commands(cli: Any) -> None:
                         click.echo(f"✗ {error}", err=True)
                         sys.exit(ExitCodes.GENERAL_ERROR)
 
-                    # Filter by enabled status if needed
+                    fetched_count = len(workspaces)
+                    skip += fetched_count
                     if not include_disabled:
                         workspaces = [ws for ws in workspaces if ws.get("enabled", True)]
 
                     all_workspaces.extend(workspaces)
 
                     # Stop when we've collected the requested amount or reached total
-                    if len(all_workspaces) >= take or skip + page_take >= total_count:
+                    if not fetched_count or skip >= total_count:
                         break
 
-                    skip += page_take
                     remaining = take - len(all_workspaces)
 
                 # Trim in case we over-collected due to page boundaries
@@ -157,17 +158,19 @@ def register_workspace_commands(cli: Any) -> None:
                     click.echo(f"✗ {error}", err=True)
                     sys.exit(ExitCodes.GENERAL_ERROR)
 
+                fetched_count = len(workspaces)
+                skip += fetched_count
+
                 # Filter by enabled status if needed
                 if not include_disabled:
                     workspaces = [ws for ws in workspaces if ws.get("enabled", True)]
 
-                if not workspaces and skip == 0:
-                    click.echo("No workspaces found.")
-                    return
-
                 if not workspaces:
-                    # No more results on this page
-                    break
+                    if not fetched_count or skip >= total_count_from_api:
+                        if shown_count == 0:
+                            click.echo("No workspaces found.")
+                        break
+                    continue
 
                 # Display the page
                 from .table_utils import output_formatted_list
@@ -183,7 +186,6 @@ def register_workspace_commands(cli: Any) -> None:
                 )
 
                 shown_count += len(workspaces)
-                skip += take
 
                 # Check if there are potentially more results from the API
                 # We check skip against total_count to see if the next page exists
@@ -191,14 +193,12 @@ def register_workspace_commands(cli: Any) -> None:
                     break
 
                 # Ask user if they want to see more; if non-interactive, stop
-                click.echo(f"\nShowing {shown_count} workspace(s) so far. More may be available.")
+                click.echo(
+                    f"\nShowing {shown_count} workspace(s) so far. More may be available.",
+                    err=not is_interactive_environment(),
+                )
 
-                try:
-                    is_tty = sys.stdout.isatty() and sys.stdin.isatty()
-                except Exception:
-                    is_tty = False
-
-                if not is_tty:
+                if not is_interactive_environment():
                     break
                 if not click.confirm("Show next page?", default=True):
                     break
@@ -213,7 +213,7 @@ def register_workspace_commands(cli: Any) -> None:
         required=True,
         help="ID of the workspace to disable",
     )
-    @click.confirmation_option(prompt="Are you sure you want to disable this workspace?")
+    @confirmation_option(prompt="Are you sure you want to disable this workspace?")
     def disable_workspace(id: str) -> None:
         """Disable a workspace."""
         from .utils import check_readonly_mode

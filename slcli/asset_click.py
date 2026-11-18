@@ -12,7 +12,7 @@ from typing import Any, Dict, List, Optional, Tuple
 import click
 import questionary
 
-from .cli_utils import is_interactive_environment, validate_output_format
+from .cli_utils import is_interactive_environment, validate_confirmation, validate_output_format
 from .universal_handlers import FilteredResponse, UniversalResponseHandler
 from .utils import (
     ExitCodes,
@@ -459,7 +459,7 @@ def register_asset_commands(cli: Any) -> None:
     @click.option(
         "--take",
         "-t",
-        type=int,
+        type=click.IntRange(min=1),
         default=25,
         show_default=True,
         help="Maximum assets to return (table page size; JSON list total)",
@@ -789,7 +789,7 @@ def register_asset_commands(cli: Any) -> None:
     @click.option(
         "--take",
         "-t",
-        type=int,
+        type=click.IntRange(min=1),
         default=25,
         show_default=True,
         help="Number of history entries to return",
@@ -865,7 +865,7 @@ def register_asset_commands(cli: Any) -> None:
     @click.option(
         "--take",
         "-t",
-        type=int,
+        type=click.IntRange(min=1),
         default=25,
         show_default=True,
         help="Number of history entries to return",
@@ -1210,8 +1210,11 @@ def register_asset_commands(cli: Any) -> None:
     @click.argument("asset_id")
     @click.option(
         "--force",
+        "--yes",
+        "-y",
         is_flag=True,
         help="Delete without confirmation",
+        callback=validate_confirmation,
     )
     def delete_asset(
         asset_id: str,

@@ -32,6 +32,8 @@ from typing import Any, Dict, Iterator, List, Optional
 import click
 from filelock import FileLock
 
+from .paths import get_config_dir
+
 SERVICE_PROBE_CACHE_SETTING = "service-probe-cache"
 
 
@@ -122,14 +124,7 @@ class ProfileConfig:
         if "SLCLI_CONFIG" in os.environ:
             return Path(os.environ["SLCLI_CONFIG"])
 
-        # Use XDG_CONFIG_HOME if set, otherwise use ~/.config
-        if "XDG_CONFIG_HOME" in os.environ:
-            config_dir = Path(os.environ["XDG_CONFIG_HOME"]) / "slcli"
-        else:
-            config_dir = Path.home() / ".config" / "slcli"
-
-        config_dir.mkdir(parents=True, exist_ok=True)
-        return config_dir / "config.json"
+        return get_config_dir() / "config.json"
 
     @classmethod
     def load(cls) -> "ProfileConfig":

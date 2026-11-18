@@ -307,7 +307,7 @@ class TestResultListE2E:
         )
         cli_helper.assert_success(result)
 
-        assert "Status" in result.stdout or "No results found" in result.stdout
+        assert "Status" in result.stdout or "No test results found" in result.stdout
 
     def test_list_summary(self, cli_runner: Any, cli_helper: Any) -> None:
         """Test listing with --summary flag."""

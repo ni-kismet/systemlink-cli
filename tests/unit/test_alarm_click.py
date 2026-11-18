@@ -17,6 +17,8 @@ from slcli.alarm_click import (
     register_alarm_commands,
 )
 
+pytestmark = pytest.mark.usefixtures("interactive_environment")
+
 
 class MockResponse:
     """Minimal response object for alarm command tests."""

@@ -11,6 +11,7 @@ import questionary
 from .cli_utils import (
     confirm_bulk_operation,
     is_interactive_environment,
+    validate_confirmation,
     validate_output_format,
 )
 from .rich_output import render_table
@@ -1330,7 +1331,7 @@ def register_spec_commands(cli: Any) -> None:
         "-t",
         "--take",
         "take",
-        type=int,
+        type=click.IntRange(min=1),
         default=25,
         show_default=True,
         help="Items per page for table output, or max items for JSON output",
@@ -1527,7 +1528,7 @@ def register_spec_commands(cli: Any) -> None:
         "-t",
         "--take",
         "take",
-        type=int,
+        type=click.IntRange(min=1),
         default=25,
         show_default=True,
         help="Maximum number of specifications to request in this query",
@@ -1760,7 +1761,7 @@ def register_spec_commands(cli: Any) -> None:
     @click.option(
         "-t",
         "--take",
-        type=int,
+        type=click.IntRange(min=1),
         default=1000,
         show_default=True,
         help="Maximum number of specifications to export (default is higher than list)",
@@ -2123,7 +2124,14 @@ def register_spec_commands(cli: Any) -> None:
         required=True,
         help="Specification ID to delete. Repeat for multiple IDs.",
     )
-    @click.option("--force", is_flag=True, help="Skip confirmation prompt")
+    @click.option(
+        "--force",
+        "--yes",
+        "-y",
+        is_flag=True,
+        help="Skip confirmation prompt",
+        callback=validate_confirmation,
+    )
     def delete_specification(specification_ids: Tuple[str, ...], force: bool) -> None:
         """Delete one or more specifications."""
         check_readonly_mode("delete specification(s)")

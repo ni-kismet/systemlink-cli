@@ -9,7 +9,12 @@ import click
 import requests as requests_lib
 from click.core import ParameterSource
 
-from .cli_utils import confirm_bulk_operation, validate_output_format
+from .cli_utils import (
+    confirm_bulk_operation,
+    is_interactive_environment,
+    validate_confirmation,
+    validate_output_format,
+)
 from .platform import require_feature
 from .rich_output import render_table
 from .utils import (
@@ -363,12 +368,7 @@ def _fetch_table_page(payload: Dict[str, Any]) -> Dict[str, Any]:
 
 def _confirm_next_page() -> bool:
     """Ask the user if more paged data should be fetched."""
-    try:
-        is_tty = sys.stdout.isatty() and sys.stdin.isatty()
-    except Exception:
-        is_tty = False
-
-    if not is_tty:
+    if not is_interactive_environment():
         return False
     return click.confirm("Show next page?", default=True)
 
@@ -407,7 +407,10 @@ def _display_table_pages(initial_payload: Dict[str, Any], workspace_map: Dict[st
         if not continuation_token:
             return
 
-        click.echo(f"\nShowing {shown} dataframe table(s) so far. More may be available.")
+        click.echo(
+            f"\nShowing {shown} dataframe table(s) so far. More may be available.",
+            err=not is_interactive_environment(),
+        )
         if not _confirm_next_page():
             return
         payload["continuationToken"] = continuation_token
@@ -645,7 +648,7 @@ def _post_arrow_append(table_id: str, input_path: str, end_of_data: bool) -> req
                 url,
                 headers=get_headers("application/vnd.apache.arrow.stream"),
                 data=arrow_file,
-                verify=active_profile_ssl_verify(),
+                verify=active_profile_ssl_verify(url),
             )
         response.raise_for_status()
         return response
@@ -693,7 +696,7 @@ def register_dataframe_commands(cli: Any) -> None:
     @click.option(
         "--take",
         "-t",
-        type=int,
+        type=click.IntRange(min=1),
         default=25,
         show_default=True,
         help="Maximum tables to return (table page size; JSON list total)",
@@ -813,7 +816,14 @@ def register_dataframe_commands(cli: Any) -> None:
         multiple=True,
         help="Sort clause in the form column[:asc|desc]. Repeat for multiple clauses.",
     )
-    @click.option("--take", "-t", type=int, default=100, show_default=True, help="Rows per page")
+    @click.option(
+        "--take",
+        "-t",
+        type=click.IntRange(min=1),
+        default=100,
+        show_default=True,
+        help="Rows per page",
+    )
     @click.option("--continuation-token", help="Continuation token for paged reads")
     @click.option(
         "--request",
@@ -961,7 +971,9 @@ def register_dataframe_commands(cli: Any) -> None:
         multiple=True,
         help="Sort clause in the form column[:asc|desc]. Repeat for multiple clauses.",
     )
-    @click.option("--take", type=int, help="Limit the number of exported rows")
+    @click.option(
+        "--take", "-t", type=click.IntRange(min=1), help="Limit the number of exported rows"
+    )
     @click.option(
         "--request",
         type=click.Path(exists=True, dir_okay=False, readable=True),
@@ -1214,7 +1226,14 @@ def register_dataframe_commands(cli: Any) -> None:
 
     @dataframe.command(name="delete")
     @click.argument("table_ids", nargs=-1, required=True)
-    @click.option("--yes", "force", is_flag=True, help="Skip confirmation prompt")
+    @click.option(
+        "--yes",
+        "-y",
+        "force",
+        is_flag=True,
+        help="Skip confirmation prompt",
+        callback=validate_confirmation,
+    )
     def delete_tables(table_ids: Tuple[str, ...], force: bool) -> None:
         """Delete one or more DataFrame tables."""
         check_readonly_mode("delete dataframe table(s)")

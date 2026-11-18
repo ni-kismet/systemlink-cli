@@ -10,7 +10,7 @@ import click
 import questionary
 import requests
 
-from .cli_utils import validate_output_format
+from .cli_utils import validate_confirmation, validate_output_format
 from .function_templates import (
     download_and_extract_template,
     TEMPLATE_REPO,
@@ -389,7 +389,7 @@ def register_function_commands(cli: Any) -> None:
     @click.option(
         "--take",
         "-t",
-        type=int,
+        type=click.IntRange(min=1),
         default=25,
         show_default=True,
         help="Maximum number of functions to return",
@@ -716,7 +716,7 @@ def register_function_commands(cli: Any) -> None:
                     url,
                     files=files,  # type: ignore
                     headers=get_headers(""),
-                    verify=active_profile_ssl_verify(),
+                    verify=active_profile_ssl_verify(url),
                 )
                 resp.raise_for_status()
             else:
@@ -933,7 +933,7 @@ def register_function_commands(cli: Any) -> None:
                 url,
                 files=files,
                 headers=get_headers(""),
-                verify=active_profile_ssl_verify(),
+                verify=active_profile_ssl_verify(url),
             )
             resp.raise_for_status()
             click.echo("✓ Function definition updated successfully")
@@ -950,8 +950,11 @@ def register_function_commands(cli: Any) -> None:
     )
     @click.option(
         "--force",
+        "--yes",
+        "-y",
         is_flag=True,
         help="Skip confirmation prompt",
+        callback=validate_confirmation,
     )
     def delete_function(function_id: str, force: bool = False) -> None:
         """Delete a function definition."""
@@ -1040,7 +1043,7 @@ def register_function_commands(cli: Any) -> None:
     @click.option(
         "--take",
         "-t",
-        type=int,
+        type=click.IntRange(min=1),
         default=25,
         show_default=True,
         help="Maximum executions to return (table page size; JSON list total)",
@@ -1245,6 +1248,8 @@ def register_function_commands(cli: Any) -> None:
         """Execute a function synchronously and return the result.
 
         This sends a single request and waits for completion (no async polling).
+        The HTTP read timeout allows 60 seconds beyond the execution timeout,
+        or waits indefinitely when the execution timeout is zero.
         """
         format_output = validate_output_format(format)
         url = f"{get_unified_v2_base()}/functions/{function_id}/execute"
@@ -1319,7 +1324,12 @@ def register_function_commands(cli: Any) -> None:
             }
             if client_request_id:
                 execute_request["clientRequestId"] = client_request_id
-            response_data = make_api_request("POST", url, execute_request).json()
+            response_data = make_api_request(
+                "POST",
+                url,
+                execute_request,
+                timeout=(10.0, float(timeout + 60) if timeout else None),
+            ).json()
             if format_output == "json":
                 click.echo(json.dumps(response_data, indent=2))
                 return

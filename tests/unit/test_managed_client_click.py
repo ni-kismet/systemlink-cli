@@ -25,6 +25,8 @@ from slcli.managed_client_click import (
 )
 from slcli.utils import ExitCodes
 
+pytestmark = pytest.mark.usefixtures("interactive_environment")
+
 
 def test_importing_cli_does_not_load_managed_client_protocol() -> None:
     """Importing the base CLI keeps optional protocol modules unloaded."""

@@ -108,6 +108,10 @@ Notes:
 - `test_notebook_path` is used by the SLS notebook execution tests.
 - Use `--e2e-platform sle|sls` or `SLCLI_E2E_PLATFORM=sle|sls` to choose which
   platform the generic `cli_runner` and `configured_workspace` fixtures target.
+- Explicit platform selection requires an E2E URL and API key; it does not fall
+  back to the active CLI profile. Set the SLS workspace to `SLCLI-Test` locally.
+- The configured SLS workspace must be accessible; tests do not fall back to
+  another workspace.
 - In `auto` mode, the generic fixtures still prefer SLE when both `sle` and
   `sls` are configured.
 
@@ -120,6 +124,7 @@ The API key should have:
 - Access to the configured workspace
 - Permissions to create/read/update/delete notebooks
 - Access to user management APIs
+- Permission to create, read, update, and delete authorization policy templates
 - Access to workspace management APIs
 - Access to Custom Fields (if testing custom fields functionality)
 
@@ -153,6 +158,46 @@ the server-backed `e2e` tests.
 ```bash
 poetry run pytest tests/e2e/ -m e2e_migration --timeout=300 --no-cov
 ```
+
+Migration tests use named slcli profiles rather than `e2e_config.json`,
+because a migration spans a source (SLS) and a destination (SLE).
+Tests that need a source skip unless `SLCLI_E2E_SOURCE_PROFILE` is set.
+Tests that need a destination also skip unless `SLCLI_E2E_DESTINATION_PROFILE`
+is set. Fixtures get or create the fixed `e2e-slcli-migration-destination`
+workspace and clear fixture-owned Test Monitor resources from it before,
+between, and after migration tests. Workspace names are constants because
+workspaces cannot be deleted on shared servers; do not make them unique per run.
+Fixtures only modify the dedicated `e2e-slcli-migration-*` workspaces, the
+destination workspace, and resources carrying the fixture ownership property.
+Cleanup refuses to run if a fixture or destination workspace holds Test Monitor
+resources without that property. Migrated resources keep their source
+properties, so they carry it too.
+
+Each pytest session starts its own Prefect server (~10s). To reuse one across
+runs, start it in another terminal and point the tests at it:
+
+```bash
+PREFECT_HOME=build/ai/prefect-dev poetry run prefect server start --host 127.0.0.1 --port 4200
+
+export SLCLI_E2E_SOURCE_PROFILE="sls-vm"
+export SLCLI_TEST_PREFECT_API_URL="http://127.0.0.1:4200/api"
+poetry run pytest tests/e2e/ -m e2e_migration --timeout=300 --no-cov
+```
+
+#### Manually Test Destination Workspace Creation
+
+The Workspace API does not provide a way to delete workspaces, so to test creation of missing workspaces (without acumulating disabled workspaces over time), we have to use a temporary destination Valinor deployment that can be thrown away. These tests require an explicit opt-in (via env var) and are not run on the CI.
+
+```powershell
+$env:SLCLI_E2E_SOURCE_PROFILE = "sls-vm"
+$env:SLCLI_E2E_DESTINATION_PROFILE = "valinor"
+$env:SLCLI_E2E_ENABLE_WORKSPACE_CREATION_TESTS = "DESTINATION_VALINOR_IS_TEMPORARY_AND_DISPOSABLE"
+poetry run pytest tests/e2e/test_migration_workspace_creation_manual_e2e.py `
+  -m e2e_migration_manual --timeout=300 --no-cov
+```
+
+Each run leaves one uniquely named workspace on the destination. Do not set the
+acknowledgement when using a shared SLE or other non-disposable destination.
 
 ### Run The Local MCP Streamable HTTP Smoke Test
 
@@ -392,19 +437,21 @@ The GitHub Actions pipeline can run the E2E suite in four separate jobs:
 - `E2E (Migration)` runs all other `e2e_migration` tests.
 - `Native credentials` runs `poetry run pytest tests/e2e/test_credentials_e2e.py -k test_native_secure_read_logout --timeout=120 --no-cov -q` on Ubuntu, macOS, and Windows.
 
-The CI jobs use `https://base.systemlink.io` for SLS and
-`https://test-api.lifecyclesolutions.ni.com` for SLE. Configure the jobs with
-GitHub Actions secrets and repository variables for workspace and test-data
-settings.
+The CI jobs use `SLCLI_E2E_SLS_BASE_URL` for SLS and
+`https://test-api.lifecyclesolutions.ni.com` for SLE. Set the SLS URL to the
+new server reachable by GitHub-hosted runners and update the SLS API key secret
+for that server before running CI. The migration job uses the same SLS URL and
+API key but creates its own dedicated migration fixture workspaces.
 
 ### Required GitHub Secrets
 
 - `SLCLI_E2E_SLS_API_KEY` - API key for the SystemLink Server (SLS) test user
 - `SLCLI_E2E_SLE_API_KEY` - API key for the SystemLink Enterprise (SLE) test user
 
-### Recommended GitHub Repository Variables
+### GitHub Repository Variables
 
-- `SLCLI_E2E_SLS_WORKSPACE` - Workspace for the SLS test user (optional, defaults to `Default`)
+- `SLCLI_E2E_SLS_BASE_URL` - SLS API URL (required when the SLS API key is configured)
+- `SLCLI_E2E_SLS_WORKSPACE` - Workspace for the SLS test user (optional, defaults to `SLCLI-Test`)
 - `SLCLI_E2E_SLS_TEST_NOTEBOOK_PATH` - Notebook path used by SLS notebook execution tests (optional, enables more SLS coverage)
 - `SLCLI_E2E_SLE_WORKSPACE` - Workspace for the SLE test user (optional, defaults to `Default`)
 - `SLCLI_E2E_SLE_TEST_NOTEBOOK_ID` - Notebook ID used by SLE routine/notebook tests (optional, enables more SLE coverage)

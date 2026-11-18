@@ -11,6 +11,8 @@ from click.testing import CliRunner
 from slcli import dataframe_click as dataframe_module
 from slcli.dataframe_click import register_dataframe_commands
 
+pytestmark = pytest.mark.usefixtures("interactive_environment")
+
 
 def patch_keyring(monkeypatch: Any) -> None:
     """Set environment credentials used by CLI tests."""

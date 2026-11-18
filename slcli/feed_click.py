@@ -14,7 +14,7 @@ import click
 import questionary
 import requests
 
-from .cli_utils import validate_output_format
+from .cli_utils import validate_confirmation, validate_output_format
 from .platform import PLATFORM_SLS, get_platform
 from .universal_handlers import FilteredResponse, UniversalResponseHandler
 from .utils import (
@@ -457,7 +457,14 @@ def register_feed_commands(cli: Any) -> None:
         default="table",
         help="Output format",
     )
-    @click.option("--take", "-t", type=int, default=25, show_default=True, help="Items per page")
+    @click.option(
+        "--take",
+        "-t",
+        type=click.IntRange(min=1),
+        default=25,
+        show_default=True,
+        help="Items per page",
+    )
     @click.option(
         "--platform",
         "-p",
@@ -619,7 +626,9 @@ def register_feed_commands(cli: Any) -> None:
 
     @feed.command(name="delete")
     @click.option("--id", "-i", "feed_id", required=True, help="Feed ID to delete")
-    @click.option("--yes", "-y", is_flag=True, help="Skip confirmation prompt")
+    @click.option(
+        "--yes", "-y", is_flag=True, help="Skip confirmation prompt", callback=validate_confirmation
+    )
     @click.option("--wait", is_flag=True, help="Wait for operation to complete")
     @click.option("--timeout", type=int, default=300, help="Timeout in seconds when using --wait")
     def delete_feed(feed_id: str, yes: bool, wait: bool, timeout: int) -> None:
@@ -740,7 +749,14 @@ def register_feed_commands(cli: Any) -> None:
         default="table",
         help="Output format",
     )
-    @click.option("--take", "-t", type=int, default=25, show_default=True, help="Items per page")
+    @click.option(
+        "--take",
+        "-t",
+        type=click.IntRange(min=1),
+        default=25,
+        show_default=True,
+        help="Items per page",
+    )
     def list_packages(feed_id: str, format_: str, take: int) -> None:
         """List packages in a feed."""
         format_output = validate_output_format(format_)
@@ -852,7 +868,9 @@ def register_feed_commands(cli: Any) -> None:
 
     @package.command(name="delete")
     @click.option("--id", "-i", "package_id", required=True, help="Package ID to delete")
-    @click.option("--yes", "-y", is_flag=True, help="Skip confirmation prompt")
+    @click.option(
+        "--yes", "-y", is_flag=True, help="Skip confirmation prompt", callback=validate_confirmation
+    )
     @click.option("--wait", is_flag=True, help="Wait for operation to complete")
     @click.option("--timeout", type=int, default=300, help="Timeout in seconds when using --wait")
     def delete_package(package_id: str, yes: bool, wait: bool, timeout: int) -> None:

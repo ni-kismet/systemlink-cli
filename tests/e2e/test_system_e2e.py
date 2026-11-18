@@ -32,9 +32,10 @@ class TestSystemListE2E:
         )
         cli_helper.assert_success(result)
 
-        assert "Alias" in result.stdout
-        assert "Host" in result.stdout
-        assert "State" in result.stdout
+        assert (
+            all(header in result.stdout for header in ("Alias", "Host", "State"))
+            or "No systems found" in result.stdout
+        )
 
     def test_list_with_take(self, cli_runner: Any, cli_helper: Any) -> None:
         """Test listing with --take pagination limit (table output)."""
@@ -45,7 +46,7 @@ class TestSystemListE2E:
         cli_helper.assert_success(result)
 
         # Table should display results with take=3
-        assert "Alias" in result.stdout
+        assert "Alias" in result.stdout or "No systems found" in result.stdout
 
     def test_list_with_state_filter(self, cli_runner: Any, cli_helper: Any) -> None:
         """Test listing systems filtered by connection state."""

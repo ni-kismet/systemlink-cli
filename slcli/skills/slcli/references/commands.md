@@ -687,17 +687,21 @@ slcli comment update <COMMENT_ID> \
   --mention f9d5c5c9-e098-4a82-8e55-fede326a4ec3
 
 # Delete one or more comments by ID (up to 1000 per call)
-slcli comment delete <COMMENT_ID>
-slcli comment delete <ID1> <ID2> <ID3>
+slcli comment delete <COMMENT_ID> --yes
+slcli comment delete <ID1> <ID2> <ID3> --yes
 ```
 
 ## workspace — Workspace management
 
 ```bash
-slcli workspace list [--format json]
+slcli workspace list [--format json] [--take N]
 slcli workspace get --workspace WORKSPACE_ID [--format json]
 slcli workspace disable --id WORKSPACE_ID [--yes]
 ```
+
+`workspace list` defaults to 100. For JSON output, `--take` limits the total
+results. For table output, it sets the page size (maximum 100); interactive users
+can continue through additional pages.
 
 ## config — Profile and credential management
 
@@ -1047,7 +1051,7 @@ slcli example list [-f json]                             # List available exampl
 slcli example info <EXAMPLE_NAME>                        # Show example details
 slcli example install [EXAMPLE_NAME] --workspace NAME    # Provision example resources
 slcli example install --file PATH --workspace NAME      # Install a local fixture
-slcli example delete <EXAMPLE_NAME> --workspace NAME     # Remove provisioned resources
+slcli example delete <EXAMPLE_NAME> --workspace NAME --yes # Remove provisioned resources
 ```
 
 For a local fixture, `PATH` points to its `config.yaml`; referenced files are

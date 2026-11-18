@@ -16,6 +16,7 @@ import questionary
 
 from .alarm_click import register_alarm_commands
 from .asset_click import register_asset_commands
+from .cli_utils import validate_confirmation
 from .comment_click import register_comment_commands
 from .completion_click import register_completion_command
 from .config_click import register_config_commands
@@ -27,6 +28,7 @@ from .file_click import register_file_commands
 from .function_click import register_function_commands
 from .managed_client_click import register_managed_client_commands
 from .mcp_click import register_mcp_commands
+from .migrate_click import register_migrate_command
 from .notebook_click import register_notebook_commands
 from .platform import get_platform_info
 from .policy_click import register_policy_commands
@@ -80,6 +82,7 @@ def _configure_rich_click_command_groups() -> None:
                     "version",
                     "completion",
                     "example",
+                    "migrate",
                 ],
             },
             {
@@ -493,7 +496,15 @@ def login(
 @cli.command()
 @click.option("--profile", "-p", help="Profile to remove (default: current profile)")
 @click.option("--all", "remove_all", is_flag=True, help="Remove all profiles")
-@click.option("--force", "-f", is_flag=True, help="Skip confirmation prompt")
+@click.option(
+    "--force",
+    "--yes",
+    "-y",
+    "-f",
+    is_flag=True,
+    help="Skip confirmation prompt",
+    callback=validate_confirmation,
+)
 def logout(profile: Optional[str], remove_all: bool, force: bool) -> None:
     """Remove stored SystemLink profiles and credentials.
 
@@ -791,6 +802,7 @@ register_file_commands(cli)
 register_function_commands(cli)
 register_managed_client_commands(cli)
 register_mcp_commands(cli)
+register_migrate_command(cli)
 register_templates_commands(cli)
 register_notebook_commands(cli)
 register_policy_commands(cli)

@@ -9,6 +9,8 @@ from slcli.utils import ExitCodes
 from slcli.workflows_click import register_workflows_commands
 from .test_utils import patch_keyring
 
+pytestmark = pytest.mark.usefixtures("interactive_environment")
+
 
 def make_cli() -> click.Group:
     """Create a dummy CLI for testing."""

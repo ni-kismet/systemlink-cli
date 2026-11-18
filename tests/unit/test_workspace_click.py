@@ -2,12 +2,95 @@
 
 import json
 from typing import Any
+from unittest.mock import Mock
+from urllib.parse import parse_qs, urlparse
 
 import click
 import pytest
 from click.testing import CliRunner
 
 from slcli.workspace_click import register_workspace_commands
+
+pytestmark = pytest.mark.usefixtures("interactive_environment")
+
+
+@pytest.mark.parametrize("name", ["R&D", "a+b #1", "Lab/\u6e2c\u8a66"])
+def test_workspace_filter_is_url_encoded(monkeypatch: Any, name: str) -> None:
+    """Workspace names remain one query value even when they contain URL delimiters."""
+    from slcli.workspace_click import _fetch_workspaces_page
+
+    request = Mock()
+    request.return_value.json.return_value = {"workspaces": [], "totalCount": 0}
+    monkeypatch.setattr("slcli.workspace_click.get_base_url", lambda: "https://example.com")
+    monkeypatch.setattr("slcli.workspace_click.make_api_request", request)
+
+    assert _fetch_workspaces_page(name) == ([], 0, None)
+    query = parse_qs(urlparse(request.call_args.args[1]).query)
+    assert query == {"take": ["100"], "skip": ["0"], "name": [f"*{name}*"]}
+
+
+@pytest.mark.parametrize("output_format", ["table", "json"])
+@pytest.mark.parametrize("take,disabled_count", [(200, 0), (1, 1)])
+def test_workspace_pagination_preserves_matching_records(
+    monkeypatch: Any, output_format: str, take: int, disabled_count: int
+) -> None:
+    """Capped requests and disabled-only pages cannot skip later matching workspaces."""
+    fetched_offsets = []
+    records = [{"id": f"ws-{index}", "enabled": index >= disabled_count} for index in range(250)]
+
+    def request(method: str, url: str, **kwargs: Any) -> Mock:
+        query = parse_qs(urlparse(url).query)
+        size = int(query["take"][0])
+        skip = int(query["skip"][0])
+        fetched_offsets.append(skip)
+        response = Mock()
+        response.json.return_value = {
+            "workspaces": records[skip : skip + size],
+            "totalCount": len(records),
+        }
+        return response
+
+    displayed = []
+    monkeypatch.setattr("slcli.workspace_click.get_base_url", lambda: "https://example.com")
+    monkeypatch.setattr("slcli.workspace_click.make_api_request", request)
+    monkeypatch.setattr("slcli.workspace_click.is_interactive_environment", lambda: True)
+    monkeypatch.setattr("slcli.workspace_click.click.confirm", lambda *args, **kwargs: True)
+    monkeypatch.setattr(
+        "slcli.table_utils.output_formatted_list", lambda items, *args: displayed.extend(items)
+    )
+
+    result = CliRunner().invoke(
+        make_cli(), ["workspace", "list", "--format", output_format, "--take", str(take)]
+    )
+    assert result.exit_code == 0, result.output
+    expected = records[disabled_count:]
+    if output_format == "json":
+        assert json.loads(result.output) == expected[:take]
+    else:
+        assert displayed == expected
+    if take > 100:
+        assert fetched_offsets[:2] == [0, 100]
+
+
+def test_workspace_empty_filtered_result_is_explicit(monkeypatch: Any) -> None:
+    """An exhausted disabled-only result has one clear empty state."""
+    monkeypatch.setattr(
+        "slcli.workspace_click._fetch_workspaces_page",
+        lambda *args, **kwargs: ([{"id": "disabled", "enabled": False}], 1, None),
+    )
+    result = CliRunner().invoke(make_cli(), ["workspace", "list"])
+    assert result.exit_code == 0
+    assert result.output.strip() == "No workspaces found."
+
+
+def test_workspace_list_defaults_to_100(monkeypatch: Any) -> None:
+    """Workspace list uses 100 as the default API page size."""
+    fetch_workspaces_page = Mock(return_value=([], 0, None))
+    monkeypatch.setattr("slcli.workspace_click._fetch_workspaces_page", fetch_workspaces_page)
+    result = CliRunner().invoke(make_cli(), ["workspace", "list"])
+
+    assert result.exit_code == 0
+    assert fetch_workspaces_page.call_args.kwargs["take"] == 100
 
 
 def patch_keyring(monkeypatch: Any) -> None:
