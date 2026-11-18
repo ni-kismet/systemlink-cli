@@ -2,6 +2,13 @@
 
 <!-- towncrier release notes start -->
 
+## v3.3.3 (2026-11-18)
+
+### Bug Fixes
+
+- Update dependency msgpack to v1.2.4 [SECURITY]. (deps-renovate-pypi-msgpack-vulnerability)
+
+
 ## v3.3.2 (2026-11-18)
 
 ### Bug Fixes
