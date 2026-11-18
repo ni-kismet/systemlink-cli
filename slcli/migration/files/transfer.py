@@ -185,8 +185,9 @@ def _upload_with_retry(
     reserved_ids: Set[str],
 ) -> str:
     """Retry once with a fresh download, reconciling a potentially lost response first."""
+    upload_attempted = False
     for attempt in range(1, UPLOAD_ATTEMPTS + 1):
-        if attempt > 1:
+        if attempt > 1 and upload_attempted:
             existing = {item.id: item for item in destination.query_files(workspace_id)}
             migrated = _find_migrated_file(file.id, _index_migrated_files(existing.values()))
             if migrated is not None:
@@ -194,6 +195,7 @@ def _upload_with_retry(
             requested_id = _choose_id(requested_id, existing, reserved_ids)
         try:
             with source.download_file(file.id) as content:
+                upload_attempted = True
                 return destination.upload_file(
                     requested_id,
                     workspace_id,

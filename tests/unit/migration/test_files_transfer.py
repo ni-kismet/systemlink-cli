@@ -246,6 +246,7 @@ def test_failed_transfer_is_retried_once() -> None:
 
     assert transfer == FileTransfer(transferred=1)
     assert files.downloads == ["f1", "f1"]
+    assert files.queried == ["sh-id"]
 
 
 def test_upload_annotation_overrides_source_metadata_without_mutating_it() -> None:
@@ -284,6 +285,7 @@ def test_retry_recovers_successful_upload_with_lost_response() -> None:
     assert transfer == FileTransfer(transferred=1, reassigned_ids={"new-f1": "server-id"})
     assert len(files.uploads) == 1
     assert files.downloads == ["f1"]
+    assert files.queried == ["sh-id", "sh-id"]
 
 
 def test_failed_upload_reopens_download_for_retry() -> None:
@@ -310,6 +312,7 @@ def test_failed_upload_reopens_download_for_retry() -> None:
     ) == FileTransfer(transferred=1)
     assert files.downloads == ["f1", "f1"]
     assert [upload["data"] for upload in files.uploads] == [b"f1", b"f1"]
+    assert files.queried == ["sh-id", "sh-id"]
 
 
 def test_annotation_matching_is_scoped_to_mapped_workspace() -> None:
