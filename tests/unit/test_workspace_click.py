@@ -26,7 +26,7 @@ def test_workspace_filter_is_url_encoded(monkeypatch: Any, name: str) -> None:
 
     assert _fetch_workspaces_page(name) == ([], 0, None)
     query = parse_qs(urlparse(request.call_args.args[1]).query)
-    assert query == {"take": ["25"], "skip": ["0"], "name": [f"*{name}*"]}
+    assert query == {"take": ["100"], "skip": ["0"], "name": [f"*{name}*"]}
 
 
 @pytest.mark.parametrize("output_format", ["table", "json"])
@@ -81,6 +81,16 @@ def test_workspace_empty_filtered_result_is_explicit(monkeypatch: Any) -> None:
     result = CliRunner().invoke(make_cli(), ["workspace", "list"])
     assert result.exit_code == 0
     assert result.output.strip() == "No workspaces found."
+
+
+def test_workspace_list_defaults_to_100(monkeypatch: Any) -> None:
+    """Workspace list uses 100 as the default API page size."""
+    fetch_workspaces_page = Mock(return_value=([], 0, None))
+    monkeypatch.setattr("slcli.workspace_click._fetch_workspaces_page", fetch_workspaces_page)
+    result = CliRunner().invoke(make_cli(), ["workspace", "list"])
+
+    assert result.exit_code == 0
+    assert fetch_workspaces_page.call_args.kwargs["take"] == 100
 
 
 def patch_keyring(monkeypatch: Any) -> None:

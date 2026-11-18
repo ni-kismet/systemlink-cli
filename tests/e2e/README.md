@@ -169,6 +169,9 @@ between, and after migration tests. Workspace names are constants because
 workspaces cannot be deleted on shared servers; do not make them unique per run.
 Fixtures only modify the dedicated `e2e-slcli-migration-*` workspaces, the
 destination workspace, and resources carrying the fixture ownership property.
+Cleanup refuses to run if a fixture or destination workspace holds Test Monitor
+resources without that property. Migrated resources keep their source
+properties, so they carry it too.
 
 Each pytest session starts its own Prefect server (~10s). To reuse one across
 runs, start it in another terminal and point the tests at it:
@@ -180,6 +183,21 @@ export SLCLI_E2E_SOURCE_PROFILE="sls-vm"
 export SLCLI_TEST_PREFECT_API_URL="http://127.0.0.1:4200/api"
 poetry run pytest tests/e2e/ -m e2e_migration --timeout=300 --no-cov
 ```
+
+#### Manually Test Destination Workspace Creation
+
+The Workspace API does not provide a way to delete workspaces, so to test creation of missing workspaces (without acumulating disabled workspaces over time), we have to use a temporary destination Valinor deployment that can be thrown away. These tests require an explicit opt-in (via env var) and are not run on the CI.
+
+```powershell
+$env:SLCLI_E2E_SOURCE_PROFILE = "sls-vm"
+$env:SLCLI_E2E_DESTINATION_PROFILE = "valinor"
+$env:SLCLI_E2E_ENABLE_WORKSPACE_CREATION_TESTS = "DESTINATION_VALINOR_IS_TEMPORARY_AND_DISPOSABLE"
+poetry run pytest tests/e2e/test_migration_workspace_creation_manual_e2e.py `
+  -m e2e_migration_manual --timeout=300 --no-cov
+```
+
+Each run leaves one uniquely named workspace on the destination. Do not set the
+acknowledgement when using a shared SLE or other non-disposable destination.
 
 ### Run The Local MCP Streamable HTTP Smoke Test
 

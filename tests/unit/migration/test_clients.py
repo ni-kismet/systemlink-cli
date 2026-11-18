@@ -7,8 +7,11 @@ from typing import Any, Dict, Iterator, List, Union
 import pytest
 import requests
 from pydantic import ValidationError
+from requests.adapters import HTTPAdapter
 
 from slcli.migration.connection import MigrationConnection
+from slcli.migration.files.client import FilesClient
+from slcli.migration.files.client import PAGE_SIZE as FILES_PAGE_SIZE
 from slcli.migration.testmonitor.client import PAGE_SIZE, TestMonitorClient
 from slcli.migration.workspace_client import PAGE_SIZE as WORKSPACE_PAGE_SIZE
 from slcli.migration.workspace_client import WorkspaceClient
@@ -104,6 +107,70 @@ def test_query_results_accepts_null_property_values() -> None:
 
     [result] = client.query_results()
     assert result.properties == {"TEST_STOP_TIME": None, "owner": "test"}
+
+
+def test_query_files_pages_with_skip_until_short_page() -> None:
+    """Files page with skip/take per workspace and stop after a short page."""
+    full_page = [{"id": f"f{i}", "properties": {"Name": f"n{i}"}} for i in range(FILES_PAGE_SIZE)]
+    session = FakeSession(
+        [
+            {"availableFiles": full_page},
+            {"availableFiles": [{"id": "last", "size64": 9}]},
+        ]
+    )
+    client = FilesClient(CONNECTION, session)  # type: ignore[arg-type]
+
+    files = list(client.query_files("lab-id"))
+
+    assert len(files) == FILES_PAGE_SIZE + 1
+    assert files[0].name == "n0"
+    assert files[-1].id == "last"
+    assert files[-1].size_bytes == 9
+    assert session.calls[0]["url"] == (
+        "https://source/nifile/v1/service-groups/Default/query-files"
+    )
+    assert session.calls[0]["params"] == {
+        "skip": 0,
+        "take": FILES_PAGE_SIZE,
+        "workspace": "lab-id",
+    }
+    assert session.calls[1]["params"] == {
+        "skip": FILES_PAGE_SIZE,
+        "take": FILES_PAGE_SIZE,
+        "workspace": "lab-id",
+    }
+    assert session.calls[0]["json"] == {}
+
+
+def test_query_files_fetches_empty_page_after_exact_full_page() -> None:
+    """An exact page-size result is followed by an empty page to finish paging."""
+    full_page = [{"id": f"f{i}"} for i in range(FILES_PAGE_SIZE)]
+    session = FakeSession([{"availableFiles": full_page}, {"availableFiles": []}])
+    client = FilesClient(CONNECTION, session)  # type: ignore[arg-type]
+
+    files = list(client.query_files("lab-id"))
+
+    assert len(files) == FILES_PAGE_SIZE
+    assert [call["params"]["skip"] for call in session.calls] == [0, FILES_PAGE_SIZE]
+
+
+def test_files_client_enables_post_retries_only_for_query_files_route() -> None:
+    """The client's default session safely retries read-only query POSTs."""
+    client = FilesClient(CONNECTION)
+
+    query_adapter = client._session.get_adapter(
+        "https://source/nifile/v1/service-groups/Default/query-files"
+    )
+    assert isinstance(query_adapter, HTTPAdapter)
+    assert "POST" in (query_adapter.max_retries.allowed_methods or ())
+    assert 429 in (query_adapter.max_retries.status_forcelist or ())
+    assert 503 in (query_adapter.max_retries.status_forcelist or ())
+
+    write_adapter = client._session.get_adapter(
+        "https://source/nifile/v1/service-groups/Default/upload-files"
+    )
+    assert isinstance(write_adapter, HTTPAdapter)
+    assert "POST" not in (write_adapter.max_retries.allowed_methods or ())
 
 
 def test_query_rejects_malformed_response() -> None:
