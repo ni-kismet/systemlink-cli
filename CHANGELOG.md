@@ -2,6 +2,13 @@
 
 <!-- towncrier release notes start -->
 
+## v3.3.2 (2026-11-18)
+
+### Bug Fixes
+
+- Update dependency node to v26. (deps-major-github-actions)
+
+
 ## v3.3.1 (2026-11-18)
 
 ### Documentation
