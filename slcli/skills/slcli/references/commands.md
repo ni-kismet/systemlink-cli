@@ -819,6 +819,9 @@ slcli file watch WATCH_DIR [--workspace NAME] [--move-to DIRECTORY | --delete-af
 ```bash
 # Local scaffolding
 slcli notebook init [--name NAME] [--directory DIR]      # Create a local .ipynb template
+# Scaffold or validate the papermill parameters cell (see notebook/metadata.md)
+python .agents/skills/slcli/scripts/notebook_helper.py init --output FILE [--spec SPEC] [--interface CHOICE]
+python .agents/skills/slcli/scripts/notebook_helper.py validate FILE [--interface CHOICE]
 
 # Remote notebook management
 slcli notebook manage list [-w WORKSPACE] [--filter TEXT] [-t INT] [-f json]

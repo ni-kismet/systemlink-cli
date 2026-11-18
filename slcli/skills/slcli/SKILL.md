@@ -40,7 +40,9 @@ Load only what the current task needs.
 | Filtering guide | [filtering.md](./references/filtering.md) | Advanced filters, LINQ syntax, and query composition |
 | Analysis recipes | [analysis-recipes.md](./references/analysis-recipes.md) | Multi-step analysis workflows and reporting patterns |
 | Troubleshooting | [troubleshooting.md](./references/troubleshooting.md) | SSL, workspace IDs, encoding, or scripting pitfalls |
-| Notebook workflow | [notebook/overview.md](./references/notebook/overview.md) | Creating notebooks for SystemLink |
+| Notebook workflow | [notebook/overview.md](./references/notebook/overview.md) | Creating, validating, or publishing notebooks for SystemLink |
+| Notebook metadata | [notebook/metadata.md](./references/notebook/metadata.md) | Writing the papermill parameters cell, input types, or glued result |
+| Notebook helper | [notebook_helper.py](./scripts/notebook_helper.py) | Scaffold or validate a notebook's papermill and SystemLink metadata |
 | Webapp workflow | [webapp/overview.md](./references/webapp/overview.md) | Hosted Angular webapp scaffolding and deployment |
 | Python test workflow | [python-test/overview.md](./references/python-test/overview.md) | Python test app structure and deployment |
 | Job debugging | [job-debugging/overview.md](./references/job-debugging/overview.md) | Salt job triage and recovery |
@@ -75,6 +77,9 @@ Load only what the current task needs.
 9. Prefer workspace IDs over names in scripted workflows when an endpoint is strict about identity.
 10. Use `make_api_request` from `slcli.utils` for helper scripts so auth, SSL, and error handling stay consistent.
 11. For datasheet imports, default to autonomy when the product or workspace can be resolved unambiguously.
+12. For notebook creation or publishing, load `notebook/metadata.md` and run
+    `notebook_helper.py validate --interface INTERFACE` before
+    `notebook manage create` or `update --content`.
 
 ## Common command groups
 
