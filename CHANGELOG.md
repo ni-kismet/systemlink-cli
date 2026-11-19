@@ -2,6 +2,13 @@
 
 <!-- towncrier release notes start -->
 
+## v3.3.7 (2026-11-19)
+
+### Bug Fixes
+
+- Update dependency watchdog to v7. (deps-renovate-major-python-runtime-dependencies)
+
+
 ## v3.3.6 (2026-11-19)
 
 ### Bug Fixes
