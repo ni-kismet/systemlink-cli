@@ -38,12 +38,10 @@ jobs:
           ref: ${{ github.event.inputs.tag || github.ref }}
 
       - name: Set up Python
-        uses: actions/setup-python@6d4fd22b20465ccc0f7354476588e8df7c9ca0e0 # v7.1.0
-        with:
-          python-version: '3.15'
+        uses: ni/python-actions/setup-python@edaf1454897cb4cd5f6fc0757cb62dee455e57fd # v0.10.1
 
       - name: Install Poetry
-        run: pip install poetry
+        uses: ni/python-actions/setup-poetry@edaf1454897cb4cd5f6fc0757cb62dee455e57fd # v0.10.1
 
       - name: Install dependencies
         run: poetry install
@@ -90,12 +88,10 @@ jobs:
           ref: ${{ github.event.inputs.tag || github.ref }}
 
       - name: Set up Python
-        uses: actions/setup-python@6d4fd22b20465ccc0f7354476588e8df7c9ca0e0 # v7.1.0
-        with:
-          python-version: '3.15'
+        uses: ni/python-actions/setup-python@edaf1454897cb4cd5f6fc0757cb62dee455e57fd # v0.10.1
 
       - name: Install Poetry
-        run: pip install poetry
+        uses: ni/python-actions/setup-poetry@edaf1454897cb4cd5f6fc0757cb62dee455e57fd # v0.10.1
 
       - name: Install dependencies
         run: poetry install
@@ -138,12 +134,10 @@ jobs:
           ref: ${{ github.event.inputs.tag || github.ref }}
 
       - name: Set up Python
-        uses: actions/setup-python@6d4fd22b20465ccc0f7354476588e8df7c9ca0e0 # v7.1.0
-        with:
-          python-version: '3.15'
+        uses: ni/python-actions/setup-python@edaf1454897cb4cd5f6fc0757cb62dee455e57fd # v0.10.1
 
       - name: Install Poetry
-        run: pip install poetry
+        uses: ni/python-actions/setup-poetry@edaf1454897cb4cd5f6fc0757cb62dee455e57fd # v0.10.1
 
       - name: Install dependencies
         run: poetry install
@@ -173,12 +167,10 @@ jobs:
           ref: ${{ github.event.inputs.tag || github.ref }}
 
       - name: Set up Python
-        uses: actions/setup-python@6d4fd22b20465ccc0f7354476588e8df7c9ca0e0 # v7.1.0
-        with:
-          python-version: '3.15'
+        uses: ni/python-actions/setup-python@edaf1454897cb4cd5f6fc0757cb62dee455e57fd # v0.10.1
 
       - name: Install Poetry
-        run: pip install poetry
+        uses: ni/python-actions/setup-poetry@edaf1454897cb4cd5f6fc0757cb62dee455e57fd # v0.10.1
 
       - name: Install dependencies
         run: poetry install
@@ -294,12 +286,10 @@ jobs:
           ref: ${{ github.event.inputs.tag || github.ref }}
 
       - name: Set up Python
-        uses: actions/setup-python@6d4fd22b20465ccc0f7354476588e8df7c9ca0e0 # v7.1.0
-        with:
-          python-version: '3.15'
+        uses: ni/python-actions/setup-python@edaf1454897cb4cd5f6fc0757cb62dee455e57fd # v0.10.1
 
       - name: Install Poetry
-        run: pip install poetry
+        uses: ni/python-actions/setup-poetry@edaf1454897cb4cd5f6fc0757cb62dee455e57fd # v0.10.1
 
       - name: Build package
         run: poetry build

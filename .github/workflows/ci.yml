@@ -18,14 +18,10 @@ jobs:
 
       - name: Set up Python
         id: setup-python
-        uses: actions/setup-python@6d4fd22b20465ccc0f7354476588e8df7c9ca0e0 # v7.1.0
-        with:
-          python-version: '3.15'
+        uses: ni/python-actions/setup-python@edaf1454897cb4cd5f6fc0757cb62dee455e57fd # v0.10.1
 
       - name: Install Poetry
         uses: ni/python-actions/setup-poetry@edaf1454897cb4cd5f6fc0757cb62dee455e57fd # v0.10.1
-        env:
-          pythonVersion: ${{ steps.setup-python.outputs.python-version }}
 
       - name: Install dependencies
         run: poetry install --extras managed-client
@@ -84,6 +80,35 @@ jobs:
           name: slcli-binary
           path: dist/slcli/
 
+  unit-tests:
+    # The build interpreter comes from ni/python-actions/setup-python's default.
+    # This matrix covers the full range declared in pyproject.toml for PyPI users.
+    name: Unit tests (${{ matrix.os }}, Python ${{ matrix.python-version }})
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 20
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, windows-latest]
+        python-version: ['3.11', '3.12', '3.13', '3.14', '3.15']
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+
+      - name: Set up Python
+        uses: ni/python-actions/setup-python@edaf1454897cb4cd5f6fc0757cb62dee455e57fd # v0.10.1
+        with:
+          python-version: ${{ matrix.python-version }}
+
+      - name: Install Poetry
+        uses: ni/python-actions/setup-poetry@edaf1454897cb4cd5f6fc0757cb62dee455e57fd # v0.10.1
+
+      - name: Install dependencies
+        run: poetry install --extras managed-client
+
+      - name: Run unit tests
+        run: poetry run pytest tests/unit --no-cov -q
+
   migration-full-os-matrix-e2e:
     name: E2E (Migration - full OS matrix) (${{ matrix.os }})
     runs-on: ${{ matrix.os }}
@@ -98,14 +123,10 @@ jobs:
 
       - name: Set up Python
         id: setup-python
-        uses: actions/setup-python@6d4fd22b20465ccc0f7354476588e8df7c9ca0e0 # v7.1.0
-        with:
-          python-version: '3.15'
+        uses: ni/python-actions/setup-python@edaf1454897cb4cd5f6fc0757cb62dee455e57fd # v0.10.1
 
       - name: Install Poetry
         uses: ni/python-actions/setup-poetry@edaf1454897cb4cd5f6fc0757cb62dee455e57fd # v0.10.1
-        env:
-          pythonVersion: ${{ steps.setup-python.outputs.python-version }}
 
       - name: Install dependencies
         run: poetry install
@@ -123,14 +144,10 @@ jobs:
 
       - name: Set up Python
         id: setup-python
-        uses: actions/setup-python@6d4fd22b20465ccc0f7354476588e8df7c9ca0e0 # v7.1.0
-        with:
-          python-version: '3.15'
+        uses: ni/python-actions/setup-python@edaf1454897cb4cd5f6fc0757cb62dee455e57fd # v0.10.1
 
       - name: Install Poetry
         uses: ni/python-actions/setup-poetry@edaf1454897cb4cd5f6fc0757cb62dee455e57fd # v0.10.1
-        env:
-          pythonVersion: ${{ steps.setup-python.outputs.python-version }}
 
       - name: Install dependencies
         run: poetry install --extras managed-client
@@ -157,14 +174,10 @@ jobs:
 
       - name: Set up Python
         id: setup-python
-        uses: actions/setup-python@6d4fd22b20465ccc0f7354476588e8df7c9ca0e0 # v7.1.0
-        with:
-          python-version: '3.15'
+        uses: ni/python-actions/setup-python@edaf1454897cb4cd5f6fc0757cb62dee455e57fd # v0.10.1
 
       - name: Install Poetry
         uses: ni/python-actions/setup-poetry@edaf1454897cb4cd5f6fc0757cb62dee455e57fd # v0.10.1
-        env:
-          pythonVersion: ${{ steps.setup-python.outputs.python-version }}
 
       - name: Install dependencies
         run: poetry install
@@ -224,15 +237,11 @@ jobs:
       - name: Set up Python
         if: ${{ steps.sls-config.outputs.enabled == 'true' }}
         id: setup-python
-        uses: actions/setup-python@6d4fd22b20465ccc0f7354476588e8df7c9ca0e0 # v7.1.0
-        with:
-          python-version: '3.15'
+        uses: ni/python-actions/setup-python@edaf1454897cb4cd5f6fc0757cb62dee455e57fd # v0.10.1
 
       - name: Install Poetry
         if: ${{ steps.sls-config.outputs.enabled == 'true' }}
         uses: ni/python-actions/setup-poetry@edaf1454897cb4cd5f6fc0757cb62dee455e57fd # v0.10.1
-        env:
-          pythonVersion: ${{ steps.setup-python.outputs.python-version }}
 
       - name: Install dependencies
         if: ${{ steps.sls-config.outputs.enabled == 'true' }}
@@ -316,15 +325,11 @@ jobs:
       - name: Set up Python
         id: setup-python
         if: ${{ steps.migration-config.outputs.enabled == 'true' }}
-        uses: actions/setup-python@6d4fd22b20465ccc0f7354476588e8df7c9ca0e0 # v7.1.0
-        with:
-          python-version: '3.15'
+        uses: ni/python-actions/setup-python@edaf1454897cb4cd5f6fc0757cb62dee455e57fd # v0.10.1
 
       - name: Install Poetry
         if: ${{ steps.migration-config.outputs.enabled == 'true' }}
         uses: ni/python-actions/setup-poetry@edaf1454897cb4cd5f6fc0757cb62dee455e57fd # v0.10.1
-        env:
-          pythonVersion: ${{ steps.setup-python.outputs.python-version }}
 
       - name: Install dependencies
         if: ${{ steps.migration-config.outputs.enabled == 'true' }}
@@ -418,15 +423,11 @@ jobs:
       - name: Set up Python
         if: ${{ steps.sle-config.outputs.enabled == 'true' }}
         id: setup-python
-        uses: actions/setup-python@6d4fd22b20465ccc0f7354476588e8df7c9ca0e0 # v7.1.0
-        with:
-          python-version: '3.15'
+        uses: ni/python-actions/setup-python@edaf1454897cb4cd5f6fc0757cb62dee455e57fd # v0.10.1
 
       - name: Install Poetry
         if: ${{ steps.sle-config.outputs.enabled == 'true' }}
         uses: ni/python-actions/setup-poetry@edaf1454897cb4cd5f6fc0757cb62dee455e57fd # v0.10.1
-        env:
-          pythonVersion: ${{ steps.setup-python.outputs.python-version }}
 
       - name: Install dependencies
         if: ${{ steps.sle-config.outputs.enabled == 'true' }}
