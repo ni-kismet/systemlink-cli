@@ -185,8 +185,18 @@ def test_invalid_json_response_fails_with_typed_error() -> None:
         adapter.list_key_states()
 
 
-def test_wait_for_key_state_passes_remaining_timeout_to_request() -> None:
+def test_wait_for_key_state_passes_remaining_timeout_to_request(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
     """Polling gives each HTTP request the remaining overall deadline."""
+    # Use a fake clock: on Windows before Python 3.13, time.monotonic() ticks at
+    # ~15.6 ms, so a real 1 ms poll interval would not shrink the remaining time.
+    clock = [100.0]
+    monkeypatch.setattr("slcli.managed_client.rest.time.monotonic", lambda: clock[0])
+    monkeypatch.setattr(
+        "slcli.managed_client.rest.time.sleep",
+        lambda seconds: clock.__setitem__(0, clock[0] + seconds),
+    )
     timeouts: list[float] = []
     responses = iter(
         [

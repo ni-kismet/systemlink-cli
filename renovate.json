@@ -18,6 +18,12 @@
       "platformAutomerge": true
     },
     {
+      "description": "Never update Python interpreter versions in workflows - the build version comes from ni/python-actions/setup-python's default and the test matrix range is managed manually alongside pyproject.toml",
+      "matchManagers": ["github-actions"],
+      "matchDepNames": ["python"],
+      "enabled": false
+    },
+    {
       "description": "Group all production Python dependency updates into one PR",
       "matchManagers": ["poetry"],
       "matchDepTypes": ["dependencies"],

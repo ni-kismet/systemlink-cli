@@ -214,6 +214,11 @@ This will:
 - All builds, tests, and packaging are automated via GitHub Actions for both Homebrew and Scoop
 - Artifacts (`slcli.tar.gz`, `homebrew-slcli.rb`, `slcli.exe`, `scoop-slcli.json`) are uploaded for each build
 
+### Python Versions in CI
+
+- Build, lint, E2E, and release jobs use `ni/python-actions/setup-python` without a `python-version`, so the interpreter bundled into the PyInstaller binaries follows NI's shared default. Do not hard-code a version in these jobs.
+- The `unit-tests` matrix in `ci.yml` covers every Python version in the `pyproject.toml` range, because PyPI users can run any of them. Update the matrix and `pyproject.toml` together; Renovate is configured not to change either.
+
 ## Release Process
 
 ### Creating a Release
