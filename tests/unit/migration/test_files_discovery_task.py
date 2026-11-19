@@ -32,29 +32,4 @@ def test_incomplete_migration_discovery_raises_instead_of_returning_partial_map(
     )
 
     with pytest.raises(click.ClickException, match="Broken.*Retry the migration"):
-        discover_files_task.fn(
-            "migration-id", "source", DiscoveredWorkspaces(), require_complete=True
-        )
-
-
-def test_incomplete_discovery_can_still_be_returned_when_completeness_is_not_required(
-    monkeypatch: pytest.MonkeyPatch,
-) -> None:
-    """The discovery-only flow retains its existing partial-results behavior."""
-    discovery = FileDiscovery(
-        failures=(WorkspaceFailure(workspace="Broken", error_type="HTTPError"),),
-    )
-    monkeypatch.setattr(
-        "slcli.migration.files.discovery_task.resolve_migration_connection",
-        lambda _profile: object(),
-    )
-    monkeypatch.setattr(
-        "slcli.migration.files.discovery_task.FilesClient",
-        lambda _connection: object(),
-    )
-    monkeypatch.setattr(
-        "slcli.migration.files.discovery_task.discover_files",
-        lambda _client, _workspaces: discovery,
-    )
-
-    assert discover_files_task.fn("migration-id", "source", DiscoveredWorkspaces()) == discovery
+        discover_files_task.fn("migration-id", "source", DiscoveredWorkspaces())
