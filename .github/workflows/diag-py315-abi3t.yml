@@ -60,6 +60,22 @@ jobs:
           & "$env:RUNNER_TEMP\v\Scripts\python.exe" -m pip install -q --only-binary=:all: cryptography==50.0.2
           & "$env:RUNNER_TEMP\v\Scripts\python.exe" -c "import cryptography.hazmat.bindings._rust as r; print('VENV IMPORT OK', r.__file__)"
 
+      - name: Import cryptography 50.0.2 (virtualenv package, as Poetry uses)
+        shell: pwsh
+        continue-on-error: true
+        run: |
+          python -m pip install -q virtualenv
+          python -m virtualenv --version
+          python -m virtualenv "$env:RUNNER_TEMP\ve"
+          "--- DLLs in virtualenv ---"
+          Get-ChildItem "$env:RUNNER_TEMP\ve" -Recurse -Include 'python3*.dll','python315.dll' | Select-Object FullName
+          Get-ChildItem "$env:RUNNER_TEMP\ve" -Recurse -Directory -Filter '*abi3t*' | Select-Object FullName
+          & "$env:RUNNER_TEMP\ve\Scripts\python.exe" -m pip install -q --only-binary=:all: cryptography==50.0.2
+          & "$env:RUNNER_TEMP\ve\Scripts\python.exe" -c "import cryptography.hazmat.bindings._rust as r; print('VIRTUALENV IMPORT OK', r.__file__)"
+          "--- retry after copying abi3t-compat next to the venv's python315.dll ---"
+          Copy-Item -Recurse "${{ env.pythonLocation }}\abi3t-compat" "$env:RUNNER_TEMP\ve\Scripts\abi3t-compat"
+          & "$env:RUNNER_TEMP\ve\Scripts\python.exe" -c "import cryptography.hazmat.bindings._rust as r; print('VIRTUALENV+COMPAT IMPORT OK', r.__file__)"
+
       - name: Fresh python.org 3.15.2 installer (same flags as actions/python-versions) for comparison
         shell: pwsh
         continue-on-error: true
