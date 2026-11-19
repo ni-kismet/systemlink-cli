@@ -1,6 +1,6 @@
 [tool.poetry]
 name = "systemlink-cli"
-version = "3.3.1"
+version = "3.3.7"
 description = "SystemLink Integrator CLI - cross-platform CLI for SystemLink workflows and templates."
 authors = ["Fred Visser <fred.visser@emerson.com>"]
 packages = [{ include = "slcli" }]
@@ -33,7 +33,7 @@ urllib3 = ">=2,<3"
 idna = ">=3.10,<4"
 tabulate = "^0.10.0"
 truststore = ">=0.9,<0.11"
-watchdog = "^6.0.0"
+watchdog = "^7.0.0"
 pyyaml = "^6.0.3"
 questionary = "^2.1.1"
 packaging = ">=21.0"

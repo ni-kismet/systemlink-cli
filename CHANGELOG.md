@@ -2,6 +2,48 @@
 
 <!-- towncrier release notes start -->
 
+## v3.3.7 (2026-11-19)
+
+### Bug Fixes
+
+- Update dependency watchdog to v7. (deps-renovate-major-python-runtime-dependencies)
+
+
+## v3.3.6 (2026-11-19)
+
+### Bug Fixes
+
+- Update GitHub Actions. (deps-renovate-github-actions)
+
+
+## v3.3.5 (2026-11-19)
+
+### Bug Fixes
+
+- Update dependency urllib3 to v2.8.0 [SECURITY]. (deps-renovate-pypi-urllib3-vulnerability)
+
+
+## v3.3.4 (2026-11-18)
+
+### Bug Fixes
+
+- Update Python packages. (deps-renovate-python)
+
+
+## v3.3.3 (2026-11-18)
+
+### Bug Fixes
+
+- Update dependency msgpack to v1.2.4 [SECURITY]. (deps-renovate-pypi-msgpack-vulnerability)
+
+
+## v3.3.2 (2026-11-18)
+
+### Bug Fixes
+
+- Update dependency node to v26. (deps-major-github-actions)
+
+
 ## v3.3.1 (2026-11-18)
 
 ### Documentation
