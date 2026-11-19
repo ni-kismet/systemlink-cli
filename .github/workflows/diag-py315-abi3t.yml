@@ -8,85 +8,51 @@ permissions:
   contents: read
 
 jobs:
-  diag:
-    strategy:
-      fail-fast: false
-      matrix:
-        os: [windows-latest, windows-2025]
-    runs-on: ${{ matrix.os }}
+  poetry-repro:
+    runs-on: windows-latest
     steps:
-      - uses: actions/setup-python@6d4fd22b20465ccc0f7354476588e8df7c9ca0e0 # v7.1.0
-        id: py
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+        with:
+          ref: 9692cdea67295d65a129fb661da3b8cb1c79bf82  # PR #284 head
+          persist-credentials: false
+      - uses: ni/python-actions/setup-python@edaf1454897cb4cd5f6fc0757cb62dee455e57fd # v0.10.1
         with:
           python-version: '3.15'
-
-      - name: Image and interpreter info
-        shell: pwsh
-        run: |
-          "ImageOS=$env:ImageOS ImageVersion=$env:ImageVersion"
-          python -c "import sys, sysconfig; print(sys.version); print(sys.executable); print(sys.base_prefix); print(sysconfig.get_config_var('abiflags'))"
-
-      - name: Locate python3*.dll and abi3t folders
-        shell: pwsh
-        run: |
-          $root = "${{ env.pythonLocation }}"
-          "pythonLocation=$root"
-          "--- top-level entries ---"
-          Get-ChildItem $root | Select-Object Mode, Name | Format-Table -AutoSize | Out-String -Width 200
-          "--- python3*.dll anywhere under install ---"
-          Get-ChildItem $root -Recurse -Filter 'python3*.dll' -ErrorAction SilentlyContinue | Select-Object FullName, Length | Format-Table -AutoSize | Out-String -Width 300
-          "--- abi3t* directories ---"
-          Get-ChildItem $root -Recurse -Directory -Filter '*abi3t*' -ErrorAction SilentlyContinue | Select-Object FullName
-          "--- python3t.dll anywhere in toolcache Python ---"
-          Get-ChildItem "$env:RUNNER_TOOL_CACHE\Python" -Recurse -Filter 'python3t.dll' -ErrorAction SilentlyContinue | Select-Object FullName
-          "--- installer files kept in toolcache dir ---"
-          Get-ChildItem $root -File -Filter '*.exe' | Select-Object Name, Length
-
-      - name: Import cryptography 50.0.2 (system interpreter)
+      - uses: ni/python-actions/setup-poetry@edaf1454897cb4cd5f6fc0757cb62dee455e57fd # v0.10.1
+      - name: poetry install
+        run: poetry install --extras managed-client --no-interaction
+      - name: Inspect env and _rust.pyd
         shell: pwsh
         continue-on-error: true
         run: |
-          python -m pip install --only-binary=:all: cryptography==50.0.2
-          python -m pip show -f cryptography | Select-String 'WHEEL|_rust'
-          python -c "import pathlib, cryptography; print(list(pathlib.Path(cryptography.__file__).parent.glob('**/*.dist-info/WHEEL')))"
-          Get-Content (python -c "import importlib.metadata as m; d=m.distribution('cryptography'); print(d._path / 'WHEEL')")
-          python -c "import cryptography.hazmat.bindings._rust as r; print('IMPORT OK', r.__file__)"
-
-      - name: Import cryptography 50.0.2 (venv)
+          $envPath = poetry env info -p
+          "env=$envPath"
+          Get-Content "$envPath\pyvenv.cfg"
+          "--- dlls in env root/Scripts ---"
+          Get-ChildItem $envPath, "$envPath\Scripts" -Filter '*.dll' | Select-Object FullName
+          Get-ChildItem $envPath -Recurse -Directory -Filter '*abi3t*' | Select-Object FullName
+          $site = "$envPath\Lib\site-packages"
+          Get-ChildItem $site -Directory -Filter 'cryptography*' | Select-Object Name
+          Get-Content (Get-ChildItem $site -Directory -Filter 'cryptography-*.dist-info' | Select-Object -First 1 | ForEach-Object { "$($_.FullName)\WHEEL" })
+          $pyd = "$site\cryptography\hazmat\bindings\_rust.pyd"
+          Get-Item $pyd | Select-Object FullName, Length, LastWriteTime
+          (Get-FileHash $pyd).Hash
+          $dumpbin = & "${env:ProgramFiles(x86)}\Microsoft Visual Studio\Installer\vswhere.exe" -latest -find 'VC\Tools\MSVC\*\bin\Hostx64\x64\dumpbin.exe' | Select-Object -First 1
+          "dumpbin=$dumpbin"
+          & $dumpbin /dependents $pyd
+      - name: Import in poetry env
+        continue-on-error: true
+        run: poetry run python -c "import cryptography.hazmat.bindings._rust as r; print('POETRY IMPORT OK', r.__file__)"
+      - name: Compare with pip-installed wheel in a fresh venv
         shell: pwsh
         continue-on-error: true
         run: |
           python -m venv "$env:RUNNER_TEMP\v"
           & "$env:RUNNER_TEMP\v\Scripts\python.exe" -m pip install -q --only-binary=:all: cryptography==50.0.2
-          & "$env:RUNNER_TEMP\v\Scripts\python.exe" -c "import cryptography.hazmat.bindings._rust as r; print('VENV IMPORT OK', r.__file__)"
-
-      - name: Import cryptography 50.0.2 (virtualenv package, as Poetry uses)
+          $pyd = "$env:RUNNER_TEMP\v\Lib\site-packages\cryptography\hazmat\bindings\_rust.pyd"
+          Get-Item $pyd | Select-Object Length
+          (Get-FileHash $pyd).Hash
+          & "$env:RUNNER_TEMP\v\Scripts\python.exe" -c "import cryptography.hazmat.bindings._rust as r; print('PIP VENV IMPORT OK')"
+      - name: Poetry lock entries for cryptography 50.0.2 Windows
         shell: pwsh
-        continue-on-error: true
-        run: |
-          python -m pip install -q virtualenv
-          python -m virtualenv --version
-          python -m virtualenv "$env:RUNNER_TEMP\ve"
-          "--- DLLs in virtualenv ---"
-          Get-ChildItem "$env:RUNNER_TEMP\ve" -Recurse -Include 'python3*.dll','python315.dll' | Select-Object FullName
-          Get-ChildItem "$env:RUNNER_TEMP\ve" -Recurse -Directory -Filter '*abi3t*' | Select-Object FullName
-          & "$env:RUNNER_TEMP\ve\Scripts\python.exe" -m pip install -q --only-binary=:all: cryptography==50.0.2
-          & "$env:RUNNER_TEMP\ve\Scripts\python.exe" -c "import cryptography.hazmat.bindings._rust as r; print('VIRTUALENV IMPORT OK', r.__file__)"
-          "--- retry after copying abi3t-compat next to the venv's python315.dll ---"
-          Copy-Item -Recurse "${{ env.pythonLocation }}\abi3t-compat" "$env:RUNNER_TEMP\ve\Scripts\abi3t-compat"
-          & "$env:RUNNER_TEMP\ve\Scripts\python.exe" -c "import cryptography.hazmat.bindings._rust as r; print('VIRTUALENV+COMPAT IMPORT OK', r.__file__)"
-
-      - name: Fresh python.org 3.15.2 installer (same flags as actions/python-versions) for comparison
-        shell: pwsh
-        continue-on-error: true
-        run: |
-          $v = python -c "import platform; print(platform.python_version())"
-          $exe = "$env:RUNNER_TEMP\python-$v-amd64.exe"
-          Invoke-WebRequest "https://www.python.org/ftp/python/$v/python-$v-amd64.exe" -OutFile $exe
-          $dest = "$env:RUNNER_TEMP\pyorg"
-          $p = Start-Process $exe -ArgumentList "DefaultAllUsersTargetDir=$dest","InstallAllUsers=1","/quiet","/log","$env:RUNNER_TEMP\pyorg.log" -Wait -PassThru
-          "installer exit=$($p.ExitCode)"
-          Get-ChildItem $dest -Recurse -Filter 'python3*.dll' | Select-Object FullName
-          Select-String -Path "$env:RUNNER_TEMP\pyorg*.log" -Pattern 'abi3t' -List | Select-Object -First 20
-          & "$dest\python.exe" -m pip install -q --only-binary=:all: cryptography==50.0.2
-          & "$dest\python.exe" -c "import cryptography.hazmat.bindings._rust as r; print('PYORG IMPORT OK', r.__file__)"
+        run: Select-String -Path poetry.lock -Pattern 'cryptography-50\.0\.2-.*win_amd64' | ForEach-Object Line
