@@ -84,6 +84,23 @@ poetry run towncrier create systems-search-fallback.patch.md --content "Prefer t
 poetry run towncrier create 123.patch.md --content "Prefer the new systems search endpoint with fallback."
 ```
 
+#### Dependency bot pull requests
+
+Renovate and Dependabot pull requests get a `patch` fragment automatically from
+`.github/workflows/bot-towncrier-fragment.yml`, so every merged dependency update
+produces a release. The workflow depends on two settings:
+
+- It pushes with `GITHUB_TOKEN`, which does not trigger workflows, so CI does
+  not run on the fragment commit. Until the workflow uses a token that triggers
+  CI, a maintainer must get checks running on these PRs (for example, by
+  closing and reopening the PR) before they can merge.
+- It commits as `github-actions[bot]`, which `gitIgnoredAuthors` in
+  `renovate.json` lists by email, so Renovate keeps rebasing the branch.
+  Renovate drops the fragment commit on each rebase, and the workflow adds it again.
+
+Do not push other commits to Renovate branches. Renovate stops managing a branch
+that has commits from other authors.
+
 ### CLI Standards
 
 - All CLI commands must provide clear help text and validation
