@@ -2,4 +2,4 @@ Transfer discovered SLS files and their properties to the mapped destination wor
 Create migrated test results with intended file IDs and annotate unresolved source IDs. After both migrations finish, backpatch IDs that the destination reassigned.
 Persist an intended-file-to-result index to fetch and update only affected results in bounded batches, including partially migrated results. Original associations keep repair safe to resume even when reassigned IDs overlap. Ambiguous file annotations fail only the affected file rather than stopping unrelated transfers.
 Keep results INCOMPLETE until file transfer and reference repair succeed; failed transfers or repairs can be resumed without prematurely marking results COMPLETE.
-Save complete discovery before uploading any files so resumed runs reuse the same pre-allocated file IDs. Older migration state is incompatible with the saved discovery format.
+Save complete discovery before uploading any files so resumed runs reuse the same pre-allocated file IDs.

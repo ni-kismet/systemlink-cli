@@ -19,7 +19,7 @@ from slcli.migration.files.models import DiscoveredFile, FileDiscovery, FileTran
 from slcli.migration.files.transfer import MIGRATED_SOURCE_ID
 from slcli.migration.files.transfer_task import transfer_files_task
 from slcli.migration.orchestration import (
-    load_plan,
+    apply_saved_plan,
     prefect_server,
     run_discovery,
     run_migration,
@@ -336,7 +336,7 @@ def test_file_transfer_resume_persists_reassigned_ids(
 
     with pytest.raises(click.ClickException, match="1 of 2 files failed"):
         run_migration(run, metadata, test_prefect_server)
-    assert load_plan(run).discovery.files == discovery
+    assert run.read_plan().discovery.files == discovery
     assert uploads == [intended_good]
     assert downloads == ["good", "bad", "bad"]
 
@@ -359,7 +359,7 @@ def test_file_transfer_resume_persists_reassigned_ids(
         pytest.fail("A completed transfer must load its persisted result")
 
     monkeypatch.setattr("slcli.migration.files.transfer_task.FilesClient", unexpected_client)
-    cached = run_migration(run, metadata, test_prefect_server)
+    cached = apply_saved_plan(run, metadata, test_prefect_server)
     assert cached == resumed
 
 

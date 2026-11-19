@@ -5,18 +5,48 @@ import uuid
 from dataclasses import dataclass
 from datetime import datetime, timezone
 from pathlib import Path
+from tempfile import NamedTemporaryFile
 from typing import Dict, Optional, Tuple
 
-from pydantic import ConfigDict
+from pydantic import ConfigDict, model_validator
 from pydantic.alias_generators import to_camel
 
 from slcli._version import __version__
+from slcli.migration.files.models import FileDiscovery
 from slcli.migration.schema import VersionedModel
+from slcli.migration.testmonitor.models import TestMonitorDiscovery
+from slcli.migration.workspaces import DiscoveredWorkspaces
 from slcli.paths import get_state_dir
 
 STATE_DIR_ENV = "SLCLI_MIGRATION_STATE_DIR"
 DEFAULT_PRODUCT_BATCH_SIZE = 500
 DEFAULT_RESULT_BATCH_SIZE = 100
+
+
+class MigrationDiscovery(VersionedModel):
+    """Discovery results for every supported resource type."""
+
+    model_config = ConfigDict(frozen=True)
+
+    workspaces: DiscoveredWorkspaces
+    files: FileDiscovery
+    test_monitor: TestMonitorDiscovery
+
+
+class MigrationPlan(VersionedModel):
+    """The completed discovery snapshot belonging to one logical run."""
+
+    migration_id: str
+    discovery: MigrationDiscovery
+
+    @model_validator(mode="after")
+    def _require_complete(self) -> "MigrationPlan":
+        if self.discovery.files.failures or self.discovery.test_monitor.failures:
+            raise ValueError("Discovery is incomplete")
+        planned_ids = self.discovery.files.source_to_destination_id_map
+        if planned_ids.keys() != {file.id for file in self.discovery.files.files}:
+            raise ValueError("The plan does not map every discovered file")
+        return self
 
 
 class RunMetadata(VersionedModel):
@@ -82,6 +112,30 @@ class MigrationRun:
         temporary_path = self.metadata_path.with_suffix(".json.tmp")
         temporary_path.write_text(metadata.model_dump_json(by_alias=True, indent=2), "utf-8")
         temporary_path.replace(self.metadata_path)
+
+    def read_plan(self) -> MigrationPlan:
+        """Read and validate the saved plan; raise FileNotFoundError if absent."""
+        plan = MigrationPlan.model_validate_json(self.plan_path.read_bytes())
+        self._validate_plan_identity(plan)
+        return plan
+
+    def write_plan(self, plan: MigrationPlan) -> None:
+        """Atomically save a completed plan for this run."""
+        self._validate_plan_identity(plan)
+        payload = plan.model_dump_json().encode("utf-8")
+        with NamedTemporaryFile(dir=self.directory, delete=False) as temporary:
+            path = Path(temporary.name)
+            try:
+                temporary.write(payload)
+                temporary.close()
+                path.replace(self.plan_path)
+            finally:
+                temporary.close()
+                path.unlink(missing_ok=True)
+
+    def _validate_plan_identity(self, plan: MigrationPlan) -> None:
+        if plan.migration_id != self.migration_id:
+            raise ValueError("The saved plan belongs to a different migration.")
 
 
 def get_migration_root() -> Path:

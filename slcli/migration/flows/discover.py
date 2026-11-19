@@ -3,25 +3,11 @@
 from typing import List, Optional
 
 from prefect import flow
-from pydantic import ConfigDict
 
 from slcli.migration.files.discovery_task import discover_files_task
-from slcli.migration.files.models import FileDiscovery
-from slcli.migration.schema import VersionedModel
+from slcli.migration.state import MigrationDiscovery
 from slcli.migration.testmonitor.discovery_task import discover_test_monitor_task
-from slcli.migration.testmonitor.models import TestMonitorDiscovery
 from slcli.migration.workspace_task import discover_workspaces_task
-from slcli.migration.workspaces import DiscoveredWorkspaces
-
-
-class MigrationDiscovery(VersionedModel):
-    """Discovery results for every supported resource type."""
-
-    model_config = ConfigDict(frozen=True)
-
-    workspaces: DiscoveredWorkspaces
-    files: FileDiscovery
-    test_monitor: TestMonitorDiscovery
 
 
 @flow(
