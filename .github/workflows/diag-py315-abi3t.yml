@@ -43,6 +43,11 @@ jobs:
       - name: Import in poetry env
         continue-on-error: true
         run: poetry run python -c "import cryptography.hazmat.bindings._rust as r; print('POETRY IMPORT OK', r.__file__)"
+      - name: Exact failing CI command
+        continue-on-error: true
+        env:
+          SLCLI_E2E_NATIVE_CREDENTIALS: 1
+        run: poetry run pytest tests/unit/test_managed_client_state.py --no-cov -q
       - name: Compare with pip-installed wheel in a fresh venv
         shell: pwsh
         continue-on-error: true
