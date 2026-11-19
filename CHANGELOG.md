@@ -2,6 +2,13 @@
 
 <!-- towncrier release notes start -->
 
+## v3.3.5 (2026-11-19)
+
+### Bug Fixes
+
+- Update dependency urllib3 to v2.8.0 [SECURITY]. (deps-renovate-pypi-urllib3-vulnerability)
+
+
 ## v3.3.4 (2026-11-18)
 
 ### Bug Fixes
