@@ -56,6 +56,11 @@ class MigrationRun:
         return self.directory / "results"
 
     @property
+    def plan_path(self) -> Path:
+        """Return the path to the completed migration plan."""
+        return self.directory / "plan.json"
+
+    @property
     def client_home(self) -> Path:
         """Return the Prefect home for the slcli process running the flow."""
         return self.directory / "prefect-client"

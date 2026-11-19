@@ -18,7 +18,12 @@ from slcli.migration.files.discovery_task import discover_files_task
 from slcli.migration.files.models import DiscoveredFile, FileDiscovery, FileTransfer
 from slcli.migration.files.transfer import MIGRATED_SOURCE_ID
 from slcli.migration.files.transfer_task import transfer_files_task
-from slcli.migration.orchestration import prefect_server, run_discovery, run_migration
+from slcli.migration.orchestration import (
+    load_plan,
+    prefect_server,
+    run_discovery,
+    run_migration,
+)
 from slcli.migration.state import create_migration_run
 from slcli.migration.testmonitor.discovery_task import discover_test_monitor_task
 from slcli.migration.testmonitor.file_references import FileReferenceRepair
@@ -93,7 +98,6 @@ def fake_source(monkeypatch: pytest.MonkeyPatch) -> FakeSource:
         migration_id: str,
         source_profile: str,
         workspaces: DiscoveredWorkspaces,
-        require_complete: bool = False,
     ) -> FileDiscovery:
         return FILES_DISCOVERY
 
@@ -261,7 +265,7 @@ def test_file_transfer_resume_persists_reassigned_ids(
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    """The real flow recovers partial uploads and persists the final reference map."""
+    """Persist the file map before uploading and reuse it after a failed transfer."""
     intended_good, intended_bad, actual_good = ("ab" * 12, "cd" * 12, "ef" * 12)
     discovery = FileDiscovery(
         files=(
@@ -317,9 +321,7 @@ def test_file_transfer_resume_persists_reassigned_ids(
             stored[actual_id] = SourceFile(id=actual_id, properties=dict(properties))
             return actual_id
 
-    monkeypatch.setattr(
-        discover_files_task, "fn", lambda *args, require_complete=False: discovery
-    )
+    monkeypatch.setattr(discover_files_task, "fn", lambda *args: discovery)
     monkeypatch.setattr(synchronize_workspaces_task, "fn", lambda *args: mapping)
     monkeypatch.setattr(migrate_test_monitor_task, "fn", lambda *args: TestMonitorMigration())
     monkeypatch.setattr(
@@ -334,9 +336,14 @@ def test_file_transfer_resume_persists_reassigned_ids(
 
     with pytest.raises(click.ClickException, match="1 of 2 files failed"):
         run_migration(run, metadata, test_prefect_server)
+    assert load_plan(run).discovery.files == discovery
     assert uploads == [intended_good]
     assert downloads == ["good", "bad", "bad"]
 
+    def unexpected_discovery(*args: object) -> None:
+        pytest.fail("A saved file map must be reused without running discovery")
+
+    monkeypatch.setattr("slcli.migration.orchestration.run_discovery", unexpected_discovery)
     fail = False
     resumed = run_migration(run, metadata, test_prefect_server)
     assert resumed.discovery.files == discovery
@@ -369,7 +376,11 @@ def test_result_file_reference_task_receives_both_migration_outcomes(
 
     intended, second, actual = "ab" * 12, "cd" * 12, "ef" * 12
     discovery = FileDiscovery(
-        source_to_destination_id_map={"source-file": intended, "second-file": second}
+        files=(
+            DiscoveredFile(id="source-file", workspace="Lab"),
+            DiscoveredFile(id="second-file", workspace="Lab"),
+        ),
+        source_to_destination_id_map={"source-file": intended, "second-file": second},
     )
     mapping = WorkspaceMapping()
     migration = TestMonitorMigration(
@@ -449,9 +460,7 @@ def test_result_file_reference_task_receives_both_migration_outcomes(
             updates.extend(results)
             return WriteResponse(created=results)
 
-    monkeypatch.setattr(
-        discover_files_task, "fn", lambda *args, require_complete=False: discovery
-    )
+    monkeypatch.setattr(discover_files_task, "fn", lambda *args: discovery)
     monkeypatch.setattr(
         discover_test_monitor_task,
         "fn",

@@ -1,7 +1,7 @@
-"""Migration flow: discover, synchronize workspaces, then migrate each resource type."""
+"""Apply a migration plan by synchronizing workspaces and migrating resources."""
 
 import logging
-from typing import Dict, List, Optional
+from typing import Dict, Optional
 
 import click
 from prefect import flow
@@ -9,7 +9,7 @@ from pydantic import ConfigDict
 
 from slcli.migration.files.models import FileTransfer
 from slcli.migration.files.transfer_task import transfer_files_task
-from slcli.migration.flows.discover import MigrationDiscovery, discover_flow
+from slcli.migration.flows.discover import MigrationDiscovery
 from slcli.migration.flows.service import migration_task_runner
 from slcli.migration.schema import VersionedModel
 from slcli.migration.testmonitor.file_references import FileReferenceRepair
@@ -59,8 +59,9 @@ def migrate_flow(
     workspace_mappings: Optional[Dict[str, str]],
     product_batch_size: int,
     result_batch_size: int,
+    discovery: MigrationDiscovery,
 ) -> MigrationOutcome:
-    """Discover source resources, synchronize workspaces, then migrate resources.
+    """Apply previously discovered resources to the destination.
 
     File transfer and Test Monitor migration run in parallel after workspace
     synchronization. Result file references are repaired after both complete.
@@ -72,20 +73,11 @@ def migrate_flow(
         workspace_mappings: Source to destination workspace names; all by name when None.
         product_batch_size: Products per migration task.
         result_batch_size: Results, with their steps, per migration task.
+        discovery: Completed discovery results, including the planned file IDs.
 
     Raises:
-        WorkspaceMappingError: If a source workspace does not exist.
         click.ClickException: If any file failed to transfer.
     """
-    explicit_workspace_selection: Optional[List[str]] = (
-        list(workspace_mappings) if workspace_mappings is not None else None
-    )
-    discovery = discover_flow(
-        migration_id,
-        source_profile,
-        explicit_workspace_selection,
-        require_complete_file_discovery=True,
-    )
     mapping = synchronize_workspaces_task(
         migration_id, destination_profile, discovery.workspaces, workspace_mappings
     )

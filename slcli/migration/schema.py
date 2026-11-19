@@ -2,7 +2,7 @@
 
 from pydantic import BaseModel, field_validator
 
-SCHEMA_VERSION = 2
+SCHEMA_VERSION = 3
 
 
 class VersionedModel(BaseModel):

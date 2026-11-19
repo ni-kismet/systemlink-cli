@@ -1,5 +1,6 @@
 """Persisted Prefect task for Test Monitor discovery."""
 
+import click
 from prefect import task
 from prefect.cache_policies import INPUTS, TASK_SOURCE
 
@@ -25,10 +26,17 @@ def discover_test_monitor_task(
     """Discover Test Monitor resources in the discovered source workspaces.
 
     Inputs are references, never credentials. ``migration_id`` is unused by the
-    body but scopes the cache key to one migration.
+    body but scopes the cache key to one migration. Partial discovery is not cached.
     """
     connection = resolve_migration_connection(source_profile)
-    return discover_test_monitor(
+    discovery = discover_test_monitor(
         TestMonitorClient(connection),
         workspaces,
     )
+    if discovery.failures:
+        failed_workspaces = ", ".join(failure.workspace for failure in discovery.failures)
+        raise click.ClickException(
+            f"Test Monitor discovery failed for workspace(s): {failed_workspaces}. "
+            "Retry the migration before results are created."
+        )
+    return discovery
