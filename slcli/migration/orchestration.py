@@ -2,8 +2,6 @@
 
 from collections.abc import Generator
 from contextlib import contextmanager
-from pathlib import Path
-from tempfile import NamedTemporaryFile
 from typing import List, Optional
 
 import click
@@ -14,29 +12,12 @@ from prefect.settings import (
     PREFECT_LOGGING_TO_API_ENABLED,
     temporary_settings,
 )
-from pydantic import ValidationError, model_validator
+from pydantic import ValidationError
 
-from slcli.migration.flows.discover import MigrationDiscovery, discover_flow
+from slcli.migration.flows.discover import discover_flow
 from slcli.migration.flows.migrate import MigrationOutcome, migrate_flow
 from slcli.migration.prefect_server import ManagedPrefectServer
-from slcli.migration.schema import VersionedModel
-from slcli.migration.state import MigrationRun, RunMetadata
-
-
-class MigrationPlan(VersionedModel):
-    """The completed discovery snapshot belonging to one logical run."""
-
-    migration_id: str
-    discovery: MigrationDiscovery
-
-    @model_validator(mode="after")
-    def _require_complete(self) -> "MigrationPlan":
-        if self.discovery.files.failures or self.discovery.test_monitor.failures:
-            raise ValueError("Discovery is incomplete")
-        planned_ids = self.discovery.files.source_to_destination_id_map
-        if planned_ids.keys() != {file.id for file in self.discovery.files.files}:
-            raise ValueError("The plan does not map every discovered file")
-        return self
+from slcli.migration.state import MigrationDiscovery, MigrationPlan, MigrationRun, RunMetadata
 
 
 @contextmanager
@@ -94,8 +75,6 @@ def run_migration(
     run: MigrationRun,
     metadata: RunMetadata,
     api_url: str,
-    *,
-    plan: Optional[MigrationPlan] = None,
 ) -> MigrationOutcome:
     """Apply a saved plan, finishing discovery first if the run has no plan yet.
 
@@ -103,12 +82,28 @@ def run_migration(
         run: Migration run that provides the client home and result storage.
         metadata: Persisted run inputs, including profiles and batch sizes.
         api_url: Prefect API URL from :func:`prefect_server`.
-        plan: An explicitly loaded plan; when omitted, load or create one for the run.
     """
-    if plan is None:
-        plan = load_plan(run) if run.plan_path.exists() else run_plan(run, metadata, api_url)
-    if plan.migration_id != run.migration_id:
-        raise click.ClickException("The saved plan belongs to a different migration.")
+    try:
+        plan = _read_plan(run)
+    except FileNotFoundError:
+        plan = run_plan(run, metadata, api_url)
+    return _execute_plan(run, metadata, api_url, plan)
+
+
+def apply_saved_plan(run: MigrationRun, metadata: RunMetadata, api_url: str) -> MigrationOutcome:
+    """Apply a completed plan from disk, never running discovery."""
+    try:
+        plan = _read_plan(run)
+    except FileNotFoundError as exc:
+        raise click.ClickException(
+            f"Migration '{run.migration_id}' has no completed plan."
+        ) from exc
+    return _execute_plan(run, metadata, api_url, plan)
+
+
+def _execute_plan(
+    run: MigrationRun, metadata: RunMetadata, api_url: str, plan: MigrationPlan
+) -> MigrationOutcome:
     with _run_settings(run, api_url):
         return migrate_flow(
             run.migration_id,
@@ -121,22 +116,18 @@ def run_migration(
         )
 
 
-def load_plan(run: MigrationRun) -> MigrationPlan:
-    """Load a completed plan, without querying the source or starting Prefect."""
+def _read_plan(run: MigrationRun) -> MigrationPlan:
     try:
-        plan = MigrationPlan.model_validate_json(run.plan_path.read_bytes())
-    except FileNotFoundError as exc:
-        raise click.ClickException(
-            f"Migration '{run.migration_id}' has no completed plan."
-        ) from exc
+        return run.read_plan()
+    except FileNotFoundError:
+        raise
     except (OSError, ValidationError) as exc:
         raise click.ClickException(
             f"Cannot load the completed plan for migration '{run.migration_id}'. "
             "The plan is unreadable, incomplete, or incompatible."
         ) from exc
-    if plan.migration_id != run.migration_id:
-        raise click.ClickException("The saved plan belongs to a different migration.")
-    return plan
+    except ValueError as exc:
+        raise click.ClickException(str(exc)) from exc
 
 
 def run_plan(run: MigrationRun, metadata: RunMetadata, api_url: str) -> MigrationPlan:
@@ -150,15 +141,7 @@ def run_plan(run: MigrationRun, metadata: RunMetadata, api_url: str) -> Migratio
         raise click.ClickException("Discovery did not produce a complete migration plan.") from exc
 
     try:
-        with NamedTemporaryFile(dir=run.directory, delete=False) as temporary:
-            path = Path(temporary.name)
-            try:
-                temporary.write(plan.model_dump_json().encode("utf-8"))
-                temporary.close()
-                path.replace(run.plan_path)
-            finally:
-                temporary.close()
-                path.unlink(missing_ok=True)
+        run.write_plan(plan)
     except OSError as exc:
         raise click.ClickException(f"Cannot save the migration plan: {exc}") from exc
     return plan

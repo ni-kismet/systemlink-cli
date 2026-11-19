@@ -9,9 +9,9 @@ from pydantic import ConfigDict
 
 from slcli.migration.files.models import FileTransfer
 from slcli.migration.files.transfer_task import transfer_files_task
-from slcli.migration.flows.discover import MigrationDiscovery
 from slcli.migration.flows.service import migration_task_runner
 from slcli.migration.schema import VersionedModel
+from slcli.migration.state import MigrationDiscovery
 from slcli.migration.testmonitor.file_references import FileReferenceRepair
 from slcli.migration.testmonitor.file_references_task import repair_file_references_task
 from slcli.migration.testmonitor.migration_task import migrate_test_monitor_task
