@@ -55,10 +55,10 @@ def migrate_flow(
     Raises:
         WorkspaceMappingError: If a source workspace does not exist.
     """
-    workspace_subset_to_migrate: Optional[List[str]] = (
+    explicit_workspace_selection: Optional[List[str]] = (
         list(workspace_mappings) if workspace_mappings is not None else None
     )
-    discovery = discover_flow(migration_id, source_profile, workspace_subset_to_migrate)
+    discovery = discover_flow(migration_id, source_profile, explicit_workspace_selection)
     mapping = synchronize_workspaces_task(
         migration_id, destination_profile, discovery.workspaces, workspace_mappings
     )

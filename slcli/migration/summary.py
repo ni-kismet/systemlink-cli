@@ -2,6 +2,7 @@
 
 from typing import List, Sequence
 
+from slcli.migration.files.models import FileDiscovery
 from slcli.migration.testmonitor.models import BatchResult, FailedItem, TestMonitorDiscovery
 from slcli.migration.testmonitor.models import TestMonitorMigration
 from slcli.migration.workspaces import WorkspaceMapping
@@ -22,8 +23,8 @@ def format_workspace_mapping(mapping: WorkspaceMapping) -> str:
     )
 
 
-def format_summary(discovery: TestMonitorDiscovery) -> str:
-    """Return deterministic Test Monitor discovery counts and failures."""
+def format_summary(discovery: TestMonitorDiscovery, files: FileDiscovery) -> str:
+    """Return deterministic discovery counts and failures."""
     lines = [
         "Test Monitor discovery:",
         f"  Products: {len(discovery.products)}",
@@ -33,6 +34,14 @@ def format_summary(discovery: TestMonitorDiscovery) -> str:
     ]
     if discovery.failures:
         lines.append("  Product workspaces were inferred without the failed workspaces.")
+    lines.extend(
+        [
+            "File discovery:",
+            f"  Files: {len(files.files)}",
+            f"  Failed workspaces: {len(files.failures)}",
+            *(f"    {failure.workspace}: {failure.error_type}" for failure in files.failures),
+        ]
+    )
     return "\n".join(lines)
 
 
