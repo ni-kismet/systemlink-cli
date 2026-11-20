@@ -253,6 +253,17 @@ def test_catalog_fails_startup_for_invalid_skill(tmp_path: Path) -> None:
         build_skill_catalog(skill_root)
 
 
+def _symlink_or_skip(link: Path, target: Path, target_is_directory: bool = False) -> None:
+    """Create a symlink, skipping the test when the OS denies the privilege."""
+    try:
+        link.symlink_to(target, target_is_directory=target_is_directory)
+    except OSError as exc:
+        # ERROR_PRIVILEGE_NOT_HELD: Windows without Developer Mode or admin rights.
+        if getattr(exc, "winerror", None) == 1314:
+            pytest.skip("Creating symlinks requires a privilege not held by this user")
+        raise
+
+
 def test_catalog_rejects_symlinked_published_content(tmp_path: Path) -> None:
     """Published files cannot escape the skill root through symlinks."""
     skill_root = tmp_path / "slcli"
@@ -263,7 +274,7 @@ def test_catalog_rejects_symlinked_published_content(tmp_path: Path) -> None:
     )
     target = tmp_path / "outside.md"
     target.write_text("outside", encoding="utf-8")
-    (references / "outside.md").symlink_to(target)
+    _symlink_or_skip(references / "outside.md", target)
 
     with pytest.raises(ValueError, match="symlink"):
         build_skill_catalog(skill_root)
@@ -276,7 +287,7 @@ def test_catalog_rejects_dangling_published_directory_symlink(tmp_path: Path) ->
     (skill_root / "SKILL.md").write_text(
         "---\nname: slcli\ndescription: test\n---\n", encoding="utf-8"
     )
-    (skill_root / "references").symlink_to(tmp_path / "missing")
+    _symlink_or_skip(skill_root / "references", tmp_path / "missing", target_is_directory=True)
 
     with pytest.raises(ValueError, match="real directory"):
         build_skill_catalog(skill_root)
