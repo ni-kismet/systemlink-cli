@@ -1,3 +1,10 @@
+# In general, any folder that starts with a dot is really not something we want to check in.
+.*/
+
+# Allow .github directory and all its contents
+!/.github
+!/.github/**
+
 # Byte-compiled / optimized / DLL files
 __pycache__/
 *.py[cod]
