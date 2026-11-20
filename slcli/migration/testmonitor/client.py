@@ -44,13 +44,22 @@ class Result(ApiModel):
 class _Page(ApiModel):
     continuation_token: Optional[str] = None
 
+    def __len__(self) -> int:
+        return 0
+
 
 class _ProductPage(_Page):
     products: List[Product] = []
 
+    def __len__(self) -> int:
+        return len(self.products)
+
 
 class _ResultPage(_Page):
     results: List[Result] = []
+
+    def __len__(self) -> int:
+        return len(self.results)
 
 
 class _RecordPage(_Page):
@@ -59,6 +68,9 @@ class _RecordPage(_Page):
     products: List[Dict[str, Any]] = []
     results: List[Dict[str, Any]] = []
     steps: List[Dict[str, Any]] = []
+
+    def __len__(self) -> int:
+        return len(self.products) + len(self.results) + len(self.steps)
 
 
 _PageT = TypeVar("_PageT", bound=_Page)
@@ -154,6 +166,7 @@ class TestMonitorClient:
             yield page
 
             token = page.continuation_token
-            if not token:
+            # Servers return a token even after a short final page; another request would be empty.
+            if not token or len(page) < PAGE_SIZE:
                 return
             payload = {**payload, "continuationToken": token}

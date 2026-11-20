@@ -11,6 +11,13 @@ from typing import Any, Dict, Generator, List, Optional
 
 import pytest
 
+from tests.replay.pytest_plugin import (  # noqa: F401 - pytest discovers these by name
+    recorded_migration_ids,
+    replay_decks,
+    replay_fakes,
+    replay_misses,
+)
+
 _RATE_LIMIT_RETRIES = 3
 
 
@@ -397,24 +404,6 @@ def sle_test_notebook_id(sle_config: Dict[str, Any]) -> Optional[str]:
 def sls_test_notebook_path(sls_config: Dict[str, Any]) -> Optional[str]:
     """Return the SLS test notebook path."""
     return sls_config.get("test_notebook_path")
-
-
-@pytest.fixture
-def temp_workspace(cli_runner: Any) -> Generator[str, None, None]:
-    """Create a temporary workspace for testing."""
-    workspace_name = f"e2e-test-{uuid.uuid4().hex[:8]}"
-
-    # Create workspace
-    result = cli_runner(["workspace", "create", "--name", workspace_name])
-    assert result.returncode == 0
-
-    yield workspace_name
-
-    # Cleanup workspace
-    try:
-        cli_runner(["workspace", "delete", "--name", workspace_name], check=False)
-    except Exception:
-        pass  # Best effort cleanup
 
 
 @pytest.fixture

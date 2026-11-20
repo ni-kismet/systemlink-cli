@@ -21,8 +21,9 @@ from tests.e2e.migration_endpoints import (
     SOURCE_PROFILE_ENV,
     get_or_create_workspace,
 )
+from tests.e2e.workspaces import E2EWorkspace
 
-SOURCE_WORKSPACE = "e2e-slcli-migration-source"
+SOURCE_WORKSPACE = E2EWorkspace.SOURCE.value
 WORKSPACE_CREATE_ACK = "DESTINATION_VALINOR_IS_TEMPORARY_AND_DISPOSABLE"
 
 pytestmark = [pytest.mark.e2e_migration_manual]
@@ -41,7 +42,7 @@ def migration_connections() -> Tuple[MigrationConnection, MigrationConnection]:
     inject_os_trust()
     source = resolve_migration_connection(source_profile)
     destination = resolve_migration_connection(destination_profile)
-    get_or_create_workspace(source, SOURCE_WORKSPACE)
+    get_or_create_workspace(source, E2EWorkspace.SOURCE)
     return source, destination
 
 

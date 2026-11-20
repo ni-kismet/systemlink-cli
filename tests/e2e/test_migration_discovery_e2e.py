@@ -10,13 +10,12 @@ spanning   older PASSED in PRIMARY, newer FAILED in OTHER  OTHER
 orphan     none                                            Default (unmapped)
 =========  ==============================================  ==================
 
-Mapped runs see only fixture workspaces, so they assert exact contents. Runs over
-all workspaces assert exact contents of the fixture workspaces and tolerate
-unrelated data elsewhere on the server.
+Tests select fixture workspaces, so they assert exact contents and never read
+data the fixtures do not own. The exception is the Default workspace test, which
+is about Default itself. Discovery without a selection is covered by unit tests.
 """
 
 import os
-import uuid
 from collections.abc import Generator
 from dataclasses import dataclass
 from pathlib import Path
@@ -33,15 +32,12 @@ from slcli.migration.testmonitor.models import TestMonitorDiscovery
 from slcli.migration.workspace_client import WorkspaceClient
 from slcli.migration.workspaces import discover_workspaces
 from slcli.ssl_trust import inject_os_trust
-from tests.e2e.migration_endpoints import (
-    DISABLED_SOURCE_WORKSPACE,
-    get_or_create_disabled_workspace,
-    get_or_create_workspace,
-)
+from tests.e2e.migration_endpoints import get_or_create_disabled_workspace, get_or_create_workspace
 from tests.e2e.testmonitor_fixture import OwnedTestMonitorResources
+from tests.e2e.workspaces import E2EWorkspace
 
-PRIMARY = "e2e-slcli-migration-source"
-OTHER = "e2e-slcli-migration-source-other"
+PRIMARY = E2EWorkspace.SOURCE.value
+OTHER = E2EWorkspace.SOURCE_OTHER.value
 FIXTURE_WORKSPACES = frozenset({PRIMARY, OTHER})
 TERMINAL_STATES = ["DONE", "PASSED", "FAILED", "SKIPPED", "TERMINATED", "ERRORED", "TIMEDOUT"]
 NON_TERMINAL_STATES = ["RUNNING", "CUSTOM"]
@@ -85,16 +81,16 @@ def seeded() -> Generator[Seeded, None, None]:
         pytest.skip("SLCLI_E2E_SOURCE_PROFILE is not configured")
     inject_os_trust()
     connection = resolve_migration_connection(profile)
-    workspace_ids = {name: get_or_create_workspace(connection, name) for name in (PRIMARY, OTHER)}
+    workspace_ids = {
+        w.value: get_or_create_workspace(connection, w)
+        for w in (E2EWorkspace.SOURCE, E2EWorkspace.SOURCE_OTHER)
+    }
     # Products with no results go to Default only when no source workspace is disabled.
-    get_or_create_disabled_workspace(connection, DISABLED_SOURCE_WORKSPACE)
+    get_or_create_disabled_workspace(connection, E2EWorkspace.DISABLED_SOURCE)
     resources = OwnedTestMonitorResources(connection, workspace_ids)
     resources.clean()
     try:
-        run_id = uuid.uuid4().hex
-        states, spanning, orphan = (
-            f"migration-e2e-{n}-{run_id}" for n in ("states", "spanning", "orphan")
-        )
+        states, spanning, orphan = (f"migration-e2e-{n}" for n in ("states", "spanning", "orphan"))
         states_id, spanning_id, orphan_id = resources.create_products(
             [{"name": part, "partNumber": part} for part in (states, spanning, orphan)], PRIMARY
         )
@@ -137,9 +133,9 @@ def _results(discovery: TestMonitorDiscovery, workspace: str) -> FrozenSet[str]:
     return frozenset(r.id for r in discovery.results if r.workspace == workspace)
 
 
-def test_all_workspaces(seeded: Seeded, test_prefect_server: str, tmp_path: Path) -> None:
-    """Without mappings, fixture workspaces hold exactly the seeded terminal results."""
-    discovery = _discover(seeded, None, test_prefect_server, tmp_path)
+def test_fixture_workspaces(seeded: Seeded, test_prefect_server: str, tmp_path: Path) -> None:
+    """Each selected workspace holds exactly its seeded terminal results."""
+    discovery = _discover(seeded, sorted(FIXTURE_WORKSPACES), test_prefect_server, tmp_path)
 
     assert discovery.failures == ()
     assert _results(discovery, PRIMARY) == seeded.primary_results
@@ -148,8 +144,8 @@ def test_all_workspaces(seeded: Seeded, test_prefect_server: str, tmp_path: Path
         seeded.states_product: PRIMARY,
         seeded.spanning_product: OTHER,
     }
-    # Because there are disabled workspaces, orphan product not included in default workspace
-    assert seeded.orphan_product not in _products(discovery, {DEFAULT_WORKSPACE})
+    # A product without results is only discovered when every workspace is.
+    assert seeded.orphan_product not in {p.id for p in discovery.products}
 
 
 def test_mapped_workspace(seeded: Seeded, test_prefect_server: str, tmp_path: Path) -> None:
@@ -223,7 +219,9 @@ def test_workspace_failure_preserves_other_workspaces(seeded: Seeded) -> None:
     discovery policy directly with live queries.
     """
     client = _FailingWorkspace(TestMonitorClient(seeded.connection), seeded.workspace_ids[OTHER])
-    workspaces = discover_workspaces(WorkspaceClient(seeded.connection).query_workspaces(), None)
+    workspaces = discover_workspaces(
+        WorkspaceClient(seeded.connection).query_workspaces(), sorted(FIXTURE_WORKSPACES)
+    )
     discovery = discover_test_monitor(client, workspaces)
 
     assert [(f.workspace, f.error_type) for f in discovery.failures] == [(OTHER, "ConnectionError")]

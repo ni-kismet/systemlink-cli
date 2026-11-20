@@ -1,0 +1,764 @@
+exchanges:
+- request: GET /niuser/v1/workspaces?name=e2e-slcli-migration-source
+  response:
+    status: 200
+    contentType: application/json; charset=utf-8
+    body:
+      totalCount: 1
+      workspaces:
+      - default: false
+        enabled: true
+        id: 3aeed209-8f57-446c-9fb6-1b2b66866ca3
+        name: e2e-slcli-migration-source
+- request: POST /nitestmonitor/v2/query-products
+  body:
+    filter: properties["slcli.e2e.owner"] == "migration-discovery"
+    substitutions: []
+    take: 1000
+    descending: false
+  response:
+    status: 200
+    contentType: application/json
+    body:
+      products: []
+      continuationToken: null
+- request: POST /nitestmonitor/v2/query-results
+  body:
+    filter: workspace == @0
+    substitutions:
+    - 3aeed209-8f57-446c-9fb6-1b2b66866ca3
+    take: 1000
+    descending: false
+  response:
+    status: 200
+    contentType: application/json
+    body:
+      results: []
+      continuationToken: null
+- request: POST /nitestmonitor/v2/products
+  body:
+    products:
+    - name: migration-e2e-fresh
+      partNumber: migration-e2e-fresh
+      workspace: 3aeed209-8f57-446c-9fb6-1b2b66866ca3
+      properties:
+        slcli.e2e.owner: migration-discovery
+    - name: migration-e2e-conflicting
+      partNumber: migration-e2e-conflicting
+      workspace: 3aeed209-8f57-446c-9fb6-1b2b66866ca3
+      properties:
+        slcli.e2e.owner: migration-discovery
+  response:
+    status: 201
+    contentType: application/json
+    body:
+      products:
+      - id: 3d29df00-8f4d-424c-b889-60855ac9941f
+        partNumber: migration-e2e-fresh
+        name: migration-e2e-fresh
+        family: null
+        updatedAt: '2026-11-20T19:35:06.6803744Z'
+        keywords: []
+        properties:
+          slcli.e2e.owner: migration-discovery
+        fileIds: []
+      - id: ccc4f460-4f07-4e11-bca1-f5a36e048f80
+        partNumber: migration-e2e-conflicting
+        name: migration-e2e-conflicting
+        family: null
+        updatedAt: '2026-11-20T19:35:06.6803744Z'
+        keywords: []
+        properties:
+          slcli.e2e.owner: migration-discovery
+        fileIds: []
+- request: POST /nitestmonitor/v2/results
+  body:
+    results:
+    - programName: migration-e2e-fresh program
+      partNumber: migration-e2e-fresh
+      serialNumber: SN-1
+      status:
+        statusType: PASSED
+        statusName: Passed
+      workspace: 3aeed209-8f57-446c-9fb6-1b2b66866ca3
+      properties:
+        slcli.e2e.owner: migration-discovery
+    - programName: migration-e2e-conflicting program
+      partNumber: migration-e2e-conflicting
+      serialNumber: SN-1
+      status:
+        statusType: PASSED
+        statusName: Passed
+      workspace: 3aeed209-8f57-446c-9fb6-1b2b66866ca3
+      properties:
+        slcli.e2e.owner: migration-discovery
+  response:
+    status: 201
+    contentType: application/json
+    body:
+      results:
+      - status:
+          statusType: PASSED
+          statusName: Passed
+        startedAt: '2026-11-20T19:35:06.8062244Z'
+        updatedAt: '2026-11-20T19:35:06.8102438Z'
+        programName: migration-e2e-fresh program
+        id: 14f15b88-5929-4fb7-82d7-fa96cb145335
+        systemId: null
+        hostName: null
+        operator: null
+        partNumber: migration-e2e-fresh
+        serialNumber: SN-1
+        totalTimeInSeconds: 0.0
+        keywords: []
+        properties:
+          slcli.e2e.owner: migration-discovery
+        fileIds: []
+        statusTypeSummary:
+          LOOPING: 0
+          SKIPPED: 0
+          CUSTOM: 0
+          DONE: 0
+          PASSED: 0
+          FAILED: 0
+          RUNNING: 0
+          WAITING: 0
+          TERMINATED: 0
+          ERRORED: 0
+          TIMED_OUT: 0
+        workspace: 3aeed209-8f57-446c-9fb6-1b2b66866ca3
+      - status:
+          statusType: PASSED
+          statusName: Passed
+        startedAt: '2026-11-20T19:35:06.8062244Z'
+        updatedAt: '2026-11-20T19:35:06.8112502Z'
+        programName: migration-e2e-conflicting program
+        id: ad650aca-e10c-49a8-9f2c-b8da0c4b446c
+        systemId: null
+        hostName: null
+        operator: null
+        partNumber: migration-e2e-conflicting
+        serialNumber: SN-1
+        totalTimeInSeconds: 0.0
+        keywords: []
+        properties:
+          slcli.e2e.owner: migration-discovery
+        fileIds: []
+        statusTypeSummary:
+          LOOPING: 0
+          SKIPPED: 0
+          CUSTOM: 0
+          DONE: 0
+          PASSED: 0
+          FAILED: 0
+          RUNNING: 0
+          WAITING: 0
+          TERMINATED: 0
+          ERRORED: 0
+          TIMED_OUT: 0
+        workspace: 3aeed209-8f57-446c-9fb6-1b2b66866ca3
+- request: POST /nitestmonitor/v2/steps
+  body:
+    steps:
+    - resultId: 14f15b88-5929-4fb7-82d7-fa96cb145335
+      parentId: root
+      name: parent
+      stepType: NumericLimitTest
+      status:
+        statusType: PASSED
+        statusName: Passed
+      totalTimeInSeconds: 1.5
+      properties:
+        slcli.e2e.owner: migration-discovery
+  response:
+    status: 201
+    contentType: application/json
+    body:
+      steps:
+      - name: parent
+        stepType: NumericLimitTest
+        stepId: 3e33f5f5-5dee-4213-95eb-4e69d6b9ff12
+        parentId: root
+        resultId: 14f15b88-5929-4fb7-82d7-fa96cb145335
+        path: parent
+        pathIds:
+        - root
+        - 3e33f5f5-5dee-4213-95eb-4e69d6b9ff12
+        status:
+          statusType: PASSED
+          statusName: Passed
+        totalTimeInSeconds: 1.5
+        startedAt: '2026-11-20T19:35:06.8312398Z'
+        updatedAt: '2026-11-20T19:35:06.8312398Z'
+        inputs: []
+        outputs: []
+        dataModel: null
+        data:
+          text: ''
+          parameters: []
+        hasChildren: false
+        workspace: 3aeed209-8f57-446c-9fb6-1b2b66866ca3
+- request: POST /nitestmonitor/v2/steps
+  body:
+    steps:
+    - resultId: 14f15b88-5929-4fb7-82d7-fa96cb145335
+      parentId: 3e33f5f5-5dee-4213-95eb-4e69d6b9ff12
+      name: child
+      stepType: NumericLimitTest
+      status:
+        statusType: PASSED
+        statusName: Passed
+      totalTimeInSeconds: 1.5
+      properties:
+        slcli.e2e.owner: migration-discovery
+  response:
+    status: 201
+    contentType: application/json
+    body:
+      steps:
+      - name: child
+        stepType: NumericLimitTest
+        stepId: 23c8822d-7a86-4a5d-8dd2-617e4076c65f
+        parentId: 3e33f5f5-5dee-4213-95eb-4e69d6b9ff12
+        resultId: 14f15b88-5929-4fb7-82d7-fa96cb145335
+        path: |-
+          parent
+          child
+        pathIds:
+        - root
+        - 3e33f5f5-5dee-4213-95eb-4e69d6b9ff12
+        - 23c8822d-7a86-4a5d-8dd2-617e4076c65f
+        status:
+          statusType: PASSED
+          statusName: Passed
+        totalTimeInSeconds: 1.5
+        startedAt: '2026-11-20T19:35:06.8592387Z'
+        updatedAt: '2026-11-20T19:35:06.8592387Z'
+        inputs: []
+        outputs: []
+        dataModel: null
+        data:
+          text: ''
+          parameters: []
+        hasChildren: false
+        workspace: 3aeed209-8f57-446c-9fb6-1b2b66866ca3
+- request: POST /nitestmonitor/v2/steps
+  body:
+    steps:
+    - resultId: 14f15b88-5929-4fb7-82d7-fa96cb145335
+      parentId: 23c8822d-7a86-4a5d-8dd2-617e4076c65f
+      name: grandchild
+      stepType: NumericLimitTest
+      status:
+        statusType: PASSED
+        statusName: Passed
+      totalTimeInSeconds: 1.5
+      properties:
+        slcli.e2e.owner: migration-discovery
+  response:
+    status: 201
+    contentType: application/json
+    body:
+      steps:
+      - name: grandchild
+        stepType: NumericLimitTest
+        stepId: b6d78898-713d-4b51-849e-788dbf6b2f73
+        parentId: 23c8822d-7a86-4a5d-8dd2-617e4076c65f
+        resultId: 14f15b88-5929-4fb7-82d7-fa96cb145335
+        path: |-
+          parent
+          child
+          grandchild
+        pathIds:
+        - root
+        - 3e33f5f5-5dee-4213-95eb-4e69d6b9ff12
+        - 23c8822d-7a86-4a5d-8dd2-617e4076c65f
+        - b6d78898-713d-4b51-849e-788dbf6b2f73
+        status:
+          statusType: PASSED
+          statusName: Passed
+        totalTimeInSeconds: 1.5
+        startedAt: '2026-11-20T19:35:06.8876538Z'
+        updatedAt: '2026-11-20T19:35:06.8876538Z'
+        inputs: []
+        outputs: []
+        dataModel: null
+        data:
+          text: ''
+          parameters: []
+        hasChildren: false
+        workspace: 3aeed209-8f57-446c-9fb6-1b2b66866ca3
+- request: GET /niuser/v1/workspaces?take=100&skip=0
+  response:
+    status: 200
+    contentType: application/json; charset=utf-8
+    body:
+      totalCount: 4
+      workspaces:
+      - default: true
+        enabled: true
+        id: b3e298c2-8ed6-4ec2-878d-c03aa40f0ba5
+        name: Default
+      - default: false
+        enabled: true
+        id: 3aeed209-8f57-446c-9fb6-1b2b66866ca3
+        name: e2e-slcli-migration-source
+      - default: false
+        enabled: true
+        id: 72e26583-0b36-4f77-99fb-50a6df279dda
+        name: e2e-slcli-migration-source-other
+      - default: false
+        enabled: false
+        id: 1dca6c4a-7845-4298-b711-1b8700ebfc1e
+        name: e2e-slcli-migration-disabled-source
+- request: POST /nifile/v1/service-groups/Default/query-files?skip=0&take=1000&workspace=3aeed209-8f57-446c-9fb6-1b2b66866ca3
+  body: {}
+  response:
+    status: 200
+    contentType: application/json
+    body:
+      _links:
+        self:
+          href: /nifile/v1/service-groups/Default/query-files
+        search:
+          href: /nifile/v1/service-groups/Default/files
+        query:
+          href: /nifile/v1/service-groups/Default/query-files
+        upload:
+          href: /nifile/v1/service-groups/Default/upload-files
+        deleteFiles:
+          href: /nifile/v1/service-groups/Default/delete-files
+      availableFiles: []
+      totalCount: 0
+- request: POST /nitestmonitor/v2/query-results
+  body:
+    filter: workspace == @0
+    substitutions:
+    - 3aeed209-8f57-446c-9fb6-1b2b66866ca3
+    take: 1000
+    descending: false
+  response:
+    status: 200
+    contentType: application/json
+    body:
+      results:
+      - status:
+          statusType: PASSED
+          statusName: Passed
+        startedAt: '2026-11-20T19:35:06.806224Z'
+        updatedAt: '2026-11-20T19:35:06.89265Z'
+        programName: migration-e2e-fresh program
+        id: 14f15b88-5929-4fb7-82d7-fa96cb145335
+        systemId: null
+        hostName: null
+        operator: null
+        partNumber: migration-e2e-fresh
+        serialNumber: SN-1
+        totalTimeInSeconds: 0.0
+        keywords: []
+        properties:
+          slcli.e2e.owner: migration-discovery
+        fileIds: []
+        statusTypeSummary:
+          LOOPING: 0
+          SKIPPED: 0
+          CUSTOM: 0
+          DONE: 0
+          PASSED: 1
+          FAILED: 0
+          RUNNING: 0
+          WAITING: 0
+          TERMINATED: 0
+          ERRORED: 0
+          TIMED_OUT: 0
+        workspace: 3aeed209-8f57-446c-9fb6-1b2b66866ca3
+      - status:
+          statusType: PASSED
+          statusName: Passed
+        startedAt: '2026-11-20T19:35:06.806224Z'
+        updatedAt: '2026-11-20T19:35:06.81125Z'
+        programName: migration-e2e-conflicting program
+        id: ad650aca-e10c-49a8-9f2c-b8da0c4b446c
+        systemId: null
+        hostName: null
+        operator: null
+        partNumber: migration-e2e-conflicting
+        serialNumber: SN-1
+        totalTimeInSeconds: 0.0
+        keywords: []
+        properties:
+          slcli.e2e.owner: migration-discovery
+        fileIds: []
+        statusTypeSummary:
+          LOOPING: 0
+          SKIPPED: 0
+          CUSTOM: 0
+          DONE: 0
+          PASSED: 0
+          FAILED: 0
+          RUNNING: 0
+          WAITING: 0
+          TERMINATED: 0
+          ERRORED: 0
+          TIMED_OUT: 0
+        workspace: 3aeed209-8f57-446c-9fb6-1b2b66866ca3
+      continuationToken: YWQ2NTBhY2EtZTEwYy00OWE4LTlmMmMtYjhkYTBjNGI0NDZj
+- request: POST /nitestmonitor/v2/query-products
+  body:
+    take: 1000
+    descending: false
+  response:
+    status: 200
+    contentType: application/json
+    body:
+      products:
+      - id: 3d29df00-8f4d-424c-b889-60855ac9941f
+        partNumber: migration-e2e-fresh
+        name: migration-e2e-fresh
+        family: null
+        updatedAt: '2026-11-20T19:35:06.680374Z'
+        keywords: []
+        properties:
+          slcli.e2e.owner: migration-discovery
+        fileIds: []
+      - id: 438e63bd-682f-4d0e-8224-397ea46a5372
+        partNumber: probe
+        name: null
+        family: null
+        updatedAt: '2026-10-28T20:01:54.195931Z'
+        keywords: []
+        properties: {}
+        fileIds: []
+      - id: ccc4f460-4f07-4e11-bca1-f5a36e048f80
+        partNumber: migration-e2e-conflicting
+        name: migration-e2e-conflicting
+        family: null
+        updatedAt: '2026-11-20T19:35:06.680374Z'
+        keywords: []
+        properties:
+          slcli.e2e.owner: migration-discovery
+        fileIds: []
+      continuationToken: Y2NjNGY0NjAtNGYwNy00ZTExLWJjYTEtZjVhMzZlMDQ4Zjgw
+- request: POST /nitestmonitor/v2/query-products
+  body:
+    filter: id == "3d29df00-8f4d-424c-b889-60855ac9941f" || id == "ccc4f460-4f07-4e11-bca1-f5a36e048f80"
+    substitutions: []
+    take: 1000
+    descending: false
+  response:
+    status: 200
+    contentType: application/json
+    body:
+      products:
+      - id: 3d29df00-8f4d-424c-b889-60855ac9941f
+        partNumber: migration-e2e-fresh
+        name: migration-e2e-fresh
+        family: null
+        updatedAt: '2026-11-20T19:35:06.680374Z'
+        keywords: []
+        properties:
+          slcli.e2e.owner: migration-discovery
+        fileIds: []
+      - id: ccc4f460-4f07-4e11-bca1-f5a36e048f80
+        partNumber: migration-e2e-conflicting
+        name: migration-e2e-conflicting
+        family: null
+        updatedAt: '2026-11-20T19:35:06.680374Z'
+        keywords: []
+        properties:
+          slcli.e2e.owner: migration-discovery
+        fileIds: []
+      continuationToken: Y2NjNGY0NjAtNGYwNy00ZTExLWJjYTEtZjVhMzZlMDQ4Zjgw
+- request: POST /nitestmonitor/v2/query-results
+  body:
+    filter: id == "14f15b88-5929-4fb7-82d7-fa96cb145335" || id == "ad650aca-e10c-49a8-9f2c-b8da0c4b446c"
+    substitutions: []
+    take: 1000
+    descending: false
+  response:
+    status: 200
+    contentType: application/json
+    body:
+      results:
+      - status:
+          statusType: PASSED
+          statusName: Passed
+        startedAt: '2026-11-20T19:35:06.806224Z'
+        updatedAt: '2026-11-20T19:35:06.89265Z'
+        programName: migration-e2e-fresh program
+        id: 14f15b88-5929-4fb7-82d7-fa96cb145335
+        systemId: null
+        hostName: null
+        operator: null
+        partNumber: migration-e2e-fresh
+        serialNumber: SN-1
+        totalTimeInSeconds: 0.0
+        keywords: []
+        properties:
+          slcli.e2e.owner: migration-discovery
+        fileIds: []
+        statusTypeSummary:
+          LOOPING: 0
+          SKIPPED: 0
+          CUSTOM: 0
+          DONE: 0
+          PASSED: 1
+          FAILED: 0
+          RUNNING: 0
+          WAITING: 0
+          TERMINATED: 0
+          ERRORED: 0
+          TIMED_OUT: 0
+        workspace: 3aeed209-8f57-446c-9fb6-1b2b66866ca3
+      - status:
+          statusType: PASSED
+          statusName: Passed
+        startedAt: '2026-11-20T19:35:06.806224Z'
+        updatedAt: '2026-11-20T19:35:06.81125Z'
+        programName: migration-e2e-conflicting program
+        id: ad650aca-e10c-49a8-9f2c-b8da0c4b446c
+        systemId: null
+        hostName: null
+        operator: null
+        partNumber: migration-e2e-conflicting
+        serialNumber: SN-1
+        totalTimeInSeconds: 0.0
+        keywords: []
+        properties:
+          slcli.e2e.owner: migration-discovery
+        fileIds: []
+        statusTypeSummary:
+          LOOPING: 0
+          SKIPPED: 0
+          CUSTOM: 0
+          DONE: 0
+          PASSED: 0
+          FAILED: 0
+          RUNNING: 0
+          WAITING: 0
+          TERMINATED: 0
+          ERRORED: 0
+          TIMED_OUT: 0
+        workspace: 3aeed209-8f57-446c-9fb6-1b2b66866ca3
+      continuationToken: YWQ2NTBhY2EtZTEwYy00OWE4LTlmMmMtYjhkYTBjNGI0NDZj
+- request: POST /nitestmonitor/v2/query-steps
+  body:
+    filter: resultId == @0
+    substitutions:
+    - 14f15b88-5929-4fb7-82d7-fa96cb145335
+    take: 1000
+    descending: false
+  response:
+    status: 200
+    contentType: application/json
+    body:
+      steps:
+      - name: parent
+        stepType: NumericLimitTest
+        stepId: 3e33f5f5-5dee-4213-95eb-4e69d6b9ff12
+        parentId: root
+        resultId: 14f15b88-5929-4fb7-82d7-fa96cb145335
+        path: parent
+        pathIds:
+        - root
+        - 3e33f5f5-5dee-4213-95eb-4e69d6b9ff12
+        status:
+          statusType: PASSED
+          statusName: Passed
+        totalTimeInSeconds: 1.5
+        startedAt: '2026-11-20T19:35:06.831239Z'
+        updatedAt: '2026-11-20T19:35:06.86369Z'
+        inputs: []
+        outputs: []
+        dataModel: null
+        data:
+          text: ''
+          parameters: []
+        hasChildren: true
+        workspace: 3aeed209-8f57-446c-9fb6-1b2b66866ca3
+      - name: grandchild
+        stepType: NumericLimitTest
+        stepId: b6d78898-713d-4b51-849e-788dbf6b2f73
+        parentId: 23c8822d-7a86-4a5d-8dd2-617e4076c65f
+        resultId: 14f15b88-5929-4fb7-82d7-fa96cb145335
+        path: |-
+          parent
+          child
+          grandchild
+        pathIds:
+        - root
+        - 3e33f5f5-5dee-4213-95eb-4e69d6b9ff12
+        - 23c8822d-7a86-4a5d-8dd2-617e4076c65f
+        - b6d78898-713d-4b51-849e-788dbf6b2f73
+        status:
+          statusType: PASSED
+          statusName: Passed
+        totalTimeInSeconds: 1.5
+        startedAt: '2026-11-20T19:35:06.887653Z'
+        updatedAt: '2026-11-20T19:35:06.887653Z'
+        inputs: []
+        outputs: []
+        dataModel: null
+        data:
+          text: ''
+          parameters: []
+        hasChildren: false
+        workspace: 3aeed209-8f57-446c-9fb6-1b2b66866ca3
+      - name: child
+        stepType: NumericLimitTest
+        stepId: 23c8822d-7a86-4a5d-8dd2-617e4076c65f
+        parentId: 3e33f5f5-5dee-4213-95eb-4e69d6b9ff12
+        resultId: 14f15b88-5929-4fb7-82d7-fa96cb145335
+        path: |-
+          parent
+          child
+        pathIds:
+        - root
+        - 3e33f5f5-5dee-4213-95eb-4e69d6b9ff12
+        - 23c8822d-7a86-4a5d-8dd2-617e4076c65f
+        status:
+          statusType: PASSED
+          statusName: Passed
+        totalTimeInSeconds: 1.5
+        startedAt: '2026-11-20T19:35:06.859238Z'
+        updatedAt: '2026-11-20T19:35:06.889624Z'
+        inputs: []
+        outputs: []
+        dataModel: null
+        data:
+          text: ''
+          parameters: []
+        hasChildren: true
+        workspace: 3aeed209-8f57-446c-9fb6-1b2b66866ca3
+      continuationToken: ZWExMzRjMGQtMTdkNC00MDVkLThiMjEtMjE5OTJlMDZiOWU3
+- request: POST /nitestmonitor/v2/query-steps
+  body:
+    filter: resultId == @0
+    substitutions:
+    - ad650aca-e10c-49a8-9f2c-b8da0c4b446c
+    take: 1000
+    descending: false
+  response:
+    status: 200
+    contentType: application/json
+    body:
+      steps: []
+      continuationToken: null
+- request: POST /nitestmonitor/v2/query-products
+  body:
+    filter: properties["slcli.e2e.owner"] == "migration-discovery"
+    substitutions: []
+    take: 1000
+    descending: false
+  response:
+    status: 200
+    contentType: application/json
+    body:
+      products:
+      - id: 3d29df00-8f4d-424c-b889-60855ac9941f
+        partNumber: migration-e2e-fresh
+        name: migration-e2e-fresh
+        family: null
+        updatedAt: '2026-11-20T19:35:06.680374Z'
+        keywords: []
+        properties:
+          slcli.e2e.owner: migration-discovery
+        fileIds: []
+      - id: ccc4f460-4f07-4e11-bca1-f5a36e048f80
+        partNumber: migration-e2e-conflicting
+        name: migration-e2e-conflicting
+        family: null
+        updatedAt: '2026-11-20T19:35:06.680374Z'
+        keywords: []
+        properties:
+          slcli.e2e.owner: migration-discovery
+        fileIds: []
+      continuationToken: Y2NjNGY0NjAtNGYwNy00ZTExLWJjYTEtZjVhMzZlMDQ4Zjgw
+- request: POST /nitestmonitor/v2/query-results
+  body:
+    filter: workspace == @0
+    substitutions:
+    - 3aeed209-8f57-446c-9fb6-1b2b66866ca3
+    take: 1000
+    descending: false
+  response:
+    status: 200
+    contentType: application/json
+    body:
+      results:
+      - status:
+          statusType: PASSED
+          statusName: Passed
+        startedAt: '2026-11-20T19:35:06.806224Z'
+        updatedAt: '2026-11-20T19:35:06.89265Z'
+        programName: migration-e2e-fresh program
+        id: 14f15b88-5929-4fb7-82d7-fa96cb145335
+        systemId: null
+        hostName: null
+        operator: null
+        partNumber: migration-e2e-fresh
+        serialNumber: SN-1
+        totalTimeInSeconds: 0.0
+        keywords: []
+        properties:
+          slcli.e2e.owner: migration-discovery
+        fileIds: []
+        statusTypeSummary:
+          LOOPING: 0
+          SKIPPED: 0
+          CUSTOM: 0
+          DONE: 0
+          PASSED: 1
+          FAILED: 0
+          RUNNING: 0
+          WAITING: 0
+          TERMINATED: 0
+          ERRORED: 0
+          TIMED_OUT: 0
+        workspace: 3aeed209-8f57-446c-9fb6-1b2b66866ca3
+      - status:
+          statusType: PASSED
+          statusName: Passed
+        startedAt: '2026-11-20T19:35:06.806224Z'
+        updatedAt: '2026-11-20T19:35:06.81125Z'
+        programName: migration-e2e-conflicting program
+        id: ad650aca-e10c-49a8-9f2c-b8da0c4b446c
+        systemId: null
+        hostName: null
+        operator: null
+        partNumber: migration-e2e-conflicting
+        serialNumber: SN-1
+        totalTimeInSeconds: 0.0
+        keywords: []
+        properties:
+          slcli.e2e.owner: migration-discovery
+        fileIds: []
+        statusTypeSummary:
+          LOOPING: 0
+          SKIPPED: 0
+          CUSTOM: 0
+          DONE: 0
+          PASSED: 0
+          FAILED: 0
+          RUNNING: 0
+          WAITING: 0
+          TERMINATED: 0
+          ERRORED: 0
+          TIMED_OUT: 0
+        workspace: 3aeed209-8f57-446c-9fb6-1b2b66866ca3
+      continuationToken: YWQ2NTBhY2EtZTEwYy00OWE4LTlmMmMtYjhkYTBjNGI0NDZj
+- request: POST /nitestmonitor/v2/delete-results
+  body:
+    ids:
+    - 14f15b88-5929-4fb7-82d7-fa96cb145335
+    - ad650aca-e10c-49a8-9f2c-b8da0c4b446c
+    deleteSteps: true
+  response:
+    status: 204
+- request: POST /nitestmonitor/v2/delete-products
+  body:
+    ids:
+    - 3d29df00-8f4d-424c-b889-60855ac9941f
+    - ccc4f460-4f07-4e11-bca1-f5a36e048f80
+  response:
+    status: 204

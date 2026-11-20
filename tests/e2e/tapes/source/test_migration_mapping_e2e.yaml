@@ -1,0 +1,274 @@
+exchanges:
+- request: GET /niuser/v1/workspaces?name=e2e-slcli-migration-source
+  response:
+    status: 200
+    contentType: application/json; charset=utf-8
+    body:
+      totalCount: 1
+      workspaces:
+      - default: false
+        enabled: true
+        id: 3aeed209-8f57-446c-9fb6-1b2b66866ca3
+        name: e2e-slcli-migration-source
+- request: GET /niuser/v1/workspaces?take=100&skip=0
+  response:
+    status: 200
+    contentType: application/json; charset=utf-8
+    body:
+      totalCount: 4
+      workspaces:
+      - default: true
+        enabled: true
+        id: b3e298c2-8ed6-4ec2-878d-c03aa40f0ba5
+        name: Default
+      - default: false
+        enabled: true
+        id: 3aeed209-8f57-446c-9fb6-1b2b66866ca3
+        name: e2e-slcli-migration-source
+      - default: false
+        enabled: true
+        id: 72e26583-0b36-4f77-99fb-50a6df279dda
+        name: e2e-slcli-migration-source-other
+      - default: false
+        enabled: false
+        id: 1dca6c4a-7845-4298-b711-1b8700ebfc1e
+        name: e2e-slcli-migration-disabled-source
+- request: POST /nifile/v1/service-groups/Default/query-files?skip=0&take=1000&workspace=3aeed209-8f57-446c-9fb6-1b2b66866ca3
+  body: {}
+  response:
+    status: 200
+    contentType: application/json
+    body:
+      _links:
+        self:
+          href: /nifile/v1/service-groups/Default/query-files
+        search:
+          href: /nifile/v1/service-groups/Default/files
+        query:
+          href: /nifile/v1/service-groups/Default/query-files
+        upload:
+          href: /nifile/v1/service-groups/Default/upload-files
+        deleteFiles:
+          href: /nifile/v1/service-groups/Default/delete-files
+      availableFiles: []
+      totalCount: 0
+- request: POST /nitestmonitor/v2/query-results
+  body:
+    filter: workspace == @0
+    substitutions:
+    - 3aeed209-8f57-446c-9fb6-1b2b66866ca3
+    take: 1000
+    descending: false
+  response:
+    status: 200
+    contentType: application/json
+    body:
+      results: []
+      continuationToken: null
+- request: POST /nitestmonitor/v2/query-products
+  body:
+    take: 1000
+    descending: false
+  response:
+    status: 200
+    contentType: application/json
+    body:
+      products:
+      - id: 438e63bd-682f-4d0e-8224-397ea46a5372
+        partNumber: probe
+        name: null
+        family: null
+        updatedAt: '2026-10-28T20:01:54.195931Z'
+        keywords: []
+        properties: {}
+        fileIds: []
+      continuationToken: NDM4ZTYzYmQtNjgyZi00ZDBlLTgyMjQtMzk3ZWE0NmE1Mzcy
+- request: GET /niuser/v1/workspaces?take=100&skip=0
+  response:
+    status: 200
+    contentType: application/json; charset=utf-8
+    body:
+      totalCount: 4
+      workspaces:
+      - default: true
+        enabled: true
+        id: b3e298c2-8ed6-4ec2-878d-c03aa40f0ba5
+        name: Default
+      - default: false
+        enabled: true
+        id: 3aeed209-8f57-446c-9fb6-1b2b66866ca3
+        name: e2e-slcli-migration-source
+      - default: false
+        enabled: true
+        id: 72e26583-0b36-4f77-99fb-50a6df279dda
+        name: e2e-slcli-migration-source-other
+      - default: false
+        enabled: false
+        id: 1dca6c4a-7845-4298-b711-1b8700ebfc1e
+        name: e2e-slcli-migration-disabled-source
+- request: POST /nifile/v1/service-groups/Default/query-files?skip=0&take=1000&workspace=3aeed209-8f57-446c-9fb6-1b2b66866ca3
+  body: {}
+  response:
+    status: 200
+    contentType: application/json
+    body:
+      _links:
+        self:
+          href: /nifile/v1/service-groups/Default/query-files
+        search:
+          href: /nifile/v1/service-groups/Default/files
+        query:
+          href: /nifile/v1/service-groups/Default/query-files
+        upload:
+          href: /nifile/v1/service-groups/Default/upload-files
+        deleteFiles:
+          href: /nifile/v1/service-groups/Default/delete-files
+      availableFiles: []
+      totalCount: 0
+- request: POST /nitestmonitor/v2/query-results
+  body:
+    filter: workspace == @0
+    substitutions:
+    - 3aeed209-8f57-446c-9fb6-1b2b66866ca3
+    take: 1000
+    descending: false
+  response:
+    status: 200
+    contentType: application/json
+    body:
+      results: []
+      continuationToken: null
+- request: POST /nitestmonitor/v2/query-products
+  body:
+    take: 1000
+    descending: false
+  response:
+    status: 200
+    contentType: application/json
+    body:
+      products:
+      - id: 438e63bd-682f-4d0e-8224-397ea46a5372
+        partNumber: probe
+        name: null
+        family: null
+        updatedAt: '2026-10-28T20:01:54.195931Z'
+        keywords: []
+        properties: {}
+        fileIds: []
+      continuationToken: NDM4ZTYzYmQtNjgyZi00ZDBlLTgyMjQtMzk3ZWE0NmE1Mzcy
+- request: GET /niuser/v1/workspaces?name=e2e-slcli-migration-disabled-source
+  response:
+    status: 200
+    contentType: application/json; charset=utf-8
+    body:
+      totalCount: 1
+      workspaces:
+      - default: false
+        enabled: false
+        id: 1dca6c4a-7845-4298-b711-1b8700ebfc1e
+        name: e2e-slcli-migration-disabled-source
+- request: PUT /niuser/v1/workspaces/1dca6c4a-7845-4298-b711-1b8700ebfc1e
+  body:
+    name: e2e-slcli-migration-disabled-source
+    enabled: true
+  response:
+    status: 200
+    contentType: application/json; charset=utf-8
+    body:
+      default: false
+      enabled: true
+      id: 1dca6c4a-7845-4298-b711-1b8700ebfc1e
+      name: e2e-slcli-migration-disabled-source
+- request: PUT /niuser/v1/workspaces/1dca6c4a-7845-4298-b711-1b8700ebfc1e
+  body:
+    name: e2e-slcli-migration-disabled-source
+    enabled: false
+  response:
+    status: 200
+    contentType: application/json; charset=utf-8
+    body:
+      default: false
+      enabled: false
+      id: 1dca6c4a-7845-4298-b711-1b8700ebfc1e
+      name: e2e-slcli-migration-disabled-source
+- request: GET /niuser/v1/workspaces?take=100&skip=0
+  response:
+    status: 200
+    contentType: application/json; charset=utf-8
+    body:
+      totalCount: 4
+      workspaces:
+      - default: true
+        enabled: true
+        id: b3e298c2-8ed6-4ec2-878d-c03aa40f0ba5
+        name: Default
+      - default: false
+        enabled: true
+        id: 3aeed209-8f57-446c-9fb6-1b2b66866ca3
+        name: e2e-slcli-migration-source
+      - default: false
+        enabled: true
+        id: 72e26583-0b36-4f77-99fb-50a6df279dda
+        name: e2e-slcli-migration-source-other
+      - default: false
+        enabled: false
+        id: 1dca6c4a-7845-4298-b711-1b8700ebfc1e
+        name: e2e-slcli-migration-disabled-source
+- request: GET /niuser/v1/workspaces?take=100&skip=0
+  response:
+    status: 200
+    contentType: application/json; charset=utf-8
+    body:
+      totalCount: 4
+      workspaces:
+      - default: true
+        enabled: true
+        id: b3e298c2-8ed6-4ec2-878d-c03aa40f0ba5
+        name: Default
+      - default: false
+        enabled: true
+        id: 3aeed209-8f57-446c-9fb6-1b2b66866ca3
+        name: e2e-slcli-migration-source
+      - default: false
+        enabled: true
+        id: 72e26583-0b36-4f77-99fb-50a6df279dda
+        name: e2e-slcli-migration-source-other
+      - default: false
+        enabled: false
+        id: 1dca6c4a-7845-4298-b711-1b8700ebfc1e
+        name: e2e-slcli-migration-disabled-source
+- request: GET /niuser/v1/workspaces?take=100&skip=0
+  response:
+    status: 200
+    contentType: application/json; charset=utf-8
+    body:
+      totalCount: 4
+      workspaces:
+      - default: true
+        enabled: true
+        id: b3e298c2-8ed6-4ec2-878d-c03aa40f0ba5
+        name: Default
+      - default: false
+        enabled: true
+        id: 3aeed209-8f57-446c-9fb6-1b2b66866ca3
+        name: e2e-slcli-migration-source
+      - default: false
+        enabled: true
+        id: 72e26583-0b36-4f77-99fb-50a6df279dda
+        name: e2e-slcli-migration-source-other
+      - default: false
+        enabled: false
+        id: 1dca6c4a-7845-4298-b711-1b8700ebfc1e
+        name: e2e-slcli-migration-disabled-source
+- request: PUT /niuser/v1/workspaces/1dca6c4a-7845-4298-b711-1b8700ebfc1e
+  body:
+    name: e2e-slcli-migration-disabled-source
+    enabled: false
+  response:
+    status: 200
+    contentType: application/json; charset=utf-8
+    body:
+      default: false
+      enabled: false
+      id: 1dca6c4a-7845-4298-b711-1b8700ebfc1e
+      name: e2e-slcli-migration-disabled-source

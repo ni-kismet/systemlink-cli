@@ -110,6 +110,17 @@ def discover_workspaces(
     )
 
 
+def destination_names(
+    source_workspaces: DiscoveredWorkspaces,
+    provided_name_mappings: Optional[Mapping[str, str]],
+) -> Dict[str, str]:
+    """Return the destination name of each selected source workspace, by source name."""
+    return {
+        source_name: (provided_name_mappings or {}).get(source_name, source_name)
+        for source_name in source_workspaces.selected
+    }
+
+
 def synchronize_workspaces(
     source_workspaces: DiscoveredWorkspaces,
     destination_workspaces: Iterable[Workspace],
@@ -134,10 +145,7 @@ def synchronize_workspaces(
         workspace.name: workspace for workspace in destination_workspaces
     }
 
-    name_mappings = {
-        source_name: (provided_name_mappings or {}).get(source_name, source_name)
-        for source_name in source_workspaces.selected
-    }
+    name_mappings = destination_names(source_workspaces, provided_name_mappings)
     needed_names = set(name_mappings.values())
     existing_names = set(destination_workspaces_by_name)
     disabled_names = sorted(

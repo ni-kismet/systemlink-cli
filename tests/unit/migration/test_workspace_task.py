@@ -1,6 +1,6 @@
 """Tests for destination workspace synchronization tasks."""
 
-from typing import Dict, List, Optional
+from typing import Dict, Iterable, List, Optional
 
 import pytest
 
@@ -13,9 +13,11 @@ class _FakeWorkspaceClient:
     def __init__(self, workspaces: List[Workspace]) -> None:
         self.workspaces = workspaces
         self.created_names: List[str] = []
+        self.found_names: List[str] = []
 
-    def query_workspaces(self) -> List[Workspace]:
-        return list(self.workspaces)
+    def find_workspaces(self, names: Iterable[str]) -> List[Workspace]:
+        self.found_names.extend(sorted(names))
+        return [w for w in self.workspaces if w.name in self.found_names]
 
     def create_workspace(self, name: str) -> Workspace:
         self.created_names.append(name)
@@ -48,6 +50,7 @@ def test_creates_only_missing_mapped_destinations(
         "migration-id", "destination", discovered, {"Lab": "New", "Default": "Existing"}
     )
 
+    assert fake_destination_client.found_names == ["Existing", "New"]
     assert fake_destination_client.created_names == ["New"]
     assert [
         (workspace.destination_name, workspace.destination_id) for workspace in mapping.workspaces
