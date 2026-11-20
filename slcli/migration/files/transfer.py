@@ -90,15 +90,15 @@ def transfer_batch(
     already_present = 0
     failures: List[FileFailure] = []
     for file in batch:
-        allocated_id = source_to_destination_id_map[file.id]
-        if allocated_id in existing:
+        file_id = source_to_destination_id_map[file.id]
+        if file_id in existing:
             already_present += 1
             continue
         try:
-            workspace_id = workspace_mapping.workspace(file.workspace).destination_id
-            actual_id = _upload_with_retry(source, destination, file, allocated_id, workspace_id)
-            if actual_id != allocated_id:
-                raise ValueError(f"Server assigned {actual_id} instead of {allocated_id}")
+            destination_workspace_id = workspace_mapping.workspace(file.workspace).destination_id
+            actual_id = _upload_with_retry(source, destination, file, file_id, destination_workspace_id)
+            if actual_id != file_id:
+                raise ValueError(f"Server assigned {actual_id} instead of {file_id}")
             transferred += 1
             _logger.info("File %s transferred as %s", file.id, actual_id)
         except Exception as exc:
