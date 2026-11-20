@@ -30,7 +30,14 @@ library and the service-specific SystemLink OpenAPI docs.
 
 ## Available Interfaces
 
-Reference: [Publishing a Jupyter Notebook (NI Docs)](https://www.ni.com/docs/en-US/bundle/systemlink-enterprise/page/publishing-a-jupyter-notebook.html)
+Reference: [Publishing a Jupyter Notebook (NI Docs)](https://www.ni.com/docs/en-US/bundle/systemlink/page/publishing-a-jupyter-notebook.html)
+
+Check a notebook against an interface's required inputs before publishing:
+
+```bash
+python .agents/skills/slcli/scripts/notebook_helper.py validate report.ipynb \
+  --interface "Work Item Automations"
+```
 
 > **Note:** SystemLink Enterprise does not strictly enforce the selected interface name.
 > The service can still execute a notebook even if the interface-specific metadata is
@@ -41,7 +48,7 @@ Reference: [Publishing a Jupyter Notebook (NI Docs)](https://www.ni.com/docs/en-
 | ---------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | **Assets Grid**              | Not currently in use                                                                                                                                                        | —                                                                                                                                                                    | —                                                                                                                                                                                                                                                                       |
 | **Data Table Analysis**      | Analyze data table contents. Detailed input and output requirements are not yet documented in this reference.                                                               | See NI docs                                                                                                                                                          | See NI docs                                                                                                                                                                                                                                                             |
-| **Data Space Analysis**      | Analyze parametric data in a data space and calculate statistics                                                                                                            | `trace_data`: `dict[str, str]` (artifact reference, for example `{"artifact_id": "..."}`)<br>`analysis_options`: `string[]`<br>`workspace_id`: `string`              | List of analysis options: `[{display_name, id, type: scalar/vector}]`                                                                                                                                                                                                   |
+| **Data Space Analysis**      | Analyze parametric data in a data space and calculate statistics                                                                                                            | `trace_data`: `dict[str, str]` (artifact reference, for example `{"artifact_id": "..."}`). Declare it as `string` with default `""`, as NI's example does; the injected value is still the dict.<br>`analysis_options`: `string[]`<br>`workspace_id`: `string`              | List of analysis options: `[{display_name, id, type: scalar/vector}]`                                                                                                                                                                                                   |
 | **File Analysis**            | Analyze a file or create a routine with a file change trigger                                                                                                               | `file_ids`: string[]                                                                                                                                                 | No output required                                                                                                                                                                                                                                                      |
 | **Periodic Execution**       | Scheduled recurring notebook (e.g. daily/hourly reports)                                                                                                                    | No input required                                                                                                                                                    | No output required                                                                                                                                                                                                                                                      |
 | **Resource Changed Routine** | Triggered when a resource changes (via v1 routines)                                                                                                                         | `context`: `dict` containing `routine_id`, `correlation_id`, `triggered_at`, `resource_type`, `before` (snapshot before change), and `after` (snapshot after change) | No output required                                                                                                                                                                                                                                                      |
@@ -55,9 +62,11 @@ Reference: [Publishing a Jupyter Notebook (NI Docs)](https://www.ni.com/docs/en-
 
 ### Grafana Compatibility
 
-Notebooks whose outputs are consumed by the SystemLink Grafana plugin can only use
-`data_frame` and `scalar` output types. The `string` and `string[]` types are not
-supported by Grafana.
+Notebooks whose outputs are consumed by the SystemLink Grafana plugin must use
+`systemlink.version` `2`, declare at least one output, and only use
+`data_frame`, `scalar`, and `array` output types. The `string` and `string[]`
+types are not supported by Grafana. See [metadata.md](./metadata.md) for the
+result shape of each type.
 
 ## Common Interface Patterns
 
@@ -75,6 +84,7 @@ Output must be `data_frame` with `minion id` as the first column.
 
 Parameters typically include:
 
+- `result_ids` (string[]) — required; the selected test result IDs. Default: `[]`
 - `group_by` (string)
 - `program_name` (string)
 - `status_filter` (string)
@@ -84,6 +94,19 @@ Parameters typically include:
 
 No special parameter requirements. Typically uses fixed configuration
 or reads from tags/files. Can be scheduled via routines (no Python client available).
+
+**Scheduled runs cannot pass inputs.** Scheduled routines use the v1 Routines
+API, whose `execution.definition` holds only `notebookId`, and the Routines UI
+shows no inputs for them. Every scheduled run uses the papermill defaults in
+the parameters cell. To run the same notebook with different settings:
+
+- Publish a copy per configuration with different defaults.
+- Or read settings at runtime from a tag, file, or other SystemLink resource.
+
+Declared parameters still apply to manual runs, such as
+`slcli notebook execute sync --parameters JSON`. v2 event routines (`TAG`,
+`TESTRESULTCHANGED`, `WORKITEMCHANGED`) do accept a NOTEBOOK action
+`parameters` object, but they are triggered by events, not schedules.
 
 **Note:** The Python client does not have a Routines service. Use `slcli routine` to
 schedule notebooks, or call the Routines REST API directly.
@@ -136,7 +159,7 @@ Parameters are injected by the work item system:
 
 **Critical:** `work_item_ids` must be typed as `"string[]"` (not `"string"`),
 default to `[]` in both papermill and the code cell, and `systemlink.version`
-must be `1`. See [overview.md](./overview.md) for the full metadata example.
+must be `1`. See [metadata.md](./metadata.md) for the full metadata contract.
 
 **Service note:** The Python client has `work_item` service for querying and updating
 work items, but does not have a `comments` service. If your automation needs to add

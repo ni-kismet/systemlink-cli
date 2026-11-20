@@ -11,6 +11,7 @@ request model constructor signature before using — intuitive Python names will
 - [Pattern 1: Systems Grid Column Report](#pattern-1-systems-grid-column-report)
 - [Pattern 2: Test Data Analysis](#pattern-2-test-data-analysis)
 - [Pattern 3: Scalar Output](#pattern-3-scalar-output)
+- [Pattern 4: Dashboard Report with Enum and Result Query Inputs](#pattern-4-dashboard-report-with-enum-and-result-query-inputs)
 
 ---
 
@@ -208,6 +209,8 @@ sb.glue('result', result)
 ## Pattern 2: Test Data Analysis
 
 Query test results and return a summary. Uses `nisystemlink.clients.testmonitor`.
+The Test Data Analysis interface passes the selected results as `result_ids`
+(`string[]`); declare it even when the notebook adds its own filters.
 
 **⚠️ API Quirk:** Request models in the TestMonitor client use camelCase field names.
 Constructor calls like `CreateResultRequest(programName="...", fileIds=[...])` are required.
@@ -221,12 +224,13 @@ Using intuitive Python `snake_case` names will fail.
     "parameters": {
       "group_by": "System",
       "program_name": "",
+      "result_ids": [],
       "status_filter": "",
       "systems_filter": ""
     }
   },
   "systemlink": {
-    "namespaces": [],
+    "namespaces": ["ni-testmanagement"],
     "outputs": [
       {
         "display_name": "Test Summary",
@@ -235,6 +239,7 @@ Using intuitive Python `snake_case` names will fail.
       }
     ],
     "parameters": [
+      { "display_name": "Result IDs", "id": "result_ids", "type": "string[]" },
       { "display_name": "Group by", "id": "group_by", "type": "string" },
       {
         "display_name": "Program Name",
@@ -260,6 +265,16 @@ Using intuitive Python `snake_case` names will fail.
 
 **Query pattern:**
 
+The parameters cell assigns every declared parameter:
+
+```python
+result_ids = []
+group_by = "System"
+program_name = ""
+status_filter = ""
+systems_filter = ""
+```
+
 ```python
 from nisystemlink.clients.testmonitor import TestMonitorClient
 from nisystemlink.clients.core import HttpConfigurationManager
@@ -267,14 +282,14 @@ from nisystemlink.clients.core import HttpConfigurationManager
 config = HttpConfigurationManager.get_configuration()
 client = TestMonitorClient(config)
 
-# Use the client to query results with filters
+# Analyze the selected results (result_ids), narrowed by the optional filters
 results = client.get_results(
     filter=f'status.statusType == "{status_filter}"' if status_filter else None,
     take=1000
 )
 ```
 
-**Output pattern (same as Pattern 1):**
+**Output pattern:**
 
 ```python
 result = [{
@@ -282,8 +297,8 @@ result = [{
     "id": "test_summary",
     "type": "data_frame",
     "data": {
-        "columns": ["minion id", "pass rate"],
-        "values": df.reset_index().values.tolist()
+        "columns": pd.io.json.build_table_schema(df, index=False)["fields"],
+        "values": df.values.tolist()
     }
 }]
 sb.glue('result', result)
@@ -313,12 +328,104 @@ When the notebook returns a single value instead of a table.
 
 **Output code:**
 
+Scalar outputs put the value in `value`, not `data`.
+
 ```python
 result = [{
     "display_name": "Total Count",
     "id": "total_count",
     "type": "scalar",
-    "data": len(df)
+    "value": len(df)
 }]
 sb.glue('result', result)
 ```
+
+---
+
+## Pattern 4: Dashboard Report with Enum and Result Query Inputs
+
+A version 2 report with a free-text input, a dropdown, and a test result query
+builder, returning a table and a scalar. See [metadata.md](./metadata.md) for
+the full field reference.
+
+**Parameters cell (code):**
+
+```python
+my_input = ""
+my_enum = "Day"
+my_query = 'startedWithin <= "30.0:0:0"'
+```
+
+**Parameters cell metadata:**
+
+```json
+{
+  "papermill": {
+    "parameters": {
+      "my_enum": "Day",
+      "my_input": "",
+      "my_query": "startedWithin <= \"30.0:0:0\""
+    }
+  },
+  "systemlink": {
+    "namespaces": ["ni-testmanagement"],
+    "outputs": [
+      { "display_name": "My Output", "id": "my_output", "type": "data_frame" },
+      { "display_name": "My Output2", "id": "my_output2", "type": "scalar" }
+    ],
+    "parameters": [
+      { "display_name": "My Input", "id": "my_input", "type": "string" },
+      {
+        "display_name": "My Enum",
+        "id": "my_enum",
+        "options": ["Day", "System", "Test Program", "Operator", "Part Number", "Workspace"],
+        "type": "string"
+      },
+      {
+        "default_display": {
+          "products_filter": [],
+          "results_filter": [
+            {
+              "queryOperandUnit": "DAYS",
+              "queryOperandValue": 30,
+              "queryOperator": "LESS_THAN_OR_EQUAL",
+              "queryOperatorName": "startedWithin"
+            }
+          ]
+        },
+        "display_name": "My Query",
+        "id": "my_query",
+        "type": "test_monitor_result_query"
+      }
+    ],
+    "version": 2
+  },
+  "tags": ["parameters"]
+}
+```
+
+**Output code:**
+
+```python
+df = pd.DataFrame({
+    "Station": ["Station 1", "Station 2"],
+    "Status": ["Running", "Failed"],
+})
+
+result = [
+    {
+        "id": "my_output",
+        "type": "data_frame",
+        "data": {
+            "columns": pd.io.json.build_table_schema(df, index=False)["fields"],
+            "values": df.values.tolist(),
+        },
+    },
+    {"id": "my_output2", "type": "scalar", "value": "my output 2"},
+]
+sb.glue("result", result)
+```
+
+Use `my_query` as the Test Monitor result filter and `my_enum` to choose the
+grouping. Scaffold this structure with
+`notebook_helper.py init --spec SPEC --output FILE`.

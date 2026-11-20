@@ -8,6 +8,7 @@ needs interface-specific metadata or notebook structure examples.
 
 | Need | Read |
 | --- | --- |
+| Parameters cell metadata, input types, and result format | [metadata.md](./metadata.md) |
 | Interface-specific inputs and outputs | [interfaces.md](./interfaces.md) |
 | Example notebook structure and authoring patterns | [notebook-patterns.md](./notebook-patterns.md) |
 
@@ -96,7 +97,8 @@ Every SystemLink notebook follows this cell pattern:
 
 ## Parameters Cell Metadata
 
-The parameters cell is the most critical part. It must have metadata that aligns:
+The parameters cell is the most critical part. Load [metadata.md](./metadata.md)
+before writing or editing it. Its metadata must align:
 
 - `papermill.parameters` keys with the parameter variable names
 - `systemlink.parameters[].id` with the parameter variable names
@@ -107,9 +109,18 @@ Core rules:
 
 - `systemlink.version` is `2` for most notebooks.
 - `systemlink.version` is `1` for Work Item Automations.
-- Supported parameter types are `string`, `integer`, `float`, `boolean`, and `string[]`.
-- Supported scrapbook output types are `data_frame`, `scalar`, `string`, and `string[]`.
-- Grafana-facing notebooks can only emit `data_frame` and `scalar` outputs.
+- Supported parameter types are `string`, `integer`, `float`, `boolean`,
+  `number`, `string[]`, and `test_monitor_result_query`.
+- Add `options` to a `string` parameter for a dropdown, or `[true, false]` to
+  a `boolean` parameter; the default must be one of the options.
+- Add `default_display` to a `test_monitor_result_query` parameter to set the
+  query builder's initial state.
+- Set `systemlink.namespaces` to `["ni-testmanagement"]` for Test Monitor
+  notebooks.
+- Report output types are `data_frame`, `scalar`, and `array`. Action notebooks
+  also declare `string` and `string[]` outputs.
+- Grafana-facing notebooks can only emit `data_frame`, `scalar`, and `array`
+  outputs.
 
 ## Work Item Automations pattern
 
@@ -130,15 +141,53 @@ All notebooks must use `scrapbook` to return results.
 Rules:
 
 - `result` must be a list of output objects, not a dict.
-- Each output must include `display_name`, `id`, `type`, and `data`.
+- Each output must include `id` and `type`; `display_name` is optional.
 - Output `id` values must exactly match the configured metadata.
-- For `data_frame`, `data.columns` and `data.values` must both be present and aligned.
+- `scalar` outputs put the value in `value`, not `data`.
+- For `data_frame`, `data.columns` and `data.values` must both be present and
+  aligned. For dashboard and Grafana outputs, build `columns` with
+  `pd.io.json.build_table_schema(df, index=False)["fields"]` so each column is a
+  `{"name", "type"}` object.
 
 For Systems Grid notebooks:
 
 - the first column must be exactly `minion id`
 - the first value in each row must be the system ID string
 - single-column reports should usually emit only `minion id` plus one value column
+
+## Create and publish workflow
+
+1. Scaffold the notebook, or validate an existing one, with the bundled helper.
+   Pass the interface you will publish with so its required inputs are checked:
+
+   ```bash
+   python .agents/skills/slcli/scripts/notebook_helper.py init \
+     --spec notebook-spec.json --interface "Test Data Analysis" --output report.ipynb
+   python .agents/skills/slcli/scripts/notebook_helper.py validate report.ipynb \
+     --interface "Test Data Analysis"
+   ```
+
+   Fix every error before publishing. Review warnings such as defaults that are
+   not in `options`.
+2. Implement the analysis and output cells, then validate again.
+3. Publish to SystemLink Enterprise with the same interface:
+
+   ```bash
+   slcli notebook manage create --file report.ipynb --name "Report" \
+     --workspace WORKSPACE --interface "Test Data Analysis"
+   ```
+
+   For an existing notebook, use
+   `slcli notebook manage update --id NOTEBOOK_ID --content report.ipynb`.
+   Users can also publish from the browser: in **Analysis » Scripts**,
+   right-click the notebook, select **Publish to SystemLink**, and choose the
+   workspace and **Interface**.
+4. Run it with injected parameters and confirm the glued result:
+
+   ```bash
+   slcli notebook execute sync --notebook-id NOTEBOOK_ID --workspace WORKSPACE \
+     --parameters '{"result_ids": ["RESULT_ID"]}' --format json
+   ```
 
 ## Common imports
 
@@ -164,5 +213,6 @@ The `SystemsApi` uses a projection/filter pattern.
 
 ## When to go deeper
 
+- Load [metadata.md](./metadata.md) when you write or review the parameters cell or the glued result.
 - Load [interfaces.md](./interfaces.md) when the notebook must satisfy a specific SystemLink interface contract.
 - Load [notebook-patterns.md](./notebook-patterns.md) when you need a fuller cell-by-cell notebook template.

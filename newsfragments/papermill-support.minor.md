@@ -1,0 +1,1 @@
+Add a notebook metadata reference and a `notebook_helper.py` script to the slcli skill for scaffolding and validating SystemLink papermill parameters cells, and fix the documented scalar and data frame result formats.
