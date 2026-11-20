@@ -7,7 +7,7 @@ from datetime import datetime, timezone
 from pathlib import Path
 from threading import Barrier, Event
 from time import sleep
-from typing import Any, Dict, List, Mapping, Optional
+from typing import Any, Dict, List, Mapping, Optional, Sequence, Set
 
 import click
 import pytest
@@ -26,8 +26,6 @@ from slcli.migration.orchestration import (
 )
 from slcli.migration.state import create_migration_run
 from slcli.migration.testmonitor.discovery_task import discover_test_monitor_task
-from slcli.migration.testmonitor.file_references import FileReferenceRepair
-from slcli.migration.testmonitor.file_references_task import repair_file_references_task
 from slcli.migration.testmonitor.migration_task import (
     migrate_results_task,
     migrate_test_monitor_task,
@@ -97,6 +95,7 @@ def fake_source(monkeypatch: pytest.MonkeyPatch) -> FakeSource:
     def files_discovery(
         migration_id: str,
         source_profile: str,
+        destination_profile: str,
         workspaces: DiscoveredWorkspaces,
     ) -> FileDiscovery:
         return FILES_DISCOVERY
@@ -112,7 +111,7 @@ def test_discovery_persists_typed_task_result(
     """The flow returns typed results and persists them in the run's storage."""
     run = create_migration_run("source", "destination", {"Lab": "Lab"}, tmp_path)
 
-    discovery = run_discovery(run, "source", ["Lab"], test_prefect_server)
+    discovery = run_discovery(run, "source", "destination", ["Lab"], test_prefect_server)
 
     assert discovery.test_monitor == DISCOVERY
     assert discovery.files == FILES_DISCOVERY
@@ -129,9 +128,9 @@ def test_discovery_is_cached_per_input(
     """Repeating the same inputs reuses the persisted task; new inputs recompute."""
     run = create_migration_run("source", "destination", None, tmp_path)
 
-    first = run_discovery(run, "source", ["Lab"], test_prefect_server)
-    second = run_discovery(run, "source", ["Lab"], test_prefect_server)
-    run_discovery(run, "source", ["Other"], test_prefect_server)
+    first = run_discovery(run, "source", "destination", ["Lab"], test_prefect_server)
+    second = run_discovery(run, "source", "destination", ["Lab"], test_prefect_server)
+    run_discovery(run, "source", "destination", ["Other"], test_prefect_server)
 
     assert second == first
     assert [call["workspaces"] for call in fake_source.calls] == [["Lab"], ["Other"]]
@@ -146,6 +145,7 @@ def test_failed_run_does_not_affect_later_runs(
         run_discovery(
             create_migration_run("source", "destination", None, tmp_path),
             "source",
+            "destination",
             None,
             test_prefect_server,
         )
@@ -153,7 +153,10 @@ def test_failed_run_does_not_affect_later_runs(
     fake_source.fail = False
     run = create_migration_run("source", "destination", None, tmp_path)
 
-    assert run_discovery(run, "source", None, test_prefect_server).test_monitor == DISCOVERY
+    assert (
+        run_discovery(run, "source", "destination", None, test_prefect_server).test_monitor
+        == DISCOVERY
+    )
 
 
 # Restarting over the same database exercises OS process and file-lock handling.
@@ -165,9 +168,9 @@ def test_managed_server_restart_reuses_persisted_discovery(
     run = create_migration_run("source", "destination", None, tmp_path)
 
     with prefect_server(run) as api_url:
-        first = run_discovery(run, "source", None, api_url)
+        first = run_discovery(run, "source", "destination", None, api_url)
     with prefect_server(run) as api_url:
-        second = run_discovery(run, "source", None, api_url)
+        second = run_discovery(run, "source", "destination", None, api_url)
 
     assert second == first
     assert len(fake_source.calls) == 1
@@ -179,10 +182,10 @@ def test_cached_discovery_does_not_depend_on_server_history(
 ) -> None:
     """Result storage alone restores a run; any server can serve the next flow."""
     run = create_migration_run("source", "destination", None, tmp_path)
-    first = run_discovery(run, "source", None, test_prefect_server)
+    first = run_discovery(run, "source", "destination", None, test_prefect_server)
 
     with prefect_server(run) as fresh_server_url:
-        second = run_discovery(run, "source", None, fresh_server_url)
+        second = run_discovery(run, "source", "destination", None, fresh_server_url)
 
     assert second == first
     assert len(fake_source.calls) == 1
@@ -199,7 +202,6 @@ def test_file_and_test_monitor_migrations_run_concurrently(
     """Both tasks overlap, and either failure waits for the other task to finish."""
     barrier = Barrier(2, timeout=30)
     completed = Event()
-    repair_calls: List[tuple[FileTransfer, TestMonitorMigration]] = []
     mapping = WorkspaceMapping(
         workspaces=(
             MappedWorkspace(
@@ -233,17 +235,6 @@ def test_file_and_test_monitor_migrations_run_concurrently(
     monkeypatch.setattr(transfer_files_task, "fn", transfer)
     monkeypatch.setattr(migrate_test_monitor_task, "fn", migrate_monitor)
 
-    def repair(
-        migration_id: str,
-        source_profile: str,
-        destination_profile: str,
-        files: FileTransfer,
-        monitor: TestMonitorMigration,
-    ) -> FileReferenceRepair:
-        repair_calls.append((files, monitor))
-        return FileReferenceRepair()
-
-    monkeypatch.setattr(repair_file_references_task, "fn", repair)
     run = create_migration_run("source", "destination", {"Lab": "Destination"}, tmp_path)
     metadata = run.read_metadata()
 
@@ -251,22 +242,20 @@ def test_file_and_test_monitor_migrations_run_concurrently(
         outcome = run_migration(run, metadata, test_prefect_server)
         assert outcome.files == FileTransfer(transferred=1)
         assert outcome.test_monitor == TestMonitorMigration()
-        assert repair_calls == [(outcome.files, outcome.test_monitor)]
     else:
         with pytest.raises(RuntimeError, match=f"{failing_task} failed"):
             run_migration(run, metadata, test_prefect_server)
-        assert repair_calls == []
     assert completed.is_set()
 
 
-def test_file_transfer_resume_persists_reassigned_ids(
+def test_file_transfer_resume_skips_files_already_on_destination(
     fake_source: FakeSource,
     test_prefect_server: str,
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    """Persist the file map before uploading and reuse it after a failed transfer."""
-    intended_good, intended_bad, actual_good = ("ab" * 12, "cd" * 12, "ef" * 12)
+    """Persist the file map before uploading and skip uploads that survived a failed batch."""
+    intended_good, intended_bad = ("ab" * 12, "cd" * 12)
     discovery = FileDiscovery(
         files=(
             DiscoveredFile(id="good", workspace="Lab", name="good.txt"),
@@ -301,10 +290,9 @@ def test_file_transfer_resume_persists_reassigned_ids(
                 raise RuntimeError("source temporarily unavailable")
             yield FileContent([file_id.encode()], len(file_id))
 
-        def query_files(self, workspace_id: str) -> Iterator[SourceFile]:
-            """Expose uploads from prior attempts for reconciliation."""
-            assert workspace_id == "dest-id"
-            return iter(stored.values())
+        def query_existing_ids(self, ids: Sequence[str]) -> Set[str]:
+            """Report uploads from prior attempts that already use the planned IDs."""
+            return set(ids) & set(stored)
 
         def upload_file(
             self,
@@ -314,12 +302,11 @@ def test_file_transfer_resume_persists_reassigned_ids(
             properties: Mapping[str, Any],
             content: FileContent,
         ) -> str:
-            """Store the metadata and return the actual destination identity."""
+            """Store the metadata under the requested ID, as the server does for new IDs."""
             assert b"".join(content.chunks) == properties[MIGRATED_SOURCE_ID].encode()
             uploads.append(file_id)
-            actual_id = actual_good if file_id == intended_good else file_id
-            stored[actual_id] = SourceFile(id=actual_id, properties=dict(properties))
-            return actual_id
+            stored[file_id] = SourceFile(id=file_id, properties=dict(properties))
+            return file_id
 
     monkeypatch.setattr(discover_files_task, "fn", lambda *args: discovery)
     monkeypatch.setattr(synchronize_workspaces_task, "fn", lambda *args: mapping)
@@ -350,7 +337,6 @@ def test_file_transfer_resume_persists_reassigned_ids(
     assert resumed.mapping == mapping
     assert resumed.files.transferred == 1
     assert resumed.files.already_present == 1
-    assert resumed.files.reassigned_ids == {intended_good: actual_good}
     assert uploads == [intended_good, intended_bad]
     assert downloads == ["good", "bad", "bad", "bad"]
     assert len(fake_source.calls) == 1
@@ -363,18 +349,18 @@ def test_file_transfer_resume_persists_reassigned_ids(
     assert cached == resumed
 
 
-@pytest.mark.parametrize("interrupt_stage", [None, "transfer", "repair", "completion"])
-def test_result_file_reference_task_receives_both_migration_outcomes(
+@pytest.mark.parametrize("interrupt_stage", [None, "transfer", "completion"])
+def test_result_completion_follows_test_monitor_migration(
     fake_source: FakeSource,
     test_prefect_server: str,
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,
     interrupt_stage: Optional[str],
 ) -> None:
-    """Prefect resolves both futures and reuses completed batch and repair results."""
-    from slcli.migration.annotations import COMPLETE, INCOMPLETE, STATUS, UNRESOLVED_FILE_IDS
+    """Results turn COMPLETE once Test Monitor migration succeeds; resumed runs do not repeat it."""
+    from slcli.migration.annotations import COMPLETE, INCOMPLETE, STATUS
 
-    intended, second, actual = "ab" * 12, "cd" * 12, "ef" * 12
+    intended, second = "ab" * 12, "cd" * 12
     discovery = FileDiscovery(
         files=(
             DiscoveredFile(id="source-file", workspace="Lab"),
@@ -388,76 +374,36 @@ def test_result_file_reference_task_receives_both_migration_outcomes(
             BatchResult(
                 resource="results",
                 batch=0,
-                file_results={intended: ("dest-result",), second: ("second-result",)},
                 migrated=(
-                    MigratedItem(
-                        source_id="source-result",
-                        destination_id="dest-result",
-                        unresolved_file_ids=("unresolved",),
-                    ),
+                    MigratedItem(source_id="source-result", destination_id="dest-result"),
                     MigratedItem(source_id="second-source", destination_id="second-result"),
                 ),
             ),
         )
     )
-    updates: List[Record] = []
     completions: List[Record] = []
     batch_calls: List[int] = []
     records: Dict[str, Record] = {
-        "dest-result": {
-            "id": "dest-result",
-            "fileIds": [intended],
-            "properties": {UNRESOLVED_FILE_IDS: "unresolved", STATUS: INCOMPLETE},
-        },
-        "second-result": {
-            "id": "second-result",
-            "fileIds": [second],
-            "properties": {STATUS: INCOMPLETE},
-        },
+        "dest-result": {"id": "dest-result", "properties": {STATUS: INCOMPLETE}},
+        "second-result": {"id": "second-result", "properties": {STATUS: INCOMPLETE}},
     }
     interrupted = False
 
-    class Client:
-        """Return source or destination result records for the repair task."""
-
-        def __init__(self, connection: MigrationConnection) -> None:
-            self.profile = connection.profile_name
-
-        def query_records(
-            self, collection: str, filter_expr: str, substitutions: List[object]
-        ) -> Iterator[Record]:
-            assert self.profile == "destination"
-            for result_id in substitutions:
-                assert isinstance(result_id, str)
-                yield records[result_id]
-
     class Writer:
-        """Capture the destination update."""
+        """Capture completion updates and optionally lose one response."""
 
         def __init__(self, connection: MigrationConnection) -> None:
             assert connection.profile_name == "destination"
 
         def update_results(self, results: List[Record], *, replace: bool = False) -> WriteResponse:
             nonlocal interrupted
-            if not replace:
-                assert records["dest-result"]["fileIds"] == [second]
-                assert records["second-result"]["fileIds"] == [actual]
-                for result in results:
-                    records[result["id"]]["properties"].update(result["properties"])
-                    completions.append(result)
-                    if interrupt_stage == "completion" and not interrupted:
-                        interrupted = True
-                        raise RuntimeError("response lost during completion")
-                return WriteResponse(created=results)
-            assert all(record["properties"][STATUS] == INCOMPLETE for record in records.values())
-            if interrupt_stage == "repair" and not interrupted:
-                records[results[0]["id"]].update(results[0])
-                updates.append(results[0])
-                interrupted = True
-                raise RuntimeError("response lost after partial repair")
+            assert not replace
             for result in results:
-                records[result["id"]].update(result)
-            updates.extend(results)
+                records[result["id"]]["properties"].update(result["properties"])
+                completions.append(result)
+            if interrupt_stage == "completion" and not interrupted:
+                interrupted = True
+                raise RuntimeError("response lost during completion")
             return WriteResponse(created=results)
 
     monkeypatch.setattr(discover_files_task, "fn", lambda *args: discovery)
@@ -490,7 +436,7 @@ def test_result_file_reference_task_receives_both_migration_outcomes(
         if interrupt_stage == "transfer" and not interrupted:
             interrupted = True
             raise RuntimeError("file transfer failed")
-        return FileTransfer(reassigned_ids={intended: second, second: actual})
+        return FileTransfer(transferred=2)
 
     monkeypatch.setattr(transfer_files_task, "fn", transfer)
 
@@ -510,43 +456,17 @@ def test_result_file_reference_task_receives_both_migration_outcomes(
         return migration.results[0]
 
     monkeypatch.setattr(migrate_results_task, "fn", migrate_result_batch)
-    monkeypatch.setattr(
-        "slcli.migration.testmonitor.file_references_task.resolve_migration_connection",
-        lambda profile: MigrationConnection(profile, f"https://{profile}", {}),
-    )
-    monkeypatch.setattr(
-        "slcli.migration.testmonitor.file_references_task.TestMonitorClient", Client
-    )
-    monkeypatch.setattr(
-        "slcli.migration.testmonitor.file_references_task.TestMonitorWriter", Writer
-    )
+    monkeypatch.setattr("slcli.migration.testmonitor.migration_task.TestMonitorWriter", Writer)
     run = create_migration_run("source", "destination", {"Lab": "Destination"}, tmp_path)
 
     if interrupt_stage is not None:
         with pytest.raises(RuntimeError, match="response lost|file transfer failed"):
             run_migration(run, run.read_metadata(), test_prefect_server)
-        if interrupt_stage != "completion":
-            assert completions == []
-            assert all(record["properties"][STATUS] == INCOMPLETE for record in records.values())
+        if interrupt_stage == "transfer":
+            assert all(record["properties"][STATUS] == COMPLETE for record in records.values())
     outcome = run_migration(run, run.read_metadata(), test_prefect_server)
 
-    assert updates == [
-        {
-            "id": "dest-result",
-            "fileIds": [second],
-        },
-        {"id": "second-result", "fileIds": [actual]},
-    ]
-    assert records["dest-result"]["fileIds"] == [second]
-    assert records["second-result"]["fileIds"] == [actual]
-    expected_updates = {"repair": 1, "completion": 0}
-    assert outcome.file_references.updated == expected_updates.get(interrupt_stage or "", 2)
-    assert outcome.file_references.unresolved[0].file_ids == ("unresolved",)
     assert all(record["properties"][STATUS] == COMPLETE for record in records.values())
-    assert records["dest-result"]["properties"][UNRESOLVED_FILE_IDS] == "unresolved"
-    completion_count = len(completions)
     resumed = run_migration(run, run.read_metadata(), test_prefect_server)
     assert resumed == outcome
     assert batch_calls == [0]
-    assert len(updates) == 2
-    assert len(completions) == completion_count

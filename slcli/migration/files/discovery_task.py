@@ -21,17 +21,19 @@ from slcli.migration.workspaces import DiscoveredWorkspaces
 def discover_files_task(
     migration_id: str,
     source_profile: str,
+    destination_profile: str,
     workspaces: DiscoveredWorkspaces,
 ) -> FileDiscovery:
     """Discover SLS files in the discovered source workspaces.
 
     Inputs are references, never credentials. ``migration_id`` is unused by the
     body but scopes the cache key to one migration. Partial discovery raises
-    rather than caching an incomplete file map.
+    rather than caching an incomplete file map. Planned destination IDs are checked
+    against ``destination_profile`` so none is already in use there.
     """
-    connection = resolve_migration_connection(source_profile)
     discovery = discover_files(
-        FilesClient(connection),
+        FilesClient(resolve_migration_connection(source_profile)),
+        FilesClient(resolve_migration_connection(destination_profile)),
         workspaces,
     )
     if discovery.failures:

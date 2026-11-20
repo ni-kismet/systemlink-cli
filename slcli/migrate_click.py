@@ -123,9 +123,8 @@ def register_migrate_command(cli: click.Group) -> None:
         """Discover and migrate resources from a SystemLink Server.
 
         Test results use mapped file IDs. Unresolved source IDs are omitted and
-        recorded in the Migration.UnresolvedFileIds property. IDs reassigned by
-        the destination are repaired after file and Test Monitor migration.
-        Results stay INCOMPLETE until file transfer and reference repair succeed.
+        recorded in the Migration.UnresolvedFileIds property. Results stay
+        INCOMPLETE until Test Monitor migration succeeds.
         """
         new_run_options = (
             source_profile,

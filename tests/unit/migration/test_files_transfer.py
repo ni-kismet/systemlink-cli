@@ -1,19 +1,24 @@
 """Tests for transferring discovered files to destination workspaces."""
 
-import re
 from collections.abc import Iterator
 from contextlib import contextmanager
-from typing import Any, Dict, List, Mapping, Optional
+from typing import Any, Dict, List, Mapping, Optional, Sequence, Set
 
 import click
 import pytest
+from prefect import flow
+from prefect.testing.utilities import prefect_test_harness
 
 from slcli.migration.connection import MigrationConnection
-from slcli.migration.files import transfer as transfer_module
-from slcli.migration.files.client import FileContent, SourceFile
+from slcli.migration.files.client import FileContent
 from slcli.migration.files.models import DiscoveredFile, FileDiscovery, FileFailure, FileTransfer
-from slcli.migration.files.transfer import MIGRATED_SOURCE_ID, transfer_files
+from slcli.migration.files.transfer import (
+    MIGRATED_SOURCE_ID,
+    split_into_batches,
+    transfer_batch,
+)
 from slcli.migration.files.transfer_task import transfer_files_task
+from slcli.migration.flows.service import migration_task_runner
 from slcli.migration.workspaces import MappedWorkspace, WorkspaceMapping
 
 MAPPING = WorkspaceMapping(
@@ -51,14 +56,14 @@ class FakeFiles:
         """Arrange the destination and the faults to inject.
 
         Args:
-            existing: Destination properties by file ID, per destination workspace.
+            existing: Destination file properties by file ID, per destination workspace.
             download_failures: Number of times each source file fails to download.
             assigned_ids: IDs the destination assigns instead of the requested ones.
         """
         self.existing = existing or {}
         self.download_failures = download_failures or {}
         self.assigned_ids = assigned_ids or {}
-        self.queried: List[str] = []
+        self.queried: List[List[str]] = []
         self.downloads: List[str] = []
         self.uploads: List[Dict[str, Any]] = []
 
@@ -70,12 +75,12 @@ class FakeFiles:
             raise RuntimeError("download failed")
         yield FileContent(chunks=[file_id.encode()], length=len(file_id))
 
-    def query_files(self, workspace_id: str) -> Iterator[SourceFile]:
-        self.queried.append(workspace_id)
-        return iter(
-            SourceFile(id=file_id, properties=properties)
-            for file_id, properties in self.existing.get(workspace_id, {}).items()
-        )
+    def query_existing_ids(self, ids: Sequence[str]) -> Set[str]:
+        self.queried.append(list(ids))
+        known: Set[str] = set()
+        for files in self.existing.values():
+            known.update(files)
+        return {file_id for file_id in ids if file_id in known}
 
     def upload_file(
         self,
@@ -97,17 +102,14 @@ class FakeFiles:
         return self.assigned_ids.get(file_id, file_id)
 
 
-def test_files_are_uploaded_with_mapped_ids_to_mapped_workspaces() -> None:
+def test_batch_uploads_files_under_intended_ids() -> None:
     """Each file keeps its bytes and properties under its pre-allocated destination ID."""
     files = FakeFiles()
-    discovery = _discovery(
-        DiscoveredFile(id="f1", workspace="Lab", name="a.txt", properties={"Name": "a.txt"}),
-        DiscoveredFile(id="f2", workspace="Default"),
-    )
+    batch = [DiscoveredFile(id="f1", workspace="Lab", name="a.txt", properties={"Name": "a.txt"})]
 
-    transfer = transfer_files(files, files, discovery, MAPPING)
+    transfer = transfer_batch(files, files, batch, {"f1": "new-f1"}, MAPPING)
 
-    assert transfer == FileTransfer(transferred=2)
+    assert transfer == FileTransfer(transferred=1)
     assert files.uploads == [
         {
             "id": "new-f1",
@@ -115,154 +117,77 @@ def test_files_are_uploaded_with_mapped_ids_to_mapped_workspaces() -> None:
             "filename": "a.txt",
             "properties": {"Name": "a.txt", MIGRATED_SOURCE_ID: "f1"},
             "data": b"f1",
-        },
-        {
-            "id": "new-f2",
-            "workspace": "d-id",
-            "filename": "f2",
-            "properties": {MIGRATED_SOURCE_ID: "f2"},
-            "data": b"f2",
-        },
-    ]
-
-
-def test_files_already_on_the_destination_are_skipped() -> None:
-    """An annotation identifies an earlier upload, regardless of its current name."""
-    files = FakeFiles(
-        existing={
-            "sh-id": {
-                "new-f1": {"Name": "renamed.txt", MIGRATED_SOURCE_ID: "f1"},
-                "unrelated": {"Name": "b.txt"},
-            }
         }
-    )
-    discovery = _discovery(
-        DiscoveredFile(id="f1", workspace="Lab", name="a.txt"),
-        DiscoveredFile(id="f2", workspace="Other"),
-    )
+    ]
+    assert files.queried == [["new-f1"]]
 
-    transfer = transfer_files(files, files, discovery, MAPPING)
+
+def test_intended_ids_already_on_the_destination_are_skipped() -> None:
+    """A file whose intended ID already exists on the destination is not downloaded or uploaded."""
+    files = FakeFiles(existing={"sh-id": {"new-f1": {"Name": "renamed.txt"}}})
+    batch = [DiscoveredFile(id="f1", workspace="Lab"), DiscoveredFile(id="f2", workspace="Lab")]
+
+    transfer = transfer_batch(files, files, batch, {"f1": "new-f1", "f2": "new-f2"}, MAPPING)
 
     assert transfer == FileTransfer(transferred=1, already_present=1)
+    assert files.downloads == ["f2"]
     assert [upload["id"] for upload in files.uploads] == ["new-f2"]
-    assert files.queried == ["sh-id"]
+    assert files.queried == [["new-f1", "new-f2"]]
 
 
-def test_mapped_id_taken_by_another_file_uploads_under_a_reassigned_id() -> None:
-    """A mapped ID used by a differently named file is replaced and recorded."""
-    files = FakeFiles(existing={"sh-id": {"new-f1": {"Name": "a.txt"}}})
-    discovery = _discovery(DiscoveredFile(id="f1", workspace="Lab", name="a.txt"))
+def test_batch_routes_each_file_to_its_own_destination_workspace() -> None:
+    """A batch may mix source workspaces, and each file uploads to its own mapped destination."""
+    files = FakeFiles()
+    batch = [DiscoveredFile(id="f1", workspace="Lab"), DiscoveredFile(id="f2", workspace="Default")]
 
-    transfer = transfer_files(files, files, discovery, MAPPING)
+    transfer = transfer_batch(files, files, batch, {"f1": "new-f1", "f2": "new-f2"}, MAPPING)
 
-    replacement = files.uploads[0]["id"]
-    assert transfer == FileTransfer(transferred=1, reassigned_ids={"new-f1": replacement})
-    assert [upload["id"] for upload in files.uploads] == [replacement]
-    assert re.fullmatch(r"[0-9a-f]{24}", replacement)
-
-
-def test_replacements_skip_ids_taken_by_other_files(monkeypatch: pytest.MonkeyPatch) -> None:
-    """Replacement IDs that are also taken by another file move on to the next one."""
-    candidates = iter(["occupied", "ab" * 12])
-    monkeypatch.setattr(
-        "slcli.migration.files.transfer.secrets.token_hex", lambda _size: next(candidates)
-    )
-    files = FakeFiles(
-        existing={"sh-id": {"new-f1": {"Name": "other.txt"}, "occupied": {"Name": "other2.txt"}}}
-    )
-    discovery = _discovery(DiscoveredFile(id="f1", workspace="Lab", name="a.txt"))
-
-    transfer = transfer_files(files, files, discovery, MAPPING)
-
-    assert transfer.reassigned_ids == {"new-f1": "ab" * 12}
+    assert transfer == FileTransfer(transferred=2)
+    assert {upload["id"]: upload["workspace"] for upload in files.uploads} == {
+        "new-f1": "sh-id",
+        "new-f2": "d-id",
+    }
+    assert files.queried == [["new-f1", "new-f2"]]
 
 
-def test_replacement_avoids_the_mapped_id_of_another_file(
-    monkeypatch: pytest.MonkeyPatch,
-) -> None:
-    """A replacement never takes an ID pre-allocated to another discovered file."""
-    candidates = iter(["new-f2", "free-id"])
-    monkeypatch.setattr(
-        "slcli.migration.files.transfer.secrets.token_hex",
-        lambda _size: next(candidates),
-    )
-    files = FakeFiles(existing={"sh-id": {"new-f1": {"Name": "other.txt"}}})
+def test_batches_split_by_bytes_regardless_of_workspace() -> None:
+    """Batches stay under the byte limit, and a batch may hold files from several workspaces."""
     discovery = _discovery(
-        DiscoveredFile(id="f1", workspace="Lab", name="a.txt"),
-        DiscoveredFile(id="f2", workspace="Default"),
+        DiscoveredFile(id="a", workspace="Lab", size_bytes=60),
+        DiscoveredFile(id="b", workspace="Lab", size_bytes=30),
+        DiscoveredFile(id="c", workspace="Default", size_bytes=30),
+        DiscoveredFile(id="d", workspace="Lab", size_bytes=30),
     )
 
-    transfer = transfer_files(files, files, discovery, MAPPING)
+    batches = split_into_batches(discovery, max_bytes=100)
 
-    assert transfer.reassigned_ids == {"new-f1": "free-id"}
-    assert [upload["id"] for upload in files.uploads] == ["free-id", "new-f2"]
-
-
-def test_resumed_transfer_finds_a_file_uploaded_under_a_replacement() -> None:
-    """Annotations recover arbitrary replacement IDs without generating them again."""
-    files = FakeFiles(
-        existing={
-            "sh-id": {
-                "new-f1": {"Name": "other.txt"},
-                "server-id": {"Name": "a.txt", MIGRATED_SOURCE_ID: "f1"},
-            }
-        }
-    )
-    discovery = _discovery(DiscoveredFile(id="f1", workspace="Lab", name="a.txt"))
-
-    transfer = transfer_files(files, files, discovery, MAPPING)
-
-    assert transfer == FileTransfer(already_present=1, reassigned_ids={"new-f1": "server-id"})
-    assert files.uploads == []
+    assert [[file.id for file in batch] for batch in batches] == [["a", "b"], ["c", "d"]]
 
 
-def test_server_assigned_id_is_recorded_as_reassigned() -> None:
-    """When the destination assigns a different ID, the intended ID maps to it."""
-    files = FakeFiles(assigned_ids={"new-f1": "server-id"})
+def test_oversized_file_forms_its_own_batch() -> None:
     discovery = _discovery(
-        DiscoveredFile(id="f1", workspace="Lab"),
-        DiscoveredFile(id="f2", workspace="Lab"),
+        DiscoveredFile(id="big", workspace="Lab", size_bytes=500),
+        DiscoveredFile(id="small", workspace="Lab", size_bytes=10),
     )
 
-    transfer = transfer_files(files, files, discovery, MAPPING)
+    batches = split_into_batches(discovery, max_bytes=100)
 
-    assert transfer == FileTransfer(transferred=2, reassigned_ids={"new-f1": "server-id"})
-
-
-def test_unnamed_files_are_matched_by_annotation() -> None:
-    """Files without names are identified by their source IDs, too."""
-    files = FakeFiles(existing={"sh-id": {"new-f1": {MIGRATED_SOURCE_ID: "f1"}}})
-    discovery = _discovery(DiscoveredFile(id="f1", workspace="Lab"))
-
-    assert transfer_files(files, files, discovery, MAPPING) == FileTransfer(already_present=1)
+    assert [[file.id for file in batch] for batch in batches] == [["big"], ["small"]]
 
 
 def test_failed_transfer_is_retried_once() -> None:
-    """A transient failure is retried and the file still transfers."""
+    """A transient download failure is retried and the file still transfers."""
     files = FakeFiles(download_failures={"f1": 1})
-    discovery = _discovery(DiscoveredFile(id="f1", workspace="Lab"))
+    batch = [DiscoveredFile(id="f1", workspace="Lab")]
 
-    transfer = transfer_files(files, files, discovery, MAPPING)
+    transfer = transfer_batch(files, files, batch, {"f1": "new-f1"}, MAPPING)
 
     assert transfer == FileTransfer(transferred=1)
     assert files.downloads == ["f1", "f1"]
-    assert files.queried == ["sh-id"]
-
-
-def test_upload_annotation_overrides_source_metadata_without_mutating_it() -> None:
-    """Source metadata cannot override the migration-owned source identity."""
-    properties = {"Name": "a.txt", MIGRATED_SOURCE_ID: "old-source"}
-    discovery = _discovery(DiscoveredFile(id="f1", workspace="Lab", properties=properties))
-    files = FakeFiles()
-
-    transfer_files(files, files, discovery, MAPPING)
-
-    assert files.uploads[0]["properties"][MIGRATED_SOURCE_ID] == "f1"
-    assert discovery.files[0].properties[MIGRATED_SOURCE_ID] == "old-source"
 
 
 def test_retry_recovers_successful_upload_with_lost_response() -> None:
-    """A lost response is reconciled by annotation without a second upload."""
+    """A lost response is reconciled by checking the intended ID, without a second upload."""
 
     class LostResponse(FakeFiles):
         def upload_file(
@@ -274,18 +199,17 @@ def test_retry_recovers_successful_upload_with_lost_response() -> None:
             content: FileContent,
         ) -> str:
             super().upload_file(file_id, workspace_id, filename, properties, content)
-            self.existing.setdefault(workspace_id, {})["server-id"] = dict(properties)
+            self.existing.setdefault(workspace_id, {})[file_id] = dict(properties)
             raise RuntimeError("response lost")
 
     files = LostResponse()
-    discovery = _discovery(DiscoveredFile(id="f1", workspace="Lab"))
+    batch = [DiscoveredFile(id="f1", workspace="Lab")]
 
-    transfer = transfer_files(files, files, discovery, MAPPING)
+    transfer = transfer_batch(files, files, batch, {"f1": "new-f1"}, MAPPING)
 
-    assert transfer == FileTransfer(transferred=1, reassigned_ids={"new-f1": "server-id"})
+    assert transfer == FileTransfer(transferred=1)
     assert len(files.uploads) == 1
     assert files.downloads == ["f1"]
-    assert files.queried == ["sh-id", "sh-id"]
 
 
 def test_failed_upload_reopens_download_for_retry() -> None:
@@ -306,58 +230,33 @@ def test_failed_upload_reopens_download_for_retry() -> None:
             return actual_id
 
     files = FailOnce()
+    batch = [DiscoveredFile(id="f1", workspace="Lab")]
 
-    assert transfer_files(
-        files, files, _discovery(DiscoveredFile(id="f1", workspace="Lab")), MAPPING
-    ) == FileTransfer(transferred=1)
+    transfer = transfer_batch(files, files, batch, {"f1": "new-f1"}, MAPPING)
+
+    assert transfer == FileTransfer(transferred=1)
     assert files.downloads == ["f1", "f1"]
     assert [upload["data"] for upload in files.uploads] == [b"f1", b"f1"]
-    assert files.queried == ["sh-id", "sh-id"]
 
 
-def test_annotation_matching_is_scoped_to_mapped_workspace() -> None:
-    """A file annotated in another destination workspace does not satisfy this upload."""
-    files = FakeFiles(existing={"d-id": {"other-id": {MIGRATED_SOURCE_ID: "f1"}}})
+def test_server_assigned_different_id_fails_the_file() -> None:
+    """A destination that ignores the requested ID cannot be matched later, so it is a failure."""
+    files = FakeFiles(assigned_ids={"new-f1": "server-id"})
+    batch = [DiscoveredFile(id="f1", workspace="Lab")]
 
-    assert transfer_files(
-        files, files, _discovery(DiscoveredFile(id="f1", workspace="Lab")), MAPPING
-    ) == FileTransfer(transferred=1)
+    transfer = transfer_batch(files, files, batch, {"f1": "new-f1"}, MAPPING)
 
-
-def test_duplicate_annotations_fail_only_the_ambiguous_file(
-    caplog: pytest.LogCaptureFixture,
-) -> None:
-    """Reject ambiguous identity without stopping independent file transfers."""
-    files = FakeFiles(
-        existing={
-            "sh-id": {
-                "first": {MIGRATED_SOURCE_ID: "f1"},
-                "second": {MIGRATED_SOURCE_ID: "f1"},
-            }
-        }
-    )
-
-    discovery = _discovery(
-        DiscoveredFile(id="f1", workspace="Lab"),
-        DiscoveredFile(id="f2", workspace="Lab"),
-    )
-    result = transfer_files(files, files, discovery, MAPPING)
-    assert result.failures == (FileFailure(id="f1", workspace="Lab", error_type="ValueError"),)
-    assert result.transferred == 1
-    assert [upload["id"] for upload in files.uploads] == ["new-f2"]
-    assert files.downloads == ["f2"]
-    assert "Multiple destination files" in caplog.text
+    assert transfer.transferred == 0
+    assert transfer.failures == (FileFailure(id="f1", workspace="Lab", error_type="ValueError"),)
+    assert len(files.uploads) == 1
 
 
 def test_failed_file_is_isolated_from_the_others() -> None:
     """A file failing both attempts is recorded while the remaining files still transfer."""
     files = FakeFiles(download_failures={"f1": 2})
-    discovery = _discovery(
-        DiscoveredFile(id="f1", workspace="Lab"),
-        DiscoveredFile(id="f2", workspace="Lab"),
-    )
+    batch = [DiscoveredFile(id="f1", workspace="Lab"), DiscoveredFile(id="f2", workspace="Lab")]
 
-    transfer = transfer_files(files, files, discovery, MAPPING)
+    transfer = transfer_batch(files, files, batch, {"f1": "new-f1", "f2": "new-f2"}, MAPPING)
 
     assert transfer.transferred == 1
     assert transfer.failures == (FileFailure(id="f1", workspace="Lab", error_type="RuntimeError"),)
@@ -365,47 +264,11 @@ def test_failed_file_is_isolated_from_the_others() -> None:
     assert [upload["id"] for upload in files.uploads] == ["new-f2"]
 
 
-def test_no_files_queries_nothing() -> None:
-    """Without discovered files the destination is not touched."""
-    files = FakeFiles()
-
-    assert transfer_files(files, files, _discovery(), MAPPING) == FileTransfer()
-    assert files.queried == []
-
-
-def test_destination_annotations_are_indexed_once_per_workspace(
-    monkeypatch: pytest.MonkeyPatch,
-) -> None:
-    """Large transfers must not rescan all annotations for each source file."""
-    indexed_sizes: List[int] = []
-    original = transfer_module._index_migrated_files
-
-    def index(files: Iterator[SourceFile]) -> Dict[str, List[SourceFile]]:
-        items = list(files)
-        indexed_sizes.append(len(items))
-        return original(items)
-
-    monkeypatch.setattr(transfer_module, "_index_migrated_files", index)
-    count = 1000
-    files = FakeFiles(
-        existing={"sh-id": {f"existing-{i}": {MIGRATED_SOURCE_ID: f"f{i}"} for i in range(count)}}
-    )
-    discovery = _discovery(*(DiscoveredFile(id=f"f{i}", workspace="Lab") for i in range(count * 2)))
-
-    result = transfer_files(files, files, discovery, MAPPING)
-
-    assert result.already_present == count
-    assert result.transferred == count
-    assert indexed_sizes == [count]
-    assert files.queried == ["sh-id"]
-
-
 def test_transfer_result_survives_a_json_round_trip() -> None:
     """The result is persisted as JSON by Prefect, so it must load back unchanged."""
     transfer = FileTransfer(
         transferred=1,
         already_present=2,
-        reassigned_ids={"intended": "actual"},
         failures=(FileFailure(id="f", workspace="Lab", error_type="HTTPError"),),
     )
 
@@ -427,15 +290,32 @@ def task_files(monkeypatch: pytest.MonkeyPatch) -> FakeFiles:
     return files
 
 
+@pytest.fixture(scope="module", autouse=True)
+def isolated_prefect() -> Iterator[None]:
+    """Keep task results in a temporary Prefect store so cached batches never leak between runs."""
+    with prefect_test_harness():
+        yield
+
+
+def _run_transfer(*args: Any) -> FileTransfer:
+    """Run the transfer task in a flow so its batches can be mapped."""
+
+    @flow(task_runner=migration_task_runner())
+    def transfer_flow() -> FileTransfer:
+        return transfer_files_task.fn(*args)
+
+    return transfer_flow()
+
+
 def test_task_raises_when_any_file_fails_so_resume_retries(task_files: FakeFiles) -> None:
-    """Failed files fail the task, which leaves it uncached for a resumed run."""
+    """Failed files fail the task, which leaves its batch uncached for a resumed run."""
     discovery = _discovery(
         DiscoveredFile(id="bad", workspace="Lab"),
         DiscoveredFile(id="good", workspace="Lab"),
     )
 
     with pytest.raises(click.ClickException, match="1 of 2 files failed") as raised:
-        transfer_files_task.fn("run-id", "source", "destination", discovery, MAPPING)
+        _run_transfer("run-id", "source", "destination", discovery, MAPPING)
 
     assert "--migration-id run-id" in raised.value.message
     assert [upload["id"] for upload in task_files.uploads] == ["new-good"]
@@ -444,7 +324,7 @@ def test_task_raises_when_any_file_fails_so_resume_retries(task_files: FakeFiles
 def test_task_returns_transfer_when_every_file_succeeds(task_files: FakeFiles) -> None:
     discovery = _discovery(DiscoveredFile(id="good", workspace="Lab"))
 
-    transfer = transfer_files_task.fn("run-id", "source", "destination", discovery, MAPPING)
+    transfer = _run_transfer("run-id", "source", "destination", discovery, MAPPING)
 
     assert transfer == FileTransfer(transferred=1)
 
@@ -452,7 +332,7 @@ def test_task_returns_transfer_when_every_file_succeeds(task_files: FakeFiles) -
 def test_task_rejects_readonly_destination_before_transferring(task_files: FakeFiles) -> None:
     discovery = _discovery(DiscoveredFile(id="good", workspace="Lab"))
 
-    with pytest.raises(click.ClickException, match="profile 'readonly' is in readonly mode"):
+    with pytest.raises(ValueError, match="profile 'readonly' is in readonly mode"):
         transfer_files_task.fn("run-id", "source", "readonly", discovery, MAPPING)
 
     assert task_files.queried == []

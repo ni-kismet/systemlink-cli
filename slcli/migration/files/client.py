@@ -6,10 +6,9 @@ import uuid
 from collections.abc import Iterable, Iterator
 from contextlib import contextmanager
 from dataclasses import dataclass
-from typing import Any, Dict, List, Mapping, Optional, Union
+from typing import Any, Dict, List, Mapping, Optional, Sequence, Set, Union
 from urllib.parse import quote, urlsplit
 
-import click
 import requests
 from urllib3.fields import RequestField
 
@@ -17,6 +16,7 @@ from slcli.migration.api import REQUEST_TIMEOUT_SECONDS, ApiModel
 from slcli.migration.connection import MigrationConnection
 
 PAGE_SIZE = 1000
+ID_QUERY_SIZE = 100
 CHUNK_SIZE = 1024 * 1024
 
 
@@ -158,11 +158,11 @@ class FilesClient:
             The ID the server assigned, which may differ from ``file_id``.
 
         Raises:
-            click.ClickException: If the profile is readonly.
-            ValueError: If the response URI is not a file resource with a 24-hex ID.
+           ValueError: If the profile is readonly or the response URI is not a file
+               resource with a 24-hex ID.
         """
         if self._connection.readonly:
-            raise click.ClickException(
+            raise ValueError(
                 f"Cannot upload a file: profile '{self._connection.profile_name}' "
                 "is in readonly mode"
             )
@@ -210,6 +210,25 @@ class FilesClient:
             if len(page.available_files) < PAGE_SIZE:
                 return
             skip += PAGE_SIZE
+
+    def query_existing_ids(self, ids: Sequence[str]) -> Set[str]:
+        """Return which of the given file IDs exist on the server, in any workspace.
+
+        IDs are looked up in chunks of ``ID_QUERY_SIZE`` so each request stays bounded.
+        """
+        existing: Set[str] = set()
+        for start in range(0, len(ids), ID_QUERY_SIZE):
+            chunk = list(ids[start : start + ID_QUERY_SIZE])
+            response = self._session.post(
+                f"{self._base_url}/query-files",
+                params={"take": len(chunk)},
+                json={"idsQuery": {"operation": "EQUAL", "ids": chunk}},
+                timeout=REQUEST_TIMEOUT_SECONDS,
+            )
+            response.raise_for_status()
+            page = _FilePage.model_validate(response.json())
+            existing.update(file.id for file in page.available_files if file.id in chunk)
+        return existing
 
 
 def _content_length(response: requests.Response) -> Optional[int]:

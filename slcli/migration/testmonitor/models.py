@@ -1,8 +1,8 @@
 """Versioned compact models for Test Monitor discovery."""
 
-from typing import Dict, Optional, Tuple
+from typing import Optional, Tuple
 
-from pydantic import AwareDatetime, BaseModel, ConfigDict, Field
+from pydantic import AwareDatetime, BaseModel, ConfigDict
 
 from slcli.migration.schema import VersionedModel
 
@@ -89,8 +89,6 @@ class BatchResult(_Persisted, VersionedModel):
     migrated: Tuple[MigratedItem, ...] = ()
     failed: Tuple[FailedItem, ...] = ()
     conflicts: Tuple[ProductConflict, ...] = ()
-    file_results: Dict[str, Tuple[str, ...]] = Field(default_factory=dict)
-    """Original intended file IDs mapped to created destination result IDs, including partials."""
 
 
 class TestMonitorMigration(_Persisted, VersionedModel):

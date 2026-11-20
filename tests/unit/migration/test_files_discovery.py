@@ -1,12 +1,13 @@
 """Tests for SLS file discovery policy."""
 
+import itertools
 import re
-from typing import Dict, Iterator, List, Optional
+from typing import Dict, Iterable, Iterator, List, Optional, Sequence, Set
 
 import pytest
 
 from slcli.migration.files.client import SourceFile
-from slcli.migration.files.discovery import discover_files
+from slcli.migration.files.discovery import discover_files as _discover_files
 from slcli.migration.files.models import DiscoveredFile, FileDiscovery
 from slcli.migration.schema import SCHEMA_VERSION
 from slcli.migration.testmonitor.models import WorkspaceFailure
@@ -42,6 +43,33 @@ class FakeFiles:
         if workspace_id in self._failing:
             raise self._failing[workspace_id]
         return iter(self._files.get(workspace_id, []))
+
+
+class FakeDestination:
+    """Reports which of the queried IDs already exist on the destination."""
+
+    def __init__(self, existing: Iterable[str] = ()) -> None:
+        """Store the IDs that exist on the destination."""
+        self._existing = set(existing)
+
+    def query_existing_ids(self, ids: Sequence[str]) -> Set[str]:
+        return set(ids) & self._existing
+
+
+class AlwaysConflicting(FakeDestination):
+    """Reports every queried ID as already in use."""
+
+    def query_existing_ids(self, ids: Sequence[str]) -> Set[str]:
+        return set(ids)
+
+
+def discover_files(
+    client: FakeFiles,
+    workspaces: DiscoveredWorkspaces,
+    destination: Optional[FakeDestination] = None,
+) -> FileDiscovery:
+    """Run discovery against a fake destination that has no conflicting IDs by default."""
+    return _discover_files(client, destination or FakeDestination(), workspaces)
 
 
 def _file(file_id: str, name: Optional[str] = "a.txt", size64: Optional[int] = 3) -> SourceFile:
@@ -204,6 +232,39 @@ def test_allocation_regenerates_when_a_candidate_is_already_taken(
     discovery = discover_files(client, _discovered_workspaces(["Lab"]))
 
     assert discovery.source_to_destination_id_map == {"f1": "ab" * 12}
+
+
+def test_planned_id_already_on_destination_is_regenerated(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """A planned ID that exists on the destination is replaced before discovery returns."""
+    candidates = iter(["aa" * 12, "bb" * 12])
+    monkeypatch.setattr(
+        "slcli.migration.files.discovery.secrets.token_hex",
+        lambda _nbytes: next(candidates),
+    )
+    client = FakeFiles({"lab-id": [_file("f1")]})
+
+    discovery = discover_files(
+        client, _discovered_workspaces(["Lab"]), FakeDestination(existing={"aa" * 12})
+    )
+
+    assert discovery.source_to_destination_id_map == {"f1": "bb" * 12}
+
+
+def test_discovery_fails_when_destination_always_reports_conflicts(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Discovery stops rather than plan IDs when no unused ID can be generated."""
+    counter = itertools.count(1)
+    monkeypatch.setattr(
+        "slcli.migration.files.discovery.secrets.token_hex",
+        lambda _nbytes: f"{next(counter):024x}",
+    )
+    client = FakeFiles({"lab-id": [_file("f1")]})
+
+    with pytest.raises(ValueError, match="unused on the destination"):
+        discover_files(client, _discovered_workspaces(["Lab"]), AlwaysConflicting())
 
 
 def test_file_id_map_survives_a_json_round_trip() -> None:

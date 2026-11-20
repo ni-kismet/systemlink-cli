@@ -319,11 +319,10 @@ def test_result_is_created_with_intended_file_ids_and_unresolved_annotation() ->
     assert created["fileIds"] == ["expected1", "expected2"]
     assert created["properties"][UNRESOLVED_FILE_IDS] == "unknown"
     assert batch.migrated[0].unresolved_file_ids == ("unknown",)
-    assert batch.file_results == {"expected1": ("new-r1",), "expected2": ("new-r1",)}
 
 
-def test_file_index_includes_partial_results_but_not_rejected_creates() -> None:
-    """Persist original associations even when a created result's steps fail."""
+def test_partial_results_and_rejected_creates_are_reported_as_failures() -> None:
+    """Results whose steps fail keep their destination ID; rejected creates have none."""
     records = [_source_result(f"r{i}") for i in range(3)]
     source = FakeSource({"results": records}, steps_error=_http_error(500))
     destination = FakeDestination(reject={"r2"})
@@ -332,7 +331,6 @@ def test_file_index_includes_partial_results_but_not_rejected_creates() -> None:
         source, destination, CONTEXT, 0, [_result(f"r{i}") for i in range(3)], {"f1": "expected"}
     )
 
-    assert batch.file_results == {"expected": ("new-r0", "new-r1")}
     assert {item.destination_id for item in batch.failed} == {"new-r0", "new-r1", None}
     assert BatchResult.model_validate_json(batch.model_dump_json()) == batch
 

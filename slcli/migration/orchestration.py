@@ -56,6 +56,7 @@ def _run_settings(run: MigrationRun, api_url: str) -> Generator[None, None, None
 def run_discovery(
     run: MigrationRun,
     source_profile: str,
+    destination_profile: str,
     workspaces: Optional[List[str]],
     api_url: str,
 ) -> MigrationDiscovery:
@@ -64,11 +65,12 @@ def run_discovery(
     Args:
         run: Migration run that provides the client home and result storage.
         source_profile: Name of the source profile.
+        destination_profile: Name of the destination profile.
         workspaces: Source workspace names to discover; all workspaces when None.
         api_url: Prefect API URL from :func:`prefect_server`.
     """
     with _run_settings(run, api_url):
-        return discover_flow(run.migration_id, source_profile, workspaces)
+        return discover_flow(run.migration_id, source_profile, destination_profile, workspaces)
 
 
 def run_migration(
@@ -105,15 +107,18 @@ def _execute_plan(
     run: MigrationRun, metadata: RunMetadata, api_url: str, plan: MigrationPlan
 ) -> MigrationOutcome:
     with _run_settings(run, api_url):
-        return migrate_flow(
-            run.migration_id,
-            metadata.source_profile,
-            metadata.destination_profile,
-            metadata.workspace_mappings,
-            metadata.product_batch_size,
-            metadata.result_batch_size,
-            plan.discovery,
-        )
+        try:
+            return migrate_flow(
+                run.migration_id,
+                metadata.source_profile,
+                metadata.destination_profile,
+                metadata.workspace_mappings,
+                metadata.product_batch_size,
+                metadata.result_batch_size,
+                plan.discovery,
+            )
+        except ValueError as exc:
+            raise click.ClickException(str(exc)) from exc
 
 
 def _read_plan(run: MigrationRun) -> MigrationPlan:
@@ -134,7 +139,9 @@ def run_plan(run: MigrationRun, metadata: RunMetadata, api_url: str) -> Migratio
     """Discover all selected resources and atomically save the completed plan."""
     mappings = metadata.workspace_mappings
     workspaces = list(mappings) if mappings is not None else None
-    discovery = run_discovery(run, metadata.source_profile, workspaces, api_url)
+    discovery = run_discovery(
+        run, metadata.source_profile, metadata.destination_profile, workspaces, api_url
+    )
     try:
         plan = MigrationPlan(migration_id=run.migration_id, discovery=discovery)
     except ValidationError as exc:

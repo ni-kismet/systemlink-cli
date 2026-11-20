@@ -1,7 +1,7 @@
 """Apply a migration plan by synchronizing workspaces and migrating resources."""
 
 import logging
-from typing import Dict, Optional
+from typing import Any, Dict, Optional
 
 import click
 from prefect import flow
@@ -12,8 +12,6 @@ from slcli.migration.files.transfer_task import transfer_files_task
 from slcli.migration.flows.service import migration_task_runner
 from slcli.migration.schema import VersionedModel
 from slcli.migration.state import MigrationDiscovery
-from slcli.migration.testmonitor.file_references import FileReferenceRepair
-from slcli.migration.testmonitor.file_references_task import repair_file_references_task
 from slcli.migration.testmonitor.migration_task import migrate_test_monitor_task
 from slcli.migration.testmonitor.models import TestMonitorMigration
 from slcli.migration.workspace_task import synchronize_workspaces_task
@@ -31,7 +29,6 @@ class MigrationOutcome(VersionedModel):
     discovery: MigrationDiscovery
     test_monitor: TestMonitorMigration
     files: FileTransfer
-    file_references: FileReferenceRepair = FileReferenceRepair()
 
 
 def format_file_transfer_summary(transfer: FileTransfer) -> str:
@@ -40,7 +37,6 @@ def format_file_transfer_summary(transfer: FileTransfer) -> str:
         "File transfer:",
         f"  Transferred: {transfer.transferred}",
         f"  Already present: {transfer.already_present}",
-        f"  Reassigned IDs: {len(transfer.reassigned_ids)}",
     ]
     return "\n".join(lines)
 
@@ -64,7 +60,7 @@ def migrate_flow(
     """Apply previously discovered resources to the destination.
 
     File transfer and Test Monitor migration run in parallel after workspace
-    synchronization. Result file references are repaired after both complete.
+    synchronization. Results are marked COMPLETE once Test Monitor migration completes.
 
     Args:
         migration_id: Migration that scopes task cache keys.
@@ -94,32 +90,27 @@ def migrate_flow(
         result_batch_size,
         discovery.files.source_to_destination_id_map,
     )
-    references = repair_file_references_task.submit(
-        migration_id,
-        source_profile,
-        destination_profile,
-        files_future,
-        test_monitor,
-        return_state=False,
-    )
-    files_future.wait()
-    test_monitor.wait()
-    files = files_future.result()
-    test_monitor_result = test_monitor.result()
+    test_monitor_result = join(test_monitor)
+    files = join(files_future)
     files_summary = format_file_transfer_summary(files)
     _logger.info(files_summary)
     click.echo(files_summary)
-    repaired = references.result()
-    summary = (
-        f"Result file references: {repaired.updated} results updated, "
-        f"{len(repaired.unresolved)} results with unresolved file IDs"
-    )
-    _logger.info(summary)
-    click.echo(summary)
     return MigrationOutcome(
         mapping=mapping,
         discovery=discovery,
         test_monitor=test_monitor_result,
         files=files,
-        file_references=repaired,
     )
+
+
+def join(future: Any) -> Any:
+    """Wait for a Prefect future and return its result.
+
+    Args:
+        future: The Prefect future to wait on.
+
+    Returns:
+        The future's result.
+    """
+    future.wait()
+    return future.result()
