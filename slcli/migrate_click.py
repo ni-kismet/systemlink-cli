@@ -1,4 +1,4 @@
-"""CLI registration for the discovery-only ``migrate`` command.
+"""CLI registration for the ``migrate`` command.
 
 Migration depends on the optional ``migration`` extra, so this module imports
 ``slcli.migration`` only when the command runs.
@@ -100,7 +100,10 @@ def register_migrate_command(cli: click.Group) -> None:
             "Missing destination workspaces are created unless the destination profile is readonly."
         ),
     )
-    @click.option("--migration-id", help="Resume an existing migration.")
+    @click.option(
+        "--migration-id",
+        help="Resume an existing migration, retrying only unfinished work.",
+    )
     @click.option("--product-batch-size", type=click.IntRange(min=1), default=None, hidden=True)
     @click.option("--result-batch-size", type=click.IntRange(min=1), default=None, hidden=True)
     @click.option(
@@ -117,7 +120,12 @@ def register_migrate_command(cli: click.Group) -> None:
         result_batch_size: Optional[int],
         prefect_api_url: Optional[str],
     ) -> None:
-        """Discover and migrate resources from a SystemLink Server."""
+        """Discover and migrate resources from a SystemLink Server.
+
+        Test results use mapped file IDs. Unresolved source IDs are omitted and
+        recorded in the Migration.UnresolvedFileIds property. Results stay
+        INCOMPLETE until Test Monitor migration succeeds.
+        """
         new_run_options = (
             source_profile,
             destination_profile,

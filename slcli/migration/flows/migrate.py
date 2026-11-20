@@ -1,17 +1,23 @@
-"""Migration flow: discover, synchronize workspaces, then migrate each resource type."""
+"""Apply a migration plan by synchronizing workspaces and migrating resources."""
 
-from typing import Dict, List, Optional
+import logging
+from typing import Any, Dict, Optional
 
+import click
 from prefect import flow
 from pydantic import ConfigDict
 
-from slcli.migration.flows.discover import MigrationDiscovery, discover_flow
+from slcli.migration.files.models import FileTransfer
+from slcli.migration.files.transfer_task import transfer_files_task
 from slcli.migration.flows.service import migration_task_runner
 from slcli.migration.schema import VersionedModel
+from slcli.migration.state import MigrationDiscovery
 from slcli.migration.testmonitor.migration_task import migrate_test_monitor_task
 from slcli.migration.testmonitor.models import TestMonitorMigration
 from slcli.migration.workspace_task import synchronize_workspaces_task
 from slcli.migration.workspaces import WorkspaceMapping
+
+_logger = logging.getLogger("slcli.migration")
 
 
 class MigrationOutcome(VersionedModel):
@@ -22,6 +28,17 @@ class MigrationOutcome(VersionedModel):
     mapping: WorkspaceMapping
     discovery: MigrationDiscovery
     test_monitor: TestMonitorMigration
+    files: FileTransfer
+
+
+def format_file_transfer_summary(transfer: FileTransfer) -> str:
+    """Returns a formatted summary of the file transfer results."""
+    lines = [
+        "File transfer:",
+        f"  Transferred: {transfer.transferred}",
+        f"  Already present: {transfer.already_present}",
+    ]
+    return "\n".join(lines)
 
 
 @flow(
@@ -38,11 +55,12 @@ def migrate_flow(
     workspace_mappings: Optional[Dict[str, str]],
     product_batch_size: int,
     result_batch_size: int,
+    discovery: MigrationDiscovery,
 ) -> MigrationOutcome:
-    """Discover source resources, synchronize workspaces, then migrate resources.
+    """Apply previously discovered resources to the destination.
 
-    Each resource type is a service task (see :func:`service_task`). Submitted
-    service tasks run in parallel; pass ``wait_for`` to sequence them.
+    File transfer and Test Monitor migration run in parallel after workspace
+    synchronization. Results are marked COMPLETE once Test Monitor migration completes.
 
     Args:
         migration_id: Migration that scopes task cache keys.
@@ -51,16 +69,16 @@ def migrate_flow(
         workspace_mappings: Source to destination workspace names; all by name when None.
         product_batch_size: Products per migration task.
         result_batch_size: Results, with their steps, per migration task.
+        discovery: Completed discovery results, including the planned file IDs.
 
     Raises:
-        WorkspaceMappingError: If a source workspace does not exist.
+        click.ClickException: If any file failed to transfer.
     """
-    explicit_workspace_selection: Optional[List[str]] = (
-        list(workspace_mappings) if workspace_mappings is not None else None
-    )
-    discovery = discover_flow(migration_id, source_profile, explicit_workspace_selection)
     mapping = synchronize_workspaces_task(
         migration_id, destination_profile, discovery.workspaces, workspace_mappings
+    )
+    files_future = transfer_files_task.submit(
+        migration_id, source_profile, destination_profile, discovery.files, mapping
     )
     test_monitor = migrate_test_monitor_task.submit(
         migration_id,
@@ -70,7 +88,29 @@ def migrate_flow(
         discovery.test_monitor,
         product_batch_size,
         result_batch_size,
+        discovery.files.source_to_destination_id_map,
     )
+    test_monitor_result = join(test_monitor)
+    files = join(files_future)
+    files_summary = format_file_transfer_summary(files)
+    _logger.info(files_summary)
+    click.echo(files_summary)
     return MigrationOutcome(
-        mapping=mapping, discovery=discovery, test_monitor=test_monitor.result()
+        mapping=mapping,
+        discovery=discovery,
+        test_monitor=test_monitor_result,
+        files=files,
     )
+
+
+def join(future: Any) -> Any:
+    """Wait for a Prefect future and return its result.
+
+    Args:
+        future: The Prefect future to wait on.
+
+    Returns:
+        The future's result.
+    """
+    future.wait()
+    return future.result()

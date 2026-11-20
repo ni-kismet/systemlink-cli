@@ -1,0 +1,4 @@
+Transfer discovered SLS files and their properties to the mapped destination workspaces in parallel with Test Monitor migration, in batches of up to 256 MiB per workspace, using the pre-allocated destination file IDs. Each batch skips files whose planned IDs already exist on the destination, so resumed runs do not re-upload them. A failed upload is retried once, and a file that still fails is reported without stopping the others.
+Create migrated test results with intended file IDs and annotate unresolved source IDs. Because the destination always keeps the intended file IDs, no post-transfer reference repair is needed.
+Mark results COMPLETE once Test Monitor migration succeeds, so a later file transfer failure does not leave them INCOMPLETE. Ambiguous file annotations fail only the affected file rather than stopping unrelated transfers.
+Save complete discovery before uploading any files so resumed runs reuse the same pre-allocated file IDs.

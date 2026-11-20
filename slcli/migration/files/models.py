@@ -1,6 +1,6 @@
-"""Versioned compact models for SLS file discovery."""
+"""Versioned compact models for SLS file discovery and transfer."""
 
-from typing import Dict, Optional, Tuple
+from typing import Any, Dict, Optional, Tuple
 
 from pydantic import BaseModel, ConfigDict, Field
 
@@ -19,6 +19,7 @@ class DiscoveredFile(_Persisted):
     workspace: str
     name: Optional[str] = None
     size_bytes: Optional[int] = None
+    properties: Dict[str, Any] = Field(default_factory=dict)
 
 
 class FileDiscovery(_Persisted, VersionedModel):
@@ -28,3 +29,19 @@ class FileDiscovery(_Persisted, VersionedModel):
     files: Tuple[DiscoveredFile, ...] = ()
     source_to_destination_id_map: Dict[str, str] = Field(default_factory=dict)
     failures: Tuple[WorkspaceFailure, ...] = ()
+
+
+class FileFailure(_Persisted):
+    """A source file that could not be transferred."""
+
+    id: str
+    workspace: str
+    error_type: str
+
+
+class FileTransfer(_Persisted, VersionedModel):
+    """Transferred files and isolated per-file failures."""
+
+    transferred: int = 0
+    already_present: int = 0
+    failures: Tuple[FileFailure, ...] = ()

@@ -1,14 +1,23 @@
-"""Profile-bound SLS file queries for migration discovery."""
+"""Profile-bound file queries, downloads, and uploads for migration."""
 
-from collections.abc import Iterator
-from typing import Any, Dict, List, Optional
+import json
+import re
+import uuid
+from collections.abc import Iterable, Iterator
+from contextlib import contextmanager
+from dataclasses import dataclass
+from typing import Any, Dict, List, Mapping, Optional, Sequence, Set, Union
+from urllib.parse import quote, urlsplit
 
 import requests
+from urllib3.fields import RequestField
 
 from slcli.migration.api import REQUEST_TIMEOUT_SECONDS, ApiModel
 from slcli.migration.connection import MigrationConnection
 
 PAGE_SIZE = 1000
+ID_QUERY_SIZE = 100
+CHUNK_SIZE = 1024 * 1024
 
 
 class SourceFile(ApiModel):
@@ -40,19 +49,140 @@ class _FilePage(ApiModel):
     available_files: List[SourceFile] = []
 
 
+class _UploadResponse(ApiModel):
+    uri: str
+
+
+@dataclass(frozen=True)
+class FileContent:
+    """Streamed file bytes and their length, when the server reported it."""
+
+    chunks: Iterable[bytes]
+    length: Optional[int] = None
+
+
+class _SizedBody:
+    """An iterable request body whose length lets requests send Content-Length."""
+
+    def __init__(self, parts: Iterable[bytes], length: int) -> None:
+        self._parts = parts
+        self._length = length
+
+    def __iter__(self) -> Iterator[bytes]:
+        return iter(self._parts)
+
+    def __len__(self) -> int:
+        return self._length
+
+
+def _multipart_body(
+    boundary: str, fields: Mapping[str, str], filename: str, content: FileContent
+) -> Union[_SizedBody, Iterator[bytes]]:
+    """Stream form fields followed by the file part, without buffering the file."""
+    preamble = b""
+    for name, value in fields.items():
+        field = RequestField(name=name, data=value)
+        field.make_multipart()
+        preamble += f"--{boundary}\r\n{field.render_headers()}{value}\r\n".encode("utf-8")
+    file_field = RequestField(name="file", data=b"", filename=filename)
+    file_field.make_multipart(content_type="application/octet-stream")
+    preamble += f"--{boundary}\r\n{file_field.render_headers()}".encode("utf-8")
+    epilogue = f"\r\n--{boundary}--\r\n".encode("utf-8")
+
+    def parts() -> Iterator[bytes]:
+        yield preamble
+        yield from content.chunks
+        yield epilogue
+
+    if content.length is None:
+        return parts()
+    return _SizedBody(parts(), len(preamble) + content.length + len(epilogue))
+
+
 class FilesClient:
-    """Query SLS files using one profile-bound migration connection."""
+    """Query, download, and upload files using one profile-bound migration connection."""
 
     def __init__(
         self,
         connection: MigrationConnection,
         session: Optional[requests.Session] = None,
     ) -> None:
-        """Initialize a file query client."""
+        """Initialize a file client.
+
+        Args:
+            connection: Profile-bound connection to the file service.
+            session: Session for every request; a profile-bound session when None.
+        """
+        self._connection = connection
         self._base_url = f"{connection.base_url}/nifile/v1/service-groups/Default"
         self._session = session or connection.create_session(
             ("nifile/v1/service-groups/Default/query-files",)
         )
+
+    @contextmanager
+    def download_file(self, file_id: str) -> Iterator[FileContent]:
+        """Stream one file's bytes; the download is closed when the context exits."""
+        response = self._session.get(
+            f"{self._base_url}/files/{quote(file_id, safe='')}/data",
+            headers={"Accept-Encoding": "identity"},
+            stream=True,
+            timeout=REQUEST_TIMEOUT_SECONDS,
+        )
+        try:
+            response.raise_for_status()
+            yield FileContent(
+                chunks=response.iter_content(CHUNK_SIZE),
+                length=_content_length(response),
+            )
+        finally:
+            response.close()
+
+    def upload_file(
+        self,
+        file_id: str,
+        workspace_id: str,
+        filename: str,
+        properties: Mapping[str, Any],
+        content: FileContent,
+    ) -> str:
+        """Upload a file into a workspace, requesting a caller-assigned ID.
+
+        Args:
+            file_id: 24-character hex ID requested for the uploaded file.
+            workspace_id: Workspace that will own the file.
+            filename: Name of the uploaded file part.
+            properties: File properties to store as metadata.
+            content: The file bytes to upload.
+
+        Returns:
+            The ID the server assigned, which may differ from ``file_id``.
+
+        Raises:
+           ValueError: If the profile is readonly or the response URI is not a file
+               resource with a 24-hex ID.
+        """
+        if self._connection.readonly:
+            raise ValueError(
+                f"Cannot upload a file: profile '{self._connection.profile_name}' "
+                "is in readonly mode"
+            )
+        boundary = uuid.uuid4().hex
+        fields = {"id": file_id, "metadata": json.dumps(dict(properties))}
+        # Only the query-files route permits replaying POST requests; streamed uploads do not.
+        response = self._session.post(
+            f"{self._base_url}/upload-files",
+            params={"workspace": workspace_id},
+            data=_multipart_body(boundary, fields, filename, content),
+            headers={"Content-Type": f"multipart/form-data; boundary={boundary}"},
+            timeout=REQUEST_TIMEOUT_SECONDS,
+        )
+        response.raise_for_status()
+        uri = _UploadResponse.model_validate(response.json()).uri
+        path = urlsplit(uri).path
+        match = re.fullmatch(r"/nifile/v1/service-groups/Default/files/([0-9a-fA-F]{24})/?", path)
+        if match is None:
+            raise ValueError(f"Upload response URI '{uri}' does not contain a valid file ID")
+        return match.group(1)
 
     def query_files(self, workspace_id: str) -> Iterator[SourceFile]:
         """Yield every file in one workspace, paging with skip/take.
@@ -80,3 +210,31 @@ class FilesClient:
             if len(page.available_files) < PAGE_SIZE:
                 return
             skip += PAGE_SIZE
+
+    def query_existing_ids(self, ids: Sequence[str]) -> Set[str]:
+        """Return which of the given file IDs exist on the server, in any workspace.
+
+        IDs are looked up in chunks of ``ID_QUERY_SIZE`` so each request stays bounded.
+        """
+        existing: Set[str] = set()
+        for start in range(0, len(ids), ID_QUERY_SIZE):
+            chunk = list(ids[start : start + ID_QUERY_SIZE])
+            response = self._session.post(
+                f"{self._base_url}/query-files",
+                params={"take": len(chunk)},
+                json={"idsQuery": {"operation": "EQUAL", "ids": chunk}},
+                timeout=REQUEST_TIMEOUT_SECONDS,
+            )
+            response.raise_for_status()
+            page = _FilePage.model_validate(response.json())
+            existing.update(file.id for file in page.available_files if file.id in chunk)
+        return existing
+
+
+def _content_length(response: requests.Response) -> Optional[int]:
+    """Return the length of the bytes iter_content yields, when known."""
+    # iter_content decodes compressed bodies, so an encoded Content-Length would be wrong.
+    if response.headers.get("Content-Encoding", "identity").lower() != "identity":
+        return None
+    value = response.headers.get("Content-Length", "")
+    return int(value) if value.isdigit() else None
