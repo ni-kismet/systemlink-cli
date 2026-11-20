@@ -142,3 +142,31 @@ def test_cleanup_refuses_unowned_workspace_contents() -> None:
     )
 
     assert plan.unowned_ids == ["foreign-product", "foreign-result"]
+
+
+@pytest.mark.parametrize(
+    ("products_in_workspaces", "expected"),
+    [
+        (False, 'properties["slcli.e2e.owner"] == "migration-discovery"'),
+        (
+            True,
+            'properties["slcli.e2e.owner"] == "migration-discovery"'
+            ' || workspace == "3aeed209-8f57-446c-9fb6-1b2b66866ca3"',
+        ),
+    ],
+)
+def test_clean_queries_only_owned_or_managed_products(
+    products_in_workspaces: bool, expected: str
+) -> None:
+    """Cleanup never scans every product on a shared tenant."""
+    session = FakeSession({"products": []}, {"results": []})
+    connection = MigrationConnection("profile", "https://example", {})
+    OwnedTestMonitorResources(
+        connection,
+        {"primary": "3aeed209-8f57-446c-9fb6-1b2b66866ca3"},
+        session,  # type: ignore[arg-type]
+        products_in_workspaces=products_in_workspaces,
+    ).clean()
+
+    assert session.posted[0]["filter"] == expected
+    assert session.posted[0]["substitutions"] == []

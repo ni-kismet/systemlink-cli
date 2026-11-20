@@ -1,0 +1,3858 @@
+exchanges:
+- request: GET /niuser/v1/workspaces?name=e2e-slcli-migration-source
+  response:
+    status: 200
+    contentType: application/json; charset=utf-8
+    body:
+      totalCount: 1
+      workspaces:
+      - default: false
+        enabled: true
+        id: 3aeed209-8f57-446c-9fb6-1b2b66866ca3
+        name: e2e-slcli-migration-source
+- request: GET /niuser/v1/workspaces?name=e2e-slcli-migration-source-other
+  response:
+    status: 200
+    contentType: application/json; charset=utf-8
+    body:
+      totalCount: 1
+      workspaces:
+      - default: false
+        enabled: true
+        id: 72e26583-0b36-4f77-99fb-50a6df279dda
+        name: e2e-slcli-migration-source-other
+- request: GET /niuser/v1/workspaces?name=e2e-slcli-migration-disabled-source
+  response:
+    status: 200
+    contentType: application/json; charset=utf-8
+    body:
+      totalCount: 1
+      workspaces:
+      - default: false
+        enabled: false
+        id: 1dca6c4a-7845-4298-b711-1b8700ebfc1e
+        name: e2e-slcli-migration-disabled-source
+- request: PUT /niuser/v1/workspaces/1dca6c4a-7845-4298-b711-1b8700ebfc1e
+  body:
+    name: e2e-slcli-migration-disabled-source
+    enabled: true
+  response:
+    status: 200
+    contentType: application/json; charset=utf-8
+    body:
+      default: false
+      enabled: true
+      id: 1dca6c4a-7845-4298-b711-1b8700ebfc1e
+      name: e2e-slcli-migration-disabled-source
+- request: PUT /niuser/v1/workspaces/1dca6c4a-7845-4298-b711-1b8700ebfc1e
+  body:
+    name: e2e-slcli-migration-disabled-source
+    enabled: false
+  response:
+    status: 200
+    contentType: application/json; charset=utf-8
+    body:
+      default: false
+      enabled: false
+      id: 1dca6c4a-7845-4298-b711-1b8700ebfc1e
+      name: e2e-slcli-migration-disabled-source
+- request: POST /nitestmonitor/v2/query-products
+  body:
+    filter: properties["slcli.e2e.owner"] == "migration-discovery"
+    substitutions: []
+    take: 1000
+    descending: false
+  response:
+    status: 200
+    contentType: application/json
+    body:
+      products: []
+      continuationToken: null
+- request: POST /nitestmonitor/v2/query-results
+  body:
+    filter: workspace == @0
+    substitutions:
+    - 3aeed209-8f57-446c-9fb6-1b2b66866ca3
+    take: 1000
+    descending: false
+  response:
+    status: 200
+    contentType: application/json
+    body:
+      results: []
+      continuationToken: null
+- request: POST /nitestmonitor/v2/query-results
+  body:
+    filter: workspace == @0
+    substitutions:
+    - 72e26583-0b36-4f77-99fb-50a6df279dda
+    take: 1000
+    descending: false
+  response:
+    status: 200
+    contentType: application/json
+    body:
+      results: []
+      continuationToken: null
+- request: POST /nitestmonitor/v2/products
+  body:
+    products:
+    - name: migration-e2e-states
+      partNumber: migration-e2e-states
+      workspace: 3aeed209-8f57-446c-9fb6-1b2b66866ca3
+      properties:
+        slcli.e2e.owner: migration-discovery
+    - name: migration-e2e-spanning
+      partNumber: migration-e2e-spanning
+      workspace: 3aeed209-8f57-446c-9fb6-1b2b66866ca3
+      properties:
+        slcli.e2e.owner: migration-discovery
+    - name: migration-e2e-orphan
+      partNumber: migration-e2e-orphan
+      workspace: 3aeed209-8f57-446c-9fb6-1b2b66866ca3
+      properties:
+        slcli.e2e.owner: migration-discovery
+  response:
+    status: 201
+    contentType: application/json
+    body:
+      products:
+      - id: f4a735ff-f161-4c5d-990b-6b3586766e6f
+        partNumber: migration-e2e-states
+        name: migration-e2e-states
+        family: null
+        updatedAt: '2026-11-20T17:46:54.9485183Z'
+        keywords: []
+        properties:
+          slcli.e2e.owner: migration-discovery
+        fileIds: []
+      - id: bcd8bb28-bf05-404c-a58a-aac183b71e68
+        partNumber: migration-e2e-spanning
+        name: migration-e2e-spanning
+        family: null
+        updatedAt: '2026-11-20T17:46:54.9485183Z'
+        keywords: []
+        properties:
+          slcli.e2e.owner: migration-discovery
+        fileIds: []
+      - id: 0b100e98-ca5b-48b3-952e-39e1cb5104a6
+        partNumber: migration-e2e-orphan
+        name: migration-e2e-orphan
+        family: null
+        updatedAt: '2026-11-20T17:46:54.9485183Z'
+        keywords: []
+        properties:
+          slcli.e2e.owner: migration-discovery
+        fileIds: []
+- request: POST /nitestmonitor/v2/results
+  body:
+    results:
+    - programName: migration-e2e-states DONE
+      partNumber: migration-e2e-states
+      status:
+        statusType: DONE
+        statusName: Done
+      workspace: 3aeed209-8f57-446c-9fb6-1b2b66866ca3
+      properties:
+        slcli.e2e.owner: migration-discovery
+    - programName: migration-e2e-states PASSED
+      partNumber: migration-e2e-states
+      status:
+        statusType: PASSED
+        statusName: Passed
+      workspace: 3aeed209-8f57-446c-9fb6-1b2b66866ca3
+      properties:
+        slcli.e2e.owner: migration-discovery
+    - programName: migration-e2e-states FAILED
+      partNumber: migration-e2e-states
+      status:
+        statusType: FAILED
+        statusName: Failed
+      workspace: 3aeed209-8f57-446c-9fb6-1b2b66866ca3
+      properties:
+        slcli.e2e.owner: migration-discovery
+    - programName: migration-e2e-states SKIPPED
+      partNumber: migration-e2e-states
+      status:
+        statusType: SKIPPED
+        statusName: Skipped
+      workspace: 3aeed209-8f57-446c-9fb6-1b2b66866ca3
+      properties:
+        slcli.e2e.owner: migration-discovery
+    - programName: migration-e2e-states TERMINATED
+      partNumber: migration-e2e-states
+      status:
+        statusType: TERMINATED
+        statusName: Terminated
+      workspace: 3aeed209-8f57-446c-9fb6-1b2b66866ca3
+      properties:
+        slcli.e2e.owner: migration-discovery
+    - programName: migration-e2e-states ERRORED
+      partNumber: migration-e2e-states
+      status:
+        statusType: ERRORED
+        statusName: Errored
+      workspace: 3aeed209-8f57-446c-9fb6-1b2b66866ca3
+      properties:
+        slcli.e2e.owner: migration-discovery
+    - programName: migration-e2e-states TIMEDOUT
+      partNumber: migration-e2e-states
+      status:
+        statusType: TIMEDOUT
+        statusName: Timedout
+      workspace: 3aeed209-8f57-446c-9fb6-1b2b66866ca3
+      properties:
+        slcli.e2e.owner: migration-discovery
+    - programName: migration-e2e-states RUNNING
+      partNumber: migration-e2e-states
+      status:
+        statusType: RUNNING
+        statusName: Running
+      workspace: 3aeed209-8f57-446c-9fb6-1b2b66866ca3
+      properties:
+        slcli.e2e.owner: migration-discovery
+    - programName: migration-e2e-states CUSTOM
+      partNumber: migration-e2e-states
+      status:
+        statusType: CUSTOM
+        statusName: Custom
+      workspace: 3aeed209-8f57-446c-9fb6-1b2b66866ca3
+      properties:
+        slcli.e2e.owner: migration-discovery
+  response:
+    status: 201
+    contentType: application/json
+    body:
+      results:
+      - status:
+          statusType: DONE
+          statusName: Done
+        startedAt: '2026-11-20T17:46:54.9652107Z'
+        updatedAt: '2026-11-20T17:46:54.967215Z'
+        programName: migration-e2e-states DONE
+        id: 14681cdc-8d00-4e0a-9a27-9964373dc202
+        systemId: null
+        hostName: null
+        operator: null
+        partNumber: migration-e2e-states
+        serialNumber: null
+        totalTimeInSeconds: 0.0
+        keywords: []
+        properties:
+          slcli.e2e.owner: migration-discovery
+        fileIds: []
+        statusTypeSummary:
+          LOOPING: 0
+          SKIPPED: 0
+          CUSTOM: 0
+          DONE: 0
+          PASSED: 0
+          FAILED: 0
+          RUNNING: 0
+          WAITING: 0
+          TERMINATED: 0
+          ERRORED: 0
+          TIMED_OUT: 0
+        workspace: 3aeed209-8f57-446c-9fb6-1b2b66866ca3
+      - status:
+          statusType: PASSED
+          statusName: Passed
+        startedAt: '2026-11-20T17:46:54.9652107Z'
+        updatedAt: '2026-11-20T17:46:54.967215Z'
+        programName: migration-e2e-states PASSED
+        id: 52ad512a-ad50-4f05-983c-f0498eb9c0f2
+        systemId: null
+        hostName: null
+        operator: null
+        partNumber: migration-e2e-states
+        serialNumber: null
+        totalTimeInSeconds: 0.0
+        keywords: []
+        properties:
+          slcli.e2e.owner: migration-discovery
+        fileIds: []
+        statusTypeSummary:
+          LOOPING: 0
+          SKIPPED: 0
+          CUSTOM: 0
+          DONE: 0
+          PASSED: 0
+          FAILED: 0
+          RUNNING: 0
+          WAITING: 0
+          TERMINATED: 0
+          ERRORED: 0
+          TIMED_OUT: 0
+        workspace: 3aeed209-8f57-446c-9fb6-1b2b66866ca3
+      - status:
+          statusType: FAILED
+          statusName: Failed
+        startedAt: '2026-11-20T17:46:54.9652107Z'
+        updatedAt: '2026-11-20T17:46:54.967215Z'
+        programName: migration-e2e-states FAILED
+        id: 9d39930e-c089-4277-915e-23ea2f5ef835
+        systemId: null
+        hostName: null
+        operator: null
+        partNumber: migration-e2e-states
+        serialNumber: null
+        totalTimeInSeconds: 0.0
+        keywords: []
+        properties:
+          slcli.e2e.owner: migration-discovery
+        fileIds: []
+        statusTypeSummary:
+          LOOPING: 0
+          SKIPPED: 0
+          CUSTOM: 0
+          DONE: 0
+          PASSED: 0
+          FAILED: 0
+          RUNNING: 0
+          WAITING: 0
+          TERMINATED: 0
+          ERRORED: 0
+          TIMED_OUT: 0
+        workspace: 3aeed209-8f57-446c-9fb6-1b2b66866ca3
+      - status:
+          statusType: SKIPPED
+          statusName: Skipped
+        startedAt: '2026-11-20T17:46:54.9652107Z'
+        updatedAt: '2026-11-20T17:46:54.967215Z'
+        programName: migration-e2e-states SKIPPED
+        id: 2e719a80-f639-4b04-a9b9-d681789fcf2c
+        systemId: null
+        hostName: null
+        operator: null
+        partNumber: migration-e2e-states
+        serialNumber: null
+        totalTimeInSeconds: 0.0
+        keywords: []
+        properties:
+          slcli.e2e.owner: migration-discovery
+        fileIds: []
+        statusTypeSummary:
+          LOOPING: 0
+          SKIPPED: 0
+          CUSTOM: 0
+          DONE: 0
+          PASSED: 0
+          FAILED: 0
+          RUNNING: 0
+          WAITING: 0
+          TERMINATED: 0
+          ERRORED: 0
+          TIMED_OUT: 0
+        workspace: 3aeed209-8f57-446c-9fb6-1b2b66866ca3
+      - status:
+          statusType: TERMINATED
+          statusName: Terminated
+        startedAt: '2026-11-20T17:46:54.9652107Z'
+        updatedAt: '2026-11-20T17:46:54.967215Z'
+        programName: migration-e2e-states TERMINATED
+        id: 12927d3f-98b2-428a-a357-5882e5a32126
+        systemId: null
+        hostName: null
+        operator: null
+        partNumber: migration-e2e-states
+        serialNumber: null
+        totalTimeInSeconds: 0.0
+        keywords: []
+        properties:
+          slcli.e2e.owner: migration-discovery
+        fileIds: []
+        statusTypeSummary:
+          LOOPING: 0
+          SKIPPED: 0
+          CUSTOM: 0
+          DONE: 0
+          PASSED: 0
+          FAILED: 0
+          RUNNING: 0
+          WAITING: 0
+          TERMINATED: 0
+          ERRORED: 0
+          TIMED_OUT: 0
+        workspace: 3aeed209-8f57-446c-9fb6-1b2b66866ca3
+      - status:
+          statusType: ERRORED
+          statusName: Errored
+        startedAt: '2026-11-20T17:46:54.9652107Z'
+        updatedAt: '2026-11-20T17:46:54.967215Z'
+        programName: migration-e2e-states ERRORED
+        id: 7a6c087a-c2ec-4e6b-97bc-9828ab31a8bd
+        systemId: null
+        hostName: null
+        operator: null
+        partNumber: migration-e2e-states
+        serialNumber: null
+        totalTimeInSeconds: 0.0
+        keywords: []
+        properties:
+          slcli.e2e.owner: migration-discovery
+        fileIds: []
+        statusTypeSummary:
+          LOOPING: 0
+          SKIPPED: 0
+          CUSTOM: 0
+          DONE: 0
+          PASSED: 0
+          FAILED: 0
+          RUNNING: 0
+          WAITING: 0
+          TERMINATED: 0
+          ERRORED: 0
+          TIMED_OUT: 0
+        workspace: 3aeed209-8f57-446c-9fb6-1b2b66866ca3
+      - status:
+          statusType: TIMED_OUT
+          statusName: Timedout
+        startedAt: '2026-11-20T17:46:54.9652107Z'
+        updatedAt: '2026-11-20T17:46:54.967215Z'
+        programName: migration-e2e-states TIMEDOUT
+        id: 63fe3842-78bc-47fc-ac2e-415abb41fcb9
+        systemId: null
+        hostName: null
+        operator: null
+        partNumber: migration-e2e-states
+        serialNumber: null
+        totalTimeInSeconds: 0.0
+        keywords: []
+        properties:
+          slcli.e2e.owner: migration-discovery
+        fileIds: []
+        statusTypeSummary:
+          LOOPING: 0
+          SKIPPED: 0
+          CUSTOM: 0
+          DONE: 0
+          PASSED: 0
+          FAILED: 0
+          RUNNING: 0
+          WAITING: 0
+          TERMINATED: 0
+          ERRORED: 0
+          TIMED_OUT: 0
+        workspace: 3aeed209-8f57-446c-9fb6-1b2b66866ca3
+      - status:
+          statusType: RUNNING
+          statusName: Running
+        startedAt: '2026-11-20T17:46:54.9652107Z'
+        updatedAt: '2026-11-20T17:46:54.967215Z'
+        programName: migration-e2e-states RUNNING
+        id: db03e801-cf1b-445e-bc0b-a7a5f96969d4
+        systemId: null
+        hostName: null
+        operator: null
+        partNumber: migration-e2e-states
+        serialNumber: null
+        totalTimeInSeconds: 0.0
+        keywords: []
+        properties:
+          slcli.e2e.owner: migration-discovery
+        fileIds: []
+        statusTypeSummary:
+          LOOPING: 0
+          SKIPPED: 0
+          CUSTOM: 0
+          DONE: 0
+          PASSED: 0
+          FAILED: 0
+          RUNNING: 0
+          WAITING: 0
+          TERMINATED: 0
+          ERRORED: 0
+          TIMED_OUT: 0
+        workspace: 3aeed209-8f57-446c-9fb6-1b2b66866ca3
+      - status:
+          statusType: CUSTOM
+          statusName: Custom
+        startedAt: '2026-11-20T17:46:54.9652107Z'
+        updatedAt: '2026-11-20T17:46:54.967215Z'
+        programName: migration-e2e-states CUSTOM
+        id: a7163d77-8f02-497d-86f9-aaba9609e45a
+        systemId: null
+        hostName: null
+        operator: null
+        partNumber: migration-e2e-states
+        serialNumber: null
+        totalTimeInSeconds: 0.0
+        keywords: []
+        properties:
+          slcli.e2e.owner: migration-discovery
+        fileIds: []
+        statusTypeSummary:
+          LOOPING: 0
+          SKIPPED: 0
+          CUSTOM: 0
+          DONE: 0
+          PASSED: 0
+          FAILED: 0
+          RUNNING: 0
+          WAITING: 0
+          TERMINATED: 0
+          ERRORED: 0
+          TIMED_OUT: 0
+        workspace: 3aeed209-8f57-446c-9fb6-1b2b66866ca3
+- request: POST /nitestmonitor/v2/results
+  body:
+    results:
+    - programName: migration-e2e-spanning PASSED
+      partNumber: migration-e2e-spanning
+      status:
+        statusType: PASSED
+        statusName: Passed
+      workspace: 3aeed209-8f57-446c-9fb6-1b2b66866ca3
+      properties:
+        slcli.e2e.owner: migration-discovery
+  response:
+    status: 201
+    contentType: application/json
+    body:
+      results:
+      - status:
+          statusType: PASSED
+          statusName: Passed
+        startedAt: '2026-11-20T17:46:54.988212Z'
+        updatedAt: '2026-11-20T17:46:54.9902121Z'
+        programName: migration-e2e-spanning PASSED
+        id: 624763ed-7e7c-46e6-9631-249e441227a9
+        systemId: null
+        hostName: null
+        operator: null
+        partNumber: migration-e2e-spanning
+        serialNumber: null
+        totalTimeInSeconds: 0.0
+        keywords: []
+        properties:
+          slcli.e2e.owner: migration-discovery
+        fileIds: []
+        statusTypeSummary:
+          LOOPING: 0
+          SKIPPED: 0
+          CUSTOM: 0
+          DONE: 0
+          PASSED: 0
+          FAILED: 0
+          RUNNING: 0
+          WAITING: 0
+          TERMINATED: 0
+          ERRORED: 0
+          TIMED_OUT: 0
+        workspace: 3aeed209-8f57-446c-9fb6-1b2b66866ca3
+- request: POST /nitestmonitor/v2/results
+  body:
+    results:
+    - programName: migration-e2e-spanning FAILED
+      partNumber: migration-e2e-spanning
+      status:
+        statusType: FAILED
+        statusName: Failed
+      workspace: 72e26583-0b36-4f77-99fb-50a6df279dda
+      properties:
+        slcli.e2e.owner: migration-discovery
+  response:
+    status: 201
+    contentType: application/json
+    body:
+      results:
+      - status:
+          statusType: FAILED
+          statusName: Failed
+        startedAt: '2026-11-20T17:46:55.008077Z'
+        updatedAt: '2026-11-20T17:46:55.0100771Z'
+        programName: migration-e2e-spanning FAILED
+        id: 3cd98f7a-a275-415b-a967-3c4af72638d9
+        systemId: null
+        hostName: null
+        operator: null
+        partNumber: migration-e2e-spanning
+        serialNumber: null
+        totalTimeInSeconds: 0.0
+        keywords: []
+        properties:
+          slcli.e2e.owner: migration-discovery
+        fileIds: []
+        statusTypeSummary:
+          LOOPING: 0
+          SKIPPED: 0
+          CUSTOM: 0
+          DONE: 0
+          PASSED: 0
+          FAILED: 0
+          RUNNING: 0
+          WAITING: 0
+          TERMINATED: 0
+          ERRORED: 0
+          TIMED_OUT: 0
+        workspace: 72e26583-0b36-4f77-99fb-50a6df279dda
+- request: GET /niuser/v1/workspaces?take=100&skip=0
+  response:
+    status: 200
+    contentType: application/json; charset=utf-8
+    body:
+      totalCount: 4
+      workspaces:
+      - default: true
+        enabled: true
+        id: b3e298c2-8ed6-4ec2-878d-c03aa40f0ba5
+        name: Default
+      - default: false
+        enabled: true
+        id: 3aeed209-8f57-446c-9fb6-1b2b66866ca3
+        name: e2e-slcli-migration-source
+      - default: false
+        enabled: true
+        id: 72e26583-0b36-4f77-99fb-50a6df279dda
+        name: e2e-slcli-migration-source-other
+      - default: false
+        enabled: false
+        id: 1dca6c4a-7845-4298-b711-1b8700ebfc1e
+        name: e2e-slcli-migration-disabled-source
+- request: POST /nifile/v1/service-groups/Default/query-files?skip=0&take=1000&workspace=3aeed209-8f57-446c-9fb6-1b2b66866ca3
+  body: {}
+  response:
+    status: 200
+    contentType: application/json
+    body:
+      _links:
+        self:
+          href: /nifile/v1/service-groups/Default/query-files
+        search:
+          href: /nifile/v1/service-groups/Default/files
+        query:
+          href: /nifile/v1/service-groups/Default/query-files
+        upload:
+          href: /nifile/v1/service-groups/Default/upload-files
+        deleteFiles:
+          href: /nifile/v1/service-groups/Default/delete-files
+      availableFiles: []
+      totalCount: 0
+- request: POST /nifile/v1/service-groups/Default/query-files?skip=0&take=1000&workspace=72e26583-0b36-4f77-99fb-50a6df279dda
+  body: {}
+  response:
+    status: 200
+    contentType: application/json
+    body:
+      _links:
+        self:
+          href: /nifile/v1/service-groups/Default/query-files
+        search:
+          href: /nifile/v1/service-groups/Default/files
+        query:
+          href: /nifile/v1/service-groups/Default/query-files
+        upload:
+          href: /nifile/v1/service-groups/Default/upload-files
+        deleteFiles:
+          href: /nifile/v1/service-groups/Default/delete-files
+      availableFiles: []
+      totalCount: 0
+- request: POST /nitestmonitor/v2/query-results
+  body:
+    filter: workspace == @0
+    substitutions:
+    - 3aeed209-8f57-446c-9fb6-1b2b66866ca3
+    take: 1000
+    descending: false
+  response:
+    status: 200
+    contentType: application/json
+    body:
+      results:
+      - status:
+          statusType: TERMINATED
+          statusName: Terminated
+        startedAt: '2026-11-20T17:46:54.96521Z'
+        updatedAt: '2026-11-20T17:46:54.967215Z'
+        programName: migration-e2e-states TERMINATED
+        id: 12927d3f-98b2-428a-a357-5882e5a32126
+        systemId: null
+        hostName: null
+        operator: null
+        partNumber: migration-e2e-states
+        serialNumber: null
+        totalTimeInSeconds: 0.0
+        keywords: []
+        properties:
+          slcli.e2e.owner: migration-discovery
+        fileIds: []
+        statusTypeSummary:
+          LOOPING: 0
+          SKIPPED: 0
+          CUSTOM: 0
+          DONE: 0
+          PASSED: 0
+          FAILED: 0
+          RUNNING: 0
+          WAITING: 0
+          TERMINATED: 0
+          ERRORED: 0
+          TIMED_OUT: 0
+        workspace: 3aeed209-8f57-446c-9fb6-1b2b66866ca3
+      - status:
+          statusType: DONE
+          statusName: Done
+        startedAt: '2026-11-20T17:46:54.96521Z'
+        updatedAt: '2026-11-20T17:46:54.967215Z'
+        programName: migration-e2e-states DONE
+        id: 14681cdc-8d00-4e0a-9a27-9964373dc202
+        systemId: null
+        hostName: null
+        operator: null
+        partNumber: migration-e2e-states
+        serialNumber: null
+        totalTimeInSeconds: 0.0
+        keywords: []
+        properties:
+          slcli.e2e.owner: migration-discovery
+        fileIds: []
+        statusTypeSummary:
+          LOOPING: 0
+          SKIPPED: 0
+          CUSTOM: 0
+          DONE: 0
+          PASSED: 0
+          FAILED: 0
+          RUNNING: 0
+          WAITING: 0
+          TERMINATED: 0
+          ERRORED: 0
+          TIMED_OUT: 0
+        workspace: 3aeed209-8f57-446c-9fb6-1b2b66866ca3
+      - status:
+          statusType: SKIPPED
+          statusName: Skipped
+        startedAt: '2026-11-20T17:46:54.96521Z'
+        updatedAt: '2026-11-20T17:46:54.967215Z'
+        programName: migration-e2e-states SKIPPED
+        id: 2e719a80-f639-4b04-a9b9-d681789fcf2c
+        systemId: null
+        hostName: null
+        operator: null
+        partNumber: migration-e2e-states
+        serialNumber: null
+        totalTimeInSeconds: 0.0
+        keywords: []
+        properties:
+          slcli.e2e.owner: migration-discovery
+        fileIds: []
+        statusTypeSummary:
+          LOOPING: 0
+          SKIPPED: 0
+          CUSTOM: 0
+          DONE: 0
+          PASSED: 0
+          FAILED: 0
+          RUNNING: 0
+          WAITING: 0
+          TERMINATED: 0
+          ERRORED: 0
+          TIMED_OUT: 0
+        workspace: 3aeed209-8f57-446c-9fb6-1b2b66866ca3
+      - status:
+          statusType: PASSED
+          statusName: Passed
+        startedAt: '2026-11-20T17:46:54.96521Z'
+        updatedAt: '2026-11-20T17:46:54.967215Z'
+        programName: migration-e2e-states PASSED
+        id: 52ad512a-ad50-4f05-983c-f0498eb9c0f2
+        systemId: null
+        hostName: null
+        operator: null
+        partNumber: migration-e2e-states
+        serialNumber: null
+        totalTimeInSeconds: 0.0
+        keywords: []
+        properties:
+          slcli.e2e.owner: migration-discovery
+        fileIds: []
+        statusTypeSummary:
+          LOOPING: 0
+          SKIPPED: 0
+          CUSTOM: 0
+          DONE: 0
+          PASSED: 0
+          FAILED: 0
+          RUNNING: 0
+          WAITING: 0
+          TERMINATED: 0
+          ERRORED: 0
+          TIMED_OUT: 0
+        workspace: 3aeed209-8f57-446c-9fb6-1b2b66866ca3
+      - status:
+          statusType: PASSED
+          statusName: Passed
+        startedAt: '2026-11-20T17:46:54.988212Z'
+        updatedAt: '2026-11-20T17:46:54.990212Z'
+        programName: migration-e2e-spanning PASSED
+        id: 624763ed-7e7c-46e6-9631-249e441227a9
+        systemId: null
+        hostName: null
+        operator: null
+        partNumber: migration-e2e-spanning
+        serialNumber: null
+        totalTimeInSeconds: 0.0
+        keywords: []
+        properties:
+          slcli.e2e.owner: migration-discovery
+        fileIds: []
+        statusTypeSummary:
+          LOOPING: 0
+          SKIPPED: 0
+          CUSTOM: 0
+          DONE: 0
+          PASSED: 0
+          FAILED: 0
+          RUNNING: 0
+          WAITING: 0
+          TERMINATED: 0
+          ERRORED: 0
+          TIMED_OUT: 0
+        workspace: 3aeed209-8f57-446c-9fb6-1b2b66866ca3
+      - status:
+          statusType: TIMED_OUT
+          statusName: Timedout
+        startedAt: '2026-11-20T17:46:54.96521Z'
+        updatedAt: '2026-11-20T17:46:54.967215Z'
+        programName: migration-e2e-states TIMEDOUT
+        id: 63fe3842-78bc-47fc-ac2e-415abb41fcb9
+        systemId: null
+        hostName: null
+        operator: null
+        partNumber: migration-e2e-states
+        serialNumber: null
+        totalTimeInSeconds: 0.0
+        keywords: []
+        properties:
+          slcli.e2e.owner: migration-discovery
+        fileIds: []
+        statusTypeSummary:
+          LOOPING: 0
+          SKIPPED: 0
+          CUSTOM: 0
+          DONE: 0
+          PASSED: 0
+          FAILED: 0
+          RUNNING: 0
+          WAITING: 0
+          TERMINATED: 0
+          ERRORED: 0
+          TIMED_OUT: 0
+        workspace: 3aeed209-8f57-446c-9fb6-1b2b66866ca3
+      - status:
+          statusType: ERRORED
+          statusName: Errored
+        startedAt: '2026-11-20T17:46:54.96521Z'
+        updatedAt: '2026-11-20T17:46:54.967215Z'
+        programName: migration-e2e-states ERRORED
+        id: 7a6c087a-c2ec-4e6b-97bc-9828ab31a8bd
+        systemId: null
+        hostName: null
+        operator: null
+        partNumber: migration-e2e-states
+        serialNumber: null
+        totalTimeInSeconds: 0.0
+        keywords: []
+        properties:
+          slcli.e2e.owner: migration-discovery
+        fileIds: []
+        statusTypeSummary:
+          LOOPING: 0
+          SKIPPED: 0
+          CUSTOM: 0
+          DONE: 0
+          PASSED: 0
+          FAILED: 0
+          RUNNING: 0
+          WAITING: 0
+          TERMINATED: 0
+          ERRORED: 0
+          TIMED_OUT: 0
+        workspace: 3aeed209-8f57-446c-9fb6-1b2b66866ca3
+      - status:
+          statusType: FAILED
+          statusName: Failed
+        startedAt: '2026-11-20T17:46:54.96521Z'
+        updatedAt: '2026-11-20T17:46:54.967215Z'
+        programName: migration-e2e-states FAILED
+        id: 9d39930e-c089-4277-915e-23ea2f5ef835
+        systemId: null
+        hostName: null
+        operator: null
+        partNumber: migration-e2e-states
+        serialNumber: null
+        totalTimeInSeconds: 0.0
+        keywords: []
+        properties:
+          slcli.e2e.owner: migration-discovery
+        fileIds: []
+        statusTypeSummary:
+          LOOPING: 0
+          SKIPPED: 0
+          CUSTOM: 0
+          DONE: 0
+          PASSED: 0
+          FAILED: 0
+          RUNNING: 0
+          WAITING: 0
+          TERMINATED: 0
+          ERRORED: 0
+          TIMED_OUT: 0
+        workspace: 3aeed209-8f57-446c-9fb6-1b2b66866ca3
+      - status:
+          statusType: CUSTOM
+          statusName: Custom
+        startedAt: '2026-11-20T17:46:54.96521Z'
+        updatedAt: '2026-11-20T17:46:54.967215Z'
+        programName: migration-e2e-states CUSTOM
+        id: a7163d77-8f02-497d-86f9-aaba9609e45a
+        systemId: null
+        hostName: null
+        operator: null
+        partNumber: migration-e2e-states
+        serialNumber: null
+        totalTimeInSeconds: 0.0
+        keywords: []
+        properties:
+          slcli.e2e.owner: migration-discovery
+        fileIds: []
+        statusTypeSummary:
+          LOOPING: 0
+          SKIPPED: 0
+          CUSTOM: 0
+          DONE: 0
+          PASSED: 0
+          FAILED: 0
+          RUNNING: 0
+          WAITING: 0
+          TERMINATED: 0
+          ERRORED: 0
+          TIMED_OUT: 0
+        workspace: 3aeed209-8f57-446c-9fb6-1b2b66866ca3
+      - status:
+          statusType: RUNNING
+          statusName: Running
+        startedAt: '2026-11-20T17:46:54.96521Z'
+        updatedAt: '2026-11-20T17:46:54.967215Z'
+        programName: migration-e2e-states RUNNING
+        id: db03e801-cf1b-445e-bc0b-a7a5f96969d4
+        systemId: null
+        hostName: null
+        operator: null
+        partNumber: migration-e2e-states
+        serialNumber: null
+        totalTimeInSeconds: 0.0
+        keywords: []
+        properties:
+          slcli.e2e.owner: migration-discovery
+        fileIds: []
+        statusTypeSummary:
+          LOOPING: 0
+          SKIPPED: 0
+          CUSTOM: 0
+          DONE: 0
+          PASSED: 0
+          FAILED: 0
+          RUNNING: 0
+          WAITING: 0
+          TERMINATED: 0
+          ERRORED: 0
+          TIMED_OUT: 0
+        workspace: 3aeed209-8f57-446c-9fb6-1b2b66866ca3
+      continuationToken: ZGIwM2U4MDEtY2YxYi00NDVlLWJjMGItYTdhNWY5Njk2OWQ0
+- request: POST /nitestmonitor/v2/query-results
+  body:
+    filter: workspace == @0
+    substitutions:
+    - 72e26583-0b36-4f77-99fb-50a6df279dda
+    take: 1000
+    descending: false
+  response:
+    status: 200
+    contentType: application/json
+    body:
+      results:
+      - status:
+          statusType: FAILED
+          statusName: Failed
+        startedAt: '2026-11-20T17:46:55.008077Z'
+        updatedAt: '2026-11-20T17:46:55.010077Z'
+        programName: migration-e2e-spanning FAILED
+        id: 3cd98f7a-a275-415b-a967-3c4af72638d9
+        systemId: null
+        hostName: null
+        operator: null
+        partNumber: migration-e2e-spanning
+        serialNumber: null
+        totalTimeInSeconds: 0.0
+        keywords: []
+        properties:
+          slcli.e2e.owner: migration-discovery
+        fileIds: []
+        statusTypeSummary:
+          LOOPING: 0
+          SKIPPED: 0
+          CUSTOM: 0
+          DONE: 0
+          PASSED: 0
+          FAILED: 0
+          RUNNING: 0
+          WAITING: 0
+          TERMINATED: 0
+          ERRORED: 0
+          TIMED_OUT: 0
+        workspace: 72e26583-0b36-4f77-99fb-50a6df279dda
+      continuationToken: M2NkOThmN2EtYTI3NS00MTViLWE5NjctM2M0YWY3MjYzOGQ5
+- request: POST /nitestmonitor/v2/query-products
+  body:
+    take: 1000
+    descending: false
+  response:
+    status: 200
+    contentType: application/json
+    body:
+      products:
+      - id: 0b100e98-ca5b-48b3-952e-39e1cb5104a6
+        partNumber: migration-e2e-orphan
+        name: migration-e2e-orphan
+        family: null
+        updatedAt: '2026-11-20T17:46:54.948518Z'
+        keywords: []
+        properties:
+          slcli.e2e.owner: migration-discovery
+        fileIds: []
+      - id: 438e63bd-682f-4d0e-8224-397ea46a5372
+        partNumber: probe
+        name: null
+        family: null
+        updatedAt: '2026-10-28T20:01:54.195931Z'
+        keywords: []
+        properties: {}
+        fileIds: []
+      - id: bcd8bb28-bf05-404c-a58a-aac183b71e68
+        partNumber: migration-e2e-spanning
+        name: migration-e2e-spanning
+        family: null
+        updatedAt: '2026-11-20T17:46:54.948518Z'
+        keywords: []
+        properties:
+          slcli.e2e.owner: migration-discovery
+        fileIds: []
+      - id: f4a735ff-f161-4c5d-990b-6b3586766e6f
+        partNumber: migration-e2e-states
+        name: migration-e2e-states
+        family: null
+        updatedAt: '2026-11-20T17:46:54.948518Z'
+        keywords: []
+        properties:
+          slcli.e2e.owner: migration-discovery
+        fileIds: []
+      continuationToken: ZjRhNzM1ZmYtZjE2MS00YzVkLTk5MGItNmIzNTg2NzY2ZTZm
+- request: GET /niuser/v1/workspaces?take=100&skip=0
+  response:
+    status: 200
+    contentType: application/json; charset=utf-8
+    body:
+      totalCount: 4
+      workspaces:
+      - default: true
+        enabled: true
+        id: b3e298c2-8ed6-4ec2-878d-c03aa40f0ba5
+        name: Default
+      - default: false
+        enabled: true
+        id: 3aeed209-8f57-446c-9fb6-1b2b66866ca3
+        name: e2e-slcli-migration-source
+      - default: false
+        enabled: true
+        id: 72e26583-0b36-4f77-99fb-50a6df279dda
+        name: e2e-slcli-migration-source-other
+      - default: false
+        enabled: false
+        id: 1dca6c4a-7845-4298-b711-1b8700ebfc1e
+        name: e2e-slcli-migration-disabled-source
+- request: POST /nifile/v1/service-groups/Default/query-files?skip=0&take=1000&workspace=3aeed209-8f57-446c-9fb6-1b2b66866ca3
+  body: {}
+  response:
+    status: 200
+    contentType: application/json
+    body:
+      _links:
+        self:
+          href: /nifile/v1/service-groups/Default/query-files
+        search:
+          href: /nifile/v1/service-groups/Default/files
+        query:
+          href: /nifile/v1/service-groups/Default/query-files
+        upload:
+          href: /nifile/v1/service-groups/Default/upload-files
+        deleteFiles:
+          href: /nifile/v1/service-groups/Default/delete-files
+      availableFiles: []
+      totalCount: 0
+- request: POST /nitestmonitor/v2/query-results
+  body:
+    filter: workspace == @0
+    substitutions:
+    - 3aeed209-8f57-446c-9fb6-1b2b66866ca3
+    take: 1000
+    descending: false
+  response:
+    status: 200
+    contentType: application/json
+    body:
+      results:
+      - status:
+          statusType: TERMINATED
+          statusName: Terminated
+        startedAt: '2026-11-20T17:46:54.96521Z'
+        updatedAt: '2026-11-20T17:46:54.967215Z'
+        programName: migration-e2e-states TERMINATED
+        id: 12927d3f-98b2-428a-a357-5882e5a32126
+        systemId: null
+        hostName: null
+        operator: null
+        partNumber: migration-e2e-states
+        serialNumber: null
+        totalTimeInSeconds: 0.0
+        keywords: []
+        properties:
+          slcli.e2e.owner: migration-discovery
+        fileIds: []
+        statusTypeSummary:
+          LOOPING: 0
+          SKIPPED: 0
+          CUSTOM: 0
+          DONE: 0
+          PASSED: 0
+          FAILED: 0
+          RUNNING: 0
+          WAITING: 0
+          TERMINATED: 0
+          ERRORED: 0
+          TIMED_OUT: 0
+        workspace: 3aeed209-8f57-446c-9fb6-1b2b66866ca3
+      - status:
+          statusType: DONE
+          statusName: Done
+        startedAt: '2026-11-20T17:46:54.96521Z'
+        updatedAt: '2026-11-20T17:46:54.967215Z'
+        programName: migration-e2e-states DONE
+        id: 14681cdc-8d00-4e0a-9a27-9964373dc202
+        systemId: null
+        hostName: null
+        operator: null
+        partNumber: migration-e2e-states
+        serialNumber: null
+        totalTimeInSeconds: 0.0
+        keywords: []
+        properties:
+          slcli.e2e.owner: migration-discovery
+        fileIds: []
+        statusTypeSummary:
+          LOOPING: 0
+          SKIPPED: 0
+          CUSTOM: 0
+          DONE: 0
+          PASSED: 0
+          FAILED: 0
+          RUNNING: 0
+          WAITING: 0
+          TERMINATED: 0
+          ERRORED: 0
+          TIMED_OUT: 0
+        workspace: 3aeed209-8f57-446c-9fb6-1b2b66866ca3
+      - status:
+          statusType: SKIPPED
+          statusName: Skipped
+        startedAt: '2026-11-20T17:46:54.96521Z'
+        updatedAt: '2026-11-20T17:46:54.967215Z'
+        programName: migration-e2e-states SKIPPED
+        id: 2e719a80-f639-4b04-a9b9-d681789fcf2c
+        systemId: null
+        hostName: null
+        operator: null
+        partNumber: migration-e2e-states
+        serialNumber: null
+        totalTimeInSeconds: 0.0
+        keywords: []
+        properties:
+          slcli.e2e.owner: migration-discovery
+        fileIds: []
+        statusTypeSummary:
+          LOOPING: 0
+          SKIPPED: 0
+          CUSTOM: 0
+          DONE: 0
+          PASSED: 0
+          FAILED: 0
+          RUNNING: 0
+          WAITING: 0
+          TERMINATED: 0
+          ERRORED: 0
+          TIMED_OUT: 0
+        workspace: 3aeed209-8f57-446c-9fb6-1b2b66866ca3
+      - status:
+          statusType: PASSED
+          statusName: Passed
+        startedAt: '2026-11-20T17:46:54.96521Z'
+        updatedAt: '2026-11-20T17:46:54.967215Z'
+        programName: migration-e2e-states PASSED
+        id: 52ad512a-ad50-4f05-983c-f0498eb9c0f2
+        systemId: null
+        hostName: null
+        operator: null
+        partNumber: migration-e2e-states
+        serialNumber: null
+        totalTimeInSeconds: 0.0
+        keywords: []
+        properties:
+          slcli.e2e.owner: migration-discovery
+        fileIds: []
+        statusTypeSummary:
+          LOOPING: 0
+          SKIPPED: 0
+          CUSTOM: 0
+          DONE: 0
+          PASSED: 0
+          FAILED: 0
+          RUNNING: 0
+          WAITING: 0
+          TERMINATED: 0
+          ERRORED: 0
+          TIMED_OUT: 0
+        workspace: 3aeed209-8f57-446c-9fb6-1b2b66866ca3
+      - status:
+          statusType: PASSED
+          statusName: Passed
+        startedAt: '2026-11-20T17:46:54.988212Z'
+        updatedAt: '2026-11-20T17:46:54.990212Z'
+        programName: migration-e2e-spanning PASSED
+        id: 624763ed-7e7c-46e6-9631-249e441227a9
+        systemId: null
+        hostName: null
+        operator: null
+        partNumber: migration-e2e-spanning
+        serialNumber: null
+        totalTimeInSeconds: 0.0
+        keywords: []
+        properties:
+          slcli.e2e.owner: migration-discovery
+        fileIds: []
+        statusTypeSummary:
+          LOOPING: 0
+          SKIPPED: 0
+          CUSTOM: 0
+          DONE: 0
+          PASSED: 0
+          FAILED: 0
+          RUNNING: 0
+          WAITING: 0
+          TERMINATED: 0
+          ERRORED: 0
+          TIMED_OUT: 0
+        workspace: 3aeed209-8f57-446c-9fb6-1b2b66866ca3
+      - status:
+          statusType: TIMED_OUT
+          statusName: Timedout
+        startedAt: '2026-11-20T17:46:54.96521Z'
+        updatedAt: '2026-11-20T17:46:54.967215Z'
+        programName: migration-e2e-states TIMEDOUT
+        id: 63fe3842-78bc-47fc-ac2e-415abb41fcb9
+        systemId: null
+        hostName: null
+        operator: null
+        partNumber: migration-e2e-states
+        serialNumber: null
+        totalTimeInSeconds: 0.0
+        keywords: []
+        properties:
+          slcli.e2e.owner: migration-discovery
+        fileIds: []
+        statusTypeSummary:
+          LOOPING: 0
+          SKIPPED: 0
+          CUSTOM: 0
+          DONE: 0
+          PASSED: 0
+          FAILED: 0
+          RUNNING: 0
+          WAITING: 0
+          TERMINATED: 0
+          ERRORED: 0
+          TIMED_OUT: 0
+        workspace: 3aeed209-8f57-446c-9fb6-1b2b66866ca3
+      - status:
+          statusType: ERRORED
+          statusName: Errored
+        startedAt: '2026-11-20T17:46:54.96521Z'
+        updatedAt: '2026-11-20T17:46:54.967215Z'
+        programName: migration-e2e-states ERRORED
+        id: 7a6c087a-c2ec-4e6b-97bc-9828ab31a8bd
+        systemId: null
+        hostName: null
+        operator: null
+        partNumber: migration-e2e-states
+        serialNumber: null
+        totalTimeInSeconds: 0.0
+        keywords: []
+        properties:
+          slcli.e2e.owner: migration-discovery
+        fileIds: []
+        statusTypeSummary:
+          LOOPING: 0
+          SKIPPED: 0
+          CUSTOM: 0
+          DONE: 0
+          PASSED: 0
+          FAILED: 0
+          RUNNING: 0
+          WAITING: 0
+          TERMINATED: 0
+          ERRORED: 0
+          TIMED_OUT: 0
+        workspace: 3aeed209-8f57-446c-9fb6-1b2b66866ca3
+      - status:
+          statusType: FAILED
+          statusName: Failed
+        startedAt: '2026-11-20T17:46:54.96521Z'
+        updatedAt: '2026-11-20T17:46:54.967215Z'
+        programName: migration-e2e-states FAILED
+        id: 9d39930e-c089-4277-915e-23ea2f5ef835
+        systemId: null
+        hostName: null
+        operator: null
+        partNumber: migration-e2e-states
+        serialNumber: null
+        totalTimeInSeconds: 0.0
+        keywords: []
+        properties:
+          slcli.e2e.owner: migration-discovery
+        fileIds: []
+        statusTypeSummary:
+          LOOPING: 0
+          SKIPPED: 0
+          CUSTOM: 0
+          DONE: 0
+          PASSED: 0
+          FAILED: 0
+          RUNNING: 0
+          WAITING: 0
+          TERMINATED: 0
+          ERRORED: 0
+          TIMED_OUT: 0
+        workspace: 3aeed209-8f57-446c-9fb6-1b2b66866ca3
+      - status:
+          statusType: CUSTOM
+          statusName: Custom
+        startedAt: '2026-11-20T17:46:54.96521Z'
+        updatedAt: '2026-11-20T17:46:54.967215Z'
+        programName: migration-e2e-states CUSTOM
+        id: a7163d77-8f02-497d-86f9-aaba9609e45a
+        systemId: null
+        hostName: null
+        operator: null
+        partNumber: migration-e2e-states
+        serialNumber: null
+        totalTimeInSeconds: 0.0
+        keywords: []
+        properties:
+          slcli.e2e.owner: migration-discovery
+        fileIds: []
+        statusTypeSummary:
+          LOOPING: 0
+          SKIPPED: 0
+          CUSTOM: 0
+          DONE: 0
+          PASSED: 0
+          FAILED: 0
+          RUNNING: 0
+          WAITING: 0
+          TERMINATED: 0
+          ERRORED: 0
+          TIMED_OUT: 0
+        workspace: 3aeed209-8f57-446c-9fb6-1b2b66866ca3
+      - status:
+          statusType: RUNNING
+          statusName: Running
+        startedAt: '2026-11-20T17:46:54.96521Z'
+        updatedAt: '2026-11-20T17:46:54.967215Z'
+        programName: migration-e2e-states RUNNING
+        id: db03e801-cf1b-445e-bc0b-a7a5f96969d4
+        systemId: null
+        hostName: null
+        operator: null
+        partNumber: migration-e2e-states
+        serialNumber: null
+        totalTimeInSeconds: 0.0
+        keywords: []
+        properties:
+          slcli.e2e.owner: migration-discovery
+        fileIds: []
+        statusTypeSummary:
+          LOOPING: 0
+          SKIPPED: 0
+          CUSTOM: 0
+          DONE: 0
+          PASSED: 0
+          FAILED: 0
+          RUNNING: 0
+          WAITING: 0
+          TERMINATED: 0
+          ERRORED: 0
+          TIMED_OUT: 0
+        workspace: 3aeed209-8f57-446c-9fb6-1b2b66866ca3
+      continuationToken: ZGIwM2U4MDEtY2YxYi00NDVlLWJjMGItYTdhNWY5Njk2OWQ0
+- request: POST /nitestmonitor/v2/query-products
+  body:
+    take: 1000
+    descending: false
+  response:
+    status: 200
+    contentType: application/json
+    body:
+      products:
+      - id: 0b100e98-ca5b-48b3-952e-39e1cb5104a6
+        partNumber: migration-e2e-orphan
+        name: migration-e2e-orphan
+        family: null
+        updatedAt: '2026-11-20T17:46:54.948518Z'
+        keywords: []
+        properties:
+          slcli.e2e.owner: migration-discovery
+        fileIds: []
+      - id: 438e63bd-682f-4d0e-8224-397ea46a5372
+        partNumber: probe
+        name: null
+        family: null
+        updatedAt: '2026-10-28T20:01:54.195931Z'
+        keywords: []
+        properties: {}
+        fileIds: []
+      - id: bcd8bb28-bf05-404c-a58a-aac183b71e68
+        partNumber: migration-e2e-spanning
+        name: migration-e2e-spanning
+        family: null
+        updatedAt: '2026-11-20T17:46:54.948518Z'
+        keywords: []
+        properties:
+          slcli.e2e.owner: migration-discovery
+        fileIds: []
+      - id: f4a735ff-f161-4c5d-990b-6b3586766e6f
+        partNumber: migration-e2e-states
+        name: migration-e2e-states
+        family: null
+        updatedAt: '2026-11-20T17:46:54.948518Z'
+        keywords: []
+        properties:
+          slcli.e2e.owner: migration-discovery
+        fileIds: []
+      continuationToken: ZjRhNzM1ZmYtZjE2MS00YzVkLTk5MGItNmIzNTg2NzY2ZTZm
+- request: GET /niuser/v1/workspaces?take=100&skip=0
+  response:
+    status: 200
+    contentType: application/json; charset=utf-8
+    body:
+      totalCount: 4
+      workspaces:
+      - default: true
+        enabled: true
+        id: b3e298c2-8ed6-4ec2-878d-c03aa40f0ba5
+        name: Default
+      - default: false
+        enabled: true
+        id: 3aeed209-8f57-446c-9fb6-1b2b66866ca3
+        name: e2e-slcli-migration-source
+      - default: false
+        enabled: true
+        id: 72e26583-0b36-4f77-99fb-50a6df279dda
+        name: e2e-slcli-migration-source-other
+      - default: false
+        enabled: false
+        id: 1dca6c4a-7845-4298-b711-1b8700ebfc1e
+        name: e2e-slcli-migration-disabled-source
+- request: POST /nifile/v1/service-groups/Default/query-files?skip=0&take=1000&workspace=b3e298c2-8ed6-4ec2-878d-c03aa40f0ba5
+  body: {}
+  response:
+    status: 200
+    contentType: application/json
+    body:
+      _links:
+        self:
+          href: /nifile/v1/service-groups/Default/query-files
+        search:
+          href: /nifile/v1/service-groups/Default/files
+        query:
+          href: /nifile/v1/service-groups/Default/query-files
+        upload:
+          href: /nifile/v1/service-groups/Default/upload-files
+        deleteFiles:
+          href: /nifile/v1/service-groups/Default/delete-files
+      availableFiles:
+      - _links:
+          self:
+            href: /nifile/v1/service-groups/Default/files/6a9b36bd4b069ed30a8c7b2f
+          data:
+            href: /nifile/v1/service-groups/Default/files/6a9b36bd4b069ed30a8c7b2f/data
+          updateMetadata:
+            href: /nifile/v1/service-groups/Default/files/6a9b36bd4b069ed30a8c7b2f/update-metadata
+          delete:
+            href: /nifile/v1/service-groups/Default/files/6a9b36bd4b069ed30a8c7b2f
+        created: '2026-09-04T21:23:09.982Z'
+        id: 6a9b36bd4b069ed30a8c7b2f
+        path: C:\ProgramData\National Instruments\Skyline\Data\FileIngestion\6a9\b36\bd4\b06\9ed\30a\8c7\6a9b36bd4b069ed30a8c7b2f.xml
+        properties:
+          Name: MobileDeviceTest_Report[22301PM][942026].xml
+          Source: niteststand
+        metaDataRevision: 1
+        serviceGroup: Default
+        size: 133610
+        size64: 133610
+        workspace: b3e298c2-8ed6-4ec2-878d-c03aa40f0ba5
+        lastUpdatedTimestamp: '2026-09-04T21:23:09.982Z'
+      - _links:
+          self:
+            href: /nifile/v1/service-groups/Default/files/6a99c3a84b069ed30a8c7b2e
+          data:
+            href: /nifile/v1/service-groups/Default/files/6a99c3a84b069ed30a8c7b2e/data
+          updateMetadata:
+            href: /nifile/v1/service-groups/Default/files/6a99c3a84b069ed30a8c7b2e/update-metadata
+          delete:
+            href: /nifile/v1/service-groups/Default/files/6a99c3a84b069ed30a8c7b2e
+        created: '2026-09-03T18:59:52.399Z'
+        id: 6a99c3a84b069ed30a8c7b2e
+        path: C:\ProgramData\National Instruments\Skyline\Data\FileIngestion\6a9\9c3\a84\b06\9ed\30a\8c7\6a99c3a84b069ed30a8c7b2e.csv
+        properties:
+          minionId: Virtual_Machine--SN-9044-8930-5670-1006-2434-9954-92--MAC-00-15-5D-3E-3D-3F
+          Name: SystemsSoftwareReport.csv
+        metaDataRevision: 1
+        serviceGroup: Default
+        size: 91226
+        size64: 91226
+        workspace: b3e298c2-8ed6-4ec2-878d-c03aa40f0ba5
+        lastUpdatedTimestamp: '2026-09-03T18:59:52.399Z'
+      - _links:
+          self:
+            href: /nifile/v1/service-groups/Default/files/6a99c3a84b069ed30a8c7b2d
+          data:
+            href: /nifile/v1/service-groups/Default/files/6a99c3a84b069ed30a8c7b2d/data
+          updateMetadata:
+            href: /nifile/v1/service-groups/Default/files/6a99c3a84b069ed30a8c7b2d/update-metadata
+          delete:
+            href: /nifile/v1/service-groups/Default/files/6a99c3a84b069ed30a8c7b2d
+        created: '2026-09-03T18:59:52.377Z'
+        id: 6a99c3a84b069ed30a8c7b2d
+        path: C:\ProgramData\National Instruments\Skyline\Data\FileIngestion\6a9\9c3\a84\b06\9ed\30a\8c7\6a99c3a84b069ed30a8c7b2d.csv
+        properties:
+          Name: Assets Report 202609031159523573.csv
+          minionId: Virtual_Machine--SN-9044-8930-5670-1006-2434-9954-92--MAC-00-15-5D-3E-3D-3F
+        metaDataRevision: 2
+        serviceGroup: Default
+        size: 811
+        size64: 811
+        workspace: b3e298c2-8ed6-4ec2-878d-c03aa40f0ba5
+        lastUpdatedTimestamp: '2026-09-03T18:59:52.471Z'
+      - _links:
+          self:
+            href: /nifile/v1/service-groups/Default/files/6a99c3a64b069ed30a8c7b2c
+          data:
+            href: /nifile/v1/service-groups/Default/files/6a99c3a64b069ed30a8c7b2c/data
+          updateMetadata:
+            href: /nifile/v1/service-groups/Default/files/6a99c3a64b069ed30a8c7b2c/update-metadata
+          delete:
+            href: /nifile/v1/service-groups/Default/files/6a99c3a64b069ed30a8c7b2c
+        created: '2026-09-03T18:59:50.251Z'
+        id: 6a99c3a64b069ed30a8c7b2c
+        path: C:\ProgramData\National Instruments\Skyline\Data\FileIngestion\6a9\9c3\a64\b06\9ed\30a\8c7\6a99c3a64b069ed30a8c7b2c.xml
+        properties:
+          Name: MobileDeviceTest_Report[115938AM][932026].xml
+          Source: niteststand
+        metaDataRevision: 1
+        serviceGroup: Default
+        size: 266900
+        size64: 266900
+        workspace: b3e298c2-8ed6-4ec2-878d-c03aa40f0ba5
+        lastUpdatedTimestamp: '2026-09-03T18:59:50.251Z'
+      - _links:
+          self:
+            href: /nifile/v1/service-groups/Default/files/6a99c3a04b069ed30a8c7b2b
+          data:
+            href: /nifile/v1/service-groups/Default/files/6a99c3a04b069ed30a8c7b2b/data
+          updateMetadata:
+            href: /nifile/v1/service-groups/Default/files/6a99c3a04b069ed30a8c7b2b/update-metadata
+          delete:
+            href: /nifile/v1/service-groups/Default/files/6a99c3a04b069ed30a8c7b2b
+        created: '2026-09-03T18:59:44.368Z'
+        id: 6a99c3a04b069ed30a8c7b2b
+        path: C:\ProgramData\National Instruments\Skyline\Data\FileIngestion\6a9\9c3\a04\b06\9ed\30a\8c7\6a99c3a04b069ed30a8c7b2b.xml
+        properties:
+          Name: MobileDeviceTest_Report[115938AM][932026].xml
+          Source: niteststand
+        metaDataRevision: 1
+        serviceGroup: Default
+        size: 133911
+        size64: 133911
+        workspace: b3e298c2-8ed6-4ec2-878d-c03aa40f0ba5
+        lastUpdatedTimestamp: '2026-09-03T18:59:44.368Z'
+      - _links:
+          self:
+            href: /nifile/v1/service-groups/Default/files/6a99c38b4b069ed30a8c7b2a
+          data:
+            href: /nifile/v1/service-groups/Default/files/6a99c38b4b069ed30a8c7b2a/data
+          updateMetadata:
+            href: /nifile/v1/service-groups/Default/files/6a99c38b4b069ed30a8c7b2a/update-metadata
+          delete:
+            href: /nifile/v1/service-groups/Default/files/6a99c38b4b069ed30a8c7b2a
+        created: '2026-09-03T18:59:23.662Z'
+        id: 6a99c38b4b069ed30a8c7b2a
+        path: C:\ProgramData\National Instruments\Skyline\Data\FileIngestion\6a9\9c3\8b4\b06\9ed\30a\8c7\6a99c38b4b069ed30a8c7b2a.csv
+        properties:
+          minionId: Virtual_Machine--SN-9044-8930-5670-1006-2434-9954-92--MAC-00-15-5D-3E-3D-3F
+          Name: SystemsSoftwareReport.csv
+        metaDataRevision: 1
+        serviceGroup: Default
+        size: 91226
+        size64: 91226
+        workspace: b3e298c2-8ed6-4ec2-878d-c03aa40f0ba5
+        lastUpdatedTimestamp: '2026-09-03T18:59:23.662Z'
+      - _links:
+          self:
+            href: /nifile/v1/service-groups/Default/files/6a99c38b4b069ed30a8c7b29
+          data:
+            href: /nifile/v1/service-groups/Default/files/6a99c38b4b069ed30a8c7b29/data
+          updateMetadata:
+            href: /nifile/v1/service-groups/Default/files/6a99c38b4b069ed30a8c7b29/update-metadata
+          delete:
+            href: /nifile/v1/service-groups/Default/files/6a99c38b4b069ed30a8c7b29
+        created: '2026-09-03T18:59:23.633Z'
+        id: 6a99c38b4b069ed30a8c7b29
+        path: C:\ProgramData\National Instruments\Skyline\Data\FileIngestion\6a9\9c3\8b4\b06\9ed\30a\8c7\6a99c38b4b069ed30a8c7b29.csv
+        properties:
+          Name: Assets Report 202609031159236139.csv
+          minionId: Virtual_Machine--SN-9044-8930-5670-1006-2434-9954-92--MAC-00-15-5D-3E-3D-3F
+        metaDataRevision: 2
+        serviceGroup: Default
+        size: 811
+        size64: 811
+        workspace: b3e298c2-8ed6-4ec2-878d-c03aa40f0ba5
+        lastUpdatedTimestamp: '2026-09-03T18:59:23.65Z'
+      - _links:
+          self:
+            href: /nifile/v1/service-groups/Default/files/6a99c3894b069ed30a8c7b28
+          data:
+            href: /nifile/v1/service-groups/Default/files/6a99c3894b069ed30a8c7b28/data
+          updateMetadata:
+            href: /nifile/v1/service-groups/Default/files/6a99c3894b069ed30a8c7b28/update-metadata
+          delete:
+            href: /nifile/v1/service-groups/Default/files/6a99c3894b069ed30a8c7b28
+        created: '2026-09-03T18:59:21.498Z'
+        id: 6a99c3894b069ed30a8c7b28
+        path: C:\ProgramData\National Instruments\Skyline\Data\FileIngestion\6a9\9c3\894\b06\9ed\30a\8c7\6a99c3894b069ed30a8c7b28.xml
+        properties:
+          Name: MobileDeviceTest_Report[115833AM][932026].xml
+          Source: niteststand
+        metaDataRevision: 1
+        serviceGroup: Default
+        size: 931831
+        size64: 931831
+        workspace: b3e298c2-8ed6-4ec2-878d-c03aa40f0ba5
+        lastUpdatedTimestamp: '2026-09-03T18:59:21.498Z'
+      - _links:
+          self:
+            href: /nifile/v1/service-groups/Default/files/6a99c37f4b069ed30a8c7b27
+          data:
+            href: /nifile/v1/service-groups/Default/files/6a99c37f4b069ed30a8c7b27/data
+          updateMetadata:
+            href: /nifile/v1/service-groups/Default/files/6a99c37f4b069ed30a8c7b27/update-metadata
+          delete:
+            href: /nifile/v1/service-groups/Default/files/6a99c37f4b069ed30a8c7b27
+        created: '2026-09-03T18:59:12Z'
+        id: 6a99c37f4b069ed30a8c7b27
+        path: C:\ProgramData\National Instruments\Skyline\Data\FileIngestion\6a9\9c3\7f4\b06\9ed\30a\8c7\6a99c37f4b069ed30a8c7b27.xml
+        properties:
+          Name: MobileDeviceTest_Report[115833AM][932026].xml
+          Source: niteststand
+        metaDataRevision: 1
+        serviceGroup: Default
+        size: 798839
+        size64: 798839
+        workspace: b3e298c2-8ed6-4ec2-878d-c03aa40f0ba5
+        lastUpdatedTimestamp: '2026-09-03T18:59:12Z'
+      - _links:
+          self:
+            href: /nifile/v1/service-groups/Default/files/6a99c37a4b069ed30a8c7b26
+          data:
+            href: /nifile/v1/service-groups/Default/files/6a99c37a4b069ed30a8c7b26/data
+          updateMetadata:
+            href: /nifile/v1/service-groups/Default/files/6a99c37a4b069ed30a8c7b26/update-metadata
+          delete:
+            href: /nifile/v1/service-groups/Default/files/6a99c37a4b069ed30a8c7b26
+        created: '2026-09-03T18:59:06.428Z'
+        id: 6a99c37a4b069ed30a8c7b26
+        path: C:\ProgramData\National Instruments\Skyline\Data\FileIngestion\6a9\9c3\7a4\b06\9ed\30a\8c7\6a99c37a4b069ed30a8c7b26.xml
+        properties:
+          Name: MobileDeviceTest_Report[115833AM][932026].xml
+          Source: niteststand
+        metaDataRevision: 1
+        serviceGroup: Default
+        size: 665799
+        size64: 665799
+        workspace: b3e298c2-8ed6-4ec2-878d-c03aa40f0ba5
+        lastUpdatedTimestamp: '2026-09-03T18:59:06.428Z'
+      - _links:
+          self:
+            href: /nifile/v1/service-groups/Default/files/6a99c3734b069ed30a8c7b25
+          data:
+            href: /nifile/v1/service-groups/Default/files/6a99c3734b069ed30a8c7b25/data
+          updateMetadata:
+            href: /nifile/v1/service-groups/Default/files/6a99c3734b069ed30a8c7b25/update-metadata
+          delete:
+            href: /nifile/v1/service-groups/Default/files/6a99c3734b069ed30a8c7b25
+        created: '2026-09-03T18:58:59.815Z'
+        id: 6a99c3734b069ed30a8c7b25
+        path: C:\ProgramData\National Instruments\Skyline\Data\FileIngestion\6a9\9c3\734\b06\9ed\30a\8c7\6a99c3734b069ed30a8c7b25.xml
+        properties:
+          Name: MobileDeviceTest_Report[115833AM][932026].xml
+          Source: niteststand
+        metaDataRevision: 1
+        serviceGroup: Default
+        size: 532832
+        size64: 532832
+        workspace: b3e298c2-8ed6-4ec2-878d-c03aa40f0ba5
+        lastUpdatedTimestamp: '2026-09-03T18:58:59.815Z'
+      - _links:
+          self:
+            href: /nifile/v1/service-groups/Default/files/6a99c36a4b069ed30a8c7b24
+          data:
+            href: /nifile/v1/service-groups/Default/files/6a99c36a4b069ed30a8c7b24/data
+          updateMetadata:
+            href: /nifile/v1/service-groups/Default/files/6a99c36a4b069ed30a8c7b24/update-metadata
+          delete:
+            href: /nifile/v1/service-groups/Default/files/6a99c36a4b069ed30a8c7b24
+        created: '2026-09-03T18:58:50.506Z'
+        id: 6a99c36a4b069ed30a8c7b24
+        path: C:\ProgramData\National Instruments\Skyline\Data\FileIngestion\6a9\9c3\6a4\b06\9ed\30a\8c7\6a99c36a4b069ed30a8c7b24.xml
+        properties:
+          Name: MobileDeviceTest_Report[115833AM][932026].xml
+          Source: niteststand
+        metaDataRevision: 1
+        serviceGroup: Default
+        size: 399472
+        size64: 399472
+        workspace: b3e298c2-8ed6-4ec2-878d-c03aa40f0ba5
+        lastUpdatedTimestamp: '2026-09-03T18:58:50.506Z'
+      - _links:
+          self:
+            href: /nifile/v1/service-groups/Default/files/6a99c3654b069ed30a8c7b23
+          data:
+            href: /nifile/v1/service-groups/Default/files/6a99c3654b069ed30a8c7b23/data
+          updateMetadata:
+            href: /nifile/v1/service-groups/Default/files/6a99c3654b069ed30a8c7b23/update-metadata
+          delete:
+            href: /nifile/v1/service-groups/Default/files/6a99c3654b069ed30a8c7b23
+        created: '2026-09-03T18:58:45.477Z'
+        id: 6a99c3654b069ed30a8c7b23
+        path: C:\ProgramData\National Instruments\Skyline\Data\FileIngestion\6a9\9c3\654\b06\9ed\30a\8c7\6a99c3654b069ed30a8c7b23.xml
+        properties:
+          Name: MobileDeviceTest_Report[115833AM][932026].xml
+          Source: niteststand
+        metaDataRevision: 1
+        serviceGroup: Default
+        size: 266501
+        size64: 266501
+        workspace: b3e298c2-8ed6-4ec2-878d-c03aa40f0ba5
+        lastUpdatedTimestamp: '2026-09-03T18:58:45.477Z'
+      - _links:
+          self:
+            href: /nifile/v1/service-groups/Default/files/6a99c35e4b069ed30a8c7b22
+          data:
+            href: /nifile/v1/service-groups/Default/files/6a99c35e4b069ed30a8c7b22/data
+          updateMetadata:
+            href: /nifile/v1/service-groups/Default/files/6a99c35e4b069ed30a8c7b22/update-metadata
+          delete:
+            href: /nifile/v1/service-groups/Default/files/6a99c35e4b069ed30a8c7b22
+        created: '2026-09-03T18:58:38.261Z'
+        id: 6a99c35e4b069ed30a8c7b22
+        path: C:\ProgramData\National Instruments\Skyline\Data\FileIngestion\6a9\9c3\5e4\b06\9ed\30a\8c7\6a99c35e4b069ed30a8c7b22.xml
+        properties:
+          Name: MobileDeviceTest_Report[115833AM][932026].xml
+          Source: niteststand
+        metaDataRevision: 1
+        serviceGroup: Default
+        size: 133572
+        size64: 133572
+        workspace: b3e298c2-8ed6-4ec2-878d-c03aa40f0ba5
+        lastUpdatedTimestamp: '2026-09-03T18:58:38.261Z'
+      - _links:
+          self:
+            href: /nifile/v1/service-groups/Default/files/6a99bb6d4b069ed30a8c7b21
+          data:
+            href: /nifile/v1/service-groups/Default/files/6a99bb6d4b069ed30a8c7b21/data
+          updateMetadata:
+            href: /nifile/v1/service-groups/Default/files/6a99bb6d4b069ed30a8c7b21/update-metadata
+          delete:
+            href: /nifile/v1/service-groups/Default/files/6a99bb6d4b069ed30a8c7b21
+        created: '2026-09-03T18:24:45.319Z'
+        id: 6a99bb6d4b069ed30a8c7b21
+        path: C:\ProgramData\National Instruments\Skyline\Data\FileIngestion\6a9\9bb\6d4\b06\9ed\30a\8c7\6a99bb6d4b069ed30a8c7b21.csv
+        properties:
+          minionId: Virtual_Machine--SN-9044-8930-5670-1006-2434-9954-92--MAC-00-15-5D-3E-3D-3F
+          Name: SystemsSoftwareReport.csv
+        metaDataRevision: 1
+        serviceGroup: Default
+        size: 91226
+        size64: 91226
+        workspace: b3e298c2-8ed6-4ec2-878d-c03aa40f0ba5
+        lastUpdatedTimestamp: '2026-09-03T18:24:45.319Z'
+      - _links:
+          self:
+            href: /nifile/v1/service-groups/Default/files/6a99bb6d4b069ed30a8c7b20
+          data:
+            href: /nifile/v1/service-groups/Default/files/6a99bb6d4b069ed30a8c7b20/data
+          updateMetadata:
+            href: /nifile/v1/service-groups/Default/files/6a99bb6d4b069ed30a8c7b20/update-metadata
+          delete:
+            href: /nifile/v1/service-groups/Default/files/6a99bb6d4b069ed30a8c7b20
+        created: '2026-09-03T18:24:45.3Z'
+        id: 6a99bb6d4b069ed30a8c7b20
+        path: C:\ProgramData\National Instruments\Skyline\Data\FileIngestion\6a9\9bb\6d4\b06\9ed\30a\8c7\6a99bb6d4b069ed30a8c7b20.csv
+        properties:
+          Name: Assets Report 202609031124452740.csv
+          minionId: Virtual_Machine--SN-9044-8930-5670-1006-2434-9954-92--MAC-00-15-5D-3E-3D-3F
+        metaDataRevision: 2
+        serviceGroup: Default
+        size: 811
+        size64: 811
+        workspace: b3e298c2-8ed6-4ec2-878d-c03aa40f0ba5
+        lastUpdatedTimestamp: '2026-09-03T18:24:45.319Z'
+      - _links:
+          self:
+            href: /nifile/v1/service-groups/Default/files/6a99bb6b4b069ed30a8c7b1f
+          data:
+            href: /nifile/v1/service-groups/Default/files/6a99bb6b4b069ed30a8c7b1f/data
+          updateMetadata:
+            href: /nifile/v1/service-groups/Default/files/6a99bb6b4b069ed30a8c7b1f/update-metadata
+          delete:
+            href: /nifile/v1/service-groups/Default/files/6a99bb6b4b069ed30a8c7b1f
+        created: '2026-09-03T18:24:43.396Z'
+        id: 6a99bb6b4b069ed30a8c7b1f
+        path: C:\ProgramData\National Instruments\Skyline\Data\FileIngestion\6a9\9bb\6b4\b06\9ed\30a\8c7\6a99bb6b4b069ed30a8c7b1f.xml
+        properties:
+          Name: MobileDeviceTest_Report[112402AM][932026].xml
+          Source: niteststand
+        metaDataRevision: 1
+        serviceGroup: Default
+        size: 586134
+        size64: 586134
+        workspace: b3e298c2-8ed6-4ec2-878d-c03aa40f0ba5
+        lastUpdatedTimestamp: '2026-09-03T18:24:43.396Z'
+      - _links:
+          self:
+            href: /nifile/v1/service-groups/Default/files/6a99bb644b069ed30a8c7b1e
+          data:
+            href: /nifile/v1/service-groups/Default/files/6a99bb644b069ed30a8c7b1e/data
+          updateMetadata:
+            href: /nifile/v1/service-groups/Default/files/6a99bb644b069ed30a8c7b1e/update-metadata
+          delete:
+            href: /nifile/v1/service-groups/Default/files/6a99bb644b069ed30a8c7b1e
+        created: '2026-09-03T18:24:36.411Z'
+        id: 6a99bb644b069ed30a8c7b1e
+        path: C:\ProgramData\National Instruments\Skyline\Data\FileIngestion\6a9\9bb\644\b06\9ed\30a\8c7\6a99bb644b069ed30a8c7b1e.xml
+        properties:
+          Name: MobileDeviceTest_Report[112402AM][932026].xml
+          Source: niteststand
+        metaDataRevision: 1
+        serviceGroup: Default
+        size: 562507
+        size64: 562507
+        workspace: b3e298c2-8ed6-4ec2-878d-c03aa40f0ba5
+        lastUpdatedTimestamp: '2026-09-03T18:24:36.411Z'
+      - _links:
+          self:
+            href: /nifile/v1/service-groups/Default/files/6a99bb5f4b069ed30a8c7b1d
+          data:
+            href: /nifile/v1/service-groups/Default/files/6a99bb5f4b069ed30a8c7b1d/data
+          updateMetadata:
+            href: /nifile/v1/service-groups/Default/files/6a99bb5f4b069ed30a8c7b1d/update-metadata
+          delete:
+            href: /nifile/v1/service-groups/Default/files/6a99bb5f4b069ed30a8c7b1d
+        created: '2026-09-03T18:24:31.272Z'
+        id: 6a99bb5f4b069ed30a8c7b1d
+        path: C:\ProgramData\National Instruments\Skyline\Data\FileIngestion\6a9\9bb\5f4\b06\9ed\30a\8c7\6a99bb5f4b069ed30a8c7b1d.xml
+        properties:
+          Name: MobileDeviceTest_Report[112402AM][932026].xml
+          Source: niteststand
+        metaDataRevision: 1
+        serviceGroup: Default
+        size: 429546
+        size64: 429546
+        workspace: b3e298c2-8ed6-4ec2-878d-c03aa40f0ba5
+        lastUpdatedTimestamp: '2026-09-03T18:24:31.272Z'
+      - _links:
+          self:
+            href: /nifile/v1/service-groups/Default/files/6a99bb594b069ed30a8c7b1c
+          data:
+            href: /nifile/v1/service-groups/Default/files/6a99bb594b069ed30a8c7b1c/data
+          updateMetadata:
+            href: /nifile/v1/service-groups/Default/files/6a99bb594b069ed30a8c7b1c/update-metadata
+          delete:
+            href: /nifile/v1/service-groups/Default/files/6a99bb594b069ed30a8c7b1c
+        created: '2026-09-03T18:24:25.282Z'
+        id: 6a99bb594b069ed30a8c7b1c
+        path: C:\ProgramData\National Instruments\Skyline\Data\FileIngestion\6a9\9bb\594\b06\9ed\30a\8c7\6a99bb594b069ed30a8c7b1c.xml
+        properties:
+          Name: MobileDeviceTest_Report[112402AM][932026].xml
+          Source: niteststand
+        metaDataRevision: 1
+        serviceGroup: Default
+        size: 296734
+        size64: 296734
+        workspace: b3e298c2-8ed6-4ec2-878d-c03aa40f0ba5
+        lastUpdatedTimestamp: '2026-09-03T18:24:25.282Z'
+      - _links:
+          self:
+            href: /nifile/v1/service-groups/Default/files/6a99bb504b069ed30a8c7b1b
+          data:
+            href: /nifile/v1/service-groups/Default/files/6a99bb504b069ed30a8c7b1b/data
+          updateMetadata:
+            href: /nifile/v1/service-groups/Default/files/6a99bb504b069ed30a8c7b1b/update-metadata
+          delete:
+            href: /nifile/v1/service-groups/Default/files/6a99bb504b069ed30a8c7b1b
+        created: '2026-09-03T18:24:16.007Z'
+        id: 6a99bb504b069ed30a8c7b1b
+        path: C:\ProgramData\National Instruments\Skyline\Data\FileIngestion\6a9\9bb\504\b06\9ed\30a\8c7\6a99bb504b069ed30a8c7b1b.xml
+        properties:
+          Name: MobileDeviceTest_Report[112402AM][932026].xml
+          Source: niteststand
+        metaDataRevision: 1
+        serviceGroup: Default
+        size: 157589
+        size64: 157589
+        workspace: b3e298c2-8ed6-4ec2-878d-c03aa40f0ba5
+        lastUpdatedTimestamp: '2026-09-03T18:24:16.007Z'
+      - _links:
+          self:
+            href: /nifile/v1/service-groups/Default/files/6a99bb484b069ed30a8c7b1a
+          data:
+            href: /nifile/v1/service-groups/Default/files/6a99bb484b069ed30a8c7b1a/data
+          updateMetadata:
+            href: /nifile/v1/service-groups/Default/files/6a99bb484b069ed30a8c7b1a/update-metadata
+          delete:
+            href: /nifile/v1/service-groups/Default/files/6a99bb484b069ed30a8c7b1a
+        created: '2026-09-03T18:24:08.025Z'
+        id: 6a99bb484b069ed30a8c7b1a
+        path: C:\ProgramData\National Instruments\Skyline\Data\FileIngestion\6a9\9bb\484\b06\9ed\30a\8c7\6a99bb484b069ed30a8c7b1a.xml
+        properties:
+          Name: MobileDeviceTest_Report[112402AM][932026].xml
+          Source: niteststand
+        metaDataRevision: 1
+        serviceGroup: Default
+        size: 133967
+        size64: 133967
+        workspace: b3e298c2-8ed6-4ec2-878d-c03aa40f0ba5
+        lastUpdatedTimestamp: '2026-09-03T18:24:08.025Z'
+      - _links:
+          self:
+            href: /nifile/v1/service-groups/Default/files/6a99bab34b069ed30a8c7b18
+          data:
+            href: /nifile/v1/service-groups/Default/files/6a99bab34b069ed30a8c7b18/data
+          updateMetadata:
+            href: /nifile/v1/service-groups/Default/files/6a99bab34b069ed30a8c7b18/update-metadata
+          delete:
+            href: /nifile/v1/service-groups/Default/files/6a99bab34b069ed30a8c7b18
+        created: '2026-09-03T18:21:39.87Z'
+        id: 6a99bab34b069ed30a8c7b18
+        path: C:\ProgramData\National Instruments\Skyline\Data\FileIngestion\6a9\9ba\b34\b06\9ed\30a\8c7\6a99bab34b069ed30a8c7b18.csv
+        properties:
+          minionId: Virtual_Machine--SN-9044-8930-5670-1006-2434-9954-92--MAC-00-15-5D-3E-3D-3F
+          Name: SystemsSoftwareReport.csv
+        metaDataRevision: 1
+        serviceGroup: Default
+        size: 91226
+        size64: 91226
+        workspace: b3e298c2-8ed6-4ec2-878d-c03aa40f0ba5
+        lastUpdatedTimestamp: '2026-09-03T18:21:39.87Z'
+      - _links:
+          self:
+            href: /nifile/v1/service-groups/Default/files/6a99bab34b069ed30a8c7b19
+          data:
+            href: /nifile/v1/service-groups/Default/files/6a99bab34b069ed30a8c7b19/data
+          updateMetadata:
+            href: /nifile/v1/service-groups/Default/files/6a99bab34b069ed30a8c7b19/update-metadata
+          delete:
+            href: /nifile/v1/service-groups/Default/files/6a99bab34b069ed30a8c7b19
+        created: '2026-09-03T18:21:39.868Z'
+        id: 6a99bab34b069ed30a8c7b19
+        path: C:\ProgramData\National Instruments\Skyline\Data\FileIngestion\6a9\9ba\b34\b06\9ed\30a\8c7\6a99bab34b069ed30a8c7b19.csv
+        properties:
+          minionId: Virtual_Machine--SN-9044-8930-5670-1006-2434-9954-92--MAC-00-15-5D-3E-3D-3F
+          Name: SystemsSoftwareReport.csv
+        metaDataRevision: 1
+        serviceGroup: Default
+        size: 91226
+        size64: 91226
+        workspace: b3e298c2-8ed6-4ec2-878d-c03aa40f0ba5
+        lastUpdatedTimestamp: '2026-09-03T18:21:39.868Z'
+      - _links:
+          self:
+            href: /nifile/v1/service-groups/Default/files/6a99bab34b069ed30a8c7b17
+          data:
+            href: /nifile/v1/service-groups/Default/files/6a99bab34b069ed30a8c7b17/data
+          updateMetadata:
+            href: /nifile/v1/service-groups/Default/files/6a99bab34b069ed30a8c7b17/update-metadata
+          delete:
+            href: /nifile/v1/service-groups/Default/files/6a99bab34b069ed30a8c7b17
+        created: '2026-09-03T18:21:39.745Z'
+        id: 6a99bab34b069ed30a8c7b17
+        path: C:\ProgramData\National Instruments\Skyline\Data\FileIngestion\6a9\9ba\b34\b06\9ed\30a\8c7\6a99bab34b069ed30a8c7b17.csv
+        properties:
+          Name: Assets Report 202609031121395400.csv
+          minionId: Virtual_Machine--SN-9044-8930-5670-1006-2434-9954-92--MAC-00-15-5D-3E-3D-3F
+        metaDataRevision: 2
+        serviceGroup: Default
+        size: 811
+        size64: 811
+        workspace: b3e298c2-8ed6-4ec2-878d-c03aa40f0ba5
+        lastUpdatedTimestamp: '2026-09-03T18:21:39.785Z'
+      - _links:
+          self:
+            href: /nifile/v1/service-groups/Default/files/6a99bab34b069ed30a8c7b16
+          data:
+            href: /nifile/v1/service-groups/Default/files/6a99bab34b069ed30a8c7b16/data
+          updateMetadata:
+            href: /nifile/v1/service-groups/Default/files/6a99bab34b069ed30a8c7b16/update-metadata
+          delete:
+            href: /nifile/v1/service-groups/Default/files/6a99bab34b069ed30a8c7b16
+        created: '2026-09-03T18:21:39.745Z'
+        id: 6a99bab34b069ed30a8c7b16
+        path: C:\ProgramData\National Instruments\Skyline\Data\FileIngestion\6a9\9ba\b34\b06\9ed\30a\8c7\6a99bab34b069ed30a8c7b16.csv
+        properties:
+          Name: Assets Report 202609031121395498.csv
+          minionId: Virtual_Machine--SN-9044-8930-5670-1006-2434-9954-92--MAC-00-15-5D-3E-3D-3F
+        metaDataRevision: 2
+        serviceGroup: Default
+        size: 811
+        size64: 811
+        workspace: b3e298c2-8ed6-4ec2-878d-c03aa40f0ba5
+        lastUpdatedTimestamp: '2026-09-03T18:21:39.785Z'
+      - _links:
+          self:
+            href: /nifile/v1/service-groups/Default/files/6a99baa74b069ed30a8c7b15
+          data:
+            href: /nifile/v1/service-groups/Default/files/6a99baa74b069ed30a8c7b15/data
+          updateMetadata:
+            href: /nifile/v1/service-groups/Default/files/6a99baa74b069ed30a8c7b15/update-metadata
+          delete:
+            href: /nifile/v1/service-groups/Default/files/6a99baa74b069ed30a8c7b15
+        created: '2026-09-03T18:21:27.535Z'
+        id: 6a99baa74b069ed30a8c7b15
+        path: C:\ProgramData\National Instruments\Skyline\Data\FileIngestion\6a9\9ba\a74\b06\9ed\30a\8c7\6a99baa74b069ed30a8c7b15.xml
+        properties:
+          Name: UnsavedSequenceFile_Report[112122AM][932026].xml
+          Source: niteststand
+        metaDataRevision: 1
+        serviceGroup: Default
+        size: 34803
+        size64: 34803
+        workspace: b3e298c2-8ed6-4ec2-878d-c03aa40f0ba5
+        lastUpdatedTimestamp: '2026-09-03T18:21:27.535Z'
+      - _links:
+          self:
+            href: /nifile/v1/service-groups/Default/files/6a99baa34b069ed30a8c7b14
+          data:
+            href: /nifile/v1/service-groups/Default/files/6a99baa34b069ed30a8c7b14/data
+          updateMetadata:
+            href: /nifile/v1/service-groups/Default/files/6a99baa34b069ed30a8c7b14/update-metadata
+          delete:
+            href: /nifile/v1/service-groups/Default/files/6a99baa34b069ed30a8c7b14
+        created: '2026-09-03T18:21:23.444Z'
+        id: 6a99baa34b069ed30a8c7b14
+        path: C:\ProgramData\National Instruments\Skyline\Data\FileIngestion\6a9\9ba\a34\b06\9ed\30a\8c7\6a99baa34b069ed30a8c7b14.xml
+        properties:
+          Name: UnsavedSequenceFile_Report[112122AM][932026].xml
+          Source: niteststand
+        metaDataRevision: 1
+        serviceGroup: Default
+        size: 17660
+        size64: 17660
+        workspace: b3e298c2-8ed6-4ec2-878d-c03aa40f0ba5
+        lastUpdatedTimestamp: '2026-09-03T18:21:23.444Z'
+      - _links:
+          self:
+            href: /nifile/v1/service-groups/Default/files/6a988b904b069ed30a8c7b13
+          data:
+            href: /nifile/v1/service-groups/Default/files/6a988b904b069ed30a8c7b13/data
+          updateMetadata:
+            href: /nifile/v1/service-groups/Default/files/6a988b904b069ed30a8c7b13/update-metadata
+          delete:
+            href: /nifile/v1/service-groups/Default/files/6a988b904b069ed30a8c7b13
+        created: '2026-09-02T20:48:17.158Z'
+        id: 6a988b904b069ed30a8c7b13
+        path: C:\ProgramData\National Instruments\Skyline\Data\FileIngestion\6a9\88b\904\b06\9ed\30a\8c7\6a988b904b069ed30a8c7b13.tdms
+        properties:
+          Name: comp_HFSB0920100PEN_148882D-01L_3266855_09-16-2022_13-47-36-435 (1).tdms
+        metaDataRevision: 1
+        serviceGroup: Default
+        size: 19437746
+        size64: 19437746
+        workspace: b3e298c2-8ed6-4ec2-878d-c03aa40f0ba5
+        lastUpdatedTimestamp: '2026-09-02T20:48:17.158Z'
+      - _links:
+          self:
+            href: /nifile/v1/service-groups/Default/files/6a988b904b069ed30a8c7b12
+          data:
+            href: /nifile/v1/service-groups/Default/files/6a988b904b069ed30a8c7b12/data
+          updateMetadata:
+            href: /nifile/v1/service-groups/Default/files/6a988b904b069ed30a8c7b12/update-metadata
+          delete:
+            href: /nifile/v1/service-groups/Default/files/6a988b904b069ed30a8c7b12
+        created: '2026-09-02T20:48:17.082Z'
+        id: 6a988b904b069ed30a8c7b12
+        path: C:\ProgramData\National Instruments\Skyline\Data\FileIngestion\6a9\88b\904\b06\9ed\30a\8c7\6a988b904b069ed30a8c7b12.tdms
+        properties:
+          Name: comp_HFSB0900119PEN_148882C-01L_322043B_08-30-2021_03-13-38-529.tdms
+        metaDataRevision: 1
+        serviceGroup: Default
+        size: 12974651
+        size64: 12974651
+        workspace: b3e298c2-8ed6-4ec2-878d-c03aa40f0ba5
+        lastUpdatedTimestamp: '2026-09-02T20:48:17.082Z'
+      - _links:
+          self:
+            href: /nifile/v1/service-groups/Default/files/6a988b904b069ed30a8c7b11
+          data:
+            href: /nifile/v1/service-groups/Default/files/6a988b904b069ed30a8c7b11/data
+          updateMetadata:
+            href: /nifile/v1/service-groups/Default/files/6a988b904b069ed30a8c7b11/update-metadata
+          delete:
+            href: /nifile/v1/service-groups/Default/files/6a988b904b069ed30a8c7b11
+        created: '2026-09-02T20:48:17.016Z'
+        id: 6a988b904b069ed30a8c7b11
+        path: C:\ProgramData\National Instruments\Skyline\Data\FileIngestion\6a9\88b\904\b06\9ed\30a\8c7\6a988b904b069ed30a8c7b11.tdms
+        properties:
+          Name: comp_htap_HFSB0922103PEN_158395H-01L_30FB1AD_10-19-2017_23-51-42_4438_COMPRESSED (1).tdms
+        metaDataRevision: 1
+        serviceGroup: Default
+        size: 12177651
+        size64: 12177651
+        workspace: b3e298c2-8ed6-4ec2-878d-c03aa40f0ba5
+        lastUpdatedTimestamp: '2026-09-02T20:48:17.016Z'
+      - _links:
+          self:
+            href: /nifile/v1/service-groups/Default/files/6a988b904b069ed30a8c7b10
+          data:
+            href: /nifile/v1/service-groups/Default/files/6a988b904b069ed30a8c7b10/data
+          updateMetadata:
+            href: /nifile/v1/service-groups/Default/files/6a988b904b069ed30a8c7b10/update-metadata
+          delete:
+            href: /nifile/v1/service-groups/Default/files/6a988b904b069ed30a8c7b10
+        created: '2026-09-02T20:48:16.934Z'
+        id: 6a988b904b069ed30a8c7b10
+        path: C:\ProgramData\National Instruments\Skyline\Data\FileIngestion\6a9\88b\904\b06\9ed\30a\8c7\6a988b904b069ed30a8c7b10.tdms
+        properties:
+          Name: comp_htap_HFSB0922103PEN_158395H-01L_30FB1AD_10-19-2017_23-51-42_4438_COMPRESSED.tdms
+        metaDataRevision: 1
+        serviceGroup: Default
+        size: 12177651
+        size64: 12177651
+        workspace: b3e298c2-8ed6-4ec2-878d-c03aa40f0ba5
+        lastUpdatedTimestamp: '2026-09-02T20:48:16.934Z'
+      - _links:
+          self:
+            href: /nifile/v1/service-groups/Default/files/6a988b904b069ed30a8c7b0f
+          data:
+            href: /nifile/v1/service-groups/Default/files/6a988b904b069ed30a8c7b0f/data
+          updateMetadata:
+            href: /nifile/v1/service-groups/Default/files/6a988b904b069ed30a8c7b0f/update-metadata
+          delete:
+            href: /nifile/v1/service-groups/Default/files/6a988b904b069ed30a8c7b0f
+        created: '2026-09-02T20:48:16.666Z'
+        id: 6a988b904b069ed30a8c7b0f
+        path: C:\ProgramData\National Instruments\Skyline\Data\FileIngestion\6a9\88b\904\b06\9ed\30a\8c7\6a988b904b069ed30a8c7b0f.tdms
+        properties:
+          Name: DC Blower Fan_2026-05-20-14-52-39 (2).tdms
+        metaDataRevision: 1
+        serviceGroup: Default
+        size: 2680548
+        size64: 2680548
+        workspace: b3e298c2-8ed6-4ec2-878d-c03aa40f0ba5
+        lastUpdatedTimestamp: '2026-09-02T20:48:16.666Z'
+      - _links:
+          self:
+            href: /nifile/v1/service-groups/Default/files/6a988b904b069ed30a8c7b0e
+          data:
+            href: /nifile/v1/service-groups/Default/files/6a988b904b069ed30a8c7b0e/data
+          updateMetadata:
+            href: /nifile/v1/service-groups/Default/files/6a988b904b069ed30a8c7b0e/update-metadata
+          delete:
+            href: /nifile/v1/service-groups/Default/files/6a988b904b069ed30a8c7b0e
+        created: '2026-09-02T20:48:16.621Z'
+        id: 6a988b904b069ed30a8c7b0e
+        path: C:\ProgramData\National Instruments\Skyline\Data\FileIngestion\6a9\88b\904\b06\9ed\30a\8c7\6a988b904b069ed30a8c7b0e.tdms
+        properties:
+          Name: HFSK5300001PEN_158396D-51L_3116C11_07-03-2017_19-03-49-277 (3).tdms
+        metaDataRevision: 1
+        serviceGroup: Default
+        size: 1350012
+        size64: 1350012
+        workspace: b3e298c2-8ed6-4ec2-878d-c03aa40f0ba5
+        lastUpdatedTimestamp: '2026-09-02T20:48:16.621Z'
+      - _links:
+          self:
+            href: /nifile/v1/service-groups/Default/files/6a988b904b069ed30a8c7b0d
+          data:
+            href: /nifile/v1/service-groups/Default/files/6a988b904b069ed30a8c7b0d/data
+          updateMetadata:
+            href: /nifile/v1/service-groups/Default/files/6a988b904b069ed30a8c7b0d/update-metadata
+          delete:
+            href: /nifile/v1/service-groups/Default/files/6a988b904b069ed30a8c7b0d
+        created: '2026-09-02T20:48:16.585Z'
+        id: 6a988b904b069ed30a8c7b0d
+        path: C:\ProgramData\National Instruments\Skyline\Data\FileIngestion\6a9\88b\904\b06\9ed\30a\8c7\6a988b904b069ed30a8c7b0d.tdms
+        properties:
+          Name: damped_spiral_signal (1).tdms
+        metaDataRevision: 1
+        serviceGroup: Default
+        size: 200300
+        size64: 200300
+        workspace: b3e298c2-8ed6-4ec2-878d-c03aa40f0ba5
+        lastUpdatedTimestamp: '2026-09-02T20:48:16.585Z'
+      - _links:
+          self:
+            href: /nifile/v1/service-groups/Default/files/6a988b904b069ed30a8c7b0c
+          data:
+            href: /nifile/v1/service-groups/Default/files/6a988b904b069ed30a8c7b0c/data
+          updateMetadata:
+            href: /nifile/v1/service-groups/Default/files/6a988b904b069ed30a8c7b0c/update-metadata
+          delete:
+            href: /nifile/v1/service-groups/Default/files/6a988b904b069ed30a8c7b0c
+        created: '2026-09-02T20:48:16.577Z'
+        id: 6a988b904b069ed30a8c7b0c
+        path: C:\ProgramData\National Instruments\Skyline\Data\FileIngestion\6a9\88b\904\b06\9ed\30a\8c7\6a988b904b069ed30a8c7b0c.tdms
+        properties:
+          Name: damped_spiral_signal.tdms
+        metaDataRevision: 1
+        serviceGroup: Default
+        size: 200300
+        size64: 200300
+        workspace: b3e298c2-8ed6-4ec2-878d-c03aa40f0ba5
+        lastUpdatedTimestamp: '2026-09-02T20:48:16.577Z'
+      - _links:
+          self:
+            href: /nifile/v1/service-groups/Default/files/6a988b7a4b069ed30a8c7b0b
+          data:
+            href: /nifile/v1/service-groups/Default/files/6a988b7a4b069ed30a8c7b0b/data
+          updateMetadata:
+            href: /nifile/v1/service-groups/Default/files/6a988b7a4b069ed30a8c7b0b/update-metadata
+          delete:
+            href: /nifile/v1/service-groups/Default/files/6a988b7a4b069ed30a8c7b0b
+        created: '2026-09-02T20:47:54.488Z'
+        id: 6a988b7a4b069ed30a8c7b0b
+        path: C:\ProgramData\National Instruments\Skyline\Data\FileIngestion\6a9\88b\7a4\b06\9ed\30a\8c7\6a988b7a4b069ed30a8c7b0b.xml
+        properties:
+          Name: MobileDeviceTest_Report[14736PM][922026].xml
+          Source: niteststand
+        metaDataRevision: 1
+        serviceGroup: Default
+        size: 267226
+        size64: 267226
+        workspace: b3e298c2-8ed6-4ec2-878d-c03aa40f0ba5
+        lastUpdatedTimestamp: '2026-09-02T20:47:54.488Z'
+      - _links:
+          self:
+            href: /nifile/v1/service-groups/Default/files/6a988b704b069ed30a8c7b0a
+          data:
+            href: /nifile/v1/service-groups/Default/files/6a988b704b069ed30a8c7b0a/data
+          updateMetadata:
+            href: /nifile/v1/service-groups/Default/files/6a988b704b069ed30a8c7b0a/update-metadata
+          delete:
+            href: /nifile/v1/service-groups/Default/files/6a988b704b069ed30a8c7b0a
+        created: '2026-09-02T20:47:44.064Z'
+        id: 6a988b704b069ed30a8c7b0a
+        path: C:\ProgramData\National Instruments\Skyline\Data\FileIngestion\6a9\88b\704\b06\9ed\30a\8c7\6a988b704b069ed30a8c7b0a.xml
+        properties:
+          Name: MobileDeviceTest_Report[14736PM][922026].xml
+          Source: niteststand
+        metaDataRevision: 1
+        serviceGroup: Default
+        size: 134173
+        size64: 134173
+        workspace: b3e298c2-8ed6-4ec2-878d-c03aa40f0ba5
+        lastUpdatedTimestamp: '2026-09-02T20:47:44.064Z'
+      totalCount: 38
+- request: POST /nitestmonitor/v2/query-results
+  body:
+    filter: workspace == @0
+    substitutions:
+    - b3e298c2-8ed6-4ec2-878d-c03aa40f0ba5
+    take: 1000
+    descending: false
+  response:
+    status: 200
+    contentType: application/json
+    body:
+      results:
+      - status:
+          statusType: FAILED
+          statusName: null
+        startedAt: '2026-09-03T18:24:38.736Z'
+        updatedAt: '2026-09-03T18:25:40.22513Z'
+        programName: Mobile Device Test.seq
+        id: 0cfda668-029c-45f9-b218-ded24c3f6f1c
+        systemId: Virtual_Machine--SN-9044-8930-5670-1006-2434-9954-92--MAC-00-15-5D-3E-3D-3F
+        hostName: WINDEV2407EVAL
+        operator: administrator
+        partNumber: null
+        serialNumber: dut
+        totalTimeInSeconds: 3.6912789
+        keywords: []
+        properties:
+          nitmSource: niteststand
+          nitmProcessModel: Sequential
+          nitmTestSocketCount: '1'
+          nitmTestStandStartTime: '2026-09-03T18:24:38.7360000Z'
+        fileIds:
+        - 6a99bb6b4b069ed30a8c7b1f
+        - 6a99bb6d4b069ed30a8c7b20
+        - 6a99bb6d4b069ed30a8c7b21
+        statusTypeSummary:
+          LOOPING: 0
+          SKIPPED: 0
+          CUSTOM: 0
+          DONE: 3
+          PASSED: 0
+          FAILED: 3
+          RUNNING: 0
+          WAITING: 0
+          TERMINATED: 0
+          ERRORED: 0
+          TIMED_OUT: 0
+        workspace: b3e298c2-8ed6-4ec2-878d-c03aa40f0ba5
+      - status:
+          statusType: FAILED
+          statusName: null
+        startedAt: '2026-09-02T20:47:36.266Z'
+        updatedAt: '2026-09-03T18:22:37.708098Z'
+        programName: Mobile Device Test.seq
+        id: 1168a439-9022-4ae8-a23c-9a9e08f22027
+        systemId: Virtual_Machine--SN-9044-8930-5670-1006-2434-9954-92--MAC-00-15-5D-3E-3D-3F
+        hostName: WINDEV2407EVAL
+        operator: administrator
+        partNumber: null
+        serialNumber: abcdefg
+        totalTimeInSeconds: 4.626629
+        keywords: []
+        properties:
+          nitmSource: niteststand
+          nitmProcessModel: Sequential
+          nitmTestSocketCount: '1'
+          nitmTestStandStartTime: '2026-09-02T20:47:36.2660000Z'
+        fileIds:
+        - 6a988b704b069ed30a8c7b0a
+        - 6a99bab34b069ed30a8c7b16
+        - 6a99bab34b069ed30a8c7b19
+        statusTypeSummary:
+          LOOPING: 0
+          SKIPPED: 0
+          CUSTOM: 0
+          DONE: 3
+          PASSED: 11
+          FAILED: 1
+          RUNNING: 0
+          WAITING: 0
+          TERMINATED: 0
+          ERRORED: 0
+          TIMED_OUT: 0
+        workspace: b3e298c2-8ed6-4ec2-878d-c03aa40f0ba5
+      - status:
+          statusType: PASSED
+          statusName: null
+        startedAt: '2026-09-03T18:21:26.926Z'
+        updatedAt: '2026-09-03T18:22:37.708098Z'
+        programName: ''
+        id: 1405fcbe-3cdb-4277-b69b-884fc57e1379
+        systemId: Virtual_Machine--SN-9044-8930-5670-1006-2434-9954-92--MAC-00-15-5D-3E-3D-3F
+        hostName: WINDEV2407EVAL
+        operator: administrator
+        partNumber: null
+        serialNumber: RRRRRRR
+        totalTimeInSeconds: 0.0450633
+        keywords: []
+        properties:
+          nitmSource: niteststand
+          nitmProcessModel: Sequential
+          nitmTestSocketCount: '1'
+          nitmTestStandStartTime: '2026-09-03T18:21:26.9260000Z'
+        fileIds:
+        - 6a99baa74b069ed30a8c7b15
+        - 6a99bab34b069ed30a8c7b17
+        - 6a99bab34b069ed30a8c7b18
+        statusTypeSummary:
+          LOOPING: 0
+          SKIPPED: 0
+          CUSTOM: 0
+          DONE: 0
+          PASSED: 1
+          FAILED: 0
+          RUNNING: 0
+          WAITING: 0
+          TERMINATED: 0
+          ERRORED: 0
+          TIMED_OUT: 0
+        workspace: b3e298c2-8ed6-4ec2-878d-c03aa40f0ba5
+      - status:
+          statusType: FAILED
+          statusName: null
+        startedAt: '2026-09-03T18:58:51.668Z'
+        updatedAt: '2026-09-03T18:59:55.26397Z'
+        programName: Mobile Device Test.seq
+        id: 26154337-4f3f-46be-ac2a-725dece40fd0
+        systemId: Virtual_Machine--SN-9044-8930-5670-1006-2434-9954-92--MAC-00-15-5D-3E-3D-3F
+        hostName: WINDEV2407EVAL
+        operator: administrator
+        partNumber: null
+        serialNumber: ''
+        totalTimeInSeconds: 7.1664881
+        keywords: []
+        properties:
+          nitmSource: niteststand
+          nitmProcessModel: Sequential
+          nitmTestSocketCount: '1'
+          nitmTestStandStartTime: '2026-09-03T18:58:51.6680000Z'
+        fileIds:
+        - 6a99c3734b069ed30a8c7b25
+        - 6a99c38b4b069ed30a8c7b29
+        - 6a99c38b4b069ed30a8c7b2a
+        statusTypeSummary:
+          LOOPING: 0
+          SKIPPED: 0
+          CUSTOM: 0
+          DONE: 3
+          PASSED: 9
+          FAILED: 3
+          RUNNING: 0
+          WAITING: 0
+          TERMINATED: 0
+          ERRORED: 0
+          TIMED_OUT: 0
+        workspace: b3e298c2-8ed6-4ec2-878d-c03aa40f0ba5
+      - status:
+          statusType: TIMED_OUT
+          statusName: Timed Out
+        startedAt: '2026-09-04T21:23:01.893Z'
+        updatedAt: '2026-09-06T20:42:50.728492Z'
+        programName: Mobile Device Test.seq
+        id: 2913b698-e997-4fc9-95cc-5ed448013f52
+        systemId: Virtual_Machine--SN-9044-8930-5670-1006-2434-9954-92--MAC-00-15-5D-3E-3D-3F
+        hostName: WINDEV2407EVAL
+        operator: administrator
+        partNumber: null
+        serialNumber: ''
+        totalTimeInSeconds: 0.0
+        keywords: []
+        properties:
+          nitmSource: niteststand
+          nitmProcessModel: Sequential
+          nitmTestSocketCount: '1'
+          nitmTestStandStartTime: '2026-09-04T21:23:01.8930000Z'
+        fileIds: []
+        statusTypeSummary:
+          LOOPING: 0
+          SKIPPED: 0
+          CUSTOM: 0
+          DONE: 0
+          PASSED: 0
+          FAILED: 0
+          RUNNING: 0
+          WAITING: 0
+          TERMINATED: 0
+          ERRORED: 0
+          TIMED_OUT: 0
+        workspace: b3e298c2-8ed6-4ec2-878d-c03aa40f0ba5
+      - status:
+          statusType: FAILED
+          statusName: null
+        startedAt: '2026-09-03T18:24:02.859Z'
+        updatedAt: '2026-09-03T18:25:40.22513Z'
+        programName: Mobile Device Test.seq
+        id: 3d3253c0-8764-4f41-8f15-8d606a58cbe4
+        systemId: Virtual_Machine--SN-9044-8930-5670-1006-2434-9954-92--MAC-00-15-5D-3E-3D-3F
+        hostName: WINDEV2407EVAL
+        operator: administrator
+        partNumber: null
+        serialNumber: '12345'
+        totalTimeInSeconds: 4.4399791
+        keywords: []
+        properties:
+          nitmSource: niteststand
+          nitmProcessModel: Sequential
+          nitmTestSocketCount: '1'
+          nitmTestStandStartTime: '2026-09-03T18:24:02.8590000Z'
+        fileIds:
+        - 6a99bb484b069ed30a8c7b1a
+        - 6a99bb6d4b069ed30a8c7b20
+        - 6a99bb6d4b069ed30a8c7b21
+        statusTypeSummary:
+          LOOPING: 0
+          SKIPPED: 0
+          CUSTOM: 0
+          DONE: 3
+          PASSED: 11
+          FAILED: 1
+          RUNNING: 0
+          WAITING: 0
+          TERMINATED: 0
+          ERRORED: 0
+          TIMED_OUT: 0
+        workspace: b3e298c2-8ed6-4ec2-878d-c03aa40f0ba5
+      - status:
+          statusType: FAILED
+          statusName: null
+        startedAt: '2026-09-03T18:59:38.735Z'
+        updatedAt: '2026-09-03T19:00:56.145936Z'
+        programName: Mobile Device Test.seq
+        id: 46e6b912-4a4a-4c07-9908-f4e6f7055f25
+        systemId: Virtual_Machine--SN-9044-8930-5670-1006-2434-9954-92--MAC-00-15-5D-3E-3D-3F
+        hostName: WINDEV2407EVAL
+        operator: administrator
+        partNumber: null
+        serialNumber: '222222'
+        totalTimeInSeconds: 4.9102808
+        keywords: []
+        properties:
+          nitmSource: niteststand
+          nitmProcessModel: Sequential
+          nitmTestSocketCount: '1'
+          nitmTestStandStartTime: '2026-09-03T18:59:38.7350000Z'
+        fileIds:
+        - 6a99c3a04b069ed30a8c7b2b
+        - 6a99c3a84b069ed30a8c7b2e
+        - 6a99c3a84b069ed30a8c7b2d
+        statusTypeSummary:
+          LOOPING: 0
+          SKIPPED: 0
+          CUSTOM: 0
+          DONE: 3
+          PASSED: 11
+          FAILED: 1
+          RUNNING: 0
+          WAITING: 0
+          TERMINATED: 0
+          ERRORED: 0
+          TIMED_OUT: 0
+        workspace: b3e298c2-8ed6-4ec2-878d-c03aa40f0ba5
+      - status:
+          statusType: PASSED
+          statusName: null
+        startedAt: '2026-09-03T18:58:33.339Z'
+        updatedAt: '2026-09-03T18:59:55.26397Z'
+        programName: Mobile Device Test.seq
+        id: 4d258c46-935e-49f6-bf3e-1cc9ad43a408
+        systemId: Virtual_Machine--SN-9044-8930-5670-1006-2434-9954-92--MAC-00-15-5D-3E-3D-3F
+        hostName: WINDEV2407EVAL
+        operator: administrator
+        partNumber: null
+        serialNumber: oooo
+        totalTimeInSeconds: 4.1761439
+        keywords: []
+        properties:
+          nitmSource: niteststand
+          nitmProcessModel: Sequential
+          nitmTestSocketCount: '1'
+          nitmTestStandStartTime: '2026-09-03T18:58:33.3390000Z'
+        fileIds:
+        - 6a99c35e4b069ed30a8c7b22
+        - 6a99c38b4b069ed30a8c7b29
+        - 6a99c38b4b069ed30a8c7b2a
+        statusTypeSummary:
+          LOOPING: 0
+          SKIPPED: 0
+          CUSTOM: 0
+          DONE: 3
+          PASSED: 12
+          FAILED: 0
+          RUNNING: 0
+          WAITING: 0
+          TERMINATED: 0
+          ERRORED: 0
+          TIMED_OUT: 0
+        workspace: b3e298c2-8ed6-4ec2-878d-c03aa40f0ba5
+      - status:
+          statusType: PASSED
+          statusName: null
+        startedAt: '2026-09-03T18:58:41.404Z'
+        updatedAt: '2026-09-03T18:59:55.26397Z'
+        programName: Mobile Device Test.seq
+        id: 5bc13677-8ff1-4014-a3e6-696e25b3cba2
+        systemId: Virtual_Machine--SN-9044-8930-5670-1006-2434-9954-92--MAC-00-15-5D-3E-3D-3F
+        hostName: WINDEV2407EVAL
+        operator: administrator
+        partNumber: null
+        serialNumber: '1111'
+        totalTimeInSeconds: 3.2739802
+        keywords: []
+        properties:
+          nitmSource: niteststand
+          nitmProcessModel: Sequential
+          nitmTestSocketCount: '1'
+          nitmTestStandStartTime: '2026-09-03T18:58:41.4040000Z'
+        fileIds:
+        - 6a99c3654b069ed30a8c7b23
+        - 6a99c38b4b069ed30a8c7b29
+        - 6a99c38b4b069ed30a8c7b2a
+        statusTypeSummary:
+          LOOPING: 0
+          SKIPPED: 0
+          CUSTOM: 0
+          DONE: 3
+          PASSED: 12
+          FAILED: 0
+          RUNNING: 0
+          WAITING: 0
+          TERMINATED: 0
+          ERRORED: 0
+          TIMED_OUT: 0
+        workspace: b3e298c2-8ed6-4ec2-878d-c03aa40f0ba5
+      - status:
+          statusType: PASSED
+          statusName: null
+        startedAt: '2026-09-03T18:24:32.169Z'
+        updatedAt: '2026-09-03T18:25:40.22513Z'
+        programName: Mobile Device Test.seq
+        id: 624306ff-ad1c-46d4-8e2a-b0bd32a8be7b
+        systemId: Virtual_Machine--SN-9044-8930-5670-1006-2434-9954-92--MAC-00-15-5D-3E-3D-3F
+        hostName: WINDEV2407EVAL
+        operator: administrator
+        partNumber: null
+        serialNumber: ''
+        totalTimeInSeconds: 3.1711194
+        keywords: []
+        properties:
+          nitmSource: niteststand
+          nitmProcessModel: Sequential
+          nitmTestSocketCount: '1'
+          nitmTestStandStartTime: '2026-09-03T18:24:32.1690000Z'
+        fileIds:
+        - 6a99bb644b069ed30a8c7b1e
+        - 6a99bb6d4b069ed30a8c7b20
+        - 6a99bb6d4b069ed30a8c7b21
+        statusTypeSummary:
+          LOOPING: 0
+          SKIPPED: 0
+          CUSTOM: 0
+          DONE: 3
+          PASSED: 12
+          FAILED: 0
+          RUNNING: 0
+          WAITING: 0
+          TERMINATED: 0
+          ERRORED: 0
+          TIMED_OUT: 0
+        workspace: b3e298c2-8ed6-4ec2-878d-c03aa40f0ba5
+      - status:
+          statusType: PASSED
+          statusName: null
+        startedAt: '2026-09-03T18:59:07.124Z'
+        updatedAt: '2026-09-03T18:59:55.26397Z'
+        programName: Mobile Device Test.seq
+        id: 7174282d-055b-4557-b62e-635f01c833ae
+        systemId: Virtual_Machine--SN-9044-8930-5670-1006-2434-9954-92--MAC-00-15-5D-3E-3D-3F
+        hostName: WINDEV2407EVAL
+        operator: administrator
+        partNumber: null
+        serialNumber: ''
+        totalTimeInSeconds: 3.488495
+        keywords: []
+        properties:
+          nitmSource: niteststand
+          nitmProcessModel: Sequential
+          nitmTestSocketCount: '1'
+          nitmTestStandStartTime: '2026-09-03T18:59:07.1240000Z'
+        fileIds:
+        - 6a99c37f4b069ed30a8c7b27
+        - 6a99c38b4b069ed30a8c7b29
+        - 6a99c38b4b069ed30a8c7b2a
+        statusTypeSummary:
+          LOOPING: 0
+          SKIPPED: 0
+          CUSTOM: 0
+          DONE: 3
+          PASSED: 12
+          FAILED: 0
+          RUNNING: 0
+          WAITING: 0
+          TERMINATED: 0
+          ERRORED: 0
+          TIMED_OUT: 0
+        workspace: b3e298c2-8ed6-4ec2-878d-c03aa40f0ba5
+      - status:
+          statusType: PASSED
+          statusName: null
+        startedAt: '2026-09-03T18:58:46.542Z'
+        updatedAt: '2026-09-03T18:59:55.26397Z'
+        programName: Mobile Device Test.seq
+        id: 720f6856-650e-48d9-b16f-f67bb4daa44a
+        systemId: Virtual_Machine--SN-9044-8930-5670-1006-2434-9954-92--MAC-00-15-5D-3E-3D-3F
+        hostName: WINDEV2407EVAL
+        operator: administrator
+        partNumber: null
+        serialNumber: ''
+        totalTimeInSeconds: 3.1088271
+        keywords: []
+        properties:
+          nitmSource: niteststand
+          nitmProcessModel: Sequential
+          nitmTestSocketCount: '1'
+          nitmTestStandStartTime: '2026-09-03T18:58:46.5420000Z'
+        fileIds:
+        - 6a99c36a4b069ed30a8c7b24
+        - 6a99c38b4b069ed30a8c7b29
+        - 6a99c38b4b069ed30a8c7b2a
+        statusTypeSummary:
+          LOOPING: 0
+          SKIPPED: 0
+          CUSTOM: 0
+          DONE: 3
+          PASSED: 12
+          FAILED: 0
+          RUNNING: 0
+          WAITING: 0
+          TERMINATED: 0
+          ERRORED: 0
+          TIMED_OUT: 0
+        workspace: b3e298c2-8ed6-4ec2-878d-c03aa40f0ba5
+      - status:
+          statusType: PASSED
+          statusName: null
+        startedAt: '2026-09-03T18:24:27.074Z'
+        updatedAt: '2026-09-03T18:25:40.22513Z'
+        programName: Mobile Device Test.seq
+        id: 7a5aa27f-b846-4718-a161-1dd429625f87
+        systemId: Virtual_Machine--SN-9044-8930-5670-1006-2434-9954-92--MAC-00-15-5D-3E-3D-3F
+        hostName: WINDEV2407EVAL
+        operator: administrator
+        partNumber: null
+        serialNumber: ''
+        totalTimeInSeconds: 3.2723129
+        keywords: []
+        properties:
+          nitmSource: niteststand
+          nitmProcessModel: Sequential
+          nitmTestSocketCount: '1'
+          nitmTestStandStartTime: '2026-09-03T18:24:27.0740000Z'
+        fileIds:
+        - 6a99bb5f4b069ed30a8c7b1d
+        - 6a99bb6d4b069ed30a8c7b20
+        - 6a99bb6d4b069ed30a8c7b21
+        statusTypeSummary:
+          LOOPING: 0
+          SKIPPED: 0
+          CUSTOM: 0
+          DONE: 3
+          PASSED: 12
+          FAILED: 0
+          RUNNING: 0
+          WAITING: 0
+          TERMINATED: 0
+          ERRORED: 0
+          TIMED_OUT: 0
+        workspace: b3e298c2-8ed6-4ec2-878d-c03aa40f0ba5
+      - status:
+          statusType: PASSED
+          statusName: null
+        startedAt: '2026-09-02T20:47:49.951Z'
+        updatedAt: '2026-09-03T18:22:37.708098Z'
+        programName: Mobile Device Test.seq
+        id: 7a953a07-8d18-4aee-b287-5a7a415526c1
+        systemId: Virtual_Machine--SN-9044-8930-5670-1006-2434-9954-92--MAC-00-15-5D-3E-3D-3F
+        hostName: WINDEV2407EVAL
+        operator: administrator
+        partNumber: null
+        serialNumber: abcdefg
+        totalTimeInSeconds: 3.688655
+        keywords: []
+        properties:
+          nitmSource: niteststand
+          nitmProcessModel: Sequential
+          nitmTestSocketCount: '1'
+          nitmTestStandStartTime: '2026-09-02T20:47:49.9510000Z'
+        fileIds:
+        - 6a988b7a4b069ed30a8c7b0b
+        - 6a99bab34b069ed30a8c7b16
+        - 6a99bab34b069ed30a8c7b19
+        statusTypeSummary:
+          LOOPING: 0
+          SKIPPED: 0
+          CUSTOM: 0
+          DONE: 3
+          PASSED: 12
+          FAILED: 0
+          RUNNING: 0
+          WAITING: 0
+          TERMINATED: 0
+          ERRORED: 0
+          TIMED_OUT: 0
+        workspace: b3e298c2-8ed6-4ec2-878d-c03aa40f0ba5
+      - status:
+          statusType: PASSED
+          statusName: null
+        startedAt: '2026-09-03T18:59:12.754Z'
+        updatedAt: '2026-09-03T18:59:55.26397Z'
+        programName: Mobile Device Test.seq
+        id: b8074f89-582e-4fd2-89a4-3d6edd8d5596
+        systemId: Virtual_Machine--SN-9044-8930-5670-1006-2434-9954-92--MAC-00-15-5D-3E-3D-3F
+        hostName: WINDEV2407EVAL
+        operator: administrator
+        partNumber: null
+        serialNumber: ''
+        totalTimeInSeconds: 5.4024111
+        keywords: []
+        properties:
+          nitmSource: niteststand
+          nitmProcessModel: Sequential
+          nitmTestSocketCount: '1'
+          nitmTestStandStartTime: '2026-09-03T18:59:12.7540000Z'
+        fileIds:
+        - 6a99c3894b069ed30a8c7b28
+        - 6a99c38b4b069ed30a8c7b29
+        - 6a99c38b4b069ed30a8c7b2a
+        statusTypeSummary:
+          LOOPING: 0
+          SKIPPED: 0
+          CUSTOM: 0
+          DONE: 3
+          PASSED: 12
+          FAILED: 0
+          RUNNING: 0
+          WAITING: 0
+          TERMINATED: 0
+          ERRORED: 0
+          TIMED_OUT: 0
+        workspace: b3e298c2-8ed6-4ec2-878d-c03aa40f0ba5
+      - status:
+          statusType: FAILED
+          statusName: null
+        startedAt: '2026-09-03T18:24:20.322Z'
+        updatedAt: '2026-09-03T18:25:40.22513Z'
+        programName: Mobile Device Test.seq
+        id: c3d7ef29-a335-4c0d-80f0-d6f109d32aad
+        systemId: Virtual_Machine--SN-9044-8930-5670-1006-2434-9954-92--MAC-00-15-5D-3E-3D-3F
+        hostName: WINDEV2407EVAL
+        operator: administrator
+        partNumber: null
+        serialNumber: HHHHHHH
+        totalTimeInSeconds: 4.1186049
+        keywords: []
+        properties:
+          nitmSource: niteststand
+          nitmProcessModel: Sequential
+          nitmTestSocketCount: '1'
+          nitmTestStandStartTime: '2026-09-03T18:24:20.3220000Z'
+        fileIds:
+        - 6a99bb594b069ed30a8c7b1c
+        - 6a99bb6d4b069ed30a8c7b20
+        - 6a99bb6d4b069ed30a8c7b21
+        statusTypeSummary:
+          LOOPING: 0
+          SKIPPED: 0
+          CUSTOM: 0
+          DONE: 3
+          PASSED: 10
+          FAILED: 2
+          RUNNING: 0
+          WAITING: 0
+          TERMINATED: 0
+          ERRORED: 0
+          TIMED_OUT: 0
+        workspace: b3e298c2-8ed6-4ec2-878d-c03aa40f0ba5
+      - status:
+          statusType: PASSED
+          statusName: null
+        startedAt: '2026-09-03T18:21:22.558Z'
+        updatedAt: '2026-09-03T18:22:37.708098Z'
+        programName: ''
+        id: deffe05f-6b82-4b85-a680-475d75a8c409
+        systemId: Virtual_Machine--SN-9044-8930-5670-1006-2434-9954-92--MAC-00-15-5D-3E-3D-3F
+        hostName: WINDEV2407EVAL
+        operator: administrator
+        partNumber: null
+        serialNumber: GGGGGG
+        totalTimeInSeconds: 0.0247167
+        keywords: []
+        properties:
+          nitmSource: niteststand
+          nitmProcessModel: Sequential
+          nitmTestSocketCount: '1'
+          nitmTestStandStartTime: '2026-09-03T18:21:22.5580000Z'
+        fileIds:
+        - 6a99baa34b069ed30a8c7b14
+        - 6a99bab34b069ed30a8c7b17
+        - 6a99bab34b069ed30a8c7b18
+        statusTypeSummary:
+          LOOPING: 0
+          SKIPPED: 0
+          CUSTOM: 0
+          DONE: 0
+          PASSED: 1
+          FAILED: 0
+          RUNNING: 0
+          WAITING: 0
+          TERMINATED: 0
+          ERRORED: 0
+          TIMED_OUT: 0
+        workspace: b3e298c2-8ed6-4ec2-878d-c03aa40f0ba5
+      - status:
+          statusType: PASSED
+          statusName: null
+        startedAt: '2026-09-03T18:59:01.451Z'
+        updatedAt: '2026-09-03T18:59:55.26397Z'
+        programName: Mobile Device Test.seq
+        id: e7ccd1cc-2d53-4ffe-b1fe-673d5f2d4875
+        systemId: Virtual_Machine--SN-9044-8930-5670-1006-2434-9954-92--MAC-00-15-5D-3E-3D-3F
+        hostName: WINDEV2407EVAL
+        operator: administrator
+        partNumber: null
+        serialNumber: ''
+        totalTimeInSeconds: 3.3259814
+        keywords: []
+        properties:
+          nitmSource: niteststand
+          nitmProcessModel: Sequential
+          nitmTestSocketCount: '1'
+          nitmTestStandStartTime: '2026-09-03T18:59:01.4510000Z'
+        fileIds:
+        - 6a99c37a4b069ed30a8c7b26
+        - 6a99c38b4b069ed30a8c7b29
+        - 6a99c38b4b069ed30a8c7b2a
+        statusTypeSummary:
+          LOOPING: 0
+          SKIPPED: 0
+          CUSTOM: 0
+          DONE: 3
+          PASSED: 12
+          FAILED: 0
+          RUNNING: 0
+          WAITING: 0
+          TERMINATED: 0
+          ERRORED: 0
+          TIMED_OUT: 0
+        workspace: b3e298c2-8ed6-4ec2-878d-c03aa40f0ba5
+      - status:
+          statusType: FAILED
+          statusName: null
+        startedAt: '2026-09-03T18:24:12.14Z'
+        updatedAt: '2026-09-03T18:25:40.22513Z'
+        programName: Mobile Device Test.seq
+        id: ed1c68a7-8541-4c17-9833-f97685722a4d
+        systemId: Virtual_Machine--SN-9044-8930-5670-1006-2434-9954-92--MAC-00-15-5D-3E-3D-3F
+        hostName: WINDEV2407EVAL
+        operator: administrator
+        partNumber: null
+        serialNumber: '765432'
+        totalTimeInSeconds: 3.0744407
+        keywords: []
+        properties:
+          nitmSource: niteststand
+          nitmProcessModel: Sequential
+          nitmTestSocketCount: '1'
+          nitmTestStandStartTime: '2026-09-03T18:24:12.1400000Z'
+        fileIds:
+        - 6a99bb504b069ed30a8c7b1b
+        - 6a99bb6d4b069ed30a8c7b20
+        - 6a99bb6d4b069ed30a8c7b21
+        statusTypeSummary:
+          LOOPING: 0
+          SKIPPED: 0
+          CUSTOM: 0
+          DONE: 3
+          PASSED: 0
+          FAILED: 3
+          RUNNING: 0
+          WAITING: 0
+          TERMINATED: 0
+          ERRORED: 0
+          TIMED_OUT: 0
+        workspace: b3e298c2-8ed6-4ec2-878d-c03aa40f0ba5
+      - status:
+          statusType: PASSED
+          statusName: null
+        startedAt: '2026-09-03T18:59:46.345Z'
+        updatedAt: '2026-09-03T19:00:56.145936Z'
+        programName: Mobile Device Test.seq
+        id: fdc5280d-aef2-424e-b071-3d90bbca4b95
+        systemId: Virtual_Machine--SN-9044-8930-5670-1006-2434-9954-92--MAC-00-15-5D-3E-3D-3F
+        hostName: WINDEV2407EVAL
+        operator: administrator
+        partNumber: null
+        serialNumber: ''
+        totalTimeInSeconds: 3.0501022
+        keywords: []
+        properties:
+          nitmSource: niteststand
+          nitmProcessModel: Sequential
+          nitmTestSocketCount: '1'
+          nitmTestStandStartTime: '2026-09-03T18:59:46.3450000Z'
+        fileIds:
+        - 6a99c3a64b069ed30a8c7b2c
+        - 6a99c3a84b069ed30a8c7b2e
+        - 6a99c3a84b069ed30a8c7b2d
+        statusTypeSummary:
+          LOOPING: 0
+          SKIPPED: 0
+          CUSTOM: 0
+          DONE: 3
+          PASSED: 12
+          FAILED: 0
+          RUNNING: 0
+          WAITING: 0
+          TERMINATED: 0
+          ERRORED: 0
+          TIMED_OUT: 0
+        workspace: b3e298c2-8ed6-4ec2-878d-c03aa40f0ba5
+      continuationToken: ZmRjNTI4MGQtYWVmMi00MjRlLWIwNzEtM2Q5MGJiY2E0Yjk1
+- request: POST /nitestmonitor/v2/query-products
+  body:
+    take: 1000
+    descending: false
+  response:
+    status: 200
+    contentType: application/json
+    body:
+      products:
+      - id: 0b100e98-ca5b-48b3-952e-39e1cb5104a6
+        partNumber: migration-e2e-orphan
+        name: migration-e2e-orphan
+        family: null
+        updatedAt: '2026-11-20T17:46:54.948518Z'
+        keywords: []
+        properties:
+          slcli.e2e.owner: migration-discovery
+        fileIds: []
+      - id: 438e63bd-682f-4d0e-8224-397ea46a5372
+        partNumber: probe
+        name: null
+        family: null
+        updatedAt: '2026-10-28T20:01:54.195931Z'
+        keywords: []
+        properties: {}
+        fileIds: []
+      - id: bcd8bb28-bf05-404c-a58a-aac183b71e68
+        partNumber: migration-e2e-spanning
+        name: migration-e2e-spanning
+        family: null
+        updatedAt: '2026-11-20T17:46:54.948518Z'
+        keywords: []
+        properties:
+          slcli.e2e.owner: migration-discovery
+        fileIds: []
+      - id: f4a735ff-f161-4c5d-990b-6b3586766e6f
+        partNumber: migration-e2e-states
+        name: migration-e2e-states
+        family: null
+        updatedAt: '2026-11-20T17:46:54.948518Z'
+        keywords: []
+        properties:
+          slcli.e2e.owner: migration-discovery
+        fileIds: []
+      continuationToken: ZjRhNzM1ZmYtZjE2MS00YzVkLTk5MGItNmIzNTg2NzY2ZTZm
+- request: GET /niuser/v1/workspaces?take=100&skip=0
+  response:
+    status: 200
+    contentType: application/json; charset=utf-8
+    body:
+      totalCount: 4
+      workspaces:
+      - default: true
+        enabled: true
+        id: b3e298c2-8ed6-4ec2-878d-c03aa40f0ba5
+        name: Default
+      - default: false
+        enabled: true
+        id: 3aeed209-8f57-446c-9fb6-1b2b66866ca3
+        name: e2e-slcli-migration-source
+      - default: false
+        enabled: true
+        id: 72e26583-0b36-4f77-99fb-50a6df279dda
+        name: e2e-slcli-migration-source-other
+      - default: false
+        enabled: false
+        id: 1dca6c4a-7845-4298-b711-1b8700ebfc1e
+        name: e2e-slcli-migration-disabled-source
+- request: POST /nitestmonitor/v2/query-results
+  body:
+    filter: workspace == @0
+    substitutions:
+    - 3aeed209-8f57-446c-9fb6-1b2b66866ca3
+    take: 1000
+    descending: false
+  response:
+    status: 200
+    contentType: application/json
+    body:
+      results:
+      - status:
+          statusType: TERMINATED
+          statusName: Terminated
+        startedAt: '2026-11-20T17:46:54.96521Z'
+        updatedAt: '2026-11-20T17:46:54.967215Z'
+        programName: migration-e2e-states TERMINATED
+        id: 12927d3f-98b2-428a-a357-5882e5a32126
+        systemId: null
+        hostName: null
+        operator: null
+        partNumber: migration-e2e-states
+        serialNumber: null
+        totalTimeInSeconds: 0.0
+        keywords: []
+        properties:
+          slcli.e2e.owner: migration-discovery
+        fileIds: []
+        statusTypeSummary:
+          LOOPING: 0
+          SKIPPED: 0
+          CUSTOM: 0
+          DONE: 0
+          PASSED: 0
+          FAILED: 0
+          RUNNING: 0
+          WAITING: 0
+          TERMINATED: 0
+          ERRORED: 0
+          TIMED_OUT: 0
+        workspace: 3aeed209-8f57-446c-9fb6-1b2b66866ca3
+      - status:
+          statusType: DONE
+          statusName: Done
+        startedAt: '2026-11-20T17:46:54.96521Z'
+        updatedAt: '2026-11-20T17:46:54.967215Z'
+        programName: migration-e2e-states DONE
+        id: 14681cdc-8d00-4e0a-9a27-9964373dc202
+        systemId: null
+        hostName: null
+        operator: null
+        partNumber: migration-e2e-states
+        serialNumber: null
+        totalTimeInSeconds: 0.0
+        keywords: []
+        properties:
+          slcli.e2e.owner: migration-discovery
+        fileIds: []
+        statusTypeSummary:
+          LOOPING: 0
+          SKIPPED: 0
+          CUSTOM: 0
+          DONE: 0
+          PASSED: 0
+          FAILED: 0
+          RUNNING: 0
+          WAITING: 0
+          TERMINATED: 0
+          ERRORED: 0
+          TIMED_OUT: 0
+        workspace: 3aeed209-8f57-446c-9fb6-1b2b66866ca3
+      - status:
+          statusType: SKIPPED
+          statusName: Skipped
+        startedAt: '2026-11-20T17:46:54.96521Z'
+        updatedAt: '2026-11-20T17:46:54.967215Z'
+        programName: migration-e2e-states SKIPPED
+        id: 2e719a80-f639-4b04-a9b9-d681789fcf2c
+        systemId: null
+        hostName: null
+        operator: null
+        partNumber: migration-e2e-states
+        serialNumber: null
+        totalTimeInSeconds: 0.0
+        keywords: []
+        properties:
+          slcli.e2e.owner: migration-discovery
+        fileIds: []
+        statusTypeSummary:
+          LOOPING: 0
+          SKIPPED: 0
+          CUSTOM: 0
+          DONE: 0
+          PASSED: 0
+          FAILED: 0
+          RUNNING: 0
+          WAITING: 0
+          TERMINATED: 0
+          ERRORED: 0
+          TIMED_OUT: 0
+        workspace: 3aeed209-8f57-446c-9fb6-1b2b66866ca3
+      - status:
+          statusType: PASSED
+          statusName: Passed
+        startedAt: '2026-11-20T17:46:54.96521Z'
+        updatedAt: '2026-11-20T17:46:54.967215Z'
+        programName: migration-e2e-states PASSED
+        id: 52ad512a-ad50-4f05-983c-f0498eb9c0f2
+        systemId: null
+        hostName: null
+        operator: null
+        partNumber: migration-e2e-states
+        serialNumber: null
+        totalTimeInSeconds: 0.0
+        keywords: []
+        properties:
+          slcli.e2e.owner: migration-discovery
+        fileIds: []
+        statusTypeSummary:
+          LOOPING: 0
+          SKIPPED: 0
+          CUSTOM: 0
+          DONE: 0
+          PASSED: 0
+          FAILED: 0
+          RUNNING: 0
+          WAITING: 0
+          TERMINATED: 0
+          ERRORED: 0
+          TIMED_OUT: 0
+        workspace: 3aeed209-8f57-446c-9fb6-1b2b66866ca3
+      - status:
+          statusType: PASSED
+          statusName: Passed
+        startedAt: '2026-11-20T17:46:54.988212Z'
+        updatedAt: '2026-11-20T17:46:54.990212Z'
+        programName: migration-e2e-spanning PASSED
+        id: 624763ed-7e7c-46e6-9631-249e441227a9
+        systemId: null
+        hostName: null
+        operator: null
+        partNumber: migration-e2e-spanning
+        serialNumber: null
+        totalTimeInSeconds: 0.0
+        keywords: []
+        properties:
+          slcli.e2e.owner: migration-discovery
+        fileIds: []
+        statusTypeSummary:
+          LOOPING: 0
+          SKIPPED: 0
+          CUSTOM: 0
+          DONE: 0
+          PASSED: 0
+          FAILED: 0
+          RUNNING: 0
+          WAITING: 0
+          TERMINATED: 0
+          ERRORED: 0
+          TIMED_OUT: 0
+        workspace: 3aeed209-8f57-446c-9fb6-1b2b66866ca3
+      - status:
+          statusType: TIMED_OUT
+          statusName: Timedout
+        startedAt: '2026-11-20T17:46:54.96521Z'
+        updatedAt: '2026-11-20T17:46:54.967215Z'
+        programName: migration-e2e-states TIMEDOUT
+        id: 63fe3842-78bc-47fc-ac2e-415abb41fcb9
+        systemId: null
+        hostName: null
+        operator: null
+        partNumber: migration-e2e-states
+        serialNumber: null
+        totalTimeInSeconds: 0.0
+        keywords: []
+        properties:
+          slcli.e2e.owner: migration-discovery
+        fileIds: []
+        statusTypeSummary:
+          LOOPING: 0
+          SKIPPED: 0
+          CUSTOM: 0
+          DONE: 0
+          PASSED: 0
+          FAILED: 0
+          RUNNING: 0
+          WAITING: 0
+          TERMINATED: 0
+          ERRORED: 0
+          TIMED_OUT: 0
+        workspace: 3aeed209-8f57-446c-9fb6-1b2b66866ca3
+      - status:
+          statusType: ERRORED
+          statusName: Errored
+        startedAt: '2026-11-20T17:46:54.96521Z'
+        updatedAt: '2026-11-20T17:46:54.967215Z'
+        programName: migration-e2e-states ERRORED
+        id: 7a6c087a-c2ec-4e6b-97bc-9828ab31a8bd
+        systemId: null
+        hostName: null
+        operator: null
+        partNumber: migration-e2e-states
+        serialNumber: null
+        totalTimeInSeconds: 0.0
+        keywords: []
+        properties:
+          slcli.e2e.owner: migration-discovery
+        fileIds: []
+        statusTypeSummary:
+          LOOPING: 0
+          SKIPPED: 0
+          CUSTOM: 0
+          DONE: 0
+          PASSED: 0
+          FAILED: 0
+          RUNNING: 0
+          WAITING: 0
+          TERMINATED: 0
+          ERRORED: 0
+          TIMED_OUT: 0
+        workspace: 3aeed209-8f57-446c-9fb6-1b2b66866ca3
+      - status:
+          statusType: FAILED
+          statusName: Failed
+        startedAt: '2026-11-20T17:46:54.96521Z'
+        updatedAt: '2026-11-20T17:46:54.967215Z'
+        programName: migration-e2e-states FAILED
+        id: 9d39930e-c089-4277-915e-23ea2f5ef835
+        systemId: null
+        hostName: null
+        operator: null
+        partNumber: migration-e2e-states
+        serialNumber: null
+        totalTimeInSeconds: 0.0
+        keywords: []
+        properties:
+          slcli.e2e.owner: migration-discovery
+        fileIds: []
+        statusTypeSummary:
+          LOOPING: 0
+          SKIPPED: 0
+          CUSTOM: 0
+          DONE: 0
+          PASSED: 0
+          FAILED: 0
+          RUNNING: 0
+          WAITING: 0
+          TERMINATED: 0
+          ERRORED: 0
+          TIMED_OUT: 0
+        workspace: 3aeed209-8f57-446c-9fb6-1b2b66866ca3
+      - status:
+          statusType: CUSTOM
+          statusName: Custom
+        startedAt: '2026-11-20T17:46:54.96521Z'
+        updatedAt: '2026-11-20T17:46:54.967215Z'
+        programName: migration-e2e-states CUSTOM
+        id: a7163d77-8f02-497d-86f9-aaba9609e45a
+        systemId: null
+        hostName: null
+        operator: null
+        partNumber: migration-e2e-states
+        serialNumber: null
+        totalTimeInSeconds: 0.0
+        keywords: []
+        properties:
+          slcli.e2e.owner: migration-discovery
+        fileIds: []
+        statusTypeSummary:
+          LOOPING: 0
+          SKIPPED: 0
+          CUSTOM: 0
+          DONE: 0
+          PASSED: 0
+          FAILED: 0
+          RUNNING: 0
+          WAITING: 0
+          TERMINATED: 0
+          ERRORED: 0
+          TIMED_OUT: 0
+        workspace: 3aeed209-8f57-446c-9fb6-1b2b66866ca3
+      - status:
+          statusType: RUNNING
+          statusName: Running
+        startedAt: '2026-11-20T17:46:54.96521Z'
+        updatedAt: '2026-11-20T17:46:54.967215Z'
+        programName: migration-e2e-states RUNNING
+        id: db03e801-cf1b-445e-bc0b-a7a5f96969d4
+        systemId: null
+        hostName: null
+        operator: null
+        partNumber: migration-e2e-states
+        serialNumber: null
+        totalTimeInSeconds: 0.0
+        keywords: []
+        properties:
+          slcli.e2e.owner: migration-discovery
+        fileIds: []
+        statusTypeSummary:
+          LOOPING: 0
+          SKIPPED: 0
+          CUSTOM: 0
+          DONE: 0
+          PASSED: 0
+          FAILED: 0
+          RUNNING: 0
+          WAITING: 0
+          TERMINATED: 0
+          ERRORED: 0
+          TIMED_OUT: 0
+        workspace: 3aeed209-8f57-446c-9fb6-1b2b66866ca3
+      continuationToken: ZGIwM2U4MDEtY2YxYi00NDVlLWJjMGItYTdhNWY5Njk2OWQ0
+- request: POST /nitestmonitor/v2/query-products
+  body:
+    take: 1000
+    descending: false
+  response:
+    status: 200
+    contentType: application/json
+    body:
+      products:
+      - id: 0b100e98-ca5b-48b3-952e-39e1cb5104a6
+        partNumber: migration-e2e-orphan
+        name: migration-e2e-orphan
+        family: null
+        updatedAt: '2026-11-20T17:46:54.948518Z'
+        keywords: []
+        properties:
+          slcli.e2e.owner: migration-discovery
+        fileIds: []
+      - id: 438e63bd-682f-4d0e-8224-397ea46a5372
+        partNumber: probe
+        name: null
+        family: null
+        updatedAt: '2026-10-28T20:01:54.195931Z'
+        keywords: []
+        properties: {}
+        fileIds: []
+      - id: bcd8bb28-bf05-404c-a58a-aac183b71e68
+        partNumber: migration-e2e-spanning
+        name: migration-e2e-spanning
+        family: null
+        updatedAt: '2026-11-20T17:46:54.948518Z'
+        keywords: []
+        properties:
+          slcli.e2e.owner: migration-discovery
+        fileIds: []
+      - id: f4a735ff-f161-4c5d-990b-6b3586766e6f
+        partNumber: migration-e2e-states
+        name: migration-e2e-states
+        family: null
+        updatedAt: '2026-11-20T17:46:54.948518Z'
+        keywords: []
+        properties:
+          slcli.e2e.owner: migration-discovery
+        fileIds: []
+      continuationToken: ZjRhNzM1ZmYtZjE2MS00YzVkLTk5MGItNmIzNTg2NzY2ZTZm
+- request: POST /nitestmonitor/v2/query-products
+  body:
+    filter: properties["slcli.e2e.owner"] == "migration-discovery"
+    substitutions: []
+    take: 1000
+    descending: false
+  response:
+    status: 200
+    contentType: application/json
+    body:
+      products:
+      - id: 0b100e98-ca5b-48b3-952e-39e1cb5104a6
+        partNumber: migration-e2e-orphan
+        name: migration-e2e-orphan
+        family: null
+        updatedAt: '2026-11-20T17:46:54.948518Z'
+        keywords: []
+        properties:
+          slcli.e2e.owner: migration-discovery
+        fileIds: []
+      - id: bcd8bb28-bf05-404c-a58a-aac183b71e68
+        partNumber: migration-e2e-spanning
+        name: migration-e2e-spanning
+        family: null
+        updatedAt: '2026-11-20T17:46:54.948518Z'
+        keywords: []
+        properties:
+          slcli.e2e.owner: migration-discovery
+        fileIds: []
+      - id: f4a735ff-f161-4c5d-990b-6b3586766e6f
+        partNumber: migration-e2e-states
+        name: migration-e2e-states
+        family: null
+        updatedAt: '2026-11-20T17:46:54.948518Z'
+        keywords: []
+        properties:
+          slcli.e2e.owner: migration-discovery
+        fileIds: []
+      continuationToken: ZjRhNzM1ZmYtZjE2MS00YzVkLTk5MGItNmIzNTg2NzY2ZTZm
+- request: POST /nitestmonitor/v2/query-results
+  body:
+    filter: workspace == @0
+    substitutions:
+    - 3aeed209-8f57-446c-9fb6-1b2b66866ca3
+    take: 1000
+    descending: false
+  response:
+    status: 200
+    contentType: application/json
+    body:
+      results:
+      - status:
+          statusType: TERMINATED
+          statusName: Terminated
+        startedAt: '2026-11-20T17:46:54.96521Z'
+        updatedAt: '2026-11-20T17:46:54.967215Z'
+        programName: migration-e2e-states TERMINATED
+        id: 12927d3f-98b2-428a-a357-5882e5a32126
+        systemId: null
+        hostName: null
+        operator: null
+        partNumber: migration-e2e-states
+        serialNumber: null
+        totalTimeInSeconds: 0.0
+        keywords: []
+        properties:
+          slcli.e2e.owner: migration-discovery
+        fileIds: []
+        statusTypeSummary:
+          LOOPING: 0
+          SKIPPED: 0
+          CUSTOM: 0
+          DONE: 0
+          PASSED: 0
+          FAILED: 0
+          RUNNING: 0
+          WAITING: 0
+          TERMINATED: 0
+          ERRORED: 0
+          TIMED_OUT: 0
+        workspace: 3aeed209-8f57-446c-9fb6-1b2b66866ca3
+      - status:
+          statusType: DONE
+          statusName: Done
+        startedAt: '2026-11-20T17:46:54.96521Z'
+        updatedAt: '2026-11-20T17:46:54.967215Z'
+        programName: migration-e2e-states DONE
+        id: 14681cdc-8d00-4e0a-9a27-9964373dc202
+        systemId: null
+        hostName: null
+        operator: null
+        partNumber: migration-e2e-states
+        serialNumber: null
+        totalTimeInSeconds: 0.0
+        keywords: []
+        properties:
+          slcli.e2e.owner: migration-discovery
+        fileIds: []
+        statusTypeSummary:
+          LOOPING: 0
+          SKIPPED: 0
+          CUSTOM: 0
+          DONE: 0
+          PASSED: 0
+          FAILED: 0
+          RUNNING: 0
+          WAITING: 0
+          TERMINATED: 0
+          ERRORED: 0
+          TIMED_OUT: 0
+        workspace: 3aeed209-8f57-446c-9fb6-1b2b66866ca3
+      - status:
+          statusType: SKIPPED
+          statusName: Skipped
+        startedAt: '2026-11-20T17:46:54.96521Z'
+        updatedAt: '2026-11-20T17:46:54.967215Z'
+        programName: migration-e2e-states SKIPPED
+        id: 2e719a80-f639-4b04-a9b9-d681789fcf2c
+        systemId: null
+        hostName: null
+        operator: null
+        partNumber: migration-e2e-states
+        serialNumber: null
+        totalTimeInSeconds: 0.0
+        keywords: []
+        properties:
+          slcli.e2e.owner: migration-discovery
+        fileIds: []
+        statusTypeSummary:
+          LOOPING: 0
+          SKIPPED: 0
+          CUSTOM: 0
+          DONE: 0
+          PASSED: 0
+          FAILED: 0
+          RUNNING: 0
+          WAITING: 0
+          TERMINATED: 0
+          ERRORED: 0
+          TIMED_OUT: 0
+        workspace: 3aeed209-8f57-446c-9fb6-1b2b66866ca3
+      - status:
+          statusType: PASSED
+          statusName: Passed
+        startedAt: '2026-11-20T17:46:54.96521Z'
+        updatedAt: '2026-11-20T17:46:54.967215Z'
+        programName: migration-e2e-states PASSED
+        id: 52ad512a-ad50-4f05-983c-f0498eb9c0f2
+        systemId: null
+        hostName: null
+        operator: null
+        partNumber: migration-e2e-states
+        serialNumber: null
+        totalTimeInSeconds: 0.0
+        keywords: []
+        properties:
+          slcli.e2e.owner: migration-discovery
+        fileIds: []
+        statusTypeSummary:
+          LOOPING: 0
+          SKIPPED: 0
+          CUSTOM: 0
+          DONE: 0
+          PASSED: 0
+          FAILED: 0
+          RUNNING: 0
+          WAITING: 0
+          TERMINATED: 0
+          ERRORED: 0
+          TIMED_OUT: 0
+        workspace: 3aeed209-8f57-446c-9fb6-1b2b66866ca3
+      - status:
+          statusType: PASSED
+          statusName: Passed
+        startedAt: '2026-11-20T17:46:54.988212Z'
+        updatedAt: '2026-11-20T17:46:54.990212Z'
+        programName: migration-e2e-spanning PASSED
+        id: 624763ed-7e7c-46e6-9631-249e441227a9
+        systemId: null
+        hostName: null
+        operator: null
+        partNumber: migration-e2e-spanning
+        serialNumber: null
+        totalTimeInSeconds: 0.0
+        keywords: []
+        properties:
+          slcli.e2e.owner: migration-discovery
+        fileIds: []
+        statusTypeSummary:
+          LOOPING: 0
+          SKIPPED: 0
+          CUSTOM: 0
+          DONE: 0
+          PASSED: 0
+          FAILED: 0
+          RUNNING: 0
+          WAITING: 0
+          TERMINATED: 0
+          ERRORED: 0
+          TIMED_OUT: 0
+        workspace: 3aeed209-8f57-446c-9fb6-1b2b66866ca3
+      - status:
+          statusType: TIMED_OUT
+          statusName: Timedout
+        startedAt: '2026-11-20T17:46:54.96521Z'
+        updatedAt: '2026-11-20T17:46:54.967215Z'
+        programName: migration-e2e-states TIMEDOUT
+        id: 63fe3842-78bc-47fc-ac2e-415abb41fcb9
+        systemId: null
+        hostName: null
+        operator: null
+        partNumber: migration-e2e-states
+        serialNumber: null
+        totalTimeInSeconds: 0.0
+        keywords: []
+        properties:
+          slcli.e2e.owner: migration-discovery
+        fileIds: []
+        statusTypeSummary:
+          LOOPING: 0
+          SKIPPED: 0
+          CUSTOM: 0
+          DONE: 0
+          PASSED: 0
+          FAILED: 0
+          RUNNING: 0
+          WAITING: 0
+          TERMINATED: 0
+          ERRORED: 0
+          TIMED_OUT: 0
+        workspace: 3aeed209-8f57-446c-9fb6-1b2b66866ca3
+      - status:
+          statusType: ERRORED
+          statusName: Errored
+        startedAt: '2026-11-20T17:46:54.96521Z'
+        updatedAt: '2026-11-20T17:46:54.967215Z'
+        programName: migration-e2e-states ERRORED
+        id: 7a6c087a-c2ec-4e6b-97bc-9828ab31a8bd
+        systemId: null
+        hostName: null
+        operator: null
+        partNumber: migration-e2e-states
+        serialNumber: null
+        totalTimeInSeconds: 0.0
+        keywords: []
+        properties:
+          slcli.e2e.owner: migration-discovery
+        fileIds: []
+        statusTypeSummary:
+          LOOPING: 0
+          SKIPPED: 0
+          CUSTOM: 0
+          DONE: 0
+          PASSED: 0
+          FAILED: 0
+          RUNNING: 0
+          WAITING: 0
+          TERMINATED: 0
+          ERRORED: 0
+          TIMED_OUT: 0
+        workspace: 3aeed209-8f57-446c-9fb6-1b2b66866ca3
+      - status:
+          statusType: FAILED
+          statusName: Failed
+        startedAt: '2026-11-20T17:46:54.96521Z'
+        updatedAt: '2026-11-20T17:46:54.967215Z'
+        programName: migration-e2e-states FAILED
+        id: 9d39930e-c089-4277-915e-23ea2f5ef835
+        systemId: null
+        hostName: null
+        operator: null
+        partNumber: migration-e2e-states
+        serialNumber: null
+        totalTimeInSeconds: 0.0
+        keywords: []
+        properties:
+          slcli.e2e.owner: migration-discovery
+        fileIds: []
+        statusTypeSummary:
+          LOOPING: 0
+          SKIPPED: 0
+          CUSTOM: 0
+          DONE: 0
+          PASSED: 0
+          FAILED: 0
+          RUNNING: 0
+          WAITING: 0
+          TERMINATED: 0
+          ERRORED: 0
+          TIMED_OUT: 0
+        workspace: 3aeed209-8f57-446c-9fb6-1b2b66866ca3
+      - status:
+          statusType: CUSTOM
+          statusName: Custom
+        startedAt: '2026-11-20T17:46:54.96521Z'
+        updatedAt: '2026-11-20T17:46:54.967215Z'
+        programName: migration-e2e-states CUSTOM
+        id: a7163d77-8f02-497d-86f9-aaba9609e45a
+        systemId: null
+        hostName: null
+        operator: null
+        partNumber: migration-e2e-states
+        serialNumber: null
+        totalTimeInSeconds: 0.0
+        keywords: []
+        properties:
+          slcli.e2e.owner: migration-discovery
+        fileIds: []
+        statusTypeSummary:
+          LOOPING: 0
+          SKIPPED: 0
+          CUSTOM: 0
+          DONE: 0
+          PASSED: 0
+          FAILED: 0
+          RUNNING: 0
+          WAITING: 0
+          TERMINATED: 0
+          ERRORED: 0
+          TIMED_OUT: 0
+        workspace: 3aeed209-8f57-446c-9fb6-1b2b66866ca3
+      - status:
+          statusType: RUNNING
+          statusName: Running
+        startedAt: '2026-11-20T17:46:54.96521Z'
+        updatedAt: '2026-11-20T17:46:54.967215Z'
+        programName: migration-e2e-states RUNNING
+        id: db03e801-cf1b-445e-bc0b-a7a5f96969d4
+        systemId: null
+        hostName: null
+        operator: null
+        partNumber: migration-e2e-states
+        serialNumber: null
+        totalTimeInSeconds: 0.0
+        keywords: []
+        properties:
+          slcli.e2e.owner: migration-discovery
+        fileIds: []
+        statusTypeSummary:
+          LOOPING: 0
+          SKIPPED: 0
+          CUSTOM: 0
+          DONE: 0
+          PASSED: 0
+          FAILED: 0
+          RUNNING: 0
+          WAITING: 0
+          TERMINATED: 0
+          ERRORED: 0
+          TIMED_OUT: 0
+        workspace: 3aeed209-8f57-446c-9fb6-1b2b66866ca3
+      continuationToken: ZGIwM2U4MDEtY2YxYi00NDVlLWJjMGItYTdhNWY5Njk2OWQ0
+- request: POST /nitestmonitor/v2/query-results
+  body:
+    filter: workspace == @0
+    substitutions:
+    - 72e26583-0b36-4f77-99fb-50a6df279dda
+    take: 1000
+    descending: false
+  response:
+    status: 200
+    contentType: application/json
+    body:
+      results:
+      - status:
+          statusType: FAILED
+          statusName: Failed
+        startedAt: '2026-11-20T17:46:55.008077Z'
+        updatedAt: '2026-11-20T17:46:55.010077Z'
+        programName: migration-e2e-spanning FAILED
+        id: 3cd98f7a-a275-415b-a967-3c4af72638d9
+        systemId: null
+        hostName: null
+        operator: null
+        partNumber: migration-e2e-spanning
+        serialNumber: null
+        totalTimeInSeconds: 0.0
+        keywords: []
+        properties:
+          slcli.e2e.owner: migration-discovery
+        fileIds: []
+        statusTypeSummary:
+          LOOPING: 0
+          SKIPPED: 0
+          CUSTOM: 0
+          DONE: 0
+          PASSED: 0
+          FAILED: 0
+          RUNNING: 0
+          WAITING: 0
+          TERMINATED: 0
+          ERRORED: 0
+          TIMED_OUT: 0
+        workspace: 72e26583-0b36-4f77-99fb-50a6df279dda
+      continuationToken: M2NkOThmN2EtYTI3NS00MTViLWE5NjctM2M0YWY3MjYzOGQ5
+- request: POST /nitestmonitor/v2/delete-results
+  body:
+    ids:
+    - 12927d3f-98b2-428a-a357-5882e5a32126
+    - 14681cdc-8d00-4e0a-9a27-9964373dc202
+    - 2e719a80-f639-4b04-a9b9-d681789fcf2c
+    - 52ad512a-ad50-4f05-983c-f0498eb9c0f2
+    - 624763ed-7e7c-46e6-9631-249e441227a9
+    - 63fe3842-78bc-47fc-ac2e-415abb41fcb9
+    - 7a6c087a-c2ec-4e6b-97bc-9828ab31a8bd
+    - 9d39930e-c089-4277-915e-23ea2f5ef835
+    - a7163d77-8f02-497d-86f9-aaba9609e45a
+    - db03e801-cf1b-445e-bc0b-a7a5f96969d4
+    - 3cd98f7a-a275-415b-a967-3c4af72638d9
+    deleteSteps: true
+  response:
+    status: 204
+- request: POST /nitestmonitor/v2/delete-products
+  body:
+    ids:
+    - 0b100e98-ca5b-48b3-952e-39e1cb5104a6
+    - bcd8bb28-bf05-404c-a58a-aac183b71e68
+    - f4a735ff-f161-4c5d-990b-6b3586766e6f
+  response:
+    status: 204

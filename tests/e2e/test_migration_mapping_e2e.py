@@ -16,8 +16,9 @@ from tests.e2e.migration_endpoints import (
     get_or_create_workspace,
     resolve_endpoints,
 )
+from tests.e2e.workspaces import E2EWorkspace
 
-SOURCE_WORKSPACE = "e2e-slcli-migration-source"
+SOURCE_WORKSPACE = E2EWorkspace.SOURCE.value
 
 pytestmark = [pytest.mark.e2e_migration]
 
@@ -26,7 +27,7 @@ pytestmark = [pytest.mark.e2e_migration]
 def endpoints() -> MigrationEndpoints:
     """Resolve endpoints and ensure the fixture-owned source workspace exists."""
     resolved = resolve_endpoints()
-    get_or_create_workspace(resolved.source, SOURCE_WORKSPACE)
+    get_or_create_workspace(resolved.source, E2EWorkspace.SOURCE)
     return resolved
 
 
@@ -36,9 +37,12 @@ def disabled_workspace(
     request: pytest.FixtureRequest,
 ) -> Generator[Workspace, None, None]:
     """Reuse a dedicated disabled workspace and leave it disabled after each test."""
-    connection = endpoints.source if request.param == "source" else endpoints.destination
-    name = f"e2e-slcli-migration-disabled-{request.param}"
-    workspace_id = get_or_create_workspace(connection, name)
+    if request.param == "source":
+        connection, workspace = endpoints.source, E2EWorkspace.DISABLED_SOURCE
+    else:
+        connection, workspace = endpoints.destination, E2EWorkspace.DISABLED_DESTINATION
+    name = workspace.value
+    workspace_id = get_or_create_workspace(connection, workspace)
     url = f"{connection.base_url}/niuser/v1/workspaces/{workspace_id}"
     with connection.create_session() as session:
         try:
@@ -104,11 +108,8 @@ def test_mapping_rejects_disabled_destination_workspace(
 
     assert result.exit_code == 1, result.output
     assert f"disabled destination workspace: {disabled_workspace.name}" in result.output
-    [workspace] = [
-        workspace
-        for workspace in WorkspaceClient(endpoints.destination).query_workspaces()
-        if workspace.id == disabled_workspace.id
-    ]
+    [workspace] = WorkspaceClient(endpoints.destination).find_workspaces([disabled_workspace.name])
+    assert workspace.id == disabled_workspace.id
     assert workspace.enabled is False
 
 

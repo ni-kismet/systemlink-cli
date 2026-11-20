@@ -282,8 +282,10 @@ def _migrate_steps(
     destination_result_id: str,
     steps: Sequence[Step],
 ) -> None:
-    """Create every step under the destination result with fresh step IDs.
+    """Create every step under the destination result with derived step IDs.
 
+    Step IDs are derived from the migration, destination result, and source step,
+    so they are reproducible and a retried batch reuses the IDs it sent before.
     The destination accepts client-supplied step IDs and orders parents within a
     request, but a parent must exist before a later request references it. Sorting
     by path depth keeps each parent in the same or an earlier chunk than its children.
@@ -293,7 +295,14 @@ def _migrate_steps(
         KeyError: If a step's parent is not ``root`` or another step of the result.
         NotCreated: If the destination did not create every step.
     """
-    step_ids = {ROOT_STEP_ID: ROOT_STEP_ID, **{step.step_id: str(uuid.uuid4()) for step in steps}}
+    namespace = uuid.UUID(context.migration_id)
+    step_ids = {
+        ROOT_STEP_ID: ROOT_STEP_ID,
+        **{
+            step.step_id: str(uuid.uuid5(namespace, f"{destination_result_id}/{step.step_id}"))
+            for step in steps
+        },
+    }
     to_create = [
         step.create_request(
             {

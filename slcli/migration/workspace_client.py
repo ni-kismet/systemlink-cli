@@ -1,7 +1,7 @@
 """Profile-bound workspace queries for migration discovery."""
 
-from collections.abc import Iterator
-from typing import List, Optional
+from collections.abc import Iterable, Iterator
+from typing import Dict, List, Optional, Union
 
 import click
 import requests
@@ -39,11 +39,23 @@ class WorkspaceClient:
 
     def query_workspaces(self) -> Iterator[Workspace]:
         """Yield every accessible workspace."""
+        return self._query({})
+
+    def find_workspaces(self, names: Iterable[str]) -> Iterator[Workspace]:
+        """Yield the accessible workspaces with exactly these names.
+
+        Each name is a separate filtered query, so a large tenant is never listed.
+        """
+        for name in sorted(set(names)):
+            yield from (w for w in self._query({"name": name}) if w.name == name)
+
+    def _query(self, params: Dict[str, str]) -> Iterator[Workspace]:
         skip = 0
         while True:
+            page_params: Dict[str, Union[str, int]] = {**params, "take": PAGE_SIZE, "skip": skip}
             response = self._session.get(
                 self._url,
-                params={"take": PAGE_SIZE, "skip": skip},
+                params=page_params,
                 timeout=REQUEST_TIMEOUT_SECONDS,
             )
             response.raise_for_status()

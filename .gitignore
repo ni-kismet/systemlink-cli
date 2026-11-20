@@ -111,3 +111,6 @@ tests/e2e/e2e_config.json
 
 # Skill eval run artifacts
 slcli/skills/slcli-workspace/
+
+# Destination (SLE) replay tapes stay local; the repo is public.
+tests/e2e/tapes/destination/

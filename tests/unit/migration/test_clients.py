@@ -12,7 +12,7 @@ from requests.adapters import HTTPAdapter
 from slcli.migration.connection import MigrationConnection
 from slcli.migration.files.client import FilesClient
 from slcli.migration.files.client import PAGE_SIZE as FILES_PAGE_SIZE
-from slcli.migration.testmonitor.client import PAGE_SIZE, TestMonitorClient
+from slcli.migration.testmonitor.client import TestMonitorClient
 from slcli.migration.workspace_client import PAGE_SIZE as WORKSPACE_PAGE_SIZE
 from slcli.migration.workspace_client import WorkspaceClient
 
@@ -63,8 +63,9 @@ def _result(result_id: str) -> Dict[str, object]:
     }
 
 
-def test_query_results_follows_every_continuation_token() -> None:
+def test_query_results_follows_every_continuation_token(monkeypatch: pytest.MonkeyPatch) -> None:
     """Results are typed and paged to completion with a parameterized filter."""
+    monkeypatch.setattr("slcli.migration.testmonitor.client.PAGE_SIZE", 1)
     session = FakeSession(
         [
             {"results": [_result("r1")], "continuationToken": "next"},
@@ -82,10 +83,19 @@ def test_query_results_follows_every_continuation_token() -> None:
     assert session.calls[0]["json"] == {
         "filter": "workspace == @0",
         "substitutions": ["workspace-id"],
-        "take": PAGE_SIZE,
+        "take": 1,
         "descending": False,
     }
     assert session.calls[1]["json"]["continuationToken"] == "next"
+
+
+def test_short_page_ends_the_query_despite_a_continuation_token() -> None:
+    """Servers return a token after a short final page; fetching it would return nothing."""
+    session = FakeSession([{"results": [_result("r1")], "continuationToken": "next"}])
+    client = TestMonitorClient(CONNECTION, session)  # type: ignore[arg-type]
+
+    assert [r.id for r in client.query_results()] == ["r1"]
+    assert len(session.calls) == 1
 
 
 def test_query_products_reads_product_endpoint() -> None:

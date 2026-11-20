@@ -1,6 +1,7 @@
 """Owned Test Monitor resources for migration E2E tests."""
 
 import time
+import uuid
 from dataclasses import dataclass
 from typing import Collection, Dict, List, Mapping, Optional
 
@@ -15,6 +16,7 @@ from slcli.migration.testmonitor.client import (
 )
 from tests.e2e.owned_resource_helpers import (
     MIGRATION_DISCOVERY_OWNER,
+    OWNER_PROPERTY,
     owner_properties,
     split_owned_resource_ids,
 )
@@ -62,16 +64,30 @@ class OwnedTestMonitorResources:
         connection: MigrationConnection,
         workspaces: Mapping[str, str],
         session: Optional[requests.Session] = None,
+        *,
+        products_in_workspaces: bool = False,
     ) -> None:
-        """Initialize the manager for dedicated workspaces, by name to ID."""
+        """Initialize the manager for dedicated workspaces, by name to ID.
+
+        Args:
+            connection: Server to manage.
+            workspaces: Managed workspace IDs by name.
+            session: Session override for tests.
+            products_in_workspaces: True for SLE, where products belong to a
+                workspace. SLS products are global and cannot be filtered by one.
+        """
         self._base_url = f"{connection.base_url}/nitestmonitor/v2"
         self._session = session or connection.create_session(TEST_MONITOR_QUERY_PATHS)
         self._client = TestMonitorClient(connection, self._session)
         self._workspaces = dict(workspaces)
+        self._products_in_workspaces = products_in_workspaces
 
     def clean(self) -> None:
         """Delete owned resources after refusing unowned workspace contents."""
-        products = list(self._client.query_products())
+        products = [
+            Product.model_validate(record)
+            for record in self._client.query_records("products", self._products_filter(), [])
+        ]
         results = [
             result
             for workspace_id in self._workspaces.values()
@@ -87,6 +103,16 @@ class OwnedTestMonitorResources:
             self._post("delete-results", {"ids": plan.result_ids, "deleteSteps": True})
         if plan.product_ids:
             self._post("delete-products", {"ids": plan.product_ids})
+
+    def _products_filter(self) -> str:
+        """Match owned products and products in managed workspaces, not the whole tenant.
+
+        SLS ``query-products`` rejects substitutions, so values are validated and inlined.
+        """
+        clauses = [f'properties["{OWNER_PROPERTY}"] == "{MIGRATION_DISCOVERY_OWNER}"']
+        if self._products_in_workspaces:
+            clauses += [f'workspace == "{uuid.UUID(w)}"' for w in self._workspaces.values()]
+        return " || ".join(clauses)
 
     def create_products(self, products: List[Dict[str, object]], workspace: str) -> List[str]:
         """Create owned products in a managed workspace and return their IDs."""
