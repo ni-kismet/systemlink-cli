@@ -2,6 +2,17 @@
 
 <!-- towncrier release notes start -->
 
+## v3.3.9 (2026-11-20)
+
+### Bug Fixes
+
+- Skip symlink validation tests on Windows when the required privilege is unavailable. (mcp-skills-symlink-tests)
+
+### Other Changes
+
+- Ignore dot-prefixed directories by default, while keeping `.github/` available to the repository. (gitignore-update)
+
+
 ## v3.3.8 (2026-11-19)
 
 ### Bug Fixes
