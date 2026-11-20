@@ -2,7 +2,8 @@
 
 Records pass through unchanged apart from server-owned fields, destination
 routing, source identity annotations, and mapped file references. Data table
-references are not migrated yet.
+references are not migrated yet. Results remain incomplete until the separate
+completion stage runs after file transfer.
 """
 
 import logging
@@ -25,8 +26,6 @@ from typing import (
 )
 
 from slcli.migration.annotations import (
-    COMPLETE,
-    COMPLETED_AT,
     INCOMPLETE,
     MIGRATION_ID,
     SOURCE_HOSTNAME,
@@ -46,7 +45,7 @@ from slcli.migration.testmonitor.models import (
 )
 from slcli.migration.testmonitor.records import Product, Result, Step, TestMonitorRecord
 from slcli.migration.testmonitor.writer import ApiError, DestinationWriter, WriteResponse
-from slcli.migration.workspaces import WorkspaceMapping
+from slcli.migration.workspaces import MappedWorkspace, WorkspaceMapping
 
 _logger = logging.getLogger(__name__)
 
@@ -228,9 +227,9 @@ def migrate_results(
 ) -> BatchResult:
     """Migrate a batch of results, each with all of its steps.
 
-    A result is created ``INCOMPLETE`` and marked ``COMPLETE`` only after all of
-    its steps migrate. A result whose steps fail stays ``INCOMPLETE`` and is
-    reported as failed with its destination ID.
+    Results are created ``INCOMPLETE`` and remain so until file transfer is
+    complete. A result whose steps fail is reported as failed with its
+    destination ID.
 
     Raises:
         requests.RequestException: If a batch-wide read or create fails.
@@ -243,43 +242,51 @@ def migrate_results(
         file_ids = _classify_file_ids(result, file_id_map)
         unresolved_by_result[result.id] = file_ids.unresolved_ids
         extra_annotations = _build_result_annotations(result, file_ids.unresolved_ids)
-        extra_overrides = {"fileIds": file_ids.destination_ids} if file_ids.destination_ids else {}
+        extra_overrides = (
+            {"fileIds": list(file_ids.destination_ids)} if file_ids.destination_ids else {}
+        )
         creation_requests[result.id] = _build_creation_request(
             result, workspaces, context, extra_annotations, extra_overrides
         )
 
     response = destination.create_results(list(creation_requests.values()))
     created = _created_ids(Result, response)
-    completion_result = _mark_results_complete(
+    steps_result = _migrate_result_steps(
         source, destination, context, created, unresolved_by_result
     )
-    failed = tuple(
+    failed = (
         *_missing(workspaces, records),
         *_not_created(creation_requests, created, response.error),
-        *completion_result.failed,
+        *steps_result.failed,
     )
 
     return BatchResult(
         resource="results",
         batch=batch,
-        migrated=completion_result.migrated,
+        migrated=steps_result.migrated,
         failed=failed,
     )
 
 
 def _build_creation_request(
-    record: TestMonitorRecord, workspaces, context, extra_annotations={}, extra_overrides={}
-):
+    record: Product | Result,
+    workspaces: Mapping[str, MappedWorkspace],
+    context: MigrationContext,
+    extra_annotations: Optional[Mapping[str, str]] = None,
+    extra_overrides: Optional[Mapping[str, object]] = None,
+) -> Dict[str, object]:
     return record.create_request(
         {
             "workspace": workspaces[record.id].destination_id,
-            "properties": context.annotate(record, **extra_annotations),
-            **extra_overrides,
+            "properties": context.annotate(record, **(extra_annotations or {})),
+            **(extra_overrides or {}),
         }
     )
 
 
-def _build_result_annotations(result, unresolved_file_ids):
+def _build_result_annotations(
+    result: Result, unresolved_file_ids: tuple[str, ...]
+) -> Dict[str, str]:
     extra_annotations = {STATUS: INCOMPLETE}
     if unresolved_file_ids:
         extra_annotations[UNRESOLVED_FILE_IDS] = ",".join(unresolved_file_ids)
@@ -298,39 +305,45 @@ class FilteredFileIds(NamedTuple):
     unresolved_ids: tuple[str, ...]
 
 
-def _classify_file_ids(result, file_id_map) -> FilteredFileIds:
-    file_ids = _get_file_ids(result)
+def _classify_file_ids(result: Result, file_id_map: Mapping[str, str]) -> FilteredFileIds:
+    file_ids = list(dict.fromkeys(_get_file_ids(result)))
     return FilteredFileIds(
         destination_ids=tuple(file_id_map[fid] for fid in file_ids if fid in file_id_map),
         unresolved_ids=tuple(fid for fid in file_ids if fid not in file_id_map),
     )
 
 
-def _get_file_ids(result) -> list[str]:
+def _get_file_ids(result: Result) -> list[str]:
     file_ids = result.model_extra.get("fileIds", []) if result.model_extra else []
     if not isinstance(file_ids, list) or not all(isinstance(fid, str) for fid in file_ids):
         raise ValueError(f"Invalid fileIds on source result {result.id!r}")
     return file_ids
 
 
-class ResultCompletionOutput(NamedTuple):
-    """Items migrated and failed while marking results complete."""
+class ResultStepsOutput(NamedTuple):
+    """Items whose steps migrated and failed while migrating steps."""
 
     migrated: tuple[MigratedItem, ...]
     failed: tuple[FailedItem, ...]
 
 
-def _mark_results_complete(
-    source, destination, context, created, unresolved_by_result
-) -> ResultCompletionOutput:
+def _migrate_result_steps(
+    source: TestMonitorSource,
+    destination: DestinationWriter,
+    context: MigrationContext,
+    created: Mapping[str, str],
+    unresolved_by_result: Mapping[str, tuple[str, ...]],
+) -> ResultStepsOutput:
     migrated: List[MigratedItem] = []
     failed: List[FailedItem] = []
     for source_id, destination_id in created.items():
         try:
-            steps = _complete_result(source, destination, context, source_id, destination_id)
+            steps = _migrate_result_steps_for_result(
+                source, destination, context, source_id, destination_id
+            )
         except Exception as exc:
             failed.append(
-                _failed(source_id, "complete", exc, destination_id).model_copy(
+                _failed(source_id, "steps", exc, destination_id).model_copy(
                     update={"unresolved_file_ids": unresolved_by_result[source_id]}
                 )
             )
@@ -343,17 +356,17 @@ def _mark_results_complete(
                     unresolved_file_ids=unresolved_by_result[source_id],
                 )
             )
-    return ResultCompletionOutput(migrated=tuple(migrated), failed=tuple(failed))
+    return ResultStepsOutput(migrated=tuple(migrated), failed=tuple(failed))
 
 
-def _complete_result(
+def _migrate_result_steps_for_result(
     source: TestMonitorSource,
     destination: DestinationWriter,
     context: MigrationContext,
     source_id: str,
     destination_id: str,
 ) -> int:
-    """Migrate a created result's steps, then mark the result complete.
+    """Migrate the steps of a created result.
 
     Returns:
         The number of steps migrated.
@@ -363,11 +376,6 @@ def _complete_result(
         for record in source.query_records("steps", "resultId == @0", [source_id])
     ]
     _migrate_steps(destination, context, destination_id, steps)
-    response = destination.update_results(
-        [{"id": destination_id, "properties": {STATUS: COMPLETE, COMPLETED_AT: _now()}}]
-    )
-    if response.failed or response.error:
-        raise NotCreated(", ".join(response.error.names() if response.error else []))
     return len(steps)
 
 
