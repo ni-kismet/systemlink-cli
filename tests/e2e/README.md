@@ -201,37 +201,6 @@ poetry run pytest tests/e2e/test_migration_workspace_creation_manual_e2e.py `
 Each run leaves one uniquely named workspace on the destination. Do not set the
 acknowledgement when using a shared SLE or other non-disposable destination.
 
-#### File Transfer Coverage
-
-`test_migration_orchestration_e2e.py::test_file_transfer_resume_persists_reassigned_ids`
-uses a real Prefect server and simulated file endpoints to verify partial failure,
-resume, reassigned-ID recovery, and cached result persistence. It requires no live profiles.
-
-`test_result_file_reference_task_receives_both_migration_outcomes` verifies that
-the result-batch file index survives Prefect persistence, overlapping file IDs
-are repaired from their original associations, and interrupted repairs resume
-without recreating results or rewriting already repaired references.
-Results are marked COMPLETE only after file transfer and reference repair succeed;
-failures in either stage leave them INCOMPLETE for resume.
-
-`test_migration_testmonitor_e2e.py::test_live_result_file_id_backpatch_preserves_other_fields`
-checks that the destination accepts result references before files exist and
-that replacing file IDs preserves unrelated result fields and properties.
-
-`test_migration_files_e2e.py` requires writable `SLCLI_E2E_SOURCE_PROFILE` and
-`SLCLI_E2E_DESTINATION_PROFILE` profiles. It uploads a binary fixture to SLS,
-transfers it to the destination, checks bytes, properties and actual IDs, and verifies
-that resuming does not duplicate the file. It reuses the fixed
-`e2e-slcli-migration-files-source` source workspace and the standard migration
-destination workspace. Cleanup deletes only files carrying this test run's unique
-`slcliMigrationFileTestOwner` property, including uploads whose responses were lost.
-The fixed workspaces remain after the test.
-
-```powershell
-poetry run pytest tests\e2e\test_migration_orchestration_e2e.py `
-  tests\e2e\test_migration_files_e2e.py -m e2e_migration --timeout=300 --no-cov
-```
-
 ### Run The Local MCP Streamable HTTP Smoke Test
 
 The MCP smoke test connects to a locally running streamable HTTP server and exercises the

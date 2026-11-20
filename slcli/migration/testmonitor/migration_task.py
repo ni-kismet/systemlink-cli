@@ -12,6 +12,7 @@ from slcli.migration.connection import resolve_migration_connection
 from slcli.migration.flows.batching import after_all, gather_batches, partition, shared_task_args
 from slcli.migration.flows.service import service_task
 from slcli.migration.testmonitor.client import TestMonitorClient
+from slcli.migration.testmonitor.completion import complete_results
 from slcli.migration.testmonitor.migration import (
     MigrationContext,
     log_batch,
@@ -113,6 +114,7 @@ def migrate_test_monitor_task(
     product batch to finish. They run even when products failed: those results
     still migrate, but their source-to-destination product mapping is ambiguous
     and will need review. This will eventually be reported as a warning.
+    Migrated results are then marked COMPLETE.
 
     Args:
         migration_id: Migration that scopes task cache keys.
@@ -123,6 +125,9 @@ def migrate_test_monitor_task(
         product_batch_size: Products per migration task.
         result_batch_size: Results, with their steps, per migration task.
         file_id_map: Pre-allocated destination IDs keyed by source file ID.
+
+    Raises:
+        ValueError: If the destination profile is readonly or a completion update fails.
     """
     common = shared_task_args(migration_id, source_profile, destination_profile, mapping)
     product_batches = partition(discovery.products, product_batch_size)
@@ -141,7 +146,12 @@ def migrate_test_monitor_task(
         unmapped(file_id_map_digest),
         wait_for=after_all(products),
     )
-    return TestMonitorMigration(
+    migration = TestMonitorMigration(
         products=tuple(gather_batches("products", product_batches, products)),
         results=tuple(gather_batches("results", result_batches, results)),
     )
+    destination = resolve_migration_connection(destination_profile)
+    if destination.readonly:
+        raise ValueError(f"Profile '{destination_profile}' is in readonly mode")
+    complete_results(TestMonitorWriter(destination), migration)
+    return migration

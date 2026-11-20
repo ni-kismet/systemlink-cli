@@ -9,9 +9,17 @@ import pytest
 
 from slcli.migration.files.client import FilesClient
 from slcli.migration.files.models import DiscoveredFile, FileDiscovery
-from slcli.migration.files.transfer import MIGRATED_SOURCE_ID, transfer_files
+from slcli.migration.files.transfer import (
+    MIGRATED_SOURCE_ID,
+    split_into_batches,
+    transfer_batch,
+)
 from slcli.migration.workspaces import MappedWorkspace, WorkspaceMapping
-from tests.e2e.migration_endpoints import get_or_create_workspace, resolve_endpoints
+from tests.e2e.migration_endpoints import (
+    DESTINATION_WORKSPACE,
+    get_or_create_workspace,
+    resolve_endpoints,
+)
 
 pytestmark = [pytest.mark.e2e_migration, pytest.mark.file]
 
@@ -20,7 +28,7 @@ OWNER_PROPERTY = "slcliMigrationFileTestOwner"
 
 
 def test_live_file_transfer_preserves_bytes_metadata_and_resumes() -> None:
-    """Verify live uploads and annotation recovery without leaving test files behind."""
+    """Verify live uploads under planned IDs and that a resumed batch skips them."""
     endpoints = resolve_endpoints()
     if endpoints.source.readonly or endpoints.destination.readonly:
         pytest.skip("File migration E2E requires writable source and destination profiles")
@@ -63,45 +71,57 @@ def test_live_file_transfer_preserves_bytes_metadata_and_resumes() -> None:
             ),
             source_to_destination_id_map={file.id: intended_id},
         )
+        (batch,) = split_into_batches(discovery)
+        destination_workspace = endpoints.destination_workspace_id
         mapping = WorkspaceMapping(
             workspaces=(
                 MappedWorkspace(
                     source_name=SOURCE_WORKSPACE,
                     source_id=source_workspace,
-                    destination_name=endpoints.destination_workspace,
-                    destination_id=endpoints.destination_workspace_id,
+                    destination_name=DESTINATION_WORKSPACE,
+                    destination_id=destination_workspace,
                 ),
             )
         )
 
-        result = transfer_files(source, destination, discovery, mapping)
+        result = transfer_batch(
+            source,
+            destination,
+            batch,
+            discovery.source_to_destination_id_map,
+            mapping,
+        )
         assert result.failures == ()
         assert result.transferred == 1
-        actual_id = result.reassigned_ids.get(intended_id, intended_id)
         uploaded = [
             item
-            for item in destination.query_files(endpoints.destination_workspace_id)
+            for item in destination.query_files(destination_workspace)
             if item.properties.get(OWNER_PROPERTY) == owner
         ]
         assert len(uploaded) == 1
-        assert uploaded[0].id == actual_id
+        assert uploaded[0].id == intended_id
         assert uploaded[0].name == filename
         assert uploaded[0].properties[MIGRATED_SOURCE_ID] == file.id
         for key, value in properties.items():
             assert uploaded[0].properties[key] == value
-        with destination.download_file(actual_id) as content:
+        with destination.download_file(intended_id) as content:
             assert b"".join(content.chunks) == payload
 
-        resumed = transfer_files(source, destination, discovery, mapping)
+        resumed = transfer_batch(
+            source,
+            destination,
+            batch,
+            discovery.source_to_destination_id_map,
+            mapping,
+        )
         assert resumed.failures == ()
         assert resumed.transferred == 0
         assert resumed.already_present == 1
-        assert resumed.reassigned_ids == result.reassigned_ids
         assert [
             item.id
-            for item in destination.query_files(endpoints.destination_workspace_id)
+            for item in destination.query_files(destination_workspace)
             if item.properties.get(OWNER_PROPERTY) == owner
-        ] == [actual_id]
+        ] == [intended_id]
     finally:
         # Query before deleting to avoid skip/take pagination moving underneath cleanup.
         for connection, client, workspace_id in (

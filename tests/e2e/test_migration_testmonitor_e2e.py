@@ -26,12 +26,8 @@ from click.testing import CliRunner, Result
 
 from slcli.main import cli
 from slcli.migration.annotations import COMPLETE, MIGRATION_ID, SOURCE_ID, STATUS
-from slcli.migration.files.models import FileTransfer
 from slcli.migration.state import STATE_DIR_ENV
 from slcli.migration.testmonitor.client import TestMonitorClient
-from slcli.migration.testmonitor.file_references import repair_file_references
-from slcli.migration.testmonitor.models import BatchResult, MigratedItem, TestMonitorMigration
-from slcli.migration.testmonitor.writer import TestMonitorWriter
 from tests.e2e.migration_endpoints import (
     MigrationEndpoints,
     get_or_create_workspace,
@@ -134,60 +130,6 @@ def _destination_results(seeded: Seeded) -> List[Dict[str, Any]]:
             "results", "workspace == @0", [seeded.endpoints.destination_workspace_id]
         )
     )
-
-
-def test_live_result_file_id_backpatch_preserves_other_fields(seeded: Seeded) -> None:
-    """Verify create and replacement behavior against the destination service."""
-    endpoints = seeded.endpoints
-    owned = OwnedTestMonitorResources(
-        endpoints.destination,
-        {endpoints.destination_workspace: endpoints.destination_workspace_id},
-    )
-    intended, actual, unchanged = (uuid.uuid4().hex[:24] for _ in range(3))
-    payload = {**_result(f"file-reference-{uuid.uuid4().hex}"), "fileIds": [intended, unchanged]}
-    [result_id] = owned.create_results([payload], endpoints.destination_workspace)
-    client = TestMonitorClient(endpoints.destination)
-    try:
-        [before] = list(client.query_records("results", "id == @0", [result_id]))
-        assert before["fileIds"] == [intended, unchanged]
-        migration = TestMonitorMigration(
-            results=(
-                BatchResult(
-                    resource="results",
-                    batch=0,
-                    migrated=(MigratedItem(source_id="source", destination_id=result_id),),
-                    file_results={intended: (result_id,), unchanged: (result_id,)},
-                ),
-            )
-        )
-        outcome = repair_file_references(
-            client,
-            TestMonitorWriter(endpoints.destination),
-            FileTransfer(reassigned_ids={intended: actual}),
-            migration,
-        )
-        assert outcome.updated == 1
-        [after] = list(client.query_records("results", "id == @0", [result_id]))
-        assert after["fileIds"] == [actual, unchanged]
-        for field in (
-            "programName",
-            "partNumber",
-            "serialNumber",
-            "status",
-            "properties",
-            "workspace",
-        ):
-            assert after[field] == before[field]
-    finally:
-        response = endpoints.destination.create_write_session().post(
-            f"{endpoints.destination.base_url}/nitestmonitor/v2/delete-results",
-            json={"ids": [result_id], "deleteSteps": True},
-            timeout=30,
-        )
-        response.raise_for_status()
-        body = response.json() if response.content else {}
-        if body.get("error") or body.get("failed"):
-            raise RuntimeError(f"Failed to delete test result {result_id}: {body}")
 
 
 def _step_parents(seeded: Seeded, destination_result_id: str) -> Dict[str, Optional[str]]:

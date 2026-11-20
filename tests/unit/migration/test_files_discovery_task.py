@@ -28,8 +28,8 @@ def test_incomplete_migration_discovery_raises_instead_of_returning_partial_map(
     )
     monkeypatch.setattr(
         "slcli.migration.files.discovery_task.discover_files",
-        lambda _client, _workspaces: discovery,
+        lambda _client, _workspaces, _destination: discovery,
     )
 
     with pytest.raises(click.ClickException, match="Broken.*Retry the migration"):
-        discover_files_task.fn("migration-id", "source", DiscoveredWorkspaces())
+        discover_files_task.fn("migration-id", "source", "destination", DiscoveredWorkspaces())

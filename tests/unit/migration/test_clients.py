@@ -7,7 +7,7 @@ from email.message import Message
 from email.parser import BytesParser
 from typing import Any, Dict, Iterator, List, Optional, Union
 
-import click
+
 import pytest
 import requests
 from pydantic import ValidationError
@@ -327,7 +327,7 @@ def test_upload_file_returns_the_server_assigned_id() -> None:
     ],
 )
 def test_upload_file_rejects_malformed_response_uri(uri: str) -> None:
-    """Invalid destination identities cannot be persisted for reference repair."""
+    """Invalid destination identities must not be accepted as created file IDs."""
     session = FakeFileSession(uri=uri)
     client = FilesClient(CONNECTION, session)  # type: ignore[arg-type]
 
@@ -351,7 +351,7 @@ def test_upload_file_is_rejected_for_a_readonly_profile() -> None:
     connection = MigrationConnection("dest", "https://dest", {}, True, readonly=True)
     client = FilesClient(connection, session)  # type: ignore[arg-type]
 
-    with pytest.raises(click.ClickException, match="readonly mode"):
+    with pytest.raises(ValueError, match="readonly mode"):
         client.upload_file(NEW_ID, "ws", "a", {}, FileContent(chunks=[b""], length=0))
     assert session.calls == []
 

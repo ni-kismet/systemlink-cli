@@ -1,7 +1,7 @@
 """Helpers shared by every resource type that migrates in batches."""
 
 import logging
-from typing import Any, Iterable, List, Protocol, Sequence, Tuple, TypeVar
+from typing import Any, Callable, Iterable, List, Protocol, Sequence, Tuple, TypeVar
 
 from prefect import allow_failure, unmapped
 from prefect.futures import PrefectFuture, PrefectFutureList
@@ -27,6 +27,30 @@ def partition(items: Sequence[_T], size: int) -> List[List[_T]]:
     if size < 1:
         raise ValueError("batch size must be at least 1")
     return [list(items[start : start + size]) for start in range(0, len(items), size)]
+
+
+def partition_by_weight(
+    items: Sequence[_T], max_weight: int, weight: Callable[[_T], int]
+) -> List[List[_T]]:
+    """Split items into ordered batches whose total weight stays within ``max_weight``.
+
+    An item heavier than ``max_weight`` forms a batch of its own.
+    """
+    if max_weight < 1:
+        raise ValueError("batch weight must be at least 1")
+    batches: List[List[_T]] = []
+    current: List[_T] = []
+    current_weight = 0
+    for item in items:
+        item_weight = weight(item)
+        if current and current_weight + item_weight > max_weight:
+            batches.append(current)
+            current, current_weight = [], 0
+        current.append(item)
+        current_weight += item_weight
+    if current:
+        batches.append(current)
+    return batches
 
 
 def gather_batches(
