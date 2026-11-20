@@ -10,9 +10,23 @@ import re
 import uuid
 from dataclasses import dataclass
 from datetime import datetime, timezone
-from typing import Dict, Iterable, Iterator, List, Mapping, Optional, Sequence, Set, Type, TypeVar
+from typing import (
+    Dict,
+    Iterable,
+    Iterator,
+    List,
+    Mapping,
+    NamedTuple,
+    Optional,
+    Sequence,
+    Set,
+    Type,
+    TypeVar,
+)
 
 from slcli.migration.annotations import (
+    COMPLETE,
+    COMPLETED_AT,
     INCOMPLETE,
     MIGRATION_ID,
     SOURCE_HOSTNAME,
@@ -171,16 +185,13 @@ def migrate_products(
     """
     records = _fetch_by_id(source, "products", Product, [p.id for p in products])
     workspaces = {p.id: context.mapping.workspace(p.workspace) for p in products}
-    to_create = {
-        product.id: product.create_request(
-            {
-                "workspace": workspaces[product.id].destination_id,
-                "properties": context.annotate(product),
-            }
-        )
-        for product in records.values()
+    product_id_to_creation_request_map = {
+        record.id: _build_creation_request(record, workspaces, context)
+        for record in records.values()
     }
-    response = destination.create_products(list(to_create.values()))
+    creation_requests = list(product_id_to_creation_request_map.values())
+
+    response = destination.create_products(creation_requests)
     created = _created_ids(Product, response)
     duplicates = _duplicate_part_numbers(response.error)
     conflicts = [
@@ -199,7 +210,9 @@ def migrate_products(
         migrated=tuple(MigratedItem(source_id=s, destination_id=d) for s, d in created.items()),
         failed=(
             *_missing(workspaces, records),
-            *_not_created(set(to_create) - conflicted, created, response.error),
+            *_not_created(
+                set(product_id_to_creation_request_map) - conflicted, created, response.error
+            ),
         ),
         conflicts=tuple(conflicts),
     )
@@ -225,31 +238,93 @@ def migrate_results(
     records = _fetch_by_id(source, "results", Result, [r.id for r in results])
     workspaces = {r.id: context.mapping.workspace(r.workspace) for r in results}
     unresolved_by_result: Dict[str, tuple[str, ...]] = {}
-    to_create: Dict[str, Dict[str, object]] = {}
+    creation_requests: Dict[str, Dict[str, object]] = {}
     for result in records.values():
-        file_ids = _get_file_ids(result)
-        unresolved = tuple(dict.fromkeys(fid for fid in file_ids if fid not in file_id_map))
-        unresolved_by_result[result.id] = unresolved
-        migrated_file_ids = list(
-            dict.fromkeys(file_id_map[fid] for fid in file_ids if fid in file_id_map)
+        file_ids = _classify_file_ids(result, file_id_map)
+        unresolved_by_result[result.id] = file_ids.unresolved_ids
+        extra_annotations = _build_result_annotations(result, file_ids.unresolved_ids)
+        extra_overrides = {"fileIds": file_ids.destination_ids} if file_ids.destination_ids else {}
+        creation_requests[result.id] = _build_creation_request(
+            result, workspaces, context, extra_annotations, extra_overrides
         )
-        annotations = _get_annotations(unresolved, result)
-        overrides: Dict[str, object] = {
-            "workspace": workspaces[result.id].destination_id,
-            "properties": context.annotate(result, **annotations),
-        }
-        if migrated_file_ids:
-            overrides["fileIds"] = migrated_file_ids
-        to_create[result.id] = result.create_request(
-            {
-                "workspace": workspaces[result.id].destination_id,
-                "properties": context.annotate(result, **{STATUS: INCOMPLETE}),
-            }
-        )
-    response = destination.create_results(list(to_create.values()))
+
+    response = destination.create_results(list(creation_requests.values()))
     created = _created_ids(Result, response)
-    failed = [*_missing(workspaces, records), *_not_created(to_create, created, response.error)]
+    completion_result = _mark_results_complete(
+        source, destination, context, created, unresolved_by_result
+    )
+    failed = tuple(
+        *_missing(workspaces, records),
+        *_not_created(creation_requests, created, response.error),
+        *completion_result.failed,
+    )
+
+    return BatchResult(
+        resource="results",
+        batch=batch,
+        migrated=completion_result.migrated,
+        failed=failed,
+    )
+
+
+def _build_creation_request(
+    record: TestMonitorRecord, workspaces, context, extra_annotations={}, extra_overrides={}
+):
+    return record.create_request(
+        {
+            "workspace": workspaces[record.id].destination_id,
+            "properties": context.annotate(record, **extra_annotations),
+            **extra_overrides,
+        }
+    )
+
+
+def _build_result_annotations(result, unresolved_file_ids):
+    extra_annotations = {STATUS: INCOMPLETE}
+    if unresolved_file_ids:
+        extra_annotations[UNRESOLVED_FILE_IDS] = ",".join(unresolved_file_ids)
+        _logger.warning(
+            "Result %s has unresolved source file IDs: %s", result.id, ",".join(unresolved_file_ids)
+        )
+    elif UNRESOLVED_FILE_IDS in result.properties:
+        extra_annotations[UNRESOLVED_FILE_IDS] = ""
+    return extra_annotations
+
+
+class FilteredFileIds(NamedTuple):
+    """Source file IDs split into migrated destination IDs and unresolved source IDs."""
+
+    destination_ids: tuple[str, ...]
+    unresolved_ids: tuple[str, ...]
+
+
+def _classify_file_ids(result, file_id_map) -> FilteredFileIds:
+    file_ids = _get_file_ids(result)
+    return FilteredFileIds(
+        destination_ids=tuple(file_id_map[fid] for fid in file_ids if fid in file_id_map),
+        unresolved_ids=tuple(fid for fid in file_ids if fid not in file_id_map),
+    )
+
+
+def _get_file_ids(result) -> list[str]:
+    file_ids = result.model_extra.get("fileIds", []) if result.model_extra else []
+    if not isinstance(file_ids, list) or not all(isinstance(fid, str) for fid in file_ids):
+        raise ValueError(f"Invalid fileIds on source result {result.id!r}")
+    return file_ids
+
+
+class ResultCompletionOutput(NamedTuple):
+    """Items migrated and failed while marking results complete."""
+
+    migrated: tuple[MigratedItem, ...]
+    failed: tuple[FailedItem, ...]
+
+
+def _mark_results_complete(
+    source, destination, context, created, unresolved_by_result
+) -> ResultCompletionOutput:
     migrated: List[MigratedItem] = []
+    failed: List[FailedItem] = []
     for source_id, destination_id in created.items():
         try:
             steps = _complete_result(source, destination, context, source_id, destination_id)
@@ -268,31 +343,7 @@ def migrate_results(
                     unresolved_file_ids=unresolved_by_result[source_id],
                 )
             )
-    return BatchResult(
-        resource="results",
-        batch=batch,
-        migrated=tuple(migrated),
-        failed=tuple(failed),
-    )
-
-
-def _get_file_ids(result) -> list[str]:
-    file_ids = result.model_extra.get("fileIds", []) if result.model_extra else []
-    if not isinstance(file_ids, list) or not all(isinstance(fid, str) for fid in file_ids):
-        raise ValueError(f"Invalid fileIds on source result {result.id!r}")
-    return file_ids
-
-
-def _get_annotations(unresolved_files_ids, result):
-    annotations = {STATUS: INCOMPLETE}
-    if unresolved_files_ids:
-        annotations[UNRESOLVED_FILE_IDS] = ",".join(unresolved_files_ids)
-        _logger.warning(
-            "Result %s has unresolved source file IDs: %s", result.id, ",".join(unresolved_files_ids)
-        )
-    elif UNRESOLVED_FILE_IDS in result.properties:
-        annotations[UNRESOLVED_FILE_IDS] = ""
-    return annotations
+    return ResultCompletionOutput(migrated=tuple(migrated), failed=tuple(failed))
 
 
 def _complete_result(

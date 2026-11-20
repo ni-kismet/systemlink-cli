@@ -86,7 +86,7 @@ def migrate_results_task(
     batch: int,
     results: List[DiscoveredResult],
     file_id_map: Dict[str, str],
-    file_id_map_digest: str,
+    file_id_map_digest: str,  # for caching purposes, we include a digest of the map instead of hashing the entire map
 ) -> BatchResult:
     """Migrate results; the shared file map's digest participates in the cache key."""
     context = _context(migration_id, source_profile, mapping)
@@ -138,6 +138,7 @@ def migrate_test_monitor_task(
     file_id_map_digest = hashlib.sha256(
         json.dumps(file_id_map, sort_keys=True).encode("utf-8")
     ).hexdigest()
+    # use `unmapped` to pass the entire file_id_map and its digest to each mapped task
     results = migrate_results_task.map(
         *common,
         list(range(len(result_batches))),
