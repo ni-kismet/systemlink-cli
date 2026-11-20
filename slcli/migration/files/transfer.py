@@ -5,12 +5,7 @@ from contextlib import AbstractContextManager
 from typing import Any, List, Mapping, Protocol, Sequence, Set
 
 from slcli.migration.files.client import FileContent
-from slcli.migration.files.models import (
-    DiscoveredFile,
-    FileDiscovery,
-    FileFailure,
-    FileTransfer,
-)
+from slcli.migration.files.models import DiscoveredFile, FileDiscovery, FileFailure, FileTransfer
 from slcli.migration.flows.batching import partition_by_weight
 from slcli.migration.workspaces import WorkspaceMapping
 
@@ -96,7 +91,9 @@ def transfer_batch(
             continue
         try:
             destination_workspace_id = workspace_mapping.workspace(file.workspace).destination_id
-            actual_id = _upload_with_retry(source, destination, file, file_id, destination_workspace_id)
+            actual_id = _upload_with_retry(
+                source, destination, file, file_id, destination_workspace_id
+            )
             if actual_id != file_id:
                 raise ValueError(f"Server assigned {actual_id} instead of {file_id}")
             transferred += 1
