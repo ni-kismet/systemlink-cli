@@ -1007,14 +1007,14 @@ ssh = ["bcrypt (>=3.1.5)"]
 
 [[package]]
 name = "cyclonedx-bom"
-version = "7.6.0"
+version = "8.0.1"
 description = "CycloneDX Software Bill of Materials (SBOM) generator for Python projects and environments"
 optional = false
 python-versions = "<4,>=3.9"
 groups = ["dev"]
 files = [
-    {file = "cyclonedx_bom-7.6.0-py3-none-any.whl", hash = "sha256:4db70eb524e859317c645bbe927347e18bdd3cfa31906b1e482b4b936f8c36ef"},
-    {file = "cyclonedx_bom-7.6.0.tar.gz", hash = "sha256:ab8a8c4cf0d8704f75029f75826993047783b8fd416e7dc3431af54c03e8adab"},
+    {file = "cyclonedx_bom-8.0.1-py3-none-any.whl", hash = "sha256:b91ac00e0d031aaee0bc69fd3851384b2c36e569859df13b2a564b5d2d67aab3"},
+    {file = "cyclonedx_bom-8.0.1.tar.gz", hash = "sha256:a32c8bb2c4b436e0d6b7ee3b9f0899efdfc91e8f5d9652975467d31e4c20b900"},
 ]
 
 [package.dependencies]
@@ -5567,4 +5567,4 @@ migration = ["prefect", "psutil", "pydantic"]
 [metadata]
 lock-version = "2.1"
 python-versions = ">=3.11.1,<3.16"
-content-hash = "5b15daeeb9317497335f864790f0c9fc6e551450d98bf1cd445f3ad6dc5aef6f"
+content-hash = "3e5faa1730ac4e280ad70733c2c598914ed141bf32f827cd9235f5836e1e72bf"
