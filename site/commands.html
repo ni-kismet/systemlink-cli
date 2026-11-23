@@ -48,7 +48,6 @@
       </div>
       <div class="sidebar-group">
         <div class="sidebar-label">Commands</div>
-        <a href="#migrate" class="sidebar-link">migrate</a>
         <a href="#mcp" class="sidebar-link">mcp</a>
         <a href="#testmonitor" class="sidebar-link">testmonitor</a>
         <a href="#asset" class="sidebar-link">asset</a>
@@ -89,7 +88,6 @@
         <code>example list</code> return their available collection without this option.</p>
 
       <div class="cmd-groups">
-        <div class="cmd-group"><h3>migrate</h3><p>Migrate workspaces, users, files, and Test Monitor data</p><code>slcli migrate --help</code></div>
         <div class="cmd-group"><h3>mcp</h3><p>Model Context Protocol server install and serve commands</p><code>slcli mcp install</code></div>
         <div class="cmd-group"><h3>testmonitor</h3><p>Test results, products, steps, measurements</p><code>slcli testmonitor result list</code></div>
         <div class="cmd-group"><h3>asset</h3><p>Hardware assets, calibration, fleet summary</p><code>slcli asset list</code></div>
@@ -905,20 +903,6 @@ slcli user create --type user --first-name Jane --last-name Doe \
       <pre><code>slcli workspace list --filter "prod" --include-disabled
 slcli workspace info --name "Production" --format json
 slcli workspace disable --id &lt;workspace-id&gt;</code></pre>
-
-      <h2 id="migrate">migrate</h2>
-      <p>Install the <code>migration</code> extra to migrate data between profiles.
-        Review eligible users and provide missing emails before user writes. The review,
-        resolved emails, and progress are saved in the migration's local user state
-        directory. Protect and retain this state to resume safely.</p>
-      <pre><code>slcli migrate --source-profile source --destination-profile destination
-slcli migrate --migration-id &lt;migration-id&gt;</code></pre>
-      <p>Resuming reuses the saved user review and retries unfinished work without
-        selecting newly discovered users. A choice to continue without workspace
-        permissions is also retained. Runs created before user review checkpoints
-        cannot safely recover their original selections; start a new migration and
-        review users again. Remote writes that succeed without a response may require
-        destination reconciliation before retrying.</p>
 
       <!-- ─── WEBAPP ─── -->
       <h2 id="webapp">webapp</h2>
