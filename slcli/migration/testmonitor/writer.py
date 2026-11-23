@@ -48,7 +48,7 @@ class DestinationWriter(Protocol):
         """Create steps."""
         ...
 
-    def update_results(self, results: Sequence[Record]) -> WriteResponse:
+    def update_results(self, results: Sequence[Record], *, replace: bool = False) -> WriteResponse:
         """Merge fields into results."""
         ...
 
@@ -79,9 +79,12 @@ class TestMonitorWriter:
         """Create steps; partial failures are returned, not raised."""
         return self._create("steps", "steps", steps)
 
-    def update_results(self, results: Sequence[Record]) -> WriteResponse:
-        """Merge fields into existing results; partial failures are returned."""
-        return self._post("update-results", "results", {"results": list(results)})
+    def update_results(self, results: Sequence[Record], *, replace: bool = False) -> WriteResponse:
+        """Merge or replace supplied fields in existing results; return partial failures."""
+        payload: Dict[str, object] = {"results": list(results)}
+        if replace:
+            payload["replace"] = True
+        return self._post("update-results", "results", payload)
 
     def _create(self, endpoint: str, collection: str, records: Sequence[Record]) -> WriteResponse:
         if not records:

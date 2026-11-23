@@ -170,8 +170,10 @@ workspaces cannot be deleted on shared servers; do not make them unique per run.
 Fixtures only modify the dedicated `e2e-slcli-migration-*` workspaces, the
 destination workspace, and resources carrying the fixture ownership property.
 Cleanup refuses to run if a fixture or destination workspace holds Test Monitor
-resources without that property. Migrated resources keep their source
-properties, so they carry it too.
+resources without the expected ownership marker. The error reports each
+blocker's type and ID, whether its owner marker is missing or mismatched, and
+whether it has a migration ID, without printing property values. Migrated
+resources keep their source properties, so they should carry the marker too.
 
 Each pytest session starts its own Prefect server (~10s). To reuse one across
 runs, start it in another terminal and point the tests at it:

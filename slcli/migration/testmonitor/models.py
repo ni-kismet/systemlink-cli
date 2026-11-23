@@ -54,6 +54,8 @@ class MigratedItem(_Persisted):
     destination_id: str
     steps: int = 0
     """Steps migrated with a result."""
+    unresolved_file_ids: Tuple[str, ...] = ()
+    """Source file IDs excluded because they were not discovered."""
 
 
 class FailedItem(_Persisted):
@@ -66,6 +68,8 @@ class FailedItem(_Persisted):
     detail: Optional[str] = None
     destination_id: Optional[str] = None
     """Incomplete destination resource left behind, if any."""
+    unresolved_file_ids: Tuple[str, ...] = ()
+    """Source file IDs excluded from a partially migrated result."""
 
 
 class ProductConflict(_Persisted):

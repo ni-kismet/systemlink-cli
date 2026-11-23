@@ -4,6 +4,7 @@ from collections.abc import Generator
 from contextlib import contextmanager
 from typing import List, Optional
 
+import click
 from prefect.events.worker import EventsWorker
 from prefect.settings import (
     PREFECT_API_URL,
@@ -11,11 +12,12 @@ from prefect.settings import (
     PREFECT_LOGGING_TO_API_ENABLED,
     temporary_settings,
 )
+from pydantic import ValidationError
 
-from slcli.migration.flows.discover import MigrationDiscovery, discover_flow
+from slcli.migration.flows.discover import discover_flow
 from slcli.migration.flows.migrate import MigrationOutcome, migrate_flow
 from slcli.migration.prefect_server import ManagedPrefectServer
-from slcli.migration.state import MigrationRun, RunMetadata
+from slcli.migration.state import MigrationDiscovery, MigrationPlan, MigrationRun, RunMetadata
 
 
 @contextmanager
@@ -54,6 +56,7 @@ def _run_settings(run: MigrationRun, api_url: str) -> Generator[None, None, None
 def run_discovery(
     run: MigrationRun,
     source_profile: str,
+    destination_profile: str,
     workspaces: Optional[List[str]],
     api_url: str,
 ) -> MigrationDiscovery:
@@ -62,11 +65,12 @@ def run_discovery(
     Args:
         run: Migration run that provides the client home and result storage.
         source_profile: Name of the source profile.
+        destination_profile: Name of the destination profile.
         workspaces: Source workspace names to discover; all workspaces when None.
         api_url: Prefect API URL from :func:`prefect_server`.
     """
     with _run_settings(run, api_url):
-        return discover_flow(run.migration_id, source_profile, workspaces)
+        return discover_flow(run.migration_id, source_profile, destination_profile, workspaces)
 
 
 def run_migration(
@@ -74,19 +78,77 @@ def run_migration(
     metadata: RunMetadata,
     api_url: str,
 ) -> MigrationOutcome:
-    """Run the migration flow for a run on a Prefect server.
+    """Apply a saved plan, finishing discovery first if the run has no plan yet.
 
     Args:
         run: Migration run that provides the client home and result storage.
         metadata: Persisted run inputs, including profiles and batch sizes.
         api_url: Prefect API URL from :func:`prefect_server`.
     """
+    try:
+        plan = _read_plan(run)
+    except FileNotFoundError:
+        plan = run_plan(run, metadata, api_url)
+    return _execute_plan(run, metadata, api_url, plan)
+
+
+def apply_saved_plan(run: MigrationRun, metadata: RunMetadata, api_url: str) -> MigrationOutcome:
+    """Apply a completed plan from disk, never running discovery."""
+    try:
+        plan = _read_plan(run)
+    except FileNotFoundError as exc:
+        raise click.ClickException(
+            f"Migration '{run.migration_id}' has no completed plan."
+        ) from exc
+    return _execute_plan(run, metadata, api_url, plan)
+
+
+def _execute_plan(
+    run: MigrationRun, metadata: RunMetadata, api_url: str, plan: MigrationPlan
+) -> MigrationOutcome:
     with _run_settings(run, api_url):
-        return migrate_flow(
-            run.migration_id,
-            metadata.source_profile,
-            metadata.destination_profile,
-            metadata.workspace_mappings,
-            metadata.product_batch_size,
-            metadata.result_batch_size,
-        )
+        try:
+            return migrate_flow(
+                run.migration_id,
+                metadata.source_profile,
+                metadata.destination_profile,
+                metadata.workspace_mappings,
+                metadata.product_batch_size,
+                metadata.result_batch_size,
+                plan.discovery,
+            )
+        except ValueError as exc:
+            raise click.ClickException(str(exc)) from exc
+
+
+def _read_plan(run: MigrationRun) -> MigrationPlan:
+    try:
+        return run.read_plan()
+    except FileNotFoundError:
+        raise
+    except (OSError, ValidationError) as exc:
+        raise click.ClickException(
+            f"Cannot load the completed plan for migration '{run.migration_id}'. "
+            "The plan is unreadable, incomplete, or incompatible."
+        ) from exc
+    except ValueError as exc:
+        raise click.ClickException(str(exc)) from exc
+
+
+def run_plan(run: MigrationRun, metadata: RunMetadata, api_url: str) -> MigrationPlan:
+    """Discover all selected resources and atomically save the completed plan."""
+    mappings = metadata.workspace_mappings
+    workspaces = list(mappings) if mappings is not None else None
+    discovery = run_discovery(
+        run, metadata.source_profile, metadata.destination_profile, workspaces, api_url
+    )
+    try:
+        plan = MigrationPlan(migration_id=run.migration_id, discovery=discovery)
+    except ValidationError as exc:
+        raise click.ClickException("Discovery did not produce a complete migration plan.") from exc
+
+    try:
+        run.write_plan(plan)
+    except OSError as exc:
+        raise click.ClickException(f"Cannot save the migration plan: {exc}") from exc
+    return plan

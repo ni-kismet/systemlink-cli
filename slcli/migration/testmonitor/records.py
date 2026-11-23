@@ -58,7 +58,7 @@ class Product(TestMonitorRecord):
 
 
 class Result(TestMonitorRecord):
-    """A test result. File and data table references are not migrated yet."""
+    """A test result. Data table references are not migrated yet."""
 
     server_owned: ClassVar[FrozenSet[str]] = frozenset(
         {"id", "updatedAt", "fileIds", "dataTableIds", "statusTypeSummary"}

@@ -3,25 +3,11 @@
 from typing import List, Optional
 
 from prefect import flow
-from pydantic import ConfigDict
 
 from slcli.migration.files.discovery_task import discover_files_task
-from slcli.migration.files.models import FileDiscovery
-from slcli.migration.schema import VersionedModel
+from slcli.migration.state import MigrationDiscovery
 from slcli.migration.testmonitor.discovery_task import discover_test_monitor_task
-from slcli.migration.testmonitor.models import TestMonitorDiscovery
 from slcli.migration.workspace_task import discover_workspaces_task
-from slcli.migration.workspaces import DiscoveredWorkspaces
-
-
-class MigrationDiscovery(VersionedModel):
-    """Discovery results for every supported resource type."""
-
-    model_config = ConfigDict(frozen=True)
-
-    workspaces: DiscoveredWorkspaces
-    files: FileDiscovery
-    test_monitor: TestMonitorDiscovery
 
 
 @flow(
@@ -33,6 +19,7 @@ class MigrationDiscovery(VersionedModel):
 def discover_flow(
     migration_id: str,
     source_profile: str,
+    destination_profile: str,
     explicit_workspace_selection: Optional[List[str]],
 ) -> MigrationDiscovery:
     """Discover source workspaces, then each supported resource type within them.
@@ -40,6 +27,7 @@ def discover_flow(
     Args:
         migration_id: Migration that scopes task cache keys.
         source_profile: Name of the source profile.
+        destination_profile: Name of the destination profile, used to plan unused file IDs.
         explicit_workspace_selection: Source workspace names to discover; all workspaces when None.
 
     Raises:
@@ -50,6 +38,6 @@ def discover_flow(
     )
     return MigrationDiscovery(
         workspaces=workspaces,
-        files=discover_files_task(migration_id, source_profile, workspaces),
+        files=discover_files_task(migration_id, source_profile, destination_profile, workspaces),
         test_monitor=discover_test_monitor_task(migration_id, source_profile, workspaces),
     )
