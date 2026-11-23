@@ -102,7 +102,7 @@ def register_migrate_command(cli: click.Group) -> None:
     )
     @click.option(
         "--migration-id",
-        help="Resume an existing migration, retrying only unfinished work.",
+        help="Resume an existing migration using its saved user review and unfinished work.",
     )
     @click.option("--product-batch-size", type=click.IntRange(min=1), default=None, hidden=True)
     @click.option("--result-batch-size", type=click.IntRange(min=1), default=None, hidden=True)
@@ -124,7 +124,8 @@ def register_migrate_command(cli: click.Group) -> None:
 
         Test results use mapped file IDs. Unresolved source IDs are omitted and
         recorded in the Migration.UnresolvedFileIds property. Results stay
-        INCOMPLETE until Test Monitor migration succeeds.
+        INCOMPLETE until Test Monitor migration succeeds. Reviewed users and
+        resolved emails are saved locally for resumption.
         """
         new_run_options = (
             source_profile,

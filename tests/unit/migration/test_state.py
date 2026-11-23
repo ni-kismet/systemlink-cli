@@ -41,6 +41,7 @@ def test_new_run_persists_non_secret_versioned_metadata(tmp_path: Path) -> None:
         "workspaceMappings",
         "productBatchSize",
         "resultBatchSize",
+        "userReviewCheckpoint",
         "createdAt",
     }
     assert metadata["schemaVersion"] == SCHEMA_VERSION
@@ -66,6 +67,17 @@ def test_opens_existing_run(tmp_path: Path) -> None:
 
     assert run == created
     assert metadata.workspace_mappings == {"Lab": "Destination"}
+
+
+def test_old_metadata_does_not_claim_user_review_checkpoint(tmp_path: Path) -> None:
+    """Runs created before user checkpoints must not be treated as new runs."""
+    created = create_migration_run("source", "destination", None, tmp_path)
+    metadata = json.loads(created.metadata_path.read_text(encoding="utf-8"))
+    del metadata["userReviewCheckpoint"]
+    created.metadata_path.write_text(json.dumps(metadata), encoding="utf-8")
+
+    _, reopened = open_migration_run(created.migration_id, tmp_path)
+    assert not reopened.user_review_checkpoint
 
 
 def test_saved_plan_preserves_file_ids_and_cannot_be_used_by_another_run(tmp_path: Path) -> None:

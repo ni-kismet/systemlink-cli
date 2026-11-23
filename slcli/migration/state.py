@@ -64,6 +64,7 @@ class RunMetadata(VersionedModel):
     workspace_mappings: Optional[Dict[str, str]]
     product_batch_size: int = DEFAULT_PRODUCT_BATCH_SIZE
     result_batch_size: int = DEFAULT_RESULT_BATCH_SIZE
+    user_review_checkpoint: bool = False
     """Batch sizes define task cache identity, so a run keeps them for its lifetime."""
     created_at: datetime
 
@@ -89,6 +90,11 @@ class MigrationRun:
     def plan_path(self) -> Path:
         """Return the path to the completed migration plan."""
         return self.directory / "plan.json"
+
+    @property
+    def user_state_path(self) -> Path:
+        """Return the path to the reviewed user migration state."""
+        return self.directory / "users.json"
 
     @property
     def client_home(self) -> Path:
@@ -178,6 +184,7 @@ def create_migration_run(
             workspace_mappings=workspace_mappings,
             product_batch_size=product_batch_size,
             result_batch_size=result_batch_size,
+            user_review_checkpoint=True,
             created_at=datetime.now(timezone.utc),
         )
     )
