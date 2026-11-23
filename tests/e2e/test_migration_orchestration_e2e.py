@@ -67,6 +67,7 @@ class FakeSource:
 def fake_source(monkeypatch: pytest.MonkeyPatch) -> FakeSource:
     """Replace the discovery task bodies; Prefect still persists and caches them."""
     fake = FakeSource()
+    monkeypatch.setattr("slcli.migration.flows.migrate.migrate_users", lambda *_args: 0)
 
     def workspaces_discovery(
         migration_id: str, source_profile: str, names: Optional[List[str]]

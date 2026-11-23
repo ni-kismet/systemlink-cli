@@ -123,10 +123,12 @@ class UserMigrationClient:
         """Return whether the profile prohibits destination writes."""
         return self._connection.readonly
 
-    def query_users(self) -> List[MigrationUser]:
-        """Return every active user, following User Service continuation tokens."""
+    def query_users(self, include_inactive: bool = False) -> List[MigrationUser]:
+        """Return users across all pages, optionally including non-active accounts."""
         url = f"{self._base_url}/niuser/v1/users/query"
-        payload: Dict[str, object] = {"filter": 'status = "active"', "take": PAGE_SIZE}
+        payload: Dict[str, object] = {"take": PAGE_SIZE}
+        if not include_inactive:
+            payload["filter"] = 'status = "active"'
         users: List[MigrationUser] = []
         while True:
             response = self._session.post(url, json=payload, timeout=REQUEST_TIMEOUT_SECONDS)
@@ -384,21 +386,20 @@ def _plan_user_migrations(
             )
             continue
         destination_user = matches[0] if matches else None
-        workspaces = (
-            tuple(
-                workspace
-                for workspace in candidate.workspaces
-                if workspace.destination_id not in mapped_workspaces.get(destination_user.id, set())
-            )
-            if destination_user
-            else candidate.workspaces
+        already_mapped = (
+            set(mapped_workspaces.get(destination_user.id, set())) if destination_user else set()
         )
+        workspaces: List[MappedWorkspace] = []
+        for workspace in candidate.workspaces:
+            if workspace.destination_id not in already_mapped:
+                workspaces.append(workspace)
+                already_mapped.add(workspace.destination_id)
         tasks.append(
             _UserMigrationTask(
                 source_user=candidate.user,
                 email=email,
                 destination_user_id=destination_user.id if destination_user else None,
-                workspaces=workspaces,
+                workspaces=tuple(workspaces),
             )
         )
     return tasks, warnings
@@ -435,7 +436,7 @@ def migrate_users(
     tasks, warnings = _plan_user_migrations(
         selected,
         emails,
-        destination_client.query_users(),
+        destination_client.query_users(include_inactive=True),
         destination_client.query_auth_mappings(),
     )
     for warning in warnings:

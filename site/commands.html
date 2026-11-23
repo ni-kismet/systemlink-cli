@@ -906,8 +906,8 @@ slcli migrate --migration-id &lt;migration-id&gt;</code></pre>
       <p>Users are created with their email as <code>niuaId</code>, matching the
         default Valinor identity-provider configuration. If an email is missing,
         the command prompts for one; leave it blank to skip that user. An
-        existing destination user with a matching email is reused without
-        changing their user record. Missing workspace auth-mappings are added
+        existing destination user with a matching email is reused regardless of
+        status, without changing their user record. Missing workspace auth-mappings are added
         using the built-in Collaborator template. This is baseline access and
         may be broader than the user's source permissions; review migrated
         users' roles in the Security app afterward.</p>

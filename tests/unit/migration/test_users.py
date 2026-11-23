@@ -1,7 +1,7 @@
 """Tests for migration user discovery and writes."""
 
 from types import SimpleNamespace
-from typing import List, Optional, Tuple
+from typing import Dict, List, Optional, Tuple
 from unittest.mock import MagicMock
 
 import click
@@ -51,8 +51,9 @@ def _mapping() -> WorkspaceMapping:
     )
 
 
-def test_user_query_follows_continuation_tokens() -> None:
-    """Every active user is returned across User Service pages."""
+@pytest.mark.parametrize("include_inactive", [False, True])
+def test_user_query_follows_continuation_tokens(include_inactive: bool) -> None:
+    """Source and destination queries return all requested users across pages."""
     first = MagicMock()
     first.json.return_value = {
         "users": [
@@ -78,15 +79,16 @@ def test_user_query_follows_continuation_tokens() -> None:
         write_session=MagicMock(),
     )
 
-    users = client.query_users()
+    users = client.query_users(include_inactive=include_inactive)
 
     assert [user.id for user in users] == ["user-1", "user-2"]
     assert users[0].first_name == "Alex"
-    assert session.post.call_args_list[0].kwargs["json"] == {
-        "filter": 'status = "active"',
-        "take": 100,
-    }
+    expected: Dict[str, object] = {"take": 100}
+    if not include_inactive:
+        expected["filter"] = 'status = "active"'
+    assert session.post.call_args_list[0].kwargs["json"] == expected
     assert session.post.call_args_list[1].kwargs["json"]["continuationToken"] == "next"
+    assert ("filter" in session.post.call_args_list[1].kwargs["json"]) is not include_inactive
 
 
 def test_policy_query_follows_offset_pages() -> None:
@@ -202,10 +204,12 @@ class _FakeClient:
         self.mappings = mappings or []
         self.template_id = template_id
         self.readonly = False
+        self.user_query_options: List[bool] = []
         self.created_users: List[Tuple[MigrationUser, str]] = []
         self.created_mappings: List[Tuple[str, str, str]] = []
 
-    def query_users(self) -> List[MigrationUser]:
+    def query_users(self, include_inactive: bool = False) -> List[MigrationUser]:
+        self.user_query_options.append(include_inactive)
         return self.users
 
     def query_policies(self) -> List[_Policy]:
@@ -260,6 +264,7 @@ def _run_migration(
     source: _FakeClient,
     destination: _FakeClient,
     selected_ids: List[str],
+    mapping: Optional[WorkspaceMapping] = None,
 ) -> int:
     source_connection = MigrationConnection("source", "https://source", {})
     destination_connection = MigrationConnection("destination", "https://destination", {})
@@ -277,7 +282,7 @@ def _run_migration(
         lambda *_args, **_kwargs: SimpleNamespace(ask=lambda: selected_ids),
     )
 
-    return migrate_users("source", "destination", _mapping())
+    return migrate_users("source", "destination", mapping if mapping is not None else _mapping())
 
 
 def test_existing_destination_user_is_reused_and_only_missing_mappings_added(
@@ -306,6 +311,8 @@ def test_existing_destination_user_is_reused_and_only_missing_mappings_added(
     migrated = _run_migration(monkeypatch, source, destination, ["source-user"])
 
     assert migrated == 1
+    assert source.user_query_options == [False]
+    assert destination.user_query_options == [True]
     assert destination.created_users == []
     assert destination.created_mappings == [
         ("destination-user", "destination-lab2", "collaborator-template")
@@ -327,6 +334,77 @@ def test_new_destination_user_gets_source_metadata_and_all_workspace_mappings(
         ("created-user", "destination-lab1", "collaborator-template"),
         ("created-user", "destination-lab2", "collaborator-template"),
     ]
+
+
+def test_pending_destination_user_is_reused(monkeypatch: pytest.MonkeyPatch) -> None:
+    """A pending email match must not be recreated or have its record changed."""
+    source = _FakeClient([_source_user()], _policies())
+    destination = _FakeClient(
+        [
+            MigrationUser.model_validate(
+                {
+                    "id": "pending-user",
+                    "type": "user",
+                    "email": "alex@example.com",
+                    "status": "pending",
+                }
+            )
+        ]
+    )
+
+    migrated = _run_migration(monkeypatch, source, destination, ["source-user"])
+
+    assert migrated == 1
+    assert destination.user_query_options == [True]
+    assert destination.created_users == []
+    assert destination.created_mappings == [
+        ("pending-user", "destination-lab1", "collaborator-template"),
+        ("pending-user", "destination-lab2", "collaborator-template"),
+    ]
+
+
+@pytest.mark.parametrize(
+    ("existing", "already_mapped"), [(False, False), (True, False), (True, True)]
+)
+def test_shared_destination_gets_only_one_user_mapping(
+    monkeypatch: pytest.MonkeyPatch, existing: bool, already_mapped: bool
+) -> None:
+    """Multiple source workspaces mapping to one destination produce one grant."""
+    source = _FakeClient([_source_user()], _policies())
+    destination = _FakeClient(
+        (
+            [MigrationUser(id="existing-user", type="user", email="alex@example.com")]
+            if existing
+            else []
+        ),
+        mappings=(
+            [
+                _AuthMapping(
+                    type="user-id",
+                    selector=_AuthMappingSelector(key="user-id", value="existing-user"),
+                    workspace="shared",
+                )
+            ]
+            if already_mapped
+            else []
+        ),
+    )
+    shared = _mapping().model_copy(
+        update={
+            "workspaces": tuple(
+                workspace.model_copy(update={"destination_id": "shared"})
+                for workspace in _mapping().workspaces
+            )
+        }
+    )
+    migrated = _run_migration(monkeypatch, source, destination, ["source-user"], mapping=shared)
+
+    assert migrated == 1
+    assert destination.created_mappings == (
+        []
+        if already_mapped
+        else [("existing-user" if existing else "created-user", "shared", "collaborator-template")]
+    )
 
 
 def test_blank_missing_email_skips_user_without_destination_queries(
