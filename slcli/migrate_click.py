@@ -120,7 +120,7 @@ def register_migrate_command(cli: click.Group) -> None:
         result_batch_size: Optional[int],
         prefect_api_url: Optional[str],
     ) -> None:
-        """Discover and migrate resources from a SystemLink Server.
+        """Migrate resources and workspace access from a SystemLink Server.
 
         Test results use mapped file IDs. Unresolved source IDs are omitted and
         recorded in the Migration.UnresolvedFileIds property. Results stay

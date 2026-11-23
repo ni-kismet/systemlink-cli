@@ -65,6 +65,7 @@
         <a href="#file" class="sidebar-link">file</a>
         <a href="#tag" class="sidebar-link">tag</a>
         <a href="#user" class="sidebar-link">user</a>
+        <a href="#migrate" class="sidebar-link">migrate</a>
         <a href="#config" class="sidebar-link">config</a>
         <a href="#auth" class="sidebar-link">auth</a>
         <a href="#workspace" class="sidebar-link">workspace</a>
@@ -105,6 +106,7 @@
         <div class="cmd-group"><h3>file</h3><p>File upload, download, query, watch</p><code>slcli file list</code></div>
         <div class="cmd-group"><h3>tag</h3><p>Tags: create, read, values, and value history</p><code>slcli tag list</code></div>
         <div class="cmd-group"><h3>user</h3><p>User &amp; service account management</p><code>slcli user list</code></div>
+        <div class="cmd-group"><h3>migrate</h3><p>Move selected SystemLink resources and workspace access between servers</p><code>slcli migrate</code></div>
         <div class="cmd-group"><h3>config</h3><p>Profiles, settings, and certificate trust inspection</p><code>slcli config trust show</code></div>
         <div class="cmd-group"><h3>auth</h3><p>Authorization policies &amp; templates</p><code>slcli auth policy list</code></div>
         <div class="cmd-group"><h3>workspace</h3><p>Workspace listing, info, disable</p><code>slcli workspace list</code></div>
@@ -887,6 +889,28 @@ slcli auth template delete &lt;template-id&gt;</code></pre>
     "description": "Read test results"
   }
 ]</code></pre>
+
+      <!-- ─── MIGRATE ─── -->
+      <h2 id="migrate">migrate</h2>
+      <p>Run a migration with explicit source and destination profiles. Workspace
+        synchronization completes before user access is reviewed and migrated.</p>
+      <pre><code>slcli migrate --source-profile sls --destination-profile valinor \
+  --workspace-mappings Lab1,Lab2:NewLab2
+slcli migrate --migration-id &lt;migration-id&gt;</code></pre>
+      <p>After workspace synchronization, the command lists active source users
+        with access to mapped workspaces. Users are selected by default; uncheck
+        anyone to exclude them. Memberships are inferred from explicit user-ID
+        auth-mappings and the user's policies from their most recent login, so
+        recent permission changes may not be reflected. The built-in Super User
+        policy is treated as membership in every migrated workspace.</p>
+      <p>Users are created with their email as <code>niuaId</code>, matching the
+        default Valinor identity-provider configuration. If an email is missing,
+        the command prompts for one; leave it blank to skip that user. An
+        existing destination user with a matching email is reused without
+        changing their user record. Missing workspace auth-mappings are added
+        using the built-in Collaborator template. This is baseline access and
+        may be broader than the user's source permissions; review migrated
+        users' roles in the Security app afterward.</p>
 
       <h3>User Integration</h3>
       <pre><code># Create user with workspace-scoped policies
