@@ -23,7 +23,7 @@ import tempfile
 import warnings
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Dict, Generator, Optional
+from typing import Dict, Generator, Literal, Optional, Tuple, cast, get_args
 
 import pytest
 
@@ -31,7 +31,8 @@ from slcli.migration import state
 from tests.replay.server import Deck, FakeServer, Upstream
 
 TAPES_DIR = Path(__file__).resolve().parent.parent / "e2e" / "tapes"
-MODES = ("live", "record", "replay")
+Mode = Literal["live", "record", "replay"]
+MODES: Tuple[str, ...] = get_args(Mode)
 
 
 @dataclass(frozen=True)
@@ -40,15 +41,15 @@ class Side:
 
     profile_env: str
     mode_env: str
-    default_mode: str
+    default_mode: Mode
     platform: str
 
-    def mode(self) -> str:
+    def mode(self) -> Mode:
         """Return the configured mode."""
         mode = os.getenv(self.mode_env, "").strip().lower() or self.default_mode
         if mode not in MODES:
             raise pytest.UsageError(f"{self.mode_env} must be one of {', '.join(MODES)}")
-        return mode
+        return cast(Mode, mode)
 
 
 SIDES: Dict[str, Side] = {
