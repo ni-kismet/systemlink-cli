@@ -3,6 +3,7 @@
 import json
 import socket
 import threading
+from concurrent.futures import ThreadPoolExecutor
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
 from typing import Any, Callable, Dict, Generator, List
@@ -12,6 +13,7 @@ import requests
 
 from slcli.migration.annotations import STARTED_AT
 from tests.replay.server import REPLAY_MISS_STATUS, Deck, FakeServer, Upstream
+from tests.replay.tape import Exchange, Tape
 
 # Unit tests stub requests.get/post; sessions still reach the local servers.
 http = requests.Session()
@@ -217,3 +219,75 @@ def test_recording_upstream_failure_is_reported_as_a_miss(tmp_path: Path) -> Non
     assert response.status_code == REPLAY_MISS_STATUS
     assert len(deck.misses) == 1 and "ConnectionError" in deck.misses[0]
     assert deck.tape.exchanges == []
+
+
+def test_missing_tape_misses_every_request_and_is_not_created(tmp_path: Path) -> None:
+    path = tmp_path / "missing.yaml"
+    deck = Deck(path)
+
+    calls = _serve(
+        deck,
+        lambda url: [http.get(f"{url}/svc/items"), http.post(f"{url}/svc/items", json={})],
+    )
+
+    assert [c.status_code for c in calls] == [REPLAY_MISS_STATUS, REPLAY_MISS_STATUS]
+    assert len(deck.misses) == 2
+    assert not path.exists()
+
+
+def test_replay_never_rewrites_its_tape(upstream: _Upstream, tmp_path: Path) -> None:
+    path = tmp_path / "t.yaml"
+    original = _record(upstream, path, lambda url: http.get(f"{url}/svc/items"))
+
+    _serve(Deck(path), lambda url: http.get(f"{url}/svc/other"))
+
+    assert path.read_text(encoding="utf-8") == original
+
+
+def test_recording_nothing_writes_no_tape(upstream: _Upstream, tmp_path: Path) -> None:
+    path = tmp_path / "t.yaml"
+
+    Deck(path, Upstream(upstream.url, requests.Session())).save()
+
+    assert not path.exists()
+
+
+def test_text_response_round_trips_with_base_url_replaced(tmp_path: Path) -> None:
+    path = tmp_path / "t.yaml"
+    exchange = Exchange.recorded(
+        "GET",
+        "/svc/readme",
+        b"",
+        200,
+        "text/plain; charset=utf-8",
+        b"See http://upstream/svc/item\nfor details.\n",
+        "http://upstream",
+    )
+    Tape([exchange]).save(path)
+
+    [loaded] = Tape.load(path).exchanges
+
+    assert loaded.response_body == "See {{base_url}}/svc/item\nfor details.\n"
+    assert loaded.response_bytes("http://fake") == b"See http://fake/svc/item\nfor details.\n"
+
+
+def test_concurrent_identical_requests_get_distinct_exchanges(
+    upstream: _Upstream, tmp_path: Path
+) -> None:
+    path = tmp_path / "t.yaml"
+    count = 8
+    _record(upstream, path, lambda url: [http.get(f"{url}/svc/items") for _ in range(count)])
+    deck = Deck(path)
+
+    def get_concurrently(url: str) -> List[requests.Response]:
+        def get(_: int) -> requests.Response:
+            with requests.Session() as session:
+                return session.get(f"{url}/svc/items")
+
+        with ThreadPoolExecutor(max_workers=count) as pool:
+            return list(pool.map(get, range(count)))
+
+    responses = _serve(deck, get_concurrently)
+
+    assert sorted(r.json()["call"] for r in responses) == list(range(1, count + 1))
+    assert deck.unserved() == [] and deck.misses == []
