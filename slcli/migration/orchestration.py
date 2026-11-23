@@ -117,7 +117,6 @@ def _execute_plan(
                 metadata.result_batch_size,
                 plan.discovery,
                 str(run.directory),
-                metadata.user_review_checkpoint,
             )
         except ValueError as exc:
             raise click.ClickException(str(exc)) from exc

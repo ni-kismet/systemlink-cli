@@ -59,7 +59,6 @@ def migrate_flow(
     result_batch_size: int,
     discovery: MigrationDiscovery,
     run_directory: str,
-    user_review_checkpoint: bool,
 ) -> MigrationOutcome:
     """Apply previously discovered resources to the destination.
 
@@ -75,7 +74,6 @@ def migrate_flow(
         result_batch_size: Results, with their steps, per migration task.
         discovery: Completed discovery results, including the planned file IDs.
         run_directory: Directory containing the migration's persistent state.
-        user_review_checkpoint: Whether this run supports saved user reviews.
 
     Raises:
         click.ClickException: If any file failed to transfer.
@@ -88,7 +86,6 @@ def migrate_flow(
         destination_profile,
         mapping,
         MigrationRun(migration_id, Path(run_directory)),
-        user_review_checkpoint,
     )
     files_future = transfer_files_task.submit(
         migration_id, source_profile, destination_profile, discovery.files, mapping

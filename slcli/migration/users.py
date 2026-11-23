@@ -476,17 +476,11 @@ def migrate_users(
     destination_profile: str,
     mapping: WorkspaceMapping,
     run: MigrationRun,
-    user_review_checkpoint: bool,
 ) -> int:
     """Review eligible source users and migrate their records and workspace access."""
     try:
         state = _load_user_state(run, mapping)
     except FileNotFoundError:
-        if not user_review_checkpoint:
-            raise click.ClickException(
-                "This migration predates saved user reviews; its original selections cannot "
-                "be recovered safely. Start a new migration and review its users."
-            )
         candidates: List[UserCandidate] = []
         if mapping.workspaces:
             source_client = UserMigrationClient(resolve_migration_connection(source_profile))

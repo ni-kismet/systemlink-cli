@@ -285,7 +285,7 @@ def _run_migration(
     )
 
     return migrate_users(
-        "source", "destination", mapping if mapping is not None else _mapping(), run, True
+        "source", "destination", mapping if mapping is not None else _mapping(), run
     )
 
 
@@ -621,12 +621,6 @@ def test_unreadable_or_mismatched_review_fails_closed(
     assert destination.created_users == []
 
 
-def test_legacy_run_without_saved_review_fails_closed(run: MigrationRun) -> None:
-    """A pre-checkpoint run cannot safely reconstruct the original selections."""
-    with pytest.raises(click.ClickException, match="original selections cannot be recovered"):
-        migrate_users("source", "destination", _mapping(), run, False)
-
-
 def test_review_save_failure_prevents_destination_writes(
     monkeypatch: pytest.MonkeyPatch, run: MigrationRun
 ) -> None:
@@ -813,9 +807,7 @@ def test_flow_reviews_users_after_workspace_synchronization(
         _TestMonitorTask(),
     )
 
-    outcome = migration_flow.fn(
-        "migration", "source", "destination", None, 10, 10, discovery, ".", True
-    )
+    outcome = migration_flow.fn("migration", "source", "destination", None, 10, 10, discovery, ".")
 
     assert events == ["workspaces", "users", "files", "test monitor"]
     assert outcome.test_monitor == migration
@@ -882,7 +874,6 @@ def test_flow_resume_after_resource_failure_keeps_user_review(
             10,
             discovery,
             str(run.directory),
-            True,
         )
 
     with pytest.raises(RuntimeError, match="resource failure"):

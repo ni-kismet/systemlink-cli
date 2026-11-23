@@ -64,7 +64,6 @@ class RunMetadata(VersionedModel):
     workspace_mappings: Optional[Dict[str, str]]
     product_batch_size: int = DEFAULT_PRODUCT_BATCH_SIZE
     result_batch_size: int = DEFAULT_RESULT_BATCH_SIZE
-    user_review_checkpoint: bool = False
     """Batch sizes define task cache identity, so a run keeps them for its lifetime."""
     created_at: datetime
 
@@ -184,7 +183,6 @@ def create_migration_run(
             workspace_mappings=workspace_mappings,
             product_batch_size=product_batch_size,
             result_batch_size=result_batch_size,
-            user_review_checkpoint=True,
             created_at=datetime.now(timezone.utc),
         )
     )
