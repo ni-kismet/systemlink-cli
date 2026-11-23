@@ -108,7 +108,12 @@ def replay_fakes() -> Generator[Fakes, None, None]:
     }
     profiles = _live_profiles()
     for name, faked in sides.items():
-        profiles[f"replay-{name}"] = {
+        profile_name = f"replay-{name}"
+        if profile_name in profiles:
+            raise pytest.UsageError(
+                f"Live profile {profile_name!r} conflicts with a generated replay profile."
+            )
+        profiles[profile_name] = {
             "server": faked.fake.base_url,
             "api-key": "replay",
             "credential-store": "file",
