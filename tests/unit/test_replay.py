@@ -1,6 +1,7 @@
 """Tests for the E2E record/replay fake."""
 
 import json
+import socket
 import threading
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
@@ -176,3 +177,25 @@ def test_generated_values_are_recorded_and_replayed_in_order(
     assert recorded == replayed == ["first", "second"]
     with pytest.raises(LookupError, match="migrationId"):
         replaying.generated("migrationId", lambda: "invented")
+
+
+def test_replay_handler_failure_is_reported_as_a_miss(tmp_path: Path) -> None:
+    deck = Deck(tmp_path / "missing.yaml")
+
+    response = _serve(deck, lambda url: http.post(f"{url}/svc/items", data=b"not json"))
+
+    assert response.status_code == REPLAY_MISS_STATUS
+    assert len(deck.misses) == 1 and "JSONDecodeError" in deck.misses[0]
+
+
+def test_recording_upstream_failure_is_reported_as_a_miss(tmp_path: Path) -> None:
+    with socket.socket() as closed:
+        closed.bind(("127.0.0.1", 0))
+        unreachable = f"http://127.0.0.1:{closed.getsockname()[1]}"
+    deck = Deck(tmp_path / "t.yaml", Upstream(unreachable, requests.Session()))
+
+    response = _serve(deck, lambda url: http.get(f"{url}/svc/items"))
+
+    assert response.status_code == REPLAY_MISS_STATUS
+    assert len(deck.misses) == 1 and "ConnectionError" in deck.misses[0]
+    assert deck.tape.exchanges == []

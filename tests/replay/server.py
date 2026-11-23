@@ -112,6 +112,11 @@ class Deck:
         """Return recorded exchanges that were never replayed."""
         return [e for e, done in zip(self.tape.exchanges, self.served) if not done]
 
+    def add_miss(self, description: str) -> None:
+        """Report a request the deck could not answer, so the test fails."""
+        with self._lock:
+            self.misses.append(description)
+
     def save(self) -> None:
         """Write the tape, when recording."""
         if self.recording and (self.tape.exchanges or self.tape.generated):
@@ -187,10 +192,11 @@ class FakeServer:
             def _serve(self) -> None:
                 length = int(self.headers.get("Content-Length") or 0)
                 body = self.rfile.read(length) if length else b""
+                deck = fake.deck
                 try:
-                    if fake.deck is None:
+                    if deck is None:
                         raise RuntimeError("No tape is loaded")
-                    status, content_type, payload = fake.deck.handle(
+                    status, content_type, payload = deck.handle(
                         self.command,
                         self.path,
                         body,
@@ -198,7 +204,10 @@ class FakeServer:
                         fake.base_url,
                     )
                 except Exception as exc:  # noqa: BLE001 - every failure must reach the client
-                    status, content_type, payload = miss(f"{type(exc).__name__}: {exc}")
+                    error = f"{type(exc).__name__}: {exc}"
+                    if deck is not None:
+                        deck.add_miss(f"{self.command} {self.path} failed: {error}")
+                    status, content_type, payload = miss(error)
                 self.send_response(status)
                 if content_type:
                     self.send_header("Content-Type", content_type)
