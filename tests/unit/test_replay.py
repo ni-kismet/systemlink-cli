@@ -39,7 +39,10 @@ class _Upstream:
                         "self": f"{upstream.url}/item",
                     }
                 ).encode()
-                self.send_response(201 if self.command == "POST" else 200)
+                status = 201 if self.command == "POST" else 200
+                if self.path.startswith("/status/"):
+                    status = int(self.path.rsplit("/", 1)[-1])
+                self.send_response(status)
                 self.send_header("Content-Type", "application/json")
                 self.send_header("Content-Length", str(len(body)))
                 self.end_headers()
@@ -113,6 +116,21 @@ def test_repeated_requests_replay_in_recorded_order(upstream: _Upstream, tmp_pat
 
     assert [c.status_code for c in calls] == [200, 200, REPLAY_MISS_STATUS]
     assert [c.json().get("call") for c in calls[:2]] == [1, 2]
+
+
+@pytest.mark.parametrize("status", [404, 500])
+def test_recorded_error_status_is_replayed_not_reported_as_a_miss(
+    upstream: _Upstream, tmp_path: Path, status: int
+) -> None:
+    path = tmp_path / "t.yaml"
+    _record(upstream, path, lambda url: http.get(f"{url}/status/{status}"))
+    deck = Deck(path)
+
+    response = _serve(deck, lambda url: http.get(f"{url}/status/{status}"))
+
+    assert response.status_code == status
+    assert response.json()["call"] == 1
+    assert deck.misses == []
 
 
 def test_timestamps_are_ignored_but_other_body_changes_miss(
