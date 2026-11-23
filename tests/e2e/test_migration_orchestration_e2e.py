@@ -456,6 +456,10 @@ def test_result_completion_follows_test_monitor_migration(
         return migration.results[0]
 
     monkeypatch.setattr(migrate_results_task, "fn", migrate_result_batch)
+    monkeypatch.setattr(
+        "slcli.migration.testmonitor.migration_task.resolve_migration_connection",
+        lambda profile: MigrationConnection(profile, f"https://{profile}", {}),
+    )
     monkeypatch.setattr("slcli.migration.testmonitor.migration_task.TestMonitorWriter", Writer)
     run = create_migration_run("source", "destination", {"Lab": "Destination"}, tmp_path)
 
