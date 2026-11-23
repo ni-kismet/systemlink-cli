@@ -20,6 +20,7 @@ from slcli.migration.users import (
     MigrationUser,
     UserMigrationClient,
     _AuthMapping,
+    _AuthMappingSelector,
     _Policy,
     discover_user_candidates,
     migrate_users,
@@ -145,8 +146,8 @@ def test_user_discovery_maps_template_policies_and_super_user() -> None:
     """Only mapped template workspaces and all Super User workspaces are eligible."""
     mapping = _mapping()
     users = [
-        MigrationUser(id="mapped", type="user", firstName="Alex", policies=["policy-1"]),
-        MigrationUser(id="super", type="user", firstName="Blair", policies=["super-user"]),
+        MigrationUser(id="mapped", type="user", first_name="Alex", policies=["policy-1"]),
+        MigrationUser(id="super", type="user", first_name="Blair", policies=["super-user"]),
         MigrationUser(id="out-of-scope", type="user", policies=["outside"]),
         MigrationUser(id="service", type="service", policies=["policy-1"]),
     ]
@@ -154,11 +155,11 @@ def test_user_discovery_maps_template_policies_and_super_user() -> None:
         _Policy(
             id="policy-1",
             name="Lab1 Contributor",
-            templateId="template",
+            template_id="template",
             workspace="source-lab1",
         ),
-        _Policy(id="outside", name="Outside", templateId="template", workspace="not-mapped"),
-        _Policy(id="super-user", name="Super User", builtIn=True),
+        _Policy(id="outside", name="Outside", template_id="template", workspace="not-mapped"),
+        _Policy(id="super-user", name="Super User", built_in=True),
     ]
 
     candidates = discover_user_candidates(users, policies, mapping)
@@ -174,10 +175,10 @@ def test_user_discovery_maps_template_policies_and_super_user() -> None:
 
 def test_user_discovery_includes_explicit_source_auth_mappings() -> None:
     """Direct user-ID workspace mappings grant membership without a policy snapshot."""
-    user = MigrationUser(id="direct", type="user", firstName="Casey")
+    user = MigrationUser(id="direct", type="user", first_name="Casey")
     auth_mapping = _AuthMapping(
         type="user-id",
-        selector={"key": "user-id", "value": "direct"},
+        selector=_AuthMappingSelector(key="user-id", value="direct"),
         workspace="source-lab2",
     )
 
@@ -228,8 +229,8 @@ def _source_user() -> MigrationUser:
     return MigrationUser(
         id="source-user",
         type="user",
-        firstName="Alex",
-        lastName="Johnson",
+        first_name="Alex",
+        last_name="Johnson",
         email="Alex@example.com",
         keywords=["operator"],
         properties={"department": "test"},
@@ -242,13 +243,13 @@ def _policies() -> List[_Policy]:
         _Policy(
             id="policy-1",
             name="Lab1",
-            templateId="source-template",
+            template_id="source-template",
             workspace="source-lab1",
         ),
         _Policy(
             id="policy-2",
             name="Lab2",
-            templateId="source-template",
+            template_id="source-template",
             workspace="source-lab2",
         ),
     ]
@@ -290,13 +291,13 @@ def test_existing_destination_user_is_reused_and_only_missing_mappings_added(
                 id="destination-user",
                 type="user",
                 email="alex@EXAMPLE.com",
-                firstName="Keep",
+                first_name="Keep",
             )
         ],
         mappings=[
             _AuthMapping(
                 type="user-id",
-                selector={"key": "user-id", "value": "destination-user"},
+                selector=_AuthMappingSelector(key="user-id", value="destination-user"),
                 workspace="destination-lab1",
             )
         ],
