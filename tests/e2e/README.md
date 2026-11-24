@@ -206,6 +206,8 @@ Select modes with `SLCLI_E2E_SOURCE_MODE` (default `replay`) and
 side's profile (`SLCLI_E2E_SOURCE_PROFILE`, `SLCLI_E2E_DESTINATION_PROFILE`);
 `replay` needs none. The default — replayed source, live destination — is the
 pre-submit configuration, so the retired SLS server is never needed.
+`test_migration_files_e2e.py` seeds unique files on the source, so it has no
+tape and skips unless the source is `live`.
 
 **1. Log in to both servers** (once; keys can expire):
 

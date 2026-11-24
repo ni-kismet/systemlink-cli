@@ -19,8 +19,17 @@ from tests.e2e.migration_endpoints import (
     resolve_endpoints,
 )
 from tests.e2e.workspaces import E2EWorkspace
+from tests.replay.pytest_plugin import SIDES
 
-pytestmark = [pytest.mark.e2e_migration, pytest.mark.file]
+# The test seeds a uniquely named file on the source, so it cannot be replayed.
+pytestmark = [
+    pytest.mark.e2e_migration,
+    pytest.mark.file,
+    pytest.mark.skipif(
+        SIDES["source"].mode() != "live",
+        reason="File migration E2E seeds unique source data and needs a live source",
+    ),
+]
 
 SOURCE_WORKSPACE = E2EWorkspace.FILES_SOURCE.value
 DESTINATION_WORKSPACE = E2EWorkspace.DESTINATION.value
