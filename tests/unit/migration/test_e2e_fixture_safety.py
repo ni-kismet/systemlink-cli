@@ -4,6 +4,7 @@ from typing import Any, Dict, List
 
 import pytest
 
+from slcli.migration.annotations import MIGRATION_ID
 from slcli.migration.connection import MigrationConnection
 from slcli.migration.testmonitor.client import Product, Result, ResultStatus
 from tests.e2e import testmonitor_fixture
@@ -126,7 +127,7 @@ def test_cleanup_selects_only_owned_resources() -> None:
         ["primary-id"],
     )
 
-    assert (plan.product_ids, plan.result_ids, plan.unowned_ids) == (
+    assert (plan.product_ids, plan.result_ids, plan.blockers) == (
         ["owned-product"],
         ["owned-result"],
         [],
@@ -134,13 +135,35 @@ def test_cleanup_selects_only_owned_resources() -> None:
 
 
 def test_cleanup_refuses_unowned_workspace_contents() -> None:
-    """Unowned results, or products exposing a managed workspace, block cleanup."""
-    plan = plan_cleanup(
-        [_product("foreign-product", workspace="primary-id", owned=False)],
-        [_result("foreign-result", owned=False)],
-        ["primary-id"],
+    """Report blocker types and annotation states without logging values or deleting."""
+    session = FakeSession(
+        {
+            "products": [
+                _product("owned-product").model_dump(by_alias=True),
+                _product("foreign-product", "primary-id", owned=False).model_dump(by_alias=True),
+            ]
+        },
+        {
+            "results": [
+                {
+                    **_result("foreign-result").model_dump(by_alias=True),
+                    "properties": {OWNER_PROPERTY: "another-fixture", MIGRATION_ID: "run-id"},
+                }
+            ]
+        },
+        {"results": []},
     )
 
+    with pytest.raises(RuntimeError, match="contain unowned Test Monitor resources") as exc:
+        _resources(session).clean()
+
+    message = str(exc.value)
+    assert "product foreign-product (slcli.e2e.owner: missing; Migration.Id: missing)" in message
+    assert "result foreign-result (slcli.e2e.owner: mismatched; Migration.Id: present)" in message
+    assert "owned-product" not in message
+    assert "another-fixture" not in message
+    assert "run-id" not in message
+    assert len(session.posted) == 3  # Product query and one result query per workspace.
     assert plan.unowned_ids == ["foreign-product", "foreign-result"]
 
 

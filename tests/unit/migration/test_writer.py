@@ -112,6 +112,16 @@ def test_writer_raises_http_errors() -> None:
     assert session.posts[0]["url"] == "https://dest/nitestmonitor/v2/update-results"
 
 
+def test_writer_can_replace_only_supplied_result_fields() -> None:
+    session = _FakeSession({"results": [{"id": "r1"}]})
+    writer = TestMonitorWriter(CONNECTION, session=session)
+    writer.update_results([{"id": "r1", "fileIds": ["actual"]}], replace=True)
+    assert session.posts[0]["json"] == {
+        "results": [{"id": "r1", "fileIds": ["actual"]}],
+        "replace": True,
+    }
+
+
 def test_partition_keeps_order() -> None:
     """Batches are stable and bounded."""
     assert partition([1, 2, 3, 4, 5], 2) == [[1, 2], [3, 4], [5]]

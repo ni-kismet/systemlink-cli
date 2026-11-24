@@ -17,7 +17,7 @@ from click.testing import CliRunner, Result
 from slcli import migrate_click
 from slcli.migrate_click import register_migrate_command
 from slcli.migration import command
-from slcli.migration.files.models import DiscoveredFile, FileDiscovery
+from slcli.migration.files.models import DiscoveredFile, FileDiscovery, FileTransfer
 from slcli.migration.flows.discover import MigrationDiscovery
 from slcli.migration.flows.migrate import MigrationOutcome
 from slcli.migration.state import STATE_DIR_ENV, MigrationRun, RunMetadata, create_migration_run
@@ -150,6 +150,7 @@ def fake_discovery(monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> FakeDisco
                 test_monitor=fake.test_monitor_outcome,
             ),
             test_monitor=fake.migration,
+            files=FileTransfer(),
         )
 
     monkeypatch.setattr(command, "prefect_server", prefect_server)
@@ -480,6 +481,7 @@ def test_destination_readonly_applies_to_workspace_creation(
             ),
             mapping=mapping,
             test_monitor=fake_discovery.migration,
+            files=FileTransfer(),
         )
 
     monkeypatch.setattr(command, "run_migration", run_migration)

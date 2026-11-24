@@ -7,6 +7,7 @@ from typing import Collection, Dict, List, Mapping, Optional
 
 import requests
 
+from slcli.migration.annotations import MIGRATION_ID
 from slcli.migration.connection import MigrationConnection
 from slcli.migration.testmonitor.client import (
     TEST_MONITOR_QUERY_PATHS,
@@ -17,6 +18,7 @@ from slcli.migration.testmonitor.client import (
 from tests.e2e.owned_resource_helpers import (
     MIGRATION_DISCOVERY_OWNER,
     OWNER_PROPERTY,
+    PropertyResource,
     owner_properties,
     split_owned_resource_ids,
 )
@@ -27,11 +29,20 @@ WORKSPACE_PROPAGATION_INTERVAL_SECONDS = 0.5
 
 @dataclass(frozen=True)
 class CleanupPlan:
-    """Resource IDs classified before any fixture cleanup occurs."""
+    """Deletion candidates and blockers classified before fixture cleanup."""
 
     product_ids: List[str]
     result_ids: List[str]
-    unowned_ids: List[str]
+    blockers: List[str]
+
+
+def _describe_blocker(kind: str, resource: PropertyResource) -> str:
+    owner_state = "missing" if resource.properties.get(OWNER_PROPERTY) is None else "mismatched"
+    migration_id_state = "present" if resource.properties.get(MIGRATION_ID) else "missing"
+    return (
+        f"{kind} {resource.id} "
+        f"({OWNER_PROPERTY}: {owner_state}; {MIGRATION_ID}: {migration_id_state})"
+    )
 
 
 def plan_cleanup(
@@ -44,14 +55,24 @@ def plan_cleanup(
     managed workspace are checked for foreign ownership.
     """
     owner = MIGRATION_DISCOVERY_OWNER
-    products_in_workspaces = [p for p in products if p.workspace in workspace_ids]
+    product_ids = split_owned_resource_ids(products, owner)
     result_ids = split_owned_resource_ids(results, owner)
+    unowned_products = set(product_ids.unowned)
+    unowned_results = set(result_ids.unowned)
     return CleanupPlan(
-        product_ids=split_owned_resource_ids(products, owner).owned,
+        product_ids=product_ids.owned,
         result_ids=result_ids.owned,
-        unowned_ids=[
-            *split_owned_resource_ids(products_in_workspaces, owner).unowned,
-            *result_ids.unowned,
+        blockers=[
+            *(
+                _describe_blocker("product", product)
+                for product in products
+                if product.workspace in workspace_ids and product.id in unowned_products
+            ),
+            *(
+                _describe_blocker("result", result)
+                for result in results
+                if result.id in unowned_results
+            ),
         ],
     )
 
@@ -94,10 +115,10 @@ class OwnedTestMonitorResources:
             for result in self._client.query_results("workspace == @0", [workspace_id])
         ]
         plan = plan_cleanup(products, results, self._workspaces.values())
-        if plan.unowned_ids:
+        if plan.blockers:
             raise RuntimeError(
                 f"Workspaces {sorted(self._workspaces)} contain unowned Test Monitor "
-                f"resources: {', '.join(sorted(plan.unowned_ids))}"
+                f"resources: {', '.join(sorted(plan.blockers))}"
             )
         if plan.result_ids:
             self._post("delete-results", {"ids": plan.result_ids, "deleteSteps": True})

@@ -122,7 +122,7 @@ def _discover(
     profile = seeded.connection.profile_name
     mappings = {name: name for name in workspaces} if workspaces is not None else None
     run = create_migration_run(profile, profile, mappings, state_root)
-    return run_discovery(run, profile, workspaces, prefect_api_url).test_monitor
+    return run_discovery(run, profile, profile, workspaces, prefect_api_url).test_monitor
 
 
 def _products(discovery: TestMonitorDiscovery, workspaces: AbstractSet[str]) -> Dict[str, str]:
