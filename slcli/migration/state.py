@@ -154,6 +154,11 @@ def _validate_created_migration_id(migration_id: str) -> None:
         raise ValueError(f"Migration ID '{migration_id}' is invalid")
 
 
+def new_migration_id() -> str:
+    """Return a new random migration ID; tests replace this for reproducible runs."""
+    return str(uuid.uuid4())
+
+
 def create_migration_run(
     source_profile: str,
     destination_profile: str,
@@ -165,7 +170,7 @@ def create_migration_run(
     """Create a new run directory, readable only by the current user."""
     root = root or get_migration_root()
     root.mkdir(mode=0o700, parents=True, exist_ok=True)
-    migration_id = str(uuid.uuid4())
+    migration_id = new_migration_id()
     run = MigrationRun(migration_id, root / migration_id)
     run.directory.mkdir(mode=0o700)
     run.results_path.mkdir()

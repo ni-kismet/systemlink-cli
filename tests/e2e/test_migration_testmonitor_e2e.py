@@ -15,7 +15,6 @@ conflicting   one with no steps                          same part number exists
 """
 
 import re
-import uuid
 from collections.abc import Generator
 from dataclasses import dataclass
 from pathlib import Path
@@ -34,10 +33,11 @@ from tests.e2e.migration_endpoints import (
     resolve_endpoints,
 )
 from tests.e2e.testmonitor_fixture import OwnedTestMonitorResources
+from tests.e2e.workspaces import E2EWorkspace
 
 # Shared with the other migration E2E modules: workspaces cannot be deleted on shared
 # servers, so tests reuse fixed names. Each module cleans the workspace before and after.
-SOURCE_WORKSPACE = "e2e-slcli-migration-source"
+SOURCE_WORKSPACE = E2EWorkspace.SOURCE.value
 
 pytestmark = [pytest.mark.e2e_migration, pytest.mark.testmonitor]
 
@@ -80,17 +80,17 @@ def _step(result_id: str, name: str, parent_id: str = "root") -> Dict[str, objec
 def seeded() -> Generator[Seeded, None, None]:
     """Seed the source, plant one conflicting destination product, and clean both after."""
     endpoints = resolve_endpoints()
-    source_workspace_id = get_or_create_workspace(endpoints.source, SOURCE_WORKSPACE)
+    source_workspace_id = get_or_create_workspace(endpoints.source, E2EWorkspace.SOURCE)
     source = OwnedTestMonitorResources(endpoints.source, {SOURCE_WORKSPACE: source_workspace_id})
     destination = OwnedTestMonitorResources(
         endpoints.destination,
         {endpoints.destination_workspace: endpoints.destination_workspace_id},
+        products_in_workspaces=True,
     )
     source.clean()
     destination.clean()
     try:
-        run_id = uuid.uuid4().hex[:12]
-        fresh, conflicting = (f"migration-e2e-{n}-{run_id}" for n in ("fresh", "conflicting"))
+        fresh, conflicting = (f"migration-e2e-{n}" for n in ("fresh", "conflicting"))
         fresh_id, conflicting_id = source.create_products(
             [{"name": part, "partNumber": part} for part in (fresh, conflicting)],
             SOURCE_WORKSPACE,

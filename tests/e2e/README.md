@@ -165,8 +165,10 @@ Tests that need a source skip unless `SLCLI_E2E_SOURCE_PROFILE` is set.
 Tests that need a destination also skip unless `SLCLI_E2E_DESTINATION_PROFILE`
 is set. Fixtures get or create the fixed `e2e-slcli-migration-destination`
 workspace and clear fixture-owned Test Monitor resources from it before,
-between, and after migration tests. Workspace names are constants because
-workspaces cannot be deleted on shared servers; do not make them unique per run.
+between, and after migration tests. Workspaces cannot be deleted on shared
+servers, so every name a test creates leaks permanently. Fixtures may only
+create the fixed names in `tests/e2e/workspaces.py` (`E2EWorkspace`); never make
+names unique per run.
 Fixtures only modify the dedicated `e2e-slcli-migration-*` workspaces, the
 destination workspace, and resources carrying the fixture ownership property.
 Cleanup refuses to run if a fixture or destination workspace holds Test Monitor
@@ -185,6 +187,95 @@ export SLCLI_E2E_SOURCE_PROFILE="sls-vm"
 export SLCLI_TEST_PREFECT_API_URL="http://127.0.0.1:4200/api"
 poetry run pytest tests/e2e/ -m e2e_migration --timeout=300 --no-cov
 ```
+
+#### Record and Replay Migration Tests
+
+Migration tests can run against HTTP tapes instead of real servers. A tape is a
+readable YAML dump of the real requests and responses from one test module, under
+`tests/e2e/tapes/<side>/<module>.yaml`. The source (SLS) and destination (SLE)
+sides each have their own mode:
+
+| Mode     | Behavior                                                  |
+| -------- | --------------------------------------------------------- |
+| `live`   | Talk to the real server for the side's profile.           |
+| `record` | Talk to the real server and rewrite the side's tapes.     |
+| `replay` | Serve the side's tapes from a local fake; no server.      |
+
+Select modes with `SLCLI_E2E_SOURCE_MODE` (default `replay`) and
+`SLCLI_E2E_DESTINATION_MODE` (default `live`). `live` and `record` need the
+side's profile (`SLCLI_E2E_SOURCE_PROFILE`, `SLCLI_E2E_DESTINATION_PROFILE`);
+`replay` needs none. The default — replayed source, live destination — is the
+pre-submit configuration, so the retired SLS server is never needed.
+`test_migration_files_e2e.py` seeds unique files on the source, so it has no
+tape and skips unless the source is `live`.
+
+**1. Log in to both servers** (once; keys can expire):
+
+```bash
+slcli login --profile sls-vm     # SystemLink Server (source)
+slcli login --profile default    # SystemLink Enterprise dev (destination)
+```
+
+**2. Record tapes for both sides:**
+
+```powershell
+# PowerShell
+$env:SLCLI_E2E_SOURCE_PROFILE = "sls-vm"; $env:SLCLI_E2E_SOURCE_MODE = "record"
+$env:SLCLI_E2E_DESTINATION_PROFILE = "default"; $env:SLCLI_E2E_DESTINATION_MODE = "record"
+poetry run pytest tests/e2e -m e2e_migration --timeout=300 --no-cov
+```
+
+```bash
+# bash
+SLCLI_E2E_SOURCE_PROFILE=sls-vm SLCLI_E2E_SOURCE_MODE=record \
+SLCLI_E2E_DESTINATION_PROFILE=default SLCLI_E2E_DESTINATION_MODE=record \
+poetry run pytest tests/e2e -m e2e_migration --timeout=300 --no-cov
+```
+
+A module's tapes are rewritten only if every test in it passed; a failed
+recording keeps the previous tape. Record a single side by setting only that
+side's mode to `record`.
+
+**3. Inspect the tapes.** Each exchange is a request line, an optional body,
+and the response. Server URLs are written as `{{base_url}}`; headers and
+credentials are never recorded. Generated values the product would randomize
+(migration IDs) are stored under `generated:` so replays are deterministic.
+Tapes may be edited by hand — for example, to duplicate exchanges into a larger
+case. Add a `note:` to an exchange explaining any hand edit.
+
+```yaml
+exchanges:
+- request: POST /nitestmonitor/v2/query-products
+  body: {filter: ..., take: 1000}
+  response:
+    status: 200
+    contentType: application/json
+    body: {products: [...], continuationToken: null}
+```
+
+**4. Replay everything with no servers** (clear the variables from step 2 first):
+
+```bash
+SLCLI_E2E_SOURCE_MODE=replay SLCLI_E2E_DESTINATION_MODE=replay \
+poetry run pytest tests/e2e -m e2e_migration --timeout=300 --no-cov
+```
+
+**5. Run the pre-submit configuration** (replayed source, live destination):
+
+```bash
+SLCLI_E2E_DESTINATION_PROFILE=default \
+poetry run pytest tests/e2e -m e2e_migration --timeout=300 --no-cov
+```
+
+**Debugging replays.** A request with no matching exchange gets HTTP 598, and
+the test fails with a "Replay misses" report listing the unmatched requests.
+Matching ignores query parameter order and masks migration timestamps. Re-record
+after changing which requests the product makes. To poke at a tape directly,
+serve it with `python -m tests.replay tests/e2e/tapes/source/<module>.yaml`.
+
+This repository is public: commit source (SLS) tapes only.
+`tests/e2e/tapes/destination/` is listed in `.gitignore`, so destination tapes
+stay local; record them yourself before replaying the destination.
 
 #### Manually Test Destination Workspace Creation
 
@@ -442,8 +533,9 @@ The GitHub Actions pipeline can run the E2E suite in four separate jobs:
 The CI jobs use `SLCLI_E2E_SLS_BASE_URL` for SLS and
 `https://test-api.lifecyclesolutions.ni.com` for SLE. Set the SLS URL to the
 new server reachable by GitHub-hosted runners and update the SLS API key secret
-for that server before running CI. The migration job uses the same SLS URL and
-API key but creates its own dedicated migration fixture workspaces.
+for that server before running CI. The migration job needs no SLS server: it
+replays the committed source tapes and runs the destination live against SLE
+with `SLCLI_E2E_SLE_API_KEY`, using the fixed migration fixture workspaces.
 
 ### Required GitHub Secrets
 
@@ -538,7 +630,6 @@ def test_notebook_create_and_delete_cycle(self, cli_runner, cli_helper):
 - `e2e_config` - Test configuration
 - `cli_runner` - Execute CLI commands
 - `cli_helper` - Common test operations
-- `temp_workspace` - Isolated test workspace
 - `temp_file` - Temporary file management
 
 ### Test Data Fixtures

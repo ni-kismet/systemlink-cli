@@ -8,8 +8,16 @@ import time
 import uuid
 from pathlib import Path
 from typing import Any, Dict, Generator, List, Optional
+from urllib.parse import urlsplit
 
 import pytest
+
+from tests.replay.pytest_plugin import (  # noqa: F401 - pytest discovers these by name
+    recorded_migration_ids,
+    replay_decks,
+    replay_fakes,
+    replay_misses,
+)
 
 _RATE_LIMIT_RETRIES = 3
 
@@ -400,24 +408,6 @@ def sls_test_notebook_path(sls_config: Dict[str, Any]) -> Optional[str]:
 
 
 @pytest.fixture
-def temp_workspace(cli_runner: Any) -> Generator[str, None, None]:
-    """Create a temporary workspace for testing."""
-    workspace_name = f"e2e-test-{uuid.uuid4().hex[:8]}"
-
-    # Create workspace
-    result = cli_runner(["workspace", "create", "--name", workspace_name])
-    assert result.returncode == 0
-
-    yield workspace_name
-
-    # Cleanup workspace
-    try:
-        cli_runner(["workspace", "delete", "--name", workspace_name], check=False)
-    except Exception:
-        pass  # Best effort cleanup
-
-
-@pytest.fixture
 def temp_file() -> Generator[str, None, None]:
     """Create a temporary file for testing."""
     with tempfile.NamedTemporaryFile(mode="w", delete=False, suffix=".json") as f:
@@ -611,8 +601,22 @@ def pytest_collection_modifyitems(config: Any, items: List[Any]) -> None:
 
     skip_sle = pytest.mark.skip(reason="requires SystemLink Enterprise")
     skip_sls = pytest.mark.skip(reason="requires SystemLink Server")
+    sls_config = resolved_config.get("sls")
+    sls_base_url = (
+        sls_config.get("base_url", "")
+        if isinstance(sls_config, dict)
+        else resolved_config.get("base_url", "")
+    )
+    skip_decommissioned_sls = (
+        active_platform == "sls"
+        and isinstance(sls_base_url, str)
+        and urlsplit(sls_base_url).hostname == "demo.systemlink.io"
+    )
+    skip_demo_sls = pytest.mark.skip(reason="demo.systemlink.io has been decommissioned")
 
     for item in items:
+        if skip_decommissioned_sls and item.get_closest_marker("e2e"):
+            item.add_marker(skip_demo_sls)
         if active_platform == "sle" and item.get_closest_marker("sls"):
             item.add_marker(skip_sls)
         if active_platform == "sls" and item.get_closest_marker("sle"):

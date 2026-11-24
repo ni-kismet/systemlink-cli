@@ -30,7 +30,7 @@ from slcli.migration.testmonitor.writer import ApiError, Record, WriteResponse
 from slcli.migration.workspaces import MappedWorkspace, WorkspaceMapping
 
 CONTEXT = MigrationContext(
-    migration_id="mig-1",
+    migration_id="00000000-0000-4000-8000-000000000001",
     source_hostname="source.example",
     mapping=WorkspaceMapping(
         workspaces=(
@@ -209,7 +209,7 @@ def test_products_are_copied_annotated_and_mapped() -> None:
     assert created["partNumber"] == "PN-1"
     assert "fileIds" not in created
     assert created["properties"]["custom"] == "kept"
-    assert created["properties"][MIGRATION_ID] == "mig-1"
+    assert created["properties"][MIGRATION_ID] == "00000000-0000-4000-8000-000000000001"
     assert created["properties"][SOURCE_HOSTNAME] == "source.example"
 
 
@@ -265,6 +265,21 @@ def test_product_request_error_fails_the_batch() -> None:
 
     with pytest.raises(requests.HTTPError):
         migrate_products(source, destination, CONTEXT, 0, [_product("p1")])
+
+
+def test_step_ids_are_derived_from_migration_and_result() -> None:
+    """Migrating the same steps again reproduces their destination step IDs."""
+
+    def step_ids() -> List[str]:
+        source = FakeSource({"results": [_source_result("r1")], "steps": [_step("s1", "r1")]})
+        destination = FakeDestination()
+        migrate_results(source, destination, CONTEXT, 0, [_result("r1")], {})
+        return [s["stepId"] for call in destination.step_calls for s in call]
+
+    first = step_ids()
+
+    assert first == step_ids()
+    assert first != ["s1"]
 
 
 def test_result_with_steps_waits_for_file_finalization() -> None:

@@ -14,15 +14,25 @@ from slcli.migration.files.models import DiscoveredFile, FileDiscovery
 from slcli.migration.files.transfer import MIGRATED_SOURCE_ID, split_into_batches, transfer_batch
 from slcli.migration.workspaces import MappedWorkspace, WorkspaceMapping
 from tests.e2e.migration_endpoints import (
-    DESTINATION_WORKSPACE,
     MigrationEndpoints,
     get_or_create_workspace,
     resolve_endpoints,
 )
+from tests.e2e.workspaces import E2EWorkspace
+from tests.replay.pytest_plugin import SIDES
 
-pytestmark = [pytest.mark.e2e_migration, pytest.mark.file]
+# The test seeds a uniquely named file on the source, so it cannot be replayed.
+pytestmark = [
+    pytest.mark.e2e_migration,
+    pytest.mark.file,
+    pytest.mark.skipif(
+        SIDES["source"].mode() != "live",
+        reason="File migration E2E seeds unique source data and needs a live source",
+    ),
+]
 
-SOURCE_WORKSPACE = "e2e-slcli-migration-files-source"
+SOURCE_WORKSPACE = E2EWorkspace.FILES_SOURCE.value
+DESTINATION_WORKSPACE = E2EWorkspace.DESTINATION.value
 OWNER_PROPERTY = "slcliMigrationFileTestOwner"
 
 
@@ -118,7 +128,7 @@ def _setup() -> TestContext:
     endpoints = resolve_endpoints()
     if endpoints.source.readonly or endpoints.destination.readonly:
         pytest.skip("File migration E2E requires writable source and destination profiles")
-    source_workspace = get_or_create_workspace(endpoints.source, SOURCE_WORKSPACE)
+    source_workspace = get_or_create_workspace(endpoints.source, E2EWorkspace.FILES_SOURCE)
     owner = uuid.uuid4().hex
     filename = f"slcli-migration-{owner}.bin"
     properties = {"Name": filename, OWNER_PROPERTY: owner, "Description": "Migration E2E"}

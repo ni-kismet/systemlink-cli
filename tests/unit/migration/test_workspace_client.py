@@ -62,6 +62,25 @@ def test_query_preserves_workspace_enabled_state(enabled: bool) -> None:
     assert workspaces == [Workspace(id="workspace-id", name="Lab", enabled=enabled)]
 
 
+def test_find_workspaces_queries_each_name_and_keeps_exact_matches() -> None:
+    """Destination lookups never list the tenant, and a fuzzy server match is ignored."""
+    session = MagicMock()
+    session.get.return_value.json.side_effect = [
+        {"workspaces": [{"id": "lab-id", "name": "Lab"}, {"id": "x", "name": "Lab 2"}]},
+        {"workspaces": []},
+    ]
+    connection = MagicMock()
+    connection.base_url = "https://destination.example.com"
+
+    found = list(WorkspaceClient(connection, session).find_workspaces(["Lab", "Other", "Lab"]))
+
+    assert found == [Workspace(id="lab-id", name="Lab")]
+    assert [call.kwargs["params"]["name"] for call in session.get.call_args_list] == [
+        "Lab",
+        "Other",
+    ]
+
+
 @pytest.mark.parametrize("operation", ["create", "query"])
 @pytest.mark.parametrize("status_code", [401, 403, 500, 503])
 def test_workspace_http_errors_propagate_before_parsing(

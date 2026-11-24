@@ -10,6 +10,7 @@ from slcli.migration.workspace_client import WorkspaceClient
 from slcli.migration.workspaces import (
     DiscoveredWorkspaces,
     WorkspaceMapping,
+    destination_names,
     discover_workspaces,
     synchronize_workspaces,
 )
@@ -63,9 +64,10 @@ def synchronize_workspaces_task(
         WorkspaceMappingError: If a mapped destination workspace is disabled.
     """
     destination_client = WorkspaceClient(resolve_migration_connection(destination_profile))
+    needed = destination_names(source_workspaces, workspace_mappings).values()
     return synchronize_workspaces(
         source_workspaces,
-        destination_client.query_workspaces(),
+        destination_client.find_workspaces(needed),
         destination_client.create_workspace,
         workspace_mappings,
     )

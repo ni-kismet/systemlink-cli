@@ -282,13 +282,15 @@ jobs:
     runs-on: ubuntu-latest
     needs: build-test-lint
     timeout-minutes: 45
-    # Runs share fixture workspaces on one server, so overlapping cleanup would race.
+    # The source (SLS) is replayed from committed tapes; the destination (SLE) is live.
+    # Runs share fixture workspaces on the destination, so overlapping cleanup would race.
     concurrency:
-      group: e2e-migration-sls
+      group: e2e-migration-sle
       cancel-in-progress: false
     env:
-      SLCLI_E2E_SLS_BASE_URL: ${{ vars.SLCLI_E2E_SLS_BASE_URL }}
-      SLCLI_E2E_SOURCE_PROFILE: migration-source
+      SLCLI_E2E_SOURCE_MODE: replay
+      SLCLI_E2E_DESTINATION_MODE: live
+      SLCLI_E2E_DESTINATION_PROFILE: migration-destination
       SLCLI_E2E_SLE_BASE_URL: https://test-api.lifecyclesolutions.ni.com
       SLCLI_E2E_SLE_WEB_URL: https://test.lifecyclesolutions.ni.com
       SLCLI_TEST_PREFECT_API_URL: http://127.0.0.1:4200/api
@@ -296,17 +298,13 @@ jobs:
       - name: Check migration E2E configuration
         id: migration-config
         env:
-          SLCLI_E2E_SLS_API_KEY: ${{ secrets.SLCLI_E2E_SLS_API_KEY }}
+          SLCLI_E2E_SLE_API_KEY: ${{ secrets.SLCLI_E2E_SLE_API_KEY }}
         run: |
-          if [ -n "$SLCLI_E2E_SLS_API_KEY" ]; then
-            if [ -z "$SLCLI_E2E_SLS_BASE_URL" ]; then
-              echo "::error::Set the SLCLI_E2E_SLS_BASE_URL repository variable."
-              exit 1
-            fi
+          if [ -n "$SLCLI_E2E_SLE_API_KEY" ]; then
             echo "enabled=true" >> "$GITHUB_OUTPUT"
           else
             echo "enabled=false" >> "$GITHUB_OUTPUT"
-            echo "Skipping migration E2E job because SLCLI_E2E_SLS_API_KEY is not configured."
+            echo "Skipping migration E2E job because SLCLI_E2E_SLE_API_KEY is not configured."
           fi
 
       - name: Checkout code
@@ -341,34 +339,18 @@ jobs:
           nohup poetry run prefect server start --host 127.0.0.1 --port 4200 \
             > "$RUNNER_TEMP/prefect-server.log" 2>&1 &
 
-      - name: Configure migration profiles
-        if: ${{ steps.migration-config.outputs.enabled == 'true' }}
-        env:
-          SLCLI_E2E_SLS_API_KEY: ${{ secrets.SLCLI_E2E_SLS_API_KEY }}
-        # Answer the optional default-workspace prompt with an empty line.
-        run: >-
-          echo "" | poetry run slcli config add
-          --profile "$SLCLI_E2E_SOURCE_PROFILE"
-          --url "$SLCLI_E2E_SLS_BASE_URL"
-          --web-url "$SLCLI_E2E_SLS_BASE_URL"
-          --api-key "$SLCLI_E2E_SLS_API_KEY"
-          --no-set-current
-
-      # Destination tests skip unless the SLE key is configured.
       - name: Configure migration destination profile
         if: ${{ steps.migration-config.outputs.enabled == 'true' }}
         env:
           SLCLI_E2E_SLE_API_KEY: ${{ secrets.SLCLI_E2E_SLE_API_KEY }}
-        run: |
-          if [ -n "$SLCLI_E2E_SLE_API_KEY" ]; then
-            echo "" | poetry run slcli config add \
-              --profile migration-destination \
-              --url "$SLCLI_E2E_SLE_BASE_URL" \
-              --web-url "$SLCLI_E2E_SLE_WEB_URL" \
-              --api-key "$SLCLI_E2E_SLE_API_KEY" \
-              --no-set-current
-            echo "SLCLI_E2E_DESTINATION_PROFILE=migration-destination" >> "$GITHUB_ENV"
-          fi
+        # Answer the optional default-workspace prompt with an empty line.
+        run: >-
+          echo "" | poetry run slcli config add
+          --profile "$SLCLI_E2E_DESTINATION_PROFILE"
+          --url "$SLCLI_E2E_SLE_BASE_URL"
+          --web-url "$SLCLI_E2E_SLE_WEB_URL"
+          --api-key "$SLCLI_E2E_SLE_API_KEY"
+          --no-set-current
 
       - name: Wait for Prefect server
         if: ${{ steps.migration-config.outputs.enabled == 'true' }}
