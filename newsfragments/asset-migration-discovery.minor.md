@@ -1,0 +1,1 @@
+Add foundational Asset Service discovery support for migrations.
